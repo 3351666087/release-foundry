@@ -2,6 +2,7 @@ package ashrclone
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -140,6 +141,36 @@ type ListWorkerJobsHTTPOptions struct {
 	JobType   string `json:"job_type,omitempty"`
 	Limit     int    `json:"limit,omitempty"`
 	AuthKeyID string `json:"auth_key_id,omitempty"`
+}
+
+type PaymentReconciliationReceiveOptions struct {
+	Provider        string `json:"provider"`
+	ProviderEventID string `json:"provider_event_id"`
+	EventType       string `json:"event_type,omitempty"`
+	PayloadSHA256   string `json:"payload_sha256"`
+	HeadersSHA256   string `json:"headers_sha256,omitempty"`
+	APIKeyID        string `json:"api_key_id,omitempty"`
+	RequestID       string `json:"request_id,omitempty"`
+}
+
+type PaymentReconciliationReadOptions struct {
+	Status    string `json:"status,omitempty"`
+	Limit     int    `json:"limit,omitempty"`
+	AuthKeyID string `json:"auth_key_id,omitempty"`
+}
+
+type PaymentDomainReadOptions struct {
+	MerchantID  string `json:"merchant_id"`
+	Provider    string `json:"provider,omitempty"`
+	Status      string `json:"status,omitempty"`
+	MatchStatus string `json:"match_status,omitempty"`
+	Limit       int    `json:"limit,omitempty"`
+	AuthKeyID   string `json:"auth_key_id,omitempty"`
+}
+
+type PaymentDomainReceiveOptions struct {
+	APIKeyID  string `json:"api_key_id,omitempty"`
+	RequestID string `json:"request_id,omitempty"`
 }
 
 func (client *Client) CreateAPIKey(ctx context.Context, tenantID, projectID string, options CreateAPIKeyOptions) (Envelope[JSONMap], error) {
@@ -293,6 +324,111 @@ func (client *Client) FailWorkerJobHTTP(ctx context.Context, tenantID, projectID
 func (client *Client) ListWorkerJobsHTTP(ctx context.Context, tenantID, projectID string, options ListWorkerJobsHTTPOptions) (Envelope[JSONMap], error) {
 	body := JSONMap{"tenant_id": tenantID, "status": options.Status, "job_type": options.JobType, "limit": options.Limit, "auth_key_id": options.AuthKeyID}
 	return client.hosted(ctx, http.MethodGet, projectPath(projectID, "worker-jobs"), "worker.job.list", body, IdempotencyOptions{AllowRetryWithoutIdempotency: true})
+}
+
+func (client *Client) ReceivePaymentReconciliationHTTP(ctx context.Context, tenantID, projectID string, options PaymentReconciliationReceiveOptions) (Envelope[JSONMap], error) {
+	body := JSONMap{"tenant_id": tenantID, "provider": options.Provider, "provider_event_id": options.ProviderEventID, "event_type": options.EventType, "payload_sha256": options.PayloadSHA256, "headers_sha256": options.HeadersSHA256, "api_key_id": options.APIKeyID, "request_id": options.RequestID}
+	return client.hosted(ctx, http.MethodPost, projectPath(projectID, "billing", "reconciliation", "events"), "payment.reconciliation.receive", body, IdempotencyOptions{AllowRetryWithoutIdempotency: true, RequestID: options.RequestID, APIKeyID: options.APIKeyID})
+}
+
+func (client *Client) ListPaymentReconciliationHTTP(ctx context.Context, tenantID, projectID string, options PaymentReconciliationReadOptions) (Envelope[JSONMap], error) {
+	body := JSONMap{"tenant_id": tenantID, "status": options.Status, "limit": options.Limit, "auth_key_id": options.AuthKeyID}
+	return client.hosted(ctx, http.MethodGet, projectPath(projectID, "billing", "reconciliation", "events"), "payment.reconciliation.list", body, IdempotencyOptions{AllowRetryWithoutIdempotency: true})
+}
+
+func (client *Client) GetPaymentReconciliationHTTP(ctx context.Context, tenantID, projectID, provider, providerEventID string, options PaymentReconciliationReadOptions) (Envelope[JSONMap], error) {
+	body := JSONMap{"tenant_id": tenantID, "auth_key_id": options.AuthKeyID}
+	return client.hosted(ctx, http.MethodGet, projectPath(projectID, "billing", "reconciliation", "events", provider, providerEventID), "payment.reconciliation.get", body, IdempotencyOptions{AllowRetryWithoutIdempotency: true})
+}
+
+func (client *Client) ListPaymentProvidersHTTP(ctx context.Context, tenantID, projectID string, options PaymentDomainReadOptions) (Envelope[JSONMap], error) {
+	body := JSONMap{"tenant_id": tenantID, "auth_key_id": options.AuthKeyID}
+	return client.hosted(ctx, http.MethodGet, projectPath(projectID, "billing", "payments", "providers"), "payment.provider.list", body, IdempotencyOptions{AllowRetryWithoutIdempotency: true})
+}
+
+func (client *Client) ReceivePaymentOrderHTTP(ctx context.Context, tenantID, projectID string, request PaymentOrderReceive, options PaymentDomainReceiveOptions) (Envelope[JSONMap], error) {
+	if err := rejectPaymentCardSecrets(request); err != nil {
+		return Envelope[JSONMap]{}, err
+	}
+	body := paymentHostedBody(tenantID, request)
+	body["api_key_id"], body["request_id"] = options.APIKeyID, options.RequestID
+	return client.hosted(ctx, http.MethodPost, projectPath(projectID, "billing", "payments", "orders"), "payment.order.receive", body, IdempotencyOptions{AllowRetryWithoutIdempotency: true, APIKeyID: options.APIKeyID, RequestID: options.RequestID})
+}
+
+func (client *Client) ListPaymentOrdersHTTP(ctx context.Context, tenantID, projectID string, options PaymentDomainReadOptions) (Envelope[JSONMap], error) {
+	return client.listPaymentDomainHTTP(ctx, tenantID, projectID, "orders", options)
+}
+
+func (client *Client) GetPaymentOrderHTTP(ctx context.Context, tenantID, projectID, provider, merchantOrderID string, options PaymentDomainReadOptions) (Envelope[JSONMap], error) {
+	return client.getPaymentDomainHTTP(ctx, tenantID, projectID, "orders", provider, merchantOrderID, options)
+}
+
+func (client *Client) ReceivePaymentRefundHTTP(ctx context.Context, tenantID, projectID string, request PaymentRefundReceive, options PaymentDomainReceiveOptions) (Envelope[JSONMap], error) {
+	if err := rejectPaymentCardSecrets(request); err != nil {
+		return Envelope[JSONMap]{}, err
+	}
+	body := paymentHostedBody(tenantID, request)
+	body["api_key_id"], body["request_id"] = options.APIKeyID, options.RequestID
+	return client.hosted(ctx, http.MethodPost, projectPath(projectID, "billing", "payments", "refunds"), "payment.refund.receive", body, IdempotencyOptions{AllowRetryWithoutIdempotency: true, APIKeyID: options.APIKeyID, RequestID: options.RequestID})
+}
+
+func (client *Client) ListPaymentRefundsHTTP(ctx context.Context, tenantID, projectID string, options PaymentDomainReadOptions) (Envelope[JSONMap], error) {
+	return client.listPaymentDomainHTTP(ctx, tenantID, projectID, "refunds", options)
+}
+
+func (client *Client) GetPaymentRefundHTTP(ctx context.Context, tenantID, projectID, provider, merchantRefundID string, options PaymentDomainReadOptions) (Envelope[JSONMap], error) {
+	return client.getPaymentDomainHTTP(ctx, tenantID, projectID, "refunds", provider, merchantRefundID, options)
+}
+
+func (client *Client) ReceivePaymentNotificationHTTP(ctx context.Context, tenantID, projectID string, request PaymentNotificationReceive, options PaymentDomainReceiveOptions) (Envelope[JSONMap], error) {
+	body := paymentHostedBody(tenantID, request)
+	body["api_key_id"], body["request_id"] = options.APIKeyID, options.RequestID
+	return client.hosted(ctx, http.MethodPost, projectPath(projectID, "billing", "payments", "notifications"), "payment.notification.receive", body, IdempotencyOptions{AllowRetryWithoutIdempotency: true, APIKeyID: options.APIKeyID, RequestID: options.RequestID})
+}
+
+func (client *Client) ListPaymentNotificationsHTTP(ctx context.Context, tenantID, projectID string, options PaymentDomainReadOptions) (Envelope[JSONMap], error) {
+	return client.listPaymentDomainHTTP(ctx, tenantID, projectID, "notifications", options)
+}
+
+func (client *Client) GetPaymentNotificationHTTP(ctx context.Context, tenantID, projectID, provider, eventID string, options PaymentDomainReadOptions) (Envelope[JSONMap], error) {
+	return client.getPaymentDomainHTTP(ctx, tenantID, projectID, "notifications", provider, eventID, options)
+}
+
+func (client *Client) ReceivePaymentBillEntryHTTP(ctx context.Context, tenantID, projectID string, request PaymentBillEntryReceive, options PaymentDomainReceiveOptions) (Envelope[JSONMap], error) {
+	body := paymentHostedBody(tenantID, request)
+	body["api_key_id"], body["request_id"] = options.APIKeyID, options.RequestID
+	return client.hosted(ctx, http.MethodPost, projectPath(projectID, "billing", "payments", "bills"), "payment.bill.receive", body, IdempotencyOptions{AllowRetryWithoutIdempotency: true, APIKeyID: options.APIKeyID, RequestID: options.RequestID})
+}
+
+func (client *Client) ListPaymentBillEntriesHTTP(ctx context.Context, tenantID, projectID string, options PaymentDomainReadOptions) (Envelope[JSONMap], error) {
+	return client.listPaymentDomainHTTP(ctx, tenantID, projectID, "bills", options)
+}
+
+func (client *Client) GetPaymentBillEntryHTTP(ctx context.Context, tenantID, projectID, provider, billEntryID string, options PaymentDomainReadOptions) (Envelope[JSONMap], error) {
+	return client.getPaymentDomainHTTP(ctx, tenantID, projectID, "bills", provider, billEntryID, options)
+}
+
+func (client *Client) listPaymentDomainHTTP(ctx context.Context, tenantID, projectID, resource string, options PaymentDomainReadOptions) (Envelope[JSONMap], error) {
+	body := JSONMap{"tenant_id": tenantID, "merchant_id": options.MerchantID, "provider": options.Provider, "status": options.Status, "match_status": options.MatchStatus, "limit": options.Limit, "auth_key_id": options.AuthKeyID}
+	return client.hosted(ctx, http.MethodGet, projectPath(projectID, "billing", "payments", resource), "payment."+resource+".list", body, IdempotencyOptions{AllowRetryWithoutIdempotency: true})
+}
+
+func (client *Client) getPaymentDomainHTTP(ctx context.Context, tenantID, projectID, resource, provider, id string, options PaymentDomainReadOptions) (Envelope[JSONMap], error) {
+	body := JSONMap{"tenant_id": tenantID, "merchant_id": options.MerchantID, "auth_key_id": options.AuthKeyID}
+	return client.hosted(ctx, http.MethodGet, projectPath(projectID, "billing", "payments", resource, provider, id), "payment."+resource+".get", body, IdempotencyOptions{AllowRetryWithoutIdempotency: true})
+}
+
+func paymentHostedBody(tenantID string, value any) JSONMap {
+	payload, err := json.Marshal(value)
+	if err != nil {
+		return JSONMap{"tenant_id": tenantID}
+	}
+	body := JSONMap{}
+	if err := json.Unmarshal(payload, &body); err != nil {
+		return JSONMap{"tenant_id": tenantID}
+	}
+	body["tenant_id"] = tenantID
+	return body
 }
 
 func (client *Client) hosted(ctx context.Context, method, path, operation string, request JSONMap, options IdempotencyOptions) (Envelope[JSONMap], error) {

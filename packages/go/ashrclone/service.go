@@ -425,18 +425,70 @@ func (service *MemoryService) CreateBillingPortalPlan(tenantID, projectID string
 }
 
 func (service *MemoryService) IngestBillingWebhook(tenantID, projectID string, event BillingWebhookIngest, options IdempotencyOptions) (Envelope[BillingWebhookIngest], error) {
+	event = normalizeBillingWebhookIngest(tenantID, projectID, event)
+	event.Failures = billingWebhookFailures(event)
+	event.Verified = false
+	event.Failures = appendBillingWebhookFailure(event.Failures, "provider_specific_verification_required")
+	if strings.TrimSpace(event.EventID) == "" {
+		event.EventID = "billing_evt_" + event.PayloadSHA256[:16]
+	}
+	event.ReceivedAt = time.Now().UTC()
+	if len(event.Failures) > 0 {
+		return rejectedBillingWebhookEnvelope(event), nil
+	}
+	request := JSONMap{
+		"tenant_id": tenantID, "project_id": projectID, "event": event,
+	}
 	service.mu.Lock()
 	defer service.mu.Unlock()
+	if options.Key != "" {
+		if replay, ok, err := service.idempotentReplayLocked("billing.webhook_ingest", tenantID, projectID, options.Key, request); err != nil || ok {
+			if err != nil {
+				return Envelope[BillingWebhookIngest]{}, err
+			}
+			response := replay.(Envelope[BillingWebhookIngest])
+			response.IdempotentReplay = true
+			return response, nil
+		}
+	}
 	if _, ok := service.projects[projectKey(tenantID, projectID)]; !ok {
 		return Envelope[BillingWebhookIngest]{}, NotFoundError{Resource: "project"}
 	}
+	if event.EventType == "" {
+		return Envelope[BillingWebhookIngest]{}, fmt.Errorf("billing webhook event_type is required")
+	}
+	service.billingEvents = append(service.billingEvents, event)
+	service.appendAuditEventLocked(tenantID, projectID, "billing.webhook_ingest", event.EventID, options.APIKeyID, options.Key, options.RequestID, JSONMap{"event_id": event.EventID, "event_type": event.EventType, "payload_sha256": event.PayloadSHA256, "raw_payload_included": false}, event.ReceivedAt)
+	response := Envelope[BillingWebhookIngest]{Operation: "billing.webhook_ingest", Status: "ok", Result: event}
+	service.storeIdempotencyLocked("billing.webhook_ingest", tenantID, projectID, options.Key, request, response)
+	return response, nil
+}
+
+func rejectedBillingWebhookEnvelope(event BillingWebhookIngest) Envelope[BillingWebhookIngest] {
+	event.Verified = false
+	event.RawPayloadIncluded = false
+	event.SecretValuePresent = false
+	return Envelope[BillingWebhookIngest]{
+		Operation: "billing.webhook_ingest",
+		Status:    "rejected",
+		Result:    event,
+	}
+}
+
+func appendBillingWebhookFailure(failures []JSONMap, reason string) []JSONMap {
+	for _, failure := range failures {
+		if failure["reason"] == reason {
+			return failures
+		}
+	}
+	return append(failures, JSONMap{"reason": reason})
+}
+
+func normalizeBillingWebhookIngest(tenantID, projectID string, event BillingWebhookIngest) BillingWebhookIngest {
 	event.TenantID = tenantID
 	event.ProjectID = projectID
 	event.SchemaVersion = ControlPlaneSchemaVersion
 	event.EventType = strings.TrimSpace(event.EventType)
-	if event.EventType == "" {
-		return Envelope[BillingWebhookIngest]{}, fmt.Errorf("billing webhook event_type is required")
-	}
 	event.Provider = normalizeBillingProvider(event.Provider)
 	event.Mode = normalizeBillingMode(event.Mode)
 	event.PlanID = normalizeBillingPlanID(event.PlanID)
@@ -446,20 +498,15 @@ func (service *MemoryService) IngestBillingWebhook(tenantID, projectID string, e
 	event.RawPayloadIncluded = false
 	event.SecretValuePresent = false
 	event.WebhookSecretRef = strings.TrimSpace(event.WebhookSecretRef)
-	payloadFingerprint := strings.ToLower(strings.TrimSpace(event.PayloadSHA256))
-	if payloadFingerprint == "" {
-		payloadFingerprint = mustFingerprint(JSONMap{"tenant_id": tenantID, "project_id": projectID, "event_type": event.EventType, "provider": event.Provider, "mode": event.Mode, "plan_id": event.PlanID, "customer_ref": event.CustomerRef, "status": event.Status, "metadata": event.Metadata})
+	event.PayloadSHA256 = strings.ToLower(strings.TrimSpace(event.PayloadSHA256))
+	if event.PayloadSHA256 == "" {
+		event.PayloadSHA256 = mustFingerprint(JSONMap{
+			"tenant_id": tenantID, "project_id": projectID, "event_type": event.EventType,
+			"provider": event.Provider, "mode": event.Mode, "plan_id": event.PlanID,
+			"customer_ref": event.CustomerRef, "status": event.Status, "metadata": event.Metadata,
+		})
 	}
-	event.PayloadSHA256 = payloadFingerprint
-	event.Failures = billingWebhookFailures(event)
-	event.Verified = len(event.Failures) == 0
-	if strings.TrimSpace(event.EventID) == "" {
-		event.EventID = "billing_evt_" + payloadFingerprint[:16]
-	}
-	event.ReceivedAt = time.Now().UTC()
-	service.billingEvents = append(service.billingEvents, event)
-	service.appendAuditEventLocked(tenantID, projectID, "billing.webhook_ingest", event.EventID, options.APIKeyID, options.Key, options.RequestID, JSONMap{"event_id": event.EventID, "event_type": event.EventType, "payload_sha256": event.PayloadSHA256, "raw_payload_included": false}, event.ReceivedAt)
-	return Envelope[BillingWebhookIngest]{Operation: "billing.webhook_ingest", Status: "ok", Result: event}, nil
+	return event
 }
 
 func (service *MemoryService) BillingLedger(tenantID, projectID string) (Envelope[BillingLedger], error) {
@@ -826,6 +873,9 @@ func (service *MemoryService) HeartbeatWorkerJob(tenantID, projectID, jobID, lea
 		return Envelope[WorkerJob]{}, err
 	}
 	leaseExpiresAt := now.Add(time.Duration(leaseSeconds) * time.Second)
+	if job.LeaseExpiresAt != nil && job.LeaseExpiresAt.After(leaseExpiresAt) {
+		leaseExpiresAt = *job.LeaseExpiresAt
+	}
 	job.LeaseExpiresAt = &leaseExpiresAt
 	job.UpdatedAt = now
 	service.workerJobs[job.JobID] = job
@@ -938,6 +988,10 @@ func (service *MemoryService) ListWorkerJobs(tenantID, projectID string, options
 func (service *MemoryService) idempotentReplay(operation, tenantID, projectID, key string, request any) (any, bool, error) {
 	service.mu.Lock()
 	defer service.mu.Unlock()
+	return service.idempotentReplayLocked(operation, tenantID, projectID, key, request)
+}
+
+func (service *MemoryService) idempotentReplayLocked(operation, tenantID, projectID, key string, request any) (any, bool, error) {
 	ledgerKey := idempotencyLedgerKey(operation, tenantID, projectID, key)
 	record, ok := service.idem[ledgerKey]
 	if !ok {
@@ -1491,12 +1545,7 @@ func (service *MemoryService) workerJobRecordLocked(tenantID, projectID, jobID s
 		return WorkerJob{}, NotFoundError{Resource: "worker job"}
 	}
 	if job.Status == WorkerJobStatusLeased && job.LeaseExpiresAt != nil && !job.LeaseExpiresAt.After(now) {
-		job.Status = WorkerJobStatusRetrying
-		job.LeaseOwnerID = ""
-		job.LeaseExpiresAt = nil
-		availableAt := now
-		job.AvailableAt = &availableAt
-		job.UpdatedAt = now
+		job = recoverExpiredWorkerLease(job, now)
 		service.workerJobs[job.JobID] = job
 	}
 	return job, nil
@@ -1507,14 +1556,33 @@ func (service *MemoryService) expireLeasesLocked(now time.Time) {
 		if job.Status != WorkerJobStatusLeased || job.LeaseExpiresAt == nil || job.LeaseExpiresAt.After(now) {
 			continue
 		}
-		job.Status = WorkerJobStatusRetrying
-		job.LeaseOwnerID = ""
-		job.LeaseExpiresAt = nil
-		availableAt := now
-		job.AvailableAt = &availableAt
-		job.UpdatedAt = now
-		service.workerJobs[jobID] = job
+		service.workerJobs[jobID] = recoverExpiredWorkerLease(job, now)
 	}
+}
+
+func recoverExpiredWorkerLease(job WorkerJob, now time.Time) WorkerJob {
+	now = now.UTC()
+	failure := JSONMap{"type": "worker_lease_expired", "message": "worker lease expired before completion"}
+	job.LastError = &WorkerJobError{
+		SHA256:             mustFingerprint(failure),
+		Type:               "worker_lease_expired",
+		Message:            "worker lease expired before completion",
+		RawPayloadIncluded: false,
+		FailedAt:           now,
+	}
+	job.LeaseOwnerID = ""
+	job.LeaseExpiresAt = nil
+	job.UpdatedAt = now
+	if job.Attempts >= job.MaxAttempts {
+		job.Status = WorkerJobStatusDeadLettered
+		job.AvailableAt = nil
+		job.DeadLetteredAt = &now
+		return job
+	}
+	job.Status = WorkerJobStatusRetrying
+	job.AvailableAt = &now
+	job.DeadLetteredAt = nil
+	return job
 }
 
 func workerJobAvailableForLease(job WorkerJob, now time.Time) bool {

@@ -35,7 +35,12 @@ func main() {
 		}()
 	}
 	log.Printf("ashr Go control plane listening on %s with backend %s", addr, selection.Name)
-	if err := http.ListenAndServe(addr, ashrclone.NewHTTPServerWithOptions(selection.Backend, ashrclone.HTTPServerOptions{BackendName: selection.Name, BackendReady: selection.Ready})); err != nil {
+	if err := http.ListenAndServe(addr, ashrclone.NewHTTPServerWithOptions(selection.Backend, ashrclone.HTTPServerOptions{
+		BackendName:           selection.Name,
+		BackendReady:          selection.Ready,
+		PaymentReconciliation: selection.PaymentReconciliation,
+		PaymentDomain:         selection.PaymentDomain,
+	})); err != nil {
 		log.Fatal(err)
 	}
 }

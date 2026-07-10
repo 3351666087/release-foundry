@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 from dataclasses import dataclass, field
@@ -120,6 +121,7 @@ class SaaSControlPlaneStore:
     worker_jobs: dict[str, JsonDict] = field(default_factory=dict)
     oauth_provider_configs: dict[str, JsonDict] = field(default_factory=dict)
     oauth_sessions: dict[str, JsonDict] = field(default_factory=dict)
+    oauth_authorization_flows: dict[str, JsonDict] = field(default_factory=dict)
     commercial_provider_configs: dict[str, JsonDict] = field(default_factory=dict)
     payment_mode_boundaries: dict[str, JsonDict] = field(default_factory=dict)
 
@@ -369,6 +371,128 @@ class SaaSControlPlaneService:
         self._append_audit(project["tenant_id"], project["project_id"], "oauth.provider.configure", target_id=config_id, api_key_id=auth_key_id, after=public)
         return {**public, "auth": auth}
 
+    def begin_oauth_authorization(
+        self,
+        tenant_id: str,
+        project_id: str,
+        *,
+        provider_config_id: str,
+        redirect_uri: str,
+        code_verifier: str,
+        state: str | None = None,
+        auth_key_id: str | None = None,
+    ) -> JsonDict:
+        project = self.cloud.get_project(tenant_id, project_id)
+        if auth_key_id is not None:
+            auth = self.authenticate_api_key(project["tenant_id"], project["project_id"], key_id=auth_key_id, scope=COMMERCIAL_CONFIG_WRITE_SCOPE, consume_rate=False)
+            self._consume_api_key_rate(self._api_key_record(project["tenant_id"], project["project_id"], auth_key_id), "oauth.authorization.begin")
+            linked_rate_limit = self._linked_rate_limit_snapshot(project["tenant_id"], project["project_id"], auth_key_id, "oauth.authorization.begin")
+        else:
+            auth = None
+            linked_rate_limit = None
+        config = self._oauth_provider_config_record(project["tenant_id"], project["project_id"], provider_config_id)
+        if redirect_uri not in config.get("redirect_uris", []):
+            raise ValidationError("oauth redirect_uri must match provider config")
+        challenge = _pkce_s256_challenge(code_verifier)
+        state_value = state or _new_id("oauthstate")
+        state_hash = _sha256_text(state_value)
+        now = _utc_now()
+        flow_id = _new_id("oauthflow")
+        record = {
+            "schema_version": CONTROL_PLANE_SCHEMA_VERSION,
+            "tenant_id": project["tenant_id"],
+            "project_id": project["project_id"],
+            "flow_id": flow_id,
+            "provider": config["provider"],
+            "provider_config_id": provider_config_id,
+            "redirect_uri": str(redirect_uri),
+            "state_hash_sha256": state_hash,
+            "code_challenge": challenge,
+            "code_challenge_method": "S256",
+            "status": "pending",
+            "secret_value_present": False,
+            "raw_code_present": False,
+            "raw_state_present": False,
+            "created_at": now,
+            "completed_at": None,
+            "created_by_api_key_id": auth_key_id,
+            "linked_rate_limit": linked_rate_limit,
+        }
+        self.store.oauth_authorization_flows[flow_id] = record
+        public = _public_oauth_authorization_flow(record)
+        self._append_audit(project["tenant_id"], project["project_id"], "oauth.authorization.begin", target_id=flow_id, api_key_id=auth_key_id, after=public)
+        return {**public, "state": state_value, "auth": auth}
+
+    def complete_oauth_authorization(
+        self,
+        tenant_id: str,
+        project_id: str,
+        *,
+        flow_id: str,
+        state: str,
+        code_verifier: str,
+        redirect_uri: str,
+        subject_ref: str,
+        provider_code_ref: str | None = None,
+        provider_error: str | None = None,
+        access_token_ref: str | None = None,
+        refresh_token_ref: str | None = None,
+        session_id: str | None = None,
+        auth_key_id: str | None = None,
+    ) -> JsonDict:
+        project = self.cloud.get_project(tenant_id, project_id)
+        if auth_key_id is not None:
+            auth = self.authenticate_api_key(project["tenant_id"], project["project_id"], key_id=auth_key_id, scope=COMMERCIAL_CONFIG_WRITE_SCOPE, consume_rate=False)
+            self._consume_api_key_rate(self._api_key_record(project["tenant_id"], project["project_id"], auth_key_id), "oauth.authorization.complete")
+            linked_rate_limit = self._linked_rate_limit_snapshot(project["tenant_id"], project["project_id"], auth_key_id, "oauth.authorization.complete")
+        else:
+            auth = None
+            linked_rate_limit = None
+        flow = self._oauth_authorization_flow_record(project["tenant_id"], project["project_id"], flow_id)
+        failures: list[str] = []
+        if flow.get("status") != "pending":
+            failures.append("oauth_state_replay")
+        if _sha256_text(state) != flow.get("state_hash_sha256"):
+            failures.append("oauth_state_mismatch")
+        if _pkce_s256_challenge(code_verifier) != flow.get("code_challenge"):
+            failures.append("pkce_verifier_mismatch")
+        if str(redirect_uri) != flow.get("redirect_uri"):
+            failures.append("redirect_uri_mismatch")
+        if provider_error:
+            failures.append("provider_error")
+        if provider_code_ref is not None:
+            _validate_secret_ref("provider_code_ref", provider_code_ref)
+        if failures:
+            before = _public_oauth_authorization_flow(flow)
+            flow["status"] = "failed" if flow.get("status") == "pending" else flow.get("status")
+            flow["failure_reasons"] = failures
+            flow["completed_at"] = _utc_now()
+            public = _public_oauth_authorization_flow(flow)
+            public["failure_reasons"] = failures
+            public["linked_rate_limit"] = linked_rate_limit or public.get("linked_rate_limit")
+            self._append_audit(project["tenant_id"], project["project_id"], "oauth.authorization.reject", target_id=str(flow_id), api_key_id=auth_key_id, before=before, after=public)
+            return {**public, "accepted": False, "auth": auth}
+        created = self.create_oauth_session(
+            project["tenant_id"],
+            project["project_id"],
+            provider=str(flow["provider"]),
+            subject_ref=subject_ref,
+            session_id=session_id,
+            provider_config_id=str(flow["provider_config_id"]),
+            access_token_ref=access_token_ref,
+            refresh_token_ref=refresh_token_ref,
+            auth_key_id=auth_key_id,
+        )
+        before = _public_oauth_authorization_flow(flow)
+        flow["status"] = "completed"
+        flow["completed_at"] = _utc_now()
+        flow["session_id"] = created["session_id"]
+        flow["provider_code_ref_sha256"] = _public_hash(provider_code_ref) if provider_code_ref else None
+        flow.pop("provider_code_ref", None)
+        public = _public_oauth_authorization_flow(flow)
+        public["linked_rate_limit"] = linked_rate_limit or public.get("linked_rate_limit")
+        self._append_audit(project["tenant_id"], project["project_id"], "oauth.authorization.complete", target_id=str(flow_id), api_key_id=auth_key_id, before=before, after=public)
+        return {**public, "accepted": True, "session": created, "auth": auth}
     def create_oauth_session(
         self,
         tenant_id: str,
@@ -380,6 +504,9 @@ class SaaSControlPlaneService:
         provider_config_id: str | None = None,
         access_token_ref: str | None = None,
         refresh_token_ref: str | None = None,
+        pkce_code_challenge: str | None = None,
+        pkce_code_challenge_method: str = "S256",
+        oauth_state: str | None = None,
         auth_key_id: str | None = None,
     ) -> JsonDict:
         project = self.cloud.get_project(tenant_id, project_id)
@@ -400,6 +527,20 @@ class SaaSControlPlaneService:
             _validate_secret_ref("access_token_ref", access_token_ref)
         if refresh_token_ref is not None:
             _validate_secret_ref("refresh_token_ref", refresh_token_ref)
+        pkce = _validate_pkce_s256(pkce_code_challenge, pkce_code_challenge_method)
+        state = _validate_oauth_state(oauth_state)
+        if state is not None:
+            state_hash = _public_hash(state)
+            for existing in self.store.oauth_sessions.values():
+                if (
+                    existing.get("tenant_id") == project["tenant_id"]
+                    and existing.get("project_id") == project["project_id"]
+                    and existing.get("provider") == normalized_provider
+                    and existing.get("oauth_state_sha256") == state_hash
+                ):
+                    raise ValidationError("oauth state replay detected")
+        else:
+            state_hash = None
         session_id = session_id or _new_id("oauthsess")
         now = _utc_now()
         record = {
@@ -412,6 +553,11 @@ class SaaSControlPlaneService:
             "subject_ref": str(subject_ref),
             "access_token_ref": access_token_ref,
             "refresh_token_ref": refresh_token_ref,
+            "pkce_code_challenge_sha256": pkce["code_challenge_sha256"] if pkce else None,
+            "pkce_code_challenge_method": pkce["code_challenge_method"] if pkce else None,
+            "pkce_required": True,
+            "oauth_state_sha256": state_hash,
+            "oauth_state_present": state_hash is not None,
             "status": "active",
             "secret_value_present": False,
             "created_at": now,
@@ -574,6 +720,7 @@ class SaaSControlPlaneService:
             "project_id": project_id,
             "oauth_provider_configs": [_public_oauth_provider_config(record) for record in self.store.oauth_provider_configs.values() if record.get("tenant_id") == str(tenant_id) and record.get("project_id") == str(project_id)],
             "oauth_sessions": [_public_oauth_session(record) for record in self.store.oauth_sessions.values() if record.get("tenant_id") == str(tenant_id) and record.get("project_id") == str(project_id)],
+            "oauth_authorization_flows": [_public_oauth_authorization_flow(record) for record in self.store.oauth_authorization_flows.values() if record.get("tenant_id") == str(tenant_id) and record.get("project_id") == str(project_id)],
             "commercial_provider_configs": [_public_commercial_provider_config(record) for record in self.store.commercial_provider_configs.values() if record.get("tenant_id") == str(tenant_id) and record.get("project_id") == str(project_id)],
             "payment_mode_boundaries": [_public_payment_mode_boundary(record) for record in self.store.payment_mode_boundaries.values() if record.get("tenant_id") == str(tenant_id) and record.get("project_id") == str(project_id)],
             "secret_value_present": False,
@@ -1258,6 +1405,12 @@ class SaaSControlPlaneService:
             raise NotFoundError("oauth session not found for project")
         return record
 
+    def _oauth_authorization_flow_record(self, tenant_id: str, project_id: str, flow_id: str) -> JsonDict:
+        record = self.store.oauth_authorization_flows.get(str(flow_id))
+        if not record or record.get("tenant_id") != str(tenant_id) or record.get("project_id") != str(project_id):
+            raise NotFoundError("oauth authorization flow not found for project")
+        return record
+
 
 def _normalize_scope(scope: str) -> str:
     parsed = str(scope).strip()
@@ -1469,6 +1622,29 @@ def _public_api_key(record: Mapping[str, Any]) -> JsonDict:
     }
 
 
+def _public_oauth_authorization_flow(record: Mapping[str, Any]) -> JsonDict:
+    return {
+        "schema_version": CONTROL_PLANE_SCHEMA_VERSION,
+        "tenant_id": record.get("tenant_id"),
+        "project_id": record.get("project_id"),
+        "flow_id": record.get("flow_id"),
+        "provider": record.get("provider"),
+        "provider_config_id": record.get("provider_config_id"),
+        "redirect_uri": record.get("redirect_uri"),
+        "state_hash_present": bool(record.get("state_hash_sha256")),
+        "code_challenge": record.get("code_challenge"),
+        "code_challenge_method": record.get("code_challenge_method"),
+        "status": record.get("status"),
+        "session_id": record.get("session_id"),
+        "provider_code_ref_present": bool(record.get("provider_code_ref_sha256")),
+        "secret_value_present": False,
+        "raw_code_present": False,
+        "raw_state_present": False,
+        "linked_rate_limit": _jsonable(record.get("linked_rate_limit")) if record.get("linked_rate_limit") else None,
+        "created_at": record.get("created_at"),
+        "completed_at": record.get("completed_at"),
+    }
+
 def _public_oauth_provider_config(record: Mapping[str, Any]) -> JsonDict:
     return {
         "schema_version": CONTROL_PLANE_SCHEMA_VERSION,
@@ -1498,8 +1674,13 @@ def _public_oauth_session(record: Mapping[str, Any]) -> JsonDict:
         "provider": record.get("provider"),
         "provider_config_id": record.get("provider_config_id"),
         "subject_ref": record.get("subject_ref"),
-        "access_token_ref": record.get("access_token_ref"),
-        "refresh_token_ref": record.get("refresh_token_ref"),
+        "access_token_ref_present": bool(record.get("access_token_ref")),
+        "refresh_token_ref_present": bool(record.get("refresh_token_ref")),
+        "pkce_code_challenge_sha256": record.get("pkce_code_challenge_sha256"),
+        "pkce_code_challenge_method": record.get("pkce_code_challenge_method"),
+        "pkce_required": bool(record.get("pkce_required", True)),
+        "oauth_state_sha256": record.get("oauth_state_sha256"),
+        "oauth_state_present": bool(record.get("oauth_state_present", False)),
         "status": record.get("status"),
         "secret_value_present": False,
         "created_by_api_key_id": record.get("created_by_api_key_id"),
@@ -1556,6 +1737,20 @@ def _public_payment_mode_boundary(record: Mapping[str, Any]) -> JsonDict:
     }
 
 
+def _pkce_s256_challenge(code_verifier: str) -> str:
+    verifier = str(code_verifier or "")
+    if len(verifier) < 43 or len(verifier) > 128:
+        raise ValidationError("pkce code_verifier must be 43-128 characters")
+    allowed = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
+    if any(char not in allowed for char in verifier):
+        raise ValidationError("pkce code_verifier must use unreserved URI characters")
+    digest = hashlib.sha256(verifier.encode("ascii")).digest()
+    return base64.urlsafe_b64encode(digest).decode("ascii").rstrip("=")
+
+
+def _sha256_text(value: str) -> str:
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()
+
 def _normalize_oauth_provider(provider: str) -> str:
     normalized = str(provider).strip().lower().replace("-", "_")
     if normalized not in {"github", "google"}:
@@ -1570,6 +1765,37 @@ def _validate_secret_ref(ref_name: str, value: str | None) -> None:
     if not str(value).startswith(SECRET_REF_PREFIXES):
         allowed = ", ".join(SECRET_REF_PREFIXES)
         raise ValidationError(f"{ref_name} must use a secret reference prefix: {allowed}")
+
+
+def _validate_pkce_s256(code_challenge: str | None, method: str | None) -> JsonDict | None:
+    if code_challenge is None:
+        return None
+    if str(method or "").upper() != "S256":
+        raise ValidationError("oauth PKCE code_challenge_method must be S256")
+    challenge = str(code_challenge)
+    _validate_public_ref("pkce_code_challenge", challenge)
+    if not 43 <= len(challenge) <= 128:
+        raise ValidationError("oauth PKCE code_challenge must be 43-128 characters")
+    allowed = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~")
+    if any(char not in allowed for char in challenge):
+        raise ValidationError("oauth PKCE code_challenge must use unreserved URI characters")
+    return {"code_challenge_method": "S256", "code_challenge_sha256": _public_hash(challenge)}
+
+
+def _validate_oauth_state(state: str | None) -> str | None:
+    if state is None:
+        return None
+    value = str(state)
+    _validate_public_ref("oauth_state", value)
+    if len(value) < 16:
+        raise ValidationError("oauth state must be at least 16 characters")
+    if len(value) > 512:
+        raise ValidationError("oauth state must be at most 512 characters")
+    return value
+
+
+def _public_hash(value: str) -> str:
+    return hashlib.sha256(str(value).encode("utf-8")).hexdigest()
 
 
 def _validate_public_ref(ref_name: str, value: str | None) -> None:
@@ -1916,9 +2142,13 @@ class SaaSControlPlaneRouter:
                     if method == "POST" and len(parts) == 6 and parts[4] == "oauth-providers" and parts[5] == "configure":
                         return {"status_code": 200, "body": self.service.configure_oauth_provider(tenant_id, project_id, provider=str(body.get("provider") or ""), client_id_ref=str(body.get("client_id_ref") or ""), client_secret_ref=str(body.get("client_secret_ref") or ""), redirect_uris=list(body.get("redirect_uris") or []), scopes=list(body.get("scopes") or []), config_id=body.get("config_id"), auth_key_id=auth_key_id)}
                     if method == "POST" and len(parts) == 6 and parts[4] == "oauth-sessions" and parts[5] == "create":
-                        return {"status_code": 201, "body": self.service.create_oauth_session(tenant_id, project_id, provider=str(body.get("provider") or ""), subject_ref=str(body.get("subject_ref") or ""), session_id=body.get("session_id"), provider_config_id=body.get("provider_config_id"), access_token_ref=body.get("access_token_ref"), refresh_token_ref=body.get("refresh_token_ref"), auth_key_id=auth_key_id)}
+                        return {"status_code": 201, "body": self.service.create_oauth_session(tenant_id, project_id, provider=str(body.get("provider") or ""), subject_ref=str(body.get("subject_ref") or ""), session_id=body.get("session_id"), provider_config_id=body.get("provider_config_id"), access_token_ref=body.get("access_token_ref"), refresh_token_ref=body.get("refresh_token_ref"), pkce_code_challenge=body.get("pkce_code_challenge"), pkce_code_challenge_method=str(body.get("pkce_code_challenge_method") or "S256"), oauth_state=body.get("oauth_state"), auth_key_id=auth_key_id)}
                     if method == "POST" and len(parts) == 7 and parts[4] == "oauth-sessions" and parts[6] == "revoke":
                         return {"status_code": 200, "body": self.service.revoke_oauth_session(tenant_id, project_id, parts[5], auth_key_id=auth_key_id)}
+                    if method == "POST" and len(parts) == 6 and parts[4] == "oauth-authorizations" and parts[5] == "begin":
+                        return {"status_code": 201, "body": self.service.begin_oauth_authorization(tenant_id, project_id, provider_config_id=str(body.get("provider_config_id") or ""), redirect_uri=str(body.get("redirect_uri") or ""), code_verifier=str(body.get("code_verifier") or ""), state=body.get("state"), auth_key_id=auth_key_id)}
+                    if method == "POST" and len(parts) == 7 and parts[4] == "oauth-authorizations" and parts[6] == "complete":
+                        return {"status_code": 200, "body": self.service.complete_oauth_authorization(tenant_id, project_id, flow_id=parts[5], state=str(body.get("state") or ""), code_verifier=str(body.get("code_verifier") or ""), redirect_uri=str(body.get("redirect_uri") or ""), subject_ref=str(body.get("subject_ref") or ""), provider_code_ref=body.get("provider_code_ref"), provider_error=body.get("provider_error"), access_token_ref=body.get("access_token_ref"), refresh_token_ref=body.get("refresh_token_ref"), session_id=body.get("session_id"), auth_key_id=auth_key_id)}
                     if method == "POST" and len(parts) == 6 and parts[4] == "providers" and parts[5] == "configure":
                         return {"status_code": 200, "body": self.service.configure_commercial_provider(tenant_id, project_id, provider=str(body.get("provider") or ""), purpose=str(body.get("purpose") or "payment"), mode=str(body.get("mode") or "test"), secret_ref=body.get("secret_ref"), webhook_secret_ref=body.get("webhook_secret_ref"), account_ref=body.get("account_ref"), live_mode_ack=bool(body.get("live_mode_ack", False)), allowed_payment_methods=list(body.get("allowed_payment_methods") or []), config_id=body.get("config_id"), auth_key_id=auth_key_id)}
                     if method == "POST" and len(parts) == 6 and parts[4] == "payments" and parts[5] == "mode-boundary":
@@ -1936,17 +2166,17 @@ class SaaSControlPlaneRouter:
                         self.service.require_api_key_scope(tenant_id, project_id, key_id=auth_key_id, scope=BILLING_WRITE_SCOPE, operation="billing.checkout_plan", request_id=body.get("request_id"), idempotency_key=body.get("idempotency_key"))
                         from .billing import build_checkout_session_plan
 
-                        provider_config = body.get("provider_config") if isinstance(body.get("provider_config"), Mapping) else {"provider": "stripe", "mode": "test", "secret_ref": "env:STRIPE_TEST_REF"}
+                        provider_config = body.get("provider_config") if isinstance(body.get("provider_config"), Mapping) else None
                         price = body.get("price") if isinstance(body.get("price"), Mapping) else {}
                         usage_rollup = body.get("usage_rollup") if isinstance(body.get("usage_rollup"), Mapping) else {}
                         metadata = body.get("metadata") if isinstance(body.get("metadata"), Mapping) else {}
-                        return {"status_code": 200, "body": build_checkout_session_plan(customer_ref=str(body.get("customer_ref") or ""), price=price, success_url=str(body.get("success_url") or ""), cancel_url=str(body.get("cancel_url") or ""), provider_config=provider_config, usage_rollup=usage_rollup, metadata=metadata, idempotency_key=body.get("idempotency_key"))}
+                        return {"status_code": 200, "body": build_checkout_session_plan(tenant_id=tenant_id, project_id=project_id, customer_ref=str(body.get("customer_ref") or ""), price=price, success_url=str(body.get("success_url") or ""), cancel_url=str(body.get("cancel_url") or ""), provider_config=provider_config, usage_rollup=usage_rollup, metadata=metadata, idempotency_key=body.get("idempotency_key"))}
                     if method == "POST" and len(parts) == 5 and parts[4] == "portal-plan":
                         self.service.require_api_key_scope(tenant_id, project_id, key_id=auth_key_id, scope=BILLING_WRITE_SCOPE, operation="billing.portal_plan", request_id=body.get("request_id"), idempotency_key=body.get("idempotency_key"))
                         from .billing import build_billing_portal_plan
 
-                        provider_config = body.get("provider_config") if isinstance(body.get("provider_config"), Mapping) else {"provider": "stripe", "mode": "test", "secret_ref": "env:STRIPE_TEST_REF"}
-                        return {"status_code": 200, "body": build_billing_portal_plan(customer_ref=str(body.get("customer_ref") or ""), return_url=str(body.get("return_url") or ""), provider_config=provider_config, idempotency_key=body.get("idempotency_key"))}
+                        provider_config = body.get("provider_config") if isinstance(body.get("provider_config"), Mapping) else None
+                        return {"status_code": 200, "body": build_billing_portal_plan(tenant_id=tenant_id, project_id=project_id, customer_ref=str(body.get("customer_ref") or ""), return_url=str(body.get("return_url") or ""), provider_config=provider_config, idempotency_key=body.get("idempotency_key"))}
                     if method == "POST" and len(parts) == 6 and parts[4] == "webhooks" and parts[5] == "ingest":
                         self.service.require_api_key_scope(tenant_id, project_id, key_id=auth_key_id, scope=BILLING_WEBHOOK_SCOPE, operation="billing.webhook_ingest", request_id=body.get("request_id"), idempotency_key=body.get("idempotency_key"))
                         envelope = verify_billing_webhook_envelope(
@@ -1962,6 +2192,8 @@ class SaaSControlPlaneRouter:
                             livemode=body.get("livemode"),
                         )
                         return {"status_code": 202, "body": envelope}
+                    if method == "POST" and len(parts) >= 6 and parts[4] == "reconciliation" and parts[-1] in {"verify", "apply", "fail"}:
+                        return {"status_code": 404, "body": {"schema_version": CONTROL_PLANE_SCHEMA_VERSION, "error": {"code": "not_found", "message": "worker-only reconciliation transition"}}}
                 if method == "POST" and len(parts) == 4 and parts[3] == "sdk-submit":
                     return {"status_code": 202, "body": self.service.sdk_submit_run(tenant_id, project_id, dataset_id=str(body.get("dataset_id") or ""), agent_ref=str(body.get("agent_ref") or ""), run_id=body.get("run_id"), metadata=body.get("metadata") if isinstance(body.get("metadata"), Mapping) else None, api_key_id=auth_key_id, idempotency_key=body.get("idempotency_key"), request_id=body.get("request_id"))}
                 if len(parts) >= 4 and parts[3] == "worker-jobs":
@@ -2092,6 +2324,7 @@ def snapshot_control_plane(service: SaaSControlPlaneService) -> JsonDict:
             "worker_jobs": _jsonable(service.store.worker_jobs),
             "oauth_provider_configs": _jsonable(service.store.oauth_provider_configs),
             "oauth_sessions": _jsonable(service.store.oauth_sessions),
+            "oauth_authorization_flows": _jsonable(service.store.oauth_authorization_flows),
             "commercial_provider_configs": _jsonable(service.store.commercial_provider_configs),
             "payment_mode_boundaries": _jsonable(service.store.payment_mode_boundaries),
         },
@@ -2131,6 +2364,7 @@ def control_plane_from_state(payload: Mapping[str, Any]) -> SaaSControlPlaneServ
         worker_jobs=dict(control_payload.get("worker_jobs") or {}),
         oauth_provider_configs=dict(control_payload.get("oauth_provider_configs") or {}),
         oauth_sessions=dict(control_payload.get("oauth_sessions") or {}),
+        oauth_authorization_flows=dict(control_payload.get("oauth_authorization_flows") or {}),
         commercial_provider_configs=dict(control_payload.get("commercial_provider_configs") or {}),
         payment_mode_boundaries=dict(control_payload.get("payment_mode_boundaries") or {}),
     )

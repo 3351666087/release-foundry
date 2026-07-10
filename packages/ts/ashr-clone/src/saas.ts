@@ -33,6 +33,7 @@ export const RUN_CREATE_SCOPE = "run:create";
 export const RUN_UPLOAD_SCOPE = "run:upload";
 export const TRACE_INGEST_SCOPE = "trace:ingest";
 export const ARTIFACT_MANIFEST_SCOPE = "artifact:upload";
+export const COMMERCIAL_CONFIG_WRITE_SCOPE = "commercial:write";
 export const ADMIN_ALL_SCOPE = "admin:all";
 export const USAGE_READ_SCOPE = "usage:read";
 export const AUDIT_READ_SCOPE = "audit:read";
@@ -84,6 +85,9 @@ export const HOSTED_ROUTE_SCOPE_REQUIREMENTS: Record<string, string[]> = {
   "POST /v1/projects/{project_id}/billing/checkout-plan": [BILLING_WRITE_SCOPE],
   "POST /v1/projects/{project_id}/billing/portal-plan": [BILLING_WRITE_SCOPE],
   "POST /v1/projects/{project_id}/billing/webhooks/ingest": [BILLING_WEBHOOK_SCOPE],
+  "POST /v1/projects/{project_id}/commercial-auth-payment/oauth-providers/configure": [COMMERCIAL_CONFIG_WRITE_SCOPE],
+  "POST /v1/projects/{project_id}/commercial-auth-payment/oauth-authorizations/begin": [COMMERCIAL_CONFIG_WRITE_SCOPE],
+  "POST /v1/projects/{project_id}/commercial-auth-payment/oauth-authorizations/{flow_id}/complete": [COMMERCIAL_CONFIG_WRITE_SCOPE],
   "POST /v1/projects/{project_id}/runs/{run_id}/artifact-manifests": [ARTIFACT_MANIFEST_SCOPE],
   "POST /v1/projects/{project_id}/runs/{run_id}/release-evidence/verify": ["evidence:read"],
   "POST /v1/projects/{project_id}/runs/{run_id}/release-gate": [AUDIT_READ_SCOPE],
@@ -139,6 +143,70 @@ export const UNSUPPORTED_GO_ROUTE_GAPS: Record<string, { reason: string; replace
     replacement_route: "POST /v1/projects/{project_id}/sdk-submit",
     consumer_action: "keep unsupported until run submit is either removed from Go or added to both hosted SDKs deliberately",
   },
+  "GET /v1/projects/{project_id}/billing/payments/bills": {
+    reason: "Go owns the Round47 China payment and reconciliation runtime; the TypeScript hosted SDK contract is not implemented yet.",
+    consumer_action: "keep the route explicit in parity evidence until the hosted SDK implements the provider-safe China payment contract",
+  },
+  "GET /v1/projects/{project_id}/billing/payments/bills/{provider}/{bill_entry_id}": {
+    reason: "Go owns the Round47 China payment and reconciliation runtime; the TypeScript hosted SDK contract is not implemented yet.",
+    consumer_action: "keep the route explicit in parity evidence until the hosted SDK implements the provider-safe China payment contract",
+  },
+  "GET /v1/projects/{project_id}/billing/payments/notifications": {
+    reason: "Go owns the Round47 China payment and reconciliation runtime; the TypeScript hosted SDK contract is not implemented yet.",
+    consumer_action: "keep the route explicit in parity evidence until the hosted SDK implements the provider-safe China payment contract",
+  },
+  "GET /v1/projects/{project_id}/billing/payments/notifications/{provider}/{event_id}": {
+    reason: "Go owns the Round47 China payment and reconciliation runtime; the TypeScript hosted SDK contract is not implemented yet.",
+    consumer_action: "keep the route explicit in parity evidence until the hosted SDK implements the provider-safe China payment contract",
+  },
+  "GET /v1/projects/{project_id}/billing/payments/orders": {
+    reason: "Go owns the Round47 China payment and reconciliation runtime; the TypeScript hosted SDK contract is not implemented yet.",
+    consumer_action: "keep the route explicit in parity evidence until the hosted SDK implements the provider-safe China payment contract",
+  },
+  "GET /v1/projects/{project_id}/billing/payments/orders/{provider}/{merchant_order_id}": {
+    reason: "Go owns the Round47 China payment and reconciliation runtime; the TypeScript hosted SDK contract is not implemented yet.",
+    consumer_action: "keep the route explicit in parity evidence until the hosted SDK implements the provider-safe China payment contract",
+  },
+  "GET /v1/projects/{project_id}/billing/payments/providers": {
+    reason: "Go owns the Round47 China payment and reconciliation runtime; the TypeScript hosted SDK contract is not implemented yet.",
+    consumer_action: "keep the route explicit in parity evidence until the hosted SDK implements the provider-safe China payment contract",
+  },
+  "GET /v1/projects/{project_id}/billing/payments/refunds": {
+    reason: "Go owns the Round47 China payment and reconciliation runtime; the TypeScript hosted SDK contract is not implemented yet.",
+    consumer_action: "keep the route explicit in parity evidence until the hosted SDK implements the provider-safe China payment contract",
+  },
+  "GET /v1/projects/{project_id}/billing/payments/refunds/{provider}/{merchant_refund_id}": {
+    reason: "Go owns the Round47 China payment and reconciliation runtime; the TypeScript hosted SDK contract is not implemented yet.",
+    consumer_action: "keep the route explicit in parity evidence until the hosted SDK implements the provider-safe China payment contract",
+  },
+  "GET /v1/projects/{project_id}/billing/reconciliation/events": {
+    reason: "Go owns the Round47 China payment and reconciliation runtime; the TypeScript hosted SDK contract is not implemented yet.",
+    consumer_action: "keep the route explicit in parity evidence until the hosted SDK implements the provider-safe China payment contract",
+  },
+  "GET /v1/projects/{project_id}/billing/reconciliation/events/{provider}/{event_id}": {
+    reason: "Go owns the Round47 China payment and reconciliation runtime; the TypeScript hosted SDK contract is not implemented yet.",
+    consumer_action: "keep the route explicit in parity evidence until the hosted SDK implements the provider-safe China payment contract",
+  },
+  "POST /v1/projects/{project_id}/billing/payments/bills": {
+    reason: "Go owns the Round47 China payment and reconciliation runtime; the TypeScript hosted SDK contract is not implemented yet.",
+    consumer_action: "keep the route explicit in parity evidence until the hosted SDK implements the provider-safe China payment contract",
+  },
+  "POST /v1/projects/{project_id}/billing/payments/notifications": {
+    reason: "Go owns the Round47 China payment and reconciliation runtime; the TypeScript hosted SDK contract is not implemented yet.",
+    consumer_action: "keep the route explicit in parity evidence until the hosted SDK implements the provider-safe China payment contract",
+  },
+  "POST /v1/projects/{project_id}/billing/payments/orders": {
+    reason: "Go owns the Round47 China payment and reconciliation runtime; the TypeScript hosted SDK contract is not implemented yet.",
+    consumer_action: "keep the route explicit in parity evidence until the hosted SDK implements the provider-safe China payment contract",
+  },
+  "POST /v1/projects/{project_id}/billing/payments/refunds": {
+    reason: "Go owns the Round47 China payment and reconciliation runtime; the TypeScript hosted SDK contract is not implemented yet.",
+    consumer_action: "keep the route explicit in parity evidence until the hosted SDK implements the provider-safe China payment contract",
+  },
+  "POST /v1/projects/{project_id}/billing/reconciliation/events": {
+    reason: "Go owns the Round47 China payment and reconciliation runtime; the TypeScript hosted SDK contract is not implemented yet.",
+    consumer_action: "keep the route explicit in parity evidence until the hosted SDK implements the provider-safe China payment contract",
+  },
 };
 
 export interface SaaSControlPlaneStore {
@@ -152,6 +220,9 @@ export interface SaaSControlPlaneStore {
   idempotency_keys: Record<string, JsonRecord>;
   artifact_manifests: Record<string, JsonRecord>;
   worker_jobs: Record<string, JsonRecord>;
+  oauth_provider_configs: Record<string, JsonRecord>;
+  oauth_authorization_flows: Record<string, JsonRecord>;
+  oauth_sessions: Record<string, JsonRecord>;
 }
 
 export interface SaaSControlPlaneState extends JsonRecord {
@@ -197,6 +268,9 @@ export type SaaSClientOperation =
   | "release_evidence_verify"
   | "artifact_manifest"
   | "artifact_manifests"
+  | "configure_oauth_provider"
+  | "oauth_authorization_begin"
+  | "oauth_authorization_complete"
   | "worker_job_enqueue"
   | "worker_job_lease"
   | "worker_job_heartbeat"
@@ -204,10 +278,10 @@ export type SaaSClientOperation =
   | "worker_job_fail"
   | "worker_jobs";
 
-export interface SaaSClientEnvelope<T extends JsonRecord = JsonRecord> extends JsonRecord {
+export interface SaaSClientEnvelope<T extends JsonRecord = JsonRecord, O extends SaaSClientOperation = SaaSClientOperation> extends JsonRecord {
   schema_version: typeof CONTROL_PLANE_SCHEMA_VERSION;
   client_version: typeof SAAS_CLIENT_VERSION;
-  operation: SaaSClientOperation | string;
+  operation: O;
   result: T;
 }
 
@@ -224,6 +298,31 @@ export interface SaaSMediaEnvelope extends JsonRecord {
 export interface SaaSSdkSubmitResult extends JsonRecord { submission: JsonRecord; run: JsonRecord; }
 export interface SaaSUploadRunResult extends JsonRecord { upload_id: string; payload_sha256: string; payload_keys: string[]; raw_payload_included: false; }
 export interface SaaSTraceIngestResult extends JsonRecord { batch_id: string; observation_count: number; observation_ids: string[]; raw_payload_included: false; }
+export interface SaaSApiKeyRecord extends JsonRecord { tenant_id: string; project_id: string; key_id: string; name: string; prefix: string; secret_hash_present: boolean; secret_value_present: boolean; status: string; scopes: string[]; }
+export interface SaaSApiKeyCreateResult extends SaaSApiKeyRecord { one_time_secret?: string; one_time_secret_displayed: boolean; }
+export interface SaaSApiKeyListResult extends JsonRecord { api_keys: SaaSApiKeyRecord[]; }
+export interface SaaSApiKeyVerificationResult extends JsonRecord { tenant_id: string; project_id: string; key_id: string; verified?: boolean; authenticated?: boolean; secret_value_present: false; api_key: SaaSApiKeyRecord; }
+export interface SaaSApiKeyRateLimit extends JsonRecord { tenant_id: string; project_id: string; key_id: string; operation: string; period: string; limit: number; used: number; remaining: number; }
+export interface SaaSApiKeyRateLimitSnapshot extends JsonRecord { tenant_id: string; project_id: string; key_id: string | null; rate_limits: SaaSApiKeyRateLimit[]; }
+export interface SaaSQuotaSnapshotResult extends JsonRecord { tenant_id: string; project_id: string; events: JsonRecord[]; totals: Record<string, number>; quota: JsonRecord; }
+export interface SaaSArtifactManifestResult extends JsonRecord { artifact_id: string; tenant_id: string; project_id: string; run_id: string; manifest_schema_version: string; manifest_keys: string[]; manifest_sha256: string; raw_manifest_included: false; }
+export interface SaaSArtifactManifestListResult extends JsonRecord { artifact_manifests: SaaSArtifactManifestResult[]; }
+export interface SaaSBillingCheckoutPlan extends JsonRecord { plan_type: "checkout_session"; plan_id: string; provider: string; mode: string; tenant_id: string; project_id: string; customer_ref: string; provider_request: JsonRecord; side_effects: { provider_called: false; checkout_or_portal_called: false; real_charge_possible: false }; }
+export interface SaaSBillingPortalPlan extends JsonRecord { plan_type: "billing_portal"; plan_id: string; provider: "stripe"; mode: string; tenant_id: string; project_id: string; customer_ref: string; return_url: string; provider_request: JsonRecord; side_effects: { provider_called: false; checkout_or_portal_called: false; real_charge_possible: false }; }
+export interface SaaSBillingWebhookEnvelope extends JsonRecord { plan_type: "webhook_envelope_verification"; provider: string; mode: string; tenant_id: string; project_id: string; event_type: string; event_id: string; payload_sha256: string; signature_header_present: boolean; verified: boolean; failures: Array<{ reason: string }>; raw_payload_included: false; secret_value_present: false; }
+export interface SaaSBillingWebhookIngestResult extends JsonRecord { provider_event_key: string; provider: string; mode: string; tenant_id: string; project_id: string; event_id: string; event_type: string; payload_sha256: string; ledger_event_id?: string; ledger_event_type?: string; ingest_status: "accepted" | "duplicate" | "conflict"; ledger_mutation_count: number; raw_payload_included: false; secret_value_present: false; }
+export interface SaaSOAuthProviderConfig extends JsonRecord { tenant_id: string; project_id: string; provider: "github" | "google"; config_id: string; client_id_ref: string; client_secret_ref: string; redirect_uris: string[]; scopes: string[]; enabled: boolean; secret_value_present: false; }
+export type SaaSOAuthAuthorizationStatus = "pending" | "failed" | "completed";
+export interface SaaSOAuthAuthorizationFlow extends JsonRecord { tenant_id: string; project_id: string; flow_id: string; provider: string; provider_config_id: string; redirect_uri: string; state_hash_present: boolean; code_challenge: string; code_challenge_method: "S256"; status: SaaSOAuthAuthorizationStatus; session_id: string | null; provider_code_ref_present: boolean; failure_reasons: string[]; secret_value_present: false; raw_code_present: false; raw_state_present: false; }
+export interface SaaSOAuthAuthorizationBeginResult extends SaaSOAuthAuthorizationFlow { state: string; }
+export interface SaaSOAuthSession extends JsonRecord { tenant_id: string; project_id: string; session_id: string; provider: "github" | "google"; provider_config_id: string; subject_ref: string; access_token_ref_present: boolean; refresh_token_ref_present: boolean; status: "active"; secret_value_present: false; }
+export interface SaaSOAuthAuthorizationCompleteResult extends SaaSOAuthAuthorizationFlow { accepted: boolean; session?: SaaSOAuthSession; }
+export interface SaaSOAuthProviderConfigureOptions { provider: string; clientIdRef: string; clientSecretRef: string; redirectUris: string[]; scopes: string[]; configId?: string; authKeyId?: string; }
+export interface SaaSOAuthAuthorizationBeginOptions { providerConfigId: string; redirectUri: string; codeVerifier: string; state?: string; authKeyId?: string; }
+export interface SaaSOAuthAuthorizationCompleteOptions { flowId: string; state: string; codeVerifier: string; redirectUri: string; subjectRef: string; providerCodeRef?: string; providerError?: string; accessTokenRef?: string; refreshTokenRef?: string; sessionId?: string; authKeyId?: string; }
+export interface SaaSBillingCheckoutOptions extends SaaSClientOptions { customerRef: string; price: JsonRecord; successUrl: string; cancelUrl: string; providerConfig?: JsonRecord; usageRollup?: JsonRecord; metadata?: JsonRecord; idempotencyKey?: string; authKeyId?: string; }
+export interface SaaSBillingPortalOptions extends SaaSClientOptions { customerRef: string; returnUrl: string; providerConfig?: JsonRecord; idempotencyKey?: string; authKeyId?: string; }
+export interface SaaSBillingWebhookOptions extends SaaSClientOptions { provider: string; mode: string; eventType: string; eventId: string; payloadSha256: string; signatureHeaderPresent: boolean; webhookSecretRef?: string; livemode?: boolean; customerRef?: string; amountMinor?: number; currency?: string; invoiceRef?: string; usageUnits?: number; metadata?: JsonRecord; authKeyId?: string; }
 
 export type SaaSFetchLike = (input: string | URL, init?: {
   method?: string;
@@ -288,6 +387,9 @@ export function createSaaSControlPlaneStore(seed: Partial<SaaSControlPlaneStore>
     idempotency_keys: { ...(seed.idempotency_keys ?? {}) },
     artifact_manifests: { ...(seed.artifact_manifests ?? {}) },
     worker_jobs: { ...(seed.worker_jobs ?? {}) },
+    oauth_provider_configs: { ...(seed.oauth_provider_configs ?? {}) },
+    oauth_authorization_flows: { ...(seed.oauth_authorization_flows ?? {}) },
+    oauth_sessions: { ...(seed.oauth_sessions ?? {}) },
   };
 }
 
@@ -501,6 +603,138 @@ export class SaaSControlPlaneService {
       key_id: options.keyId ?? null,
       rate_limits: cloneJson(buckets),
     };
+  }
+
+  configureOauthProvider(tenantId: string, projectId: string, options: SaaSOAuthProviderConfigureOptions): SaaSOAuthProviderConfig {
+    const project = this.cloud.getProject(tenantId, projectId);
+    if (options.authKeyId !== undefined) {
+      this.authenticateApiKey(tenantId, projectId, { keyId: options.authKeyId, scope: COMMERCIAL_CONFIG_WRITE_SCOPE, consumeRate: false });
+      this.consumeApiKeyRate(this.apiKeyRecord(tenantId, projectId, options.authKeyId), "oauth.provider.configure");
+    }
+    const provider = normalizeOauthProvider(options.provider);
+    if (options.redirectUris.length === 0) throw new ValidationError("oauth redirect_uris must not be empty");
+    if (options.scopes.length === 0) throw new ValidationError("oauth scopes must not be empty");
+    for (const uri of options.redirectUris) {
+      if (!uri.startsWith("https://") && !uri.startsWith("http://localhost")) throw new ValidationError("oauth redirect_uri must be https or localhost");
+    }
+    validateSecretRef("client_id_ref", options.clientIdRef);
+    validateSecretRef("client_secret_ref", options.clientSecretRef);
+    const configId = options.configId ?? newId("oauthcfg");
+    const now = utcNow();
+    const record: JsonRecord = {
+      schema_version: CONTROL_PLANE_SCHEMA_VERSION,
+      tenant_id: project.tenant_id,
+      project_id: project.project_id,
+      config_id: configId,
+      provider,
+      client_id_ref: options.clientIdRef,
+      client_secret_ref: options.clientSecretRef,
+      redirect_uris: [...options.redirectUris],
+      scopes: [...options.scopes],
+      enabled: true,
+      secret_value_present: false,
+      created_at: now,
+      updated_at: now,
+      configured_by_api_key_id: options.authKeyId ?? null,
+    };
+    this.store.oauth_provider_configs[configId] = record;
+    const publicRecord = publicOauthProviderConfig(record);
+    this.appendAudit(tenantId, projectId, "oauth.provider.configure", { targetId: configId, apiKeyId: options.authKeyId, after: publicRecord });
+    return publicRecord;
+  }
+
+  beginOauthAuthorization(tenantId: string, projectId: string, options: SaaSOAuthAuthorizationBeginOptions): SaaSOAuthAuthorizationBeginResult {
+    this.cloud.getProject(tenantId, projectId);
+    if (options.authKeyId !== undefined) {
+      this.authenticateApiKey(tenantId, projectId, { keyId: options.authKeyId, scope: COMMERCIAL_CONFIG_WRITE_SCOPE, consumeRate: false });
+      this.consumeApiKeyRate(this.apiKeyRecord(tenantId, projectId, options.authKeyId), "oauth.authorization.begin");
+    }
+    const config = this.oauthProviderConfigRecord(tenantId, projectId, options.providerConfigId);
+    if (!(config.redirect_uris as unknown[]).includes(options.redirectUri)) throw new ValidationError("oauth redirect_uri must match provider config");
+    const state = options.state ?? newId("oauthstate");
+    validateOauthState(state);
+    const flowId = newId("oauthflow");
+    const record: JsonRecord = {
+      schema_version: CONTROL_PLANE_SCHEMA_VERSION,
+      tenant_id: tenantId,
+      project_id: projectId,
+      flow_id: flowId,
+      provider: config.provider,
+      provider_config_id: options.providerConfigId,
+      redirect_uri: options.redirectUri,
+      state_hash_sha256: sha256(state),
+      code_challenge: pkceS256Challenge(options.codeVerifier),
+      code_challenge_method: "S256",
+      status: "pending",
+      session_id: null,
+      failure_reasons: [],
+      secret_value_present: false,
+      raw_code_present: false,
+      raw_state_present: false,
+      created_at: utcNow(),
+      completed_at: null,
+      created_by_api_key_id: options.authKeyId ?? null,
+    };
+    this.store.oauth_authorization_flows[flowId] = record;
+    const publicRecord = publicOauthAuthorizationFlow(record);
+    this.appendAudit(tenantId, projectId, "oauth.authorization.begin", { targetId: flowId, apiKeyId: options.authKeyId, after: publicRecord });
+    return { ...publicRecord, state };
+  }
+
+  completeOauthAuthorization(tenantId: string, projectId: string, options: SaaSOAuthAuthorizationCompleteOptions): SaaSOAuthAuthorizationCompleteResult {
+    this.cloud.getProject(tenantId, projectId);
+    if (options.authKeyId !== undefined) {
+      this.authenticateApiKey(tenantId, projectId, { keyId: options.authKeyId, scope: COMMERCIAL_CONFIG_WRITE_SCOPE, consumeRate: false });
+      this.consumeApiKeyRate(this.apiKeyRecord(tenantId, projectId, options.authKeyId), "oauth.authorization.complete");
+    }
+    const flow = this.oauthAuthorizationFlowRecord(tenantId, projectId, options.flowId);
+    const failures: string[] = [];
+    if (flow.status !== "pending") failures.push("oauth_state_replay");
+    if (sha256(options.state) !== flow.state_hash_sha256) failures.push("oauth_state_mismatch");
+    if (pkceS256Challenge(options.codeVerifier) !== flow.code_challenge) failures.push("pkce_verifier_mismatch");
+    if (options.redirectUri !== flow.redirect_uri) failures.push("redirect_uri_mismatch");
+    if (options.providerError) failures.push("provider_error");
+    if (options.providerCodeRef !== undefined) validateSecretRef("provider_code_ref", options.providerCodeRef);
+    const before = publicOauthAuthorizationFlow(flow);
+    if (failures.length > 0) {
+      if (flow.status === "pending") flow.status = "failed";
+      flow.failure_reasons = failures;
+      flow.completed_at = utcNow();
+      const rejected = publicOauthAuthorizationFlow(flow);
+      this.appendAudit(tenantId, projectId, "oauth.authorization.reject", { targetId: options.flowId, apiKeyId: options.authKeyId, before, after: rejected });
+      return { ...rejected, accepted: false };
+    }
+    validatePublicRef("subject_ref", options.subjectRef);
+    if (options.accessTokenRef !== undefined) validateSecretRef("access_token_ref", options.accessTokenRef);
+    if (options.refreshTokenRef !== undefined) validateSecretRef("refresh_token_ref", options.refreshTokenRef);
+    const sessionId = options.sessionId ?? newId("oauthsess");
+    const sessionRecord: JsonRecord = {
+      schema_version: CONTROL_PLANE_SCHEMA_VERSION,
+      tenant_id: tenantId,
+      project_id: projectId,
+      session_id: sessionId,
+      provider: flow.provider,
+      provider_config_id: flow.provider_config_id,
+      subject_ref: options.subjectRef,
+      access_token_ref: options.accessTokenRef ?? null,
+      refresh_token_ref: options.refreshTokenRef ?? null,
+      status: "active",
+      secret_value_present: false,
+      created_at: utcNow(),
+      revoked_at: null,
+      created_by_api_key_id: options.authKeyId ?? null,
+    };
+    this.store.oauth_sessions[sessionId] = sessionRecord;
+    flow.status = "completed";
+    flow.completed_at = utcNow();
+    flow.session_id = sessionId;
+    flow.provider_code_ref_sha256 = options.providerCodeRef === undefined ? null : sha256(options.providerCodeRef);
+    delete flow.provider_code_ref;
+    flow.failure_reasons = [];
+    const completed = publicOauthAuthorizationFlow(flow);
+    const session = publicOauthSession(sessionRecord);
+    this.appendAudit(tenantId, projectId, "oauth.authorization.complete", { targetId: options.flowId, apiKeyId: options.authKeyId, before, after: completed });
+    return { ...completed, accepted: true, session };
   }
 
   sdkSubmitRun(tenantId: string, projectId: string, options: { datasetId: string; agentRef: string; runId?: string; metadata?: JsonRecord; apiKeyId?: string; idempotencyKey?: string; requestId?: string }): JsonRecord {
@@ -1076,6 +1310,9 @@ export class SaaSControlPlaneService {
         idempotency_keys: stateBucket(control, "idempotency_keys"),
         artifact_manifests: stateBucket(control, "artifact_manifests"),
         worker_jobs: stateBucket(control, "worker_jobs"),
+        oauth_provider_configs: stateBucket(control, "oauth_provider_configs"),
+        oauth_authorization_flows: stateBucket(control, "oauth_authorization_flows"),
+        oauth_sessions: stateBucket(control, "oauth_sessions"),
       },
     });
     if (isRecord(payload.billing_ledger)) service.restoreBillingLedgerState(payload.billing_ledger);
@@ -1093,6 +1330,18 @@ export class SaaSControlPlaneService {
     if (record === undefined || record.tenant_id !== tenantId || record.project_id !== projectId) {
       throw new NotFoundError("api key not found for project");
     }
+    return record;
+  }
+
+  private oauthProviderConfigRecord(tenantId: string, projectId: string, configId: string): JsonRecord {
+    const record = this.store.oauth_provider_configs[configId];
+    if (record === undefined || record.tenant_id !== tenantId || record.project_id !== projectId) throw new NotFoundError("oauth provider config not found for project");
+    return record;
+  }
+
+  private oauthAuthorizationFlowRecord(tenantId: string, projectId: string, flowId: string): JsonRecord {
+    const record = this.store.oauth_authorization_flows[flowId];
+    if (record === undefined || record.tenant_id !== tenantId || record.project_id !== projectId) throw new NotFoundError("oauth authorization flow not found for project");
     return record;
   }
 
@@ -1260,6 +1509,43 @@ export class SaaSControlPlaneRouter {
         if (upperMethod === "GET" && parts.length === 4 && parts[3] === "quota") {
           return { status_code: 200, body: this.service.usageSnapshot(tenantId, projectId, { authKeyId }) };
         }
+        if (parts.length >= 6 && parts[3] === "commercial-auth-payment") {
+          if (upperMethod === "POST" && parts.length === 6 && parts[4] === "oauth-providers" && parts[5] === "configure") {
+            return { status_code: 201, body: this.service.configureOauthProvider(tenantId, projectId, {
+              provider: String(body.provider ?? ""),
+              clientIdRef: String(body.client_id_ref ?? ""),
+              clientSecretRef: String(body.client_secret_ref ?? ""),
+              redirectUris: arrayOfStrings(body.redirect_uris),
+              scopes: arrayOfStrings(body.scopes),
+              configId: optionalString(body.config_id),
+              authKeyId,
+            }) };
+          }
+          if (upperMethod === "POST" && parts.length === 6 && parts[4] === "oauth-authorizations" && parts[5] === "begin") {
+            return { status_code: 201, body: this.service.beginOauthAuthorization(tenantId, projectId, {
+              providerConfigId: String(body.provider_config_id ?? ""),
+              redirectUri: String(body.redirect_uri ?? ""),
+              codeVerifier: String(body.code_verifier ?? ""),
+              state: optionalString(body.state),
+              authKeyId,
+            }) };
+          }
+          if (upperMethod === "POST" && parts.length === 7 && parts[4] === "oauth-authorizations" && parts[6] === "complete") {
+            return { status_code: 200, body: this.service.completeOauthAuthorization(tenantId, projectId, {
+              flowId: parts[5],
+              state: String(body.state ?? ""),
+              codeVerifier: String(body.code_verifier ?? ""),
+              redirectUri: String(body.redirect_uri ?? ""),
+              subjectRef: String(body.subject_ref ?? ""),
+              providerCodeRef: optionalString(body.provider_code_ref),
+              providerError: optionalString(body.provider_error),
+              accessTokenRef: optionalString(body.access_token_ref),
+              refreshTokenRef: optionalString(body.refresh_token_ref),
+              sessionId: optionalString(body.session_id),
+              authKeyId,
+            }) };
+          }
+        }
         if (upperMethod === "GET" && parts.length === 4 && parts[3] === "audit-log") {
           return { status_code: 200, body: this.service.auditSnapshot(tenantId, projectId, { authKeyId, runId: optionalString(body.run_id), actionPrefix: optionalString(body.action_prefix), limit: body.limit === undefined ? undefined : Number(body.limit) }) };
         }
@@ -1424,6 +1710,9 @@ export function exportSaaSOpenApiSpec(options: { title?: string; version?: strin
       "/v1/projects/{project_id}/runs/{run_id}/release-evidence/verify": { post: { operationId: "verifyReleaseEvidencePacket", parameters: pathTenantParameters("run_id"), requestBody: { content: json }, responses: { "200": response("Release evidence packet verification") } } },
       "/v1/projects/{project_id}/quota": { get: { operationId: "quotaSnapshot", parameters: pathTenantParameters(), responses: { "200": response("Quota snapshot") } } },
       "/v1/projects/{project_id}/usage": { get: { operationId: "usageSnapshot", parameters: pathTenantParameters(), responses: { "200": response("Usage ledger snapshot") } } },
+      "/v1/projects/{project_id}/commercial-auth-payment/oauth-providers/configure": { post: { operationId: "configureOauthProvider", parameters: pathTenantParameters(), requestBody: { content: json }, responses: { "201": response("OAuth provider configuration") } } },
+      "/v1/projects/{project_id}/commercial-auth-payment/oauth-authorizations/begin": { post: { operationId: "beginOauthAuthorization", parameters: pathTenantParameters(), requestBody: { content: json }, responses: { "201": response("OAuth authorization flow") } } },
+      "/v1/projects/{project_id}/commercial-auth-payment/oauth-authorizations/{flow_id}/complete": { post: { operationId: "completeOauthAuthorization", parameters: pathTenantParameters("flow_id"), requestBody: { content: json }, responses: { "200": response("OAuth authorization completion") } } },
       "/v1/projects/{project_id}/billing/checkout-plan": { post: { operationId: "billingCheckoutPlan", parameters: pathTenantParameters(), requestBody: { content: json }, responses: { "200": response("Billing checkout plan") } } },
       "/v1/projects/{project_id}/billing/portal-plan": { post: { operationId: "billingPortalPlan", parameters: pathTenantParameters(), requestBody: { content: json }, responses: { "200": response("Billing portal plan") } } },
       "/v1/projects/{project_id}/billing/webhooks/ingest": { post: { operationId: "billingWebhookIngest", parameters: pathTenantParameters(), requestBody: { content: json }, responses: { "200": response("Billing webhook ingest") } } },
@@ -1722,7 +2011,7 @@ export class SaaSIngestionClient {
     });
     return envelope("bootstrap_project", body);
   }
-  createApiKey(tenantId: string, projectId: string, options: SaaSClientOptions & { name: string; scopes: string[] } & { keyId?: string; authKeyId?: string; revealSecret?: boolean; apiKey?: string } ): JsonRecord {
+  createApiKey(tenantId: string, projectId: string, options: SaaSClientOptions & { name: string; scopes: string[] } & { keyId?: string; authKeyId?: string; revealSecret?: boolean; apiKey?: string } ): SaaSClientEnvelope<SaaSApiKeyCreateResult, "create_api_key"> {
     rejectRawApiKey(clientString(options, "apiKey", "api_key"));
     return envelope("create_api_key", this.service.createApiKey(tenantId, projectId, {
       name: String(options.name),
@@ -1730,18 +2019,18 @@ export class SaaSIngestionClient {
       keyId: clientString(options, "keyId", "key_id"),
       authKeyId: clientString(options, "authKeyId", "auth_key_id"),
       revealSecret: clientBool(options, "revealSecret", "reveal_secret"),
-    }));
+    }) as SaaSApiKeyCreateResult);
   }
 
-  verifyApiKeySecret(tenantId: string, projectId: string, options: SaaSClientOptions & { keyId?: string; key_id?: string; secret: string; scope?: string }): JsonRecord {
+  verifyApiKeySecret(tenantId: string, projectId: string, options: SaaSClientOptions & { keyId?: string; key_id?: string; secret: string; scope?: string }): SaaSClientEnvelope<SaaSApiKeyVerificationResult, "verify_api_key_secret"> {
     return envelope("verify_api_key_secret", this.service.verifyApiKeySecret(tenantId, projectId, {
       keyId: clientRequiredString(options, "keyId", "key_id"),
       secret: String(options.secret),
       scope: clientString(options, "scope"),
-    }));
+    }) as SaaSApiKeyVerificationResult);
   }
 
-  configureApiKeyRateLimit(tenantId: string, projectId: string, options: SaaSClientOptions & { keyId?: string; key_id?: string; operation: string; limit: number; period?: string; authKeyId?: string; auth_key_id?: string }): JsonRecord {
+  configureApiKeyRateLimit(tenantId: string, projectId: string, options: SaaSClientOptions & { keyId?: string; key_id?: string; operation: string; limit: number; period?: string; authKeyId?: string; auth_key_id?: string }): SaaSClientEnvelope<SaaSApiKeyRateLimit, "configure_api_key_rate_limit"> {
     rejectRawApiKey(clientString(options, "apiKey", "api_key"));
     return envelope("configure_api_key_rate_limit", this.service.configureApiKeyRateLimit(tenantId, projectId, {
       keyId: clientRequiredString(options, "keyId", "key_id"),
@@ -1749,21 +2038,21 @@ export class SaaSIngestionClient {
       limit: Number(options.limit),
       period: clientString(options, "period"),
       authKeyId: clientString(options, "authKeyId", "auth_key_id"),
-    }));
+    }) as SaaSApiKeyRateLimit);
   }
 
-  apiKeyRateLimitSnapshot(tenantId: string, projectId: string, options: SaaSClientOptions & { keyId?: string; key_id?: string } = {}): JsonRecord {
-    return envelope("api_key_rate_limit_snapshot", this.service.apiKeyRateLimitSnapshot(tenantId, projectId, { keyId: clientString(options, "keyId", "key_id") }));
+  apiKeyRateLimitSnapshot(tenantId: string, projectId: string, options: SaaSClientOptions & { keyId?: string; key_id?: string } = {}): SaaSClientEnvelope<SaaSApiKeyRateLimitSnapshot, "api_key_rate_limit_snapshot"> {
+    return envelope("api_key_rate_limit_snapshot", this.service.apiKeyRateLimitSnapshot(tenantId, projectId, { keyId: clientString(options, "keyId", "key_id") }) as SaaSApiKeyRateLimitSnapshot);
   }
 
-  listApiKeys(tenantId: string, projectId: string, options: SaaSClientOptions & { authKeyId?: string; apiKey?: string } = {}): JsonRecord {
+  listApiKeys(tenantId: string, projectId: string, options: SaaSClientOptions & { authKeyId?: string; apiKey?: string } = {}): SaaSClientEnvelope<SaaSApiKeyListResult, "list_api_keys"> {
     rejectRawApiKey(clientString(options, "apiKey", "api_key"));
-    return envelope("list_api_keys", { api_keys: this.service.listApiKeys(tenantId, projectId, { authKeyId: clientString(options, "authKeyId", "auth_key_id") }) });
+    return envelope("list_api_keys", { api_keys: this.service.listApiKeys(tenantId, projectId, { authKeyId: clientString(options, "authKeyId", "auth_key_id") }) as SaaSApiKeyRecord[] });
   }
 
-  revokeApiKey(tenantId: string, projectId: string, keyId: string, options: SaaSClientOptions & { authKeyId?: string; apiKey?: string } = {}): JsonRecord {
+  revokeApiKey(tenantId: string, projectId: string, keyId: string, options: SaaSClientOptions & { authKeyId?: string; apiKey?: string } = {}): SaaSClientEnvelope<SaaSApiKeyRecord, "revoke_api_key"> {
     rejectRawApiKey(clientString(options, "apiKey", "api_key"));
-    return envelope("revoke_api_key", this.service.revokeApiKey(tenantId, projectId, keyId, { authKeyId: clientString(options, "authKeyId", "auth_key_id") }));
+    return envelope("revoke_api_key", this.service.revokeApiKey(tenantId, projectId, keyId, { authKeyId: clientString(options, "authKeyId", "auth_key_id") }) as SaaSApiKeyRecord);
   }
 
   sdkSubmit(tenantId: string, projectId: string, options: SaaSClientOptions & { datasetId?: string; dataset_id?: string; agentRef?: string; agent_ref?: string; metadata?: JsonRecord; apiKeyId?: string; api_key_id?: string; apiKey?: string; idempotencyKey?: string; idempotency_key?: string; requestId?: string; request_id?: string }): JsonRecord {
@@ -1784,9 +2073,9 @@ export class SaaSIngestionClient {
     return envelope("upload_run", this.service.uploadRunResult(tenantId, projectId, runId, result, clientUploadOptions(options)));
   }
 
-  ingestTrace(tenantId: string, projectId: string, runId: string, observations: JsonRecord[], options: SaaSClientOptions & { batchId?: string; batch_id?: string; apiKeyId?: string; api_key_id?: string; apiKey?: string; idempotencyKey?: string; idempotency_key?: string; requestId?: string; request_id?: string } = {}): JsonRecord {
+  ingestTrace(tenantId: string, projectId: string, runId: string, observations: JsonRecord[], options: SaaSClientOptions & { batchId?: string; batch_id?: string; apiKeyId?: string; api_key_id?: string; apiKey?: string; idempotencyKey?: string; idempotency_key?: string; requestId?: string; request_id?: string } = {}): SaaSClientEnvelope<SaaSTraceIngestResult, "ingest_trace"> {
     rejectRawApiKey(clientString(options, "apiKey", "api_key"));
-    return envelope("ingest_trace", this.service.ingestTrace(tenantId, projectId, runId, observations, clientTraceOptions(options)));
+    return envelope("ingest_trace", this.service.ingestTrace(tenantId, projectId, runId, observations, clientTraceOptions(options)) as SaaSTraceIngestResult);
   }
 
   lifecycle(tenantId: string, projectId: string, runId: string): JsonRecord {
@@ -1797,20 +2086,32 @@ export class SaaSIngestionClient {
     return envelope("usage", this.service.usageSnapshot(tenantId, projectId, options));
   }
 
-  quotaSnapshot(tenantId: string, projectId: string, options: SaaSClientOptions & { authKeyId?: string; auth_key_id?: string } = {}): JsonRecord {
-    return envelope("quota_snapshot", this.service.usageSnapshot(tenantId, projectId, { authKeyId: clientString(options, "authKeyId", "auth_key_id") }));
+  quotaSnapshot(tenantId: string, projectId: string, options: SaaSClientOptions & { authKeyId?: string; auth_key_id?: string } = {}): SaaSClientEnvelope<SaaSQuotaSnapshotResult, "quota_snapshot"> {
+    return envelope("quota_snapshot", this.service.usageSnapshot(tenantId, projectId, { authKeyId: clientString(options, "authKeyId", "auth_key_id") }) as SaaSQuotaSnapshotResult);
   }
 
-  billingCheckoutPlan(tenantId: string, projectId: string, options: SaaSClientOptions & JsonRecord = {}): JsonRecord {
-    return envelope("billing_checkout_plan", this.service.billingCheckoutPlan(tenantId, projectId, { ...options, authKeyId: clientString(options, "authKeyId", "auth_key_id") }));
+  configureOauthProvider(tenantId: string, projectId: string, options: SaaSOAuthProviderConfigureOptions): SaaSClientEnvelope<SaaSOAuthProviderConfig, "configure_oauth_provider"> {
+    return envelope("configure_oauth_provider", this.service.configureOauthProvider(tenantId, projectId, options));
   }
 
-  billingPortalPlan(tenantId: string, projectId: string, options: SaaSClientOptions & JsonRecord = {}): JsonRecord {
-    return envelope("billing_portal_plan", this.service.billingPortalPlan(tenantId, projectId, { ...options, authKeyId: clientString(options, "authKeyId", "auth_key_id") }));
+  beginOauthAuthorization(tenantId: string, projectId: string, options: SaaSOAuthAuthorizationBeginOptions): SaaSClientEnvelope<SaaSOAuthAuthorizationBeginResult, "oauth_authorization_begin"> {
+    return envelope("oauth_authorization_begin", this.service.beginOauthAuthorization(tenantId, projectId, options));
   }
 
-  billingWebhookIngest(tenantId: string, projectId: string, options: SaaSClientOptions & JsonRecord = {}): JsonRecord {
-    return envelope("billing_webhook_ingest", this.service.billingWebhookIngest(tenantId, projectId, { ...options, authKeyId: clientString(options, "authKeyId", "auth_key_id") }));
+  completeOauthAuthorization(tenantId: string, projectId: string, options: SaaSOAuthAuthorizationCompleteOptions): SaaSClientEnvelope<SaaSOAuthAuthorizationCompleteResult, "oauth_authorization_complete"> {
+    return envelope("oauth_authorization_complete", this.service.completeOauthAuthorization(tenantId, projectId, options));
+  }
+
+  billingCheckoutPlan(tenantId: string, projectId: string, options: SaaSBillingCheckoutOptions): SaaSClientEnvelope<SaaSBillingCheckoutPlan, "billing_checkout_plan"> {
+    return envelope("billing_checkout_plan", this.service.billingCheckoutPlan(tenantId, projectId, { ...options, authKeyId: clientString(options, "authKeyId", "auth_key_id") }) as SaaSBillingCheckoutPlan);
+  }
+
+  billingPortalPlan(tenantId: string, projectId: string, options: SaaSBillingPortalOptions): SaaSClientEnvelope<SaaSBillingPortalPlan, "billing_portal_plan"> {
+    return envelope("billing_portal_plan", this.service.billingPortalPlan(tenantId, projectId, { ...options, authKeyId: clientString(options, "authKeyId", "auth_key_id") }) as SaaSBillingPortalPlan);
+  }
+
+  billingWebhookIngest(tenantId: string, projectId: string, options: SaaSBillingWebhookOptions): SaaSClientEnvelope<SaaSBillingWebhookIngestResult, "billing_webhook_ingest"> {
+    return envelope("billing_webhook_ingest", this.service.billingWebhookIngest(tenantId, projectId, { ...options, authKeyId: clientString(options, "authKeyId", "auth_key_id") }) as SaaSBillingWebhookIngestResult);
   }
 
   billingLedger(tenantId: string, projectId: string, options: SaaSClientOptions & { authKeyId?: string; auth_key_id?: string } = {}): JsonRecord {
@@ -1842,12 +2143,12 @@ export class SaaSIngestionClient {
     return envelope("release_evidence_verify", this.service.verifyReleaseEvidencePacket(tenantId, projectId, runId, options));
   }
 
-  createArtifactManifest(tenantId: string, projectId: string, runId: string, manifest: JsonRecord, options: { artifactId?: string; apiKeyId?: string; idempotencyKey?: string; requestId?: string } = {}): JsonRecord {
-    return envelope("artifact_manifest", this.service.createArtifactManifest(tenantId, projectId, runId, manifest, options));
+  createArtifactManifest(tenantId: string, projectId: string, runId: string, manifest: JsonRecord, options: { artifactId?: string; apiKeyId?: string; idempotencyKey?: string; requestId?: string } = {}): SaaSClientEnvelope<SaaSArtifactManifestResult, "artifact_manifest"> {
+    return envelope("artifact_manifest", this.service.createArtifactManifest(tenantId, projectId, runId, manifest, options) as SaaSArtifactManifestResult);
   }
 
-  listArtifactManifests(tenantId: string, projectId: string, runId?: string, options: { authKeyId?: string } = {}): JsonRecord {
-    return envelope("artifact_manifests", { artifact_manifests: this.service.listArtifactManifests(tenantId, projectId, runId, options) });
+  listArtifactManifests(tenantId: string, projectId: string, runId?: string, options: { authKeyId?: string } = {}): SaaSClientEnvelope<SaaSArtifactManifestListResult, "artifact_manifests"> {
+    return envelope("artifact_manifests", { artifact_manifests: this.service.listArtifactManifests(tenantId, projectId, runId, options) as SaaSArtifactManifestResult[] });
   }
 
   enqueueWorkerJob(tenantId: string, projectId: string, options: SaaSClientOptions & { jobType?: string; job_type?: string; targetId?: string; target_id?: string; payload?: JsonRecord; jobId?: string; job_id?: string; priority?: number; maxAttempts?: number; max_attempts?: number; apiKeyId?: string; api_key_id?: string; idempotencyKey?: string; idempotency_key?: string; requestId?: string; request_id?: string }): JsonRecord {
@@ -1916,37 +2217,37 @@ export class SaaSIngestionClient {
     return envelope("worker_jobs", body);
   }
 
-  async createApiKeyHttp(tenantId: string, projectId: string, options: SaaSClientOptions & { name: string; scopes: string[] } & { keyId?: string; authKeyId?: string; revealSecret?: boolean; apiKey?: string }): Promise<JsonRecord> {
+  async createApiKeyHttp(tenantId: string, projectId: string, options: SaaSClientOptions & { name: string; scopes: string[] } & { keyId?: string; authKeyId?: string; revealSecret?: boolean; apiKey?: string }): Promise<SaaSClientEnvelope<SaaSApiKeyCreateResult, "create_api_key">> {
     rejectRawApiKey(clientString(options, "apiKey", "api_key"));
     const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/api-keys`, { tenant_id: tenantId, name: String(options.name), scopes: arrayOfStrings(options.scopes), key_id: clientString(options, "keyId", "key_id"), auth_key_id: clientString(options, "authKeyId", "auth_key_id"), reveal_secret: clientBool(options, "revealSecret", "reveal_secret") });
-    return envelope("create_api_key", body);
+    return envelope("create_api_key", body as SaaSApiKeyCreateResult);
   }
 
-  async listApiKeysHttp(tenantId: string, projectId: string, options: SaaSClientOptions & { authKeyId?: string; auth_key_id?: string; apiKey?: string; api_key?: string } = {}): Promise<JsonRecord> {
+  async listApiKeysHttp(tenantId: string, projectId: string, options: SaaSClientOptions & { authKeyId?: string; auth_key_id?: string; apiKey?: string; api_key?: string } = {}): Promise<SaaSClientEnvelope<SaaSApiKeyListResult, "list_api_keys">> {
     rejectRawApiKey(clientString(options, "apiKey", "api_key"));
     const body = await this.requestJson("GET", `/v1/projects/${encodeURIComponent(projectId)}/api-keys`, { tenant_id: tenantId, auth_key_id: clientString(options, "authKeyId", "auth_key_id") });
-    return envelope("list_api_keys", body);
+    return envelope("list_api_keys", body as SaaSApiKeyListResult);
   }
 
-  async verifyApiKeySecretHttp(tenantId: string, projectId: string, options: { keyId: string; secret: string; scope?: string }): Promise<JsonRecord> {
+  async verifyApiKeySecretHttp(tenantId: string, projectId: string, options: { keyId: string; secret: string; scope?: string }): Promise<SaaSClientEnvelope<SaaSApiKeyVerificationResult, "verify_api_key_secret">> {
     const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/api-keys/${encodeURIComponent(options.keyId)}/verify`, { tenant_id: tenantId, secret: options.secret, scope: options.scope });
-    return envelope("verify_api_key_secret", body);
+    return envelope("verify_api_key_secret", body as SaaSApiKeyVerificationResult);
   }
 
-  async revokeApiKeyHttp(tenantId: string, projectId: string, keyId: string, options: SaaSClientOptions & { authKeyId?: string; auth_key_id?: string; apiKey?: string; api_key?: string } = {}): Promise<JsonRecord> {
+  async revokeApiKeyHttp(tenantId: string, projectId: string, keyId: string, options: SaaSClientOptions & { authKeyId?: string; auth_key_id?: string; apiKey?: string; api_key?: string } = {}): Promise<SaaSClientEnvelope<SaaSApiKeyRecord, "revoke_api_key">> {
     rejectRawApiKey(clientString(options, "apiKey", "api_key"));
     const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/api-keys/${encodeURIComponent(keyId)}/revoke`, { tenant_id: tenantId, auth_key_id: clientString(options, "authKeyId", "auth_key_id") });
-    return envelope("revoke_api_key", body);
+    return envelope("revoke_api_key", body as SaaSApiKeyRecord);
   }
 
-  async configureApiKeyRateLimitHttp(tenantId: string, projectId: string, options: { keyId: string; operation: string; limit: number; period?: string; authKeyId?: string }): Promise<JsonRecord> {
+  async configureApiKeyRateLimitHttp(tenantId: string, projectId: string, options: { keyId: string; operation: string; limit: number; period?: string; authKeyId?: string }): Promise<SaaSClientEnvelope<SaaSApiKeyRateLimit, "configure_api_key_rate_limit">> {
     const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/api-keys/${encodeURIComponent(options.keyId)}/rate-limit`, { tenant_id: tenantId, operation: options.operation, limit: options.limit, period: options.period, auth_key_id: options.authKeyId });
-    return envelope("configure_api_key_rate_limit", body);
+    return envelope("configure_api_key_rate_limit", body as SaaSApiKeyRateLimit);
   }
 
-  async apiKeyRateLimitSnapshotHttp(tenantId: string, projectId: string, options: { keyId?: string } = {}): Promise<JsonRecord> {
+  async apiKeyRateLimitSnapshotHttp(tenantId: string, projectId: string, options: { keyId?: string } = {}): Promise<SaaSClientEnvelope<SaaSApiKeyRateLimitSnapshot, "api_key_rate_limit_snapshot">> {
     const body = await this.requestJson("GET", `/v1/projects/${encodeURIComponent(projectId)}/api-keys/rate-limits`, { tenant_id: tenantId, key_id: options.keyId });
-    return envelope("api_key_rate_limit_snapshot", body);
+    return envelope("api_key_rate_limit_snapshot", body as SaaSApiKeyRateLimitSnapshot);
   }
 
   async sdkSubmitHttp(tenantId: string, projectId: string, options: SaaSClientOptions & { datasetId?: string; dataset_id?: string; agentRef?: string; agent_ref?: string; metadata?: JsonRecord; apiKeyId?: string; api_key_id?: string; apiKey?: string; idempotencyKey?: string; idempotency_key?: string; requestId?: string; request_id?: string }): Promise<JsonRecord> {
@@ -1962,11 +2263,11 @@ export class SaaSIngestionClient {
     return envelope("upload_run", body);
   }
 
-  async ingestTraceHttp(tenantId: string, projectId: string, runId: string, observations: JsonRecord[], options: SaaSClientOptions & { batchId?: string; batch_id?: string; apiKeyId?: string; api_key_id?: string; apiKey?: string; idempotencyKey?: string; idempotency_key?: string; requestId?: string; request_id?: string } = {}): Promise<JsonRecord> {
+  async ingestTraceHttp(tenantId: string, projectId: string, runId: string, observations: JsonRecord[], options: SaaSClientOptions & { batchId?: string; batch_id?: string; apiKeyId?: string; api_key_id?: string; apiKey?: string; idempotencyKey?: string; idempotency_key?: string; requestId?: string; request_id?: string } = {}): Promise<SaaSClientEnvelope<SaaSTraceIngestResult, "ingest_trace">> {
     rejectRawApiKey(clientString(options, "apiKey", "api_key"));
     const trace = clientTraceOptions(options);
     const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/trace-events`, { tenant_id: tenantId, observations, batch_id: trace.batchId, api_key_id: trace.apiKeyId, idempotency_key: trace.idempotencyKey, request_id: trace.requestId }, clientAuthHeaders(options));
-    return envelope("ingest_trace", body);
+    return envelope("ingest_trace", body as SaaSTraceIngestResult);
   }
 
   async lifecycleHttp(tenantId: string, projectId: string, runId: string): Promise<JsonRecord> {
@@ -1983,24 +2284,105 @@ export class SaaSIngestionClient {
     return this.usageHttp(tenantId, projectId, options);
   }
 
-  async quotaSnapshotHttp(tenantId: string, projectId: string, options: SaaSClientOptions & { authKeyId?: string; auth_key_id?: string } = {}): Promise<JsonRecord> {
+  async quotaSnapshotHttp(tenantId: string, projectId: string, options: SaaSClientOptions & { authKeyId?: string; auth_key_id?: string } = {}): Promise<SaaSClientEnvelope<SaaSQuotaSnapshotResult, "quota_snapshot">> {
     const body = await this.requestJson("GET", `/v1/projects/${encodeURIComponent(projectId)}/quota`, { tenant_id: tenantId, auth_key_id: clientString(options, "authKeyId", "auth_key_id") }, clientAuthHeaders(options));
-    return envelope("quota_snapshot", body);
+    return envelope("quota_snapshot", body as SaaSQuotaSnapshotResult);
   }
 
-  async billingCheckoutPlanHttp(tenantId: string, projectId: string, options: SaaSClientOptions & JsonRecord = {}): Promise<JsonRecord> {
-    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/billing/checkout-plan`, { ...options, tenant_id: tenantId, project_id: projectId, auth_key_id: clientString(options, "authKeyId", "auth_key_id") }, clientAuthHeaders(options));
-    return envelope("billing_checkout_plan", body);
+  async billingCheckoutPlanHttp(tenantId: string, projectId: string, options: SaaSBillingCheckoutOptions): Promise<SaaSClientEnvelope<SaaSBillingCheckoutPlan, "billing_checkout_plan">> {
+    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/billing/checkout-plan`, {
+      tenant_id: tenantId,
+      project_id: projectId,
+      customer_ref: options.customerRef,
+      price: options.price,
+      success_url: options.successUrl,
+      cancel_url: options.cancelUrl,
+      provider_config: options.providerConfig,
+      usage_rollup: options.usageRollup ?? {},
+      metadata: options.metadata ?? {},
+      idempotency_key: options.idempotencyKey,
+      auth_key_id: clientString(options, "authKeyId", "auth_key_id"),
+    }, clientAuthHeaders(options));
+    return envelope("billing_checkout_plan", body as SaaSBillingCheckoutPlan);
   }
 
-  async billingPortalPlanHttp(tenantId: string, projectId: string, options: SaaSClientOptions & JsonRecord = {}): Promise<JsonRecord> {
-    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/billing/portal-plan`, { ...options, tenant_id: tenantId, project_id: projectId, auth_key_id: clientString(options, "authKeyId", "auth_key_id") }, clientAuthHeaders(options));
-    return envelope("billing_portal_plan", body);
+  async billingPortalPlanHttp(tenantId: string, projectId: string, options: SaaSBillingPortalOptions): Promise<SaaSClientEnvelope<SaaSBillingPortalPlan, "billing_portal_plan">> {
+    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/billing/portal-plan`, {
+      tenant_id: tenantId,
+      project_id: projectId,
+      customer_ref: options.customerRef,
+      return_url: options.returnUrl,
+      provider_config: options.providerConfig,
+      idempotency_key: options.idempotencyKey,
+      auth_key_id: clientString(options, "authKeyId", "auth_key_id"),
+    }, clientAuthHeaders(options));
+    return envelope("billing_portal_plan", body as SaaSBillingPortalPlan);
   }
 
-  async billingWebhookIngestHttp(tenantId: string, projectId: string, options: SaaSClientOptions & JsonRecord = {}): Promise<JsonRecord> {
-    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/billing/webhooks/ingest`, { ...options, tenant_id: tenantId, project_id: projectId, auth_key_id: clientString(options, "authKeyId", "auth_key_id") }, clientAuthHeaders(options));
-    return envelope("billing_webhook_ingest", body);
+  async billingWebhookIngestHttp(tenantId: string, projectId: string, options: SaaSBillingWebhookOptions): Promise<SaaSClientEnvelope<SaaSBillingWebhookIngestResult, "billing_webhook_ingest">> {
+    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/billing/webhooks/ingest`, {
+      tenant_id: tenantId,
+      project_id: projectId,
+      provider: options.provider,
+      mode: options.mode,
+      event_type: options.eventType,
+      event_id: options.eventId,
+      payload_sha256: options.payloadSha256,
+      signature_header_present: options.signatureHeaderPresent,
+      webhook_secret_ref: options.webhookSecretRef,
+      livemode: options.livemode,
+      customer_ref: options.customerRef,
+      amount_minor: options.amountMinor,
+      currency: options.currency,
+      invoice_ref: options.invoiceRef,
+      usage_units: options.usageUnits,
+      metadata: options.metadata ?? {},
+      auth_key_id: clientString(options, "authKeyId", "auth_key_id"),
+    }, clientAuthHeaders(options));
+    return envelope("billing_webhook_ingest", body as SaaSBillingWebhookIngestResult);
+  }
+
+  async configureOauthProviderHttp(tenantId: string, projectId: string, options: SaaSOAuthProviderConfigureOptions): Promise<SaaSClientEnvelope<SaaSOAuthProviderConfig, "configure_oauth_provider">> {
+    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/commercial-auth-payment/oauth-providers/configure`, {
+      tenant_id: tenantId,
+      provider: options.provider,
+      client_id_ref: options.clientIdRef,
+      client_secret_ref: options.clientSecretRef,
+      redirect_uris: options.redirectUris,
+      scopes: options.scopes,
+      config_id: options.configId,
+      auth_key_id: options.authKeyId,
+    });
+    return envelope("configure_oauth_provider", body as SaaSOAuthProviderConfig);
+  }
+
+  async beginOauthAuthorizationHttp(tenantId: string, projectId: string, options: SaaSOAuthAuthorizationBeginOptions): Promise<SaaSClientEnvelope<SaaSOAuthAuthorizationBeginResult, "oauth_authorization_begin">> {
+    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/commercial-auth-payment/oauth-authorizations/begin`, {
+      tenant_id: tenantId,
+      provider_config_id: options.providerConfigId,
+      redirect_uri: options.redirectUri,
+      code_verifier: options.codeVerifier,
+      state: options.state,
+      auth_key_id: options.authKeyId,
+    });
+    return envelope("oauth_authorization_begin", body as SaaSOAuthAuthorizationBeginResult);
+  }
+
+  async completeOauthAuthorizationHttp(tenantId: string, projectId: string, options: SaaSOAuthAuthorizationCompleteOptions): Promise<SaaSClientEnvelope<SaaSOAuthAuthorizationCompleteResult, "oauth_authorization_complete">> {
+    const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/commercial-auth-payment/oauth-authorizations/${encodeURIComponent(options.flowId)}/complete`, {
+      tenant_id: tenantId,
+      state: options.state,
+      code_verifier: options.codeVerifier,
+      redirect_uri: options.redirectUri,
+      subject_ref: options.subjectRef,
+      provider_code_ref: options.providerCodeRef,
+      provider_error: options.providerError,
+      access_token_ref: options.accessTokenRef,
+      refresh_token_ref: options.refreshTokenRef,
+      session_id: options.sessionId,
+      auth_key_id: options.authKeyId,
+    });
+    return envelope("oauth_authorization_complete", body as SaaSOAuthAuthorizationCompleteResult);
   }
 
   async billingLedgerHttp(tenantId: string, projectId: string, options: SaaSClientOptions & { authKeyId?: string; auth_key_id?: string } = {}): Promise<JsonRecord> {
@@ -2033,14 +2415,14 @@ export class SaaSIngestionClient {
     return envelope("release_evidence_verify", body);
   }
 
-  async createArtifactManifestHttp(tenantId: string, projectId: string, runId: string, manifest: JsonRecord, options: SaaSClientOptions & { artifactId?: string; apiKeyId?: string; idempotencyKey?: string; requestId?: string } = {}): Promise<JsonRecord> {
+  async createArtifactManifestHttp(tenantId: string, projectId: string, runId: string, manifest: JsonRecord, options: SaaSClientOptions & { artifactId?: string; apiKeyId?: string; idempotencyKey?: string; requestId?: string } = {}): Promise<SaaSClientEnvelope<SaaSArtifactManifestResult, "artifact_manifest">> {
     const body = await this.requestJson("POST", `/v1/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/artifact-manifests`, { tenant_id: tenantId, manifest, artifact_id: options.artifactId, api_key_id: options.apiKeyId, idempotency_key: options.idempotencyKey, request_id: options.requestId }, clientAuthHeaders(options));
-    return envelope("artifact_manifest", body);
+    return envelope("artifact_manifest", body as SaaSArtifactManifestResult);
   }
 
-  async listArtifactManifestsHttp(tenantId: string, projectId: string, runId: string, options: SaaSClientOptions & { authKeyId?: string } = {}): Promise<JsonRecord> {
+  async listArtifactManifestsHttp(tenantId: string, projectId: string, runId: string, options: SaaSClientOptions & { authKeyId?: string } = {}): Promise<SaaSClientEnvelope<SaaSArtifactManifestListResult, "artifact_manifests">> {
     const body = await this.requestJson("GET", `/v1/projects/${encodeURIComponent(projectId)}/runs/${encodeURIComponent(runId)}/artifact-manifests`, { tenant_id: tenantId, auth_key_id: options.authKeyId }, clientAuthHeaders(options));
-    return envelope("artifact_manifests", body);
+    return envelope("artifact_manifests", body as SaaSArtifactManifestListResult);
   }
 }
 export const snapshotSaaSControlPlane = (service: SaaSControlPlaneService): SaaSControlPlaneState => service.snapshotState();
@@ -2050,7 +2432,7 @@ export const saasControlPlaneFromStateFile = (inputPath: string): Promise<SaaSCo
 
 type CliOptions = Record<string, string | boolean | string[]>;
 
-const SAAS_CLI_COMMANDS = new Set(["bootstrap", "api-key-create", "api-key-list", "api-key-verify", "api-key-revoke", "api-key-rate-limit", "api-key-rate-limits", "sdk-submit", "run-upload", "trace-ingest", "lifecycle", "quota", "usage", "billing-checkout-plan", "billing-portal-plan", "billing-webhook-ingest", "billing-ledger", "artifact-manifest-create", "artifact-manifest-list", "release-gate", "audit-log", "audit-chain-verify", "release-evidence", "release-evidence-verify", "job-enqueue", "job-lease", "job-heartbeat", "job-complete", "job-fail", "job-list", "state"]);
+const SAAS_CLI_COMMANDS = new Set(["bootstrap", "api-key-create", "api-key-list", "api-key-verify", "api-key-revoke", "api-key-rate-limit", "api-key-rate-limits", "sdk-submit", "run-upload", "trace-ingest", "lifecycle", "quota", "usage", "billing-checkout-plan", "billing-portal-plan", "billing-webhook-ingest", "billing-ledger", "oauth-provider-configure", "oauth-authorization-begin", "oauth-authorization-complete", "artifact-manifest-create", "artifact-manifest-list", "release-gate", "audit-log", "audit-chain-verify", "release-evidence", "release-evidence-verify", "job-enqueue", "job-lease", "job-heartbeat", "job-complete", "job-fail", "job-list", "state"]);
 
 export async function runSaaSCli(argv: string[] = process.argv.slice(2)): Promise<JsonRecord> {
   const commandIndex = argv.findIndex((arg) => SAAS_CLI_COMMANDS.has(arg));
@@ -2156,6 +2538,56 @@ export async function runSaaSCli(argv: string[] = process.argv.slice(2)): Promis
       result = baseUrl !== undefined
         ? await client.billingLedgerHttp(projectTenant(options).tenantId, projectTenant(options).projectId, { authKeyId: stringOption(options, "auth-key-id", false) })
         : client.billingLedger(projectTenant(options).tenantId, projectTenant(options).projectId, { authKeyId: stringOption(options, "auth-key-id", false) });
+      break;
+    case "oauth-provider-configure":
+      {
+        const oauthOptions: SaaSOAuthProviderConfigureOptions = {
+          provider: stringOption(options, "provider", true),
+          clientIdRef: stringOption(options, "client-id-ref", true),
+          clientSecretRef: stringOption(options, "client-secret-ref", true),
+          redirectUris: stringListOption(options, "redirect-uri", true),
+          scopes: stringListOption(options, "scope", true),
+          configId: stringOption(options, "config-id", false),
+          authKeyId: stringOption(options, "auth-key-id", false),
+        };
+        result = baseUrl !== undefined
+          ? await client.configureOauthProviderHttp(projectTenant(options).tenantId, projectTenant(options).projectId, oauthOptions)
+          : client.configureOauthProvider(projectTenant(options).tenantId, projectTenant(options).projectId, oauthOptions);
+      }
+      break;
+    case "oauth-authorization-begin":
+      {
+        const oauthOptions: SaaSOAuthAuthorizationBeginOptions = {
+          providerConfigId: stringOption(options, "provider-config-id", true),
+          redirectUri: stringOption(options, "redirect-uri", true),
+          codeVerifier: stringOption(options, "code-verifier", true),
+          state: stringOption(options, "state", false),
+          authKeyId: stringOption(options, "auth-key-id", false),
+        };
+        result = baseUrl !== undefined
+          ? await client.beginOauthAuthorizationHttp(projectTenant(options).tenantId, projectTenant(options).projectId, oauthOptions)
+          : client.beginOauthAuthorization(projectTenant(options).tenantId, projectTenant(options).projectId, oauthOptions);
+      }
+      break;
+    case "oauth-authorization-complete":
+      {
+        const oauthOptions: SaaSOAuthAuthorizationCompleteOptions = {
+          flowId: stringOption(options, "flow-id", true),
+          state: stringOption(options, "state", true),
+          codeVerifier: stringOption(options, "code-verifier", true),
+          redirectUri: stringOption(options, "redirect-uri", true),
+          subjectRef: stringOption(options, "subject-ref", true),
+          providerCodeRef: stringOption(options, "provider-code-ref", false),
+          providerError: stringOption(options, "provider-error", false),
+          accessTokenRef: stringOption(options, "access-token-ref", false),
+          refreshTokenRef: stringOption(options, "refresh-token-ref", false),
+          sessionId: stringOption(options, "session-id", false),
+          authKeyId: stringOption(options, "auth-key-id", false),
+        };
+        result = baseUrl !== undefined
+          ? await client.completeOauthAuthorizationHttp(projectTenant(options).tenantId, projectTenant(options).projectId, oauthOptions)
+          : client.completeOauthAuthorization(projectTenant(options).tenantId, projectTenant(options).projectId, oauthOptions);
+      }
       break;
     case "release-gate":
       result = baseUrl !== undefined
@@ -2371,7 +2803,7 @@ if (process.argv[1] !== undefined && resolve(process.argv[1]) === resolve(fileUR
 }
 
 
-function envelope<T extends JsonRecord>(operation: SaaSClientOperation, result: T): SaaSClientEnvelope<T> { return { schema_version: CONTROL_PLANE_SCHEMA_VERSION, client_version: SAAS_CLIENT_VERSION, operation, result: cloneJson(result) }; }
+function envelope<T extends JsonRecord, O extends SaaSClientOperation>(operation: O, result: T): SaaSClientEnvelope<T, O> { return { schema_version: CONTROL_PLANE_SCHEMA_VERSION, client_version: SAAS_CLIENT_VERSION, operation, result: cloneJson(result) }; }
 
 export function buildSafeMediaEnvelope(value: unknown, options: { parts?: unknown; metadata?: JsonRecord } = {}): SaaSMediaEnvelope {
   const input = coerceAgentInput(value, options);
@@ -2474,23 +2906,125 @@ function pathTenantParameters(extraPathName?: string): JsonRecord[] {
   return params;
 }
 
-function publicApiKey(record: JsonRecord): JsonRecord {
+function publicApiKey(record: JsonRecord): SaaSApiKeyRecord {
   return {
     schema_version: CONTROL_PLANE_SCHEMA_VERSION as typeof CONTROL_PLANE_SCHEMA_VERSION,
-    tenant_id: record.tenant_id,
-    project_id: record.project_id,
-    key_id: record.key_id,
-    name: record.name,
-    prefix: record.prefix,
+    tenant_id: String(record.tenant_id),
+    project_id: String(record.project_id),
+    key_id: String(record.key_id),
+    name: String(record.name),
+    prefix: String(record.prefix),
     secret_hash_present: Boolean(record.secret_hash_sha256),
     secret_value_present: false,
-    status: record.status,
-    scopes: Array.isArray(record.scopes) ? [...record.scopes] : [],
+    status: String(record.status),
+    scopes: arrayOfStrings(record.scopes),
     created_at: record.created_at,
     revoked_at: record.revoked_at,
     last_used_at: record.last_used_at,
     one_time_secret_displayed: Boolean(record.one_time_secret_displayed),
     verify_mode: record.verify_mode ?? null,
+  };
+}
+
+const SECRET_REF_PREFIXES = ["env:", "vault:", "kms:", "provider-ref:", "dashboard-ref:"] as const;
+const FORBIDDEN_PUBLIC_REF_MARKERS = ["secret=", "client_secret=", "access_token=", "refresh_token=", "bearer ", "-----begin", "sk_test_", "sk_live_", "rk_live_", "whsec_", "card[number]", "cvc"] as const;
+
+function normalizeOauthProvider(provider: string): "github" | "google" {
+  const normalized = String(provider).trim().toLowerCase().replaceAll("-", "_");
+  if (normalized !== "github" && normalized !== "google") throw new ValidationError("oauth provider must be github or google");
+  return normalized;
+}
+
+function validatePublicRef(refName: string, value: string | undefined): void {
+  if (value === undefined || String(value).trim() === "") throw new ValidationError(`${refName} must not be empty`);
+  const lower = String(value).toLowerCase();
+  if (FORBIDDEN_PUBLIC_REF_MARKERS.some((marker) => lower.includes(marker))) {
+    throw new ValidationError(`${refName} must be a public-safe reference, not raw sensitive material`);
+  }
+}
+
+function validateSecretRef(refName: string, value: string | undefined): void {
+  if (value === undefined || value === "") throw new ValidationError(`${refName} is required`);
+  validatePublicRef(refName, value);
+  if (!SECRET_REF_PREFIXES.some((prefix) => value.startsWith(prefix))) {
+    throw new ValidationError(`${refName} must use a secret reference prefix: ${SECRET_REF_PREFIXES.join(", ")}`);
+  }
+}
+
+function validateOauthState(state: string): void {
+  validatePublicRef("oauth_state", state);
+  if (state.length < 16) throw new ValidationError("oauth state must be at least 16 characters");
+  if (state.length > 512) throw new ValidationError("oauth state must be at most 512 characters");
+}
+
+function pkceS256Challenge(codeVerifier: string): string {
+  const verifier = String(codeVerifier || "");
+  if (verifier.length < 43 || verifier.length > 128) throw new ValidationError("pkce code_verifier must be 43-128 characters");
+  if (!/^[A-Za-z0-9._~-]+$/.test(verifier)) throw new ValidationError("pkce code_verifier must use unreserved URI characters");
+  return createHash("sha256").update(verifier, "ascii").digest("base64url");
+}
+
+function publicOauthProviderConfig(record: JsonRecord): SaaSOAuthProviderConfig {
+  return {
+    schema_version: CONTROL_PLANE_SCHEMA_VERSION,
+    tenant_id: String(record.tenant_id),
+    project_id: String(record.project_id),
+    config_id: String(record.config_id),
+    provider: normalizeOauthProvider(String(record.provider)),
+    client_id_ref: String(record.client_id_ref),
+    client_secret_ref: String(record.client_secret_ref),
+    redirect_uris: arrayOfStrings(record.redirect_uris),
+    scopes: arrayOfStrings(record.scopes),
+    enabled: Boolean(record.enabled),
+    secret_value_present: false,
+    configured_by_api_key_id: record.configured_by_api_key_id ?? null,
+    created_at: record.created_at ?? null,
+    updated_at: record.updated_at ?? null,
+  };
+}
+
+function publicOauthAuthorizationFlow(record: JsonRecord): SaaSOAuthAuthorizationFlow {
+  const rawStatus = String(record.status);
+  const status: SaaSOAuthAuthorizationStatus = rawStatus === "failed" || rawStatus === "completed" ? rawStatus : "pending";
+  return {
+    schema_version: CONTROL_PLANE_SCHEMA_VERSION,
+    tenant_id: String(record.tenant_id),
+    project_id: String(record.project_id),
+    flow_id: String(record.flow_id),
+    provider: String(record.provider),
+    provider_config_id: String(record.provider_config_id),
+    redirect_uri: String(record.redirect_uri),
+    state_hash_present: typeof record.state_hash_sha256 === "string" && record.state_hash_sha256 !== "",
+    code_challenge: String(record.code_challenge),
+    code_challenge_method: "S256",
+    status,
+    session_id: typeof record.session_id === "string" ? record.session_id : null,
+    provider_code_ref_present: typeof record.provider_code_ref_sha256 === "string" && record.provider_code_ref_sha256 !== "",
+    failure_reasons: arrayOfStrings(record.failure_reasons),
+    secret_value_present: false,
+    raw_code_present: false,
+    raw_state_present: false,
+    created_at: record.created_at ?? null,
+    completed_at: record.completed_at ?? null,
+  };
+}
+
+function publicOauthSession(record: JsonRecord): SaaSOAuthSession {
+  return {
+    schema_version: CONTROL_PLANE_SCHEMA_VERSION,
+    tenant_id: String(record.tenant_id),
+    project_id: String(record.project_id),
+    session_id: String(record.session_id),
+    provider: normalizeOauthProvider(String(record.provider)),
+    provider_config_id: String(record.provider_config_id),
+    subject_ref: String(record.subject_ref),
+    access_token_ref_present: typeof record.access_token_ref === "string" && record.access_token_ref !== "",
+    refresh_token_ref_present: typeof record.refresh_token_ref === "string" && record.refresh_token_ref !== "",
+    status: "active",
+    secret_value_present: false,
+    created_by_api_key_id: record.created_by_api_key_id ?? null,
+    created_at: record.created_at ?? null,
+    revoked_at: record.revoked_at ?? null,
   };
 }
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -121,7 +122,7 @@ def build_parser() -> argparse.ArgumentParser:
     portal.add_argument("--idempotency-key")
     portal.add_argument("--auth-key-id")
 
-    webhook = subparsers.add_parser("billing-webhook-ingest", help="Ingest a hash-only billing webhook envelope into the local billing ledger.")
+    webhook = subparsers.add_parser("billing-webhook-ingest", help="Verify and ingest a provider webhook into the local billing ledger.")
     _add_project_args(webhook)
     webhook.add_argument("--provider", required=True)
     webhook.add_argument("--mode", required=True)
@@ -129,6 +130,12 @@ def build_parser() -> argparse.ArgumentParser:
     webhook.add_argument("--event-id", required=True)
     webhook.add_argument("--payload-sha256", required=True)
     webhook.add_argument("--signature-header-present", action="store_true")
+    webhook.add_argument("--signature-header-name", action="append", dest="signature_header_names")
+    webhook.add_argument("--raw-body")
+    webhook.add_argument("--stripe-signature-header")
+    webhook.add_argument("--webhook-signing-material-env", help="Name of an environment variable containing local synthetic Stripe signing material.")
+    webhook.add_argument("--received-at-unix", type=int)
+    webhook.add_argument("--tolerance-seconds", type=int, default=300)
     webhook.add_argument("--webhook-secret-ref")
     webhook.add_argument("--livemode", action="store_true")
     webhook.add_argument("--customer-ref")
@@ -287,6 +294,16 @@ def run_command(args: argparse.Namespace) -> dict[str, Any]:
             auth_key_id=args.auth_key_id,
         )
     elif command == "billing-webhook-ingest":
+        signing_material_env = args.webhook_signing_material_env
+        webhook_secret_resolver = None
+        if signing_material_env:
+            signing_material = os.environ.get(signing_material_env)
+            if not signing_material:
+                raise SecretInputError(f"webhook signing material environment variable is missing: {signing_material_env}")
+
+            def webhook_secret_resolver(_: str, *, _material: str = signing_material) -> str:
+                return _material
+
         envelope = client.billing_webhook_ingest(
             args.tenant_id,
             args.project_id,
@@ -296,6 +313,12 @@ def run_command(args: argparse.Namespace) -> dict[str, Any]:
             event_id=args.event_id,
             payload_sha256=args.payload_sha256,
             signature_header_present=args.signature_header_present,
+            signature_header_names=args.signature_header_names,
+            raw_body=args.raw_body,
+            stripe_signature_header=args.stripe_signature_header,
+            webhook_secret_resolver=webhook_secret_resolver,
+            received_at_unix=args.received_at_unix,
+            tolerance_seconds=args.tolerance_seconds,
             webhook_secret_ref=args.webhook_secret_ref,
             livemode=args.livemode,
             customer_ref=args.customer_ref,

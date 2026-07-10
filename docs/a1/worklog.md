@@ -1590,3 +1590,101 @@ Residual risks / next A1 queue:
 - Actual MinIO network PUT/HEAD/GET is still not in required CI because it needs running services; next round should add a local compose money-grade smoke if daemon/network stability allows.
 - Postgres-backed worker restart/lease-expiry proof remains opt-in; next round should add a compose or `A1_POSTGRES_TEST_DSN` backed test for restart recovery.
 - Billing/OAuth remain safety contracts, not live provider/account flows. Next round should add Stripe raw-body signature and OAuth PKCE/state replay tests before any live provider step.
+
+## Round47 China-first payment runtime and fail-closed ingestion - 2026-07-10
+
+Baseline and peer state:
+- Authoritative worktree:
+  `C:/Users/33516/Documents/Ashr_a1_clean_rebase`.
+- Branch `codex/a1-local-sdk-runner-clean`; baseline and `origin/main` were both
+  `5dbf4ee2`.
+- All visible PRs were merged or closed. Peer A2/A3 branches were inspected
+  read-only; no peer source was staged.
+- Strategy reread confirmed A1 ownership of Go backend, SQL/Postgres/RLS,
+  Python/TypeScript SDK and CLI parity, workers, billing/quota, evidence, and
+  self-host runtime.
+
+Round47 delivered:
+1. China-first payment domain and reconciliation contracts in Go.
+2. Postgres persistence for merchant applications, acquirer bindings, CNY/fen
+   orders, notifications, refunds, bills, and reconciliation.
+3. Public reconciliation HTTP receive/list/get routes with internal transitions
+   absent from public clients.
+4. Public billing webhook ingestion rejects caller-supplied verification before
+   any database connection or transaction.
+5. Migration trigger rejects unverified direct billing event writes.
+6. Adversarial zero-side-effect tests cover billing, ledger, quota, audit,
+   idempotency, order, refund, notification, and reconciliation records.
+7. Python China-payment provider adapters and Stripe compatibility executor.
+8. TypeScript China-payment, reconciliation, Stripe executor, OAuth, API-key,
+   quota, trace, artifact, webhook, and hosted-client parity.
+9. Go/Python/TypeScript route evidence records truthful counts:
+   Go `56`, Python `35`, TypeScript `38`, with 16 unsupported
+   China-payment/reconciliation gaps explicitly registered.
+10. Commercial Compose migrator now runs migrations `001` through `004` before
+    API and worker startup.
+11. Long-running China-payment webhook, reconciliation, domestic-acquirer, and
+    isolated Stripe worker profiles were added.
+12. A2 cross-lane generated consumer fixture was refreshed only because the A1
+    route artifact expanded from 43 to 67 routes; no A2 judge source or
+    semantics changed.
+13. Built-in Browser read-only calibration confirmed the Ashr public home,
+    Docs entry, and Get Started link using visible DOM.
+14. Growth-Auditor was recalled and closed after final review.
+
+Validation:
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` ->
+  `534 passed, 2 skipped`.
+- `npm test` in `packages/ts/ashr-clone` -> `376 passed`.
+- `go test ./...` and `go vet ./...` in `packages/go/ashrclone` -> passed.
+- `go test ./...` and `go vet ./...` in `tests/integration/go` -> passed.
+- Commercial Compose live smoke -> `1 passed`.
+- `python scripts/a2_regenerate_fixtures.py --check` -> all 55 generated
+  fixtures match.
+- Focused A2 cross-lane/contract suite -> `67 passed`.
+- `python scripts/cl_guard.py hygiene` -> passed.
+- `python scripts/cl_guard.py commercial` -> passed.
+- `git diff --check` -> passed with line-ending warnings only.
+- Bounded secret scan reported only intentional negative-test and guardrail
+  matches; no real credential or private key was found.
+
+Browser and payment truth:
+- `built_in_browser_available=true`
+- `public_home_opened=true`
+- `sandbox_only=true`
+- `merchant_application_started=false`
+- `kyc_started=false`
+- `live_money_activation=false`
+- `real_provider_calls=false`
+- `real_card_acceptance=false`
+- `plan_only=true`
+
+Growth-Auditor disposition:
+- Commit is acceptable only as disabled, fail-closed, plan-only infrastructure.
+- Do not claim payment-ready, live-ready, or production-ready.
+- Next round must prioritize provider-specific trusted verification artifacts,
+  the cross-layer forbidden payment-data matrix, project-level RLS proof,
+  entitlement persistence, and atomic order/refund/ledger/quota/audit/outbox
+  transactions.
+
+Next 20 A1 growth points:
+1. Canonical forbidden payment-data matrix.
+2. Python/TS/Go/SQL/HTTP/queue/trace/log/evidence enforcement.
+3. Trusted internal verification artifact schema.
+4. WeChat Pay API v3 verification adapter.
+5. Alipay RSA2 verification adapter.
+6. Domestic acquirer selection and callback certification interface.
+7. Durable callback inbox and replay/conflict retention.
+8. Project-level payment RLS policies.
+9. `NOBYPASSRLS` live payment isolation proof.
+10. Entitlement schema and lifecycle.
+11. Serializable payment-state transaction.
+12. Payment outbox and delivery worker.
+13. Hosted URL allowlist and signed return context.
+14. Opaque reference TTL/single-use/revocation rules.
+15. Vault/KMS reference resolver and rotation model.
+16. Sandbox/live infrastructure isolation.
+17. Partial and cumulative refund controls.
+18. Settlement-bill gross/fee/refund/net arithmetic.
+19. Finance exception queue and immutable audit.
+20. CI-grade secret scanner and payment security certification suite.

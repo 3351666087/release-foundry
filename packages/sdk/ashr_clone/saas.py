@@ -36,6 +36,11 @@ HOSTED_ROUTE_SCOPE_REQUIREMENTS: dict[str, tuple[str, ...]] = {
     "POST /v1/projects/{project_id}/billing/checkout-plan": ("billing:write",),
     "POST /v1/projects/{project_id}/billing/portal-plan": ("billing:write",),
     "POST /v1/projects/{project_id}/billing/webhooks/ingest": ("billing:webhook",),
+    "POST /v1/projects/{project_id}/commercial-auth-payment/oauth-providers/configure": ("commercial:write",),
+    "POST /v1/projects/{project_id}/commercial-auth-payment/oauth-sessions/create": ("commercial:write",),
+    "POST /v1/projects/{project_id}/commercial-auth-payment/oauth-sessions/{session_id}/revoke": ("commercial:write",),
+    "POST /v1/projects/{project_id}/commercial-auth-payment/payments/mode-boundary": ("commercial:write",),
+    "POST /v1/projects/{project_id}/commercial-auth-payment/providers/configure": ("commercial:write",),
     "POST /v1/projects/{project_id}/runs/{run_id}/artifact-manifests": ("artifact:upload",),
     "POST /v1/projects/{project_id}/runs/{run_id}/release-evidence/verify": ("evidence:read",),
     "POST /v1/projects/{project_id}/runs/{run_id}/trace-events": ("trace:ingest",),
@@ -94,6 +99,34 @@ UNSUPPORTED_GO_ROUTE_GAPS: dict[str, dict[str, str]] = {
         "consumer_action": "keep unsupported until run submit is either removed from Go or added to both hosted SDKs deliberately",
     },
 }
+
+_CHINA_PAYMENT_GO_ONLY_ROUTES = (
+    "GET /v1/projects/{project_id}/billing/payments/bills",
+    "GET /v1/projects/{project_id}/billing/payments/bills/{provider}/{bill_entry_id}",
+    "GET /v1/projects/{project_id}/billing/payments/notifications",
+    "GET /v1/projects/{project_id}/billing/payments/notifications/{provider}/{event_id}",
+    "GET /v1/projects/{project_id}/billing/payments/orders",
+    "GET /v1/projects/{project_id}/billing/payments/orders/{provider}/{merchant_order_id}",
+    "GET /v1/projects/{project_id}/billing/payments/providers",
+    "GET /v1/projects/{project_id}/billing/payments/refunds",
+    "GET /v1/projects/{project_id}/billing/payments/refunds/{provider}/{merchant_refund_id}",
+    "GET /v1/projects/{project_id}/billing/reconciliation/events",
+    "GET /v1/projects/{project_id}/billing/reconciliation/events/{provider}/{event_id}",
+    "POST /v1/projects/{project_id}/billing/payments/bills",
+    "POST /v1/projects/{project_id}/billing/payments/notifications",
+    "POST /v1/projects/{project_id}/billing/payments/orders",
+    "POST /v1/projects/{project_id}/billing/payments/refunds",
+    "POST /v1/projects/{project_id}/billing/reconciliation/events",
+)
+UNSUPPORTED_GO_ROUTE_GAPS.update(
+    {
+        route: {
+            "reason": "Go owns the Round47 China payment and reconciliation runtime; Python and TypeScript hosted SDK request/response contracts are not implemented yet.",
+            "consumer_action": "keep the route explicit in parity evidence until both hosted SDKs implement the provider-safe China payment contract",
+        }
+        for route in _CHINA_PAYMENT_GO_ONLY_ROUTES
+    }
+)
 
 
 class SaaSClientError(RuntimeError):
@@ -688,6 +721,13 @@ class SaaSIngestionClient:
         event_id: str,
         payload_sha256: str,
         signature_header_present: bool,
+        signature_header_names: Sequence[str] | None = None,
+        raw_body: bytes | str | None = None,
+        stripe_signature_header: str | None = None,
+        webhook_secret_resolver: Callable[[str], str] | None = None,
+        provider_verifier: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = None,
+        received_at_unix: int | None = None,
+        tolerance_seconds: int = 300,
         webhook_secret_ref: str | None = None,
         livemode: bool | None = None,
         customer_ref: str | None = None,
@@ -710,6 +750,7 @@ class SaaSIngestionClient:
             "event_id": event_id,
             "payload_sha256": payload_sha256,
             "signature_header_present": bool(signature_header_present),
+            "signature_header_names": list(signature_header_names or []),
             "webhook_secret_ref": webhook_secret_ref,
             "livemode": livemode,
             "customer_ref": customer_ref,
@@ -721,6 +762,10 @@ class SaaSIngestionClient:
             "auth_key_id": auth_key_id,
         }
         if self.uses_http:
+            if webhook_secret_resolver is not None or provider_verifier is not None:
+                raise SecretInputError("trusted webhook verifiers are process-local and cannot be sent through public HTTP")
+            if raw_body is not None or stripe_signature_header is not None:
+                raise SecretInputError("raw Stripe webhook verification must be performed by the HTTP server from the original request body and headers")
             return self._request("billing_webhook_ingest", payload, headers=auth_headers)
         _reject_hosted_bearer_headers(auth_headers)
         from services.api.billing import BillingLedger, verify_billing_webhook_envelope
@@ -736,10 +781,23 @@ class SaaSIngestionClient:
             "event_id",
             "payload_sha256",
             "signature_header_present",
+            "signature_header_names",
             "webhook_secret_ref",
             "livemode",
         }
         envelope_payload = _drop_none({k: v for k, v in payload.items() if k in envelope_keys})
+        envelope_payload.update(
+            _drop_none(
+                {
+                    "raw_body": raw_body,
+                    "stripe_signature_header": stripe_signature_header,
+                    "webhook_secret_resolver": webhook_secret_resolver,
+                    "provider_verifier": provider_verifier,
+                    "received_at_unix": received_at_unix,
+                    "tolerance_seconds": int(tolerance_seconds),
+                }
+            )
+        )
         envelope_result = verify_billing_webhook_envelope(**envelope_payload)
         result = self._billing_ledger.ingest_provider_webhook(
             envelope=envelope_result,
