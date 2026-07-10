@@ -1,5 +1,7 @@
 export * from "./api-client.js";
 export * from "./account-readiness.js";
+export * from "./account-connections.js";
+export * from "./account-connections-cli.js";
 export * from "./billing.js";
 export * from "./calibrate.js";
 export * from "./china-payments.js";
@@ -9,10 +11,27 @@ export * from "./dataset-adapter.js";
 export * from "./evidence.js";
 export * from "./github-oauth.js";
 export * from "./github-oauth-cli.js";
+export {
+  OAuthProviderContractError,
+  OAuthReplayLedger,
+  buildAuthorizationEnvelope,
+  buildTokenExchangeEnvelope,
+  buildTokenRefEnvelope,
+  derivePkceS256,
+  hashOAuthNonce,
+  hashOAuthState,
+  oauthProviderContractManifest,
+  oauthProviderMetadata,
+  publicOAuthClientConfig,
+  validateOAuthClientConfig,
+  verifyCallbackIdentity,
+  verifyCallbackState,
+} from "./oauth.js";
 export * from "./runner.js";
 export * from "./saas.js";
 export * from "./stripe-executor.js";
 export * from "./trace.js";
+export * from "./unified-identity.js";
 
 export const CLOUD_API_SCHEMA_VERSION = "ashr.clone.cloud_api.v1";
 export const AGENT_INPUT_SCHEMA_VERSION = "ashr.clone.agent_input.v1";

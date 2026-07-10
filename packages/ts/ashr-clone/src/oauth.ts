@@ -265,7 +265,10 @@ export function verifyCallbackState(options: {
   const stateMatches = safeEqual(receivedDigest, options.expectedStateSha256);
   if (options.authorizationCodeRef !== undefined) validateRef("authorization_code_ref", options.authorizationCodeRef);
   let replayAccepted = true;
-  if (options.replayKey !== undefined) {
+  const callbackIsEligible = stateMatches
+    && options.authorizationCodeRef !== undefined
+    && options.errorCode === undefined;
+  if (options.replayKey !== undefined && callbackIsEligible) {
     if (options.replayLedger === undefined) throw new OAuthProviderContractError("OAuth replay ledger is required");
     replayAccepted = options.replayLedger.consume(options.provider ?? "github", options.environment ?? "sandbox", options.replayKey);
   }
@@ -294,6 +297,7 @@ export function verifyCallbackIdentity(options: {
   expectedAccountBindingRef?: string;
   receivedNonce?: string;
   expectedNonceSha256?: string;
+  emailVerified?: boolean;
 }): JsonRecord {
   const config = validateOAuthClientConfig(options.config);
   const issuer = normalizeHttpsIssuer("issuer", options.issuer);
@@ -304,6 +308,8 @@ export function verifyCallbackIdentity(options: {
   const issuerMatches = config.issuer_allowlist.includes(issuer);
   const audienceMatches = config.audience_allowlist.length === 0 || audiences.some((value) => config.audience_allowlist.includes(value));
   const accountMatches = options.expectedAccountBindingRef === undefined || safeEqual(options.accountBindingRef, options.expectedAccountBindingRef);
+  const emailVerificationRequired = config.scopes.includes("email");
+  const emailVerifiedMatches = !emailVerificationRequired || options.emailVerified === true;
   const nonceRequired = PROVIDER_METADATA[config.provider].nonce_supported;
   let nonceMatches = !nonceRequired;
   let receivedNonceSha256: string | null = null;
@@ -317,6 +323,7 @@ export function verifyCallbackIdentity(options: {
   if (!audienceMatches) failureReasons.push("audience_mismatch");
   if (!nonceMatches) failureReasons.push("nonce_mismatch");
   if (!accountMatches) failureReasons.push("account_binding_mismatch");
+  if (!emailVerifiedMatches) failureReasons.push("email_unverified");
   const accepted = failureReasons.length === 0 && config.enabled;
   if (!config.enabled) failureReasons.push("provider_disabled");
   return {
@@ -326,6 +333,8 @@ export function verifyCallbackIdentity(options: {
     issuer: issuerMatches ? issuer : null, issuer_matches: issuerMatches,
     audience_matches: audienceMatches, nonce_required: nonceRequired,
     nonce_matches: nonceMatches, account_binding_matches: accountMatches,
+    email_verification_required: emailVerificationRequired,
+    email_verified: options.emailVerified === true,
     subject_sha256: sha256(subject), received_nonce_sha256: receivedNonceSha256,
     account_binding_ref: accountMatches ? options.accountBindingRef : null,
     raw_subject_present: false, raw_nonce_present: false, secret_value_present: false,

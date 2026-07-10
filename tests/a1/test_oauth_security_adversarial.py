@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import json
 import re
@@ -11,7 +12,12 @@ from services.api.control_plane import SaaSControlPlaneRouter, SaaSControlPlaneS
 from services.api.oauth_providers import (
     OAuthClientConfig,
     OAuthProviderContractError,
+    OAuthProviderRuntimeError,
     OAuthReplayLedger,
+    GitHubOAuthRuntime,
+    InMemoryOAuthSecretReferenceStore,
+    hash_oauth_nonce,
+    verify_callback_identity,
     verify_callback_state,
 )
 from services.api.runtime import NotFoundError, ValidationError
@@ -19,6 +25,7 @@ from services.api.runtime import NotFoundError, ValidationError
 
 CALLBACK = "https://app.ashr-clone.invalid/oauth/github/callback"
 VERIFIER = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789-._~"
+GOOGLE_CALLBACK = "https://app.ashr-clone.invalid/oauth/google/callback"
 
 
 def _control() -> SaaSControlPlaneService:
@@ -160,6 +167,27 @@ def test_invalid_callback_does_not_consume_replay_key_before_valid_callback():
     assert "callback_replay" in replay["failure_reasons"]
 
 
+def test_in_memory_replay_ledger_allows_exactly_one_concurrent_consumer():
+    ledger = OAuthReplayLedger()
+
+    def consume_once(_: int) -> bool:
+        return ledger.consume(
+            provider="github",
+            environment="sandbox",
+            replay_key="concurrent-callback-attempt-20260710",
+        )
+
+    with ThreadPoolExecutor(max_workers=16) as executor:
+        results = list(executor.map(consume_once, range(128)))
+
+    assert results.count(True) == 1
+    assert results.count(False) == 127
+    assert ledger.public_snapshot() == {
+        "consumed_digest_count": 1,
+        "raw_replay_keys_present": False,
+    }
+
+
 def test_state_and_authorization_code_replay_fail_closed_across_flows():
     control = _control()
     _configure(control)
@@ -215,6 +243,112 @@ def test_state_and_authorization_code_replay_fail_closed_across_flows():
     assert completed["accepted"] is True
     assert replay["accepted"] is False
     assert "authorization_code_replay" in replay["failure_reasons"]
+
+
+@pytest.mark.parametrize(
+    ("override", "failure_reason"),
+    [
+        ({"received_nonce": "wrong-nonce-value-20260710"}, "nonce_mismatch"),
+        ({"issuer": "https://issuer.invalid"}, "issuer_mismatch"),
+        ({"audience": "wrong-google-client-id"}, "audience_mismatch"),
+        ({"email_verified": False}, "email_unverified"),
+    ],
+)
+def test_google_identity_claim_failures_are_individually_fail_closed(
+    override, failure_reason
+):
+    nonce = "google-oidc-nonce-value-20260710"
+    config = OAuthClientConfig(
+        provider="google",
+        client_id_ref="env:GOOGLE_CLIENT_ID_REF",
+        client_secret_ref="vault:google/oauth/client-secret-ref",
+        redirect_uri=GOOGLE_CALLBACK,
+        redirect_allowlist=(GOOGLE_CALLBACK,),
+        scopes=("openid", "email"),
+        environment="sandbox",
+        enabled=True,
+        issuer_allowlist=("https://accounts.google.com",),
+        audience_allowlist=("google-client-id",),
+    )
+    claims = {
+        "issuer": "https://accounts.google.com",
+        "audience": "google-client-id",
+        "subject": "google-subject-synthetic-123",
+        "account_binding_ref": "provider-ref:google/account/synthetic-123",
+        "expected_account_binding_ref": "provider-ref:google/account/synthetic-123",
+        "received_nonce": nonce,
+        "expected_nonce_sha256": hash_oauth_nonce(nonce)["nonce_sha256"],
+        "email_verified": True,
+    }
+    claims.update(override)
+
+    result = verify_callback_identity(config=config, **claims)
+    serialized = json.dumps(result, sort_keys=True)
+
+    assert result["accepted"] is False
+    assert result["failure_reasons"] == [failure_reason]
+    assert result["raw_subject_present"] is False
+    assert result["raw_nonce_present"] is False
+    assert "google-subject-synthetic-123" not in serialized
+    assert nonce not in serialized
+
+
+@pytest.mark.parametrize("failure", [TimeoutError("timeout"), OSError("outage")])
+def test_github_provider_timeout_and_outage_are_redacted_and_leave_no_token_ref(
+    failure,
+):
+    class FailingTransport:
+        def __init__(self):
+            self.calls = 0
+
+        def request(self, method, url, *, headers=None, form=None, json_body=None):
+            self.calls += 1
+            raise failure
+
+    transport = FailingTransport()
+    store = InMemoryOAuthSecretReferenceStore(
+        {
+            "env:GITHUB_CLIENT_ID_REF": "synthetic-client-id",
+            "vault:github/oauth/client-secret-ref": "synthetic-client-secret",
+        }
+    )
+    runtime = GitHubOAuthRuntime(transport=transport, secret_store=store)
+    config = OAuthClientConfig(
+        provider="github",
+        client_id_ref="env:GITHUB_CLIENT_ID_REF",
+        client_secret_ref="vault:github/oauth/client-secret-ref",
+        redirect_uri=CALLBACK,
+        redirect_allowlist=(CALLBACK,),
+        scopes=("read:user",),
+        environment="sandbox",
+        enabled=True,
+    )
+    state = "github-provider-failure-state-20260710"
+    begun = runtime.begin_authorization(
+        config=config,
+        state=state,
+        code_verifier=VERIFIER,
+    )
+
+    with pytest.raises(OAuthProviderRuntimeError) as exc_info:
+        runtime.complete_authorization(
+            config=config,
+            authorization_code="synthetic-provider-failure-code",
+            received_state=state,
+            expected_state_sha256=begun["state_sha256"],
+            code_verifier_ref=begun["code_verifier_ref"],
+        )
+
+    public_error = json.dumps(exc_info.value.to_public_dict(), sort_keys=True)
+    assert exc_info.value.code == "github_transport_error"
+    assert transport.calls == 1
+    assert "synthetic-provider-failure-code" not in public_error
+    assert "synthetic-client-secret" not in public_error
+    assert store.public_snapshot() == {
+        "reference_count": 3,
+        "secret_value_present": False,
+        "references_included": False,
+    }
 
 
 def test_client_credentials_and_refs_are_rejected_or_omitted_without_echo():

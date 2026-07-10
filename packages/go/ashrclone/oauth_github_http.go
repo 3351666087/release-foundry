@@ -20,14 +20,14 @@ func (server *HTTPServer) handleGitHubOAuthProject(writer http.ResponseWriter, r
 		return
 	}
 	tenantID := firstNonEmpty(request.URL.Query().Get("tenant_id"), request.Header.Get("X-Ashr-Tenant-ID"), stringValue(body, "tenant_id"))
-	accountID := firstNonEmpty(request.URL.Query().Get("account_id"), stringValue(body, "account_id"))
+	assertedAccountID := firstNonEmpty(request.URL.Query().Get("account_id"), stringValue(body, "account_id"))
 	switch parts[0] {
 	case "start":
 		if request.Method != http.MethodGet && request.Method != http.MethodPost {
 			writeError(writer, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
 			return
 		}
-		result, err := server.githubOAuth.Start(request.Context(), request, tenantID, projectID, accountID)
+		result, err := server.githubOAuth.Start(request.Context(), request, tenantID, projectID, assertedAccountID)
 		if err != nil {
 			writeGitHubOAuthError(writer, err)
 			return
@@ -37,12 +37,23 @@ func (server *HTTPServer) handleGitHubOAuthProject(writer http.ResponseWriter, r
 			return
 		}
 		writeJSON(writer, http.StatusOK, result)
+	case "connection":
+		if request.Method != http.MethodGet {
+			writeError(writer, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
+			return
+		}
+		result, err := server.githubOAuth.Connection(request.Context(), request, tenantID, projectID, assertedAccountID)
+		if err != nil {
+			writeGitHubOAuthError(writer, err)
+			return
+		}
+		writeJSON(writer, http.StatusOK, result)
 	case "disconnect":
 		if request.Method != http.MethodPost && request.Method != http.MethodDelete {
 			writeError(writer, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
 			return
 		}
-		result, err := server.githubOAuth.Disconnect(request.Context(), request, tenantID, projectID, accountID)
+		result, err := server.githubOAuth.Disconnect(request.Context(), request, tenantID, projectID, assertedAccountID)
 		if err != nil {
 			writeGitHubOAuthError(writer, err)
 			return

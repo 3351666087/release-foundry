@@ -9,12 +9,21 @@ from urllib import error, request
 from urllib.parse import urlencode, urljoin, quote
 
 from .api_client import redact_sensitive, redact_text
+from .account_connection import (
+    AccountConnection,
+    AccountConnectionBinding,
+    AccountConnectionDisconnect,
+    AccountConnectionStart,
+)
 
 JsonDict = dict[str, Any]
 SAAS_CLIENT_VERSION = "ashr.clone.saas_ingestion_client.v1"
 BLOCKED_CONTROL_PLANE_PATH_PARTS = {".secrets", "private_refs"}
 
 HOSTED_ROUTE_SCOPE_REQUIREMENTS: dict[str, tuple[str, ...]] = {
+    "GET /v1/accounts/{account_id}": ("identity:read",),
+    "GET /v1/accounts/{account_id}/credentials": ("identity:read",),
+    "GET /v1/accounts/{account_id}/memberships": ("identity:read",),
     "GET /v1/projects/{project_id}/api-keys": ("api_key:read",),
     "GET /v1/projects/{project_id}/api-keys/rate-limits": ("api_key:read",),
     "GET /v1/projects/{project_id}/audit-log": ("audit:read",),
@@ -54,6 +63,15 @@ HOSTED_ROUTE_SCOPE_REQUIREMENTS: dict[str, tuple[str, ...]] = {
     "POST /v1/projects/{project_id}/worker-jobs/{job_id}/complete": ("worker_job:write",),
     "POST /v1/projects/{project_id}/worker-jobs/{job_id}/fail": ("worker_job:write",),
     "POST /v1/projects/{project_id}/worker-jobs/{job_id}/heartbeat": ("worker_job:write",),
+    "POST /v1/projects/{project_id}/oauth/{provider}/start": ("oauth:connect",),
+    "GET /v1/projects/{project_id}/oauth/{provider}/connection": ("oauth:read",),
+    "POST /v1/projects/{project_id}/oauth/{provider}/disconnect": ("oauth:disconnect",),
+    "POST /v1/projects/{project_id}/oauth/github/start": ("oauth:connect",),
+    "GET /v1/projects/{project_id}/oauth/github/connection": ("oauth:read",),
+    "POST /v1/projects/{project_id}/oauth/github/disconnect": ("oauth:disconnect",),
+    "POST /v1/projects/{project_id}/oauth/google/start": ("oauth:connect",),
+    "GET /v1/projects/{project_id}/oauth/google/connection": ("oauth:read",),
+    "POST /v1/projects/{project_id}/oauth/google/disconnect": ("oauth:disconnect",),
 }
 
 MUTATING_CALIBRATION_MODALITIES = ("text", "image", "audio", "file", "video")
@@ -86,9 +104,19 @@ UNSUPPORTED_GO_ROUTE_GAPS: dict[str, dict[str, str]] = {
         "reason": "Go exposes the canonical localhost GitHub account-connection callback; the hosted Python route client does not execute browser redirects.",
         "consumer_action": "keep explicit until the shared generated OpenAPI client models provider callbacks without exposing authorization codes",
     },
+    "GET /oauth/google/callback": {
+        "reason": "Go exposes the canonical localhost Google account-connection callback; the hosted Python route client does not execute browser redirects.",
+        "consumer_action": "keep explicit until the shared generated OpenAPI client models provider callbacks without exposing authorization codes",
+    },
     "GET /v1/projects/{project_id}/oauth/github/start": {
-        "reason": "Go exposes a browser redirect helper for an existing authenticated development session; the hosted Python client does not yet model this account-connection flow.",
-        "consumer_action": "keep explicit until the shared OAuth account-connection contract is generated for Python and TypeScript",
+        "reason": "Go exposes a browser redirect alias; hosted SDKs use the provider-neutral JSON POST start contract.",
+        "replacement_route": "POST /v1/projects/{project_id}/oauth/{provider}/start",
+        "consumer_action": "keep explicit as a browser-only alias outside the hosted JSON client",
+    },
+    "GET /v1/projects/{project_id}/oauth/google/start": {
+        "reason": "Go exposes a browser redirect alias; hosted SDKs use the provider-neutral JSON POST start contract.",
+        "replacement_route": "POST /v1/projects/{project_id}/oauth/{provider}/start",
+        "consumer_action": "keep explicit as a browser-only alias outside the hosted JSON client",
     },
     "GET /v1/projects/{project_id}/audit-chain/verify": {
         "reason": "Go has a read-style audit-chain verifier route while hosted clients consume the POST verifier contract.",
@@ -104,18 +132,15 @@ UNSUPPORTED_GO_ROUTE_GAPS: dict[str, dict[str, str]] = {
         "reason": "Go advertises an API-key preflight route that TS/Python hosted clients have not implemented yet.",
         "consumer_action": "keep unsupported until preflight request and response semantics are added to both hosted SDKs",
     },
-    "POST /v1/projects/{project_id}/oauth/github/disconnect": {
-        "reason": "Go exposes local GitHub account disconnection with provider-token revocation; the hosted Python client has no matching generated contract yet.",
-        "consumer_action": "keep explicit until disconnect and revocation failure semantics are shared across all SDKs",
-    },
-    "POST /v1/projects/{project_id}/oauth/github/start": {
-        "reason": "Go exposes the JSON form of the authenticated GitHub account-connection start flow; the hosted Python client has no matching generated contract yet.",
-        "consumer_action": "keep explicit until the shared OAuth account-connection contract is generated for Python and TypeScript",
-    },
     "DELETE /v1/projects/{project_id}/oauth/github/disconnect": {
-        "reason": "Go exposes an idempotent HTTP DELETE alias for local GitHub account disconnection; the hosted Python client has no matching generated contract yet.",
-        "replacement_route": "POST /v1/projects/{project_id}/oauth/github/disconnect",
-        "consumer_action": "keep explicit as a method alias until one disconnect method is selected in the shared OpenAPI contract",
+        "reason": "Go exposes an idempotent HTTP DELETE alias; hosted SDKs use the provider-neutral JSON POST disconnect contract.",
+        "replacement_route": "POST /v1/projects/{project_id}/oauth/{provider}/disconnect",
+        "consumer_action": "keep explicit as a method alias outside the hosted JSON client",
+    },
+    "DELETE /v1/projects/{project_id}/oauth/google/disconnect": {
+        "reason": "Go exposes an idempotent HTTP DELETE alias; hosted SDKs use the provider-neutral JSON POST disconnect contract.",
+        "replacement_route": "POST /v1/projects/{project_id}/oauth/{provider}/disconnect",
+        "consumer_action": "keep explicit as a method alias outside the hosted JSON client",
     },
     "POST /v1/projects/{project_id}/runs/submit": {
         "reason": "Go keeps an older run submit shape while hosted clients submit through the SDK submission contract.",
@@ -294,6 +319,84 @@ class SaaSIngestionClient:
                 metadata={"created_by": "ashr_clone.saas_client", "local_only": True},
             )
         return _envelope("bootstrap_project", result)
+
+    def start_account_connection(
+        self,
+        tenant_id: str,
+        project_id: str,
+        *,
+        provider: str,
+        account_id: str,
+        expected_google_audience: str | None = None,
+        api_key_secret: str | None = None,
+        bearer_api_key: str | None = None,
+    ) -> JsonDict:
+        if not self.uses_http:
+            raise SaaSClientError("account connection is only supported with base_url HTTP transport")
+        binding = AccountConnectionBinding(tenant_id, project_id, account_id, provider)
+        auth_headers = _bearer_auth_headers(
+            api_key_secret=api_key_secret, bearer_api_key=bearer_api_key
+        )
+        envelope = self._request(
+            "start_account_connection", binding.request_payload(), headers=auth_headers
+        )
+        result = AccountConnectionStart.from_public_response(
+            envelope["result"],
+            expected_provider=binding.provider,
+            expected_google_audience=expected_google_audience,
+        )
+        envelope["result"] = result.to_dict()
+        return envelope
+
+    def disconnect_account_connection(
+        self,
+        tenant_id: str,
+        project_id: str,
+        *,
+        provider: str,
+        account_id: str,
+        api_key_secret: str | None = None,
+        bearer_api_key: str | None = None,
+    ) -> JsonDict:
+        if not self.uses_http:
+            raise SaaSClientError("account connection is only supported with base_url HTTP transport")
+        binding = AccountConnectionBinding(tenant_id, project_id, account_id, provider)
+        auth_headers = _bearer_auth_headers(
+            api_key_secret=api_key_secret, bearer_api_key=bearer_api_key
+        )
+        envelope = self._request(
+            "disconnect_account_connection", binding.request_payload(), headers=auth_headers
+        )
+        result = AccountConnectionDisconnect.from_public_response(
+            envelope["result"], expected_provider=binding.provider
+        )
+        envelope["result"] = result.to_dict()
+        return envelope
+
+    def get_account_connection(
+        self,
+        tenant_id: str,
+        project_id: str,
+        *,
+        provider: str,
+        account_id: str,
+        api_key_secret: str | None = None,
+        bearer_api_key: str | None = None,
+    ) -> JsonDict:
+        if not self.uses_http:
+            raise SaaSClientError("account connection is only supported with base_url HTTP transport")
+        binding = AccountConnectionBinding(tenant_id, project_id, account_id, provider)
+        auth_headers = _bearer_auth_headers(
+            api_key_secret=api_key_secret, bearer_api_key=bearer_api_key
+        )
+        envelope = self._request(
+            "get_account_connection", binding.request_payload(), headers=auth_headers
+        )
+        result = AccountConnection.from_public_response(
+            envelope["result"], expected_provider=binding.provider
+        )
+        envelope["result"] = result.to_dict()
+        return envelope
 
     def create_api_key(
         self,
@@ -1139,6 +1242,7 @@ _GET_OPERATIONS = {
     "list_api_keys",
     "api_key_rate_limit_snapshot",
     "commercial_auth_payment_snapshot",
+    "get_account_connection",
     "lifecycle_snapshot",
     "quota_snapshot",
     "usage_snapshot",
@@ -1170,6 +1274,22 @@ def _operation_route(operation: str, payload: Mapping[str, Any] | None = None) -
         return method, f"{project_path}/api-keys/rate-limits"
     if operation == "commercial_auth_payment_snapshot":
         return method, f"{project_path}/commercial-auth-payment"
+    if operation in {
+        "start_account_connection",
+        "get_account_connection",
+        "disconnect_account_connection",
+    }:
+        from .account_connection import normalize_account_connection_provider
+
+        provider = normalize_account_connection_provider(
+            _required_route_value(payload, "provider", operation)
+        )
+        action = {
+            "start_account_connection": "start",
+            "get_account_connection": "connection",
+            "disconnect_account_connection": "disconnect",
+        }[operation]
+        return method, f"{project_path}/oauth/{provider}/{action}"
     if operation in {"configure_oauth_provider", "begin_oauth_authorization", "create_oauth_session", "configure_commercial_provider", "record_payment_mode_boundary"}:
         suffix = {
             "configure_oauth_provider": "commercial-auth-payment/oauth-providers/configure",

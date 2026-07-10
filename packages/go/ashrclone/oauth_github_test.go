@@ -53,7 +53,7 @@ func TestGitHubOAuthHTTPVerticalSliceAndReplayDenial(t *testing.T) {
 		return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body)), Request: request}, nil
 	})}
 	oauth, err := NewGitHubOAuthService(GitHubOAuthOptions{
-		SessionResolver: testGitHubOAuthSessionResolver{session: GitHubOAuthSession{TenantID: "tenant", UserID: "user", SessionID: "session"}},
+		SessionResolver: testGitHubOAuthSessionResolver{session: GitHubOAuthSession{TenantID: "tenant", UserID: "user", SessionID: "session", AccountID: "account"}},
 		Credentials:     testGitHubOAuthCredentials{}, Transactions: store, Secrets: store, Connections: store, HTTPClient: client,
 		AuthorizeURL: "http://github.test/authorize", TokenURL: "http://github.test/token", APIURL: "http://github.test",
 		CallbackURL: "http://localhost:8787/oauth/github/callback", TransactionTTL: time.Minute, Now: func() time.Time { return now },
@@ -145,7 +145,7 @@ func TestGitHubOAuthTokenExchangeRequiresExactCommaSeparatedScopeSet(t *testing.
 				return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(strings.NewReader(body)), Request: request}, nil
 			})}
 			service, err := NewGitHubOAuthService(GitHubOAuthOptions{
-				SessionResolver: testGitHubOAuthSessionResolver{session: GitHubOAuthSession{TenantID: "tenant", UserID: "user", SessionID: "session"}},
+				SessionResolver: testGitHubOAuthSessionResolver{session: GitHubOAuthSession{TenantID: "tenant", UserID: "user", SessionID: "session", AccountID: "account"}},
 				Credentials:     testGitHubOAuthCredentials{}, Transactions: NewMemoryGitHubOAuthStore(),
 				Secrets: NewMemoryGitHubOAuthStore(), Connections: NewMemoryGitHubOAuthStore(), HTTPClient: client,
 				AuthorizeURL: "http://github.test/authorize", TokenURL: "http://github.test/token", APIURL: "http://github.test",
@@ -170,7 +170,7 @@ func TestGitHubOAuthTokenExchangeRequiresExactCommaSeparatedScopeSet(t *testing.
 }
 
 func TestLocalhostDevSessionRejectsSpoofedHost(t *testing.T) {
-	resolver := LocalhostDevGitHubOAuthSessionResolver{Enabled: true, TenantID: "tenant", UserID: "user", SessionID: "session"}
+	resolver := LocalhostDevGitHubOAuthSessionResolver{Enabled: true, TenantID: "tenant", UserID: "user", SessionID: "session", AccountID: "account"}
 	request := httptest.NewRequest(http.MethodPost, "http://localhost:8787/v1/projects/project/oauth/github/start", nil)
 	request.RemoteAddr = "203.0.113.7:4242"
 	if _, err := resolver.ResolveGitHubOAuthSession(context.Background(), request); err == nil {
@@ -187,13 +187,38 @@ func TestGitHubOAuthDisconnectRevokesBeforeDeletingLocalToken(t *testing.T) {
 	now := time.Date(2026, 7, 10, 1, 2, 3, 0, time.UTC)
 	store := NewMemoryGitHubOAuthStore()
 	binding := GitHubOAuthSecretBinding{TenantID: "tenant", ProjectID: "project", SessionID: "session", UserID: "user", AccountID: "account"}
+	identity, err := NewUnifiedIdentityService(UnifiedIdentityServiceOptions{Now: func() time.Time { return now }})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := identity.EnsureAccount(binding.AccountID, binding.UserID); err != nil {
+		t.Fatal(err)
+	}
+	credential, err := identity.LinkCredential(binding.AccountID, LinkIdentityCredentialRequest{
+		Credential: IdentityCredentialInput{
+			Kind: IdentityCredentialOAuth, Provider: IdentityProviderGitHub, Identifier: "42", Verified: true,
+		},
+		ActorID: binding.UserID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := identity.LinkCredential(binding.AccountID, LinkIdentityCredentialRequest{
+		Credential: IdentityCredentialInput{
+			Kind: IdentityCredentialEmail, Provider: IdentityProviderLocal, Identifier: "backup@example.invalid", Verified: true,
+		},
+		ActorID: binding.UserID,
+	}); err != nil {
+		t.Fatal(err)
+	}
 	ref, err := store.PutGitHubOAuthToken(context.Background(), binding, "github-access-token")
 	if err != nil {
 		t.Fatal(err)
 	}
 	_, err = store.UpsertGitHubOAuthConnection(context.Background(), GitHubOAuthConnection{
 		SchemaVersion: GitHubOAuthSchemaVersion, TenantID: binding.TenantID, ProjectID: binding.ProjectID,
-		SessionID: binding.SessionID, UserID: binding.UserID, AccountID: binding.AccountID, TokenRef: ref, ConnectedAt: now,
+		SessionID: binding.SessionID, UserID: binding.UserID, AccountID: binding.AccountID,
+		CredentialID: credential.CredentialID, TokenRef: ref, ConnectedAt: now,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -209,9 +234,10 @@ func TestGitHubOAuthDisconnectRevokesBeforeDeletingLocalToken(t *testing.T) {
 		return &http.Response{StatusCode: revokeStatus, Header: make(http.Header), Body: io.NopCloser(strings.NewReader("")), Request: request}, nil
 	})}
 	service, err := NewGitHubOAuthService(GitHubOAuthOptions{
-		SessionResolver: testGitHubOAuthSessionResolver{session: GitHubOAuthSession{TenantID: "tenant", UserID: "user", SessionID: "session"}},
+		SessionResolver: testGitHubOAuthSessionResolver{session: GitHubOAuthSession{TenantID: "tenant", UserID: "user", SessionID: "session", AccountID: "account"}},
 		Credentials:     testGitHubOAuthCredentials{}, Transactions: store, Secrets: store, Connections: store, HTTPClient: client,
-		AuthorizeURL: "http://github.test/authorize", TokenURL: "http://github.test/token", APIURL: "http://github.test",
+		IdentityBridge: UnifiedIdentityOAuthBridge{Identity: identity},
+		AuthorizeURL:   "http://github.test/authorize", TokenURL: "http://github.test/token", APIURL: "http://github.test",
 		CallbackURL: "http://localhost:8787/oauth/github/callback", Now: func() time.Time { return now },
 	})
 	if err != nil {
@@ -259,8 +285,10 @@ func TestGitHubOAuthPublicConnectionMinimizesIdentityDisclosure(t *testing.T) {
 		SchemaVersion: GitHubOAuthSchemaVersion,
 		TenantID:      "tenant", ProjectID: "project", SessionID: "session", UserID: "user",
 		AccountID: "account", GitHubUserID: 42, GitHubLogin: "octocat",
-		ProviderSubjectHash: githubProviderSubjectSHA256(42),
-		Email:               "verified@example.invalid", EmailPresent: true, TokenRef: "github_oauth_ref_private",
+		CredentialID:           "cred_test_opaque",
+		ProviderSubjectHash:    githubProviderSubjectSHA256(42),
+		ProviderSubjectPresent: true,
+		Email:                  "verified@example.invalid", EmailPresent: true, TokenRef: "github_oauth_ref_private",
 		ConnectedAt: time.Date(2026, 7, 10, 1, 2, 3, 0, time.UTC),
 	}
 	payload, err := json.Marshal(connection)
@@ -268,12 +296,12 @@ func TestGitHubOAuthPublicConnectionMinimizesIdentityDisclosure(t *testing.T) {
 		t.Fatal(err)
 	}
 	text := string(payload)
-	for _, forbidden := range []string{"tenant", "project", "session", "user", "verified@example.invalid", "github_oauth_ref_private", `"github_user_id"`} {
+	for _, forbidden := range []string{"tenant", "project", "session", "user", "verified@example.invalid", "github_oauth_ref_private", `"github_user_id"`, `"provider_subject_sha256"`} {
 		if strings.Contains(text, forbidden) {
 			t.Fatalf("public connection leaked %q: %s", forbidden, text)
 		}
 	}
-	for _, required := range []string{`"account_id":"account"`, `"github_login":"octocat"`, `"email_present":true`, `"provider_subject_sha256"`} {
+	for _, required := range []string{`"account_id":"account"`, `"credential_id":"cred_test_opaque"`, `"github_login":"octocat"`, `"email_present":true`, `"provider_subject_present":true`} {
 		if !strings.Contains(text, required) {
 			t.Fatalf("public connection omitted %q: %s", required, text)
 		}

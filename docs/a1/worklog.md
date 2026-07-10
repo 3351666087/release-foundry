@@ -1867,3 +1867,87 @@ Next 20 A1 commercial growth points:
 18. Add self-host OAuth callback and external URL configuration.
 19. Add SDK parity fixtures for every OAuth lifecycle state.
 20. Add end-to-end account connection to tenant/project/run authorization.
+
+## Round49 unified account boundary - 2026-07-10
+
+Baseline and collaboration:
+
+- Authoritative worktree:
+  `C:/Users/33516/Documents/Ashr_a1_clean_rebase`.
+- Branch `codex/a1-local-sdk-runner-clean`, publishing to
+  `origin/codex/a1-local-sdk-runner` and PR #31.
+- Repository, remote, branch, `origin/main`, peer branches, worklog, evidence,
+  and current diff were inspected before finalization.
+- Five peer A2 generated fixtures contain working-tree line-ending noise. They
+  remain excluded from A1 edits, staging, and commit.
+- The canonical model is account or principal, credential, membership, and
+  session. A provider is a login credential, not a separate business account.
+
+Delivered and verified:
+
+1. The Go runtime shares one provider-neutral `UnifiedIdentityService` across
+   GitHub and Google OAuth coordinators.
+2. Controlled localhost GitHub and Google OAuth flows both resolved to the
+   same canonical `local_account`.
+3. The account had exactly two verified, login-capable OAuth credentials:
+   GitHub and Google.
+4. Membership count remained zero, proving that tenant and project
+   authorization are independent from login credentials.
+5. A caller-supplied mismatched account assertion returned HTTP `403` and
+   failed closed.
+6. Public account and credential responses passed the forbidden-material scan
+   with zero hits.
+7. Public-safe calibration evidence is stored at
+   `docs/a1/evidence/unified_identity_same_account_localhost_20260710.json`.
+8. The identity contract covers GitHub, Google, WeChat, QQ, Alipay, phone, and
+   email as credentials on one backend account.
+9. Account linking never implicitly merges by email or phone, provider-subject
+   ownership conflicts fail closed, memberships survive unlink, and the final
+   login-capable credential cannot be removed.
+
+Evidence boundary:
+
+- No callback URL, OAuth code, state, nonce, verifier, token, token reference,
+  client secret, raw provider response, provider subject, raw email, or raw
+  phone value was recorded.
+- This is a localhost, process-memory-backed calibration.
+- `production_ready=false`.
+- Durable PostgreSQL runtime identity wiring and multi-instance uniqueness are
+  not complete.
+- WeChat, QQ, Alipay, phone, and email are contract and parity coverage only;
+  they have not been real-provider calibrated.
+
+Next identity growth:
+
+1. Wire account, credential, membership, and session runtime operations to
+   PostgreSQL under RLS.
+2. Prove transactionally unique credential ownership across multiple API
+   instances.
+3. Require recent authentication for credential link and unlink operations.
+4. Add durable session rotation, recovery, merge review, and revocation
+   workflows without implicit contact matching.
+5. Real-calibrate WeChat, QQ, Alipay, phone, and email only with official
+   credentials, explicit user consent, and private evidence handling.
+
+Validation:
+
+- Focused unified identity, OAuth evidence, and TS/Python parity suite:
+  `31 passed`.
+- Full A1 Python suite: `858 passed, 2 skipped`.
+- TypeScript build and suite: `493 passed`.
+- Go `go test -count=1 ./...`: passed.
+- Go `go vet ./...`: passed.
+- CL hygiene: passed.
+- CL commercial: passed with `0 blockers, 0 advisories`.
+- `git diff --check`: passed with line-ending warnings only.
+
+Growth-Auditor disposition:
+
+- Round49 localhost unified-account boundary: `GO`.
+- Commercial production identity system: `NO-GO`.
+- Production blockers are PostgreSQL runtime selection, local-first durable
+  credential and session invalidation, provider-revocation outbox processing,
+  reconnect token supersession, multi-instance uniqueness, and separation of
+  internal audit metadata from public metadata.
+- These blockers are the next A1 identity P0 slice and are not represented as
+  completed by the localhost calibration.

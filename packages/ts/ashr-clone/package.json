@@ -6,8 +6,19 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./unified-identity": {
+      "types": "./dist/unified-identity.d.ts",
+      "import": "./dist/unified-identity.js"
+    }
+  },
   "bin": {
     "ashr-clone-account-readiness": "./dist/account-readiness-cli.js",
+    "ashr-clone-account-connections": "./dist/account-connections-cli.js",
     "ashr-clone-api-probe": "./dist/probe.js",
     "ashr-clone-calibrate": "./dist/calibrate.js",
     "ashr-clone-cloud": "./dist/cloud-cli.js",

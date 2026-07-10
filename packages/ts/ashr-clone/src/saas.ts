@@ -5,6 +5,14 @@ import { createHash, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { BillingLedger, buildBillingPortalPlan, buildCheckoutSessionPlan, verifyBillingWebhookEnvelope } from "./billing.js";
+import {
+  AccountConnectionHttpClient,
+  assertPublicAccountConnectionPayload,
+  normalizeAccountConnectionProvider,
+  parseAccountConnection,
+  parseAccountConnectionDisconnect,
+  parseAccountConnectionStart,
+} from "./account-connections.js";
 import type { AgentInput, AgentInputPart, JsonRecord } from "./index.js";
 
 export const CONTROL_PLANE_SCHEMA_VERSION = "ashr.clone.saas_control_plane.v1";
@@ -63,6 +71,9 @@ const SCOPE_ALIASES: Record<string, string[]> = {
 };
 
 export const HOSTED_ROUTE_SCOPE_REQUIREMENTS: Record<string, string[]> = {
+  "GET /v1/accounts/{account_id}": ["identity:read"],
+  "GET /v1/accounts/{account_id}/credentials": ["identity:read"],
+  "GET /v1/accounts/{account_id}/memberships": ["identity:read"],
   "GET /v1/projects/{project_id}/api-keys": [API_KEY_READ_SCOPE],
   "GET /v1/projects/{project_id}/api-keys/rate-limits": [],
   "GET /v1/projects/{project_id}/audit-log": [AUDIT_READ_SCOPE],
@@ -99,6 +110,15 @@ export const HOSTED_ROUTE_SCOPE_REQUIREMENTS: Record<string, string[]> = {
   "POST /v1/projects/{project_id}/worker-jobs/{job_id}/complete": [WORKER_JOB_WRITE_SCOPE],
   "POST /v1/projects/{project_id}/worker-jobs/{job_id}/fail": [WORKER_JOB_WRITE_SCOPE],
   "POST /v1/projects/{project_id}/worker-jobs/{job_id}/heartbeat": [WORKER_JOB_WRITE_SCOPE],
+  "POST /v1/projects/{project_id}/oauth/{provider}/start": ["oauth:connect"],
+  "GET /v1/projects/{project_id}/oauth/{provider}/connection": ["oauth:read"],
+  "POST /v1/projects/{project_id}/oauth/{provider}/disconnect": ["oauth:disconnect"],
+  "POST /v1/projects/{project_id}/oauth/github/start": ["oauth:connect"],
+  "GET /v1/projects/{project_id}/oauth/github/connection": ["oauth:read"],
+  "POST /v1/projects/{project_id}/oauth/github/disconnect": ["oauth:disconnect"],
+  "POST /v1/projects/{project_id}/oauth/google/start": ["oauth:connect"],
+  "GET /v1/projects/{project_id}/oauth/google/connection": ["oauth:read"],
+  "POST /v1/projects/{project_id}/oauth/google/disconnect": ["oauth:disconnect"],
 };
 
 export const UNSUPPORTED_GO_ROUTE_GAPS: Record<string, { reason: string; replacement_route?: string; consumer_action: string }> = {
@@ -128,10 +148,6 @@ export const UNSUPPORTED_GO_ROUTE_GAPS: Record<string, { reason: string; replace
     reason: "Go exposes the canonical localhost GitHub account-connection callback; the hosted TypeScript route client does not execute browser redirects.",
     consumer_action: "keep explicit until the shared generated OpenAPI client models provider callbacks without exposing authorization codes",
   },
-  "GET /v1/projects/{project_id}/oauth/github/start": {
-    reason: "Go exposes a browser redirect helper for an existing authenticated development session; the hosted TypeScript route client does not yet model this account-connection flow.",
-    consumer_action: "keep explicit until the shared OAuth account-connection contract is generated for Python and TypeScript",
-  },
   "GET /v1/projects/{project_id}/audit-chain/verify": {
     reason: "Go has a read-style audit-chain verifier route while hosted clients consume the POST verifier contract.",
     replacement_route: "POST /v1/projects/{project_id}/audit-chain/verify",
@@ -146,18 +162,29 @@ export const UNSUPPORTED_GO_ROUTE_GAPS: Record<string, { reason: string; replace
     reason: "Go advertises an API-key preflight route that TS/Python hosted clients have not implemented yet.",
     consumer_action: "keep unsupported until preflight request and response semantics are added to both hosted SDKs",
   },
-  "POST /v1/projects/{project_id}/oauth/github/disconnect": {
-    reason: "Go exposes local GitHub account disconnection with provider-token revocation; the hosted TypeScript route client has no matching generated contract yet.",
-    consumer_action: "keep explicit until disconnect and revocation failure semantics are shared across all SDKs",
-  },
-  "POST /v1/projects/{project_id}/oauth/github/start": {
-    reason: "Go exposes the JSON form of the authenticated GitHub account-connection start flow; the hosted TypeScript route client has no matching generated contract yet.",
-    consumer_action: "keep explicit until the shared OAuth account-connection contract is generated for Python and TypeScript",
+  "GET /v1/projects/{project_id}/oauth/github/start": {
+    reason: "Go exposes a browser redirect alias; hosted SDKs use the provider-neutral JSON POST start contract.",
+    replacement_route: "POST /v1/projects/{project_id}/oauth/{provider}/start",
+    consumer_action: "keep explicit as a browser-only alias outside the hosted JSON client",
   },
   "DELETE /v1/projects/{project_id}/oauth/github/disconnect": {
-    reason: "Go exposes an idempotent HTTP DELETE alias for local GitHub account disconnection; the hosted TypeScript route client has no matching generated contract yet.",
-    replacement_route: "POST /v1/projects/{project_id}/oauth/github/disconnect",
-    consumer_action: "keep explicit as a method alias until one disconnect method is selected in the shared OpenAPI contract",
+    reason: "Go exposes an idempotent HTTP DELETE alias; hosted SDKs use the provider-neutral JSON POST disconnect contract.",
+    replacement_route: "POST /v1/projects/{project_id}/oauth/{provider}/disconnect",
+    consumer_action: "keep explicit as a method alias outside the hosted JSON client",
+  },
+  "GET /oauth/google/callback": {
+    reason: "Go exposes the canonical localhost Google account-connection callback; the hosted TypeScript route client does not execute browser redirects.",
+    consumer_action: "keep explicit until the generated OpenAPI client models provider callbacks without exposing authorization codes",
+  },
+  "GET /v1/projects/{project_id}/oauth/google/start": {
+    reason: "Go exposes a browser redirect alias; hosted SDKs use the provider-neutral JSON POST start contract.",
+    replacement_route: "POST /v1/projects/{project_id}/oauth/{provider}/start",
+    consumer_action: "keep explicit as a browser-only alias outside the hosted JSON client",
+  },
+  "DELETE /v1/projects/{project_id}/oauth/google/disconnect": {
+    reason: "Go exposes an idempotent HTTP DELETE alias; hosted SDKs use the provider-neutral JSON POST disconnect contract.",
+    replacement_route: "POST /v1/projects/{project_id}/oauth/{provider}/disconnect",
+    consumer_action: "keep explicit as a method alias outside the hosted JSON client",
   },
   "POST /v1/projects/{project_id}/runs/submit": {
     reason: "Go keeps an older run submit shape while hosted clients submit through the SDK submission contract.",
@@ -2453,7 +2480,7 @@ export const saasControlPlaneFromStateFile = (inputPath: string): Promise<SaaSCo
 
 type CliOptions = Record<string, string | boolean | string[]>;
 
-const SAAS_CLI_COMMANDS = new Set(["bootstrap", "api-key-create", "api-key-list", "api-key-verify", "api-key-revoke", "api-key-rate-limit", "api-key-rate-limits", "sdk-submit", "run-upload", "trace-ingest", "lifecycle", "quota", "usage", "billing-checkout-plan", "billing-portal-plan", "billing-webhook-ingest", "billing-ledger", "oauth-provider-configure", "oauth-authorization-begin", "oauth-authorization-complete", "artifact-manifest-create", "artifact-manifest-list", "release-gate", "audit-log", "audit-chain-verify", "release-evidence", "release-evidence-verify", "job-enqueue", "job-lease", "job-heartbeat", "job-complete", "job-fail", "job-list", "state"]);
+const SAAS_CLI_COMMANDS = new Set(["bootstrap", "api-key-create", "api-key-list", "api-key-verify", "api-key-revoke", "api-key-rate-limit", "api-key-rate-limits", "oauth-connect-start", "oauth-connection", "oauth-disconnect", "sdk-submit", "run-upload", "trace-ingest", "lifecycle", "quota", "usage", "billing-checkout-plan", "billing-portal-plan", "billing-webhook-ingest", "billing-ledger", "oauth-provider-configure", "oauth-authorization-begin", "oauth-authorization-complete", "artifact-manifest-create", "artifact-manifest-list", "release-gate", "audit-log", "audit-chain-verify", "release-evidence", "release-evidence-verify", "job-enqueue", "job-lease", "job-heartbeat", "job-complete", "job-fail", "job-list", "state"]);
 
 export async function runSaaSCli(argv: string[] = process.argv.slice(2)): Promise<JsonRecord> {
   const commandIndex = argv.findIndex((arg) => SAAS_CLI_COMMANDS.has(arg));
@@ -2508,6 +2535,37 @@ export async function runSaaSCli(argv: string[] = process.argv.slice(2)): Promis
       result = baseUrl !== undefined
         ? await client.apiKeyRateLimitSnapshotHttp(projectTenant(options).tenantId, projectTenant(options).projectId, { keyId: stringOption(options, "key-id", false) })
         : client.apiKeyRateLimitSnapshot(projectTenant(options).tenantId, projectTenant(options).projectId, { keyId: stringOption(options, "key-id", false) });
+      break;
+    case "oauth-connect-start":
+      {
+        const connectionClient = hostedAccountConnectionClient(baseUrl, stateInput, stateOutput);
+        const provider = normalizeAccountConnectionProvider(stringOption(options, "provider", true));
+        const binding = accountConnectionBindingOptions(options, provider);
+        const payload = await connectionClient.start(binding);
+        assertPublicAccountConnectionPayload(payload);
+        result = parseAccountConnectionStart(payload, {
+          expectedProvider: provider,
+          expectedGoogleAudience: stringOption(options, "expected-google-audience", false),
+        }) as unknown as JsonRecord;
+      }
+      break;
+    case "oauth-connection":
+      {
+        const connectionClient = hostedAccountConnectionClient(baseUrl, stateInput, stateOutput);
+        const provider = normalizeAccountConnectionProvider(stringOption(options, "provider", true));
+        const payload = await connectionClient.connection(accountConnectionBindingOptions(options, provider));
+        assertPublicAccountConnectionPayload(payload);
+        result = parseAccountConnection(payload, { expectedProvider: provider }) as unknown as JsonRecord;
+      }
+      break;
+    case "oauth-disconnect":
+      {
+        const connectionClient = hostedAccountConnectionClient(baseUrl, stateInput, stateOutput);
+        const provider = normalizeAccountConnectionProvider(stringOption(options, "provider", true));
+        const payload = await connectionClient.disconnect(accountConnectionBindingOptions(options, provider));
+        assertPublicAccountConnectionPayload(payload);
+        result = parseAccountConnectionDisconnect(payload, { expectedProvider: provider }) as unknown as JsonRecord;
+      }
       break;
     case "sdk-submit":
       result = baseUrl !== undefined
@@ -2802,6 +2860,30 @@ async function jsonArrayOption(options: CliOptions, name: string): Promise<JsonR
 
 function projectTenant(options: CliOptions): { tenantId: string; projectId: string } {
   return { tenantId: stringOption(options, "tenant-id", true), projectId: stringOption(options, "project-id", true) };
+}
+
+function accountConnectionBindingOptions(
+  options: CliOptions,
+  provider: "github" | "google",
+): { provider: "github" | "google"; tenantId: string; projectId: string; accountId: string } {
+  const project = projectTenant(options);
+  return {
+    provider,
+    tenantId: project.tenantId,
+    projectId: project.projectId,
+    accountId: stringOption(options, "account-id", true),
+  };
+}
+
+function hostedAccountConnectionClient(
+  baseUrl: string | undefined,
+  stateInput: string | undefined,
+  stateOutput: string | undefined,
+): AccountConnectionHttpClient {
+  if (baseUrl === undefined || stateInput !== undefined || stateOutput !== undefined) {
+    throw new SecretInputError("hosted account connection commands require --base-url and do not support local state files");
+  }
+  return new AccountConnectionHttpClient({ baseUrl });
 }
 
 function saasCliUsage(): string {

@@ -36,6 +36,7 @@ type LocalhostDevGitHubOAuthSessionResolver struct {
 	TenantID  string
 	UserID    string
 	SessionID string
+	AccountID string
 	Revoked   func(context.Context, string) (bool, error)
 }
 
@@ -50,8 +51,9 @@ func (resolver LocalhostDevGitHubOAuthSessionResolver) ResolveGitHubOAuthSession
 		TenantID:  strings.TrimSpace(resolver.TenantID),
 		UserID:    strings.TrimSpace(resolver.UserID),
 		SessionID: strings.TrimSpace(resolver.SessionID),
+		AccountID: strings.TrimSpace(resolver.AccountID),
 	}
-	if session.TenantID == "" || session.UserID == "" || session.SessionID == "" {
+	if session.TenantID == "" || session.UserID == "" || session.SessionID == "" || session.AccountID == "" {
 		return GitHubOAuthSession{}, fmt.Errorf("localhost development session identity is incomplete")
 	}
 	if resolver.Revoked != nil {
@@ -67,7 +69,9 @@ func (resolver LocalhostDevGitHubOAuthSessionResolver) ResolveGitHubOAuthSession
 func isLoopbackRequest(request *http.Request) bool {
 	if request == nil || strings.TrimSpace(request.Header.Get("Forwarded")) != "" ||
 		strings.TrimSpace(request.Header.Get("X-Forwarded-For")) != "" ||
-		strings.TrimSpace(request.Header.Get("X-Forwarded-Host")) != "" {
+		strings.TrimSpace(request.Header.Get("X-Forwarded-Host")) != "" ||
+		strings.TrimSpace(request.Header.Get("X-Forwarded-Proto")) != "" ||
+		strings.TrimSpace(request.Header.Get("X-Real-IP")) != "" {
 		return false
 	}
 	remoteHost, _, err := net.SplitHostPort(request.RemoteAddr)
@@ -78,9 +82,14 @@ func isLoopbackRequest(request *http.Request) bool {
 	if remoteIP == nil || !remoteIP.IsLoopback() {
 		return false
 	}
-	host := request.Host
+	host := strings.TrimSpace(request.Host)
+	if host == "" || strings.ContainsAny(host, " \t\r\n,/@") {
+		return false
+	}
 	if parsedHost, _, err := net.SplitHostPort(host); err == nil {
 		host = parsedHost
+	} else if strings.Contains(host, ":") && net.ParseIP(strings.Trim(host, "[]")) == nil {
+		return false
 	}
 	host = strings.Trim(strings.TrimSpace(host), "[]")
 	if strings.EqualFold(host, "localhost") {
@@ -94,9 +103,11 @@ func isLoopbackRequest(request *http.Request) bool {
 }
 
 type GitHubOAuthEnvRuntimeOptions struct {
-	LookupEnv  func(string) (string, bool)
-	HTTPClient GitHubOAuthHTTPClient
-	Now        func() time.Time
+	LookupEnv      func(string) (string, bool)
+	HTTPClient     GitHubOAuthHTTPClient
+	IdentityBridge OAuthIdentityBridge
+	Identity       *UnifiedIdentityService
+	Now            func() time.Time
 }
 
 func NewGitHubOAuthServiceFromEnv(options GitHubOAuthEnvRuntimeOptions) (*GitHubOAuthService, error) {
@@ -124,6 +135,10 @@ func NewGitHubOAuthServiceFromEnv(options GitHubOAuthEnvRuntimeOptions) (*GitHub
 		}
 		ttl = time.Duration(seconds) * time.Second
 	}
+	upstreamTimeout, err := oauthEnvDurationSeconds(lookup, "ASHR_GITHUB_OAUTH_UPSTREAM_TIMEOUT_SECONDS", 10*time.Second, 1, 60)
+	if err != nil {
+		return nil, err
+	}
 	fetchEmails := envBool(lookup, "ASHR_GITHUB_OAUTH_FETCH_EMAILS")
 	scopes := []string{"read:user"}
 	if fetchEmails {
@@ -145,26 +160,37 @@ func NewGitHubOAuthServiceFromEnv(options GitHubOAuthEnvRuntimeOptions) (*GitHub
 	if httpClient == nil {
 		httpClient = &http.Client{Timeout: 15 * time.Second}
 	}
+	var coordinator GitHubOAuthIdentityCoordinator
+	if options.Identity != nil {
+		coordinator, err = NewMemoryGitHubOAuthIdentityCoordinator(options.Identity, store)
+		if err != nil {
+			return nil, err
+		}
+	}
 	return NewGitHubOAuthService(GitHubOAuthOptions{
 		SessionResolver: LocalhostDevGitHubOAuthSessionResolver{
 			Enabled:   true,
 			TenantID:  envValue(lookup, "ASHR_GITHUB_OAUTH_DEV_TENANT_ID"),
 			UserID:    envValue(lookup, "ASHR_GITHUB_OAUTH_DEV_USER_ID"),
 			SessionID: envValue(lookup, "ASHR_GITHUB_OAUTH_DEV_SESSION_ID"),
+			AccountID: envValue(lookup, "ASHR_GITHUB_OAUTH_DEV_ACCOUNT_ID"),
 		},
-		Credentials:     credentials,
-		Transactions:    store,
-		Secrets:         store,
-		Connections:     store,
-		HTTPClient:      httpClient,
-		AuthorizeURL:    authorizeURL,
-		TokenURL:        tokenURL,
-		APIURL:          apiURL,
-		CallbackURL:     parsedCallback.String(),
-		Scopes:          scopes,
-		FetchUserEmails: fetchEmails,
-		TransactionTTL:  ttl,
-		Now:             options.Now,
+		Credentials:         credentials,
+		Transactions:        store,
+		Secrets:             store,
+		Connections:         store,
+		IdentityBridge:      options.IdentityBridge,
+		IdentityCoordinator: coordinator,
+		HTTPClient:          httpClient,
+		AuthorizeURL:        authorizeURL,
+		TokenURL:            tokenURL,
+		APIURL:              apiURL,
+		CallbackURL:         parsedCallback.String(),
+		Scopes:              scopes,
+		FetchUserEmails:     fetchEmails,
+		TransactionTTL:      ttl,
+		UpstreamTimeout:     upstreamTimeout,
+		Now:                 options.Now,
 	})
 }
 

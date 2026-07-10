@@ -87,6 +87,7 @@ test("TS callback identity validates issuer audience nonce subject and account b
     expectedAccountBindingRef: "provider-ref:google/account/123",
     receivedNonce: nonce,
     expectedNonceSha256: hashOAuthNonce(nonce).nonce_sha256,
+    emailVerified: true,
   };
   const disabled = verifyCallbackIdentity({ config: config("google"), ...base });
   const accepted = verifyCallbackIdentity({ config: config("google", { enabled: true }), ...base });
@@ -97,13 +98,14 @@ test("TS callback identity validates issuer audience nonce subject and account b
     audience: "wrong-audience",
     accountBindingRef: "provider-ref:google/account/attacker",
     receivedNonce: "wrong-nonce-account-binding",
+    emailVerified: false,
   });
   assert.deepEqual(disabled.failure_reasons, ["provider_disabled"]);
   assert.equal(accepted.accepted, true);
   assert.equal(accepted.raw_subject_present, false);
   assert.equal(accepted.raw_nonce_present, false);
   assert.deepEqual(rejected.failure_reasons, [
-    "issuer_mismatch", "audience_mismatch", "nonce_mismatch", "account_binding_mismatch",
+    "issuer_mismatch", "audience_mismatch", "nonce_mismatch", "account_binding_mismatch", "email_unverified",
   ]);
   assert.equal(rejected.issuer, null);
   assert.equal(rejected.account_binding_ref, null);

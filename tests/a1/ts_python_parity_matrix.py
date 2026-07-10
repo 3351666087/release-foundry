@@ -50,6 +50,26 @@ PYTHON_ROUTE_EXAMPLES = {
     "release_evidence_verify": {"project_id": "project_contract", "run_id": "run_contract"},
     "verify_audit_chain": {"project_id": "project_contract"},
 }
+UNIFIED_IDENTITY_ROUTE_OPERATIONS = [
+    ("account_get", "GET", "identity_account_route", ("account_contract",)),
+    ("credential_list", "GET", "identity_credentials_route", ("account_contract",)),
+    ("membership_list", "GET", "identity_memberships_route", ("account_contract",)),
+    ("credential_link", "POST", "identity_link_route", ("account_contract", "github")),
+    (
+        "credential_unlink",
+        "POST",
+        "identity_unlink_route",
+        ("account_contract", "credential_contract"),
+    ),
+    ("account_merge", "POST", "identity_merge_route", ("account_contract",)),
+    ("recovery_start", "POST", "identity_recovery_start_route", ("account_contract",)),
+    (
+        "recovery_complete",
+        "POST",
+        "identity_recovery_complete_route",
+        ("account_contract", "recovery_contract"),
+    ),
+]
 
 
 def repo_path(path: Path) -> str:
@@ -84,6 +104,15 @@ def python_set_literal(path: Path, name: str) -> list[str]:
                 if values == set(MEDIA_MODALITIES):
                     return list(MEDIA_MODALITIES)
                 return sorted(values)
+    raise AssertionError(f"missing {name} in {repo_path(path)}")
+
+
+def python_scalar_literal(path: Path, name: str) -> Any:
+    module = ast.parse(read_text(path), filename=repo_path(path))
+    for node in module.body:
+        if isinstance(node, ast.Assign):
+            if any(isinstance(target, ast.Name) and target.id == name for target in node.targets):
+                return ast.literal_eval(node.value)
     raise AssertionError(f"missing {name} in {repo_path(path)}")
 
 
@@ -159,6 +188,146 @@ def ts_calibration_modalities(path: Path) -> list[str]:
     text = read_text(path)
     values = re.findall(r"[\"'](text|image|audio|file|video)[\"']", text)
     return [item for item in MEDIA_MODALITIES if item in values]
+
+
+def ts_named_string(path: Path, name: str) -> str:
+    text = read_text(path)
+    match = re.search(
+        rf"(?:export\s+)?const\s+{re.escape(name)}\s*=\s*[\"']([^\"']+)[\"']",
+        text,
+    )
+    if not match:
+        raise AssertionError(f"missing {name} in {repo_path(path)}")
+    return match.group(1)
+
+
+def ts_named_string_collection(path: Path, name: str) -> list[str]:
+    text = read_text(path)
+    match = re.search(
+        rf"(?:export\s+)?const\s+{re.escape(name)}(?:\s*:[^=]+)?\s*=\s*"
+        r"(?:new\s+Set(?:<[^>]+>)?\s*\()?\[([^\]]*)\]",
+        text,
+        re.S,
+    )
+    if not match:
+        raise AssertionError(f"missing {name} in {repo_path(path)}")
+    return sorted_unique(re.findall(r"[\"']([^\"']+)[\"']", match.group(1)))
+
+
+def ts_manifest_section(path: Path, section: str) -> dict[str, bool]:
+    text = read_text(path)
+    function_match = re.search(
+        r"export function unifiedIdentityContractManifest\(\).*?return\s*\{(.*?)\n\s*\};\n\}",
+        text,
+        re.S,
+    )
+    if not function_match:
+        raise AssertionError(f"missing unifiedIdentityContractManifest in {repo_path(path)}")
+    section_match = re.search(
+        rf"{re.escape(section)}\s*:\s*\{{(.*?)\}}",
+        function_match.group(1),
+        re.S,
+    )
+    if not section_match:
+        raise AssertionError(f"missing manifest section {section} in {repo_path(path)}")
+    return {
+        key: value == "true"
+        for key, value in re.findall(
+            r"([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(true|false)",
+            section_match.group(1),
+        )
+    }
+
+
+def ts_unified_identity_routes(path: Path) -> list[dict[str, str]]:
+    text = read_text(path)
+    match = re.search(
+        r"UNIFIED_IDENTITY_ROUTES[^=]*=\s*Object\.freeze\(\[(.*?)\]\);",
+        text,
+        re.S,
+    )
+    if not match:
+        raise AssertionError(f"missing UNIFIED_IDENTITY_ROUTES in {repo_path(path)}")
+    routes = [
+        {"operation": operation, "method": method, "path": route}
+        for operation, method, route in re.findall(
+            r"\{\s*operation:\s*[\"']([^\"']+)[\"'],\s*"
+            r"method:\s*[\"']([^\"']+)[\"'],\s*path:\s*[\"']([^\"']+)[\"']\s*\}",
+            match.group(1),
+        )
+    ]
+    if not routes:
+        raise AssertionError(f"empty UNIFIED_IDENTITY_ROUTES in {repo_path(path)}")
+    return routes
+
+
+def python_unified_identity_contract(path: Path) -> dict[str, Any]:
+    sdk_root = ROOT / "packages" / "sdk"
+    if str(sdk_root) not in sys.path:
+        sys.path.insert(0, str(sdk_root))
+    from ashr_clone import unified_identity as identity
+
+    manifest = identity.unified_identity_contract_manifest()
+    replacements = {
+        "account_contract": "{account_id}",
+        "credential_contract": "{credential_id}",
+        "recovery_contract": "{recovery_id}",
+        "github": "{provider}",
+    }
+    routes = []
+    for operation, method, function_name, args in UNIFIED_IDENTITY_ROUTE_OPERATIONS:
+        value = getattr(identity, function_name)(*args)
+        for literal, placeholder in replacements.items():
+            value = value.replace(literal, placeholder)
+        if operation == "account_merge":
+            value = value.replace("{account_id}", "{canonical_account_id}")
+        routes.append({"operation": operation, "method": method, "path": value})
+    return {
+        "schema_version": python_scalar_literal(path, "UNIFIED_IDENTITY_SCHEMA_VERSION"),
+        "providers": python_set_literal(path, "UNIFIED_IDENTITY_PROVIDERS"),
+        "account_statuses": python_set_literal(path, "UNIFIED_IDENTITY_ACCOUNT_STATUSES"),
+        "credential_statuses": python_set_literal(path, "UNIFIED_IDENTITY_CREDENTIAL_STATUSES"),
+        "membership_roles": python_set_literal(path, "UNIFIED_IDENTITY_MEMBERSHIP_ROLES"),
+        "membership_statuses": python_set_literal(path, "UNIFIED_IDENTITY_MEMBERSHIP_STATUSES"),
+        "stable_error_codes": python_set_literal(path, "UNIFIED_IDENTITY_ERROR_CODES"),
+        "subject_model": manifest["subject_model"],
+        "invariants": dict(sorted(manifest["invariants"].items())),
+        "public_safety": dict(sorted(manifest["public_safety"].items())),
+        "forbidden_public_keys": python_set_literal(path, "_FORBIDDEN_PUBLIC_KEYS"),
+        "forbidden_key_suffixes": python_set_literal(path, "_FORBIDDEN_KEY_SUFFIXES"),
+        "recovery_providers": python_set_literal(path, "_RECOVERY_PROVIDERS"),
+        "routes": routes,
+    }
+
+
+def ts_unified_identity_contract(path: Path) -> dict[str, Any]:
+    text = read_text(path)
+    subject_match = re.search(
+        r"subject_model\s*:\s*[\"']([^\"']+)[\"']",
+        text,
+    )
+    if not subject_match:
+        raise AssertionError(f"missing unified identity subject_model in {repo_path(path)}")
+    return {
+        "schema_version": ts_named_string(path, "UNIFIED_IDENTITY_SCHEMA_VERSION"),
+        "providers": ts_named_string_collection(path, "UNIFIED_IDENTITY_PROVIDERS"),
+        "account_statuses": ts_named_string_collection(path, "UNIFIED_IDENTITY_ACCOUNT_STATUSES"),
+        "credential_statuses": ts_named_string_collection(
+            path, "UNIFIED_IDENTITY_CREDENTIAL_STATUSES"
+        ),
+        "membership_roles": ts_named_string_collection(path, "UNIFIED_IDENTITY_MEMBERSHIP_ROLES"),
+        "membership_statuses": ts_named_string_collection(
+            path, "UNIFIED_IDENTITY_MEMBERSHIP_STATUSES"
+        ),
+        "stable_error_codes": ts_named_string_collection(path, "UNIFIED_IDENTITY_ERROR_CODES"),
+        "subject_model": subject_match.group(1),
+        "invariants": dict(sorted(ts_manifest_section(path, "invariants").items())),
+        "public_safety": dict(sorted(ts_manifest_section(path, "public_safety").items())),
+        "forbidden_public_keys": ts_named_string_collection(path, "FORBIDDEN_PUBLIC_KEYS"),
+        "forbidden_key_suffixes": ts_named_string_collection(path, "FORBIDDEN_KEY_SUFFIXES"),
+        "recovery_providers": ts_named_string_collection(path, "RECOVERY_PROVIDERS"),
+        "routes": ts_unified_identity_routes(path),
+    }
 
 
 def route_literals(path: Path) -> list[str]:
@@ -257,6 +426,32 @@ def generate_matrix() -> dict[str, Any]:
         "missing_required_exports": sorted(set(required_ts_calibration_exports) - ts_calibration_exports),
         "sdk_import_surface": "public" if "calibrate" in ts_modules else "cli_only",
     }
+    py_identity = python_unified_identity_contract(py_pkg / "unified_identity.py")
+    ts_identity = ts_unified_identity_contract(ts_src / "unified-identity.ts")
+    identity_contract_requirements = {
+        "seven_credential_kinds": len(py_identity["providers"]) == 7
+        and set(py_identity["providers"])
+        == {"github", "google", "wechat", "qq", "alipay", "phone", "email"},
+        "stable_account_principal": py_identity["subject_model"]
+        == "one_account_many_credentials",
+        "memberships_independent": py_identity["invariants"].get(
+            "memberships_attach_to_canonical_account"
+        )
+        is True,
+        "no_email_automerge": py_identity["invariants"].get(
+            "email_match_does_not_merge_accounts"
+        )
+        is True,
+        "public_safe": all(
+            value is False
+            for key, value in py_identity["public_safety"].items()
+            if key != "provider_subject_presence_marker_only"
+        )
+        and py_identity["public_safety"].get("provider_subject_presence_marker_only") is True,
+    }
+    identity_contract_parity = py_identity == ts_identity and all(
+        identity_contract_requirements.values()
+    )
     py_media_set = set(py_media["agent_input_part_types"])
     ts_media_set = set(ts_media["agent_input_part_types"])
 
@@ -321,6 +516,17 @@ def generate_matrix() -> dict[str, Any]:
                 "python_module": "packages/sdk/ashr_clone/calibrate.py",
                 "typescript_module": "packages/ts/ashr-clone/src/calibrate.ts",
                 "typescript": ts_calibration_contract,
+            },
+            "unified_identity": {
+                "requirements": identity_contract_requirements,
+                "python": py_identity,
+                "typescript": ts_identity,
+                "matching_fields": sorted(
+                    key for key in py_identity if py_identity[key] == ts_identity.get(key)
+                ),
+                "differing_fields": sorted(
+                    key for key in py_identity if py_identity[key] != ts_identity.get(key)
+                ),
             },
         },
         "gap_matrix": [
@@ -393,6 +599,23 @@ def generate_matrix() -> dict[str, Any]:
                     "packages/ts/ashr-clone/src/calibrate.ts",
                     "packages/ts/ashr-clone/test/calibrate.test.mjs",
                     "packages/ts/ashr-clone/test/calibration-parity.test.mjs",
+                ],
+            },
+            {
+                "area": "Python/TypeScript unified identity contract",
+                "status": "parity" if identity_contract_parity else "partial",
+                "requirements": identity_contract_requirements,
+                "matching_fields": sorted(
+                    key for key in py_identity if py_identity[key] == ts_identity.get(key)
+                ),
+                "differing_fields": sorted(
+                    key for key in py_identity if py_identity[key] != ts_identity.get(key)
+                ),
+                "evidence": [
+                    "packages/sdk/ashr_clone/unified_identity.py",
+                    "packages/ts/ashr-clone/src/unified-identity.ts",
+                    "tests/a1/test_python_unified_identity.py",
+                    "packages/ts/ashr-clone/test/unified-identity.test.mjs",
                 ],
             },
         ],

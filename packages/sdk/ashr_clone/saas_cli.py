@@ -61,6 +61,31 @@ def build_parser() -> argparse.ArgumentParser:
     _add_project_args(key_rate_snapshot)
     key_rate_snapshot.add_argument("--key-id")
 
+    oauth_start = subparsers.add_parser(
+        "oauth-connect-start",
+        help="Start a hosted provider account connection without accepting callback credentials.",
+    )
+    _add_project_args(oauth_start)
+    oauth_start.add_argument("--provider", choices=("github", "google"), required=True)
+    oauth_start.add_argument("--account-id", required=True)
+    oauth_start.add_argument("--expected-google-audience")
+
+    oauth_disconnect = subparsers.add_parser(
+        "oauth-disconnect",
+        help="Revoke and disconnect a hosted provider account connection.",
+    )
+    _add_project_args(oauth_disconnect)
+    oauth_disconnect.add_argument("--provider", choices=("github", "google"), required=True)
+    oauth_disconnect.add_argument("--account-id", required=True)
+
+    oauth_connection = subparsers.add_parser(
+        "oauth-connection",
+        help="Read a redacted hosted provider account connection.",
+    )
+    _add_project_args(oauth_connection)
+    oauth_connection.add_argument("--provider", choices=("github", "google"), required=True)
+    oauth_connection.add_argument("--account-id", required=True)
+
     submit = subparsers.add_parser("sdk-submit", help="Create a local SDK-submitted queued run.")
     _add_project_args(submit)
     submit.add_argument("--dataset-id", required=True)
@@ -229,6 +254,28 @@ def run_command(args: argparse.Namespace) -> dict[str, Any]:
         envelope = client.configure_api_key_rate_limit(args.tenant_id, args.project_id, args.key_id, operation=args.operation, limit=args.limit, period=args.period, auth_key_id=args.auth_key_id)
     elif command == "api-key-rate-limits":
         envelope = client.api_key_rate_limit_snapshot(args.tenant_id, args.project_id, key_id=args.key_id)
+    elif command == "oauth-connect-start":
+        envelope = client.start_account_connection(
+            args.tenant_id,
+            args.project_id,
+            provider=args.provider,
+            account_id=args.account_id,
+            expected_google_audience=args.expected_google_audience,
+        )
+    elif command == "oauth-disconnect":
+        envelope = client.disconnect_account_connection(
+            args.tenant_id,
+            args.project_id,
+            provider=args.provider,
+            account_id=args.account_id,
+        )
+    elif command == "oauth-connection":
+        envelope = client.get_account_connection(
+            args.tenant_id,
+            args.project_id,
+            provider=args.provider,
+            account_id=args.account_id,
+        )
     elif command == "sdk-submit":
         envelope = client.sdk_submit(
             args.tenant_id,

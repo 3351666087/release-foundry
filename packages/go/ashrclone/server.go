@@ -15,6 +15,9 @@ type HTTPServer struct {
 	service               ControlPlaneBackend
 	paymentReconciliation *PaymentReconciliationService
 	paymentDomain         *PaymentDomainService
+	unifiedIdentity       *UnifiedIdentityService
+	identitySessions      IdentityHTTPSessionResolver
+	oauthProviders        map[string]*OAuthService
 	githubOAuth           *GitHubOAuthService
 	backendName           string
 	backendReady          bool
@@ -58,6 +61,9 @@ type HTTPServerOptions struct {
 	BackendReady          bool
 	PaymentReconciliation *PaymentReconciliationService
 	PaymentDomain         *PaymentDomainService
+	UnifiedIdentity       *UnifiedIdentityService
+	IdentitySessions      IdentityHTTPSessionResolver
+	OAuthProviders        map[string]*OAuthService
 	GitHubOAuth           *GitHubOAuthService
 }
 
@@ -73,10 +79,21 @@ func NewHTTPServerWithOptions(service ControlPlaneBackend, options HTTPServerOpt
 	if backendName == "" {
 		backendName = "memory_service_v0"
 	}
+	oauthProviders := make(map[string]*OAuthService, len(options.OAuthProviders))
+	for providerName, oauthService := range options.OAuthProviders {
+		normalizedProvider := strings.ToLower(strings.TrimSpace(providerName))
+		if normalizedProvider == "" || oauthService == nil || oauthService.ProviderName() != normalizedProvider {
+			continue
+		}
+		oauthProviders[normalizedProvider] = oauthService
+	}
 	return &HTTPServer{
 		service:               service,
 		paymentReconciliation: options.PaymentReconciliation,
 		paymentDomain:         options.PaymentDomain,
+		unifiedIdentity:       options.UnifiedIdentity,
+		identitySessions:      options.IdentitySessions,
+		oauthProviders:        oauthProviders,
 		githubOAuth:           options.GitHubOAuth,
 		backendName:           backendName,
 		backendReady:          options.BackendReady,
@@ -101,11 +118,22 @@ func (server *HTTPServer) ServeHTTP(writer http.ResponseWriter, request *http.Re
 		server.handleBootstrap(writer, request)
 		return
 	}
-	if request.URL.Path == "/oauth/github/callback" {
-		server.handleGitHubOAuthCallback(writer, request)
-		return
+	callbackParts := pathParts(request.URL.Path)
+	if len(callbackParts) == 3 && callbackParts[0] == "oauth" && callbackParts[2] == "callback" {
+		if callbackParts[1] == "github" && server.githubOAuth != nil {
+			server.handleGitHubOAuthCallback(writer, request)
+			return
+		}
+		if _, configured := server.oauthProviders[callbackParts[1]]; configured {
+			server.handleOAuthCallback(writer, request, callbackParts[1])
+			return
+		}
 	}
 	parts := pathParts(request.URL.Path)
+	if len(parts) >= 3 && parts[0] == "v1" && parts[1] == "accounts" {
+		server.handleUnifiedIdentityAccount(writer, request, parts[2], parts[3:])
+		return
+	}
 	if len(parts) >= 3 && parts[0] == "v1" && parts[1] == "projects" {
 		server.handleProject(writer, request, parts[2], parts[3:])
 		return
@@ -215,9 +243,16 @@ func apiKeyIDFromLocalBearerSecret(secret string) string {
 }
 
 func (server *HTTPServer) handleProject(writer http.ResponseWriter, request *http.Request, projectID string, parts []string) {
-	if len(parts) >= 2 && parts[0] == "oauth" && parts[1] == "github" {
-		server.handleGitHubOAuthProject(writer, request, projectID, parts[2:])
-		return
+	if len(parts) >= 2 && parts[0] == "oauth" {
+		providerName := strings.ToLower(strings.TrimSpace(parts[1]))
+		if providerName == "github" && server.githubOAuth != nil {
+			server.handleGitHubOAuthProject(writer, request, projectID, parts[2:])
+			return
+		}
+		if _, configured := server.oauthProviders[providerName]; configured {
+			server.handleOAuthProject(writer, request, projectID, providerName, parts[2:])
+			return
+		}
 	}
 	if len(parts) >= 1 && parts[0] == "api-keys" {
 		server.handleAPIKeys(writer, request, projectID, parts[1:])
@@ -893,11 +928,26 @@ func GoRouteManifestEntries() []RouteManifestEntry {
 		goPublicRoute("GET", "/v1/healthz", "health", "system"),
 		goPublicRoute("GET", "/openapi.json", "openapi", "system"),
 		goPublicRoute("GET", "/v1/openapi.json", "openapi", "system"),
+		goScopedRoute("GET", "/v1/accounts/{account_id}", "identity.account.get", "identity"),
+		goScopedRoute("GET", "/v1/accounts/{account_id}/credentials", "identity.credentials.list", "identity"),
+		goScopedRoute("GET", "/v1/accounts/{account_id}/memberships", "identity.memberships.list", "identity"),
+		// Reserved fail-closed contracts:
+		// POST /v1/accounts/{account_id}/credentials/{provider}/link
+		// DELETE /v1/accounts/{account_id}/credentials/{credential_id}/unlink
+		// They stay out of the public manifest until a provider-verified
+		// server-side assertion boundary is available.
 		goScopedRoute("GET", "/v1/projects/{project_id}/oauth/github/start", "oauth.github.start", "oauth"),
 		goScopedRoute("POST", "/v1/projects/{project_id}/oauth/github/start", "oauth.github.start", "oauth"),
 		goPublicRoute("GET", "/oauth/github/callback", "oauth.github.callback", "oauth"),
+		goScopedRoute("GET", "/v1/projects/{project_id}/oauth/github/connection", "oauth.github.connection", "oauth"),
 		goScopedRoute("POST", "/v1/projects/{project_id}/oauth/github/disconnect", "oauth.github.disconnect", "oauth"),
 		goScopedRoute("DELETE", "/v1/projects/{project_id}/oauth/github/disconnect", "oauth.github.disconnect", "oauth"),
+		goScopedRoute("GET", "/v1/projects/{project_id}/oauth/google/start", "oauth.google.start", "oauth"),
+		goScopedRoute("POST", "/v1/projects/{project_id}/oauth/google/start", "oauth.google.start", "oauth"),
+		goPublicRoute("GET", "/oauth/google/callback", "oauth.google.callback", "oauth"),
+		goScopedRoute("GET", "/v1/projects/{project_id}/oauth/google/connection", "oauth.google.connection", "oauth"),
+		goScopedRoute("POST", "/v1/projects/{project_id}/oauth/google/disconnect", "oauth.google.disconnect", "oauth"),
+		goScopedRoute("DELETE", "/v1/projects/{project_id}/oauth/google/disconnect", "oauth.google.disconnect", "oauth"),
 		goPublicRoute("POST", "/bootstrap", "bootstrap_project", "bootstrap"),
 		goPublicRoute("POST", "/v1/bootstrap", "bootstrap_project", "bootstrap"),
 		goScopedRoute("POST", "/v1/projects/{project_id}/api-keys", "api_key.create", "auth", ScopeAPIKeyWrite),

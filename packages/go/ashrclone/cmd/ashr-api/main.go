@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/ashr-labs/ashr/packages/go/ashrclone"
@@ -34,9 +35,35 @@ func main() {
 			}
 		}()
 	}
-	githubOAuth, err := ashrclone.NewGitHubOAuthServiceFromEnv(ashrclone.GitHubOAuthEnvRuntimeOptions{LookupEnv: os.LookupEnv})
+	unifiedIdentity, err := ashrclone.NewUnifiedIdentityService(ashrclone.UnifiedIdentityServiceOptions{})
+	if err != nil {
+		log.Fatalf("configure unified identity: %v", err)
+	}
+	identityBridge := ashrclone.UnifiedIdentityOAuthBridge{Identity: unifiedIdentity}
+	githubOAuth, err := ashrclone.NewGitHubOAuthServiceFromEnv(ashrclone.GitHubOAuthEnvRuntimeOptions{
+		LookupEnv: os.LookupEnv, IdentityBridge: identityBridge, Identity: unifiedIdentity,
+	})
 	if err != nil {
 		log.Fatalf("configure GitHub OAuth: %v", err)
+	}
+	googleOAuth, err := ashrclone.NewGoogleOAuthServiceFromEnv(ashrclone.GoogleOAuthEnvRuntimeOptions{
+		LookupEnv: os.LookupEnv, IdentityBridge: identityBridge, Identity: unifiedIdentity,
+	})
+	if err != nil {
+		log.Fatalf("configure Google OAuth: %v", err)
+	}
+	oauthProviders := map[string]*ashrclone.OAuthService{}
+	if googleOAuth != nil {
+		oauthProviders["google"] = googleOAuth
+	}
+	var identitySessions ashrclone.IdentityHTTPSessionResolver
+	if strings.EqualFold(strings.TrimSpace(os.Getenv("ASHR_IDENTITY_DEV_SESSION_ENABLED")), "true") {
+		identitySessions = ashrclone.LocalhostDevIdentityHTTPSessionResolver{
+			Enabled:   true,
+			AccountID: os.Getenv("ASHR_IDENTITY_DEV_ACCOUNT_ID"),
+			ActorID:   os.Getenv("ASHR_IDENTITY_DEV_ACTOR_ID"),
+			SessionID: os.Getenv("ASHR_IDENTITY_DEV_SESSION_ID"),
+		}
 	}
 	log.Printf("ashr Go control plane listening on %s with backend %s", addr, selection.Name)
 	server := &http.Server{
@@ -50,6 +77,9 @@ func main() {
 			BackendReady:          selection.Ready,
 			PaymentReconciliation: selection.PaymentReconciliation,
 			PaymentDomain:         selection.PaymentDomain,
+			UnifiedIdentity:       unifiedIdentity,
+			IdentitySessions:      identitySessions,
+			OAuthProviders:        oauthProviders,
 			GitHubOAuth:           githubOAuth,
 		}),
 	}

@@ -2,6 +2,8 @@
   "schema_version": "ashr.clone.github_account_connection_evidence.v1",
   "environment": "localhost_development",
   "provider": "github",
+  "public_safe": true,
+  "contains_secret_values": false,
   "captured_at": "2026-07-10T08:53:14.7446297Z",
   "callback_uri": "http://localhost:8787/oauth/github/callback",
   "requested_scopes": [
@@ -15,7 +17,8 @@
   "start_status_code": 200,
   "callback_status_code": 200,
   "connection_status_code": 200,
-  "safe_identity_digest_or_suffix": "d7f4c1d11d8f6560ce6c3b70a7624a23ac983ced162ee97e288995aa92c22b39",
+  "credential_id_present": true,
+  "provider_subject_present": true,
   "email_present": true,
   "token_reference_present": true,
   "token_reference_exposed": false,
