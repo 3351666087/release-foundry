@@ -4571,6 +4571,9 @@ export function summarizeSaasAdminExport(saasAdminFixture = {}) {
       channels: Array.isArray(usage.channels) ? usage.channels : [],
       oauth_only_functions: Array.isArray(usage.oauth_only_functions) ? usage.oauth_only_functions : []
     },
+    commercial_ops: saasAdminFixture.commercial_ops || {},
+    self_host_console: saasAdminFixture.self_host_console || {},
+    developer_platform: saasAdminFixture.developer_platform || {},
     trust: {
       status: trust.status || "unknown",
       public_certificate_mode: trust.public_certificate_mode || "unknown",

@@ -908,9 +908,12 @@ test("A3 live ops control plane now exposes a release publish chain", async () =
   const liveOpsSource = await readFile(new URL("../../services/report/a3_live_ops_control_plane.mjs", import.meta.url), "utf8");
   const appSource = await readFile(new URL("../../apps/dashboard/src/app.mjs", import.meta.url), "utf8");
   assert.match(liveOpsSource, /buildReleasePublishChain/);
-  assert.match(liveOpsSource, /a3\.release_publish_chain\.v1/);
+  assert.match(liveOpsSource, /reviewer_gate_status/);
+  assert.match(liveOpsSource, /blocked_by_denial/);
   assert.match(appSource, /Release publish chain/);
+  assert.match(appSource, /Publish blockers/);
   assert.match(appSource, /controlPlane\.release_publish_chain\?\.steps/);
+  assert.match(appSource, /controlPlane\.release_publish_chain\?\.blocker_reasons/);
 });
 
 
@@ -922,4 +925,26 @@ test("A3 SaaS admin trust center now explains customer-facing publish blockers",
   assert.match(adminComponent, /Blocked reason/);
   assert.match(adminComponent, /publish blocker:/);
   assert.match(adminComponent, /customer-safe artifact:/);
+});
+
+
+test("A3 SaaS admin now exposes commercial ops, self-host console, and developer platform shells", async () => {
+  const adminSource = await readFile(new URL("../../services/report/a3_saas_admin.mjs", import.meta.url), "utf8");
+  const adminComponent = await readFile(new URL("../../apps/dashboard/src/components/saas-admin-console.mjs", import.meta.url), "utf8");
+  assert.match(adminSource, /buildCommercialOpsState/);
+  assert.match(adminSource, /buildSelfHostConsoleState/);
+  assert.match(adminSource, /buildDeveloperPlatformState/);
+  assert.match(adminComponent, /Commercial Ops/);
+  assert.match(adminComponent, /Self-Host Console/);
+  assert.match(adminComponent, /Developer Platform/);
+});
+
+
+test("A3 API-backed bootstrap now loads admin/report/workflow surfaces during first load", async () => {
+  const appSource = await readFile(new URL("../../apps/dashboard/src/app.mjs", import.meta.url), "utf8");
+  assert.match(appSource, /state.reportCenter = await fetchA3ReportCenter/);
+  assert.match(appSource, /state.artifactRegistry = await fetchA3ArtifactRegistry/);
+  assert.match(appSource, /state.productConsole = await fetchA3ProductConsole/);
+  assert.match(appSource, /state.reviewWorkflow = await fetchA3ReviewWorkflow/);
+  assert.match(appSource, /state.saasAdmin = await fetchA3AdminConsole/);
 });

@@ -95,6 +95,9 @@ export function buildSaasAdminConsole(inputs = {}, options = {}) {
     api_keys: buildApiKeyState(),
     usage: buildUsageState(summary, usage, usageQuotaApiProbe),
     billing_account: buildBillingAccountState(usage, usageQuotaApiProbe, summary),
+    commercial_ops: buildCommercialOpsState(usage, releaseGate, summary),
+    self_host_console: buildSelfHostConsoleState(releaseGate, usage, summary),
+    developer_platform: buildDeveloperPlatformState(summary, usage),
     trust: buildTrustState(summary, releaseGate, cloudShell, usage),
     export_governance: buildExportGovernanceState(summary, releaseGate, usage),
     cloud_management: buildCloudManagementState(cloudShell, summary, releaseGate, usage),
@@ -799,6 +802,85 @@ function buildExportGovernanceState(summary = {}, releaseGate = {}, usage = {}) 
       primary_region: "CN-first",
       invoice_mode: usage.available ? "metered_preview" : "local_preview",
       ties_to_usage: true
+    }
+  };
+}
+
+function buildCommercialOpsState(usage = {}, releaseGate = {}, summary = {}) {
+  const releaseBlocked = releaseGate.decision === "block_release";
+  const billableMeters = Array.isArray(usage.billable_meters) ? usage.billable_meters : [];
+  return {
+    schema_version: "a3.commercial_ops_state.v1",
+    status: usage.available ? "read_only_calibrated" : "local_projection_only",
+    quote_stage: releaseBlocked ? "risk_review_before_quote" : "quote_packet_ready",
+    forecast_posture: billableMeters.length > 0 ? "metered_expansion_visible" : "starter_projection_only",
+    collections_risk: usage.overage_risk === "over_quota" ? "watch_immediately" : "healthy",
+    domestic_payment_priority: ["wechat_pay", "alipay", "bank_transfer"],
+    revenue_motions: [
+      { motion: "seat_expansion", status: "copy_now", reason: "Reviewer, owner, and auditor roles map cleanly to paid seat packaging." },
+      { motion: "usage_expansion", status: billableMeters.length > 0 ? "copy_now" : "planned", reason: "Hosted reports, trace volume, and report views already give A3 visible billable surfaces." },
+      { motion: "enterprise_procurement", status: "shell_ready", reason: "Audit exports, trust blockers, and self-host packet can support security review before live billing mutations exist." }
+    ],
+    invoice_operations: [
+      { step: "quote_packet", status: summary.totalCases > 0 ? "ready" : "waiting_for_usage", detail: "Attach release evidence, audit posture, tenant scope, and pricing labels into one procurement packet." },
+      { step: "invoice_preview", status: usage.available ? "read_only_visible" : "fixture_only", detail: "Preview CNY invoice shape without touching any real payment provider." },
+      { step: "payment_collection", status: "planned", detail: "A1 should later own WeChat Pay, Alipay, webhook verification, and ledger reconciliation." }
+    ],
+    buyer_promises: [
+      "No customer-facing release publish without reviewer evidence and redaction proof.",
+      "Usage and invoice posture stay visible even before real payment mutations are enabled.",
+      "China-first billing posture reduces mismatch between product shell and likely customer procurement path."
+    ]
+  };
+}
+
+function buildSelfHostConsoleState(releaseGate = {}, usage = {}, summary = {}) {
+  return {
+    schema_version: "a3.self_host_console_state.v1",
+    status: "enterprise_shell_ready",
+    deployment_modes: ["customer_vpc", "private_k8s", "air_gapped_packet"],
+    install_surfaces: [
+      { surface: "helm_chart", status: "planned", reason: "Best default for enterprise Kubernetes delivery." },
+      { surface: "docker_compose", status: "preview", reason: "Good for evaluation and internal security review." },
+      { surface: "terraform_packet", status: "planned", reason: "Needed for repeatable infra review and procurement handoff." }
+    ],
+    dependency_boundaries: [
+      "A1 owns hosted API gateway, durable auth, usage ledger, object storage, and provider webhooks.",
+      "A2 owns judge policy, failure taxonomy, and release gate semantics.",
+      "A3 owns operator UI, review workflow, audit export surfaces, and hosted-vs-self-host buyer story."
+    ],
+    required_enterprise_controls: [
+      "customer-managed object storage",
+      "customer-managed identity / SSO",
+      "tenant-scoped audit export",
+      "offline report bundle verification",
+      "usage and billing visibility that works without public cloud login"
+    ],
+    release_readiness: releaseGate.decision === "approve_release" ? "ready_for_enterprise_review" : "blocked_by_release_gate",
+    packaging_hint: usage.available || summary.totalCases > 0 ? "upsell_from_team_to_enterprise" : "enterprise_story_only"
+  };
+}
+
+function buildDeveloperPlatformState(summary = {}, usage = {}) {
+  return {
+    schema_version: "a3.developer_platform_state.v1",
+    status: summary.totalRuns > 0 ? "sdk_and_api_story_visible" : "empty_platform_shell",
+    api_posture: {
+      public_read_api: "contract_ready",
+      public_write_api: "review_and_auth_required",
+      webhook_ingest: "planned",
+      sdk_surface: ["typescript", "python", "go"],
+      tenant_headers_required: true
+    },
+    platform_workflows: [
+      { workflow: "ci_trace_ingest", status: "copy_now", detail: "A1 run import plus A2 grade import already gives a believable CI ingestion story." },
+      { workflow: "release_gate_publishback", status: "shell_ready", detail: "GitHub publish chain, review workflow, and report center now describe one operator loop." },
+      { workflow: "customer_webhook_fanout", status: "contract_ready", detail: "Notification control plane and audit/event-outbox story already point at webhook delivery." }
+    ],
+    usage_contract: {
+      billable_meters_visible: Array.isArray(usage.billable_meters) && usage.billable_meters.length > 0,
+      trace_and_report_surfaces: ["runs", "cases", "reports", "views", "shareable_reports"],
+      audit_required_for_write_paths: true
     }
   };
 }

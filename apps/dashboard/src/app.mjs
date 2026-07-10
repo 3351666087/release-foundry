@@ -591,7 +591,7 @@ function codeCrawlChunkRow(chunk) {
       <span>${escapeHtml(chunk.signal_count)} signal(s)</span>
       <span>${escapeHtml(chunk.size_bytes)} bytes</span>
     </div>
-    <div class="muted">${escapeHtml(chunk.top_signals.map((item) => `${item.signal}:${item.count}`).join(", ") || "no signals")} è·?${escapeHtml(chunk.a3_decision)}</div>
+    <div class="muted">${escapeHtml(chunk.top_signals.map((item) => `${item.signal}:${item.count}`).join(", ") || "no signals")} ï¿½?${escapeHtml(chunk.a3_decision)}</div>
   `;
   return node;
 }
@@ -1435,7 +1435,7 @@ function reviewerWorkflowItemRow(item) {
       <span>diffs ${escapeHtml(item.evidence_counts.tool_diffs)}</span>
       <span>judge ${escapeHtml(item.evidence_counts.judge_evidence)}</span>
     </div>
-    <div class="muted">Missing: ${escapeHtml(item.missing_artifacts.join(", ") || "none")} è·?${escapeHtml(item.next_action)}</div>
+    <div class="muted">Missing: ${escapeHtml(item.missing_artifacts.join(", ") || "none")} ï¿½?${escapeHtml(item.next_action)}</div>
   `;
   node.addEventListener("click", () => {
     state.selectedCaseId = item.case_id;
@@ -3639,6 +3639,10 @@ function renderLiveOpsControlPlane() {
       item.status,
       item.detail
     ]), "No release publish chain is visible yet.")}
+    ${renderReportTable(["Publish blockers", "Reason"], (controlPlane.release_publish_chain?.blocker_reasons || []).map((item, index) => [
+      index === 0 ? (controlPlane.release_publish_chain?.status || "unknown") : "follow-up",
+      item
+    ]), "No publish blocker reasons are recorded.")}
     ${renderReportTable(["Audit history", "Status"], (controlPlane.audit_history || []).map((item) => [
       item.event_type,
       item.status
@@ -3710,7 +3714,13 @@ function renderProductConsole() {
 async function loadDataSource(source) {
   state.source = source;
   if (isA3ApiSource(source)) {
-    applyApiDashboardPayload(await fetchA3DashboardSnapshot({ source, baseUrl: getA3ApiBaseUrl() }));
+    try {
+      const dashboardPayload = await fetchA3DashboardSnapshot({ source, baseUrl: getA3ApiBaseUrl() });
+      applyApiDashboardPayload(dashboardPayload);
+    } catch (error) {
+      console.error("A3 API dashboard bootstrap failed", error);
+      throw error;
+    }
     try {
       state.schemaDriftRadar = await fetchA3SchemaDriftRadar({ source, baseUrl: getA3ApiBaseUrl() });
     } catch (error) {
@@ -3768,6 +3778,11 @@ async function loadDataSource(source) {
     }
     state.saasRuntime.usage_ledger = state.usageLedger;
     state.saasRuntime.billing_readiness = state.billingReadiness;
+    state.reportCenter = await fetchA3ReportCenter({ source, baseUrl: getA3ApiBaseUrl() });
+    state.artifactRegistry = await fetchA3ArtifactRegistry({ source, baseUrl: getA3ApiBaseUrl() });
+    state.productConsole = await fetchA3ProductConsole({ source, baseUrl: getA3ApiBaseUrl() });
+    state.reviewWorkflow = await fetchA3ReviewWorkflow({ source, baseUrl: getA3ApiBaseUrl() });
+    state.saasAdmin = await fetchA3AdminConsole({ source, baseUrl: getA3ApiBaseUrl() });
   } else if (source === "p3-media") {
     const sample = await loadJson("../../fixtures/a3/p3/ashr_run_detail_sample.redacted.json");
     const datasetSample = await loadOptionalJson("../../fixtures/a3/p3/ashr_dataset_detail_sample.redacted.json");

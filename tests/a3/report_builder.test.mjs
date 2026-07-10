@@ -2334,6 +2334,9 @@ test("A3 report builder summarizes live ops control-plane export", async () => {
   assert.equal(summary.share_link_timeline.length, 2);
   assert.ok(summary.audit_history.length >= 1);
   assert.equal(summary.report_link_summary.shareable_count, 1);
+  assert.equal(controlPlane.release_publish_chain.status, "ready_for_governed_publish");
+  assert.equal(controlPlane.release_publish_chain.reviewer_gate_status, "approved");
+  assert.deepEqual(controlPlane.release_publish_chain.blocker_reasons, []);
 });
 test("A3 report exports preserve richer workspace posture from SaaS Admin", () => {
   const admin = buildSaasAdminConsole(
@@ -2404,4 +2407,50 @@ test("A3 report exports include export audience governance from SaaS admin", () 
   assert.equal(report.export_audience_governance.available, true);
   assert.equal(report.export_audience_governance.customer_external_blocked, true);
   assert.deepEqual(report.export_audience_governance.allowed_audiences, ["internal_ops", "reviewer_signoff", "executive_summary"]);
+});
+
+
+test("A3 live ops control plane blocks publish when denial exists", async () => {
+  const { buildA3LiveOpsControlPlane } = await import("../../services/report/a3_live_ops_control_plane.mjs");
+  const controlPlane = buildA3LiveOpsControlPlane({
+    releaseEvidence: {},
+    reviewWorkflow: {
+      schema_version: "a3.review_workflow_index.v1",
+      record_count: 2,
+      approval_count: 0,
+      denial_count: 1,
+      waiver_count: 0
+    },
+    usageLedger: { schema_version: "a3.usage_ledger.v1", meters: [], status: "api_backed" },
+    billingReadiness: { schema_version: "a3.billing_readiness.v1", status: "read_only_state_ready" },
+    reportCenter: { schema_version: "a3.report_center_index.v1", summary: { shareable_count: 0 }, reports: [] }
+  });
+
+  assert.equal(controlPlane.release_publish_chain.status, "blocked_by_denial");
+  assert.equal(controlPlane.release_publish_chain.reviewer_gate_status, "blocked_by_denial");
+  assert.match(controlPlane.release_publish_chain.blocker_reasons[0], /denial record/);
+  assert.equal(controlPlane.release_publish_chain.steps[0].status, "blocked_by_denial");
+});
+
+
+test("A3 SaaS admin model exposes commercial ops, self-host, and developer platform posture", () => {
+  const admin = buildSaasAdminConsole(
+    { runs: { runs: [{ run_id: "run-1", cases: [{ case_id: "case-1", status: "failed" }] }] } },
+    {}
+  );
+  assert.equal(admin.commercial_ops.schema_version, "a3.commercial_ops_state.v1");
+  assert.ok(admin.commercial_ops.domestic_payment_priority.includes("wechat_pay"));
+  assert.equal(admin.self_host_console.schema_version, "a3.self_host_console_state.v1");
+  assert.ok(admin.self_host_console.required_enterprise_controls.includes("tenant-scoped audit export"));
+  assert.equal(admin.developer_platform.schema_version, "a3.developer_platform_state.v1");
+  assert.ok(admin.developer_platform.api_posture.sdk_surface.includes("typescript"));
+});
+
+
+test("A3 SaaS admin commercial ops exports stay available after bootstrap recovery", () => {
+  const admin = buildSaasAdminConsole({ runs: { runs: [{ run_id: "run-1", cases: [{ case_id: "case-1", status: "failed" }] }] } }, {});
+  const exported = summarizeSaasAdminExport(admin);
+  assert.equal(exported.commercial_ops.schema_version, "a3.commercial_ops_state.v1");
+  assert.equal(exported.self_host_console.schema_version, "a3.self_host_console_state.v1");
+  assert.equal(exported.developer_platform.schema_version, "a3.developer_platform_state.v1");
 });

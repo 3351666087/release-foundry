@@ -185,6 +185,8 @@ function prCommentLane(releaseEvidence = {}) {
 function buildReleasePublishChain({ releaseEvidence = {}, reviewWorkflow = {}, reportCenter = {}, usageLedger = {}, billingReadiness = {} } = {}) {
   const reviewRecords = numberOr(reviewWorkflow.record_count, 0);
   const approvals = numberOr(reviewWorkflow.approval_count, 0);
+  const denials = numberOr(reviewWorkflow.denial_count, 0);
+  const waivers = numberOr(reviewWorkflow.waiver_count, 0);
   const reports = Array.isArray(reportCenter.reports) ? reportCenter.reports : [];
   const shareableCount = reports.filter((item) => item.status === "shareable").length;
   const githubTimeline = buildGithubPublishTimeline(releaseEvidence);
@@ -192,21 +194,59 @@ function buildReleasePublishChain({ releaseEvidence = {}, reviewWorkflow = {}, r
   const commentReady = githubTimeline.some((item) => item.step?.includes("comment") && item.status !== "missing_contract");
   const usageReady = usageLedger.status === "api_backed" || usageLedger.status === "read_only_calibrated" || Array.isArray(usageLedger.meters);
   const billingReady = billingReadiness.status === "read_only_state_ready" || billingReadiness.schema_version === "a3.billing_readiness.v1";
+  const reviewerGateStatus = denials > 0
+    ? "blocked_by_denial"
+    : approvals > 0
+      ? "approved"
+      : reviewRecords > 0
+        ? "records_present_waiting_for_approval"
+        : "waiting_for_reviewer_records";
+  const publishStatus = denials > 0
+    ? "blocked_by_denial"
+    : approvals > 0 && shareableCount > 0 && checkReady
+      ? "ready_for_governed_publish"
+      : approvals > 0
+        ? "approved_waiting_for_publish_evidence"
+        : "waiting_for_reviewer_approval";
+  const blockerReasons = [];
+  if (denials > 0) {
+    blockerReasons.push(denials + " denial record(s) must be resolved before publish.");
+  }
+  if (approvals === 0) {
+    blockerReasons.push(reviewRecords > 0
+      ? "Reviewer records exist, but no approval has been accepted yet."
+      : "No reviewer approval record exists yet.");
+  }
+  if (!checkReady) {
+    blockerReasons.push("GitHub required-check publish path is not ready.");
+  }
+  if (!commentReady) {
+    blockerReasons.push("GitHub PR comment publish path is not ready.");
+  }
+  if (shareableCount === 0) {
+    blockerReasons.push("No shareable hosted report is available for governed publish.");
+  }
   return {
     schema_version: "a3.release_publish_chain.v1",
-    status: approvals > 0 && shareableCount > 0 && checkReady ? "ready_for_governed_publish" : "waiting_for_more_evidence",
+    status: publishStatus,
+    reviewer_gate_status: reviewerGateStatus,
+    blocker_reasons: blockerReasons,
     steps: [
-      { step: "reviewer_records", status: reviewRecords > 0 ? "visible" : "missing", detail: `${reviewRecords} record(s), ${approvals} approval(s)` },
+      {
+        step: "reviewer_records",
+        status: reviewerGateStatus,
+        detail: reviewRecords + " record(s), " + approvals + " approval(s), " + denials + " denial(s), " + waivers + " waiver(s)"
+      },
       { step: "github_check_publish", status: checkReady ? "contract_ready" : "missing", detail: "PR gate check publication path" },
       { step: "github_pr_comment", status: commentReady ? "contract_ready" : "missing", detail: "PR comment publication path" },
-      { step: "hosted_report_share", status: shareableCount > 0 ? "shareable" : "missing", detail: `${shareableCount} shareable hosted report(s)` },
-      { step: "usage_visibility", status: usageReady ? "visible" : "missing", detail: `${Array.isArray(usageLedger.meters) ? usageLedger.meters.length : 0} meter(s)` },
+      { step: "hosted_report_share", status: shareableCount > 0 ? "shareable" : "missing", detail: shareableCount + " shareable hosted report(s)" },
+      { step: "usage_visibility", status: usageReady ? "visible" : "missing", detail: (Array.isArray(usageLedger.meters) ? usageLedger.meters.length : 0) + " meter(s)" },
       { step: "billing_visibility", status: billingReady ? "visible" : "missing", detail: billingReadiness.status || "unknown" }
     ],
     commercial_value: "Shows release owners one publish chain from reviewer evidence to GitHub gate, hosted report, usage, and billing posture.",
-    next_action: approvals > 0 && shareableCount > 0 && checkReady
+    next_action: publishStatus === "ready_for_governed_publish"
       ? "Keep reviewer records, GitHub publish receipts, hosted report lifecycle, and billing posture on one sign-off path."
-      : "Close the missing publish-chain steps before claiming governed release publication."
+      : blockerReasons[0] || "Close the missing publish-chain steps before claiming governed release publication."
   };
 }
 

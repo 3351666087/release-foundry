@@ -6066,3 +6066,56 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
   - `node --test tests/a3/dashboard_wiring.test.mjs` -> `45 pass / 0 fail`
   - `cmd /c npx playwright test tests/e2e/a3-dashboard-api-backed.spec.ts --grep "trust publish blockers|release publish chain continuity|export audience governance and enterprise decision packets in the API-backed console"` -> `3 passed`
 - Commercial reason: this makes A3 trust posture more credible because it now explains not only that customer-facing publish is blocked, but exactly what blockers and sanitized artifacts sit between internal sign-off and future external sharing.
+
+## 2026-07-10 - Reviewer Gate Publish Blocker Pass
+
+- Tightened `services/report/a3_live_ops_control_plane.mjs` so `release_publish_chain` no longer collapses every not-ready state into vague missing evidence.
+- The publish chain now distinguishes:
+  - `waiting_for_reviewer_records`
+  - `records_present_waiting_for_approval`
+  - `approved`
+  - `blocked_by_denial`
+  - `approved_waiting_for_publish_evidence`
+  - `ready_for_governed_publish`
+- Added explicit `reviewer_gate_status` and `blocker_reasons` so operators can see why governed publish is blocked instead of guessing from counters.
+- Extended `apps/dashboard/src/app.mjs` Live Ops Control Plane with a `Publish blockers` table that renders the blocker reasons directly beside the release publish chain.
+- Added Node coverage in `tests/a3/report_builder.test.mjs` for both the ready path and a denial-blocked path.
+- Extended `tests/a3/dashboard_wiring.test.mjs` so the dashboard wiring now proves `reviewer_gate_status`, `blocked_by_denial`, and `Publish blockers` are all present in source wiring.
+- Verification:
+  - `node --test tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs` -> `95 pass / 0 fail`
+  - `cmd /c npx playwright test tests/e2e/a3-dashboard-api-backed.spec.ts --grep "release publish chain continuity|trust publish blockers|export audience governance and enterprise decision packets in the API-backed console"` -> `3 passed`
+- Commercial reason: this makes A3 feel more like a real release-governance console because it now explains whether publish is blocked by human denial, waiting on approval, or simply missing downstream publish evidence.
+
+## 2026-07-10 - Commercial Ops + Self-Host + Developer Platform Shell Pass
+
+- Extended `services/report/a3_saas_admin.mjs` with three additional money-facing control surfaces:
+  - `commercial_ops`
+  - `self_host_console`
+  - `developer_platform`
+- These additions move A3 closer to a real commercial product shell by making pricing/quote posture, enterprise self-host posture, and API/SDK platform posture visible inside the same SaaS Admin surface.
+- Extended `apps/dashboard/src/components/saas-admin-console.mjs` so the dashboard now renders `Commercial Ops`, `Self-Host Console`, and `Developer Platform` blocks instead of leaving those revenue and platform conversations outside the product.
+- Tightened API-backed dashboard initialization in `apps/dashboard/src/app.mjs` so report-center, artifact-registry, product-console, review-workflow, and SaaS-admin evidence are loaded during first API-backed bootstrap rather than being deferred until later user actions.
+- Added Node proof in:
+  - `tests/a3/report_builder.test.mjs`
+  - `tests/a3/dashboard_wiring.test.mjs`
+- Verification:
+  - `node --test tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs` -> `97 pass / 0 fail`
+- Browser result:
+  - Playwright subset still exposes an API-backed bootstrap issue where the page can remain on `Loading local fixtures...` under the static E2E server even though direct `/api/a3/dashboard?source=mock` requests return `200` with full payloads.
+  - This is now recorded as a real product/test bootstrap bug, not hidden.
+- Commercial reason: this round adds more sellable enterprise/product signals while also attacking a genuine API-backed boot path bug that would matter in a hosted SaaS console.
+
+## 2026-07-10 - API-Backed Bootstrap Recovery Pass
+
+- Root-caused the API-backed dashboard boot issue down to frontend module execution rather than backend data availability.
+- Confirmed direct `GET /api/a3/dashboard?source=mock` returns `200` with the full payload, which ruled out the A3 API server and store as the blocker.
+- Found and fixed a real syntax error in `apps/dashboard/src/components/saas-admin-console.mjs` introduced while expanding commercial SaaS surfaces (`Commercial Ops`, `Self-Host Console`, `Developer Platform`).
+- The syntax error prevented the dashboard module graph from executing fully, which is why the page stayed at `Loading local fixtures...` even though API routes were healthy.
+- Cleaned and normalized `tests/e2e/a3-dashboard-api-backed.spec.ts` so the E2E suite no longer carries brittle temporary debug edits from previous rounds.
+- Re-ran syntax checks and product-critical tests:
+  - `node --check apps/dashboard/src/components/saas-admin-console.mjs`
+  - `node --check apps/dashboard/src/app.mjs`
+  - `node --check tests/e2e/a3-dashboard-api-backed.spec.ts`
+  - `node --test tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs` -> `97 pass / 0 fail`
+  - `cmd /c npx playwright test tests/e2e/a3-dashboard-api-backed.spec.ts --grep "export audience governance and enterprise decision packets in the API-backed console|release publish chain continuity in live ops control plane|trust publish blockers and customer-safe artifact posture"` -> `3 passed`
+- Commercial reason: this was not cosmetic. Recovering API-backed bootstrap means A3 behaves more like a real hosted product console instead of a static report shell. It directly improves operator trust and reduces launch risk for every commercial surface that depends on first-load data.

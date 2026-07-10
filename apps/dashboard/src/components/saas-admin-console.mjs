@@ -50,6 +50,9 @@
     billingAccountBlock(admin.billing_account || {}),
     providerPriorityBlock(admin.billing_account || {}),
     workflowBlock("Domestic Invoice Workflow", admin.billing_account?.invoice_workflow || [], "step", "status", "detail"),
+    commercialOpsBlock(admin.commercial_ops || {}),
+    selfHostConsoleBlock(admin.self_host_console || {}),
+    developerPlatformBlock(admin.developer_platform || {}),
     sectionBlock("API Keys", [
       row("Status", admin.api_keys?.status || "unknown"),
       row("Create mode", admin.api_keys?.create_mode || "server required"),
@@ -693,6 +696,76 @@ function apiKeyAuditBlock(apiKeys) {
     const node = document.createElement("div");
     node.className = "matrix-row";
     node.innerHTML = `<div class="muted">${escapeHtml(item)}</div>`;
+    block.appendChild(node);
+  }
+  return block;
+}
+
+function commercialOpsBlock(ops) {
+  const block = sectionBlock("Commercial Ops", [
+    row("Status", ops.status || "unknown"),
+    row("Quote stage", ops.quote_stage || "unknown"),
+    row("Forecast", ops.forecast_posture || "unknown"),
+    row("Collections risk", ops.collections_risk || "unknown"),
+    row("Domestic priority", (ops.domestic_payment_priority || []).join(", ") || "none")
+  ]);
+  for (const motion of ops.revenue_motions || []) {
+    const node = document.createElement("div");
+    node.className = "matrix-row";
+    node.innerHTML =       '<div class="matrix-head"><strong>' + escapeHtml(motion.motion || "motion") + '</strong>' +
+      '<span class="badge ' + badgeClass(motion.status || "neutral") + '">' + escapeHtml(motion.status || "unknown") + '</span></div>' +
+      '<div class="muted">' + escapeHtml(motion.reason || "") + '</div>';
+    block.appendChild(node);
+  }
+  for (const step of ops.invoice_operations || []) {
+    const node = document.createElement("div");
+    node.className = "matrix-row";
+    node.innerHTML =       '<div class="matrix-head"><strong>' + escapeHtml(step.step || "step") + '</strong>' +
+      '<span class="badge ' + badgeClass(step.status || "neutral") + '">' + escapeHtml(step.status || "unknown") + '</span></div>' +
+      '<div class="muted">' + escapeHtml(step.detail || "") + '</div>';
+    block.appendChild(node);
+  }
+  return block;
+}
+
+function selfHostConsoleBlock(shell) {
+  const block = sectionBlock("Self-Host Console", [
+    row("Status", shell.status || "unknown"),
+    row("Deploy modes", (shell.deployment_modes || []).join(", ") || "none"),
+    row("Release readiness", shell.release_readiness || "unknown"),
+    row("Packaging", shell.packaging_hint || "unknown")
+  ]);
+  for (const surface of shell.install_surfaces || []) {
+    const node = document.createElement("div");
+    node.className = "matrix-row";
+    node.innerHTML =       '<div class="matrix-head"><strong>' + escapeHtml(surface.surface || "surface") + '</strong>' +
+      '<span class="badge ' + badgeClass(surface.status || "neutral") + '">' + escapeHtml(surface.status || "unknown") + '</span></div>' +
+      '<div class="muted">' + escapeHtml(surface.reason || "") + '</div>';
+    block.appendChild(node);
+  }
+  for (const control of shell.required_enterprise_controls || []) {
+    const node = document.createElement("div");
+    node.className = "matrix-row";
+    node.innerHTML = '<div class="muted">' + escapeHtml(control) + '</div>';
+    block.appendChild(node);
+  }
+  return block;
+}
+
+function developerPlatformBlock(platform) {
+  const block = sectionBlock("Developer Platform", [
+    row("Status", platform.status || "unknown"),
+    row("SDKs", (platform.api_posture?.sdk_surface || []).join(", ") || "none"),
+    row("Read API", platform.api_posture?.public_read_api || "unknown"),
+    row("Write API", platform.api_posture?.public_write_api || "unknown"),
+    row("Tenant headers", platform.api_posture?.tenant_headers_required ? "required" : "not required")
+  ]);
+  for (const flow of platform.platform_workflows || []) {
+    const node = document.createElement("div");
+    node.className = "matrix-row";
+    node.innerHTML =       '<div class="matrix-head"><strong>' + escapeHtml(flow.workflow || "workflow") + '</strong>' +
+      '<span class="badge ' + badgeClass(flow.status || "neutral") + '">' + escapeHtml(flow.status || "unknown") + '</span></div>' +
+      '<div class="muted">' + escapeHtml(flow.detail || "") + '</div>';
     block.appendChild(node);
   }
   return block;

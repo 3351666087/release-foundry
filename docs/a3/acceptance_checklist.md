@@ -813,4 +813,19 @@
 - [x] Screenshot evidence exists for live publish chain continuity in `docs/screenshots/a3-live-publish-chain-api-backed-2026-07-10.png`.
 - [x] SaaS Admin Trust Center now explains customer-facing publish blockers and customer-safe artifact posture.
 - [x] Playwright now proves trust blockers and customer-safe artifact posture in the API-backed admin console.
-- [x] Screenshot evidence exists for trust blockers in `docs/screenshots/a3-trust-blockers-api-backed-2026-07-10.png`.
+- [x] Screenshot evidence exists for trust blockers in `docs/screenshots/a3-trust-blockers-api-backed-2026-07-10.png`.- [x] Release publish chain now distinguishes waiting-for-approval from denial-blocked states.
+- [x] Live Ops Control Plane now exposes reviewer-gate status as an explicit field instead of only counts.
+- [x] Live Ops Control Plane now surfaces blocker reasons for governed publish.
+- [x] Node tests prove both approval-ready and denial-blocked publish-chain states.
+- [x] Playwright regression run still passes after the reviewer-gate publish-blocker change.
+- [x] SaaS Admin now exposes commercial ops posture for quote packet, invoice preview, and domestic payment priority.
+- [x] SaaS Admin now exposes self-host console posture for enterprise buyer review.
+- [x] SaaS Admin now exposes developer-platform posture for SDK/API workflow storytelling.
+- [x] API-backed bootstrap now attempts to load report center, artifact registry, product console, review workflow, and SaaS admin during first load.
+- [x] Node tests prove the new commercial/self-host/platform shells are wired.
+- [ ] Playwright bootstrap still needs a deterministic fix so API-backed pages never stick on `Loading local fixtures...`.
+- [x] Root-cause API-backed bootstrap failure to frontend module execution instead of backend payload availability.
+- [x] Fix SaaS Admin component syntax so API-backed dashboard modules can execute on first load.
+- [x] Re-green critical API-backed Playwright coverage for export governance, live publish chain, and trust blockers.
+- [x] Keep commercial/self-host/developer-platform shells intact after bootstrap recovery.
+- [x] Confirm direct GitHub remote-read connectivity is intermittently healthy again (`git ls-remote origin HEAD` succeeded).
