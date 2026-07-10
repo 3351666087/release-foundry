@@ -3634,6 +3634,11 @@ function renderLiveOpsControlPlane() {
       item.status,
       `views ${item.view_count || 0} / expires ${item.expires_at || "n/a"} / revoked ${item.revoked_at || "n/a"}`
     ]), "No hosted report lifecycle history is loaded.")}
+    ${renderReportTable(["Release publish chain", "Status", "Detail"], (controlPlane.release_publish_chain?.steps || []).map((item) => [
+      item.step,
+      item.status,
+      item.detail
+    ]), "No release publish chain is visible yet.")}
     ${renderReportTable(["Audit history", "Status"], (controlPlane.audit_history || []).map((item) => [
       item.event_type,
       item.status

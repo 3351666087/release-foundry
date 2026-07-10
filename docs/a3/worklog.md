@@ -6045,3 +6045,14 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
 - Saved screenshot evidence to `docs/screenshots/a3-export-governance-enterprise-packets-api-backed-2026-07-10.png`.
 - Verification: `cmd /c npx playwright test tests/e2e/a3-dashboard-api-backed.spec.ts --grep "export audience governance|hosted report scope and commercial admin enterprise controls together|review filters, share governance, and cloud summary strip"` -> `3 passed`.
 - Commercial reason: this converts recently-added A3 governance features from source-level contracts into browser-proven SaaS surfaces, which is much stronger evidence for a release-signoff product.
+
+## 2026-07-10 - Live Publish Chain Continuity Pass
+
+- Added `release_publish_chain` to `services/report/a3_live_ops_control_plane.mjs` so live ops now models one chain across reviewer records, GitHub check publish, PR comment publish, hosted report sharing, usage visibility, and billing visibility.
+- Extended `apps/dashboard/src/app.mjs` to render a `Release publish chain` table in the Live Ops Control Plane.
+- Added Node and Playwright proof for the new release-publish chain continuity.
+- Browser screenshot evidence saved to `docs/screenshots/a3-live-publish-chain-api-backed-2026-07-10.png`.
+- Verification:
+  - `node --test tests/a3/dashboard_wiring.test.mjs tests/a3/report_builder.test.mjs tests/a3/report_center_index.test.mjs` -> `99 pass / 0 fail`
+  - `cmd /c npx playwright test tests/e2e/a3-dashboard-api-backed.spec.ts --grep "release publish chain continuity|export audience governance and enterprise decision packets in the API-backed console"` -> `2 passed`
+- Commercial reason: this moves A3 closer to a real release-operations console because publish readiness is no longer scattered across cards; it is shown as a single operator-visible chain.

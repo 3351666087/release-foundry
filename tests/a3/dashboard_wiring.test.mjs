@@ -902,3 +902,13 @@ test("A3 enterprise readiness surfaces reviewer, executive, and blocked customer
   assert.match(enterpriseComponent, /Decision Packets/);
   assert.match(enterpriseComponent, /Customer blocked/);
 });
+
+
+test("A3 live ops control plane now exposes a release publish chain", async () => {
+  const liveOpsSource = await readFile(new URL("../../services/report/a3_live_ops_control_plane.mjs", import.meta.url), "utf8");
+  const appSource = await readFile(new URL("../../apps/dashboard/src/app.mjs", import.meta.url), "utf8");
+  assert.match(liveOpsSource, /buildReleasePublishChain/);
+  assert.match(liveOpsSource, /a3\.release_publish_chain\.v1/);
+  assert.match(appSource, /Release publish chain/);
+  assert.match(appSource, /controlPlane\.release_publish_chain\?\.steps/);
+});

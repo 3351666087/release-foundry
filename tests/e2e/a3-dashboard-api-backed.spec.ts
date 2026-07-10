@@ -406,3 +406,26 @@ test("shows export audience governance and enterprise decision packets in the AP
 
   expect(consoleErrors, "export governance and enterprise decision packets should not emit browser console errors").toEqual([]);
 });
+
+
+test("shows release publish chain continuity in live ops control plane", async ({ page }) => {
+  const consoleErrors = collectConsoleErrors(page);
+  await page.goto(apiBackedPath);
+  await expect(page.locator("#data-source")).toContainText("API-backed A1/A2 mock fixture");
+
+  const liveOps = section(page, "#live-ops-control-plane");
+  await expect(liveOps).toContainText("Release publish chain");
+  await expect(liveOps).toContainText("reviewer_records");
+  await expect(liveOps).toContainText("github_check_publish");
+  await expect(liveOps).toContainText("github_pr_comment");
+  await expect(liveOps).toContainText("hosted_report_share");
+  await expect(liveOps).toContainText("usage_visibility");
+  await expect(liveOps).toContainText("billing_visibility");
+
+  await page.screenshot({
+    path: "docs/screenshots/a3-live-publish-chain-api-backed-2026-07-10.png",
+    fullPage: true
+  });
+
+  expect(consoleErrors, "release publish chain should not emit browser console errors").toEqual([]);
+});

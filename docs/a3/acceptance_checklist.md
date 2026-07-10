@@ -808,3 +808,6 @@
 - [x] Playwright now proves export audience governance surfaces render in the API-backed SaaS Admin console.
 - [x] Playwright now proves enterprise reviewer / executive / blocked customer decision packets render in the API-backed console.
 - [x] Screenshot evidence exists for export governance plus enterprise decision packets in `docs/screenshots/a3-export-governance-enterprise-packets-api-backed-2026-07-10.png`.
+- [x] Live Ops Control Plane now exposes a release publish chain across reviewer records, GitHub publish, hosted reports, usage, and billing surfaces.
+- [x] Playwright now proves release publish chain continuity in the API-backed live ops console.
+- [x] Screenshot evidence exists for live publish chain continuity in `docs/screenshots/a3-live-publish-chain-api-backed-2026-07-10.png`.

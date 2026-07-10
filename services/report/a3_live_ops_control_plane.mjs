@@ -95,6 +95,7 @@ export function buildA3LiveOpsControlPlane(inputs = {}, options = {}) {
     github_publish_timeline: buildGithubPublishTimeline(releaseEvidence),
     share_link_timeline: buildShareLinkTimeline(reportCenter),
     audit_history: buildAuditHistory(reviewWorkflow, eventOutbox, reportCenter),
+    release_publish_chain: buildReleasePublishChain({ releaseEvidence, reviewWorkflow, reportCenter, usageLedger, billingReadiness }),
     a1_a2_alignment: {
       a1_consumed_contracts: ["RunResult", "Trace", "ToolCall", "usage ledger / billing migration evidence"],
       a2_consumed_contracts: ["GradeResult", "ReleaseGate", "failure taxonomy", "cross-lane security context"],
@@ -179,6 +180,34 @@ function prCommentLane(releaseEvidence = {}) {
       ? "Keep comment readback freshness visible beside reviewer workflow."
       : "Run PR comment upsert through a GitHub App/Action and capture sanitized readback."
   });
+}
+
+function buildReleasePublishChain({ releaseEvidence = {}, reviewWorkflow = {}, reportCenter = {}, usageLedger = {}, billingReadiness = {} } = {}) {
+  const reviewRecords = numberOr(reviewWorkflow.record_count, 0);
+  const approvals = numberOr(reviewWorkflow.approval_count, 0);
+  const reports = Array.isArray(reportCenter.reports) ? reportCenter.reports : [];
+  const shareableCount = reports.filter((item) => item.status === "shareable").length;
+  const githubTimeline = buildGithubPublishTimeline(releaseEvidence);
+  const checkReady = githubTimeline.some((item) => item.step?.includes("check") && item.status !== "missing_contract");
+  const commentReady = githubTimeline.some((item) => item.step?.includes("comment") && item.status !== "missing_contract");
+  const usageReady = usageLedger.status === "api_backed" || usageLedger.status === "read_only_calibrated" || Array.isArray(usageLedger.meters);
+  const billingReady = billingReadiness.status === "read_only_state_ready" || billingReadiness.schema_version === "a3.billing_readiness.v1";
+  return {
+    schema_version: "a3.release_publish_chain.v1",
+    status: approvals > 0 && shareableCount > 0 && checkReady ? "ready_for_governed_publish" : "waiting_for_more_evidence",
+    steps: [
+      { step: "reviewer_records", status: reviewRecords > 0 ? "visible" : "missing", detail: `${reviewRecords} record(s), ${approvals} approval(s)` },
+      { step: "github_check_publish", status: checkReady ? "contract_ready" : "missing", detail: "PR gate check publication path" },
+      { step: "github_pr_comment", status: commentReady ? "contract_ready" : "missing", detail: "PR comment publication path" },
+      { step: "hosted_report_share", status: shareableCount > 0 ? "shareable" : "missing", detail: `${shareableCount} shareable hosted report(s)` },
+      { step: "usage_visibility", status: usageReady ? "visible" : "missing", detail: `${Array.isArray(usageLedger.meters) ? usageLedger.meters.length : 0} meter(s)` },
+      { step: "billing_visibility", status: billingReady ? "visible" : "missing", detail: billingReadiness.status || "unknown" }
+    ],
+    commercial_value: "Shows release owners one publish chain from reviewer evidence to GitHub gate, hosted report, usage, and billing posture.",
+    next_action: approvals > 0 && shareableCount > 0 && checkReady
+      ? "Keep reviewer records, GitHub publish receipts, hosted report lifecycle, and billing posture on one sign-off path."
+      : "Close the missing publish-chain steps before claiming governed release publication."
+  };
 }
 
 function reviewerDecisionLane(reviewWorkflow = {}) {
