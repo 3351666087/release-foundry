@@ -6029,3 +6029,11 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
 - Reinforced the China-first commercial direction: export governance now stays aligned with CN-first billing posture and avoids claiming customer-safe public export before trust workflow exists.
 - Verification: `node --test tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs tests/a3/report_center_index.test.mjs` -> `97 pass / 0 fail`.
 - Commercial reason: this makes A3 closer to a sellable release-governance console because it explains which packet can go to reviewers, which can go to executives, and why customer-facing export is still blocked.
+
+## 2026-07-10 - Enterprise Decision Packet Commercial Pass
+
+- Added `decision_packets` to `services/report/a3_enterprise_readiness.mjs` so enterprise readiness now models three decision layers: `reviewer_packet`, `executive_packet`, and `customer_external_packet`.
+- Extended `apps/dashboard/src/components/enterprise-readiness-panel.mjs` with a `Decision Packets` section that shows which packet is ready, which is blocked, and why blocked customer-facing export remains unsafe.
+- Kept the decision model aligned with A1/A2 evidence: reviewer and executive packet readiness now depends on trace + judge evidence, while customer packet remains blocked by trust/redaction/publish controls.
+- Verification: `node --test tests/a3/dashboard_wiring.test.mjs tests/a3/report_builder.test.mjs tests/a3/report_center_index.test.mjs` -> `98 pass / 0 fail`.
+- Commercial reason: this brings A3 closer to a real release-signoff system because it distinguishes operator/reviewer evidence, leadership sign-off summary, and future customer-safe trust output.

@@ -27,6 +27,7 @@ export function buildEnterpriseReadinessReport(inputs = {}) {
     enabled_capabilities: buildEnabledCapabilities({ summary, evidence, admin, db }),
     enterprise_value_map: buildEnterpriseValueMap({ summary, evidence, admin, db, blockers, cloudSelfHostPosture }),
     cloud_self_host_posture: cloudSelfHostPosture,
+    decision_packets: buildDecisionPackets({ summary, evidence, admin, blockers }),
     self_host_packet: buildSelfHostPacket({ admin, db, evidence, blockers }),
     next_actions: buildNextActions({ blockers, admin, db, evidence, cloudSelfHostPosture }),
     a1_a2_compatibility_notes: buildCompatibilityNotes({ summary, evidence })
@@ -208,6 +209,32 @@ function buildCloudSelfHostPosture({ admin, db, blockers }) {
     cloud_admin_surface_state: admin.available ? "visible" : "missing",
     blocking_count: blockingCount,
     why_it_matters: "Commercial buyers want to know whether the product is heading toward hosted control, self-host compatibility, and tenant-safe isolation."
+  };
+}
+
+function buildDecisionPackets({ summary, evidence, admin, blockers }) {
+  const releaseEvidenceReady = evidence.a1_trace_case_count > 0 && evidence.a2_judge_result_count > 0;
+  const blockingCount = blockers.filter((item) => item.severity === "blocking").length;
+  return {
+    schema_version: "a3.decision_packets.v1",
+    reviewer_packet: {
+      status: releaseEvidenceReady ? "ready_for_review" : "missing_evidence",
+      includes: ["trace timeline", "tool-call diffs", "judge evidence", "audit-visible hosted report"],
+      buyer_value: "Lets reviewers sign or block releases with concrete evidence instead of screenshots."
+    },
+    executive_packet: {
+      status: releaseEvidenceReady && blockingCount === 0 ? "ready_for_signoff" : "blocked_by_evidence_or_controls",
+      includes: ["release status", "failure cluster summary", "sign-off readiness", "risk posture"],
+      buyer_value: "Lets leadership sign deployment posture without reading raw traces or secrets."
+    },
+    customer_external_packet: {
+      status: "blocked",
+      includes: ["public trust summary", "sanitized hosted report", "revocable audit trail"],
+      buyer_value: "Future customer-safe packet for post-approval external sharing.",
+      blocked_reason: "Trust workflow, redaction proof, and customer-safe publish controls are not complete yet."
+    },
+    admin_surface_ready: admin.available === true,
+    dashboard_case_count: summary.totalCases || 0
   };
 }
 

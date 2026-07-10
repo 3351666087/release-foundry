@@ -890,3 +890,15 @@ test("A3 dashboard wires SaaS admin export audience governance shell", async () 
   assert.match(reportBuilderSource, /export_audience_governance/);
   assert.match(adminComponent, /customer_external/);
 });
+
+
+test("A3 enterprise readiness surfaces reviewer, executive, and blocked customer packets", async () => {
+  const enterpriseSource = await readFile(new URL("../../services/report/a3_enterprise_readiness.mjs", import.meta.url), "utf8");
+  const enterpriseComponent = await readFile(new URL("../../apps/dashboard/src/components/enterprise-readiness-panel.mjs", import.meta.url), "utf8");
+  assert.match(enterpriseSource, /buildDecisionPackets/);
+  assert.match(enterpriseSource, /reviewer_packet/);
+  assert.match(enterpriseSource, /executive_packet/);
+  assert.match(enterpriseSource, /customer_external_packet/);
+  assert.match(enterpriseComponent, /Decision Packets/);
+  assert.match(enterpriseComponent, /Customer blocked/);
+});

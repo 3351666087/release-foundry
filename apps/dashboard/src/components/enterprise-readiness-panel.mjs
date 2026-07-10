@@ -1,4 +1,4 @@
-export function renderEnterpriseReadinessPanel(target, readiness = {}) {
+﻿export function renderEnterpriseReadinessPanel(target, readiness = {}) {
   if (!target) {
     return;
   }
@@ -38,6 +38,8 @@ export function renderEnterpriseReadinessPanel(target, readiness = {}) {
       row("Tenant isolation", posture.tenant_isolation_state || "unknown", posture.tenant_isolation_state === "visible" ? "pass" : "warn"),
       row("Why it matters", posture.why_it_matters || "Commercial buyers need clear hosted and self-host posture.", "info")
     ]),
+    decisionPacketBlock(readiness.decision_packets || {}),
+    hostedBuyerReadinessBlock(readiness.self_host_packet || {}),
     selfHostPacketBlock(readiness.self_host_packet || {}),
     section("Next Actions", actions.length
       ? actions.slice(0, 6).map((item) => row(item.id, `${item.priority}: ${item.action}`, item.priority === "high" ? "warn" : "neutral"))
@@ -61,6 +63,37 @@ function enterpriseValueBlock(valueMap) {
   }
   if ((valueMap.blocked_enterprise_claims || []).length) {
     block.appendChild(row("Blocked claims", valueMap.blocked_enterprise_claims.join(", "), "warn"));
+  }
+  return block;
+}
+
+function decisionPacketBlock(packets) {
+  const reviewer = packets.reviewer_packet || {};
+  const executive = packets.executive_packet || {};
+  const customer = packets.customer_external_packet || {};
+  const block = section("Decision Packets", [
+    row("Reviewer packet", reviewer.status || "unknown", reviewer.status === "ready_for_review" ? "pass" : "warn"),
+    row("Executive packet", executive.status || "unknown", executive.status === "ready_for_signoff" ? "pass" : "warn"),
+    row("Customer packet", customer.status || "unknown", customer.status === "blocked" ? "warn" : "pass")
+  ]);
+  for (const item of [reviewer, executive, customer]) {
+    if (!item || !item.buyer_value) continue;
+    block.appendChild(row(item.status || "packet", item.buyer_value, "info"));
+  }
+  if (customer.blocked_reason) {
+    block.appendChild(row("Customer blocked", customer.blocked_reason, "warn"));
+  }
+  return block;
+}
+
+function hostedBuyerReadinessBlock(packet) {
+  const items = packet.hosted_vs_self_host || [];
+  const block = section("Hosted Buyer Readiness", [
+    row("Comparison rows", String(items.length || 0), items.length ? "pass" : "warn"),
+    row("Packet status", packet.status || "unknown", packet.status === "packet_contract_ready" ? "pass" : "warn")
+  ]);
+  for (const item of items) {
+    block.appendChild(row(item.surface || "surface", `buyer value: ${item.buyer_value || "unknown"}`, "info"));
   }
   return block;
 }
@@ -131,6 +164,7 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
 }
+
 
 
 

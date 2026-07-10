@@ -802,3 +802,6 @@
 - [x] SaaS Admin now exposes explicit Export / Audience Governance for reviewer, executive, and blocked customer-external report posture.
 - [x] JSON report exports now include export audience governance summarized from SaaS Admin commercial controls.
 - [x] Node tests verify export audience governance flows through SaaS Admin, report builder, and dashboard wiring.
+- [x] Enterprise Readiness now distinguishes reviewer, executive, and blocked customer-facing decision packets.
+- [x] Enterprise Readiness now explains why customer-facing packet remains blocked even when reviewer/admin shells exist.
+- [x] Node tests verify enterprise decision packet wiring in the dashboard.
