@@ -2840,6 +2840,37 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 """
+        session_auth_sql = """
+CREATE OR REPLACE FUNCTION a1_authenticate_identity_session_digest(
+  p_session_digest TEXT
+) RETURNS TABLE (principal_id UUID, session_id UUID, organization_id UUID, project_id UUID) AS $$
+BEGIN
+  PERFORM a1_assert_role_nobypassrls(session_user);
+  IF NOT a1_identity_digest_valid(p_session_digest) THEN RETURN; END IF;
+  RETURN QUERY SELECT identity_session.principal_id, identity_session.id, identity_session.organization_id, identity_session.project_id
+    FROM identity_sessions AS identity_session
+    JOIN identity_principals AS principal ON principal.id = identity_session.principal_id AND principal.status = 'active'
+    JOIN identity_credentials AS credential ON credential.id = identity_session.credential_id
+      AND credential.principal_id = identity_session.principal_id
+      AND credential.status = 'active'
+      AND credential.login_enabled
+   WHERE identity_session.session_digest = p_session_digest
+     AND identity_session.status = 'active'
+     AND identity_session.expires_at > clock_timestamp()
+     AND EXISTS (
+       SELECT 1
+         FROM identity_organization_memberships AS organization_membership
+         JOIN identity_project_memberships AS project_membership
+           ON project_membership.organization_id = organization_membership.organization_id
+          AND project_membership.principal_id = organization_membership.principal_id
+        WHERE organization_membership.status = 'active'
+          AND project_membership.status = 'active'
+     );
+END;
+$$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
+REVOKE ALL ON FUNCTION a1_authenticate_identity_session_digest(TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION a1_authenticate_identity_session_digest(TEXT) TO a1_runtime;
+"""
         contract = {
             "schema_version": "ashr.unified_identity.contract.v1",
             "public_safe": True,
@@ -2968,6 +2999,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
             identity_sql_path = Path(tmp_dir) / "008_a1_unified_identity_account.sql"
             coordinator_sql_path = Path(tmp_dir) / "009_a1_oauth_identity_coordinator.sql"
             revocation_sql_path = Path(tmp_dir) / "010_a1_identity_revocation_outbox.sql"
+            session_auth_sql_path = Path(tmp_dir) / "011_a1_identity_session_authentication.sql"
             contract_path = Path(tmp_dir) / "unified_identity_contract_20260710.json"
             same_account_path = Path(tmp_dir) / "unified_identity_same_account_localhost_20260710.json"
             google_path = Path(tmp_dir) / "google_oauth_localhost_evidence_20260710.json"
@@ -2975,6 +3007,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
             identity_sql_path.write_text(identity_sql, encoding="utf-8")
             coordinator_sql_path.write_text(coordinator_sql, encoding="utf-8")
             revocation_sql_path.write_text(revocation_sql, encoding="utf-8")
+            session_auth_sql_path.write_text(session_auth_sql, encoding="utf-8")
             contract_path.write_text(json.dumps(contract), encoding="utf-8")
             same_account_path.write_text(json.dumps(same_account), encoding="utf-8")
             google_path.write_text(json.dumps(google), encoding="utf-8")
@@ -2986,6 +3019,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
                 a1_unified_identity_sql_path=identity_sql_path,
                 a1_oauth_identity_coordinator_sql_path=coordinator_sql_path,
                 a1_identity_revocation_outbox_sql_path=revocation_sql_path,
+                a1_identity_session_authentication_sql_path=session_auth_sql_path,
                 a1_unified_identity_contract_path=contract_path,
                 a1_unified_identity_localhost_evidence_path=same_account_path,
                 a1_google_oauth_localhost_evidence_path=google_path,
@@ -3018,6 +3052,7 @@ $$ LANGUAGE plpgsql SECURITY DEFINER;
         self.assertTrue(identity["revocation_external_checkpoints"])
         self.assertTrue(identity["revocation_fenced_retry_ready"])
         self.assertTrue(identity["revocation_reconnect_cleanup_safe"])
+        self.assertTrue(identity["session_authentication_ready"])
         self.assertTrue(identity["append_only_controls"])
         self.assertTrue(identity["hard_delete_rejected"])
         self.assertTrue(identity["final_credential_unlink_rejected"])

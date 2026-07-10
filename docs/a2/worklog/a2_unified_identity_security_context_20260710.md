@@ -11,6 +11,7 @@ A1 branch `origin/codex/a1-local-sdk-runner` advanced to `3367dc7` with:
 - `services/api/migrations/008_a1_unified_identity_account.sql`
 - `services/api/migrations/009_a1_oauth_identity_coordinator.sql`
 - `services/api/migrations/010_a1_identity_revocation_outbox.sql`
+- `services/api/migrations/011_a1_identity_session_authentication.sql`
 - `docs/a1/evidence/unified_identity_contract_20260710.json`
 - `docs/a1/evidence/unified_identity_same_account_localhost_20260710.json`
 - `docs/a1/evidence/google_oauth_localhost_evidence_20260710.json`
@@ -37,6 +38,8 @@ The parser checks:
 - identity audit/outbox, recovery, merge, append-only, and hard-delete guards
 - provider revocation outbox lease fencing, external side-effect checkpoints,
   retry/backoff, dead-letter, and reconnect cleanup guards
+- digest-only session authentication with active principal, credential, and
+  tenant/project membership revalidation under restricted runtime role
 
 ## Boundary
 

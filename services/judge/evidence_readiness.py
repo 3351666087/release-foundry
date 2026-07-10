@@ -37,6 +37,9 @@ DEFAULT_A1_OAUTH_IDENTITY_COORDINATOR_SQL = Path(
 DEFAULT_A1_IDENTITY_REVOCATION_OUTBOX_SQL = Path(
     "services/api/migrations/010_a1_identity_revocation_outbox.sql"
 )
+DEFAULT_A1_IDENTITY_SESSION_AUTHENTICATION_SQL = Path(
+    "services/api/migrations/011_a1_identity_session_authentication.sql"
+)
 DEFAULT_A1_UNIFIED_IDENTITY_CONTRACT = Path("docs/a1/evidence/unified_identity_contract_20260710.json")
 DEFAULT_A1_UNIFIED_IDENTITY_LOCALHOST_EVIDENCE = Path(
     "docs/a1/evidence/unified_identity_same_account_localhost_20260710.json"
@@ -94,6 +97,7 @@ def build_evidence_readiness_report(
     a1_unified_identity_sql_path: str | Path = DEFAULT_A1_UNIFIED_IDENTITY_SQL,
     a1_oauth_identity_coordinator_sql_path: str | Path = DEFAULT_A1_OAUTH_IDENTITY_COORDINATOR_SQL,
     a1_identity_revocation_outbox_sql_path: str | Path = DEFAULT_A1_IDENTITY_REVOCATION_OUTBOX_SQL,
+    a1_identity_session_authentication_sql_path: str | Path = DEFAULT_A1_IDENTITY_SESSION_AUTHENTICATION_SQL,
     a1_unified_identity_contract_path: str | Path = DEFAULT_A1_UNIFIED_IDENTITY_CONTRACT,
     a1_unified_identity_localhost_evidence_path: str | Path = DEFAULT_A1_UNIFIED_IDENTITY_LOCALHOST_EVIDENCE,
     a1_google_oauth_localhost_evidence_path: str | Path = DEFAULT_A1_GOOGLE_OAUTH_LOCALHOST_EVIDENCE,
@@ -161,6 +165,7 @@ def build_evidence_readiness_report(
         a1_unified_identity_sql_path,
         a1_oauth_identity_coordinator_sql_path,
         a1_identity_revocation_outbox_sql_path,
+        a1_identity_session_authentication_sql_path,
         a1_unified_identity_contract_path,
         a1_unified_identity_localhost_evidence_path,
         a1_google_oauth_localhost_evidence_path,
@@ -1686,6 +1691,7 @@ def _a1_unified_identity_security_summary(
     identity_sql_path: str | Path,
     coordinator_sql_path: str | Path,
     revocation_outbox_sql_path: str | Path,
+    session_authentication_sql_path: str | Path,
     contract_path: str | Path,
     same_account_evidence_path: str | Path,
     google_evidence_path: str | Path,
@@ -1694,6 +1700,7 @@ def _a1_unified_identity_security_summary(
     identity_target = Path(identity_sql_path)
     coordinator_target = Path(coordinator_sql_path)
     revocation_outbox_target = Path(revocation_outbox_sql_path)
+    session_auth_target = Path(session_authentication_sql_path)
     contract_target = Path(contract_path)
     same_account_target = Path(same_account_evidence_path)
     google_target = Path(google_evidence_path)
@@ -1702,6 +1709,7 @@ def _a1_unified_identity_security_summary(
         identity_target,
         coordinator_target,
         revocation_outbox_target,
+        session_auth_target,
         contract_target,
         same_account_target,
         google_target,
@@ -1712,6 +1720,7 @@ def _a1_unified_identity_security_summary(
             identity_target,
             coordinator_target,
             revocation_outbox_target,
+            session_auth_target,
             contract_target,
             same_account_target,
             google_target,
@@ -1722,7 +1731,8 @@ def _a1_unified_identity_security_summary(
     identity_sql = identity_target.read_text(encoding="utf-8").lower()
     coordinator_sql = coordinator_target.read_text(encoding="utf-8").lower()
     revocation_outbox_sql = revocation_outbox_target.read_text(encoding="utf-8").lower()
-    combined_sql = "\n".join([runtime_sql, identity_sql, coordinator_sql, revocation_outbox_sql])
+    session_auth_sql = session_auth_target.read_text(encoding="utf-8").lower()
+    combined_sql = "\n".join([runtime_sql, identity_sql, coordinator_sql, revocation_outbox_sql, session_auth_sql])
     contract = json.loads(contract_target.read_text(encoding="utf-8-sig"))
     same_account = json.loads(same_account_target.read_text(encoding="utf-8-sig"))
     google = json.loads(google_target.read_text(encoding="utf-8-sig"))
@@ -1732,6 +1742,7 @@ def _a1_unified_identity_security_summary(
             identity_target,
             coordinator_target,
             revocation_outbox_target,
+            session_auth_target,
             contract_target,
             same_account_target,
             google_target,
@@ -1994,6 +2005,24 @@ def _a1_unified_identity_security_summary(
             "delete from oauth_token_opaque_refs",
         )
     )
+    session_authentication_ready = all(
+        marker in session_auth_sql
+        for marker in (
+            "a1_authenticate_identity_session_digest",
+            "a1_assert_role_nobypassrls(session_user)",
+            "a1_identity_digest_valid(p_session_digest)",
+            "identity_session.session_digest = p_session_digest",
+            "principal.status = 'active'",
+            "credential.status = 'active'",
+            "credential.login_enabled",
+            "identity_session.status = 'active'",
+            "identity_session.expires_at > clock_timestamp()",
+            "organization_membership.status = 'active'",
+            "project_membership.status = 'active'",
+            "revoke all on function a1_authenticate_identity_session_digest",
+            "grant execute on function a1_authenticate_identity_session_digest",
+        )
+    )
     append_only_controls = all(
         marker in combined_sql
         for marker in (
@@ -2081,6 +2110,7 @@ def _a1_unified_identity_security_summary(
         and revocation_external_checkpoints
         and revocation_fenced_retry_ready
         and revocation_reconnect_cleanup_safe
+        and session_authentication_ready
         and append_only_controls
         and hard_delete_rejected
         and final_credential_unlink_rejected
@@ -2091,6 +2121,7 @@ def _a1_unified_identity_security_summary(
         "identity_sql_path": identity_target.as_posix(),
         "coordinator_sql_path": coordinator_target.as_posix(),
         "revocation_outbox_sql_path": revocation_outbox_target.as_posix(),
+        "session_authentication_sql_path": session_auth_target.as_posix(),
         "contract_path": contract_target.as_posix(),
         "same_account_evidence_path": same_account_target.as_posix(),
         "google_evidence_path": google_target.as_posix(),
@@ -2126,6 +2157,7 @@ def _a1_unified_identity_security_summary(
         "revocation_external_checkpoints": revocation_external_checkpoints,
         "revocation_fenced_retry_ready": revocation_fenced_retry_ready,
         "revocation_reconnect_cleanup_safe": revocation_reconnect_cleanup_safe,
+        "session_authentication_ready": session_authentication_ready,
         "append_only_controls": append_only_controls,
         "hard_delete_rejected": hard_delete_rejected,
         "final_credential_unlink_rejected": final_credential_unlink_rejected,
@@ -2729,6 +2761,7 @@ def _missing_unified_identity_security(
     identity_sql_path: Path,
     coordinator_sql_path: Path,
     revocation_outbox_sql_path: Path,
+    session_authentication_sql_path: Path,
     contract_path: Path,
     same_account_evidence_path: Path,
     google_evidence_path: Path,
@@ -2740,6 +2773,7 @@ def _missing_unified_identity_security(
         "identity_sql_path": identity_sql_path.as_posix(),
         "coordinator_sql_path": coordinator_sql_path.as_posix(),
         "revocation_outbox_sql_path": revocation_outbox_sql_path.as_posix(),
+        "session_authentication_sql_path": session_authentication_sql_path.as_posix(),
         "contract_path": contract_path.as_posix(),
         "same_account_evidence_path": same_account_evidence_path.as_posix(),
         "google_evidence_path": google_evidence_path.as_posix(),
@@ -2773,6 +2807,7 @@ def _missing_unified_identity_security(
         "revocation_external_checkpoints": False,
         "revocation_fenced_retry_ready": False,
         "revocation_reconnect_cleanup_safe": False,
+        "session_authentication_ready": False,
         "append_only_controls": False,
         "hard_delete_rejected": False,
         "final_credential_unlink_rejected": False,
