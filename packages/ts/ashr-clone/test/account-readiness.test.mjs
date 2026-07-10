@@ -78,7 +78,7 @@ test("rejects unsupported fields, status, fingerprints, and timezone-free timest
 for (const [field, value] of [
   ["client_secret", "do-not-store"],
   ["access_token", "do-not-store"],
-  ["private_key", "-----BEGIN PRIVATE KEY-----"],
+  ["private_key", "synthetic-private-key-placeholder"],
   ["card_number", "4111111111111111"],
   ["cvv", "123"],
   ["kyc_document", "identity material"],
@@ -113,18 +113,28 @@ test("CLI creates templates and validates PowerShell UTF-8 BOM receipts", () => 
     { cwd: packageRoot, encoding: "utf8" },
   );
   assert.equal(template.status, 0, template.stderr);
-  assert.equal(JSON.parse(template.stdout).provider, "wechat_pay");
+  const generatedTemplate = JSON.parse(template.stdout);
+  assert.equal(generatedTemplate.provider, "wechat_pay");
 
   const directory = mkdtempSync(join(tmpdir(), "ashr-account-readiness-"));
   const file = join(directory, "receipt.json");
-  writeFileSync(file, `\uFEFF${JSON.stringify(baseReceipt())}`, "utf8");
+  writeFileSync(file, `\uFEFF${JSON.stringify(generatedTemplate)}`, "utf8");
   const validated = spawnSync(
     process.execPath,
     ["dist/account-readiness-cli.js", "validate", "--file", file],
     { cwd: packageRoot, encoding: "utf8" },
   );
   assert.equal(validated.status, 0, validated.stderr);
-  assert.equal(JSON.parse(validated.stdout).provider, "github_oauth");
+  assert.equal(JSON.parse(validated.stdout).provider, "wechat_pay");
+});
+
+test("public safety declarations must remain false", () => {
+  for (const field of ["contains_secrets", "contains_payment_card_data", "contains_kyc_material"]) {
+    assert.throws(
+      () => validate_account_readiness_receipt({ ...baseReceipt(), [field]: true }),
+      new RegExp(`${field} must be false`, "u"),
+    );
+  }
 });
 
 test("CLI rejection never echoes a supplied secret", () => {

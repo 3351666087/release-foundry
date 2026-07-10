@@ -156,12 +156,18 @@ def validate_account_readiness_receipt(payload: Mapping[str, Any]) -> dict[str, 
         "updated_at",
         "receipt_id",
         "operator_note",
+        "contains_secrets",
+        "contains_payment_card_data",
+        "contains_kyc_material",
     }
     unknown = sorted(set(payload) - allowed)
     if unknown:
         raise AccountReadinessError(f"unsupported receipt fields: {', '.join(unknown)}")
     if payload.get("schema_version", ACCOUNT_READINESS_RECEIPT_VERSION) != ACCOUNT_READINESS_RECEIPT_VERSION:
         raise AccountReadinessError("unsupported receipt schema_version")
+    for field in ("contains_secrets", "contains_payment_card_data", "contains_kyc_material"):
+        if payload.get(field, False) is not False:
+            raise AccountReadinessError(f"{field} must be false")
 
     provider = _required_string(payload, "provider")
     environment = _required_string(payload, "environment")
@@ -210,6 +216,9 @@ def validate_account_readiness_receipt(payload: Mapping[str, Any]) -> dict[str, 
         "status": status,
         "redirect_uris": normalized_uris,
         "observed_at": timestamps["observed_at"],
+        "contains_secrets": False,
+        "contains_payment_card_data": False,
+        "contains_kyc_material": False,
     }
     for key, value in (
         ("application_id_suffix", suffix),
@@ -249,7 +258,12 @@ def _reject_sensitive_material(value: Any, path: str = "$") -> None:
     if isinstance(value, Mapping):
         for key, nested in value.items():
             normalized = str(key).strip().lower().replace("-", "_")
-            if any(part in normalized for part in _FORBIDDEN_KEY_PARTS):
+            public_safety_declaration = normalized in {
+                "contains_secrets",
+                "contains_payment_card_data",
+                "contains_kyc_material",
+            }
+            if not public_safety_declaration and any(part in normalized for part in _FORBIDDEN_KEY_PARTS):
                 raise AccountReadinessError(f"sensitive field is forbidden at {path}")
             _reject_sensitive_material(nested, f"{path}.{key}")
         return

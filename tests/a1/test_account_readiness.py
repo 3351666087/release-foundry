@@ -40,6 +40,18 @@ def test_all_human_operator_providers_have_safe_templates(provider: str):
     assert normalized["contains_secrets"] is False
     assert normalized["contains_payment_card_data"] is False
     assert normalized["contains_kyc_material"] is False
+    assert validate_account_readiness_receipt(template) == normalized
+
+
+@pytest.mark.parametrize(
+    "field",
+    ["contains_secrets", "contains_payment_card_data", "contains_kyc_material"],
+)
+def test_public_safety_declarations_must_be_false(field: str):
+    payload = _receipt()
+    payload[field] = True
+    with pytest.raises(AccountReadinessError, match=f"{field} must be false"):
+        validate_account_readiness_receipt(payload)
 
 
 def test_receipt_normalizes_public_fields_only():

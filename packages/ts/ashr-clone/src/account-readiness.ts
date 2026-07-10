@@ -72,6 +72,9 @@ const ALLOWED_FIELDS = new Set([
   "updated_at",
   "receipt_id",
   "operator_note",
+  "contains_secrets",
+  "contains_payment_card_data",
+  "contains_kyc_material",
 ]);
 const TIMESTAMP_FIELDS = ["observed_at", "submitted_at", "reviewed_at", "updated_at"] as const;
 const FORBIDDEN_KEY_PARTS = [
@@ -131,6 +134,11 @@ export function validate_account_readiness_receipt(payload: unknown): AccountRea
     && payload.schema_version !== ACCOUNT_READINESS_RECEIPT_VERSION
   ) {
     throw new AccountReadinessError("unsupported receipt schema_version");
+  }
+  for (const field of ["contains_secrets", "contains_payment_card_data", "contains_kyc_material"]) {
+    if (payload[field] !== undefined && payload[field] !== false) {
+      throw new AccountReadinessError(`${field} must be false`);
+    }
   }
 
   const provider = requiredString(payload, "provider");
@@ -319,7 +327,12 @@ function rejectSensitiveMaterial(value: unknown, path: string = "$"): void {
   if (isRecord(value)) {
     for (const [key, nested] of Object.entries(value)) {
       const normalized = key.trim().toLowerCase().replaceAll("-", "_");
-      if (FORBIDDEN_KEY_PARTS.some((part) => normalized.includes(part))) {
+      const publicSafetyDeclaration = new Set([
+        "contains_secrets",
+        "contains_payment_card_data",
+        "contains_kyc_material",
+      ]).has(normalized);
+      if (!publicSafetyDeclaration && FORBIDDEN_KEY_PARTS.some((part) => normalized.includes(part))) {
         throw new AccountReadinessError(`sensitive field is forbidden at ${path}`);
       }
       rejectSensitiveMaterial(nested, `${path}.${key}`);
