@@ -40,6 +40,8 @@ DEFAULT_A1_IDENTITY_REVOCATION_OUTBOX_SQL = Path(
 DEFAULT_A1_IDENTITY_SESSION_AUTHENTICATION_SQL = Path(
     "services/api/migrations/011_a1_identity_session_authentication.sql"
 )
+DEFAULT_A1_IDENTITY_VERIFICATION_SQL = Path("services/api/migrations/012_a1_identity_verification.sql")
+DEFAULT_A1_IDENTITY_VERIFICATION_PUBLIC_SURFACE = Path("docs/a1/identity-verification-public-surface.json")
 DEFAULT_A1_UNIFIED_IDENTITY_CONTRACT = Path("docs/a1/evidence/unified_identity_contract_20260710.json")
 DEFAULT_A1_UNIFIED_IDENTITY_LOCALHOST_EVIDENCE = Path(
     "docs/a1/evidence/unified_identity_same_account_localhost_20260710.json"
@@ -98,6 +100,8 @@ def build_evidence_readiness_report(
     a1_oauth_identity_coordinator_sql_path: str | Path = DEFAULT_A1_OAUTH_IDENTITY_COORDINATOR_SQL,
     a1_identity_revocation_outbox_sql_path: str | Path = DEFAULT_A1_IDENTITY_REVOCATION_OUTBOX_SQL,
     a1_identity_session_authentication_sql_path: str | Path = DEFAULT_A1_IDENTITY_SESSION_AUTHENTICATION_SQL,
+    a1_identity_verification_sql_path: str | Path = DEFAULT_A1_IDENTITY_VERIFICATION_SQL,
+    a1_identity_verification_public_surface_path: str | Path = DEFAULT_A1_IDENTITY_VERIFICATION_PUBLIC_SURFACE,
     a1_unified_identity_contract_path: str | Path = DEFAULT_A1_UNIFIED_IDENTITY_CONTRACT,
     a1_unified_identity_localhost_evidence_path: str | Path = DEFAULT_A1_UNIFIED_IDENTITY_LOCALHOST_EVIDENCE,
     a1_google_oauth_localhost_evidence_path: str | Path = DEFAULT_A1_GOOGLE_OAUTH_LOCALHOST_EVIDENCE,
@@ -166,6 +170,8 @@ def build_evidence_readiness_report(
         a1_oauth_identity_coordinator_sql_path,
         a1_identity_revocation_outbox_sql_path,
         a1_identity_session_authentication_sql_path,
+        a1_identity_verification_sql_path,
+        a1_identity_verification_public_surface_path,
         a1_unified_identity_contract_path,
         a1_unified_identity_localhost_evidence_path,
         a1_google_oauth_localhost_evidence_path,
@@ -1692,6 +1698,8 @@ def _a1_unified_identity_security_summary(
     coordinator_sql_path: str | Path,
     revocation_outbox_sql_path: str | Path,
     session_authentication_sql_path: str | Path,
+    identity_verification_sql_path: str | Path,
+    identity_verification_public_surface_path: str | Path,
     contract_path: str | Path,
     same_account_evidence_path: str | Path,
     google_evidence_path: str | Path,
@@ -1701,6 +1709,8 @@ def _a1_unified_identity_security_summary(
     coordinator_target = Path(coordinator_sql_path)
     revocation_outbox_target = Path(revocation_outbox_sql_path)
     session_auth_target = Path(session_authentication_sql_path)
+    identity_verification_target = Path(identity_verification_sql_path)
+    identity_verification_surface_target = Path(identity_verification_public_surface_path)
     contract_target = Path(contract_path)
     same_account_target = Path(same_account_evidence_path)
     google_target = Path(google_evidence_path)
@@ -1721,6 +1731,8 @@ def _a1_unified_identity_security_summary(
             coordinator_target,
             revocation_outbox_target,
             session_auth_target,
+            identity_verification_target,
+            identity_verification_surface_target,
             contract_target,
             same_account_target,
             google_target,
@@ -1732,10 +1744,22 @@ def _a1_unified_identity_security_summary(
     coordinator_sql = coordinator_target.read_text(encoding="utf-8").lower()
     revocation_outbox_sql = revocation_outbox_target.read_text(encoding="utf-8").lower()
     session_auth_sql = session_auth_target.read_text(encoding="utf-8").lower()
-    combined_sql = "\n".join([runtime_sql, identity_sql, coordinator_sql, revocation_outbox_sql, session_auth_sql])
+    identity_verification_sql = (
+        identity_verification_target.read_text(encoding="utf-8").lower()
+        if identity_verification_target.exists()
+        else ""
+    )
+    combined_sql = "\n".join(
+        [runtime_sql, identity_sql, coordinator_sql, revocation_outbox_sql, session_auth_sql, identity_verification_sql]
+    )
     contract = json.loads(contract_target.read_text(encoding="utf-8-sig"))
     same_account = json.loads(same_account_target.read_text(encoding="utf-8-sig"))
     google = json.loads(google_target.read_text(encoding="utf-8-sig"))
+    identity_verification_surface: dict[str, Any] = {}
+    if identity_verification_surface_target.exists():
+        surface_payload = json.loads(identity_verification_surface_target.read_text(encoding="utf-8-sig"))
+        if isinstance(surface_payload, dict):
+            identity_verification_surface = surface_payload
     if not all(isinstance(payload, dict) for payload in (contract, same_account, google)):
         return _missing_unified_identity_security(
             runtime_target,
@@ -1743,6 +1767,8 @@ def _a1_unified_identity_security_summary(
             coordinator_target,
             revocation_outbox_target,
             session_auth_target,
+            identity_verification_target,
+            identity_verification_surface_target,
             contract_target,
             same_account_target,
             google_target,
@@ -2023,6 +2049,63 @@ def _a1_unified_identity_security_summary(
             "grant execute on function a1_authenticate_identity_session_digest",
         )
     )
+    identity_verification_digest_only = bool(identity_verification_sql) and all(
+        marker in identity_verification_sql
+        for marker in (
+            "identity_verification_challenges",
+            "identity_verification_receipts",
+            "subject_digest text not null",
+            "challenge_digest text not null",
+            "code_digest text not null",
+            "request_context_digest text not null",
+        )
+    )
+    identity_verification_abuse_controls = bool(identity_verification_sql) and all(
+        marker in identity_verification_sql
+        for marker in (
+            "identity_verification_cooldowns",
+            "identity_verification_abuse_budgets",
+            "blocked_until",
+            "interval '15 minutes'",
+            "max_attempts between 1 and 10",
+        )
+    )
+    identity_verification_receipt_controls = bool(identity_verification_sql) and all(
+        marker in identity_verification_sql
+        for marker in (
+            "a1_verify_consume_identity_challenge",
+            "a1_bind_verified_identity_credential",
+            "a1_login_with_verified_identity",
+            "a1_recover_verified_identity",
+            "a1_identity_verification_receipt_transition",
+            "idempotency_conflict",
+        )
+    )
+    identity_verification_runtime_boundary = bool(identity_verification_sql) and all(
+        marker in identity_verification_sql
+        for marker in (
+            "force row level security",
+            "revoke all on table identity_verification_challenges from a1_runtime",
+            "revoke all on table identity_verification_receipts from a1_runtime",
+            "grant execute on function a1_issue_identity_verification_challenge",
+            "grant execute on function a1_verify_consume_identity_challenge",
+            "grant execute on function a1_bind_verified_identity_credential",
+        )
+    )
+    identity_verification_public_surface_ready = bool(
+        identity_verification_surface.get("schema_version")
+        == "ashr.clone.identity_verification_public_surface.v1"
+        and identity_verification_surface.get("route_neutral") is True
+        and identity_verification_surface.get("secret_policy") == "digest_refs_only"
+        and _int_value(identity_verification_surface.get("route_count")) >= 12
+    )
+    identity_verification_ready = bool(
+        identity_verification_digest_only
+        and identity_verification_abuse_controls
+        and identity_verification_receipt_controls
+        and identity_verification_runtime_boundary
+        and identity_verification_public_surface_ready
+    )
     append_only_controls = all(
         marker in combined_sql
         for marker in (
@@ -2111,6 +2194,7 @@ def _a1_unified_identity_security_summary(
         and revocation_fenced_retry_ready
         and revocation_reconnect_cleanup_safe
         and session_authentication_ready
+        and (not identity_verification_target.exists() or identity_verification_ready)
         and append_only_controls
         and hard_delete_rejected
         and final_credential_unlink_rejected
@@ -2158,6 +2242,16 @@ def _a1_unified_identity_security_summary(
         "revocation_fenced_retry_ready": revocation_fenced_retry_ready,
         "revocation_reconnect_cleanup_safe": revocation_reconnect_cleanup_safe,
         "session_authentication_ready": session_authentication_ready,
+        "identity_verification_sql_path": identity_verification_target.as_posix(),
+        "identity_verification_public_surface_path": identity_verification_surface_target.as_posix(),
+        "identity_verification_surface_schema_version": str(identity_verification_surface.get("schema_version", "")),
+        "identity_verification_route_count": _int_value(identity_verification_surface.get("route_count")),
+        "identity_verification_digest_only": identity_verification_digest_only,
+        "identity_verification_abuse_controls": identity_verification_abuse_controls,
+        "identity_verification_receipt_controls": identity_verification_receipt_controls,
+        "identity_verification_runtime_boundary": identity_verification_runtime_boundary,
+        "identity_verification_public_surface_ready": identity_verification_public_surface_ready,
+        "identity_verification_ready": identity_verification_ready,
         "append_only_controls": append_only_controls,
         "hard_delete_rejected": hard_delete_rejected,
         "final_credential_unlink_rejected": final_credential_unlink_rejected,
@@ -2762,6 +2856,8 @@ def _missing_unified_identity_security(
     coordinator_sql_path: Path,
     revocation_outbox_sql_path: Path,
     session_authentication_sql_path: Path,
+    identity_verification_sql_path: Path,
+    identity_verification_public_surface_path: Path,
     contract_path: Path,
     same_account_evidence_path: Path,
     google_evidence_path: Path,
@@ -2774,6 +2870,8 @@ def _missing_unified_identity_security(
         "coordinator_sql_path": coordinator_sql_path.as_posix(),
         "revocation_outbox_sql_path": revocation_outbox_sql_path.as_posix(),
         "session_authentication_sql_path": session_authentication_sql_path.as_posix(),
+        "identity_verification_sql_path": identity_verification_sql_path.as_posix(),
+        "identity_verification_public_surface_path": identity_verification_public_surface_path.as_posix(),
         "contract_path": contract_path.as_posix(),
         "same_account_evidence_path": same_account_evidence_path.as_posix(),
         "google_evidence_path": google_evidence_path.as_posix(),
@@ -2808,6 +2906,14 @@ def _missing_unified_identity_security(
         "revocation_fenced_retry_ready": False,
         "revocation_reconnect_cleanup_safe": False,
         "session_authentication_ready": False,
+        "identity_verification_surface_schema_version": "",
+        "identity_verification_route_count": 0,
+        "identity_verification_digest_only": False,
+        "identity_verification_abuse_controls": False,
+        "identity_verification_receipt_controls": False,
+        "identity_verification_runtime_boundary": False,
+        "identity_verification_public_surface_ready": False,
+        "identity_verification_ready": False,
         "append_only_controls": False,
         "hard_delete_rejected": False,
         "final_credential_unlink_rejected": False,

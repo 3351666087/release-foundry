@@ -2871,6 +2871,49 @@ $$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
 REVOKE ALL ON FUNCTION a1_authenticate_identity_session_digest(TEXT) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION a1_authenticate_identity_session_digest(TEXT) TO a1_runtime;
 """
+        identity_verification_sql = """
+CREATE TABLE IF NOT EXISTS identity_verification_cooldowns (
+  subject_digest TEXT NOT NULL,
+  blocked_until TIMESTAMPTZ
+);
+CREATE TABLE IF NOT EXISTS identity_verification_challenges (
+  subject_digest TEXT NOT NULL,
+  challenge_digest TEXT NOT NULL,
+  code_digest TEXT NOT NULL,
+  request_context_digest TEXT NOT NULL,
+  issued_at TIMESTAMPTZ NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  max_attempts INTEGER NOT NULL CHECK (max_attempts BETWEEN 1 AND 10),
+  CHECK (expires_at <= issued_at + interval '15 minutes')
+);
+CREATE TABLE IF NOT EXISTS identity_verification_receipts (
+  idempotency_digest TEXT,
+  request_context_digest TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS identity_verification_audit_events (event_digest TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS identity_verification_delivery_outbox (delivery_digest TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS identity_verification_abuse_budgets (subject_digest TEXT NOT NULL);
+ALTER TABLE identity_verification_cooldowns FORCE ROW LEVEL SECURITY;
+ALTER TABLE identity_verification_challenges FORCE ROW LEVEL SECURITY;
+ALTER TABLE identity_verification_receipts FORCE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE identity_verification_challenges FROM a1_runtime;
+REVOKE ALL ON TABLE identity_verification_receipts FROM a1_runtime;
+CREATE OR REPLACE FUNCTION a1_issue_identity_verification_challenge() RETURNS UUID AS $$ BEGIN RETURN gen_random_uuid(); END; $$ LANGUAGE plpgsql SECURITY DEFINER;
+CREATE OR REPLACE FUNCTION a1_verify_consume_identity_challenge() RETURNS UUID AS $$ BEGIN RETURN gen_random_uuid(); END; $$ LANGUAGE plpgsql SECURITY DEFINER;
+CREATE OR REPLACE FUNCTION a1_bind_verified_identity_credential() RETURNS UUID AS $$ BEGIN RAISE EXCEPTION 'idempotency_conflict'; END; $$ LANGUAGE plpgsql SECURITY DEFINER;
+CREATE OR REPLACE FUNCTION a1_login_with_verified_identity() RETURNS UUID AS $$ BEGIN RETURN gen_random_uuid(); END; $$ LANGUAGE plpgsql SECURITY DEFINER;
+CREATE OR REPLACE FUNCTION a1_recover_verified_identity() RETURNS UUID AS $$ BEGIN RETURN gen_random_uuid(); END; $$ LANGUAGE plpgsql SECURITY DEFINER;
+CREATE OR REPLACE FUNCTION a1_identity_verification_receipt_transition() RETURNS UUID AS $$ BEGIN RETURN gen_random_uuid(); END; $$ LANGUAGE plpgsql SECURITY DEFINER;
+GRANT EXECUTE ON FUNCTION a1_issue_identity_verification_challenge() TO a1_runtime;
+GRANT EXECUTE ON FUNCTION a1_verify_consume_identity_challenge() TO a1_runtime;
+GRANT EXECUTE ON FUNCTION a1_bind_verified_identity_credential() TO a1_runtime;
+"""
+        identity_verification_surface = {
+            "schema_version": "ashr.clone.identity_verification_public_surface.v1",
+            "route_count": 12,
+            "route_neutral": True,
+            "secret_policy": "digest_refs_only",
+        }
         contract = {
             "schema_version": "ashr.unified_identity.contract.v1",
             "public_safe": True,
@@ -3000,6 +3043,8 @@ GRANT EXECUTE ON FUNCTION a1_authenticate_identity_session_digest(TEXT) TO a1_ru
             coordinator_sql_path = Path(tmp_dir) / "009_a1_oauth_identity_coordinator.sql"
             revocation_sql_path = Path(tmp_dir) / "010_a1_identity_revocation_outbox.sql"
             session_auth_sql_path = Path(tmp_dir) / "011_a1_identity_session_authentication.sql"
+            identity_verification_sql_path = Path(tmp_dir) / "012_a1_identity_verification.sql"
+            identity_verification_surface_path = Path(tmp_dir) / "identity-verification-public-surface.json"
             contract_path = Path(tmp_dir) / "unified_identity_contract_20260710.json"
             same_account_path = Path(tmp_dir) / "unified_identity_same_account_localhost_20260710.json"
             google_path = Path(tmp_dir) / "google_oauth_localhost_evidence_20260710.json"
@@ -3008,6 +3053,8 @@ GRANT EXECUTE ON FUNCTION a1_authenticate_identity_session_digest(TEXT) TO a1_ru
             coordinator_sql_path.write_text(coordinator_sql, encoding="utf-8")
             revocation_sql_path.write_text(revocation_sql, encoding="utf-8")
             session_auth_sql_path.write_text(session_auth_sql, encoding="utf-8")
+            identity_verification_sql_path.write_text(identity_verification_sql, encoding="utf-8")
+            identity_verification_surface_path.write_text(json.dumps(identity_verification_surface), encoding="utf-8")
             contract_path.write_text(json.dumps(contract), encoding="utf-8")
             same_account_path.write_text(json.dumps(same_account), encoding="utf-8")
             google_path.write_text(json.dumps(google), encoding="utf-8")
@@ -3020,6 +3067,8 @@ GRANT EXECUTE ON FUNCTION a1_authenticate_identity_session_digest(TEXT) TO a1_ru
                 a1_oauth_identity_coordinator_sql_path=coordinator_sql_path,
                 a1_identity_revocation_outbox_sql_path=revocation_sql_path,
                 a1_identity_session_authentication_sql_path=session_auth_sql_path,
+                a1_identity_verification_sql_path=identity_verification_sql_path,
+                a1_identity_verification_public_surface_path=identity_verification_surface_path,
                 a1_unified_identity_contract_path=contract_path,
                 a1_unified_identity_localhost_evidence_path=same_account_path,
                 a1_google_oauth_localhost_evidence_path=google_path,
@@ -3053,6 +3102,17 @@ GRANT EXECUTE ON FUNCTION a1_authenticate_identity_session_digest(TEXT) TO a1_ru
         self.assertTrue(identity["revocation_fenced_retry_ready"])
         self.assertTrue(identity["revocation_reconnect_cleanup_safe"])
         self.assertTrue(identity["session_authentication_ready"])
+        self.assertEqual(
+            identity["identity_verification_surface_schema_version"],
+            "ashr.clone.identity_verification_public_surface.v1",
+        )
+        self.assertEqual(identity["identity_verification_route_count"], 12)
+        self.assertTrue(identity["identity_verification_digest_only"])
+        self.assertTrue(identity["identity_verification_abuse_controls"])
+        self.assertTrue(identity["identity_verification_receipt_controls"])
+        self.assertTrue(identity["identity_verification_runtime_boundary"])
+        self.assertTrue(identity["identity_verification_public_surface_ready"])
+        self.assertTrue(identity["identity_verification_ready"])
         self.assertTrue(identity["append_only_controls"])
         self.assertTrue(identity["hard_delete_rejected"])
         self.assertTrue(identity["final_credential_unlink_rejected"])
