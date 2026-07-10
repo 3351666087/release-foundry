@@ -60,6 +60,7 @@ import { renderSaasAdminConsole } from "./components/saas-admin-console.mjs";
 import { renderEnterpriseReadinessPanel } from "./components/enterprise-readiness-panel.mjs";
 import { renderProductConsolePanel } from "./components/product-console-panel.mjs";
 import { renderNotificationControlPlanePanel } from "./components/notification-control-plane.mjs";
+import { renderLiveOpsControlPlanePanel } from "./components/live-ops-control-plane.mjs";
 import { buildSaasAdminConsole } from "../../../services/report/a3_saas_admin.mjs";
 import { buildEnterpriseReadinessReport } from "../../../services/report/a3_enterprise_readiness.mjs";
 import { buildA3ProductConsole } from "../../../services/report/a3_product_console.mjs";
@@ -3676,78 +3677,7 @@ function renderLiveOpsControlPlane() {
   const statusBadge = $("live-ops-status");
   statusBadge.textContent = controlPlane.status || "checking";
   statusBadge.className = `badge ${controlPlane.status === "live_mutation_observed" || controlPlane.status === "control_plane_ready_needs_live_workers" ? "pass" : controlPlane.status === "needs_contracts" ? "warn" : "neutral"}`;
-  const lanes = Array.isArray(controlPlane.lanes) ? controlPlane.lanes : [];
-  const counts = controlPlane.counts || {};
-  const human = controlPlane.human_operation_summary || {};
-  const billing = controlPlane.billing_state_summary || {};
-  const share = controlPlane.report_link_summary || {};
-  const signoff = controlPlane.commercial_signoff_summary || {};
-  $("live-ops-body").innerHTML = `
-    <div class="caption">Six live SaaS workflows are tracked as API, DB, event, audit, and dashboard contracts. A3 keeps them safe until A1 hosted workers and A2 release policy are ready.</div>
-    <div class="health-grid">
-      ${healthTileMarkup(counts.lane_count || 0, "ops lanes")}
-      ${healthTileMarkup(counts.api_backed_count || 0, "API-backed")}
-      ${healthTileMarkup(counts.audit_backed_count || 0, "audit-backed")}
-      ${healthTileMarkup(counts.local_external_mutation_count || 0, "local mutations")}
-    </div>
-    ${renderReportTable(["Workflow", "Surface", "Status", "Mode", "Next action"], lanes.map((item) => [
-      item.label,
-      item.product_surface,
-      item.status,
-      item.current_mode,
-      item.next_action
-    ]), "No live ops control-plane lanes are loaded.")}
-    ${renderReportTable(["Summary", "Value"], [
-      ["Human records", `${human.review_record_count || 0} review / ${human.event_outbox_count || 0} outbox`],
-      ["Reviewer decisions", `${human.approval_count || 0} approve / ${human.denial_count || 0} deny / ${human.waiver_count || 0} waiver`],
-      ["Billing state", `${billing.billing_readiness_status || "unknown"} / ${billing.meter_count || 0} meter(s)`],
-      ["Share links", `${share.shareable_count || 0} shareable / ${share.revoked_count || 0} revoked / ${share.expired_count || 0} expired / ${share.total_view_count || 0} view(s)`]
-    ])}
-    ${renderReportTable(["Commercial sign-off", "Value"], [
-      ["Status", signoff.status || "unknown"],
-      ["Release publish", signoff.release_publish_status || "unknown"],
-      ["Required roles", (signoff.required_roles || []).join(", ") || "unknown"],
-      ["Customer external", signoff.customer_external_blocked ? "blocked" : "ready"],
-      ["Reviewer gate", signoff.evidence?.reviewer_gate || "unknown"],
-      ["GitHub", `${signoff.evidence?.github_check || "unknown"} / ${signoff.evidence?.github_pr_comment || "unknown"}`],
-      ["Hosted report", `${signoff.evidence?.hosted_report || "unknown"} / ${signoff.evidence?.shareable_report_count || 0} shareable`],
-      ["Trust / billing", `${signoff.evidence?.trust_publish || "unknown"} / ${signoff.evidence?.collections_state || "unknown"}`]
-    ])}
-    ${renderReportTable(["Sign-off blockers", "Reason"], (signoff.blocker_reasons || []).map((item, index) => [
-      index === 0 ? signoff.status || "blocked" : "follow-up",
-      item
-    ]), "No commercial sign-off blockers are recorded.")}
-    ${renderReportTable(["Reviewer timeline", "Status", "Reason"], (controlPlane.reviewer_timeline || []).map((item) => [
-      `${item.record_type} / ${item.actor_hash}` ,
-      item.status,
-      item.reason
-    ]), "No reviewer timeline has been recorded yet.")}
-    ${renderReportTable(["GitHub publish step", "Status", "Target"], (controlPlane.github_publish_timeline || []).map((item) => [
-      `${item.step}${item.dry_run ? " (dry-run)" : ""}`,
-      item.status,
-      item.target
-    ]), "No GitHub publish timeline is loaded.")}
-    ${renderReportTable(["Share-link lifecycle", "Status", "Detail"], (controlPlane.share_link_timeline || []).map((item) => [
-      item.timeline_id,
-      item.status,
-      `views ${item.view_count || 0} / expires ${item.expires_at || "n/a"} / revoked ${item.revoked_at || "n/a"}`
-    ]), "No hosted report lifecycle history is loaded.")}
-    ${renderReportTable(["Release publish chain", "Status", "Detail"], (controlPlane.release_publish_chain?.steps || []).map((item) => [
-      item.step,
-      item.status,
-      item.detail
-    ]), "No release publish chain is visible yet.")}
-    ${renderReportTable(["Publish blockers", "Reason"], (controlPlane.release_publish_chain?.blocker_reasons || []).map((item, index) => [
-      index === 0 ? (controlPlane.release_publish_chain?.status || "unknown") : "follow-up",
-      item
-    ]), "No publish blocker reasons are recorded.")}
-    ${renderReportTable(["Audit history", "Status"], (controlPlane.audit_history || []).map((item) => [
-      item.event_type,
-      item.status
-    ]), "No audit history is visible yet.")}
-    <div class="caption">A1: ${escapeHtml(controlPlane.a1_a2_alignment?.a1_consumed_contracts?.join(", ") || "usage, GitHub worker, billing ledger")}</div>
-    <div class="caption">A2: ${escapeHtml(controlPlane.a1_a2_alignment?.a2_consumed_contracts?.join(", ") || "grade, release gate, failure taxonomy")}</div>
-  `;
+  renderLiveOpsControlPlanePanel($("live-ops-body"), controlPlane);
 }
 
 function refreshNotificationControlPlane() {

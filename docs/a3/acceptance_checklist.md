@@ -848,3 +848,8 @@
 - [x] Node regression coverage proves ready, external-blocked, billing-escalated, and human-denial sign-off paths (`101 pass / 0 fail`).
 - [x] Playwright proves commercial sign-off, release publish chain, and trust blockers render together (`3 passed`).
 - [x] Screenshot evidence exists at `docs/screenshots/a3-commercial-signoff-summary-api-backed-2026-07-10.png`.
+- [x] Live Ops rendering is extracted from `app.mjs` into `components/live-ops-control-plane.mjs`.
+- [x] The Live Ops component uses DOM nodes and `textContent` rather than `innerHTML`.
+- [x] Component wiring tests load the new file directly and preserve release sign-off/A1/A2 contract assertions.
+- [x] API-backed Playwright remains green after Live Ops component extraction (`3 passed`).
+- [ ] Continue extracting Report Center, Reviewer Workflow, and Billing Migration from the remaining 3915-line `app.mjs`.

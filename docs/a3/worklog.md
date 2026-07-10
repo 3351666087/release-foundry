@@ -6152,3 +6152,15 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
   - API-backed Playwright subset for commercial admin, release publish/sign-off, and trust blockers -> `3 passed`
 - Visual evidence: `docs/screenshots/a3-commercial-signoff-summary-api-backed-2026-07-10.png` now renders real health metrics and no object-string artifacts.
 - Commercial reason: release owners and enterprise buyers now get one accountable sign-off summary rather than manually reconciling reviewer, GitHub, report, trust, usage, and billing panels.
+
+## 2026-07-10 - Live Ops Component Extraction Pass
+
+- Extracted Live Ops rendering from `apps/dashboard/src/app.mjs` into `apps/dashboard/src/components/live-ops-control-plane.mjs`.
+- The new component owns health metrics, workflow lanes, commercial sign-off, blockers, reviewer/GitHub/share timelines, release publish chain, audit history, and A1/A2 boundary copy through one explicit `controlPlane` input.
+- Replaced string-heavy `innerHTML` composition with DOM node creation and `textContent` in the component, reducing injection risk and avoiding DOM-object interpolation bugs.
+- Reduced `app.mjs` by roughly 74 lines while creating a focused 130-line component; the app remains large and further route/component extraction is still required.
+- Updated dashboard wiring tests to load the component directly, assert the component boundary, and forbid `innerHTML` inside this component.
+- Verification:
+  - `node --test tests/a3/a3_live_ops_control_plane.test.mjs tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs` -> `101 pass / 0 fail`
+  - API-backed Playwright subset for commercial admin, release sign-off, and trust blockers -> `3 passed`
+- Commercial reason: componentizing a high-value control surface makes future role-based pages, route-level loading, and hosted product iteration safer without changing A1/A2 contracts.

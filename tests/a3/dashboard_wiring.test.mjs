@@ -3,16 +3,17 @@ import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 
 async function loadDashboardHtml() {
-  const [html, app, apiClient, visualShell, styles, notificationComponent, saasAdminComponent] = await Promise.all([
+  const [html, app, apiClient, visualShell, styles, notificationComponent, saasAdminComponent, liveOpsComponent] = await Promise.all([
     readFile(new URL("../../apps/dashboard/index.html", import.meta.url), "utf8"),
     readFile(new URL("../../apps/dashboard/src/app.mjs", import.meta.url), "utf8"),
     readFile(new URL("../../apps/dashboard/src/api-client.mjs", import.meta.url), "utf8"),
     readFile(new URL("../../apps/dashboard/src/visual-shell.mjs", import.meta.url), "utf8"),
     readFile(new URL("../../apps/dashboard/src/styles.css", import.meta.url), "utf8"),
     readFile(new URL("../../apps/dashboard/src/components/notification-control-plane.mjs", import.meta.url), "utf8"),
-    readFile(new URL("../../apps/dashboard/src/components/saas-admin-console.mjs", import.meta.url), "utf8")
+    readFile(new URL("../../apps/dashboard/src/components/saas-admin-console.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../../apps/dashboard/src/components/live-ops-control-plane.mjs", import.meta.url), "utf8")
   ]);
-  return [html, app, apiClient, visualShell, styles, notificationComponent, saasAdminComponent].join("\n");
+  return [html, app, apiClient, visualShell, styles, notificationComponent, saasAdminComponent, liveOpsComponent].join("\n");
 }
 
 function assertNavigationTarget(source, hash) {
@@ -911,18 +912,21 @@ test("A3 enterprise readiness surfaces reviewer, executive, and blocked customer
 test("A3 live ops control plane now exposes a release publish chain", async () => {
   const liveOpsSource = await readFile(new URL("../../services/report/a3_live_ops_control_plane.mjs", import.meta.url), "utf8");
   const appSource = await readFile(new URL("../../apps/dashboard/src/app.mjs", import.meta.url), "utf8");
+  const componentSource = await readFile(new URL("../../apps/dashboard/src/components/live-ops-control-plane.mjs", import.meta.url), "utf8");
   assert.match(liveOpsSource, /buildReleasePublishChain/);
   assert.match(liveOpsSource, /reviewer_gate_status/);
   assert.match(liveOpsSource, /blocked_by_denial/);
-  assert.match(appSource, /Release publish chain/);
-  assert.match(appSource, /Publish blockers/);
-  assert.match(appSource, /controlPlane\.release_publish_chain\?\.steps/);
-  assert.match(appSource, /controlPlane\.release_publish_chain\?\.blocker_reasons/);
-  assert.match(appSource, /Commercial sign-off/);
-  assert.match(appSource, /Sign-off blockers/);
-  assert.match(appSource, /commercial_signoff_summary/);
+  assert.match(appSource, /renderLiveOpsControlPlanePanel/);
+  assert.match(componentSource, /Release publish chain/);
+  assert.match(componentSource, /Publish blockers/);
+  assert.match(componentSource, /controlPlane\.release_publish_chain\?\.steps/);
+  assert.match(componentSource, /controlPlane\.release_publish_chain\?\.blocker_reasons/);
+  assert.match(componentSource, /Commercial sign-off/);
+  assert.match(componentSource, /Sign-off blockers/);
+  assert.match(componentSource, /commercial_signoff_summary/);
   assert.match(appSource, /function healthTileMarkup\(/);
   assert.doesNotMatch(appSource, /\$\{healthTile\(/);
+  assert.doesNotMatch(componentSource, /innerHTML/);
 });
 
 
