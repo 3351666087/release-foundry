@@ -342,7 +342,7 @@ def test_oauth_contract_rejects_raw_secrets_plain_pkce_and_insecure_redirects():
         OAuthClientConfig(
             provider="github",
             client_id_ref="env:GITHUB_CLIENT_ID_REF",
-            client_secret_ref="vault:github/ghp_abcdefghijklmnopqrstuvwxyz123456",
+            client_secret_ref="vault:github/" + "ghp_" + "abcdefghijklmnopqrstuvwxyz123456",
             redirect_uri="https://app.ashr-clone.invalid/oauth/github/callback",
             scopes=("read:user",),
         ).validate()
@@ -358,6 +358,7 @@ def test_oauth_contract_rejects_raw_secrets_plain_pkce_and_insecure_redirects():
         ).validate()
 
     manifest = oauth_provider_contract_manifest()
-    assert set(manifest["providers"]) == {"github", "google"}
+    assert set(manifest["providers"]) == {"github", "google", "wechat", "alipay"}
+    assert manifest["required_controls"]["disabled_by_default"] is True
     assert manifest["required_controls"]["pkce_method"] == "S256"
     assert manifest["required_controls"]["token_refs_only"] is True

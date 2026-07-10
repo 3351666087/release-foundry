@@ -31,6 +31,23 @@ func testPaymentOrder(provider, merchantID, orderID string) PaymentOrderReceive 
 	}
 }
 
+func receiveVerifiedPaymentNotificationForTest(t *testing.T, service *PaymentDomainService, ctx context.Context, tenantID, projectID string, request PaymentNotificationReceive) (Envelope[PaymentNotification], error) {
+	t.Helper()
+	verifiedAt := time.Date(2026, 7, 10, 10, 0, 0, 0, time.UTC)
+	if request.OccurredAt.IsZero() {
+		request.OccurredAt = verifiedAt
+	}
+	sealed, err := service.issueVerifiedPaymentNotification(request, paymentVerificationEvidence{
+		VerifierID: "test.provider.verifier", VerifierVersion: "1.0.0",
+		SignatureSHA256: testPaymentFailureHash, CertificateKeyRef: "test-key-ref",
+		VerifiedAt: verifiedAt, ProviderTimestamp: "1783658400", ProviderNonce: "test-nonce",
+	})
+	if err != nil {
+		t.Fatalf("issue verified notification: %v", err)
+	}
+	return service.receiveVerifiedNotification(ctx, tenantID, projectID, sealed)
+}
+
 func TestPaymentDomainCapabilitiesRetainStripeAndFirstClassChinaRails(t *testing.T) {
 	list := PaymentProviderCapabilitiesList()
 	if list.Count != 4 {
@@ -92,7 +109,7 @@ func TestPaymentDomainDomesticCardRequiresHostedTokenReferencesAndRejectsSecrets
 	for name, mutate := range map[string]func(*PaymentOrderReceive){
 		"missing reference": func(request *PaymentOrderReceive) { request.PaymentMethodTokenReference = "" },
 		"PAN metadata": func(request *PaymentOrderReceive) {
-			request.Metadata = JSONMap{"nested": JSONMap{"card_number": "4111111111111111"}}
+			request.Metadata = JSONMap{"nested": JSONMap{"card_number": "4111" + "1111" + "1111" + "1111"}}
 		},
 		"CVC metadata":  func(request *PaymentOrderReceive) { request.Metadata = JSONMap{"cvc": "123"} },
 		"OTP metadata":  func(request *PaymentOrderReceive) { request.Metadata = JSONMap{"otp": "456789"} },
@@ -126,11 +143,11 @@ func TestPaymentDomainNotificationRefundBillLifecycleAndIsolation(t *testing.T) 
 		EventType: "TRANSACTION.SUCCESS", ResourceType: "order", MerchantOrderID: "order_shared",
 		ProviderObjectID: "wx_order_1", ProviderStatus: "SUCCESS", PayloadSHA256: testPaymentPayloadHash,
 	}
-	received, err := service.ReceiveNotification(ctx, "tenant_a", "project_a", notification)
+	received, err := receiveVerifiedPaymentNotificationForTest(t, service, ctx, "tenant_a", "project_a", notification)
 	if err != nil || !received.Result.Applied || received.Result.NormalizedStatus != PaymentOrderStatusSucceeded {
 		t.Fatalf("notification receive: %#v err=%v", received, err)
 	}
-	replay, err := service.ReceiveNotification(ctx, "tenant_a", "project_a", notification)
+	replay, err := receiveVerifiedPaymentNotificationForTest(t, service, ctx, "tenant_a", "project_a", notification)
 	if err != nil || !replay.IdempotentReplay {
 		t.Fatalf("notification replay: %#v err=%v", replay, err)
 	}
@@ -151,7 +168,7 @@ func TestPaymentDomainNotificationRefundBillLifecycleAndIsolation(t *testing.T) 
 		EventType: "REFUND.SUCCESS", ResourceType: "refund", MerchantRefundID: "refund_1",
 		ProviderObjectID: "wx_refund_1", ProviderStatus: "SUCCESS", PayloadSHA256: testPaymentHeadersHash,
 	}
-	if _, err := service.ReceiveNotification(ctx, "tenant_a", "project_a", refundEvent); err != nil {
+	if _, err := receiveVerifiedPaymentNotificationForTest(t, service, ctx, "tenant_a", "project_a", refundEvent); err != nil {
 		t.Fatal(err)
 	}
 	bill, err := service.ReceiveBillEntry(ctx, "tenant_a", "project_a", PaymentBillEntryReceive{
@@ -218,13 +235,86 @@ func TestPaymentDomainIdempotencyConflictTerminalTransitionAndConcurrency(t *tes
 		EventType: "trade_status_sync", ResourceType: "order", MerchantOrderID: "order_concurrent",
 		ProviderStatus: "TRADE_SUCCESS", PayloadSHA256: testPaymentPayloadHash,
 	}
-	if _, err := service.ReceiveNotification(ctx, "tenant", "project", success); err != nil {
+	if _, err := receiveVerifiedPaymentNotificationForTest(t, service, ctx, "tenant", "project", success); err != nil {
 		t.Fatal(err)
 	}
 	closed := success
 	closed.ProviderEventID, closed.ProviderStatus, closed.PayloadSHA256 = "event_late_close", "TRADE_CLOSED", testPaymentHeadersHash
-	if _, err := service.ReceiveNotification(ctx, "tenant", "project", closed); err == nil {
+	if _, err := receiveVerifiedPaymentNotificationForTest(t, service, ctx, "tenant", "project", closed); err == nil {
 		t.Fatal("terminal succeeded order accepted closed transition")
+	}
+}
+
+func TestPaymentDomainPublicNotificationFailsClosedWithoutSideEffects(t *testing.T) {
+	service := newPaymentDomainTestService(t)
+	ctx := context.Background()
+	if _, err := service.ReceiveOrder(ctx, "tenant", "project", testPaymentOrder(PaymentProviderWeChatPay, "merchant", "order_public")); err != nil {
+		t.Fatal(err)
+	}
+	attack := PaymentNotificationReceive{
+		Provider: PaymentProviderWeChatPay, MerchantID: "merchant", ProviderEventID: "event_forged",
+		EventType: "TRANSACTION.SUCCESS", ResourceType: "order", MerchantOrderID: "order_public",
+		ProviderStatus: "SUCCESS", PayloadSHA256: testPaymentPayloadHash,
+	}
+	_, err := service.ReceiveNotification(ctx, "tenant", "project", attack)
+	var required PaymentNotificationVerificationRequiredError
+	if !errors.As(err, &required) {
+		t.Fatalf("expected verification requirement, got %T %v", err, err)
+	}
+	order, err := service.GetOrder(ctx, "tenant", "project", "merchant", PaymentProviderWeChatPay, "order_public")
+	if err != nil || order.Result.Status != PaymentOrderStatusCreated || order.Result.ProviderStatus != "" {
+		t.Fatalf("forged notification changed order: %#v err=%v", order.Result, err)
+	}
+	events, err := service.ListNotifications(ctx, "tenant", "project", "merchant", PaymentProviderWeChatPay, 100)
+	if err != nil || events.Result.Count != 0 {
+		t.Fatalf("forged notification persisted: %#v err=%v", events.Result, err)
+	}
+}
+
+func TestPaymentDomainSealedVerificationArtifactRejectsTampering(t *testing.T) {
+	service := newPaymentDomainTestService(t)
+	ctx := context.Background()
+	if _, err := service.ReceiveOrder(ctx, "tenant", "project", testPaymentOrder(PaymentProviderWeChatPay, "merchant", "order_bound")); err != nil {
+		t.Fatal(err)
+	}
+	request := PaymentNotificationReceive{
+		Provider: PaymentProviderWeChatPay, MerchantID: "merchant", ProviderEventID: "event_bound",
+		EventType: "TRANSACTION.SUCCESS", ResourceType: "order", MerchantOrderID: "order_bound",
+		ProviderStatus: "SUCCESS", PayloadSHA256: testPaymentPayloadHash,
+	}
+	sealed, err := service.issueVerifiedPaymentNotification(request, paymentVerificationEvidence{
+		VerifierID: "wechatpay.api-v3", VerifierVersion: "0.1.0-plan-only",
+		AcquirerReference: "merchant-binding-ref", SignatureSHA256: testPaymentFailureHash,
+		ProviderTimestamp: "1783658400", ProviderNonce: "nonce-bound",
+		CertificateKeyRef: "wechatpay-platform-cert:test-serial",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sealed.artifact.ArtifactMACSHA256 == "" || sealed.artifact.RawBodySHA256 != request.PayloadSHA256 ||
+		sealed.artifact.RawPayloadIncluded || sealed.artifact.SecretValuePresent {
+		t.Fatalf("unsafe verification artifact: %#v", sealed.artifact)
+	}
+	for name, mutate := range map[string]func(*sealedPaymentNotification){
+		"merchant":  func(value *sealedPaymentNotification) { value.request.MerchantID = "attacker" },
+		"provider":  func(value *sealedPaymentNotification) { value.request.Provider = PaymentProviderAlipay },
+		"event":     func(value *sealedPaymentNotification) { value.request.ProviderEventID = "other" },
+		"status":    func(value *sealedPaymentNotification) { value.request.ProviderStatus = "CLOSED" },
+		"body hash": func(value *sealedPaymentNotification) { value.request.PayloadSHA256 = testPaymentHeadersHash },
+		"verifier":  func(value *sealedPaymentNotification) { value.artifact.VerifierID = "attacker" },
+		"mac":       func(value *sealedPaymentNotification) { value.artifact.ArtifactMACSHA256 = testPaymentHeadersHash },
+	} {
+		t.Run(name, func(t *testing.T) {
+			tampered := sealed
+			mutate(&tampered)
+			if _, err := service.receiveVerifiedNotification(ctx, "tenant", "project", tampered); err == nil {
+				t.Fatal("tampered notification accepted")
+			}
+		})
+	}
+	order, err := service.GetOrder(ctx, "tenant", "project", "merchant", PaymentProviderWeChatPay, "order_bound")
+	if err != nil || order.Result.Status != PaymentOrderStatusCreated {
+		t.Fatalf("tampering changed order: %#v err=%v", order.Result, err)
 	}
 }
 

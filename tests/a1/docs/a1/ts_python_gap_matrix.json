@@ -5,6 +5,7 @@
       "evidence": [
         "packages/sdk/ashr_clone/__init__.py",
         "packages/ts/ashr-clone/src/index.ts",
+        "packages/ts/ashr-clone/src/account-readiness.ts",
         "packages/ts/ashr-clone/src/api-client.ts",
         "packages/ts/ashr-clone/src/billing.ts",
         "packages/ts/ashr-clone/src/calibrate.ts",
@@ -74,6 +75,10 @@
         "write_run_fixture"
       ],
       "shared": [
+        "ACCOUNT_READINESS_ENVIRONMENTS",
+        "ACCOUNT_READINESS_PROVIDERS",
+        "ACCOUNT_READINESS_RECEIPT_VERSION",
+        "ACCOUNT_READINESS_STATUSES",
         "AGENT_INPUT_SCHEMA_VERSION",
         "AGENT_TURN_SCHEMA_VERSION",
         "ASHR_API_ENV_VAR",
@@ -81,6 +86,8 @@
         "ASHR_DEFAULT_BASE_URL",
         "ASHR_LABS_API_ENV_VAR",
         "ASHR_LABS_BASE_URL_ENV_VAR",
+        "AccountReadinessError",
+        "AccountReadinessReceipt",
         "AgentAdapter",
         "AgentAdapterError",
         "AgentInput",
@@ -101,7 +108,9 @@
         "SecretInputError",
         "TraceEvent",
         "TraceRecorder",
-        "to_a2_judge_run"
+        "build_receipt_template",
+        "to_a2_judge_run",
+        "validate_account_readiness_receipt"
       ],
       "status": "partial",
       "typescript_leads": [
@@ -112,6 +121,9 @@
         "ARTIFACT_MANIFEST_SCOPE",
         "ASHR_API_AGENT_INPUT_SCHEMA_VERSION",
         "AUDIT_READ_SCOPE",
+        "AccountReadinessEnvironment",
+        "AccountReadinessProvider",
+        "AccountReadinessStatus",
         "AgentAdapterOptions",
         "AgentConstructor",
         "AgentFunction",
@@ -326,6 +338,7 @@
         "loadAgentTarget",
         "loadCasesFromApiRecord",
         "loadRunFixture",
+        "load_account_readiness_receipt",
         "main",
         "normalizeDailyBillRecord",
         "normalizeMaxWorkers",
@@ -446,6 +459,7 @@
           "replay-fixture"
         ],
         "package_bins": [
+          "ashr-clone-account-readiness",
           "ashr-clone-api-probe",
           "ashr-clone-calibrate",
           "ashr-clone-cloud",
@@ -738,6 +752,7 @@
           "replay-fixture"
         ],
         "package_bins": [
+          "ashr-clone-account-readiness",
           "ashr-clone-api-probe",
           "ashr-clone-calibrate",
           "ashr-clone-cloud",
@@ -1084,6 +1099,10 @@
         "write_run_fixture"
       ],
       "python_top_level_exports": [
+        "ACCOUNT_READINESS_ENVIRONMENTS",
+        "ACCOUNT_READINESS_PROVIDERS",
+        "ACCOUNT_READINESS_RECEIPT_VERSION",
+        "ACCOUNT_READINESS_STATUSES",
         "AGENT_INPUT_SCHEMA_VERSION",
         "AGENT_TURN_SCHEMA_VERSION",
         "ASHR_API_ENV_VAR",
@@ -1091,6 +1110,8 @@
         "ASHR_DEFAULT_BASE_URL",
         "ASHR_LABS_API_ENV_VAR",
         "ASHR_LABS_BASE_URL_ENV_VAR",
+        "AccountReadinessError",
+        "AccountReadinessReceipt",
         "AgentAdapter",
         "AgentAdapterError",
         "AgentInput",
@@ -1130,6 +1151,7 @@
         "build_object_manifest",
         "build_private_evidence_index",
         "build_private_evidence_index_from_dir",
+        "build_receipt_template",
         "build_response_field_map",
         "build_run_fixture",
         "build_vm_stream",
@@ -1155,6 +1177,7 @@
         "summarize_quota_error",
         "to_a2_judge_run",
         "trace_events_from_vm_stream",
+        "validate_account_readiness_receipt",
         "validate_capability_matrix",
         "validate_public_evidence_index",
         "validate_run_fixture",
@@ -1167,6 +1190,10 @@
         "write_run_fixture"
       ],
       "shared_export_names": [
+        "ACCOUNT_READINESS_ENVIRONMENTS",
+        "ACCOUNT_READINESS_PROVIDERS",
+        "ACCOUNT_READINESS_RECEIPT_VERSION",
+        "ACCOUNT_READINESS_STATUSES",
         "AGENT_INPUT_SCHEMA_VERSION",
         "AGENT_TURN_SCHEMA_VERSION",
         "ASHR_API_ENV_VAR",
@@ -1174,6 +1201,8 @@
         "ASHR_DEFAULT_BASE_URL",
         "ASHR_LABS_API_ENV_VAR",
         "ASHR_LABS_BASE_URL_ENV_VAR",
+        "AccountReadinessError",
+        "AccountReadinessReceipt",
         "AgentAdapter",
         "AgentAdapterError",
         "AgentInput",
@@ -1194,9 +1223,12 @@
         "SecretInputError",
         "TraceEvent",
         "TraceRecorder",
-        "to_a2_judge_run"
+        "build_receipt_template",
+        "to_a2_judge_run",
+        "validate_account_readiness_receipt"
       ],
       "typescript_barrel_modules": [
+        "account-readiness",
         "api-client",
         "billing",
         "calibrate",
@@ -1211,6 +1243,10 @@
         "trace"
       ],
       "typescript_effective_export_names": [
+        "ACCOUNT_READINESS_ENVIRONMENTS",
+        "ACCOUNT_READINESS_PROVIDERS",
+        "ACCOUNT_READINESS_RECEIPT_VERSION",
+        "ACCOUNT_READINESS_STATUSES",
         "ADMIN_ALL_SCOPE",
         "AGENT_INPUT_PART_TYPES",
         "AGENT_INPUT_SCHEMA_VERSION",
@@ -1225,6 +1261,11 @@
         "ASHR_LABS_API_ENV_VAR",
         "ASHR_LABS_BASE_URL_ENV_VAR",
         "AUDIT_READ_SCOPE",
+        "AccountReadinessEnvironment",
+        "AccountReadinessError",
+        "AccountReadinessProvider",
+        "AccountReadinessReceipt",
+        "AccountReadinessStatus",
         "AgentAdapter",
         "AgentAdapterError",
         "AgentAdapterOptions",
@@ -1443,6 +1484,7 @@
         "buildTraceRunFixture",
         "buildUsageBillingSnapshot",
         "buildVmStream",
+        "build_receipt_template",
         "caseFromSourceRun",
         "casesFromDatasetSource",
         "chinaPaymentCapabilityManifest",
@@ -1459,6 +1501,7 @@
         "loadAgentTarget",
         "loadCasesFromApiRecord",
         "loadRunFixture",
+        "load_account_readiness_receipt",
         "main",
         "normalizeDailyBillRecord",
         "normalizeMaxWorkers",
@@ -1492,6 +1535,7 @@
         "validateRunFixture",
         "validateTraceEvent",
         "validateVmStreamFrame",
+        "validate_account_readiness_receipt",
         "verifyAuditHashChain",
         "verifyBillingWebhookEnvelope",
         "verifyReleaseEvidencePacket",
@@ -1501,6 +1545,20 @@
         "writeSaaSControlPlaneState"
       ],
       "typescript_exported_symbols_by_module": {
+        "account-readiness": [
+          "ACCOUNT_READINESS_ENVIRONMENTS",
+          "ACCOUNT_READINESS_PROVIDERS",
+          "ACCOUNT_READINESS_RECEIPT_VERSION",
+          "ACCOUNT_READINESS_STATUSES",
+          "AccountReadinessEnvironment",
+          "AccountReadinessError",
+          "AccountReadinessProvider",
+          "AccountReadinessReceipt",
+          "AccountReadinessStatus",
+          "build_receipt_template",
+          "load_account_readiness_receipt",
+          "validate_account_readiness_receipt"
+        ],
         "api-client": [
           "ASHR_API_AGENT_INPUT_SCHEMA_VERSION",
           "ASHR_API_ENV_VAR",
@@ -1824,6 +1882,9 @@
         "ARTIFACT_MANIFEST_SCOPE",
         "ASHR_API_AGENT_INPUT_SCHEMA_VERSION",
         "AUDIT_READ_SCOPE",
+        "AccountReadinessEnvironment",
+        "AccountReadinessProvider",
+        "AccountReadinessStatus",
         "AgentAdapterOptions",
         "AgentConstructor",
         "AgentFunction",
@@ -2038,6 +2099,7 @@
         "loadAgentTarget",
         "loadCasesFromApiRecord",
         "loadRunFixture",
+        "load_account_readiness_receipt",
         "main",
         "normalizeDailyBillRecord",
         "normalizeMaxWorkers",

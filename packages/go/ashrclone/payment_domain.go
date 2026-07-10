@@ -2,7 +2,11 @@ package ashrclone
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/rand"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -16,6 +20,7 @@ import (
 )
 
 const PaymentDomainSchemaVersion = "ashr.clone.payment_domain.v1"
+const PaymentVerificationArtifactSchemaVersion = "ashr.clone.payment_verification_artifact.v1"
 
 const (
 	PaymentProviderStripe           = "stripe"
@@ -246,28 +251,65 @@ type PaymentNotificationReceive struct {
 	OccurredAt       time.Time `json:"occurred_at,omitempty"`
 }
 
-type PaymentNotification struct {
+type PaymentVerificationArtifact struct {
 	SchemaVersion      string    `json:"schema_version"`
-	TenantID           string    `json:"tenant_id"`
-	ProjectID          string    `json:"project_id"`
-	MerchantID         string    `json:"merchant_id"`
+	VerifierID         string    `json:"verifier_id"`
+	VerifierVersion    string    `json:"verifier_version"`
 	Provider           string    `json:"provider"`
+	MerchantID         string    `json:"merchant_id"`
+	AcquirerReference  string    `json:"acquirer_reference,omitempty"`
 	ProviderEventID    string    `json:"provider_event_id"`
-	EventType          string    `json:"event_type"`
-	ResourceType       string    `json:"resource_type"`
-	MerchantOrderID    string    `json:"merchant_order_id,omitempty"`
-	MerchantRefundID   string    `json:"merchant_refund_id,omitempty"`
-	ProviderObjectID   string    `json:"provider_object_id,omitempty"`
-	ProviderStatus     string    `json:"provider_status"`
-	NormalizedStatus   string    `json:"normalized_status"`
-	PayloadSHA256      string    `json:"payload_sha256"`
-	HeadersSHA256      string    `json:"headers_sha256,omitempty"`
-	Applied            bool      `json:"applied"`
+	RawBodySHA256      string    `json:"raw_body_sha256"`
+	SignatureSHA256    string    `json:"signature_sha256"`
+	VerifiedAt         time.Time `json:"verified_at"`
+	ProviderTimestamp  string    `json:"provider_timestamp,omitempty"`
+	ProviderNonce      string    `json:"provider_nonce,omitempty"`
+	CertificateKeyRef  string    `json:"certificate_key_ref"`
+	ArtifactMACSHA256  string    `json:"artifact_mac_sha256"`
 	RawPayloadIncluded bool      `json:"raw_payload_included"`
-	RawHeadersIncluded bool      `json:"raw_headers_included"`
 	SecretValuePresent bool      `json:"secret_value_present"`
-	OccurredAt         time.Time `json:"occurred_at"`
-	ReceivedAt         time.Time `json:"received_at"`
+}
+
+type paymentVerificationEvidence struct {
+	VerifierID        string
+	VerifierVersion   string
+	AcquirerReference string
+	SignatureSHA256   string
+	VerifiedAt        time.Time
+	ProviderTimestamp string
+	ProviderNonce     string
+	CertificateKeyRef string
+}
+
+type sealedPaymentNotification struct {
+	request  PaymentNotificationReceive
+	artifact PaymentVerificationArtifact
+	mac      [sha256.Size]byte
+}
+
+type PaymentNotification struct {
+	SchemaVersion      string                      `json:"schema_version"`
+	TenantID           string                      `json:"tenant_id"`
+	ProjectID          string                      `json:"project_id"`
+	MerchantID         string                      `json:"merchant_id"`
+	Provider           string                      `json:"provider"`
+	ProviderEventID    string                      `json:"provider_event_id"`
+	EventType          string                      `json:"event_type"`
+	ResourceType       string                      `json:"resource_type"`
+	MerchantOrderID    string                      `json:"merchant_order_id,omitempty"`
+	MerchantRefundID   string                      `json:"merchant_refund_id,omitempty"`
+	ProviderObjectID   string                      `json:"provider_object_id,omitempty"`
+	ProviderStatus     string                      `json:"provider_status"`
+	NormalizedStatus   string                      `json:"normalized_status"`
+	PayloadSHA256      string                      `json:"payload_sha256"`
+	HeadersSHA256      string                      `json:"headers_sha256,omitempty"`
+	Verification       PaymentVerificationArtifact `json:"verification"`
+	Applied            bool                        `json:"applied"`
+	RawPayloadIncluded bool                        `json:"raw_payload_included"`
+	RawHeadersIncluded bool                        `json:"raw_headers_included"`
+	SecretValuePresent bool                        `json:"secret_value_present"`
+	OccurredAt         time.Time                   `json:"occurred_at"`
+	ReceivedAt         time.Time                   `json:"received_at"`
 }
 
 type PaymentNotificationList struct {
@@ -341,6 +383,12 @@ func (err PaymentDomainConflictError) Error() string {
 	return fmt.Sprintf("payment %s conflict for provider %q id %q", err.Resource, err.Provider, err.ID)
 }
 
+type PaymentNotificationVerificationRequiredError struct{}
+
+func (PaymentNotificationVerificationRequiredError) Error() string {
+	return "payment notification requires a trusted internal provider verification artifact"
+}
+
 type paymentDomainRepository interface {
 	receiveOrder(context.Context, PaymentOrder) (PaymentOrder, bool, error)
 	getOrder(context.Context, string, string, string, string, string) (PaymentOrder, error)
@@ -357,15 +405,20 @@ type paymentDomainRepository interface {
 }
 
 type PaymentDomainService struct {
-	repository paymentDomainRepository
-	now        func() time.Time
+	repository  paymentDomainRepository
+	now         func() time.Time
+	artifactKey [sha256.Size]byte
 }
 
 func NewPaymentDomainService(repository paymentDomainRepository) (*PaymentDomainService, error) {
 	if repository == nil {
 		return nil, fmt.Errorf("payment domain repository is required")
 	}
-	return &PaymentDomainService{repository: repository, now: func() time.Time { return time.Now().UTC() }}, nil
+	service := &PaymentDomainService{repository: repository, now: func() time.Time { return time.Now().UTC() }}
+	if _, err := rand.Read(service.artifactKey[:]); err != nil {
+		return nil, fmt.Errorf("initialize payment verification artifact key: %w", err)
+	}
+	return service, nil
 }
 
 func PaymentProviderCapability(provider string) (PaymentProviderCapabilities, error) {
@@ -509,15 +562,77 @@ func (service *PaymentDomainService) ReceiveNotification(ctx context.Context, te
 	if err := validatePaymentScope(tenantID, projectID); err != nil {
 		return Envelope[PaymentNotification]{}, err
 	}
+	return Envelope[PaymentNotification]{}, PaymentNotificationVerificationRequiredError{}
+}
+
+func (service *PaymentDomainService) issueVerifiedPaymentNotification(request PaymentNotificationReceive, evidence paymentVerificationEvidence) (sealedPaymentNotification, error) {
 	request = normalizePaymentNotificationReceive(request)
 	normalizedStatus, err := validateAndNormalizePaymentNotification(request)
 	if err != nil {
-		return Envelope[PaymentNotification]{}, err
+		return sealedPaymentNotification{}, err
 	}
 	now := service.now().UTC()
 	if request.OccurredAt.IsZero() {
 		request.OccurredAt = now
 	}
+	evidence.VerifierID = strings.TrimSpace(evidence.VerifierID)
+	evidence.VerifierVersion = strings.TrimSpace(evidence.VerifierVersion)
+	evidence.AcquirerReference = strings.TrimSpace(evidence.AcquirerReference)
+	evidence.SignatureSHA256 = strings.ToLower(strings.TrimSpace(evidence.SignatureSHA256))
+	evidence.ProviderTimestamp = strings.TrimSpace(evidence.ProviderTimestamp)
+	evidence.ProviderNonce = strings.TrimSpace(evidence.ProviderNonce)
+	evidence.CertificateKeyRef = strings.TrimSpace(evidence.CertificateKeyRef)
+	if evidence.VerifiedAt.IsZero() {
+		evidence.VerifiedAt = now
+	}
+	evidence.VerifiedAt = evidence.VerifiedAt.UTC()
+	if evidence.VerifierID == "" || evidence.VerifierVersion == "" || evidence.CertificateKeyRef == "" {
+		return sealedPaymentNotification{}, fmt.Errorf("verifier_id, verifier_version, and certificate_key_ref are required")
+	}
+	if !paymentSHA256Pattern.MatchString(evidence.SignatureSHA256) {
+		return sealedPaymentNotification{}, fmt.Errorf("signature_sha256 must be a lowercase SHA-256 digest")
+	}
+	if evidence.VerifiedAt.After(now.Add(5 * time.Minute)) {
+		return sealedPaymentNotification{}, fmt.Errorf("verified_at cannot be in the future")
+	}
+	artifact := PaymentVerificationArtifact{
+		SchemaVersion: PaymentVerificationArtifactSchemaVersion,
+		VerifierID:    evidence.VerifierID, VerifierVersion: evidence.VerifierVersion,
+		Provider: request.Provider, MerchantID: request.MerchantID, AcquirerReference: evidence.AcquirerReference,
+		ProviderEventID: request.ProviderEventID, RawBodySHA256: request.PayloadSHA256,
+		SignatureSHA256: evidence.SignatureSHA256, VerifiedAt: evidence.VerifiedAt,
+		ProviderTimestamp: evidence.ProviderTimestamp, ProviderNonce: evidence.ProviderNonce,
+		CertificateKeyRef: evidence.CertificateKeyRef,
+	}
+	mac := service.paymentVerificationArtifactMAC(request, artifact)
+	artifact.ArtifactMACSHA256 = hex.EncodeToString(mac[:])
+	_ = normalizedStatus
+	return sealedPaymentNotification{request: request, artifact: artifact, mac: mac}, nil
+}
+
+func (service *PaymentDomainService) receiveVerifiedNotification(ctx context.Context, tenantID, projectID string, sealed sealedPaymentNotification) (Envelope[PaymentNotification], error) {
+	if err := validatePaymentScope(tenantID, projectID); err != nil {
+		return Envelope[PaymentNotification]{}, err
+	}
+	request := normalizePaymentNotificationReceive(sealed.request)
+	normalizedStatus, err := validateAndNormalizePaymentNotification(request)
+	if err != nil {
+		return Envelope[PaymentNotification]{}, err
+	}
+	expectedMAC := service.paymentVerificationArtifactMAC(request, sealed.artifact)
+	if !hmac.Equal(expectedMAC[:], sealed.mac[:]) ||
+		!hmac.Equal([]byte(hex.EncodeToString(expectedMAC[:])), []byte(sealed.artifact.ArtifactMACSHA256)) {
+		return Envelope[PaymentNotification]{}, PaymentNotificationVerificationRequiredError{}
+	}
+	if sealed.artifact.SchemaVersion != PaymentVerificationArtifactSchemaVersion ||
+		sealed.artifact.Provider != request.Provider ||
+		sealed.artifact.MerchantID != request.MerchantID ||
+		sealed.artifact.ProviderEventID != request.ProviderEventID ||
+		sealed.artifact.RawBodySHA256 != request.PayloadSHA256 ||
+		sealed.artifact.RawPayloadIncluded || sealed.artifact.SecretValuePresent {
+		return Envelope[PaymentNotification]{}, PaymentNotificationVerificationRequiredError{}
+	}
+	now := service.now().UTC()
 	notification := publicPaymentNotification(PaymentNotification{
 		SchemaVersion: PaymentDomainSchemaVersion, TenantID: tenantID, ProjectID: projectID,
 		MerchantID: request.MerchantID, Provider: request.Provider, ProviderEventID: request.ProviderEventID, EventType: request.EventType,
@@ -525,13 +640,28 @@ func (service *PaymentDomainService) ReceiveNotification(ctx context.Context, te
 		MerchantRefundID: request.MerchantRefundID, ProviderObjectID: request.ProviderObjectID,
 		ProviderStatus: request.ProviderStatus, NormalizedStatus: normalizedStatus,
 		PayloadSHA256: request.PayloadSHA256, HeadersSHA256: request.HeadersSHA256,
-		OccurredAt: request.OccurredAt.UTC(), ReceivedAt: now,
+		Verification: sealed.artifact,
+		OccurredAt:   request.OccurredAt.UTC(), ReceivedAt: now,
 	})
 	stored, replay, err := service.repository.receiveNotification(ctx, notification)
 	if err != nil {
 		return Envelope[PaymentNotification]{}, err
 	}
 	return Envelope[PaymentNotification]{Operation: "payment.notification.receive", Status: "ok", IdempotentReplay: replay, Result: publicPaymentNotification(stored)}, nil
+}
+
+func (service *PaymentDomainService) paymentVerificationArtifactMAC(request PaymentNotificationReceive, artifact PaymentVerificationArtifact) [sha256.Size]byte {
+	payload := struct {
+		Request  PaymentNotificationReceive
+		Artifact PaymentVerificationArtifact
+	}{Request: request, Artifact: artifact}
+	payload.Artifact.ArtifactMACSHA256 = ""
+	encoded, _ := json.Marshal(payload)
+	mac := hmac.New(sha256.New, service.artifactKey[:])
+	_, _ = mac.Write(encoded)
+	var result [sha256.Size]byte
+	copy(result[:], mac.Sum(nil))
+	return result
 }
 
 func (service *PaymentDomainService) GetNotification(ctx context.Context, tenantID, projectID, merchantID, provider, eventID string) (Envelope[PaymentNotification], error) {

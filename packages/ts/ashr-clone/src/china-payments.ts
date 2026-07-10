@@ -24,6 +24,70 @@ const SHA256_RE = /^[a-f0-9]{64}$/;
 const SENSITIVE_KEY_RE = /(?:authorization|private.?key|api.?key|secret|token|password|credential|certificate|signature|nonce|payer|buyer|openid|card|pan|cvc)/i;
 const RAW_SECRET_RE = /\b(?:sk|rk|whsec)_(?:test|live)_[A-Za-z0-9]{8,}\b|-----BEGIN [A-Z ]*PRIVATE KEY-----/i;
 const CARD_NUMBER_RE = /(?:\d[ -]*?){13,19}/;
+const FORBIDDEN_PAYMENT_VALUE_RE = /\b(?:pan|primary[ _-]*account[ _-]*(?:number|no)|card[ _-]*(?:number|no)|account[ _-]*(?:number|no)|exp(?:iry|iration)?(?:[ _-]*(?:month|year|date))?|valid[ _-]*(?:thru|through)|cvv|cvc|cvn|cid|security[ _-]*code|pin|one[ _-]*time[ _-]*(?:password|code)|otp|sms[ _-]*code|track[ _-]*(?:1|2|data)|cryptogram|cardholder|kyc[ _-]*(?:doc|docs|document|documents|data))\b(?:\s*(?:=|:)\s*|\s+)\S+/i;
+const FORBIDDEN_PAYMENT_FIELD_NAMES = new Set([
+  "pan",
+  "primary_account_number",
+  "primary_account_no",
+  "card_number",
+  "card_no",
+  "account_number",
+  "account_no",
+  "expiry",
+  "expiration",
+  "expiry_date",
+  "expiration_date",
+  "exp",
+  "exp_date",
+  "exp_month",
+  "expiry_month",
+  "expiration_month",
+  "exp_year",
+  "expiry_year",
+  "expiration_year",
+  "valid_thru",
+  "valid_through",
+  "cvv",
+  "cvc",
+  "cvn",
+  "cid",
+  "security_code",
+  "card_security_code",
+  "pin",
+  "pin_block",
+  "otp",
+  "one_time_password",
+  "one_time_code",
+  "sms_code",
+  "sms_otp",
+  "track1",
+  "track_1",
+  "track2",
+  "track_2",
+  "track_data",
+  "cryptogram",
+  "payment_cryptogram",
+  "cardholder",
+  "card_holder",
+  "cardholder_name",
+  "card_holder_name",
+  "cardholder_data",
+  "card_holder_data",
+  "raw_cardholder",
+  "raw_cardholder_data",
+  "kyc",
+  "kyc_data",
+  "kyc_doc",
+  "kyc_docs",
+  "kyc_document",
+  "kyc_documents",
+  "raw_kyc",
+  "raw_kyc_data",
+  "raw_kyc_doc",
+  "raw_kyc_docs",
+  "raw_kyc_document",
+  "raw_kyc_documents",
+]);
 
 const PROVIDER_CAPABILITIES: Record<PaymentProvider, PaymentJsonRecord> = {
   wechat_pay: {
@@ -1112,21 +1176,16 @@ function safeOptionalText(name: string, value: unknown): string | undefined {
 function publicMetadata(value: unknown): PaymentJsonRecord {
   if (value === undefined) return {};
   if (!isRecord(value)) throw new ChinaPaymentContractError("metadata must be an object");
-  const result: PaymentJsonRecord = {};
-  for (const [key, item] of Object.entries(value)) {
-    if (SENSITIVE_KEY_RE.test(key)) throw new ChinaPaymentContractError("metadata contains a sensitive payment field");
-    if (item !== null && !["string", "number", "boolean"].includes(typeof item)) {
-      throw new ChinaPaymentContractError("metadata values must be public-safe scalars");
-    }
-    if (typeof item === "string") rejectSensitive("metadata", item);
-    result[key] = item;
-  }
-  return result;
+  inspectPaymentData(value, "metadata", false);
+  return cloneJson(value);
 }
 
 function rejectSensitive(name: string, value: string): void {
   if (RAW_SECRET_RE.test(value)) throw new ChinaPaymentContractError(`${name} contains raw provider secret material`);
   if (CARD_NUMBER_RE.test(value)) throw new ChinaPaymentContractError(`${name} contains possible card data`);
+  if (FORBIDDEN_PAYMENT_VALUE_RE.test(value)) {
+    throw new ChinaPaymentContractError(`${name} contains forbidden payment data`);
+  }
 }
 
 function positiveMinor(value: unknown): number {
@@ -1191,19 +1250,27 @@ function publicSafe<T extends PaymentJsonRecord>(value: T): T {
 }
 
 function inspectPublic(value: unknown, path: string): void {
+  inspectPaymentData(value, path, true);
+}
+
+function inspectPaymentData(value: unknown, path: string, allowSafetyMarkers: boolean): void {
   if (Array.isArray(value)) {
-    value.forEach((item, index) => inspectPublic(item, `${path}[${index}]`));
+    value.forEach((item, index) => inspectPaymentData(item, `${path}[${index}]`, allowSafetyMarkers));
     return;
   }
   if (isRecord(value)) {
     for (const [key, item] of Object.entries(value)) {
       if (item === undefined) continue;
-      const normalized = key.toLowerCase().replaceAll("-", "_");
+      const normalized = canonicalPaymentFieldName(key);
+      if (isForbiddenPaymentField(key) && !(allowSafetyMarkers && isPaymentSafetyMarker(normalized, item))) {
+        throw new ChinaPaymentContractError(`public payment object contains forbidden payment data field at ${path}.${key}`);
+      }
       if (
         SENSITIVE_KEY_RE.test(normalized)
         && normalized !== "domestic_bank_card"
         && normalized !== "signature_header_shape"
         && normalized !== "secret_resolution_deferred"
+        && normalized !== "provider_token"
         && !normalized.endsWith("_ref")
         && !normalized.endsWith("_present")
         && !normalized.endsWith("_collected")
@@ -1211,14 +1278,42 @@ function inspectPublic(value: unknown, path: string): void {
         && !normalized.includes("included")
         && !normalized.includes("headers")
       ) {
-        throw new ChinaPaymentContractError(`public payment object contains sensitive field at ${path}.${key}`);
+        throw new ChinaPaymentContractError(`public payment object contains sensitive payment field at ${path}.${key}`);
       }
       if (normalized.endsWith("_sha256") && typeof item === "string" && SHA256_RE.test(item)) continue;
-      inspectPublic(item, `${path}.${key}`);
+      inspectPaymentData(item, `${path}.${key}`, allowSafetyMarkers);
     }
     return;
   }
   if (typeof value === "string") rejectSensitive(path, value);
+}
+
+function canonicalPaymentFieldName(value: string): string {
+  return value
+    .replace(/([a-z0-9])([A-Z])/g, "$1_$2")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
+function isForbiddenPaymentField(value: string): boolean {
+  const canonical = canonicalPaymentFieldName(value);
+  return FORBIDDEN_PAYMENT_FIELD_NAMES.has(canonical)
+    || canonical.startsWith("kyc_")
+    || canonical.startsWith("raw_kyc_")
+    || canonical.startsWith("cardholder_")
+    || canonical.startsWith("card_holder_")
+    || canonical.endsWith("_cryptogram")
+    || canonical.endsWith("_track_data");
+}
+
+function isPaymentSafetyMarker(canonical: string, value: unknown): boolean {
+  return typeof value === "boolean" && (
+    canonical.endsWith("_present")
+    || canonical.endsWith("_collected")
+    || canonical.endsWith("_collected_by_sdk")
+    || canonical.endsWith("_included")
+  );
 }
 
 function eventKey(tenantId: string, projectId: string, provider: PaymentProvider, providerEventId: string): string {

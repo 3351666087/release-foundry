@@ -126,7 +126,81 @@ test("trade plans reject non-HTTPS callbacks, unsafe idempotency, raw secrets, c
   assert.throws(() => trade("domestic_bank_card", { accountRef: undefined }), /provider account binding/u);
   assert.throws(() => trade("domestic_bank_card", { paymentMethodRef: "6222020202020202020" }), /card data/u);
   assert.throws(() => trade("wechat_pay", { metadata: { payer_openid: "hidden" } }), /sensitive payment field/u);
-  assert.throws(() => trade("wechat_pay", { metadata: { nested: { unsafe: true } } }), /public-safe scalars/u);
+  assert.deepEqual(
+    trade("wechat_pay", { metadata: { nested: { safe: true }, attempts: [{ sequence: 1 }] } }).request_shape.attach.metadata,
+    { nested: { safe: true }, attempts: [{ sequence: 1 }] },
+  );
+});
+
+const forbiddenPaymentFieldAliases = [
+  "pan",
+  "primaryAccountNumber",
+  "primary-account-no",
+  "card number",
+  "cardNo",
+  "account-number",
+  "expiry",
+  "expirationDate",
+  "exp month",
+  "expiry-year",
+  "valid thru",
+  "validThrough",
+  "cvv",
+  "CVC",
+  "cvn",
+  "cid",
+  "security code",
+  "cardSecurityCode",
+  "pin",
+  "pin-block",
+  "otp",
+  "oneTimePassword",
+  "one-time-code",
+  "sms code",
+  "smsOtp",
+  "track1",
+  "track-2",
+  "track data",
+  "paymentCryptogram",
+  "cardholder",
+  "cardHolderName",
+  "raw-cardholder-data",
+  "kyc",
+  "kycDocs",
+  "raw kyc document",
+];
+
+test("forbidden payment data alias matrix is rejected recursively", () => {
+  const metadataFactories = [
+    (field) => ({ [field]: "synthetic-sensitive-placeholder" }),
+    (field) => ({ level_one: { level_two: { [field]: "synthetic-sensitive-placeholder" } } }),
+    (field) => ({ items: [{ safe: true }, { [field]: "synthetic-sensitive-placeholder" }] }),
+  ];
+  for (const field of forbiddenPaymentFieldAliases) {
+    for (const metadataFactory of metadataFactories) {
+      assert.throws(
+        () => trade("wechat_pay", { metadata: metadataFactory(field) }),
+        /forbidden payment data field/u,
+        `expected ${field} to be rejected`,
+      );
+    }
+  }
+});
+
+test("recursive payment metadata permits hosted URLs, provider tokens, and opaque references", () => {
+  const plan = trade("domestic_bank_card", {
+    metadata: {
+      handoff: {
+        hostedUrl: "https://pay.example.test/session/synthetic",
+        provider_token: "provider-ref:acquirer/token/synthetic",
+        "opaque-reference": "opaque-ref:payment/synthetic",
+      },
+      attempts: [{ status: "planned", sequence: 1 }],
+    },
+  });
+  assert.equal(plan.request_shape.metadata.handoff.hostedUrl.startsWith("https://"), true);
+  assert.equal(plan.request_shape.metadata.handoff.provider_token.startsWith("provider-ref:"), true);
+  assert.equal(plan.request_shape.metadata.handoff["opaque-reference"].startsWith("opaque-ref:"), true);
 });
 
 test("notification envelopes retain only digests and header names for all providers", () => {
@@ -537,6 +611,6 @@ test("public serializer rejects sensitive result fields even when callers try to
       request: { operation: "safe" },
       result: { accepted: true, private_key: "provider secret" },
     }),
-    (error) => error instanceof ChinaPaymentContractError && /sensitive field/u.test(error.message),
+    (error) => error instanceof ChinaPaymentContractError && /sensitive (?:payment )?field/u.test(error.message),
   );
 });

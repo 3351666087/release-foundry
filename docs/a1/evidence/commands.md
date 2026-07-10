@@ -1639,6 +1639,53 @@ Residual risks / next A1 queue:
 - Live Stripe/WeChat/Alipay and real card flows require human-managed provider setup and must remain behind test/live-mode gates with secret refs only.
 - Next high-ROI slice: Go Postgres worker durability + object-store MinIO compose write/readback + API key quota enforcement around artifact/trace ingestion.
 
+## Round48 verification commands - 2026-07-10
+
+```powershell
+python -B -m pytest tests/a1/test_account_readiness.py tests/a1/test_round45_provider_adapters.py -q -p no:cacheprovider
+# 36 passed in 1.25s
+
+Push-Location packages/go/ashrclone
+go test ./...
+go vet ./...
+Pop-Location
+# passed
+
+python -B -m pytest tests/a1 -q -p no:cacheprovider
+# 840 passed, 2 skipped
+
+Push-Location packages/ts/ashr-clone
+npm ci
+npm run build
+npm test
+Pop-Location
+# 406 passed, 0 failed
+
+Push-Location tests/integration/go
+go test ./...
+go vet ./...
+Pop-Location
+# passed
+
+python scripts/a2_regenerate_fixtures.py --check
+# all 55 generated fixture files match
+
+python scripts/cl_guard.py hygiene
+python scripts/cl_guard.py commercial
+# passed
+
+docker compose -f infra/docker/docker-compose.self-host.yml config --quiet
+# passed; ASHR_POSTGRES_AUTH_SECRET unset warning expected for ref-only config
+
+git diff --check
+# passed; known CRLF normalization warnings only
+```
+
+One exploratory command referenced nonexistent
+`tests/a1/test_round47_payment_postgres_live.py`; no result is claimed from
+that command and it was not repeated. The committed surface remains disabled,
+fail-closed, plan-only, and contains no provider secret or private evidence.
+
 ### Round43 Bus-Auditor blocking fixes - 2026-07-10T00:55:00Z
 
 Bus-Auditor found three blocking issues and all were fixed before commit:

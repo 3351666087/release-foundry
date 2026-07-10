@@ -1513,6 +1513,79 @@ Residual risks / next A1 queue:
 - Live Stripe/WeChat/Alipay and real card flows require human-managed provider setup and must remain behind test/live-mode gates with secret refs only.
 - Next high-ROI slice: Go Postgres worker durability + object-store MinIO compose write/readback + API key quota enforcement around artifact/trace ingestion.
 
+## Round48 trusted payment verification and Human Operator onboarding - 2026-07-10
+
+Baseline and peer state:
+- Authoritative worktree: `C:/Users/33516/Documents/Ashr_a1_clean_rebase`.
+- Branch: `codex/a1-local-sdk-runner-clean`; committed baseline:
+  `9393a8f3 Build China-first payment runtime and fail-closed ingestion`.
+- Five modified A2 result fixtures were inspected as CRLF/stat noise and were
+  excluded from the A1 commit. No A2 judge or A3 dashboard source was changed.
+
+Round48 delivered:
+1. Go payment notification ingestion now fails closed with HTTP `403` and
+   `trusted_payment_verification_required`.
+2. Caller-provided verification/status fields cannot mutate order or refund
+   state.
+3. Go internal verification artifacts are HMAC-bound and reject tampering.
+4. Python and TypeScript recursively reject forbidden payment data aliases and
+   sensitive values.
+5. PostgreSQL migration `005` adds immutable verification artifacts, exact
+   tenant/project RLS, append-only controls, recursive metadata admission, and
+   provider-authoritative order/refund transitions.
+6. OAuth account-ready contracts cover GitHub, Google, WeChat, and Alipay with
+   exact redirect allowlists, state/nonce hashing, replay protection, issuer,
+   audience, and account-binding checks.
+7. OAuth providers remain disabled by default and perform no network I/O or
+   secret resolution.
+8. Human Operator receipt schema and CLI accept only non-sensitive account
+   readiness metadata and reject secrets, tokens, authorization codes, payment
+   card data, and KYC material.
+9. TypeScript parity CI installs and builds the package before executing Node
+   tests; the generated Python/TypeScript gap matrix was refreshed.
+10. Public evidence documents the cross-layer forbidden payment-data matrix
+    and exact account-holder task boundaries.
+
+Truth flags:
+- `disabled=true`
+- `fail_closed=true`
+- `plan_only=true`
+- `real_provider_calls=false`
+- `real_card_acceptance=false`
+- `live_money_activation=false`
+
+Validation:
+- Focused Python after final negative-test literal hardening:
+  `36 passed`.
+- Full A1 Python: `840 passed, 2 skipped`.
+- TypeScript after Human Operator CLI parity merge:
+  `406 passed, 0 failed`.
+- Go package `go test ./...` and `go vet ./...`: passed.
+- Go integration `go test ./...` and `go vet ./...`: passed.
+- A2 generated fixture check: all `55` generated fixtures match.
+- CL hygiene and commercial guards: passed.
+- Docker self-host compose config: passed; missing
+  `ASHR_POSTGRES_AUTH_SECRET` warning is expected because only a secret
+  reference is committed.
+- `git diff --check`: passed with known A2/TS-matrix CRLF warnings only.
+
+Failures and restrictions:
+- An attempted command referenced nonexistent
+  `tests/a1/test_round47_payment_postgres_live.py`; it was not repeated.
+  Disposable PostgreSQL 16 migration validation was completed separately.
+- Process-local HMAC is experimental evidence only. Production requires
+  KMS/Vault-backed key IDs, rotation, revocation, and isolated environments.
+- No live provider onboarding, payment, card acceptance, KYC, secret handling,
+  or production activation is claimed.
+
+Next queue:
+1. Complete account-holder GitHub OAuth setup through the Human Operator flow.
+2. Add secret-manager/KMS resolver, rotation, and revocation contracts.
+3. Add provider-specific WeChat Pay API v3 and Alipay RSA2 verification
+   executors after non-sensitive account readiness receipts exist.
+4. Run disposable Postgres `NOBYPASSRLS` payment transition proof in CI.
+5. Add transactional order/refund/ledger/quota/audit/outbox persistence.
+
 ### Round43 Bus-Auditor blocking fixes - 2026-07-10T00:55:00Z
 
 Bus-Auditor found three blocking issues and all were fixed before commit:

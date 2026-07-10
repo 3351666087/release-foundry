@@ -329,6 +329,110 @@ def test_domestic_bank_card_adversarial_raw_material_is_rejected(field, value):
         )
 
 
+FORBIDDEN_PAYMENT_FIELD_ALIASES = (
+    "pan",
+    "primaryAccountNumber",
+    "primary-account-no",
+    "card number",
+    "cardNo",
+    "account-number",
+    "expiry",
+    "expirationDate",
+    "exp month",
+    "expiry-year",
+    "valid thru",
+    "validThrough",
+    "cvv",
+    "CVC",
+    "cvn",
+    "cid",
+    "security code",
+    "cardSecurityCode",
+    "pin",
+    "pin-block",
+    "otp",
+    "oneTimePassword",
+    "one-time-code",
+    "sms code",
+    "smsOtp",
+    "track1",
+    "track-2",
+    "track data",
+    "paymentCryptogram",
+    "cardholder",
+    "cardHolderName",
+    "raw-cardholder-data",
+    "kyc",
+    "kycDocs",
+    "raw kyc document",
+)
+
+
+@pytest.mark.parametrize("field_alias", FORBIDDEN_PAYMENT_FIELD_ALIASES)
+@pytest.mark.parametrize(
+    "metadata_factory",
+    [
+        lambda field: {field: "synthetic-sensitive-placeholder"},
+        lambda field: {"level_one": {"level_two": {field: "synthetic-sensitive-placeholder"}}},
+        lambda field: {"items": [{"safe": True}, {field: "synthetic-sensitive-placeholder"}]},
+    ],
+)
+def test_forbidden_payment_data_alias_matrix_is_rejected_recursively(
+    field_alias, metadata_factory
+):
+    with pytest.raises(ChinaPaymentContractError, match="forbidden payment data"):
+        _domain("wechat_pay").create_trade_plan(
+            tenant_id="tenant_cn",
+            project_id="project_cn",
+            order_ref="provider-ref:wechat_pay/test/order/forbidden-matrix",
+            channel="native",
+            amount_minor=880,
+            currency="CNY",
+            description="Hosted payment",
+            notify_url="https://api.ashr-clone.invalid/payments/notify",
+            return_url="https://app.ashr-clone.invalid/payments/return",
+            idempotency_key=f"trade:forbidden:{field_alias.replace(' ', '-')}",
+            metadata=metadata_factory(field_alias),
+        )
+
+
+def test_recursive_payment_metadata_allows_hosted_provider_token_and_opaque_refs():
+    plan = _domain("domestic_bank_card").create_trade_plan(
+        tenant_id="tenant_cn",
+        project_id="project_cn",
+        order_ref="provider-ref:domestic_bank_card/test/order/safe-matrix",
+        channel="hosted",
+        amount_minor=880,
+        currency="CNY",
+        description="Hosted payment",
+        notify_url="https://api.ashr-clone.invalid/payments/notify",
+        return_url="https://app.ashr-clone.invalid/payments/return",
+        idempotency_key="trade:domestic-card:safe-matrix",
+        context_refs={
+            "account_binding_ref": "provider-ref:domestic_bank_card/test/account-binding/ashr",
+            "hosted_flow_ref": "provider-ref:domestic_bank_card/test/hosted-flow/safe",
+        },
+        metadata={
+            "handoff": {
+                "hostedUrl": "https://pay.example.invalid/session/synthetic",
+                "provider_token": "provider-ref:acquirer/token/synthetic",
+                "opaque-reference": "opaque-ref:payment/synthetic",
+            },
+            "attempts": [{"status": "planned", "sequence": 1}],
+        },
+    )
+
+    assert plan["request_shape"]["metadata"]["handoff"]["hostedUrl"].startswith(
+        "https://"
+    )
+    assert plan["request_shape"]["metadata"]["handoff"]["provider_token"].startswith(
+        "provider-ref:"
+    )
+    assert plan["request_shape"]["metadata"]["handoff"]["opaque-reference"].startswith(
+        "opaque-ref:"
+    )
+
+
 def test_merchant_configuration_requires_refs_certificates_and_wechat_api_v3_ref():
     public = _config("wechat_pay").to_public_dict()
 

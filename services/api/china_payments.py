@@ -68,10 +68,82 @@ _CHANNEL_ALIASES = {
     "token": "token_ref",
     "tokenized": "token_ref",
 }
-_FORBIDDEN_BANK_CARD_MATERIAL_RE = re.compile(
-    r"(?:\bpan\b|\bcvc\b|\bcvv\b|\botp\b|one.?time.?password|"
-    r"cardholder|card_number|account_number|expiry|track[12]|pin_block)",
+_CAMEL_CASE_BOUNDARY_RE = re.compile(r"(?<=[a-z0-9])(?=[A-Z])")
+_PAYMENT_FIELD_SEPARATOR_RE = re.compile(r"[^a-z0-9]+")
+_POSSIBLE_PAN_RE = re.compile(r"(?<!\d)(?:\d[ -]?){13,19}(?!\d)")
+_FORBIDDEN_PAYMENT_VALUE_RE = re.compile(
+    r"(?:\b(?:pan|primary[ _-]*account[ _-]*(?:number|no)|card[ _-]*(?:number|no)|"
+    r"account[ _-]*(?:number|no)|exp(?:iry|iration)?(?:[ _-]*(?:month|year|date))?|"
+    r"valid[ _-]*(?:thru|through)|cvv|cvc|cvn|cid|security[ _-]*code|pin|"
+    r"one[ _-]*time[ _-]*(?:password|code)|otp|sms[ _-]*code|track[ _-]*(?:1|2|data)|"
+    r"cryptogram|cardholder|kyc[ _-]*(?:doc|docs|document|documents|data))\b"
+    r"(?:\s*(?:=|:)\s*|\s+)\S+)",
     re.IGNORECASE,
+)
+_FORBIDDEN_PAYMENT_FIELD_NAMES = frozenset(
+    {
+        "pan",
+        "primary_account_number",
+        "primary_account_no",
+        "card_number",
+        "card_no",
+        "account_number",
+        "account_no",
+        "expiry",
+        "expiration",
+        "expiry_date",
+        "expiration_date",
+        "exp",
+        "exp_date",
+        "exp_month",
+        "expiry_month",
+        "expiration_month",
+        "exp_year",
+        "expiry_year",
+        "expiration_year",
+        "valid_thru",
+        "valid_through",
+        "cvv",
+        "cvc",
+        "cvn",
+        "cid",
+        "security_code",
+        "card_security_code",
+        "pin",
+        "pin_block",
+        "otp",
+        "one_time_password",
+        "one_time_code",
+        "sms_code",
+        "sms_otp",
+        "track1",
+        "track_1",
+        "track2",
+        "track_2",
+        "track_data",
+        "cryptogram",
+        "payment_cryptogram",
+        "cardholder",
+        "card_holder",
+        "cardholder_name",
+        "card_holder_name",
+        "cardholder_data",
+        "card_holder_data",
+        "raw_cardholder",
+        "raw_cardholder_data",
+        "kyc",
+        "kyc_data",
+        "kyc_doc",
+        "kyc_docs",
+        "kyc_document",
+        "kyc_documents",
+        "raw_kyc",
+        "raw_kyc_data",
+        "raw_kyc_doc",
+        "raw_kyc_docs",
+        "raw_kyc_document",
+        "raw_kyc_documents",
+    }
 )
 _CAPABILITY_MATRIX: dict[str, dict[str, dict[str, Any]]] = {
     "wechat_pay": {
@@ -402,7 +474,7 @@ class ChinaPaymentDomain:
             project_id=project_id,
             idempotency_key=idempotency_key,
             urls=urls,
-            metadata=metadata,
+            metadata=None,
         )
         _validate_ref("order_ref", order_ref)
         _validate_cny_amount(amount_minor, currency)
@@ -1057,15 +1129,30 @@ def _validate_cny_amount(amount_minor: int, currency: str) -> None:
 
 
 def _validate_public_mapping(name: str, values: Mapping[str, Any]) -> None:
-    for key, value in values.items():
-        key_text = str(key)
-        if _FORBIDDEN_BANK_CARD_MATERIAL_RE.search(key_text):
-            raise ChinaPaymentContractError(
-                f"{name} must not contain PAN, CVC, OTP, or raw cardholder fields"
-            )
-        if isinstance(value, (dict, list, tuple, set, bytes, bytearray)):
-            raise ChinaPaymentContractError(f"{name} values must be scalar references")
-        _reject_bank_card_material(key_text, str(value))
+    _validate_public_value(name, values)
+
+
+def _validate_public_value(path: str, value: Any) -> None:
+    if isinstance(value, Mapping):
+        for key, item in value.items():
+            key_text = str(key)
+            if _is_forbidden_payment_field(key_text):
+                raise ChinaPaymentContractError(
+                    f"{path} must not contain forbidden payment data "
+                    f"(PAN/CVC/OTP/cardholder/KYC) field {key_text!r}"
+                )
+            _validate_public_value(f"{path}.{key_text}", item)
+        return
+    if isinstance(value, (list, tuple, set)):
+        for index, item in enumerate(value):
+            _validate_public_value(f"{path}[{index}]", item)
+        return
+    if isinstance(value, (bytes, bytearray)):
+        raise ChinaPaymentContractError(f"{path} must not contain raw binary payment data")
+    if value is not None and not isinstance(value, (str, int, float, bool)):
+        raise ChinaPaymentContractError(f"{path} contains an unsupported public value")
+    if isinstance(value, str):
+        _reject_bank_card_material(path, value)
 
 
 def _safe_public_text(name: str, value: str) -> str:
@@ -1075,10 +1162,30 @@ def _safe_public_text(name: str, value: str) -> str:
 
 
 def _reject_bank_card_material(name: str, value: str) -> None:
-    if _FORBIDDEN_BANK_CARD_MATERIAL_RE.search(name) or _FORBIDDEN_BANK_CARD_MATERIAL_RE.search(value):
+    if (
+        _is_forbidden_payment_field(name)
+        or _POSSIBLE_PAN_RE.search(value)
+        or _FORBIDDEN_PAYMENT_VALUE_RE.search(value)
+    ):
         raise ChinaPaymentContractError(
-            "PAN, CVC, OTP, and raw cardholder data are forbidden"
+            "forbidden payment data (PAN/CVC/OTP/cardholder/KYC) must use a "
+            "hosted URL, provider token, or opaque reference"
         )
+
+
+def _canonical_payment_field_name(value: str) -> str:
+    with_boundaries = _CAMEL_CASE_BOUNDARY_RE.sub("_", str(value).strip())
+    return _PAYMENT_FIELD_SEPARATOR_RE.sub("_", with_boundaries.lower()).strip("_")
+
+
+def _is_forbidden_payment_field(value: str) -> bool:
+    canonical = _canonical_payment_field_name(value)
+    if canonical in _FORBIDDEN_PAYMENT_FIELD_NAMES:
+        return True
+    return (
+        canonical.startswith(("kyc_", "raw_kyc_", "cardholder_", "card_holder_"))
+        or canonical.endswith(("_cryptogram", "_track_data"))
+    )
 
 
 def _validate_scope(tenant_id: str, project_id: str) -> None:

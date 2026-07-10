@@ -67,3 +67,27 @@ verified_trigger="$(
     --command "SELECT COUNT(*) FROM pg_trigger WHERE tgname = 'billing_provider_events_require_verified_signature' AND NOT tgisinternal;"
 )"
 test "$verified_trigger" = "1"
+
+payment_security_objects="$(
+  psql \
+    --host "$ASHR_POSTGRES_HOST" \
+    --username "$ASHR_POSTGRES_USER" \
+    --dbname "$ASHR_POSTGRES_DB" \
+    --tuples-only \
+    --no-align \
+    --set ON_ERROR_STOP=1 \
+    --command "SELECT concat_ws(',', to_regclass('public.china_payment_verification_artifacts'), to_regprocedure('public.a1_current_project_id()'), to_regprocedure('public.a1_assert_role_nobypassrls(name)'));"
+)"
+test "$payment_security_objects" = "china_payment_verification_artifacts,a1_current_project_id(),a1_assert_role_nobypassrls(name)"
+
+payment_security_triggers="$(
+  psql \
+    --host "$ASHR_POSTGRES_HOST" \
+    --username "$ASHR_POSTGRES_USER" \
+    --dbname "$ASHR_POSTGRES_DB" \
+    --tuples-only \
+    --no-align \
+    --set ON_ERROR_STOP=1 \
+    --command "SELECT COUNT(*) FROM pg_trigger WHERE tgname IN ('china_payment_notifications_require_artifact', 'china_payment_orders_require_verified_transition', 'china_payment_refunds_require_verified_transition', 'china_payment_verification_artifacts_append_only') AND NOT tgisinternal;"
+)"
+test "$payment_security_triggers" = "4"

@@ -79,12 +79,43 @@ from .storage import (
 )
 from .types import CaseResult, GradeResult, Observation, RunResult, ToolCall
 
+_ACCOUNT_READINESS_EXPORTS = {
+    "ACCOUNT_READINESS_RECEIPT_VERSION": "ACCOUNT_READINESS_RECEIPT_VERSION",
+    "ACCOUNT_READINESS_ENVIRONMENTS": "ENVIRONMENTS",
+    "ACCOUNT_READINESS_PROVIDERS": "PROVIDERS",
+    "ACCOUNT_READINESS_STATUSES": "STATUSES",
+    "AccountReadinessError": "AccountReadinessError",
+    "AccountReadinessReceipt": "AccountReadinessReceipt",
+    "build_receipt_template": "build_receipt_template",
+    "validate_account_readiness_receipt": "validate_account_readiness_receipt",
+}
+
+
+def __getattr__(name: str):
+    """Load CLI-backed account-readiness exports without pre-importing its module."""
+    target = _ACCOUNT_READINESS_EXPORTS.get(name)
+    if target is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    from . import account_readiness
+
+    value = getattr(account_readiness, target)
+    globals()[name] = value
+    return value
+
 __all__ = [
     "ASHR_API_ENV_VAR",
     "ASHR_API_FIELD_MAP_VERSION",
     "ASHR_DEFAULT_BASE_URL",
     "ASHR_LABS_API_ENV_VAR",
     "ASHR_LABS_BASE_URL_ENV_VAR",
+    "ACCOUNT_READINESS_RECEIPT_VERSION",
+    "ACCOUNT_READINESS_ENVIRONMENTS",
+    "ACCOUNT_READINESS_PROVIDERS",
+    "ACCOUNT_READINESS_STATUSES",
+    "AccountReadinessError",
+    "AccountReadinessReceipt",
+    "build_receipt_template",
+    "validate_account_readiness_receipt",
     "DEFAULT_REQUEST_INPUT_SCHEMA",
     "AshrApiCallPlan",
     "AshrApiCallRecord",

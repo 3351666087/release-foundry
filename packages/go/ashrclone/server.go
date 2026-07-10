@@ -1113,6 +1113,7 @@ func writeEnvelopeResult[T any](writer http.ResponseWriter, status int, result T
 func writeServiceError(writer http.ResponseWriter, err error) {
 	var conflict IdempotencyConflictError
 	var paymentConflict PaymentDomainConflictError
+	var paymentVerificationRequired PaymentNotificationVerificationRequiredError
 	var reconciliationConflict PaymentReconciliationConflictError
 	var reconciliationTransition PaymentReconciliationTransitionError
 	var notFound NotFoundError
@@ -1123,6 +1124,8 @@ func writeServiceError(writer http.ResponseWriter, err error) {
 		writeError(writer, http.StatusConflict, "idempotency_conflict", conflict.Error())
 	case errors.As(err, &paymentConflict):
 		writeError(writer, http.StatusConflict, "payment_domain_conflict", paymentConflict.Error())
+	case errors.As(err, &paymentVerificationRequired):
+		writeError(writer, http.StatusForbidden, "trusted_payment_verification_required", paymentVerificationRequired.Error())
 	case errors.As(err, &reconciliationConflict):
 		writeError(writer, http.StatusConflict, "payment_reconciliation_conflict", reconciliationConflict.Error())
 	case errors.As(err, &reconciliationTransition):
