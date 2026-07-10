@@ -6164,3 +6164,18 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
   - `node --test tests/a3/a3_live_ops_control_plane.test.mjs tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs` -> `101 pass / 0 fail`
   - API-backed Playwright subset for commercial admin, release sign-off, and trust blockers -> `3 passed`
 - Commercial reason: componentizing a high-value control surface makes future role-based pages, route-level loading, and hosted product iteration safer without changing A1/A2 contracts.
+
+## 2026-07-10 - Billing + Workflow Readiness Component Extraction Pass
+
+- Extracted Billing Migration Readiness and Live Workflow Readiness rendering from `apps/dashboard/src/app.mjs` into focused components:
+  - `apps/dashboard/src/components/billing-migration-readiness-panel.mjs`
+  - `apps/dashboard/src/components/live-workflow-readiness-panel.mjs`
+- Both components accept one normalized readiness contract and render with DOM nodes plus `textContent`; neither component uses `innerHTML`.
+- Preserved A1/A2 ownership boundaries: Billing Migration continues to display A1-owned ledger/API evidence read-only, while Live Workflow consumes A1 run/trace and A2 judge/release-gate outputs without changing their semantics.
+- Reduced `app.mjs` to 3,874 lines. The web app still needs further extraction, especially Report Center and Reviewer Workflow, before route-level migration is practical.
+- Added browser proof that the extracted Live Workflow component still renders GitHub publishing, human review, billing readback, hosted report lifecycle, and the A1/A2 boundary.
+- Verification:
+  - `node --test tests/a3/a3_live_ops_control_plane.test.mjs tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs` -> `101 pass / 0 fail`
+  - `cmd /c npx playwright test tests/e2e/a3-dashboard-api-backed.spec.ts --grep "Billing Migration Readiness|Live Workflow Readiness|release publish chain continuity"` -> `3 passed`
+- Visual evidence: `docs/screenshots/a3-live-workflow-readiness-api-backed-2026-07-10.png`.
+- Commercial reason: these panels are now independently testable product surfaces, which makes future tenant-aware routes and API loading safer without pretending hosted billing or live GitHub credentials already exist.

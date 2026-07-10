@@ -96,6 +96,28 @@ test.describe("A3 API-backed dashboard E2E", () => {
     expect(consoleErrors, "billing migration readiness dashboard evidence should not emit browser console errors").toEqual([]);
   });
 
+  test("renders Live Workflow Readiness through the extracted dashboard component", async ({ page }) => {
+    const consoleErrors = collectConsoleErrors(page);
+
+    await page.goto(apiBackedPath);
+    await waitForApiDashboard(page);
+
+    const readiness = section(page, "#live-workflow-readiness");
+    await expect(readiness).toContainText("Live Workflow Readiness");
+    await expect(readiness).toContainText("GitHub PR check live publishing");
+    await expect(readiness).toContainText("Reviewer approve / deny / waiver workflow");
+    await expect(readiness).toContainText("Billing/admin read real usage/billing state");
+    await expect(readiness).toContainText("Report share link revocable, expiring, audited");
+    await expect(readiness).toContainText("A3 reads A1/A2 evidence");
+    await expect(readiness).not.toContainText("[object HTMLDivElement]");
+
+    await readiness.screenshot({
+      path: "docs/screenshots/a3-live-workflow-readiness-api-backed-2026-07-10.png"
+    });
+
+    expect(consoleErrors, "live workflow readiness should not emit browser console errors").toEqual([]);
+  });
+
   test("shows review filters, share governance, and cloud summary strip", async ({ page }) => {
     const consoleErrors = collectConsoleErrors(page);
     await page.goto(apiBackedPath);

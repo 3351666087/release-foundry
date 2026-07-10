@@ -852,4 +852,9 @@
 - [x] The Live Ops component uses DOM nodes and `textContent` rather than `innerHTML`.
 - [x] Component wiring tests load the new file directly and preserve release sign-off/A1/A2 contract assertions.
 - [x] API-backed Playwright remains green after Live Ops component extraction (`3 passed`).
-- [ ] Continue extracting Report Center, Reviewer Workflow, and Billing Migration from the remaining 3915-line `app.mjs`.
+- [x] Billing Migration Readiness rendering is extracted into `components/billing-migration-readiness-panel.mjs`.
+- [x] Live Workflow Readiness rendering is extracted into `components/live-workflow-readiness-panel.mjs`.
+- [x] Both readiness components use DOM nodes and `textContent` rather than `innerHTML`.
+- [x] Playwright proves Billing Migration, Live Workflow, and release publish-chain continuity after extraction (`3 passed`).
+- [x] Screenshot evidence exists at `docs/screenshots/a3-live-workflow-readiness-api-backed-2026-07-10.png`.
+- [ ] Continue extracting Report Center and Reviewer Workflow from the remaining 3,874-line `app.mjs`.

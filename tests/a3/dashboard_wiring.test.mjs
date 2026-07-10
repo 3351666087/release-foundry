@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 
 async function loadDashboardHtml() {
-  const [html, app, apiClient, visualShell, styles, notificationComponent, saasAdminComponent, liveOpsComponent] = await Promise.all([
+  const [html, app, apiClient, visualShell, styles, notificationComponent, saasAdminComponent, liveOpsComponent, billingMigrationComponent, liveWorkflowComponent] = await Promise.all([
     readFile(new URL("../../apps/dashboard/index.html", import.meta.url), "utf8"),
     readFile(new URL("../../apps/dashboard/src/app.mjs", import.meta.url), "utf8"),
     readFile(new URL("../../apps/dashboard/src/api-client.mjs", import.meta.url), "utf8"),
@@ -11,9 +11,11 @@ async function loadDashboardHtml() {
     readFile(new URL("../../apps/dashboard/src/styles.css", import.meta.url), "utf8"),
     readFile(new URL("../../apps/dashboard/src/components/notification-control-plane.mjs", import.meta.url), "utf8"),
     readFile(new URL("../../apps/dashboard/src/components/saas-admin-console.mjs", import.meta.url), "utf8"),
-    readFile(new URL("../../apps/dashboard/src/components/live-ops-control-plane.mjs", import.meta.url), "utf8")
+    readFile(new URL("../../apps/dashboard/src/components/live-ops-control-plane.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../../apps/dashboard/src/components/billing-migration-readiness-panel.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../../apps/dashboard/src/components/live-workflow-readiness-panel.mjs", import.meta.url), "utf8")
   ]);
-  return [html, app, apiClient, visualShell, styles, notificationComponent, saasAdminComponent, liveOpsComponent].join("\n");
+  return [html, app, apiClient, visualShell, styles, notificationComponent, saasAdminComponent, liveOpsComponent, billingMigrationComponent, liveWorkflowComponent].join("\n");
 }
 
 function assertNavigationTarget(source, hash) {
@@ -572,6 +574,7 @@ test("A3 dashboard wires API-backed SaaS runtime and hosted report sharing", asy
 
 test("A3 dashboard wires billing migration readiness into API-backed and static console", async () => {
   const html = await loadDashboardHtml();
+  const component = await readFile(new URL("../../apps/dashboard/src/components/billing-migration-readiness-panel.mjs", import.meta.url), "utf8");
 
   assert.match(html, /id="billing-migration-readiness"/);
   assert.match(html, /Billing Migration Readiness/);
@@ -586,10 +589,13 @@ test("A3 dashboard wires billing migration readiness into API-backed and static 
   assert.match(html, /GET \/api\/a3\/billing\/migration-readiness/);
   assert.match(html, /A1 billing ledger migration, replay, and read-only billing API evidence/);
   assert.match(html, /billing_migration_readiness/);
+  assert.match(html, /renderBillingMigrationReadinessPanel/);
+  assert.doesNotMatch(component, /innerHTML/);
 });
 
 test("A3 dashboard wires live workflow readiness for GitHub, review, billing, and hosted reports", async () => {
   const html = await loadDashboardHtml();
+  const component = await readFile(new URL("../../apps/dashboard/src/components/live-workflow-readiness-panel.mjs", import.meta.url), "utf8");
 
   assert.match(html, /id="live-workflow-readiness"/);
   assert.match(html, /Live Workflow Readiness/);
@@ -605,6 +611,8 @@ test("A3 dashboard wires live workflow readiness for GitHub, review, billing, an
   assert.match(html, /GitHub, reviewer, billing, and hosted-report readiness/);
   assert.match(html, /human records/);
   assert.match(html, /need live backend/);
+  assert.match(html, /renderLiveWorkflowReadinessPanel/);
+  assert.doesNotMatch(component, /innerHTML/);
 });
 
 test("A3 dashboard wires live ops control plane for PR, review, billing, human ops, and share links", async () => {

@@ -61,6 +61,8 @@ import { renderEnterpriseReadinessPanel } from "./components/enterprise-readines
 import { renderProductConsolePanel } from "./components/product-console-panel.mjs";
 import { renderNotificationControlPlanePanel } from "./components/notification-control-plane.mjs";
 import { renderLiveOpsControlPlanePanel } from "./components/live-ops-control-plane.mjs";
+import { renderBillingMigrationReadinessPanel } from "./components/billing-migration-readiness-panel.mjs";
+import { renderLiveWorkflowReadinessPanel } from "./components/live-workflow-readiness-panel.mjs";
 import { buildSaasAdminConsole } from "../../../services/report/a3_saas_admin.mjs";
 import { buildEnterpriseReadinessReport } from "../../../services/report/a3_enterprise_readiness.mjs";
 import { buildA3ProductConsole } from "../../../services/report/a3_product_console.mjs";
@@ -3602,34 +3604,7 @@ function renderBillingMigrationReadiness() {
   const status = readiness.summary?.status || readiness.status || "checking";
   statusBadge.textContent = status;
   statusBadge.className = `badge ${readiness.summary?.ready_for_live_customer_billing ? "pass" : readiness.schema_version ? "warn" : "neutral"}`;
-  const upstream = readiness.upstream_evidence || {};
-  const dbTables = Array.isArray(readiness.db_contract?.tables) ? readiness.db_contract.tables : [];
-  const apiRoutes = Array.isArray(readiness.api_contract) ? readiness.api_contract : [];
-  $("billing-migration-body").innerHTML = `
-    <div class="caption">${escapeHtml(readiness.purpose || "Billing migration readiness is not attached.")}</div>
-    <div class="health-grid">
-      ${healthTileMarkup(readiness.summary?.upstream_commit_count || 0, "A1 commits")}
-      ${healthTileMarkup(dbTables.length, "billing tables")}
-      ${healthTileMarkup(readiness.summary?.consumed_evidence_count || 0, "evidence inputs")}
-      ${healthTileMarkup(readiness.summary?.ready_for_live_customer_billing ? "yes" : "no", "live billing")}
-    </div>
-    ${renderReportTable(["A1 evidence", "Source", "A3 state"], Object.entries(upstream).slice(0, 5).map(([key, item]) => [
-      key,
-      item.source_commit || item.summary_path || item.fixture_path || "local",
-      item.a3_consumption_state || item.status || "mapped"
-    ]), "No A1 billing migration evidence is loaded.")}
-    ${renderReportTable(["DB table", "Purpose", "Tenant scope"], dbTables.map((table) => [
-      table.name,
-      table.purpose,
-      `${table.tenant_column || "organization_id"} / ${table.project_column || "project_id"}`
-    ]), "No billing migration DB tables are mapped.")}
-    ${renderReportTable(["API route", "Owner", "Status"], apiRoutes.map((route) => [
-      route.route,
-      route.owner_lane,
-      route.status
-    ]), "No billing migration API routes are mapped.")}
-    <div class="caption">A3 claim: ${escapeHtml(readiness.summary?.a3_customer_claim || "A3 stays read-only until A1 exposes authenticated billing ledger APIs.")}</div>
-  `;
+  renderBillingMigrationReadinessPanel($("billing-migration-body"), readiness);
 }
 
 function refreshLiveOpsControlPlane() {
@@ -3653,23 +3628,7 @@ function renderLiveWorkflowReadiness() {
   const statusBadge = $("live-workflow-status");
   statusBadge.textContent = readiness.status || "checking";
   statusBadge.className = `badge ${readiness.status === "live_evidence_observed" ? "pass" : readiness.status === "contract_ready_needs_live_credentials" ? "warn" : "neutral"}`;
-  const capabilities = Array.isArray(readiness.capabilities) ? readiness.capabilities : [];
-  $("live-workflow-body").innerHTML = `
-    <div class="caption">${escapeHtml(readiness.commercial_value || "Live workflow readiness is not attached.")}</div>
-    <div class="health-grid">
-      ${healthTileMarkup(readiness.ready_capability_count || 0, "ready capabilities")}
-      ${healthTileMarkup(readiness.needs_backend_or_credentials_count || 0, "need live backend")}
-      ${healthTileMarkup(readiness.human_action_count || 0, "human records")}
-      ${healthTileMarkup(readiness.audit_backed_count || 0, "audit backed")}
-    </div>
-    ${renderReportTable(["Next capability", "Status", "Dashboard value"], capabilities.map((item) => [
-      item.label,
-      item.status,
-      item.dashboard_value
-    ]), "No live workflow readiness capabilities are loaded.")}
-    ${renderReportTable(["Next action"], (readiness.next_actions || []).map((item) => [item]), "No live workflow next actions are pending.")}
-    <div class="caption">Boundary: ${escapeHtml(readiness.a1_a2_boundary || "A3 keeps live workflow evidence downstream of A1/A2 contracts.")}</div>
-  `;
+  renderLiveWorkflowReadinessPanel($("live-workflow-body"), readiness);
 }
 
 function renderLiveOpsControlPlane() {
