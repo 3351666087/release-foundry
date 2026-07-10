@@ -591,7 +591,7 @@ function codeCrawlChunkRow(chunk) {
       <span>${escapeHtml(chunk.signal_count)} signal(s)</span>
       <span>${escapeHtml(chunk.size_bytes)} bytes</span>
     </div>
-    <div class="muted">${escapeHtml(chunk.top_signals.map((item) => `${item.signal}:${item.count}`).join(", ") || "no signals")} �?${escapeHtml(chunk.a3_decision)}</div>
+    <div class="muted">${escapeHtml(chunk.top_signals.map((item) => `${item.signal}:${item.count}`).join(", ") || "no signals")} 锟?${escapeHtml(chunk.a3_decision)}</div>
   `;
   return node;
 }
@@ -1292,6 +1292,63 @@ function reviewWorkflowScopeRow(workflow = {}) {
   return node;
 }
 
+function reviewWorkflowOperatorTimelineRow(records = [], selectedReceipt = {}, reportCenter = {}) {
+  const timelineRecords = Array.isArray(records) ? records.slice(-3).reverse() : [];
+  const latestShare = Array.isArray(reportCenter.reports) ? reportCenter.reports.slice().reverse().find((item) => item.share_link) : null;
+  const events = [];
+  for (const record of timelineRecords) {
+    events.push({
+      label: record.record_type || "review_record",
+      status: record.status || "unknown",
+      detail: [record.record_id, record.release_version || record.run_id || "no release"].filter(Boolean).join(" / "),
+      actor: record.signature?.status || "hash sealed"
+    });
+  }
+  if (selectedReceipt && selectedReceipt.schema_version) {
+    events.unshift({
+      label: selectedReceipt.record_type || "latest_receipt",
+      status: selectedReceipt.status || "unknown",
+      detail: [selectedReceipt.record_id || "no record", selectedReceipt.event_envelope?.event_type || "no event"].join(" / "),
+      actor: selectedReceipt.real_cloud_mutation_performed ? "real write" : "local audit receipt"
+    });
+  }
+  if (latestShare) {
+    events.push({
+      label: latestShare.status === "revoked" ? "report_revoked" : "report_shareable",
+      status: latestShare.status || "unknown",
+      detail: [latestShare.report_id || "report", latestShare.share_link?.access_mode || latestShare.status || "unknown"].join(" / "),
+      actor: latestShare.share_link?.revoked_at ? "revoked" : latestShare.share_link?.expires_at ? "expires " + latestShare.share_link.expires_at : "no expiry"
+    });
+  }
+  const node = document.createElement("div");
+  node.className = "matrix-row";
+  node.innerHTML =
+    '<div class="matrix-head">' +
+      '<strong>Operator Timeline</strong>' +
+      '<span class="badge info">audit-backed</span>' +
+    '</div>' +
+    '<div class="muted">Human approval records and hosted-share lifecycle should read like one operator-visible timeline before sign-off.</div>';
+  const list = document.createElement("div");
+  list.className = "timeline-list";
+  if (!events.length) {
+    const empty = document.createElement("div");
+    empty.className = "timeline-item muted";
+    empty.textContent = "No operator timeline events recorded yet.";
+    list.appendChild(empty);
+  } else {
+    for (const event of events) {
+      const item = document.createElement("div");
+      item.className = "timeline-item";
+      item.innerHTML =
+        '<strong>' + escapeHtml(event.label) + '</strong>' +
+        '<span class="badge ' + reviewerWorkflowStatusClass(event.status || "unknown") + '">' + escapeHtml(event.status || "unknown") + '</span>' +
+        '<div class="case-meta"><span>' + escapeHtml(event.detail || "") + '</span><span>' + escapeHtml(event.actor || "") + '</span></div>';
+      list.appendChild(item);
+    }
+  }
+  node.appendChild(list);
+  return node;
+}
 function reviewWorkflowShareReadinessRow(workflow = {}, reportCenter = {}) {
   const summary = reportCenter.summary || {};
   const approvals = Number(workflow.approval_count || 0);
@@ -1435,7 +1492,7 @@ function reviewerWorkflowItemRow(item) {
       <span>diffs ${escapeHtml(item.evidence_counts.tool_diffs)}</span>
       <span>judge ${escapeHtml(item.evidence_counts.judge_evidence)}</span>
     </div>
-    <div class="muted">Missing: ${escapeHtml(item.missing_artifacts.join(", ") || "none")} �?${escapeHtml(item.next_action)}</div>
+    <div class="muted">Missing: ${escapeHtml(item.missing_artifacts.join(", ") || "none")} 锟?${escapeHtml(item.next_action)}</div>
   `;
   node.addEventListener("click", () => {
     state.selectedCaseId = item.case_id;
@@ -1960,6 +2017,26 @@ function buildExternalPublishBlockerSummary(blockers = {}) {
   return `${blockers.status || "unknown"}: ${blockers.blocker_count || 0} blocked report(s). ${(reasons[0] || "No blocker reason loaded.")}`;
 }
 
+function shareGovernanceLedgerRow(reportCenter = {}, reviewWorkflow = {}) {
+  const governance = reportCenter.share_link_governance || {};
+  const summary = reportCenter.summary || {};
+  const workflowRecords = Number(reviewWorkflow.record_count || 0);
+  const node = document.createElement("div");
+  node.className = "gap-row";
+  node.innerHTML =
+    '<div class="gap-head">' +
+      '<strong>Share Governance Ledger</strong>' +
+      '<span class="badge ' + (governance.status === "share_links_governed" ? "pass" : "warn") + '">' + escapeHtml(governance.status || "unknown") + '</span>' +
+    '</div>' +
+    '<div class="case-meta">' +
+      '<span>' + escapeHtml(summary.shareable_count || 0) + ' shareable</span>' +
+      '<span>' + escapeHtml(summary.revoked_count || 0) + ' revoked</span>' +
+      '<span>' + escapeHtml(summary.expired_count || 0) + ' expired</span>' +
+      '<span>' + escapeHtml(workflowRecords) + ' review record(s)</span>' +
+    '</div>' +
+    '<div class="muted">' + escapeHtml((governance.policy_summary || []).slice(0, 2).join(" ") || "No share governance summary loaded.") + '</div>';
+  return node;
+}
 function reportTile(label, description) {
   const node = document.createElement("div");
   node.className = "report-tile";
@@ -4076,31 +4153,3 @@ init().catch((error) => {
   $("data-source").textContent = error.message;
   console.error(error);
 });
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

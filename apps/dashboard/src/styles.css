@@ -797,7 +797,25 @@ select:focus-visible {
   padding-top: 6px;
   overflow-wrap: anywhere;
 }
-.warning-list,
+
+.timeline-list {
+  border-top: 1px solid var(--ink-soft);
+  display: grid;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 10px;
+}
+
+.timeline-item {
+  border-left: 2px solid #b5cce3;
+  display: grid;
+  gap: 5px;
+  padding-left: 10px;
+}
+
+.timeline-item strong {
+  font-size: 13px;
+}.warning-list,
 .triage-list,
 .report-list,
 .gap-list {

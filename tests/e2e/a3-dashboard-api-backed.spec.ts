@@ -240,6 +240,9 @@ test.describe("A3 API-backed dashboard E2E", () => {
     const reportCenter = page.locator("#report-center");
     await expect(reportCenter).toContainText("Artifact Registry");
     const admin = section(page, "#saas-admin");
+    await expect(admin).toContainText("Cloud workspace shell");
+    await expect(admin).toContainText("Governance Overview");
+    await expect(section(page, "#review-workflow-records")).toContainText("Report Share Readiness");
     await expect(admin).toContainText("Separation Of Duties");
     await expect(admin).toContainText("Workspace / Environment Control");
 
@@ -344,7 +347,5 @@ function loadFixture(path: string) {
 function apiUrl(page: Page, path: string): string {
   return new URL(path, page.url()).toString();
 }
-
-
 
 

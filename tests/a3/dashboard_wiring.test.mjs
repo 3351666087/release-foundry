@@ -1,4 +1,4 @@
-﻿import assert from "node:assert/strict";
+import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 
@@ -948,4 +948,3 @@ test("A3 API-backed bootstrap now loads admin/report/workflow surfaces during fi
   assert.match(appSource, /state.reviewWorkflow = await fetchA3ReviewWorkflow/);
   assert.match(appSource, /state.saasAdmin = await fetchA3AdminConsole/);
 });
-
