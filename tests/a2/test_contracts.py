@@ -459,6 +459,7 @@ class A2ContractTests(unittest.TestCase):
         self.assertIn("a1_billing_replay_evidence", evidence_readiness_schema["required"])
         self.assertIn("a1_billing_ledger_migration", evidence_readiness_schema["required"])
         self.assertIn("a1_billing_sql_semantic_contract", evidence_readiness_schema["required"])
+        self.assertIn("a1_object_storage_contract", evidence_readiness_schema["required"])
         self.assertIn("ashr_public_merge_gate", evidence_readiness_schema["required"])
         self.assertIn("official_sdk_smoke", evidence_readiness_schema["required"])
         self.assertIn("semantic_live_merge_gate", evidence_readiness_schema["required"])
@@ -547,6 +548,17 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(
             evidence_readiness_schema["properties"]["a1_billing_sql_semantic_contract"]["$ref"],
             "#/$defs/a1_billing_sql_semantic_contract",
+        )
+        object_storage_required = set(evidence_readiness_schema["$defs"]["a1_object_storage_contract"]["required"])
+        self.assertLessEqual(
+            object_storage_required,
+            set(evidence_readiness["a1_object_storage_contract"]),
+        )
+        self.assertIn("ready_for_a2_artifact_policy_context", object_storage_required)
+        self.assertIn("c3_grading_ready", object_storage_required)
+        self.assertEqual(
+            evidence_readiness_schema["properties"]["a1_object_storage_contract"]["$ref"],
+            "#/$defs/a1_object_storage_contract",
         )
         official_smoke_required = set(evidence_readiness_schema["$defs"]["official_sdk_smoke"]["required"])
         self.assertLessEqual(official_smoke_required, set(evidence_readiness["official_sdk_smoke"]))
@@ -1470,6 +1482,22 @@ class A2ContractTests(unittest.TestCase):
         self.assertTrue(
             billing_sql["a2_policy_implications"]["must_not_mark_c3_from_sql_context"]
         )
+        object_storage = report["a1_object_storage_contract"]
+        self.assertTrue(object_storage["available"])
+        self.assertEqual(
+            object_storage["path"],
+            "docs/a1/evidence/object_storage_contract_20260709.md",
+        )
+        self.assertTrue(object_storage["ready_for_a2_artifact_policy_context"])
+        self.assertTrue(object_storage["public_safe"])
+        self.assertEqual(object_storage["backend_count"], 2)
+        self.assertEqual(object_storage["manifest_field_count"], 5)
+        self.assertFalse(object_storage["raw_payload_bytes_included"])
+        self.assertFalse(object_storage["raw_secret_key_values_included"])
+        self.assertFalse(object_storage["c3_grading_ready"])
+        self.assertTrue(
+            object_storage["a2_policy_implications"]["must_not_mark_c3_from_storage_context"]
+        )
         self.assertTrue(report["readiness_checks"]["official_sdk_smoke_readonly_ok"])
         self.assertTrue(report["official_sdk_smoke"]["available"])
         self.assertTrue(report["official_sdk_smoke"]["read_only_reachable"])
@@ -2300,6 +2328,81 @@ class A2ContractTests(unittest.TestCase):
         self.assertTrue(billing_sql["a2_policy_implications"]["can_support_replay_regression_cases"])
         self.assertTrue(billing_sql["a2_policy_implications"]["can_support_hash_only_artifact_audit"])
         self.assertTrue(billing_sql["a2_policy_implications"]["must_not_mark_c3_from_sql_context"])
+
+    def test_evidence_readiness_consumes_a1_object_storage_contract(self):
+        calibration_matrix = build_calibration_matrix(
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+            run_dir=ROOT / "fixtures/a2/runs",
+            observations_path=ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        )
+        sdk_parity = build_sdk_parity_report(pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json")
+        semantic_harness = build_semantic_harness_report(calibration_matrix, sdk_parity)
+        contract = """# A1 Object Storage Contract Evidence
+
+- Schema version: `ashr.clone.object_storage.v1`.
+- Supported backends: `local-filesystem` and `s3-compatible`.
+- Object keys are scoped as `category/tenant_id/project_id/run_id/object_id.ext`.
+- Public manifests include `object_key`, `storage_uri`, `content_type`, `size_bytes`, and `sha256`.
+- Public manifests include `manifest_signature` with a canonical JSON sha256 digest.
+- Readback verification returns a structured `checksum` block with expected/actual sha256 values.
+- Public manifests do not include raw payload bytes, absolute local filesystem paths, raw S3/MinIO endpoints, access keys, secret keys, auth tokens, or API keys.
+- S3-compatible manifests accept reference strings only.
+- Optional S3/MinIO readback is exposed through a lazy SDK adapter. Network reads require explicit adapter use.
+- Local filesystem writes perform a sha256 readback verification when a local object root is provided.
+
+## Wiring
+
+- SDK helper: `packages/sdk/ashr_clone/storage.py`.
+- API integration: `services/api/platform.py`.
+- Evidence bundle records add `object_storage` metadata.
+
+## Test Coverage
+
+- `tests/a1/test_object_storage_contract.py`
+- `tests/a1/test_saas_platform.py`
+"""
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            contract_path = Path(tmp_dir) / "object_storage_contract_20260709.md"
+            contract_path.write_text(contract, encoding="utf-8")
+            report = build_evidence_readiness_report(
+                calibration_matrix,
+                {},
+                semantic_harness,
+                a1_object_storage_contract_path=contract_path,
+            )
+
+        object_storage = report["a1_object_storage_contract"]
+        self.assertTrue(object_storage["available"])
+        self.assertEqual(object_storage["schema_version"], "ashr.clone.object_storage.v1")
+        self.assertTrue(object_storage["public_safe"])
+        self.assertEqual(object_storage["supported_backends"], ["local-filesystem", "s3-compatible"])
+        self.assertTrue(object_storage["scoped_object_keys"])
+        self.assertEqual(
+            object_storage["manifest_fields"],
+            ["content_type", "object_key", "sha256", "size_bytes", "storage_uri"],
+        )
+        self.assertTrue(object_storage["manifest_signature_sha256"])
+        self.assertTrue(object_storage["checksum_readback"])
+        self.assertTrue(object_storage["local_readback_sha256"])
+        self.assertTrue(object_storage["s3_reference_only"])
+        self.assertTrue(object_storage["lazy_network_adapter"])
+        self.assertTrue(object_storage["sdk_helper_present"])
+        self.assertTrue(object_storage["api_integration_present"])
+        self.assertTrue(object_storage["evidence_bundle_metadata_present"])
+        self.assertFalse(object_storage["raw_payload_bytes_included"])
+        self.assertFalse(object_storage["absolute_local_paths_included"])
+        self.assertFalse(object_storage["raw_endpoint_values_included"])
+        self.assertFalse(object_storage["raw_access_key_values_included"])
+        self.assertFalse(object_storage["raw_secret_key_values_included"])
+        self.assertFalse(object_storage["raw_token_values_included"])
+        self.assertEqual(object_storage["test_target_count"], 2)
+        self.assertTrue(object_storage["ready_for_a2_artifact_policy_context"])
+        self.assertFalse(object_storage["c3_grading_ready"])
+        self.assertTrue(object_storage["a2_policy_implications"]["object_storage_policy_context"])
+        self.assertTrue(object_storage["a2_policy_implications"]["can_support_artifact_bundle_evidence_handoff"])
+        self.assertTrue(object_storage["a2_policy_implications"]["can_support_checksum_regression_cases"])
+        self.assertTrue(object_storage["a2_policy_implications"]["must_not_mark_c3_from_storage_context"])
 
     def test_c4_semantic_live_gate_requires_reviewed_metadata_cost_and_sdk_coverage(self):
         def reviewed_semantic_matrix(*, complete_metadata: bool, include_typescript: bool) -> dict:

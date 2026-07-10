@@ -20,6 +20,7 @@ DEFAULT_A1_BILLING_LEDGER_MIGRATION_MANIFEST = Path(
     "docs/a1/schemas/a1_billing_ledger_migration_manifest.json"
 )
 DEFAULT_A1_BILLING_SQL_SEMANTIC_CONTRACT = Path("docs/a1/evidence/billing_sql_semantic_contract.json")
+DEFAULT_A1_OBJECT_STORAGE_CONTRACT = Path("docs/a1/evidence/object_storage_contract_20260709.md")
 DEFAULT_A2_REAL_API_SMOKE = Path("docs/evidence/a2_real_api_smoke.json")
 REQUIRED_ASHR_REVIEW_FIELDS = [
     "metadata.review_status",
@@ -61,6 +62,7 @@ def build_evidence_readiness_report(
     a1_billing_replay_fixture_path: str | Path = DEFAULT_A1_BILLING_REPLAY_FIXTURE,
     a1_billing_ledger_migration_manifest_path: str | Path = DEFAULT_A1_BILLING_LEDGER_MIGRATION_MANIFEST,
     a1_billing_sql_semantic_contract_path: str | Path = DEFAULT_A1_BILLING_SQL_SEMANTIC_CONTRACT,
+    a1_object_storage_contract_path: str | Path = DEFAULT_A1_OBJECT_STORAGE_CONTRACT,
     official_sdk_smoke_path: str | Path = DEFAULT_A2_REAL_API_SMOKE,
 ) -> dict[str, Any]:
     """Describe what private evidence is still needed before C3/C4 can turn green."""
@@ -111,6 +113,7 @@ def build_evidence_readiness_report(
     a1_billing_sql_semantic_contract = _a1_billing_sql_semantic_contract_summary(
         a1_billing_sql_semantic_contract_path
     )
+    a1_object_storage_contract = _a1_object_storage_contract_summary(a1_object_storage_contract_path)
     official_sdk_smoke = _official_sdk_smoke_summary(official_sdk_smoke_path)
 
     readiness_checks = {
@@ -164,6 +167,7 @@ def build_evidence_readiness_report(
         "a1_billing_replay_evidence": a1_billing_replay_evidence,
         "a1_billing_ledger_migration": a1_billing_ledger_migration,
         "a1_billing_sql_semantic_contract": a1_billing_sql_semantic_contract,
+        "a1_object_storage_contract": a1_object_storage_contract,
         "official_sdk_smoke": official_sdk_smoke,
         "ashr_public_merge_gate": _ashr_public_merge_gate(cases, ashr_counts, len(cases), ashr_import_commands),
         "semantic_judge_preflight": {
@@ -1146,6 +1150,110 @@ def _a1_billing_sql_semantic_contract_summary(path: str | Path) -> dict[str, Any
     }
 
 
+def _a1_object_storage_contract_summary(path: str | Path) -> dict[str, Any]:
+    target = Path(path)
+    if not target.exists():
+        return _missing_object_storage_contract(
+            target,
+            "A1 object storage contract evidence is not available on this branch yet.",
+        )
+
+    text = target.read_text(encoding="utf-8")
+    lowered = text.lower()
+    supported_backends = sorted(
+        backend for backend in ("local-filesystem", "s3-compatible") if backend in lowered
+    )
+    manifest_fields = sorted(
+        field
+        for field in ("object_key", "storage_uri", "content_type", "size_bytes", "sha256")
+        if field in lowered
+    )
+    test_targets = sorted(
+        target_name
+        for target_name in ("tests/a1/test_object_storage_contract.py", "tests/a1/test_saas_platform.py")
+        if target_name in text
+    )
+    schema_version = "ashr.clone.object_storage.v1" if "ashr.clone.object_storage.v1" in text else ""
+    scoped_object_keys = "category/tenant_id/project_id/run_id/object_id.ext" in text
+    manifest_signature_sha256 = "manifest_signature" in lowered and "canonical json sha256" in lowered
+    checksum_readback = "checksum" in lowered and "expected/actual sha256" in lowered
+    local_readback_sha256 = "local filesystem writes perform a sha256 readback verification" in lowered
+    s3_reference_only = "s3-compatible manifests accept reference strings only" in lowered
+    lazy_network_adapter = "lazy sdk adapter" in lowered and "network reads require explicit adapter use" in lowered
+    sdk_helper_present = "packages/sdk/ashr_clone/storage.py" in text
+    api_integration_present = "services/api/platform.py" in text
+    evidence_bundle_metadata_present = "evidence bundle records" in lowered and "object_storage" in text
+    no_public_raw_values_clause = "public manifests do not include" in lowered
+    raw_payload_bytes_included = not (no_public_raw_values_clause and "raw payload bytes" in lowered)
+    absolute_local_paths_included = not (
+        no_public_raw_values_clause and "absolute local filesystem paths" in lowered
+    )
+    raw_endpoint_values_included = not (no_public_raw_values_clause and "raw s3/minio endpoints" in lowered)
+    raw_access_key_values_included = not (no_public_raw_values_clause and "access keys" in lowered)
+    raw_secret_key_values_included = not (no_public_raw_values_clause and "secret keys" in lowered)
+    raw_token_values_included = not (no_public_raw_values_clause and "tokens" in lowered and "api keys" in lowered)
+    ready = bool(
+        schema_version
+        and set(supported_backends) == {"local-filesystem", "s3-compatible"}
+        and scoped_object_keys
+        and len(manifest_fields) == 5
+        and manifest_signature_sha256
+        and checksum_readback
+        and s3_reference_only
+        and lazy_network_adapter
+        and local_readback_sha256
+        and sdk_helper_present
+        and api_integration_present
+        and evidence_bundle_metadata_present
+        and len(test_targets) >= 2
+        and not raw_payload_bytes_included
+        and not absolute_local_paths_included
+        and not raw_endpoint_values_included
+        and not raw_access_key_values_included
+        and not raw_secret_key_values_included
+        and not raw_token_values_included
+    )
+    return {
+        "available": True,
+        "path": target.as_posix(),
+        "schema_version": schema_version,
+        "public_safe": ready,
+        "backend_count": len(supported_backends),
+        "supported_backends": supported_backends,
+        "scoped_object_keys": scoped_object_keys,
+        "manifest_field_count": len(manifest_fields),
+        "manifest_fields": manifest_fields,
+        "manifest_signature_sha256": manifest_signature_sha256,
+        "checksum_readback": checksum_readback,
+        "local_readback_sha256": local_readback_sha256,
+        "s3_reference_only": s3_reference_only,
+        "lazy_network_adapter": lazy_network_adapter,
+        "sdk_helper_present": sdk_helper_present,
+        "api_integration_present": api_integration_present,
+        "evidence_bundle_metadata_present": evidence_bundle_metadata_present,
+        "raw_payload_bytes_included": raw_payload_bytes_included,
+        "absolute_local_paths_included": absolute_local_paths_included,
+        "raw_endpoint_values_included": raw_endpoint_values_included,
+        "raw_access_key_values_included": raw_access_key_values_included,
+        "raw_secret_key_values_included": raw_secret_key_values_included,
+        "raw_token_values_included": raw_token_values_included,
+        "test_target_count": len(test_targets),
+        "test_targets": test_targets,
+        "ready_for_a2_artifact_policy_context": ready,
+        "c3_grading_ready": False,
+        "a2_policy_implications": {
+            "object_storage_policy_context": ready,
+            "can_support_artifact_bundle_evidence_handoff": ready,
+            "can_support_checksum_regression_cases": ready,
+            "must_not_mark_c3_from_storage_context": True,
+        },
+        "notes": [
+            "A1 object storage contract is public-safe artifact and bundle handoff context for A2 evidence policy.",
+            "It validates manifest/checksum/redaction semantics, not reviewed Ashr grading rows.",
+        ],
+    }
+
+
 def _missing_mutating_index(path: Path, reason: str) -> dict[str, Any]:
     return {
         "available": False,
@@ -1381,6 +1489,48 @@ def _missing_billing_sql_semantic_contract(path: Path, reason: str) -> dict[str,
         "notes": [
             reason,
             "When present, A2 uses it as SQL semantic policy context, not as C3 server-side grading evidence.",
+        ],
+    }
+
+
+def _missing_object_storage_contract(path: Path, reason: str) -> dict[str, Any]:
+    return {
+        "available": False,
+        "path": path.as_posix(),
+        "schema_version": "",
+        "public_safe": False,
+        "backend_count": 0,
+        "supported_backends": [],
+        "scoped_object_keys": False,
+        "manifest_field_count": 0,
+        "manifest_fields": [],
+        "manifest_signature_sha256": False,
+        "checksum_readback": False,
+        "local_readback_sha256": False,
+        "s3_reference_only": False,
+        "lazy_network_adapter": False,
+        "sdk_helper_present": False,
+        "api_integration_present": False,
+        "evidence_bundle_metadata_present": False,
+        "raw_payload_bytes_included": False,
+        "absolute_local_paths_included": False,
+        "raw_endpoint_values_included": False,
+        "raw_access_key_values_included": False,
+        "raw_secret_key_values_included": False,
+        "raw_token_values_included": False,
+        "test_target_count": 0,
+        "test_targets": [],
+        "ready_for_a2_artifact_policy_context": False,
+        "c3_grading_ready": False,
+        "a2_policy_implications": {
+            "object_storage_policy_context": False,
+            "can_support_artifact_bundle_evidence_handoff": False,
+            "can_support_checksum_regression_cases": False,
+            "must_not_mark_c3_from_storage_context": True,
+        },
+        "notes": [
+            reason,
+            "When present, A2 uses it as artifact storage policy context, not as C3 server-side grading evidence.",
         ],
     }
 

@@ -598,6 +598,57 @@
       "It validates hash/reference-only billing storage semantics, not reviewed Ashr grading rows."
     ]
   },
+  "a1_object_storage_contract": {
+    "available": true,
+    "path": "docs/a1/evidence/object_storage_contract_20260709.md",
+    "schema_version": "ashr.clone.object_storage.v1",
+    "public_safe": true,
+    "backend_count": 2,
+    "supported_backends": [
+      "local-filesystem",
+      "s3-compatible"
+    ],
+    "scoped_object_keys": true,
+    "manifest_field_count": 5,
+    "manifest_fields": [
+      "content_type",
+      "object_key",
+      "sha256",
+      "size_bytes",
+      "storage_uri"
+    ],
+    "manifest_signature_sha256": true,
+    "checksum_readback": true,
+    "local_readback_sha256": true,
+    "s3_reference_only": true,
+    "lazy_network_adapter": true,
+    "sdk_helper_present": true,
+    "api_integration_present": true,
+    "evidence_bundle_metadata_present": true,
+    "raw_payload_bytes_included": false,
+    "absolute_local_paths_included": false,
+    "raw_endpoint_values_included": false,
+    "raw_access_key_values_included": false,
+    "raw_secret_key_values_included": false,
+    "raw_token_values_included": false,
+    "test_target_count": 2,
+    "test_targets": [
+      "tests/a1/test_object_storage_contract.py",
+      "tests/a1/test_saas_platform.py"
+    ],
+    "ready_for_a2_artifact_policy_context": true,
+    "c3_grading_ready": false,
+    "a2_policy_implications": {
+      "object_storage_policy_context": true,
+      "can_support_artifact_bundle_evidence_handoff": true,
+      "can_support_checksum_regression_cases": true,
+      "must_not_mark_c3_from_storage_context": true
+    },
+    "notes": [
+      "A1 object storage contract is public-safe artifact and bundle handoff context for A2 evidence policy.",
+      "It validates manifest/checksum/redaction semantics, not reviewed Ashr grading rows."
+    ]
+  },
   "official_sdk_smoke": {
     "available": true,
     "path": "docs/evidence/a2_real_api_smoke.json",
