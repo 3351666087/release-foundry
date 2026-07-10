@@ -1,4 +1,4 @@
-ï»¿import {
+import {
   buildCsvReport,
   buildDashboardSummary,
   buildJsonReport,
@@ -436,6 +436,12 @@ function mediaQueueRow(item) {
       <span class="badge ${item.safe_to_render ? "pass" : item.signed_url_status === "unconfirmed" ? "warn" : "neutral"}">${escapeHtml(item.preview_policy)}</span>
     </div>
     <div class="case-meta">
+      <span>${escapeHtml(report.tenant_scope?.workspace_id || "workspace-local")}</span>
+      <span>${escapeHtml(report.tenant_scope?.project_id || "project-local")}</span>
+      <span>${escapeHtml(report.tenant_scope?.environment_id || "staging")}</span>
+      <span>${escapeHtml(report.share_link?.scope || "private_link")}</span>
+    </div>
+    <div class="case-meta">
       <span>${escapeHtml(item.primary_media_type)}</span>
       <span>${escapeHtml(item.media_types.join(", ") || "unknown")}</span>
       <span>${escapeHtml(item.evidence_count)} evidence</span>
@@ -585,7 +591,7 @@ function codeCrawlChunkRow(chunk) {
       <span>${escapeHtml(chunk.signal_count)} signal(s)</span>
       <span>${escapeHtml(chunk.size_bytes)} bytes</span>
     </div>
-    <div class="muted">${escapeHtml(chunk.top_signals.map((item) => `${item.signal}:${item.count}`).join(", ") || "no signals")} ç’º?${escapeHtml(chunk.a3_decision)}</div>
+    <div class="muted">${escapeHtml(chunk.top_signals.map((item) => `${item.signal}:${item.count}`).join(", ") || "no signals")} è·?${escapeHtml(chunk.a3_decision)}</div>
   `;
   return node;
 }
@@ -1429,7 +1435,7 @@ function reviewerWorkflowItemRow(item) {
       <span>diffs ${escapeHtml(item.evidence_counts.tool_diffs)}</span>
       <span>judge ${escapeHtml(item.evidence_counts.judge_evidence)}</span>
     </div>
-    <div class="muted">Missing: ${escapeHtml(item.missing_artifacts.join(", ") || "none")} ç’º?${escapeHtml(item.next_action)}</div>
+    <div class="muted">Missing: ${escapeHtml(item.missing_artifacts.join(", ") || "none")} è·?${escapeHtml(item.next_action)}</div>
   `;
   node.addEventListener("click", () => {
     state.selectedCaseId = item.case_id;
@@ -1775,6 +1781,10 @@ function renderReportCenter() {
   const artifactRegistry = state.artifactRegistry || reportCenter.artifact_registry || {};
   const hostedReports = Array.isArray(reportCenter.reports) ? reportCenter.reports : [];
   const commercialLoopSummary = buildReportCommercialLoopSummary({ reportCenter, reviewWorkflow, notificationControlPlane, liveOpsControlPlane });
+  const audienceFilterSummary = buildAudienceFilterSummary(reportCenter.audience_filters || {});
+  const workspaceGroupSummary = buildGroupedScopeSummary(reportCenter.workspace_groups || {}, "workspace");
+  const environmentGroupSummary = buildGroupedScopeSummary(reportCenter.environment_groups || {}, "environment");
+  const externalPublishBlockerSummary = buildExternalPublishBlockerSummary(reportCenter.external_publish_blockers || {});
   $("report-status").className = "badge info";
   $("report-status").textContent = hostedReports.length ? `${hostedReports.length} hosted` : `${summary.totalCases} cases`;
   $("report-summary").textContent = `Current exports package ${summary.totalCases} normalized case(s), ${summary.failed} failure(s), ${summary.mediaEvidenceCases} media evidence case(s), ${releaseGate.decision_label} release gate, ${releaseWorkflow.github_check.name} ${releaseWorkflow.github_check.conclusion} check, ${releaseWarRoom.decision_label} war room, ${releaseEvidence.available ? `${releaseEvidence.overall_status} release evidence with ${releaseEvidence.readback_record_count || 0} readback record(s)` : "no release evidence"}, ${liveWorkflowReadiness.schema_version ? `${liveWorkflowReadiness.ready_capability_count || 0} live-workflow ready capability(s)` : "no live workflow readiness"}, ${notificationControlPlane.schema_version ? `${notificationControlPlane.summary?.channel_count || 0} notification channel(s)` : "no notification control plane"}, ${incidentReplay.queue_count} incident replay case(s), ${observabilityReplay.replay_case_count} observability replay case(s), ${regressionFactory.candidate_count} regression candidate(s), ${exportRedactionFirewall.status} export firewall, ${reviewerWorkflowBoard.board_label} reviewer workflow, ${productConsole.available ? `${productConsole.onboarding.completion_rate}% onboarding / ${productConsole.audit_log.event_count} audit event(s)` : "no product console workflow"}, ${saasAdmin.available ? `${saasAdmin.team.member_count} SaaS admin member(s) / ${saasAdmin.api_keys.key_count} API-key metadata row(s)` : "no SaaS admin export"}, ${hostedReports.length} hosted report(s), ${reportCenter.summary?.manifest_ready_count || 0} manifest-ready report(s), ${artifactRegistry.summary?.artifact_count || 0} registry artifact(s), ${peerBranchCalibration.available ? `${peerBranchCalibration.peer_delta_count} peer branch delta(s)` : "no peer branch calibration"}, ${officialCodeCrawl.available ? "official code crawl parity" : "no official code crawl parity"}, ${officialParityRoadmap.available ? "official parity roadmap" : "no official parity roadmap"}, ${coverage.available ? "A2 coverage" : "no coverage fixture"}, ${requestProvenance.available ? "request provenance" : "no request provenance"}, ${usageQuota.available ? "usage/quota calibration" : "no usage/quota calibration"}, ${mediaReadiness.available ? "media readiness" : "no media readiness"}, and ${cloudShell.available ? "cloud shell safety map" : "no cloud shell evidence"}.`;
@@ -1805,8 +1815,14 @@ function renderReportCenter() {
       tiles.push(reportTile("Billing Migration Readiness", `${billingMigrationReadiness.summary?.status || "unknown"}: ${billingMigrationReadiness.summary?.upstream_commit_count || 0} A1 commit(s), ${billingMigrationReadiness.db_contract?.tables?.length || 0} billing table(s), live billing ${billingMigrationReadiness.summary?.ready_for_live_customer_billing ? "ready" : "blocked"}.`));
     }
   if (hostedReports.length) {
-    tiles.push(reportTile("Hosted Reports", `${reportCenter.summary?.shareable_count || 0} shareable, ${reportCenter.summary?.revoked_count || 0} revoked, ${reportCenter.summary?.expired_count || 0} expired, ${reportCenter.summary?.total_view_count || 0} total view(s).`));
+    tiles.push(reportTile("Hosted Reports", `${reportCenter.summary?.shareable_count || 0} shareable, ${reportCenter.summary?.revoked_count || 0} revoked, ${reportCenter.summary?.expired_count || 0} expired, ${reportCenter.summary?.total_view_count || 0} total view(s). Scope ${(reportCenter.tenant_scope?.organization_id || "org-local")} / ${(reportCenter.tenant_scope?.workspace_id || "workspace-local")} / ${(reportCenter.tenant_scope?.project_id || "project-local")} / ${(reportCenter.tenant_scope?.environment_id || "staging")}.`));
     tiles.push(reportTile("Share Link Governance", buildShareLinkGovernanceTile(reportCenter)));
+    tiles.push(reportTile("Export Audience", buildExportAudienceTile(reportCenter)));
+    tiles.push(reportTile("Audience Filters", audienceFilterSummary));
+    tiles.push(reportTile("Workspace Groups", workspaceGroupSummary));
+    tiles.push(reportTile("Environment Groups", environmentGroupSummary));
+    tiles.push(reportTile("External Publish Blockers", externalPublishBlockerSummary));
+    tiles.push(reportTile("Release Sign-Off", buildReleaseSignoffTile(reportCenter)));
     tiles.push(reportTile("Sign-Off Detail", buildReleaseSignoffDetailTile(reportCenter)));
     tiles.push(...hostedReports.map(hostedReportRow));
   }
@@ -1897,6 +1913,19 @@ function buildShareLinkGovernanceTile(reportCenter = {}) {
   return `${governance.status || "unknown"}: ${governance.shareable_count || 0} shareable, ${governance.revoked_count || 0} revoked, ${governance.expired_count || 0} expired, ${governance.blocked_count || 0} blocked. ${(governance.policy_summary || []).slice(0, 1).join(" ")}`;
 }
 
+function buildExportAudienceTile(reportCenter = {}) {
+  const governance = reportCenter.export_audience_governance || {};
+  const filters = reportCenter.audience_filters || {};
+  const allowed = Array.isArray(governance.audiences)
+    ? governance.audiences.filter((item) => item.allowed).map((item) => item.audience)
+    : [];
+  const blocked = Array.isArray(governance.audiences)
+    ? governance.audiences.filter((item) => item.allowed === false).map((item) => item.audience)
+    : [];
+  const defaultFilter = filters.default_filter || "internal_ops";
+  return `${governance.status || "unknown"}: ${(allowed.length ? allowed.join(", ") : "no audience approved")}; blocked ${(blocked.join(", ") || "none")}; default ${defaultFilter}. ${(governance.governance_rules || []).slice(0, 1).join(" ")}`;
+}
+
 function buildReleaseSignoffDetailTile(reportCenter = {}) {
   const detail = reportCenter.release_signoff_detail || {};
   const passed = Array.isArray(detail.checklist) ? detail.checklist.filter((item) => item.passed).length : 0;
@@ -1909,6 +1938,28 @@ function buildReleaseSignoffTile(reportCenter = {}) {
   return `${signoff.status || "unknown"}: ${signoff.shareable_count || 0} shareable, ${signoff.release_evidence_ready_count || 0} release-evidence-ready, ${signoff.manifest_ready_count || 0} manifest-ready, usage ${signoff.usage_ready ? "ready" : "missing"}, migration ${signoff.migration_ready ? "ready" : "missing"}.`;
 }
 
+function buildAudienceFilterSummary(filters = {}) {
+  const entries = Array.isArray(filters.filters) ? filters.filters : [];
+  const visible = entries.filter((item) => item.allowed_count > 0).map((item) => item.audience);
+  const blocked = entries.filter((item) => item.state === "blocked").map((item) => item.audience);
+  return `${filters.status || "unknown"}: visible ${(visible.join(", ") || "none")}, blocked ${(blocked.join(", ") || "none")}, default ${filters.default_filter || "internal_ops"}.`;
+}
+
+function buildGroupedScopeSummary(grouped = {}, label) {
+  const groups = Array.isArray(grouped.groups) ? grouped.groups : [];
+  if (!groups.length) {
+    return `${grouped.status || "unknown"}: no ${label} grouping yet.`;
+  }
+  const top = groups[0] || {};
+  const topValue = top[`${label}_id`] || top.workspace_id || top.environment_id || "unknown";
+  return `${grouped.status || "unknown"}: ${groups.length} ${label} group(s), top ${topValue}, ${top.shareable_count || 0} shareable, ${top.release_evidence_ready_count || 0} release-evidence-ready.`;
+}
+
+function buildExternalPublishBlockerSummary(blockers = {}) {
+  const reasons = Array.isArray(blockers.reasons) ? blockers.reasons : [];
+  return `${blockers.status || "unknown"}: ${blockers.blocker_count || 0} blocked report(s). ${(reasons[0] || "No blocker reason loaded.")}`;
+}
+
 function reportTile(label, description) {
   const node = document.createElement("div");
   node.className = "report-tile";
@@ -1919,6 +1970,9 @@ function reportTile(label, description) {
 function hostedReportRow(report) {
   const node = document.createElement("div");
   node.className = "matrix-row";
+  const audience = Array.isArray(report.export_audience?.allowed) ? report.export_audience.allowed : [];
+  const blockedAudience = Array.isArray(report.export_audience?.blocked) ? report.export_audience.blocked : [];
+  const blockerState = report.export_audience?.customer_external_blocked ? "customer external blocked" : "external publish open";
   node.innerHTML = `
     <div class="matrix-head">
       <strong>${escapeHtml(report.title || report.report_id)}</strong>
@@ -1930,10 +1984,22 @@ function hostedReportRow(report) {
       <span>${escapeHtml(report.view_count || 0)} view(s)</span>
     </div>
     <div class="case-meta">
+      <span>${escapeHtml(report.tenant_scope?.workspace_id || "workspace-local")}</span>
+      <span>${escapeHtml(report.tenant_scope?.project_id || "project-local")}</span>
+      <span>${escapeHtml(report.tenant_scope?.environment_id || "staging")}</span>
+      <span>${escapeHtml(report.share_link?.scope || "private_link")}</span>
+    </div>
+    <div class="case-meta">
+      <span>audience ${(audience.join(", ") || "none")}</span>
+      <span>blocked ${(blockedAudience.join(", ") || "none")}</span>
+      <span>${escapeHtml(blockerState)}</span>
       <span>token ${escapeHtml(report.share_link?.token_hash_prefix || "n/a")}</span>
+    </div>
+    <div class="case-meta">
       <span>manifest ${escapeHtml(report.manifest?.completeness_score ?? 0)}%</span>
-      <span>${escapeHtml(report.manifest?.artifact_count || 0)} artifact(s)</span>
       <span>${escapeHtml(report.redaction?.status || "unknown")} redaction</span>
+      <span>${report.release_evidence?.available ? "release evidence ready" : "release evidence missing"}</span>
+      <span>${report.lifecycle?.view_audit_enabled ? "audit visible" : "audit missing"}</span>
     </div>
     <div class="muted">${escapeHtml((report.manifest?.missing || []).length ? `Missing: ${report.manifest.missing.join(", ")}` : "Manifest evidence is ready for PR gate and audit bundle linkage.")}</div>
   `;
@@ -3990,6 +4056,20 @@ init().catch((error) => {
   $("data-source").textContent = error.message;
   console.error(error);
 });
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

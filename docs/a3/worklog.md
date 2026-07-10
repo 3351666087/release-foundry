@@ -5952,3 +5952,71 @@ px.cmd playwright test tests/e2e/a3-dashboard-api-backed.spec.ts --project=chrom
 - Re-ran validation: 
 ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.test.mjs is green (47 pass, 0 fail).
 - Commercial implication: A3 governance evidence is now more portable. The same live-ops narrative used in the dashboard can be exported into report flows, which is closer to a real enterprise audit packet instead of a UI-only experience.
+
+## 2026-07-10 - Tenant Workspace + Separation-Of-Duties Commercial Pass
+
+- Strengthened A3 SaaS Admin with explicit tenant/workspace/environment control state instead of a thin project-switch shell.
+- Added separation-of-duties commercial posture so release approval, API-key hygiene, and billing/procurement are presented as distinct enterprise controls.
+- Added workspace posture storytelling tying report governance, review gating, usage visibility, and audit-safe operator access together.
+- Extended Enterprise Readiness with a hosted buyer-readiness block so hosted vs self-host value is legible to procurement and security reviewers.
+- Added dashboard wiring test coverage for tenant workspace control, separation-of-duties, and hosted buyer-readiness surfaces.
+- Verification: `node --test tests/a3/dashboard_wiring.test.mjs tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.test.mjs` -> 85 pass / 0 fail.
+- GitHub remote state check this round: `git fetch origin --prune` hit `Recv failure: Connection was reset`; prior push on this branch had already succeeded, so remote auth remains healthy while transport is intermittent.
+
+## 2026-07-10 - Report Scope + Commercial Cloud Continuity Pass
+
+- Confirmed GitHub remote readback window is partially healthy again: `git ls-remote origin HEAD` succeeded even though transport remains intermittently fragile.
+- Extended Report Center customer-facing tiles so hosted report scope now echoes tenant/project identity instead of reading like an unscoped export shelf.
+- Extended SaaS Admin export mapping so richer workspace posture survives into report/export contracts: status, tenant-scope visibility, project state, environment state, operator story, and next-capability hints.
+- Rewired cloud-management workspace posture to reuse the stronger `buildWorkspacePosture()` contract rather than an older shallow field set.
+- Added Node test coverage proving richer workspace posture survives SaaS Admin export.
+- Added Playwright coverage proving hosted report scope plus commercial admin/enterprise controls render together in the API-backed dashboard.
+- Verification: `node --test tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs tests/a3/a3_live_ops_control_plane.test.mjs` -> 86 pass / 0 fail.
+- Verification: `npx.cmd playwright test tests/e2e/a3-dashboard-api-backed.spec.ts --project=chromium` -> 8 passed.
+
+## 2026-07-10 - Environment-Aware Report Scope Pass
+
+- Extended `services/report/a3_report_center.mjs` so Report Center tenant scope now carries `organization_id`, `tenant_id`, `workspace_id`, `project_id`, and `environment_id` rather than only org/project.
+- Extended `apps/dashboard/src/app.mjs` hosted-report and release-signoff scope strings so the API-backed dashboard now surfaces `org / workspace / project / environment` continuity in customer-visible report tiles.
+- Added Node test coverage proving report-center scope preserves tenant/workspace/environment identifiers.
+- Refreshed Playwright expectation so browser proof covers the richer scope string in Hosted Reports.
+- Verification: `node --test tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs tests/a3/a3_live_ops_control_plane.test.mjs` -> 87 pass / 0 fail.
+- Verification: `npx.cmd playwright test tests/e2e/a3-dashboard-api-backed.spec.ts --project=chromium` -> 8 passed.
+- GitHub state update: `git ls-remote origin HEAD` still succeeds, but `git push origin codex/a3-commercial-growth-round4` failed this round with `Failed to connect to github.com port 443`, confirming read-path availability with write-path transport instability.
+
+## 2026-07-10 - Row-Level Report Scope Continuity Pass
+
+- Extended `services/report/a3_report_center.mjs` so each report-center item now preserves row-level `tenant_scope` with workspace/project/environment continuity, not only the index-level scope block.
+- Extended `apps/dashboard/src/app.mjs` hosted report rows so each row now shows workspace, project, environment, and share-link scope alongside report metadata.
+- Added Node coverage proving row-level report-center items preserve workspace/project/environment scope.
+- Refreshed Playwright scope assertions so browser proof now covers row-level scope continuity in the hosted-report area.
+- Verification: `node --test tests/a3/report_center_index.test.mjs tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs tests/a3/a3_live_ops_control_plane.test.mjs` -> 90 pass / 0 fail.
+- Verification: `npx.cmd playwright test tests/e2e/a3-dashboard-api-backed.spec.ts --project=chromium` -> 8 passed.
+
+## 2026-07-10 - Export Audience Governance Pass
+
+- Extended `services/report/a3_report_center.mjs` with `export_audience_governance` so Report Center now models which audiences can consume which report/export surface: internal ops, reviewer sign-off, executive summary, and blocked customer-external export.
+- Extended `apps/dashboard/src/app.mjs` report-center tiles with a new `Export Audience` tile so the UI now explains who a hosted report packet is for, not only whether it exists.
+- Kept the governance commercial: customer-external export remains blocked until explicit trust/public export workflow exists; reviewer/executive audiences depend on sign-off and redacted hosted-report readiness.
+- Added Node coverage in `tests/a3/report_center_index.test.mjs` for the new audience-governance contract and in `tests/a3/dashboard_wiring.test.mjs` for the dashboard tile wiring.
+- Verification: `node --test tests/a3/report_center_index.test.mjs tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs tests/a3/a3_live_ops_control_plane.test.mjs` -> 92 pass / 0 fail.
+- Playwright note: this round's API-backed dashboard run hit startup/response instability (`Loading local fixtures...` / initial API waits timing out) before the new audience-governance surface could be proven end-to-end. This is recorded as a runtime-path instability, not as a failed contract change.
+- GitHub note: current environment still shows intermittent remote instability; prior evidence proves remote HEAD read success, but push remains transport-fragile.
+
+## 2026-07-10 - Audience Badge + Public Export Blocker Pass
+
+- Extended `services/report/a3_report_center.mjs` so each hosted report row now carries `export_audience` metadata with allowed audiences derived from report status, redaction, and release-evidence readiness.
+- Extended `apps/dashboard/src/app.mjs` hosted-report rows so the report center now displays row-level audience badges alongside workspace/project/environment/share-scope data.
+- Kept customer-external posture intentionally blocked in the contract so the UI communicates that public/customer-facing export still requires a future trust/public export workflow.
+- Added Node coverage in `tests/a3/report_center_index.test.mjs` for row-level audience derivation and in `tests/a3/dashboard_wiring.test.mjs` for hosted-report row audience/scope wiring.
+- Verification: `node --test tests/a3/report_center_index.test.mjs tests/a3/dashboard_wiring.test.mjs tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.test.mjs` -> 94 pass / 0 fail.
+- GitHub read-path note: `git ls-remote origin HEAD` continues to succeed, so remote visibility is still alive even when write-path transport remains fragile.
+
+## 2026-07-10 - Report Center Audience / Scope / External Publish Governance Pass
+
+- Added `audience_filters`, `workspace_groups`, `environment_groups`, and `external_publish_blockers` to `services/report/a3_report_center.mjs` so hosted reports are not only listed but also grouped by workspace/environment and governed by export audience posture.
+- Upgraded `apps/dashboard/src/app.mjs` to render new Report Center product tiles: `Audience Filters`, `Workspace Groups`, `Environment Groups`, and `External Publish Blockers`.
+- Extended hosted report rows so each row now shows allowed audiences, blocked audiences, customer-external blocker posture, release-evidence readiness, and audit visibility.
+- Kept A3 downstream-only: no A1 runner mutation, no A2 judge semantic change, no real cloud billing/auth/report mutation.
+- Verification: `node --test tests/a3/report_center_index.test.mjs tests/a3/dashboard_wiring.test.mjs tests/a3/report_builder.test.mjs` -> `95 pass / 0 fail`.
+- Commercial reason: this pushes A3 from a plain hosted-report list toward a real release-governance console where operators can answer `which workspace`, `which environment`, `who can see this`, and `why customer external is still blocked` before sign-off.

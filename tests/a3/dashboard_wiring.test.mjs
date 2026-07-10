@@ -1,4 +1,4 @@
-﻿import assert from "node:assert/strict";
+import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 
@@ -828,3 +828,52 @@ test("A3 dashboard wires notification control plane through a dedicated componen
 
 
 
+
+test("A3 dashboard wires tenant workspace control and separation-of-duties surfaces", async () => {
+  const adminSource = await readFile(new URL("../../services/report/a3_saas_admin.mjs", import.meta.url), "utf8");
+  const adminComponent = await readFile(new URL("../../apps/dashboard/src/components/saas-admin-console.mjs", import.meta.url), "utf8");
+  const enterpriseComponent = await readFile(new URL("../../apps/dashboard/src/components/enterprise-readiness-panel.mjs", import.meta.url), "utf8");
+
+  assert.match(adminSource, /buildTenantControlState/);
+  assert.match(adminSource, /buildWorkspacePosture/);
+  assert.match(adminSource, /separation_of_duties/);
+  assert.match(adminComponent, /Separation Of Duties/);
+  assert.match(adminComponent, /Workspace \/ Environment Control/);
+  assert.match(enterpriseComponent, /Hosted Buyer Readiness/);
+});
+
+test("A3 dashboard wires export audience governance tile into report center", async () => {
+  const appSource = await readFile(new URL("../../apps/dashboard/src/app.mjs", import.meta.url), "utf8");
+  const reportCenterSource = await readFile(new URL("../../services/report/a3_report_center.mjs", import.meta.url), "utf8");
+  assert.match(appSource, /Export Audience/);
+  assert.match(appSource, /buildExportAudienceTile/);
+  assert.match(reportCenterSource, /export_audience_governance/);
+  assert.match(reportCenterSource, /a3\.export_audience_governance\.v1/);
+});
+
+test("A3 dashboard hosted report rows surface export audience and row-level scope", async () => {
+  const appSource = await readFile(new URL("../../apps/dashboard/src/app.mjs", import.meta.url), "utf8");
+  const reportCenterSource = await readFile(new URL("../../services/report/a3_report_center.mjs", import.meta.url), "utf8");
+  assert.match(appSource, /const audience = Array\.isArray\(report\.export_audience\?\.allowed\)/);
+  assert.match(appSource, /report\.tenant_scope\?\.workspace_id/);
+  assert.match(reportCenterSource, /export_audience:/);
+  assert.match(reportCenterSource, /buildAllowedAudiences/);
+});
+
+
+test("A3 dashboard wires audience filters, grouped scopes, and external publish blockers into report center", async () => {
+  const appSource = await readFile(new URL("../../apps/dashboard/src/app.mjs", import.meta.url), "utf8");
+  const reportCenterSource = await readFile(new URL("../../services/report/a3_report_center.mjs", import.meta.url), "utf8");
+  assert.match(appSource, /Audience Filters/);
+  assert.match(appSource, /Workspace Groups/);
+  assert.match(appSource, /Environment Groups/);
+  assert.match(appSource, /External Publish Blockers/);
+  assert.match(appSource, /buildAudienceFilterSummary/);
+  assert.match(appSource, /buildGroupedScopeSummary/);
+  assert.match(appSource, /buildExternalPublishBlockerSummary/);
+  assert.match(reportCenterSource, /audience_filters/);
+  assert.match(reportCenterSource, /workspace_groups/);
+  assert.match(reportCenterSource, /environment_groups/);
+  assert.match(reportCenterSource, /external_publish_blockers/);
+  assert.match(appSource, /customer external blocked/);
+});

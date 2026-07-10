@@ -773,4 +773,29 @@
 - [x] Playwright browser proof covers the new live-ops governance elements in the API-backed dashboard.
 - [x] Node + Playwright verification is green after the live-ops governance UX pass (83 pass, 0 fail; Playwright 7 passed).
 - [x] Report builder now has a dedicated live-ops governance export summary.
-- [x] Live-ops governance export contract test is green (47 pass, 0 fail for the focused report/live-ops suite).
+- [x] Live-ops governance export contract test is green (47 pass, 0 fail for the focused report/live-ops suite).- [x] SaaS Admin now shows separation-of-duties commercial controls for release, API-key, and billing/procurement boundaries.
+- [x] SaaS Admin now shows workspace/environment control and multi-workspace shell posture instead of only a thin tenant switch line.
+- [x] Enterprise Readiness now exposes hosted buyer-readiness comparison rows for procurement/security-facing value explanation.
+- [x] Tenant/workspace/separation-of-duties dashboard wiring has dedicated Node test coverage.
+- [x] Report Center hosted-report tiles now expose tenant/project scope instead of looking like an unscoped export list.
+- [x] SaaS Admin export now preserves richer workspace posture fields for downstream report/export consumers.
+- [x] Playwright now proves hosted report scope plus commercial admin/enterprise governance controls render together.
+- [x] Report Center tenant scope now preserves tenant/workspace/environment identifiers, not only org/project.
+- [x] Hosted report scope in the API-backed dashboard now shows org/workspace/project/environment continuity.
+- [x] Node + Playwright both verify the richer environment-aware report scope surface.
+- [x] Report Center report rows now preserve row-level workspace/project/environment scope, not only top-level report-center scope.
+- [x] Hosted report rows now show workspace/project/environment/share-scope continuity in the API-backed dashboard.
+- [x] Node + Playwright both verify row-level report-scope continuity.
+- [x] Report Center now exposes export audience governance for internal, reviewer, executive, and blocked customer-external surfaces.
+- [x] Dashboard report center now includes an Export Audience tile sourced from the report-center contract.
+- [x] Node tests prove export audience governance contract and UI wiring.
+- [ ] Re-prove export audience governance in Playwright once the API-backed dashboard startup path is stable again.
+- [x] Hosted report rows now display row-level allowed audiences in addition to scope metadata.
+- [x] Customer-external export remains explicitly blocked until trust/public export workflow exists.
+- [x] Node tests prove row-level audience derivation and dashboard wiring.
+
+- [x] Report Center now exposes audience filters summarizing internal/reviewer/executive/blocked external report posture.
+- [x] Report Center now groups hosted reports by workspace and environment for release-governance scanning.
+- [x] Report Center now exposes explicit external publish blockers instead of implying future customer export readiness.
+- [x] Hosted report rows now show blocked audiences, customer-external blocker posture, release-evidence readiness, and audit visibility.
+- [x] Node tests verify audience filters, grouped scope summaries, and external publish blockers contract + dashboard wiring.

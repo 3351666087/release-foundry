@@ -21,7 +21,10 @@ export function buildReportCenterIndex(reports = [], options = {}) {
       source: options.source || "unknown",
       tenant_scope: {
         organization_id: options.organizationId || "org-local",
-        project_id: options.projectId || "project-local"
+        tenant_id: options.tenantId || "tenant-local",
+        workspace_id: options.workspaceId || "workspace-local",
+        project_id: options.projectId || "project-local",
+        environment_id: options.environmentId || "staging"
       },
       reports: items
     },
@@ -36,7 +39,10 @@ export function buildReportCenterIndex(reports = [], options = {}) {
     source: options.source || "unknown",
     tenant_scope: {
       organization_id: options.organizationId || "org-local",
-      project_id: options.projectId || "project-local"
+      tenant_id: options.tenantId || "tenant-local",
+      workspace_id: options.workspaceId || "workspace-local",
+      project_id: options.projectId || "project-local",
+      environment_id: options.environmentId || "staging"
     },
     generated_at: now,
     summary: {
@@ -63,6 +69,11 @@ export function buildReportCenterIndex(reports = [], options = {}) {
     release_signoff_summary: buildReleaseSignoffSummary(items, artifactRegistry, usageLedger, migrationPlan),
     release_signoff_detail: buildReleaseSignoffDetail(items, artifactRegistry, usageLedger, migrationPlan),
     share_link_governance: buildShareLinkGovernance(items),
+    export_audience_governance: buildExportAudienceGovernance(items, artifactRegistry),
+    audience_filters: buildAudienceFilters(items),
+    workspace_groups: buildWorkspaceGroups(items),
+    environment_groups: buildEnvironmentGroups(items),
+    external_publish_blockers: buildExternalPublishBlockers(items),
     reports: items,
     artifact_registry: artifactRegistry,
     next_actions: buildNextActions(items, usageLedger, migrationPlan)
@@ -118,6 +129,27 @@ function buildShareLinkGovernance(items) {
   };
 }
 
+function buildExportAudienceGovernance(items, artifactRegistry) {
+  const shareable = items.filter((item) => item.status === "shareable");
+  const releaseReady = items.filter((item) => item.release_evidence.available);
+  return {
+    schema_version: "a3.export_audience_governance.v1",
+    status: shareable.length > 0 ? "audience_gates_visible" : "no_exportable_reports",
+    audiences: [
+      { audience: "internal_ops", allowed: items.length > 0, basis: "tenant-scoped internal visibility", recommended_surface: "dashboard + report center" },
+      { audience: "reviewer_signoff", allowed: releaseReady.length > 0, basis: "release evidence plus hosted report readiness", recommended_surface: "review workflow + sign-off packet" },
+      { audience: "executive_summary", allowed: shareable.length > 0, basis: "redacted hosted report with sign-off context", recommended_surface: "hosted report + executive packet" },
+      { audience: "customer_external", allowed: false, basis: "blocked until explicit trust/public export workflow exists", recommended_surface: "future trust/export service" }
+    ],
+    artifact_ready_count: artifactRegistry.summary?.ready_count || 0,
+    governance_rules: [
+      "Customer-visible exports must stay redacted and tenant-scoped.",
+      "Executive packets should include sign-off and audit bundle continuity.",
+      "Reviewer packets should never require raw trace secrets or raw API tokens."
+    ]
+  };
+}
+
 function buildReleaseSignoffDetail(items, artifactRegistry, usageLedger, migrationPlan) {
   return {
     schema_version: "a3.release_signoff_detail.v1",
@@ -137,6 +169,72 @@ function buildReleaseSignoffDetail(items, artifactRegistry, usageLedger, migrati
   };
 }
 
+function buildAudienceFilters(items) {
+  const audienceOrder = ["internal_ops", "reviewer_signoff", "executive_summary", "customer_external"];
+  const entries = audienceOrder.map((audience) => {
+    const matching = items.filter((item) => {
+      const allowed = Array.isArray(item.export_audience?.allowed) ? item.export_audience.allowed : [];
+      const blocked = Array.isArray(item.export_audience?.blocked) ? item.export_audience.blocked : [];
+      return allowed.includes(audience) || blocked.includes(audience);
+    });
+    const allowedCount = matching.filter((item) => (item.export_audience?.allowed || []).includes(audience)).length;
+    const blockedCount = matching.filter((item) => (item.export_audience?.blocked || []).includes(audience)).length;
+    return {
+      audience,
+      report_count: matching.length,
+      allowed_count: allowedCount,
+      blocked_count: blockedCount,
+      default_selected: audience === "internal_ops",
+      state: audience === "customer_external" ? "blocked" : (allowedCount > 0 ? "visible" : "empty")
+    };
+  });
+
+  return {
+    schema_version: "a3.report_center_audience_filters.v1",
+    status: items.length ? "filters_ready" : "no_reports",
+    filters: entries,
+    default_filter: "internal_ops"
+  };
+}
+
+function buildWorkspaceGroups(items) {
+  const groups = groupBy(items, (item) => item.tenant_scope?.workspace_id || "workspace-local");
+  return {
+    schema_version: "a3.report_center_workspace_groups.v1",
+    status: items.length ? "workspace_groups_visible" : "no_reports",
+    groups: summarizeGroupedReports(groups, "workspace_id")
+  };
+}
+
+function buildEnvironmentGroups(items) {
+  const groups = groupBy(items, (item) => item.tenant_scope?.environment_id || "staging");
+  return {
+    schema_version: "a3.report_center_environment_groups.v1",
+    status: items.length ? "environment_groups_visible" : "no_reports",
+    groups: summarizeGroupedReports(groups, "environment_id")
+  };
+}
+
+function buildExternalPublishBlockers(items) {
+  const blockedReports = items.filter((item) => item.export_audience?.customer_external_blocked === true);
+  return {
+    schema_version: "a3.external_publish_blockers.v1",
+    status: blockedReports.length ? "customer_external_blocked" : "no_external_blocker_needed",
+    blocker_count: blockedReports.length,
+    prerequisites: [
+      "public export trust workflow",
+      "customer-safe media redaction verification",
+      "tenant-approved share policy",
+      "revocable public audit trail"
+    ],
+    reasons: [
+      "A3 currently supports internal, reviewer, and executive audiences only.",
+      "Customer-visible exports stay blocked until trust, redaction, and audit workflows are explicit.",
+      "Hosted reports must remain tenant-scoped before any public or customer-facing rollout."
+    ]
+  };
+}
+
 function reportCenterItem(report = {}, options = {}) {
   const status = lifecycleStatus(report, options.now);
   const manifest = buildReportCenterManifest({ ...report, status }, {
@@ -144,11 +242,19 @@ function reportCenterItem(report = {}, options = {}) {
     migrationPlan: options.migrationPlan
   });
   const completeness = manifestCompleteness(manifest, report, status);
+  const tenantScope = {
+    organization_id: report.tenant_scope?.organization_id || options.organizationId || "org-local",
+    tenant_id: report.tenant_scope?.tenant_id || options.tenantId || "tenant-local",
+    workspace_id: report.tenant_scope?.workspace_id || options.workspaceId || "workspace-local",
+    project_id: report.tenant_scope?.project_id || options.projectId || "project-local",
+    environment_id: report.tenant_scope?.environment_id || options.environmentId || "staging"
+  };
 
   return {
     report_id: report.report_id || "unknown",
     title: report.title || "Untitled report",
     source: report.source || "unknown",
+    tenant_scope: tenantScope,
     status,
     share_url_path: report.share_url_path || null,
     internal_url_path: report.internal_url_path || null,
@@ -179,6 +285,11 @@ function reportCenterItem(report = {}, options = {}) {
       hash_algorithm: report.sealed_evidence?.hash_algorithm || "unknown",
       payload_hash_present: Boolean(report.sealed_evidence?.payload_hash),
       secret_free: report.sealed_evidence?.secret_free === true
+    },
+    export_audience: {
+      allowed: buildAllowedAudiences(status, report),
+      blocked: ["customer_external"],
+      customer_external_blocked: true
     },
     release_evidence: {
       available: report.release_evidence_summary?.available === true,
@@ -225,6 +336,17 @@ function manifestCompleteness(manifest, report, status) {
   };
 }
 
+function buildAllowedAudiences(status, report = {}) {
+  const allowed = ["internal_ops"];
+  if (report.release_evidence_summary?.available === true) {
+    allowed.push("reviewer_signoff");
+  }
+  if (status === "shareable" && report.redaction?.status === "passed") {
+    allowed.push("executive_summary");
+  }
+  return allowed;
+}
+
 function lifecycleStatus(report = {}, now = new Date().toISOString()) {
   if (report.revoked_at || report.status === "revoked") {
     return "revoked";
@@ -261,6 +383,28 @@ function buildNextActions(items, usageLedger = {}, migrationPlan = {}) {
   return actions;
 }
 
+function groupBy(items, keySelector) {
+  return items.reduce((map, item) => {
+    const key = keySelector(item);
+    const existing = map.get(key) || [];
+    existing.push(item);
+    map.set(key, existing);
+    return map;
+  }, new Map());
+}
+
+function summarizeGroupedReports(groups, labelKey) {
+  return [...groups.entries()].map(([value, reports]) => ({
+    [labelKey]: value,
+    report_count: reports.length,
+    shareable_count: reports.filter((item) => item.status === "shareable").length,
+    blocked_count: reports.filter((item) => item.status === "blocked").length,
+    revoked_count: reports.filter((item) => item.status === "revoked").length,
+    executive_ready_count: reports.filter((item) => (item.export_audience?.allowed || []).includes("executive_summary")).length,
+    release_evidence_ready_count: reports.filter((item) => item.release_evidence?.available === true).length
+  }));
+}
+
 function countBy(items, key) {
   return items.reduce((counts, item) => {
     const value = item[key] || "unknown";
@@ -268,4 +412,11 @@ function countBy(items, key) {
     return counts;
   }, {});
 }
+
+
+
+
+
+
+
 
