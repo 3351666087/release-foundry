@@ -459,6 +459,7 @@ class A2ContractTests(unittest.TestCase):
         self.assertIn("a1_billing_replay_evidence", evidence_readiness_schema["required"])
         self.assertIn("a1_billing_ledger_migration", evidence_readiness_schema["required"])
         self.assertIn("a1_china_payment_migration", evidence_readiness_schema["required"])
+        self.assertIn("a1_payment_verification_security", evidence_readiness_schema["required"])
         self.assertIn("a1_billing_sql_semantic_contract", evidence_readiness_schema["required"])
         self.assertIn("a1_object_storage_contract", evidence_readiness_schema["required"])
         self.assertIn("ashr_public_merge_gate", evidence_readiness_schema["required"])
@@ -549,6 +550,19 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(
             evidence_readiness_schema["properties"]["a1_china_payment_migration"]["$ref"],
             "#/$defs/a1_china_payment_migration",
+        )
+        payment_verification_required = set(
+            evidence_readiness_schema["$defs"]["a1_payment_verification_security"]["required"]
+        )
+        self.assertLessEqual(
+            payment_verification_required,
+            set(evidence_readiness["a1_payment_verification_security"]),
+        )
+        self.assertIn("ready_for_a2_payment_verification_policy_context", payment_verification_required)
+        self.assertIn("c3_grading_ready", payment_verification_required)
+        self.assertEqual(
+            evidence_readiness_schema["properties"]["a1_payment_verification_security"]["$ref"],
+            "#/$defs/a1_payment_verification_security",
         )
         billing_sql_required = set(evidence_readiness_schema["$defs"]["a1_billing_sql_semantic_contract"]["required"])
         self.assertLessEqual(
@@ -1490,6 +1504,17 @@ class A2ContractTests(unittest.TestCase):
         self.assertTrue(
             china_payment["a2_policy_implications"]["must_not_mark_c3_from_payment_sql_context"]
         )
+        payment_verification = report["a1_payment_verification_security"]
+        self.assertEqual(
+            payment_verification["path"],
+            "services/api/migrations/005_a1_payment_verification_security.sql",
+        )
+        self.assertFalse(payment_verification["c3_grading_ready"])
+        self.assertTrue(
+            payment_verification["a2_policy_implications"][
+                "must_not_mark_c3_from_payment_verification_context"
+            ]
+        )
         billing_sql = report["a1_billing_sql_semantic_contract"]
         self.assertTrue(billing_sql["available"])
         self.assertEqual(
@@ -2328,6 +2353,147 @@ class A2ContractTests(unittest.TestCase):
         self.assertTrue(china_payment["a2_policy_implications"]["can_cross_check_billing_ledger_links"])
         self.assertTrue(
             china_payment["a2_policy_implications"]["must_not_mark_c3_from_payment_sql_context"]
+        )
+
+    def test_evidence_readiness_consumes_a1_payment_verification_security_sql(self):
+        calibration_matrix = build_calibration_matrix(
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+            run_dir=ROOT / "fixtures/a2/runs",
+            observations_path=ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        )
+        sdk_parity = build_sdk_parity_report(pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json")
+        semantic_harness = build_semantic_harness_report(calibration_matrix, sdk_parity)
+        sql = """
+-- synthetic public-safe payment verification security contract
+CREATE OR REPLACE FUNCTION china_payment_public_metadata(p_metadata JSONB)
+RETURNS BOOLEAN AS $$
+DECLARE
+  normalized_key TEXT;
+BEGIN
+  PERFORM key, value FROM jsonb_each(p_metadata);
+  PERFORM value FROM jsonb_array_elements(p_metadata);
+  normalized_key := 'primaryaccountnumber pan cvc cardnumber cardno accountnumber bankcardnumber';
+  normalized_key := normalized_key || ' cvv pin pinblock track1 track2 trackdata cryptogram otp onetimepassword';
+  normalized_key := normalized_key || ' clientsecret webhooksecret signingsecret privatekey merchantprivatekey certificatepem authorization cookie';
+  RETURN TRUE;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION a1_current_project_id() RETURNS UUID AS $$ SELECT NULL::UUID $$ LANGUAGE sql;
+CREATE OR REPLACE FUNCTION a1_role_is_nobypassrls() RETURNS BOOLEAN AS $$ SELECT TRUE $$ LANGUAGE sql;
+CREATE OR REPLACE FUNCTION a1_assert_role_nobypassrls() RETURNS VOID AS $$ BEGIN END; $$ LANGUAGE plpgsql;
+
+ALTER TABLE billing_accounts ADD CONSTRAINT billing_accounts_metadata_safe
+  CHECK (china_payment_public_metadata(metadata));
+ALTER TABLE billing_provider_events ADD CONSTRAINT billing_provider_events_metadata_safe
+  CHECK (china_payment_public_metadata(metadata));
+ALTER TABLE billing_ledger_events ADD CONSTRAINT billing_ledger_events_metadata_safe
+  CHECK (china_payment_public_metadata(metadata));
+
+CREATE TABLE IF NOT EXISTS china_payment_verification_artifacts (
+  payload_sha256 TEXT NOT NULL,
+  headers_sha256 TEXT,
+  signature_sha256 TEXT NOT NULL,
+  artifact_sha256 TEXT NOT NULL,
+  verification_key_ref TEXT NOT NULL,
+  verification_key_fingerprint TEXT NOT NULL,
+  verified_at TIMESTAMPTZ NOT NULL,
+  fresh_until TIMESTAMPTZ NOT NULL,
+  metadata JSONB NOT NULL,
+  CONSTRAINT china_payment_verification_artifacts_fresh_window
+    CHECK (
+      verified_at <= created_at + INTERVAL '5 minutes'
+      AND fresh_until <= verified_at + INTERVAL '24 hours'
+    ),
+  CONSTRAINT china_payment_verification_artifacts_metadata_safe
+    CHECK (china_payment_public_metadata(metadata))
+);
+
+REVOKE UPDATE, DELETE, TRUNCATE ON china_payment_verification_artifacts FROM PUBLIC;
+CREATE OR REPLACE FUNCTION china_payment_reject_verification_artifact_mutation()
+RETURNS TRIGGER AS $$
+BEGIN
+  RAISE EXCEPTION 'payment verification artifacts are append-only';
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION china_payment_require_verified_notification()
+RETURNS TRIGGER AS $$
+BEGIN
+  RAISE EXCEPTION 'verified payment notification requires trusted verification artifact';
+  RAISE EXCEPTION 'payment notification verification artifact does not match notification scope and digests';
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION china_payment_require_verified_transition()
+RETURNS TRIGGER AS $$
+BEGIN
+  RAISE EXCEPTION 'provider-authoritative payment status transition requires trusted verification artifact';
+  RAISE EXCEPTION 'trusted verification artifact is missing, stale, consumed by another notification, or out of scope';
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION apply_china_payment_verified_order_status()
+RETURNS VOID AS $$ BEGIN PERFORM set_config('app.a1_payment_verification_artifact_id', '00000000-0000-0000-0000-000000000000', TRUE); END; $$ LANGUAGE plpgsql;
+CREATE OR REPLACE FUNCTION apply_china_payment_verified_refund_status()
+RETURNS VOID AS $$ BEGIN PERFORM set_config('app.a1_payment_verification_artifact_id', '00000000-0000-0000-0000-000000000000', TRUE); END; $$ LANGUAGE plpgsql;
+
+CREATE POLICY china_payment_verification_artifacts_project_isolation
+  ON china_payment_verification_artifacts
+  USING (project_id = a1_current_project_id());
+ALTER TABLE china_payment_verification_artifacts FORCE ROW LEVEL SECURITY;
+"""
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            sql_path = Path(tmp_dir) / "005_a1_payment_verification_security.sql"
+            sql_path.write_text(sql, encoding="utf-8")
+            report = build_evidence_readiness_report(
+                calibration_matrix,
+                {},
+                semantic_harness,
+                a1_payment_verification_security_sql_path=sql_path,
+            )
+
+        payment_verification = report["a1_payment_verification_security"]
+        self.assertTrue(payment_verification["available"])
+        self.assertEqual(payment_verification["migration"], "005_a1_payment_verification_security.sql")
+        self.assertTrue(payment_verification["public_safe"])
+        self.assertTrue(payment_verification["recursive_metadata_check"])
+        self.assertGreaterEqual(payment_verification["forbidden_alias_count"], 16)
+        self.assertTrue(payment_verification["has_card_data_aliases"])
+        self.assertTrue(payment_verification["has_secret_material_aliases"])
+        self.assertTrue(payment_verification["verification_artifact_table_present"])
+        self.assertTrue(payment_verification["verification_artifact_digest_fields"])
+        self.assertTrue(payment_verification["verification_artifact_freshness_window"])
+        self.assertTrue(payment_verification["verification_artifact_append_only"])
+        self.assertTrue(payment_verification["notification_requires_verified_artifact"])
+        self.assertTrue(payment_verification["status_transition_requires_artifact"])
+        self.assertTrue(payment_verification["trusted_apply_functions_present"])
+        self.assertTrue(payment_verification["project_rls_ready"])
+        self.assertTrue(payment_verification["role_nobypassrls_assertion"])
+        self.assertTrue(payment_verification["metadata_constraints_present"])
+        self.assertFalse(payment_verification["raw_payload_storage_allowed"])
+        self.assertFalse(payment_verification["secret_value_storage_allowed"])
+        self.assertTrue(payment_verification["ready_for_a2_payment_verification_policy_context"])
+        self.assertFalse(payment_verification["c3_grading_ready"])
+        self.assertTrue(payment_verification["a2_policy_implications"]["payment_verification_policy_context"])
+        self.assertTrue(
+            payment_verification["a2_policy_implications"][
+                "can_support_forbidden_payment_data_abuse_cases"
+            ]
+        )
+        self.assertTrue(
+            payment_verification["a2_policy_implications"][
+                "can_support_fail_closed_payment_transition_regressions"
+            ]
+        )
+        self.assertTrue(
+            payment_verification["a2_policy_implications"]["can_cross_check_verified_notification_artifacts"]
+        )
+        self.assertTrue(
+            payment_verification["a2_policy_implications"][
+                "must_not_mark_c3_from_payment_verification_context"
+            ]
         )
 
     def test_evidence_readiness_consumes_a1_billing_sql_semantic_contract(self):

@@ -22,6 +22,9 @@ DEFAULT_A1_BILLING_LEDGER_MIGRATION_MANIFEST = Path(
 DEFAULT_A1_CHINA_PAYMENT_MIGRATION_MANIFEST = Path(
     "docs/a1/schemas/a1_china_payment_migration_manifest.json"
 )
+DEFAULT_A1_PAYMENT_VERIFICATION_SECURITY_SQL = Path(
+    "services/api/migrations/005_a1_payment_verification_security.sql"
+)
 DEFAULT_A1_BILLING_SQL_SEMANTIC_CONTRACT = Path("docs/a1/evidence/billing_sql_semantic_contract.json")
 DEFAULT_A1_OBJECT_STORAGE_CONTRACT = Path("docs/a1/evidence/object_storage_contract_20260709.md")
 DEFAULT_A2_REAL_API_SMOKE = Path("docs/evidence/a2_real_api_smoke.json")
@@ -65,6 +68,7 @@ def build_evidence_readiness_report(
     a1_billing_replay_fixture_path: str | Path = DEFAULT_A1_BILLING_REPLAY_FIXTURE,
     a1_billing_ledger_migration_manifest_path: str | Path = DEFAULT_A1_BILLING_LEDGER_MIGRATION_MANIFEST,
     a1_china_payment_migration_manifest_path: str | Path = DEFAULT_A1_CHINA_PAYMENT_MIGRATION_MANIFEST,
+    a1_payment_verification_security_sql_path: str | Path = DEFAULT_A1_PAYMENT_VERIFICATION_SECURITY_SQL,
     a1_billing_sql_semantic_contract_path: str | Path = DEFAULT_A1_BILLING_SQL_SEMANTIC_CONTRACT,
     a1_object_storage_contract_path: str | Path = DEFAULT_A1_OBJECT_STORAGE_CONTRACT,
     official_sdk_smoke_path: str | Path = DEFAULT_A2_REAL_API_SMOKE,
@@ -116,6 +120,9 @@ def build_evidence_readiness_report(
     )
     a1_china_payment_migration = _a1_china_payment_migration_summary(
         a1_china_payment_migration_manifest_path
+    )
+    a1_payment_verification_security = _a1_payment_verification_security_summary(
+        a1_payment_verification_security_sql_path
     )
     a1_billing_sql_semantic_contract = _a1_billing_sql_semantic_contract_summary(
         a1_billing_sql_semantic_contract_path
@@ -174,6 +181,7 @@ def build_evidence_readiness_report(
         "a1_billing_replay_evidence": a1_billing_replay_evidence,
         "a1_billing_ledger_migration": a1_billing_ledger_migration,
         "a1_china_payment_migration": a1_china_payment_migration,
+        "a1_payment_verification_security": a1_payment_verification_security,
         "a1_billing_sql_semantic_contract": a1_billing_sql_semantic_contract,
         "a1_object_storage_contract": a1_object_storage_contract,
         "official_sdk_smoke": official_sdk_smoke,
@@ -1182,6 +1190,196 @@ def _a1_china_payment_migration_summary(path: str | Path) -> dict[str, Any]:
     }
 
 
+def _a1_payment_verification_security_summary(path: str | Path) -> dict[str, Any]:
+    target = Path(path)
+    if not target.exists():
+        return _missing_payment_verification_security(
+            target,
+            "A1 payment verification security SQL is not available on this branch yet.",
+        )
+
+    text = target.read_text(encoding="utf-8")
+    lowered = text.lower()
+    forbidden_aliases = [
+        "primaryaccountnumber",
+        "bankcardnumber",
+        "cardnumber",
+        "cardno",
+        "accountnumber",
+        "pan",
+        "cvc",
+        "cvv",
+        "pin",
+        "pinblock",
+        "track1",
+        "track2",
+        "trackdata",
+        "cryptogram",
+        "otp",
+        "onetimepassword",
+        "privatekey",
+        "merchantprivatekey",
+        "certificatepem",
+        "webhooksecret",
+        "signingsecret",
+        "authorization",
+        "cookie",
+    ]
+    forbidden_alias_count = sum(1 for alias in forbidden_aliases if alias in lowered)
+    recursive_metadata_check = all(
+        marker in lowered
+        for marker in (
+            "china_payment_public_metadata",
+            "jsonb_each",
+            "jsonb_array_elements",
+            "normalized_key",
+        )
+    )
+    has_card_data_aliases = all(
+        alias in lowered for alias in ("primaryaccountnumber", "pan", "cvc", "trackdata")
+    )
+    has_secret_material_aliases = all(
+        alias in lowered for alias in ("clientsecret", "webhooksecret", "privatekey", "authorization")
+    )
+    verification_artifact_table_present = (
+        "create table if not exists china_payment_verification_artifacts" in lowered
+    )
+    verification_artifact_digest_fields = all(
+        marker in lowered
+        for marker in (
+            "payload_sha256",
+            "headers_sha256",
+            "signature_sha256",
+            "artifact_sha256",
+            "verification_key_fingerprint",
+        )
+    )
+    verification_artifact_freshness_window = all(
+        marker in lowered
+        for marker in (
+            "fresh_until",
+            "verified_at <= created_at + interval '5 minutes'",
+            "fresh_until <= verified_at + interval '24 hours'",
+        )
+    )
+    verification_artifact_append_only = all(
+        marker in lowered
+        for marker in (
+            "revoke update, delete, truncate on china_payment_verification_artifacts",
+            "china_payment_reject_verification_artifact_mutation",
+            "payment verification artifacts are append-only",
+        )
+    )
+    notification_requires_verified_artifact = all(
+        marker in lowered
+        for marker in (
+            "china_payment_require_verified_notification",
+            "verified payment notification requires trusted verification artifact",
+            "verification artifact does not match notification scope and digests",
+        )
+    )
+    status_transition_requires_artifact = all(
+        marker in lowered
+        for marker in (
+            "china_payment_require_verified_transition",
+            "provider-authoritative payment status transition requires trusted verification artifact",
+            "trusted verification artifact is missing, stale, consumed by another notification, or out of scope",
+        )
+    )
+    trusted_apply_functions_present = all(
+        marker in lowered
+        for marker in (
+            "apply_china_payment_verified_order_status",
+            "apply_china_payment_verified_refund_status",
+            "app.a1_payment_verification_artifact_id",
+        )
+    )
+    project_rls_ready = all(
+        marker in lowered
+        for marker in (
+            "a1_current_project_id",
+            "china_payment_verification_artifacts_project_isolation",
+            "force row level security",
+        )
+    )
+    role_nobypassrls_assertion = all(
+        marker in lowered
+        for marker in (
+            "a1_role_is_nobypassrls",
+            "a1_assert_role_nobypassrls",
+            "nobypassrls",
+        )
+    )
+    metadata_constraints_present = all(
+        marker in lowered
+        for marker in (
+            "billing_accounts_metadata_safe",
+            "billing_provider_events_metadata_safe",
+            "billing_ledger_events_metadata_safe",
+            "china_payment_verification_artifacts_metadata_safe",
+        )
+    )
+    raw_payload_storage_allowed = (
+        "raw_payload_included true" in lowered
+        or "raw provider payload stored" in lowered
+        or "raw_payload bytea" in lowered
+    )
+    secret_value_storage_allowed = "secret_value" in lowered or "provider_secret text" in lowered
+    ready = bool(
+        recursive_metadata_check
+        and forbidden_alias_count >= 16
+        and has_card_data_aliases
+        and has_secret_material_aliases
+        and verification_artifact_table_present
+        and verification_artifact_digest_fields
+        and verification_artifact_freshness_window
+        and verification_artifact_append_only
+        and notification_requires_verified_artifact
+        and status_transition_requires_artifact
+        and trusted_apply_functions_present
+        and project_rls_ready
+        and role_nobypassrls_assertion
+        and metadata_constraints_present
+        and not raw_payload_storage_allowed
+        and not secret_value_storage_allowed
+    )
+    return {
+        "available": True,
+        "path": target.as_posix(),
+        "migration": target.name,
+        "public_safe": not raw_payload_storage_allowed and not secret_value_storage_allowed,
+        "recursive_metadata_check": recursive_metadata_check,
+        "forbidden_alias_count": forbidden_alias_count,
+        "has_card_data_aliases": has_card_data_aliases,
+        "has_secret_material_aliases": has_secret_material_aliases,
+        "verification_artifact_table_present": verification_artifact_table_present,
+        "verification_artifact_digest_fields": verification_artifact_digest_fields,
+        "verification_artifact_freshness_window": verification_artifact_freshness_window,
+        "verification_artifact_append_only": verification_artifact_append_only,
+        "notification_requires_verified_artifact": notification_requires_verified_artifact,
+        "status_transition_requires_artifact": status_transition_requires_artifact,
+        "trusted_apply_functions_present": trusted_apply_functions_present,
+        "project_rls_ready": project_rls_ready,
+        "role_nobypassrls_assertion": role_nobypassrls_assertion,
+        "metadata_constraints_present": metadata_constraints_present,
+        "raw_payload_storage_allowed": raw_payload_storage_allowed,
+        "secret_value_storage_allowed": secret_value_storage_allowed,
+        "ready_for_a2_payment_verification_policy_context": ready,
+        "c3_grading_ready": False,
+        "a2_policy_implications": {
+            "payment_verification_policy_context": ready,
+            "can_support_forbidden_payment_data_abuse_cases": ready,
+            "can_support_fail_closed_payment_transition_regressions": ready,
+            "can_cross_check_verified_notification_artifacts": ready and verification_artifact_table_present,
+            "must_not_mark_c3_from_payment_verification_context": True,
+        },
+        "notes": [
+            "A1 payment verification security SQL is public-safe policy context for forbidden payment data, trusted notification, and fail-closed transition checks.",
+            "It proves SQL guard semantics, not live provider verification or reviewed Ashr grading rows.",
+        ],
+    }
+
+
 def _a1_billing_sql_semantic_contract_summary(path: str | Path) -> dict[str, Any]:
     target = Path(path)
     if not target.exists():
@@ -1665,6 +1863,44 @@ def _missing_china_payment_migration(path: Path, reason: str) -> dict[str, Any]:
         "notes": [
             reason,
             "When present, A2 uses it as payment SQL policy context, not as C3 server-side grading evidence.",
+        ],
+    }
+
+
+def _missing_payment_verification_security(path: Path, reason: str) -> dict[str, Any]:
+    return {
+        "available": False,
+        "path": path.as_posix(),
+        "migration": path.name,
+        "public_safe": False,
+        "recursive_metadata_check": False,
+        "forbidden_alias_count": 0,
+        "has_card_data_aliases": False,
+        "has_secret_material_aliases": False,
+        "verification_artifact_table_present": False,
+        "verification_artifact_digest_fields": False,
+        "verification_artifact_freshness_window": False,
+        "verification_artifact_append_only": False,
+        "notification_requires_verified_artifact": False,
+        "status_transition_requires_artifact": False,
+        "trusted_apply_functions_present": False,
+        "project_rls_ready": False,
+        "role_nobypassrls_assertion": False,
+        "metadata_constraints_present": False,
+        "raw_payload_storage_allowed": False,
+        "secret_value_storage_allowed": False,
+        "ready_for_a2_payment_verification_policy_context": False,
+        "c3_grading_ready": False,
+        "a2_policy_implications": {
+            "payment_verification_policy_context": False,
+            "can_support_forbidden_payment_data_abuse_cases": False,
+            "can_support_fail_closed_payment_transition_regressions": False,
+            "can_cross_check_verified_notification_artifacts": False,
+            "must_not_mark_c3_from_payment_verification_context": True,
+        },
+        "notes": [
+            reason,
+            "When present, A2 uses it as payment verification policy context, not as C3 server-side grading evidence.",
         ],
     }
 

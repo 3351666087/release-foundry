@@ -581,6 +581,41 @@
       "When present, A2 uses it as payment SQL policy context, not as C3 server-side grading evidence."
     ]
   },
+  "a1_payment_verification_security": {
+    "available": false,
+    "path": "services/api/migrations/005_a1_payment_verification_security.sql",
+    "migration": "005_a1_payment_verification_security.sql",
+    "public_safe": false,
+    "recursive_metadata_check": false,
+    "forbidden_alias_count": 0,
+    "has_card_data_aliases": false,
+    "has_secret_material_aliases": false,
+    "verification_artifact_table_present": false,
+    "verification_artifact_digest_fields": false,
+    "verification_artifact_freshness_window": false,
+    "verification_artifact_append_only": false,
+    "notification_requires_verified_artifact": false,
+    "status_transition_requires_artifact": false,
+    "trusted_apply_functions_present": false,
+    "project_rls_ready": false,
+    "role_nobypassrls_assertion": false,
+    "metadata_constraints_present": false,
+    "raw_payload_storage_allowed": false,
+    "secret_value_storage_allowed": false,
+    "ready_for_a2_payment_verification_policy_context": false,
+    "c3_grading_ready": false,
+    "a2_policy_implications": {
+      "payment_verification_policy_context": false,
+      "can_support_forbidden_payment_data_abuse_cases": false,
+      "can_support_fail_closed_payment_transition_regressions": false,
+      "can_cross_check_verified_notification_artifacts": false,
+      "must_not_mark_c3_from_payment_verification_context": true
+    },
+    "notes": [
+      "A1 payment verification security SQL is not available on this branch yet.",
+      "When present, A2 uses it as payment verification policy context, not as C3 server-side grading evidence."
+    ]
+  },
   "a1_billing_sql_semantic_contract": {
     "available": true,
     "path": "docs/a1/evidence/billing_sql_semantic_contract.json",
