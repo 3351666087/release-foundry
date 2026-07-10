@@ -29,6 +29,18 @@ DEFAULT_A1_OAUTH_LIFECYCLE_SQL = Path("services/api/migrations/006_a1_oauth_life
 DEFAULT_A1_GITHUB_ACCOUNT_CONNECTION_EVIDENCE = Path(
     "docs/a1/evidence/github_account_connection_evidence_20260710.json"
 )
+DEFAULT_A1_OAUTH_RUNTIME_STORE_SQL = Path("services/api/migrations/007_a1_oauth_runtime_store.sql")
+DEFAULT_A1_UNIFIED_IDENTITY_SQL = Path("services/api/migrations/008_a1_unified_identity_account.sql")
+DEFAULT_A1_OAUTH_IDENTITY_COORDINATOR_SQL = Path(
+    "services/api/migrations/009_a1_oauth_identity_coordinator.sql"
+)
+DEFAULT_A1_UNIFIED_IDENTITY_CONTRACT = Path("docs/a1/evidence/unified_identity_contract_20260710.json")
+DEFAULT_A1_UNIFIED_IDENTITY_LOCALHOST_EVIDENCE = Path(
+    "docs/a1/evidence/unified_identity_same_account_localhost_20260710.json"
+)
+DEFAULT_A1_GOOGLE_OAUTH_LOCALHOST_EVIDENCE = Path(
+    "docs/a1/evidence/google_oauth_localhost_evidence_20260710.json"
+)
 DEFAULT_A1_BILLING_SQL_SEMANTIC_CONTRACT = Path("docs/a1/evidence/billing_sql_semantic_contract.json")
 DEFAULT_A1_OBJECT_STORAGE_CONTRACT = Path("docs/a1/evidence/object_storage_contract_20260709.md")
 DEFAULT_A2_REAL_API_SMOKE = Path("docs/evidence/a2_real_api_smoke.json")
@@ -75,6 +87,12 @@ def build_evidence_readiness_report(
     a1_payment_verification_security_sql_path: str | Path = DEFAULT_A1_PAYMENT_VERIFICATION_SECURITY_SQL,
     a1_oauth_lifecycle_sql_path: str | Path = DEFAULT_A1_OAUTH_LIFECYCLE_SQL,
     a1_github_account_connection_evidence_path: str | Path = DEFAULT_A1_GITHUB_ACCOUNT_CONNECTION_EVIDENCE,
+    a1_oauth_runtime_store_sql_path: str | Path = DEFAULT_A1_OAUTH_RUNTIME_STORE_SQL,
+    a1_unified_identity_sql_path: str | Path = DEFAULT_A1_UNIFIED_IDENTITY_SQL,
+    a1_oauth_identity_coordinator_sql_path: str | Path = DEFAULT_A1_OAUTH_IDENTITY_COORDINATOR_SQL,
+    a1_unified_identity_contract_path: str | Path = DEFAULT_A1_UNIFIED_IDENTITY_CONTRACT,
+    a1_unified_identity_localhost_evidence_path: str | Path = DEFAULT_A1_UNIFIED_IDENTITY_LOCALHOST_EVIDENCE,
+    a1_google_oauth_localhost_evidence_path: str | Path = DEFAULT_A1_GOOGLE_OAUTH_LOCALHOST_EVIDENCE,
     a1_billing_sql_semantic_contract_path: str | Path = DEFAULT_A1_BILLING_SQL_SEMANTIC_CONTRACT,
     a1_object_storage_contract_path: str | Path = DEFAULT_A1_OBJECT_STORAGE_CONTRACT,
     official_sdk_smoke_path: str | Path = DEFAULT_A2_REAL_API_SMOKE,
@@ -133,6 +151,14 @@ def build_evidence_readiness_report(
     a1_oauth_lifecycle_security = _a1_oauth_lifecycle_security_summary(
         a1_oauth_lifecycle_sql_path,
         a1_github_account_connection_evidence_path,
+    )
+    a1_unified_identity_security = _a1_unified_identity_security_summary(
+        a1_oauth_runtime_store_sql_path,
+        a1_unified_identity_sql_path,
+        a1_oauth_identity_coordinator_sql_path,
+        a1_unified_identity_contract_path,
+        a1_unified_identity_localhost_evidence_path,
+        a1_google_oauth_localhost_evidence_path,
     )
     a1_billing_sql_semantic_contract = _a1_billing_sql_semantic_contract_summary(
         a1_billing_sql_semantic_contract_path
@@ -193,6 +219,7 @@ def build_evidence_readiness_report(
         "a1_china_payment_migration": a1_china_payment_migration,
         "a1_payment_verification_security": a1_payment_verification_security,
         "a1_oauth_lifecycle_security": a1_oauth_lifecycle_security,
+        "a1_unified_identity_security": a1_unified_identity_security,
         "a1_billing_sql_semantic_contract": a1_billing_sql_semantic_contract,
         "a1_object_storage_contract": a1_object_storage_contract,
         "official_sdk_smoke": official_sdk_smoke,
@@ -1649,6 +1676,410 @@ def _a1_oauth_lifecycle_security_summary(
     }
 
 
+def _a1_unified_identity_security_summary(
+    runtime_sql_path: str | Path,
+    identity_sql_path: str | Path,
+    coordinator_sql_path: str | Path,
+    contract_path: str | Path,
+    same_account_evidence_path: str | Path,
+    google_evidence_path: str | Path,
+) -> dict[str, Any]:
+    runtime_target = Path(runtime_sql_path)
+    identity_target = Path(identity_sql_path)
+    coordinator_target = Path(coordinator_sql_path)
+    contract_target = Path(contract_path)
+    same_account_target = Path(same_account_evidence_path)
+    google_target = Path(google_evidence_path)
+    required_paths = [
+        runtime_target,
+        identity_target,
+        coordinator_target,
+        contract_target,
+        same_account_target,
+        google_target,
+    ]
+    if any(not target.exists() for target in required_paths):
+        return _missing_unified_identity_security(
+            runtime_target,
+            identity_target,
+            coordinator_target,
+            contract_target,
+            same_account_target,
+            google_target,
+            "A1 unified identity SQL and public OAuth identity evidence are not available on this branch yet.",
+        )
+
+    runtime_sql = runtime_target.read_text(encoding="utf-8").lower()
+    identity_sql = identity_target.read_text(encoding="utf-8").lower()
+    coordinator_sql = coordinator_target.read_text(encoding="utf-8").lower()
+    combined_sql = "\n".join([runtime_sql, identity_sql, coordinator_sql])
+    contract = json.loads(contract_target.read_text(encoding="utf-8-sig"))
+    same_account = json.loads(same_account_target.read_text(encoding="utf-8-sig"))
+    google = json.loads(google_target.read_text(encoding="utf-8-sig"))
+    if not all(isinstance(payload, dict) for payload in (contract, same_account, google)):
+        return _missing_unified_identity_security(
+            runtime_target,
+            identity_target,
+            coordinator_target,
+            contract_target,
+            same_account_target,
+            google_target,
+            "A1 unified identity contract or evidence payload is not a JSON object.",
+        )
+
+    identity_tables = [
+        "identity_principals",
+        "identity_credentials",
+        "identity_organization_memberships",
+        "identity_project_memberships",
+        "identity_sessions",
+        "identity_link_conflicts",
+        "identity_account_merges",
+        "identity_recovery_challenges",
+        "identity_audit_events",
+        "identity_outbox",
+    ]
+    runtime_tables = [
+        "oauth_runtime_transactions",
+        "oauth_replay_ledger",
+        "oauth_token_opaque_refs",
+        "oauth_account_connections",
+        "oauth_revocation_outbox",
+        "oauth_runtime_audit",
+    ]
+    identity_table_names = sorted(
+        table
+        for table in identity_tables
+        if f"create table if not exists {table}" in identity_sql
+    )
+    runtime_table_names = sorted(
+        table
+        for table in runtime_tables
+        if f"create table if not exists {table}" in runtime_sql
+    )
+    coordinator_table_present = "create table if not exists oauth_identity_operations" in coordinator_sql
+    security_controls = contract.get("security_controls", {})
+    membership_model = contract.get("membership_model", {})
+    acceptance = contract.get("acceptance_status", {})
+    verification = contract.get("verification_20260710", {})
+    evidence_boundary = contract.get("evidence_boundary", {})
+    same_account_boundary = same_account.get("evidence_boundary", {})
+    google_controls = {
+        str(control.get("control_id", "")): control
+        for control in google.get("controls", [])
+        if isinstance(control, dict)
+    }
+    required_identity_kinds = _string_list(contract.get("required_identity_kinds"))
+    completed_providers = _string_list(contract.get("real_provider_calibration", {}).get("completed"))
+    pending_providers = _string_list(contract.get("real_provider_calibration", {}).get("not_completed"))
+    same_account_providers = _string_list(same_account.get("canonical_account", {}).get("providers"))
+    runtime_checks = {
+        str(check.get("check", "")): check
+        for check in same_account.get("runtime_checks", [])
+        if isinstance(check, dict)
+    }
+    public_keys = _string_list(same_account.get("public_account_credential_keys"))
+
+    digest_only_identity_storage = all(
+        marker in identity_sql
+        for marker in (
+            "a1_identity_digest_valid",
+            "subject_digest text not null",
+            "session_digest text not null",
+            "request_context_digest text not null",
+        )
+    ) and all(
+        marker in runtime_sql
+        for marker in (
+            "state_digest text not null",
+            "opaque_ref_digest text not null",
+            "provider_subject_digest text not null",
+        )
+    )
+    reference_only_secret_storage = all(
+        marker in combined_sql
+        for marker in (
+            "a1_oauth_reference_only",
+            "secret_ref text",
+            "opaque_ref text not null",
+            "oauth_token_opaque_refs",
+        )
+    )
+    recursive_metadata_check = all(
+        marker in identity_sql
+        for marker in (
+            "a1_identity_public_metadata",
+            "jsonb_each",
+            "jsonb_array_elements",
+            "normalized_key",
+        )
+    )
+    tenant_principal_rls_ready = all(
+        marker in combined_sql
+        for marker in (
+            "a1_current_principal_id",
+            "a1_current_organization_id",
+            "a1_current_project_id",
+            "force row level security",
+            "oauth_identity_operations_tenant_isolation",
+            "identity_project_memberships_tenant_access",
+        )
+    )
+    membership_identity_decoupled = bool(
+        membership_model.get("separate_from_identity") is True
+        and membership_model.get("references_internal_account_only") is True
+        and membership_model.get("credential_unlink_does_not_delete_membership") is True
+        and security_controls.get("membership_identity_coupling") == "forbidden"
+    )
+    account_takeover_controls = bool(
+        security_controls.get("same_email_auto_merge") == "forbidden"
+        and security_controls.get("unverified_credential_login") == "reject"
+        and security_controls.get("cross_account_takeover") == "reject"
+        and security_controls.get("caller_supplied_account_id") == "reject"
+        and "identity_credentials_global_identity_key" in identity_sql
+        and "oauth subject already belongs to another principal" in coordinator_sql
+        and "oauth identity idempotency request mismatch" in coordinator_sql
+    )
+    same_account_provider_link_ready = bool(
+        set(same_account_providers) >= {"github", "google"}
+        and same_account.get("canonical_account", {}).get("credential_count", 0) >= 2
+        and same_account.get("canonical_account", {}).get("all_credentials_verified") is True
+        and same_account.get("canonical_account", {}).get("all_credentials_can_login") is True
+        and same_account.get("canonical_account", {}).get("membership_count") == 0
+        and runtime_checks.get("caller_supplied_account_mismatch", {}).get("status_code") == 403
+        and runtime_checks.get("caller_supplied_account_mismatch", {}).get("failed_closed") is True
+    )
+    public_dto_allowlist_only = bool(
+        security_controls.get("public_dto_policy") == "allowlist_only"
+        and set(public_keys)
+        <= {"can_login", "credential_id", "kind", "linked_at", "provider", "schema_version", "verified"}
+        and runtime_checks.get("public_response_forbidden_material_scan", {}).get("status") == "passed"
+        and runtime_checks.get("public_response_forbidden_material_scan", {}).get("forbidden_key_hits") == 0
+    )
+    same_account_secret_material_excluded = all(
+        same_account_boundary.get(field) is False
+        for field in (
+            "raw_account_contact_recorded",
+            "raw_provider_subject_recorded",
+            "subject_digest_recorded",
+            "oauth_code_recorded",
+            "oauth_state_recorded",
+            "oauth_nonce_recorded",
+            "pkce_verifier_recorded",
+            "access_token_recorded",
+            "refresh_token_recorded",
+            "id_token_recorded",
+            "token_reference_recorded",
+            "client_secret_recorded",
+            "callback_query_recorded",
+            "raw_provider_response_recorded",
+        )
+    )
+    contract_secret_material_excluded = all(
+        evidence_boundary.get(field) is False
+        for field in (
+            "contains_account_contact_data",
+            "contains_provider_identity_data",
+            "contains_credential_material",
+            "contains_callback_query_data",
+            "contains_session_or_cookie_data",
+            "contains_provider_response_payload",
+        )
+    )
+    google_secret_material_excluded = all(
+        google.get(field) is False
+        for field in (
+            "raw_state_recorded",
+            "nonce_recorded",
+            "pkce_verifier_recorded",
+            "authorization_code_recorded",
+            "access_token_recorded",
+            "refresh_token_recorded",
+            "id_token_recorded",
+            "client_secret_recorded",
+            "raw_provider_response_recorded",
+            "callback_query_recorded",
+            "account_email_recorded",
+            "stable_provider_identifier_recorded",
+        )
+    )
+    google_real_provider_ready = bool(
+        google.get("schema_version") == "ashr.clone.google_oauth_localhost.v1"
+        and google.get("provider") == "google"
+        and google.get("public_safe") is True
+        and google.get("contains_secret_values") is False
+        and google_controls.get("callback_success", {}).get("status") == "verified_real_provider"
+        and google_controls.get("callback_success", {}).get("issuer_validation_passed") is True
+        and google_controls.get("callback_success", {}).get("audience_validation_passed") is True
+        and google_controls.get("callback_success", {}).get("nonce_validation_passed") is True
+        and google_controls.get("callback_replay", {}).get("replay_denied") is True
+        and google_controls.get("public_response_secret_scan", {}).get("public_response_secret_scan_passed") is True
+    )
+    outbox_audit_controls = all(
+        marker in combined_sql
+        for marker in (
+            "identity_audit_events",
+            "identity_outbox",
+            "oauth_revocation_outbox",
+            "provider_revoke_and_cleanup",
+            "for update skip locked",
+        )
+    )
+    recovery_merge_controls_present = all(
+        marker in identity_sql
+        for marker in (
+            "identity_account_merges",
+            "identity_recovery_challenges",
+            "a1_merge_identity_accounts",
+            "a1_consume_identity_recovery",
+            "account merge requires independent approval",
+        )
+    )
+    append_only_controls = all(
+        marker in combined_sql
+        for marker in (
+            "identity_audit_events_append_only",
+            "identity_link_conflicts_append_only",
+            "oauth_replay_ledger_append_only",
+            "oauth_runtime_audit_append_only",
+        )
+    )
+    hard_delete_rejected = all(
+        marker in identity_sql
+        for marker in (
+            "identity_principals_reject_hard_delete",
+            "identity_credentials_reject_hard_delete",
+            "identity_sessions_reject_hard_delete",
+        )
+    )
+    final_credential_unlink_rejected = bool(
+        security_controls.get("last_credential_unlink") == "reject"
+        and "cannot unlink the last active login credential" in identity_sql
+        and "cannot disconnect the last active login credential" in coordinator_sql
+    )
+    raw_secret_columns_present = any(
+        marker in combined_sql
+        for marker in (
+            "access_token text",
+            "refresh_token text",
+            "authorization_code text",
+            "client_secret text",
+            "raw_provider_response",
+            "raw_email",
+            "session_token text",
+            "cookie text",
+        )
+    )
+    public_safe = bool(
+        contract.get("public_safe") is True
+        and same_account.get("public_safe") is True
+        and google.get("public_safe") is True
+        and contract.get("contains_secret_values") is False
+        and same_account.get("contains_secret_values") is False
+        and google.get("contains_secret_values") is False
+        and not raw_secret_columns_present
+        and same_account_secret_material_excluded
+        and contract_secret_material_excluded
+        and google_secret_material_excluded
+    )
+    domain_invariants_ready = acceptance.get("domain_invariants") == "implemented_and_tested"
+    postgres_contract_ready = bool(
+        verification.get("postgres_integration", {}).get("passed", 0) >= 8
+        and verification.get("postgres_integration", {}).get("runtime_role") == "NOSUPERUSER_NOBYPASSRLS"
+    )
+    multi_instance_gap_present = any(
+        "multi-instance" in str(gap) or "postgres" in str(gap)
+        for gap in contract.get("known_implementation_gaps", [])
+    ) or acceptance.get("durable_postgres_runtime_wiring") == "not_completed"
+    production_ready = bool(
+        contract.get("production_ready") is True
+        and same_account.get("production_ready") is True
+        and google.get("production_ready") is True
+    )
+    ready = bool(
+        contract.get("schema_version") == "ashr.unified_identity.contract.v1"
+        and same_account.get("schema_version") == "ashr.unified_identity.same_account_localhost.v1"
+        and public_safe
+        and len(identity_table_names) == len(identity_tables)
+        and len(runtime_table_names) == len(runtime_tables)
+        and coordinator_table_present
+        and set(required_identity_kinds) >= {"github", "google", "wechat", "qq", "alipay", "phone", "email"}
+        and set(completed_providers) >= {"github", "google"}
+        and domain_invariants_ready
+        and postgres_contract_ready
+        and digest_only_identity_storage
+        and reference_only_secret_storage
+        and recursive_metadata_check
+        and tenant_principal_rls_ready
+        and account_takeover_controls
+        and membership_identity_decoupled
+        and same_account_provider_link_ready
+        and public_dto_allowlist_only
+        and google_real_provider_ready
+        and outbox_audit_controls
+        and recovery_merge_controls_present
+        and append_only_controls
+        and hard_delete_rejected
+        and final_credential_unlink_rejected
+    )
+    return {
+        "available": True,
+        "runtime_sql_path": runtime_target.as_posix(),
+        "identity_sql_path": identity_target.as_posix(),
+        "coordinator_sql_path": coordinator_target.as_posix(),
+        "contract_path": contract_target.as_posix(),
+        "same_account_evidence_path": same_account_target.as_posix(),
+        "google_evidence_path": google_target.as_posix(),
+        "schema_version": str(contract.get("schema_version", "")),
+        "same_account_schema_version": str(same_account.get("schema_version", "")),
+        "google_schema_version": str(google.get("schema_version", "")),
+        "public_safe": public_safe,
+        "required_identity_kinds": required_identity_kinds,
+        "real_provider_calibrated": completed_providers,
+        "pending_provider_count": len(pending_providers),
+        "identity_table_count": len(identity_table_names),
+        "identity_tables": identity_table_names,
+        "oauth_runtime_table_count": len(runtime_table_names),
+        "oauth_runtime_tables": runtime_table_names,
+        "coordinator_table_present": coordinator_table_present,
+        "digest_only_identity_storage": digest_only_identity_storage,
+        "reference_only_secret_storage": reference_only_secret_storage,
+        "recursive_metadata_check": recursive_metadata_check,
+        "tenant_principal_rls_ready": tenant_principal_rls_ready,
+        "domain_invariants_ready": domain_invariants_ready,
+        "postgres_contract_ready": postgres_contract_ready,
+        "account_takeover_controls": account_takeover_controls,
+        "same_account_provider_link_ready": same_account_provider_link_ready,
+        "membership_identity_decoupled": membership_identity_decoupled,
+        "public_dto_allowlist_only": public_dto_allowlist_only,
+        "secret_material_excluded": same_account_secret_material_excluded
+        and contract_secret_material_excluded
+        and google_secret_material_excluded,
+        "google_real_provider_ready": google_real_provider_ready,
+        "outbox_audit_controls": outbox_audit_controls,
+        "recovery_merge_controls_present": recovery_merge_controls_present,
+        "append_only_controls": append_only_controls,
+        "hard_delete_rejected": hard_delete_rejected,
+        "final_credential_unlink_rejected": final_credential_unlink_rejected,
+        "raw_secret_columns_present": raw_secret_columns_present,
+        "multi_instance_gap_present": multi_instance_gap_present,
+        "production_ready": production_ready,
+        "ready_for_a2_identity_policy_context": ready,
+        "c3_grading_ready": False,
+        "a2_policy_implications": {
+            "identity_policy_context": ready,
+            "can_support_account_takeover_regressions": ready and account_takeover_controls,
+            "can_support_membership_decoupling_regressions": ready and membership_identity_decoupled,
+            "can_support_provider_linking_abuse_cases": ready and same_account_provider_link_ready,
+            "must_not_mark_c3_from_identity_context": True,
+        },
+        "notes": [
+            "A1 unified identity evidence is public-safe auth policy context for A2 identity, OAuth linking, and membership-decoupling regressions.",
+            "Current real-provider proof is localhost and not production readiness; pending China/phone/email providers remain contract-only.",
+        ],
+    }
+
+
 def _a1_billing_sql_semantic_contract_summary(path: str | Path) -> dict[str, Any]:
     target = Path(path)
     if not target.exists():
@@ -2221,6 +2652,71 @@ def _missing_oauth_lifecycle_security(
         "notes": [
             reason,
             "When present, A2 uses it as OAuth lifecycle policy context, not as C3 server-side grading evidence.",
+        ],
+    }
+
+
+def _missing_unified_identity_security(
+    runtime_sql_path: Path,
+    identity_sql_path: Path,
+    coordinator_sql_path: Path,
+    contract_path: Path,
+    same_account_evidence_path: Path,
+    google_evidence_path: Path,
+    reason: str,
+) -> dict[str, Any]:
+    return {
+        "available": False,
+        "runtime_sql_path": runtime_sql_path.as_posix(),
+        "identity_sql_path": identity_sql_path.as_posix(),
+        "coordinator_sql_path": coordinator_sql_path.as_posix(),
+        "contract_path": contract_path.as_posix(),
+        "same_account_evidence_path": same_account_evidence_path.as_posix(),
+        "google_evidence_path": google_evidence_path.as_posix(),
+        "schema_version": "",
+        "same_account_schema_version": "",
+        "google_schema_version": "",
+        "public_safe": False,
+        "required_identity_kinds": [],
+        "real_provider_calibrated": [],
+        "pending_provider_count": 0,
+        "identity_table_count": 0,
+        "identity_tables": [],
+        "oauth_runtime_table_count": 0,
+        "oauth_runtime_tables": [],
+        "coordinator_table_present": False,
+        "digest_only_identity_storage": False,
+        "reference_only_secret_storage": False,
+        "recursive_metadata_check": False,
+        "tenant_principal_rls_ready": False,
+        "domain_invariants_ready": False,
+        "postgres_contract_ready": False,
+        "account_takeover_controls": False,
+        "same_account_provider_link_ready": False,
+        "membership_identity_decoupled": False,
+        "public_dto_allowlist_only": False,
+        "secret_material_excluded": False,
+        "google_real_provider_ready": False,
+        "outbox_audit_controls": False,
+        "recovery_merge_controls_present": False,
+        "append_only_controls": False,
+        "hard_delete_rejected": False,
+        "final_credential_unlink_rejected": False,
+        "raw_secret_columns_present": False,
+        "multi_instance_gap_present": False,
+        "production_ready": False,
+        "ready_for_a2_identity_policy_context": False,
+        "c3_grading_ready": False,
+        "a2_policy_implications": {
+            "identity_policy_context": False,
+            "can_support_account_takeover_regressions": False,
+            "can_support_membership_decoupling_regressions": False,
+            "can_support_provider_linking_abuse_cases": False,
+            "must_not_mark_c3_from_identity_context": True,
+        },
+        "notes": [
+            reason,
+            "When present, A2 uses it as unified identity policy context, not as C3 server-side grading evidence.",
         ],
     }
 

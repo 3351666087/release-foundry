@@ -461,6 +461,7 @@ class A2ContractTests(unittest.TestCase):
         self.assertIn("a1_china_payment_migration", evidence_readiness_schema["required"])
         self.assertIn("a1_payment_verification_security", evidence_readiness_schema["required"])
         self.assertIn("a1_oauth_lifecycle_security", evidence_readiness_schema["required"])
+        self.assertIn("a1_unified_identity_security", evidence_readiness_schema["required"])
         self.assertIn("a1_billing_sql_semantic_contract", evidence_readiness_schema["required"])
         self.assertIn("a1_object_storage_contract", evidence_readiness_schema["required"])
         self.assertIn("ashr_public_merge_gate", evidence_readiness_schema["required"])
@@ -575,6 +576,19 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(
             evidence_readiness_schema["properties"]["a1_oauth_lifecycle_security"]["$ref"],
             "#/$defs/a1_oauth_lifecycle_security",
+        )
+        unified_identity_required = set(
+            evidence_readiness_schema["$defs"]["a1_unified_identity_security"]["required"]
+        )
+        self.assertLessEqual(
+            unified_identity_required,
+            set(evidence_readiness["a1_unified_identity_security"]),
+        )
+        self.assertIn("ready_for_a2_identity_policy_context", unified_identity_required)
+        self.assertIn("c3_grading_ready", unified_identity_required)
+        self.assertEqual(
+            evidence_readiness_schema["properties"]["a1_unified_identity_security"]["$ref"],
+            "#/$defs/a1_unified_identity_security",
         )
         billing_sql_required = set(evidence_readiness_schema["$defs"]["a1_billing_sql_semantic_contract"]["required"])
         self.assertLessEqual(
@@ -2670,6 +2684,295 @@ CREATE POLICY oauth_outbox_tenant_isolation ON oauth_outbox USING (project_id = 
         self.assertTrue(oauth["a2_policy_implications"]["can_support_account_takeover_regressions"])
         self.assertTrue(oauth["a2_policy_implications"]["can_cross_check_audit_outbox_events"])
         self.assertTrue(oauth["a2_policy_implications"]["must_not_mark_c3_from_oauth_context"])
+
+    def test_evidence_readiness_consumes_a1_unified_identity_security_context(self):
+        calibration_matrix = build_calibration_matrix(
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+            run_dir=ROOT / "fixtures/a2/runs",
+            observations_path=ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        )
+        sdk_parity = build_sdk_parity_report(pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json")
+        semantic_harness = build_semantic_harness_report(calibration_matrix, sdk_parity)
+        runtime_sql = """
+CREATE TABLE IF NOT EXISTS oauth_runtime_transactions (
+  state_digest TEXT NOT NULL,
+  binding_digest TEXT NOT NULL,
+  transaction_ref TEXT NOT NULL CHECK (a1_oauth_reference_only(transaction_ref))
+);
+CREATE TABLE IF NOT EXISTS oauth_replay_ledger (value_digest TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS oauth_token_opaque_refs (
+  opaque_ref TEXT NOT NULL,
+  opaque_ref_digest TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS oauth_account_connections (
+  provider_subject_digest TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS oauth_revocation_outbox (operation_kind TEXT);
+CREATE TABLE IF NOT EXISTS oauth_runtime_audit (event_digest TEXT NOT NULL);
+CREATE UNIQUE INDEX oauth_runtime_transactions_state_key ON oauth_runtime_transactions(state_digest);
+CREATE TRIGGER oauth_replay_ledger_append_only BEFORE UPDATE OR DELETE ON oauth_replay_ledger EXECUTE FUNCTION a1_oauth_reject_append_only_mutation();
+CREATE TRIGGER oauth_runtime_audit_append_only BEFORE UPDATE OR DELETE ON oauth_runtime_audit EXECUTE FUNCTION a1_oauth_reject_append_only_mutation();
+ALTER TABLE oauth_runtime_transactions FORCE ROW LEVEL SECURITY;
+CREATE POLICY oauth_runtime_transactions_tenant_isolation ON oauth_runtime_transactions
+  USING (organization_id = a1_current_organization_id() AND project_id = a1_current_project_id());
+"""
+        identity_sql = """
+CREATE OR REPLACE FUNCTION a1_current_principal_id() RETURNS UUID AS $$ SELECT NULL::UUID; $$ LANGUAGE sql;
+CREATE OR REPLACE FUNCTION a1_identity_digest_valid(p_digest TEXT) RETURNS BOOLEAN AS $$ SELECT TRUE; $$ LANGUAGE sql;
+CREATE OR REPLACE FUNCTION a1_identity_public_metadata(p_metadata JSONB) RETURNS BOOLEAN AS $$
+DECLARE item RECORD; normalized_key TEXT;
+BEGIN
+  FOR item IN SELECT key, value FROM jsonb_each(p_metadata) LOOP
+    PERFORM jsonb_array_elements('[]'::JSONB);
+  END LOOP;
+  RETURN TRUE;
+END;
+$$ LANGUAGE plpgsql;
+CREATE TABLE IF NOT EXISTS identity_principals (id UUID PRIMARY KEY);
+CREATE TABLE IF NOT EXISTS identity_credentials (
+  principal_id UUID NOT NULL,
+  subject_digest TEXT NOT NULL,
+  secret_ref TEXT CHECK (a1_oauth_reference_only(secret_ref)),
+  CONSTRAINT identity_credentials_global_identity_key UNIQUE (subject_digest)
+);
+CREATE TABLE IF NOT EXISTS identity_organization_memberships (principal_id UUID NOT NULL);
+CREATE TABLE IF NOT EXISTS identity_project_memberships (principal_id UUID NOT NULL);
+CREATE TABLE IF NOT EXISTS identity_sessions (
+  session_digest TEXT NOT NULL,
+  request_context_digest TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS identity_link_conflicts (subject_digest TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS identity_account_merges (proof_digest TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS identity_recovery_challenges (request_context_digest TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS identity_audit_events (event_digest TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS identity_outbox (lease_owner_digest TEXT);
+CREATE OR REPLACE FUNCTION a1_unlink_identity_credential() RETURNS VOID AS $$
+BEGIN
+  RAISE EXCEPTION 'cannot unlink the last active login credential';
+END;
+$$ LANGUAGE plpgsql;
+CREATE OR REPLACE FUNCTION a1_merge_identity_accounts() RETURNS VOID AS $$
+BEGIN
+  RAISE EXCEPTION 'account merge requires independent approval';
+END;
+$$ LANGUAGE plpgsql;
+CREATE OR REPLACE FUNCTION a1_consume_identity_recovery() RETURNS VOID AS $$ BEGIN END; $$ LANGUAGE plpgsql;
+CREATE OR REPLACE FUNCTION a1_claim_identity_outbox() RETURNS SETOF identity_outbox AS $$
+BEGIN
+  RETURN QUERY SELECT * FROM identity_outbox FOR UPDATE SKIP LOCKED;
+END;
+$$ LANGUAGE plpgsql;
+CREATE TRIGGER identity_principals_reject_hard_delete BEFORE DELETE ON identity_principals EXECUTE FUNCTION a1_identity_reject_hard_delete();
+CREATE TRIGGER identity_credentials_reject_hard_delete BEFORE DELETE ON identity_credentials EXECUTE FUNCTION a1_identity_reject_hard_delete();
+CREATE TRIGGER identity_sessions_reject_hard_delete BEFORE DELETE ON identity_sessions EXECUTE FUNCTION a1_identity_reject_hard_delete();
+CREATE TRIGGER identity_link_conflicts_append_only BEFORE DELETE ON identity_link_conflicts EXECUTE FUNCTION a1_identity_reject_append_only_mutation();
+CREATE TRIGGER identity_audit_events_append_only BEFORE UPDATE OR DELETE ON identity_audit_events EXECUTE FUNCTION a1_identity_reject_append_only_mutation();
+ALTER TABLE identity_project_memberships FORCE ROW LEVEL SECURITY;
+CREATE POLICY identity_project_memberships_tenant_access ON identity_project_memberships
+  USING (principal_id = a1_current_principal_id() AND organization_id = a1_current_organization_id() AND project_id = a1_current_project_id());
+"""
+        coordinator_sql = """
+CREATE TABLE IF NOT EXISTS oauth_identity_operations (id UUID PRIMARY KEY);
+CREATE OR REPLACE FUNCTION a1_complete_oauth_identity_callback() RETURNS VOID AS $$
+BEGIN
+  RAISE EXCEPTION 'oauth subject already belongs to another principal';
+  RAISE EXCEPTION 'oauth identity idempotency request mismatch';
+END;
+$$ LANGUAGE plpgsql;
+CREATE OR REPLACE FUNCTION a1_disconnect_oauth_identity_credential() RETURNS VOID AS $$
+BEGIN
+  RAISE EXCEPTION 'cannot disconnect the last active login credential';
+END;
+$$ LANGUAGE plpgsql;
+ALTER TABLE oauth_identity_operations FORCE ROW LEVEL SECURITY;
+CREATE POLICY oauth_identity_operations_tenant_isolation ON oauth_identity_operations
+  USING (organization_id = a1_current_organization_id() AND project_id = a1_current_project_id() AND principal_id = a1_current_principal_id());
+INSERT INTO oauth_revocation_outbox (operation_kind) VALUES ('provider_revoke_and_cleanup');
+"""
+        contract = {
+            "schema_version": "ashr.unified_identity.contract.v1",
+            "public_safe": True,
+            "contains_secret_values": False,
+            "production_ready": False,
+            "required_identity_kinds": ["github", "google", "wechat", "qq", "alipay", "phone", "email"],
+            "security_controls": {
+                "same_email_auto_merge": "forbidden",
+                "unverified_credential_login": "reject",
+                "cross_account_takeover": "reject",
+                "caller_supplied_account_id": "reject",
+                "membership_identity_coupling": "forbidden",
+                "last_credential_unlink": "reject",
+                "public_dto_policy": "allowlist_only",
+            },
+            "membership_model": {
+                "separate_from_identity": True,
+                "references_internal_account_only": True,
+                "credential_unlink_does_not_delete_membership": True,
+            },
+            "real_provider_calibration": {
+                "completed": ["github", "google"],
+                "not_completed": ["wechat", "qq", "alipay", "phone", "email"],
+            },
+            "acceptance_status": {
+                "domain_invariants": "implemented_and_tested",
+                "durable_postgres_runtime_wiring": "not_completed",
+            },
+            "verification_20260710": {
+                "postgres_integration": {
+                    "passed": 8,
+                    "runtime_role": "NOSUPERUSER_NOBYPASSRLS",
+                }
+            },
+            "known_implementation_gaps": [
+                "memory_store_subject_uniqueness_is_not_multi-instance",
+                "durable_postgres_runtime_wiring_not_completed",
+            ],
+            "evidence_boundary": {
+                "contains_account_contact_data": False,
+                "contains_provider_identity_data": False,
+                "contains_credential_material": False,
+                "contains_callback_query_data": False,
+                "contains_session_or_cookie_data": False,
+                "contains_provider_response_payload": False,
+            },
+        }
+        same_account = {
+            "schema_version": "ashr.unified_identity.same_account_localhost.v1",
+            "public_safe": True,
+            "contains_secret_values": False,
+            "production_ready": False,
+            "canonical_account": {
+                "credential_count": 2,
+                "providers": ["github", "google"],
+                "all_credentials_verified": True,
+                "all_credentials_can_login": True,
+                "membership_count": 0,
+            },
+            "runtime_checks": [
+                {"check": "caller_supplied_account_mismatch", "status_code": 403, "failed_closed": True},
+                {"check": "public_response_forbidden_material_scan", "status": "passed", "forbidden_key_hits": 0},
+            ],
+            "public_account_credential_keys": [
+                "can_login",
+                "credential_id",
+                "kind",
+                "linked_at",
+                "provider",
+                "schema_version",
+                "verified",
+            ],
+            "evidence_boundary": {
+                "raw_account_contact_recorded": False,
+                "raw_provider_subject_recorded": False,
+                "subject_digest_recorded": False,
+                "oauth_code_recorded": False,
+                "oauth_state_recorded": False,
+                "oauth_nonce_recorded": False,
+                "pkce_verifier_recorded": False,
+                "access_token_recorded": False,
+                "refresh_token_recorded": False,
+                "id_token_recorded": False,
+                "token_reference_recorded": False,
+                "client_secret_recorded": False,
+                "callback_query_recorded": False,
+                "raw_provider_response_recorded": False,
+            },
+        }
+        google = {
+            "schema_version": "ashr.clone.google_oauth_localhost.v1",
+            "provider": "google",
+            "public_safe": True,
+            "contains_secret_values": False,
+            "production_ready": False,
+            "controls": [
+                {
+                    "control_id": "callback_success",
+                    "status": "verified_real_provider",
+                    "issuer_validation_passed": True,
+                    "audience_validation_passed": True,
+                    "nonce_validation_passed": True,
+                },
+                {"control_id": "callback_replay", "replay_denied": True},
+                {
+                    "control_id": "public_response_secret_scan",
+                    "public_response_secret_scan_passed": True,
+                },
+            ],
+            "raw_state_recorded": False,
+            "nonce_recorded": False,
+            "pkce_verifier_recorded": False,
+            "authorization_code_recorded": False,
+            "access_token_recorded": False,
+            "refresh_token_recorded": False,
+            "id_token_recorded": False,
+            "client_secret_recorded": False,
+            "raw_provider_response_recorded": False,
+            "callback_query_recorded": False,
+            "account_email_recorded": False,
+            "stable_provider_identifier_recorded": False,
+        }
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            runtime_sql_path = Path(tmp_dir) / "007_a1_oauth_runtime_store.sql"
+            identity_sql_path = Path(tmp_dir) / "008_a1_unified_identity_account.sql"
+            coordinator_sql_path = Path(tmp_dir) / "009_a1_oauth_identity_coordinator.sql"
+            contract_path = Path(tmp_dir) / "unified_identity_contract_20260710.json"
+            same_account_path = Path(tmp_dir) / "unified_identity_same_account_localhost_20260710.json"
+            google_path = Path(tmp_dir) / "google_oauth_localhost_evidence_20260710.json"
+            runtime_sql_path.write_text(runtime_sql, encoding="utf-8")
+            identity_sql_path.write_text(identity_sql, encoding="utf-8")
+            coordinator_sql_path.write_text(coordinator_sql, encoding="utf-8")
+            contract_path.write_text(json.dumps(contract), encoding="utf-8")
+            same_account_path.write_text(json.dumps(same_account), encoding="utf-8")
+            google_path.write_text(json.dumps(google), encoding="utf-8")
+            report = build_evidence_readiness_report(
+                calibration_matrix,
+                {},
+                semantic_harness,
+                a1_oauth_runtime_store_sql_path=runtime_sql_path,
+                a1_unified_identity_sql_path=identity_sql_path,
+                a1_oauth_identity_coordinator_sql_path=coordinator_sql_path,
+                a1_unified_identity_contract_path=contract_path,
+                a1_unified_identity_localhost_evidence_path=same_account_path,
+                a1_google_oauth_localhost_evidence_path=google_path,
+            )
+
+        identity = report["a1_unified_identity_security"]
+        self.assertTrue(identity["available"])
+        self.assertEqual(identity["schema_version"], "ashr.unified_identity.contract.v1")
+        self.assertEqual(identity["same_account_schema_version"], "ashr.unified_identity.same_account_localhost.v1")
+        self.assertEqual(identity["google_schema_version"], "ashr.clone.google_oauth_localhost.v1")
+        self.assertTrue(identity["public_safe"])
+        self.assertEqual(identity["identity_table_count"], 10)
+        self.assertEqual(identity["oauth_runtime_table_count"], 6)
+        self.assertTrue(identity["coordinator_table_present"])
+        self.assertTrue(identity["digest_only_identity_storage"])
+        self.assertTrue(identity["reference_only_secret_storage"])
+        self.assertTrue(identity["recursive_metadata_check"])
+        self.assertTrue(identity["tenant_principal_rls_ready"])
+        self.assertTrue(identity["domain_invariants_ready"])
+        self.assertTrue(identity["postgres_contract_ready"])
+        self.assertTrue(identity["account_takeover_controls"])
+        self.assertTrue(identity["same_account_provider_link_ready"])
+        self.assertTrue(identity["membership_identity_decoupled"])
+        self.assertTrue(identity["public_dto_allowlist_only"])
+        self.assertTrue(identity["secret_material_excluded"])
+        self.assertTrue(identity["google_real_provider_ready"])
+        self.assertTrue(identity["outbox_audit_controls"])
+        self.assertTrue(identity["recovery_merge_controls_present"])
+        self.assertTrue(identity["append_only_controls"])
+        self.assertTrue(identity["hard_delete_rejected"])
+        self.assertTrue(identity["final_credential_unlink_rejected"])
+        self.assertFalse(identity["raw_secret_columns_present"])
+        self.assertTrue(identity["multi_instance_gap_present"])
+        self.assertFalse(identity["production_ready"])
+        self.assertTrue(identity["ready_for_a2_identity_policy_context"])
+        self.assertFalse(identity["c3_grading_ready"])
+        self.assertTrue(identity["a2_policy_implications"]["identity_policy_context"])
+        self.assertTrue(identity["a2_policy_implications"]["can_support_account_takeover_regressions"])
+        self.assertTrue(identity["a2_policy_implications"]["can_support_membership_decoupling_regressions"])
+        self.assertTrue(identity["a2_policy_implications"]["can_support_provider_linking_abuse_cases"])
+        self.assertTrue(identity["a2_policy_implications"]["must_not_mark_c3_from_identity_context"])
 
     def test_evidence_readiness_consumes_a1_billing_sql_semantic_contract(self):
         calibration_matrix = build_calibration_matrix(
