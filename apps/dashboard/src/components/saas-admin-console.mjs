@@ -1,4 +1,4 @@
-export function renderSaasAdminConsole(target, admin = {}, options = {}) {
+﻿export function renderSaasAdminConsole(target, admin = {}, options = {}) {
   if (!target) {
     return;
   }
@@ -10,6 +10,8 @@ export function renderSaasAdminConsole(target, admin = {}, options = {}) {
   target.replaceChildren(
     sectionIntro(admin),
     summaryGrid(admin),
+    controlSummaryBlock(admin),
+    cloudSummaryStripBlock(admin.cloud_summary_strip || {}),
     sectionBlock("Login", [
       row("Status", admin.login?.status || "unknown"),
       row("Provider", admin.login?.provider || "unknown"),
@@ -20,12 +22,17 @@ export function renderSaasAdminConsole(target, admin = {}, options = {}) {
     sessionBlock(admin.login || {}),
     authBoundaryBlock(admin.auth_boundary || {}),
     rbacBlock(admin.rbac || {}),
+    cloudPostureBlock(admin.cloud_posture || {}),
+    tenantControlBlock(admin.tenant_control || {}),
+    rolloutControlBlock(admin.rollout_control || {}),
     sectionBlock("Team", [
       row("Members", String(admin.team?.members?.length || 0)),
       row("Roles", (admin.team?.roles || []).join(", ") || "none"),
       row("Invite mode", admin.team?.invite_mode || "disabled"),
-      row("Self approval", admin.team?.approval_policy?.self_approval_allowed ? "allowed" : "blocked")
+      row("Self approval", admin.team?.approval_policy?.self_approval_allowed ? "allowed" : "blocked"),
+      row("Seat posture", admin.team?.seat_management?.overage_risk || "unknown")
     ]),
+    seatManagementBlock(admin.team?.seat_management || {}),
     rosterBlock(admin.team?.members || []),
     workflowBlock("Invite Workflow", admin.team?.invite_workflow || [], "step", "status", "reason"),
     sectionBlock("Usage", [
@@ -34,16 +41,23 @@ export function renderSaasAdminConsole(target, admin = {}, options = {}) {
       row("Cases", String(admin.usage?.local_meter?.case_count || 0)),
       row("Channels", (admin.usage?.channels || []).join(", ") || "local meter"),
       row("OAuth-only", (admin.usage?.oauth_only_functions || []).join(", ") || "none"),
-      row("Plan", admin.usage?.plan_snapshot?.plan_name || "local_dev")
+      row("Plan", admin.usage?.plan_snapshot?.plan_name || "local_dev"),
+      row("Overage posture", admin.usage?.plan_snapshot?.overage_posture || "unknown")
     ]),
     workflowBlock("Usage Controls", admin.usage?.budget_controls || [], "control", "status", "mutation_enabled"),
+    billingAccountBlock(admin.billing_account || {}),
+    providerPriorityBlock(admin.billing_account || {}),
+    workflowBlock("Domestic Invoice Workflow", admin.billing_account?.invoice_workflow || [], "step", "status", "detail"),
     sectionBlock("API Keys", [
       row("Status", admin.api_keys?.status || "unknown"),
       row("Create mode", admin.api_keys?.create_mode || "server required"),
-      row("Reveal policy", admin.api_keys?.reveal_policy || "one-time only")
+      row("Reveal policy", admin.api_keys?.reveal_policy || "one-time only"),
+      row("Hygiene", admin.api_keys?.hygiene_status || "unknown")
     ]),
     keyBlock(admin.api_keys?.keys || []),
     workflowBlock("API Key Lifecycle", admin.api_keys?.lifecycle || [], "step", "status", "safety"),
+    apiKeyAuditBlock(admin.api_keys || {}),
+    notificationDestinationsBlock(admin.notification_destinations || [], admin.notification_summary || {}),
     sectionBlock("Trust", [
       row("Status", admin.trust?.status || "unknown"),
       row("Certificate", admin.trust?.public_certificate_mode || "preview"),
@@ -51,7 +65,9 @@ export function renderSaasAdminConsole(target, admin = {}, options = {}) {
       row("Gate", admin.trust?.release_gate_label || admin.trust?.release_gate_decision || "unknown")
     ]),
     trustBlock(admin.trust || {}),
+    compliancePostureBlock(admin.trust?.compliance_posture || {}),
     cloudManagementBlock(admin.cloud_management || {}),
+    workspacePostureBlock(admin.cloud_management?.workspace_posture || {}),
     workflowBlock("Product Console Map", admin.product_console_map || [], "page", "a3_decision", "purpose"),
     actionPlanBlock(actions, selectedAction, selectedPlan),
     actionRequestBlock(admin.action_request_summary || {}, admin.action_requests || []),
@@ -84,6 +100,50 @@ function summaryGrid(admin) {
   return grid;
 }
 
+function cloudSummaryStripBlock(summary) {
+  const tiles = Array.isArray(summary.tiles) ? summary.tiles : [];
+  const block = sectionBlock("Cloud Summary Strip", [
+    row("Headline", summary.headline || "unknown"),
+    row("Tiles", String(tiles.length || 0)),
+    row("Next moves", String((summary.next_operator_moves || []).length || 0))
+  ]);
+  for (const tile of tiles) {
+    const node = document.createElement("div");
+    node.className = "matrix-row";
+    node.innerHTML = `
+      <div class="matrix-head">
+        <strong>${escapeHtml(tile.label || "tile")}</strong>
+        <span class="badge ${badgeClass(tile.tone || "neutral")}">${escapeHtml(tile.tone || "neutral")}</span>
+      </div>
+      <div class="muted">${escapeHtml(tile.value || "unknown")}</div>
+    `;
+    block.appendChild(node);
+  }
+  for (const item of summary.next_operator_moves || []) {
+    const node = document.createElement("div");
+    node.className = "matrix-row";
+    node.innerHTML = `<div class="muted">${escapeHtml(item)}</div>`;
+    block.appendChild(node);
+  }
+  return block;
+}
+
+function controlSummaryBlock(admin) {
+  const releaseLabel = admin.project?.release_gate_label || admin.project?.release_gate_decision || "unknown";
+  const cloudPosture = admin.cloud_posture || {};
+  const teamCount = admin.team?.members?.length || 0;
+  const actionSummary = admin.action_request_summary || {};
+  const notificationSummary = admin.notification_summary || {};
+  return sectionBlock("Control Summary", [
+    row("Release", releaseLabel),
+    row("Cloud posture", cloudPosture.cloud_admin_state || "unknown"),
+    row("Usage state", cloudPosture.usage_state || "unknown"),
+    row("Team seats", String(teamCount)),
+    row("Admin requests", String(actionSummary.request_count || 0)),
+    row("Notification lanes", `${notificationSummary.channel_count || 0} / ${notificationSummary.configured_count || 0} configured`)
+  ]);
+}
+
 function sectionBlock(title, rows) {
   const block = document.createElement("div");
   block.className = "matrix-list";
@@ -104,6 +164,18 @@ function row(label, value) {
   return node;
 }
 
+function cloudPostureBlock(posture) {
+  return sectionBlock("Cloud Posture", [
+    row("Hosted auth", posture.hosted_auth_state || "unknown"),
+    row("Tenant scope", posture.tenant_scope_state || "unknown"),
+    row("Usage", posture.usage_state || "unknown"),
+    row("Trust publish", posture.trust_publish_state || "unknown"),
+    row("API key", posture.api_key_state || "unknown"),
+    row("Cloud admin", posture.cloud_admin_state || "unknown"),
+    row("Why it matters", posture.why_it_matters || "Cloud posture is not available.")
+  ]);
+}
+
 function rosterBlock(members) {
   const block = sectionBlock("Team Roster", []);
   for (const member of members) {
@@ -116,6 +188,33 @@ function rosterBlock(members) {
       </div>
       <div class="muted">${escapeHtml(member.status)} / ${member.redacted ? "redacted identity" : "visible identity"}</div>
     `;
+    block.appendChild(node);
+  }
+  return block;
+}
+
+function tenantControlBlock(tenant) {
+  return sectionBlock("Tenant / Environment Control", [
+    row("Mode", tenant.mode || "unknown"),
+    row("Tenant switching", tenant.tenant_switching || "unknown"),
+    row("Org creation", tenant.org_creation || "unknown"),
+    row("SSO", tenant.sso_state || "unknown"),
+    row("Tiers", (tenant.environment_tiers || []).join(", ") || "none"),
+    row("Why it matters", tenant.why_it_matters || "Commercial buyers need tenant boundaries.")
+  ]);
+}
+
+function rolloutControlBlock(rollout) {
+  const block = sectionBlock("Release / Rollout Control", [
+    row("Sign-off", rollout.signoff_state || "unknown"),
+    row("Rollout", rollout.rollout_mode || "unknown"),
+    row("Quota", rollout.quota_state || "unknown"),
+    row("Rollback", rollout.rollback_surface || "unknown")
+  ]);
+  for (const item of rollout.required_before_live || []) {
+    const node = document.createElement("div");
+    node.className = "matrix-row";
+    node.innerHTML = '<div class="muted">' + escapeHtml(item) + '</div>';
     block.appendChild(node);
   }
   return block;
@@ -181,6 +280,51 @@ function rbacBlock(rbac) {
   return block;
 }
 
+function billingAccountBlock(account) {
+  const block = sectionBlock("Billing Account", [
+    row("Status", account.status || "unknown"),
+    row("Plan", account.plan_name || "local_dev"),
+    row("Quota window", account.quota_window || "unknown"),
+    row("Billable meters", String(account.billable_meter_count || 0)),
+    row("Invoice preview", account.invoice_preview_state || "unknown"),
+    row("Overage risk", account.overage_risk || "unknown")
+  ]);
+  for (const item of account.packaging || []) {
+    const node = document.createElement("div");
+    node.className = "matrix-row";
+    node.innerHTML = '<div class="muted">' + escapeHtml(item) + '</div>';
+    block.appendChild(node);
+  }
+  for (const plan of account.plan_comparison || []) {
+    const node = document.createElement("div");
+    node.className = "matrix-row";
+    node.innerHTML = `
+      <div class="matrix-head">
+        <strong>${escapeHtml(plan.tier || "plan")}</strong>
+        <span class="badge info">${escapeHtml(plan.fit || "fit")}</span>
+      </div>
+      <div class="muted">${escapeHtml(plan.positioning || "")}</div>
+    `;
+    block.appendChild(node);
+  }
+  for (const line of account.invoice_preview?.line_items || []) {
+    const node = document.createElement("div");
+    node.className = "matrix-row";
+    node.innerHTML = `
+      <div class="matrix-head">
+        <strong>${escapeHtml(line.meter || "meter")}</strong>
+        <span class="badge neutral">${escapeHtml(line.subtotal_label || "$0.00")}</span>
+      </div>
+      <div class="case-meta">
+        <span>${escapeHtml(line.quantity || 0)} unit(s)</span>
+        <span>${escapeHtml(line.unit_price_label || "n/a")}</span>
+      </div>
+    `;
+    block.appendChild(node);
+  }
+  return block;
+}
+
 function keyBlock(keys) {
   const block = sectionBlock("API Key Metadata", []);
   for (const key of keys) {
@@ -197,6 +341,40 @@ function keyBlock(keys) {
         <span>${escapeHtml(key.owner_role || "unassigned")}</span>
       </div>
       <div class="muted">secret value never rendered</div>
+    `;
+    block.appendChild(node);
+  }
+  return block;
+}
+
+function providerPriorityBlock(billingAccount) {
+  const providers = Array.isArray(billingAccount.provider_priority) ? billingAccount.provider_priority : [];
+  const block = sectionBlock("Provider Priority", [
+    row("Invoice state", billingAccount.invoice_preview_state || "unknown"),
+    row("Overage risk", billingAccount.overage_risk || "unknown"),
+    row("Priority order", providers.map((item) => item.provider).join(", ") || "none")
+  ]);
+  if (!providers.length) {
+    const empty = document.createElement("div");
+    empty.className = "matrix-row";
+    empty.innerHTML = '<div class="muted">No provider priority loaded.</div>';
+    block.appendChild(empty);
+    return block;
+  }
+  for (const provider of providers) {
+    const node = document.createElement("div");
+    node.className = "matrix-row";
+    node.innerHTML = `
+      <div class="matrix-head">
+        <strong>${escapeHtml(provider.provider || "provider")}</strong>
+        <span class="badge ${badgeClass(provider.priority || provider.readiness || "neutral")}">${escapeHtml(provider.priority || "unknown")}</span>
+      </div>
+      <div class="case-meta">
+        <span>${escapeHtml(provider.market || "unknown")}</span>
+        <span>${escapeHtml(provider.readiness || "unknown")}</span>
+        <span>${escapeHtml(provider.settlement || "unknown")}</span>
+      </div>
+      <div class="muted">${escapeHtml(provider.why_now || "")}</div>
     `;
     block.appendChild(node);
   }
@@ -380,4 +558,86 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function notificationDestinationsBlock(destinations, summary) {
+  const block = sectionBlock("Notification Destinations", [
+    row("Channels", String(summary.channel_count || destinations.length || 0)),
+    row("Configured", String(summary.configured_count || 0)),
+    row("Secret refs", String(summary.secret_ref_count || 0)),
+    row("Live sends", summary.live_send_enabled ? "enabled" : "disabled")
+  ]);
+  const latest = Array.isArray(destinations) ? destinations.slice(0, 6) : [];
+  if (!latest.length) {
+    const empty = document.createElement("div");
+    empty.className = "matrix-row";
+    empty.innerHTML = `<div class="muted">No notification destinations projected yet. Notification control-plane evidence remains contract-only.</div>`;
+    block.appendChild(empty);
+    return block;
+  }
+  for (const destination of latest) {
+    const node = document.createElement("div");
+    node.className = "matrix-row";
+    node.innerHTML = `
+      <div class="matrix-head">
+        <strong>${escapeHtml(destination.label || destination.provider || "notification")}</strong>
+        <span class="badge ${badgeClass(destination.status)}">${escapeHtml(destination.status || "unknown")}</span>
+      </div>
+      <div class="case-meta">
+        <span>${escapeHtml(destination.provider || "unknown")}</span>
+        <span>${escapeHtml(destination.current_mode || "planned")}</span>
+        <span>${destination.secret_ref_present ? "secret ref present" : "no secret ref"}</span>
+      </div>
+      <div class="muted">${escapeHtml(destination.next_action || "No next action loaded.")}</div>
+    `;
+    block.appendChild(node);
+  }
+  return block;
+}
+
+
+
+
+function seatManagementBlock(seats) {
+  return sectionBlock("Seat / License Posture", [
+    row("Purchased", String(seats.purchased_seats || 0)),
+    row("Assigned", String(seats.assigned_billable_seats || 0)),
+    row("Free audit", String(seats.free_audit_seats || 0)),
+    row("Pending invites", String(seats.pending_invites || 0)),
+    row("Risk", seats.overage_risk || "unknown"),
+    row("Why it matters", seats.why_it_matters || "Commercial teams need seat-aware reviewer routing.")
+  ]);
+}
+
+function apiKeyAuditBlock(apiKeys) {
+  const block = sectionBlock("API Key Audit", [
+    row("Rotation SLO", apiKeys.rotation_slo_days ? `${apiKeys.rotation_slo_days} days` : "unknown"),
+    row("Leak detection", apiKeys.leaked_key_detection || "unknown")
+  ]);
+  for (const item of apiKeys.audit_requirements || []) {
+    const node = document.createElement("div");
+    node.className = "matrix-row";
+    node.innerHTML = `<div class="muted">${escapeHtml(item)}</div>`;
+    block.appendChild(node);
+  }
+  return block;
+}
+
+function compliancePostureBlock(posture) {
+  return sectionBlock("Compliance Posture", [
+    row("Audit export", posture.audit_export_ready ? "ready" : "missing"),
+    row("Customer publish", posture.customer_visible_publish_blocked ? "blocked" : "enabled"),
+    row("SOC2", posture.soc2_surface || "unknown"),
+    row("Retention", posture.retention_policy || "unknown")
+  ]);
+}
+
+function workspacePostureBlock(posture) {
+  return sectionBlock("Workspace / Cloud Posture", [
+    row("Environments", String(posture.environment_count || 0)),
+    row("Active", posture.active_environment || "unknown"),
+    row("Usage state", posture.usage_state || "unknown"),
+    row("Billing state", posture.billing_state || "unknown"),
+    row("Release state", posture.release_state || "unknown")
+  ]);
 }

@@ -1,4 +1,4 @@
-import assert from "node:assert/strict";
+﻿import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 
@@ -39,6 +39,7 @@ import {
   summarizeRegressionFactory,
   summarizeExportRedactionFirewall,
   summarizeIncidentReplayQueue,
+  summarizeLiveOpsControlPlaneExport,
   summarizeReviewerWorkflowBoard,
   summarizeReleaseEvidenceSummary,
   summarizeReleaseGate,
@@ -2282,4 +2283,54 @@ test("A3 report builder preserves A2 cross-lane security and SQL store summaries
   assert.match(markdown, /Block hosted mutations without A1 auth: yes/);
   assert.match(markdown, /## A2 SQL Store Report/);
   assert.match(markdown, /DB: sqlite \/ target postgres/);
+});
+
+test("A3 report builder summarizes live ops control-plane export", async () => {
+  const checkPublish = await loadJson("../../fixtures/a3/p3/a3_github_check_publish_receipt_dry_run.redacted.json");
+  const prCommentPublish = await loadJson("../../fixtures/a3/p3/a3_github_pr_comment_publish_receipt_dry_run.redacted.json");
+  const checkReadback = await loadJson("../../fixtures/a3/p3/a3_github_check_readback_confirmed.redacted.json");
+  const prCommentReadback = await loadJson("../../fixtures/a3/p3/a3_github_pr_comment_readback_confirmed.redacted.json");
+  const { buildA3LiveOpsControlPlane } = await import("../../services/report/a3_live_ops_control_plane.mjs");
+
+  const controlPlane = buildA3LiveOpsControlPlane({
+    releaseEvidence: {
+      githubCheckPublishReceipt: checkPublish,
+      githubPrCommentPublishReceipt: prCommentPublish,
+      githubCheckReadback: checkReadback,
+      githubPrCommentReadback: prCommentReadback,
+      readback_records: [checkReadback, prCommentReadback]
+    },
+    reviewWorkflow: {
+      schema_version: "a3.review_workflow_index.v1",
+      record_count: 2,
+      approval_count: 1,
+      denial_count: 0,
+      waiver_count: 1,
+      records: [
+        { record_type: "approval", accepted: true, reason: "Ready", actor_hash: "actor-1" },
+        { record_type: "waiver", accepted: true, reason: "Exception approved", actor_hash: "actor-2" }
+      ]
+    },
+    usageLedger: { schema_version: "a3.usage_ledger.v1", meters: [{ meter: "reports", quantity: 1 }], status: "ready" },
+    billingReadiness: { schema_version: "a3.billing_readiness.v1", status: "read_only", billing_mutations_enabled: false, invoice_preview: { ready_for_customer_invoice: true } },
+    reportCenter: {
+      schema_version: "a3.report_center_index.v1",
+      summary: { report_count: 2, shareable_count: 1, revoked_count: 1, expired_count: 0, total_view_count: 3 },
+      reports: [
+        { report_id: "r1", status: "shareable", expires_at: "2026-07-12T00:00:00Z", view_count: 3 },
+        { report_id: "r2", status: "revoked", revoked_at: "2026-07-10T08:00:00Z", view_count: 0 }
+      ]
+    },
+    eventOutbox: { event_count: 4 },
+    liveWorkflowReadiness: { source: "api-mock" }
+  });
+
+  const summary = summarizeLiveOpsControlPlaneExport(controlPlane);
+  assert.equal(summary.available, true);
+  assert.equal(summary.lane_count, 6);
+  assert.equal(summary.reviewer_timeline.length, 2);
+  assert.equal(summary.github_publish_timeline.length, 3);
+  assert.equal(summary.share_link_timeline.length, 2);
+  assert.ok(summary.audit_history.length >= 1);
+  assert.equal(summary.report_link_summary.shareable_count, 1);
 });

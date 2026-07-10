@@ -17,6 +17,7 @@ export function buildEnterpriseReadinessReport(inputs = {}) {
   const db = summarizeDbContract(dbContract);
   const blockers = buildBlockers({ summary, evidence, admin, db });
   const readinessScore = scoreReadiness({ summary, evidence, admin, db, blockers });
+  const cloudSelfHostPosture = buildCloudSelfHostPosture({ admin, db, blockers });
 
   return {
     schema_version: A3_ENTERPRISE_READINESS_SCHEMA_VERSION,
@@ -24,7 +25,10 @@ export function buildEnterpriseReadinessReport(inputs = {}) {
     status: readinessStatus(readinessScore, blockers),
     blockers,
     enabled_capabilities: buildEnabledCapabilities({ summary, evidence, admin, db }),
-    next_actions: buildNextActions({ blockers, admin, db, evidence }),
+    enterprise_value_map: buildEnterpriseValueMap({ summary, evidence, admin, db, blockers, cloudSelfHostPosture }),
+    cloud_self_host_posture: cloudSelfHostPosture,
+    self_host_packet: buildSelfHostPacket({ admin, db, evidence, blockers }),
+    next_actions: buildNextActions({ blockers, admin, db, evidence, cloudSelfHostPosture }),
     a1_a2_compatibility_notes: buildCompatibilityNotes({ summary, evidence })
   };
 }
@@ -114,7 +118,7 @@ function buildEnabledCapabilities({ summary, evidence, admin, db }) {
   return capabilities;
 }
 
-function buildNextActions({ blockers, admin, db, evidence }) {
+function buildNextActions({ blockers, admin, db, evidence, cloudSelfHostPosture }) {
   const actions = blockers.map((item) => ({
     id: `fix_${item.id}`,
     priority: item.severity === "blocking" ? "high" : "medium",
@@ -135,6 +139,20 @@ function buildNextActions({ blockers, admin, db, evidence }) {
       action: "Attach the A3 DB contract to complete self-host storage readiness evidence."
     });
   }
+  if (cloudSelfHostPosture.hosted_readiness !== "read_only_hosted_shell_ready") {
+    actions.push({
+      id: "hosted_shell_controls",
+      priority: "medium",
+      action: "Strengthen hosted admin shell controls so cloud posture is visible without enabling unsafe real mutations."
+    });
+  }
+  if (cloudSelfHostPosture.self_host_readiness !== "self_host_contract_visible") {
+    actions.push({
+      id: "self_host_contract_visibility",
+      priority: "medium",
+      action: "Expose tenant-safe DB and storage contract details so self-host readiness is clearer to enterprise buyers."
+    });
+  }
   if (evidence.a1_tool_case_count === 0) {
     actions.push({
       id: "add_tool_call_evidence",
@@ -150,6 +168,84 @@ function buildNextActions({ blockers, admin, db, evidence }) {
     });
   }
   return actions;
+}
+
+function buildEnterpriseValueMap({ summary, evidence, admin, db, blockers, cloudSelfHostPosture }) {
+  return {
+    schema_version: "a3.enterprise_value_map.v1",
+    sellable_now: [
+      "release review dashboard",
+      "trace-backed failure triage",
+      "hosted report and audit packet shell"
+    ],
+    blocked_enterprise_claims: blockers.filter((item) => item.severity === "blocking").map((item) => item.id),
+    high_value_paths: [
+      "enterprise audit and sign-off",
+      "self-host readiness reviews",
+      "release gate plus reviewer workflow"
+    ],
+    buyer_questions_answered: {
+      release_blocking: summary.totalCases > 0,
+      trace_evidence: evidence.a1_trace_case_count > 0,
+      judge_evidence: evidence.a2_judge_result_count > 0,
+      tenant_story: cloudSelfHostPosture.tenant_isolation_state === "visible",
+      cloud_admin_story: admin.available === true,
+      self_host_story: db.available === true
+    }
+  };
+}
+
+function buildCloudSelfHostPosture({ admin, db, blockers }) {
+  const blockingCount = blockers.filter((item) => item.severity === "blocking").length;
+  return {
+    hosted_readiness: admin.available && !admin.real_mutations_enabled
+      ? "read_only_hosted_shell_ready"
+      : "hosted_shell_missing_controls",
+    self_host_readiness: db.available && db.tenant_scoping_ready
+      ? "self_host_contract_visible"
+      : "self_host_contract_incomplete",
+    tenant_isolation_state: db.tenant_scoping_ready ? "visible" : "missing",
+    cloud_admin_surface_state: admin.available ? "visible" : "missing",
+    blocking_count: blockingCount,
+    why_it_matters: "Commercial buyers want to know whether the product is heading toward hosted control, self-host compatibility, and tenant-safe isolation."
+  };
+}
+
+function buildSelfHostPacket({ admin, db, evidence, blockers }) {
+  return {
+    schema_version: "a3.self_host_packet.v1",
+    status: db.available && db.tenant_scoping_ready ? "packet_contract_ready" : "packet_incomplete",
+    install_surfaces: ["postgres schema", "tenant scoping", "audit events", "usage rollups"],
+    buyer_promises: [
+      "Self-host buyers can inspect tenant boundaries before rollout.",
+      "Audit and usage expectations are visible before deployment.",
+      "A1/A2 evidence requirements stay explicit in the self-host story."
+    ],
+    hosted_vs_self_host: [
+      {
+        surface: "identity",
+        hosted: "A1 hosted auth and session boundary later",
+        self_host: "customer-owned IdP and RBAC bridge",
+        buyer_value: "Supports enterprise review of login and approval authority."
+      },
+      {
+        surface: "artifact storage",
+        hosted: "managed object storage contract",
+        self_host: "customer bucket / MinIO-compatible target",
+        buyer_value: "Keeps evidence packets inside customer-controlled infrastructure."
+      },
+      {
+        surface: "usage and billing",
+        hosted: "metered hosted packaging",
+        self_host: "contract-visible local usage ledger",
+        buyer_value: "Lets procurement understand hosted price vs internal deployment cost."
+      }
+    ],
+    blocker_count: blockers.filter((item) => item.severity === "blocking").length,
+    a1_trace_ready: evidence.a1_trace_case_count > 0,
+    a2_judge_ready: evidence.a2_judge_result_count > 0,
+    admin_surface_ready: admin.available === true
+  };
 }
 
 function buildCompatibilityNotes({ summary, evidence }) {
@@ -251,3 +347,4 @@ function clamp(value, min, max) {
 function isObject(value) {
   return value && typeof value === "object" && !Array.isArray(value);
 }
+

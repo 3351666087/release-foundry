@@ -1,4 +1,4 @@
-import {
+﻿import {
   buildCsvReport,
   buildDashboardSummary,
   buildJsonReport,
@@ -59,6 +59,7 @@ import { renderSaasRuntimePanel } from "./components/saas-runtime-panel.mjs";
 import { renderSaasAdminConsole } from "./components/saas-admin-console.mjs";
 import { renderEnterpriseReadinessPanel } from "./components/enterprise-readiness-panel.mjs";
 import { renderProductConsolePanel } from "./components/product-console-panel.mjs";
+import { renderNotificationControlPlanePanel } from "./components/notification-control-plane.mjs";
 import { buildSaasAdminConsole } from "../../../services/report/a3_saas_admin.mjs";
 import { buildEnterpriseReadinessReport } from "../../../services/report/a3_enterprise_readiness.mjs";
 import { buildA3ProductConsole } from "../../../services/report/a3_product_console.mjs";
@@ -111,6 +112,7 @@ const state = {
   selectedAdminPlan: null,
   selectedAdminReceipt: null,
   selectedReviewReceipt: null,
+  reviewFilter: { releaseVersion: "", environment: "", actorHash: "" },
   cases: [],
   filteredCases: [],
   selectedCaseId: null,
@@ -583,7 +585,7 @@ function codeCrawlChunkRow(chunk) {
       <span>${escapeHtml(chunk.signal_count)} signal(s)</span>
       <span>${escapeHtml(chunk.size_bytes)} bytes</span>
     </div>
-    <div class="muted">${escapeHtml(chunk.top_signals.map((item) => `${item.signal}:${item.count}`).join(", ") || "no signals")} · ${escapeHtml(chunk.a3_decision)}</div>
+    <div class="muted">${escapeHtml(chunk.top_signals.map((item) => `${item.signal}:${item.count}`).join(", ") || "no signals")} 璺?${escapeHtml(chunk.a3_decision)}</div>
   `;
   return node;
 }
@@ -808,6 +810,11 @@ function renderReleaseWarRoom() {
     healthTile(String(warRoom.required_artifact_count), "audit artifacts")
   );
   $("war-room-brief").replaceChildren(...warRoom.executive_brief.slice(0, 4).map((item) => warningItem(item)));
+  const notificationChannels = Array.isArray(state.notificationControlPlane?.channels) ? state.notificationControlPlane.channels : [];
+  const notificationCaption = document.createElement("div");
+  notificationCaption.className = "caption";
+  notificationCaption.textContent = `Notification lanes: ${notificationChannels.map((item) => item.provider).join(", ") || "none"}`;
+  $("war-room-brief").appendChild(notificationCaption);
   $("war-room-lanes").replaceChildren(...(
     warRoom.lanes.length
       ? warRoom.lanes.map((lane) => warRoomLaneRow(lane))
@@ -1133,6 +1140,11 @@ function renderReviewerWorkflowBoard() {
 function renderReviewWorkflowRecords() {
   const workflow = state.reviewWorkflow || {};
   const records = Array.isArray(workflow.records) ? workflow.records : [];
+  const filteredRecords = applyReviewWorkflowFilters(records, state.reviewFilter || {});
+  const reportCenter = state.reportCenter || {};
+  const shareableCount = reportCenter.summary?.shareable_count || 0;
+  const revokedCount = reportCenter.summary?.revoked_count || 0;
+  const manifestReadyCount = reportCenter.summary?.manifest_ready_count || 0;
   const block = $("review-workflow-records");
   if (!block) {
     return;
@@ -1142,14 +1154,21 @@ function renderReviewWorkflowRecords() {
     : [emptyMatrixRow("No durable waiver or approval records have been submitted through the A3 API yet.")];
   block.replaceChildren(
     matrixKicker("Durable Review Records"),
-    miniRow("Records", String(workflow.record_count || records.length || 0)),
+    miniRow("Records", String(filteredRecords.length || workflow.record_count || records.length || 0)),
     miniRow("Waivers", String(workflow.waiver_count || 0)),
     miniRow("Approvals", String(workflow.approval_count || 0)),
     miniRow("Denials", String(workflow.denial_count || 0)),
     miniRow("Accepted", String(workflow.accepted_count || 0)),
     miniRow("Storage", workflow.durable_storage_ready ? "durable-ready" : "not durable"),
+    miniRow("Shareable", `${shareableCount} ready / ${revokedCount} revoked`),
+    miniRow("Manifest-ready", String(manifestReadyCount || 0)),
     reviewWorkflowActionBar(),
     reviewWorkflowReceiptRow(),
+    reviewWorkflowScopeRow(workflow),
+    reviewWorkflowFilterRow(workflow),
+    reviewWorkflowFilterScopeRow(filteredRecords, state.reviewFilter || {}),
+    reviewWorkflowTrendRow(workflow),
+    reviewWorkflowShareReadinessRow(workflow, reportCenter),
     ...recordRows
   );
 }
@@ -1165,6 +1184,129 @@ function reviewWorkflowActionBar() {
   for (const button of node.querySelectorAll("[data-review-action]")) {
     button.addEventListener("click", () => submitReviewWorkflowAction(button.dataset.reviewAction));
   }
+  return node;
+}
+
+function reviewWorkflowFilterRow(workflow = {}) {
+  const options = workflow.filter_options || {};
+  const defaults = options.default_scope || {};
+  const current = state.reviewFilter || {};
+  const node = document.createElement("div");
+  node.className = "matrix-row";
+  const releaseOptions = ['<option value="">all releases</option>'].concat((options.release_versions || []).map((value) => `<option value="${escapeHtml(value)}" ${current.releaseVersion === value ? "selected" : ""}>${escapeHtml(value)}</option>`)).join("");
+  const environmentOptions = ['<option value="">all environments</option>'].concat((options.environments || []).map((value) => `<option value="${escapeHtml(value)}" ${current.environment === value ? "selected" : ""}>${escapeHtml(value)}</option>`)).join("");
+  const actorOptions = ['<option value="">all actors</option>'].concat((options.actor_hashes || []).map((value) => `<option value="${escapeHtml(value)}" ${current.actorHash === value ? "selected" : ""}>${escapeHtml(shortHash(value))}</option>`)).join("");
+  node.innerHTML = `
+    <div class="matrix-head">
+      <strong>Review Filters</strong>
+      <span class="badge info">interactive</span>
+    </div>
+    <div class="case-meta">
+      <span>${escapeHtml((options.release_versions || []).length)} release option(s)</span>
+      <span>${escapeHtml((options.environments || []).length)} environment option(s)</span>
+      <span>${escapeHtml((options.actor_hashes || []).length)} actor hash option(s)</span>
+    </div>
+    <div class="inline-select-grid">
+      <select data-review-filter="releaseVersion">${releaseOptions}</select>
+      <select data-review-filter="environment">${environmentOptions}</select>
+      <select data-review-filter="actorHash">${actorOptions}</select>
+    </div>
+    <div class="muted">Default scope ${escapeHtml(defaults.release_version || "unknown")} / ${escapeHtml(defaults.environment || "unknown")} / ${escapeHtml(shortHash(defaults.actor_hash || "none"))}.</div>
+  `;
+  for (const select of node.querySelectorAll("[data-review-filter]")) {
+    select.addEventListener("change", () => {
+      state.reviewFilter[select.dataset.reviewFilter] = select.value;
+      console.log("review-filter-change", select.dataset.reviewFilter, select.value, JSON.stringify(state.reviewFilter));
+      syncReviewFilterQuery();
+      console.log("review-filter-url", window.location.href);
+      renderReviewWorkflowRecords();
+    });
+  }
+  return node;
+}
+function reviewWorkflowFilterScopeRow(filteredRecords = [], filter = {}) {
+  const active = [
+    filter.releaseVersion ? `release ${filter.releaseVersion}` : null,
+    filter.environment ? `env ${filter.environment}` : null,
+    filter.actorHash ? `actor ${shortHash(filter.actorHash)}` : null
+  ].filter(Boolean);
+  const node = document.createElement("div");
+  node.className = "matrix-row";
+  node.innerHTML = `
+    <div class="matrix-head">
+      <strong>Active Filter Scope</strong>
+      <span class="badge ${active.length ? "info" : "neutral"}">${active.length ? "filtered" : "all"}</span>
+    </div>
+    <div class="case-meta">
+      <span>${escapeHtml(filteredRecords.length)} visible record(s)</span>
+      <span>${escapeHtml(active.length)} active scope(s)</span>
+    </div>
+    <div class="muted">${escapeHtml(active.join(", ") || "Showing all durable review records.")}</div>
+  `;
+  return node;
+}
+
+function reviewWorkflowTrendRow(workflow = {}) {
+  const trends = workflow.decision_trends || {};
+  const node = document.createElement("div");
+  node.className = "matrix-row";
+  node.innerHTML = `
+    <div class="matrix-head">
+      <strong>Decision Trends</strong>
+      <span class="badge ${(Number(trends.denials || 0) > 0) ? "warn" : "pass"}">${(Number(trends.denials || 0) > 0) ? "watch" : "stable"}</span>
+    </div>
+    <div class="case-meta">
+      <span>${escapeHtml(trends.approvals || 0)} approval(s)</span>
+      <span>${escapeHtml(trends.waivers || 0)} waiver(s)</span>
+      <span>${escapeHtml(trends.denials || 0)} denial(s)</span>
+      <span>${escapeHtml(trends.latest_release_version || "unknown")}</span>
+    </div>
+    <div class="muted">Latest environment ${escapeHtml(trends.latest_environment || "unknown")}; releases ${(trends.release_breakdown || []).map((item) => `${item.label}:${item.count}`).join(", ") || "none"}.</div>
+  `;
+  return node;
+}
+
+function reviewWorkflowScopeRow(workflow = {}) {
+  const scope = workflow.scope_summary || {};
+  const node = document.createElement("div");
+  node.className = "matrix-row";
+  node.innerHTML = `
+    <div class="matrix-head">
+      <strong>Review Scope Summary</strong>
+      <span class="badge info">scoped</span>
+    </div>
+    <div class="case-meta">
+      <span>${escapeHtml(scope.release_count || 0)} release(s)</span>
+      <span>${escapeHtml(scope.environment_count || 0)} environment(s)</span>
+      <span>${escapeHtml(scope.actor_role_count || 0)} role(s)</span>
+      <span>${escapeHtml(scope.actor_hash_count || 0)} actor hash(es)</span>
+    </div>
+    <div class="muted">Latest ${escapeHtml(scope.latest_release_version || "unknown")} / ${escapeHtml(scope.latest_environment || "unknown")}; roles ${escapeHtml((scope.actor_roles || []).join(", ") || "unknown")}.</div>
+  `;
+  return node;
+}
+
+function reviewWorkflowShareReadinessRow(workflow = {}, reportCenter = {}) {
+  const summary = reportCenter.summary || {};
+  const approvals = Number(workflow.approval_count || 0);
+  const accepted = Number(workflow.accepted_count || 0);
+  const shareable = Number(summary.shareable_count || 0);
+  const manifestReady = Number(summary.manifest_ready_count || 0);
+  const node = document.createElement("div");
+  node.className = "matrix-row";
+  node.innerHTML = `
+    <div class="matrix-head">
+      <strong>Report Share Readiness</strong>
+      <span class="badge ${accepted > 0 || shareable > 0 ? "pass" : "warn"}">${accepted > 0 || shareable > 0 ? "linked" : "waiting"}</span>
+    </div>
+    <div class="case-meta">
+      <span>${escapeHtml(approvals)} approval(s)</span>
+      <span>${escapeHtml(accepted)} accepted record(s)</span>
+      <span>${escapeHtml(shareable)} shareable report(s)</span>
+      <span>${escapeHtml(manifestReady)} manifest-ready</span>
+    </div>
+    <div class="muted">Reviewer actions, hosted reports, and export evidence should converge before external sharing or release sign-off.</div>
+  `;
   return node;
 }
 
@@ -1194,6 +1336,43 @@ function matrixKicker(label) {
   node.className = "section-kicker";
   node.textContent = label;
   return node;
+}
+
+function syncReviewFilterQuery() {
+  const params = new URLSearchParams(window.location.search);
+  if (state.reviewFilter.releaseVersion) {
+    params.set("reviewRelease", state.reviewFilter.releaseVersion);
+  } else {
+    params.delete("reviewRelease");
+  }
+  if (state.reviewFilter.environment) {
+    params.set("reviewEnv", state.reviewFilter.environment);
+  } else {
+    params.delete("reviewEnv");
+  }
+  if (state.reviewFilter.actorHash) {
+    params.set("reviewActor", state.reviewFilter.actorHash);
+  } else {
+    params.delete("reviewActor");
+  }
+  const next = `${window.location.pathname}?${params.toString()}${window.location.hash || ""}`.replace(/\?($|#)/, "$1");
+  console.log("syncReviewFilterQuery", next);
+  window.history.replaceState({}, "", next);
+}
+
+function applyReviewWorkflowFilters(records = [], filter = {}) {
+  return records.filter((record) => {
+    if (filter.releaseVersion && record.release_version !== filter.releaseVersion) {
+      return false;
+    }
+    if (filter.environment && record.environment !== filter.environment) {
+      return false;
+    }
+    if (filter.actorHash && record.payload_hash !== filter.actorHash && record.review_hash !== filter.actorHash) {
+      return false;
+    }
+    return true;
+  });
 }
 
 function reviewWorkflowRecordRow(record) {
@@ -1250,7 +1429,7 @@ function reviewerWorkflowItemRow(item) {
       <span>diffs ${escapeHtml(item.evidence_counts.tool_diffs)}</span>
       <span>judge ${escapeHtml(item.evidence_counts.judge_evidence)}</span>
     </div>
-    <div class="muted">Missing: ${escapeHtml(item.missing_artifacts.join(", ") || "none")} · ${escapeHtml(item.next_action)}</div>
+    <div class="muted">Missing: ${escapeHtml(item.missing_artifacts.join(", ") || "none")} 璺?${escapeHtml(item.next_action)}</div>
   `;
   node.addEventListener("click", () => {
     state.selectedCaseId = item.case_id;
@@ -1581,6 +1760,7 @@ function renderReportCenter() {
   const liveWorkflowReadiness = state.liveWorkflowReadiness || {};
   const liveOpsControlPlane = state.liveOpsControlPlane || {};
   const notificationControlPlane = state.notificationControlPlane || {};
+  const reviewWorkflow = state.reviewWorkflow || {};
   const billingMigrationReadiness = state.billingMigrationReadiness || {};
   const incidentReplay = summarizeIncidentReplayQueue(state.runs, state.grades, state.mediaSignedUrlCoverage);
   const observabilityReplay = summarizeObservabilityReplayMatrix(state.runs, state.grades, state.mediaSignedUrlCoverage, state.frontendCodeCrawl);
@@ -1594,6 +1774,7 @@ function renderReportCenter() {
   const reportCenter = state.reportCenter || {};
   const artifactRegistry = state.artifactRegistry || reportCenter.artifact_registry || {};
   const hostedReports = Array.isArray(reportCenter.reports) ? reportCenter.reports : [];
+  const commercialLoopSummary = buildReportCommercialLoopSummary({ reportCenter, reviewWorkflow, notificationControlPlane, liveOpsControlPlane });
   $("report-status").className = "badge info";
   $("report-status").textContent = hostedReports.length ? `${hostedReports.length} hosted` : `${summary.totalCases} cases`;
   $("report-summary").textContent = `Current exports package ${summary.totalCases} normalized case(s), ${summary.failed} failure(s), ${summary.mediaEvidenceCases} media evidence case(s), ${releaseGate.decision_label} release gate, ${releaseWorkflow.github_check.name} ${releaseWorkflow.github_check.conclusion} check, ${releaseWarRoom.decision_label} war room, ${releaseEvidence.available ? `${releaseEvidence.overall_status} release evidence with ${releaseEvidence.readback_record_count || 0} readback record(s)` : "no release evidence"}, ${liveWorkflowReadiness.schema_version ? `${liveWorkflowReadiness.ready_capability_count || 0} live-workflow ready capability(s)` : "no live workflow readiness"}, ${notificationControlPlane.schema_version ? `${notificationControlPlane.summary?.channel_count || 0} notification channel(s)` : "no notification control plane"}, ${incidentReplay.queue_count} incident replay case(s), ${observabilityReplay.replay_case_count} observability replay case(s), ${regressionFactory.candidate_count} regression candidate(s), ${exportRedactionFirewall.status} export firewall, ${reviewerWorkflowBoard.board_label} reviewer workflow, ${productConsole.available ? `${productConsole.onboarding.completion_rate}% onboarding / ${productConsole.audit_log.event_count} audit event(s)` : "no product console workflow"}, ${saasAdmin.available ? `${saasAdmin.team.member_count} SaaS admin member(s) / ${saasAdmin.api_keys.key_count} API-key metadata row(s)` : "no SaaS admin export"}, ${hostedReports.length} hosted report(s), ${reportCenter.summary?.manifest_ready_count || 0} manifest-ready report(s), ${artifactRegistry.summary?.artifact_count || 0} registry artifact(s), ${peerBranchCalibration.available ? `${peerBranchCalibration.peer_delta_count} peer branch delta(s)` : "no peer branch calibration"}, ${officialCodeCrawl.available ? "official code crawl parity" : "no official code crawl parity"}, ${officialParityRoadmap.available ? "official parity roadmap" : "no official parity roadmap"}, ${coverage.available ? "A2 coverage" : "no coverage fixture"}, ${requestProvenance.available ? "request provenance" : "no request provenance"}, ${usageQuota.available ? "usage/quota calibration" : "no usage/quota calibration"}, ${mediaReadiness.available ? "media readiness" : "no media readiness"}, and ${cloudShell.available ? "cloud shell safety map" : "no cloud shell evidence"}.`;
@@ -1601,7 +1782,9 @@ function renderReportCenter() {
     reportTile("JSON", "Full machine-readable payload with release gate, war room, incident replay queue, observability replay matrix, regression factory, export redaction firewall, reviewer workflow board, product console workflow, SaaS admin guardrails, PR workflow, official code crawl parity, official parity roadmap, cases, tool-call diffs, media readiness, cloud shell safety, coverage, request provenance, and usage/quota evidence."),
     reportTile("CSV", "Spreadsheet-friendly triage list for sorting by score, severity, and failure class, with cell-level secret scrubbing and formula hardening."),
     reportTile("Markdown", "Human-readable release-gate and war-room report with product console onboarding/audit state, SaaS admin guardrails, incident replay queue, observability replay matrix, regression factory, reviewer workflow board, official code crawl parity, official parity roadmap, PR comment template, waiver guidance, media policy, cloud boundaries, worklogs, and group updates."),
-    reportTile("Print/PDF", "Browser-printable executive sign-off report with metrics, release gate, war room, incident replay, observability replay, regression factory, reviewer workflow, official code crawl parity, parity roadmap, media readiness, cloud safety, failures, and selected case evidence.")
+    reportTile("Print/PDF", "Browser-printable executive sign-off report with metrics, release gate, war room, incident replay, observability replay, regression factory, reviewer workflow, official code crawl parity, parity roadmap, media readiness, cloud safety, failures, and selected case evidence."),
+    reportTile("Commercial Loop", commercialLoopSummary),
+    reportTile("Release Sign-Off", buildReleaseSignoffTile(reportCenter))
   ];
     if (releaseEvidence.available) {
       tiles.push(reportTile("Release Evidence", `${releaseEvidence.overall_status}: check ${releaseEvidence.github_check_publish.status}, PR comment ${releaseEvidence.github_pr_comment_publish.status}, bundle ${releaseEvidence.audit_bundle_verification.status}, archive ${releaseEvidence.audit_archive_verification.status}, readbacks ${releaseEvidence.readback_record_count || 0} (${releaseEvidence.readback_status_counts?.readback_confirmed || 0} confirmed).`));
@@ -1623,6 +1806,8 @@ function renderReportCenter() {
     }
   if (hostedReports.length) {
     tiles.push(reportTile("Hosted Reports", `${reportCenter.summary?.shareable_count || 0} shareable, ${reportCenter.summary?.revoked_count || 0} revoked, ${reportCenter.summary?.expired_count || 0} expired, ${reportCenter.summary?.total_view_count || 0} total view(s).`));
+    tiles.push(reportTile("Share Link Governance", buildShareLinkGovernanceTile(reportCenter)));
+    tiles.push(reportTile("Sign-Off Detail", buildReleaseSignoffDetailTile(reportCenter)));
     tiles.push(...hostedReports.map(hostedReportRow));
   }
   if (artifactRegistry.schema_version === "a3.artifact_registry.v1") {
@@ -1689,6 +1874,39 @@ function exportFirewallStatusClass(status) {
     return "fail";
   }
   return "neutral";
+}
+
+function buildReportCommercialLoopSummary({ reportCenter = {}, reviewWorkflow = {}, notificationControlPlane = {}, liveOpsControlPlane = {} } = {}) {
+  const reportSummary = reportCenter.summary || {};
+  const notificationSummary = notificationControlPlane.summary || {};
+  const liveOpsCounts = liveOpsControlPlane.counts || {};
+  const reviewCount = Number(reviewWorkflow.record_count || 0);
+  return `${reviewCount} review record(s), ${reportSummary.shareable_count || 0} shareable report(s), ${reportSummary.revoked_count || 0} revoked, ${notificationSummary.channel_count || 0} notification lane(s), ${notificationSummary.contract_ready_count || 0} contract-ready, and ${liveOpsCounts.audit_backed_count || 0} audit-backed live-op lane(s).`;
+}
+
+function buildGithubPublishPostureTile(githubEvidence = {}, releaseWorkflow = {}, releaseEvidence = {}) {
+  const check = githubEvidence.check_publish || {};
+  const comment = githubEvidence.pr_comment_publish || {};
+  const required = githubEvidence.required_check_plan || {};
+  const mode = check.posted === true || comment.posted === true ? "posted" : "dry-run";
+  return `${mode}: check ${check.status || "unknown"}, comment ${comment.status || "unknown"}, required check ${required.required_check_name || releaseWorkflow.github_check?.name || "unknown"}, release evidence ${releaseEvidence.overall_status || "unknown"}.`;
+}
+
+function buildShareLinkGovernanceTile(reportCenter = {}) {
+  const governance = reportCenter.share_link_governance || {};
+  return `${governance.status || "unknown"}: ${governance.shareable_count || 0} shareable, ${governance.revoked_count || 0} revoked, ${governance.expired_count || 0} expired, ${governance.blocked_count || 0} blocked. ${(governance.policy_summary || []).slice(0, 1).join(" ")}`;
+}
+
+function buildReleaseSignoffDetailTile(reportCenter = {}) {
+  const detail = reportCenter.release_signoff_detail || {};
+  const passed = Array.isArray(detail.checklist) ? detail.checklist.filter((item) => item.passed).length : 0;
+  const total = Array.isArray(detail.checklist) ? detail.checklist.length : 0;
+  return `${passed}/${total} checklist item(s) passed; ${(detail.recommendations || []).slice(0, 2).join(" ") || "No recommendation loaded."}`;
+}
+
+function buildReleaseSignoffTile(reportCenter = {}) {
+  const signoff = reportCenter.release_signoff_summary || {};
+  return `${signoff.status || "unknown"}: ${signoff.shareable_count || 0} shareable, ${signoff.release_evidence_ready_count || 0} release-evidence-ready, ${signoff.manifest_ready_count || 0} manifest-ready, usage ${signoff.usage_ready ? "ready" : "missing"}, migration ${signoff.migration_ready ? "ready" : "missing"}.`;
 }
 
 function reportTile(label, description) {
@@ -3022,7 +3240,23 @@ function refreshLocalUsageLedger() {
 }
 
 function renderSaasAdmin() {
-  renderSaasAdminConsole($("saas-admin-body"), state.saasAdmin, {
+  renderSaasAdminConsole($("saas-admin-body"), {
+    ...state.saasAdmin,
+    notification_destinations: (state.notificationControlPlane?.channels || []).map((item) => ({
+      label: item.label,
+      provider: item.provider,
+      status: item.status,
+      current_mode: item.current_mode,
+      secret_ref_present: false,
+      next_action: item.next_action
+    })),
+    notification_summary: {
+      channel_count: state.notificationControlPlane?.summary?.channel_count || 0,
+      configured_count: state.notificationControlPlane?.summary?.configured_metadata_count || 0,
+      secret_ref_count: 0,
+      live_send_enabled: false
+    }
+  }, {
     selectedAction: state.selectedAdminAction,
     selectedPlan: state.selectedAdminPlan
   });
@@ -3319,6 +3553,25 @@ function renderLiveOpsControlPlane() {
       ["Billing state", `${billing.billing_readiness_status || "unknown"} / ${billing.meter_count || 0} meter(s)`],
       ["Share links", `${share.shareable_count || 0} shareable / ${share.revoked_count || 0} revoked / ${share.expired_count || 0} expired / ${share.total_view_count || 0} view(s)`]
     ])}
+    ${renderReportTable(["Reviewer timeline", "Status", "Reason"], (controlPlane.reviewer_timeline || []).map((item) => [
+      `${item.record_type} / ${item.actor_hash}` ,
+      item.status,
+      item.reason
+    ]), "No reviewer timeline has been recorded yet.")}
+    ${renderReportTable(["GitHub publish step", "Status", "Target"], (controlPlane.github_publish_timeline || []).map((item) => [
+      `${item.step}${item.dry_run ? " (dry-run)" : ""}`,
+      item.status,
+      item.target
+    ]), "No GitHub publish timeline is loaded.")}
+    ${renderReportTable(["Share-link lifecycle", "Status", "Detail"], (controlPlane.share_link_timeline || []).map((item) => [
+      item.timeline_id,
+      item.status,
+      `views ${item.view_count || 0} / expires ${item.expires_at || "n/a"} / revoked ${item.revoked_at || "n/a"}`
+    ]), "No hosted report lifecycle history is loaded.")}
+    ${renderReportTable(["Audit history", "Status"], (controlPlane.audit_history || []).map((item) => [
+      item.event_type,
+      item.status
+    ]), "No audit history is visible yet.")}
     <div class="caption">A1: ${escapeHtml(controlPlane.a1_a2_alignment?.a1_consumed_contracts?.join(", ") || "usage, GitHub worker, billing ledger")}</div>
     <div class="caption">A2: ${escapeHtml(controlPlane.a1_a2_alignment?.a2_consumed_contracts?.join(", ") || "grade, release gate, failure taxonomy")}</div>
   `;
@@ -3343,39 +3596,7 @@ function renderNotificationControlPlane() {
   const statusBadge = $("notification-status");
   statusBadge.textContent = controlPlane.status || "checking";
   statusBadge.className = `badge ${String(controlPlane.status || "").includes("contract_ready") ? "pass" : String(controlPlane.status || "").includes("metadata_present") ? "warn" : "neutral"}`;
-  const summary = controlPlane.summary || {};
-  const channels = Array.isArray(controlPlane.channels) ? controlPlane.channels : [];
-  const triggers = Array.isArray(controlPlane.trigger_matrix) ? controlPlane.trigger_matrix : [];
-  const growthPoints = Array.isArray(controlPlane.growth_points) ? controlPlane.growth_points : [];
-  $("notification-body").innerHTML = `
-    <div class="caption">Slack, Teams, email, and webhook notifications are modeled as API, DB, event, artifact, usage, RBAC, and audit contracts. A3 plans notification evidence; A1 owns hosted delivery workers and connector secrets.</div>
-    <div class="health-grid">
-      ${healthTile(summary.channel_count || 0, "channels")}
-      ${healthTile(summary.contract_ready_count || 0, "contract-ready")}
-      ${healthTile(summary.audit_backed_count || 0, "audit-backed")}
-      ${healthTile(summary.live_mutation_count || 0, "live mutations")}
-    </div>
-    ${renderReportTable(["Channel", "Surface", "Status", "Provider", "Next action"], channels.map((item) => [
-      item.label,
-      item.delivery_surface || item.product_surface || item.provider,
-      item.status,
-      item.provider,
-      item.next_action
-    ]), "No notification control-plane channels are loaded.")}
-    ${renderReportTable(["Trigger", "Channels", "Dashboard state", "Customer value"], triggers.map((item) => [
-      item.label,
-      Array.isArray(item.channels) ? item.channels.join(", ") : item.provider || item.lane_id || "planned",
-      item.dashboard_state || (Array.isArray(item.triggers) ? item.triggers.join(", ") : "planned"),
-      item.customer_value || item.policy_owner || "Release notification evidence is planned."
-    ]), "No notification trigger matrix is loaded.")}
-    ${renderReportTable(["Growth", "Surface", "Artifact"], growthPoints.slice(0, 8).map((item) => [
-      `${item.priority} ${item.id}`,
-      item.surface,
-      item.expected_artifact
-    ]), "No notification growth points are loaded.")}
-    <div class="caption">A1: ${escapeHtml(controlPlane.a1_a2_alignment?.a1_dependency || "hosted notification worker and encrypted connector references")}</div>
-    <div class="caption">A2: ${escapeHtml(controlPlane.a1_a2_alignment?.a2_dependency || "release policy, failure taxonomy, score/pass/fail")}</div>
-  `;
+  renderNotificationControlPlanePanel($("notification-body"), controlPlane);
 }
 
 function refreshLocalProductConsole() {
@@ -3383,11 +3604,15 @@ function refreshLocalProductConsole() {
     source: state.source,
     runFixture: state.runs,
     gradeFixture: state.grades,
-    usageLedger: state.usageLedger
+    usageLedger: state.usageLedger,
+    reviewWorkflow: state.reviewWorkflow || {},
+    notificationControlPlane: state.notificationControlPlane || {}
   }, {
     source: state.source,
     usageLedger: state.usageLedger,
     reportCenter: state.reportCenter || {},
+    reviewWorkflow: state.reviewWorkflow || {},
+    notificationControlPlane: state.notificationControlPlane || {},
     auditEvents: [],
     importReceipts: []
   });
@@ -3724,7 +3949,13 @@ function syncExpandedNavigation(id) {
 
 async function init() {
   setupVisualShell();
-  const initialSource = new URLSearchParams(window.location.search).get("source") || "mock";
+  const initParams = new URLSearchParams(window.location.search);
+  state.reviewFilter = {
+    releaseVersion: initParams.get("reviewRelease") || "",
+    environment: initParams.get("reviewEnv") || "",
+    actorHash: initParams.get("reviewActor") || ""
+  };
+  const initialSource = initParams.get("source") || "mock";
   const allowedSources = new Set(["mock", "api-mock", "raw-a1", "raw-a2", "p3-media", "p3-official-demo"]);
   $("source-select").value = allowedSources.has(initialSource) ? initialSource : "mock";
   await loadDataSource($("source-select").value);
@@ -3759,3 +3990,17 @@ init().catch((error) => {
   $("data-source").textContent = error.message;
   console.error(error);
 });
+
+
+
+
+
+
+
+
+
+
+
+
+
+

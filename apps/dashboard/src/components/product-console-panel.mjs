@@ -8,6 +8,8 @@ export function renderProductConsolePanel(target, productConsole = {}) {
     metricGrid(productConsole),
     onboardingBlock(productConsole.onboarding || {}),
     projectBlock(productConsole.project_console || {}),
+    operationsLoopBlock(productConsole.project_console?.operations_summary || {}),
+    goToMarketBlock(productConsole.go_to_market || {}),
     auditBlock(productConsole.audit_log || {}),
     readinessBlock(productConsole.commercial_readiness || {})
   );
@@ -69,6 +71,34 @@ function projectBlock(project) {
   }
   for (const failure of project.failure_classes || []) {
     block.appendChild(row(failure.failure_class, `${failure.count} case(s)`, "Failure class requiring triage.", "warn"));
+  }
+  return block;
+}
+
+function operationsLoopBlock(summary) {
+  return section("Operations Loop", [
+    miniRow("Review records", String(summary.review_record_count || 0)),
+    miniRow("Shareable reports", String(summary.shareable_report_count || 0)),
+    miniRow("Manifest-ready", String(summary.manifest_ready_count || 0)),
+    miniRow("Notification lanes", `${summary.notification_channel_count || 0} / ${summary.notification_contract_ready_count || 0} ready`),
+    row("Why it matters", "loop", summary.why_it_matters || "Failed runs, reviewer actions, hosted reports, and notifications should stay visible together.", "info")
+  ]);
+}
+
+function goToMarketBlock(summary) {
+  const block = section("Go-To-Market", [
+    miniRow("Status", summary.status || "unknown"),
+    miniRow("Motion", summary.strongest_motion || "unknown"),
+    miniRow("Hosted reports", String(summary.revenue_signals?.hosted_reports || 0)),
+    miniRow("Review records", String(summary.revenue_signals?.review_records || 0)),
+    miniRow("Notification lanes", String(summary.revenue_signals?.notification_lanes || 0)),
+    miniRow("Billable meters", String(summary.revenue_signals?.billable_meters || 0))
+  ]);
+  for (const item of summary.buyer_value || []) {
+    block.appendChild(row("Buyer value", "sellable", item, "info"));
+  }
+  for (const item of summary.next_sales_moves || []) {
+    block.appendChild(row("Next", "sales", item, "neutral"));
   }
   return block;
 }
@@ -139,4 +169,15 @@ function escapeHtml(value) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function governanceLoopBlock(summary, audit, readiness) {
+  return section("Commercial Governance Loop", [
+    miniRow("Review records", String(summary.review_record_count || 0)),
+    miniRow("Shareable reports", String(summary.shareable_report_count || 0)),
+    miniRow("Manifest-ready", String(summary.manifest_ready_count || 0)),
+    miniRow("Audit events", String(audit.event_count || 0)),
+    miniRow("Readiness", String(readiness.readiness_score || 0)),
+    row("Why it matters", "governance", "GitHub publish, reviewer sign-off, hosted evidence, and audit retention need to read like one operator workflow.", "info")
+  ]);
 }

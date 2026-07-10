@@ -60,9 +60,80 @@ export function buildReportCenterIndex(reports = [], options = {}) {
       sql_contract_ready: migrationPlan.status === "contract_ready",
       live_cloud_mutations_enabled: false
     },
+    release_signoff_summary: buildReleaseSignoffSummary(items, artifactRegistry, usageLedger, migrationPlan),
+    release_signoff_detail: buildReleaseSignoffDetail(items, artifactRegistry, usageLedger, migrationPlan),
+    share_link_governance: buildShareLinkGovernance(items),
     reports: items,
     artifact_registry: artifactRegistry,
     next_actions: buildNextActions(items, usageLedger, migrationPlan)
+  };
+}
+
+function buildReleaseSignoffSummary(items, artifactRegistry, usageLedger, migrationPlan) {
+  const shareable = items.filter((item) => item.status === "shareable").length;
+  const releaseReady = items.filter((item) => item.release_evidence.available).length;
+  const manifestReady = items.filter((item) => item.manifest.completeness_score >= 80).length;
+  const usageReady = Array.isArray(usageLedger.meters) && usageLedger.meters.length > 0;
+  return {
+    schema_version: "a3.release_signoff_summary.v1",
+    status: shareable > 0 && releaseReady > 0 && manifestReady > 0 ? "signoff_packet_ready_for_review" : "signoff_packet_incomplete",
+    shareable_count: shareable,
+    release_evidence_ready_count: releaseReady,
+    manifest_ready_count: manifestReady,
+    artifact_ready_count: artifactRegistry.summary?.ready_count || 0,
+    usage_ready: usageReady,
+    migration_ready: (migrationPlan.migration_count || 0) > 0,
+    next_actions: [
+      "Attach reviewer approval or waiver before external sign-off.",
+      "Keep release-evidence readbacks visible next to hosted report lifecycle.",
+      "Treat usage and migration evidence as part of the release packet, not separate admin notes."
+    ]
+  };
+}
+
+function buildShareLinkGovernance(items) {
+  const total = items.length;
+  const shareable = items.filter((item) => item.status === "shareable");
+  const revoked = items.filter((item) => item.status === "revoked");
+  const expired = items.filter((item) => item.status === "expired");
+  const blocked = items.filter((item) => item.status === "blocked");
+  return {
+    schema_version: "a3.share_link_governance.v1",
+    status: shareable.length > 0 ? "governed_links_visible" : "no_shareable_links",
+    total_report_count: total,
+    shareable_count: shareable.length,
+    revoked_count: revoked.length,
+    expired_count: expired.length,
+    blocked_count: blocked.length,
+    policy_summary: [
+      "Every share link must be revocable and expireable.",
+      "Hosted report access stays audit-visible even when the content is redacted.",
+      "External sharing never reveals raw tokens in A3 evidence surfaces."
+    ],
+    next_actions: [
+      "Expose revoke and expiry posture in the admin console and report center together.",
+      "Keep audit event counts next to shareable report readiness for release sign-off.",
+      "Add tenant and environment filters before enabling broader hosted sharing."
+    ]
+  };
+}
+
+function buildReleaseSignoffDetail(items, artifactRegistry, usageLedger, migrationPlan) {
+  return {
+    schema_version: "a3.release_signoff_detail.v1",
+    checklist: [
+      { id: "shareable_report", passed: items.some((item) => item.status === "shareable") },
+      { id: "release_evidence", passed: items.some((item) => item.release_evidence.available) },
+      { id: "manifest_ready", passed: items.some((item) => item.manifest.completeness_score >= 80) },
+      { id: "usage_ready", passed: Array.isArray(usageLedger.meters) && usageLedger.meters.length > 0 },
+      { id: "migration_ready", passed: (migrationPlan.migration_count || 0) > 0 },
+      { id: "artifact_registry", passed: (artifactRegistry.summary?.ready_count || 0) > 0 }
+    ],
+    recommendations: [
+      "Collect reviewer approval or waiver before claiming external sign-off.",
+      "Keep audit bundle and readback receipts visible next to hosted reports.",
+      "Use usage and migration evidence as part of the executive release packet."
+    ]
   };
 }
 
@@ -197,3 +268,4 @@ function countBy(items, key) {
     return counts;
   }, {});
 }
+

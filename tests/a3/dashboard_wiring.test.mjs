@@ -1,16 +1,18 @@
-import assert from "node:assert/strict";
+﻿import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 
 async function loadDashboardHtml() {
-  const [html, app, apiClient, visualShell, styles] = await Promise.all([
+  const [html, app, apiClient, visualShell, styles, notificationComponent, saasAdminComponent] = await Promise.all([
     readFile(new URL("../../apps/dashboard/index.html", import.meta.url), "utf8"),
     readFile(new URL("../../apps/dashboard/src/app.mjs", import.meta.url), "utf8"),
     readFile(new URL("../../apps/dashboard/src/api-client.mjs", import.meta.url), "utf8"),
     readFile(new URL("../../apps/dashboard/src/visual-shell.mjs", import.meta.url), "utf8"),
-    readFile(new URL("../../apps/dashboard/src/styles.css", import.meta.url), "utf8")
+    readFile(new URL("../../apps/dashboard/src/styles.css", import.meta.url), "utf8"),
+    readFile(new URL("../../apps/dashboard/src/components/notification-control-plane.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../../apps/dashboard/src/components/saas-admin-console.mjs", import.meta.url), "utf8")
   ]);
-  return [html, app, apiClient, visualShell, styles].join("\n");
+  return [html, app, apiClient, visualShell, styles, notificationComponent, saasAdminComponent].join("\n");
 }
 
 function assertNavigationTarget(source, hash) {
@@ -610,6 +612,10 @@ test("A3 dashboard wires live ops control plane for PR, review, billing, human o
   assert.match(html, /buildA3LiveOpsControlPlane/);
   assert.match(html, /fetchA3LiveOpsControlPlane/);
   assert.match(html, /function refreshLiveOpsControlPlane\(\)/);
+  assert.match(html, /Reviewer timeline/);
+  assert.match(html, /GitHub publish step/);
+  assert.match(html, /Share-link lifecycle/);
+  assert.match(html, /Audit history/);
   assert.match(html, /function renderLiveOpsControlPlane\(\)/);
   assert.match(html, /state\.liveOpsControlPlane = await fetchA3LiveOpsControlPlane/);
   assert.match(html, /live_ops_control_plane/);
@@ -701,13 +707,37 @@ test("A3 dashboard wires SaaS admin shell for login, team, usage, API keys, and 
   assert.match(html, /login, team, usage, API key, and trust state/);
   assert.match(adminComponent, /RBAC Matrix/);
   assert.match(adminComponent, /Invite Workflow/);
+  assert.match(adminComponent, /Seat \/ License Posture/);
   assert.match(adminComponent, /API Key Lifecycle/);
+  assert.match(adminComponent, /API Key Audit/);
+  assert.match(adminComponent, /Control Summary/);
+  assert.match(adminComponent, /Tenant \/ Environment Control/);
+  assert.match(adminComponent, /Release \/ Rollout Control/);
+  assert.match(adminComponent, /Notification Destinations/);
+  assert.match(adminComponent, /Billing Account/);
+  assert.match(adminComponent, /invoice_preview/);
+  assert.match(adminComponent, /plan_comparison|plan.tier|subtotal_label/);
+  assert.match(adminModel, /buildInvoicePreview/);
   assert.match(adminComponent, /Trust Center/);
+  assert.match(adminComponent, /Compliance Posture/);
   assert.match(adminComponent, /Cloud Management/);
+  assert.match(adminComponent, /Workspace \/ Cloud Posture/);
   assert.match(adminComponent, /Product Console Map/);
   assert.match(adminComponent, /Admin Action Requests/);
   assert.match(adminComponent, /Record Request|Record Guardrail/);
   assert.match(adminModel, /quota_mutations_enabled/);
+  assert.match(adminModel, /seat_management/);
+  assert.match(adminModel, /rotation_slo_days/);
+  assert.match(adminModel, /compliance_posture/);
+  assert.match(adminModel, /workspace_posture/);
+  assert.match(html, /Seat \/ License Posture/);
+  assert.match(html, /API Key Audit/);
+  assert.match(html, /Compliance Posture/);
+  assert.match(html, /Workspace \/ Cloud Posture/);
+  assert.match(adminModel, /buildTenantControlState/);
+  assert.match(adminModel, /buildRolloutControlState/);
+  assert.match(adminModel, /buildNotificationDestinations/);
+  assert.match(adminModel, /buildNotificationSummary/);
   assert.match(adminModel, /buildSaasAdminActionRequest/);
   assert.match(html, /state\.saasRuntime\.usage_ledger/);
   assert.match(html, /state\.saasRuntime\.billing_readiness/);
@@ -745,8 +775,18 @@ test("A3 dashboard wires product console onboarding, project, and audit workflow
   assert.match(html, /GET \/api\/a3\/product\/console/);
   assert.match(productComponent, /Onboarding Flow/);
   assert.match(productComponent, /Project Console/);
+  assert.match(productComponent, /Operations Loop/);
+  assert.match(productComponent, /Commercial Governance Loop/);
+  assert.match(productComponent, /Go-To-Market/);
+  assert.match(productComponent, /Review records/);
+  assert.match(productComponent, /Notification lanes/);
   assert.match(productComponent, /Audit Log/);
   assert.match(productComponent, /Commercial Readiness/);
+  assert.match(html, /Release Sign-Off/);
+  assert.match(html, /Sign-Off Detail/);
+  assert.match(html, /Review Scope Summary/);
+  assert.match(html, /reviewWorkflow: state\.reviewWorkflow/);
+  assert.match(html, /notificationControlPlane: state\.notificationControlPlane/);
 });
 
 test("A3 dashboard wires enterprise readiness for self-host and audit review", async () => {
@@ -768,3 +808,23 @@ test("A3 dashboard wires enterprise readiness for self-host and audit review", a
   assert.match(html, /GET \/api\/a3\/enterprise\/readiness/);
   assert.match(html, /self-host \/ audit/);
 });
+
+test("A3 dashboard wires notification control plane through a dedicated component", async () => {
+  const html = await loadDashboardHtml();
+
+  assert.match(html, /notification-control-plane\.mjs/);
+  assert.match(html, /renderNotificationControlPlanePanel/);
+  assert.match(html, /Notification Control Plane/);
+  assert.match(html, /notificationDestinationsBlock/);
+  assert.match(html, /enterprise-readiness-panel\.mjs/);
+  assert.match(html, /Notification lanes:/);
+  assert.match(html, /Commercial Loop/);
+  assert.match(html, /review record\(s\),/);
+  assert.match(html, /shareable report\(s\),/);
+  assert.match(html, /Report Share Readiness/);
+  assert.match(html, /Reviewer actions, hosted reports, and export evidence should converge/);
+});
+
+
+
+

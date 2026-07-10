@@ -12,6 +12,8 @@ export function buildA3ProductConsole(inputs = {}, options = {}) {
   const cases = normalizeCases(runFixture, gradeFixture);
   const usageLedger = options.usageLedger || inputs.usageLedger || {};
   const reportCenter = options.reportCenter || inputs.reportCenter || {};
+  const reviewWorkflow = options.reviewWorkflow || inputs.reviewWorkflow || {};
+  const notificationControlPlane = options.notificationControlPlane || inputs.notificationControlPlane || {};
   const auditEvents = Array.isArray(options.auditEvents) ? options.auditEvents : [];
   const importReceipts = Array.isArray(options.importReceipts) ? options.importReceipts : [];
   const source = options.source || inputs.source || "mock";
@@ -26,9 +28,10 @@ export function buildA3ProductConsole(inputs = {}, options = {}) {
       project_id: projectId
     },
     onboarding: buildOnboarding(summary, cases, usageLedger, reportCenter, importReceipts),
-    project_console: buildProjectConsole(summary, cases, usageLedger, reportCenter, source, projectId),
+    project_console: buildProjectConsole(summary, cases, usageLedger, reportCenter, reviewWorkflow, notificationControlPlane, source, projectId),
+    go_to_market: buildGoToMarketSummary(summary, reportCenter, reviewWorkflow, notificationControlPlane, usageLedger),
     audit_log: buildAuditLog(auditEvents, importReceipts, reportCenter),
-    commercial_readiness: buildCommercialReadiness(summary, cases, usageLedger, reportCenter, auditEvents)
+    commercial_readiness: buildCommercialReadiness(summary, cases, usageLedger, reportCenter, reviewWorkflow, notificationControlPlane, auditEvents)
   };
 }
 
@@ -62,11 +65,13 @@ function buildOnboarding(summary, cases, usageLedger, reportCenter, importReceip
   };
 }
 
-function buildProjectConsole(summary, cases, usageLedger, reportCenter, source, projectId) {
+function buildProjectConsole(summary, cases, usageLedger, reportCenter, reviewWorkflow, notificationControlPlane, source, projectId) {
   const failures = cases.filter((item) => !item.passed);
   const failureClasses = countBy(failures, (item) => item.primary_failure_class || "unknown");
   const runs = countBy(cases, (item) => item.run_id || "unknown");
   const meters = Array.isArray(usageLedger.meters) ? usageLedger.meters : [];
+  const workflowRecords = Number(reviewWorkflow.record_count || 0);
+  const notificationSummary = notificationControlPlane.summary || {};
 
   return {
     project_id: projectId,
@@ -101,11 +106,46 @@ function buildProjectConsole(summary, cases, usageLedger, reportCenter, source, 
       manifest_ready_count: reportCenter.summary?.manifest_ready_count || 0,
       total_view_count: reportCenter.summary?.total_view_count || 0
     },
+    operations_summary: {
+      review_record_count: workflowRecords,
+      shareable_report_count: reportCenter.summary?.shareable_count || 0,
+      manifest_ready_count: reportCenter.summary?.manifest_ready_count || 0,
+      notification_channel_count: notificationSummary.channel_count || 0,
+      notification_contract_ready_count: notificationSummary.contract_ready_count || 0,
+      why_it_matters: "Product console value increases when failed runs, reviewer actions, hosted reports, and notification lanes are visible together."
+    },
     primary_actions: [
       projectAction("open_triage", failures.length > 0, `${failures.length} failed case(s) need owner review.`),
       projectAction("create_report", summary.totalCases > 0, "Package current release evidence into a hosted report."),
       projectAction("request_reviewer", failures.length > 0, "Route blocking failures to reviewer workflow."),
       projectAction("promote_regression", failures.length > 0, "Turn high-risk failures into regression replay candidates.")
+    ]
+  };
+}
+
+function buildGoToMarketSummary(summary, reportCenter, reviewWorkflow, notificationControlPlane, usageLedger) {
+  const reportSummary = reportCenter.summary || {};
+  const notificationSummary = notificationControlPlane.summary || {};
+  const meters = Array.isArray(usageLedger.meters) ? usageLedger.meters : [];
+  const reviewCount = Number(reviewWorkflow.record_count || 0);
+  return {
+    status: reportSummary.shareable_count > 0 && reviewCount > 0 ? "field_sellable" : "internal_trial_only",
+    strongest_motion: reportSummary.shareable_count > 0 ? "audit_report_center" : "release_gate_console",
+    buyer_value: [
+      "Block risky releases before production.",
+      "Package replay, judge, and audit evidence into one customer-facing report.",
+      "Give reviewers and operators one shared sign-off surface."
+    ],
+    revenue_signals: {
+      hosted_reports: reportSummary.shareable_count || 0,
+      review_records: reviewCount,
+      notification_lanes: notificationSummary.channel_count || 0,
+      billable_meters: meters.length
+    },
+    next_sales_moves: [
+      "Show one hosted report with release evidence during product demo.",
+      "Connect review workflow output to release sign-off language.",
+      "Attach usage meter language to plan and quota packaging."
     ]
   };
 }
@@ -161,19 +201,23 @@ function buildAuditLog(auditEvents, importReceipts, reportCenter) {
   };
 }
 
-function buildCommercialReadiness(summary, cases, usageLedger, reportCenter, auditEvents) {
+function buildCommercialReadiness(summary, cases, usageLedger, reportCenter, reviewWorkflow, notificationControlPlane, auditEvents) {
   const hasA1 = summary.totalRuns > 0 && cases.some((item) => item.trace_ready || (item.trace_events || []).length > 0);
   const hasA2 = cases.some((item) => (item.judge_results || []).length > 0 || item.grade);
   const hasReports = (reportCenter.summary?.report_count || 0) > 0;
   const hasUsage = Array.isArray(usageLedger.meters) && usageLedger.meters.length > 0;
   const hasAudit = auditEvents.length > 0 || hasReports;
+  const hasReviewWorkflow = Number(reviewWorkflow.record_count || 0) > 0;
+  const hasNotifications = Number(notificationControlPlane.summary?.channel_count || 0) > 0;
   const checks = [
     readinessCheck("a1_trace_ingestion", hasA1),
     readinessCheck("a2_judge_join", hasA2),
     readinessCheck("project_console", summary.totalCases > 0),
     readinessCheck("hosted_report", hasReports),
     readinessCheck("usage_meter", hasUsage),
-    readinessCheck("audit_log", hasAudit)
+    readinessCheck("audit_log", hasAudit),
+    readinessCheck("review_workflow", hasReviewWorkflow),
+    readinessCheck("notification_control_plane", hasNotifications)
   ];
   const passed = checks.filter((item) => item.passed).length;
 

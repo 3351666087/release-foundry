@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+﻿import { readFileSync } from "node:fs";
 
 import { expect, type Locator, type Page, test } from "@playwright/test";
 
@@ -90,6 +90,70 @@ test.describe("A3 API-backed dashboard E2E", () => {
     });
 
     expect(consoleErrors, "billing migration readiness dashboard evidence should not emit browser console errors").toEqual([]);
+  });
+
+  test("shows review filters, share governance, and cloud summary strip", async ({ page }) => {
+    const consoleErrors = collectConsoleErrors(page);
+    await page.goto(apiBackedPath);
+
+    const waiver = loadFixture("fixtures/a3/p3/a3_waiver_request_blocked_exception.redacted.json");
+    await page.request.post(apiUrl(page, "/api/a3/review/waivers?source=mock"), {
+      headers: {
+        "x-a3-role": "reviewer"
+      },
+      data: {
+        waiver,
+        generated_at: "2026-07-10T12:00:00.000Z"
+      }
+    });
+
+    await page.reload();
+    const reviewRecords = section(page, "#review-workflow-records");
+    await expect(reviewRecords).toContainText("Review Filters");
+    await expect(reviewRecords).toContainText("Decision Trends");
+
+    const selects = reviewRecords.locator("select[data-review-filter]");
+    await expect(selects).toHaveCount(3);
+    const releaseSelect = selects.nth(0);
+    const optionValues = await releaseSelect.locator("option").evaluateAll((nodes) => nodes.map((node) => ({
+      value: node.getAttribute("value"),
+      text: node.textContent
+    })));
+    console.log("review filter options", JSON.stringify(optionValues));
+    await releaseSelect.selectOption({ index: 1 });
+    console.log("review filter selected value", await releaseSelect.inputValue());
+    await expect(page).toHaveURL(/reviewRelease=/);
+    await page.reload();
+    await expect(page).toHaveURL(/reviewRelease=/);
+    await expect(section(page, "#review-workflow-records")).toContainText("Active Filter Scope");
+
+    await page.request.post(apiUrl(page, "/api/a3/reports/share?source=mock"), {
+      headers: {
+        "x-a3-role": "reviewer"
+      },
+      data: {
+        source: "mock",
+        title: "A3 review-governance-e2e",
+        visibility: "private_link",
+        created_by: "round8-e2e"
+      }
+    });
+
+    await page.reload();
+    const reportCenter = page.locator("#report-center");
+    await expect(reportCenter).toContainText("Share Link Governance");
+
+    const admin = page.locator("#saas-admin-body");
+    await expect(admin).toContainText("Cloud Summary Strip");
+    await expect(admin).toContainText("Auth");
+    await expect(admin).toContainText("Tenant");
+
+    await page.screenshot({
+      path: "docs/screenshots/a3-review-governance-cloudstrip-2026-07-10.png",
+      fullPage: true
+    });
+
+    expect(consoleErrors, "review/report/admin governance surfaces should not emit browser console errors").toEqual([]);
   });
 
   test("creates and revokes a hosted report through the local A3 API", async ({ page }) => {
@@ -285,3 +349,8 @@ function loadFixture(path: string) {
 function apiUrl(page: Page, path: string): string {
   return new URL(path, page.url()).toString();
 }
+
+
+
+
+

@@ -50,7 +50,7 @@ export function buildA3BillingReadiness(inputs = {}, options = {}) {
     billing_mutations_enabled: false,
     provider_boundary: {
       provider_mode: "not_configured",
-      supported_future_providers: ["stripe", "wechat_pay", "alipay", "manual_invoice"],
+      supported_future_providers: ["wechat_pay", "alipay", "manual_invoice", "stripe"],
       checkout_enabled: false,
       billing_portal_enabled: false,
       invoice_export_enabled: true,
@@ -62,7 +62,7 @@ export function buildA3BillingReadiness(inputs = {}, options = {}) {
       quota_policy_ready: true,
       overage_policy_ready: true,
       customer_invoice_ready: false,
-      reason: "A3 can compute read-only meters and invoice lines, but real billing needs hosted auth, A1 ledger enforcement, and provider webhooks."
+      reason: "A3 can compute read-only meters and invoice lines, but real billing needs hosted auth, A1 ledger enforcement, provider webhooks, and a China-first payment path with WeChat Pay and Alipay before secondary international providers."
     },
     billable_meter_count: billableMeters.length,
     billable_unit_count: billableMeters.reduce((sum, item) => sum + Number(item.quantity || 0), 0),
@@ -214,6 +214,7 @@ function nextBillingActions(context = {}) {
   if (context.blockedPaidActions?.length) {
     actions.push("Keep paid mutations disabled until hosted auth, RBAC, audit events, and provider webhooks exist.");
   }
+  actions.push("Prioritize WeChat Pay and Alipay before secondary international checkout providers.");
   actions.push("Add provider-backed checkout only after A1 owns billing ledger and webhook verification.");
   return actions;
 }

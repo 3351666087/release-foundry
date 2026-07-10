@@ -10,6 +10,8 @@ export function renderSaasRuntimePanel(target, runtime = {}) {
   const migrations = runtime.db_migrations || {};
   const usageLedger = runtime.usage_ledger || {};
   const billingReadiness = runtime.billing_readiness || {};
+  const eventOutbox = runtime.event_outbox || {};
+  const burnSummary = usageLedger.burn_summary || {};
 
   target.replaceChildren(
     runtimeSummary(runtime),
@@ -20,13 +22,17 @@ export function renderSaasRuntimePanel(target, runtime = {}) {
       ["MySQL", dbContract.mysql_compatible ? "compatible" : "not planned"],
       ["Migrations", String(migrations.migration_count || 0)],
       ["Usage meters", String((usageLedger.meters || []).length)],
-      ["Billing", billingReadiness.status || "not loaded"]
+      ["Billing", billingReadiness.status || "not loaded"],
+      ["Runway", burnSummary.status || "unknown"],
+      ["Event outbox", String(eventOutbox.event_count || 0)]
     ]),
     runtimeList("API surfaces", apiSurfaces),
     runtimeList("DB tables", tables.slice(0, 8)),
     runtimeList("Migration batches", (migrations.statements || []).map((item) => `${item.id}: ${item.tables.join(", ")}`)),
     runtimeList("Usage meters", (usageLedger.meters || []).map((item) => `${item.meter}: ${item.quantity}`)),
+    runtimeList("Burn / Runway", burnRows(burnSummary)),
     runtimeList("Billing readiness", billingReadiness.schema_version ? billingRows(billingReadiness) : []),
+    runtimeList("Event outbox", eventOutboxRows(eventOutbox)),
     runtimeList("Guardrails", guardrails)
   );
 }
@@ -77,6 +83,19 @@ function runtimeList(label, items) {
   return list;
 }
 
+function burnRows(burn = {}) {
+  if (!burn.status) {
+    return [];
+  }
+  return [
+    `status: ${burn.status || "unknown"}`,
+    `billable units: ${burn.billable_units || 0}`,
+    `quota included: ${burn.quota_included_units || 0}`,
+    `remaining units: ${burn.estimated_remaining_units || 0}`,
+    `active meters: ${(burn.active_billable_meters || []).join(", ") || "none"}`
+  ];
+}
+
 function billingRows(billing = {}) {
   return [
     `status: ${billing.status || "unknown"}`,
@@ -100,3 +119,14 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
 }
+
+function eventOutboxRows(eventOutbox = {}) {
+  const rows = [];
+  rows.push(`events: ${eventOutbox.event_count || 0}`);
+  rows.push(`pending: ${eventOutbox.pending_count || 0}`);
+  rows.push(`delivered: ${eventOutbox.delivered_count || 0}`);
+  rows.push(`audit only: ${eventOutbox.audit_only_count || 0}`);
+  return rows;
+}
+
+

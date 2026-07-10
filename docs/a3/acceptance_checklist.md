@@ -1,4 +1,4 @@
-# A3 Acceptance Checklist
+﻿# A3 Acceptance Checklist
 
 ## G2.3 Dashboard Skeleton
 
@@ -700,3 +700,77 @@
 - [ ] Real Slack/Teams/email/webhook delivery remains future A1 worker work.
 - [ ] Real notification payload safety certification remains future A2 redaction/security work.
 - [ ] Real notification delivery usage billing remains future A1 usage-ledger work.
+
+
+## A3 Console Workflow Closure - 2026-07-10
+
+- [x] Notification Control Plane is componentized and no longer rendered as a large inline HTML block.
+- [x] Notification Control Plane explains live-ops alignment with reviewer records, billing/usage, and hosted reports.
+- [x] Product Console includes an Operations Loop that references reviewer records, hosted reports, and notification lanes.
+- [x] Report Center includes a Commercial Loop summary for reviewer records, hosted reports, notification lanes, and audit-backed live-op lanes.
+- [x] SaaS Admin includes a Control Summary for release, cloud posture, usage state, team seats, admin requests, and notification lane counts.
+- [x] SaaS Admin surfaces Notification Destinations derived from the Notification Control Plane.
+- [x] Reviewer Workflow includes Report Share Readiness language linking review records to hosted report sharing state.
+- [x] A3 worklog records the GitHub connectivity limitation and the current `spawn EPERM` managed-environment limitation.
+- [ ] Re-run dynamic Node tests after managed environment allows test child-process spawning again.
+- [ ] Re-run Playwright E2E after managed environment allows the same runtime path.
+- [x] Re-sync with GitHub via working `git fetch` transport once `github.com` connectivity returns.
+- [ ] Re-verify push / branch publication flow after transport recovery.
+
+- [x] Product Console includes a Go-To-Market section with sellable motion, buyer value, and sales next-step framing.
+- [x] SaaS Admin includes Tenant / Environment Control and Release / Rollout Control sections.
+- [x] Enterprise Readiness includes an Enterprise Value section mapping current sellable claims and blocked enterprise claims.
+
+- [x] GitHub remote connectivity was re-verified with direct git and GitHub CLI probes.
+- [x] Report Center includes a Release Sign-Off summary tile.
+- [x] SaaS Admin includes a Billing Account block with plan packaging and invoice-preview posture.
+- [x] Enterprise Readiness includes a Self-Host Packet block.
+
+- [x] Reviewer Workflow includes a Review Scope Summary row with release/environment/actor scope metadata.
+- [x] SaaS Runtime includes a Burn / Runway section derived from usage-ledger billable units and quota state.
+
+- [x] Billing Account shows plan comparison and invoice-preview-style line items.
+- [x] Report Center includes a Sign-Off Detail tile backed by checklist-style release packet data.
+
+- [x] Billing/admin product language prioritizes WeChat Pay and Alipay before secondary international providers.
+- [x] SaaS Admin includes a Provider Priority section with WeChat Pay / Alipay before manual invoice and Stripe.
+- [x] SaaS Admin includes a Domestic Invoice Workflow shell for procurement-style billing review.
+- [x] Billing invoice preview reads as China-first CNY packaging instead of only USD placeholder copy.
+- [x] Review workflow data model now exposes approval / waiver / denial trend summary for richer human sign-off surfaces.
+- [x] GitHub remote connectivity is currently healthy enough for future A3 publication work (`origin/main` readable, GitHub CLI authenticated).
+- [x] Report Center now exposes hosted share-link governance posture for revoke / expiry / blocked states.
+- [x] Enterprise Readiness now shows hosted-vs-self-host comparison inside the self-host packet.
+- [x] SaaS Runtime now exposes overage alert posture in addition to burn / runway summary.
+- [x] Review workflow now exposes release/environment/actor-hash filter options in its contract.
+- [x] Dashboard review workflow area now shows filter-preview and decision-trend summaries.
+- [x] SaaS Admin now exposes a cloud summary strip for auth, tenant, usage, frontend, and trust posture.
+- [x] Review workflow now supports real local filter interaction for release, environment, and actor-hash options.
+- [x] Report Center now surfaces share-link governance as a dedicated hosted-report card.
+- [x] New review filter controls are styled to match the dashboard control surface.
+- [x] Playwright E2E proves review filters, share governance, and cloud summary strip render together in the API-backed dashboard.
+- [x] Updated browser screenshot evidence exists for the new review/report/admin cloud-product surfaces.
+- [x] Review workflow now shows the currently active filter scope, not only filter controls.
+- [x] SaaS Admin control summary now surfaces overage risk earlier in the operator view.
+- [x] Review filter state now persists in URL query params and restores on reload.
+- [x] Report Center now surfaces a GitHub publish posture card for release-facing reviewer context.
+- [ ] Make review filter URL persistence browser-proven, not only source-level and Node-test green.
+- [x] Review filter URL sync is now browser-proven in Playwright, not only source-level.
+- [x] Full A3 dashboard API-backed Playwright suite is green after reviewer deep-link repair.
+- [x] Browser-prove not only URL persistence, but visible scoped reviewer-state persistence after reload.
+
+- [x] SaaS Admin now shows seat / license posture instead of only a raw team roster.
+- [x] SaaS Admin now shows API key audit posture, not only key metadata and lifecycle labels.
+- [x] SaaS Admin now shows compliance posture tied to trust publishing and audit export constraints.
+- [x] SaaS Admin now shows workspace / cloud posture tying environment, usage, billing, and release state together.
+- [x] GitHub auth is confirmed healthy; current GitHub risk is transient network reset on fetch, not missing credentials.
+- [x] GitHub remote connectivity has recovered enough for `ls-remote` and `fetch --prune` against origin.
+- [x] SaaS Admin export now carries seat management, API-key hygiene, usage overage posture, trust compliance posture, and workspace posture.
+- [x] Product Console now shows a Commercial Governance Loop tying review, hosted reports, audit events, and readiness together.
+- [x] A3 live ops / dashboard / report-builder verification is green after the governance pass (83 pass, 0 fail).
+- [x] Live Ops Control Plane now exposes reviewer timeline, GitHub publish timeline, share-link lifecycle, and audit history summaries.
+- [x] A3 live ops governance recovery pass is green (`83 pass, 0 fail`).
+- [x] Live Ops dashboard now exposes a governance summary strip before the detailed reviewer / GitHub / share-link / audit tables.
+- [x] Playwright browser proof covers the new live-ops governance elements in the API-backed dashboard.
+- [x] Node + Playwright verification is green after the live-ops governance UX pass (83 pass, 0 fail; Playwright 7 passed).
+- [x] Report builder now has a dedicated live-ops governance export summary.
+- [x] Live-ops governance export contract test is green (47 pass, 0 fail for the focused report/live-ops suite).

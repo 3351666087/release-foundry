@@ -1,4 +1,4 @@
-export const A3_LIVE_OPS_CONTROL_PLANE_SCHEMA_VERSION = "a3.live_ops_control_plane.v1";
+﻿export const A3_LIVE_OPS_CONTROL_PLANE_SCHEMA_VERSION = "a3.live_ops_control_plane.v1";
 
 export function buildA3LiveOpsControlPlane(inputs = {}, options = {}) {
   const releaseEvidence = inputs.releaseEvidence || inputs.release_evidence || {};
@@ -80,8 +80,21 @@ export function buildA3LiveOpsControlPlane(inputs = {}, options = {}) {
       shareable_count: numberOr(reportCenter.summary?.shareable_count, 0),
       revoked_count: numberOr(reportCenter.summary?.revoked_count, 0),
       expired_count: numberOr(reportCenter.summary?.expired_count, 0),
-      total_view_count: numberOr(reportCenter.summary?.total_view_count, 0)
+      total_view_count: numberOr(reportCenter.summary?.total_view_count, 0),
+      latest_report_statuses: Array.isArray(reportCenter.reports)
+        ? reportCenter.reports.slice(-3).map((item) => ({
+            report_id: item.report_id,
+            status: item.status,
+            expires_at: item.expires_at || null,
+            revoked_at: item.revoked_at || null,
+            view_count: numberOr(item.view_count, 0)
+          }))
+        : []
     },
+    reviewer_timeline: buildReviewerTimeline(reviewWorkflow),
+    github_publish_timeline: buildGithubPublishTimeline(releaseEvidence),
+    share_link_timeline: buildShareLinkTimeline(reportCenter),
+    audit_history: buildAuditHistory(reviewWorkflow, eventOutbox, reportCenter),
     a1_a2_alignment: {
       a1_consumed_contracts: ["RunResult", "Trace", "ToolCall", "usage ledger / billing migration evidence"],
       a2_consumed_contracts: ["GradeResult", "ReleaseGate", "failure taxonomy", "cross-lane security context"],
@@ -118,15 +131,11 @@ function githubCheckLane(releaseEvidence = {}) {
         ? "publish_contract_ready"
         : "missing_contract",
     current_mode: livePostedByReceipt ? "live_mutation_receipt" : publishReady ? "dry_run_publish_plan" : "missing",
-    live_worker_ready: publishReady && Boolean(receipt.request?.requires_token_scope || receipt.requires_token_scope || "checks:write"),
+    live_worker_ready: publishReady && Boolean(receipt.plan?.requires_token_scope || receipt.requires_token_scope || "checks:write"),
     api_backed: publishReady,
     audit_backed: publishReady || readbackConfirmed,
     real_external_mutation_performed_locally: livePostedByReceipt,
-    evidence_sources: compact([
-      receipt.schema_version,
-      readback.schema_version,
-      readback.readback_id
-    ]),
+    evidence_sources: compact([receipt.schema_version, readback.schema_version, readback.readback_id]),
     api_routes: ["POST /internal/github/check-run", "POST /api/a3/releases/:releaseId/readbacks"],
     db_tables: ["release_evidence_readbacks", "event_outbox", "audit_events"],
     audit_events: ["github.check_publish_requested", "release_evidence.readback_captured"],
@@ -159,11 +168,7 @@ function prCommentLane(releaseEvidence = {}) {
     api_backed: publishReady,
     audit_backed: publishReady || readbackConfirmed,
     real_external_mutation_performed_locally: livePostedByReceipt,
-    evidence_sources: compact([
-      receipt.schema_version,
-      readback.schema_version,
-      readback.readback_id
-    ]),
+    evidence_sources: compact([receipt.schema_version, readback.schema_version, readback.readback_id]),
     api_routes: ["POST /internal/github/pr-comment", "POST /api/a3/releases/:releaseId/readbacks"],
     db_tables: ["release_evidence_readbacks", "event_outbox", "audit_events"],
     audit_events: ["github.pr_comment_publish_requested", "release_evidence.readback_captured"],
@@ -211,21 +216,21 @@ function humanOperationLane(reviewWorkflow = {}, eventOutbox = {}) {
     label: "Dashboard shows human operation records",
     product_surface: "Audit Log",
     status: visibleCount > 0 ? "visible" : "api_backed_no_records",
-    current_mode: visibleCount > 0 ? "audit_metadata_visible" : "waiting_for_human_actions",
+    current_mode: visibleCount > 0 ? "visible_records" : "api_backed_no_records",
     live_worker_ready: true,
     api_backed: true,
     audit_backed: visibleCount > 0,
     real_external_mutation_performed_locally: false,
     evidence_sources: compact([reviewWorkflow.schema_version, eventOutbox.schema_version]),
-    api_routes: ["GET /api/a3/events/outbox", "GET /api/a3/review/workflow", "GET /api/a3/admin/actions"],
-    db_tables: ["event_outbox", "audit_events", "review_workflow_records", "saas_admin_action_requests"],
-    audit_events: ["review.*", "admin_action.*", "report.*", "release_evidence.readback_captured"],
-    dashboard_fields: ["event id", "event type", "resource id", "delivery status", "payload hash prefix", "actor hash"],
-    a1_dependency: "A1 durable audit/outbox backend will replace local memory/file persistence.",
-    a2_dependency: "A2 can consume cross-lane security context from these records.",
+    api_routes: ["GET /api/a3/review/workflow", "GET /api/a3/events/outbox"],
+    db_tables: ["review_workflow_records", "event_outbox", "audit_events"],
+    audit_events: ["approval.submitted", "denial.submitted", "waiver.submitted", "audit_event.created"],
+    dashboard_fields: ["record type", "accepted", "actor hash", "event count", "latest action"],
+    a1_dependency: "A1 later feeds hosted operator events and durable outbox delivery receipts.",
+    a2_dependency: "A2 gate and waiver semantics determine which human operations matter.",
     next_action: visibleCount > 0
-      ? "Promote the latest human events into dashboard timeline and report manifests."
-      : "Create one review/admin/report action so dashboard has real operation rows to show."
+      ? "Render a reviewer/audit timeline beside release evidence and share governance."
+      : "Create one human operation receipt so the dashboard stops being an empty audit shell."
   });
 }
 
@@ -302,6 +307,76 @@ function lane(value = {}) {
     a2_dependency: value.a2_dependency,
     next_action: value.next_action
   };
+}
+
+function buildReviewerTimeline(reviewWorkflow = {}) {
+  const records = Array.isArray(reviewWorkflow.records) ? reviewWorkflow.records : [];
+  return records.slice(-6).reverse().map((item, index) => ({
+    timeline_id: item.record_id || `review-${index}`,
+    record_type: item.record_type || "review",
+    status: item.accepted === true ? "accepted" : item.accepted === false ? "rejected" : (item.status || "recorded"),
+    actor_hash: item.actor_hash || item.reviewer_hash || "redacted-actor",
+    reason: item.reason || item.summary || "No reviewer reason recorded.",
+    created_at: item.created_at || item.recorded_at || null
+  }));
+}
+
+function buildGithubPublishTimeline(releaseEvidence = {}) {
+  const check = releaseEvidence.githubCheckPublishReceipt || releaseEvidence.github_check_publish || {};
+  const comment = releaseEvidence.githubPrCommentPublishReceipt || releaseEvidence.github_pr_comment_publish || {};
+  const readbacks = Array.isArray(releaseEvidence.readback_records) ? releaseEvidence.readback_records : [];
+  return [
+    {
+      step: "check_publish",
+      status: check.status || "missing",
+      dry_run: check.dry_run === true,
+      target: check.check_name || check.name || "unknown_check"
+    },
+    {
+      step: "pr_comment_publish",
+      status: comment.status || "missing",
+      dry_run: comment.dry_run === true,
+      target: comment.comment_id || comment.pr_number || "unknown_comment_target"
+    },
+    {
+      step: "readback_verification",
+      status: readbacks.length > 0 ? "observed" : "missing",
+      dry_run: false,
+      target: `${readbacks.length} readback record(s)`
+    }
+  ];
+}
+
+function buildShareLinkTimeline(reportCenter = {}) {
+  const reports = Array.isArray(reportCenter.reports) ? reportCenter.reports : [];
+  return reports.slice(-4).reverse().map((item, index) => ({
+    timeline_id: item.report_id || `report-${index}`,
+    status: item.status || "unknown",
+    expires_at: item.expires_at || null,
+    revoked_at: item.revoked_at || null,
+    share_url_path: item.share_url_path || null,
+    view_count: numberOr(item.view_count, 0)
+  }));
+}
+
+function buildAuditHistory(reviewWorkflow = {}, eventOutbox = {}, reportCenter = {}) {
+  const events = [];
+  for (const item of (reviewWorkflow.records || []).slice(-3)) {
+    events.push({
+      event_type: `review.${item.record_type || "recorded"}`,
+      status: item.accepted === true ? "accepted" : item.accepted === false ? "rejected" : "recorded"
+    });
+  }
+  for (const item of (reportCenter.reports || []).slice(-2)) {
+    events.push({
+      event_type: `report.${item.status || "unknown"}`,
+      status: item.status || "unknown"
+    });
+  }
+  if (numberOr(eventOutbox.event_count, 0) > 0) {
+    events.push({ event_type: "event_outbox.visible", status: String(eventOutbox.event_count) });
+  }
+  return events.slice(-6).reverse();
 }
 
 function findReadback(releaseEvidence = {}, resourceKind) {

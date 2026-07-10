@@ -67,7 +67,21 @@ export function buildA3UsageLedger(inputs = {}, options = {}) {
     high_value_meters: meters
       .filter((item) => ["failed_cases", "judge_results", "shareable_reports", "report_views", "release_evidence_readbacks", "api_imports"].includes(item.meter))
       .map((item) => item.meter),
+    burn_summary: buildBurnSummary(billingUsageSummary, meters),
     commercial_note: "Usage ledger is read-only until hosted billing, RBAC, customer plan controls, and quota enforcement exist."
+  };
+}
+
+function buildBurnSummary(billingUsageSummary = {}, meters = []) {
+  const billableUnits = Number(billingUsageSummary.billable_unit_count || 0);
+  const quotaIncluded = Number(billingUsageSummary.quota?.included_units || 0);
+  const remaining = Math.max(quotaIncluded - billableUnits, 0);
+  return {
+    status: quotaIncluded > 0 ? (remaining === 0 ? "quota_exhausted" : remaining < quotaIncluded * 0.25 ? "low_runway" : "healthy_runway") : "no_quota_loaded",
+    billable_units: billableUnits,
+    quota_included_units: quotaIncluded,
+    estimated_remaining_units: remaining,
+    active_billable_meters: meters.filter((item) => item.billable && item.quantity > 0).map((item) => item.meter).slice(0, 8)
   };
 }
 
@@ -106,3 +120,4 @@ function hasToolCalls(item) {
   return (item.expected?.tool_calls || []).length > 0
     || (item.actual?.tool_calls || []).length > 0;
 }
+
