@@ -460,6 +460,7 @@ class A2ContractTests(unittest.TestCase):
         self.assertIn("a1_billing_ledger_migration", evidence_readiness_schema["required"])
         self.assertIn("a1_china_payment_migration", evidence_readiness_schema["required"])
         self.assertIn("a1_payment_verification_security", evidence_readiness_schema["required"])
+        self.assertIn("a1_oauth_lifecycle_security", evidence_readiness_schema["required"])
         self.assertIn("a1_billing_sql_semantic_contract", evidence_readiness_schema["required"])
         self.assertIn("a1_object_storage_contract", evidence_readiness_schema["required"])
         self.assertIn("ashr_public_merge_gate", evidence_readiness_schema["required"])
@@ -563,6 +564,17 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(
             evidence_readiness_schema["properties"]["a1_payment_verification_security"]["$ref"],
             "#/$defs/a1_payment_verification_security",
+        )
+        oauth_required = set(evidence_readiness_schema["$defs"]["a1_oauth_lifecycle_security"]["required"])
+        self.assertLessEqual(
+            oauth_required,
+            set(evidence_readiness["a1_oauth_lifecycle_security"]),
+        )
+        self.assertIn("ready_for_a2_oauth_policy_context", oauth_required)
+        self.assertIn("c3_grading_ready", oauth_required)
+        self.assertEqual(
+            evidence_readiness_schema["properties"]["a1_oauth_lifecycle_security"]["$ref"],
+            "#/$defs/a1_oauth_lifecycle_security",
         )
         billing_sql_required = set(evidence_readiness_schema["$defs"]["a1_billing_sql_semantic_contract"]["required"])
         self.assertLessEqual(
@@ -1514,6 +1526,19 @@ class A2ContractTests(unittest.TestCase):
             payment_verification["a2_policy_implications"][
                 "must_not_mark_c3_from_payment_verification_context"
             ]
+        )
+        oauth_lifecycle = report["a1_oauth_lifecycle_security"]
+        self.assertEqual(
+            oauth_lifecycle["sql_path"],
+            "services/api/migrations/006_a1_oauth_lifecycle.sql",
+        )
+        self.assertEqual(
+            oauth_lifecycle["evidence_path"],
+            "docs/a1/evidence/github_account_connection_evidence_20260710.json",
+        )
+        self.assertFalse(oauth_lifecycle["c3_grading_ready"])
+        self.assertTrue(
+            oauth_lifecycle["a2_policy_implications"]["must_not_mark_c3_from_oauth_context"]
         )
         billing_sql = report["a1_billing_sql_semantic_contract"]
         self.assertTrue(billing_sql["available"])
@@ -2495,6 +2520,156 @@ ALTER TABLE china_payment_verification_artifacts FORCE ROW LEVEL SECURITY;
                 "must_not_mark_c3_from_payment_verification_context"
             ]
         )
+
+    def test_evidence_readiness_consumes_a1_oauth_lifecycle_security(self):
+        calibration_matrix = build_calibration_matrix(
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+            run_dir=ROOT / "fixtures/a2/runs",
+            observations_path=ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        )
+        sdk_parity = build_sdk_parity_report(pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json")
+        semantic_harness = build_semantic_harness_report(calibration_matrix, sdk_parity)
+        sql = """
+CREATE OR REPLACE FUNCTION a1_oauth_public_metadata(p_metadata JSONB)
+RETURNS BOOLEAN AS $$
+DECLARE normalized_key TEXT;
+BEGIN
+  PERFORM key, value FROM jsonb_each(p_metadata);
+  PERFORM value FROM jsonb_array_elements(p_metadata);
+  normalized_key := 'accesstoken refreshtoken idtoken authorizationcode codeverifier clientsecret state nonce password cookie';
+  RETURN TRUE;
+END;
+$$ LANGUAGE plpgsql;
+CREATE OR REPLACE FUNCTION a1_oauth_reference_only(p_reference TEXT) RETURNS BOOLEAN AS $$ SELECT TRUE $$ LANGUAGE sql;
+CREATE OR REPLACE FUNCTION a1_current_project_id() RETURNS UUID AS $$ SELECT NULL::UUID $$ LANGUAGE sql;
+CREATE OR REPLACE FUNCTION a1_oauth_assert_runtime_context(p_organization_id UUID, p_project_id UUID) RETURNS VOID AS $$ BEGIN END; $$ LANGUAGE plpgsql;
+
+CREATE TABLE IF NOT EXISTS users (email_digest TEXT, metadata JSONB);
+CREATE TABLE IF NOT EXISTS oauth_attempts (
+  redirect_uri_digest TEXT, state_digest TEXT, code_digest TEXT,
+  pkce_challenge_digest TEXT, nonce_digest TEXT
+);
+CREATE TABLE IF NOT EXISTS external_identities (
+  subject_digest TEXT, account_binding_digest TEXT
+);
+CREATE TABLE IF NOT EXISTS sessions (session_digest TEXT);
+CREATE TABLE IF NOT EXISTS token_secret_refs (
+  secret_ref TEXT NOT NULL, secret_fingerprint TEXT, secret_kind TEXT CHECK (secret_kind IN ('access', 'refresh'))
+);
+CREATE TABLE IF NOT EXISTS oauth_revocations (event_digest TEXT);
+CREATE TABLE IF NOT EXISTS oauth_audit_events (event_digest TEXT);
+CREATE TABLE IF NOT EXISTS oauth_outbox (event_digest TEXT);
+
+CONSTRAINT oauth_attempts_state_key UNIQUE (state_digest);
+CREATE UNIQUE INDEX oauth_attempts_consumed_code_key ON oauth_attempts(code_digest);
+CONSTRAINT external_identities_provider_subject_key UNIQUE (subject_digest);
+CONSTRAINT external_identities_user_provider_key UNIQUE (subject_digest);
+CONSTRAINT sessions_digest_key UNIQUE (session_digest);
+
+CREATE OR REPLACE FUNCTION a1_consume_oauth_attempt() RETURNS oauth_attempts AS $$
+BEGIN
+  RAISE EXCEPTION 'oauth attempt already consumed or closed';
+  RAISE EXCEPTION 'oauth state digest mismatch';
+END;
+$$ LANGUAGE plpgsql;
+CREATE OR REPLACE FUNCTION a1_link_oauth_identity() RETURNS TABLE (user_id UUID, external_identity_id UUID, session_id UUID) AS $$
+BEGIN
+  RAISE EXCEPTION 'oauth identity is already linked to another account';
+  RAISE EXCEPTION 'oauth identity conflicts with an existing account';
+  INSERT INTO sessions (session_digest) VALUES ('synthetic_digest');
+  INSERT INTO oauth_audit_events (event_digest) VALUES ('oauth.identity.linked');
+  INSERT INTO oauth_outbox (event_digest) VALUES ('oauth.identity.linked');
+END;
+$$ LANGUAGE plpgsql;
+CREATE OR REPLACE FUNCTION a1_revoke_oauth_identity() RETURNS oauth_revocations AS $$
+BEGIN
+  UPDATE token_secret_refs SET status = 'revoked';
+  INSERT INTO oauth_audit_events (event_digest) VALUES ('oauth.identity.revoked');
+  INSERT INTO oauth_outbox (event_digest) VALUES ('oauth.identity.revoked');
+END;
+$$ LANGUAGE plpgsql;
+CREATE OR REPLACE FUNCTION a1_oauth_reject_hard_delete() RETURNS TRIGGER AS $$ BEGIN RETURN OLD; END; $$ LANGUAGE plpgsql;
+CREATE TRIGGER users_reject_hard_delete BEFORE DELETE ON users FOR EACH ROW EXECUTE FUNCTION a1_oauth_reject_hard_delete();
+CREATE TRIGGER sessions_reject_hard_delete BEFORE DELETE ON sessions FOR EACH ROW EXECUTE FUNCTION a1_oauth_reject_hard_delete();
+CREATE TRIGGER token_secret_refs_reject_hard_delete BEFORE DELETE ON token_secret_refs FOR EACH ROW EXECUTE FUNCTION a1_oauth_reject_hard_delete();
+CREATE OR REPLACE FUNCTION a1_oauth_reject_append_only_mutation() RETURNS TRIGGER AS $$ BEGIN RETURN OLD; END; $$ LANGUAGE plpgsql;
+CREATE TRIGGER oauth_revocations_append_only BEFORE UPDATE OR DELETE ON oauth_revocations FOR EACH ROW EXECUTE FUNCTION a1_oauth_reject_append_only_mutation();
+CREATE TRIGGER oauth_audit_events_append_only BEFORE UPDATE OR DELETE ON oauth_audit_events FOR EACH ROW EXECUTE FUNCTION a1_oauth_reject_append_only_mutation();
+ALTER TABLE users FORCE ROW LEVEL SECURITY;
+CREATE POLICY users_tenant_isolation ON users USING (project_id = a1_current_project_id());
+CREATE POLICY oauth_attempts_tenant_isolation ON oauth_attempts USING (project_id = a1_current_project_id());
+CREATE POLICY oauth_outbox_tenant_isolation ON oauth_outbox USING (project_id = a1_current_project_id());
+"""
+        evidence = {
+            "schema_version": "ashr.clone.github_account_connection_evidence.v1",
+            "environment": "localhost_development",
+            "provider": "github",
+            "requested_scopes": ["read:user", "user:email"],
+            "granted_scopes": ["read:user", "user:email"],
+            "start_status_code": 200,
+            "callback_status_code": 200,
+            "connection_status_code": 200,
+            "token_reference_present": True,
+            "token_reference_exposed": False,
+            "replay_denied": True,
+            "provider_token_revoked_before_local_delete": True,
+            "raw_state_recorded": False,
+            "pkce_verifier_recorded": False,
+            "authorization_code_recorded": False,
+            "access_token_recorded": False,
+            "client_secret_recorded": False,
+            "raw_provider_response_recorded": False,
+            "memory_backed": True,
+            "production_ready": False,
+        }
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            sql_path = Path(tmp_dir) / "006_a1_oauth_lifecycle.sql"
+            evidence_path = Path(tmp_dir) / "github_account_connection_evidence_20260710.json"
+            sql_path.write_text(sql, encoding="utf-8")
+            evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
+            report = build_evidence_readiness_report(
+                calibration_matrix,
+                {},
+                semantic_harness,
+                a1_oauth_lifecycle_sql_path=sql_path,
+                a1_github_account_connection_evidence_path=evidence_path,
+            )
+
+        oauth = report["a1_oauth_lifecycle_security"]
+        self.assertTrue(oauth["available"])
+        self.assertEqual(oauth["schema_version"], "ashr.clone.github_account_connection_evidence.v1")
+        self.assertEqual(oauth["provider"], "github")
+        self.assertEqual(oauth["environment"], "localhost_development")
+        self.assertTrue(oauth["public_safe"])
+        self.assertEqual(oauth["sql_table_count"], 8)
+        self.assertGreaterEqual(oauth["digest_field_count"], 9)
+        self.assertTrue(oauth["recursive_metadata_check"])
+        self.assertGreaterEqual(oauth["forbidden_key_count"], 8)
+        self.assertTrue(oauth["reference_only_secret_storage"])
+        self.assertTrue(oauth["state_code_replay_controls"])
+        self.assertTrue(oauth["account_takeover_controls"])
+        self.assertTrue(oauth["session_fixation_controls"])
+        self.assertTrue(oauth["revocation_controls"])
+        self.assertTrue(oauth["audit_outbox_controls"])
+        self.assertTrue(oauth["hard_delete_rejected"])
+        self.assertTrue(oauth["append_only_audit"])
+        self.assertTrue(oauth["tenant_rls_ready"])
+        self.assertFalse(oauth["raw_secret_columns_present"])
+        self.assertFalse(oauth["raw_public_evidence_present"])
+        self.assertTrue(oauth["successful_localhost_connection"])
+        self.assertTrue(oauth["scope_boundary_ready"])
+        self.assertTrue(oauth["token_reference_present"])
+        self.assertFalse(oauth["token_reference_exposed"])
+        self.assertTrue(oauth["memory_backed"])
+        self.assertFalse(oauth["production_ready"])
+        self.assertTrue(oauth["ready_for_a2_oauth_policy_context"])
+        self.assertFalse(oauth["c3_grading_ready"])
+        self.assertTrue(oauth["a2_policy_implications"]["oauth_lifecycle_policy_context"])
+        self.assertTrue(oauth["a2_policy_implications"]["can_support_oauth_abuse_cases"])
+        self.assertTrue(oauth["a2_policy_implications"]["can_support_account_takeover_regressions"])
+        self.assertTrue(oauth["a2_policy_implications"]["can_cross_check_audit_outbox_events"])
+        self.assertTrue(oauth["a2_policy_implications"]["must_not_mark_c3_from_oauth_context"])
 
     def test_evidence_readiness_consumes_a1_billing_sql_semantic_contract(self):
         calibration_matrix = build_calibration_matrix(

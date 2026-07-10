@@ -25,6 +25,10 @@ DEFAULT_A1_CHINA_PAYMENT_MIGRATION_MANIFEST = Path(
 DEFAULT_A1_PAYMENT_VERIFICATION_SECURITY_SQL = Path(
     "services/api/migrations/005_a1_payment_verification_security.sql"
 )
+DEFAULT_A1_OAUTH_LIFECYCLE_SQL = Path("services/api/migrations/006_a1_oauth_lifecycle.sql")
+DEFAULT_A1_GITHUB_ACCOUNT_CONNECTION_EVIDENCE = Path(
+    "docs/a1/evidence/github_account_connection_evidence_20260710.json"
+)
 DEFAULT_A1_BILLING_SQL_SEMANTIC_CONTRACT = Path("docs/a1/evidence/billing_sql_semantic_contract.json")
 DEFAULT_A1_OBJECT_STORAGE_CONTRACT = Path("docs/a1/evidence/object_storage_contract_20260709.md")
 DEFAULT_A2_REAL_API_SMOKE = Path("docs/evidence/a2_real_api_smoke.json")
@@ -69,6 +73,8 @@ def build_evidence_readiness_report(
     a1_billing_ledger_migration_manifest_path: str | Path = DEFAULT_A1_BILLING_LEDGER_MIGRATION_MANIFEST,
     a1_china_payment_migration_manifest_path: str | Path = DEFAULT_A1_CHINA_PAYMENT_MIGRATION_MANIFEST,
     a1_payment_verification_security_sql_path: str | Path = DEFAULT_A1_PAYMENT_VERIFICATION_SECURITY_SQL,
+    a1_oauth_lifecycle_sql_path: str | Path = DEFAULT_A1_OAUTH_LIFECYCLE_SQL,
+    a1_github_account_connection_evidence_path: str | Path = DEFAULT_A1_GITHUB_ACCOUNT_CONNECTION_EVIDENCE,
     a1_billing_sql_semantic_contract_path: str | Path = DEFAULT_A1_BILLING_SQL_SEMANTIC_CONTRACT,
     a1_object_storage_contract_path: str | Path = DEFAULT_A1_OBJECT_STORAGE_CONTRACT,
     official_sdk_smoke_path: str | Path = DEFAULT_A2_REAL_API_SMOKE,
@@ -123,6 +129,10 @@ def build_evidence_readiness_report(
     )
     a1_payment_verification_security = _a1_payment_verification_security_summary(
         a1_payment_verification_security_sql_path
+    )
+    a1_oauth_lifecycle_security = _a1_oauth_lifecycle_security_summary(
+        a1_oauth_lifecycle_sql_path,
+        a1_github_account_connection_evidence_path,
     )
     a1_billing_sql_semantic_contract = _a1_billing_sql_semantic_contract_summary(
         a1_billing_sql_semantic_contract_path
@@ -182,6 +192,7 @@ def build_evidence_readiness_report(
         "a1_billing_ledger_migration": a1_billing_ledger_migration,
         "a1_china_payment_migration": a1_china_payment_migration,
         "a1_payment_verification_security": a1_payment_verification_security,
+        "a1_oauth_lifecycle_security": a1_oauth_lifecycle_security,
         "a1_billing_sql_semantic_contract": a1_billing_sql_semantic_contract,
         "a1_object_storage_contract": a1_object_storage_contract,
         "official_sdk_smoke": official_sdk_smoke,
@@ -1380,6 +1391,264 @@ def _a1_payment_verification_security_summary(path: str | Path) -> dict[str, Any
     }
 
 
+def _a1_oauth_lifecycle_security_summary(
+    sql_path: str | Path,
+    evidence_path: str | Path,
+) -> dict[str, Any]:
+    sql_target = Path(sql_path)
+    evidence_target = Path(evidence_path)
+    if not sql_target.exists() or not evidence_target.exists():
+        return _missing_oauth_lifecycle_security(
+            sql_target,
+            evidence_target,
+            "A1 OAuth lifecycle SQL or public GitHub connection evidence is not available on this branch yet.",
+        )
+
+    sql_text = sql_target.read_text(encoding="utf-8")
+    lowered = sql_text.lower()
+    payload = json.loads(evidence_target.read_text(encoding="utf-8-sig"))
+    if not isinstance(payload, dict):
+        return _missing_oauth_lifecycle_security(
+            sql_target,
+            evidence_target,
+            "A1 GitHub account connection evidence is not a JSON object.",
+        )
+
+    oauth_tables = [
+        "users",
+        "oauth_attempts",
+        "external_identities",
+        "sessions",
+        "token_secret_refs",
+        "oauth_revocations",
+        "oauth_audit_events",
+        "oauth_outbox",
+    ]
+    table_names = sorted(
+        table
+        for table in oauth_tables
+        if f"create table if not exists {table}" in lowered
+    )
+    digest_fields = [
+        "email_digest",
+        "redirect_uri_digest",
+        "state_digest",
+        "code_digest",
+        "pkce_challenge_digest",
+        "nonce_digest",
+        "subject_digest",
+        "account_binding_digest",
+        "session_digest",
+        "secret_fingerprint",
+        "event_digest",
+    ]
+    digest_field_count = sum(1 for field in digest_fields if field in lowered)
+    recursive_metadata_check = all(
+        marker in lowered
+        for marker in (
+            "a1_oauth_public_metadata",
+            "jsonb_each",
+            "jsonb_array_elements",
+            "normalized_key",
+        )
+    )
+    forbidden_oauth_keys = [
+        "accesstoken",
+        "refreshtoken",
+        "idtoken",
+        "authorizationcode",
+        "codeverifier",
+        "clientsecret",
+        "state",
+        "nonce",
+        "password",
+        "cookie",
+    ]
+    forbidden_key_count = sum(1 for key in forbidden_oauth_keys if key in lowered)
+    reference_only_secret_storage = all(
+        marker in lowered
+        for marker in (
+            "a1_oauth_reference_only",
+            "token_secret_refs",
+            "secret_ref text not null",
+            "'access'",
+            "'refresh'",
+        )
+    )
+    state_code_replay_controls = all(
+        marker in lowered
+        for marker in (
+            "a1_consume_oauth_attempt",
+            "oauth_attempts_state_key",
+            "oauth_attempts_consumed_code_key",
+            "oauth attempt already consumed or closed",
+            "oauth state digest mismatch",
+        )
+    )
+    account_takeover_controls = all(
+        marker in lowered
+        for marker in (
+            "external_identities_provider_subject_key",
+            "external_identities_user_provider_key",
+            "oauth identity is already linked to another account",
+            "oauth identity conflicts with an existing account",
+        )
+    )
+    session_fixation_controls = all(
+        marker in lowered
+        for marker in (
+            "sessions_digest_key",
+            "session_digest",
+            "insert into sessions",
+        )
+    )
+    revocation_controls = all(
+        marker in lowered
+        for marker in (
+            "a1_revoke_oauth_identity",
+            "oauth_revocations",
+            "token_secret_refs",
+            "status = 'revoked'",
+        )
+    )
+    audit_outbox_controls = all(
+        marker in lowered
+        for marker in (
+            "oauth_audit_events",
+            "oauth_outbox",
+            "oauth.identity.linked",
+            "oauth.identity.revoked",
+        )
+    )
+    hard_delete_rejected = all(
+        marker in lowered
+        for marker in (
+            "a1_oauth_reject_hard_delete",
+            "users_reject_hard_delete",
+            "sessions_reject_hard_delete",
+            "token_secret_refs_reject_hard_delete",
+        )
+    )
+    append_only_audit = all(
+        marker in lowered
+        for marker in (
+            "a1_oauth_reject_append_only_mutation",
+            "oauth_revocations_append_only",
+            "oauth_audit_events_append_only",
+        )
+    )
+    tenant_rls_ready = all(
+        marker in lowered
+        for marker in (
+            "a1_oauth_assert_runtime_context",
+            "a1_current_project_id",
+            "force row level security",
+            "users_tenant_isolation",
+            "oauth_attempts_tenant_isolation",
+            "oauth_outbox_tenant_isolation",
+        )
+    )
+    raw_secret_columns_present = any(
+        marker in lowered
+        for marker in (
+            "access_token text",
+            "refresh_token text",
+            "authorization_code text",
+            "client_secret text",
+            "raw_provider_response",
+            "raw_email",
+        )
+    )
+    raw_public_evidence_present = any(
+        payload.get(field) is True
+        for field in (
+            "raw_state_recorded",
+            "pkce_verifier_recorded",
+            "authorization_code_recorded",
+            "access_token_recorded",
+            "client_secret_recorded",
+            "raw_provider_response_recorded",
+            "token_reference_exposed",
+        )
+    )
+    successful_localhost_connection = bool(
+        payload.get("start_status_code") == 200
+        and payload.get("callback_status_code") == 200
+        and payload.get("connection_status_code") == 200
+        and payload.get("replay_denied") is True
+        and payload.get("provider_token_revoked_before_local_delete") is True
+    )
+    scope_boundary_ready = set(_string_list(payload.get("requested_scopes"))) == {
+        "read:user",
+        "user:email",
+    } and set(_string_list(payload.get("granted_scopes"))) == {"read:user", "user:email"}
+    public_safe = not raw_secret_columns_present and not raw_public_evidence_present
+    ready = bool(
+        payload.get("schema_version") == "ashr.clone.github_account_connection_evidence.v1"
+        and payload.get("provider") == "github"
+        and public_safe
+        and len(table_names) == len(oauth_tables)
+        and digest_field_count >= 9
+        and recursive_metadata_check
+        and forbidden_key_count >= 8
+        and reference_only_secret_storage
+        and state_code_replay_controls
+        and account_takeover_controls
+        and session_fixation_controls
+        and revocation_controls
+        and audit_outbox_controls
+        and hard_delete_rejected
+        and append_only_audit
+        and tenant_rls_ready
+        and successful_localhost_connection
+        and scope_boundary_ready
+    )
+    return {
+        "available": True,
+        "sql_path": sql_target.as_posix(),
+        "evidence_path": evidence_target.as_posix(),
+        "schema_version": str(payload.get("schema_version", "")),
+        "provider": str(payload.get("provider", "")),
+        "environment": str(payload.get("environment", "")),
+        "public_safe": public_safe,
+        "sql_table_count": len(table_names),
+        "sql_tables": table_names,
+        "digest_field_count": digest_field_count,
+        "recursive_metadata_check": recursive_metadata_check,
+        "forbidden_key_count": forbidden_key_count,
+        "reference_only_secret_storage": reference_only_secret_storage,
+        "state_code_replay_controls": state_code_replay_controls,
+        "account_takeover_controls": account_takeover_controls,
+        "session_fixation_controls": session_fixation_controls,
+        "revocation_controls": revocation_controls,
+        "audit_outbox_controls": audit_outbox_controls,
+        "hard_delete_rejected": hard_delete_rejected,
+        "append_only_audit": append_only_audit,
+        "tenant_rls_ready": tenant_rls_ready,
+        "raw_secret_columns_present": raw_secret_columns_present,
+        "raw_public_evidence_present": raw_public_evidence_present,
+        "successful_localhost_connection": successful_localhost_connection,
+        "scope_boundary_ready": scope_boundary_ready,
+        "token_reference_present": payload.get("token_reference_present") is True,
+        "token_reference_exposed": payload.get("token_reference_exposed") is True,
+        "memory_backed": payload.get("memory_backed") is True,
+        "production_ready": payload.get("production_ready") is True,
+        "ready_for_a2_oauth_policy_context": ready,
+        "c3_grading_ready": False,
+        "a2_policy_implications": {
+            "oauth_lifecycle_policy_context": ready,
+            "can_support_oauth_abuse_cases": ready,
+            "can_support_account_takeover_regressions": ready,
+            "can_cross_check_audit_outbox_events": ready and audit_outbox_controls,
+            "must_not_mark_c3_from_oauth_context": True,
+        },
+        "notes": [
+            "A1 OAuth lifecycle evidence is public-safe auth policy context for A2 replay, account-linking, and secret-redaction checks.",
+            "The current public provider proof is localhost and memory-backed; it is not production OAuth readiness or reviewed Ashr grading evidence.",
+        ],
+    }
+
+
 def _a1_billing_sql_semantic_contract_summary(path: str | Path) -> dict[str, Any]:
     target = Path(path)
     if not target.exists():
@@ -1901,6 +2170,57 @@ def _missing_payment_verification_security(path: Path, reason: str) -> dict[str,
         "notes": [
             reason,
             "When present, A2 uses it as payment verification policy context, not as C3 server-side grading evidence.",
+        ],
+    }
+
+
+def _missing_oauth_lifecycle_security(
+    sql_path: Path,
+    evidence_path: Path,
+    reason: str,
+) -> dict[str, Any]:
+    return {
+        "available": False,
+        "sql_path": sql_path.as_posix(),
+        "evidence_path": evidence_path.as_posix(),
+        "schema_version": "",
+        "provider": "",
+        "environment": "",
+        "public_safe": False,
+        "sql_table_count": 0,
+        "sql_tables": [],
+        "digest_field_count": 0,
+        "recursive_metadata_check": False,
+        "forbidden_key_count": 0,
+        "reference_only_secret_storage": False,
+        "state_code_replay_controls": False,
+        "account_takeover_controls": False,
+        "session_fixation_controls": False,
+        "revocation_controls": False,
+        "audit_outbox_controls": False,
+        "hard_delete_rejected": False,
+        "append_only_audit": False,
+        "tenant_rls_ready": False,
+        "raw_secret_columns_present": False,
+        "raw_public_evidence_present": False,
+        "successful_localhost_connection": False,
+        "scope_boundary_ready": False,
+        "token_reference_present": False,
+        "token_reference_exposed": False,
+        "memory_backed": False,
+        "production_ready": False,
+        "ready_for_a2_oauth_policy_context": False,
+        "c3_grading_ready": False,
+        "a2_policy_implications": {
+            "oauth_lifecycle_policy_context": False,
+            "can_support_oauth_abuse_cases": False,
+            "can_support_account_takeover_regressions": False,
+            "can_cross_check_audit_outbox_events": False,
+            "must_not_mark_c3_from_oauth_context": True,
+        },
+        "notes": [
+            reason,
+            "When present, A2 uses it as OAuth lifecycle policy context, not as C3 server-side grading evidence.",
         ],
     }
 

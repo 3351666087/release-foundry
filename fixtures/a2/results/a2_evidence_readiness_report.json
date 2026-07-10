@@ -616,6 +616,50 @@
       "When present, A2 uses it as payment verification policy context, not as C3 server-side grading evidence."
     ]
   },
+  "a1_oauth_lifecycle_security": {
+    "available": false,
+    "sql_path": "services/api/migrations/006_a1_oauth_lifecycle.sql",
+    "evidence_path": "docs/a1/evidence/github_account_connection_evidence_20260710.json",
+    "schema_version": "",
+    "provider": "",
+    "environment": "",
+    "public_safe": false,
+    "sql_table_count": 0,
+    "sql_tables": [],
+    "digest_field_count": 0,
+    "recursive_metadata_check": false,
+    "forbidden_key_count": 0,
+    "reference_only_secret_storage": false,
+    "state_code_replay_controls": false,
+    "account_takeover_controls": false,
+    "session_fixation_controls": false,
+    "revocation_controls": false,
+    "audit_outbox_controls": false,
+    "hard_delete_rejected": false,
+    "append_only_audit": false,
+    "tenant_rls_ready": false,
+    "raw_secret_columns_present": false,
+    "raw_public_evidence_present": false,
+    "successful_localhost_connection": false,
+    "scope_boundary_ready": false,
+    "token_reference_present": false,
+    "token_reference_exposed": false,
+    "memory_backed": false,
+    "production_ready": false,
+    "ready_for_a2_oauth_policy_context": false,
+    "c3_grading_ready": false,
+    "a2_policy_implications": {
+      "oauth_lifecycle_policy_context": false,
+      "can_support_oauth_abuse_cases": false,
+      "can_support_account_takeover_regressions": false,
+      "can_cross_check_audit_outbox_events": false,
+      "must_not_mark_c3_from_oauth_context": true
+    },
+    "notes": [
+      "A1 OAuth lifecycle SQL or public GitHub connection evidence is not available on this branch yet.",
+      "When present, A2 uses it as OAuth lifecycle policy context, not as C3 server-side grading evidence."
+    ]
+  },
   "a1_billing_sql_semantic_contract": {
     "available": true,
     "path": "docs/a1/evidence/billing_sql_semantic_contract.json",
