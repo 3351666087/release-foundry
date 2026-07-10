@@ -1,0 +1,203 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A2ScenarioGenerationBacklog",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "backlog_id",
+    "created_at",
+    "source_refs",
+    "gap_signals",
+    "candidate_count",
+    "candidates",
+    "policy_experiment_count",
+    "policy_experiments",
+    "promotion_gate",
+    "metadata"
+  ],
+  "properties": {
+    "schema_version": { "const": "a2.scenario_generation_backlog.v1" },
+    "backlog_id": { "type": "string" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "source_refs": {
+      "type": "object",
+      "required": [
+        "coverage_report",
+        "calibration_matrix",
+        "sql_store_report",
+        "regression_replay_report",
+        "release_unblock_checklist"
+      ],
+      "properties": {
+        "coverage_report": { "type": "string" },
+        "calibration_matrix": { "type": "string" },
+        "sql_store_report": { "type": "string" },
+        "regression_replay_report": { "type": "string" },
+        "release_unblock_checklist": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "gap_signals": {
+      "type": "object",
+      "required": [
+        "coverage_warnings",
+        "scenario_quality_warnings",
+        "thin_golden_failure_classes",
+        "underrepresented_local_failure_classes",
+        "missing_ashr_grading_count",
+        "calibration_disagreement_count",
+        "regression_replay",
+        "release_unblock_gates",
+        "environment_pressure",
+        "tag_pressure"
+      ],
+      "properties": {
+        "coverage_warnings": { "$ref": "#/$defs/string_array" },
+        "scenario_quality_warnings": { "$ref": "#/$defs/string_array" },
+        "thin_golden_failure_classes": { "type": "object" },
+        "underrepresented_local_failure_classes": { "type": "object" },
+        "missing_ashr_grading_count": { "type": "integer", "minimum": 0 },
+        "calibration_disagreement_count": { "type": "integer", "minimum": 0 },
+        "regression_replay": { "type": "object" },
+        "release_unblock_gates": { "type": "object" },
+        "environment_pressure": { "type": "object" },
+        "tag_pressure": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "candidate_count": { "type": "integer", "minimum": 0 },
+    "candidates": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/candidate" }
+    },
+    "policy_experiment_count": { "type": "integer", "minimum": 0 },
+    "policy_experiments": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/policy_experiment" }
+    },
+    "promotion_gate": {
+      "type": "object",
+      "required": [
+        "status",
+        "may_mutate_main_pack",
+        "required_reviewers",
+        "required_checks",
+        "output_path_if_accepted"
+      ],
+      "properties": {
+        "status": { "type": "string" },
+        "may_mutate_main_pack": { "const": false },
+        "required_reviewers": { "$ref": "#/$defs/string_array" },
+        "required_checks": { "$ref": "#/$defs/string_array" },
+        "output_path_if_accepted": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "metadata": {
+      "type": "object",
+      "required": [
+        "public_safe",
+        "deterministic",
+        "does_not_execute_live_calls",
+        "does_not_read_private_evidence",
+        "scenario_pack_mutated",
+        "intended_consumers"
+      ],
+      "properties": {
+        "public_safe": { "const": true },
+        "deterministic": { "const": true },
+        "does_not_execute_live_calls": { "const": true },
+        "does_not_read_private_evidence": { "const": true },
+        "scenario_pack_mutated": { "const": false },
+        "intended_consumers": { "$ref": "#/$defs/string_array" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "candidate": {
+      "type": "object",
+      "required": [
+        "candidate_id",
+        "status",
+        "title",
+        "family",
+        "difficulty",
+        "target_failure_class",
+        "tags",
+        "source_gap",
+        "draft_scenario",
+        "acceptance_plan",
+        "evidence_refs"
+      ],
+      "properties": {
+        "candidate_id": { "type": "string", "pattern": "^A2-GEN-[0-9]{3}$" },
+        "status": { "const": "candidate_review_required" },
+        "title": { "type": "string" },
+        "family": { "type": "string" },
+        "difficulty": { "type": "string" },
+        "target_failure_class": { "type": "string" },
+        "tags": { "$ref": "#/$defs/string_array" },
+        "source_gap": { "type": "string" },
+        "draft_scenario": {
+          "type": "object",
+          "required": [
+            "id",
+            "title",
+            "family",
+            "tags",
+            "difficulty",
+            "userTask",
+            "actions",
+            "expectedBehaviors",
+            "toolPolicy",
+            "failureSignals",
+            "fixtureRefs",
+            "primaryRubric",
+            "primaryFailureClass"
+          ],
+          "additionalProperties": true
+        },
+        "acceptance_plan": {
+          "type": "object",
+          "required": [
+            "required_fixture",
+            "required_golden_case",
+            "required_judge_modes",
+            "promotion_steps"
+          ],
+          "additionalProperties": true
+        },
+        "evidence_refs": { "$ref": "#/$defs/string_array" }
+      },
+      "additionalProperties": true
+    },
+    "policy_experiment": {
+      "type": "object",
+      "required": [
+        "experiment_id",
+        "title",
+        "trigger",
+        "expected_decision",
+        "target_gate",
+        "owner_role",
+        "evidence_refs"
+      ],
+      "properties": {
+        "experiment_id": { "type": "string" },
+        "title": { "type": "string" },
+        "trigger": { "type": "string" },
+        "expected_decision": { "type": "string" },
+        "target_gate": { "type": "string" },
+        "owner_role": { "type": "string" },
+        "evidence_refs": { "$ref": "#/$defs/string_array" }
+      },
+      "additionalProperties": true
+    },
+    "string_array": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "additionalProperties": true
+}

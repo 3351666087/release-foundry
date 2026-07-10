@@ -2063,21 +2063,22 @@ test("A3 report builder exports A2 result persistence and release unblock checkl
   const persistenceSummary = summarizeA2ResultPersistence(resultPersistence);
   assert.equal(persistenceSummary.available, true);
   assert.equal(persistenceSummary.schema_version, "a2.result_persistence_manifest.v1");
-  assert.equal(persistenceSummary.record_count, 162);
+  assert.equal(persistenceSummary.record_count, 163);
   assert.equal(persistenceSummary.judge_result_count, 160);
   assert.equal(persistenceSummary.release_gate_record_count, 1);
   assert.equal(persistenceSummary.scenario_selection_record_count, 1);
+  assert.equal(persistenceSummary.release_unblock_checklist_record_count, 1);
   assert.equal(persistenceSummary.safety_blocking_result_count, 4);
   assert.equal(persistenceSummary.public_safe, true);
   assert.equal(persistenceSummary.secrets_not_recorded, true);
-  assert.ok(persistenceSummary.latest_records.some((record) => record.record_type === "release_gate" || record.record_type === "scenario_selection"));
+  assert.ok(persistenceSummary.latest_records.some((record) => record.record_type === "release_unblock_checklist"));
 
   const extendedPersistence = {
     ...resultPersistence,
     record_count: resultPersistence.records.length + 1,
     record_type_counts: {
       ...resultPersistence.record_type_counts,
-      release_unblock_checklist: 1
+      release_unblock_checklist: (resultPersistence.record_type_counts.release_unblock_checklist || 0) + 1
     },
     source_refs: {
       ...resultPersistence.source_refs,
@@ -2113,7 +2114,7 @@ test("A3 report builder exports A2 result persistence and release unblock checkl
   };
   const extendedPersistenceSummary = summarizeA2ResultPersistence(extendedPersistence);
   const latestUnblockRecord = extendedPersistenceSummary.latest_records.at(-1);
-  assert.equal(extendedPersistenceSummary.release_unblock_checklist_record_count, 1);
+  assert.equal(extendedPersistenceSummary.release_unblock_checklist_record_count, 2);
   assert.equal(latestUnblockRecord.record_type, "release_unblock_checklist");
   assert.equal(latestUnblockRecord.overall_status, "blocked");
   assert.equal(latestUnblockRecord.release_gate_decision, "block");
@@ -2140,26 +2141,26 @@ test("A3 report builder exports A2 result persistence and release unblock checkl
   };
   const json = buildJsonReport(runs, grades, coverage, readiness, {}, {}, {}, {}, {}, {}, {}, {}, bundle);
   assert.equal(json.a2_result_persistence.available, true);
-  assert.equal(json.a2_result_persistence.record_count, 162);
+  assert.equal(json.a2_result_persistence.record_count, 163);
   assert.equal(json.a2_release_unblock_checklist.overall_status, "blocked");
   assert.deepEqual(json.a2_release_unblock_checklist.blocking_gate_ids, ["C3", "C4", "C5"]);
   const extendedJson = buildJsonReport(runs, grades, coverage, readiness, {}, {}, {}, {}, {}, {}, {}, {}, {
     ...bundle,
     resultPersistence: extendedPersistence
   });
-  assert.equal(extendedJson.a2_result_persistence.release_unblock_checklist_record_count, 1);
+  assert.equal(extendedJson.a2_result_persistence.release_unblock_checklist_record_count, 2);
   assert.equal(extendedJson.a2_result_persistence.latest_records.at(-1).overall_status, "blocked");
 
   const markdown = buildMarkdownReport(runs, grades, coverage, readiness, {}, {}, {}, {}, {}, {}, {}, {}, bundle);
   assert.match(markdown, /## A2 Result Persistence/);
-  assert.match(markdown, /Records: 162/);
+  assert.match(markdown, /Records: 163/);
   assert.match(markdown, /Safety blocking results: 4/);
-  assert.match(markdown, /Release unblock checklist records: 0/);
+  assert.match(markdown, /Release unblock checklist records: 1/);
   const extendedMarkdown = buildMarkdownReport(runs, grades, coverage, readiness, {}, {}, {}, {}, {}, {}, {}, {}, {
     ...bundle,
     resultPersistence: extendedPersistence
   });
-  assert.match(extendedMarkdown, /Release unblock checklist records: 1/);
+  assert.match(extendedMarkdown, /Release unblock checklist records: 2/);
   assert.match(markdown, /## A2 Release Unblock Checklist/);
   assert.match(markdown, /Blocking gates: C3, C4, C5/);
   assert.match(markdown, /Required reviewers: A2 evidence reviewer, A2 case-book owner/);

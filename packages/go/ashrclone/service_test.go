@@ -92,6 +92,126 @@ func TestMemoryServiceIdempotentSubmitReplaysAndConflicts(t *testing.T) {
 	}
 }
 
+func TestMemoryServiceUsageQuotaEnforcesSQLRollupDimensions(t *testing.T) {
+	service := NewMemoryService()
+	boot, err := service.BootstrapProject("Tenant", "Quota", Dataset{Name: "Dataset"}, "tenant_quota", "project_quota")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.BootstrapProject("Other", "Quota", Dataset{Name: "Dataset"}, "tenant_other", "project_quota"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.ConfigureUsageQuota("tenant_quota", "project_quota", "sdk.submit", 1); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.ConfigureUsageQuota("tenant_quota", "project_quota", "run.upload", 1); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.ConfigureUsageQuota("tenant_quota", "project_quota", "trace.ingest", 2); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.ConfigureUsageQuota("tenant_quota", "project_quota", "artifact.manifest", 1); err != nil {
+		t.Fatal(err)
+	}
+
+	first, err := service.SubmitRun("tenant_quota", "project_quota", boot.Result.Dataset.DatasetID, "agent:quota", "run_quota", nil, IdempotencyOptions{Key: "idem_submit_quota"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	replay, err := service.SubmitRun("tenant_quota", "project_quota", boot.Result.Dataset.DatasetID, "agent:quota", "run_quota", nil, IdempotencyOptions{Key: "idem_submit_quota"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !replay.IdempotentReplay || replay.Result.RunID != first.Result.RunID {
+		t.Fatalf("expected idempotent submit replay without extra usage, got %#v", replay)
+	}
+	assertQuotaExceeded(t, "sdk.submit", func() error {
+		_, err := service.SubmitRun("tenant_quota", "project_quota", boot.Result.Dataset.DatasetID, "agent:quota", "run_over", nil, IdempotencyOptions{})
+		return err
+	})
+	if _, err := service.SubmitRun("tenant_other", "project_quota", boot.Result.Dataset.DatasetID, "agent:quota", "run_other", nil, IdempotencyOptions{}); err != nil {
+		t.Fatalf("expected quota to be scoped by tenant and project: %v", err)
+	}
+
+	if _, err := service.UploadRun("tenant_quota", "project_quota", "run_quota", JSONMap{"score": 1}, UploadRunOptions{IdempotencyKey: "idem_upload_quota"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.UploadRun("tenant_quota", "project_quota", "run_quota", JSONMap{"score": 1}, UploadRunOptions{IdempotencyKey: "idem_upload_quota"}); err != nil {
+		t.Fatalf("expected upload replay inside quota: %v", err)
+	}
+	assertQuotaExceeded(t, "run.upload", func() error {
+		_, err := service.UploadRun("tenant_quota", "project_quota", "run_quota", JSONMap{"score": 2}, UploadRunOptions{})
+		return err
+	})
+
+	if _, err := service.IngestTrace("tenant_quota", "project_quota", "run_quota", []JSONMap{{"span_id": "one"}, {"span_id": "two"}}, IngestTraceOptions{BatchID: "trace_quota"}); err != nil {
+		t.Fatal(err)
+	}
+	assertQuotaExceeded(t, "trace.ingest", func() error {
+		_, err := service.IngestTrace("tenant_quota", "project_quota", "run_quota", []JSONMap{{"span_id": "three"}}, IngestTraceOptions{})
+		return err
+	})
+
+	if _, err := service.CreateArtifactManifest("tenant_quota", "project_quota", "run_quota", JSONMap{"artifact": "release.json"}, ArtifactManifestOptions{ArtifactID: "artifact_quota"}); err != nil {
+		t.Fatal(err)
+	}
+	assertQuotaExceeded(t, "artifact.manifest", func() error {
+		_, err := service.CreateArtifactManifest("tenant_quota", "project_quota", "run_quota", JSONMap{"artifact": "other.json"}, ArtifactManifestOptions{})
+		return err
+	})
+
+	snapshot, err := service.UsageSnapshot("tenant_quota", "project_quota")
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantUnits := map[string]int{"artifact.manifest": 1, "run.upload": 1, "sdk.submit": 1, "trace.ingest": 2}
+	for _, total := range snapshot.Result.OperationTotals {
+		if want, ok := wantUnits[total.Operation]; ok {
+			if total.Units != want || total.Events != 1 {
+				t.Fatalf("unexpected total for %s: %#v", total.Operation, total)
+			}
+			delete(wantUnits, total.Operation)
+		}
+	}
+	if len(wantUnits) != 0 {
+		t.Fatalf("missing usage totals: %#v in %#v", wantUnits, snapshot.Result.OperationTotals)
+	}
+}
+
+func TestMemoryServiceAppendQuotaUsageRollsUpThroughPublicRepository(t *testing.T) {
+	service := NewMemoryService()
+	first, err := service.AppendQuotaUsage("tenant_append", "project_append", QuotaUsageAppend{Operation: "upload_run"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Result.Operation != usageOperationRunUpload || first.Result.Units != 1 || first.Result.Events != 1 {
+		t.Fatalf("unexpected first append result: %#v", first.Result)
+	}
+	second, err := service.AppendQuotaUsage("tenant_append", "project_append", QuotaUsageAppend{Operation: "run.upload", Units: 3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.Result.Operation != usageOperationRunUpload || second.Result.Units != 4 || second.Result.Events != 2 {
+		t.Fatalf("unexpected second append result: %#v", second.Result)
+	}
+	snapshot, err := service.UsageSnapshot("tenant_append", "project_append")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if snapshot.Result.TotalUnits != 4 || snapshot.Result.TotalEvents != 2 || len(snapshot.Result.OperationTotals) != 1 {
+		t.Fatalf("unexpected append rollup snapshot: %#v", snapshot.Result)
+	}
+}
+
+func assertQuotaExceeded(t *testing.T, operation string, call func() error) {
+	t.Helper()
+	err := call()
+	var quota QuotaExceededError
+	if !errors.As(err, &quota) || quota.Operation != operation {
+		t.Fatalf("expected quota exceeded for %s, got %T %v", operation, err, err)
+	}
+}
+
 func TestMemoryServiceWorkerJobLifecycleRetriesAndCompletes(t *testing.T) {
 	service := NewMemoryService()
 	boot, err := service.BootstrapProject("Enterprise Tenant", "Worker Queue", Dataset{Name: "Dataset"}, "tenant_worker", "project_worker")
@@ -180,5 +300,146 @@ func TestMemoryServiceWorkerJobLeaseExpiryAndDeadLetter(t *testing.T) {
 	}
 	if dead.Result.Status != WorkerJobStatusDeadLettered || dead.Result.DeadLetteredAt == nil || dead.Result.AvailableAt != nil {
 		t.Fatalf("expected dead-lettered terminal job, got %#v", dead.Result)
+	}
+}
+
+func TestMemoryServiceAuditLogAndReleaseEvidencePacket(t *testing.T) {
+	service := NewMemoryService()
+	boot, err := service.BootstrapProject("Tenant", "Evidence", Dataset{Name: "Dataset"}, "tenant_evidence", "project_evidence")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.SubmitRun("tenant_evidence", "project_evidence", boot.Result.Dataset.DatasetID, "agent:evidence", "run_evidence", nil, IdempotencyOptions{APIKeyID: "key_evidence"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.UploadRun("tenant_evidence", "project_evidence", "run_evidence", JSONMap{"score": 0.99}, UploadRunOptions{UploadID: "upload_evidence", APIKeyID: "key_evidence"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.IngestTrace("tenant_evidence", "project_evidence", "run_evidence", []JSONMap{{"span_id": "span_evidence"}}, IngestTraceOptions{BatchID: "trace_evidence", APIKeyID: "key_evidence"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.CreateArtifactManifest("tenant_evidence", "project_evidence", "run_evidence", JSONMap{"artifact": "release.json"}, ArtifactManifestOptions{ArtifactID: "artifact_evidence", APIKeyID: "key_evidence"}); err != nil {
+		t.Fatal(err)
+	}
+
+	audit, err := service.AuditLog("tenant_evidence", "project_evidence", AuditLogOptions{RunID: "run_evidence", ActionPrefix: "artifact", Limit: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if audit.Result.Count != 1 || audit.Result.Events[0].Action != "artifact.manifest" || audit.Result.Events[0].TargetID != "run_evidence" {
+		t.Fatalf("unexpected filtered audit log: %#v", audit.Result)
+	}
+
+	packet, err := service.BuildReleaseEvidencePacket("tenant_evidence", "project_evidence", "run_evidence")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if packet.Result.PacketSHA256 == "" || len(packet.Result.Uploads) != 1 || len(packet.Result.TraceBatches) != 1 || len(packet.Result.ArtifactManifests) != 1 || !packet.Result.AuditVerification.Verified {
+		t.Fatalf("unexpected release evidence packet: %#v", packet.Result)
+	}
+	mapped, err := jsonMapFromStruct(packet.Result)
+	if err != nil {
+		t.Fatal(err)
+	}
+	verified, err := service.VerifyReleaseEvidencePacket("tenant_evidence", "project_evidence", "run_evidence", mapped)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !verified.Result.Verified || verified.Result.PacketSHA256 == "" {
+		t.Fatalf("expected packet to verify: %#v", verified.Result)
+	}
+
+	rehashed := func(packet JSONMap) JSONMap {
+		packet["packet_sha256"] = releaseEvidencePacketMapSHA(packet)
+		return packet
+	}
+	tests := []struct {
+		name   string
+		mutate func(JSONMap) JSONMap
+	}{
+		{
+			name: "missing audit_verification",
+			mutate: func(packet JSONMap) JSONMap {
+				delete(packet, "audit_verification")
+				return rehashed(packet)
+			},
+		},
+		{
+			name: "audit_verification false",
+			mutate: func(packet JSONMap) JSONMap {
+				verification := jsonMapFromAny(packet["audit_verification"])
+				verification["verified"] = false
+				packet["audit_verification"] = verification
+				return rehashed(packet)
+			},
+		},
+		{
+			name: "missing packet_sha256",
+			mutate: func(packet JSONMap) JSONMap {
+				delete(packet, "packet_sha256")
+				return packet
+			},
+		},
+		{
+			name: "missing schema_version",
+			mutate: func(packet JSONMap) JSONMap {
+				delete(packet, "schema_version")
+				return rehashed(packet)
+			},
+		},
+		{
+			name: "missing tenant_id",
+			mutate: func(packet JSONMap) JSONMap {
+				delete(packet, "tenant_id")
+				return rehashed(packet)
+			},
+		},
+		{
+			name: "missing project_id",
+			mutate: func(packet JSONMap) JSONMap {
+				delete(packet, "project_id")
+				return rehashed(packet)
+			},
+		},
+		{
+			name: "missing run_id",
+			mutate: func(packet JSONMap) JSONMap {
+				delete(packet, "run_id")
+				return rehashed(packet)
+			},
+		},
+		{
+			name: "missing packet_id",
+			mutate: func(packet JSONMap) JSONMap {
+				delete(packet, "packet_id")
+				return rehashed(packet)
+			},
+		},
+		{
+			name: "tampered scope with recomputed hash",
+			mutate: func(packet JSONMap) JSONMap {
+				packet["run_id"] = "run_tampered"
+				return rehashed(packet)
+			},
+		},
+		{
+			name: "tampered hash",
+			mutate: func(packet JSONMap) JSONMap {
+				packet["artifact_manifests"] = []any{}
+				return packet
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			candidate := cloneMap(mapped)
+			tampered, err := service.VerifyReleaseEvidencePacket("tenant_evidence", "project_evidence", "run_evidence", test.mutate(candidate))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if tampered.Result.Verified || tampered.Result.Reason == "" {
+				t.Fatalf("expected packet to fail verification: %#v", tampered.Result)
+			}
+		})
 	}
 }

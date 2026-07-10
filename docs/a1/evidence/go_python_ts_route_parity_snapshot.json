@@ -1,6 +1,4 @@
 {
-  "generated_at": "deterministic-public-source-scan",
-  "generated_by": "tests/a1/test_go_python_route_contract_evidence.py",
   "go_manifest_routes": [
     "GET /health",
     "GET /healthz",
@@ -10,7 +8,12 @@
     "GET /v1/projects/{project_id}/api-keys",
     "GET /v1/projects/{project_id}/api-keys/rate-limits",
     "GET /v1/projects/{project_id}/audit-chain/verify",
+    "GET /v1/projects/{project_id}/audit-log",
+    "GET /v1/projects/{project_id}/billing/ledger",
+    "GET /v1/projects/{project_id}/quota",
     "GET /v1/projects/{project_id}/runs/{run_id}/artifact-manifests",
+    "GET /v1/projects/{project_id}/runs/{run_id}/lifecycle",
+    "GET /v1/projects/{project_id}/runs/{run_id}/release-evidence",
     "GET /v1/projects/{project_id}/usage",
     "GET /v1/projects/{project_id}/worker-jobs",
     "POST /bootstrap",
@@ -21,17 +24,24 @@
     "POST /v1/projects/{project_id}/api-keys/{key_id}/revoke",
     "POST /v1/projects/{project_id}/api-keys/{key_id}/verify",
     "POST /v1/projects/{project_id}/audit-chain/verify",
+    "POST /v1/projects/{project_id}/billing/checkout-plan",
+    "POST /v1/projects/{project_id}/billing/portal-plan",
+    "POST /v1/projects/{project_id}/billing/webhooks/ingest",
+    "POST /v1/projects/{project_id}/quota/limits",
     "POST /v1/projects/{project_id}/runs/submit",
     "POST /v1/projects/{project_id}/runs/{run_id}/artifact-manifests",
+    "POST /v1/projects/{project_id}/runs/{run_id}/release-evidence/verify",
     "POST /v1/projects/{project_id}/runs/{run_id}/trace-events",
     "POST /v1/projects/{project_id}/runs/{run_id}/upload",
     "POST /v1/projects/{project_id}/sdk-submit",
+    "POST /v1/projects/{project_id}/usage/quotas",
     "POST /v1/projects/{project_id}/worker-jobs/enqueue",
     "POST /v1/projects/{project_id}/worker-jobs/lease",
     "POST /v1/projects/{project_id}/worker-jobs/{job_id}/complete",
     "POST /v1/projects/{project_id}/worker-jobs/{job_id}/fail",
     "POST /v1/projects/{project_id}/worker-jobs/{job_id}/heartbeat"
   ],
+  "go_route_count": 40,
   "intentional_route_differences": {
     "go_only": [
       "GET /health",
@@ -39,15 +49,19 @@
       "GET /v1/projects/{project_id}/audit-chain/verify",
       "POST /bootstrap",
       "POST /v1/projects/{project_id}/api-keys/preflight",
-      "POST /v1/projects/{project_id}/runs/submit"
+      "POST /v1/projects/{project_id}/quota/limits",
+      "POST /v1/projects/{project_id}/runs/submit",
+      "POST /v1/projects/{project_id}/usage/quotas"
     ],
-    "python_only": [
-      "GET /v1/projects/{project_id}/quota"
-    ],
+    "python_only": [],
     "shared_all": [
       "GET /v1/projects/{project_id}/api-keys",
       "GET /v1/projects/{project_id}/api-keys/rate-limits",
+      "GET /v1/projects/{project_id}/audit-log",
+      "GET /v1/projects/{project_id}/quota",
       "GET /v1/projects/{project_id}/runs/{run_id}/artifact-manifests",
+      "GET /v1/projects/{project_id}/runs/{run_id}/lifecycle",
+      "GET /v1/projects/{project_id}/runs/{run_id}/release-evidence",
       "GET /v1/projects/{project_id}/usage",
       "GET /v1/projects/{project_id}/worker-jobs",
       "POST /v1/bootstrap",
@@ -57,6 +71,7 @@
       "POST /v1/projects/{project_id}/api-keys/{key_id}/verify",
       "POST /v1/projects/{project_id}/audit-chain/verify",
       "POST /v1/projects/{project_id}/runs/{run_id}/artifact-manifests",
+      "POST /v1/projects/{project_id}/runs/{run_id}/release-evidence/verify",
       "POST /v1/projects/{project_id}/runs/{run_id}/trace-events",
       "POST /v1/projects/{project_id}/runs/{run_id}/upload",
       "POST /v1/projects/{project_id}/sdk-submit",
@@ -71,7 +86,6 @@
       "GET /healthz/openapi",
       "GET /openapi.json",
       "GET /v1/openapi.json",
-      "GET /v1/projects/{project_id}/audit-log",
       "POST /v1/projects/{project_id}/api-keys/{key_id}/authenticate",
       "POST /v1/projects/{project_id}/runs/{run_id}/release-gate"
     ]
@@ -80,6 +94,8 @@
   "python_hosted_routes": [
     "GET /v1/projects/{project_id}/api-keys",
     "GET /v1/projects/{project_id}/api-keys/rate-limits",
+    "GET /v1/projects/{project_id}/audit-log",
+    "GET /v1/projects/{project_id}/billing/ledger",
     "GET /v1/projects/{project_id}/quota",
     "GET /v1/projects/{project_id}/runs/{run_id}/artifact-manifests",
     "GET /v1/projects/{project_id}/runs/{run_id}/lifecycle",
@@ -92,6 +108,9 @@
     "POST /v1/projects/{project_id}/api-keys/{key_id}/revoke",
     "POST /v1/projects/{project_id}/api-keys/{key_id}/verify",
     "POST /v1/projects/{project_id}/audit-chain/verify",
+    "POST /v1/projects/{project_id}/billing/checkout-plan",
+    "POST /v1/projects/{project_id}/billing/portal-plan",
+    "POST /v1/projects/{project_id}/billing/webhooks/ingest",
     "POST /v1/projects/{project_id}/runs/{run_id}/artifact-manifests",
     "POST /v1/projects/{project_id}/runs/{run_id}/release-evidence/verify",
     "POST /v1/projects/{project_id}/runs/{run_id}/trace-events",
@@ -103,6 +122,7 @@
     "POST /v1/projects/{project_id}/worker-jobs/{job_id}/fail",
     "POST /v1/projects/{project_id}/worker-jobs/{job_id}/heartbeat"
   ],
+  "python_route_count": 29,
   "schema_version": "ashr.clone.go_python_ts_route_parity_snapshot.v1",
   "source_paths": [
     "packages/go/ashrclone/server.go",
@@ -122,6 +142,8 @@
     "GET /v1/projects/{project_id}/api-keys",
     "GET /v1/projects/{project_id}/api-keys/rate-limits",
     "GET /v1/projects/{project_id}/audit-log",
+    "GET /v1/projects/{project_id}/billing/ledger",
+    "GET /v1/projects/{project_id}/quota",
     "GET /v1/projects/{project_id}/runs/{run_id}/artifact-manifests",
     "GET /v1/projects/{project_id}/runs/{run_id}/lifecycle",
     "GET /v1/projects/{project_id}/runs/{run_id}/release-evidence",
@@ -134,6 +156,9 @@
     "POST /v1/projects/{project_id}/api-keys/{key_id}/revoke",
     "POST /v1/projects/{project_id}/api-keys/{key_id}/verify",
     "POST /v1/projects/{project_id}/audit-chain/verify",
+    "POST /v1/projects/{project_id}/billing/checkout-plan",
+    "POST /v1/projects/{project_id}/billing/portal-plan",
+    "POST /v1/projects/{project_id}/billing/webhooks/ingest",
     "POST /v1/projects/{project_id}/runs/{run_id}/artifact-manifests",
     "POST /v1/projects/{project_id}/runs/{run_id}/release-evidence/verify",
     "POST /v1/projects/{project_id}/runs/{run_id}/release-gate",
@@ -145,5 +170,6 @@
     "POST /v1/projects/{project_id}/worker-jobs/{job_id}/complete",
     "POST /v1/projects/{project_id}/worker-jobs/{job_id}/fail",
     "POST /v1/projects/{project_id}/worker-jobs/{job_id}/heartbeat"
-  ]
+  ],
+  "ts_route_count": 35
 }

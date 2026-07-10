@@ -1,0 +1,237 @@
+{
+  "dry_run": false,
+  "duration_ms_present": true,
+  "ended_at_present": true,
+  "env": {
+    "auth_env_present_count": 1,
+    "base_url_host": "api.ashr.io"
+  },
+  "error_summaries": [
+    {
+      "error_keys": [
+        "error_kind",
+        "message",
+        "response",
+        "response_headers",
+        "status_code"
+      ],
+      "error_kind": "api",
+      "quota_blocked": true,
+      "quota_remaining_present": true,
+      "quota_resource": null,
+      "status": "error",
+      "status_code": 200,
+      "step_id": "create-request-text"
+    }
+  ],
+  "field_map_version": "a1-api-calibration-2026-07-04",
+  "generated_at": "2026-07-09T14:23:03Z",
+  "guardrails": {
+    "execute_requires_small_batch": true,
+    "mutating_execute_requires_quota_gate": true,
+    "mutating_requires_include_mutating": true,
+    "output_policy": {
+      "full_record_stdout_blocked": true,
+      "output_is_private": true,
+      "private_output_required": true,
+      "private_root": "docs/evidence/private_refs",
+      "sink": "private_file"
+    },
+    "paid_media_requires_allow_paid_media": true,
+    "quota_gate_present": true,
+    "raw_records_private": true
+  },
+  "mode": "small-batch",
+  "public_safety": {
+    "auth_env_names_included": false,
+    "header_values_included": false,
+    "private_payload_contents_present": false,
+    "raw_key_material_present": false,
+    "raw_payload_values_included": false,
+    "redacted_summary_fields_only": true,
+    "request_parameter_values_included": false,
+    "step_record_locations_included": false
+  },
+  "schema_version": "ashr.clone.public_official_api_manifest_summary.v1",
+  "source_private_manifest": "docs/evidence/private_refs/a1_paid_media_mutating_small_batch_round39_20260709_222232.json",
+  "source_private_manifest_present": true,
+  "source_schema_version": "ashr.clone.api_calibration_manifest.v1",
+  "started_at_present": true,
+  "status": "partial",
+  "step_summaries": [
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "estimated_calls": 1,
+      "function": "init",
+      "kind": "read",
+      "modality": null,
+      "next_cursor_present": false,
+      "quota_blocked": false,
+      "quota_remaining_present": false,
+      "quota_resource": null,
+      "response_keys": [
+        "features",
+        "notes",
+        "status",
+        "tenant",
+        "user"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "step_id": "init",
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "estimated_calls": 1,
+      "function": "keep_alive",
+      "kind": "read",
+      "modality": null,
+      "next_cursor_present": false,
+      "quota_blocked": false,
+      "quota_remaining_present": false,
+      "quota_resource": null,
+      "response_keys": [
+        "db",
+        "message",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "step_id": "health-check",
+      "top_counts": {}
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "estimated_calls": 1,
+      "function": "list_agents",
+      "kind": "read",
+      "modality": null,
+      "next_cursor_present": false,
+      "quota_blocked": false,
+      "quota_remaining_present": false,
+      "quota_resource": null,
+      "response_keys": [
+        "_user",
+        "agents",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "step_id": "list-agents",
+      "top_counts": {
+        "agents": 0
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "estimated_calls": 2,
+      "function": "list_datasets",
+      "kind": "read",
+      "modality": null,
+      "next_cursor_present": false,
+      "quota_blocked": false,
+      "quota_remaining_present": false,
+      "quota_resource": null,
+      "response_keys": [
+        "_user",
+        "datasets",
+        "next_cursor",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "step_id": "list-datasets",
+      "top_counts": {
+        "datasets": 3
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [],
+      "error_kind": null,
+      "estimated_calls": 2,
+      "function": "list_requests",
+      "kind": "read",
+      "modality": null,
+      "next_cursor_present": true,
+      "quota_blocked": false,
+      "quota_remaining_present": false,
+      "quota_resource": null,
+      "response_keys": [
+        "_user",
+        "next_cursor",
+        "requests",
+        "status"
+      ],
+      "response_status": "ok",
+      "response_summary_keys": [],
+      "status": "ok",
+      "status_code": 200,
+      "step_id": "list-requests",
+      "top_counts": {
+        "requests": 5
+      }
+    },
+    {
+      "attempts": 1,
+      "dry_run": false,
+      "error_keys": [
+        "error_kind",
+        "message",
+        "response",
+        "response_headers",
+        "status_code"
+      ],
+      "error_kind": "api",
+      "estimated_calls": 2,
+      "function": "create_request",
+      "kind": "mutate",
+      "modality": "text",
+      "next_cursor_present": false,
+      "quota_blocked": true,
+      "quota_remaining_present": true,
+      "quota_resource": null,
+      "response_keys": [],
+      "response_status": null,
+      "response_summary_keys": [],
+      "status": "error",
+      "status_code": 200,
+      "step_id": "create-request-text",
+      "top_counts": {}
+    }
+  ],
+  "summary": {
+    "error_steps": 1,
+    "estimated_calls": 17,
+    "modalities": [
+      "text"
+    ],
+    "mutating_steps": 1,
+    "ok_or_planned_steps": 5,
+    "quota_block_count": 1,
+    "read_steps": 5,
+    "total_steps": 6
+  }
+}

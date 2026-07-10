@@ -18,6 +18,8 @@ SCENARIO_SELECTION = ROOT / "fixtures/a2/results/a2_scenario_selection_report.js
 RESULT_PERSISTENCE = ROOT / "fixtures/a2/results/a2_result_persistence_manifest.json"
 RELEASE_POLICIES = ROOT / "fixtures/a2/config/release_policies.json"
 JUDGE_VERSIONS = ROOT / "fixtures/a2/results/a2_judge_versions.json"
+SCENARIO_GENERATION = ROOT / "fixtures/a2/results/a2_scenario_generation_backlog.json"
+CROSS_LANE_SECURITY = ROOT / "fixtures/a2/results/a2_cross_lane_security_context.json"
 
 SECRET_PATTERNS = [
     re.compile("tp_" + r"[A-Za-z0-9_\\-]+"),
@@ -43,14 +45,20 @@ class A2SaasControlPlaneTests(unittest.TestCase):
             result_persistence_manifest=load_json(RESULT_PERSISTENCE),
             release_policy_config=load_json(RELEASE_POLICIES),
             judge_version_registry=load_json(JUDGE_VERSIONS),
+            scenario_generation_backlog=load_json(SCENARIO_GENERATION),
+            cross_lane_security_context=load_json(CROSS_LANE_SECURITY),
             source_refs={
                 "grade_report": "fixtures/a2/results/a2_g3_grade_results.json",
                 "coverage_report": "fixtures/a2/results/a2_g3_coverage_report.json",
                 "calibration_matrix": "fixtures/a2/results/a2_g3_calibration_matrix.json",
                 "release_gate": "fixtures/a2/results/a2_release_gate_report.json",
                 "scenario_selection": "fixtures/a2/results/a2_scenario_selection_report.json",
+                "release_unblock_checklist": "fixtures/a2/results/a2_release_unblock_checklist.json",
                 "result_persistence": "fixtures/a2/results/a2_result_persistence_manifest.json",
                 "judge_versions": "fixtures/a2/results/a2_judge_versions.json",
+                "sql_store": "fixtures/a2/results/a2_sql_store_report.json",
+                "scenario_generation": "fixtures/a2/results/a2_scenario_generation_backlog.json",
+                "cross_lane_security": "fixtures/a2/results/a2_cross_lane_security_context.json",
                 "release_policy_config": "fixtures/a2/config/release_policies.json",
             },
         )
@@ -84,6 +92,7 @@ class A2SaasControlPlaneTests(unittest.TestCase):
         self.assertIn("/internal/judge/run", endpoint_paths)
         self.assertIn("/internal/judge/batch", endpoint_paths)
         self.assertIn("/internal/release-policy/evaluate", endpoint_paths)
+        self.assertIn("/internal/release/unblock-checklist", endpoint_paths)
         self.assertIn("/internal/regression/replay", endpoint_paths)
         self.assertIn("/internal/calibration/evaluate", endpoint_paths)
         self.assertIn("/internal/scenarios/select", endpoint_paths)
@@ -113,6 +122,38 @@ class A2SaasControlPlaneTests(unittest.TestCase):
         self.assertTrue(report["judge_version_registry"]["pinning_supported"])
         self.assertTrue(report["judge_version_registry"]["history_replay_supported"])
         self.assertIn("g1_trace_contract_judge@0.1.0", report["judge_version_registry"]["judge_pins"])
+        self.assertEqual(report["scenario_generation"]["candidate_count"], 12)
+        self.assertEqual(report["scenario_generation"]["policy_experiment_count"], 3)
+        self.assertFalse(report["scenario_generation"]["may_mutate_main_pack"])
+        self.assertIn("A2-GEN-001", report["scenario_generation"]["candidate_ids"])
+        self.assertTrue(report["cross_lane_security"]["a1_route_scope_available"])
+        self.assertTrue(report["cross_lane_security"]["a3_auth_rbac_available"])
+        self.assertTrue(report["cross_lane_security"]["a3_fail_closed_rbac_available"])
+        self.assertTrue(report["cross_lane_security"]["a3_event_outbox_available"])
+        self.assertTrue(report["cross_lane_security"]["route_scope_ready"])
+        self.assertTrue(report["cross_lane_security"]["auth_rbac_ready"])
+        self.assertTrue(report["cross_lane_security"]["fail_closed_rbac_ready"])
+        self.assertTrue(report["cross_lane_security"]["event_outbox_ready"])
+        self.assertTrue(report["cross_lane_security"]["should_add_auth_rbac_abuse_cases"])
+        self.assertTrue(report["cross_lane_security"]["should_add_fail_closed_write_abuse_cases"])
+        self.assertTrue(report["cross_lane_security"]["should_add_event_outbox_integrity_cases"])
+        self.assertEqual(report["cross_lane_security"]["followup_count"], 4)
+        self.assertIn(
+            "a2-route-scope-tenant-boundary",
+            report["cross_lane_security"]["followup_ids"],
+        )
+        self.assertIn(
+            "a2-auth-rbac-denied-state-cases",
+            report["cross_lane_security"]["followup_ids"],
+        )
+        self.assertIn(
+            "a2-a3-fail-closed-write-abuse-cases",
+            report["cross_lane_security"]["followup_ids"],
+        )
+        self.assertIn(
+            "a2-a3-event-outbox-integrity-cases",
+            report["cross_lane_security"]["followup_ids"],
+        )
 
     def test_a3_dashboard_contract_points_to_public_safe_a2_artifacts(self):
         report = load_json(REPORT_FIXTURE)
@@ -125,10 +166,29 @@ class A2SaasControlPlaneTests(unittest.TestCase):
         self.assertEqual(payload_keys["a2ControlPlane"], "fixtures/a2/results/a2_saas_control_plane_report.json")
         self.assertEqual(payload_keys["resultPersistence"], "fixtures/a2/results/a2_result_persistence_manifest.json")
         self.assertEqual(payload_keys["judgeVersions"], "fixtures/a2/results/a2_judge_versions.json")
+        self.assertEqual(payload_keys["sqlStore"], "fixtures/a2/results/a2_sql_store_report.json")
+        self.assertEqual(
+            payload_keys["scenarioGeneration"],
+            "fixtures/a2/results/a2_scenario_generation_backlog.json",
+        )
+        self.assertEqual(
+            payload_keys["crossLaneSecurity"],
+            "fixtures/a2/results/a2_cross_lane_security_context.json",
+        )
+        self.assertEqual(
+            payload_keys["releaseUnblockChecklist"],
+            "fixtures/a2/results/a2_release_unblock_checklist.json",
+        )
         self.assertIn("judge version and policy hash audit", contract["dashboard_can_show"])
         self.assertIn("judge registry pins and migration readiness", contract["dashboard_can_show"])
+        self.assertIn("release unblock checklist owner actions", contract["dashboard_can_show"])
+        self.assertIn("SQL-readable eval/calibration/golden/regression history", contract["dashboard_can_show"])
+        self.assertIn("reviewable scenario generation backlog and policy experiments", contract["dashboard_can_show"])
+        self.assertIn("A1/A3 route scope and Auth/RBAC security handoff status", contract["dashboard_can_show"])
         self.assertIn("private_input_ref", contract["private_fields_forbidden"])
         self.assertGreaterEqual(contract["local_meter"]["grade_case_count"], 30)
+        self.assertEqual(contract["local_meter"]["scenario_generation_candidate_count"], 12)
+        self.assertEqual(contract["local_meter"]["cross_lane_security_followup_count"], 4)
         self.assertEqual(contract["selected_policy_id"], "release_policy_prod_strict")
 
     def test_release_policy_config_selects_saas_project_without_falling_back(self):

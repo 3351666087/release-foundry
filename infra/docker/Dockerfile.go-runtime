@@ -1,0 +1,17 @@
+FROM golang:1.22-bookworm AS runtime
+
+ENV CGO_ENABLED=0 \
+    ASHR_RUNTIME_ENV=self-host
+
+WORKDIR /app/packages/go/ashrclone
+
+COPY . /app
+
+RUN go test ./... && go build -o /usr/local/bin/ashr-api ./cmd/ashr-api && go build -o /usr/local/bin/ashr-worker ./cmd/ashr-worker
+
+EXPOSE 8787
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD test -x /usr/local/bin/ashr-api && test -x /usr/local/bin/ashr-worker
+
+CMD ["/usr/local/bin/ashr-api"]

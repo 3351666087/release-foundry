@@ -35,19 +35,28 @@ func TestAgentInputKeepsModalitiesEqualAndDerivesText(t *testing.T) {
 
 func TestRedactSensitiveRemovesEnvKeyValues(t *testing.T) {
 	secret := "sk" + "-live-do-not-print"
-	redacted := RedactSensitive(JSONMap{"api_key": secret, "nested": JSONMap{"Authorization": "Bearer " + secret}})
+	redacted := RedactSensitive(JSONMap{"api_key": secret, "nested": JSONMap{"Authorization": "Bearer " + secret}, "message": "provider failed with password=" + secret})
 	payload, err := json.Marshal(redacted)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(payload), secret) || strings.Contains(string(payload), "Bearer ") {
+	if strings.Contains(string(payload), secret) || strings.Contains(string(payload), "Bearer ") || strings.Contains(string(payload), "password=") {
 		t.Fatalf("redacted payload leaked secret material: %s", payload)
 	}
-	if strings.Count(string(payload), Redacted) != 2 {
+	if strings.Count(string(payload), Redacted) != 3 {
 		t.Fatalf("expected redaction markers, got %s", payload)
 	}
 }
 
+func TestRedactSensitiveRemovesAssignmentsInFreeText(t *testing.T) {
+	redacted := RedactSensitive("provider failed password=super-secret secret:top token=abc bearer credential")
+	text := strings.ToLower(redacted.(string))
+	for _, forbidden := range []string{"super-secret", "secret:top", "token=abc", "bearer credential", "password="} {
+		if strings.Contains(text, forbidden) {
+			t.Fatalf("free-text redaction leaked %q in %q", forbidden, text)
+		}
+	}
+}
 func TestMediaSafeEnvelopeRejectsInlineBytesAndAllowsReferences(t *testing.T) {
 	if err := ValidateMediaSafeEnvelope(JSONMap{"artifact": JSONMap{"url": "https://example.invalid/image.png", "mime_type": "image/png"}}); err != nil {
 		t.Fatalf("reference envelope rejected: %v", err)

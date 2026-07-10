@@ -2,6 +2,9 @@ package ashrclone
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -9,6 +12,7 @@ import (
 
 func TestPostgresRepositorySatisfiesBackend(t *testing.T) {
 	var _ ControlPlaneBackend = (*PostgresRepository)(nil)
+	var _ QuotaRepository = (*PostgresRepository)(nil)
 }
 
 func TestPostgresRepositoryCloseWithoutDB(t *testing.T) {
@@ -61,10 +65,14 @@ func TestPostgresSchemaIncludesDurableWorkerJobContract(t *testing.T) {
 func TestPostgresSchemaIncludesQuotaUsageLedgerContract(t *testing.T) {
 	for _, required := range []string{
 		"CREATE TABLE IF NOT EXISTS ashr_quota_ledger",
+		"CREATE TABLE IF NOT EXISTS ashr_usage_quota_policies",
 		"tenant_id TEXT NOT NULL",
 		"project_id TEXT NOT NULL",
 		"usage_event_id TEXT NOT NULL",
 		"operation TEXT NOT NULL",
+		"meter TEXT NOT NULL",
+		"limit_units INTEGER NOT NULL",
+		"status TEXT NOT NULL DEFAULT 'active'",
 		"units INTEGER NOT NULL DEFAULT 1",
 		"api_key_id TEXT NOT NULL DEFAULT ''",
 		"idempotency_key TEXT NOT NULL DEFAULT ''",
@@ -76,11 +84,96 @@ func TestPostgresSchemaIncludesQuotaUsageLedgerContract(t *testing.T) {
 		"FOREIGN KEY (tenant_id, project_id) REFERENCES ashr_projects(tenant_id, project_id) ON DELETE CASCADE",
 		"ashr_quota_ledger_scope_idx ON ashr_quota_ledger (tenant_id, project_id, operation, created_at)",
 		"ashr_quota_ledger_run_idx ON ashr_quota_ledger (tenant_id, project_id, run_id, created_at)",
+		"ashr_usage_quota_policies_scope_idx ON ashr_usage_quota_policies (tenant_id, project_id, operation, status)",
 	} {
 		if !strings.Contains(PostgresSchemaSQL, required) {
 			t.Fatalf("quota usage ledger schema missing %q", required)
 		}
 	}
+}
+
+func TestPostgresRepositoryWiresDurableSaaSQuotaFunction(t *testing.T) {
+	source := readPostgresSource(t)
+	for _, required := range []string{
+		`postgresFunctionExists(ctx, tx, "check_quota_and_insert_usage", 12)`,
+		"FROM check_quota_and_insert_usage($1::uuid, $2::uuid, $3, $4, NULL, NULL, $5::uuid, 'go-postgres', $6, $7, $8::jsonb, NULL)",
+		"INSERT INTO quota_policies (organization_id, project_id, meter, period, limit_quantity, enforcement_mode, status, effective_from, metadata)",
+		"ON CONFLICT (organization_id, project_id, meter, period)",
+	} {
+		if !strings.Contains(source, required) {
+			t.Fatalf("postgres quota wiring missing %q", required)
+		}
+	}
+}
+
+func TestPostgresRepositoryWiresDurableAPIKeyLifecycle(t *testing.T) {
+	source := readPostgresSource(t)
+	for _, forbidden := range []string{
+		`return Envelope[APIKeyCreateResult]{}, repository.notImplemented("create_api_key")`,
+		`return Envelope[APIKeyListResult]{}, repository.notImplemented("list_api_keys")`,
+		`return Envelope[APIKeyRecord]{}, repository.notImplemented("revoke_api_key")`,
+		`return Envelope[APIKeyVerifyResult]{}, repository.notImplemented("verify_api_key_secret")`,
+		`return Envelope[APIKeyRateLimit]{}, repository.notImplemented("configure_api_key_rate_limit")`,
+		`return Envelope[APIKeyRateLimitSnapshot]{}, repository.notImplemented("api_key_rate_limit_snapshot")`,
+		`return Envelope[AuthPreflight]{}, repository.notImplemented("auth.preflight")`,
+	} {
+		if strings.Contains(source, forbidden) {
+			t.Fatalf("postgres API key lifecycle still has placeholder %q", forbidden)
+		}
+	}
+	for _, required := range []string{
+		"CREATE TABLE IF NOT EXISTS ashr_api_key_rate_limits",
+		"CREATE TABLE IF NOT EXISTS ashr_api_keys",
+		"INSERT INTO api_keys (id, organization_id, project_id, name, key_prefix, key_hash, scopes, status, created_at, revoked_at)",
+		"secretHash(secret)",
+		"redactedAPIKeyRecord(record)",
+		"scopeAllowed(record.Scopes, scope)",
+		"UPDATE api_keys SET last_used_at",
+		"UPDATE api_keys\nSET status = 'revoked'",
+		"consumeLocalPostgresAPIKeyRateLimit",
+		"APIKeyRateLimitSnapshot{SchemaVersion: ControlPlaneSchemaVersion",
+		"AuthPreflight{SchemaVersion: ControlPlaneSchemaVersion",
+	} {
+		if !strings.Contains(source, required) {
+			t.Fatalf("postgres API key lifecycle missing %q", required)
+		}
+	}
+}
+
+func TestGoHTTPSubmitRouteRunsAuthPreflightWithoutPreQuotaConsume(t *testing.T) {
+	source := readServerSource(t)
+	if !strings.Contains(source, `server.preflightRequest(writer, auth, projectID, ScopeRunSubmit, "")`) {
+		t.Fatalf("sdk-submit route must run server-level scope preflight before mutation")
+	}
+	if strings.Contains(source, `server.preflightRequest(writer, auth, projectID, ScopeRunSubmit, "sdk_submit")`) {
+		t.Fatalf("sdk-submit route must not consume/check rate quota before idempotency replay")
+	}
+}
+
+func readPostgresSource(t *testing.T) string {
+	t.Helper()
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("resolve postgres test path")
+	}
+	contents, err := os.ReadFile(filepath.Join(filepath.Dir(file), "postgres.go"))
+	if err != nil {
+		t.Fatalf("read postgres source: %v", err)
+	}
+	return string(contents)
+}
+
+func readServerSource(t *testing.T) string {
+	t.Helper()
+	_, file, _, ok := runtime.Caller(0)
+	if !ok {
+		t.Fatal("resolve server test path")
+	}
+	contents, err := os.ReadFile(filepath.Join(filepath.Dir(file), "server.go"))
+	if err != nil {
+		t.Fatalf("read server source: %v", err)
+	}
+	return string(contents)
 }
 
 func TestPostgresSchemaIncludesAuditLogHashChainContract(t *testing.T) {
@@ -165,6 +258,10 @@ func TestPostgresRepositoryRequiresDBForImplementedOperations(t *testing.T) {
 		}},
 		{name: "usage snapshot", call: func() error {
 			_, err := repository.UsageSnapshot("tenant", "project")
+			return err
+		}},
+		{name: "usage append", call: func() error {
+			_, err := repository.AppendQuotaUsage("tenant", "project", QuotaUsageAppend{Operation: "sdk_submit"})
 			return err
 		}},
 		{name: "audit chain verify", call: func() error {
@@ -330,4 +427,104 @@ func fakeAuditRecordFromEvent(t *testing.T, event AuditEvent) fakeAuditRecord {
 		t.Fatal(err)
 	}
 	return fakeAuditRecord{AuditEvent: event, afterPayload: payload}
+}
+
+func TestPostgresBillingRepositoryWiresSQLBackedMoneySlice(t *testing.T) {
+	source := readPostgresSource(t)
+	for _, forbidden := range []string{
+		`return Envelope[BillingCheckoutPlan]{}, repository.notImplemented("billing.checkout_plan")`,
+		`return Envelope[BillingPortalPlan]{}, repository.notImplemented("billing.portal_plan")`,
+		`return Envelope[BillingWebhookIngest]{}, repository.notImplemented("billing.webhook_ingest")`,
+		`return Envelope[BillingLedger]{}, repository.notImplemented("billing.ledger")`,
+	} {
+		if strings.Contains(source, forbidden) {
+			t.Fatalf("postgres billing method still has placeholder %q", forbidden)
+		}
+	}
+	for _, required := range []string{
+		"CREATE TABLE IF NOT EXISTS ashr_billing_checkout_plans",
+		"CREATE TABLE IF NOT EXISTS ashr_billing_portal_plans",
+		"CONSTRAINT ashr_billing_checkout_public_safe CHECK",
+		"CONSTRAINT ashr_billing_portal_public_safe CHECK",
+		"FROM ingest_billing_provider_event($1::uuid, $2::uuid",
+		"ensurePostgresBillingSaaSScope(ctx, tx, tenantID, projectID, now)",
+		"INSERT INTO organizations (id, slug, display_name, status, metadata, created_at, updated_at)",
+		"billing webhook payload_sha256 must be a sha256 hex digest",
+		"FROM billing_provider_events p",
+		"LEFT JOIN billing_ledger_events l",
+		"raw_payload_included",
+		"secret_value_present",
+		"IdempotencyConflictError{Operation: operation, Key: key}",
+	} {
+		if !strings.Contains(source, required) {
+			t.Fatalf("postgres billing SQL slice missing %q", required)
+		}
+	}
+}
+
+func TestPostgresBillingUUIDIsDeterministicAndValid(t *testing.T) {
+	first := postgresBillingUUID("org", "tenant_billing")
+	second := postgresBillingUUID("org", "tenant_billing")
+	if first != second {
+		t.Fatalf("expected deterministic billing uuid, got %q then %q", first, second)
+	}
+	if !looksLikeUUID(first) {
+		t.Fatalf("expected uuid shape, got %q", first)
+	}
+	existing := "11111111-2222-3333-4444-555555555555"
+	if postgresBillingUUID("org", existing) != existing {
+		t.Fatalf("existing uuid should pass through unchanged")
+	}
+	if first == postgresBillingUUID("project", "tenant_billing") {
+		t.Fatalf("prefix must separate uuid namespaces")
+	}
+}
+
+func TestPostgresBillingPayloadSHAValidation(t *testing.T) {
+	valid := strings.Repeat("a", 64)
+	if !looksLikeSHA256Hex(valid) {
+		t.Fatalf("expected valid sha256 hex")
+	}
+	for _, invalid := range []string{"", "abc", strings.Repeat("g", 64), strings.Repeat("A", 64)} {
+		if looksLikeSHA256Hex(invalid) {
+			t.Fatalf("expected invalid sha256 hex %q", invalid)
+		}
+	}
+}
+func TestPostgresBillingDeterministicArtifactsDoNotLeakSecrets(t *testing.T) {
+	request := BillingPlanRequest{
+		PlanID:       "Startup",
+		BillingCycle: "Yearly",
+		CustomerRef:  "cus_public",
+		SuccessURL:   "https://app.example/success",
+		CancelURL:    "https://app.example/cancel",
+		Price:        JSONMap{"lookup_key": "startup", "authorization": "bearer secret"},
+		ProviderConfig: JSONMap{
+			"provider":   "Stripe",
+			"mode":       "test",
+			"secret_ref": "env:STRIPE_TEST_REF",
+			"raw_secret": "sk_test_should_not_escape",
+		},
+		Metadata: JSONMap{"token": "raw-token", "safe": "value"},
+	}
+	providerConfig := publicBillingProviderConfig(request.ProviderConfig)
+	price := sanitizedBillingMetadata(request.Price)
+	metadata := sanitizedBillingMetadata(request.Metadata)
+	fingerprint := mustFingerprint(JSONMap{"tenant_id": "tenant", "project_id": "project", "plan_id": normalizeBillingPlanID(request.PlanID), "billing_cycle": normalizeBillingCycle(request.BillingCycle), "provider": billingProviderFromConfig(providerConfig), "mode": billingModeFromConfig(providerConfig, "deterministic_contract"), "customer_ref": strings.TrimSpace(request.CustomerRef), "price": price, "success_url": strings.TrimSpace(request.SuccessURL), "cancel_url": strings.TrimSpace(request.CancelURL), "idempotency_key": "idem"})
+	artifact := BillingCheckoutPlan{SchemaVersion: ControlPlaneSchemaVersion, TenantID: "tenant", ProjectID: "project", PlanID: normalizeBillingPlanID(request.PlanID), BillingCycle: normalizeBillingCycle(request.BillingCycle), CheckoutID: "checkout_" + fingerprint[:16], CheckoutURL: "https://billing.local.ashr.invalid/checkout/" + fingerprint[:24], Mode: billingModeFromConfig(providerConfig, "deterministic_contract"), Provider: billingProviderFromConfig(providerConfig), ProviderConfig: providerConfig, CustomerRef: strings.TrimSpace(request.CustomerRef), Price: price, SuccessURL: strings.TrimSpace(request.SuccessURL), CancelURL: strings.TrimSpace(request.CancelURL), SideEffects: billingSafeSideEffects(), ProviderCalled: false, RealChargePossible: false, PublicSafe: true, RawPayloadIncluded: false, RawSecretsIncluded: false, SecretValuePresent: false, Metadata: metadata, CreatedAt: time.Unix(1700000000, 0).UTC()}
+	encoded, err := json.Marshal(artifact)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, leaked := range []string{"sk_test_should_not_escape", "raw-token", "bearer secret"} {
+		if strings.Contains(string(encoded), leaked) {
+			t.Fatalf("billing artifact leaked secret %q: %s", leaked, encoded)
+		}
+	}
+	if artifact.ProviderCalled || artifact.RealChargePossible || artifact.RawPayloadIncluded || artifact.RawSecretsIncluded || artifact.SecretValuePresent || !artifact.PublicSafe {
+		t.Fatalf("unexpected money-grade safety flags: %#v", artifact)
+	}
+	if artifact.Provider != "stripe" || artifact.Mode != "test" || artifact.PlanID != "startup" || artifact.BillingCycle != "yearly" {
+		t.Fatalf("unexpected normalized billing fields: %#v", artifact)
+	}
 }

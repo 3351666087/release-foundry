@@ -2,11 +2,25 @@ name: ashr-a1-self-host
 
 x-ashr-runtime-env: &ashr-runtime-env
   ASHR_RUNTIME_ENV: self-host
+  ASHR_SECRET_PROVIDER: env-ref
   ASHR_CONTROL_PLANE_BASE_URL: http://api:8080
-  ASHR_DATABASE_URL: postgresql://ashr:ashr_dev_only@postgres:5432/ashr
+  ASHR_DATABASE_URL_REF: env:ASHR_DATABASE_URL
+  ASHR_DATABASE_URL: postgresql://ashr:${ASHR_POSTGRES_AUTH_SECRET}@postgres:5432/ashr?sslmode=disable
+  ASHR_POSTGRES_DSN_REF: env:ASHR_DATABASE_URL
   ASHR_REDIS_URL: redis://redis:6379/0
-  ASHR_OBJECT_STORE_URL: file:///object-store
+  ASHR_REDIS_URL_REF: env:ASHR_REDIS_URL
+  ASHR_OBJECT_STORE_URL: http://minio:9000
+  ASHR_OBJECT_STORE_ENDPOINT: http://minio:9000
+  ASHR_OBJECT_STORE_ENDPOINT_REF: env:ASHR_OBJECT_STORE_ENDPOINT
   ASHR_OBJECT_STORE_BUCKET: ashr-local-artifacts
+  ASHR_OBJECT_STORE_ACCESS_KEY_REF: env:ASHR_OBJECT_STORE_ACCESS_KEY
+  ASHR_OBJECT_STORE_SECRET_KEY_REF: env:ASHR_OBJECT_STORE_SECRET_KEY
+  ASHR_OBJECT_EVIDENCE_PREFIX: evidence/a1/self-host
+  ASHR_QUOTA_LEDGER_TABLE: ashr_quota_ledger
+  ASHR_ARTIFACT_MANIFEST_TABLE: ashr_artifact_manifests
+  ASHR_WORKER_JOBS_TABLE: ashr_worker_jobs
+  ASHR_BILLING_PROVIDER_SECRET_REF: env:ASHR_BILLING_PROVIDER_SECRET
+  ASHR_BILLING_WEBHOOK_SECRET_REF: env:ASHR_BILLING_WEBHOOK_SECRET
 
 services:
   api:
@@ -14,6 +28,7 @@ services:
       context: ../..
       dockerfile: infra/docker/Dockerfile.python-runtime
     image: ashr/a1-python-runtime:local
+    profiles: ["api", "commercial"]
     environment:
       <<: *ashr-runtime-env
       ASHR_API_HOST: 0.0.0.0
@@ -31,9 +46,9 @@ services:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_started
-      object-store:
-        condition: service_started
+        condition: service_healthy
+      minio:
+        condition: service_healthy
     healthcheck:
       test:
         - CMD
@@ -48,67 +63,72 @@ services:
       start_period: 10s
 
   worker:
-    image: ashr/a1-python-runtime:local
+    image: ashr/a1-go-runtime:local
     build:
       context: ../..
-      dockerfile: infra/docker/Dockerfile.python-runtime
-    profiles: ["worker"]
+      dockerfile: infra/docker/Dockerfile.go-runtime
+    profiles: ["worker", "daemon", "commercial"]
     environment:
       <<: *ashr-runtime-env
-      ASHR_REPLAY_STATE_INPUT: /runtime/state/cloud-state.json
-      ASHR_REPLAY_STATE_OUTPUT: /runtime/state/cloud-state.replayed.json
-      ASHR_REPLAY_OUTPUT_DIR: /runtime/replay
+      ASHR_WORKER_MODE: daemon
+      ASHR_WORKER_DAEMON: "true"
+      ASHR_WORKER_QUEUE: ashr_worker_jobs
+      ASHR_WORKER_HEALTHCHECK_PATH: /runtime/worker/heartbeat
+      ASHR_GO_BACKEND: postgres
+      ASHR_POSTGRES_DSN: postgresql://ashr:${ASHR_POSTGRES_AUTH_SECRET}@postgres:5432/ashr?sslmode=disable
+      ASHR_WORKER_TENANT_ID: tenant_self_host
+      ASHR_WORKER_PROJECT_ID: project_self_host
+      ASHR_WORKER_LEASE_OWNER_ID: worker_self_host
+      ASHR_WORKER_JOB_TYPE: release_gate
+      ASHR_WORKER_LEASE_SECONDS: "300"
+      ASHR_WORKER_HEARTBEAT_INTERVAL: "30s"
+      ASHR_WORKER_MAX_JOBS: "10"
+      ASHR_WORKER_MAX_IDLE_LEASES: "3"
+      ASHR_WORKER_HEARTBEAT_PATH: /runtime/worker/heartbeat
+      ASHR_WORKER_MAX_ATTEMPTS: "3"
+      ASHR_WORKER_EVIDENCE_WRITES: object-store
+      ASHR_WORKER_SUMMARY_OUTPUT: /runtime/worker/summary.json
     command:
-      - python
-      - -m
-      - services.api.cli
-      - replay-queued
-      - --state-input
-      - /runtime/state/cloud-state.json
-      - --state-output
-      - /runtime/state/cloud-state.replayed.json
-      - --agent
-      - examples.agents.mock_agent:RespondingMockAgent
-      - --tenant-id
-      - tenant_self_host
-      - --project-id
-      - project_self_host
-      - --dataset-id
-      - dataset_self_host
-      - --summary-output
-      - /runtime/replay/summary.json
-      - --fixture-output-dir
-      - /runtime/replay/fixtures
-      - --run-output-dir
-      - /runtime/replay/runs
-      - --max-runs
-      - "10"
-      - --queue-workers
-      - "4"
-      - --max-workers
-      - "4"
-      - --timeout
-      - "30"
+      - sh
+      - -c
+      - >-
+        while true; do
+          date -u +%Y-%m-%dT%H:%M:%SZ > /runtime/worker/heartbeat;
+          /usr/local/bin/ashr-worker | tee /runtime/worker/summary.json;
+          date -u +%Y-%m-%dT%H:%M:%SZ > /runtime/worker/heartbeat;
+          sleep 5;
+        done
     volumes:
       - ashr-runtime-state:/runtime/state
-      - ashr-replay-output:/runtime/replay
-      - ashr-object-store:/object-store
+      - ashr-worker-health:/runtime/worker
     depends_on:
       api:
         condition: service_healthy
       postgres:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - test -f /runtime/worker/heartbeat && find /runtime/worker/heartbeat -mmin -2 -type f | grep -q .
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   postgres:
     image: postgres:16-alpine
     environment:
       POSTGRES_DB: ashr
       POSTGRES_USER: ashr
-      POSTGRES_PASSWORD: ashr_dev_only
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
     volumes:
       - ashr-postgres-data:/var/lib/postgresql/data
+    secrets:
+      - postgres_password
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ashr -d ashr"]
       interval: 10s
@@ -120,16 +140,63 @@ services:
     command: ["redis-server", "--save", "", "--appendonly", "no"]
     volumes:
       - ashr-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
-  object-store:
-    image: busybox:1.36
-    command: ["sh", "-c", "mkdir -p /object-store/ashr-local-artifacts && tail -f /dev/null"]
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER_FILE: /run/secrets/minio_root_user
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_root_password
     volumes:
-      - ashr-object-store:/object-store
+      - ashr-object-store:/data
+    secrets:
+      - minio_root_user
+      - minio_root_password
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  minio-init:
+    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+    profiles: ["api", "worker", "daemon", "commercial"]
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER_FILE: /run/secrets/minio_root_user
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_root_password
+      ASHR_OBJECT_STORE_BUCKET: ashr-local-artifacts
+    secrets:
+      - minio_root_user
+      - minio_root_password
+    entrypoint:
+      - /bin/sh
+      - -lc
+      - >-
+        mc alias set local http://minio:9000 "$$(cat /run/secrets/minio_root_user)" "$$(cat /run/secrets/minio_root_password)" &&
+        mc mb --ignore-existing "local/$${ASHR_OBJECT_STORE_BUCKET}" &&
+        mc anonymous set none "local/$${ASHR_OBJECT_STORE_BUCKET}"
+
+secrets:
+  postgres_password:
+    environment: ASHR_POSTGRES_AUTH_SECRET
+  minio_root_user:
+    environment: ASHR_OBJECT_STORE_ACCESS_KEY
+  minio_root_password:
+    environment: ASHR_OBJECT_STORE_SECRET_KEY
 
 volumes:
   ashr-postgres-data:
   ashr-redis-data:
   ashr-runtime-state:
   ashr-replay-output:
+  ashr-worker-health:
   ashr-object-store:

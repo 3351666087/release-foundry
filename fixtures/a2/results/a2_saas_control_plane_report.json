@@ -75,6 +75,22 @@
         "requires_network": false
       },
       {
+        "endpoint_id": "release_unblock_checklist",
+        "method": "POST",
+        "path": "/internal/release/unblock-checklist",
+        "request_fields": [
+          "release_gate_report",
+          "evidence_readiness_report",
+          "regression_replay_report"
+        ],
+        "response_fields": [
+          "gate_items",
+          "a3_consumption_summary"
+        ],
+        "deterministic": true,
+        "requires_network": false
+      },
+      {
         "endpoint_id": "regression_replay",
         "method": "POST",
         "path": "/internal/regression/replay",
@@ -151,7 +167,7 @@
     "judge_versions": [
       "0.1.0"
     ],
-    "policy_hash_count": 132,
+    "policy_hash_count": 133,
     "all_records_have_policy_hash": true,
     "all_records_have_input_hash": true,
     "all_records_have_output_hash": true,
@@ -257,6 +273,63 @@
       "high": 6
     }
   },
+  "scenario_generation": {
+    "backlog_id": "a2_scenario_generation_backlog",
+    "candidate_count": 12,
+    "policy_experiment_count": 3,
+    "candidate_ids": [
+      "A2-GEN-001",
+      "A2-GEN-002",
+      "A2-GEN-003",
+      "A2-GEN-004",
+      "A2-GEN-005",
+      "A2-GEN-006",
+      "A2-GEN-007",
+      "A2-GEN-008",
+      "A2-GEN-009",
+      "A2-GEN-010",
+      "A2-GEN-011",
+      "A2-GEN-012"
+    ],
+    "target_failure_classes": [
+      "forbidden_tool_call",
+      "hallucinated_tool_result",
+      "ignored_tool_result",
+      "missing_clarification",
+      "missing_required_tool",
+      "poor_failure_recovery",
+      "unsafe_or_policy_violation"
+    ],
+    "policy_experiment_ids": [
+      "policy-exp-official-grading-required",
+      "policy-exp-regression-maturity-required",
+      "policy-exp-semantic-cost-ledger-required"
+    ],
+    "may_mutate_main_pack": false,
+    "promotion_status": "review_required"
+  },
+  "cross_lane_security": {
+    "report_id": "a2_cross_lane_security_context",
+    "a1_route_scope_available": true,
+    "a3_auth_rbac_available": true,
+    "a3_fail_closed_rbac_available": true,
+    "a3_event_outbox_available": true,
+    "route_scope_ready": true,
+    "auth_rbac_ready": true,
+    "fail_closed_rbac_ready": true,
+    "event_outbox_ready": true,
+    "should_block_hosted_mutations_without_a1_auth": true,
+    "should_add_auth_rbac_abuse_cases": true,
+    "should_add_fail_closed_write_abuse_cases": true,
+    "should_add_event_outbox_integrity_cases": true,
+    "followup_count": 4,
+    "followup_ids": [
+      "a2-route-scope-tenant-boundary",
+      "a2-auth-rbac-denied-state-cases",
+      "a2-a3-fail-closed-write-abuse-cases",
+      "a2-a3-event-outbox-integrity-cases"
+    ]
+  },
   "calibration": {
     "matrix_id": "a2_g3_calibration_matrix",
     "case_count": 6,
@@ -322,10 +395,11 @@
   },
   "result_persistence": {
     "manifest_id": "a2_result_persistence_manifest",
-    "record_count": 162,
+    "record_count": 163,
     "record_type_counts": {
       "judge_result": 160,
       "release_gate": 1,
+      "release_unblock_checklist": 1,
       "scenario_selection": 1
     },
     "public_safe": true,
@@ -368,9 +442,13 @@
       "gradeFixture": "fixtures/a2/results/a2_g3_grade_results.json",
       "coverage": "fixtures/a2/results/a2_g3_coverage_report.json",
       "releaseGate": "fixtures/a2/results/a2_release_gate_report.json",
+      "releaseUnblockChecklist": "fixtures/a2/results/a2_release_unblock_checklist.json",
       "scenarioSelection": "fixtures/a2/results/a2_scenario_selection_report.json",
       "resultPersistence": "fixtures/a2/results/a2_result_persistence_manifest.json",
       "judgeVersions": "fixtures/a2/results/a2_judge_versions.json",
+      "sqlStore": "fixtures/a2/results/a2_sql_store_report.json",
+      "scenarioGeneration": "fixtures/a2/results/a2_scenario_generation_backlog.json",
+      "crossLaneSecurity": "fixtures/a2/results/a2_cross_lane_security_context.json",
       "a2ControlPlane": "fixtures/a2/results/a2_saas_control_plane_report.json"
     },
     "dashboard_can_show": [
@@ -379,14 +457,20 @@
       "judge version and policy hash audit",
       "judge registry pins and migration readiness",
       "release policy decision and blocker counts",
+      "release unblock checklist owner actions",
       "public-safe persistence record counts",
+      "SQL-readable eval/calibration/golden/regression history",
+      "reviewable scenario generation backlog and policy experiments",
+      "A1/A3 route scope and Auth/RBAC security handoff status",
       "calibration source coverage and live evidence gaps"
     ],
     "local_meter": {
       "grade_case_count": 32,
       "scenario_count": 60,
       "selected_scenario_count": 12,
-      "audit_record_count": 162
+      "scenario_generation_candidate_count": 12,
+      "cross_lane_security_followup_count": 4,
+      "audit_record_count": 163
     },
     "selected_policy_id": "release_policy_prod_strict",
     "release_gate_decision": "block",
@@ -406,8 +490,12 @@
     "calibration_matrix": "fixtures/a2/results/a2_g3_calibration_matrix.json",
     "release_gate": "fixtures/a2/results/a2_release_gate_report.json",
     "scenario_selection": "fixtures/a2/results/a2_scenario_selection_report.json",
+    "release_unblock_checklist": "fixtures/a2/results/a2_release_unblock_checklist.json",
     "result_persistence": "fixtures/a2/results/a2_result_persistence_manifest.json",
     "judge_versions": "fixtures/a2/results/a2_judge_versions.json",
+    "sql_store": "fixtures/a2/results/a2_sql_store_report.json",
+    "scenario_generation": "fixtures/a2/results/a2_scenario_generation_backlog.json",
+    "cross_lane_security": "fixtures/a2/results/a2_cross_lane_security_context.json",
     "release_policy_config": "fixtures/a2/config/release_policies.json"
   },
   "metadata": {

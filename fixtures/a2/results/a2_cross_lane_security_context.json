@@ -1,0 +1,245 @@
+{
+  "schema_version": "a2.cross_lane_security_context.v1",
+  "report_id": "a2_cross_lane_security_context",
+  "created_at": "2026-07-09T00:00:00Z",
+  "source_refs": {
+    "a1_route_scope": "docs/a1/evidence/go_python_ts_route_parity_snapshot.json",
+    "a3_auth_rbac_boundary": "docs/a3/p3_auth_rbac_boundary_2026_07_09.md",
+    "a3_openapi": "docs/a3/openapi/a3_commercial_api.openapi.json",
+    "a3_fail_closed_rbac": "docs/a3/a3_fail_closed_rbac_write_paths_2026_07_09.md",
+    "a3_event_outbox": "docs/a3/a3_event_outbox_saas_backbone_2026_07_09.md"
+  },
+  "a1_route_scope": {
+    "available": true,
+    "path": "docs/a1/evidence/go_python_ts_route_parity_snapshot.json",
+    "schema_version": "ashr.clone.go_python_ts_route_parity_snapshot.v1",
+    "route_count": 43,
+    "api_key_route_count": 16,
+    "release_gate_route_count": 1,
+    "tenant_route_count": 35,
+    "has_python_routes": true,
+    "has_ts_routes": true,
+    "has_go_routes": true,
+    "intentional_difference_count": 39,
+    "rls_or_tenant_hardening_observed": true,
+    "source_paths": [
+      "packages/go/ashrclone/server.go",
+      "packages/sdk/ashr_clone/saas.py",
+      "packages/ts/ashr-clone/src/saas.ts"
+    ],
+    "ready_for_a2_security_context": true,
+    "notes": [
+      "A1 remains source of truth for backend route scope, tenant isolation, hosted auth, and RLS enforcement.",
+      "A2 consumes this only as public-safe security verification context."
+    ]
+  },
+  "a3_auth_rbac_boundary": {
+    "available": true,
+    "path": "docs/a3/p3_auth_rbac_boundary_2026_07_09.md",
+    "schema_version": "a3.auth_rbac_boundary.doc.v1",
+    "anchor_present": true,
+    "endpoint_count": 3,
+    "endpoints": [
+      "GET /api/a3/auth/context",
+      "GET /api/a3/auth/rbac-policy",
+      "POST /api/a3/auth/authorize"
+    ],
+    "openapi_auth_path_count": 3,
+    "openapi_auth_paths": [
+      "/api/a3/auth/authorize",
+      "/api/a3/auth/context",
+      "/api/a3/auth/rbac-policy"
+    ],
+    "a1_dependency_declared": true,
+    "a2_dependency_declared": true,
+    "hosted_auth_required_before_live_saas": true,
+    "safety": {
+      "actor_hash_required": true,
+      "raw_identity_redacted": true,
+      "tokens_forbidden": true,
+      "hosted_mutations_blocked": true,
+      "metadata_only_audit": true
+    },
+    "ready_for_a2_security_context": true,
+    "notes": [
+      "A3 owns product-workflow display and local authorization contract shape.",
+      "A2 should verify denied states, abuse cases, redaction, and release policy effects."
+    ]
+  },
+  "a3_fail_closed_rbac": {
+    "available": true,
+    "path": "docs/a3/a3_fail_closed_rbac_write_paths_2026_07_09.md",
+    "schema_version": "a3.fail_closed_rbac_write_paths.doc.v1",
+    "endpoint_count": 11,
+    "mutation_endpoint_count": 9,
+    "endpoints": [
+      "GET /api/a3/events/outbox",
+      "POST /api/a3/admin/actions/plan",
+      "POST /api/a3/admin/actions/submit",
+      "POST /api/a3/import/a1-run-result",
+      "POST /api/a3/import/a2-grade-result",
+      "POST /api/a3/releases/:releaseId/readbacks",
+      "POST /api/a3/reports/:reportId/revoke",
+      "POST /api/a3/reports/:reportId/view",
+      "POST /api/a3/reports/share",
+      "POST /api/a3/review/approvals",
+      "POST /api/a3/review/waivers"
+    ],
+    "mutation_endpoints": [
+      "POST /api/a3/admin/actions/plan",
+      "POST /api/a3/admin/actions/submit",
+      "POST /api/a3/import/a1-run-result",
+      "POST /api/a3/import/a2-grade-result",
+      "POST /api/a3/releases/:releaseId/readbacks",
+      "POST /api/a3/reports/:reportId/revoke",
+      "POST /api/a3/reports/share",
+      "POST /api/a3/review/approvals",
+      "POST /api/a3/review/waivers"
+    ],
+    "added_operation_count": 4,
+    "local_role_count": 4,
+    "safety": {
+      "fail_closed_declared": true,
+      "denied_response_schema_declared": true,
+      "raw_request_body_not_echoed": true,
+      "secret_values_forbidden": true,
+      "metadata_only_authz_audit": true,
+      "hosted_auth_dependency_declared": true,
+      "a2_boundary_declared": true
+    },
+    "ready_for_a2_security_context": true,
+    "notes": [
+      "A3 owns product-console fail-closed RBAC around local write paths.",
+      "A2 should convert denied-write, waiver/approval, and readback abuse paths into security scenarios."
+    ]
+  },
+  "a3_event_outbox": {
+    "available": true,
+    "path": "docs/a3/a3_event_outbox_saas_backbone_2026_07_09.md",
+    "schema_version": "a3.event_outbox_saas_backbone.doc.v1",
+    "endpoint_count": 9,
+    "write_endpoint_count": 7,
+    "endpoints": [
+      "GET /api/a3/dashboard",
+      "GET /api/a3/events/outbox",
+      "POST /api/a3/admin/actions/submit",
+      "POST /api/a3/releases/:releaseId/readbacks",
+      "POST /api/a3/reports/:reportId/revoke",
+      "POST /api/a3/reports/:reportId/view",
+      "POST /api/a3/reports/share",
+      "POST /api/a3/review/approvals",
+      "POST /api/a3/review/waivers"
+    ],
+    "write_endpoints": [
+      "POST /api/a3/admin/actions/submit",
+      "POST /api/a3/releases/:releaseId/readbacks",
+      "POST /api/a3/reports/:reportId/revoke",
+      "POST /api/a3/reports/:reportId/view",
+      "POST /api/a3/reports/share",
+      "POST /api/a3/review/approvals",
+      "POST /api/a3/review/waivers"
+    ],
+    "dashboard_payload_declared": true,
+    "read_surface_declared": true,
+    "safety": {
+      "event_envelope_declared": true,
+      "metadata_only_events": true,
+      "raw_payload_not_embedded": true,
+      "raw_share_token_not_stored": true,
+      "secret_values_forbidden": true,
+      "payload_hashing_declared": true,
+      "idempotency_declared": true,
+      "a1_a2_boundary_declared": true
+    },
+    "ready_for_a2_security_context": true,
+    "notes": [
+      "A3 event outbox is a metadata-only product-console event stream.",
+      "A2 should verify event integrity, idempotency abuse, and redaction boundaries before release claims."
+    ]
+  },
+  "a2_policy_implications": {
+    "should_block_hosted_mutations_without_a1_auth": true,
+    "should_require_metadata_only_audit_events": true,
+    "should_keep_raw_actor_identity_forbidden": true,
+    "should_require_fail_closed_a3_writes": true,
+    "should_require_a3_event_outbox_metadata_only": true,
+    "should_add_route_scope_security_cases": true,
+    "should_add_auth_rbac_abuse_cases": true,
+    "should_add_fail_closed_write_abuse_cases": true,
+    "should_add_event_outbox_integrity_cases": true,
+    "release_policy_refs": [
+      "fixtures/a2/config/release_policies.json",
+      "fixtures/a2/results/a2_release_gate_report.json",
+      "fixtures/a2/results/a2_scenario_generation_backlog.json"
+    ]
+  },
+  "a2_security_followups": [
+    {
+      "followup_id": "a2-route-scope-tenant-boundary",
+      "action": "Add route-scope tenant isolation abuse cases once A1 route parity is merged.",
+      "owner": "A2 security verification",
+      "tags": [
+        "tenant_id",
+        "project_id",
+        "RLS",
+        "route scope"
+      ],
+      "writes_private_evidence": false,
+      "requires_user_decision": false
+    },
+    {
+      "followup_id": "a2-auth-rbac-denied-state-cases",
+      "action": "Promote A3 Auth/RBAC denied-state and hosted-mutation boundaries into A2 security scenarios.",
+      "owner": "A2 scenario generation",
+      "tags": [
+        "authz",
+        "RBAC",
+        "hosted mutation",
+        "redaction"
+      ],
+      "writes_private_evidence": false,
+      "requires_user_decision": false
+    },
+    {
+      "followup_id": "a2-a3-fail-closed-write-abuse-cases",
+      "action": "Promote A3 fail-closed write-path denials into A2 abuse and release-policy scenarios.",
+      "owner": "A2 security verification",
+      "tags": [
+        "authz",
+        "write-path",
+        "fail-closed",
+        "review-workflow"
+      ],
+      "writes_private_evidence": false,
+      "requires_user_decision": false
+    },
+    {
+      "followup_id": "a2-a3-event-outbox-integrity-cases",
+      "action": "Promote A3 metadata-only event outbox semantics into A2 audit integrity scenarios.",
+      "owner": "A2 evidence verification",
+      "tags": [
+        "event_outbox",
+        "metadata-only",
+        "idempotency",
+        "redaction"
+      ],
+      "writes_private_evidence": false,
+      "requires_user_decision": false
+    }
+  ],
+  "metadata": {
+    "public_safe": true,
+    "deterministic": true,
+    "requires_network": false,
+    "requires_ashr_api_key": false,
+    "does_not_execute_live_calls": true,
+    "does_not_read_private_evidence": true,
+    "raw_private_evidence_not_recorded": true,
+    "secrets_not_recorded": true,
+    "intended_consumers": [
+      "A2 release policy",
+      "A2 security verification",
+      "A3 SaaS admin console"
+    ]
+  }
+}

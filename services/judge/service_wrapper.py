@@ -13,12 +13,14 @@ from .release_policy import ReleasePolicyError, evaluate_release_policy_config
 from .result_persistence import build_result_record, stable_hash
 from .runner import DEFAULT_SCENARIO_PACK, grade_run
 from .scenario_selection import build_project_scenario_selection
+from .unblock_checklist import build_release_unblock_checklist
 
 
 CASE_ENDPOINT = "/internal/judge/case"
 RUN_ENDPOINT = "/internal/judge/run"
 BATCH_ENDPOINT = "/internal/judge/batch"
 RELEASE_POLICY_ENDPOINT = "/internal/release-policy/evaluate"
+RELEASE_UNBLOCK_CHECKLIST_ENDPOINT = "/internal/release/unblock-checklist"
 REGRESSION_REPLAY_ENDPOINT = "/internal/regression/replay"
 CALIBRATION_EVALUATE_ENDPOINT = "/internal/calibration/evaluate"
 SCENARIO_SELECT_ENDPOINT = "/internal/scenarios/select"
@@ -28,8 +30,11 @@ A1_RELEASE_GATE_CONTRACT = "A2.release_gate.evaluate"
 DEFAULT_RELEASE_POLICY_CONFIG = Path("fixtures/a2/config/release_policies.json")
 DEFAULT_GRADE_REPORT = Path("fixtures/a2/results/a2_g3_grade_results.json")
 DEFAULT_RELEASE_GATE_REPORT = Path("fixtures/a2/results/a2_release_gate_report.json")
+DEFAULT_EVIDENCE_READINESS_REPORT = Path("fixtures/a2/results/a2_evidence_readiness_report.json")
 DEFAULT_CALIBRATION_MATRIX_REPORT = Path("fixtures/a2/results/a2_g3_calibration_matrix.json")
 DEFAULT_CASE_BOOK_REPORT = Path("fixtures/a2/results/a2_case_book.json")
+DEFAULT_REGRESSION_REPLAY_REPORT = Path("fixtures/a2/results/a2_regression_replay_report.json")
+DEFAULT_REGRESSION_PROMOTION_QUEUE = Path("fixtures/a2/results/a2_regression_promotion_queue.json")
 
 
 def judge_case(
@@ -242,6 +247,39 @@ def evaluate_a1_release_gate_bridge(request: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def build_release_unblock_service_report(
+    request: dict[str, Any],
+    *,
+    release_gate_path: str | Path = DEFAULT_RELEASE_GATE_REPORT,
+    evidence_readiness_path: str | Path = DEFAULT_EVIDENCE_READINESS_REPORT,
+    regression_replay_path: str | Path = DEFAULT_REGRESSION_REPLAY_REPORT,
+    regression_promotion_queue_path: str | Path = DEFAULT_REGRESSION_PROMOTION_QUEUE,
+) -> dict[str, Any]:
+    """Build the public-safe C3/C4/C5 release unblock checklist for A1/A3."""
+    release_gate = request.get("release_gate_report") or request.get("release_gate") or _read_json(release_gate_path)
+    evidence_readiness = (
+        request.get("evidence_readiness_report")
+        or request.get("evidence_readiness")
+        or _read_json(evidence_readiness_path)
+    )
+    regression_replay = (
+        request.get("regression_replay_report")
+        or request.get("regression_replay")
+        or _read_json(regression_replay_path)
+    )
+    regression_promotion_queue = (
+        request.get("regression_promotion_queue")
+        or request.get("promotion_queue")
+        or _read_json(regression_promotion_queue_path)
+    )
+    return build_release_unblock_checklist(
+        release_gate,
+        evidence_readiness,
+        regression_replay,
+        regression_promotion_queue,
+    )
+
+
 def replay_regressions(
     request: dict[str, Any],
     *,
@@ -400,6 +438,11 @@ def post_internal_release_policy_evaluate(payload: dict[str, Any]) -> dict[str, 
     return _ok_response(RELEASE_POLICY_ENDPOINT, payload, result, status_code=200)
 
 
+def post_internal_release_unblock_checklist(payload: dict[str, Any]) -> dict[str, Any]:
+    checklist = build_release_unblock_service_report(payload)
+    return _ok_response(RELEASE_UNBLOCK_CHECKLIST_ENDPOINT, payload, checklist, status_code=200)
+
+
 def post_internal_regression_replay(payload: dict[str, Any]) -> dict[str, Any]:
     response = replay_regressions(payload)
     return _ok_response(REGRESSION_REPLAY_ENDPOINT, payload, response["replay_report"], status_code=200)
@@ -432,6 +475,8 @@ def handle_internal_request(endpoint: str, payload: dict[str, Any], *, method: s
             return post_internal_judge_batch(payload)
         if endpoint == RELEASE_POLICY_ENDPOINT:
             return post_internal_release_policy_evaluate(payload)
+        if endpoint == RELEASE_UNBLOCK_CHECKLIST_ENDPOINT:
+            return post_internal_release_unblock_checklist(payload)
         if endpoint == REGRESSION_REPLAY_ENDPOINT:
             return post_internal_regression_replay(payload)
         if endpoint == CALIBRATION_EVALUATE_ENDPOINT:

@@ -49,6 +49,7 @@ def build_result_persistence_manifest(
     scenario_pack: dict[str, Any],
     *,
     scenario_selection_report: dict[str, Any] | None = None,
+    release_unblock_checklist_report: dict[str, Any] | None = None,
     run_fixtures: list[dict[str, Any]] | None = None,
     org: str = DEFAULT_ORG,
     project: str = DEFAULT_PROJECT,
@@ -134,6 +135,16 @@ def build_result_persistence_manifest(
             created_at=created_at,
         )
     )
+    if release_unblock_checklist_report:
+        records.append(
+            _release_unblock_checklist_record(
+                release_unblock_checklist_report,
+                org=org,
+                project=project,
+                run=run_id,
+                created_at=created_at,
+            )
+        )
 
     record_type_counts = dict(sorted(Counter(record["record_type"] for record in records).items()))
     source_ref_payload = {
@@ -142,7 +153,7 @@ def build_result_persistence_manifest(
         "scenario_pack": source_refs.get("scenario_pack", ""),
         "scenario_selection": source_refs.get("scenario_selection", ""),
     }
-    for optional_ref in ("regression_promotion_queue",):
+    for optional_ref in ("regression_promotion_queue", "release_unblock_checklist"):
         if source_refs.get(optional_ref):
             source_ref_payload[optional_ref] = source_refs[optional_ref]
     return {
@@ -711,6 +722,87 @@ def _scenario_selection_record(
             "selection_id": selection_id,
             "family_counts": family_counts,
             "result_schema_version": selector_version or scenario_pack.get("schema_version"),
+        },
+    )
+
+
+def _release_unblock_checklist_record(
+    checklist: dict[str, Any],
+    *,
+    org: str,
+    project: str,
+    run: str,
+    created_at: str,
+) -> dict[str, Any]:
+    gate_items = [item for item in checklist.get("gate_items", []) if isinstance(item, dict)]
+    public_gate_summary = []
+    for item in gate_items:
+        required_actions = [action for action in item.get("required_actions", []) if isinstance(action, dict)]
+        public_gate_summary.append(
+            {
+                "gate": item.get("gate"),
+                "status": item.get("status"),
+                "blocks_release": bool(item.get("blocks_release")),
+                "owner_role": item.get("owner_role"),
+                "missing_count": item.get("missing_count"),
+                "required_evidence_sources": [
+                    str(action.get("required_evidence_source"))
+                    for action in required_actions
+                    if action.get("required_evidence_source") is not None
+                ],
+                "action_ids": [
+                    str(action.get("action_id"))
+                    for action in required_actions
+                    if action.get("action_id") is not None
+                ],
+                "private_evidence_required": any(bool(action.get("private_evidence_required")) for action in required_actions),
+            }
+        )
+    policy_payload = {
+        "schema_version": checklist.get("schema_version"),
+        "checklist_id": checklist.get("checklist_id"),
+        "source_release_gate": checklist.get("source_release_gate"),
+        "review_workflow": checklist.get("review_workflow", {}),
+    }
+    input_payload = {
+        "release_gate_decision": checklist.get("release_gate_decision"),
+        "release_gate_exit_code": checklist.get("release_gate_exit_code"),
+        "release_gate_risk_score": checklist.get("release_gate_risk_score"),
+        "gate_count": len(gate_items),
+        "gate_summary": public_gate_summary,
+    }
+    output_payload = {
+        "schema_version": checklist.get("schema_version"),
+        "checklist_id": checklist.get("checklist_id"),
+        "overall_status": checklist.get("overall_status"),
+        "blocked_gate_count": checklist.get("blocked_gate_count"),
+        "a3_consumption_summary": checklist.get("a3_consumption_summary", {}),
+        "gate_summary": public_gate_summary,
+    }
+    return _base_record(
+        record_type="release_unblock_checklist",
+        org=org,
+        project=project,
+        run=run,
+        case="release-unblock-checklist",
+        scenario_id=None,
+        judge_id="release_unblock_checklist",
+        judge_version=str(checklist.get("schema_version") or "a2.release_unblock_checklist.v1"),
+        policy_hash=sha256_json(redact_payload(policy_payload)),
+        input_hash=sha256_json(redact_payload(input_payload)),
+        output_hash=sha256_json(redact_payload(output_payload)),
+        created_at=created_at,
+        extra={
+            "overall_status": checklist.get("overall_status"),
+            "blocked_gate_count": checklist.get("blocked_gate_count"),
+            "release_gate_decision": checklist.get("release_gate_decision"),
+            "release_gate_risk_score": checklist.get("release_gate_risk_score"),
+            "gate_count": len(gate_items),
+            "private_evidence_required": any(
+                bool(gate.get("private_evidence_required"))
+                for gate in public_gate_summary
+            ),
+            "result_schema_version": checklist.get("schema_version"),
         },
     )
 

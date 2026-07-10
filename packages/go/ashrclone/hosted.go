@@ -201,8 +201,12 @@ func (client *Client) IngestTraceHTTP(ctx context.Context, tenantID, projectID, 
 	return client.hosted(ctx, http.MethodPost, projectPath(projectID, "runs", runID, "trace-events"), "ingest_trace", body, idemFromHosted(options.IdempotencyKey, options.RequestID, options.APIKeyID))
 }
 
-func (client *Client) LifecycleHTTP(ctx context.Context, tenantID, projectID, runID string) (Envelope[JSONMap], error) {
-	body := JSONMap{"tenant_id": tenantID}
+func (client *Client) LifecycleHTTP(ctx context.Context, tenantID, projectID, runID string, options ...AuthKeyOptions) (Envelope[JSONMap], error) {
+	authKeyID := ""
+	if len(options) > 0 {
+		authKeyID = options[0].AuthKeyID
+	}
+	body := JSONMap{"tenant_id": tenantID, "auth_key_id": authKeyID}
 	return client.hosted(ctx, http.MethodGet, projectPath(projectID, "runs", runID, "lifecycle"), "lifecycle", body, IdempotencyOptions{AllowRetryWithoutIdempotency: true})
 }
 

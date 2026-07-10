@@ -1,7 +1,7 @@
 {
   "schema_version": "a3.generated_artifact_manifest.v1",
   "generated_at": "2026-07-07T00:00:00.000Z",
-  "source": "cli-output-bundle-test",
+  "source": "unit-test",
   "command_shape": "ashr gate --json",
   "manifest_file": "fixtures/a3/p3/a3_gate_cli_generated_artifact_manifest.redacted.json",
   "manifest_self_hash": "excluded_to_avoid_self_reference",
@@ -19,32 +19,32 @@
       "id": "json_report",
       "path": "fixtures/a3/p3/a3_gate_cli_mock_blocked.redacted.json",
       "content_type": "application/json",
-      "sha256": "aa1827554400849a99564b55dd28de4e25cfdcae2d0be6bb400b0bcf0f93c2fb",
-      "byte_size": 20382,
+      "sha256": "926bdb81b17a2fa0c1092a26581516f8d7886546d5092be7d1e5a2f361ac3c4c",
+      "byte_size": 30865,
       "required": true
     },
     {
       "id": "markdown_report",
       "path": "fixtures/a3/p3/a3_gate_cli_report.redacted.md",
       "content_type": "text/markdown",
-      "sha256": "f9a05a1c897efd1d8709d94accd87bb365c2c4b1a736d10597cf19fd4663b53b",
-      "byte_size": 2557,
+      "sha256": "4f52249037f585c4f5a306370e269fa80b9fa9c0fa4baec151aaf73b274592db",
+      "byte_size": 3297,
       "required": true
     },
     {
       "id": "github_check_run",
       "path": "fixtures/a3/p3/a3_gate_cli_github_check.redacted.json",
       "content_type": "application/json",
-      "sha256": "b211850411e1afec0cda78accfb7c6fb2a6b878a610908687a367165efb85a3b",
-      "byte_size": 3550,
+      "sha256": "8f43e3431287458ae25e934ed4ff31beaa35df56fb2cd7224eba00f88e64737f",
+      "byte_size": 3723,
       "required": true
     },
     {
       "id": "pr_comment_markdown",
       "path": "fixtures/a3/p3/a3_gate_cli_pr_comment.redacted.md",
       "content_type": "text/markdown",
-      "sha256": "5ad3f7870b2e2264d7925a3a1bc2e960a99fc6c7f8688ef76ee8bca1f9fe5f33",
-      "byte_size": 1133,
+      "sha256": "2c858aaf860f827fed08cfb2cd885f50e77e94818b57c8a032210cbb37db7d45",
+      "byte_size": 1886,
       "required": true
     }
   ],

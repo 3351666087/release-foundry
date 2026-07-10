@@ -122,6 +122,19 @@ type ArtifactManifestList struct {
 	Count         int                `json:"count"`
 }
 
+type RunLifecycle struct {
+	SchemaVersion string             `json:"schema_version"`
+	TenantID      string             `json:"tenant_id"`
+	ProjectID     string             `json:"project_id"`
+	RunID         string             `json:"run_id"`
+	Run           Run                `json:"run"`
+	Uploads       []RunUpload        `json:"uploads"`
+	TraceBatches  []TraceBatch       `json:"trace_batches"`
+	Artifacts     []ArtifactManifest `json:"artifacts"`
+	Counts        JSONMap            `json:"counts"`
+	GeneratedAt   time.Time          `json:"generated_at"`
+}
+
 type UsageOperationTotal struct {
 	Operation string `json:"operation"`
 	Units     int    `json:"units"`
@@ -136,6 +149,101 @@ type UsageSnapshot struct {
 	TotalUnits      int                   `json:"total_units"`
 	TotalEvents     int                   `json:"total_events"`
 	GeneratedAt     time.Time             `json:"generated_at"`
+}
+
+type BillingPlanRequest struct {
+	SchemaVersion  string  `json:"schema_version"`
+	TenantID       string  `json:"tenant_id"`
+	ProjectID      string  `json:"project_id"`
+	PlanID         string  `json:"plan_id"`
+	BillingCycle   string  `json:"billing_cycle,omitempty"`
+	ProviderConfig JSONMap `json:"provider_config,omitempty"`
+	CustomerRef    string  `json:"customer_ref,omitempty"`
+	Price          JSONMap `json:"price,omitempty"`
+	SuccessURL     string  `json:"success_url,omitempty"`
+	CancelURL      string  `json:"cancel_url,omitempty"`
+	ReturnURL      string  `json:"return_url,omitempty"`
+	Metadata       JSONMap `json:"metadata,omitempty"`
+}
+
+type BillingCheckoutPlan struct {
+	SchemaVersion      string    `json:"schema_version"`
+	TenantID           string    `json:"tenant_id"`
+	ProjectID          string    `json:"project_id"`
+	PlanID             string    `json:"plan_id"`
+	BillingCycle       string    `json:"billing_cycle"`
+	CheckoutID         string    `json:"checkout_id"`
+	CheckoutURL        string    `json:"checkout_url"`
+	Mode               string    `json:"mode"`
+	Provider           string    `json:"provider"`
+	ProviderConfig     JSONMap   `json:"provider_config,omitempty"`
+	CustomerRef        string    `json:"customer_ref,omitempty"`
+	Price              JSONMap   `json:"price,omitempty"`
+	SuccessURL         string    `json:"success_url,omitempty"`
+	CancelURL          string    `json:"cancel_url,omitempty"`
+	SideEffects        JSONMap   `json:"side_effects,omitempty"`
+	ProviderCalled     bool      `json:"provider_called"`
+	RealChargePossible bool      `json:"real_charge_possible"`
+	PublicSafe         bool      `json:"public_safe"`
+	RawPayloadIncluded bool      `json:"raw_payload_included"`
+	RawSecretsIncluded bool      `json:"raw_secrets_included"`
+	SecretValuePresent bool      `json:"secret_value_present"`
+	Metadata           JSONMap   `json:"metadata,omitempty"`
+	CreatedAt          time.Time `json:"created_at"`
+}
+
+type BillingPortalPlan struct {
+	SchemaVersion      string    `json:"schema_version"`
+	TenantID           string    `json:"tenant_id"`
+	ProjectID          string    `json:"project_id"`
+	PlanID             string    `json:"plan_id,omitempty"`
+	PortalSessionID    string    `json:"portal_session_id"`
+	PortalURL          string    `json:"portal_url"`
+	Mode               string    `json:"mode"`
+	Provider           string    `json:"provider"`
+	ProviderConfig     JSONMap   `json:"provider_config,omitempty"`
+	CustomerRef        string    `json:"customer_ref,omitempty"`
+	ReturnURL          string    `json:"return_url,omitempty"`
+	SideEffects        JSONMap   `json:"side_effects,omitempty"`
+	ProviderCalled     bool      `json:"provider_called"`
+	RealChargePossible bool      `json:"real_charge_possible"`
+	PublicSafe         bool      `json:"public_safe"`
+	RawPayloadIncluded bool      `json:"raw_payload_included"`
+	RawSecretsIncluded bool      `json:"raw_secrets_included"`
+	SecretValuePresent bool      `json:"secret_value_present"`
+	CreatedAt          time.Time `json:"created_at"`
+}
+
+type BillingWebhookIngest struct {
+	SchemaVersion          string    `json:"schema_version"`
+	TenantID               string    `json:"tenant_id"`
+	ProjectID              string    `json:"project_id"`
+	EventID                string    `json:"event_id"`
+	EventType              string    `json:"event_type"`
+	Provider               string    `json:"provider"`
+	Mode                   string    `json:"mode,omitempty"`
+	PlanID                 string    `json:"plan_id,omitempty"`
+	CustomerRef            string    `json:"customer_ref,omitempty"`
+	Status                 string    `json:"status"`
+	PayloadSHA256          string    `json:"payload_sha256"`
+	SignatureHeaderPresent bool      `json:"signature_header_present"`
+	WebhookSecretRef       string    `json:"webhook_secret_ref,omitempty"`
+	Livemode               bool      `json:"livemode,omitempty"`
+	Verified               bool      `json:"verified"`
+	Failures               []JSONMap `json:"failures,omitempty"`
+	RawPayloadIncluded     bool      `json:"raw_payload_included"`
+	SecretValuePresent     bool      `json:"secret_value_present"`
+	Metadata               JSONMap   `json:"metadata,omitempty"`
+	ReceivedAt             time.Time `json:"received_at"`
+}
+
+type BillingLedger struct {
+	SchemaVersion string                 `json:"schema_version"`
+	TenantID      string                 `json:"tenant_id"`
+	ProjectID     string                 `json:"project_id"`
+	Events        []BillingWebhookIngest `json:"events"`
+	Count         int                    `json:"count"`
+	GeneratedAt   time.Time              `json:"generated_at"`
 }
 
 type AuditEvent struct {
@@ -166,6 +274,43 @@ type AuditChainVerification struct {
 	FirstInvalidEvent  *AuditEvent `json:"first_invalid_event,omitempty"`
 	FirstInvalidReason string      `json:"first_invalid_reason,omitempty"`
 	CheckedAt          time.Time   `json:"checked_at"`
+}
+
+type AuditEventList struct {
+	SchemaVersion string       `json:"schema_version"`
+	TenantID      string       `json:"tenant_id"`
+	ProjectID     string       `json:"project_id"`
+	RunID         string       `json:"run_id,omitempty"`
+	ActionPrefix  string       `json:"action_prefix,omitempty"`
+	Events        []AuditEvent `json:"events"`
+	Count         int          `json:"count"`
+}
+
+type ReleaseEvidencePacket struct {
+	SchemaVersion     string                 `json:"schema_version"`
+	TenantID          string                 `json:"tenant_id"`
+	ProjectID         string                 `json:"project_id"`
+	RunID             string                 `json:"run_id"`
+	PacketID          string                 `json:"packet_id"`
+	Run               Run                    `json:"run"`
+	Uploads           []RunUpload            `json:"uploads"`
+	TraceBatches      []TraceBatch           `json:"trace_batches"`
+	ArtifactManifests []ArtifactManifest     `json:"artifact_manifests"`
+	AuditVerification AuditChainVerification `json:"audit_verification"`
+	PacketSHA256      string                 `json:"packet_sha256"`
+	GeneratedAt       time.Time              `json:"generated_at"`
+}
+
+type ReleaseEvidenceVerification struct {
+	SchemaVersion string    `json:"schema_version"`
+	TenantID      string    `json:"tenant_id"`
+	ProjectID     string    `json:"project_id"`
+	RunID         string    `json:"run_id"`
+	PacketID      string    `json:"packet_id,omitempty"`
+	Verified      bool      `json:"verified"`
+	PacketSHA256  string    `json:"packet_sha256,omitempty"`
+	Reason        string    `json:"reason,omitempty"`
+	CheckedAt     time.Time `json:"checked_at"`
 }
 
 const (
