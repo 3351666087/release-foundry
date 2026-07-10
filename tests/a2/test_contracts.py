@@ -2789,6 +2789,57 @@ CREATE POLICY oauth_identity_operations_tenant_isolation ON oauth_identity_opera
   USING (organization_id = a1_current_organization_id() AND project_id = a1_current_project_id() AND principal_id = a1_current_principal_id());
 INSERT INTO oauth_revocation_outbox (operation_kind) VALUES ('provider_revoke_and_cleanup');
 """
+        revocation_sql = """
+ALTER TABLE oauth_revocation_outbox
+  ADD COLUMN IF NOT EXISTS lease_generation BIGINT NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS provider_revoked_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS vault_deleted_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS dead_lettered_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS cleanup_completed_at TIMESTAMPTZ;
+ALTER TABLE oauth_revocation_outbox
+  ADD CONSTRAINT oauth_revocation_outbox_terminal_time_check CHECK (status = 'delivered' OR status = 'dead_letter');
+CREATE OR REPLACE FUNCTION a1_claim_identity_revocation_outbox() RETURNS TABLE (outbox_id UUID) AS $$
+BEGIN
+  RETURN QUERY SELECT id FROM oauth_revocation_outbox
+    WHERE status = 'pending' OR (target.status = 'leased' AND target.lease_expires_at <= p_now)
+    FOR UPDATE SKIP LOCKED;
+  UPDATE oauth_revocation_outbox SET lease_generation = target.lease_generation + 1;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+CREATE OR REPLACE FUNCTION a1_mark_identity_revocation_provider_revoked() RETURNS oauth_revocation_outbox AS $$
+BEGIN
+  IF target.lease_generation <> p_lease_generation THEN RAISE EXCEPTION 'oauth revocation lease lost'; END IF;
+  UPDATE oauth_revocation_outbox SET provider_revoked_at = p_now;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+CREATE OR REPLACE FUNCTION a1_mark_identity_revocation_vault_deleted() RETURNS oauth_revocation_outbox AS $$
+BEGIN
+  IF target.lease_generation <> p_lease_generation THEN RAISE EXCEPTION 'oauth revocation lease lost'; END IF;
+  IF target.provider_revoked_at IS NULL THEN RAISE EXCEPTION 'oauth provider revocation is not checkpointed'; END IF;
+  UPDATE oauth_revocation_outbox SET vault_deleted_at = p_now;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+CREATE OR REPLACE FUNCTION a1_complete_identity_revocation_outbox() RETURNS oauth_revocation_outbox AS $$
+BEGIN
+  IF target.lease_generation <> p_lease_generation OR target.vault_deleted_at IS NULL THEN RAISE EXCEPTION 'oauth revocation lease lost'; END IF;
+  UPDATE oauth_token_opaque_refs SET status = 'revoked';
+  UPDATE oauth_account_connections SET status = 'disconnected'
+    WHERE token_ref_id = target.token_ref_id AND status = 'revocation_pending';
+  UPDATE oauth_revocation_outbox SET cleanup_completed_at = p_now, status = 'delivered';
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+CREATE OR REPLACE FUNCTION a1_retry_identity_revocation_outbox() RETURNS oauth_revocation_outbox AS $$
+BEGIN
+  IF target.lease_generation <> p_lease_generation THEN RAISE EXCEPTION 'oauth revocation lease lost'; END IF;
+  IF target.attempts >= target.max_attempts THEN
+    UPDATE oauth_revocation_outbox SET status = 'dead_letter', dead_lettered_at = p_now;
+  ELSE
+    UPDATE oauth_revocation_outbox SET status = 'pending', available_at = p_now + make_interval(secs => p_base_backoff_seconds);
+  END IF;
+  PERFORM p_max_backoff_seconds;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+"""
         contract = {
             "schema_version": "ashr.unified_identity.contract.v1",
             "public_safe": True,
@@ -2916,12 +2967,14 @@ INSERT INTO oauth_revocation_outbox (operation_kind) VALUES ('provider_revoke_an
             runtime_sql_path = Path(tmp_dir) / "007_a1_oauth_runtime_store.sql"
             identity_sql_path = Path(tmp_dir) / "008_a1_unified_identity_account.sql"
             coordinator_sql_path = Path(tmp_dir) / "009_a1_oauth_identity_coordinator.sql"
+            revocation_sql_path = Path(tmp_dir) / "010_a1_identity_revocation_outbox.sql"
             contract_path = Path(tmp_dir) / "unified_identity_contract_20260710.json"
             same_account_path = Path(tmp_dir) / "unified_identity_same_account_localhost_20260710.json"
             google_path = Path(tmp_dir) / "google_oauth_localhost_evidence_20260710.json"
             runtime_sql_path.write_text(runtime_sql, encoding="utf-8")
             identity_sql_path.write_text(identity_sql, encoding="utf-8")
             coordinator_sql_path.write_text(coordinator_sql, encoding="utf-8")
+            revocation_sql_path.write_text(revocation_sql, encoding="utf-8")
             contract_path.write_text(json.dumps(contract), encoding="utf-8")
             same_account_path.write_text(json.dumps(same_account), encoding="utf-8")
             google_path.write_text(json.dumps(google), encoding="utf-8")
@@ -2932,6 +2985,7 @@ INSERT INTO oauth_revocation_outbox (operation_kind) VALUES ('provider_revoke_an
                 a1_oauth_runtime_store_sql_path=runtime_sql_path,
                 a1_unified_identity_sql_path=identity_sql_path,
                 a1_oauth_identity_coordinator_sql_path=coordinator_sql_path,
+                a1_identity_revocation_outbox_sql_path=revocation_sql_path,
                 a1_unified_identity_contract_path=contract_path,
                 a1_unified_identity_localhost_evidence_path=same_account_path,
                 a1_google_oauth_localhost_evidence_path=google_path,
@@ -2960,6 +3014,10 @@ INSERT INTO oauth_revocation_outbox (operation_kind) VALUES ('provider_revoke_an
         self.assertTrue(identity["google_real_provider_ready"])
         self.assertTrue(identity["outbox_audit_controls"])
         self.assertTrue(identity["recovery_merge_controls_present"])
+        self.assertTrue(identity["revocation_outbox_hardening_present"])
+        self.assertTrue(identity["revocation_external_checkpoints"])
+        self.assertTrue(identity["revocation_fenced_retry_ready"])
+        self.assertTrue(identity["revocation_reconnect_cleanup_safe"])
         self.assertTrue(identity["append_only_controls"])
         self.assertTrue(identity["hard_delete_rejected"])
         self.assertTrue(identity["final_credential_unlink_rejected"])
