@@ -83,7 +83,7 @@
   ],
   "runtime_acceptance_tests": [
     {
-      "path": "packages/go/ashrclone/unified_identity_http_test.go",
+      "test_artifact": "Go unified identity HTTP acceptance suite",
       "boundaries": [
         "same_account_github_google_link",
         "cross_account_credential_conflict",
@@ -126,7 +126,7 @@
     "oauth_runtime_unified_account_wiring": "implemented_and_real_localhost_calibrated",
     "caller_supplied_account_rejection": "implemented_and_runtime_verified",
     "public_subject_identifier_redaction": "implemented_and_runtime_verified",
-    "http_account_routes": "implemented_and_runtime_verified",
+    "account_routes_over_http": "implemented_and_runtime_verified",
     "durable_postgres_runtime_wiring": "not_completed",
     "production_readiness": "not_completed"
   },
