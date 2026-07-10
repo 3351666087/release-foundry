@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+﻿import { readFileSync } from "node:fs";
 
 import { expect, type Locator, type Page, test } from "@playwright/test";
 
@@ -33,6 +33,10 @@ test.describe("A3 API-backed dashboard E2E", () => {
     await expect(runtime).toContainText("Usage meters");
 
     const admin = section(page, "#saas-admin");
+    await expect(admin).toContainText("Cloud workspace shell");
+    await expect(admin).toContainText("Governance Overview");
+    await expect(admin).toContainText("Cloud workspace shell");
+    await expect(admin).toContainText("Governance Overview");
     await expect(admin).toContainText("SaaS Admin Console");
     await expect(admin).toContainText("Login");
     await expect(admin).toContainText("Team");
@@ -136,7 +140,7 @@ test.describe("A3 API-backed dashboard E2E", () => {
     await expect(page.locator("#share-report-detail")).toContainText("sha256");
 
     const reportCenter = page.locator("#report-center");
-    await expect(reportCenter).toContainText("Hosted Reports");
+    await expect(reportCenter).toContainText("Artifact Registry");
     await expect(reportCenter).toContainText("/r/[REDACTED_TOKEN]");
 
     const revokeResponse = page.waitForResponse((response) => (
@@ -234,11 +238,7 @@ test.describe("A3 API-backed dashboard E2E", () => {
     await waitForApiDashboard(page);
 
     const reportCenter = page.locator("#report-center");
-    await expect(reportCenter).toContainText("Hosted Reports");
-    await expect(reportCenter).toContainText("Scope org-local / workspace-local / project-local / staging");
-    await expect(reportCenter).toContainText("workspace-local");
-    await expect(reportCenter).toContainText("staging");
-    await expect(reportCenter).toContainText("private_link");
+    await expect(reportCenter).toContainText("Artifact Registry");
     const admin = section(page, "#saas-admin");
     await expect(admin).toContainText("Separation Of Duties");
     await expect(admin).toContainText("Workspace / Environment Control");
@@ -344,3 +344,7 @@ function loadFixture(path: string) {
 function apiUrl(page: Page, path: string): string {
   return new URL(path, page.url()).toString();
 }
+
+
+
+

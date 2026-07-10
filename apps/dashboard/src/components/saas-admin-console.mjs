@@ -10,8 +10,10 @@
   target.replaceChildren(
     sectionIntro(admin),
     summaryGrid(admin),
+    workspaceShellBlock(admin),
     controlSummaryBlock(admin),
     cloudSummaryStripBlock(admin.cloud_summary_strip || {}),
+    governanceOverviewBlock(admin),
     sectionBlock("Login", [
       row("Status", admin.login?.status || "unknown"),
       row("Provider", admin.login?.provider || "unknown"),
@@ -81,6 +83,133 @@
   );
 }
 
+function workspaceShellBlock(admin) {
+  const login = admin.login || {};
+  const team = admin.team || {};
+  const billing = admin.billing_account || {};
+  const trust = admin.trust || {};
+  const cloud = admin.cloud_management || {};
+  const workspace = cloud.workspace_posture || {};
+  const shell = document.createElement("section");
+  shell.className = "workspace-shell";
+  shell.innerHTML =
+    '<div class="workspace-shell-hero">' +
+      '<div>' +
+        '<div class="caption">Hosted control surface</div>' +
+        '<h3>Cloud workspace shell</h3>' +
+        '<p class="muted">Login, team, API keys, billing, trust, and release governance in one operator-facing surface.</p>' +
+      '</div>' +
+      '<div class="workspace-shell-status">' +
+        '<span class="badge ' + badgeClass(cloud.status || "neutral") + '">' + escapeHtml(cloud.status || "unknown") + '</span>' +
+        '<span class="badge ' + badgeClass(trust.status || "neutral") + '">' + escapeHtml(trust.status || "unknown") + '</span>' +
+      '</div>' +
+    '</div>';
+
+  const metrics = document.createElement("div");
+  metrics.className = "workspace-shell-grid";
+  const cards = [
+    metricCard("Session", login.status || "unknown", login.session?.status || "unknown", login.provider || "unknown"),
+    metricCard("Team", String(team.members?.length || 0), team.invite_mode || "disabled", team.seat_management?.overage_risk || "unknown"),
+    metricCard("Billing", billing.plan_name || "local_dev", billing.invoice_preview_state || "unknown", billing.overage_risk || "unknown"),
+    metricCard("Trust", trust.release_gate_label || trust.release_gate_decision || "unknown", trust.blocked_reason || "unknown", trust.publish_enabled ? "publish enabled" : "publish blocked"),
+    metricCard("Workspace", workspace.active_environment || "unknown", workspace.usage_state || "unknown", workspace.billing_state || "unknown"),
+    metricCard("Cloud", String((cloud.observed_pages || []).length || 0), String((cloud.supported_readonly_surfaces || []).length || 0) + " readonly surfaces", cloud.real_mutations_enabled ? "mutations enabled" : "mutations disabled")
+  ];
+  metrics.replaceChildren(...cards);
+  shell.appendChild(metrics);
+
+  const actions = document.createElement("div");
+  actions.className = "workspace-quick-actions";
+  actions.replaceChildren(
+    quickActionCard("Login / Session", [
+      login.supported_modes?.[0] || "manual_oauth_observation",
+      login.required_before_real_saas?.[0] || "hosted auth callback"
+    ]),
+    quickActionCard("Team / Seats", [
+      team.approval_policy?.required_roles?.join(", ") || "reviewer",
+      team.seat_management?.why_it_matters || "seat-aware approval"
+    ]),
+    quickActionCard("Billing / CN-first", [
+      (billing.provider_priority || []).slice(0, 2).map((item) => item.provider).join(", ") || "wechat_pay, alipay",
+      billing.next_actions?.[0] || "attach durable billing account rows"
+    ]),
+    quickActionCard("Trust / Export", [
+      (trust.publish_blockers || [])[0] || trust.blocked_reason || "release gate review",
+      (trust.customer_safe_artifacts || [])[0] || "redacted_shareable_report"
+    ])
+  );
+  shell.appendChild(actions);
+  return shell;
+}
+
+function governanceOverviewBlock(admin) {
+  const block = sectionBlock("Governance Overview", []);
+  const lanes = [
+    overviewLane("Identity boundary", admin.login?.required_before_real_saas || [], admin.login?.status || "unknown"),
+    overviewLane("Reviewer routing", admin.team?.approval_policy?.required_roles || [], admin.team?.approval_policy?.required_for_blocked_release ? "required" : "standard"),
+    overviewLane("Billing rollout", admin.billing_account?.next_actions || [], admin.billing_account?.status || "unknown"),
+    overviewLane("Trust publish", admin.trust?.publish_blockers || [], admin.trust?.status || "unknown"),
+    overviewLane("Cloud management", admin.cloud_management?.disabled_mutations || [], admin.cloud_management?.status || "unknown")
+  ];
+  block.appendChild(laneGrid(lanes));
+  return block;
+}
+
+function metricCard(label, value, detail, meta) {
+  const card = document.createElement("div");
+  card.className = "workspace-shell-card";
+  card.innerHTML =
+    '<span>' + escapeHtml(label) + '</span>' +
+    '<strong>' + escapeHtml(value) + '</strong>' +
+    '<div class="muted">' + escapeHtml(detail || "") + '</div>' +
+    '<div class="workspace-shell-meta">' + escapeHtml(meta || "") + '</div>';
+  return card;
+}
+
+function quickActionCard(title, items) {
+  const card = document.createElement("div");
+  card.className = "workspace-action-card";
+  const list = Array.isArray(items) ? items.filter(Boolean).slice(0, 2) : [];
+  card.innerHTML =
+    '<div class="matrix-head">' +
+      '<strong>' + escapeHtml(title) + '</strong>' +
+      '<span class="badge info">next</span>' +
+    '</div>' +
+    '<div class="muted">' + escapeHtml(list[0] || "No action loaded.") + '</div>' +
+    '<div class="workspace-shell-meta">' + escapeHtml(list[1] || "") + '</div>';
+  return card;
+}
+
+function overviewLane(title, bullets, status) {
+  const node = document.createElement("div");
+  node.className = "governance-lane";
+  const list = Array.isArray(bullets) ? bullets.filter(Boolean).slice(0, 3) : [];
+  node.innerHTML =
+    '<div class="matrix-head">' +
+      '<strong>' + escapeHtml(title) + '</strong>' +
+      '<span class="badge ' + badgeClass(status || "neutral") + '">' + escapeHtml(status || "unknown") + '</span>' +
+    '</div>';
+  for (const bullet of list) {
+    const item = document.createElement("div");
+    item.className = "governance-bullet";
+    item.textContent = bullet;
+    node.appendChild(item);
+  }
+  if (!list.length) {
+    const empty = document.createElement("div");
+    empty.className = "governance-bullet muted";
+    empty.textContent = "No governance detail loaded.";
+    node.appendChild(empty);
+  }
+  return node;
+}
+
+function laneGrid(nodes) {
+  const grid = document.createElement("div");
+  grid.className = "governance-grid";
+  grid.replaceChildren(...nodes);
+  return grid;
+}
 function sectionIntro(admin) {
   const node = document.createElement("div");
   node.className = "caption";
@@ -818,5 +947,8 @@ function workspacePostureBlock(posture) {
     row("Release state", posture.release_state || "unknown")
   ]);
 }
+
+
+
 
 

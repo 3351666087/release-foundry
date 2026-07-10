@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   color-scheme: light;
   --bg: #f3f6fb;
   --canvas: #ffffff;
@@ -717,6 +717,86 @@ select:focus-visible {
   font-size: 12px;
 }
 
+.workspace-shell {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, rgba(255,255,255,0.99), rgba(244,248,255,0.92));
+  box-shadow: var(--shadow-soft);
+  display: grid;
+  gap: 14px;
+  padding: 16px;
+}
+
+.workspace-shell-hero {
+  align-items: flex-start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.workspace-shell-hero h3 {
+  margin: 3px 0 4px;
+  font-size: 18px;
+}
+
+.workspace-shell-status {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.workspace-shell-grid,
+.governance-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.workspace-shell-card,
+.workspace-action-card,
+.governance-lane {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  background: linear-gradient(180deg, rgba(255,255,255,0.98), rgba(247,250,255,0.95));
+  display: grid;
+  gap: 6px;
+  padding: 11px;
+  min-width: 0;
+}
+
+.workspace-shell-card span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.workspace-shell-card strong {
+  font-size: 17px;
+}
+
+.workspace-shell-meta {
+  color: #536378;
+  font-size: 12px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.workspace-quick-actions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.governance-bullet {
+  border-top: 1px solid var(--ink-soft);
+  color: #4d6077;
+  font-size: 12px;
+  line-height: 1.45;
+  padding-top: 6px;
+  overflow-wrap: anywhere;
+}
 .warning-list,
 .triage-list,
 .report-list,
@@ -1872,3 +1952,4 @@ select:focus-visible {
   border-radius: 10px;
   padding: 8px 10px;
 }
+
