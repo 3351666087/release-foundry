@@ -6037,3 +6037,11 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
 - Kept the decision model aligned with A1/A2 evidence: reviewer and executive packet readiness now depends on trace + judge evidence, while customer packet remains blocked by trust/redaction/publish controls.
 - Verification: `node --test tests/a3/dashboard_wiring.test.mjs tests/a3/report_builder.test.mjs tests/a3/report_center_index.test.mjs` -> `98 pass / 0 fail`.
 - Commercial reason: this brings A3 closer to a real release-signoff system because it distinguishes operator/reviewer evidence, leadership sign-off summary, and future customer-safe trust output.
+
+## 2026-07-10 - Playwright Proof For Export Governance + Decision Packets
+
+- Added Playwright coverage in `tests/e2e/a3-dashboard-api-backed.spec.ts` for `Export / Audience Governance` and `Decision Packets`.
+- Browser-proved that the API-backed console shows `customer_external`, `reviewer_signoff`, `executive_summary`, and the enterprise `Reviewer packet / Executive packet / Customer packet` surfaces together.
+- Saved screenshot evidence to `docs/screenshots/a3-export-governance-enterprise-packets-api-backed-2026-07-10.png`.
+- Verification: `cmd /c npx playwright test tests/e2e/a3-dashboard-api-backed.spec.ts --grep "export audience governance|hosted report scope and commercial admin enterprise controls together|review filters, share governance, and cloud summary strip"` -> `3 passed`.
+- Commercial reason: this converts recently-added A3 governance features from source-level contracts into browser-proven SaaS surfaces, which is much stronger evidence for a release-signoff product.

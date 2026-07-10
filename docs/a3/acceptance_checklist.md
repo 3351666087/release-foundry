@@ -805,3 +805,6 @@
 - [x] Enterprise Readiness now distinguishes reviewer, executive, and blocked customer-facing decision packets.
 - [x] Enterprise Readiness now explains why customer-facing packet remains blocked even when reviewer/admin shells exist.
 - [x] Node tests verify enterprise decision packet wiring in the dashboard.
+- [x] Playwright now proves export audience governance surfaces render in the API-backed SaaS Admin console.
+- [x] Playwright now proves enterprise reviewer / executive / blocked customer decision packets render in the API-backed console.
+- [x] Screenshot evidence exists for export governance plus enterprise decision packets in `docs/screenshots/a3-export-governance-enterprise-packets-api-backed-2026-07-10.png`.

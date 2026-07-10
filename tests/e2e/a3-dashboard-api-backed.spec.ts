@@ -354,3 +354,55 @@ function apiUrl(page: Page, path: string): string {
 
 
 
+
+test("shows hosted report scope and commercial admin enterprise controls together", async ({ page }) => {
+  const consoleErrors = collectConsoleErrors(page);
+  await page.goto(apiBackedPath);
+  await expect(page.locator("#data-source")).toContainText("API-backed A1/A2 mock fixture");
+
+  const reportCenter = page.locator("#report-center");
+  await expect(reportCenter).toContainText("Hosted Reports");
+  await expect(reportCenter).toContainText("Scope org-local / workspace-local / project-local / staging");
+  await expect(reportCenter).toContainText("workspace-local");
+  await expect(reportCenter).toContainText("staging");
+  await expect(reportCenter).toContainText("private_link");
+  const admin = section(page, "#saas-admin");
+  await expect(admin).toContainText("Separation Of Duties");
+  await expect(admin).toContainText("Workspace / Environment Control");
+
+  const enterprise = section(page, "#enterprise-readiness");
+  await expect(enterprise).toContainText("Hosted Buyer Readiness");
+
+  expect(consoleErrors, "scope and commercial governance surfaces should not emit browser console errors").toEqual([]);
+});
+
+
+
+
+
+test("shows export audience governance and enterprise decision packets in the API-backed console", async ({ page }) => {
+  const consoleErrors = collectConsoleErrors(page);
+  await page.goto(apiBackedPath);
+  await expect(page.locator("#data-source")).toContainText("API-backed A1/A2 mock fixture");
+
+  const admin = section(page, "#saas-admin");
+  await expect(admin).toContainText("Export / Audience Governance");
+  await expect(admin).toContainText("customer_external");
+  await expect(admin).toContainText("reviewer_signoff");
+  await expect(admin).toContainText("executive_summary");
+  await expect(admin).toContainText("blocked");
+
+  const enterprise = section(page, "#enterprise-readiness");
+  await expect(enterprise).toContainText("Decision Packets");
+  await expect(enterprise).toContainText("Reviewer packet");
+  await expect(enterprise).toContainText("Executive packet");
+  await expect(enterprise).toContainText("Customer packet");
+  await expect(enterprise).toContainText("Customer blocked");
+
+  await page.screenshot({
+    path: "docs/screenshots/a3-export-governance-enterprise-packets-api-backed-2026-07-10.png",
+    fullPage: true
+  });
+
+  expect(consoleErrors, "export governance and enterprise decision packets should not emit browser console errors").toEqual([]);
+});
