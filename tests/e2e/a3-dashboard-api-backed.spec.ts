@@ -429,3 +429,24 @@ test("shows release publish chain continuity in live ops control plane", async (
 
   expect(consoleErrors, "release publish chain should not emit browser console errors").toEqual([]);
 });
+
+
+test("shows trust publish blockers and customer-safe artifact posture", async ({ page }) => {
+  const consoleErrors = collectConsoleErrors(page);
+  await page.goto(apiBackedPath);
+  await expect(page.locator("#data-source")).toContainText("API-backed A1/A2 mock fixture");
+
+  const admin = section(page, "#saas-admin");
+  await expect(admin).toContainText("Trust Center");
+  await expect(admin).toContainText("Blocked reason");
+  await expect(admin).toContainText("publish blocker:");
+  await expect(admin).toContainText("customer-safe artifact:");
+  await expect(admin).toContainText("hosted trust publishing service");
+
+  await page.screenshot({
+    path: "docs/screenshots/a3-trust-blockers-api-backed-2026-07-10.png",
+    fullPage: true
+  });
+
+  expect(consoleErrors, "trust blockers should not emit browser console errors").toEqual([]);
+});

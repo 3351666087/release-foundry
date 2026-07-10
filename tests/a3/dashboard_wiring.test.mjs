@@ -912,3 +912,14 @@ test("A3 live ops control plane now exposes a release publish chain", async () =
   assert.match(appSource, /Release publish chain/);
   assert.match(appSource, /controlPlane\.release_publish_chain\?\.steps/);
 });
+
+
+test("A3 SaaS admin trust center now explains customer-facing publish blockers", async () => {
+  const adminSource = await readFile(new URL("../../services/report/a3_saas_admin.mjs", import.meta.url), "utf8");
+  const adminComponent = await readFile(new URL("../../apps/dashboard/src/components/saas-admin-console.mjs", import.meta.url), "utf8");
+  assert.match(adminSource, /publish_blockers/);
+  assert.match(adminSource, /customer_safe_artifacts/);
+  assert.match(adminComponent, /Blocked reason/);
+  assert.match(adminComponent, /publish blocker:/);
+  assert.match(adminComponent, /customer-safe artifact:/);
+});

@@ -477,7 +477,8 @@ function trustBlock(trust) {
   const block = sectionBlock("Trust Center", [
     row("Preview", center.preview_enabled ? "enabled" : "disabled"),
     row("Public publish", center.public_publish_enabled ? "enabled" : "blocked"),
-    row("Audit payload", trust.audit_log_policy?.redacted_payload_only ? "redacted" : "unknown")
+    row("Audit payload", trust.audit_log_policy?.redacted_payload_only ? "redacted" : "unknown"),
+    row("Blocked reason", trust.blocked_reason || "unknown")
   ]);
   for (const artifact of artifacts) {
     const node = document.createElement("div");
@@ -488,6 +489,18 @@ function trustBlock(trust) {
         <span class="badge ${badgeClass(artifact.status)}">${escapeHtml(artifact.status)}</span>
       </div>
     `;
+    block.appendChild(node);
+  }
+  for (const item of trust.customer_safe_artifacts || []) {
+    const node = document.createElement("div");
+    node.className = "matrix-row";
+    node.innerHTML = `<div class="muted">customer-safe artifact: ${escapeHtml(item)}</div>`;
+    block.appendChild(node);
+  }
+  for (const blocker of trust.publish_blockers || []) {
+    const node = document.createElement("div");
+    node.className = "matrix-row";
+    node.innerHTML = `<div class="muted">publish blocker: ${escapeHtml(blocker)}</div>`;
     block.appendChild(node);
   }
   return block;

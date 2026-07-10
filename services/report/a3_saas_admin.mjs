@@ -842,6 +842,18 @@ function buildTrustState(summary, releaseGate = {}, cloudShell = {}, usage = {})
       soc2_surface: "evidence_only_preview",
       retention_policy: usage.available ? "metered_retention_preview" : "local_retention_preview"
     },
+    publish_blockers: [
+      "reviewer approval receipt",
+      "customer-safe redaction proof",
+      "revocable hosted public audit trail",
+      "hosted trust publishing service"
+    ],
+    customer_safe_artifacts: [
+      "release_gate_summary",
+      "executive_summary_packet",
+      "redacted_shareable_report",
+      "audit_bundle_hash"
+    ],
     blocked_reason: publishable ? "Requires real hosted trust publishing service." : "Release gate is not approved."
   };
 }

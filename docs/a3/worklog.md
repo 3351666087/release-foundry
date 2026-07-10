@@ -6056,3 +6056,13 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
   - `node --test tests/a3/dashboard_wiring.test.mjs tests/a3/report_builder.test.mjs tests/a3/report_center_index.test.mjs` -> `99 pass / 0 fail`
   - `cmd /c npx playwright test tests/e2e/a3-dashboard-api-backed.spec.ts --grep "release publish chain continuity|export audience governance and enterprise decision packets in the API-backed console"` -> `2 passed`
 - Commercial reason: this moves A3 closer to a real release-operations console because publish readiness is no longer scattered across cards; it is shown as a single operator-visible chain.
+
+## 2026-07-10 - Trust Blockers + Customer-Safe Artifact Posture Pass
+
+- Extended `services/report/a3_saas_admin.mjs` trust state with `publish_blockers` and `customer_safe_artifacts` so the admin console can explain why customer-facing publish is still blocked.
+- Extended `apps/dashboard/src/components/saas-admin-console.mjs` trust panel to render blocked reason, publish blockers, and customer-safe artifact posture.
+- Added browser proof for trust blockers in `tests/e2e/a3-dashboard-api-backed.spec.ts` and saved screenshot evidence to `docs/screenshots/a3-trust-blockers-api-backed-2026-07-10.png`.
+- Verification:
+  - `node --test tests/a3/dashboard_wiring.test.mjs` -> `45 pass / 0 fail`
+  - `cmd /c npx playwright test tests/e2e/a3-dashboard-api-backed.spec.ts --grep "trust publish blockers|release publish chain continuity|export audience governance and enterprise decision packets in the API-backed console"` -> `3 passed`
+- Commercial reason: this makes A3 trust posture more credible because it now explains not only that customer-facing publish is blocked, but exactly what blockers and sanitized artifacts sit between internal sign-off and future external sharing.
