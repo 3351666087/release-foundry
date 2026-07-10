@@ -13,6 +13,7 @@
     "semantic_required_fields_documented": true,
     "semantic_sdk_language_matrix_ready": true,
     "official_sdk_smoke_readonly_ok": true,
+    "multimodal_real_api_smoke_reached": true,
     "private_payload_boundary_documented": true
   },
   "calibration_case_count": 6,
@@ -875,6 +876,56 @@
     "notes": [
       "This is a redacted official ashr_labs SDK smoke summary, separate from clone API calibration.",
       "It proves current authenticated read/list reachability but does not count as C3 server-side grading evidence."
+    ]
+  },
+  "multimodal_real_api_smoke": {
+    "available": true,
+    "path": "docs/evidence/a2_multimodal_real_api_smoke.json",
+    "schema_version": "a2.multimodal_real_api_smoke.v1",
+    "generated_at": "2026-07-10T23:46:02Z",
+    "sdk_source": "docs/a1/_pypi_artifacts/ashr_labs-0.3.1-py3-none-any.whl",
+    "base_url": "https://api.ashr.io/testing-platform-api",
+    "private_ref": "docs/evidence/private_refs/a2_multimodal_real_api_smoke.private.json",
+    "private_ref_sha256_12": "084c566f8467",
+    "accepted_modalities": [
+      "audio",
+      "file",
+      "image",
+      "text",
+      "video"
+    ],
+    "generation_options": {
+      "generate_audio": true,
+      "generate_files": true,
+      "generate_images": true,
+      "generate_videos": true
+    },
+    "api_call_count": 2,
+    "ok_call_count": 1,
+    "error_call_count": 1,
+    "call_status_counts": {
+      "error": 1,
+      "ok": 1
+    },
+    "call_names": [
+      "create_request",
+      "init"
+    ],
+    "quota_blocked": true,
+    "create_request_error_type": "AshrLabsError",
+    "create_request_error_message": "[400] Usage limit exceeded for requests: 5/5 used, requested 1, 0 remaining",
+    "real_api_boundary_reached": true,
+    "all_required_modalities_requested": true,
+    "create_request_reached": false,
+    "wait_completed": false,
+    "dataset_id_present": false,
+    "public_safe": true,
+    "ready_for_a2_multimodal_context": true,
+    "c3_grading_ready": false,
+    "notes": [
+      "This is a redacted real Ashr API multimodal smoke summary for image/audio/file/video request injection.",
+      "A quota-blocked create_request still proves the request payload reached the authenticated API gate after local SDK validation.",
+      "It is not reviewed Ashr grading evidence and does not mark C3 ready."
     ]
   },
   "ashr_public_merge_gate": {

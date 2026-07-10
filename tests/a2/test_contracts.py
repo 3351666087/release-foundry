@@ -1,4 +1,4 @@
-import json
+﻿import json
 import re
 import subprocess
 import sys
@@ -331,6 +331,7 @@ class A2ContractTests(unittest.TestCase):
         scenario_selection_schema = json.loads((schema_dir / "scenario_selection.schema.json").read_text(encoding="utf-8"))
         external_preflight_schema = json.loads((schema_dir / "external_evidence_preflight.schema.json").read_text(encoding="utf-8"))
         real_api_smoke_schema = json.loads((schema_dir / "real_api_smoke.schema.json").read_text(encoding="utf-8"))
+        multimodal_real_api_smoke_schema = json.loads((schema_dir / "multimodal_real_api_smoke.schema.json").read_text(encoding="utf-8"))
         evidence_index_schema = json.loads((schema_dir / "evidence_index.schema.json").read_text(encoding="utf-8"))
         sql_store_schema = json.loads((schema_dir / "sql_store_report.schema.json").read_text(encoding="utf-8"))
         scenario_generation_schema = json.loads((schema_dir / "scenario_generation_backlog.schema.json").read_text(encoding="utf-8"))
@@ -615,6 +616,13 @@ class A2ContractTests(unittest.TestCase):
         official_smoke_required = set(evidence_readiness_schema["$defs"]["official_sdk_smoke"]["required"])
         self.assertLessEqual(official_smoke_required, set(evidence_readiness["official_sdk_smoke"]))
         self.assertIn("read_only_reachable", official_smoke_required)
+        multimodal_smoke_required = set(evidence_readiness_schema["$defs"]["multimodal_real_api_smoke"]["required"])
+        self.assertLessEqual(multimodal_smoke_required, set(evidence_readiness["multimodal_real_api_smoke"]))
+        self.assertIn("real_api_boundary_reached", multimodal_smoke_required)
+        self.assertEqual(
+            evidence_readiness_schema["properties"]["multimodal_real_api_smoke"]["$ref"],
+            "#/$defs/multimodal_real_api_smoke",
+        )
         self.assertEqual(
             evidence_readiness_schema["properties"]["official_sdk_smoke"]["$ref"],
             "#/$defs/official_sdk_smoke",
@@ -629,6 +637,11 @@ class A2ContractTests(unittest.TestCase):
             "a2.real_api_smoke.v1",
         )
         self.assertIn("calls", real_api_smoke_schema["required"])
+        self.assertEqual(
+            multimodal_real_api_smoke_schema["properties"]["schema_version"]["const"],
+            "a2.multimodal_real_api_smoke.v1",
+        )
+        self.assertIn("accepted_modalities", multimodal_real_api_smoke_schema["required"])
         self.assertEqual(
             evidence_index_schema["properties"]["schema_version"]["const"],
             evidence_index["schema_version"],
@@ -1584,11 +1597,20 @@ class A2ContractTests(unittest.TestCase):
             object_storage["a2_policy_implications"]["must_not_mark_c3_from_storage_context"]
         )
         self.assertTrue(report["readiness_checks"]["official_sdk_smoke_readonly_ok"])
+        self.assertTrue(report["readiness_checks"]["multimodal_real_api_smoke_reached"])
         self.assertTrue(report["official_sdk_smoke"]["available"])
         self.assertTrue(report["official_sdk_smoke"]["read_only_reachable"])
         self.assertEqual(report["official_sdk_smoke"]["ok_call_count"], 6)
         self.assertEqual(report["official_sdk_smoke"]["error_call_count"], 0)
         self.assertIn("init", report["official_sdk_smoke"]["call_names"])
+        multimodal_smoke = report["multimodal_real_api_smoke"]
+        self.assertTrue(multimodal_smoke["available"])
+        self.assertTrue(multimodal_smoke["public_safe"])
+        self.assertTrue(multimodal_smoke["all_required_modalities_requested"])
+        self.assertTrue(multimodal_smoke["real_api_boundary_reached"])
+        self.assertTrue(multimodal_smoke["quota_blocked"])
+        self.assertFalse(multimodal_smoke["c3_grading_ready"])
+        self.assertEqual(set(multimodal_smoke["accepted_modalities"]), {"text", "image", "audio", "file", "video"})
         self.assertIn("list_datasets", report["official_sdk_smoke"]["call_names"])
         self.assertIn("list_requests", report["official_sdk_smoke"]["call_names"])
         self.assertIn("list_agents", report["official_sdk_smoke"]["call_names"])
@@ -4331,6 +4353,29 @@ GRANT EXECUTE ON FUNCTION a1_bind_verified_identity_credential() TO a1_runtime;
             self.assertNotIn("payload", call)
             self.assertNotIn("response", call)
 
+    def test_multimodal_real_api_smoke_evidence_is_redacted(self):
+        evidence_path = ROOT / "docs/evidence/a2_multimodal_real_api_smoke.json"
+        schema = json.loads((ROOT / "docs/a2/schemas/multimodal_real_api_smoke.schema.json").read_text(encoding="utf-8"))
+        payload_text = evidence_path.read_text(encoding="utf-8")
+        payload = json.loads(payload_text)
+
+        self.assertEqual(payload["schema_version"], "a2.multimodal_real_api_smoke.v1")
+        self.assertEqual(schema["properties"]["schema_version"]["const"], payload["schema_version"])
+        self.assertLessEqual(set(schema["required"]), set(payload))
+        self.assertEqual(set(payload["accepted_modalities"]), {"text", "image", "audio", "file", "video"})
+        self.assertTrue(payload["all_required_modalities_requested"])
+        self.assertTrue(payload["public_safe"])
+        self.assertFalse(payload["c3_grading_ready"])
+        self.assertEqual(payload["api_call_count"], len(payload["calls"]))
+        self.assertTrue(payload["private_ref"].startswith("docs/evidence/private_refs/"))
+        self.assertNotRegex(payload_text, re.compile(r"tp_[A-Za-z0-9_\-]+"))
+        self.assertNotRegex(payload_text, re.compile(r"ashr_live_[A-Za-z0-9_\-]+"))
+        self.assertNotIn("Bearer ", payload_text)
+        self.assertNotIn("signed_url", payload_text.lower())
+        self.assertNotIn("@", payload_text)
+        for call in payload["calls"]:
+            self.assertNotIn("payload", call)
+            self.assertNotIn("response", call)
     def test_real_api_evidence_index_matches_public_safe_schema(self):
         evidence_path = ROOT / "docs/a1/api_calibration/real_api_evidence_index.json"
         schema = json.loads((ROOT / "docs/a2/schemas/evidence_index.schema.json").read_text(encoding="utf-8"))

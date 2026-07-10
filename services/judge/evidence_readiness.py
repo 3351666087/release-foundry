@@ -1,4 +1,4 @@
-"""Preflight report for private Ashr and semantic judge calibration evidence."""
+﻿"""Preflight report for private Ashr and semantic judge calibration evidence."""
 
 from __future__ import annotations
 
@@ -52,6 +52,7 @@ DEFAULT_A1_GOOGLE_OAUTH_LOCALHOST_EVIDENCE = Path(
 DEFAULT_A1_BILLING_SQL_SEMANTIC_CONTRACT = Path("docs/a1/evidence/billing_sql_semantic_contract.json")
 DEFAULT_A1_OBJECT_STORAGE_CONTRACT = Path("docs/a1/evidence/object_storage_contract_20260709.md")
 DEFAULT_A2_REAL_API_SMOKE = Path("docs/evidence/a2_real_api_smoke.json")
+DEFAULT_A2_MULTIMODAL_REAL_API_SMOKE = Path("docs/evidence/a2_multimodal_real_api_smoke.json")
 REQUIRED_ASHR_REVIEW_FIELDS = [
     "metadata.review_status",
     "evidence_ref",
@@ -108,6 +109,7 @@ def build_evidence_readiness_report(
     a1_billing_sql_semantic_contract_path: str | Path = DEFAULT_A1_BILLING_SQL_SEMANTIC_CONTRACT,
     a1_object_storage_contract_path: str | Path = DEFAULT_A1_OBJECT_STORAGE_CONTRACT,
     official_sdk_smoke_path: str | Path = DEFAULT_A2_REAL_API_SMOKE,
+    multimodal_real_api_smoke_path: str | Path = DEFAULT_A2_MULTIMODAL_REAL_API_SMOKE,
 ) -> dict[str, Any]:
     """Describe what private evidence is still needed before C3/C4 can turn green."""
     cases = list(calibration_matrix.get("cases", []))
@@ -181,6 +183,7 @@ def build_evidence_readiness_report(
     )
     a1_object_storage_contract = _a1_object_storage_contract_summary(a1_object_storage_contract_path)
     official_sdk_smoke = _official_sdk_smoke_summary(official_sdk_smoke_path)
+    multimodal_real_api_smoke = _multimodal_real_api_smoke_summary(multimodal_real_api_smoke_path)
 
     readiness_checks = {
         "has_calibration_cases": bool(cases),
@@ -191,6 +194,7 @@ def build_evidence_readiness_report(
         "semantic_required_fields_documented": bool(REQUIRED_SEMANTIC_FIELDS),
         "semantic_sdk_language_matrix_ready": set(semantic_languages) >= {"python", "typescript"},
         "official_sdk_smoke_readonly_ok": bool(official_sdk_smoke.get("read_only_reachable")),
+        "multimodal_real_api_smoke_reached": bool(multimodal_real_api_smoke.get("real_api_boundary_reached")),
         "private_payload_boundary_documented": True,
     }
 
@@ -239,6 +243,7 @@ def build_evidence_readiness_report(
         "a1_billing_sql_semantic_contract": a1_billing_sql_semantic_contract,
         "a1_object_storage_contract": a1_object_storage_contract,
         "official_sdk_smoke": official_sdk_smoke,
+        "multimodal_real_api_smoke": multimodal_real_api_smoke,
         "ashr_public_merge_gate": _ashr_public_merge_gate(cases, ashr_counts, len(cases), ashr_import_commands),
         "semantic_judge_preflight": {
             "source": "llm_judge",
@@ -3184,6 +3189,109 @@ def _official_sdk_smoke_summary(path: str | Path) -> dict[str, Any]:
     }
 
 
+
+
+def _multimodal_real_api_smoke_summary(path: str | Path) -> dict[str, Any]:
+    target = Path(path)
+    if not target.exists():
+        return {
+            "available": False,
+            "path": target.as_posix(),
+            "schema_version": "",
+            "accepted_modalities": [],
+            "generation_options": {},
+            "api_call_count": 0,
+            "ok_call_count": 0,
+            "error_call_count": 0,
+            "call_status_counts": {},
+            "call_names": [],
+            "quota_blocked": False,
+            "real_api_boundary_reached": False,
+            "all_required_modalities_requested": False,
+            "create_request_reached": False,
+            "wait_completed": False,
+            "dataset_id_present": False,
+            "public_safe": False,
+            "c3_grading_ready": False,
+            "reason": "A2 multimodal real API smoke summary is not available yet.",
+        }
+
+    payload = json.loads(target.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        return {
+            "available": False,
+            "path": target.as_posix(),
+            "schema_version": "",
+            "accepted_modalities": [],
+            "generation_options": {},
+            "api_call_count": 0,
+            "ok_call_count": 0,
+            "error_call_count": 0,
+            "call_status_counts": {},
+            "call_names": [],
+            "quota_blocked": False,
+            "real_api_boundary_reached": False,
+            "all_required_modalities_requested": False,
+            "create_request_reached": False,
+            "wait_completed": False,
+            "dataset_id_present": False,
+            "public_safe": False,
+            "c3_grading_ready": False,
+            "reason": "A2 multimodal real API smoke summary is not a JSON object.",
+        }
+
+    calls = [call for call in payload.get("calls", []) if isinstance(call, dict)]
+    ok_count = sum(1 for call in calls if call.get("status") == "ok")
+    create_call = next((call for call in calls if call.get("name") == "create_request"), {})
+    create_error_message = str(create_call.get("error_message", "")) if isinstance(create_call, dict) else ""
+    quota_blocked = "usage limit exceeded" in create_error_message.lower() or "quota" in create_error_message.lower()
+    requested_modalities = _string_list(payload.get("accepted_modalities"))
+    required_modalities = {"text", "image", "audio", "file", "video"}
+    generation_options = payload.get("generation_options") if isinstance(payload.get("generation_options"), dict) else {}
+    all_generation_options_enabled = all(
+        generation_options.get(key) is True
+        for key in ("generate_audio", "generate_files", "generate_images", "generate_videos")
+    )
+    all_modalities_requested = set(requested_modalities) >= required_modalities and all_generation_options_enabled
+    create_request_reached = bool(payload.get("create_request_reached"))
+    real_api_boundary_reached = bool(create_request_reached or quota_blocked)
+    return {
+        "available": True,
+        "path": target.as_posix(),
+        "schema_version": str(payload.get("schema_version", "")),
+        "generated_at": str(payload.get("generated_at", "")),
+        "sdk_source": str(payload.get("sdk_source", "")),
+        "base_url": str(payload.get("base_url", "")),
+        "private_ref": str(payload.get("private_ref", "")),
+        "private_ref_sha256_12": str(payload.get("private_ref_sha256_12", "")),
+        "accepted_modalities": requested_modalities,
+        "generation_options": generation_options,
+        "api_call_count": int(payload.get("api_call_count", len(calls))),
+        "ok_call_count": ok_count,
+        "error_call_count": sum(1 for call in calls if call.get("status") != "ok"),
+        "call_status_counts": _count_records(calls, "status"),
+        "call_names": sorted(str(call.get("name")) for call in calls if call.get("name")),
+        "quota_blocked": quota_blocked,
+        "create_request_error_type": str(create_call.get("error_type", "")) if isinstance(create_call, dict) else "",
+        "create_request_error_message": create_error_message,
+        "real_api_boundary_reached": real_api_boundary_reached,
+        "all_required_modalities_requested": all_modalities_requested and bool(payload.get("all_required_modalities_requested")),
+        "create_request_reached": create_request_reached,
+        "wait_completed": bool(payload.get("wait_completed")),
+        "dataset_id_present": bool(payload.get("dataset_id_present")),
+        "public_safe": bool(payload.get("public_safe")),
+        "ready_for_a2_multimodal_context": bool(
+            payload.get("public_safe")
+            and all_modalities_requested
+            and real_api_boundary_reached
+        ),
+        "c3_grading_ready": False,
+        "notes": [
+            "This is a redacted real Ashr API multimodal smoke summary for image/audio/file/video request injection.",
+            "A quota-blocked create_request still proves the request payload reached the authenticated API gate after local SDK validation.",
+            "It is not reviewed Ashr grading evidence and does not mark C3 ready.",
+        ],
+    }
 def _llm_offline_only(calibration_matrix: dict[str, Any]) -> bool:
     providers = set()
     for row in calibration_matrix.get("cost_ledger", []):
