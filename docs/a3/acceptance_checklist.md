@@ -839,3 +839,12 @@
 - [x] Playwright proves the new commercial escalation surfaces render in API-backed mode (`3 passed`).
 - [x] Screenshot evidence exists at `docs/screenshots/a3-commercial-escalation-console-api-backed-2026-07-10.png`.
 - [ ] Split the extremely tall single-page console into route-level or component-level product pages so screenshots and operator scanning become practical.
+- [x] Live Ops exposes `a3.commercial_signoff_summary.v1` across reviewer, GitHub, hosted-report, trust, usage, and billing evidence.
+- [x] Commercial sign-off distinguishes human denial, incomplete evidence, internal-only readiness, and fully governed readiness.
+- [x] Required sign-off roles include reviewer/owner and add billing admin when collections escalation is active.
+- [x] Live Ops exports and Markdown reports preserve the commercial sign-off summary and release publish chain.
+- [x] API-backed Live Ops renders commercial sign-off evidence and explicit blocker reasons.
+- [x] Fix health-tile DOM interpolation so template-rendered panels no longer show `[object HTMLDivElement]`.
+- [x] Node regression coverage proves ready, external-blocked, billing-escalated, and human-denial sign-off paths (`101 pass / 0 fail`).
+- [x] Playwright proves commercial sign-off, release publish chain, and trust blockers render together (`3 passed`).
+- [x] Screenshot evidence exists at `docs/screenshots/a3-commercial-signoff-summary-api-backed-2026-07-10.png`.

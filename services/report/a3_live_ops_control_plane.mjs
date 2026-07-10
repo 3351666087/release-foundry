@@ -6,6 +6,7 @@ export function buildA3LiveOpsControlPlane(inputs = {}, options = {}) {
   const usageLedger = inputs.usageLedger || inputs.usage_ledger || {};
   const billingReadiness = inputs.billingReadiness || inputs.billing_readiness || {};
   const reportCenter = inputs.reportCenter || inputs.report_center || {};
+  const saasAdmin = inputs.saasAdmin || inputs.saas_admin || {};
   const eventOutbox = inputs.eventOutbox || inputs.event_outbox || {};
   const liveWorkflowReadiness = inputs.liveWorkflowReadiness || inputs.live_workflow_readiness || {};
   const source = options.source || inputs.source || liveWorkflowReadiness.source || usageLedger.source || "mock";
@@ -27,6 +28,21 @@ export function buildA3LiveOpsControlPlane(inputs = {}, options = {}) {
     local_external_mutation_count: lanes.filter((item) => item.real_external_mutation_performed_locally).length,
     missing_contract_count: lanes.filter((item) => item.status === "missing_contract").length
   };
+  const releasePublishChain = buildReleasePublishChain({
+    releaseEvidence,
+    reviewWorkflow,
+    reportCenter,
+    usageLedger,
+    billingReadiness
+  });
+  const commercialSignoffSummary = buildCommercialSignoffSummary({
+    releasePublishChain,
+    reviewWorkflow,
+    reportCenter,
+    usageLedger,
+    billingReadiness,
+    saasAdmin
+  });
 
   return {
     schema_version: A3_LIVE_OPS_CONTROL_PLANE_SCHEMA_VERSION,
@@ -95,7 +111,8 @@ export function buildA3LiveOpsControlPlane(inputs = {}, options = {}) {
     github_publish_timeline: buildGithubPublishTimeline(releaseEvidence),
     share_link_timeline: buildShareLinkTimeline(reportCenter),
     audit_history: buildAuditHistory(reviewWorkflow, eventOutbox, reportCenter),
-    release_publish_chain: buildReleasePublishChain({ releaseEvidence, reviewWorkflow, reportCenter, usageLedger, billingReadiness }),
+    release_publish_chain: releasePublishChain,
+    commercial_signoff_summary: commercialSignoffSummary,
     a1_a2_alignment: {
       a1_consumed_contracts: ["RunResult", "Trace", "ToolCall", "usage ledger / billing migration evidence"],
       a2_consumed_contracts: ["GradeResult", "ReleaseGate", "failure taxonomy", "cross-lane security context"],
@@ -247,6 +264,80 @@ function buildReleasePublishChain({ releaseEvidence = {}, reviewWorkflow = {}, r
     next_action: publishStatus === "ready_for_governed_publish"
       ? "Keep reviewer records, GitHub publish receipts, hosted report lifecycle, and billing posture on one sign-off path."
       : blockerReasons[0] || "Close the missing publish-chain steps before claiming governed release publication."
+  };
+}
+
+function buildCommercialSignoffSummary({
+  releasePublishChain = {},
+  reviewWorkflow = {},
+  reportCenter = {},
+  usageLedger = {},
+  billingReadiness = {},
+  saasAdmin = {}
+} = {}) {
+  const trust = saasAdmin.trust || {};
+  const billingAccount = saasAdmin.billing_account || {};
+  const reportSummary = reportCenter.summary || {};
+  const externalBlockers = reportCenter.external_publish_blockers || {};
+  const publishSteps = Array.isArray(releasePublishChain.steps) ? releasePublishChain.steps : [];
+  const stepStatus = (step) => publishSteps.find((item) => item.step === step)?.status || "missing";
+  const denialCount = numberOr(reviewWorkflow.denial_count, 0);
+  const approvalCount = numberOr(reviewWorkflow.approval_count, 0);
+  const customerExternalBlocked = trust.publish_enabled !== true
+    || numberOr(externalBlockers.blocker_count, 0) > 0;
+  const collectionsState = billingAccount.collections_posture?.state || "unknown";
+  const blockers = [...(releasePublishChain.blocker_reasons || [])];
+
+  if (customerExternalBlocked) {
+    blockers.push("Customer-external publication remains blocked until trust, redaction, and revocable hosted-audit controls are live.");
+  }
+  if (collectionsState === "watch_collections_now") {
+    blockers.push("Usage is over quota; billing owner review is required before customer expansion or renewal sign-off.");
+  }
+
+  const internalReady = releasePublishChain.status === "ready_for_governed_publish";
+  const status = denialCount > 0
+    ? "blocked_by_human_denial"
+    : internalReady && customerExternalBlocked
+      ? "internal_signoff_ready_customer_external_blocked"
+      : internalReady
+        ? "commercial_signoff_ready"
+        : "signoff_evidence_incomplete";
+  const requiredRoles = ["reviewer"];
+  if (denialCount > 0 || approvalCount === 0 || customerExternalBlocked) {
+    requiredRoles.push("owner");
+  }
+  if (collectionsState === "watch_collections_now") {
+    requiredRoles.push("billing_admin");
+  }
+
+  return {
+    schema_version: "a3.commercial_signoff_summary.v1",
+    status,
+    release_publish_status: releasePublishChain.status || "unknown",
+    customer_external_blocked: customerExternalBlocked,
+    required_roles: [...new Set(requiredRoles)],
+    evidence: {
+      reviewer_gate: releasePublishChain.reviewer_gate_status || "unknown",
+      approvals: approvalCount,
+      denials: denialCount,
+      github_check: stepStatus("github_check_publish"),
+      github_pr_comment: stepStatus("github_pr_comment"),
+      hosted_report: stepStatus("hosted_report_share"),
+      shareable_report_count: numberOr(reportSummary.shareable_count, 0),
+      trust_publish: trust.status || "unknown",
+      usage_visibility: stepStatus("usage_visibility"),
+      billing_visibility: stepStatus("billing_visibility"),
+      collections_state: collectionsState,
+      billing_mutations_enabled: billingReadiness.billing_mutations_enabled === true
+    },
+    blocker_reasons: [...new Set(blockers)],
+    commercial_value: "Compresses reviewer, GitHub, hosted-report, trust, usage, and billing evidence into one sign-off packet for release owners and buyers.",
+    next_action: status === "commercial_signoff_ready"
+      ? "Capture final owner receipt and preserve all readbacks in the audit bundle."
+      : status === "internal_signoff_ready_customer_external_blocked"
+        ? "Keep the release internal while trust/public-export controls and customer-safe audit publication are completed."
+        : blockers[0] || "Complete the missing reviewer and publish evidence before sign-off."
   };
 }
 

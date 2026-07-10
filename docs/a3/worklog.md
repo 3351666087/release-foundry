@@ -6135,3 +6135,20 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
 - Evidence screenshot: `docs/screenshots/a3-commercial-escalation-console-api-backed-2026-07-10.png`.
 - Screenshot limitation: the current single-page console is extremely tall, so full-page evidence is useful for audit existence but weak for detailed visual review. This reinforces the existing need to continue component/page decomposition.
 - Commercial reason: paying teams need usage spikes, seat approvals, invoice escalation, and blocked cloud actions explained beside release risk. This pass makes those operator and buyer decisions explicit without pretending live billing or hosted auth already exists.
+
+## 2026-07-10 - Commercial Sign-Off Control Summary Pass
+
+- Added `a3.commercial_signoff_summary.v1` to the Live Ops Control Plane.
+- The summary joins reviewer approval/denial/waiver state, GitHub check/comment readiness, hosted-report sharing, trust/public-export blockers, usage visibility, billing visibility, and collections escalation.
+- Added explicit states for `blocked_by_human_denial`, `signoff_evidence_incomplete`, `internal_signoff_ready_customer_external_blocked`, and `commercial_signoff_ready`.
+- Added required-role derivation for reviewer, owner, and billing admin instead of presenting release readiness without accountable human owners.
+- Passed SaaS Admin state into static refresh, API store, and API dashboard live-ops construction so trust and collections posture are consistent across runtime paths.
+- Extended `a3.live_ops_control_plane_export.v1` and Markdown report output with the commercial sign-off summary and release publish chain.
+- Added Live Ops UI tables for commercial sign-off evidence and sign-off blockers.
+- Screenshot review found and fixed a real UI bug where DOM-returning `healthTile()` calls were interpolated into template strings and displayed as `[object HTMLDivElement]`.
+- Added `healthTileMarkup()` for string-rendered panels and regression assertions proving no template still interpolates `healthTile()` directly.
+- Verification:
+  - `node --test tests/a3/a3_live_ops_control_plane.test.mjs tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs` -> `101 pass / 0 fail`
+  - API-backed Playwright subset for commercial admin, release publish/sign-off, and trust blockers -> `3 passed`
+- Visual evidence: `docs/screenshots/a3-commercial-signoff-summary-api-backed-2026-07-10.png` now renders real health metrics and no object-string artifacts.
+- Commercial reason: release owners and enterprise buyers now get one accountable sign-off summary rather than manually reconciling reviewer, GitHub, report, trust, usage, and billing panels.

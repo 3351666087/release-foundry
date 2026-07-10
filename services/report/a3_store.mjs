@@ -623,6 +623,14 @@ export function createMemoryA3Store(seed = {}) {
       const billingReadiness = await this.getBillingReadiness(options);
       const reportCenter = await this.getReportCenter(options);
       const reviewWorkflow = await this.getReviewWorkflow(options);
+      const saasAdmin = attachAdminActionRequests(buildSaasAdminConsole(snapshot, {
+        source: snapshot.source,
+        organizationId: scopedSnapshot.organizationId,
+        projectId: scopedSnapshot.projectId
+      }), adminActionRequests, {
+        organizationId: scopedSnapshot.organizationId,
+        projectId: scopedSnapshot.projectId
+      });
       const eventOutboxDashboard = buildEventOutboxDashboard(eventOutbox, {
         source: snapshot.source,
         organizationId: scopedSnapshot.organizationId,
@@ -639,6 +647,7 @@ export function createMemoryA3Store(seed = {}) {
         usageLedger,
         billingReadiness,
         reportCenter,
+        saasAdmin,
         eventOutbox: eventOutboxDashboard,
         liveWorkflowReadiness
       }, {
@@ -2118,6 +2127,7 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     usageLedger,
     billingReadiness,
     reportCenter,
+    saasAdmin,
     eventOutbox: eventOutboxDashboard,
     liveWorkflowReadiness
   }, {

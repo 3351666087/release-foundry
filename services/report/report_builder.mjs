@@ -4817,6 +4817,8 @@ export function summarizeLiveOpsControlPlaneExport(controlPlaneFixture = {}) {
     human_operation_summary: controlPlaneFixture.human_operation_summary || {},
     billing_state_summary: controlPlaneFixture.billing_state_summary || {},
     report_link_summary: controlPlaneFixture.report_link_summary || {},
+    release_publish_chain: controlPlaneFixture.release_publish_chain || {},
+    commercial_signoff_summary: controlPlaneFixture.commercial_signoff_summary || {},
     reviewer_timeline: Array.isArray(controlPlaneFixture.reviewer_timeline) ? controlPlaneFixture.reviewer_timeline : [],
     github_publish_timeline: Array.isArray(controlPlaneFixture.github_publish_timeline) ? controlPlaneFixture.github_publish_timeline : [],
     share_link_timeline: Array.isArray(controlPlaneFixture.share_link_timeline) ? controlPlaneFixture.share_link_timeline : [],
@@ -5419,7 +5421,21 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
   }
 
   if (liveOpsControlPlane.available) {
-    lines.push(`## Live Ops Control Plane`, ``, `- Status: ${liveOpsControlPlane.status}`, `- Lanes: ${liveOpsControlPlane.lane_count}`, `- API-backed: ${liveOpsControlPlane.api_backed_count}`, `- Audit-backed: ${liveOpsControlPlane.audit_backed_count}`, `- Local external mutations: ${liveOpsControlPlane.local_external_mutation_count}`, `- Reviewer actions: ${liveOpsControlPlane.human_operation_summary.review_record_count || 0}`, `- Shareable reports: ${liveOpsControlPlane.report_link_summary.shareable_count || 0}`, ``);
+    lines.push(
+      `## Live Ops Control Plane`,
+      ``,
+      `- Status: ${liveOpsControlPlane.status}`,
+      `- Lanes: ${liveOpsControlPlane.lane_count}`,
+      `- API-backed: ${liveOpsControlPlane.api_backed_count}`,
+      `- Audit-backed: ${liveOpsControlPlane.audit_backed_count}`,
+      `- Local external mutations: ${liveOpsControlPlane.local_external_mutation_count}`,
+      `- Reviewer actions: ${liveOpsControlPlane.human_operation_summary.review_record_count || 0}`,
+      `- Shareable reports: ${liveOpsControlPlane.report_link_summary.shareable_count || 0}`,
+      `- Commercial sign-off: ${liveOpsControlPlane.commercial_signoff_summary.status || "unknown"}`,
+      `- Required roles: ${(liveOpsControlPlane.commercial_signoff_summary.required_roles || []).join(", ") || "unknown"}`,
+      `- Customer external blocked: ${liveOpsControlPlane.commercial_signoff_summary.customer_external_blocked ? "yes" : "no"}`,
+      ``
+    );
     for (const item of liveOpsControlPlane.reviewer_timeline.slice(0, 4)) {
       lines.push(`- reviewer ${item.record_type}: ${item.status} / ${item.reason}`);
     }

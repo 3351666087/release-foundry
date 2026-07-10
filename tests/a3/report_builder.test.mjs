@@ -2314,6 +2314,10 @@ test("A3 report builder summarizes live ops control-plane export", async () => {
     },
     usageLedger: { schema_version: "a3.usage_ledger.v1", meters: [{ meter: "reports", quantity: 1 }], status: "ready" },
     billingReadiness: { schema_version: "a3.billing_readiness.v1", status: "read_only", billing_mutations_enabled: false, invoice_preview: { ready_for_customer_invoice: true } },
+    saasAdmin: {
+      trust: { status: "not_publishable", publish_enabled: false },
+      billing_account: { collections_posture: { state: "watch_collections_now" } }
+    },
     reportCenter: {
       schema_version: "a3.report_center_index.v1",
       summary: { report_count: 2, shareable_count: 1, revoked_count: 1, expired_count: 0, total_view_count: 3 },
@@ -2334,6 +2338,10 @@ test("A3 report builder summarizes live ops control-plane export", async () => {
   assert.equal(summary.share_link_timeline.length, 2);
   assert.ok(summary.audit_history.length >= 1);
   assert.equal(summary.report_link_summary.shareable_count, 1);
+  assert.equal(summary.commercial_signoff_summary.status, "internal_signoff_ready_customer_external_blocked");
+  assert.ok(summary.commercial_signoff_summary.required_roles.includes("billing_admin"));
+  assert.equal(summary.commercial_signoff_summary.customer_external_blocked, true);
+  assert.match(summary.commercial_signoff_summary.blocker_reasons.join(" "), /billing owner review/);
   assert.equal(controlPlane.release_publish_chain.status, "ready_for_governed_publish");
   assert.equal(controlPlane.release_publish_chain.reviewer_gate_status, "approved");
   assert.deepEqual(controlPlane.release_publish_chain.blocker_reasons, []);
@@ -2430,6 +2438,9 @@ test("A3 live ops control plane blocks publish when denial exists", async () => 
   assert.equal(controlPlane.release_publish_chain.reviewer_gate_status, "blocked_by_denial");
   assert.match(controlPlane.release_publish_chain.blocker_reasons[0], /denial record/);
   assert.equal(controlPlane.release_publish_chain.steps[0].status, "blocked_by_denial");
+  assert.equal(controlPlane.commercial_signoff_summary.status, "blocked_by_human_denial");
+  assert.ok(controlPlane.commercial_signoff_summary.required_roles.includes("owner"));
+  assert.equal(controlPlane.commercial_signoff_summary.evidence.denials, 1);
 });
 
 

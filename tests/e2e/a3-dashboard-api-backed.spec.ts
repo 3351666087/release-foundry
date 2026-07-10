@@ -303,10 +303,18 @@ test.describe("A3 API-backed dashboard E2E", () => {
     await expect(liveOps).toContainText("hosted_report_share");
     await expect(liveOps).toContainText("usage_visibility");
     await expect(liveOps).toContainText("billing_visibility");
+    await expect(liveOps).toContainText("Commercial sign-off");
+    await expect(liveOps).toContainText("Required roles");
+    await expect(liveOps).toContainText("Customer external");
+    await expect(liveOps).toContainText("Sign-off blockers");
+    await expect(liveOps).not.toContainText("[object HTMLDivElement]");
 
     await page.screenshot({
       path: "docs/screenshots/a3-live-publish-chain-api-backed-2026-07-10.png",
       fullPage: true
+    });
+    await liveOps.screenshot({
+      path: "docs/screenshots/a3-commercial-signoff-summary-api-backed-2026-07-10.png"
     });
 
     expect(consoleErrors, "release publish chain should not emit browser console errors").toEqual([]);

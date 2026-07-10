@@ -1742,8 +1742,13 @@ function renderCoverageHealth() {
 function healthTile(value, label) {
   const node = document.createElement("div");
   node.className = "health-tile";
-  node.innerHTML = `<strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span>`;
+  node.innerHTML = healthTileMarkup(value, label, false);
   return node;
+}
+
+function healthTileMarkup(value, label, includeContainer = true) {
+  const content = `<strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span>`;
+  return includeContainer ? `<div class="health-tile">${content}</div>` : content;
 }
 
 function warningItem(message) {
@@ -3523,10 +3528,10 @@ function renderSchemaDriftRadar() {
   $("schema-drift-body").innerHTML = `
     <div class="caption">${escapeHtml(radar.a3_action || "A1/A2 schema drift radar is not attached.")}</div>
     <div class="health-grid">
-      ${healthTile(radar.contract_count || contracts.length || 0, "contracts")}
-      ${healthTile(radar.compatible_count || 0, "compatible")}
-      ${healthTile(radar.drift_count || 0, "drift")}
-      ${healthTile(radar.missing_count || 0, "missing")}
+      ${healthTileMarkup(radar.contract_count || contracts.length || 0, "contracts")}
+      ${healthTileMarkup(radar.compatible_count || 0, "compatible")}
+      ${healthTileMarkup(radar.drift_count || 0, "drift")}
+      ${healthTileMarkup(radar.missing_count || 0, "missing")}
     </div>
     ${renderReportTable(["Contract", "Lane", "Status", "Hash"], contracts.slice(0, 8).map((item) => [
       item.schema_contract_id,
@@ -3546,10 +3551,10 @@ function renderPeerBranchCalibration() {
   $("peer-branch-body").innerHTML = `
     <div class="caption">${escapeHtml(calibration.recommendation)}</div>
     <div class="health-grid">
-      ${healthTile(calibration.peer_branch_count || 0, "branches")}
-      ${healthTile(calibration.peer_delta_count || 0, "peer deltas")}
-      ${healthTile(calibration.blocking_delta_count || 0, "blocking")}
-      ${healthTile(calibration.growth_point_count || 0, "growth points")}
+      ${healthTileMarkup(calibration.peer_branch_count || 0, "branches")}
+      ${healthTileMarkup(calibration.peer_delta_count || 0, "peer deltas")}
+      ${healthTileMarkup(calibration.blocking_delta_count || 0, "blocking")}
+      ${healthTileMarkup(calibration.growth_point_count || 0, "growth points")}
     </div>
     ${renderReportTable(["Delta", "Lane", "Surface", "Risk"], (calibration.top_deltas || []).slice(0, 6).map((item) => [
       item.contract || item.delta_id,
@@ -3602,10 +3607,10 @@ function renderBillingMigrationReadiness() {
   $("billing-migration-body").innerHTML = `
     <div class="caption">${escapeHtml(readiness.purpose || "Billing migration readiness is not attached.")}</div>
     <div class="health-grid">
-      ${healthTile(readiness.summary?.upstream_commit_count || 0, "A1 commits")}
-      ${healthTile(dbTables.length, "billing tables")}
-      ${healthTile(readiness.summary?.consumed_evidence_count || 0, "evidence inputs")}
-      ${healthTile(readiness.summary?.ready_for_live_customer_billing ? "yes" : "no", "live billing")}
+      ${healthTileMarkup(readiness.summary?.upstream_commit_count || 0, "A1 commits")}
+      ${healthTileMarkup(dbTables.length, "billing tables")}
+      ${healthTileMarkup(readiness.summary?.consumed_evidence_count || 0, "evidence inputs")}
+      ${healthTileMarkup(readiness.summary?.ready_for_live_customer_billing ? "yes" : "no", "live billing")}
     </div>
     ${renderReportTable(["A1 evidence", "Source", "A3 state"], Object.entries(upstream).slice(0, 5).map(([key, item]) => [
       key,
@@ -3634,6 +3639,7 @@ function refreshLiveOpsControlPlane() {
     usageLedger: state.usageLedger,
     billingReadiness: state.billingReadiness,
     reportCenter: state.reportCenter,
+    saasAdmin: state.saasAdmin,
     eventOutbox: state.saasRuntime?.event_outbox || {},
     liveWorkflowReadiness: state.liveWorkflowReadiness
   }, {
@@ -3650,10 +3656,10 @@ function renderLiveWorkflowReadiness() {
   $("live-workflow-body").innerHTML = `
     <div class="caption">${escapeHtml(readiness.commercial_value || "Live workflow readiness is not attached.")}</div>
     <div class="health-grid">
-      ${healthTile(readiness.ready_capability_count || 0, "ready capabilities")}
-      ${healthTile(readiness.needs_backend_or_credentials_count || 0, "need live backend")}
-      ${healthTile(readiness.human_action_count || 0, "human records")}
-      ${healthTile(readiness.audit_backed_count || 0, "audit backed")}
+      ${healthTileMarkup(readiness.ready_capability_count || 0, "ready capabilities")}
+      ${healthTileMarkup(readiness.needs_backend_or_credentials_count || 0, "need live backend")}
+      ${healthTileMarkup(readiness.human_action_count || 0, "human records")}
+      ${healthTileMarkup(readiness.audit_backed_count || 0, "audit backed")}
     </div>
     ${renderReportTable(["Next capability", "Status", "Dashboard value"], capabilities.map((item) => [
       item.label,
@@ -3675,13 +3681,14 @@ function renderLiveOpsControlPlane() {
   const human = controlPlane.human_operation_summary || {};
   const billing = controlPlane.billing_state_summary || {};
   const share = controlPlane.report_link_summary || {};
+  const signoff = controlPlane.commercial_signoff_summary || {};
   $("live-ops-body").innerHTML = `
     <div class="caption">Six live SaaS workflows are tracked as API, DB, event, audit, and dashboard contracts. A3 keeps them safe until A1 hosted workers and A2 release policy are ready.</div>
     <div class="health-grid">
-      ${healthTile(counts.lane_count || 0, "ops lanes")}
-      ${healthTile(counts.api_backed_count || 0, "API-backed")}
-      ${healthTile(counts.audit_backed_count || 0, "audit-backed")}
-      ${healthTile(counts.local_external_mutation_count || 0, "local mutations")}
+      ${healthTileMarkup(counts.lane_count || 0, "ops lanes")}
+      ${healthTileMarkup(counts.api_backed_count || 0, "API-backed")}
+      ${healthTileMarkup(counts.audit_backed_count || 0, "audit-backed")}
+      ${healthTileMarkup(counts.local_external_mutation_count || 0, "local mutations")}
     </div>
     ${renderReportTable(["Workflow", "Surface", "Status", "Mode", "Next action"], lanes.map((item) => [
       item.label,
@@ -3696,6 +3703,20 @@ function renderLiveOpsControlPlane() {
       ["Billing state", `${billing.billing_readiness_status || "unknown"} / ${billing.meter_count || 0} meter(s)`],
       ["Share links", `${share.shareable_count || 0} shareable / ${share.revoked_count || 0} revoked / ${share.expired_count || 0} expired / ${share.total_view_count || 0} view(s)`]
     ])}
+    ${renderReportTable(["Commercial sign-off", "Value"], [
+      ["Status", signoff.status || "unknown"],
+      ["Release publish", signoff.release_publish_status || "unknown"],
+      ["Required roles", (signoff.required_roles || []).join(", ") || "unknown"],
+      ["Customer external", signoff.customer_external_blocked ? "blocked" : "ready"],
+      ["Reviewer gate", signoff.evidence?.reviewer_gate || "unknown"],
+      ["GitHub", `${signoff.evidence?.github_check || "unknown"} / ${signoff.evidence?.github_pr_comment || "unknown"}`],
+      ["Hosted report", `${signoff.evidence?.hosted_report || "unknown"} / ${signoff.evidence?.shareable_report_count || 0} shareable`],
+      ["Trust / billing", `${signoff.evidence?.trust_publish || "unknown"} / ${signoff.evidence?.collections_state || "unknown"}`]
+    ])}
+    ${renderReportTable(["Sign-off blockers", "Reason"], (signoff.blocker_reasons || []).map((item, index) => [
+      index === 0 ? signoff.status || "blocked" : "follow-up",
+      item
+    ]), "No commercial sign-off blockers are recorded.")}
     ${renderReportTable(["Reviewer timeline", "Status", "Reason"], (controlPlane.reviewer_timeline || []).map((item) => [
       `${item.record_type} / ${item.actor_hash}` ,
       item.status,

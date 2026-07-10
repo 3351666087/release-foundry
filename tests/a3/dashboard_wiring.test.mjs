@@ -918,6 +918,11 @@ test("A3 live ops control plane now exposes a release publish chain", async () =
   assert.match(appSource, /Publish blockers/);
   assert.match(appSource, /controlPlane\.release_publish_chain\?\.steps/);
   assert.match(appSource, /controlPlane\.release_publish_chain\?\.blocker_reasons/);
+  assert.match(appSource, /Commercial sign-off/);
+  assert.match(appSource, /Sign-off blockers/);
+  assert.match(appSource, /commercial_signoff_summary/);
+  assert.match(appSource, /function healthTileMarkup\(/);
+  assert.doesNotMatch(appSource, /\$\{healthTile\(/);
 });
 
 
