@@ -7,10 +7,20 @@ from urllib.parse import urlparse
 import pytest
 
 from ashr_clone.unified_identity import (
+    IDENTITY_VERIFICATION_AUDIT_EVENT_TYPES,
+    IDENTITY_VERIFICATION_AUDIT_OUTCOME_CODES,
     IDENTITY_VERIFICATION_PROVIDERS,
+    IDENTITY_VERIFICATION_PUBLIC_SURFACE,
     IDENTITY_VERIFICATION_PURPOSES,
+    IdentityVerificationAbuseDimensions,
+    IdentityVerificationAdminFilter,
+    IdentityVerificationAuditEvent,
     IdentityVerificationChallenge,
+    IdentityVerificationDigestEnvelope,
+    IdentityVerificationDurableReceipt,
+    IdentityVerificationMemoryStore,
     IdentityVerificationReceipt,
+    IdentityVerificationTransactionCoordinator,
     UnifiedIdentityClient,
     UnifiedIdentityContractError,
     identity_verification_challenge_route,
@@ -85,8 +95,202 @@ def test_manifest_declares_provider_neutral_single_use_verification_contract() -
         "attempt_cap_required": True,
         "resend_cooldown_required": True,
         "single_use_required": True,
+        "durable_receipt_records": True,
+        "append_only_audit": True,
+        "admin_queries_route_neutral": True,
+        "digest_only_envelopes": True,
+        "atomic_receipt_consumption": True,
+        "anti_enumerating_public_failures": True,
+        "media_safe_metadata": True,
+        "public_surface": list(IDENTITY_VERIFICATION_PUBLIC_SURFACE),
     }
     assert manifest["invariants"]["verification_login_does_not_merge_by_destination"] is True
+
+
+def _durable(**overrides: Any) -> IdentityVerificationDurableReceipt:
+    payload = {
+        "receipt": _receipt(),
+        "tenant_id": "tenant_01",
+        "project_id": "project_01",
+        "principal_id": "principal_01",
+        "created_at": NOW,
+        "audit_event_id": "event_issued_01",
+    }
+    payload.update(overrides)
+    return IdentityVerificationDurableReceipt.from_public_response(payload)
+
+
+def _event(**overrides: Any) -> IdentityVerificationAuditEvent:
+    payload = {
+        "event_id": "event_consumed_01",
+        "event_type": "challenge_consumed",
+        "outcome_code": "consumed",
+        "tenant_id": "tenant_01",
+        "project_id": "project_01",
+        "provider": "email",
+        "purpose": "login",
+        "attempt_number": 1,
+        "created_at": "2026-07-10T10:01:00Z",
+        "challenge_id": "challenge_01",
+        "receipt_id": "receipt_01",
+        "principal_id": "principal_01",
+        "account_id": None,
+        "metadata": {
+            "media": {
+                "kind": "image",
+                "mime_type": "image/png",
+                "artifact_ref": "artifact:verification/01",
+            }
+        },
+    }
+    payload.update(overrides)
+    return IdentityVerificationAuditEvent.from_public_response(payload)
+
+
+def test_durable_public_surface_constants_and_route_neutral_decoders() -> None:
+    assert IDENTITY_VERIFICATION_AUDIT_EVENT_TYPES[-1] == "challenge_consumed"
+    assert IDENTITY_VERIFICATION_AUDIT_OUTCOME_CODES[-1] == "consumed"
+    assert len(IDENTITY_VERIFICATION_PUBLIC_SURFACE) == 10
+    calls = 0
+
+    def transport(*_: Any) -> Mapping[str, Any]:
+        nonlocal calls
+        calls += 1
+        return {}
+
+    client = UnifiedIdentityClient("http://localhost:8787", transport=transport)
+    page = client.decode_durable_receipt_page(
+        {"items": [_durable().to_dict()], "next_cursor": "cursor:1"}
+    )
+    audit = client.decode_verification_audit_page(
+        {"items": [_event().to_dict()], "next_cursor": None}
+    )
+    assert page.items[0].receipt.receipt_id == "receipt_01"
+    assert audit.items[0].metadata["media"]["kind"] == "image"
+    assert calls == 0
+
+
+def test_digest_envelope_and_abuse_dimensions_are_opaque_and_bounded() -> None:
+    envelope = IdentityVerificationDigestEnvelope.from_public_response(
+        {
+            "tenant_id": "tenant_01",
+            "project_id": "project_01",
+            "provider": "email",
+            "purpose": "login",
+            "challenge_id": "challenge_01",
+            "destination_digest_ref": "digest-store:destination/01",
+            "request_context_digest_ref": "digest-store:context/01",
+            "idempotency_digest_ref": "digest-store:idempotency/01",
+            "request_digest_ref": "digest-store:request/01",
+        }
+    )
+    assert envelope.receipt_id is None
+    abuse = IdentityVerificationAbuseDimensions.from_public_response(
+        {
+            "tenant_id": "tenant_01",
+            "project_id": "project_01",
+            "provider": "email",
+            "purpose": "login",
+            "destination_digest_ref": "digest-store:destination/01",
+            "request_context_digest_ref": "digest-store:context/01",
+            "attempt_cap": 5,
+            "cooldown_seconds": 60,
+        }
+    )
+    assert abuse.consecutive_failures == 0
+    for field in (
+        "destination_digest_ref",
+        "request_context_digest_ref",
+        "idempotency_digest_ref",
+        "request_digest_ref",
+    ):
+        payload = envelope.to_dict()
+        payload[field] = "sha256:" + "a" * 64
+        with pytest.raises(UnifiedIdentityContractError):
+            IdentityVerificationDigestEnvelope.from_public_response(payload)
+
+
+def test_memory_store_scope_append_only_snapshot_and_pagination() -> None:
+    store = IdentityVerificationMemoryStore()
+    durable = _durable()
+    store.persist_receipt(durable)
+    with pytest.raises(UnifiedIdentityContractError):
+        store.persist_receipt(durable)
+    assert store.get_receipt("other_tenant", "project_01", "receipt_01") is None
+    snapshot = store.get_receipt("tenant_01", "project_01", "receipt_01")
+    assert snapshot == durable and snapshot is not durable
+    store.append_audit_event(_event(event_id="event_01"))
+    store.append_audit_event(_event(event_id="event_02"))
+    with pytest.raises(UnifiedIdentityContractError):
+        store.append_audit_event(_event(event_id="event_02"))
+    page = store.list_audit_events(
+        IdentityVerificationAdminFilter(
+            "tenant_01", "project_01", limit=1
+        )
+    )
+    assert len(page.items) == 1 and page.next_cursor == "cursor:1"
+    second = store.list_audit_events(
+        IdentityVerificationAdminFilter(
+            "tenant_01", "project_01", cursor=page.next_cursor, limit=1
+        )
+    )
+    assert len(second.items) == 1 and second.next_cursor is None
+
+
+def test_transaction_coordinator_commits_once_and_rolls_back_mutation_failure() -> None:
+    store = IdentityVerificationMemoryStore()
+    store.persist_receipt(_durable())
+    coordinator = IdentityVerificationTransactionCoordinator(store)
+    with pytest.raises(RuntimeError, match="mutation failed"):
+        coordinator.consume_receipt(
+            "tenant_01",
+            "project_01",
+            "receipt_01",
+            _event(event_id="event_failed"),
+            lambda _: (_ for _ in ()).throw(RuntimeError("mutation failed")),
+            consumed_at="2026-07-10T10:02:00Z",
+        )
+    assert store.get_receipt("tenant_01", "project_01", "receipt_01").receipt.status == "verified"
+    assert store.list_audit_events(
+        IdentityVerificationAdminFilter("tenant_01", "project_01")
+    ).items == ()
+    assert coordinator.consume_receipt(
+        "tenant_01",
+        "project_01",
+        "receipt_01",
+        _event(),
+        lambda receipt: receipt.challenge_id,
+        consumed_at="2026-07-10T10:02:00Z",
+    ) == "challenge_01"
+    assert store.get_receipt("tenant_01", "project_01", "receipt_01").receipt.status == "consumed"
+    with pytest.raises(UnifiedIdentityContractError) as replay:
+        coordinator.consume_receipt(
+            "tenant_01",
+            "project_01",
+            "receipt_01",
+            _event(event_id="event_replay"),
+            lambda _: None,
+            consumed_at="2026-07-10T10:03:00Z",
+        )
+    assert replay.value.code == "identity_verification_replayed"
+
+
+def test_admin_filter_and_timestamp_contract_are_strict() -> None:
+    with pytest.raises(UnifiedIdentityContractError, match="timezone"):
+        IdentityVerificationReceipt.from_public_response(
+            _receipt(verified_at="2026-07-10T10:00:00")
+        )
+    with pytest.raises(UnifiedIdentityContractError, match="created_after"):
+        IdentityVerificationAdminFilter(
+            "tenant_01",
+            "project_01",
+            created_after=LATER,
+            created_before=NOW,
+        ).to_public_query()
+    with pytest.raises(UnifiedIdentityContractError, match="1 through 200"):
+        IdentityVerificationAdminFilter(
+            "tenant_01", "project_01", limit=201
+        ).to_public_query()
 
 
 @pytest.mark.parametrize("provider", IDENTITY_VERIFICATION_PROVIDERS)

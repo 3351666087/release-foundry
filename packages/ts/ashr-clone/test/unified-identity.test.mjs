@@ -172,7 +172,20 @@ test("manifest declares one account with provider credentials and membership iso
     verification_receipts_are_single_use: true,
     verification_login_does_not_merge_by_destination: true,
   });
-  assert.deepEqual(manifest.verification, {
+  assert.deepEqual(
+    {
+      providers: manifest.verification.providers,
+      purposes: manifest.verification.purposes,
+      challenge_statuses: manifest.verification.challenge_statuses,
+      receipt_statuses: manifest.verification.receipt_statuses,
+      destination_input: manifest.verification.destination_input,
+      code_input: manifest.verification.code_input,
+      ttl_required: manifest.verification.ttl_required,
+      attempt_cap_required: manifest.verification.attempt_cap_required,
+      resend_cooldown_required: manifest.verification.resend_cooldown_required,
+      single_use_required: manifest.verification.single_use_required,
+    },
+    {
     providers: ["email", "phone"],
     purposes: ["binding", "login", "recovery"],
     challenge_statuses: ["pending", "verified", "consumed", "expired", "locked"],
@@ -183,7 +196,31 @@ test("manifest declares one account with provider credentials and membership iso
     attempt_cap_required: true,
     resend_cooldown_required: true,
     single_use_required: true,
-  });
+    },
+  );
+  for (const capability of [
+    "durable_receipt_records",
+    "append_only_audit",
+    "admin_queries_route_neutral",
+    "digest_only_envelopes",
+    "atomic_receipt_consumption",
+    "anti_enumerating_public_failures",
+    "media_safe_metadata",
+  ]) {
+    assert.equal(manifest.verification[capability], true, capability);
+  }
+  assert.deepEqual(manifest.verification.public_surface, [
+    "IdentityVerificationAbuseDimensions",
+    "IdentityVerificationAdminFilter",
+    "IdentityVerificationAuditEvent",
+    "IdentityVerificationAuditEventPage",
+    "IdentityVerificationDigestEnvelope",
+    "IdentityVerificationDurableReceipt",
+    "IdentityVerificationDurableReceiptPage",
+    "IdentityVerificationDurableStore",
+    "IdentityVerificationMemoryStore",
+    "IdentityVerificationTransactionCoordinator",
+  ]);
   assert.equal(manifest.public_safety.oauth_token_present, false);
 });
 

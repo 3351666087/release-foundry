@@ -261,9 +261,33 @@ func TestIdentityVerificationLoginRequiresBoundAccountAndScope(t *testing.T) {
 }
 
 func TestIdentityVerificationHTTPNeverReturnsCodeOrIdentifier(t *testing.T) {
-	service, sender, identity, _ := newVerificationTestService(t)
+	service, sender, identity, clock := newVerificationTestService(t)
+	budget, err := NewMemoryIdentityVerificationAbuseBudget(
+		MemoryIdentityVerificationAbuseBudgetOptions{
+			Now:       clock.Now,
+			DigestKey: []byte("verification-abuse-budget-key-32-bytes"),
+			Limits: map[IdentityVerificationAbuseDimension]IdentityVerificationAbuseLimit{
+				IdentityVerificationAbuseIdentifier: {Limit: 10, Window: time.Minute},
+			},
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(budget.Close)
+	responsePolicy, err := NewIdentityVerificationResponsePolicy(
+		IdentityVerificationResponsePolicyOptions{
+			Budget: budget,
+			Now:    clock.Now,
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
 	handler := NewHTTPServerWithOptions(NewMemoryService(), HTTPServerOptions{
-		UnifiedIdentity: identity, IdentityVerification: service,
+		UnifiedIdentity:                    identity,
+		IdentityVerification:               service,
+		IdentityVerificationResponsePolicy: responsePolicy,
 	})
 	startBody := `{"channel":"email","identifier":"private@example.com","purpose":"binding","tenant_id":"tenant-a"}`
 	startRequest := httptest.NewRequest(http.MethodPost, "/v1/identity-verification/challenges", strings.NewReader(startBody))
@@ -272,15 +296,23 @@ func TestIdentityVerificationHTTPNeverReturnsCodeOrIdentifier(t *testing.T) {
 	if startResponse.Code != http.StatusAccepted {
 		t.Fatalf("start status=%d body=%s", startResponse.Code, startResponse.Body.String())
 	}
-	code := lastVerificationCode(t, sender)
+	deliveries := sender.Deliveries()
+	if len(deliveries) != 1 {
+		t.Fatalf("verification sender received %d deliveries", len(deliveries))
+	}
+	delivery := deliveries[0]
+	code := delivery.Code
 	if verificationBodyContainsSecret(startResponse.Body.String(), code, "private@example.com") {
 		t.Fatalf("start response leaked verification material: %s", startResponse.Body.String())
 	}
-	var start IdentityVerificationChallengeDTO
+	var start IdentityVerificationPublicResponse
 	if err := json.Unmarshal(startResponse.Body.Bytes(), &start); err != nil {
 		t.Fatal(err)
 	}
-	verifyBody := `{"challenge_id":"` + start.ChallengeID + `","code":"` + code +
+	if start.Status != "accepted" || strings.Contains(startResponse.Body.String(), delivery.ChallengeID) {
+		t.Fatalf("start response was distinguishable or leaked challenge id: %s", startResponse.Body.String())
+	}
+	verifyBody := `{"challenge_id":"` + delivery.ChallengeID + `","code":"` + code +
 		`","channel":"email","identifier":"private@example.com","purpose":"binding","tenant_id":"tenant-a"}`
 	verifyRequest := httptest.NewRequest(http.MethodPost, "/v1/identity-verification/verify", strings.NewReader(verifyBody))
 	verifyResponse := httptest.NewRecorder()

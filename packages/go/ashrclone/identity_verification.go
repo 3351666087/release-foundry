@@ -85,6 +85,67 @@ type IdentityVerificationStore interface {
 	) (IdentityVerificationChallenge, error)
 }
 
+// IdentityVerificationIdentityStore is the identity mutation boundary used
+// after a challenge is verified. Production implementations should return a
+// transaction-scoped implementation from IdentityVerificationTransactionCoordinator.
+type IdentityVerificationIdentityStore interface {
+	GetAccount(context.Context, string) (IdentityAccountDTO, error)
+	HasLoginCredential(context.Context, string, IdentityCredentialInput) (bool, error)
+	CreateVerifiedAccount(context.Context, CreateIdentityAccountRequest) (IdentityAccountDTO, IdentityCredentialDTO, error)
+	LinkVerifiedCredential(context.Context, string, LinkIdentityCredentialRequest) (IdentityCredentialDTO, bool, error)
+	AuthenticateVerifiedCredential(context.Context, string, IdentityCredentialInput) (IdentityAuthenticationDTO, error)
+}
+
+type IdentityVerificationMutation func(
+	IdentityVerificationIdentityStore,
+	IdentityVerificationChallenge,
+) (IdentityVerificationResultDTO, error)
+
+// IdentityVerificationCompletionCommand carries only normalized values and
+// keyed digests across the durable transaction boundary. Raw identifiers and
+// verification codes must not be retained by a coordinator.
+type IdentityVerificationCompletionCommand struct {
+	ChallengeID         string
+	CandidateCodeDigest string
+	IdentifierDigest    string
+	Channel             IdentityVerificationChannel
+	CredentialKind      IdentityCredentialKind
+	Purpose             IdentityVerificationPurpose
+	TenantID            string
+	AccountID           string
+	ActorID             string
+	DisplayName         string
+	VerifiedAt          time.Time
+	SessionExpiresAt    time.Time
+	Verify              func(IdentityVerificationChallenge) error
+	Mutate              IdentityVerificationMutation
+}
+
+// IdentityVerificationTransactionCoordinator owns the atomic boundary between
+// consuming a verified receipt and applying its identity mutation.
+type IdentityVerificationTransactionCoordinator interface {
+	CompleteIdentityVerification(
+		context.Context,
+		IdentityVerificationCompletionCommand,
+	) (IdentityVerificationResultDTO, error)
+}
+
+// ProductionIdentityVerificationStore marks a durable challenge store. It is
+// intentionally capability based so HTTP/service code does not depend on a
+// concrete PostgreSQL implementation.
+type ProductionIdentityVerificationStore interface {
+	IdentityVerificationStore
+	IsProductionIdentityVerificationStore()
+}
+
+// ProductionIdentityVerificationTransactionCoordinator marks a coordinator
+// that consumes a durable receipt and mutates identity in one database
+// transaction.
+type ProductionIdentityVerificationTransactionCoordinator interface {
+	IdentityVerificationTransactionCoordinator
+	IsProductionIdentityVerificationTransactionCoordinator()
+}
+
 type IdentityVerificationAuditEvent struct {
 	SchemaVersion string                      `json:"schema_version"`
 	EventID       string                      `json:"event_id"`
@@ -142,27 +203,32 @@ type IdentityVerificationResultDTO struct {
 }
 
 type IdentityVerificationServiceOptions struct {
-	Store          IdentityVerificationStore
-	Sender         IdentityVerificationSender
-	Identity       *UnifiedIdentityService
-	Now            func() time.Time
-	Random         io.Reader
-	DigestKey      []byte
-	TTL            time.Duration
-	AttemptCap     int
-	ResendCooldown time.Duration
+	Store                  IdentityVerificationStore
+	Sender                 IdentityVerificationSender
+	Identity               *UnifiedIdentityService
+	IdentityStore          IdentityVerificationIdentityStore
+	TransactionCoordinator IdentityVerificationTransactionCoordinator
+	ResponsePolicy         *IdentityVerificationResponsePolicy
+	Now                    func() time.Time
+	Random                 io.Reader
+	DigestKey              []byte
+	TTL                    time.Duration
+	AttemptCap             int
+	ResendCooldown         time.Duration
 }
 
 type IdentityVerificationService struct {
-	store          IdentityVerificationStore
-	sender         IdentityVerificationSender
-	identity       *UnifiedIdentityService
-	now            func() time.Time
-	random         io.Reader
-	digestKey      []byte
-	ttl            time.Duration
-	attemptCap     int
-	resendCooldown time.Duration
+	store                  IdentityVerificationStore
+	sender                 IdentityVerificationSender
+	identity               IdentityVerificationIdentityStore
+	transactionCoordinator IdentityVerificationTransactionCoordinator
+	responsePolicy         *IdentityVerificationResponsePolicy
+	now                    func() time.Time
+	random                 io.Reader
+	digestKey              []byte
+	ttl                    time.Duration
+	attemptCap             int
+	resendCooldown         time.Duration
 
 	auditMu sync.RWMutex
 	audit   []IdentityVerificationAuditEvent
@@ -175,8 +241,28 @@ func NewIdentityVerificationService(options IdentityVerificationServiceOptions) 
 	if options.Sender == nil {
 		return nil, fmt.Errorf("identity verification sender is required")
 	}
-	if options.Identity == nil {
-		return nil, fmt.Errorf("unified identity service is required")
+	identity := options.IdentityStore
+	if identity == nil && options.Identity != nil {
+		identity = unifiedIdentityVerificationStore{service: options.Identity}
+	}
+	coordinator := options.TransactionCoordinator
+	_, productionStore := options.Store.(ProductionIdentityVerificationStore)
+	_, productionCoordinator := coordinator.(ProductionIdentityVerificationTransactionCoordinator)
+	if productionStore && !productionCoordinator {
+		return nil, fmt.Errorf("production identity verification requires a postgres transaction coordinator")
+	}
+	if !productionStore && productionCoordinator {
+		return nil, fmt.Errorf("production identity verification coordinator requires a production store")
+	}
+	if coordinator == nil {
+		if identity == nil {
+			return nil, fmt.Errorf("identity verification identity store is required")
+		}
+		coordinator = localIdentityVerificationTransactionCoordinator{
+			store: options.Store, identity: identity,
+		}
+	} else if !productionCoordinator && identity == nil {
+		return nil, fmt.Errorf("identity verification identity store is required")
 	}
 	if options.Now == nil {
 		options.Now = time.Now
@@ -203,8 +289,10 @@ func NewIdentityVerificationService(options IdentityVerificationServiceOptions) 
 		return nil, fmt.Errorf("identity verification resend cooldown must be shorter than TTL")
 	}
 	return &IdentityVerificationService{
-		store: options.Store, sender: options.Sender, identity: options.Identity,
-		now: options.Now, random: options.Random, digestKey: append([]byte(nil), options.DigestKey...),
+		store: options.Store, sender: options.Sender, identity: identity,
+		transactionCoordinator: coordinator,
+		responsePolicy:         options.ResponsePolicy,
+		now:                    options.Now, random: options.Random, digestKey: append([]byte(nil), options.DigestKey...),
 		ttl: options.TTL, attemptCap: options.AttemptCap, resendCooldown: options.ResendCooldown,
 		audit: []IdentityVerificationAuditEvent{},
 	}, nil
@@ -222,14 +310,17 @@ func (service *IdentityVerificationService) Start(
 		service.appendAudit("identity.verification.start", channel, purpose, tenantID, accountID, "rejected", verificationErrorCode(err), now)
 		return IdentityVerificationChallengeDTO{}, err
 	}
-	if purpose != IdentityVerificationBinding {
+	_, productionCoordinator := service.transactionCoordinator.(ProductionIdentityVerificationTransactionCoordinator)
+	if purpose != IdentityVerificationBinding && !productionCoordinator {
 		if accountID == "" {
 			verificationErr := IdentityVerificationError{Code: "account_binding_required", Message: "login and recovery verification require account_id"}
 			service.appendAudit("identity.verification.start", channel, purpose, tenantID, accountID, "rejected", verificationErr.Code, now)
 			return IdentityVerificationChallengeDTO{}, verificationErr
 		}
-		account, accountErr := service.identity.GetAccount(accountID)
-		if accountErr != nil || !accountHasCredential(service.identity, account, kind, normalized) {
+		hasCredential, accountErr := service.identity.HasLoginCredential(ctx, accountID, IdentityCredentialInput{
+			Kind: kind, Provider: IdentityProviderLocal, Identifier: normalized, Verified: true,
+		})
+		if accountErr != nil || !hasCredential {
 			verificationErr := IdentityVerificationError{Code: "verification_target_unavailable", Message: "verification target is unavailable"}
 			service.appendAudit("identity.verification.start", channel, purpose, tenantID, accountID, "rejected", verificationErr.Code, now)
 			return IdentityVerificationChallengeDTO{}, verificationErr
@@ -290,7 +381,7 @@ func (service *IdentityVerificationService) Complete(
 	if challengeID == "" || code == "" || len(code) > 32 {
 		return IdentityVerificationResultDTO{}, IdentityVerificationError{Code: "invalid_verification_proof", Message: "verification proof is invalid"}
 	}
-	challenge, err := service.store.ConsumeIdentityVerificationChallenge(ctx, challengeID, func(challenge IdentityVerificationChallenge) error {
+	verify := func(challenge IdentityVerificationChallenge) error {
 		switch {
 		case challenge.Channel != channel || challenge.Purpose != purpose ||
 			challenge.TenantID != tenantID || challenge.AccountID != accountID:
@@ -305,53 +396,67 @@ func (service *IdentityVerificationService) Complete(
 		default:
 			return nil
 		}
-	})
+	}
+	mutate := func(identity IdentityVerificationIdentityStore, challenge IdentityVerificationChallenge) (IdentityVerificationResultDTO, error) {
+		input := IdentityCredentialInput{Kind: kind, Provider: IdentityProviderLocal, Identifier: normalized, Verified: true}
+		var account IdentityAccountDTO
+		var credential IdentityCredentialDTO
+		var created bool
+		var mutationErr error
+		switch purpose {
+		case IdentityVerificationBinding:
+			if accountID == "" {
+				account, credential, mutationErr = identity.CreateVerifiedAccount(ctx, CreateIdentityAccountRequest{
+					DisplayName: request.DisplayName, InitialCredential: &input,
+				})
+				created = mutationErr == nil
+			} else {
+				credential, created, mutationErr = identity.LinkVerifiedCredential(ctx, accountID, LinkIdentityCredentialRequest{
+					Credential: input, ActorID: request.ActorID,
+				})
+				if mutationErr == nil {
+					account, mutationErr = identity.GetAccount(ctx, accountID)
+				}
+			}
+		case IdentityVerificationLogin, IdentityVerificationRecovery:
+			var authenticated IdentityAuthenticationDTO
+			authenticated, mutationErr = identity.AuthenticateVerifiedCredential(ctx, accountID, input)
+			if mutationErr == nil {
+				account, credential = authenticated.Account, authenticated.Credential
+			}
+		}
+		if mutationErr != nil {
+			return IdentityVerificationResultDTO{}, mutationErr
+		}
+		return IdentityVerificationResultDTO{
+			SchemaVersion: IdentityVerificationSchemaVersion, ChallengeID: challenge.ChallengeID,
+			Channel: channel, Purpose: purpose, TenantID: tenantID, Account: account,
+			Credential: credential, Created: created, VerifiedAt: now,
+		}, nil
+	}
+	command := IdentityVerificationCompletionCommand{
+		ChallengeID:         challengeID,
+		CandidateCodeDigest: service.digest("code", challengeID, code),
+		IdentifierDigest:    service.digest("identifier", string(kind), normalized),
+		Channel:             channel,
+		CredentialKind:      kind,
+		Purpose:             purpose,
+		TenantID:            tenantID,
+		AccountID:           accountID,
+		ActorID:             strings.TrimSpace(request.ActorID),
+		DisplayName:         strings.TrimSpace(request.DisplayName),
+		VerifiedAt:          now,
+		SessionExpiresAt:    now.Add(24 * time.Hour),
+		Verify:              verify,
+		Mutate:              mutate,
+	}
+	result, err := service.transactionCoordinator.CompleteIdentityVerification(ctx, command)
 	if err != nil {
 		service.appendAudit("identity.verification.complete", channel, purpose, tenantID, accountID, "rejected", verificationErrorCode(err), now)
 		return IdentityVerificationResultDTO{}, err
 	}
-
-	var account IdentityAccountDTO
-	var credential IdentityCredentialDTO
-	var created bool
-	input := IdentityCredentialInput{Kind: kind, Provider: IdentityProviderLocal, Identifier: normalized, Verified: true}
-	switch purpose {
-	case IdentityVerificationBinding:
-		if accountID == "" {
-			account, err = service.identity.CreateAccount(CreateIdentityAccountRequest{
-				DisplayName: request.DisplayName, InitialCredential: &input,
-			})
-			if err == nil {
-				credential = account.Credentials[0]
-				created = true
-			}
-		} else {
-			credential, created, err = service.identity.LinkCredentialWithStatus(accountID, LinkIdentityCredentialRequest{
-				Credential: input, ActorID: request.ActorID,
-			})
-			if err == nil {
-				account, err = service.identity.GetAccount(accountID)
-			}
-		}
-	case IdentityVerificationLogin, IdentityVerificationRecovery:
-		var authenticated IdentityAuthenticationDTO
-		authenticated, err = service.identity.Authenticate(input)
-		if err == nil && authenticated.Account.AccountID != accountID {
-			err = IdentityVerificationError{Code: "verification_account_mismatch", Message: "verified credential does not belong to the bound account"}
-		} else if err == nil {
-			account, credential = authenticated.Account, authenticated.Credential
-		}
-	}
-	if err != nil {
-		service.appendAudit("identity.verification.complete", channel, purpose, tenantID, accountID, "rejected", verificationErrorCode(err), now)
-		return IdentityVerificationResultDTO{}, err
-	}
-	service.appendAudit("identity.verification.complete", channel, purpose, tenantID, account.AccountID, "success", "", now)
-	return IdentityVerificationResultDTO{
-		SchemaVersion: IdentityVerificationSchemaVersion, ChallengeID: challenge.ChallengeID,
-		Channel: channel, Purpose: purpose, TenantID: tenantID, Account: account,
-		Credential: credential, Created: created, VerifiedAt: now,
-	}, nil
+	service.appendAudit("identity.verification.complete", channel, purpose, tenantID, result.Account.AccountID, "success", "", now)
+	return result, nil
 }
 
 func (service *IdentityVerificationService) AuditEvents() []IdentityVerificationAuditEvent {
@@ -452,23 +557,6 @@ func normalizeVerificationRequest(
 	return channel, kind, normalized, purpose, tenantID, accountID, nil
 }
 
-func accountHasCredential(
-	identity *UnifiedIdentityService,
-	account IdentityAccountDTO,
-	kind IdentityCredentialKind,
-	normalized string,
-) bool {
-	identity.mu.RLock()
-	defer identity.mu.RUnlock()
-	digest := identity.credentialDigest(kind, IdentityProviderLocal, normalized)
-	credentialID, ok := identity.credentialOwners[digest]
-	if !ok {
-		return false
-	}
-	credential := identity.credentials[credentialID]
-	return credential != nil && credential.accountID == account.AccountID && credential.verified && credential.canLogin
-}
-
 func verificationErrorCode(err error) string {
 	var verification IdentityVerificationError
 	var identity IdentityDomainError
@@ -485,3 +573,106 @@ func verificationErrorCode(err error) string {
 		return "verification_failed"
 	}
 }
+
+type localIdentityVerificationTransactionCoordinator struct {
+	store    IdentityVerificationStore
+	identity IdentityVerificationIdentityStore
+}
+
+func (coordinator localIdentityVerificationTransactionCoordinator) CompleteIdentityVerification(
+	ctx context.Context,
+	command IdentityVerificationCompletionCommand,
+) (IdentityVerificationResultDTO, error) {
+	if command.Verify == nil || command.Mutate == nil {
+		return IdentityVerificationResultDTO{}, fmt.Errorf("local identity verification completion callbacks are required")
+	}
+	var result IdentityVerificationResultDTO
+	_, err := coordinator.store.ConsumeIdentityVerificationChallenge(ctx, command.ChallengeID, func(challenge IdentityVerificationChallenge) error {
+		if err := command.Verify(challenge); err != nil {
+			return err
+		}
+		var mutationErr error
+		result, mutationErr = command.Mutate(coordinator.identity, challenge)
+		return mutationErr
+	})
+	if err != nil {
+		return IdentityVerificationResultDTO{}, err
+	}
+	return result, nil
+}
+
+type unifiedIdentityVerificationStore struct {
+	service *UnifiedIdentityService
+}
+
+func (store unifiedIdentityVerificationStore) GetAccount(_ context.Context, accountID string) (IdentityAccountDTO, error) {
+	return store.service.GetAccount(accountID)
+}
+
+func (store unifiedIdentityVerificationStore) HasLoginCredential(
+	_ context.Context,
+	accountID string,
+	input IdentityCredentialInput,
+) (bool, error) {
+	account, err := store.service.GetAccount(accountID)
+	if err != nil {
+		return false, err
+	}
+	kind, provider, normalized, err := normalizeIdentityCredential(input)
+	if err != nil {
+		return false, err
+	}
+	store.service.mu.RLock()
+	defer store.service.mu.RUnlock()
+	digest := store.service.credentialDigest(kind, provider, normalized)
+	credentialID, ok := store.service.credentialOwners[digest]
+	if !ok {
+		return false, nil
+	}
+	credential := store.service.credentials[credentialID]
+	return credential != nil && credential.accountID == account.AccountID && credential.verified && credential.canLogin, nil
+}
+
+func (store unifiedIdentityVerificationStore) CreateVerifiedAccount(
+	_ context.Context,
+	request CreateIdentityAccountRequest,
+) (IdentityAccountDTO, IdentityCredentialDTO, error) {
+	account, err := store.service.CreateAccount(request)
+	if err != nil {
+		return IdentityAccountDTO{}, IdentityCredentialDTO{}, err
+	}
+	if len(account.Credentials) != 1 {
+		return IdentityAccountDTO{}, IdentityCredentialDTO{}, fmt.Errorf("verified account creation did not return one credential")
+	}
+	return account, account.Credentials[0], nil
+}
+
+func (store unifiedIdentityVerificationStore) LinkVerifiedCredential(
+	_ context.Context,
+	accountID string,
+	request LinkIdentityCredentialRequest,
+) (IdentityCredentialDTO, bool, error) {
+	return store.service.LinkCredentialWithStatus(accountID, request)
+}
+
+func (store unifiedIdentityVerificationStore) AuthenticateVerifiedCredential(
+	_ context.Context,
+	accountID string,
+	input IdentityCredentialInput,
+) (IdentityAuthenticationDTO, error) {
+	authenticated, err := store.service.Authenticate(input)
+	if err != nil {
+		return IdentityAuthenticationDTO{}, err
+	}
+	if authenticated.Account.AccountID != accountID {
+		return IdentityAuthenticationDTO{}, IdentityVerificationError{
+			Code: "verification_account_mismatch", Message: "verified credential does not belong to the bound account",
+		}
+	}
+	return authenticated, nil
+}
+
+var (
+	_ IdentityVerificationIdentityStore          = unifiedIdentityVerificationStore{}
+	_ IdentityVerificationTransactionCoordinator = localIdentityVerificationTransactionCoordinator{}
+)

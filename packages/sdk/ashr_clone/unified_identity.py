@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 import re
-from typing import Any, Callable, Mapping, Sequence
+from threading import RLock
+from typing import Any, Callable, Mapping, Protocol, Sequence, TypeVar
 from urllib.parse import quote
 
 from .api_client import redact_text
@@ -37,6 +39,34 @@ IDENTITY_VERIFICATION_CHALLENGE_STATUSES = (
     "locked",
 )
 IDENTITY_VERIFICATION_RECEIPT_STATUSES = ("verified", "consumed", "expired")
+IDENTITY_VERIFICATION_AUDIT_EVENT_TYPES = (
+    "challenge_issued",
+    "challenge_rejected",
+    "challenge_locked",
+    "challenge_expired",
+    "challenge_consumed",
+)
+IDENTITY_VERIFICATION_AUDIT_OUTCOME_CODES = (
+    "issued",
+    "cooldown_active",
+    "context_mismatch",
+    "proof_mismatch",
+    "attempts_exhausted",
+    "expired",
+    "consumed",
+)
+IDENTITY_VERIFICATION_PUBLIC_SURFACE = (
+    "IdentityVerificationAbuseDimensions",
+    "IdentityVerificationAdminFilter",
+    "IdentityVerificationAuditEvent",
+    "IdentityVerificationAuditEventPage",
+    "IdentityVerificationDigestEnvelope",
+    "IdentityVerificationDurableReceipt",
+    "IdentityVerificationDurableReceiptPage",
+    "IdentityVerificationDurableStore",
+    "IdentityVerificationMemoryStore",
+    "IdentityVerificationTransactionCoordinator",
+)
 UNIFIED_IDENTITY_ERROR_CODES = (
     "identity_invalid_request",
     "identity_account_not_found",
@@ -170,6 +200,14 @@ def unified_identity_contract_manifest() -> dict[str, Any]:
             "attempt_cap_required": True,
             "resend_cooldown_required": True,
             "single_use_required": True,
+            "durable_receipt_records": True,
+            "append_only_audit": True,
+            "admin_queries_route_neutral": True,
+            "digest_only_envelopes": True,
+            "atomic_receipt_consumption": True,
+            "anti_enumerating_public_failures": True,
+            "media_safe_metadata": True,
+            "public_surface": list(IDENTITY_VERIFICATION_PUBLIC_SURFACE),
         },
         "public_safety": {
             "raw_email_present": False,
@@ -679,6 +717,523 @@ class IdentityVerificationReceipt:
 
 
 @dataclass(frozen=True)
+class IdentityVerificationDurableReceipt:
+    receipt: IdentityVerificationReceipt
+    tenant_id: str
+    project_id: str
+    principal_id: str | None
+    created_at: str
+    audit_event_id: str
+
+    @classmethod
+    def from_public_response(
+        cls, payload: Mapping[str, Any]
+    ) -> "IdentityVerificationDurableReceipt":
+        _assert_public_safe(payload)
+        receipt = payload.get("receipt")
+        if not isinstance(receipt, Mapping):
+            raise UnifiedIdentityContractError("receipt must be an object")
+        return cls(
+            receipt=IdentityVerificationReceipt.from_public_response(receipt),
+            tenant_id=_identifier("tenant_id", payload.get("tenant_id")),
+            project_id=_identifier("project_id", payload.get("project_id")),
+            principal_id=_optional_identifier(
+                "principal_id", payload.get("principal_id")
+            ),
+            created_at=_timestamp("created_at", payload.get("created_at")),
+            audit_event_id=_identifier(
+                "audit_event_id", payload.get("audit_event_id")
+            ),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "receipt": self.receipt.to_dict(),
+            "tenant_id": self.tenant_id,
+            "project_id": self.project_id,
+            "principal_id": self.principal_id,
+            "created_at": self.created_at,
+            "audit_event_id": self.audit_event_id,
+        }
+
+
+@dataclass(frozen=True)
+class IdentityVerificationAuditEvent:
+    event_id: str
+    event_type: str
+    outcome_code: str
+    tenant_id: str
+    project_id: str
+    provider: str
+    purpose: str
+    attempt_number: int
+    created_at: str
+    challenge_id: str | None
+    receipt_id: str | None
+    principal_id: str | None
+    account_id: str | None
+    metadata: Mapping[str, Any]
+
+    @classmethod
+    def from_public_response(
+        cls, payload: Mapping[str, Any]
+    ) -> "IdentityVerificationAuditEvent":
+        _assert_public_safe(payload)
+        metadata = payload.get("metadata", {})
+        if not isinstance(metadata, Mapping):
+            raise UnifiedIdentityContractError("metadata must be an object")
+        return cls(
+            event_id=_identifier("event_id", payload.get("event_id")),
+            event_type=_enum(
+                "verification audit event type",
+                payload.get("event_type"),
+                IDENTITY_VERIFICATION_AUDIT_EVENT_TYPES,
+            ),
+            outcome_code=_enum(
+                "verification audit outcome code",
+                payload.get("outcome_code"),
+                IDENTITY_VERIFICATION_AUDIT_OUTCOME_CODES,
+            ),
+            tenant_id=_identifier("tenant_id", payload.get("tenant_id")),
+            project_id=_identifier("project_id", payload.get("project_id")),
+            provider=normalize_verification_provider(payload.get("provider")),
+            purpose=normalize_verification_purpose(payload.get("purpose")),
+            attempt_number=_non_negative_int(
+                "attempt_number", payload.get("attempt_number")
+            ),
+            created_at=_timestamp("created_at", payload.get("created_at")),
+            challenge_id=_optional_identifier(
+                "challenge_id", payload.get("challenge_id")
+            ),
+            receipt_id=_optional_identifier("receipt_id", payload.get("receipt_id")),
+            principal_id=_optional_identifier(
+                "principal_id", payload.get("principal_id")
+            ),
+            account_id=_optional_identifier("account_id", payload.get("account_id")),
+            metadata=dict(metadata),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "event_id": self.event_id,
+            "event_type": self.event_type,
+            "outcome_code": self.outcome_code,
+            "tenant_id": self.tenant_id,
+            "project_id": self.project_id,
+            "provider": self.provider,
+            "purpose": self.purpose,
+            "attempt_number": self.attempt_number,
+            "created_at": self.created_at,
+            "challenge_id": self.challenge_id,
+            "receipt_id": self.receipt_id,
+            "principal_id": self.principal_id,
+            "account_id": self.account_id,
+            "metadata": dict(self.metadata),
+        }
+
+
+@dataclass(frozen=True)
+class IdentityVerificationAdminFilter:
+    tenant_id: str
+    project_id: str
+    provider: str | None = None
+    purpose: str | None = None
+    challenge_id: str | None = None
+    receipt_id: str | None = None
+    principal_id: str | None = None
+    account_id: str | None = None
+    event_type: str | None = None
+    outcome_code: str | None = None
+    created_after: str | None = None
+    created_before: str | None = None
+    cursor: str | None = None
+    limit: int = 50
+
+    def to_public_query(self) -> dict[str, Any]:
+        query: dict[str, Any] = {
+            "tenant_id": _identifier("tenant_id", self.tenant_id),
+            "project_id": _identifier("project_id", self.project_id),
+            "limit": _bounded_positive_int("limit", self.limit, 1, 200),
+        }
+        for name, value in {
+            "challenge_id": self.challenge_id,
+            "receipt_id": self.receipt_id,
+            "principal_id": self.principal_id,
+            "account_id": self.account_id,
+            "cursor": self.cursor,
+        }.items():
+            normalized = _optional_identifier(name, value)
+            if normalized is not None:
+                query[name] = normalized
+        if self.provider is not None:
+            query["provider"] = normalize_verification_provider(self.provider)
+        if self.purpose is not None:
+            query["purpose"] = normalize_verification_purpose(self.purpose)
+        if self.event_type is not None:
+            query["event_type"] = _enum(
+                "verification audit event type",
+                self.event_type,
+                IDENTITY_VERIFICATION_AUDIT_EVENT_TYPES,
+            )
+        if self.outcome_code is not None:
+            query["outcome_code"] = _enum(
+                "verification audit outcome code",
+                self.outcome_code,
+                IDENTITY_VERIFICATION_AUDIT_OUTCOME_CODES,
+            )
+        created_after = _optional_timestamp("created_after", self.created_after)
+        created_before = _optional_timestamp("created_before", self.created_before)
+        if created_after is not None:
+            query["created_after"] = created_after
+        if created_before is not None:
+            query["created_before"] = created_before
+        if (
+            created_after is not None
+            and created_before is not None
+            and _parse_timestamp(created_after) > _parse_timestamp(created_before)
+        ):
+            raise UnifiedIdentityContractError(
+                "created_after cannot be later than created_before"
+            )
+        _assert_public_safe(query)
+        return query
+
+
+@dataclass(frozen=True)
+class IdentityVerificationDurableReceiptPage:
+    items: tuple[IdentityVerificationDurableReceipt, ...]
+    next_cursor: str | None
+
+    @classmethod
+    def from_public_response(
+        cls, payload: Mapping[str, Any]
+    ) -> "IdentityVerificationDurableReceiptPage":
+        _assert_public_safe(payload)
+        return cls(
+            items=tuple(
+                IdentityVerificationDurableReceipt.from_public_response(item)
+                for item in _mapping_sequence("items", payload.get("items"))
+            ),
+            next_cursor=_optional_identifier(
+                "next_cursor", payload.get("next_cursor")
+            ),
+        )
+
+
+@dataclass(frozen=True)
+class IdentityVerificationAuditEventPage:
+    items: tuple[IdentityVerificationAuditEvent, ...]
+    next_cursor: str | None
+
+    @classmethod
+    def from_public_response(
+        cls, payload: Mapping[str, Any]
+    ) -> "IdentityVerificationAuditEventPage":
+        _assert_public_safe(payload)
+        return cls(
+            items=tuple(
+                IdentityVerificationAuditEvent.from_public_response(item)
+                for item in _mapping_sequence("items", payload.get("items"))
+            ),
+            next_cursor=_optional_identifier(
+                "next_cursor", payload.get("next_cursor")
+            ),
+        )
+
+
+@dataclass(frozen=True)
+class IdentityVerificationDigestEnvelope:
+    tenant_id: str
+    project_id: str
+    provider: str
+    purpose: str
+    challenge_id: str
+    destination_digest_ref: str
+    request_context_digest_ref: str
+    idempotency_digest_ref: str
+    request_digest_ref: str
+    receipt_id: str | None = None
+    principal_id: str | None = None
+    account_id: str | None = None
+
+    @classmethod
+    def from_public_response(
+        cls, payload: Mapping[str, Any]
+    ) -> "IdentityVerificationDigestEnvelope":
+        _assert_public_safe(payload)
+        return cls(
+            tenant_id=_identifier("tenant_id", payload.get("tenant_id")),
+            project_id=_identifier("project_id", payload.get("project_id")),
+            provider=normalize_verification_provider(payload.get("provider")),
+            purpose=normalize_verification_purpose(payload.get("purpose")),
+            challenge_id=_identifier("challenge_id", payload.get("challenge_id")),
+            destination_digest_ref=_digest_reference(
+                "destination_digest_ref", payload.get("destination_digest_ref")
+            ),
+            request_context_digest_ref=_digest_reference(
+                "request_context_digest_ref",
+                payload.get("request_context_digest_ref"),
+            ),
+            idempotency_digest_ref=_digest_reference(
+                "idempotency_digest_ref", payload.get("idempotency_digest_ref")
+            ),
+            request_digest_ref=_digest_reference(
+                "request_digest_ref", payload.get("request_digest_ref")
+            ),
+            receipt_id=_optional_identifier("receipt_id", payload.get("receipt_id")),
+            principal_id=_optional_identifier(
+                "principal_id", payload.get("principal_id")
+            ),
+            account_id=_optional_identifier("account_id", payload.get("account_id")),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return dict(self.__dict__)
+
+
+@dataclass(frozen=True)
+class IdentityVerificationAbuseDimensions:
+    tenant_id: str
+    project_id: str
+    provider: str
+    purpose: str
+    destination_digest_ref: str
+    request_context_digest_ref: str
+    attempt_cap: int
+    cooldown_seconds: int
+    consecutive_failures: int = 0
+    blocked_until: str | None = None
+    principal_id: str | None = None
+    account_id: str | None = None
+
+    @classmethod
+    def from_public_response(
+        cls, payload: Mapping[str, Any]
+    ) -> "IdentityVerificationAbuseDimensions":
+        _assert_public_safe(payload)
+        return cls(
+            tenant_id=_identifier("tenant_id", payload.get("tenant_id")),
+            project_id=_identifier("project_id", payload.get("project_id")),
+            provider=normalize_verification_provider(payload.get("provider")),
+            purpose=normalize_verification_purpose(payload.get("purpose")),
+            destination_digest_ref=_digest_reference(
+                "destination_digest_ref", payload.get("destination_digest_ref")
+            ),
+            request_context_digest_ref=_digest_reference(
+                "request_context_digest_ref",
+                payload.get("request_context_digest_ref"),
+            ),
+            attempt_cap=_bounded_positive_int(
+                "attempt_cap", payload.get("attempt_cap"), 1, 100
+            ),
+            cooldown_seconds=_bounded_non_negative_int(
+                "cooldown_seconds", payload.get("cooldown_seconds"), 86_400
+            ),
+            consecutive_failures=_bounded_non_negative_int(
+                "consecutive_failures",
+                payload.get("consecutive_failures", 0),
+                1_000_000,
+            ),
+            blocked_until=_optional_timestamp(
+                "blocked_until", payload.get("blocked_until")
+            ),
+            principal_id=_optional_identifier(
+                "principal_id", payload.get("principal_id")
+            ),
+            account_id=_optional_identifier("account_id", payload.get("account_id")),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return dict(self.__dict__)
+
+
+class IdentityVerificationDurableStore(Protocol):
+    def persist_receipt(self, receipt: IdentityVerificationDurableReceipt) -> None: ...
+
+    def get_receipt(
+        self, tenant_id: str, project_id: str, receipt_id: str
+    ) -> IdentityVerificationDurableReceipt | None: ...
+
+    def list_receipts(
+        self, query: IdentityVerificationAdminFilter
+    ) -> IdentityVerificationDurableReceiptPage: ...
+
+    def append_audit_event(self, event: IdentityVerificationAuditEvent) -> None: ...
+
+    def list_audit_events(
+        self, query: IdentityVerificationAdminFilter
+    ) -> IdentityVerificationAuditEventPage: ...
+
+    def replace_receipt(
+        self,
+        expected: IdentityVerificationDurableReceipt,
+        replacement: IdentityVerificationDurableReceipt,
+        event: IdentityVerificationAuditEvent,
+    ) -> None: ...
+
+
+class IdentityVerificationMemoryStore:
+    """Thread-safe public-contract store used for local SDK tests and replay."""
+
+    def __init__(self) -> None:
+        self._receipts: dict[
+            tuple[str, str, str], IdentityVerificationDurableReceipt
+        ] = {}
+        self._events: dict[
+            tuple[str, str, str], IdentityVerificationAuditEvent
+        ] = {}
+        self._lock = RLock()
+
+    def persist_receipt(self, receipt: IdentityVerificationDurableReceipt) -> None:
+        normalized = _clone_durable_receipt(receipt)
+        key = self._receipt_key(normalized)
+        with self._lock:
+            if key in self._receipts:
+                raise UnifiedIdentityContractError(
+                    "verification receipt already exists",
+                    code="identity_verification_replayed",
+                )
+            self._receipts[key] = normalized
+
+    def get_receipt(
+        self, tenant_id: str, project_id: str, receipt_id: str
+    ) -> IdentityVerificationDurableReceipt | None:
+        key = (
+            _identifier("tenant_id", tenant_id),
+            _identifier("project_id", project_id),
+            _identifier("receipt_id", receipt_id),
+        )
+        with self._lock:
+            value = self._receipts.get(key)
+            return _clone_durable_receipt(value) if value is not None else None
+
+    def list_receipts(
+        self, query: IdentityVerificationAdminFilter
+    ) -> IdentityVerificationDurableReceiptPage:
+        filters = query.to_public_query()
+        with self._lock:
+            values = [
+                value
+                for value in self._receipts.values()
+                if _matches_receipt(value, filters)
+            ]
+        values.sort(key=lambda value: (value.created_at, value.receipt.receipt_id))
+        page, cursor = _paginate(values, filters)
+        return IdentityVerificationDurableReceiptPage(
+            tuple(_clone_durable_receipt(item) for item in page), cursor
+        )
+
+    def append_audit_event(self, event: IdentityVerificationAuditEvent) -> None:
+        normalized = _clone_audit_event(event)
+        key = (normalized.tenant_id, normalized.project_id, normalized.event_id)
+        with self._lock:
+            if key in self._events:
+                raise UnifiedIdentityContractError("verification audit event already exists")
+            self._events[key] = normalized
+
+    def list_audit_events(
+        self, query: IdentityVerificationAdminFilter
+    ) -> IdentityVerificationAuditEventPage:
+        filters = query.to_public_query()
+        with self._lock:
+            values = [
+                value
+                for value in self._events.values()
+                if _matches_event(value, filters)
+            ]
+        values.sort(key=lambda value: (value.created_at, value.event_id))
+        page, cursor = _paginate(values, filters)
+        return IdentityVerificationAuditEventPage(
+            tuple(_clone_audit_event(item) for item in page), cursor
+        )
+
+    def replace_receipt(
+        self,
+        expected: IdentityVerificationDurableReceipt,
+        replacement: IdentityVerificationDurableReceipt,
+        event: IdentityVerificationAuditEvent,
+    ) -> None:
+        current_key = self._receipt_key(expected)
+        replacement_value = _clone_durable_receipt(replacement)
+        event_value = _clone_audit_event(event)
+        if self._receipt_key(replacement_value) != current_key:
+            raise UnifiedIdentityContractError("receipt scope cannot change")
+        event_key = (event_value.tenant_id, event_value.project_id, event_value.event_id)
+        if event_key[:2] != current_key[:2]:
+            raise UnifiedIdentityContractError("audit event scope mismatch")
+        with self._lock:
+            if self._receipts.get(current_key) != expected:
+                raise UnifiedIdentityContractError(
+                    "verification receipt is unavailable",
+                    code="identity_verification_replayed",
+                )
+            if event_key in self._events:
+                raise UnifiedIdentityContractError("verification audit event already exists")
+            self._receipts[current_key] = replacement_value
+            self._events[event_key] = event_value
+
+    @staticmethod
+    def _receipt_key(
+        value: IdentityVerificationDurableReceipt,
+    ) -> tuple[str, str, str]:
+        return (value.tenant_id, value.project_id, value.receipt.receipt_id)
+
+
+MutationResult = TypeVar("MutationResult")
+
+
+class IdentityVerificationTransactionCoordinator:
+    def __init__(self, store: IdentityVerificationDurableStore) -> None:
+        self._store = store
+        self._lock = RLock()
+
+    def consume_receipt(
+        self,
+        tenant_id: str,
+        project_id: str,
+        receipt_id: str,
+        event: IdentityVerificationAuditEvent,
+        mutation: Callable[[IdentityVerificationReceipt], MutationResult],
+        *,
+        consumed_at: str,
+    ) -> MutationResult:
+        with self._lock:
+            current = self._store.get_receipt(tenant_id, project_id, receipt_id)
+            if current is None or current.receipt.status != "verified":
+                raise UnifiedIdentityContractError(
+                    "verification receipt is unavailable",
+                    code="identity_verification_replayed",
+                )
+            timestamp = _timestamp("consumed_at", consumed_at)
+            if _parse_timestamp(timestamp) >= _parse_timestamp(current.receipt.expires_at):
+                raise UnifiedIdentityContractError(
+                    "verification receipt is unavailable",
+                    code="identity_verification_expired",
+                )
+            if (
+                event.tenant_id != current.tenant_id
+                or event.project_id != current.project_id
+                or event.receipt_id != current.receipt.receipt_id
+                or event.event_type != "challenge_consumed"
+                or event.outcome_code != "consumed"
+            ):
+                raise UnifiedIdentityContractError("receipt consumption event mismatch")
+            result = mutation(_clone_receipt(current.receipt))
+            consumed = IdentityVerificationReceipt(
+                **{
+                    **current.receipt.__dict__,
+                    "status": "consumed",
+                    "consumed_at": timestamp,
+                }
+            )
+            replacement = IdentityVerificationDurableReceipt(
+                **{**current.__dict__, "receipt": consumed}
+            )
+            self._store.replace_receipt(current, replacement, event)
+            return result
+
+
+@dataclass(frozen=True)
 class UnifiedIdentityError:
     code: str
     message: str
@@ -941,6 +1496,16 @@ class UnifiedIdentityClient:
             )
         )
 
+    def decode_durable_receipt_page(
+        self, payload: Mapping[str, Any]
+    ) -> IdentityVerificationDurableReceiptPage:
+        return IdentityVerificationDurableReceiptPage.from_public_response(payload)
+
+    def decode_verification_audit_page(
+        self, payload: Mapping[str, Any]
+    ) -> IdentityVerificationAuditEventPage:
+        return IdentityVerificationAuditEventPage.from_public_response(payload)
+
     def _request(
         self, method: str, path: str, payload: Mapping[str, Any]
     ) -> Mapping[str, Any]:
@@ -1081,6 +1646,10 @@ def _identifier(name: str, value: Any) -> str:
     return normalized
 
 
+def _optional_identifier(name: str, value: Any) -> str | None:
+    return None if value is None or value == "" else _identifier(name, value)
+
+
 def _private_input_reference(name: str, value: Any) -> str:
     normalized = _identifier(name, value)
     if ":" not in normalized:
@@ -1130,10 +1699,16 @@ def _boolean(name: str, value: Any) -> bool:
 def _timestamp(name: str, value: Any) -> str:
     normalized = str(value or "").strip()
     try:
-        datetime.fromisoformat(normalized.replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(normalized.replace("Z", "+00:00"))
     except (AttributeError, ValueError) as exc:
         raise UnifiedIdentityContractError(f"{name} must be an ISO-8601 timestamp") from exc
+    if parsed.utcoffset() is None:
+        raise UnifiedIdentityContractError(f"{name} must include a timezone")
     return normalized
+
+
+def _parse_timestamp(value: str) -> datetime:
+    return datetime.fromisoformat(value.replace("Z", "+00:00")).astimezone(timezone.utc)
 
 
 def _optional_timestamp(name: str, value: Any) -> str | None:
@@ -1196,3 +1771,122 @@ def _positive_int(name: str, value: Any) -> int:
     if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
         raise UnifiedIdentityContractError(f"{name} must be a positive integer")
     return value
+
+
+def _bounded_positive_int(
+    name: str, value: Any, minimum: int, maximum: int
+) -> int:
+    if (
+        not isinstance(value, int)
+        or isinstance(value, bool)
+        or value < minimum
+        or value > maximum
+    ):
+        raise UnifiedIdentityContractError(
+            f"{name} must be an integer from {minimum} through {maximum}"
+        )
+    return value
+
+
+def _bounded_non_negative_int(name: str, value: Any, maximum: int) -> int:
+    if (
+        not isinstance(value, int)
+        or isinstance(value, bool)
+        or value < 0
+        or value > maximum
+    ):
+        raise UnifiedIdentityContractError(
+            f"{name} must be a non-negative integer no greater than {maximum}"
+        )
+    return value
+
+
+def _clone_receipt(value: IdentityVerificationReceipt) -> IdentityVerificationReceipt:
+    return IdentityVerificationReceipt.from_public_response(value.to_dict())
+
+
+def _clone_durable_receipt(
+    value: IdentityVerificationDurableReceipt,
+) -> IdentityVerificationDurableReceipt:
+    return IdentityVerificationDurableReceipt.from_public_response(value.to_dict())
+
+
+def _clone_audit_event(
+    value: IdentityVerificationAuditEvent,
+) -> IdentityVerificationAuditEvent:
+    return IdentityVerificationAuditEvent.from_public_response(
+        deepcopy(value.to_dict())
+    )
+
+
+def _matches_time(created_at: str, filters: Mapping[str, Any]) -> bool:
+    value = _parse_timestamp(created_at)
+    after = filters.get("created_after")
+    before = filters.get("created_before")
+    return not (
+        (after is not None and value < _parse_timestamp(after))
+        or (before is not None and value > _parse_timestamp(before))
+    )
+
+
+def _matches_receipt(
+    value: IdentityVerificationDurableReceipt, filters: Mapping[str, Any]
+) -> bool:
+    receipt = value.receipt
+    fields = {
+        "tenant_id": value.tenant_id,
+        "project_id": value.project_id,
+        "provider": receipt.provider,
+        "purpose": receipt.purpose,
+        "challenge_id": receipt.challenge_id,
+        "receipt_id": receipt.receipt_id,
+        "principal_id": value.principal_id,
+        "account_id": receipt.account_id,
+    }
+    return all(
+        filters.get(name) is None or filters[name] == actual
+        for name, actual in fields.items()
+    ) and _matches_time(value.created_at, filters)
+
+
+def _matches_event(
+    value: IdentityVerificationAuditEvent, filters: Mapping[str, Any]
+) -> bool:
+    fields = {
+        "tenant_id": value.tenant_id,
+        "project_id": value.project_id,
+        "provider": value.provider,
+        "purpose": value.purpose,
+        "challenge_id": value.challenge_id,
+        "receipt_id": value.receipt_id,
+        "principal_id": value.principal_id,
+        "account_id": value.account_id,
+        "event_type": value.event_type,
+        "outcome_code": value.outcome_code,
+    }
+    return all(
+        filters.get(name) is None or filters[name] == actual
+        for name, actual in fields.items()
+    ) and _matches_time(value.created_at, filters)
+
+
+def _paginate(
+    values: Sequence[Any], filters: Mapping[str, Any]
+) -> tuple[Sequence[Any], str | None]:
+    cursor = filters.get("cursor")
+    if cursor:
+        parts = cursor.split(":", 1)
+        if (
+            len(parts) != 2
+            or parts[0] != "cursor"
+            or not parts[1].isdigit()
+        ):
+            raise UnifiedIdentityContractError("cursor is invalid")
+        start = int(parts[1])
+    else:
+        start = 0
+    limit = filters["limit"]
+    page = values[start : start + limit]
+    next_offset = start + len(page)
+    next_cursor = f"cursor:{next_offset}" if next_offset < len(values) else None
+    return page, next_cursor

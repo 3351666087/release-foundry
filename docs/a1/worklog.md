@@ -2194,3 +2194,105 @@ python scripts/cl_guard.py hygiene
 python scripts/cl_guard.py commercial
 git diff --check
 ```
+
+## Round 52 Closeout: Durable Identity Verification, TS Parity, And Rust Security
+
+Date: 2026-07-11
+
+This round hardened the A1 identity boundary across the Go runtime,
+PostgreSQL, Python SDK, TypeScript SDK, and Rust verifier. It did not modify A2
+judge semantics or A3 dashboard/report behavior.
+
+Commercially relevant capabilities delivered:
+
+1. Go now exposes a fail-closed production identity-verification runtime that
+   requires PostgreSQL transaction coordination and refuses production
+   fallback to the in-memory store.
+2. Migration `012_a1_identity_verification.sql` provides digest-only
+   challenges, receipts, delivery outbox, abuse budgets, audit events, forced
+   RLS, and narrow security-definer mutation functions.
+3. Live PostgreSQL proof covers transaction rollback, retryable proof state,
+   two independent connection competition, exactly one credential winner,
+   idempotent replay, changed-request conflict, cross-scope rejection, and
+   direct-table mutation rejection.
+4. Python and TypeScript expose the same durable verification public surface:
+   10 durable/security public types, 22 contract fields, 12 canonical routes,
+   stable errors, opaque references, and strict public-safe payload guards.
+5. TypeScript includes executable durable-store, transaction-coordinator,
+   challenge/receipt parsing, HTTP client, CLI-safe output, recovery, link,
+   unlink, and merge behavior rather than symbol-only parity.
+6. Rust now authenticates signed evidence manifests with HMAC-SHA256,
+   canonical JSON, strict schemas, constant-time comparisons, bounded validity
+   windows, tenant/project scope checks, and path-extraction hardening.
+7. A Go test helper race found under WSL was fixed with `atomic.Int64`; no
+   remaining race was found by the expanded race suite.
+
+Validation ledger:
+
+- TypeScript build and full suite: `521 passed, 0 failed`.
+- Generated TS/Python parity artifact: regenerated and `--check` passed.
+- Full A1 Python suite: `972 passed, 2 skipped`.
+- Focused verification/PostgreSQL/Python/TS/Rust contract suite:
+  `82 passed`.
+- Live PostgreSQL migration suite: `13 passed`; the independent-connection
+  race was repeated five times with five winners, five rejected competitors,
+  and zero duplicate credentials.
+- Windows Go `go test -count=1 ./...`: passed for all three packages.
+- Windows Go `go vet ./...`: passed.
+- WSL `Ubuntu-24.04-Ashr` used Go 1.22.2, GCC 13.3.0, and
+  `CGO_ENABLED=1`; full `go test -race`, shuffled ten-run race, 100-run
+  identity single-use contention, and focused rollback/runtime stress passed.
+- Rust `cargo fmt`, `cargo clippy -D warnings`, and all-target tests passed;
+  `22 passed`.
+- Fresh setup smoke: passed.
+- CL hygiene and commercial guards: passed with no findings or blockers.
+
+GCC and Rust boundary:
+
+- GCC was exercised through WSL CGO race builds and PostgreSQL reports its
+  server compiler as GCC 15.2.0.
+- The Rust verifier intentionally uses pure Rust/RustCrypto for canonical JSON
+  and HMAC. Adding a C FFI layer would not add a security property and would
+  enlarge the native-memory and supply-chain surface.
+- Windows Rust 1.96.1 is the validated Rust toolchain for this round. WSL Rust
+  is not claimed because the user-space toolchain download did not complete.
+
+Evidence:
+
+- `docs/a1/evidence/round52_identity_verification_postgres_20260710.md`
+- `docs/a1/evidence/round52_rust_identity_security_verifier_20260711.md`
+- `docs/a1/identity-verification-public-surface.json`
+- `tests/a1/docs/a1/ts_python_gap_matrix.json`
+
+Peer-change boundary:
+
+- Five `fixtures/a2/results/*.json` files contain peer-owned line-ending noise.
+  They remain unstaged and are excluded from this A1 commit.
+- No A2 or A3 business file is part of the Round 52 publication set.
+- Staging remains explicit by reviewed A1 path; bulk staging is prohibited.
+
+Honest remaining gaps:
+
+1. TypeScript matches Python's SDK, typed-client, public-contract, and local
+   durable behavior, but does not yet independently prove Go/PostgreSQL RLS or
+   multi-process production persistence.
+2. Rust verifies authenticated manifests but does not stream object-storage
+   artifact bytes; the artifact service must still compare each declared
+   length and SHA-256 while reading.
+3. Durable replay reservation remains a PostgreSQL transaction responsibility,
+   not process-local Rust state.
+4. Session rotation families, refresh-token reuse detection, revoke-one,
+   revoke-all, recovery-driven session invalidation, and long-running
+   verification delivery workers remain next-round production work.
+5. Equivalent independent-connection races for login/session creation and
+   recovery are not yet proven.
+
+Next commercial A1 mainline:
+
+- durable verification delivery worker with lease heartbeat, fencing,
+  retry/dead-letter/redrive, and opaque SMTP/SMS adapters;
+- session rotation/reuse detection and scoped revocation lifecycle;
+- Go ingestion integration for the Rust authenticated evidence verifier;
+- streaming object-storage verification and tamper-proof audit export;
+- generated OpenAPI plus Python/TypeScript clients for the production identity
+  and session lifecycle.

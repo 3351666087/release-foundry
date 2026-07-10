@@ -12,16 +12,17 @@ import (
 )
 
 type HTTPServer struct {
-	service               ControlPlaneBackend
-	paymentReconciliation *PaymentReconciliationService
-	paymentDomain         *PaymentDomainService
-	unifiedIdentity       *UnifiedIdentityService
-	identitySessions      IdentityHTTPSessionResolver
-	identityVerification  *IdentityVerificationService
-	oauthProviders        map[string]*OAuthService
-	githubOAuth           *GitHubOAuthService
-	backendName           string
-	backendReady          bool
+	service                            ControlPlaneBackend
+	paymentReconciliation              *PaymentReconciliationService
+	paymentDomain                      *PaymentDomainService
+	unifiedIdentity                    *UnifiedIdentityService
+	identitySessions                   IdentityHTTPSessionResolver
+	identityVerification               *IdentityVerificationService
+	identityVerificationResponsePolicy *IdentityVerificationResponsePolicy
+	oauthProviders                     map[string]*OAuthService
+	githubOAuth                        *GitHubOAuthService
+	backendName                        string
+	backendReady                       bool
 }
 
 type ControlPlaneBackend interface {
@@ -58,15 +59,16 @@ type ControlPlaneBackend interface {
 }
 
 type HTTPServerOptions struct {
-	BackendName           string
-	BackendReady          bool
-	PaymentReconciliation *PaymentReconciliationService
-	PaymentDomain         *PaymentDomainService
-	UnifiedIdentity       *UnifiedIdentityService
-	IdentitySessions      IdentityHTTPSessionResolver
-	IdentityVerification  *IdentityVerificationService
-	OAuthProviders        map[string]*OAuthService
-	GitHubOAuth           *GitHubOAuthService
+	BackendName                        string
+	BackendReady                       bool
+	PaymentReconciliation              *PaymentReconciliationService
+	PaymentDomain                      *PaymentDomainService
+	UnifiedIdentity                    *UnifiedIdentityService
+	IdentitySessions                   IdentityHTTPSessionResolver
+	IdentityVerification               *IdentityVerificationService
+	IdentityVerificationResponsePolicy *IdentityVerificationResponsePolicy
+	OAuthProviders                     map[string]*OAuthService
+	GitHubOAuth                        *GitHubOAuthService
 }
 
 func NewHTTPServer(service ControlPlaneBackend) http.Handler {
@@ -90,16 +92,17 @@ func NewHTTPServerWithOptions(service ControlPlaneBackend, options HTTPServerOpt
 		oauthProviders[normalizedProvider] = oauthService
 	}
 	return &HTTPServer{
-		service:               service,
-		paymentReconciliation: options.PaymentReconciliation,
-		paymentDomain:         options.PaymentDomain,
-		unifiedIdentity:       options.UnifiedIdentity,
-		identitySessions:      options.IdentitySessions,
-		identityVerification:  options.IdentityVerification,
-		oauthProviders:        oauthProviders,
-		githubOAuth:           options.GitHubOAuth,
-		backendName:           backendName,
-		backendReady:          options.BackendReady,
+		service:                            service,
+		paymentReconciliation:              options.PaymentReconciliation,
+		paymentDomain:                      options.PaymentDomain,
+		unifiedIdentity:                    options.UnifiedIdentity,
+		identitySessions:                   options.IdentitySessions,
+		identityVerification:               options.IdentityVerification,
+		identityVerificationResponsePolicy: options.IdentityVerificationResponsePolicy,
+		oauthProviders:                     oauthProviders,
+		githubOAuth:                        options.GitHubOAuth,
+		backendName:                        backendName,
+		backendReady:                       options.BackendReady,
 	}
 }
 

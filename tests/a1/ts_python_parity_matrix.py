@@ -307,6 +307,14 @@ def python_unified_identity_contract(path: Path) -> dict[str, Any]:
         if operation == "account_merge":
             value = value.replace("{account_id}", "{canonical_account_id}")
         routes.append({"operation": operation, "method": method, "path": value})
+    verification = {
+        **manifest["verification"],
+        "providers": sorted(manifest["verification"]["providers"]),
+        "purposes": sorted(manifest["verification"]["purposes"]),
+        "challenge_statuses": sorted(manifest["verification"]["challenge_statuses"]),
+        "receipt_statuses": sorted(manifest["verification"]["receipt_statuses"]),
+        "public_surface": sorted(manifest["verification"]["public_surface"]),
+    }
     return {
         "schema_version": python_scalar_literal(path, "UNIFIED_IDENTITY_SCHEMA_VERSION"),
         "providers": python_set_literal(path, "UNIFIED_IDENTITY_PROVIDERS"),
@@ -315,6 +323,24 @@ def python_unified_identity_contract(path: Path) -> dict[str, Any]:
         "membership_roles": python_set_literal(path, "UNIFIED_IDENTITY_MEMBERSHIP_ROLES"),
         "membership_statuses": python_set_literal(path, "UNIFIED_IDENTITY_MEMBERSHIP_STATUSES"),
         "stable_error_codes": python_set_literal(path, "UNIFIED_IDENTITY_ERROR_CODES"),
+        "verification_providers": python_set_literal(path, "IDENTITY_VERIFICATION_PROVIDERS"),
+        "verification_purposes": python_set_literal(path, "IDENTITY_VERIFICATION_PURPOSES"),
+        "verification_challenge_statuses": python_set_literal(
+            path, "IDENTITY_VERIFICATION_CHALLENGE_STATUSES"
+        ),
+        "verification_receipt_statuses": python_set_literal(
+            path, "IDENTITY_VERIFICATION_RECEIPT_STATUSES"
+        ),
+        "verification_audit_event_types": python_set_literal(
+            path, "IDENTITY_VERIFICATION_AUDIT_EVENT_TYPES"
+        ),
+        "verification_audit_outcome_codes": python_set_literal(
+            path, "IDENTITY_VERIFICATION_AUDIT_OUTCOME_CODES"
+        ),
+        "verification_public_surface": python_set_literal(
+            path, "IDENTITY_VERIFICATION_PUBLIC_SURFACE"
+        ),
+        "verification": verification,
         "subject_model": manifest["subject_model"],
         "invariants": dict(sorted(manifest["invariants"].items())),
         "public_safety": dict(sorted(manifest["public_safety"].items())),
@@ -345,6 +371,43 @@ def ts_unified_identity_contract(path: Path) -> dict[str, Any]:
             path, "UNIFIED_IDENTITY_MEMBERSHIP_STATUSES"
         ),
         "stable_error_codes": ts_named_string_collection(path, "UNIFIED_IDENTITY_ERROR_CODES"),
+        "verification_providers": ts_named_string_collection(
+            path, "IDENTITY_VERIFICATION_PROVIDERS"
+        ),
+        "verification_purposes": ts_named_string_collection(
+            path, "IDENTITY_VERIFICATION_PURPOSES"
+        ),
+        "verification_challenge_statuses": ts_named_string_collection(
+            path, "IDENTITY_VERIFICATION_CHALLENGE_STATUSES"
+        ),
+        "verification_receipt_statuses": ts_named_string_collection(
+            path, "IDENTITY_VERIFICATION_RECEIPT_STATUSES"
+        ),
+        "verification_audit_event_types": ts_named_string_collection(
+            path, "IDENTITY_VERIFICATION_AUDIT_EVENT_TYPES"
+        ),
+        "verification_audit_outcome_codes": ts_named_string_collection(
+            path, "IDENTITY_VERIFICATION_AUDIT_OUTCOME_CODES"
+        ),
+        "verification_public_surface": ts_named_string_collection(
+            path, "IDENTITY_VERIFICATION_PUBLIC_SURFACE"
+        ),
+        "verification": {
+            "providers": ts_named_string_collection(path, "IDENTITY_VERIFICATION_PROVIDERS"),
+            "purposes": ts_named_string_collection(path, "IDENTITY_VERIFICATION_PURPOSES"),
+            "challenge_statuses": ts_named_string_collection(
+                path, "IDENTITY_VERIFICATION_CHALLENGE_STATUSES"
+            ),
+            "receipt_statuses": ts_named_string_collection(
+                path, "IDENTITY_VERIFICATION_RECEIPT_STATUSES"
+            ),
+            "destination_input": "opaque_reference_only",
+            "code_input": "opaque_reference_only",
+            **ts_manifest_section(path, "verification"),
+            "public_surface": ts_named_string_collection(
+                path, "IDENTITY_VERIFICATION_PUBLIC_SURFACE"
+            ),
+        },
         "subject_model": subject_match.group(1),
         "invariants": dict(sorted(ts_manifest_section(path, "invariants").items())),
         "public_safety": dict(sorted(ts_manifest_section(path, "public_safety").items())),

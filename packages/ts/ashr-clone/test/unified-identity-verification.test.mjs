@@ -2,10 +2,15 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  IDENTITY_VERIFICATION_AUDIT_EVENT_TYPES,
+  IDENTITY_VERIFICATION_AUDIT_OUTCOME_CODES,
   IDENTITY_VERIFICATION_CHALLENGE_STATUSES,
   IDENTITY_VERIFICATION_PROVIDERS,
+  IDENTITY_VERIFICATION_PUBLIC_SURFACE,
   IDENTITY_VERIFICATION_PURPOSES,
   IDENTITY_VERIFICATION_RECEIPT_STATUSES,
+  IdentityVerificationMemoryStore,
+  IdentityVerificationTransactionCoordinator,
   UnifiedIdentityContractError,
   UnifiedIdentityHttpClient,
   assertPublicUnifiedIdentityPayload,
@@ -15,8 +20,14 @@ import {
   identityVerificationChallengesRoute,
   identityVerificationResendRoute,
   identityVerificationVerifyRoute,
+  normalizeIdentityVerificationAdminFilter,
+  parseIdentityVerificationAbuseDimensions,
+  parseIdentityVerificationAuditEvent,
+  parseIdentityVerificationDigestEnvelope,
+  parseIdentityVerificationDurableReceipt,
   parseIdentityVerificationChallenge,
   parseIdentityVerificationReceipt,
+  unifiedIdentityContractManifest,
 } from "../dist/unified-identity.js";
 
 const createdAt = "2026-07-10T10:00:00.000Z";
@@ -62,6 +73,44 @@ function receipt(provider = "email", overrides = {}) {
   };
 }
 
+function durableReceipt(overrides = {}) {
+  return {
+    receipt: receipt(),
+    tenant_id: "tenant_01",
+    project_id: "project_01",
+    principal_id: "principal_01",
+    created_at: createdAt,
+    audit_event_id: "event_issued_01",
+    ...overrides,
+  };
+}
+
+function auditEvent(overrides = {}) {
+  return {
+    event_id: "event_consumed_01",
+    event_type: "challenge_consumed",
+    outcome_code: "consumed",
+    tenant_id: "tenant_01",
+    project_id: "project_01",
+    provider: "email",
+    purpose: "binding",
+    attempt_number: 1,
+    created_at: "2026-07-10T10:01:00.000Z",
+    challenge_id: "challenge_email_01",
+    receipt_id: "receipt_email_01",
+    principal_id: "principal_01",
+    account_id: "account_01",
+    metadata: {
+      media: {
+        kind: "image",
+        mime_type: "image/png",
+        artifact_ref: "artifact:verification/01",
+      },
+    },
+    ...overrides,
+  };
+}
+
 function response(payload, status = 200) {
   return new Response(JSON.stringify(payload), {
     status,
@@ -78,6 +127,229 @@ test("verification constants exactly match Python canonical contract", () => {
   assert.deepEqual([...IDENTITY_VERIFICATION_RECEIPT_STATUSES], [
     "verified", "consumed", "expired",
   ]);
+  assert.equal(IDENTITY_VERIFICATION_AUDIT_EVENT_TYPES.at(-1), "challenge_consumed");
+  assert.equal(IDENTITY_VERIFICATION_AUDIT_OUTCOME_CODES.at(-1), "consumed");
+  assert.deepEqual([...IDENTITY_VERIFICATION_PUBLIC_SURFACE], [
+    "IdentityVerificationAbuseDimensions",
+    "IdentityVerificationAdminFilter",
+    "IdentityVerificationAuditEvent",
+    "IdentityVerificationAuditEventPage",
+    "IdentityVerificationDigestEnvelope",
+    "IdentityVerificationDurableReceipt",
+    "IdentityVerificationDurableReceiptPage",
+    "IdentityVerificationDurableStore",
+    "IdentityVerificationMemoryStore",
+    "IdentityVerificationTransactionCoordinator",
+  ]);
+  assert.deepEqual(unifiedIdentityContractManifest().verification, {
+    providers: ["email", "phone"],
+    purposes: ["binding", "login", "recovery"],
+    challenge_statuses: ["pending", "verified", "consumed", "expired", "locked"],
+    receipt_statuses: ["verified", "consumed", "expired"],
+    destination_input: "opaque_reference_only",
+    code_input: "opaque_reference_only",
+    ttl_required: true,
+    attempt_cap_required: true,
+    resend_cooldown_required: true,
+    single_use_required: true,
+    durable_receipt_records: true,
+    append_only_audit: true,
+    admin_queries_route_neutral: true,
+    digest_only_envelopes: true,
+    atomic_receipt_consumption: true,
+    anti_enumerating_public_failures: true,
+    media_safe_metadata: true,
+    public_surface: [...IDENTITY_VERIFICATION_PUBLIC_SURFACE],
+  });
+});
+
+test("durable and audit page decoders are route-neutral", () => {
+  let calls = 0;
+  const client = new UnifiedIdentityHttpClient({
+    baseUrl: "http://127.0.0.1:8787",
+    fetch: async () => {
+      calls += 1;
+      return response({});
+    },
+  });
+  const receipts = client.decodeDurableReceiptPage({
+    items: [durableReceipt()],
+    next_cursor: "cursor:1",
+  });
+  const events = client.decodeVerificationAuditPage({
+    items: [auditEvent()],
+    next_cursor: null,
+  });
+  assert.equal(receipts.items[0].receipt.receipt_id, "receipt_email_01");
+  assert.equal(events.items[0].metadata.media.kind, "image");
+  assert.equal(calls, 0);
+});
+
+test("digest envelopes and abuse dimensions are opaque and bounded", () => {
+  const envelope = {
+    tenant_id: "tenant_01",
+    project_id: "project_01",
+    provider: "email",
+    purpose: "binding",
+    challenge_id: "challenge_email_01",
+    destination_digest_ref: "digest-store:destination/01",
+    request_context_digest_ref: "digest-store:context/01",
+    idempotency_digest_ref: "digest-store:idempotency/01",
+    request_digest_ref: "digest-store:request/01",
+  };
+  assert.equal(parseIdentityVerificationDigestEnvelope(envelope).receipt_id, null);
+  assert.equal(parseIdentityVerificationAbuseDimensions({
+    tenant_id: "tenant_01",
+    project_id: "project_01",
+    provider: "email",
+    purpose: "binding",
+    destination_digest_ref: "digest-store:destination/01",
+    request_context_digest_ref: "digest-store:context/01",
+    attempt_cap: 5,
+    cooldown_seconds: 60,
+  }).consecutive_failures, 0);
+  for (const field of [
+    "destination_digest_ref",
+    "request_context_digest_ref",
+    "idempotency_digest_ref",
+    "request_digest_ref",
+  ]) {
+    assert.throws(
+      () => parseIdentityVerificationDigestEnvelope({
+        ...envelope,
+        [field]: `sha256:${"a".repeat(64)}`,
+      }),
+      UnifiedIdentityContractError,
+    );
+  }
+  for (const invalid of [
+    { attempt_cap: 0, cooldown_seconds: 60 },
+    { attempt_cap: 101, cooldown_seconds: 60 },
+    { attempt_cap: 5, cooldown_seconds: 86_401 },
+  ]) {
+    assert.throws(() => parseIdentityVerificationAbuseDimensions({
+      tenant_id: "tenant_01",
+      project_id: "project_01",
+      provider: "email",
+      purpose: "binding",
+      destination_digest_ref: "digest-store:destination/01",
+      request_context_digest_ref: "digest-store:context/01",
+      ...invalid,
+    }), UnifiedIdentityContractError);
+  }
+});
+
+test("durable store isolates scope, rejects duplicates, snapshots, and paginates", () => {
+  const store = new IdentityVerificationMemoryStore();
+  const durable = parseIdentityVerificationDurableReceipt(durableReceipt());
+  store.persistReceipt(durable);
+  assert.throws(() => store.persistReceipt(durable), UnifiedIdentityContractError);
+  assert.equal(store.getReceipt("other_tenant", "project_01", "receipt_email_01"), null);
+  const snapshot = store.getReceipt("tenant_01", "project_01", "receipt_email_01");
+  assert.deepEqual(snapshot, durable);
+  assert.notEqual(snapshot, durable);
+
+  store.appendAuditEvent(parseIdentityVerificationAuditEvent(auditEvent({ event_id: "event_01" })));
+  store.appendAuditEvent(parseIdentityVerificationAuditEvent(auditEvent({ event_id: "event_02" })));
+  assert.throws(
+    () => store.appendAuditEvent(parseIdentityVerificationAuditEvent(
+      auditEvent({ event_id: "event_02" }),
+    )),
+    UnifiedIdentityContractError,
+  );
+  const first = store.listAuditEvents({
+    tenant_id: "tenant_01",
+    project_id: "project_01",
+    limit: 1,
+  });
+  assert.equal(first.items.length, 1);
+  assert.equal(first.next_cursor, "cursor:1");
+  const second = store.listAuditEvents({
+    tenant_id: "tenant_01",
+    project_id: "project_01",
+    cursor: first.next_cursor,
+    limit: 1,
+  });
+  assert.equal(second.items.length, 1);
+  assert.equal(second.next_cursor, null);
+  assert.throws(() => store.listAuditEvents({
+    tenant_id: "tenant_01",
+    project_id: "project_01",
+    cursor: "cursor:1junk",
+  }), UnifiedIdentityContractError);
+});
+
+test("transaction coordinator rolls back mutation failures and consumes once", () => {
+  const store = new IdentityVerificationMemoryStore();
+  store.persistReceipt(parseIdentityVerificationDurableReceipt(durableReceipt()));
+  const coordinator = new IdentityVerificationTransactionCoordinator(store);
+  assert.throws(() => coordinator.consumeReceipt(
+    "tenant_01",
+    "project_01",
+    "receipt_email_01",
+    parseIdentityVerificationAuditEvent(auditEvent({ event_id: "event_failed" })),
+    () => {
+      throw new Error("mutation failed");
+    },
+    "2026-07-10T10:02:00.000Z",
+  ), /mutation failed/u);
+  assert.equal(
+    store.getReceipt("tenant_01", "project_01", "receipt_email_01").receipt.status,
+    "verified",
+  );
+  assert.equal(store.listAuditEvents({
+    tenant_id: "tenant_01",
+    project_id: "project_01",
+  }).items.length, 0);
+
+  const result = coordinator.consumeReceipt(
+    "tenant_01",
+    "project_01",
+    "receipt_email_01",
+    parseIdentityVerificationAuditEvent(auditEvent()),
+    (value) => value.challenge_id,
+    "2026-07-10T10:02:00.000Z",
+  );
+  assert.equal(result, "challenge_email_01");
+  assert.equal(
+    store.getReceipt("tenant_01", "project_01", "receipt_email_01").receipt.status,
+    "consumed",
+  );
+  assert.throws(() => coordinator.consumeReceipt(
+    "tenant_01",
+    "project_01",
+    "receipt_email_01",
+    parseIdentityVerificationAuditEvent(auditEvent({ event_id: "event_replay" })),
+    () => null,
+    "2026-07-10T10:03:00.000Z",
+  ), (error) => error instanceof UnifiedIdentityContractError
+    && error.code === "identity_verification_replayed");
+});
+
+test("admin filters, timestamps, and media-safe metadata are strict", () => {
+  assert.throws(() => parseIdentityVerificationReceipt(
+    receipt("email", { verified_at: "2026-07-10T10:00:00" }),
+  ), UnifiedIdentityContractError);
+  assert.throws(() => normalizeIdentityVerificationAdminFilter({
+    tenant_id: "tenant_01",
+    project_id: "project_01",
+    created_after: expiresAt,
+    created_before: createdAt,
+  }), UnifiedIdentityContractError);
+  assert.throws(() => normalizeIdentityVerificationAdminFilter({
+    tenant_id: "tenant_01",
+    project_id: "project_01",
+    limit: 201,
+  }), UnifiedIdentityContractError);
+  assert.throws(() => parseIdentityVerificationAuditEvent(auditEvent({
+    metadata: { nested: { otp: "123456" } },
+  })), UnifiedIdentityContractError);
+  assert.throws(() => parseIdentityVerificationAuditEvent(auditEvent({
+    metadata: { unsupported: undefined },
+  })), UnifiedIdentityContractError);
+  const parsed = parseIdentityVerificationAuditEvent(auditEvent());
+  assert.equal(Object.isFrozen(parsed.metadata), true);
+  assert.equal(Object.isFrozen(parsed.metadata.media), true);
 });
 
 test("verification route builders expose the four canonical routes", () => {

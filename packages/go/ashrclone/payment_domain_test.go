@@ -6,6 +6,7 @@ import (
 	"errors"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
@@ -16,10 +17,10 @@ func newPaymentDomainTestService(t *testing.T) *PaymentDomainService {
 	if err != nil {
 		t.Fatal(err)
 	}
-	now := time.Date(2026, 7, 10, 10, 0, 0, 0, time.UTC)
+	base := time.Date(2026, 7, 10, 10, 0, 0, 0, time.UTC)
+	var ticks atomic.Int64
 	service.now = func() time.Time {
-		now = now.Add(time.Second)
-		return now
+		return base.Add(time.Duration(ticks.Add(1)) * time.Second)
 	}
 	return service
 }

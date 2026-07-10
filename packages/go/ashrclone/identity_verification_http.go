@@ -1,11 +1,17 @@
 package ashrclone
 
 import (
+	"context"
 	"errors"
 	"net/http"
+	"strings"
+	"time"
 )
 
 func (server *HTTPServer) handleIdentityVerification(writer http.ResponseWriter, request *http.Request, action string) {
+	writer.Header().Set("Cache-Control", "no-store")
+	writer.Header().Set("Pragma", "no-cache")
+	writer.Header().Set("X-Content-Type-Options", "nosniff")
 	if server.identityVerification == nil {
 		writeError(writer, http.StatusServiceUnavailable, "identity_verification_unavailable", "identity verification is not configured")
 		return
@@ -31,12 +37,37 @@ func (server *HTTPServer) handleIdentityVerification(writer http.ResponseWriter,
 	}
 	switch action {
 	case "challenges":
-		result, err := server.identityVerification.Start(request.Context(), IdentityVerificationStartRequest{
-			Channel: channel, Identifier: stringValue(body, "identifier"), Purpose: purpose,
-			TenantID: stringValue(body, "tenant_id"), AccountID: accountID,
-		})
+		responsePolicy := server.identityVerificationResponsePolicy
+		if responsePolicy == nil {
+			writeError(writer, http.StatusServiceUnavailable, "identity_verification_policy_unavailable", "identity verification is not configured")
+			return
+		}
+		startedAt := time.Now().UTC()
+		identifier := stringValue(body, "identifier")
+		subject := IdentityVerificationAbuseSubject{
+			Operation:        "identity_verification_start",
+			IdentifierDigest: server.identityVerification.digest("public-start", strings.TrimSpace(identifier)),
+			AccountID:        accountID,
+			IPAddress:        request.RemoteAddr,
+			TenantID:         stringValue(body, "tenant_id"),
+			DeviceID:         request.Header.Get("X-Device-ID"),
+		}
+		var result IdentityVerificationPublicResponse
+		var err error
+		result, err = responsePolicy.Execute(
+			request.Context(),
+			startedAt,
+			subject,
+			func(ctx context.Context) error {
+				_, startErr := server.identityVerification.Start(ctx, IdentityVerificationStartRequest{
+					Channel: channel, Identifier: identifier, Purpose: purpose,
+					TenantID: stringValue(body, "tenant_id"), AccountID: accountID,
+				})
+				return startErr
+			},
+		)
 		if err != nil {
-			writeIdentityVerificationHTTPError(writer, err)
+			writeError(writer, http.StatusRequestTimeout, "request_cancelled", "request was cancelled")
 			return
 		}
 		writeJSON(writer, http.StatusAccepted, result)

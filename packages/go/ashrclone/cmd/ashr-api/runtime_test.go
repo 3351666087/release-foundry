@@ -198,7 +198,7 @@ func TestProductionIdentityRuntimeRefusesMemoryVerification(t *testing.T) {
 		"ASHR_IDENTITY_RUNTIME":              "postgres",
 		"ASHR_IDENTITY_VERIFICATION_ENABLED": "true",
 	}))
-	if err == nil || !strings.Contains(err.Error(), "durable store and sender") {
+	if err == nil || !strings.Contains(err.Error(), "ASHR_POSTGRES_DSN or DATABASE_URL") {
 		t.Fatalf("production verification did not fail closed: %v", err)
 	}
 }

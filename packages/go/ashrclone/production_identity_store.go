@@ -25,6 +25,11 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
    AND to_regclass('public.oauth_runtime_transactions') IS NOT NULL
    AND to_regclass('public.oauth_account_connections') IS NOT NULL
    AND to_regclass('public.oauth_revocation_outbox') IS NOT NULL
+   AND to_regclass('public.identity_verification_challenges') IS NOT NULL
+   AND to_regclass('public.identity_verification_receipts') IS NOT NULL
+   AND to_regclass('public.identity_verification_delivery_outbox') IS NOT NULL
+   AND to_regclass('public.identity_verification_abuse_budgets') IS NOT NULL
+   AND to_regclass('public.identity_verification_audit_events') IS NOT NULL
    AND to_regprocedure(
      'public.a1_complete_oauth_identity_callback(uuid,uuid,uuid,text,text,text,text,text,text,text,text,text,text,text,jsonb)'
    ) IS NOT NULL
@@ -33,6 +38,21 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
    ) IS NOT NULL
    AND to_regprocedure(
      'public.a1_authenticate_identity_session_digest(text)'
+   ) IS NOT NULL
+   AND to_regprocedure(
+     'public.a1_issue_identity_verification_challenge(uuid,uuid,uuid,text,text,text,text,text,text,timestamp with time zone,integer,integer,text,jsonb)'
+   ) IS NOT NULL
+   AND to_regprocedure(
+     'public.a1_verify_identity_verification_attempt(uuid,uuid,text,text,text,text,text,jsonb)'
+   ) IS NOT NULL
+   AND to_regprocedure(
+     'public.a1_bind_verified_identity_credential(uuid,uuid,text,uuid,text,text,text,jsonb)'
+   ) IS NOT NULL
+   AND to_regprocedure(
+     'public.a1_login_with_verified_identity(uuid,uuid,text,text,text,text,text,jsonb)'
+   ) IS NOT NULL
+   AND to_regprocedure(
+     'public.a1_recover_verified_identity(uuid,uuid,text,uuid,text,text,text,text,jsonb)'
    ) IS NOT NULL
 `
 
@@ -99,7 +119,7 @@ func (store *ProductionIdentityStore) Ready(ctx context.Context) error {
 		return fmt.Errorf("verify production identity schema: %w", err)
 	}
 	if !ready {
-		return fmt.Errorf("production identity PostgreSQL schema is incomplete; migrations 007-011 are required")
+		return fmt.Errorf("production identity PostgreSQL schema is incomplete; migrations 007-012 are required")
 	}
 	return nil
 }
@@ -123,6 +143,28 @@ func (store *ProductionIdentityStore) NewOAuthRevocationOutboxStore() (*Postgres
 		return nil, fmt.Errorf("production identity store is not configured")
 	}
 	return NewPostgresOAuthRevocationOutboxStore(store.db)
+}
+
+func (store *ProductionIdentityStore) NewIdentityVerificationStore(
+	options PostgresIdentityVerificationStoreOptions,
+) (*PostgresIdentityVerificationStore, error) {
+	if store == nil || store.db == nil {
+		return nil, fmt.Errorf("production identity store is not configured")
+	}
+	options.DB = store.db
+	return NewPostgresIdentityVerificationStoreWithOptions(options)
+}
+
+func (store *ProductionIdentityStore) NewIdentityVerificationTransactionCoordinator(
+	verificationStore *PostgresIdentityVerificationStore,
+) (*PostgresIdentityVerificationTransactionCoordinator, error) {
+	if store == nil || store.db == nil {
+		return nil, fmt.Errorf("production identity store is not configured")
+	}
+	if verificationStore == nil || verificationStore.db != store.db {
+		return nil, fmt.Errorf("production identity verification store must belong to the production identity database")
+	}
+	return NewPostgresIdentityVerificationTransactionCoordinator(verificationStore)
 }
 
 type postgresIdentitySession struct {

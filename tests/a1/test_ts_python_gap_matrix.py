@@ -93,6 +93,14 @@ def test_ts_python_gap_matrix_is_generated_public_safe_and_current():
         "schema_version",
         "stable_error_codes",
         "subject_model",
+        "verification",
+        "verification_audit_event_types",
+        "verification_audit_outcome_codes",
+        "verification_challenge_statuses",
+        "verification_providers",
+        "verification_public_surface",
+        "verification_purposes",
+        "verification_receipt_statuses",
     ]
     assert identity["requirements"] == {
         "memberships_independent": True,
@@ -112,6 +120,9 @@ def test_ts_python_gap_matrix_is_generated_public_safe_and_current():
     ]
     assert len(identity["python"]["stable_error_codes"]) == 28
     assert len(identity["python"]["routes"]) == 12
+    assert len(identity["python"]["verification_public_surface"]) == 10
+    assert identity["python"]["verification"]["digest_only_envelopes"] is True
+    assert identity["typescript"]["verification"]["atomic_receipt_consumption"] is True
     assert by_area["Python/TypeScript unified identity contract"]["status"] == "parity"
 
     for entry in matrix["gap_matrix"]:

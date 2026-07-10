@@ -22,6 +22,12 @@ type IdentityHTTPSessionResolver interface {
 	ResolveIdentityHTTPSession(context.Context, *http.Request) (IdentityHTTPSession, error)
 }
 
+// UnifiedIdentityHTTPStore is the production HTTP read boundary. A durable
+// control-plane backend can implement it without exposing a memory service.
+type UnifiedIdentityHTTPStore interface {
+	GetIdentityAccount(context.Context, string) (IdentityAccountDTO, error)
+}
+
 // LocalhostDevIdentityHTTPSessionResolver is intentionally limited to direct
 // loopback requests and fixed server configuration. It never reads identity
 // ownership from request headers, query parameters, or bodies.
@@ -62,7 +68,8 @@ func (server *HTTPServer) handleUnifiedIdentityAccount(writer http.ResponseWrite
 	writer.Header().Set("Cache-Control", "no-store")
 	writer.Header().Set("Pragma", "no-cache")
 	writer.Header().Set("X-Content-Type-Options", "nosniff")
-	if server.unifiedIdentity == nil {
+	identity := server.unifiedIdentityHTTPStore()
+	if identity == nil {
 		writeError(writer, http.StatusNotFound, "not_found", "route not found")
 		return
 	}
@@ -77,14 +84,14 @@ func (server *HTTPServer) handleUnifiedIdentityAccount(writer http.ResponseWrite
 			writeError(writer, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
 			return
 		}
-		account, err := server.unifiedIdentity.GetAccount(session.AccountID)
+		account, err := identity.GetIdentityAccount(request.Context(), session.AccountID)
 		writeIdentityHTTPResult(writer, publicIdentityAccount(account), err)
 	case len(parts) == 1 && parts[0] == "credentials":
 		if request.Method != http.MethodGet {
 			writeError(writer, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
 			return
 		}
-		account, err := server.unifiedIdentity.GetAccount(session.AccountID)
+		account, err := identity.GetIdentityAccount(request.Context(), session.AccountID)
 		if err != nil {
 			writeIdentityHTTPError(writer, err)
 			return
@@ -100,7 +107,7 @@ func (server *HTTPServer) handleUnifiedIdentityAccount(writer http.ResponseWrite
 			writeError(writer, http.StatusMethodNotAllowed, "method_not_allowed", "method not allowed")
 			return
 		}
-		account, err := server.unifiedIdentity.GetAccount(session.AccountID)
+		account, err := identity.GetIdentityAccount(request.Context(), session.AccountID)
 		if err != nil {
 			writeIdentityHTTPError(writer, err)
 			return
@@ -123,6 +130,41 @@ func (server *HTTPServer) handleUnifiedIdentityAccount(writer http.ResponseWrite
 	default:
 		writeError(writer, http.StatusNotFound, "not_found", "route not found")
 	}
+}
+
+func (server *HTTPServer) unifiedIdentityHTTPStore() UnifiedIdentityHTTPStore {
+	if identity, ok := server.service.(UnifiedIdentityHTTPStore); ok && identity != nil {
+		return identity
+	}
+	if server.identityVerification != nil && server.identityVerification.identity != nil {
+		return identityVerificationHTTPStoreAdapter{store: server.identityVerification.identity}
+	}
+	if server.unifiedIdentity != nil {
+		return unifiedIdentityHTTPServiceAdapter{service: server.unifiedIdentity}
+	}
+	return nil
+}
+
+type identityVerificationHTTPStoreAdapter struct {
+	store IdentityVerificationIdentityStore
+}
+
+func (adapter identityVerificationHTTPStoreAdapter) GetIdentityAccount(
+	ctx context.Context,
+	accountID string,
+) (IdentityAccountDTO, error) {
+	return adapter.store.GetAccount(ctx, accountID)
+}
+
+type unifiedIdentityHTTPServiceAdapter struct {
+	service *UnifiedIdentityService
+}
+
+func (adapter unifiedIdentityHTTPServiceAdapter) GetIdentityAccount(
+	_ context.Context,
+	accountID string,
+) (IdentityAccountDTO, error) {
+	return adapter.service.GetAccount(accountID)
 }
 
 func (server *HTTPServer) resolveIdentityHTTPSession(writer http.ResponseWriter, request *http.Request, assertedAccountID string) (IdentityHTTPSession, bool) {

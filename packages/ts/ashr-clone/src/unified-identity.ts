@@ -92,6 +92,37 @@ export const IDENTITY_VERIFICATION_RECEIPT_STATUSES = [
   "expired",
 ] as const;
 
+export const IDENTITY_VERIFICATION_AUDIT_EVENT_TYPES = [
+  "challenge_issued",
+  "challenge_rejected",
+  "challenge_locked",
+  "challenge_expired",
+  "challenge_consumed",
+] as const;
+
+export const IDENTITY_VERIFICATION_AUDIT_OUTCOME_CODES = [
+  "issued",
+  "cooldown_active",
+  "context_mismatch",
+  "proof_mismatch",
+  "attempts_exhausted",
+  "expired",
+  "consumed",
+] as const;
+
+export const IDENTITY_VERIFICATION_PUBLIC_SURFACE = [
+  "IdentityVerificationAbuseDimensions",
+  "IdentityVerificationAdminFilter",
+  "IdentityVerificationAuditEvent",
+  "IdentityVerificationAuditEventPage",
+  "IdentityVerificationDigestEnvelope",
+  "IdentityVerificationDurableReceipt",
+  "IdentityVerificationDurableReceiptPage",
+  "IdentityVerificationDurableStore",
+  "IdentityVerificationMemoryStore",
+  "IdentityVerificationTransactionCoordinator",
+] as const;
+
 export type UnifiedIdentityProvider = (typeof UNIFIED_IDENTITY_PROVIDERS)[number];
 export type UnifiedAccountStatus = (typeof UNIFIED_IDENTITY_ACCOUNT_STATUSES)[number];
 export type UnifiedCredentialStatus = (typeof UNIFIED_IDENTITY_CREDENTIAL_STATUSES)[number];
@@ -104,6 +135,10 @@ export type IdentityVerificationChallengeStatus =
   (typeof IDENTITY_VERIFICATION_CHALLENGE_STATUSES)[number];
 export type IdentityVerificationReceiptStatus =
   (typeof IDENTITY_VERIFICATION_RECEIPT_STATUSES)[number];
+export type IdentityVerificationAuditEventType =
+  (typeof IDENTITY_VERIFICATION_AUDIT_EVENT_TYPES)[number];
+export type IdentityVerificationAuditOutcomeCode =
+  (typeof IDENTITY_VERIFICATION_AUDIT_OUTCOME_CODES)[number];
 export type UnifiedIdentityFetch = typeof fetch;
 
 export interface IdentityCredential {
@@ -210,6 +245,106 @@ export interface IdentityVerificationReceipt {
   single_use: true;
   account_id: string | null;
   consumed_at: string | null;
+}
+
+export interface IdentityVerificationDurableReceipt {
+  receipt: IdentityVerificationReceipt;
+  tenant_id: string;
+  project_id: string;
+  principal_id: string | null;
+  created_at: string;
+  audit_event_id: string;
+}
+
+export interface IdentityVerificationAuditEvent {
+  event_id: string;
+  event_type: IdentityVerificationAuditEventType;
+  outcome_code: IdentityVerificationAuditOutcomeCode;
+  tenant_id: string;
+  project_id: string;
+  provider: IdentityVerificationProvider;
+  purpose: IdentityVerificationPurpose;
+  attempt_number: number;
+  created_at: string;
+  challenge_id: string | null;
+  receipt_id: string | null;
+  principal_id: string | null;
+  account_id: string | null;
+  metadata: Readonly<Record<string, unknown>>;
+}
+
+export interface IdentityVerificationAdminFilter {
+  tenant_id: string;
+  project_id: string;
+  provider?: IdentityVerificationProvider | string;
+  purpose?: IdentityVerificationPurpose | string;
+  challenge_id?: string;
+  receipt_id?: string;
+  principal_id?: string;
+  account_id?: string;
+  event_type?: IdentityVerificationAuditEventType | string;
+  outcome_code?: IdentityVerificationAuditOutcomeCode | string;
+  created_after?: string;
+  created_before?: string;
+  cursor?: string;
+  limit?: number;
+}
+
+export interface IdentityVerificationDurableReceiptPage {
+  items: IdentityVerificationDurableReceipt[];
+  next_cursor: string | null;
+}
+
+export interface IdentityVerificationAuditEventPage {
+  items: IdentityVerificationAuditEvent[];
+  next_cursor: string | null;
+}
+
+export interface IdentityVerificationDigestEnvelope {
+  tenant_id: string;
+  project_id: string;
+  provider: IdentityVerificationProvider;
+  purpose: IdentityVerificationPurpose;
+  challenge_id: string;
+  destination_digest_ref: string;
+  request_context_digest_ref: string;
+  idempotency_digest_ref: string;
+  request_digest_ref: string;
+  receipt_id: string | null;
+  principal_id: string | null;
+  account_id: string | null;
+}
+
+export interface IdentityVerificationAbuseDimensions {
+  tenant_id: string;
+  project_id: string;
+  provider: IdentityVerificationProvider;
+  purpose: IdentityVerificationPurpose;
+  destination_digest_ref: string;
+  request_context_digest_ref: string;
+  attempt_cap: number;
+  cooldown_seconds: number;
+  consecutive_failures: number;
+  blocked_until: string | null;
+  principal_id: string | null;
+  account_id: string | null;
+}
+
+export interface IdentityVerificationDurableStore {
+  persistReceipt(receipt: IdentityVerificationDurableReceipt): void;
+  getReceipt(
+    tenantId: string,
+    projectId: string,
+    receiptId: string,
+  ): IdentityVerificationDurableReceipt | null;
+  listReceipts(query: IdentityVerificationAdminFilter): IdentityVerificationDurableReceiptPage;
+  appendAuditEvent(event: IdentityVerificationAuditEvent): void;
+  listAuditEvents(query: IdentityVerificationAdminFilter): IdentityVerificationAuditEventPage;
+  replaceReceipt(
+    expected: IdentityVerificationDurableReceipt,
+    replacement: IdentityVerificationDurableReceipt,
+    event: IdentityVerificationAuditEvent,
+  ): void;
 }
 
 export interface UnifiedIdentityError {
@@ -395,6 +530,168 @@ export class UnifiedIdentityContractError extends Error {
       provider: null,
       retry_after_seconds: null,
     };
+  }
+}
+
+export class IdentityVerificationMemoryStore implements IdentityVerificationDurableStore {
+  readonly #receipts = new Map<string, IdentityVerificationDurableReceipt>();
+  readonly #events = new Map<string, IdentityVerificationAuditEvent>();
+
+  persistReceipt(receipt: IdentityVerificationDurableReceipt): void {
+    const value = cloneDurableReceipt(receipt);
+    const key = receiptKey(value.tenant_id, value.project_id, value.receipt.receipt_id);
+    if (this.#receipts.has(key)) {
+      throw new UnifiedIdentityContractError(
+        "verification receipt already exists",
+        "identity_verification_replayed",
+      );
+    }
+    this.#receipts.set(key, value);
+  }
+
+  getReceipt(
+    tenantId: string,
+    projectId: string,
+    receiptId: string,
+  ): IdentityVerificationDurableReceipt | null {
+    const value = this.#receipts.get(receiptKey(
+      requireIdentifier("tenant_id", tenantId),
+      requireIdentifier("project_id", projectId),
+      requireIdentifier("receipt_id", receiptId),
+    ));
+    return value === undefined ? null : cloneDurableReceipt(value);
+  }
+
+  listReceipts(query: IdentityVerificationAdminFilter): IdentityVerificationDurableReceiptPage {
+    const filters = normalizeIdentityVerificationAdminFilter(query);
+    const values = [...this.#receipts.values()]
+      .filter((value) => matchesReceipt(value, filters))
+      .sort((left, right) =>
+        `${left.created_at}\0${left.receipt.receipt_id}`.localeCompare(
+          `${right.created_at}\0${right.receipt.receipt_id}`,
+        ));
+    const page = paginate(values, filters);
+    return { items: page.items.map(cloneDurableReceipt), next_cursor: page.nextCursor };
+  }
+
+  appendAuditEvent(event: IdentityVerificationAuditEvent): void {
+    const value = cloneAuditEvent(event);
+    const key = eventKey(value.tenant_id, value.project_id, value.event_id);
+    if (this.#events.has(key)) {
+      throw new UnifiedIdentityContractError("verification audit event already exists");
+    }
+    this.#events.set(key, value);
+  }
+
+  listAuditEvents(query: IdentityVerificationAdminFilter): IdentityVerificationAuditEventPage {
+    const filters = normalizeIdentityVerificationAdminFilter(query);
+    const values = [...this.#events.values()]
+      .filter((value) => matchesAuditEvent(value, filters))
+      .sort((left, right) =>
+        `${left.created_at}\0${left.event_id}`.localeCompare(`${right.created_at}\0${right.event_id}`));
+    const page = paginate(values, filters);
+    return { items: page.items.map(cloneAuditEvent), next_cursor: page.nextCursor };
+  }
+
+  replaceReceipt(
+    expected: IdentityVerificationDurableReceipt,
+    replacement: IdentityVerificationDurableReceipt,
+    event: IdentityVerificationAuditEvent,
+  ): void {
+    const expectedValue = cloneDurableReceipt(expected);
+    const replacementValue = cloneDurableReceipt(replacement);
+    const eventValue = cloneAuditEvent(event);
+    const key = receiptKey(
+      expectedValue.tenant_id,
+      expectedValue.project_id,
+      expectedValue.receipt.receipt_id,
+    );
+    if (
+      receiptKey(
+        replacementValue.tenant_id,
+        replacementValue.project_id,
+        replacementValue.receipt.receipt_id,
+      ) !== key
+    ) {
+      throw new UnifiedIdentityContractError("receipt scope cannot change");
+    }
+    if (
+      eventValue.tenant_id !== expectedValue.tenant_id
+      || eventValue.project_id !== expectedValue.project_id
+    ) {
+      throw new UnifiedIdentityContractError("audit event scope mismatch");
+    }
+    const current = this.#receipts.get(key);
+    if (current === undefined || JSON.stringify(current) !== JSON.stringify(expectedValue)) {
+      throw new UnifiedIdentityContractError(
+        "verification receipt is unavailable",
+        "identity_verification_replayed",
+      );
+    }
+    const auditKey = eventKey(eventValue.tenant_id, eventValue.project_id, eventValue.event_id);
+    if (this.#events.has(auditKey)) {
+      throw new UnifiedIdentityContractError("verification audit event already exists");
+    }
+    this.#receipts.set(key, replacementValue);
+    this.#events.set(auditKey, eventValue);
+  }
+}
+
+export class IdentityVerificationTransactionCoordinator {
+  readonly #store: IdentityVerificationDurableStore;
+  #active = false;
+
+  constructor(store: IdentityVerificationDurableStore) {
+    this.#store = store;
+  }
+
+  consumeReceipt<T>(
+    tenantId: string,
+    projectId: string,
+    receiptId: string,
+    event: IdentityVerificationAuditEvent,
+    mutation: (receipt: IdentityVerificationReceipt) => T,
+    consumedAt: string,
+  ): T {
+    if (this.#active) {
+      throw new UnifiedIdentityContractError("verification transaction is already active");
+    }
+    this.#active = true;
+    try {
+      const current = this.#store.getReceipt(tenantId, projectId, receiptId);
+      if (current === null || current.receipt.status !== "verified") {
+        throw new UnifiedIdentityContractError(
+          "verification receipt is unavailable",
+          "identity_verification_replayed",
+        );
+      }
+      const timestamp = requireTimestamp("consumed_at", consumedAt);
+      if (Date.parse(timestamp) >= Date.parse(current.receipt.expires_at)) {
+        throw new UnifiedIdentityContractError(
+          "verification receipt is unavailable",
+          "identity_verification_expired",
+        );
+      }
+      const audit = parseIdentityVerificationAuditEvent(event);
+      if (
+        audit.tenant_id !== current.tenant_id
+        || audit.project_id !== current.project_id
+        || audit.receipt_id !== current.receipt.receipt_id
+        || audit.event_type !== "challenge_consumed"
+        || audit.outcome_code !== "consumed"
+      ) {
+        throw new UnifiedIdentityContractError("receipt consumption event mismatch");
+      }
+      const result = mutation(parseIdentityVerificationReceipt(current.receipt));
+      const replacement = cloneDurableReceipt({
+        ...current,
+        receipt: { ...current.receipt, status: "consumed", consumed_at: timestamp },
+      });
+      this.#store.replaceReceipt(current, replacement, audit);
+      return result;
+    } finally {
+      this.#active = false;
+    }
   }
 }
 
@@ -586,6 +883,14 @@ export class UnifiedIdentityHttpClient {
     return this.verifyChallenge(options);
   }
 
+  decodeDurableReceiptPage(payload: unknown): IdentityVerificationDurableReceiptPage {
+    return parseIdentityVerificationDurableReceiptPage(payload);
+  }
+
+  decodeVerificationAuditPage(payload: unknown): IdentityVerificationAuditEventPage {
+    return parseIdentityVerificationAuditEventPage(payload);
+  }
+
   async #request<T>(
     method: "GET" | "POST",
     path: string,
@@ -667,6 +972,14 @@ export function unifiedIdentityContractManifest(): Record<string, unknown> {
       attempt_cap_required: true,
       resend_cooldown_required: true,
       single_use_required: true,
+      durable_receipt_records: true,
+      append_only_audit: true,
+      admin_queries_route_neutral: true,
+      digest_only_envelopes: true,
+      atomic_receipt_consumption: true,
+      anti_enumerating_public_failures: true,
+      media_safe_metadata: true,
+      public_surface: [...IDENTITY_VERIFICATION_PUBLIC_SURFACE],
     },
     public_safety: {
       raw_email_present: false,
@@ -985,6 +1298,179 @@ export function parseIdentityVerificationReceipt(value: unknown): IdentityVerifi
   };
 }
 
+export function parseIdentityVerificationDurableReceipt(
+  value: unknown,
+): IdentityVerificationDurableReceipt {
+  assertPublicUnifiedIdentityPayload(value);
+  if (!isRecord(value.receipt)) {
+    throw new UnifiedIdentityContractError("receipt must be an object");
+  }
+  return {
+    receipt: parseIdentityVerificationReceipt(value.receipt),
+    tenant_id: requireIdentifier("tenant_id", value.tenant_id),
+    project_id: requireIdentifier("project_id", value.project_id),
+    principal_id: optionalIdentifier("principal_id", value.principal_id),
+    created_at: requireTimestamp("created_at", value.created_at),
+    audit_event_id: requireIdentifier("audit_event_id", value.audit_event_id),
+  };
+}
+
+export function parseIdentityVerificationAuditEvent(
+  value: unknown,
+): IdentityVerificationAuditEvent {
+  assertPublicUnifiedIdentityPayload(value);
+  const metadata = value.metadata ?? {};
+  if (!isRecord(metadata)) {
+    throw new UnifiedIdentityContractError("metadata must be an object");
+  }
+  return {
+    event_id: requireIdentifier("event_id", value.event_id),
+    event_type: requireEnum(
+      "verification audit event type",
+      value.event_type,
+      IDENTITY_VERIFICATION_AUDIT_EVENT_TYPES,
+    ),
+    outcome_code: requireEnum(
+      "verification audit outcome code",
+      value.outcome_code,
+      IDENTITY_VERIFICATION_AUDIT_OUTCOME_CODES,
+    ),
+    tenant_id: requireIdentifier("tenant_id", value.tenant_id),
+    project_id: requireIdentifier("project_id", value.project_id),
+    provider: normalizeVerificationProvider(requireString(value, "provider")),
+    purpose: normalizeVerificationPurpose(requireString(value, "purpose")),
+    attempt_number: requireNonNegativeInteger("attempt_number", value.attempt_number),
+    created_at: requireTimestamp("created_at", value.created_at),
+    challenge_id: optionalIdentifier("challenge_id", value.challenge_id),
+    receipt_id: optionalIdentifier("receipt_id", value.receipt_id),
+    principal_id: optionalIdentifier("principal_id", value.principal_id),
+    account_id: optionalIdentifier("account_id", value.account_id),
+    metadata: deepFreezeJson(deepCloneJson(metadata)),
+  };
+}
+
+export function normalizeIdentityVerificationAdminFilter(
+  value: IdentityVerificationAdminFilter,
+): Required<Pick<IdentityVerificationAdminFilter, "tenant_id" | "project_id" | "limit">>
+  & Omit<IdentityVerificationAdminFilter, "tenant_id" | "project_id" | "limit"> {
+  const query: IdentityVerificationAdminFilter = {
+    tenant_id: requireIdentifier("tenant_id", value.tenant_id),
+    project_id: requireIdentifier("project_id", value.project_id),
+    limit: requireBoundedPositiveInteger("limit", value.limit ?? 50, 1, 200),
+  };
+  for (const field of [
+    "challenge_id", "receipt_id", "principal_id", "account_id", "cursor",
+  ] as const) {
+    const normalized = optionalIdentifier(field, value[field]);
+    if (normalized !== null) query[field] = normalized;
+  }
+  if (value.provider !== undefined) {
+    query.provider = normalizeVerificationProvider(value.provider);
+  }
+  if (value.purpose !== undefined) {
+    query.purpose = normalizeVerificationPurpose(value.purpose);
+  }
+  if (value.event_type !== undefined) {
+    query.event_type = requireEnum(
+      "verification audit event type",
+      value.event_type,
+      IDENTITY_VERIFICATION_AUDIT_EVENT_TYPES,
+    );
+  }
+  if (value.outcome_code !== undefined) {
+    query.outcome_code = requireEnum(
+      "verification audit outcome code",
+      value.outcome_code,
+      IDENTITY_VERIFICATION_AUDIT_OUTCOME_CODES,
+    );
+  }
+  const after = optionalTimestamp("created_after", value.created_after);
+  const before = optionalTimestamp("created_before", value.created_before);
+  if (after !== null) query.created_after = after;
+  if (before !== null) query.created_before = before;
+  if (after !== null && before !== null && Date.parse(after) > Date.parse(before)) {
+    throw new UnifiedIdentityContractError("created_after cannot be later than created_before");
+  }
+  assertPublicUnifiedIdentityPayload(query);
+  return query as Required<Pick<
+    IdentityVerificationAdminFilter, "tenant_id" | "project_id" | "limit"
+  >> & Omit<IdentityVerificationAdminFilter, "tenant_id" | "project_id" | "limit">;
+}
+
+export function parseIdentityVerificationDurableReceiptPage(
+  value: unknown,
+): IdentityVerificationDurableReceiptPage {
+  assertPublicUnifiedIdentityPayload(value);
+  return {
+    items: mappingSequence(value, "items").map(parseIdentityVerificationDurableReceipt),
+    next_cursor: optionalIdentifier("next_cursor", value.next_cursor),
+  };
+}
+
+export function parseIdentityVerificationAuditEventPage(
+  value: unknown,
+): IdentityVerificationAuditEventPage {
+  assertPublicUnifiedIdentityPayload(value);
+  return {
+    items: mappingSequence(value, "items").map(parseIdentityVerificationAuditEvent),
+    next_cursor: optionalIdentifier("next_cursor", value.next_cursor),
+  };
+}
+
+export function parseIdentityVerificationDigestEnvelope(
+  value: unknown,
+): IdentityVerificationDigestEnvelope {
+  assertPublicUnifiedIdentityPayload(value);
+  return {
+    tenant_id: requireIdentifier("tenant_id", value.tenant_id),
+    project_id: requireIdentifier("project_id", value.project_id),
+    provider: normalizeVerificationProvider(requireString(value, "provider")),
+    purpose: normalizeVerificationPurpose(requireString(value, "purpose")),
+    challenge_id: requireIdentifier("challenge_id", value.challenge_id),
+    destination_digest_ref: requireDigestReference(
+      "destination_digest_ref", value.destination_digest_ref,
+    ),
+    request_context_digest_ref: requireDigestReference(
+      "request_context_digest_ref", value.request_context_digest_ref,
+    ),
+    idempotency_digest_ref: requireDigestReference(
+      "idempotency_digest_ref", value.idempotency_digest_ref,
+    ),
+    request_digest_ref: requireDigestReference("request_digest_ref", value.request_digest_ref),
+    receipt_id: optionalIdentifier("receipt_id", value.receipt_id),
+    principal_id: optionalIdentifier("principal_id", value.principal_id),
+    account_id: optionalIdentifier("account_id", value.account_id),
+  };
+}
+
+export function parseIdentityVerificationAbuseDimensions(
+  value: unknown,
+): IdentityVerificationAbuseDimensions {
+  assertPublicUnifiedIdentityPayload(value);
+  return {
+    tenant_id: requireIdentifier("tenant_id", value.tenant_id),
+    project_id: requireIdentifier("project_id", value.project_id),
+    provider: normalizeVerificationProvider(requireString(value, "provider")),
+    purpose: normalizeVerificationPurpose(requireString(value, "purpose")),
+    destination_digest_ref: requireDigestReference(
+      "destination_digest_ref", value.destination_digest_ref,
+    ),
+    request_context_digest_ref: requireDigestReference(
+      "request_context_digest_ref", value.request_context_digest_ref,
+    ),
+    attempt_cap: requireBoundedPositiveInteger("attempt_cap", value.attempt_cap, 1, 100),
+    cooldown_seconds: requireBoundedNonNegativeInteger(
+      "cooldown_seconds", value.cooldown_seconds, 86_400,
+    ),
+    consecutive_failures: requireBoundedNonNegativeInteger(
+      "consecutive_failures", value.consecutive_failures ?? 0, 1_000_000,
+    ),
+    blocked_until: optionalTimestamp("blocked_until", value.blocked_until),
+    principal_id: optionalIdentifier("principal_id", value.principal_id),
+    account_id: optionalIdentifier("account_id", value.account_id),
+  };
+}
+
 export function parseUnifiedIdentityError(value: unknown): UnifiedIdentityError {
   assertPublicUnifiedIdentityPayload(value);
   const error = isRecord(value.error) ? value.error : value;
@@ -1228,7 +1714,12 @@ function requireEnum<T extends string>(
 }
 
 function requireTimestamp(field: string, value: unknown): string {
-  if (typeof value !== "string" || value.trim() === "" || Number.isNaN(Date.parse(value))) {
+  if (
+    typeof value !== "string"
+    || value.trim() === ""
+    || !/(?:Z|[+-]\d{2}:\d{2})$/u.test(value)
+    || Number.isNaN(Date.parse(value))
+  ) {
     throw new UnifiedIdentityContractError(`${field} must be a timestamp`);
   }
   return value;
@@ -1323,4 +1814,140 @@ function redactIdentityText(value: string): string {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function receiptKey(tenantId: string, projectId: string, receiptId: string): string {
+  return JSON.stringify([tenantId, projectId, receiptId]);
+}
+
+function eventKey(tenantId: string, projectId: string, eventId: string): string {
+  return JSON.stringify([tenantId, projectId, eventId]);
+}
+
+function cloneDurableReceipt(
+  value: IdentityVerificationDurableReceipt,
+): IdentityVerificationDurableReceipt {
+  return parseIdentityVerificationDurableReceipt(deepCloneJson(value));
+}
+
+function cloneAuditEvent(value: IdentityVerificationAuditEvent): IdentityVerificationAuditEvent {
+  return parseIdentityVerificationAuditEvent(deepCloneJson(value));
+}
+
+function deepCloneJson<T>(value: T): T {
+  assertJsonSafe(value);
+  return JSON.parse(JSON.stringify(value)) as T;
+}
+
+function assertJsonSafe(value: unknown, active = new Set<object>()): void {
+  if (value === null || typeof value === "string" || typeof value === "boolean") return;
+  if (typeof value === "number") {
+    if (Number.isFinite(value)) return;
+    throw new UnifiedIdentityContractError("identity metadata must contain finite JSON numbers");
+  }
+  if (Array.isArray(value)) {
+    if (active.has(value)) {
+      throw new UnifiedIdentityContractError("identity metadata must not contain cycles");
+    }
+    active.add(value);
+    value.forEach((item) => assertJsonSafe(item, active));
+    active.delete(value);
+    return;
+  }
+  if (isRecord(value)) {
+    if (Object.getPrototypeOf(value) !== Object.prototype) {
+      throw new UnifiedIdentityContractError("identity metadata must contain plain JSON objects");
+    }
+    if (active.has(value)) {
+      throw new UnifiedIdentityContractError("identity metadata must not contain cycles");
+    }
+    active.add(value);
+    Object.values(value).forEach((item) => assertJsonSafe(item, active));
+    active.delete(value);
+    return;
+  }
+  throw new UnifiedIdentityContractError("identity metadata must be JSON serializable");
+}
+
+function deepFreezeJson<T>(value: T): T {
+  if (Array.isArray(value)) {
+    value.forEach(deepFreezeJson);
+    return Object.freeze(value);
+  }
+  if (isRecord(value)) {
+    Object.values(value).forEach(deepFreezeJson);
+    return Object.freeze(value) as T;
+  }
+  return value;
+}
+
+function matchesTime(createdAt: string, filters: IdentityVerificationAdminFilter): boolean {
+  const timestamp = Date.parse(createdAt);
+  return !(
+    (filters.created_after !== undefined && timestamp < Date.parse(filters.created_after))
+    || (filters.created_before !== undefined && timestamp > Date.parse(filters.created_before))
+  );
+}
+
+function matchesReceipt(
+  value: IdentityVerificationDurableReceipt,
+  filters: IdentityVerificationAdminFilter,
+): boolean {
+  const fields: Record<string, unknown> = {
+    tenant_id: value.tenant_id,
+    project_id: value.project_id,
+    provider: value.receipt.provider,
+    purpose: value.receipt.purpose,
+    challenge_id: value.receipt.challenge_id,
+    receipt_id: value.receipt.receipt_id,
+    principal_id: value.principal_id,
+    account_id: value.receipt.account_id,
+  };
+  return Object.entries(fields).every(
+    ([field, actual]) => filters[field as keyof IdentityVerificationAdminFilter] === undefined
+      || filters[field as keyof IdentityVerificationAdminFilter] === actual,
+  ) && matchesTime(value.created_at, filters);
+}
+
+function matchesAuditEvent(
+  value: IdentityVerificationAuditEvent,
+  filters: IdentityVerificationAdminFilter,
+): boolean {
+  const fields: Record<string, unknown> = {
+    tenant_id: value.tenant_id,
+    project_id: value.project_id,
+    provider: value.provider,
+    purpose: value.purpose,
+    challenge_id: value.challenge_id,
+    receipt_id: value.receipt_id,
+    principal_id: value.principal_id,
+    account_id: value.account_id,
+    event_type: value.event_type,
+    outcome_code: value.outcome_code,
+  };
+  return Object.entries(fields).every(
+    ([field, actual]) => filters[field as keyof IdentityVerificationAdminFilter] === undefined
+      || filters[field as keyof IdentityVerificationAdminFilter] === actual,
+  ) && matchesTime(value.created_at, filters);
+}
+
+function paginate<T>(
+  values: T[],
+  filters: IdentityVerificationAdminFilter,
+): { items: T[]; nextCursor: string | null } {
+  const cursor = filters.cursor;
+  if (cursor !== undefined && !/^cursor:\d+$/u.test(cursor)) {
+    throw new UnifiedIdentityContractError("cursor is invalid");
+  }
+  const start = cursor === undefined ? 0 : Number.parseInt(cursor.slice("cursor:".length), 10);
+  if (!Number.isInteger(start) || start < 0) {
+    throw new UnifiedIdentityContractError("cursor is invalid");
+  }
+  const limit = filters.limit ?? 50;
+  const items = values.slice(start, start + limit);
+  const nextOffset = start + items.length;
+  return {
+    items,
+    nextCursor: nextOffset < values.length ? `cursor:${nextOffset}` : null,
+  };
 }

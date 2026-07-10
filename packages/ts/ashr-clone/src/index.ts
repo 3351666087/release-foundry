@@ -30,6 +30,7 @@ export {
 export * from "./runner.js";
 export * from "./saas.js";
 export * from "./stripe-executor.js";
+export * from "./storage.js";
 export * from "./trace.js";
 export * from "./unified-identity.js";
 
