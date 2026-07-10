@@ -10,7 +10,6 @@ import (
 	"regexp"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 )
@@ -116,12 +115,12 @@ func TestProductionIdentityStoreResolvesOneTrustedSessionForAllInterfaces(t *tes
 	mac := hmac.New(sha256.New, key)
 	_, _ = mac.Write([]byte(token))
 	digest := hex.EncodeToString(mac.Sum(nil))
-	columns := []string{"account", "actor", "session", "tenant", "project", "user", "status", "expires"}
+	columns := []string{"account", "actor", "session", "tenant", "project", "user"}
 	for index := 0; index < 3; index++ {
-		mock.ExpectQuery("FROM identity_sessions").WithArgs(digest).WillReturnRows(
+		mock.ExpectQuery("FROM a1_authenticate_identity_session_digest").WithArgs(digest).WillReturnRows(
 			sqlmock.NewRows(columns).AddRow(
 				"principal-1", "principal-1", "session-1", "tenant-1", "project-1",
-				"principal-1", "active", time.Now().UTC().Add(time.Hour),
+				"principal-1",
 			),
 		)
 	}
@@ -166,7 +165,7 @@ func TestProductionIdentityStoreSessionHMACIsKeyedAndNeverQueriesRawToken(t *tes
 		t.Fatalf("session digest is not a keyed SHA-256 boundary: %q", digest)
 	}
 
-	mock.ExpectQuery("FROM identity_sessions").
+	mock.ExpectQuery("FROM a1_authenticate_identity_session_digest").
 		WithArgs(digest).
 		WillReturnError(errors.New("database unavailable"))
 	request, _ := http.NewRequest(http.MethodGet, "https://api.example.test", nil)
@@ -179,16 +178,18 @@ func TestProductionIdentityStoreSessionHMACIsKeyedAndNeverQueriesRawToken(t *tes
 	}
 }
 
-func TestProductionIdentityStoreRejectsInactiveAndExpiredSessions(t *testing.T) {
-	for _, test := range []struct {
-		name      string
-		status    string
-		expiresAt time.Time
-	}{
-		{name: "revoked", status: "revoked", expiresAt: time.Now().UTC().Add(time.Hour)},
-		{name: "expired", status: "active", expiresAt: time.Now().UTC().Add(-time.Minute)},
+func TestProductionIdentityStoreRejectsSessionsRejectedByAuthenticationBoundary(t *testing.T) {
+	for _, reason := range []string{
+		"revoked session",
+		"expired session",
+		"inactive principal",
+		"disabled credential",
+		"login-disabled credential",
+		"credential ownership mismatch",
+		"suspended organization membership",
+		"revoked project membership",
 	} {
-		t.Run(test.name, func(t *testing.T) {
+		t.Run(reason, func(t *testing.T) {
 			db, mock, err := sqlmock.New()
 			if err != nil {
 				t.Fatal(err)
@@ -201,19 +202,16 @@ func TestProductionIdentityStoreRejectsInactiveAndExpiredSessions(t *testing.T) 
 				t.Fatal(err)
 			}
 			token := "inactive-session-token"
-			mock.ExpectQuery("FROM identity_sessions").
+			mock.ExpectQuery("FROM a1_authenticate_identity_session_digest").
 				WithArgs(store.sessionDigest(token)).
 				WillReturnRows(sqlmock.NewRows(
-					[]string{"account", "actor", "session", "tenant", "project", "user", "status", "expires"},
-				).AddRow(
-					"principal-1", "principal-1", "session-1", "tenant-1", "project-1",
-					"principal-1", test.status, test.expiresAt,
+					[]string{"account", "actor", "session", "tenant", "project", "user"},
 				))
 			request, _ := http.NewRequest(http.MethodGet, "https://api.example.test", nil)
 			request.Header.Set("Authorization", "Bearer "+token)
 			if _, err := store.ResolveIdentityHTTPSession(context.Background(), request); err == nil ||
-				!strings.Contains(err.Error(), "inactive") {
-				t.Fatalf("%s session did not fail closed: %v", test.name, err)
+				!strings.Contains(err.Error(), "invalid") {
+				t.Fatalf("%s did not fail closed: %v", reason, err)
 			}
 			if err := mock.ExpectationsWereMet(); err != nil {
 				t.Fatal(err)

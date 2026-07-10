@@ -132,6 +132,162 @@ def _credential_sql(
     """
 
 
+def test_session_authentication_bootstraps_forced_rls_and_fails_closed(
+    identity_database: str,
+) -> None:
+    principal = str(uuid.uuid4())
+    credential = str(uuid.uuid4())
+    organization = str(uuid.uuid4())
+    workspace = str(uuid.uuid4())
+    project = str(uuid.uuid4())
+    org_membership = str(uuid.uuid4())
+    session_digest = DIGEST_A
+    setup = (
+        _principal_sql(principal)
+        + _credential_sql(credential, principal, "github", DIGEST_B)
+        + f"""
+        INSERT INTO organizations (id, slug, display_name)
+        VALUES ('{organization}', 'session-auth-org', 'Session Auth Org');
+        INSERT INTO workspaces (id, organization_id, slug, display_name)
+        VALUES ('{workspace}', '{organization}', 'session-auth', 'Session Auth');
+        INSERT INTO projects (
+          id, organization_id, workspace_id, slug, display_name
+        ) VALUES (
+          '{project}', '{organization}', '{workspace}',
+          'session-auth', 'Session Auth'
+        );
+        INSERT INTO identity_organization_memberships (
+          id, organization_id, principal_id, status, activated_at
+        ) VALUES (
+          '{org_membership}', '{organization}', '{principal}',
+          'active', clock_timestamp()
+        );
+        INSERT INTO identity_project_memberships (
+          organization_id, project_id, principal_id,
+          organization_membership_id, status, activated_at
+        ) VALUES (
+          '{organization}', '{project}', '{principal}',
+          '{org_membership}', 'active', clock_timestamp()
+        );
+        """
+    )
+    _psql(identity_database, setup, tuples=False)
+    session = _rows(
+        _psql(
+            identity_database,
+            f"""
+            SELECT (a1_issue_identity_session(
+              '{principal}', '{credential}', '{session_digest}', '{DIGEST_C}',
+              clock_timestamp() + interval '1 hour',
+              '{organization}', '{project}'
+            )).id;
+            """,
+            user=RUNTIME_ROLE,
+        )
+    )[0]
+
+    privileges = _rows(
+        _psql(
+            identity_database,
+            """
+            SELECT p.prosecdef || '|' ||
+                   (p.proconfig @> ARRAY['search_path=pg_catalog, public']) || '|' ||
+                   has_function_privilege(
+                     'public',
+                     'a1_authenticate_identity_session_digest(text)',
+                     'EXECUTE'
+                   ) || '|' ||
+                   has_function_privilege(
+                     'a1_runtime',
+                     'a1_authenticate_identity_session_digest(text)',
+                     'EXECUTE'
+                   )
+              FROM pg_proc AS p
+             WHERE p.oid =
+               'a1_authenticate_identity_session_digest(text)'::regprocedure;
+            """,
+        )
+    )
+    assert privileges == ["true|true|false|true"]
+
+    authenticated = _rows(
+        _psql(
+            identity_database,
+            f"""
+            SELECT principal_id || '|' || session_id || '|' ||
+                   organization_id || '|' || project_id
+              FROM a1_authenticate_identity_session_digest('{session_digest}');
+            """,
+            user=RUNTIME_ROLE,
+        )
+    )
+    assert authenticated == [
+        f"{principal}|{session}|{organization}|{project}"
+    ]
+
+    invalid_updates = [
+        (
+            "UPDATE identity_sessions SET status = 'revoked', "
+            "revoked_at = clock_timestamp(), revoke_reason_code = 'test' "
+            f"WHERE id = '{session}';",
+            "UPDATE identity_sessions SET status = 'active', revoked_at = NULL, "
+            f"revoke_reason_code = NULL WHERE id = '{session}';",
+        ),
+        (
+            "UPDATE identity_principals SET status = 'suspended', "
+            f"suspended_at = clock_timestamp() WHERE id = '{principal}';",
+            "UPDATE identity_principals SET status = 'active', "
+            f"suspended_at = NULL WHERE id = '{principal}';",
+        ),
+        (
+            "UPDATE identity_credentials SET login_enabled = FALSE "
+            f"WHERE id = '{credential}';",
+            "UPDATE identity_credentials SET login_enabled = TRUE "
+            f"WHERE id = '{credential}';",
+        ),
+        (
+            "UPDATE identity_organization_memberships SET status = 'suspended', "
+            f"suspended_at = clock_timestamp() WHERE id = '{org_membership}';",
+            "UPDATE identity_organization_memberships SET status = 'active', "
+            f"suspended_at = NULL WHERE id = '{org_membership}';",
+        ),
+        (
+            "UPDATE identity_project_memberships SET status = 'revoked', "
+            f"revoked_at = clock_timestamp() WHERE project_id = '{project}';",
+            "UPDATE identity_project_memberships SET status = 'active', "
+            f"revoked_at = NULL WHERE project_id = '{project}';",
+        ),
+    ]
+    for invalidate, restore in invalid_updates:
+        _psql(identity_database, invalidate, tuples=False)
+        rejected = _rows(
+            _psql(
+                identity_database,
+                f"""
+                SELECT count(*)
+                  FROM a1_authenticate_identity_session_digest(
+                    '{session_digest}'
+                  );
+                """,
+                user=RUNTIME_ROLE,
+            )
+        )
+        assert rejected == ["0"]
+        _psql(identity_database, restore, tuples=False)
+
+    malformed = _rows(
+        _psql(
+            identity_database,
+            """
+            SELECT count(*)
+              FROM a1_authenticate_identity_session_digest('raw-token');
+            """,
+            user=RUNTIME_ROLE,
+        )
+    )
+    assert malformed == ["0"]
+
+
 def test_recovery_requires_expected_proof_persists_failures_and_blocks_replay(
     identity_database: str,
 ) -> None:

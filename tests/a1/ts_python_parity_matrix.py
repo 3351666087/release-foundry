@@ -69,6 +69,30 @@ UNIFIED_IDENTITY_ROUTE_OPERATIONS = [
         "identity_recovery_complete_route",
         ("account_contract", "recovery_contract"),
     ),
+    (
+        "verification_challenge_create",
+        "POST",
+        "identity_verification_challenges_route",
+        (),
+    ),
+    (
+        "verification_challenge_get",
+        "GET",
+        "identity_verification_challenge_route",
+        ("challenge_contract",),
+    ),
+    (
+        "verification_challenge_resend",
+        "POST",
+        "identity_verification_resend_route",
+        ("challenge_contract",),
+    ),
+    (
+        "verification_challenge_verify",
+        "POST",
+        "identity_verification_verify_route",
+        ("challenge_contract",),
+    ),
 ]
 
 
@@ -272,6 +296,7 @@ def python_unified_identity_contract(path: Path) -> dict[str, Any]:
         "account_contract": "{account_id}",
         "credential_contract": "{credential_id}",
         "recovery_contract": "{recovery_id}",
+        "challenge_contract": "{challenge_id}",
         "github": "{provider}",
     }
     routes = []

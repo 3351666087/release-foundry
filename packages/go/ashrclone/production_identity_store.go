@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
-	"time"
 
 	_ "github.com/lib/pq"
 )
@@ -31,6 +30,9 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
    ) IS NOT NULL
    AND to_regprocedure(
      'public.a1_disconnect_oauth_identity_credential(uuid,uuid,uuid,uuid,uuid,text,text,text)'
+   ) IS NOT NULL
+   AND to_regprocedure(
+     'public.a1_authenticate_identity_session_digest(text)'
    ) IS NOT NULL
 `
 
@@ -97,7 +99,7 @@ func (store *ProductionIdentityStore) Ready(ctx context.Context) error {
 		return fmt.Errorf("verify production identity schema: %w", err)
 	}
 	if !ready {
-		return fmt.Errorf("production identity PostgreSQL schema is incomplete; migrations 007-010 are required")
+		return fmt.Errorf("production identity PostgreSQL schema is incomplete; migrations 007-011 are required")
 	}
 	return nil
 }
@@ -143,22 +145,14 @@ func (store *ProductionIdentityStore) resolveSession(ctx context.Context, reques
 	}
 	digest := store.sessionDigest(token)
 	var session postgresIdentitySession
-	var status string
-	var expiresAt time.Time
 	err = store.db.QueryRowContext(ctx, `
-SELECT principal.id::text,
-       principal.id::text,
-       identity_session.id::text,
-       COALESCE(identity_session.organization_id::text, ''),
-       COALESCE(identity_session.project_id::text, ''),
-       principal.id::text,
-       identity_session.status,
-       identity_session.expires_at
-  FROM identity_sessions AS identity_session
-  JOIN identity_principals AS principal
-    ON principal.id = identity_session.principal_id
- WHERE identity_session.session_digest = $1
- LIMIT 1
+SELECT authenticated.principal_id::text,
+       authenticated.principal_id::text,
+       authenticated.session_id::text,
+       COALESCE(authenticated.organization_id::text, ''),
+       COALESCE(authenticated.project_id::text, ''),
+       authenticated.principal_id::text
+  FROM a1_authenticate_identity_session_digest($1) AS authenticated
 `, digest).Scan(
 		&session.AccountID,
 		&session.ActorID,
@@ -166,18 +160,12 @@ SELECT principal.id::text,
 		&session.TenantID,
 		&session.ProjectID,
 		&session.UserID,
-		&status,
-		&expiresAt,
 	)
 	if err == sql.ErrNoRows {
 		return postgresIdentitySession{}, fmt.Errorf("identity session is invalid")
 	}
 	if err != nil {
 		return postgresIdentitySession{}, fmt.Errorf("resolve identity session: %w", err)
-	}
-	session.Revoked = status != "active" || !expiresAt.After(time.Now().UTC())
-	if session.Revoked {
-		return postgresIdentitySession{}, fmt.Errorf("identity session is inactive")
 	}
 	return session, nil
 }

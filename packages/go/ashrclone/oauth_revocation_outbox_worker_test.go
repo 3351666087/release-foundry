@@ -21,6 +21,11 @@ type revocationWorkerStore struct {
 	deadLetter            bool
 	providerCheckpointErr error
 	vaultCheckpointErr    error
+	renewErr              error
+	deadLetterErr         error
+	renewals              int
+	deadLetters           int
+	lastFailureCode       string
 }
 
 func (store *revocationWorkerStore) ClaimOAuthRevocations(
@@ -50,6 +55,31 @@ func (store *revocationWorkerStore) CompleteOAuthRevocation(
 	return nil
 }
 
+func (store *revocationWorkerStore) RenewOAuthRevocationLease(
+	_ context.Context,
+	task OAuthRevocationTask,
+	duration time.Duration,
+	now time.Time,
+) (OAuthRevocationTask, error) {
+	store.renewals++
+	if store.renewErr != nil {
+		return task, store.renewErr
+	}
+	task.LeaseExpiresAt = now.Add(duration)
+	return task, nil
+}
+
+func (store *revocationWorkerStore) DeadLetterOAuthRevocation(
+	_ context.Context,
+	_ OAuthRevocationTask,
+	failureCode string,
+	_ time.Time,
+) error {
+	store.deadLetters++
+	store.lastFailureCode = failureCode
+	return store.deadLetterErr
+}
+
 func (store *revocationWorkerStore) RetryOAuthRevocation(
 	context.Context, OAuthRevocationTask, string, time.Duration, time.Duration, time.Time,
 ) (bool, time.Time, error) {
@@ -58,30 +88,42 @@ func (store *revocationWorkerStore) RetryOAuthRevocation(
 }
 
 type revocationWorkerVault struct {
-	payload     []byte
-	getCalls    int
-	deleteCalls int
-	deleteErr   error
+	payload         []byte
+	getCalls        int
+	deleteCalls     int
+	deleteErr       error
+	requireDeadline bool
 }
 
 func (*revocationWorkerVault) Put(context.Context, string, OAuthSecretBinding, []byte) (string, error) {
 	return "", errors.New("not implemented")
 }
-func (vault *revocationWorkerVault) Get(context.Context, string) ([]byte, error) {
+func (vault *revocationWorkerVault) Get(ctx context.Context, _ string) ([]byte, error) {
 	vault.getCalls++
+	if vault.requireDeadline {
+		if _, ok := ctx.Deadline(); !ok {
+			return nil, errors.New("missing deadline")
+		}
+	}
 	return append([]byte(nil), vault.payload...), nil
 }
 func (*revocationWorkerVault) Binding(context.Context, string) (OAuthSecretBinding, error) {
 	return OAuthSecretBinding{}, errors.New("not implemented")
 }
-func (vault *revocationWorkerVault) Delete(context.Context, string) error {
+func (vault *revocationWorkerVault) Delete(ctx context.Context, _ string) error {
 	vault.deleteCalls++
+	if vault.requireDeadline {
+		if _, ok := ctx.Deadline(); !ok {
+			return errors.New("missing deadline")
+		}
+	}
 	return vault.deleteErr
 }
 
 type revocationWorkerProvider struct {
-	revokeCalls int
-	revokeErr   error
+	revokeCalls     int
+	revokeErr       error
+	requireDeadline bool
 }
 
 func (*revocationWorkerProvider) Name() string          { return "google" }
@@ -97,9 +139,14 @@ func (*revocationWorkerProvider) ResolveIdentity(context.Context, OAuthIdentityR
 	return OAuthProviderIdentity{}, errors.New("not implemented")
 }
 func (provider *revocationWorkerProvider) RevokeToken(
-	context.Context, OAuthClientCredentials, string,
+	ctx context.Context, _ OAuthClientCredentials, _ string,
 ) error {
 	provider.revokeCalls++
+	if provider.requireDeadline {
+		if _, ok := ctx.Deadline(); !ok {
+			return errors.New("missing deadline")
+		}
+	}
 	return provider.revokeErr
 }
 
@@ -154,9 +201,84 @@ func TestOAuthRevocationWorkerCompletesDurablePhases(t *testing.T) {
 		t.Fatal(err)
 	}
 	if result.Delivered != 1 || provider.revokeCalls != 1 || vault.deleteCalls != 1 ||
-		store.providerCheckpoints != 1 || store.vaultCheckpoints != 1 || store.completions != 1 {
+		store.providerCheckpoints != 1 || store.vaultCheckpoints != 1 || store.completions != 1 ||
+		store.renewals != 5 {
 		t.Fatalf("unexpected durable phase result: %#v store=%#v provider=%#v vault=%#v",
 			result, store, provider, vault)
+	}
+}
+
+func TestOAuthRevocationWorkerDeadLettersMalformedTaskBeforeExternalCalls(t *testing.T) {
+	task := revocationTask()
+	task.OpaqueRef = "raw-provider-token"
+	task.Provider = "google:secret=must-not-escape"
+	store := &revocationWorkerStore{tasks: []OAuthRevocationTask{task}}
+	vault := &revocationWorkerVault{payload: []byte("provider-token")}
+	provider := &revocationWorkerProvider{}
+
+	result, err := newRevocationWorker(t, store, vault, provider).
+		ProcessBatch(context.Background(), "tenant", "project", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.DeadLettered != 1 || store.deadLetters != 1 ||
+		store.lastFailureCode != "malformed_task" || store.renewals != 0 ||
+		provider.revokeCalls != 0 || vault.getCalls != 0 || vault.deleteCalls != 0 {
+		t.Fatalf("malformed task reached an external dependency: result=%#v store=%#v provider=%#v vault=%#v",
+			result, store, provider, vault)
+	}
+	serialized := result.Events[0].Type + result.Events[0].Metadata["failure_code"].(string)
+	if strings.Contains(serialized, "must-not-escape") || strings.Contains(serialized, "raw-provider-token") {
+		t.Fatalf("malformed task leaked into public event: %s", serialized)
+	}
+}
+
+func TestOAuthRevocationWorkerUsesDeadlinesAndRenewsBeforeExternalCalls(t *testing.T) {
+	store := &revocationWorkerStore{tasks: []OAuthRevocationTask{revocationTask()}}
+	vault := &revocationWorkerVault{
+		payload: []byte("provider-token"), requireDeadline: true,
+	}
+	provider := &revocationWorkerProvider{requireDeadline: true}
+
+	result, err := newRevocationWorker(t, store, vault, provider).
+		ProcessBatch(context.Background(), "tenant", "project", 10)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Delivered != 1 || store.renewals != 5 {
+		t.Fatalf("external calls were not lease-bounded: result=%#v store=%#v", result, store)
+	}
+}
+
+func TestOAuthRevocationWorkerRejectsExpiredLeaseBeforeRetryOrExternalCalls(t *testing.T) {
+	task := revocationTask()
+	task.LeaseExpiresAt = time.Date(2026, 7, 10, 12, 59, 0, 0, time.UTC)
+	store := &revocationWorkerStore{tasks: []OAuthRevocationTask{task}}
+	vault := &revocationWorkerVault{payload: []byte("provider-token")}
+	provider := &revocationWorkerProvider{}
+
+	result, err := newRevocationWorker(t, store, vault, provider).
+		ProcessBatch(context.Background(), "tenant", "project", 10)
+	if err == nil || !strings.Contains(err.Error(), "lease is expired") {
+		t.Fatalf("expired lease was not rejected: result=%#v err=%v", result, err)
+	}
+	if store.retries != 0 || store.deadLetters != 0 || store.renewals != 0 ||
+		provider.revokeCalls != 0 || vault.getCalls != 0 || vault.deleteCalls != 0 {
+		t.Fatalf("expired lease caused side effects: store=%#v provider=%#v vault=%#v",
+			store, provider, vault)
+	}
+}
+
+func TestOAuthRevocationPublicEventRejectsLeakingValues(t *testing.T) {
+	task := revocationTask()
+	task.Provider = "token=provider-secret"
+	if _, err := oauthRevocationPublicEvent("oauth.revocation.delivered", task, ""); err == nil {
+		t.Fatal("expected value-level public metadata rejection")
+	}
+	if _, err := oauthRevocationPublicEvent(
+		"oauth.revocation.unknown", revocationTask(), "",
+	); err == nil {
+		t.Fatal("expected event-specific allowlist rejection")
 	}
 }
 

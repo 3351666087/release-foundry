@@ -110,8 +110,8 @@ def test_ts_python_gap_matrix_is_generated_public_safe_and_current():
         "qq",
         "wechat",
     ]
-    assert len(identity["python"]["stable_error_codes"]) == 23
-    assert len(identity["python"]["routes"]) == 8
+    assert len(identity["python"]["stable_error_codes"]) == 28
+    assert len(identity["python"]["routes"]) == 12
     assert by_area["Python/TypeScript unified identity contract"]["status"] == "parity"
 
     for entry in matrix["gap_matrix"]:

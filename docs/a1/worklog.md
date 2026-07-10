@@ -1,3 +1,79 @@
+## Round51 identity, OTP, and SMTP calibration - 2026-07-10T15:30:00Z
+
+Baseline and peer state:
+
+- Authoritative worktree:
+  `C:\Users\33516\Documents\Ashr_a1_clean_rebase`.
+- Local branch: `codex/a1-local-sdk-runner-clean`; push target:
+  `origin/codex/a1-local-sdk-runner`; PR #31.
+- Started from `1cb15b3e`, whose CL Gate was green.
+- Fetch observed A3 branch movement only. No `origin/main` A1 peer change was
+  found that needed integration.
+- Five A2 result fixtures remain CRLF-only peer noise and are excluded from
+  this A1 publication.
+
+Human-subagent results:
+
+- QQ Connect requires a business license in the user-observed enrollment flow,
+  so it is classified `enterprise-only` and was not pursued.
+- QQ Mail SMTP was enabled.
+- `ASHR_SMTP_HOST`, `ASHR_SMTP_PORT`, `ASHR_SMTP_FROM`, and
+  `ASHR_SMTP_AUTH_CODE` were confirmed present by name and length only.
+- No address, authorization code, recipient, OTP, or message body was printed
+  or written to evidence.
+
+Implemented:
+
+1. Added restricted PostgreSQL session authentication with digest-only lookup
+   and live principal, credential, organization membership, and project
+   membership revalidation.
+2. Hardened revocation outbox task validation, lease fencing and renewal,
+   bounded dependency calls, dead lettering, and public-safe metadata.
+3. Added Go OTP lifecycle for email and phone binding, login, and recovery.
+4. Added matching Python and TypeScript OTP contracts.
+5. Expanded generated TS/Python parity to 12 identity routes and 28 stable
+   error codes with zero differing fields.
+6. Added an implicit TLS SMTP sender with TLS 1.2 minimum, deadline controls,
+   email-only delivery, header injection prevention, and redacted errors.
+7. Wired SMTP only behind explicit development-memory verification flags.
+   Production still refuses memory OTP delivery and requires durable injected
+   components.
+
+Validation:
+
+- `go test -count=1 ./...` in `packages/go/ashrclone`: passed.
+- `go vet ./...` in `packages/go/ashrclone`: passed.
+- `go test -count=1 ./...` in `tests/integration/go`: passed.
+- Python parity and focused identity/migration tests: 60 passed.
+- TypeScript build: passed.
+- TypeScript full suite: 512 passed.
+- Real SMTP calibration: one self-addressed message, 15-second hard timeout,
+  successful in approximately 2.3 seconds. Only the outcome class and duration
+  are retained.
+
+Evidence:
+
+- `docs/a1/evidence/round51_identity_otp_smtp_20260710.md`
+- `tests/a1/docs/a1/ts_python_gap_matrix.json`
+
+Growth-Auditor:
+
+- The initial NO-GO included a compile failure observed before the SMTP sender
+  landed. That compile blocker is resolved and the full Go tests now pass.
+- The commercial NO-GO remains for production OTP: durable PostgreSQL OTP
+  state, transactionally consistent receipt consumption and identity mutation,
+  anti-enumeration, distributed rate limiting, durable audit, SMS delivery,
+  production store interfaces, and vault-backed OAuth are still required.
+- The next lane begins with PostgreSQL OTP storage and transaction boundaries,
+  followed by production identity-store interfaces and abuse controls.
+
+Publication plan:
+
+- Run the full A1 Python suite, generated fixture checks, CL guards, diff
+  hygiene, and location-only secret scan.
+- Stage only reviewed A1 paths. Never stage the five A2 CRLF-only fixtures.
+- Push to `origin/codex/a1-local-sdk-runner` and require PR #31 CL Gate green.
+
 ## Round42 commercial SaaS backend growth - 2026-07-09T23:55:00Z
 
 Baseline:

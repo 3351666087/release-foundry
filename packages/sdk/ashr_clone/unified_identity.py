@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+import re
 from typing import Any, Callable, Mapping, Sequence
 from urllib.parse import quote
 
@@ -26,6 +27,16 @@ UNIFIED_IDENTITY_CREDENTIAL_STATUSES = (
 )
 UNIFIED_IDENTITY_MEMBERSHIP_ROLES = ("owner", "admin", "developer", "viewer", "billing")
 UNIFIED_IDENTITY_MEMBERSHIP_STATUSES = ("invited", "active", "suspended", "removed")
+IDENTITY_VERIFICATION_PROVIDERS = ("email", "phone")
+IDENTITY_VERIFICATION_PURPOSES = ("binding", "login", "recovery")
+IDENTITY_VERIFICATION_CHALLENGE_STATUSES = (
+    "pending",
+    "verified",
+    "consumed",
+    "expired",
+    "locked",
+)
+IDENTITY_VERIFICATION_RECEIPT_STATUSES = ("verified", "consumed", "expired")
 UNIFIED_IDENTITY_ERROR_CODES = (
     "identity_invalid_request",
     "identity_account_not_found",
@@ -49,6 +60,11 @@ UNIFIED_IDENTITY_ERROR_CODES = (
     "identity_recovery_locked",
     "identity_verification_required",
     "identity_verification_failed",
+    "identity_verification_expired",
+    "identity_verification_locked",
+    "identity_verification_replayed",
+    "identity_verification_rate_limited",
+    "identity_verification_resend_too_soon",
     "identity_store_failed",
 )
 
@@ -60,11 +76,13 @@ _FORBIDDEN_PUBLIC_KEYS = {
     "code_verifier",
     "cookie",
     "email",
+    "email_address",
     "id_token",
     "nonce",
     "otp",
     "password",
     "phone",
+    "phone_number",
     "refresh_token",
     "secret",
     "session_token",
@@ -75,6 +93,10 @@ _FORBIDDEN_PUBLIC_KEYS = {
     "token",
     "token_ref",
     "token_ref_id",
+    "destination",
+    "destination_value",
+    "verification_code",
+    "verification_value",
     "revocation_outbox_id",
 }
 _FORBIDDEN_KEY_SUFFIXES = (
@@ -133,6 +155,21 @@ def unified_identity_contract_manifest() -> dict[str, Any]:
             "merge_repoints_credentials_atomically": True,
             "last_active_credential_cannot_be_unlinked": True,
             "recovery_requires_single_use_verification_receipt": True,
+            "verification_challenges_are_provider_neutral": True,
+            "verification_receipts_are_single_use": True,
+            "verification_login_does_not_merge_by_destination": True,
+        },
+        "verification": {
+            "providers": list(IDENTITY_VERIFICATION_PROVIDERS),
+            "purposes": list(IDENTITY_VERIFICATION_PURPOSES),
+            "challenge_statuses": list(IDENTITY_VERIFICATION_CHALLENGE_STATUSES),
+            "receipt_statuses": list(IDENTITY_VERIFICATION_RECEIPT_STATUSES),
+            "destination_input": "opaque_reference_only",
+            "code_input": "opaque_reference_only",
+            "ttl_required": True,
+            "attempt_cap_required": True,
+            "resend_cooldown_required": True,
+            "single_use_required": True,
         },
         "public_safety": {
             "raw_email_present": False,
@@ -466,6 +503,182 @@ class IdentityRecovery:
 
 
 @dataclass(frozen=True)
+class IdentityVerificationChallenge:
+    challenge_id: str
+    provider: str
+    purpose: str
+    status: str
+    destination_hint: str
+    destination_digest_ref: str
+    created_at: str
+    expires_at: str
+    ttl_seconds: int
+    attempt_cap: int
+    attempts_remaining: int
+    resend_cooldown_seconds: int
+    resend_available_at: str
+    single_use: bool
+    account_id: str | None = None
+    verified_at: str | None = None
+    consumed_at: str | None = None
+
+    @classmethod
+    def from_public_response(
+        cls, payload: Mapping[str, Any]
+    ) -> "IdentityVerificationChallenge":
+        _assert_public_safe(payload)
+        provider = normalize_verification_provider(payload.get("provider"))
+        purpose = normalize_verification_purpose(payload.get("purpose"))
+        status = _enum(
+            "verification challenge status",
+            payload.get("status"),
+            IDENTITY_VERIFICATION_CHALLENGE_STATUSES,
+        )
+        ttl_seconds = _positive_int("ttl_seconds", payload.get("ttl_seconds"))
+        attempt_cap = _positive_int("attempt_cap", payload.get("attempt_cap"))
+        attempts_remaining = _non_negative_int(
+            "attempts_remaining", payload.get("attempts_remaining")
+        )
+        if attempts_remaining > attempt_cap:
+            raise UnifiedIdentityContractError(
+                "attempts_remaining cannot exceed attempt_cap"
+            )
+        single_use = _boolean("single_use", payload.get("single_use"))
+        if not single_use:
+            raise UnifiedIdentityContractError(
+                "verification challenge must be single-use"
+            )
+        account_value = payload.get("account_id")
+        verified_at = _optional_timestamp("verified_at", payload.get("verified_at"))
+        consumed_at = _optional_timestamp("consumed_at", payload.get("consumed_at"))
+        if status == "verified" and verified_at is None:
+            raise UnifiedIdentityContractError(
+                "verified challenge requires verified_at"
+            )
+        if status == "consumed" and consumed_at is None:
+            raise UnifiedIdentityContractError(
+                "consumed challenge requires consumed_at"
+            )
+        return cls(
+            challenge_id=_identifier("challenge_id", payload.get("challenge_id")),
+            provider=provider,
+            purpose=purpose,
+            status=status,
+            destination_hint=_display_hint(provider, payload.get("destination_hint")),
+            destination_digest_ref=_digest_reference(
+                "destination_digest_ref", payload.get("destination_digest_ref")
+            ),
+            created_at=_timestamp("created_at", payload.get("created_at")),
+            expires_at=_timestamp("expires_at", payload.get("expires_at")),
+            ttl_seconds=ttl_seconds,
+            attempt_cap=attempt_cap,
+            attempts_remaining=attempts_remaining,
+            resend_cooldown_seconds=_positive_int(
+                "resend_cooldown_seconds", payload.get("resend_cooldown_seconds")
+            ),
+            resend_available_at=_timestamp(
+                "resend_available_at", payload.get("resend_available_at")
+            ),
+            single_use=single_use,
+            account_id=(
+                _identifier("account_id", account_value) if account_value else None
+            ),
+            verified_at=verified_at,
+            consumed_at=consumed_at,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "challenge_id": self.challenge_id,
+            "provider": self.provider,
+            "purpose": self.purpose,
+            "status": self.status,
+            "destination_hint": self.destination_hint,
+            "destination_digest_ref": self.destination_digest_ref,
+            "created_at": self.created_at,
+            "expires_at": self.expires_at,
+            "ttl_seconds": self.ttl_seconds,
+            "attempt_cap": self.attempt_cap,
+            "attempts_remaining": self.attempts_remaining,
+            "resend_cooldown_seconds": self.resend_cooldown_seconds,
+            "resend_available_at": self.resend_available_at,
+            "single_use": self.single_use,
+            "account_id": self.account_id,
+            "verified_at": self.verified_at,
+            "consumed_at": self.consumed_at,
+        }
+
+
+@dataclass(frozen=True)
+class IdentityVerificationReceipt:
+    receipt_id: str
+    challenge_id: str
+    provider: str
+    purpose: str
+    status: str
+    destination_digest_ref: str
+    verified_at: str
+    expires_at: str
+    single_use: bool
+    account_id: str | None = None
+    consumed_at: str | None = None
+
+    @classmethod
+    def from_public_response(
+        cls, payload: Mapping[str, Any]
+    ) -> "IdentityVerificationReceipt":
+        _assert_public_safe(payload)
+        status = _enum(
+            "verification receipt status",
+            payload.get("status"),
+            IDENTITY_VERIFICATION_RECEIPT_STATUSES,
+        )
+        single_use = _boolean("single_use", payload.get("single_use"))
+        if not single_use:
+            raise UnifiedIdentityContractError(
+                "verification receipt must be single-use"
+            )
+        consumed_at = _optional_timestamp("consumed_at", payload.get("consumed_at"))
+        if status == "consumed" and consumed_at is None:
+            raise UnifiedIdentityContractError(
+                "consumed receipt requires consumed_at"
+            )
+        account_value = payload.get("account_id")
+        return cls(
+            receipt_id=_identifier("receipt_id", payload.get("receipt_id")),
+            challenge_id=_identifier("challenge_id", payload.get("challenge_id")),
+            provider=normalize_verification_provider(payload.get("provider")),
+            purpose=normalize_verification_purpose(payload.get("purpose")),
+            status=status,
+            destination_digest_ref=_digest_reference(
+                "destination_digest_ref", payload.get("destination_digest_ref")
+            ),
+            verified_at=_timestamp("verified_at", payload.get("verified_at")),
+            expires_at=_timestamp("expires_at", payload.get("expires_at")),
+            single_use=single_use,
+            account_id=(
+                _identifier("account_id", account_value) if account_value else None
+            ),
+            consumed_at=consumed_at,
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "receipt_id": self.receipt_id,
+            "challenge_id": self.challenge_id,
+            "provider": self.provider,
+            "purpose": self.purpose,
+            "status": self.status,
+            "destination_digest_ref": self.destination_digest_ref,
+            "verified_at": self.verified_at,
+            "expires_at": self.expires_at,
+            "single_use": self.single_use,
+            "account_id": self.account_id,
+            "consumed_at": self.consumed_at,
+        }
+
+
+@dataclass(frozen=True)
 class UnifiedIdentityError:
     code: str
     message: str
@@ -656,6 +869,78 @@ class UnifiedIdentityClient:
             )
         )
 
+    def start_verification(
+        self,
+        provider: str,
+        purpose: str,
+        *,
+        destination_ref: str,
+        idempotency_key: str,
+        account_id: str | None = None,
+    ) -> IdentityVerificationChallenge:
+        normalized_provider = normalize_verification_provider(provider)
+        normalized_purpose = normalize_verification_purpose(purpose)
+        payload: dict[str, Any] = {
+            "provider": normalized_provider,
+            "purpose": normalized_purpose,
+            "destination_ref": _private_input_reference(
+                "destination_ref", destination_ref
+            ),
+            "idempotency_key": _identifier("idempotency_key", idempotency_key),
+        }
+        if account_id is not None:
+            payload["account_id"] = _identifier("account_id", account_id)
+        if normalized_purpose in {"binding", "recovery"} and "account_id" not in payload:
+            raise UnifiedIdentityContractError(
+                f"{normalized_purpose} verification requires account_id"
+            )
+        return IdentityVerificationChallenge.from_public_response(
+            self._request("POST", identity_verification_challenges_route(), payload)
+        )
+
+    def get_verification(
+        self, challenge_id: str
+    ) -> IdentityVerificationChallenge:
+        return IdentityVerificationChallenge.from_public_response(
+            self._request(
+                "GET", identity_verification_challenge_route(challenge_id), {}
+            )
+        )
+
+    def resend_verification(
+        self,
+        challenge_id: str,
+        *,
+        idempotency_key: str,
+    ) -> IdentityVerificationChallenge:
+        return IdentityVerificationChallenge.from_public_response(
+            self._request(
+                "POST",
+                identity_verification_resend_route(challenge_id),
+                {"idempotency_key": _identifier("idempotency_key", idempotency_key)},
+            )
+        )
+
+    def verify_challenge(
+        self,
+        challenge_id: str,
+        *,
+        verification_code_ref: str,
+        idempotency_key: str,
+    ) -> IdentityVerificationReceipt:
+        return IdentityVerificationReceipt.from_public_response(
+            self._request(
+                "POST",
+                identity_verification_verify_route(challenge_id),
+                {
+                    "verification_code_ref": _private_input_reference(
+                        "verification_code_ref", verification_code_ref
+                    ),
+                    "idempotency_key": _identifier("idempotency_key", idempotency_key),
+                },
+            )
+        )
+
     def _request(
         self, method: str, path: str, payload: Mapping[str, Any]
     ) -> Mapping[str, Any]:
@@ -713,34 +998,112 @@ def identity_recovery_complete_route(account_id: str, recovery_id: str) -> str:
     )
 
 
+def identity_verification_challenges_route() -> str:
+    return "/v1/identity/verifications/challenges"
+
+
+def identity_verification_challenge_route(challenge_id: str) -> str:
+    return (
+        f"{identity_verification_challenges_route()}/"
+        f"{_segment('challenge_id', challenge_id)}"
+    )
+
+
+def identity_verification_resend_route(challenge_id: str) -> str:
+    return f"{identity_verification_challenge_route(challenge_id)}/resend"
+
+
+def identity_verification_verify_route(challenge_id: str) -> str:
+    return f"{identity_verification_challenge_route(challenge_id)}/verify"
+
+
+def normalize_verification_provider(provider: Any) -> str:
+    normalized = normalize_identity_provider(str(provider or ""))
+    if normalized not in IDENTITY_VERIFICATION_PROVIDERS:
+        raise UnifiedIdentityContractError(
+            "verification provider must be phone or email",
+            code="identity_provider_not_supported",
+        )
+    return normalized
+
+
+def normalize_verification_purpose(purpose: Any) -> str:
+    return _enum(
+        "verification purpose", purpose, IDENTITY_VERIFICATION_PURPOSES
+    )
+
+
 def _assert_public_safe(payload: Mapping[str, Any]) -> None:
-    def visit(value: Any) -> None:
+    def visit(value: Any, path: tuple[str, ...] = ()) -> None:
         if isinstance(value, Mapping):
             for key, item in value.items():
                 normalized = str(key).strip().lower().replace("-", "_")
                 canonical = "".join(
                     character for character in normalized if character.isalnum()
                 )
-                if normalized in _FORBIDDEN_PUBLIC_KEYS or normalized.endswith(
-                    _FORBIDDEN_KEY_SUFFIXES
-                ) or canonical in _FORBIDDEN_CANONICAL_KEYS:
+                safe_error_destination = (
+                    normalized == "destination"
+                    and path == ("error", "details")
+                    and _is_safe_error_destination(item)
+                )
+                stable_error_code = normalized == "code" and path == ("error",)
+                if not (safe_error_destination or stable_error_code) and (
+                    normalized in _FORBIDDEN_PUBLIC_KEYS
+                    or normalized.endswith(_FORBIDDEN_KEY_SUFFIXES)
+                    or canonical in _FORBIDDEN_CANONICAL_KEYS
+                ):
                     raise UnifiedIdentityContractError(
                         f"public identity payload must not include {normalized}"
                     )
-                visit(item)
+                visit(item, (*path, normalized))
         elif isinstance(value, Sequence) and not isinstance(
             value, (str, bytes, bytearray)
         ):
             for item in value:
-                visit(item)
+                visit(item, path)
 
     visit(payload)
+
+
+def _is_safe_error_destination(value: Any) -> bool:
+    if not isinstance(value, str) or not value or len(value) > 160:
+        return False
+    return not re.search(
+        r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}|\+?[1-9]\d{7,14}",
+        value,
+    )
 
 
 def _identifier(name: str, value: Any) -> str:
     normalized = str(value or "").strip()
     if not normalized or len(normalized) > 255 or any(char.isspace() for char in normalized):
         raise UnifiedIdentityContractError(f"{name} must be a non-empty opaque identifier")
+    return normalized
+
+
+def _private_input_reference(name: str, value: Any) -> str:
+    normalized = _identifier(name, value)
+    if ":" not in normalized:
+        raise UnifiedIdentityContractError(
+            f"{name} must be a namespaced opaque reference"
+        )
+    lowered = normalized.lower()
+    if "@" in normalized or lowered.startswith(("mailto:", "tel:", "sms:")):
+        raise UnifiedIdentityContractError(
+            f"{name} must not contain raw destination or verification material"
+        )
+    return normalized
+
+
+def _digest_reference(name: str, value: Any) -> str:
+    normalized = _identifier(name, value)
+    lowered = normalized.lower()
+    if ":" not in normalized or lowered.startswith(
+        ("sha256:", "sha-256:", "mailto:", "tel:")
+    ):
+        raise UnifiedIdentityContractError(
+            f"{name} must be an opaque server-side digest reference"
+        )
     return normalized
 
 
@@ -826,4 +1189,10 @@ def _scalar_sequence(name: str, value: Any) -> tuple[Any, ...]:
 def _non_negative_int(name: str, value: Any) -> int:
     if not isinstance(value, int) or isinstance(value, bool) or value < 0:
         raise UnifiedIdentityContractError(f"{name} must be a non-negative integer")
+    return value
+
+
+def _positive_int(name: str, value: Any) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+        raise UnifiedIdentityContractError(f"{name} must be a positive integer")
     return value

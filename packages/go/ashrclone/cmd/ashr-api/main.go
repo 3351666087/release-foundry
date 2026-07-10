@@ -91,6 +91,7 @@ func main() {
 			PaymentDomain:         selection.PaymentDomain,
 			UnifiedIdentity:       identityRuntime.unifiedIdentity,
 			IdentitySessions:      identitySessions,
+			IdentityVerification:  identityRuntime.verification,
 			OAuthProviders:        oauthProviders,
 			GitHubOAuth:           githubOAuth,
 		}),

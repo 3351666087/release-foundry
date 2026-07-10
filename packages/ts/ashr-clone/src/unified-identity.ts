@@ -62,7 +62,34 @@ export const UNIFIED_IDENTITY_ERROR_CODES = [
   "identity_recovery_locked",
   "identity_verification_required",
   "identity_verification_failed",
+  "identity_verification_expired",
+  "identity_verification_locked",
+  "identity_verification_replayed",
+  "identity_verification_rate_limited",
+  "identity_verification_resend_too_soon",
   "identity_store_failed",
+] as const;
+
+export const IDENTITY_VERIFICATION_PROVIDERS = ["email", "phone"] as const;
+
+export const IDENTITY_VERIFICATION_PURPOSES = [
+  "binding",
+  "login",
+  "recovery",
+] as const;
+
+export const IDENTITY_VERIFICATION_CHALLENGE_STATUSES = [
+  "pending",
+  "verified",
+  "consumed",
+  "expired",
+  "locked",
+] as const;
+
+export const IDENTITY_VERIFICATION_RECEIPT_STATUSES = [
+  "verified",
+  "consumed",
+  "expired",
 ] as const;
 
 export type UnifiedIdentityProvider = (typeof UNIFIED_IDENTITY_PROVIDERS)[number];
@@ -71,6 +98,12 @@ export type UnifiedCredentialStatus = (typeof UNIFIED_IDENTITY_CREDENTIAL_STATUS
 export type UnifiedMembershipRole = (typeof UNIFIED_IDENTITY_MEMBERSHIP_ROLES)[number];
 export type UnifiedMembershipStatus = (typeof UNIFIED_IDENTITY_MEMBERSHIP_STATUSES)[number];
 export type UnifiedIdentityErrorCode = (typeof UNIFIED_IDENTITY_ERROR_CODES)[number];
+export type IdentityVerificationProvider = (typeof IDENTITY_VERIFICATION_PROVIDERS)[number];
+export type IdentityVerificationPurpose = (typeof IDENTITY_VERIFICATION_PURPOSES)[number];
+export type IdentityVerificationChallengeStatus =
+  (typeof IDENTITY_VERIFICATION_CHALLENGE_STATUSES)[number];
+export type IdentityVerificationReceiptStatus =
+  (typeof IDENTITY_VERIFICATION_RECEIPT_STATUSES)[number];
 export type UnifiedIdentityFetch = typeof fetch;
 
 export interface IdentityCredential {
@@ -145,6 +178,40 @@ export interface IdentityRecovery {
   attempts_remaining: number;
 }
 
+export interface IdentityVerificationChallenge {
+  challenge_id: string;
+  provider: IdentityVerificationProvider;
+  purpose: IdentityVerificationPurpose;
+  status: IdentityVerificationChallengeStatus;
+  destination_hint: string;
+  destination_digest_ref: string;
+  created_at: string;
+  expires_at: string;
+  ttl_seconds: number;
+  attempt_cap: number;
+  attempts_remaining: number;
+  resend_cooldown_seconds: number;
+  resend_available_at: string;
+  single_use: true;
+  account_id: string | null;
+  verified_at: string | null;
+  consumed_at: string | null;
+}
+
+export interface IdentityVerificationReceipt {
+  receipt_id: string;
+  challenge_id: string;
+  provider: IdentityVerificationProvider;
+  purpose: IdentityVerificationPurpose;
+  status: IdentityVerificationReceiptStatus;
+  destination_digest_ref: string;
+  verified_at: string;
+  expires_at: string;
+  single_use: true;
+  account_id: string | null;
+  consumed_at: string | null;
+}
+
 export interface UnifiedIdentityError {
   code: UnifiedIdentityErrorCode;
   message: string;
@@ -160,6 +227,8 @@ export type UnifiedCredentialLink = IdentityLink;
 export type UnifiedCredentialUnlink = IdentityUnlink;
 export type UnifiedAccountMerge = IdentityMerge;
 export type UnifiedRecovery = IdentityRecovery;
+export type UnifiedVerificationChallenge = IdentityVerificationChallenge;
+export type UnifiedVerificationReceipt = IdentityVerificationReceipt;
 
 export interface UnifiedIdentityRoute {
   operation:
@@ -170,7 +239,11 @@ export interface UnifiedIdentityRoute {
     | "credential_unlink"
     | "account_merge"
     | "recovery_start"
-    | "recovery_complete";
+    | "recovery_complete"
+    | "verification_challenge_create"
+    | "verification_challenge_get"
+    | "verification_challenge_resend"
+    | "verification_challenge_verify";
   method: "GET" | "POST";
   path: string;
 }
@@ -184,6 +257,10 @@ export const UNIFIED_IDENTITY_ROUTES: readonly UnifiedIdentityRoute[] = Object.f
   { operation: "account_merge", method: "POST", path: "/v1/accounts/{canonical_account_id}/merge" },
   { operation: "recovery_start", method: "POST", path: "/v1/accounts/{account_id}/recovery/start" },
   { operation: "recovery_complete", method: "POST", path: "/v1/accounts/{account_id}/recovery/{recovery_id}/complete" },
+  { operation: "verification_challenge_create", method: "POST", path: "/v1/identity/verifications/challenges" },
+  { operation: "verification_challenge_get", method: "GET", path: "/v1/identity/verifications/challenges/{challenge_id}" },
+  { operation: "verification_challenge_resend", method: "POST", path: "/v1/identity/verifications/challenges/{challenge_id}/resend" },
+  { operation: "verification_challenge_verify", method: "POST", path: "/v1/identity/verifications/challenges/{challenge_id}/verify" },
 ]);
 
 export interface UnifiedIdentityClientOptions {
@@ -227,6 +304,28 @@ export interface CompleteRecoveryOptions {
   idempotencyKey: string;
 }
 
+export interface StartVerificationOptions {
+  provider: IdentityVerificationProvider | string;
+  purpose: IdentityVerificationPurpose | string;
+  destinationRef: string;
+  accountId?: string;
+  idempotencyKey: string;
+}
+
+export interface ResendVerificationOptions {
+  challengeId: string;
+  idempotencyKey: string;
+}
+
+export interface VerifyChallengeOptions {
+  challengeId: string;
+  verificationCodeRef: string;
+  idempotencyKey: string;
+}
+
+export type CreateVerificationChallengeOptions = StartVerificationOptions;
+export type VerifyVerificationChallengeOptions = VerifyChallengeOptions;
+
 const FORBIDDEN_PUBLIC_KEYS = new Set([
   "access_token",
   "authorization",
@@ -235,11 +334,13 @@ const FORBIDDEN_PUBLIC_KEYS = new Set([
   "code_verifier",
   "cookie",
   "email",
+  "email_address",
   "id_token",
   "nonce",
   "otp",
   "password",
   "phone",
+  "phone_number",
   "refresh_token",
   "secret",
   "session_token",
@@ -250,6 +351,10 @@ const FORBIDDEN_PUBLIC_KEYS = new Set([
   "token",
   "token_ref",
   "token_ref_id",
+  "destination",
+  "destination_value",
+  "verification_code",
+  "verification_value",
   "revocation_outbox_id",
 ]);
 
@@ -267,6 +372,7 @@ const FORBIDDEN_KEY_SUFFIXES = [
 ];
 
 const RECOVERY_PROVIDERS = new Set<UnifiedIdentityProvider>(["phone", "email"]);
+const VERIFICATION_PROVIDERS = new Set<UnifiedIdentityProvider>(["phone", "email"]);
 const FORBIDDEN_CANONICAL_KEYS = new Set(
   [...FORBIDDEN_PUBLIC_KEYS].map((key) => key.replace(/[^a-z0-9]/gu, "")),
 );
@@ -410,6 +516,76 @@ export class UnifiedIdentityHttpClient {
     );
   }
 
+  startVerification(options: StartVerificationOptions): Promise<IdentityVerificationChallenge> {
+    const provider = normalizeVerificationProvider(options.provider);
+    const purpose = normalizeVerificationPurpose(options.purpose);
+    const payload: Record<string, unknown> = {
+      provider,
+      purpose,
+      destination_ref: requirePrivateInputReference("destination_ref", options.destinationRef),
+      idempotency_key: requireIdentifier("idempotency_key", options.idempotencyKey),
+    };
+    if (options.accountId !== undefined) {
+      payload.account_id = requireIdentifier("account_id", options.accountId);
+    }
+    if ((purpose === "binding" || purpose === "recovery") && payload.account_id === undefined) {
+      throw new UnifiedIdentityContractError(`${purpose} verification requires account_id`);
+    }
+    return this.#request(
+      "POST",
+      identityVerificationChallengesRoute(),
+      payload,
+      parseIdentityVerificationChallenge,
+    );
+  }
+
+  getVerification(challengeId: string): Promise<IdentityVerificationChallenge> {
+    return this.#request(
+      "GET",
+      identityVerificationChallengeRoute(challengeId),
+      {},
+      parseIdentityVerificationChallenge,
+    );
+  }
+
+  resendVerification(options: ResendVerificationOptions): Promise<IdentityVerificationChallenge> {
+    return this.#request(
+      "POST",
+      identityVerificationResendRoute(options.challengeId),
+      {
+        idempotency_key: requireIdentifier("idempotency_key", options.idempotencyKey),
+      },
+      parseIdentityVerificationChallenge,
+    );
+  }
+
+  verifyChallenge(options: VerifyChallengeOptions): Promise<IdentityVerificationReceipt> {
+    return this.#request(
+      "POST",
+      identityVerificationVerifyRoute(options.challengeId),
+      {
+        verification_code_ref: requirePrivateInputReference(
+          "verification_code_ref",
+          options.verificationCodeRef,
+        ),
+        idempotency_key: requireIdentifier("idempotency_key", options.idempotencyKey),
+      },
+      parseIdentityVerificationReceipt,
+    );
+  }
+
+  createVerificationChallenge(
+    options: CreateVerificationChallengeOptions,
+  ): Promise<IdentityVerificationChallenge> {
+    return this.startVerification(options);
+  }
+
+  verifyVerificationChallenge(
+    options: VerifyVerificationChallengeOptions,
+  ): Promise<IdentityVerificationReceipt> {
+    return this.verifyChallenge(options);
+  }
+
   async #request<T>(
     method: "GET" | "POST",
     path: string,
@@ -476,6 +652,21 @@ export function unifiedIdentityContractManifest(): Record<string, unknown> {
       merge_repoints_credentials_atomically: true,
       last_active_credential_cannot_be_unlinked: true,
       recovery_requires_single_use_verification_receipt: true,
+      verification_challenges_are_provider_neutral: true,
+      verification_receipts_are_single_use: true,
+      verification_login_does_not_merge_by_destination: true,
+    },
+    verification: {
+      providers: [...IDENTITY_VERIFICATION_PROVIDERS],
+      purposes: [...IDENTITY_VERIFICATION_PURPOSES],
+      challenge_statuses: [...IDENTITY_VERIFICATION_CHALLENGE_STATUSES],
+      receipt_statuses: [...IDENTITY_VERIFICATION_RECEIPT_STATUSES],
+      destination_input: "opaque_reference_only",
+      code_input: "opaque_reference_only",
+      ttl_required: true,
+      attempt_cap_required: true,
+      resend_cooldown_required: true,
+      single_use_required: true,
     },
     public_safety: {
       raw_email_present: false,
@@ -536,13 +727,32 @@ export function identityRecoveryCompleteRoute(accountId: string, recoveryId: str
   return `${identityAccountRoute(accountId)}/recovery/${segment("recovery_id", recoveryId)}/complete`;
 }
 
+export function identityVerificationChallengesRoute(): string {
+  return "/v1/identity/verifications/challenges";
+}
+
+export function identityVerificationChallengeRoute(challengeId: string): string {
+  return `${identityVerificationChallengesRoute()}/${segment("challenge_id", challengeId)}`;
+}
+
+export function identityVerificationResendRoute(challengeId: string): string {
+  return `${identityVerificationChallengeRoute(challengeId)}/resend`;
+}
+
+export function identityVerificationVerifyRoute(challengeId: string): string {
+  return `${identityVerificationChallengeRoute(challengeId)}/verify`;
+}
+
+export const identityVerificationChallengeCreateRoute = identityVerificationChallengesRoute;
+export const identityVerificationChallengeVerifyRoute = identityVerificationVerifyRoute;
+
 export function assertPublicUnifiedIdentityPayload(
   value: unknown,
 ): asserts value is Record<string, unknown> {
   if (!isRecord(value)) {
     throw new UnifiedIdentityContractError("identity payload must be an object");
   }
-  visitPublicPayload(value);
+  visitPublicPayload(value, []);
 }
 
 export function parseIdentityCredential(value: unknown): IdentityCredential {
@@ -685,6 +895,96 @@ export function parseIdentityRecovery(value: unknown): IdentityRecovery {
   };
 }
 
+export function parseIdentityVerificationChallenge(
+  value: unknown,
+): IdentityVerificationChallenge {
+  assertPublicUnifiedIdentityPayload(value);
+  const provider = normalizeVerificationProvider(requireString(value, "provider"));
+  const status = requireEnum(
+    "verification challenge status",
+    value.status,
+    IDENTITY_VERIFICATION_CHALLENGE_STATUSES,
+  );
+  const createdAt = requireTimestamp("created_at", value.created_at);
+  const expiresAt = requireTimestamp("expires_at", value.expires_at);
+  const ttlSeconds = requirePositiveInteger("ttl_seconds", value.ttl_seconds);
+  const attemptCap = requirePositiveInteger("attempt_cap", value.attempt_cap);
+  const attemptsRemaining = requireNonNegativeInteger(
+    "attempts_remaining", value.attempts_remaining,
+  );
+  if (attemptsRemaining > attemptCap) {
+    throw new UnifiedIdentityContractError("attempts_remaining cannot exceed attempt_cap");
+  }
+  if (value.single_use !== true) {
+    throw new UnifiedIdentityContractError("verification challenge must be single-use");
+  }
+  const verifiedAt = optionalTimestamp("verified_at", value.verified_at);
+  const consumedAt = optionalTimestamp("consumed_at", value.consumed_at);
+  if (status === "verified" && verifiedAt === null) {
+    throw new UnifiedIdentityContractError("verified challenge requires verified_at");
+  }
+  if (status === "consumed" && consumedAt === null) {
+    throw new UnifiedIdentityContractError("consumed challenge requires consumed_at");
+  }
+  return {
+    challenge_id: requireIdentifier("challenge_id", value.challenge_id),
+    provider,
+    purpose: normalizeVerificationPurpose(requireString(value, "purpose")),
+    status,
+    destination_hint: requireDisplayHint(provider, value.destination_hint),
+    destination_digest_ref: requireDigestReference(
+      "destination_digest_ref",
+      value.destination_digest_ref,
+    ),
+    created_at: createdAt,
+    expires_at: expiresAt,
+    ttl_seconds: ttlSeconds,
+    attempt_cap: attemptCap,
+    attempts_remaining: attemptsRemaining,
+    resend_cooldown_seconds: requirePositiveInteger(
+      "resend_cooldown_seconds",
+      value.resend_cooldown_seconds,
+    ),
+    resend_available_at: requireTimestamp("resend_available_at", value.resend_available_at),
+    single_use: true,
+    account_id: optionalIdentifier("account_id", value.account_id),
+    verified_at: verifiedAt,
+    consumed_at: consumedAt,
+  };
+}
+
+export function parseIdentityVerificationReceipt(value: unknown): IdentityVerificationReceipt {
+  assertPublicUnifiedIdentityPayload(value);
+  const status = requireEnum(
+    "verification receipt status", value.status, IDENTITY_VERIFICATION_RECEIPT_STATUSES,
+  );
+  if (value.single_use !== true) {
+    throw new UnifiedIdentityContractError("verification receipt must be single-use");
+  }
+  const verifiedAt = requireTimestamp("verified_at", value.verified_at);
+  const expiresAt = requireTimestamp("expires_at", value.expires_at);
+  const consumedAt = optionalTimestamp("consumed_at", value.consumed_at);
+  if (status === "consumed" && consumedAt === null) {
+    throw new UnifiedIdentityContractError("consumed receipt requires consumed_at");
+  }
+  return {
+    receipt_id: requireIdentifier("receipt_id", value.receipt_id),
+    challenge_id: requireIdentifier("challenge_id", value.challenge_id),
+    provider: normalizeVerificationProvider(requireString(value, "provider")),
+    purpose: normalizeVerificationPurpose(requireString(value, "purpose")),
+    status,
+    destination_digest_ref: requireDigestReference(
+      "destination_digest_ref",
+      value.destination_digest_ref,
+    ),
+    verified_at: verifiedAt,
+    expires_at: expiresAt,
+    single_use: true,
+    account_id: optionalIdentifier("account_id", value.account_id),
+    consumed_at: consumedAt,
+  };
+}
+
 export function parseUnifiedIdentityError(value: unknown): UnifiedIdentityError {
   assertPublicUnifiedIdentityPayload(value);
   const error = isRecord(value.error) ? value.error : value;
@@ -735,24 +1035,49 @@ export const parseUnifiedCredentialUnlink = parseIdentityUnlink;
 export const parseUnifiedAccountMerge = parseIdentityMerge;
 export const parseUnifiedRecovery = parseIdentityRecovery;
 
-function visitPublicPayload(value: unknown): void {
+function visitPublicPayload(value: unknown, path: string[]): void {
   if (Array.isArray(value)) {
-    value.forEach(visitPublicPayload);
+    value.forEach((item) => visitPublicPayload(item, path));
     return;
   }
   if (!isRecord(value)) return;
   for (const [key, item] of Object.entries(value)) {
     const normalized = key.trim().toLowerCase().replaceAll("-", "_");
     const canonical = normalized.replace(/[^a-z0-9]/gu, "");
+    const itemPath = [...path, normalized];
+    const safeErrorDestination = normalized === "destination"
+      && isSafeErrorDetailsDestination(path, item);
+    const stableErrorCode = normalized === "code"
+      && path.length === 1
+      && path[0] === "error";
+    const contextuallySafeKey = safeErrorDestination || stableErrorCode;
     if (
-      FORBIDDEN_PUBLIC_KEYS.has(normalized)
-      || FORBIDDEN_KEY_SUFFIXES.some((suffix) => normalized.endsWith(suffix))
-      || FORBIDDEN_CANONICAL_KEYS.has(canonical)
+      !contextuallySafeKey
+      && (
+        FORBIDDEN_PUBLIC_KEYS.has(normalized)
+        || FORBIDDEN_KEY_SUFFIXES.some((suffix) => normalized.endsWith(suffix))
+        || FORBIDDEN_CANONICAL_KEYS.has(canonical)
+      )
     ) {
       throw new UnifiedIdentityContractError("identity payload contains raw sensitive material");
     }
-    visitPublicPayload(item);
+    visitPublicPayload(item, itemPath);
   }
+}
+
+function isSafeErrorDetailsDestination(path: string[], value: unknown): boolean {
+  if (
+    path.length !== 2
+    || path[0] !== "error"
+    || path[1] !== "details"
+    || typeof value !== "string"
+    || value.length === 0
+    || value.length > 160
+  ) {
+    return false;
+  }
+  return !/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/u.test(value)
+    && !/\+?[1-9]\d{7,14}/u.test(value);
 }
 
 function normalizeRecoveryProvider(value: string): "phone" | "email" {
@@ -764,6 +1089,21 @@ function normalizeRecoveryProvider(value: string): "phone" | "email" {
     );
   }
   return provider as "phone" | "email";
+}
+
+function normalizeVerificationProvider(value: string): IdentityVerificationProvider {
+  const provider = normalizeUnifiedIdentityProvider(value);
+  if (!VERIFICATION_PROVIDERS.has(provider)) {
+    throw new UnifiedIdentityContractError(
+      "verification provider must be phone or email",
+      "identity_provider_not_supported",
+    );
+  }
+  return provider as IdentityVerificationProvider;
+}
+
+function normalizeVerificationPurpose(value: string): IdentityVerificationPurpose {
+  return requireEnum("verification purpose", value, IDENTITY_VERIFICATION_PURPOSES);
 }
 
 function segment(field: string, value: unknown): string {
@@ -801,6 +1141,79 @@ function requireNonNegativeInteger(field: string, value: unknown): number {
     throw new UnifiedIdentityContractError(`${field} must be a non-negative integer`);
   }
   return value;
+}
+
+function requirePositiveInteger(field: string, value: unknown): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value <= 0) {
+    throw new UnifiedIdentityContractError(`${field} must be a positive integer`);
+  }
+  return value;
+}
+
+function requireBoundedPositiveInteger(
+  field: string,
+  value: unknown,
+  minimum: number,
+  maximum: number,
+): number {
+  if (
+    typeof value !== "number"
+    || !Number.isInteger(value)
+    || value < minimum
+    || value > maximum
+  ) {
+    throw new UnifiedIdentityContractError(
+      `${field} must be an integer from ${minimum} through ${maximum}`,
+    );
+  }
+  return value;
+}
+
+function requireBoundedNonNegativeInteger(
+  field: string,
+  value: unknown,
+  maximum: number,
+): number {
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0 || value > maximum) {
+    throw new UnifiedIdentityContractError(
+      `${field} must be a non-negative integer no greater than ${maximum}`,
+    );
+  }
+  return value;
+}
+
+function requirePrivateInputReference(field: string, value: unknown): string {
+  const reference = requireIdentifier(field, value);
+  const lowered = reference.toLowerCase();
+  if (
+    !reference.includes(":")
+    || reference.includes("@")
+    || lowered.startsWith("mailto:")
+    || lowered.startsWith("tel:")
+    || lowered.startsWith("sms:")
+  ) {
+    throw new UnifiedIdentityContractError(
+      `${field} must not contain raw destination or verification material`,
+    );
+  }
+  return reference;
+}
+
+function requireDigestReference(field: string, value: unknown): string {
+  const reference = requireIdentifier(field, value);
+  const lowered = reference.toLowerCase();
+  if (
+    !reference.includes(":")
+    || lowered.startsWith("sha256:")
+    || lowered.startsWith("sha-256:")
+    || lowered.startsWith("mailto:")
+    || lowered.startsWith("tel:")
+  ) {
+    throw new UnifiedIdentityContractError(
+      `${field} must be an opaque server-side digest reference`,
+    );
+  }
+  return reference;
 }
 
 function requireEnum<T extends string>(

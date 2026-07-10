@@ -17,6 +17,7 @@ type HTTPServer struct {
 	paymentDomain         *PaymentDomainService
 	unifiedIdentity       *UnifiedIdentityService
 	identitySessions      IdentityHTTPSessionResolver
+	identityVerification  *IdentityVerificationService
 	oauthProviders        map[string]*OAuthService
 	githubOAuth           *GitHubOAuthService
 	backendName           string
@@ -63,6 +64,7 @@ type HTTPServerOptions struct {
 	PaymentDomain         *PaymentDomainService
 	UnifiedIdentity       *UnifiedIdentityService
 	IdentitySessions      IdentityHTTPSessionResolver
+	IdentityVerification  *IdentityVerificationService
 	OAuthProviders        map[string]*OAuthService
 	GitHubOAuth           *GitHubOAuthService
 }
@@ -93,6 +95,7 @@ func NewHTTPServerWithOptions(service ControlPlaneBackend, options HTTPServerOpt
 		paymentDomain:         options.PaymentDomain,
 		unifiedIdentity:       options.UnifiedIdentity,
 		identitySessions:      options.IdentitySessions,
+		identityVerification:  options.IdentityVerification,
 		oauthProviders:        oauthProviders,
 		githubOAuth:           options.GitHubOAuth,
 		backendName:           backendName,
@@ -130,6 +133,10 @@ func (server *HTTPServer) ServeHTTP(writer http.ResponseWriter, request *http.Re
 		}
 	}
 	parts := pathParts(request.URL.Path)
+	if len(parts) == 3 && parts[0] == "v1" && parts[1] == "identity-verification" {
+		server.handleIdentityVerification(writer, request, parts[2])
+		return
+	}
 	if len(parts) >= 3 && parts[0] == "v1" && parts[1] == "accounts" {
 		server.handleUnifiedIdentityAccount(writer, request, parts[2], parts[3:])
 		return

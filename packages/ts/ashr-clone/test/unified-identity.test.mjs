@@ -124,17 +124,66 @@ test("constants exactly match the Python public contract", () => {
   assert.deepEqual([...UNIFIED_IDENTITY_MEMBERSHIP_STATUSES], [
     "invited", "active", "suspended", "removed",
   ]);
-  assert.equal(UNIFIED_IDENTITY_ERROR_CODES.length, 23);
+  assert.deepEqual([...UNIFIED_IDENTITY_ERROR_CODES], [
+    "identity_invalid_request",
+    "identity_account_not_found",
+    "identity_account_suspended",
+    "identity_provider_not_supported",
+    "identity_credential_not_found",
+    "identity_credential_already_linked",
+    "identity_credential_conflict",
+    "identity_last_credential_unlink_forbidden",
+    "identity_membership_not_found",
+    "identity_membership_forbidden",
+    "identity_link_expired",
+    "identity_link_replayed",
+    "identity_merge_conflict",
+    "identity_merge_cycle",
+    "identity_merge_requires_step_up",
+    "identity_recovery_not_found",
+    "identity_recovery_expired",
+    "identity_recovery_replayed",
+    "identity_recovery_rate_limited",
+    "identity_recovery_locked",
+    "identity_verification_required",
+    "identity_verification_failed",
+    "identity_verification_expired",
+    "identity_verification_locked",
+    "identity_verification_replayed",
+    "identity_verification_rate_limited",
+    "identity_verification_resend_too_soon",
+    "identity_store_failed",
+  ]);
 });
 
 test("manifest declares one account with provider credentials and membership isolation", () => {
   const manifest = unifiedIdentityContractManifest();
   assert.equal(manifest.subject_model, "one_account_many_credentials");
   assert.deepEqual(manifest.providers, [...UNIFIED_IDENTITY_PROVIDERS]);
-  assert.equal(manifest.invariants.provider_identity_is_credential_not_account, true);
-  assert.equal(manifest.invariants.email_match_does_not_merge_accounts, true);
-  assert.equal(manifest.invariants.memberships_attach_to_canonical_account, true);
-  assert.equal(manifest.invariants.last_active_credential_cannot_be_unlinked, true);
+  assert.deepEqual(manifest.invariants, {
+    provider_identity_is_credential_not_account: true,
+    email_match_does_not_merge_accounts: true,
+    memberships_attach_to_canonical_account: true,
+    merge_preserves_memberships: true,
+    merge_repoints_credentials_atomically: true,
+    last_active_credential_cannot_be_unlinked: true,
+    recovery_requires_single_use_verification_receipt: true,
+    verification_challenges_are_provider_neutral: true,
+    verification_receipts_are_single_use: true,
+    verification_login_does_not_merge_by_destination: true,
+  });
+  assert.deepEqual(manifest.verification, {
+    providers: ["email", "phone"],
+    purposes: ["binding", "login", "recovery"],
+    challenge_statuses: ["pending", "verified", "consumed", "expired", "locked"],
+    receipt_statuses: ["verified", "consumed", "expired"],
+    destination_input: "opaque_reference_only",
+    code_input: "opaque_reference_only",
+    ttl_required: true,
+    attempt_cap_required: true,
+    resend_cooldown_required: true,
+    single_use_required: true,
+  });
   assert.equal(manifest.public_safety.oauth_token_present, false);
 });
 
@@ -155,7 +204,7 @@ test("public DTO guard rejects normalized private reference aliases", () => {
 });
 
 test("route manifest and builders exactly match Python routes", () => {
-  assert.equal(UNIFIED_IDENTITY_ROUTES.length, 8);
+  assert.equal(UNIFIED_IDENTITY_ROUTES.length, 12);
   assert.equal(identityAccountRoute("account_01"), "/v1/accounts/account_01");
   assert.equal(identityCredentialsRoute("account_01"), "/v1/accounts/account_01/credentials");
   assert.equal(identityMembershipsRoute("account_01"), "/v1/accounts/account_01/memberships");
@@ -294,15 +343,21 @@ for (const forbidden of [
   "client_secret",
   "code_verifier",
   "email",
+  "email_address",
   "id_token",
   "nonce",
   "otp",
   "password",
   "phone",
+  "phone_number",
   "refresh_token",
   "session_token",
   "state",
   "token",
+  "destination",
+  "destination_value",
+  "verification_code",
+  "verification_value",
 ]) {
   test(`rejects nested secret field ${forbidden}`, () => {
     assert.throws(() => assertPublicUnifiedIdentityPayload({
