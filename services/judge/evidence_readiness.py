@@ -19,6 +19,9 @@ DEFAULT_A1_BILLING_REPLAY_FIXTURE = Path("docs/a1/evidence/billing_replay_fixtur
 DEFAULT_A1_BILLING_LEDGER_MIGRATION_MANIFEST = Path(
     "docs/a1/schemas/a1_billing_ledger_migration_manifest.json"
 )
+DEFAULT_A1_CHINA_PAYMENT_MIGRATION_MANIFEST = Path(
+    "docs/a1/schemas/a1_china_payment_migration_manifest.json"
+)
 DEFAULT_A1_BILLING_SQL_SEMANTIC_CONTRACT = Path("docs/a1/evidence/billing_sql_semantic_contract.json")
 DEFAULT_A1_OBJECT_STORAGE_CONTRACT = Path("docs/a1/evidence/object_storage_contract_20260709.md")
 DEFAULT_A2_REAL_API_SMOKE = Path("docs/evidence/a2_real_api_smoke.json")
@@ -61,6 +64,7 @@ def build_evidence_readiness_report(
     a1_payment_provider_readiness_path: str | Path = DEFAULT_A1_PAYMENT_PROVIDER_READINESS,
     a1_billing_replay_fixture_path: str | Path = DEFAULT_A1_BILLING_REPLAY_FIXTURE,
     a1_billing_ledger_migration_manifest_path: str | Path = DEFAULT_A1_BILLING_LEDGER_MIGRATION_MANIFEST,
+    a1_china_payment_migration_manifest_path: str | Path = DEFAULT_A1_CHINA_PAYMENT_MIGRATION_MANIFEST,
     a1_billing_sql_semantic_contract_path: str | Path = DEFAULT_A1_BILLING_SQL_SEMANTIC_CONTRACT,
     a1_object_storage_contract_path: str | Path = DEFAULT_A1_OBJECT_STORAGE_CONTRACT,
     official_sdk_smoke_path: str | Path = DEFAULT_A2_REAL_API_SMOKE,
@@ -109,6 +113,9 @@ def build_evidence_readiness_report(
     a1_billing_replay_evidence = _a1_billing_replay_evidence_summary(a1_billing_replay_fixture_path)
     a1_billing_ledger_migration = _a1_billing_ledger_migration_summary(
         a1_billing_ledger_migration_manifest_path
+    )
+    a1_china_payment_migration = _a1_china_payment_migration_summary(
+        a1_china_payment_migration_manifest_path
     )
     a1_billing_sql_semantic_contract = _a1_billing_sql_semantic_contract_summary(
         a1_billing_sql_semantic_contract_path
@@ -166,6 +173,7 @@ def build_evidence_readiness_report(
         "a1_payment_provider_readiness": a1_payment_provider_readiness,
         "a1_billing_replay_evidence": a1_billing_replay_evidence,
         "a1_billing_ledger_migration": a1_billing_ledger_migration,
+        "a1_china_payment_migration": a1_china_payment_migration,
         "a1_billing_sql_semantic_contract": a1_billing_sql_semantic_contract,
         "a1_object_storage_contract": a1_object_storage_contract,
         "official_sdk_smoke": official_sdk_smoke,
@@ -1017,6 +1025,163 @@ def _a1_billing_ledger_migration_summary(path: str | Path) -> dict[str, Any]:
     }
 
 
+def _a1_china_payment_migration_summary(path: str | Path) -> dict[str, Any]:
+    target = Path(path)
+    if not target.exists():
+        return _missing_china_payment_migration(
+            target,
+            "A1 China payment migration manifest is not available on this branch yet.",
+        )
+
+    payload = json.loads(target.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        return _missing_china_payment_migration(
+            target,
+            "A1 China payment migration manifest is not a JSON object.",
+        )
+
+    tables = [table for table in payload.get("tables", []) if isinstance(table, dict)]
+    safety = payload.get("safety") if isinstance(payload.get("safety"), dict) else {}
+    enforcement = payload.get("enforcement") if isinstance(payload.get("enforcement"), dict) else {}
+    table_names = sorted(str(table.get("name", "")) for table in tables if table.get("name"))
+    rls_table_names = sorted(
+        str(table.get("name", ""))
+        for table in tables
+        if table.get("name") and table.get("rls_policy")
+    )
+    mutable_audited_tables = _string_list(payload.get("mutable_audited_tables"))
+    append_only_tables = _string_list(payload.get("append_only_tables"))
+    required_functions = _string_list(payload.get("required_functions"))
+    providers = _string_list(payload.get("providers"))
+    billing_ledger_providers = _string_list(enforcement.get("billing_ledger_providers"))
+    idempotency_keys = _string_list(enforcement.get("idempotency"))
+    required_constraints = sorted(
+        {
+            str(constraint)
+            for table in tables
+            for constraint in table.get("required_constraints", [])
+            if str(constraint).strip()
+        }
+    )
+    required_indexes = sorted(
+        {
+            str(index)
+            for table in tables
+            for index in table.get("required_indexes", [])
+            if str(index).strip()
+        }
+    )
+    raw_provider_payload_stored = safety.get("raw_provider_payload_stored") is True
+    raw_provider_headers_stored = safety.get("raw_provider_headers_stored") is True
+    raw_provider_secrets_stored = safety.get("raw_provider_secrets_stored") is True
+    raw_card_data_stored = safety.get("raw_card_data_stored") is True
+    pan_stored = safety.get("pan_stored") is True
+    cvc_stored = safety.get("cvc_stored") is True
+    otp_stored = safety.get("otp_stored") is True
+    merchant_credentials_reference_only = safety.get("merchant_credentials_storage") == "reference_only"
+    notification_hash_only = safety.get("notification_storage") == "identifier_and_sha256_only"
+    bill_file_object_reference_only = safety.get("bill_file_storage") == "object_reference_and_sha256_only"
+    mutation_evidence_hash_only = safety.get("mutation_evidence_storage") == "before_and_after_sha256_only"
+    public_safe = bool(
+        not raw_provider_payload_stored
+        and not raw_provider_headers_stored
+        and not raw_provider_secrets_stored
+        and not raw_card_data_stored
+        and not pan_stored
+        and not cvc_stored
+        and not otp_stored
+        and merchant_credentials_reference_only
+        and notification_hash_only
+        and bill_file_object_reference_only
+        and mutation_evidence_hash_only
+    )
+    tenant_rls_ready = len(tables) > 0 and len(rls_table_names) == len(tables)
+    provider_set = set(providers)
+    table_set = set(table_names)
+    function_set = set(required_functions)
+    billing_provider_set = set(billing_ledger_providers)
+    has_money_flow_tables = {
+        "china_payment_orders",
+        "china_payment_refunds",
+        "china_payment_provider_notifications",
+        "china_payment_daily_bill_files",
+        "china_payment_daily_bill_lines",
+        "china_payment_reconciliation_discrepancies",
+        "china_payment_ledger_links",
+    } <= table_set
+    has_fail_closed_functions = {
+        "china_payment_public_metadata",
+        "china_payment_reference_only",
+        "china_payment_record_mutation",
+        "china_payment_reject_mutation",
+        "china_payment_validate_refund",
+        "china_payment_validate_ledger_link",
+    } <= function_set
+    ready = bool(
+        payload.get("schema_version") == "ashr.clone.a1_china_payment_migration_manifest.v1"
+        and str(payload.get("currency", "")).lower() == "cny"
+        and {"wechat_pay", "alipay", "domestic_bank_card"} <= provider_set
+        and {"wechat_pay", "alipay", "domestic_bank_card"} <= billing_provider_set
+        and public_safe
+        and tenant_rls_ready
+        and len(tables) >= 10
+        and has_money_flow_tables
+        and has_fail_closed_functions
+        and "china_payment_orders.idempotency_key" in idempotency_keys
+        and "china_payment_refunds.idempotency_key" in idempotency_keys
+    )
+    return {
+        "available": True,
+        "path": target.as_posix(),
+        "schema_version": str(payload.get("schema_version", "")),
+        "version": _int_value(payload.get("version")),
+        "migration": str(payload.get("migration", "")),
+        "currency": str(payload.get("currency", "")).lower(),
+        "provider_count": len(providers),
+        "providers": providers,
+        "table_count": len(tables),
+        "table_names": table_names,
+        "mutable_audited_table_count": len(mutable_audited_tables),
+        "mutable_audited_tables": mutable_audited_tables,
+        "append_only_table_count": len(append_only_tables),
+        "append_only_tables": append_only_tables,
+        "tenant_rls_table_count": len(rls_table_names),
+        "tenant_rls_ready": tenant_rls_ready,
+        "required_constraint_count": len(required_constraints),
+        "required_index_count": len(required_indexes),
+        "required_function_names": required_functions,
+        "public_safe": public_safe,
+        "raw_provider_payload_stored": raw_provider_payload_stored,
+        "raw_provider_headers_stored": raw_provider_headers_stored,
+        "raw_provider_secrets_stored": raw_provider_secrets_stored,
+        "raw_card_data_stored": raw_card_data_stored,
+        "pan_stored": pan_stored,
+        "cvc_stored": cvc_stored,
+        "otp_stored": otp_stored,
+        "merchant_credentials_reference_only": merchant_credentials_reference_only,
+        "notification_hash_only": notification_hash_only,
+        "bill_file_object_reference_only": bill_file_object_reference_only,
+        "mutation_evidence_hash_only": mutation_evidence_hash_only,
+        "idempotency_keys": idempotency_keys,
+        "billing_ledger_providers": billing_ledger_providers,
+        "has_money_flow_tables": has_money_flow_tables,
+        "has_fail_closed_functions": has_fail_closed_functions,
+        "ready_for_a2_payment_sql_policy_context": ready,
+        "c3_grading_ready": False,
+        "a2_policy_implications": {
+            "china_payment_sql_policy_context": ready,
+            "can_support_payment_abuse_cases": ready,
+            "can_support_payment_reconciliation_regressions": ready and has_money_flow_tables,
+            "can_cross_check_billing_ledger_links": ready and "china_payment_ledger_links" in table_set,
+            "must_not_mark_c3_from_payment_sql_context": True,
+        },
+        "notes": [
+            "A1 China payment migration manifest is public-safe SQL contract evidence for A2 payment abuse, reconciliation, and fail-closed policy checks.",
+            "It proves hash/reference-only payment persistence semantics, not live money movement or reviewed Ashr grading rows.",
+        ],
+    }
+
+
 def _a1_billing_sql_semantic_contract_summary(path: str | Path) -> dict[str, Any]:
     target = Path(path)
     if not target.exists():
@@ -1447,6 +1612,59 @@ def _missing_billing_ledger_migration(path: Path, reason: str) -> dict[str, Any]
         "notes": [
             reason,
             "When present, A2 uses it as billing ledger SQL policy context, not as C3 server-side grading evidence.",
+        ],
+    }
+
+
+def _missing_china_payment_migration(path: Path, reason: str) -> dict[str, Any]:
+    return {
+        "available": False,
+        "path": path.as_posix(),
+        "schema_version": "",
+        "version": 0,
+        "migration": "",
+        "currency": "",
+        "provider_count": 0,
+        "providers": [],
+        "table_count": 0,
+        "table_names": [],
+        "mutable_audited_table_count": 0,
+        "mutable_audited_tables": [],
+        "append_only_table_count": 0,
+        "append_only_tables": [],
+        "tenant_rls_table_count": 0,
+        "tenant_rls_ready": False,
+        "required_constraint_count": 0,
+        "required_index_count": 0,
+        "required_function_names": [],
+        "public_safe": False,
+        "raw_provider_payload_stored": False,
+        "raw_provider_headers_stored": False,
+        "raw_provider_secrets_stored": False,
+        "raw_card_data_stored": False,
+        "pan_stored": False,
+        "cvc_stored": False,
+        "otp_stored": False,
+        "merchant_credentials_reference_only": False,
+        "notification_hash_only": False,
+        "bill_file_object_reference_only": False,
+        "mutation_evidence_hash_only": False,
+        "idempotency_keys": [],
+        "billing_ledger_providers": [],
+        "has_money_flow_tables": False,
+        "has_fail_closed_functions": False,
+        "ready_for_a2_payment_sql_policy_context": False,
+        "c3_grading_ready": False,
+        "a2_policy_implications": {
+            "china_payment_sql_policy_context": False,
+            "can_support_payment_abuse_cases": False,
+            "can_support_payment_reconciliation_regressions": False,
+            "can_cross_check_billing_ledger_links": False,
+            "must_not_mark_c3_from_payment_sql_context": True,
+        },
+        "notes": [
+            reason,
+            "When present, A2 uses it as payment SQL policy context, not as C3 server-side grading evidence.",
         ],
     }
 

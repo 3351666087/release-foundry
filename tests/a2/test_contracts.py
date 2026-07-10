@@ -458,6 +458,7 @@ class A2ContractTests(unittest.TestCase):
         self.assertIn("a1_payment_provider_readiness", evidence_readiness_schema["required"])
         self.assertIn("a1_billing_replay_evidence", evidence_readiness_schema["required"])
         self.assertIn("a1_billing_ledger_migration", evidence_readiness_schema["required"])
+        self.assertIn("a1_china_payment_migration", evidence_readiness_schema["required"])
         self.assertIn("a1_billing_sql_semantic_contract", evidence_readiness_schema["required"])
         self.assertIn("a1_object_storage_contract", evidence_readiness_schema["required"])
         self.assertIn("ashr_public_merge_gate", evidence_readiness_schema["required"])
@@ -537,6 +538,17 @@ class A2ContractTests(unittest.TestCase):
         self.assertEqual(
             evidence_readiness_schema["properties"]["a1_billing_ledger_migration"]["$ref"],
             "#/$defs/a1_billing_ledger_migration",
+        )
+        china_payment_required = set(evidence_readiness_schema["$defs"]["a1_china_payment_migration"]["required"])
+        self.assertLessEqual(
+            china_payment_required,
+            set(evidence_readiness["a1_china_payment_migration"]),
+        )
+        self.assertIn("ready_for_a2_payment_sql_policy_context", china_payment_required)
+        self.assertIn("c3_grading_ready", china_payment_required)
+        self.assertEqual(
+            evidence_readiness_schema["properties"]["a1_china_payment_migration"]["$ref"],
+            "#/$defs/a1_china_payment_migration",
         )
         billing_sql_required = set(evidence_readiness_schema["$defs"]["a1_billing_sql_semantic_contract"]["required"])
         self.assertLessEqual(
@@ -1469,6 +1481,15 @@ class A2ContractTests(unittest.TestCase):
         self.assertTrue(
             billing_migration["a2_policy_implications"]["must_not_mark_c3_from_billing_context"]
         )
+        china_payment = report["a1_china_payment_migration"]
+        self.assertEqual(
+            china_payment["path"],
+            "docs/a1/schemas/a1_china_payment_migration_manifest.json",
+        )
+        self.assertFalse(china_payment["c3_grading_ready"])
+        self.assertTrue(
+            china_payment["a2_policy_implications"]["must_not_mark_c3_from_payment_sql_context"]
+        )
         billing_sql = report["a1_billing_sql_semantic_contract"]
         self.assertTrue(billing_sql["available"])
         self.assertEqual(
@@ -2168,6 +2189,145 @@ class A2ContractTests(unittest.TestCase):
         self.assertTrue(billing_migration["a2_policy_implications"]["can_cross_check_usage_rollups"])
         self.assertTrue(
             billing_migration["a2_policy_implications"]["must_not_mark_c3_from_billing_context"]
+        )
+
+    def test_evidence_readiness_consumes_a1_china_payment_migration_manifest(self):
+        calibration_matrix = build_calibration_matrix(
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+            run_dir=ROOT / "fixtures/a2/runs",
+            observations_path=ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        )
+        sdk_parity = build_sdk_parity_report(pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json")
+        semantic_harness = build_semantic_harness_report(calibration_matrix, sdk_parity)
+        table_names = [
+            "china_payment_merchant_applications",
+            "china_payment_config_refs",
+            "china_payment_acquirer_account_bindings",
+            "china_payment_orders",
+            "china_payment_provider_notifications",
+            "china_payment_refunds",
+            "china_payment_daily_bill_files",
+            "china_payment_daily_bill_lines",
+            "china_payment_reconciliation_discrepancies",
+            "china_payment_ledger_links",
+            "china_payment_mutation_events",
+        ]
+        manifest = {
+            "schema_version": "ashr.clone.a1_china_payment_migration_manifest.v1",
+            "version": 3,
+            "migration": "services/api/migrations/003_a1_china_mainland_payments.sql",
+            "providers": ["wechat_pay", "alipay", "domestic_bank_card"],
+            "currency": "cny",
+            "tables": [
+                {
+                    "name": name,
+                    "rls_policy": f"{name}_organization_isolation",
+                    "required_columns": ["id", "organization_id", "project_id"],
+                    "required_constraints": [f"{name}_scope_fk"],
+                    "required_indexes": [f"idx_{name}_scope"],
+                }
+                for name in table_names
+            ],
+            "mutable_audited_tables": [
+                "china_payment_merchant_applications",
+                "china_payment_config_refs",
+                "china_payment_acquirer_account_bindings",
+                "china_payment_orders",
+                "china_payment_refunds",
+                "china_payment_daily_bill_files",
+                "china_payment_reconciliation_discrepancies",
+            ],
+            "append_only_tables": [
+                "china_payment_provider_notifications",
+                "china_payment_daily_bill_lines",
+                "china_payment_ledger_links",
+                "china_payment_mutation_events",
+            ],
+            "required_functions": [
+                "china_payment_public_metadata",
+                "china_payment_reference_only",
+                "china_payment_set_updated_at",
+                "china_payment_record_mutation",
+                "china_payment_reject_mutation",
+                "china_payment_validate_refund",
+                "china_payment_validate_ledger_link",
+            ],
+            "safety": {
+                "raw_provider_payload_stored": False,
+                "raw_provider_headers_stored": False,
+                "raw_provider_secrets_stored": False,
+                "raw_card_data_stored": False,
+                "pan_stored": False,
+                "cvc_stored": False,
+                "otp_stored": False,
+                "merchant_credentials_storage": "reference_only",
+                "notification_storage": "identifier_and_sha256_only",
+                "bill_file_storage": "object_reference_and_sha256_only",
+                "mutation_evidence_storage": "before_and_after_sha256_only",
+            },
+            "enforcement": {
+                "tenant_scope": "organization_id and project_id composite foreign keys plus RLS/FORCE RLS",
+                "currency": "all monetary tables require lowercase cny",
+                "idempotency": [
+                    "china_payment_orders.idempotency_key",
+                    "china_payment_refunds.idempotency_key",
+                ],
+                "billing_ledger_providers": [
+                    "stripe",
+                    "wechat_pay",
+                    "alipay",
+                    "domestic_bank_card",
+                ],
+            },
+        }
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            manifest_path = Path(tmp_dir) / "a1_china_payment_migration_manifest.json"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            report = build_evidence_readiness_report(
+                calibration_matrix,
+                {},
+                semantic_harness,
+                a1_china_payment_migration_manifest_path=manifest_path,
+            )
+
+        china_payment = report["a1_china_payment_migration"]
+        self.assertTrue(china_payment["available"])
+        self.assertEqual(
+            china_payment["schema_version"],
+            "ashr.clone.a1_china_payment_migration_manifest.v1",
+        )
+        self.assertEqual(china_payment["version"], 3)
+        self.assertEqual(china_payment["currency"], "cny")
+        self.assertEqual(china_payment["providers"], ["alipay", "domestic_bank_card", "wechat_pay"])
+        self.assertEqual(china_payment["provider_count"], 3)
+        self.assertEqual(china_payment["table_count"], 11)
+        self.assertTrue(china_payment["tenant_rls_ready"])
+        self.assertEqual(china_payment["tenant_rls_table_count"], 11)
+        self.assertEqual(china_payment["mutable_audited_table_count"], 7)
+        self.assertEqual(china_payment["append_only_table_count"], 4)
+        self.assertTrue(china_payment["public_safe"])
+        self.assertFalse(china_payment["raw_provider_payload_stored"])
+        self.assertFalse(china_payment["raw_provider_headers_stored"])
+        self.assertFalse(china_payment["raw_provider_secrets_stored"])
+        self.assertFalse(china_payment["raw_card_data_stored"])
+        self.assertFalse(china_payment["pan_stored"])
+        self.assertFalse(china_payment["cvc_stored"])
+        self.assertFalse(china_payment["otp_stored"])
+        self.assertTrue(china_payment["merchant_credentials_reference_only"])
+        self.assertTrue(china_payment["notification_hash_only"])
+        self.assertTrue(china_payment["bill_file_object_reference_only"])
+        self.assertTrue(china_payment["mutation_evidence_hash_only"])
+        self.assertTrue(china_payment["has_money_flow_tables"])
+        self.assertTrue(china_payment["has_fail_closed_functions"])
+        self.assertTrue(china_payment["ready_for_a2_payment_sql_policy_context"])
+        self.assertFalse(china_payment["c3_grading_ready"])
+        self.assertTrue(china_payment["a2_policy_implications"]["china_payment_sql_policy_context"])
+        self.assertTrue(china_payment["a2_policy_implications"]["can_support_payment_abuse_cases"])
+        self.assertTrue(china_payment["a2_policy_implications"]["can_support_payment_reconciliation_regressions"])
+        self.assertTrue(china_payment["a2_policy_implications"]["can_cross_check_billing_ledger_links"])
+        self.assertTrue(
+            china_payment["a2_policy_implications"]["must_not_mark_c3_from_payment_sql_context"]
         )
 
     def test_evidence_readiness_consumes_a1_billing_sql_semantic_contract(self):
