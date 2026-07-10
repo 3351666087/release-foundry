@@ -124,6 +124,14 @@ export const UNSUPPORTED_GO_ROUTE_GAPS: Record<string, { reason: string; replace
     reason: "The TS router exposes this local OpenAPI helper, but hosted route scope parity covers project-scoped API calls.",
     consumer_action: "keep unsupported as an unscoped adapter helper outside hosted route authorization",
   },
+  "GET /oauth/github/callback": {
+    reason: "Go exposes the canonical localhost GitHub account-connection callback; the hosted TypeScript route client does not execute browser redirects.",
+    consumer_action: "keep explicit until the shared generated OpenAPI client models provider callbacks without exposing authorization codes",
+  },
+  "GET /v1/projects/{project_id}/oauth/github/start": {
+    reason: "Go exposes a browser redirect helper for an existing authenticated development session; the hosted TypeScript route client does not yet model this account-connection flow.",
+    consumer_action: "keep explicit until the shared OAuth account-connection contract is generated for Python and TypeScript",
+  },
   "GET /v1/projects/{project_id}/audit-chain/verify": {
     reason: "Go has a read-style audit-chain verifier route while hosted clients consume the POST verifier contract.",
     replacement_route: "POST /v1/projects/{project_id}/audit-chain/verify",
@@ -137,6 +145,19 @@ export const UNSUPPORTED_GO_ROUTE_GAPS: Record<string, { reason: string; replace
   "POST /v1/projects/{project_id}/api-keys/preflight": {
     reason: "Go advertises an API-key preflight route that TS/Python hosted clients have not implemented yet.",
     consumer_action: "keep unsupported until preflight request and response semantics are added to both hosted SDKs",
+  },
+  "POST /v1/projects/{project_id}/oauth/github/disconnect": {
+    reason: "Go exposes local GitHub account disconnection with provider-token revocation; the hosted TypeScript route client has no matching generated contract yet.",
+    consumer_action: "keep explicit until disconnect and revocation failure semantics are shared across all SDKs",
+  },
+  "POST /v1/projects/{project_id}/oauth/github/start": {
+    reason: "Go exposes the JSON form of the authenticated GitHub account-connection start flow; the hosted TypeScript route client has no matching generated contract yet.",
+    consumer_action: "keep explicit until the shared OAuth account-connection contract is generated for Python and TypeScript",
+  },
+  "DELETE /v1/projects/{project_id}/oauth/github/disconnect": {
+    reason: "Go exposes an idempotent HTTP DELETE alias for local GitHub account disconnection; the hosted TypeScript route client has no matching generated contract yet.",
+    replacement_route: "POST /v1/projects/{project_id}/oauth/github/disconnect",
+    consumer_action: "keep explicit as a method alias until one disconnect method is selected in the shared OpenAPI contract",
   },
   "POST /v1/projects/{project_id}/runs/submit": {
     reason: "Go keeps an older run submit shape while hosted clients submit through the SDK submission contract.",

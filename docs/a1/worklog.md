@@ -1761,3 +1761,109 @@ Next 20 A1 growth points:
 18. Settlement-bill gross/fee/refund/net arithmetic.
 19. Finance exception queue and immutable audit.
 20. CI-grade secret scanner and payment security certification suite.
+## Round48 controlled GitHub account connection - 2026-07-10
+
+Baseline and collaboration:
+
+- Authoritative worktree:
+  `C:/Users/33516/Documents/Ashr_a1_clean_rebase`.
+- Branch `codex/a1-local-sdk-runner-clean`, publishing to
+  `origin/codex/a1-local-sdk-runner` and PR #31.
+- Ran repository, remote, branch, PR, worklog, and diff discovery before
+  finalization.
+- Five peer A2 generated fixtures had CRLF-only working-tree noise. They were
+  reviewed as peer-owned and explicitly excluded from edits, staging, and
+  commit.
+- Credential validation inspected presence, length, and equality only. No
+  client ID, client secret, callback parameter, token, cookie, header, or raw
+  provider response was printed or committed.
+
+Delivered:
+
+1. Go localhost GitHub account-connection runtime with exact project-scoped
+   start, callback, connection, and disconnect lifecycle.
+2. TypeScript account-connection client, CLI, OpenAPI route parity, timeout,
+   abort, redaction, and adversarial coverage.
+3. Python control-plane security hardening, provider adapters, route contracts,
+   and PostgreSQL lifecycle migration contract.
+4. Exact comma-separated GitHub granted-scope parsing with trimming,
+   deduplication, missing-scope denial, and scope-escalation denial.
+5. Primary verified email lookup; public output exposes only
+   `email_present`, never a direct email address.
+6. Public connection responses expose a provider-subject SHA-256 digest and no
+   token reference.
+7. Disconnect revokes the provider token before local token and connection
+   deletion and fails closed on provider errors.
+8. Controlled real GitHub localhost flow completed for an existing browser
+   session.
+9. Callback replay was denied with `invalid_oauth_state`.
+10. Temporary listener and binary were removed after the proof.
+11. Public-safe evidence finalized at
+    `docs/a1/evidence/github_account_connection_evidence_20260710.json`.
+12. OAuth security review and recovery/operator guides were corrected to match
+    the implemented provider revocation and privacy behavior.
+
+Real-provider evidence boundary:
+
+- Environment: `localhost_development`.
+- Provider: GitHub.
+- Requested and granted scopes: `read:user`, `user:email`.
+- Start, callback, connection, replay denial, and disconnect behaved as
+  expected.
+- Safe provider-subject digest:
+  `d7f4c1d11d8f6560ce6c3b70a7624a23ac983ced162ee97e288995aa92c22b39`.
+- Raw state, verifier, authorization code, access token, client secret,
+  provider response, cookies, headers, and callback query were not retained.
+- Honest capability label: controlled, existing-session, memory-backed
+  localhost GitHub account connection.
+- `production_ready=false`; this is not login, registration, organization
+  membership, or production OAuth.
+
+Validation before documentation convergence:
+
+- Focused OAuth Python suite: `58 passed`.
+- Full A1 Python suite: `714 passed, 2 skipped`.
+- TypeScript build: passed.
+- TypeScript tests: `426 passed`.
+- Go `go test -count=1 ./...`: passed.
+- Go `go vet ./...`: passed.
+- CL hygiene: passed.
+- CL commercial: passed with `0 blockers, 0 advisories`.
+- `git diff --check`: passed with line-ending warnings only.
+
+Residual risks:
+
+- OAuth transactions, replay state, tokens, references, and connections are
+  process-local memory.
+- Restart can orphan an already-issued provider token.
+- Reconnect replacement is not a durable revocation transaction and can leave
+  a previous token active after interruption.
+- Disconnect performs provider revoke first, but remote revoke plus local
+  deletion is not transactionally durable.
+- Shared-store, proxy, multi-instance, organization membership, production
+  session, and account-takeover guarantees are not implemented.
+- Migration 006 is a static PostgreSQL contract and is not wired into the Go
+  runtime.
+
+Next 20 A1 commercial growth points:
+
+1. Wire OAuth transactions to PostgreSQL with atomic consume and TTL.
+2. Persist provider connections with project-level RLS.
+3. Store token references in Vault/KMS instead of process memory.
+4. Add durable provider-revocation outbox and retry worker.
+5. Revoke superseded provider tokens during reconnect.
+6. Add multi-instance callback replay and concurrency proofs.
+7. Add production reverse-proxy and trusted-host normalization.
+8. Add secure session-cookie rotation and binding.
+9. Add GitHub organization membership and installation policy checks.
+10. Add GitHub App installation flow alongside OAuth account connection.
+11. Implement Google OIDC with issuer, audience, nonce, and PKCE validation.
+12. Add domestic WeChat and Alipay identity provider readiness contracts.
+13. Add account-link conflict review and recovery workflow.
+14. Add administrator-visible OAuth connection audit events.
+15. Add per-tenant provider rate budgets and circuit breakers.
+16. Add connection health, expiry, and reauthorization states.
+17. Add production secret rotation without service restart.
+18. Add self-host OAuth callback and external URL configuration.
+19. Add SDK parity fixtures for every OAuth lifecycle state.
+20. Add end-to-end account connection to tenant/project/run authorization.

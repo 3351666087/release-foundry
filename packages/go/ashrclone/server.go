@@ -15,6 +15,7 @@ type HTTPServer struct {
 	service               ControlPlaneBackend
 	paymentReconciliation *PaymentReconciliationService
 	paymentDomain         *PaymentDomainService
+	githubOAuth           *GitHubOAuthService
 	backendName           string
 	backendReady          bool
 }
@@ -57,6 +58,7 @@ type HTTPServerOptions struct {
 	BackendReady          bool
 	PaymentReconciliation *PaymentReconciliationService
 	PaymentDomain         *PaymentDomainService
+	GitHubOAuth           *GitHubOAuthService
 }
 
 func NewHTTPServer(service ControlPlaneBackend) http.Handler {
@@ -75,6 +77,7 @@ func NewHTTPServerWithOptions(service ControlPlaneBackend, options HTTPServerOpt
 		service:               service,
 		paymentReconciliation: options.PaymentReconciliation,
 		paymentDomain:         options.PaymentDomain,
+		githubOAuth:           options.GitHubOAuth,
 		backendName:           backendName,
 		backendReady:          options.BackendReady,
 	}
@@ -96,6 +99,10 @@ func (server *HTTPServer) ServeHTTP(writer http.ResponseWriter, request *http.Re
 	}
 	if request.URL.Path == "/bootstrap" || request.URL.Path == "/v1/bootstrap" {
 		server.handleBootstrap(writer, request)
+		return
+	}
+	if request.URL.Path == "/oauth/github/callback" {
+		server.handleGitHubOAuthCallback(writer, request)
 		return
 	}
 	parts := pathParts(request.URL.Path)
@@ -208,6 +215,10 @@ func apiKeyIDFromLocalBearerSecret(secret string) string {
 }
 
 func (server *HTTPServer) handleProject(writer http.ResponseWriter, request *http.Request, projectID string, parts []string) {
+	if len(parts) >= 2 && parts[0] == "oauth" && parts[1] == "github" {
+		server.handleGitHubOAuthProject(writer, request, projectID, parts[2:])
+		return
+	}
 	if len(parts) >= 1 && parts[0] == "api-keys" {
 		server.handleAPIKeys(writer, request, projectID, parts[1:])
 		return
@@ -882,6 +893,11 @@ func GoRouteManifestEntries() []RouteManifestEntry {
 		goPublicRoute("GET", "/v1/healthz", "health", "system"),
 		goPublicRoute("GET", "/openapi.json", "openapi", "system"),
 		goPublicRoute("GET", "/v1/openapi.json", "openapi", "system"),
+		goScopedRoute("GET", "/v1/projects/{project_id}/oauth/github/start", "oauth.github.start", "oauth"),
+		goScopedRoute("POST", "/v1/projects/{project_id}/oauth/github/start", "oauth.github.start", "oauth"),
+		goPublicRoute("GET", "/oauth/github/callback", "oauth.github.callback", "oauth"),
+		goScopedRoute("POST", "/v1/projects/{project_id}/oauth/github/disconnect", "oauth.github.disconnect", "oauth"),
+		goScopedRoute("DELETE", "/v1/projects/{project_id}/oauth/github/disconnect", "oauth.github.disconnect", "oauth"),
 		goPublicRoute("POST", "/bootstrap", "bootstrap_project", "bootstrap"),
 		goPublicRoute("POST", "/v1/bootstrap", "bootstrap_project", "bootstrap"),
 		goScopedRoute("POST", "/v1/projects/{project_id}/api-keys", "api_key.create", "auth", ScopeAPIKeyWrite),

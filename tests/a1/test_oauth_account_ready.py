@@ -116,6 +116,7 @@ def test_google_identity_requires_nonce_issuer_audience_account_binding_and_enab
         expected_account_binding_ref="provider-ref:google/account/123",
         received_nonce=nonce,
         expected_nonce_sha256=hash_oauth_nonce(nonce)["nonce_sha256"],
+        email_verified=True,
     )
     accepted = verify_callback_identity(
         config=_config("google", enabled=True),
@@ -126,6 +127,7 @@ def test_google_identity_requires_nonce_issuer_audience_account_binding_and_enab
         expected_account_binding_ref="provider-ref:google/account/123",
         received_nonce=nonce,
         expected_nonce_sha256=hash_oauth_nonce(nonce)["nonce_sha256"],
+        email_verified=True,
     )
     rejected = verify_callback_identity(
         config=_config("google", enabled=True),
@@ -136,6 +138,7 @@ def test_google_identity_requires_nonce_issuer_audience_account_binding_and_enab
         expected_account_binding_ref="provider-ref:google/account/123",
         received_nonce="wrong-nonce-account-binding",
         expected_nonce_sha256=hash_oauth_nonce(nonce)["nonce_sha256"],
+        email_verified=True,
     )
 
     assert disabled["accepted"] is False

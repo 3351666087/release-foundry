@@ -12,6 +12,7 @@
     "ashr-clone-calibrate": "./dist/calibrate.js",
     "ashr-clone-cloud": "./dist/cloud-cli.js",
     "ashr-clone-dataset-adapter": "./dist/dataset-adapter-cli.js",
+    "ashr-clone-github-oauth": "./dist/github-oauth-cli.js",
     "ashr-clone-probe": "./dist/probe.js",
     "ashr-clone-runner": "./dist/runner-cli.js",
     "ashr-clone-saas": "./dist/saas.js"

@@ -7,6 +7,8 @@ export * from "./cloud-queue.js";
 export * from "./commercial.js";
 export * from "./dataset-adapter.js";
 export * from "./evidence.js";
+export * from "./github-oauth.js";
+export * from "./github-oauth-cli.js";
 export * from "./runner.js";
 export * from "./saas.js";
 export * from "./stripe-executor.js";

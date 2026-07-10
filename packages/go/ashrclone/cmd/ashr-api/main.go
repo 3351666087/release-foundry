@@ -34,13 +34,26 @@ func main() {
 			}
 		}()
 	}
+	githubOAuth, err := ashrclone.NewGitHubOAuthServiceFromEnv(ashrclone.GitHubOAuthEnvRuntimeOptions{LookupEnv: os.LookupEnv})
+	if err != nil {
+		log.Fatalf("configure GitHub OAuth: %v", err)
+	}
 	log.Printf("ashr Go control plane listening on %s with backend %s", addr, selection.Name)
-	if err := http.ListenAndServe(addr, ashrclone.NewHTTPServerWithOptions(selection.Backend, ashrclone.HTTPServerOptions{
-		BackendName:           selection.Name,
-		BackendReady:          selection.Ready,
-		PaymentReconciliation: selection.PaymentReconciliation,
-		PaymentDomain:         selection.PaymentDomain,
-	})); err != nil {
+	server := &http.Server{
+		Addr:              addr,
+		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		Handler: ashrclone.NewHTTPServerWithOptions(selection.Backend, ashrclone.HTTPServerOptions{
+			BackendName:           selection.Name,
+			BackendReady:          selection.Ready,
+			PaymentReconciliation: selection.PaymentReconciliation,
+			PaymentDomain:         selection.PaymentDomain,
+			GitHubOAuth:           githubOAuth,
+		}),
+	}
+	if err := server.ListenAndServe(); err != nil {
 		log.Fatal(err)
 	}
 }

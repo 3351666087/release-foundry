@@ -37,7 +37,10 @@ HOSTED_ROUTE_SCOPE_REQUIREMENTS: dict[str, tuple[str, ...]] = {
     "POST /v1/projects/{project_id}/billing/portal-plan": ("billing:write",),
     "POST /v1/projects/{project_id}/billing/webhooks/ingest": ("billing:webhook",),
     "POST /v1/projects/{project_id}/commercial-auth-payment/oauth-providers/configure": ("commercial:write",),
+    "POST /v1/projects/{project_id}/commercial-auth-payment/oauth-authorizations/begin": ("commercial:write",),
+    "POST /v1/projects/{project_id}/commercial-auth-payment/oauth-authorizations/{flow_id}/complete": ("commercial:write",),
     "POST /v1/projects/{project_id}/commercial-auth-payment/oauth-sessions/create": ("commercial:write",),
+    "POST /v1/projects/{project_id}/commercial-auth-payment/oauth-sessions/{session_id}/disconnect": ("commercial:write",),
     "POST /v1/projects/{project_id}/commercial-auth-payment/oauth-sessions/{session_id}/revoke": ("commercial:write",),
     "POST /v1/projects/{project_id}/commercial-auth-payment/payments/mode-boundary": ("commercial:write",),
     "POST /v1/projects/{project_id}/commercial-auth-payment/providers/configure": ("commercial:write",),
@@ -79,6 +82,14 @@ UNSUPPORTED_GO_ROUTE_GAPS: dict[str, dict[str, str]] = {
         "reason": "Hosted route scope parity tracks project-scoped API calls rather than unscoped local OpenAPI helpers.",
         "consumer_action": "keep unsupported as an unscoped adapter helper outside hosted route authorization",
     },
+    "GET /oauth/github/callback": {
+        "reason": "Go exposes the canonical localhost GitHub account-connection callback; the hosted Python route client does not execute browser redirects.",
+        "consumer_action": "keep explicit until the shared generated OpenAPI client models provider callbacks without exposing authorization codes",
+    },
+    "GET /v1/projects/{project_id}/oauth/github/start": {
+        "reason": "Go exposes a browser redirect helper for an existing authenticated development session; the hosted Python client does not yet model this account-connection flow.",
+        "consumer_action": "keep explicit until the shared OAuth account-connection contract is generated for Python and TypeScript",
+    },
     "GET /v1/projects/{project_id}/audit-chain/verify": {
         "reason": "Go has a read-style audit-chain verifier route while hosted clients consume the POST verifier contract.",
         "replacement_route": "POST /v1/projects/{project_id}/audit-chain/verify",
@@ -92,6 +103,19 @@ UNSUPPORTED_GO_ROUTE_GAPS: dict[str, dict[str, str]] = {
     "POST /v1/projects/{project_id}/api-keys/preflight": {
         "reason": "Go advertises an API-key preflight route that TS/Python hosted clients have not implemented yet.",
         "consumer_action": "keep unsupported until preflight request and response semantics are added to both hosted SDKs",
+    },
+    "POST /v1/projects/{project_id}/oauth/github/disconnect": {
+        "reason": "Go exposes local GitHub account disconnection with provider-token revocation; the hosted Python client has no matching generated contract yet.",
+        "consumer_action": "keep explicit until disconnect and revocation failure semantics are shared across all SDKs",
+    },
+    "POST /v1/projects/{project_id}/oauth/github/start": {
+        "reason": "Go exposes the JSON form of the authenticated GitHub account-connection start flow; the hosted Python client has no matching generated contract yet.",
+        "consumer_action": "keep explicit until the shared OAuth account-connection contract is generated for Python and TypeScript",
+    },
+    "DELETE /v1/projects/{project_id}/oauth/github/disconnect": {
+        "reason": "Go exposes an idempotent HTTP DELETE alias for local GitHub account disconnection; the hosted Python client has no matching generated contract yet.",
+        "replacement_route": "POST /v1/projects/{project_id}/oauth/github/disconnect",
+        "consumer_action": "keep explicit as a method alias until one disconnect method is selected in the shared OpenAPI contract",
     },
     "POST /v1/projects/{project_id}/runs/submit": {
         "reason": "Go keeps an older run submit shape while hosted clients submit through the SDK submission contract.",
@@ -613,6 +637,51 @@ class SaaSIngestionClient:
         _reject_hosted_bearer_headers(auth_headers)
         return _envelope("create_oauth_session", self.service.create_oauth_session(tenant_id, project_id, provider=provider, subject_ref=subject_ref, session_id=session_id, provider_config_id=provider_config_id, access_token_ref=access_token_ref, refresh_token_ref=refresh_token_ref, auth_key_id=auth_key_id))
 
+    def begin_oauth_authorization(
+        self,
+        tenant_id: str,
+        project_id: str,
+        *,
+        provider_config_id: str,
+        redirect_uri: str,
+        code_verifier: str,
+        state: str | None = None,
+        auth_key_id: str | None = None,
+        api_key_secret: str | None = None,
+        bearer_api_key: str | None = None,
+    ) -> JsonDict:
+        auth_headers = _bearer_auth_headers(api_key_secret=api_key_secret, bearer_api_key=bearer_api_key)
+        payload = {"tenant_id": tenant_id, "project_id": project_id, "provider_config_id": provider_config_id, "redirect_uri": redirect_uri, "code_verifier": code_verifier, "state": state, "auth_key_id": auth_key_id}
+        if self.uses_http:
+            return self._request("begin_oauth_authorization", payload, headers=auth_headers)
+        _reject_hosted_bearer_headers(auth_headers)
+        return _envelope("begin_oauth_authorization", self.service.begin_oauth_authorization(tenant_id, project_id, provider_config_id=provider_config_id, redirect_uri=redirect_uri, code_verifier=code_verifier, state=state, auth_key_id=auth_key_id))
+
+    def complete_oauth_authorization(
+        self,
+        tenant_id: str,
+        project_id: str,
+        flow_id: str,
+        *,
+        state: str,
+        redirect_uri: str,
+        authorization_code: str | None = None,
+        code_verifier: str | None = None,
+        subject_ref: str | None = None,
+        provider_code_ref: str | None = None,
+        session_id: str | None = None,
+        include_emails: bool = True,
+        auth_key_id: str | None = None,
+        api_key_secret: str | None = None,
+        bearer_api_key: str | None = None,
+    ) -> JsonDict:
+        auth_headers = _bearer_auth_headers(api_key_secret=api_key_secret, bearer_api_key=bearer_api_key)
+        payload = {"tenant_id": tenant_id, "project_id": project_id, "flow_id": flow_id, "state": state, "redirect_uri": redirect_uri, "authorization_code": authorization_code, "code_verifier": code_verifier, "subject_ref": subject_ref, "provider_code_ref": provider_code_ref, "session_id": session_id, "include_emails": bool(include_emails), "auth_key_id": auth_key_id}
+        if self.uses_http:
+            return self._request("complete_oauth_authorization", payload, headers=auth_headers)
+        _reject_hosted_bearer_headers(auth_headers)
+        return _envelope("complete_oauth_authorization", self.service.complete_oauth_authorization(tenant_id, project_id, flow_id=flow_id, state=state, redirect_uri=redirect_uri, authorization_code=authorization_code, code_verifier=code_verifier, subject_ref=subject_ref, provider_code_ref=provider_code_ref, session_id=session_id, include_emails=include_emails, auth_key_id=auth_key_id))
+
     def revoke_oauth_session(self, tenant_id: str, project_id: str, session_id: str, *, auth_key_id: str | None = None, api_key_secret: str | None = None, bearer_api_key: str | None = None) -> JsonDict:
         auth_headers = _bearer_auth_headers(api_key_secret=api_key_secret, bearer_api_key=bearer_api_key)
         payload = {"tenant_id": tenant_id, "project_id": project_id, "session_id": session_id, "auth_key_id": auth_key_id}
@@ -620,6 +689,14 @@ class SaaSIngestionClient:
             return self._request("revoke_oauth_session", payload, headers=auth_headers)
         _reject_hosted_bearer_headers(auth_headers)
         return _envelope("revoke_oauth_session", self.service.revoke_oauth_session(tenant_id, project_id, session_id, auth_key_id=auth_key_id))
+
+    def disconnect_oauth_session(self, tenant_id: str, project_id: str, session_id: str, *, auth_key_id: str | None = None, api_key_secret: str | None = None, bearer_api_key: str | None = None) -> JsonDict:
+        auth_headers = _bearer_auth_headers(api_key_secret=api_key_secret, bearer_api_key=bearer_api_key)
+        payload = {"tenant_id": tenant_id, "project_id": project_id, "session_id": session_id, "auth_key_id": auth_key_id}
+        if self.uses_http:
+            return self._request("disconnect_oauth_session", payload, headers=auth_headers)
+        _reject_hosted_bearer_headers(auth_headers)
+        return _envelope("disconnect_oauth_session", self.service.disconnect_oauth_session(tenant_id, project_id, session_id, auth_key_id=auth_key_id))
 
     def configure_commercial_provider(
         self,
@@ -1093,17 +1170,22 @@ def _operation_route(operation: str, payload: Mapping[str, Any] | None = None) -
         return method, f"{project_path}/api-keys/rate-limits"
     if operation == "commercial_auth_payment_snapshot":
         return method, f"{project_path}/commercial-auth-payment"
-    if operation in {"configure_oauth_provider", "create_oauth_session", "configure_commercial_provider", "record_payment_mode_boundary"}:
+    if operation in {"configure_oauth_provider", "begin_oauth_authorization", "create_oauth_session", "configure_commercial_provider", "record_payment_mode_boundary"}:
         suffix = {
             "configure_oauth_provider": "commercial-auth-payment/oauth-providers/configure",
+            "begin_oauth_authorization": "commercial-auth-payment/oauth-authorizations/begin",
             "create_oauth_session": "commercial-auth-payment/oauth-sessions/create",
             "configure_commercial_provider": "commercial-auth-payment/providers/configure",
             "record_payment_mode_boundary": "commercial-auth-payment/payments/mode-boundary",
         }[operation]
         return method, f"{project_path}/{suffix}"
-    if operation == "revoke_oauth_session":
+    if operation in {"revoke_oauth_session", "disconnect_oauth_session"}:
         session_id = _required_route_value(payload, "session_id", operation)
-        return method, f"{project_path}/commercial-auth-payment/oauth-sessions/{_quote_path(session_id)}/revoke"
+        action = "revoke" if operation == "revoke_oauth_session" else "disconnect"
+        return method, f"{project_path}/commercial-auth-payment/oauth-sessions/{_quote_path(session_id)}/{action}"
+    if operation == "complete_oauth_authorization":
+        flow_id = _required_route_value(payload, "flow_id", operation)
+        return method, f"{project_path}/commercial-auth-payment/oauth-authorizations/{_quote_path(flow_id)}/complete"
     if operation == "sdk_submit":
         return method, f"{project_path}/sdk-submit"
     if operation in {"upload_run", "ingest_trace", "lifecycle_snapshot", "create_artifact_manifest", "list_artifact_manifests", "release_evidence", "release_evidence_verify", "verify_release_evidence_packet"}:
