@@ -9,45 +9,54 @@
   <body>
     <div class="shell">
       <aside class="sidebar">
-        <div class="brand"><span class="brand-mark">A3</span><span>Ashr A3</span></div>
-        <div class="subtitle">Evaluation console for run triage, evidence review, SaaS admin, and report export.</div>
+        <div class="brand">
+          <span class="brand-mark">A3</span>
+          <span class="brand-copy"><strong>ASHR</strong><small>Release intelligence</small></span>
+        </div>
+        <div class="subtitle">Product console / review workflow / report center</div>
         <nav class="nav" data-visual-shell="primary-nav" aria-label="Primary product areas"></nav>
         <div class="sidebar-card" aria-label="A1 and A2 alignment">
-          <span class="sidebar-card-kicker">A1/A2 aligned</span>
-          <strong>Trace + grade evidence stays read-only.</strong>
-          <span>Dashboard changes do not alter runner or judge semantics.</span>
+          <span class="sidebar-card-kicker">LANE CONTRACT / 006</span>
+          <strong>A1 captures. A2 decides. A3 operates.</strong>
+          <span>Upstream evidence remains read-only and source-owned.</span>
         </div>
       </aside>
 
       <main class="content">
-        <section class="topbar" id="summary">
-          <div>
-            <h1>A3 Product Console</h1>
+        <header class="topbar" id="summary">
+          <div class="topbar-title">
+            <span class="topbar-kicker">AGENT RELEASE OS / A3</span>
+            <h1>Release<br>Intelligence</h1>
             <div class="caption" id="data-source">Loading local fixtures...</div>
+          </div>
+          <div class="topbar-controls">
             <div class="topbar-meta">
-              <span class="status-chip">Local read-only</span>
-              <span class="status-chip">Redacted evidence</span>
+              <span class="status-chip">Read only</span>
+              <span class="status-chip">Redacted</span>
               <span class="status-chip">No cloud mutations</span>
             </div>
+            <div class="actions">
+              <label class="source-picker" for="source-select">
+                <span>Evidence source</span>
+                <select id="source-select">
+                  <option value="mock">A1/A2 Mock</option>
+                  <option value="api-mock">API-backed Mock</option>
+                  <option value="raw-a1">Raw A1 RunResult</option>
+                  <option value="raw-a2">Raw A2 Single Case</option>
+                  <option value="p3-media">P3 Media Sample</option>
+                  <option value="p3-official-demo">P3 Official Demo 884/11926</option>
+                </select>
+              </label>
+              <div class="export-cluster" aria-label="Report exports">
+                <button class="button primary" id="export-json" data-export="json" type="button">JSON</button>
+                <button class="button subtle" id="export-csv" data-export="csv" type="button">CSV</button>
+                <button class="button subtle" id="export-md" data-export="md" type="button">MD</button>
+                <button class="button subtle" data-print type="button">Print</button>
+              </div>
+            </div>
           </div>
-          <div class="actions">
-            <label class="source-picker" for="source-select">
-              Data
-              <select id="source-select">
-                <option value="mock">A1/A2 Mock</option>
-                <option value="api-mock">API-backed Mock</option>
-                <option value="raw-a1">Raw A1 RunResult</option>
-                <option value="raw-a2">Raw A2 Single Case</option>
-                <option value="p3-media">P3 Media Sample</option>
-                <option value="p3-official-demo">P3 Official Demo 884/11926</option>
-              </select>
-            </label>
-            <button class="button primary" id="export-json" data-export="json" type="button">Export JSON</button>
-            <button class="button subtle" id="export-csv" data-export="csv" type="button">Export CSV</button>
-            <button class="button subtle" id="export-md" data-export="md" type="button">Export Markdown</button>
-            <button class="button subtle" data-print type="button">Print Report</button>
-          </div>
-        </section>
+          <span class="topbar-index" aria-hidden="true">(001)</span>
+        </header>
 
         <section class="product-surface-strip" id="product-surfaces" data-visual-shell="surface-strip" aria-label="Product surfaces"></section>
 
@@ -61,6 +70,18 @@
           <div class="metric" id="metric-trace-card"><label>Trace Complete</label><strong id="metric-trace">0%</strong><span>A1 evidence coverage</span></div>
           <div class="metric info" id="metric-media-card"><label>Media Evidence</label><strong id="metric-media">0</strong><span>case-level attachments</span></div>
         </section>
+
+        <section class="evidence-spine-shell" id="integration-spine" aria-label="A1 and A2 evidence spine">
+          <div id="evidence-spine-body">
+            <div class="caption">Waiting for A1 run evidence and A2 evaluation authority.</div>
+          </div>
+        </section>
+
+        <div class="chapter-heading" aria-hidden="true">
+          <span>002</span>
+          <h2>Operations fabric</h2>
+          <small>runtime / administration / calibration</small>
+        </div>
 
         <section class="console-grid" id="console" aria-label="Product console overview">
           <div class="panel">
@@ -291,6 +312,12 @@
           </div>
         </section>
 
+        <div class="chapter-heading" aria-hidden="true">
+          <span>003</span>
+          <h2>Release control</h2>
+          <small>gate / replay / review / audit</small>
+        </div>
+
         <section class="ops-grid" id="operations" aria-label="Operational triage">
           <div class="panel" id="release-gate">
             <div class="panel-header">
@@ -455,6 +482,12 @@
           </div>
         </section>
 
+        <div class="chapter-heading" aria-hidden="true">
+          <span>004</span>
+          <h2>Report output</h2>
+          <small>evidence / export / handoff</small>
+        </div>
+
         <section class="panel report-preview" id="report-preview" aria-label="PDF-ready report preview">
           <div class="panel-header">
             <h2>Report Preview</h2>
@@ -464,6 +497,12 @@
             <div class="print-report" id="print-report"></div>
           </div>
         </section>
+
+        <div class="chapter-heading" aria-hidden="true">
+          <span>005</span>
+          <h2>Case inspection</h2>
+          <small>expected / actual / trace / failure</small>
+        </div>
 
         <section class="filters" aria-label="Filters">
           <div class="field">

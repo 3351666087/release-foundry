@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 
 async function loadDashboardHtml() {
-  const [html, app, apiClient, visualShell, styles, notificationComponent, saasAdminComponent, liveOpsComponent, billingMigrationComponent, liveWorkflowComponent, contractRadarComponent, saasRuntimeComponent] = await Promise.all([
+  const [html, app, apiClient, visualShell, styles, notificationComponent, saasAdminComponent, liveOpsComponent, billingMigrationComponent, liveWorkflowComponent, contractRadarComponent, evidenceSpineComponent, saasRuntimeComponent] = await Promise.all([
     readFile(new URL("../../apps/dashboard/index.html", import.meta.url), "utf8"),
     readFile(new URL("../../apps/dashboard/src/app.mjs", import.meta.url), "utf8"),
     readFile(new URL("../../apps/dashboard/src/api-client.mjs", import.meta.url), "utf8"),
@@ -15,9 +15,10 @@ async function loadDashboardHtml() {
     readFile(new URL("../../apps/dashboard/src/components/billing-migration-readiness-panel.mjs", import.meta.url), "utf8"),
     readFile(new URL("../../apps/dashboard/src/components/live-workflow-readiness-panel.mjs", import.meta.url), "utf8"),
     readFile(new URL("../../apps/dashboard/src/components/a1-a2-contract-radar.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../../apps/dashboard/src/components/a1-a2-evidence-spine.mjs", import.meta.url), "utf8"),
     readFile(new URL("../../apps/dashboard/src/components/saas-runtime-panel.mjs", import.meta.url), "utf8")
   ]);
-  return [html, app, apiClient, visualShell, styles, notificationComponent, saasAdminComponent, liveOpsComponent, billingMigrationComponent, liveWorkflowComponent, contractRadarComponent, saasRuntimeComponent].join("\n");
+  return [html, app, apiClient, visualShell, styles, notificationComponent, saasAdminComponent, liveOpsComponent, billingMigrationComponent, liveWorkflowComponent, contractRadarComponent, evidenceSpineComponent, saasRuntimeComponent].join("\n");
 }
 
 function assertNavigationTarget(source, hash) {
@@ -103,13 +104,34 @@ test("A3 dashboard wires A1/A2 schema drift radar into the API-backed console", 
   assert.match(html, /renderSchemaDriftRadar\(\)/);
 });
 
+test("A3 dashboard makes the A1 capture, A2 decision, and A3 operation chain visible", async () => {
+  const html = await loadDashboardHtml();
+  const [component, apiServer] = await Promise.all([
+    readFile(new URL("../../apps/dashboard/src/components/a1-a2-evidence-spine.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../../services/report/a3_api_server.mjs", import.meta.url), "utf8")
+  ]);
+
+  assertNavigationTarget(html, "#integration-spine");
+  assert.match(html, /id="integration-spine"/);
+  assert.match(html, /id="evidence-spine-body"/);
+  assert.match(html, /a1A2EvidenceSpine: \{\}/);
+  assert.match(html, /buildA3A1A2EvidenceSpine/);
+  assert.match(html, /renderA1A2EvidenceSpine/);
+  assert.match(html, /payload\.a1_a2_evidence_spine/);
+  assert.match(apiServer, /\/api\/a3\/a1-a2\/evidence-spine/);
+  assert.match(component, /A1 captures execution/);
+  assert.match(component, /A2 owns evaluation and release policy/);
+  assert.match(component, /draft watch \/ not main authority/);
+  assert.doesNotMatch(component, /innerHTML/);
+});
+
 test("A3 dashboard uses a bounded two-column console and collapsible SaaS runtime details", async () => {
   const html = await loadDashboardHtml();
   const runtime = await readFile(new URL("../../apps/dashboard/src/components/saas-runtime-panel.mjs", import.meta.url), "utf8");
 
-  assert.match(html, /\.console-grid\s*\{[^}]*grid-template-columns:\s*repeat\(12, minmax\(0, 1fr\)\)/s);
-  assert.match(html, /\.console-grid > \.panel\s*\{[^}]*grid-column:\s*span 6/s);
-  assert.match(html, /\.wide-panel\s*\{[^}]*grid-column:\s*1 \/ -1 !important/s);
+  assert.match(html, /\.console-grid,[\s\S]*?grid-template-columns:\s*repeat\(12, minmax\(0, 1fr\)\)/);
+  assert.match(html, /\.console-grid > \.panel,[\s\S]*?grid-column:\s*span 6/);
+  assert.match(html, /\.wide-panel,[\s\S]*?grid-column:\s*1 \/ -1 !important/);
   assert.match(runtime, /function runtimeDisclosure/);
   assert.match(runtime, /document\.createElement\("details"\)/);
   assert.doesNotMatch(runtime, /innerHTML/);
@@ -673,8 +695,7 @@ test("A3 dashboard wires peer branch calibration into console and exports", asyn
   assert.match(html, /id="peer-branch-status"/);
   assert.match(html, /id="peer-branch-body"/);
   assertNavigationTarget(html, "#peer-branch-calibration");
-  assert.match(html, /Peer branches/);
-  assert.match(html, /Peer Branches/);
+  assert.match(html, /Peer Branches/i);
   assert.match(html, /peerBranchCalibration: \{\}/);
   assert.match(html, /summarizeA3PeerBranchCalibration/);
   assert.match(html, /function renderPeerBranchCalibration\(\)/);

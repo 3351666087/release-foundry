@@ -6232,3 +6232,27 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
   - `git diff --check` -> passed (line-ending warning only)
 - Environment note: Go 1.26.5 was installed as a portable user-local tool under `.codex/tools`, outside the repository. `GOPROXY=https://goproxy.cn,direct` was used for the compatibility test because the default Go proxy timed out; checksum verification was not disabled.
 - Safety closeout: `.env.local` remains ignored, high-confidence secret scanning returned no matches in A3-owned source/docs/fixtures/tests, and no real key or credential entered Git status.
+
+## 2026-07-11 - A1/A2 Evidence Spine + Clean-room Visual Rebuild
+
+- Rechecked the locally available integration base and peer refs: `origin/main` `5dbf4ee`, A1 draft `ac960bd`, and A2 draft `58fe876`.
+- `git fetch origin --prune` could not reach `github.com:443`; this round does not claim that the local refs are newer than the remote repository.
+- Added `a3.a1_a2_evidence_spine.v1` to join A1 capture, A2 evaluation, A2 release-gate authority, and A3 review/report operations without embedding raw upstream payloads or changing upstream semantics.
+- Exposed the spine in the dashboard API payload and through RBAC-protected `GET /api/a3/a1-a2/evidence-spine`.
+- Added a DOM-safe Evidence Spine component and a direct Overview navigation entry.
+- Kept A1 identity verification and A2 multimodal smoke as draft watch signals only; `draft_contracts_are_authoritative` remains `false`.
+- Rebuilt the dashboard HTML/CSS visual language from scratch using only high-level observations from Anton Skvortsov's public portfolio and Dribbble work. No external code, CSS, HTML, assets, fonts, imagery, particles, branding, or proprietary implementation was copied.
+- Consolidated navigation into six numbered, collapsible product areas while restoring direct access to every existing calibration, replay, regression, review, admin, and trust surface.
+- Added numbered page chapters, a stronger release-intelligence masthead, compact source/export controls, a monochrome data-first palette, stable focus/hover states, print styling, and reduced-motion behavior.
+- Fixed a real topbar overlap between `(001)` and the status chips.
+- Compacted the default SaaS Runtime panel from 941 px to 586 px while preserving all eight API/DB/migration/usage/billing/outbox/guardrail disclosures.
+- Browser verification found no horizontal overflow on desktop or at 390 x 844; mobile navigation remains two columns.
+- Verification:
+  - full A3 Node suite -> `324 pass / 0 fail`
+  - full Playwright suite -> `21 pass / 0 fail`
+  - focused A1/A2 runner/trace/release/storage/billing/contracts/judge/persistence/policy/scenario suite -> `175 pass / 0 fail`, `992 subtests pass`
+  - `python scripts/cl_guard.py commercial` -> passed, 0 blockers, 0 advisories
+  - `python scripts/cl_guard.py hygiene` -> passed, 0 findings
+  - `git diff --check` -> passed
+- Design and integration evidence: `docs/a3/a3_visual_rebuild_anton_cleanroom_2026_07_11.md`.
+- Safety: `.env.local` was not read or changed; no real API key, token, cookie, email, signed URL, account value, external asset, or private source was added.

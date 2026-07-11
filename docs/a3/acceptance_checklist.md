@@ -899,3 +899,24 @@
 - [ ] Replace provenance's blocked identity state only after A1 trusted hosted identity verification enters `main` and A3 consumes its authoritative read contract.
 - [ ] Execute approved UI mutations only after A1 provides authenticated server-side executors with durable audit/usage writes and A2 verifies current evidence/policy state.
 - [ ] Continue route-level web-app decomposition after this closeout; do not re-expand `app.mjs` with new inline panels.
+
+## A1/A2 Evidence Spine + Clean-room Visual Rebuild - 2026-07-11
+
+- [x] Add a public-safe A1 Capture -> A2 Evaluate -> A2 Gate -> A3 Operate evidence contract.
+- [x] Preserve A1 runtime/trace/tool-call ownership and A2 judge/failure/release-policy ownership.
+- [x] Expose the evidence spine in the API-backed dashboard and a dedicated auditor-protected read endpoint.
+- [x] Show A1 identity and A2 multimodal draft deltas as non-authoritative watch signals only.
+- [x] Rebuild dashboard HTML/CSS without copying third-party source, assets, fonts, branding, particles, or proprietary implementation.
+- [x] Keep six compact top-level navigation groups while retaining links to all existing product surfaces.
+- [x] Prevent topbar status/index overlap and desktop/mobile horizontal overflow.
+- [x] Keep card radius at or below 8 px, use no gradients, keep letter spacing at zero, and preserve sticky table headers.
+- [x] Preserve loading, empty, fail, focus, hover, print, and reduced-motion states.
+- [x] Keep SaaS Runtime below 700 px in the tested desktop two-column default state while retaining expandable detail.
+- [x] Full A3 Node suite passes (`324 pass / 0 fail`).
+- [x] Full Playwright suite passes (`21 pass / 0 fail`).
+- [x] Focused A1/A2 Python compatibility passes (`175 pass / 0 fail`, `992 subtests pass`).
+- [x] Commercial and hygiene CL guards pass with no findings.
+- [x] `.env.local` remains outside the change set and no secret-bearing artifact was added.
+- [ ] Refresh remote branch hashes once GitHub network access is restored.
+- [ ] Replace draft watch signals only after the A1/A2 contracts merge to `main`.
+- [ ] Continue route-level React/Next.js decomposition without weakening the current API and evidence contracts.

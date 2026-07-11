@@ -11,6 +11,8 @@ test.describe("A3 commercial dashboard visual system", () => {
     const visual = await page.evaluate(() => {
       const sidebar = document.querySelector<HTMLElement>(".sidebar")!;
       const topbar = document.querySelector<HTMLElement>(".topbar")!;
+      const topbarIndex = document.querySelector<HTMLElement>(".topbar-index")!;
+      const statusChips = [...document.querySelectorAll<HTMLElement>(".topbar-meta .status-chip")];
       const firstPanel = document.querySelector<HTMLElement>("#console .panel")!;
       const cards = [...document.querySelectorAll<HTMLElement>(
         ".panel, .metric, .product-surface, .workspace-shell, .sidebar-card"
@@ -25,9 +27,20 @@ test.describe("A3 commercial dashboard visual system", () => {
         topbarLeft: topbar.getBoundingClientRect().left,
         topbarBottom: topbar.getBoundingClientRect().bottom,
         firstPanelTop: firstPanel.getBoundingClientRect().top,
+        topbarIndexOverlapsStatus: statusChips.some((chip) => rectanglesOverlap(
+          topbarIndex.getBoundingClientRect(),
+          chip.getBoundingClientRect()
+        )),
         tableHeaderBackground: getComputedStyle(document.querySelector("th")!).backgroundColor,
         tableHeaderPosition: getComputedStyle(document.querySelector("th")!).position
       };
+
+      function rectanglesOverlap(left: DOMRect, right: DOMRect) {
+        return left.left < right.right
+          && left.right > right.left
+          && left.top < right.bottom
+          && left.bottom > right.top;
+      }
     });
 
     expect(visual.bodyOverflow).toBe(false);
@@ -36,8 +49,19 @@ test.describe("A3 commercial dashboard visual system", () => {
     expect(visual.radiusOverEight).toBe(0);
     expect(visual.topbarLeft).toBeGreaterThanOrEqual(visual.sidebarRight);
     expect(visual.firstPanelTop).toBeGreaterThan(visual.topbarBottom);
+    expect(visual.topbarIndexOverlapsStatus).toBe(false);
     expect(visual.tableHeaderBackground).not.toBe("rgba(0, 0, 0, 0)");
     expect(visual.tableHeaderPosition).toBe("sticky");
+
+    const evidenceSpine = page.locator("#integration-spine");
+    await expect(evidenceSpine).toContainText("Evidence spine");
+    await expect(evidenceSpine).toContainText("A1");
+    await expect(evidenceSpine).toContainText("Capture");
+    await expect(evidenceSpine).toContainText("Evaluate");
+    await expect(evidenceSpine).toContainText("Gate");
+    await expect(evidenceSpine).toContainText("A3");
+    await expect(evidenceSpine).toContainText("Operate");
+    await expect(evidenceSpine).toContainText("draft watch / not main authority");
 
     const evaluateNav = page.locator("[data-nav-parent='evaluate']");
     await evaluateNav.click();

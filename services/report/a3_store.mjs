@@ -42,6 +42,7 @@ import { buildA3LiveWorkflowReadiness } from "./a3_live_workflow_readiness.mjs";
 import { buildA3LiveOpsControlPlane } from "./a3_live_ops_control_plane.mjs";
 import { buildA3NotificationControlPlane } from "./a3_notification_control_plane.mjs";
 import { buildA3ReleaseDecisionProvenance } from "./a3_release_decision_provenance.mjs";
+import { buildA3A1A2EvidenceSpine } from "./a3_a1_a2_evidence_spine.mjs";
 import {
   buildA3TenantScope,
   tenantScopeMatches,
@@ -209,6 +210,7 @@ export const A3_DB_CONTRACT = {
     "GET /api/a3/commercial-api/contract",
     "GET /api/a3/peer-branches/calibration",
     "GET /api/a3/a1-a2/schema-drift",
+    "GET /api/a3/a1-a2/evidence-spine",
     "GET /api/a3/events/outbox",
     "GET /api/a3/reports/center",
     "GET /api/a3/reports/:reportId/manifest",
@@ -731,6 +733,14 @@ export function createMemoryA3Store(seed = {}) {
           environment_id: scopedSnapshot.environmentId
         }
       };
+    },
+
+    async getA1A2EvidenceSpine(options = {}) {
+      const dashboard = await this.getDashboardSnapshot(options.source || "mock", {
+        actor: options.actor,
+        auth: options.auth
+      });
+      return dashboard.a1_a2_evidence_spine;
     },
 
     async planSaasAdminAction(action, options = {}) {
@@ -2176,6 +2186,19 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     actor: options.actor || {},
     auth: options.auth || {}
   });
+  const peerBranchCalibration = summarizeA3PeerBranchCalibration(snapshot.peerBranchCalibration);
+  const a1A2EvidenceSpine = buildA3A1A2EvidenceSpine({
+    source: snapshot.source,
+    runFixture: snapshot.runFixture,
+    gradeFixture: snapshot.gradeFixture,
+    a2ReleaseGate: snapshot.a2ReleaseGate,
+    releaseDecisionProvenance,
+    reviewWorkflow,
+    reportCenter,
+    peerBranchCalibration: snapshot.peerBranchCalibration
+  }, {
+    source: snapshot.source
+  });
   return {
     schema_version: "a3.api_dashboard_payload.v1",
     source: snapshot.source,
@@ -2197,7 +2220,7 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     frontend_summary: snapshot.frontendSummary,
     frontend_mirror: snapshot.frontendMirror,
     frontend_code_crawl: snapshot.frontendCodeCrawl,
-    peer_branch_calibration: summarizeA3PeerBranchCalibration(snapshot.peerBranchCalibration),
+    peer_branch_calibration: peerBranchCalibration,
     release_evidence: releaseEvidenceForDashboard,
     release_evidence_summary: releaseEvidenceForDashboard,
     release_evidence_readbacks: releaseEvidenceReadbackHistory,
@@ -2211,6 +2234,7 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     live_ops_control_plane: liveOpsControlPlane,
     notification_control_plane: notificationControlPlane,
     release_decision_provenance: releaseDecisionProvenance,
+    a1_a2_evidence_spine: a1A2EvidenceSpine,
     release_evidence_api: {
       schema_version: "a3.release_evidence_api_link.v1",
       release_id: releaseId,

@@ -200,6 +200,16 @@ export function createA3ApiHandler(options = {}) {
         }));
       }
 
+      if (request.method === "GET" && url.pathname === "/api/a3/a1-a2/evidence-spine") {
+        const authz = authorizeRequest(request, url, "read_schema_drift");
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
+        return sendJson(response, 200, await store.getA1A2EvidenceSpine({
+          source: sourceFrom(url)
+        }));
+      }
+
       if (request.method === "GET" && url.pathname === "/api/a3/events/outbox") {
         const authz = authorizeRequest(request, url, "read_event_outbox");
         if (!authz.allowed) {

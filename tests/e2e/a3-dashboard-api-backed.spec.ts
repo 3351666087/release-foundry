@@ -130,13 +130,20 @@ test.describe("A3 API-backed dashboard E2E", () => {
       const runtimeNode = document.querySelector("#saas-runtime");
       return {
         workflowWidth: Math.round(workflowRect?.width || 0),
+        workflowRight: Math.round(workflowRect?.right || 0),
+        workflowTop: Math.round(workflowRect?.top || 0),
         runtimeWidth: Math.round(runtimeRect?.width || 0),
+        runtimeLeft: Math.round(runtimeRect?.left || 0),
+        runtimeTop: Math.round(runtimeRect?.top || 0),
         runtimeHeight: Math.round(runtimeRect?.height || 0),
         runtimeOverflow: runtimeNode ? runtimeNode.scrollWidth > runtimeNode.clientWidth : true
       };
     });
-    expect(layout.workflowWidth).toBeGreaterThan(900);
-    expect(layout.runtimeWidth).toBeGreaterThan(900);
+    expect(layout.workflowWidth).toBeGreaterThan(400);
+    expect(layout.runtimeWidth).toBeGreaterThan(400);
+    expect(layout.workflowWidth + layout.runtimeWidth).toBeGreaterThan(900);
+    expect(layout.workflowRight).toBeLessThan(layout.runtimeLeft);
+    expect(Math.abs(layout.workflowTop - layout.runtimeTop)).toBeLessThanOrEqual(2);
     expect(layout.runtimeHeight).toBeLessThan(700);
     expect(layout.runtimeOverflow).toBe(false);
     await expect(workflow).toContainText("Requests");

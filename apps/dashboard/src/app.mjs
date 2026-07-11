@@ -64,6 +64,7 @@ import { renderLiveOpsControlPlanePanel } from "./components/live-ops-control-pl
 import { renderBillingMigrationReadinessPanel } from "./components/billing-migration-readiness-panel.mjs";
 import { renderLiveWorkflowReadinessPanel } from "./components/live-workflow-readiness-panel.mjs";
 import { renderA1A2ContractRadarPanel } from "./components/a1-a2-contract-radar.mjs";
+import { renderA1A2EvidenceSpine } from "./components/a1-a2-evidence-spine.mjs";
 import { renderReportCenterPanel } from "./components/report-center-panel.mjs";
 import { renderReviewerWorkflowPanel } from "./components/reviewer-workflow-panel.mjs";
 import { buildSaasAdminConsole } from "../../../services/report/a3_saas_admin.mjs";
@@ -75,6 +76,7 @@ import { summarizeA3PeerBranchCalibration } from "../../../services/report/a3_pe
 import { buildA3LiveWorkflowReadiness } from "../../../services/report/a3_live_workflow_readiness.mjs";
 import { buildA3LiveOpsControlPlane } from "../../../services/report/a3_live_ops_control_plane.mjs";
 import { buildA3NotificationControlPlane } from "../../../services/report/a3_notification_control_plane.mjs";
+import { buildA3A1A2EvidenceSpine } from "../../../services/report/a3_a1_a2_evidence_spine.mjs";
 import { setupVisualShell, visualNavigationSelector } from "./visual-shell.mjs";
 
 const state = {
@@ -110,6 +112,7 @@ const state = {
   artifactRegistry: {},
   schemaDriftRadar: {},
   releaseDecisionProvenance: {},
+  a1A2EvidenceSpine: {},
   peerBranchCalibration: {},
   githubPublishEvidence: {},
   reviewWorkflow: {},
@@ -2773,6 +2776,7 @@ function applyApiDashboardPayload(payload) {
   state.reportCenter = payload.report_center || {};
   state.artifactRegistry = payload.artifact_registry || payload.report_center?.artifact_registry || {};
   state.releaseDecisionProvenance = payload.release_decision_provenance || {};
+  state.a1A2EvidenceSpine = payload.a1_a2_evidence_spine || {};
   state.peerBranchCalibration = payload.peer_branch_calibration || {};
   state.reviewWorkflow = payload.review_workflow || {};
   state.releaseEvidenceReadbacks = releaseEvidenceReadbacks;
@@ -3031,6 +3035,25 @@ function renderSchemaDriftRadar() {
   statusBadge.textContent = status;
   statusBadge.className = `badge ${status === "compatible" ? "pass" : status === "needs_attention" ? "fail" : "warn"}`;
   renderA1A2ContractRadarPanel($("schema-drift-body"), radar, state.releaseDecisionProvenance || {});
+}
+
+function refreshLocalA1A2EvidenceSpine() {
+  state.a1A2EvidenceSpine = buildA3A1A2EvidenceSpine({
+    source: state.source,
+    runFixture: state.runs,
+    gradeFixture: state.grades,
+    a2ReleaseGate: state.releaseGate,
+    releaseDecisionProvenance: state.releaseDecisionProvenance,
+    reviewWorkflow: state.reviewWorkflow,
+    reportCenter: state.reportCenter,
+    peerBranchCalibration: state.peerBranchCalibration || {}
+  }, {
+    source: state.source
+  });
+}
+
+function renderEvidenceSpine() {
+  renderA1A2EvidenceSpine($("evidence-spine-body"), state.a1A2EvidenceSpine || {});
 }
 
 function renderPeerBranchCalibration() {
@@ -3325,6 +3348,7 @@ async function loadDataSource(source) {
     refreshLiveOpsControlPlane();
     refreshNotificationControlPlane();
     refreshLocalArtifactRegistry();
+    refreshLocalA1A2EvidenceSpine();
   }
   refreshEnterpriseReadiness();
   state.cases = normalizeCases(state.runs, state.grades);
@@ -3344,6 +3368,7 @@ async function loadDataSource(source) {
 
   renderSummary();
   renderConsoleStats();
+  renderEvidenceSpine();
   renderSaasRuntime();
   renderSaasAdmin();
   renderEnterpriseReadiness();
@@ -3421,6 +3446,7 @@ function resetCalibrationState() {
 
 function resetSchemaDriftRadar() {
   state.releaseDecisionProvenance = {};
+  state.a1A2EvidenceSpine = {};
   state.schemaDriftRadar = {
     schema_version: "a3.schema_drift_dashboard_state.v1",
     status: "not_attached",

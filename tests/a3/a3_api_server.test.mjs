@@ -37,14 +37,26 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.ok(dashboard.storage.db_contract.api_surfaces.includes("GET /api/a3/live-workflow/readiness"));
     assert.ok(dashboard.storage.db_contract.api_surfaces.includes("GET /api/a3/live-ops/control-plane"));
     assert.ok(dashboard.storage.db_contract.api_surfaces.includes("GET /api/a3/release-decision/provenance"));
+    assert.ok(dashboard.storage.db_contract.api_surfaces.includes("GET /api/a3/a1-a2/evidence-spine"));
     assert.ok(dashboard.storage.db_contract.api_surfaces.includes("POST /api/a3/ui-actions/preflight"));
     assert.equal(dashboard.release_decision_provenance.schema_version, "a3.release_decision_provenance.v1");
     assert.equal(dashboard.release_decision_provenance.status, "blocked");
     assert.ok(dashboard.release_decision_provenance.blockers.some((item) => item.type === "auth_untrusted"));
+    assert.equal(dashboard.a1_a2_evidence_spine.schema_version, "a3.a1_a2_evidence_spine.v1");
+    assert.deepEqual(dashboard.a1_a2_evidence_spine.stages.map((item) => item.lane), ["A1", "A2", "A2", "A3"]);
+    assert.equal(dashboard.a1_a2_evidence_spine.summary.case_count, 32);
+    assert.equal(dashboard.a1_a2_evidence_spine.safety.a1_or_a2_semantics_mutated, false);
 
     const provenance = await getJson(`${url}/api/a3/release-decision/provenance?source=mock`);
     assert.equal(provenance.schema_version, "a3.release_decision_provenance.v1");
     assert.equal(provenance.release_decision, "block");
+
+    const evidenceSpine = await getJson(`${url}/api/a3/a1-a2/evidence-spine?source=mock&role=auditor`);
+    assert.equal(evidenceSpine.schema_version, "a3.a1_a2_evidence_spine.v1");
+    assert.equal(evidenceSpine.handoffs.length, 3);
+    assert.equal(evidenceSpine.draft_watch.a1_identity_verification.observed, true);
+    assert.equal(evidenceSpine.draft_watch.a2_multimodal_real_api_smoke.observed, true);
+    assert.equal(evidenceSpine.draft_watch.draft_contracts_are_authoritative, false);
 
     const releaseEvidence = await getJson(`${url}${dashboard.release_evidence_api.path}`);
     assert.equal(releaseEvidence.schema_version, "a3.release_evidence_api_response.v1");
