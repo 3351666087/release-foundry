@@ -1,0 +1,211 @@
+{
+  "schema_version": "ashr.unified_identity.contract.v1",
+  "generated_at": "2026-07-10T12:59:10Z",
+  "public_safe": true,
+  "contains_secret_values": false,
+  "production_ready": false,
+  "purpose": "Define and test one internal account with multiple independent sign-in credentials and separate tenant or project memberships.",
+  "internal_principal": {
+    "canonical_type": "account",
+    "provider_neutral": true,
+    "credential_count": "one_or_more",
+    "membership_count": "zero_or_more"
+  },
+  "required_identity_kinds": [
+    "github",
+    "google",
+    "wechat",
+    "qq",
+    "alipay",
+    "phone",
+    "email"
+  ],
+  "security_controls": {
+    "credential_owner_key": "provider_scoped_private_lookup",
+    "same_email_auto_merge": "forbidden",
+    "unverified_credential_login": "reject",
+    "cross_account_takeover": "reject",
+    "caller_supplied_account_id": "reject",
+    "same_account_multi_provider_link": "allow",
+    "duplicate_kind_policy": "explicit_product_policy_required",
+    "last_credential_unlink": "reject",
+    "membership_identity_coupling": "forbidden",
+    "credential_revocation_membership_effect": "none",
+    "raw_contact_identifier_in_public_dto": "forbidden",
+    "raw_provider_identifier_in_public_dto": "forbidden",
+    "public_subject_digest": "forbidden",
+    "credential_material_in_public_dto": "forbidden",
+    "callback_material_in_public_dto": "forbidden",
+    "public_dto_policy": "allowlist_only"
+  },
+  "membership_model": {
+    "separate_from_identity": true,
+    "references_internal_account_only": true,
+    "tenant_role_independent_of_login_method": true,
+    "project_role_independent_of_login_method": true,
+    "credential_unlink_does_not_delete_membership": true
+  },
+  "real_provider_calibration": {
+    "completed": [
+      "github",
+      "google"
+    ],
+    "not_completed": [
+      "wechat",
+      "qq",
+      "alipay",
+      "phone",
+      "email"
+    ],
+    "claims_real_calibration_for_pending": false,
+    "pending_channels_are_contract_only": true
+  },
+  "verified_by_this_slice": [
+    "reference_model_allows_all_required_identity_kinds_on_one_account",
+    "reference_model_rejects_cross_account_credential_takeover",
+    "reference_model_rejects_same_email_implicit_merge",
+    "reference_model_rejects_unverified_credential_login",
+    "reference_model_rejects_final_credential_removal",
+    "reference_model_keeps_memberships_independent_from_credentials",
+    "reference_public_dto_uses_an_explicit_allowlist",
+    "existing_postgres_oauth_tables_have_provider_subject_uniqueness",
+    "unified_identity_domain_links_github_and_google_to_one_account",
+    "unified_identity_domain_rejects_cross_account_credential_claim",
+    "postgres_rejects_same_email_implicit_merge",
+    "postgres_rejects_unverified_credential_session",
+    "postgres_rejects_cross_tenant_and_cross_project_session_scope",
+    "unified_identity_domain_rejects_final_credential_unlink",
+    "unified_identity_domain_preserves_membership_after_credential_unlink",
+    "localhost_runtime_links_real_github_and_google_credentials_to_one_canonical_account",
+    "localhost_runtime_keeps_memberships_independent_from_login_credentials",
+    "localhost_runtime_rejects_caller_supplied_account_mismatch",
+    "localhost_runtime_public_identity_responses_pass_forbidden_material_scan"
+  ],
+  "runtime_acceptance_tests": [
+    {
+      "test_artifact": "Go unified identity HTTP acceptance suite",
+      "boundaries": [
+        "same_account_github_google_link",
+        "cross_account_credential_conflict",
+        "last_credential_unlink_rejected",
+        "membership_survives_unlink",
+        "public_identity_payload_redaction"
+      ]
+    },
+    {
+      "path": "packages/go/ashrclone/oauth_unified_identity_test.go",
+      "boundaries": [
+        "canonical_account_shared_across_oauth_providers",
+        "caller_supplied_account_takeover_rejected",
+        "provider_subject_cross_account_conflict",
+        "callback_and_connection_payload_redaction"
+      ]
+    },
+    {
+      "path": "tests/a1/test_unified_identity_security.py",
+      "boundaries": [
+        "static_route_trust_boundary",
+        "public_dto_digest_prohibition",
+        "runtime_route_manifest",
+        "evidence_safety"
+      ]
+    }
+  ],
+  "known_implementation_gaps": [
+    "localhost_runtime_uses_process_local_memory_instead_of_postgres_identity_store",
+    "localhost_runtime_memberships_are_not_durably_persisted",
+    "memory_store_subject_uniqueness_is_not_multi_instance",
+    "china_identity_providers_not_real_calibrated",
+    "phone_and_email_verification_not_real_calibrated",
+    "account_recovery_policy_not_yet_runtime_wired",
+    "credential_merge_and_conflict_resolution_not_yet_runtime_wired",
+    "recent_authentication_requirement_for_link_and_unlink_not_yet_runtime_wired"
+  ],
+  "acceptance_status": {
+    "domain_invariants": "implemented_and_tested",
+    "oauth_runtime_unified_account_wiring": "implemented_and_real_localhost_calibrated",
+    "caller_supplied_account_rejection": "implemented_and_runtime_verified",
+    "public_subject_identifier_redaction": "implemented_and_runtime_verified",
+    "account_routes_over_http": "implemented_and_runtime_verified",
+    "durable_postgres_runtime_wiring": "not_completed",
+    "production_readiness": "not_completed"
+  },
+  "verification_20260710": {
+    "go_package": {
+      "command": "go test -count=1 ./...",
+      "compiled": true,
+      "status": "passed",
+      "passing_boundaries": [
+        "same_account_github_google_domain_link",
+        "cross_account_credential_domain_conflict",
+        "last_credential_domain_guard",
+        "membership_preserved_after_domain_unlink"
+      ],
+      "failing_boundaries": []
+    },
+    "localhost_same_account_calibration": {
+      "environment": "localhost_development",
+      "backend_mode": "local_memory",
+      "ashr_api_used": false,
+      "status": "passed",
+      "account_id_class": "canonical_local_account",
+      "credential_count": 2,
+      "providers": [
+        "github",
+        "google"
+      ],
+      "membership_count": 0,
+      "forged_account_status_code": 403,
+      "public_response_secret_scan": "passed",
+      "evidence_path": "docs/a1/evidence/unified_identity_same_account_localhost_20260710.json"
+    },
+    "python_security": {
+      "command": "python -B -m pytest tests/a1/test_unified_identity_security.py -q -p no:cacheprovider",
+      "passed": 24,
+      "failed": 0,
+      "failing_boundaries": []
+    },
+    "python_migration_contract": {
+      "command": "python -B -m pytest tests/a1/test_unified_identity_account_migration.py -q -p no:cacheprovider",
+      "passed": 13,
+      "failed": 0
+    },
+    "postgres_integration": {
+      "command": "python -B -m pytest tests/a1/test_unified_identity_postgres_integration.py -q -p no:cacheprovider",
+      "passed": 8,
+      "failed": 0,
+      "runtime_role": "NOSUPERUSER_NOBYPASSRLS",
+      "boundaries": [
+        "same_email_conflict_without_merge",
+        "provider_subject_cross_account_conflict",
+        "unverified_credential_session_denied",
+        "cross_tenant_session_denied",
+        "cross_project_session_denied",
+        "last_login_credential_unlink_denied",
+        "rls_row_isolation",
+        "outbox_skip_locked"
+      ]
+    },
+    "json_parse": {
+      "files": 3,
+      "passed": 3,
+      "failed": 0
+    }
+  },
+  "evidence_boundary": {
+    "contains_account_contact_data": false,
+    "contains_provider_identity_data": false,
+    "contains_credential_material": false,
+    "contains_callback_query_data": false,
+    "contains_session_or_cookie_data": false,
+    "contains_provider_response_payload": false
+  },
+  "next_runtime_requirements": [
+    "Wire the provider-neutral account, credential, membership, and session boundary to PostgreSQL in the Go runtime.",
+    "Use the transactionally unique credential owner key across every runtime instance.",
+    "Require recent authentication before linking or unlinking credentials.",
+    "Keep the implemented final-login guard and membership separation intact when switching from memory to PostgreSQL.",
+    "Add audited merge and recovery workflows without implicit contact matching.",
+    "Real-calibrate each pending provider only after official credentials and user consent are available."
+  ]
+}

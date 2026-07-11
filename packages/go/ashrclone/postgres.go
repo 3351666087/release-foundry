@@ -1005,6 +1005,9 @@ func (repository *PostgresRepository) CreateBillingCheckoutPlan(tenantID, projec
 	}
 	cycle := normalizeBillingCycle(request.BillingCycle)
 	providerConfig := publicBillingProviderConfig(request.ProviderConfig)
+	if len(providerConfig) == 0 || strings.TrimSpace(stringFromAny(providerConfig["provider"])) == "" {
+		return Envelope[BillingCheckoutPlan]{}, fmt.Errorf("billing provider_config.provider is required")
+	}
 	provider := billingProviderFromConfig(providerConfig)
 	mode := billingModeFromConfig(providerConfig, "deterministic_contract")
 	price := sanitizedBillingMetadata(request.Price)
@@ -1055,7 +1058,13 @@ func (repository *PostgresRepository) CreateBillingPortalPlan(tenantID, projectI
 	}
 	planID := normalizeBillingPlanID(request.PlanID)
 	providerConfig := publicBillingProviderConfig(request.ProviderConfig)
+	if len(providerConfig) == 0 || strings.TrimSpace(stringFromAny(providerConfig["provider"])) == "" {
+		return Envelope[BillingPortalPlan]{}, fmt.Errorf("billing provider_config.provider is required")
+	}
 	provider := billingProviderFromConfig(providerConfig)
+	if provider != "stripe" {
+		return Envelope[BillingPortalPlan]{}, fmt.Errorf("billing portal requires explicit stripe provider")
+	}
 	mode := billingModeFromConfig(providerConfig, "deterministic_contract")
 	customerRef := strings.TrimSpace(request.CustomerRef)
 	returnURL := strings.TrimSpace(request.ReturnURL)
@@ -1125,12 +1134,19 @@ func (repository *PostgresRepository) IngestBillingWebhook(tenantID, projectID s
 	}
 	event.PayloadSHA256 = payloadFingerprint
 	event.Failures = billingWebhookFailures(event)
-	event.Verified = len(event.Failures) == 0
+	event.Verified = false
+	event.Failures = appendBillingWebhookFailure(event.Failures, "provider_specific_verification_required")
 	if strings.TrimSpace(event.EventID) == "" {
 		event.EventID = "billing_evt_" + payloadFingerprint[:16]
 	}
 	now := repository.now().UTC().Truncate(time.Microsecond)
 	event.ReceivedAt = now
+	if len(event.Failures) > 0 {
+		// Public callers cannot assert verification. Reject before opening a
+		// transaction so provider, ledger, quota, entitlement, audit, payment,
+		// and idempotency state all remain unchanged.
+		return rejectedBillingWebhookEnvelope(event), nil
+	}
 	requestFingerprint := JSONMap{"tenant_id": tenantID, "project_id": projectID, "event_id": event.EventID, "event_type": event.EventType, "provider": event.Provider, "mode": event.Mode, "payload_sha256": event.PayloadSHA256, "metadata": event.Metadata}
 	response := Envelope[BillingWebhookIngest]{Operation: "billing.webhook_ingest", Status: "ok", Result: event}
 
@@ -2289,6 +2305,9 @@ ON CONFLICT (organization_id, id) DO UPDATE SET workspace_id = EXCLUDED.workspac
 	return nil
 }
 func ingestPostgresBillingProviderEvent(ctx context.Context, tx *sql.Tx, tenantID, projectID string, event BillingWebhookIngest) (string, int, error) {
+	if !event.Verified {
+		return "", 0, fmt.Errorf("billing webhook provider event persistence requires trusted verification")
+	}
 	metadata := defaultMap(event.Metadata)
 	metadata["plan_id"] = event.PlanID
 	metadata["status"] = event.Status
@@ -2608,13 +2627,64 @@ func requireRunWithDB(ctx context.Context, db *sql.DB, tenantID, projectID, runI
 }
 
 func expirePostgresWorkerLeases(ctx context.Context, tx *sql.Tx, tenantID, projectID string, now time.Time) error {
-	_, err := tx.ExecContext(ctx, `
+	lastError := WorkerJobError{
+		SHA256:             mustFingerprint(JSONMap{"type": "worker_lease_expired", "message": "worker lease expired before completion"}),
+		Type:               "worker_lease_expired",
+		Message:            "worker lease expired before completion",
+		RawPayloadIncluded: false,
+		FailedAt:           now,
+	}
+	lastErrorPayload, err := jsonBytes(lastError)
+	if err != nil {
+		return fmt.Errorf("marshal expired worker lease error: %w", err)
+	}
+	rows, err := tx.QueryContext(ctx, `
 UPDATE ashr_worker_jobs
-SET status = $4, lease_owner_id = '', lease_expires_at = NULL, available_at = $3, updated_at = $3
-WHERE tenant_id = $1 AND project_id = $2 AND status = $5 AND lease_expires_at IS NOT NULL AND lease_expires_at <= $3
-`, tenantID, projectID, now, WorkerJobStatusRetrying, WorkerJobStatusLeased)
+SET status = CASE WHEN attempts >= max_attempts THEN $4 ELSE $5 END,
+    lease_owner_id = '',
+    lease_expires_at = NULL,
+    available_at = CASE WHEN attempts >= max_attempts THEN NULL ELSE $3 END,
+    last_error = $6::jsonb,
+    dead_lettered_at = CASE WHEN attempts >= max_attempts THEN $3 ELSE NULL END,
+    updated_at = $3
+WHERE tenant_id = $1 AND project_id = $2 AND status = $7 AND lease_expires_at IS NOT NULL AND lease_expires_at <= $3
+RETURNING job_id, tenant_id, project_id, job_type, target_id, payload_sha256, status, priority, attempts, max_attempts, lease_owner_id, lease_expires_at, available_at, last_error, result_sha256, idempotency_key, request_id, created_at, updated_at, completed_at, dead_lettered_at
+`, tenantID, projectID, now, WorkerJobStatusDeadLettered, WorkerJobStatusRetrying, string(lastErrorPayload), WorkerJobStatusLeased)
 	if err != nil {
 		return fmt.Errorf("expire worker leases: %w", err)
+	}
+	defer rows.Close()
+	expiredJobs := make([]WorkerJob, 0)
+	for rows.Next() {
+		job, err := scanPostgresWorkerJob(rows)
+		if err != nil {
+			return fmt.Errorf("scan expired worker lease: %w", err)
+		}
+		expiredJobs = append(expiredJobs, job)
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate expired worker leases: %w", err)
+	}
+	if err := rows.Close(); err != nil {
+		return fmt.Errorf("close expired worker leases: %w", err)
+	}
+	for _, job := range expiredJobs {
+		if err := appendPostgresMutationEvidence(ctx, tx, tenantID, projectID, "worker.job.lease_expired", 0, postgresMutationEvidence{
+			IdempotencyKey: job.IdempotencyKey,
+			RequestID:      job.RequestID,
+			RunID:          job.TargetID,
+			TargetID:       job.JobID,
+			After: JSONMap{
+				"job_id":       job.JobID,
+				"job_type":     job.JobType,
+				"status":       job.Status,
+				"attempts":     job.Attempts,
+				"max_attempts": job.MaxAttempts,
+				"error_sha256": lastError.SHA256,
+			},
+		}, now); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -2659,7 +2729,7 @@ RETURNING job_id, tenant_id, project_id, job_type, target_id, payload_sha256, st
 func updatePostgresWorkerJobHeartbeat(ctx context.Context, tx *sql.Tx, tenantID, projectID, jobID string, leaseExpiresAt, now time.Time) (WorkerJob, error) {
 	return scanPostgresWorkerJob(tx.QueryRowContext(ctx, `
 UPDATE ashr_worker_jobs
-SET lease_expires_at = $4, updated_at = $5
+SET lease_expires_at = GREATEST(lease_expires_at, $4), updated_at = $5
 WHERE tenant_id = $1 AND project_id = $2 AND job_id = $3
 RETURNING job_id, tenant_id, project_id, job_type, target_id, payload_sha256, status, priority, attempts, max_attempts, lease_owner_id, lease_expires_at, available_at, last_error, result_sha256, idempotency_key, request_id, created_at, updated_at, completed_at, dead_lettered_at
 `, tenantID, projectID, jobID, leaseExpiresAt, now))
@@ -3166,11 +3236,14 @@ LIMIT 1
 	} else if err != nil {
 		return fmt.Errorf("load audit tail: %w", err)
 	}
-	auditEventID := stablePostgresTimedID("audit", action, now)
 	after := defaultMap(evidence.After)
 	afterPayload, err := jsonBytes(after)
 	if err != nil {
 		return fmt.Errorf("marshal audit after: %w", err)
+	}
+	auditEventID, err := postgresAuditEventID(action, evidence, after, now)
+	if err != nil {
+		return err
 	}
 	eventHash, err := fingerprint(JSONMap{
 		"tenant_id":         tenantID,
@@ -3259,4 +3332,19 @@ func stablePostgresWorkerJobID(jobType string, now time.Time) string {
 
 func stablePostgresTimedID(prefix, name string, now time.Time) string {
 	return fmt.Sprintf("%s_%d", stablePostgresID(prefix, name), now.UnixNano())
+}
+
+func postgresAuditEventID(action string, evidence postgresMutationEvidence, after JSONMap, now time.Time) (string, error) {
+	evidenceHash, err := fingerprint(JSONMap{
+		"target_id":       evidence.TargetID,
+		"api_key_id":      evidence.APIKeyID,
+		"idempotency_key": evidence.IdempotencyKey,
+		"request_id":      evidence.RequestID,
+		"run_id":          evidence.RunID,
+		"after":           after,
+	})
+	if err != nil {
+		return "", fmt.Errorf("fingerprint audit evidence: %w", err)
+	}
+	return stablePostgresTimedID("audit", action+"_"+evidenceHash[:16], now), nil
 }

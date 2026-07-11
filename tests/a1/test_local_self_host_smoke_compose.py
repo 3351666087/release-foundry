@@ -18,6 +18,7 @@ COMPOSE = ROOT / "services" / "runner" / "docker-compose.a1.yml"
 INFRA_DOCKER_COMPOSE = ROOT / "infra" / "docker" / "docker-compose.self-host.yml"
 INFRA_DOCKER_ENV_EXAMPLE = ROOT / "infra" / "docker" / "self-host.env.example"
 HEALTHCHECK = ROOT / "services" / "runner" / "a1_docker_healthcheck.go"
+COMMERCIAL_WORKER_ENTRYPOINT = ROOT / "services" / "runner" / "commercial-worker-entrypoint.sh"
 TERRAFORM_SELF_HOST = ROOT / "infra" / "terraform" / "self-host"
 EVIDENCE_README = ROOT / "docs" / "a1" / "evidence" / "README.md"
 EVIDENCE_COMMANDS = ROOT / "docs" / "a1" / "evidence" / "commands.md"
@@ -159,8 +160,11 @@ def test_infra_docker_self_host_compose_wires_commercial_daemon_profile():
     services = compose["services"]
 
     assert {"api", "worker", "postgres", "redis", "minio", "minio-init"}.issubset(services)
-    assert services["api"]["profiles"] == ["api", "commercial"]
-    assert services["worker"]["profiles"] == ["worker", "daemon", "commercial"]
+    assert {"api", "commercial"}.issubset(services["api"]["profiles"])
+    assert {"worker", "daemon", "commercial"}.issubset(services["worker"]["profiles"])
+    assert {"china-payments", "stripe-payments"}.issubset(services["api"]["profiles"])
+    assert "china-payments" not in services["worker"]["profiles"]
+    assert "stripe-payments" not in services["worker"]["profiles"]
 
     api_env = services["api"]["environment"]
     worker_env = services["worker"]["environment"]
@@ -197,8 +201,16 @@ def test_infra_docker_self_host_compose_wires_commercial_daemon_profile():
     assert "/usr/local/bin/ashr-worker" in " ".join(services["worker"]["command"])
     assert "replay-queued" not in " ".join(services["worker"]["command"])
     assert services["worker"]["healthcheck"]["test"][0] == "CMD-SHELL"
-    assert "while true" in " ".join(services["worker"]["command"])
-    assert "sleep 5" in " ".join(services["worker"]["command"])
+    assert services["worker"]["command"] == [
+        "/bin/sh",
+        "/app/services/runner/commercial-worker-entrypoint.sh",
+        "/usr/local/bin/ashr-worker",
+    ]
+    worker_entrypoint = COMMERCIAL_WORKER_ENTRYPOINT.read_text(encoding="utf-8")
+    assert "while :" in worker_entrypoint
+    assert 'sleep "${ASHR_WORKER_RESTART_DELAY_SECONDS:-5}"' in worker_entrypoint
+    assert '"$worker_binary" > "$summary_tmp"' in worker_entrypoint
+    assert "|| true" not in worker_entrypoint
     assert "find /runtime/worker/heartbeat -mmin -2" in services["worker"]["healthcheck"]["test"][1]
     assert "healthy" not in services["worker"]["healthcheck"]["test"][1]
     assert "ashr-worker-health:/runtime/worker" in services["worker"]["volumes"]
@@ -249,11 +261,16 @@ def test_infra_docker_self_host_compose_wires_postgres_redis_minio_without_secre
         "POSTGRES_PASSWORD:",
         "MINIO_ROOT_PASSWORD:",
         "AWS_SECRET_ACCESS_KEY",
-        "STRIPE_SECRET_KEY",
-        "STRIPE_WEBHOOK_SECRET",
     ]
     for marker in forbidden_markers:
         assert marker not in compose_text
+
+    # Stripe stays available as a compatibility branch, but tracked Compose
+    # configuration may carry only secret references, never resolved values.
+    assert "ASHR_STRIPE_SECRET_KEY_REF: env:ASHR_STRIPE_SECRET_KEY" in compose_text
+    assert "ASHR_STRIPE_WEBHOOK_SECRET_REF: env:ASHR_STRIPE_WEBHOOK_SECRET" in compose_text
+    assert not re.search(r"(?m)^\s*ASHR_STRIPE_SECRET_KEY\s*:", compose_text)
+    assert not re.search(r"(?m)^\s*ASHR_STRIPE_WEBHOOK_SECRET\s*:", compose_text)
 
 
 def test_infra_docker_self_host_env_example_uses_refs_only_for_secrets():

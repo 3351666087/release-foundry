@@ -1,0 +1,24 @@
+{
+  "key_utf8": "round52-cross-language-test-key-material-0001",
+  "now_unix_ms": 1783700005000,
+  "canonical_signing_json": "{\"algorithm\":\"hmac-sha256\",\"event_id_digest\":\"f31cd7db62cd7d4148a78287ed528a539c331cb9a41d3e31bb00a45c53b80a9f\",\"evidence_digest\":\"31d56903958ebfba1cb586c25e536b2d278f30a8d79a0e2dc1870f028c44d666\",\"expires_at_unix_ms\":1783700300000,\"idempotency_key_digest\":\"1b672a7b3a3d5812bb980694b4952728e3d5c858bf29a15b56d3552d4fc0f09f\",\"issued_at_unix_ms\":1783700000000,\"key_id\":\"round52:key:test-vector-01\",\"nonce_digest\":\"dd08d12a6781979367c92b364581f463f31f3f1dda82b8ad721b25a91366101d\",\"payload_digest\":\"9cc67d5b8a4cdb0665aba9bc509d9b9105b3bfb1bcae4fca69d9d5d89fe6a551\",\"principal_digest\":\"3d8ba20e135aef9ca3502b02463a4f9d3d27288079f329f870f78273c5b306a8\",\"project_digest\":\"d31d9d4edff3ab4e87e58845fe9cdb341df32dc7e47bba4b4e7baab8b667f253\",\"purpose\":\"credential_binding\",\"request_digest\":\"c16a65fa66586b966dcd7cb3d7cbccaea02749942328c865f080297e4106d09f\",\"schema_version\":\"ashr.identity_verification.authenticated_envelope.v1\",\"tenant_digest\":\"2c4bfe14f2aa266db847c0227f4734a3e266a7a20a8cb92da398a4699fd22799\"}",
+  "canonical_signing_sha256": "85623596fca9966c759760f8aebe5fe880f9ebcc67ed7d503d94c2ecfdd8549f",
+  "envelope": {
+    "schema_version": "ashr.identity_verification.authenticated_envelope.v1",
+    "algorithm": "hmac-sha256",
+    "key_id": "round52:key:test-vector-01",
+    "purpose": "credential_binding",
+    "tenant_digest": "2c4bfe14f2aa266db847c0227f4734a3e266a7a20a8cb92da398a4699fd22799",
+    "project_digest": "d31d9d4edff3ab4e87e58845fe9cdb341df32dc7e47bba4b4e7baab8b667f253",
+    "principal_digest": "3d8ba20e135aef9ca3502b02463a4f9d3d27288079f329f870f78273c5b306a8",
+    "event_id_digest": "f31cd7db62cd7d4148a78287ed528a539c331cb9a41d3e31bb00a45c53b80a9f",
+    "idempotency_key_digest": "1b672a7b3a3d5812bb980694b4952728e3d5c858bf29a15b56d3552d4fc0f09f",
+    "request_digest": "c16a65fa66586b966dcd7cb3d7cbccaea02749942328c865f080297e4106d09f",
+    "nonce_digest": "dd08d12a6781979367c92b364581f463f31f3f1dda82b8ad721b25a91366101d",
+    "payload_digest": "9cc67d5b8a4cdb0665aba9bc509d9b9105b3bfb1bcae4fca69d9d5d89fe6a551",
+    "evidence_digest": "31d56903958ebfba1cb586c25e536b2d278f30a8d79a0e2dc1870f028c44d666",
+    "issued_at_unix_ms": 1783700000000,
+    "expires_at_unix_ms": 1783700300000,
+    "signature": "2da90ee0be3901af1ef01530f6d36feb852b84cc32fdef0fc30bce10121120d6"
+  }
+}

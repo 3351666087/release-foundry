@@ -1,14 +1,30 @@
 package ashrclone
 
 import (
+	"context"
+	"database/sql"
+	"database/sql/driver"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 )
+
+var registerWebhookNoConnectDriver sync.Once
+var webhookNoConnectOpenCount atomic.Int64
+
+type webhookNoConnectDriver struct{}
+
+func (webhookNoConnectDriver) Open(string) (driver.Conn, error) {
+	webhookNoConnectOpenCount.Add(1)
+	return nil, errors.New("database connection must not open for an unverified webhook")
+}
 
 func TestPostgresRepositorySatisfiesBackend(t *testing.T) {
 	var _ ControlPlaneBackend = (*PostgresRepository)(nil)
@@ -19,6 +35,37 @@ func TestPostgresRepositoryCloseWithoutDB(t *testing.T) {
 	repository := NewPostgresRepository(nil)
 	if err := repository.Close(); err != nil {
 		t.Fatalf("close nil db: %v", err)
+	}
+}
+
+func TestPostgresUnverifiedBillingWebhookRejectsBeforeAnyTransactionOrMutation(t *testing.T) {
+	source := readPostgresSource(t)
+	start := strings.Index(source, "func (repository *PostgresRepository) IngestBillingWebhook")
+	end := strings.Index(source[start:], "func (repository *PostgresRepository) BillingLedger")
+	if start < 0 || end < 0 {
+		t.Fatal("could not isolate IngestBillingWebhook source")
+	}
+	body := source[start : start+end]
+	reject := strings.Index(body, "return rejectedBillingWebhookEnvelope(event), nil")
+	if reject < 0 {
+		t.Fatal("unverified billing webhook does not have a fail-closed return")
+	}
+	for _, mutationMarker := range []string{
+		"repository.db.BeginTx",
+		"loadIdempotentBillingWebhookReplay",
+		"ensurePostgresBillingSaaSScope",
+		"ingestPostgresBillingProviderEvent",
+		"appendPostgresMutationEvidence",
+		"insertIdempotentBillingWebhookResponse",
+		"tx.Commit",
+	} {
+		position := strings.Index(body, mutationMarker)
+		if position < 0 {
+			t.Fatalf("billing webhook implementation missing expected marker %q", mutationMarker)
+		}
+		if reject > position {
+			t.Fatalf("unverified rejection occurs after mutation marker %q", mutationMarker)
+		}
 	}
 }
 
@@ -59,6 +106,57 @@ func TestPostgresSchemaIncludesDurableWorkerJobContract(t *testing.T) {
 		if !strings.Contains(PostgresSchemaSQL, required) {
 			t.Fatalf("worker job schema missing %q", required)
 		}
+	}
+}
+
+func TestPostgresWorkerRecoveryWiresAttemptBoundedLeaseExpiry(t *testing.T) {
+	source := readPostgresSource(t)
+	for _, required := range []string{
+		"CASE WHEN attempts >= max_attempts THEN $4 ELSE $5 END",
+		"dead_lettered_at = CASE WHEN attempts >= max_attempts THEN $3 ELSE NULL END",
+		`"worker.job.lease_expired"`,
+		`Type:               "worker_lease_expired"`,
+		"SET lease_expires_at = GREATEST(lease_expires_at, $4)",
+	} {
+		if !strings.Contains(source, required) {
+			t.Fatalf("postgres worker recovery missing %q", required)
+		}
+	}
+}
+
+func TestPostgresAuditEventIDSeparatesBatchWorkerRecoveryEvidence(t *testing.T) {
+	now := time.Unix(1700000000, 123456000).UTC()
+	firstEvidence := postgresMutationEvidence{
+		TargetID:       "job_first",
+		IdempotencyKey: "idem_first",
+		RequestID:      "request_first",
+		After:          JSONMap{"status": WorkerJobStatusRetrying},
+	}
+	secondEvidence := postgresMutationEvidence{
+		TargetID:       "job_second",
+		IdempotencyKey: "idem_second",
+		RequestID:      "request_second",
+		After:          JSONMap{"status": WorkerJobStatusDeadLettered},
+	}
+
+	firstID, err := postgresAuditEventID("worker.job.lease_expired", firstEvidence, firstEvidence.After, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstIDAgain, err := postgresAuditEventID("worker.job.lease_expired", firstEvidence, firstEvidence.After, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondID, err := postgresAuditEventID("worker.job.lease_expired", secondEvidence, secondEvidence.After, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if firstID != firstIDAgain {
+		t.Fatalf("audit event ID must be stable, got %q then %q", firstID, firstIDAgain)
+	}
+	if firstID == secondID {
+		t.Fatalf("batch worker recovery evidence collided at the same timestamp: %q", firstID)
 	}
 }
 
@@ -491,6 +589,95 @@ func TestPostgresBillingPayloadSHAValidation(t *testing.T) {
 		}
 	}
 }
+
+func TestPostgresBillingWebhookRejectsCallerVerificationBeforeAnyDatabaseAccess(t *testing.T) {
+	registerWebhookNoConnectDriver.Do(func() {
+		sql.Register("ashr_webhook_no_connect", webhookNoConnectDriver{})
+	})
+	webhookNoConnectOpenCount.Store(0)
+	db, err := sql.Open("ashr_webhook_no_connect", "unused")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	repository := NewPostgresRepository(db)
+	result, err := repository.IngestBillingWebhook("tenant_webhook", "project_webhook", BillingWebhookIngest{
+		EventID:                "evt_untrusted",
+		EventType:              "invoice.paid",
+		Provider:               "stripe",
+		Mode:                   "test",
+		Status:                 "active",
+		PayloadSHA256:          strings.Repeat("a", 64),
+		SignatureHeaderPresent: true,
+		WebhookSecretRef:       "env:STRIPE_WEBHOOK_SECRET",
+		Verified:               true,
+	}, IdempotencyOptions{Key: "idem_untrusted", APIKeyID: "key_untrusted", RequestID: "request_untrusted"})
+
+	if err != nil {
+		t.Fatalf("fail-closed rejection should be a public-safe envelope, got %v", err)
+	}
+	if result.Status != "rejected" || result.Result.Verified {
+		t.Fatalf("untrusted caller verification was not rejected: %#v", result)
+	}
+	if len(result.Result.Failures) == 0 || result.Result.Failures[len(result.Result.Failures)-1]["reason"] != "provider_specific_verification_required" {
+		t.Fatalf("missing provider verification failure: %#v", result.Result.Failures)
+	}
+	if opens := webhookNoConnectOpenCount.Load(); opens != 0 {
+		t.Fatalf("unverified webhook reached database driver %d time(s)", opens)
+	}
+}
+
+func TestPostgresBillingProviderEventHelperRejectsUnverifiedBeforeSQL(t *testing.T) {
+	_, _, err := ingestPostgresBillingProviderEvent(context.Background(), nil, "tenant", "project", BillingWebhookIngest{
+		EventID:       "evt_unverified",
+		EventType:     "invoice.paid",
+		Provider:      "stripe",
+		Mode:          "test",
+		PayloadSHA256: strings.Repeat("b", 64),
+		Verified:      false,
+	})
+	if err == nil || !strings.Contains(err.Error(), "requires trusted verification") {
+		t.Fatalf("expected helper to reject unverified event before SQL, got %v", err)
+	}
+}
+
+func TestPostgresBillingWebhookFailClosedGuardPrecedesEveryPersistencePath(t *testing.T) {
+	source := readPostgresSource(t)
+	start := strings.Index(source, "func (repository *PostgresRepository) IngestBillingWebhook")
+	if start < 0 {
+		t.Fatal("could not find Postgres IngestBillingWebhook")
+	}
+	remaining := source[start:]
+	end := strings.Index(remaining, "func (repository *PostgresRepository) BillingLedger")
+	if end < 0 {
+		t.Fatal("could not isolate Postgres IngestBillingWebhook")
+	}
+	method := remaining[:end]
+	rejectAt := strings.Index(method, "return rejectedBillingWebhookEnvelope(event), nil")
+	if rejectAt < 0 {
+		t.Fatal("Postgres webhook ingest has no fail-closed return")
+	}
+	for _, sideEffect := range []string{
+		"BeginTx(",
+		"loadIdempotentBillingWebhookReplay(",
+		"requireProject(",
+		"ensurePostgresBillingSaaSScope(",
+		"ingestPostgresBillingProviderEvent(",
+		"appendPostgresMutationEvidence(",
+		"insertIdempotentBillingWebhookResponse(",
+		"tx.Commit(",
+	} {
+		index := strings.Index(method, sideEffect)
+		if index < 0 {
+			t.Fatalf("expected persistence marker %q in webhook implementation", sideEffect)
+		}
+		if index < rejectAt {
+			t.Fatalf("webhook persistence marker %q occurs before fail-closed return", sideEffect)
+		}
+	}
+}
+
 func TestPostgresBillingDeterministicArtifactsDoNotLeakSecrets(t *testing.T) {
 	request := BillingPlanRequest{
 		PlanID:       "Startup",

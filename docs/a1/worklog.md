@@ -1,3 +1,79 @@
+## Round51 identity, OTP, and SMTP calibration - 2026-07-10T15:30:00Z
+
+Baseline and peer state:
+
+- Authoritative worktree:
+  `C:\Users\33516\Documents\Ashr_a1_clean_rebase`.
+- Local branch: `codex/a1-local-sdk-runner-clean`; push target:
+  `origin/codex/a1-local-sdk-runner`; PR #31.
+- Started from `1cb15b3e`, whose CL Gate was green.
+- Fetch observed A3 branch movement only. No `origin/main` A1 peer change was
+  found that needed integration.
+- Five A2 result fixtures remain CRLF-only peer noise and are excluded from
+  this A1 publication.
+
+Human-subagent results:
+
+- QQ Connect requires a business license in the user-observed enrollment flow,
+  so it is classified `enterprise-only` and was not pursued.
+- QQ Mail SMTP was enabled.
+- `ASHR_SMTP_HOST`, `ASHR_SMTP_PORT`, `ASHR_SMTP_FROM`, and
+  `ASHR_SMTP_AUTH_CODE` were confirmed present by name and length only.
+- No address, authorization code, recipient, OTP, or message body was printed
+  or written to evidence.
+
+Implemented:
+
+1. Added restricted PostgreSQL session authentication with digest-only lookup
+   and live principal, credential, organization membership, and project
+   membership revalidation.
+2. Hardened revocation outbox task validation, lease fencing and renewal,
+   bounded dependency calls, dead lettering, and public-safe metadata.
+3. Added Go OTP lifecycle for email and phone binding, login, and recovery.
+4. Added matching Python and TypeScript OTP contracts.
+5. Expanded generated TS/Python parity to 12 identity routes and 28 stable
+   error codes with zero differing fields.
+6. Added an implicit TLS SMTP sender with TLS 1.2 minimum, deadline controls,
+   email-only delivery, header injection prevention, and redacted errors.
+7. Wired SMTP only behind explicit development-memory verification flags.
+   Production still refuses memory OTP delivery and requires durable injected
+   components.
+
+Validation:
+
+- `go test -count=1 ./...` in `packages/go/ashrclone`: passed.
+- `go vet ./...` in `packages/go/ashrclone`: passed.
+- `go test -count=1 ./...` in `tests/integration/go`: passed.
+- Python parity and focused identity/migration tests: 60 passed.
+- TypeScript build: passed.
+- TypeScript full suite: 512 passed.
+- Real SMTP calibration: one self-addressed message, 15-second hard timeout,
+  successful in approximately 2.3 seconds. Only the outcome class and duration
+  are retained.
+
+Evidence:
+
+- `docs/a1/evidence/round51_identity_otp_smtp_20260710.md`
+- `tests/a1/docs/a1/ts_python_gap_matrix.json`
+
+Growth-Auditor:
+
+- The initial NO-GO included a compile failure observed before the SMTP sender
+  landed. That compile blocker is resolved and the full Go tests now pass.
+- The commercial NO-GO remains for production OTP: durable PostgreSQL OTP
+  state, transactionally consistent receipt consumption and identity mutation,
+  anti-enumeration, distributed rate limiting, durable audit, SMS delivery,
+  production store interfaces, and vault-backed OAuth are still required.
+- The next lane begins with PostgreSQL OTP storage and transaction boundaries,
+  followed by production identity-store interfaces and abuse controls.
+
+Publication plan:
+
+- Run the full A1 Python suite, generated fixture checks, CL guards, diff
+  hygiene, and location-only secret scan.
+- Stage only reviewed A1 paths. Never stage the five A2 CRLF-only fixtures.
+- Push to `origin/codex/a1-local-sdk-runner` and require PR #31 CL Gate green.
+
 ## Round42 commercial SaaS backend growth - 2026-07-09T23:55:00Z
 
 Baseline:
@@ -1513,6 +1589,79 @@ Residual risks / next A1 queue:
 - Live Stripe/WeChat/Alipay and real card flows require human-managed provider setup and must remain behind test/live-mode gates with secret refs only.
 - Next high-ROI slice: Go Postgres worker durability + object-store MinIO compose write/readback + API key quota enforcement around artifact/trace ingestion.
 
+## Round48 trusted payment verification and Human Operator onboarding - 2026-07-10
+
+Baseline and peer state:
+- Authoritative worktree: `C:/Users/33516/Documents/Ashr_a1_clean_rebase`.
+- Branch: `codex/a1-local-sdk-runner-clean`; committed baseline:
+  `9393a8f3 Build China-first payment runtime and fail-closed ingestion`.
+- Five modified A2 result fixtures were inspected as CRLF/stat noise and were
+  excluded from the A1 commit. No A2 judge or A3 dashboard source was changed.
+
+Round48 delivered:
+1. Go payment notification ingestion now fails closed with HTTP `403` and
+   `trusted_payment_verification_required`.
+2. Caller-provided verification/status fields cannot mutate order or refund
+   state.
+3. Go internal verification artifacts are HMAC-bound and reject tampering.
+4. Python and TypeScript recursively reject forbidden payment data aliases and
+   sensitive values.
+5. PostgreSQL migration `005` adds immutable verification artifacts, exact
+   tenant/project RLS, append-only controls, recursive metadata admission, and
+   provider-authoritative order/refund transitions.
+6. OAuth account-ready contracts cover GitHub, Google, WeChat, and Alipay with
+   exact redirect allowlists, state/nonce hashing, replay protection, issuer,
+   audience, and account-binding checks.
+7. OAuth providers remain disabled by default and perform no network I/O or
+   secret resolution.
+8. Human Operator receipt schema and CLI accept only non-sensitive account
+   readiness metadata and reject secrets, tokens, authorization codes, payment
+   card data, and KYC material.
+9. TypeScript parity CI installs and builds the package before executing Node
+   tests; the generated Python/TypeScript gap matrix was refreshed.
+10. Public evidence documents the cross-layer forbidden payment-data matrix
+    and exact account-holder task boundaries.
+
+Truth flags:
+- `disabled=true`
+- `fail_closed=true`
+- `plan_only=true`
+- `real_provider_calls=false`
+- `real_card_acceptance=false`
+- `live_money_activation=false`
+
+Validation:
+- Focused Python after final negative-test literal hardening:
+  `36 passed`.
+- Full A1 Python: `840 passed, 2 skipped`.
+- TypeScript after Human Operator CLI parity merge:
+  `406 passed, 0 failed`.
+- Go package `go test ./...` and `go vet ./...`: passed.
+- Go integration `go test ./...` and `go vet ./...`: passed.
+- A2 generated fixture check: all `55` generated fixtures match.
+- CL hygiene and commercial guards: passed.
+- Docker self-host compose config: passed; missing
+  `ASHR_POSTGRES_AUTH_SECRET` warning is expected because only a secret
+  reference is committed.
+- `git diff --check`: passed with known A2/TS-matrix CRLF warnings only.
+
+Failures and restrictions:
+- An attempted command referenced nonexistent
+  `tests/a1/test_round47_payment_postgres_live.py`; it was not repeated.
+  Disposable PostgreSQL 16 migration validation was completed separately.
+- Process-local HMAC is experimental evidence only. Production requires
+  KMS/Vault-backed key IDs, rotation, revocation, and isolated environments.
+- No live provider onboarding, payment, card acceptance, KYC, secret handling,
+  or production activation is claimed.
+
+Next queue:
+1. Complete account-holder GitHub OAuth setup through the Human Operator flow.
+2. Add secret-manager/KMS resolver, rotation, and revocation contracts.
+3. Add provider-specific WeChat Pay API v3 and Alipay RSA2 verification
+   executors after non-sensitive account readiness receipts exist.
+4. Run disposable Postgres `NOBYPASSRLS` payment transition proof in CI.
+5. Add transactional order/refund/ledger/quota/audit/outbox persistence.
+
 ### Round43 Bus-Auditor blocking fixes - 2026-07-10T00:55:00Z
 
 Bus-Auditor found three blocking issues and all were fixed before commit:
@@ -1590,3 +1739,824 @@ Residual risks / next A1 queue:
 - Actual MinIO network PUT/HEAD/GET is still not in required CI because it needs running services; next round should add a local compose money-grade smoke if daemon/network stability allows.
 - Postgres-backed worker restart/lease-expiry proof remains opt-in; next round should add a compose or `A1_POSTGRES_TEST_DSN` backed test for restart recovery.
 - Billing/OAuth remain safety contracts, not live provider/account flows. Next round should add Stripe raw-body signature and OAuth PKCE/state replay tests before any live provider step.
+
+## Round47 China-first payment runtime and fail-closed ingestion - 2026-07-10
+
+Baseline and peer state:
+- Authoritative worktree:
+  `C:/Users/33516/Documents/Ashr_a1_clean_rebase`.
+- Branch `codex/a1-local-sdk-runner-clean`; baseline and `origin/main` were both
+  `5dbf4ee2`.
+- All visible PRs were merged or closed. Peer A2/A3 branches were inspected
+  read-only; no peer source was staged.
+- Strategy reread confirmed A1 ownership of Go backend, SQL/Postgres/RLS,
+  Python/TypeScript SDK and CLI parity, workers, billing/quota, evidence, and
+  self-host runtime.
+
+Round47 delivered:
+1. China-first payment domain and reconciliation contracts in Go.
+2. Postgres persistence for merchant applications, acquirer bindings, CNY/fen
+   orders, notifications, refunds, bills, and reconciliation.
+3. Public reconciliation HTTP receive/list/get routes with internal transitions
+   absent from public clients.
+4. Public billing webhook ingestion rejects caller-supplied verification before
+   any database connection or transaction.
+5. Migration trigger rejects unverified direct billing event writes.
+6. Adversarial zero-side-effect tests cover billing, ledger, quota, audit,
+   idempotency, order, refund, notification, and reconciliation records.
+7. Python China-payment provider adapters and Stripe compatibility executor.
+8. TypeScript China-payment, reconciliation, Stripe executor, OAuth, API-key,
+   quota, trace, artifact, webhook, and hosted-client parity.
+9. Go/Python/TypeScript route evidence records truthful counts:
+   Go `56`, Python `35`, TypeScript `38`, with 16 unsupported
+   China-payment/reconciliation gaps explicitly registered.
+10. Commercial Compose migrator now runs migrations `001` through `004` before
+    API and worker startup.
+11. Long-running China-payment webhook, reconciliation, domestic-acquirer, and
+    isolated Stripe worker profiles were added.
+12. A2 cross-lane generated consumer fixture was refreshed only because the A1
+    route artifact expanded from 43 to 67 routes; no A2 judge source or
+    semantics changed.
+13. Built-in Browser read-only calibration confirmed the Ashr public home,
+    Docs entry, and Get Started link using visible DOM.
+14. Growth-Auditor was recalled and closed after final review.
+
+Validation:
+- `python -B -m pytest tests/a1 -q -p no:cacheprovider` ->
+  `534 passed, 2 skipped`.
+- `npm test` in `packages/ts/ashr-clone` -> `376 passed`.
+- `go test ./...` and `go vet ./...` in `packages/go/ashrclone` -> passed.
+- `go test ./...` and `go vet ./...` in `tests/integration/go` -> passed.
+- Commercial Compose live smoke -> `1 passed`.
+- `python scripts/a2_regenerate_fixtures.py --check` -> all 55 generated
+  fixtures match.
+- Focused A2 cross-lane/contract suite -> `67 passed`.
+- `python scripts/cl_guard.py hygiene` -> passed.
+- `python scripts/cl_guard.py commercial` -> passed.
+- `git diff --check` -> passed with line-ending warnings only.
+- Bounded secret scan reported only intentional negative-test and guardrail
+  matches; no real credential or private key was found.
+
+Browser and payment truth:
+- `built_in_browser_available=true`
+- `public_home_opened=true`
+- `sandbox_only=true`
+- `merchant_application_started=false`
+- `kyc_started=false`
+- `live_money_activation=false`
+- `real_provider_calls=false`
+- `real_card_acceptance=false`
+- `plan_only=true`
+
+Growth-Auditor disposition:
+- Commit is acceptable only as disabled, fail-closed, plan-only infrastructure.
+- Do not claim payment-ready, live-ready, or production-ready.
+- Next round must prioritize provider-specific trusted verification artifacts,
+  the cross-layer forbidden payment-data matrix, project-level RLS proof,
+  entitlement persistence, and atomic order/refund/ledger/quota/audit/outbox
+  transactions.
+
+Next 20 A1 growth points:
+1. Canonical forbidden payment-data matrix.
+2. Python/TS/Go/SQL/HTTP/queue/trace/log/evidence enforcement.
+3. Trusted internal verification artifact schema.
+4. WeChat Pay API v3 verification adapter.
+5. Alipay RSA2 verification adapter.
+6. Domestic acquirer selection and callback certification interface.
+7. Durable callback inbox and replay/conflict retention.
+8. Project-level payment RLS policies.
+9. `NOBYPASSRLS` live payment isolation proof.
+10. Entitlement schema and lifecycle.
+11. Serializable payment-state transaction.
+12. Payment outbox and delivery worker.
+13. Hosted URL allowlist and signed return context.
+14. Opaque reference TTL/single-use/revocation rules.
+15. Vault/KMS reference resolver and rotation model.
+16. Sandbox/live infrastructure isolation.
+17. Partial and cumulative refund controls.
+18. Settlement-bill gross/fee/refund/net arithmetic.
+19. Finance exception queue and immutable audit.
+20. CI-grade secret scanner and payment security certification suite.
+## Round48 controlled GitHub account connection - 2026-07-10
+
+Baseline and collaboration:
+
+- Authoritative worktree:
+  `C:/Users/33516/Documents/Ashr_a1_clean_rebase`.
+- Branch `codex/a1-local-sdk-runner-clean`, publishing to
+  `origin/codex/a1-local-sdk-runner` and PR #31.
+- Ran repository, remote, branch, PR, worklog, and diff discovery before
+  finalization.
+- Five peer A2 generated fixtures had CRLF-only working-tree noise. They were
+  reviewed as peer-owned and explicitly excluded from edits, staging, and
+  commit.
+- Credential validation inspected presence, length, and equality only. No
+  client ID, client secret, callback parameter, token, cookie, header, or raw
+  provider response was printed or committed.
+
+Delivered:
+
+1. Go localhost GitHub account-connection runtime with exact project-scoped
+   start, callback, connection, and disconnect lifecycle.
+2. TypeScript account-connection client, CLI, OpenAPI route parity, timeout,
+   abort, redaction, and adversarial coverage.
+3. Python control-plane security hardening, provider adapters, route contracts,
+   and PostgreSQL lifecycle migration contract.
+4. Exact comma-separated GitHub granted-scope parsing with trimming,
+   deduplication, missing-scope denial, and scope-escalation denial.
+5. Primary verified email lookup; public output exposes only
+   `email_present`, never a direct email address.
+6. Public connection responses expose a provider-subject SHA-256 digest and no
+   token reference.
+7. Disconnect revokes the provider token before local token and connection
+   deletion and fails closed on provider errors.
+8. Controlled real GitHub localhost flow completed for an existing browser
+   session.
+9. Callback replay was denied with `invalid_oauth_state`.
+10. Temporary listener and binary were removed after the proof.
+11. Public-safe evidence finalized at
+    `docs/a1/evidence/github_account_connection_evidence_20260710.json`.
+12. OAuth security review and recovery/operator guides were corrected to match
+    the implemented provider revocation and privacy behavior.
+
+Real-provider evidence boundary:
+
+- Environment: `localhost_development`.
+- Provider: GitHub.
+- Requested and granted scopes: `read:user`, `user:email`.
+- Start, callback, connection, replay denial, and disconnect behaved as
+  expected.
+- Safe provider-subject digest:
+  `d7f4c1d11d8f6560ce6c3b70a7624a23ac983ced162ee97e288995aa92c22b39`.
+- Raw state, verifier, authorization code, access token, client secret,
+  provider response, cookies, headers, and callback query were not retained.
+- Honest capability label: controlled, existing-session, memory-backed
+  localhost GitHub account connection.
+- `production_ready=false`; this is not login, registration, organization
+  membership, or production OAuth.
+
+Validation before documentation convergence:
+
+- Focused OAuth Python suite: `58 passed`.
+- Full A1 Python suite: `714 passed, 2 skipped`.
+- TypeScript build: passed.
+- TypeScript tests: `426 passed`.
+- Go `go test -count=1 ./...`: passed.
+- Go `go vet ./...`: passed.
+- CL hygiene: passed.
+- CL commercial: passed with `0 blockers, 0 advisories`.
+- `git diff --check`: passed with line-ending warnings only.
+
+Residual risks:
+
+- OAuth transactions, replay state, tokens, references, and connections are
+  process-local memory.
+- Restart can orphan an already-issued provider token.
+- Reconnect replacement is not a durable revocation transaction and can leave
+  a previous token active after interruption.
+- Disconnect performs provider revoke first, but remote revoke plus local
+  deletion is not transactionally durable.
+- Shared-store, proxy, multi-instance, organization membership, production
+  session, and account-takeover guarantees are not implemented.
+- Migration 006 is a static PostgreSQL contract and is not wired into the Go
+  runtime.
+
+Next 20 A1 commercial growth points:
+
+1. Wire OAuth transactions to PostgreSQL with atomic consume and TTL.
+2. Persist provider connections with project-level RLS.
+3. Store token references in Vault/KMS instead of process memory.
+4. Add durable provider-revocation outbox and retry worker.
+5. Revoke superseded provider tokens during reconnect.
+6. Add multi-instance callback replay and concurrency proofs.
+7. Add production reverse-proxy and trusted-host normalization.
+8. Add secure session-cookie rotation and binding.
+9. Add GitHub organization membership and installation policy checks.
+10. Add GitHub App installation flow alongside OAuth account connection.
+11. Implement Google OIDC with issuer, audience, nonce, and PKCE validation.
+12. Add domestic WeChat and Alipay identity provider readiness contracts.
+13. Add account-link conflict review and recovery workflow.
+14. Add administrator-visible OAuth connection audit events.
+15. Add per-tenant provider rate budgets and circuit breakers.
+16. Add connection health, expiry, and reauthorization states.
+17. Add production secret rotation without service restart.
+18. Add self-host OAuth callback and external URL configuration.
+19. Add SDK parity fixtures for every OAuth lifecycle state.
+20. Add end-to-end account connection to tenant/project/run authorization.
+
+## Round49 unified account boundary - 2026-07-10
+
+Baseline and collaboration:
+
+- Authoritative worktree:
+  `C:/Users/33516/Documents/Ashr_a1_clean_rebase`.
+- Branch `codex/a1-local-sdk-runner-clean`, publishing to
+  `origin/codex/a1-local-sdk-runner` and PR #31.
+- Repository, remote, branch, `origin/main`, peer branches, worklog, evidence,
+  and current diff were inspected before finalization.
+- Five peer A2 generated fixtures contain working-tree line-ending noise. They
+  remain excluded from A1 edits, staging, and commit.
+- The canonical model is account or principal, credential, membership, and
+  session. A provider is a login credential, not a separate business account.
+
+Delivered and verified:
+
+1. The Go runtime shares one provider-neutral `UnifiedIdentityService` across
+   GitHub and Google OAuth coordinators.
+2. Controlled localhost GitHub and Google OAuth flows both resolved to the
+   same canonical `local_account`.
+3. The account had exactly two verified, login-capable OAuth credentials:
+   GitHub and Google.
+4. Membership count remained zero, proving that tenant and project
+   authorization are independent from login credentials.
+5. A caller-supplied mismatched account assertion returned HTTP `403` and
+   failed closed.
+6. Public account and credential responses passed the forbidden-material scan
+   with zero hits.
+7. Public-safe calibration evidence is stored at
+   `docs/a1/evidence/unified_identity_same_account_localhost_20260710.json`.
+8. The identity contract covers GitHub, Google, WeChat, QQ, Alipay, phone, and
+   email as credentials on one backend account.
+9. Account linking never implicitly merges by email or phone, provider-subject
+   ownership conflicts fail closed, memberships survive unlink, and the final
+   login-capable credential cannot be removed.
+
+Evidence boundary:
+
+- No callback URL, OAuth code, state, nonce, verifier, token, token reference,
+  client secret, raw provider response, provider subject, raw email, or raw
+  phone value was recorded.
+- This is a localhost, process-memory-backed calibration.
+- `production_ready=false`.
+- Durable PostgreSQL runtime identity wiring and multi-instance uniqueness are
+  not complete.
+- WeChat, QQ, Alipay, phone, and email are contract and parity coverage only;
+  they have not been real-provider calibrated.
+
+Next identity growth:
+
+1. Wire account, credential, membership, and session runtime operations to
+   PostgreSQL under RLS.
+2. Prove transactionally unique credential ownership across multiple API
+   instances.
+3. Require recent authentication for credential link and unlink operations.
+4. Add durable session rotation, recovery, merge review, and revocation
+   workflows without implicit contact matching.
+5. Real-calibrate WeChat, QQ, Alipay, phone, and email only with official
+   credentials, explicit user consent, and private evidence handling.
+
+Validation:
+
+- Focused unified identity, OAuth evidence, and TS/Python parity suite:
+  `31 passed`.
+- Full A1 Python suite: `858 passed, 2 skipped`.
+- TypeScript build and suite: `493 passed`.
+- Go `go test -count=1 ./...`: passed.
+- Go `go vet ./...`: passed.
+- CL hygiene: passed.
+- CL commercial: passed with `0 blockers, 0 advisories`.
+- `git diff --check`: passed with line-ending warnings only.
+
+Growth-Auditor disposition:
+
+- Round49 localhost unified-account boundary: `GO`.
+- Commercial production identity system: `NO-GO`.
+- Production blockers are PostgreSQL runtime selection, local-first durable
+  credential and session invalidation, provider-revocation outbox processing,
+  reconnect token supersession, multi-instance uniqueness, and separation of
+  internal audit metadata from public metadata.
+- These blockers are the next A1 identity P0 slice and are not represented as
+  completed by the localhost calibration.
+
+## Round50 production identity and revocation hardening - 2026-07-10
+
+Scope and safety boundary:
+
+- This round keeps one provider-neutral backend account or principal as the
+  stable business identity.
+- A credential is only a login method. A membership grants tenant or project
+  authorization, and a session represents an authenticated account. Changing
+  or unlinking a credential does not create, merge, or delete memberships.
+- GitHub, Google, WeChat, QQ, Alipay, phone, and email are represented by the
+  same credential model. Hosted OAuth execution remains limited to GitHub and
+  Google; the other channels remain contract boundaries.
+- Accounts are never implicitly merged because contact identifiers happen to
+  match. Provider-subject ownership conflicts fail closed, and merge or
+  recovery requires a separate explicit, audited workflow.
+- Public identity and audit metadata now use recursive allowlist-style
+  filtering and defensive copies. Normalized aliases for credential,
+  callback, contact, token-reference, and revocation bookkeeping material are
+  removed from public output.
+- No secret, callback URL, callback query, provider identifier, contact value,
+  credential material, session material, cookie, header, or raw provider
+  response is recorded in this worklog.
+
+Localhost same-account evidence:
+
+- Controlled localhost flows verified that GitHub and Google credentials can
+  resolve to the same canonical backend account.
+- The proof also verified that login credentials and authorization memberships
+  remain independent and that a forged account assertion is rejected.
+- The evidence retained only public-safe outcome classes and counts. It did
+  not retain callback or provider material.
+- This is a localhost development proof. It is not evidence of production
+  OAuth, multi-instance uniqueness, account recovery, or a deployed external
+  secret vault.
+
+Production startup and session resolution:
+
+1. The Go API now defaults to the PostgreSQL identity runtime and fails closed
+   when the database configuration or required identity migration set is
+   unavailable.
+2. The memory identity runtime is available only when the environment is
+   explicitly development and memory identity is explicitly enabled.
+3. PostgreSQL startup opens and pings the database and verifies identity
+   migrations 007 through 010 before serving.
+4. Production session lookup uses a PostgreSQL-backed resolver shared by the
+   identity and OAuth HTTP boundaries.
+5. Raw session bearer values are not queried or stored by the resolver.
+   Incoming values are transformed with HMAC-SHA256 using a runtime key of at
+   least 32 bytes, and only active, unexpired session rows are accepted.
+6. Production startup refuses enabled hosted OAuth until an injected external
+   opaque vault is available. It does not silently fall back to process memory
+   or plaintext provider-token storage.
+
+Durable revocation outbox:
+
+1. Disconnect and reconnect supersession perform local state transitions and
+   enqueue provider cleanup in PostgreSQL instead of making remote cleanup the
+   prerequisite for local invalidation.
+2. The outbox claims bounded batches with `FOR UPDATE SKIP LOCKED`, lease
+   expiration, and monotonically increasing lease-generation fencing.
+3. Provider revocation and opaque-vault deletion have separate durable
+   checkpoints so a worker can resume safely after interruption.
+4. Failures use bounded exponential backoff and transition to dead letter
+   after the configured attempt limit.
+5. Completion revokes the superseded opaque reference and disconnects only a
+   connection still bound to that reference. A reconnect that already issued a
+   newer reference is not undone by stale cleanup.
+6. The worker implementation and focused unit coverage exist, but the API
+   process does not yet start this worker as a long-running production service.
+
+Validation ledger:
+
+- `gofmt` on the changed Go files: passed.
+- `go test -count=1 ./...` from `packages/go/ashrclone`: passed.
+- `go vet ./...` from `packages/go/ashrclone`: passed.
+- Fresh-setup smoke from the preceding pushed slice: passed with 30/30 cases,
+  `max_workers=4`, trace completeness `1.0`, and no inherited `PYTHONPATH`.
+- Focused Python identity, Google account-connection, revocation migration, and
+  fresh-setup tests: passed. The expanded focused identity and migration ledger
+  passed 89 tests.
+- TypeScript build: passed.
+- TypeScript full suite: passed, 495 tests. The Go-server integration test now
+  supplies the explicit development-memory runtime settings without weakening
+  production defaults.
+- Full `tests/a1` plus `tests/a2`: passed, 1038 tests with 2 expected skips.
+- TS/Python generated parity artifact check: passed after the final refresh.
+- A2 fixture regeneration check: all 55 generated fixture files match.
+- CL hygiene: passed with zero findings.
+- CL commercial: passed with zero blockers and zero advisories.
+- `git diff --check`: passed with line-ending warnings only.
+- Bounded secret and forbidden-material scan over the intended staged set:
+  passed with zero suspicious literal matches. The scan reported locations
+  only and did not print any matched value.
+
+Peer and generated-fixture handling:
+
+- One A2 cross-lane generated fixture has an intentional route-count refresh
+  caused by the expanded A1 route surface. It is a narrow Gate compatibility
+  update and does not change A2 judge semantics.
+- Five additional A2 generated fixtures show line-ending-only working-tree
+  noise. They are peer-owned, have no reviewed semantic change, and must remain
+  unstaged.
+- Staging must remain path-explicit; bulk staging is prohibited for this
+  closeout.
+
+Honest limitations and remaining evidence gaps:
+
+1. The production HTTP write path for accounts, credentials, memberships, and
+   link or unlink operations is not fully wired to the PostgreSQL store because
+   the current handler option still expects the memory service.
+2. Hosted production OAuth is intentionally unavailable until an external
+   opaque vault and production provider adapters are injected.
+3. The revocation worker is not started, supervised, or observed as a
+   long-running process by the production entry point.
+4. Multi-instance PostgreSQL proofs for provider-subject uniqueness, concurrent
+   final-credential unlink, restart persistence, and lease recovery remain
+   pending.
+5. Session rotation families, reuse detection, revoke-one, revoke-all,
+   account recovery, recent-authentication enforcement, and human-reviewed
+   merge workflows are not complete.
+6. WeChat, QQ, Alipay, phone, and email have cross-language credential-contract
+   coverage only; no real-provider or delivery-channel calibration is claimed.
+7. PostgreSQL integration still needs a clean-volume migration proof under the
+   restricted runtime role and an end-to-end worker proof with a real external
+   opaque vault.
+8. Production session resolution still needs a narrow `SECURITY DEFINER`
+   bootstrap under forced RLS. The resolver must revalidate active principal,
+   credential, organization membership, and project membership state rather
+   than trusting only the stored session row.
+9. Outbox retry must reject expired leases, malformed tasks must dead-letter
+   before any provider or vault call, and slow provider calls need bounded
+   deadlines plus fenced lease extension.
+10. Public audit metadata still needs event-specific allowlists and value-level
+    rejection. Recursive key filtering alone cannot prove that a callback URL,
+    bearer-looking value, provider subject, email, or phone is absent when it
+    appears under a benign key.
+
+Publication boundary:
+
+- A1 business and evidence files will be committed to
+  `origin/codex/a1-local-sdk-runner` only.
+- The reviewed `a2_cross_lane_security_context.json` route-count refresh is
+  excluded from the A1 commit and must be committed separately to the A2
+  branch. The five CRLF-only A2 fixture changes remain unstaged.
+- Because PR #31 CI executes against the A1 branch checkout, an A2-only fixture
+  commit cannot green that PR until the reviewed A2 fixture commit is merged
+  or cherry-picked through the normal Gate integration path.
+
+Planned closeout commands:
+
+```powershell
+$env:PYTHONPATH = (Resolve-Path packages/sdk)
+python -m pytest tests/a1/test_identity_revocation_outbox_migration.py tests/a1/test_python_unified_identity.py tests/a1/test_python_google_account_connection.py tests/a1/test_fresh_setup_smoke.py -q -p no:cacheprovider
+Remove-Item Env:PYTHONPATH
+
+Push-Location packages/ts/ashr-clone
+npm run build
+npm test
+Pop-Location
+
+python -m pytest tests/a1 tests/a2 -q -p no:cacheprovider
+python scripts/a2_regenerate_fixtures.py --check
+python scripts/cl_guard.py hygiene
+python scripts/cl_guard.py commercial
+git diff --check
+```
+
+## Round 52 Closeout: Durable Identity Verification, TS Parity, And Rust Security
+
+Date: 2026-07-11
+
+This round hardened the A1 identity boundary across the Go runtime,
+PostgreSQL, Python SDK, TypeScript SDK, and Rust verifier. It did not modify A2
+judge semantics or A3 dashboard/report behavior.
+
+Commercially relevant capabilities delivered:
+
+1. Go now exposes a fail-closed production identity-verification runtime that
+   requires PostgreSQL transaction coordination and refuses production
+   fallback to the in-memory store.
+2. Migration `012_a1_identity_verification.sql` provides digest-only
+   challenges, receipts, delivery outbox, abuse budgets, audit events, forced
+   RLS, and narrow security-definer mutation functions.
+3. Live PostgreSQL proof covers transaction rollback, retryable proof state,
+   two independent connection competition, exactly one credential winner,
+   idempotent replay, changed-request conflict, cross-scope rejection, and
+   direct-table mutation rejection.
+4. Python and TypeScript expose the same durable verification public surface:
+   10 durable/security public types, 22 contract fields, 12 canonical routes,
+   stable errors, opaque references, and strict public-safe payload guards.
+5. TypeScript includes executable durable-store, transaction-coordinator,
+   challenge/receipt parsing, HTTP client, CLI-safe output, recovery, link,
+   unlink, and merge behavior rather than symbol-only parity.
+6. Rust now authenticates signed evidence manifests with HMAC-SHA256,
+   canonical JSON, strict schemas, constant-time comparisons, bounded validity
+   windows, tenant/project scope checks, and path-extraction hardening.
+7. A Go test helper race found under WSL was fixed with `atomic.Int64`; no
+   remaining race was found by the expanded race suite.
+
+Validation ledger:
+
+- TypeScript build and full suite: `521 passed, 0 failed`.
+- Generated TS/Python parity artifact: regenerated and `--check` passed.
+- Full A1 Python suite: `972 passed, 2 skipped`.
+- Focused verification/PostgreSQL/Python/TS/Rust contract suite:
+  `82 passed`.
+- Live PostgreSQL migration suite: `13 passed`; the independent-connection
+  race was repeated five times with five winners, five rejected competitors,
+  and zero duplicate credentials.
+- Windows Go `go test -count=1 ./...`: passed for all three packages.
+- Windows Go `go vet ./...`: passed.
+- WSL `Ubuntu-24.04-Ashr` used Go 1.22.2, GCC 13.3.0, and
+  `CGO_ENABLED=1`; full `go test -race`, shuffled ten-run race, 100-run
+  identity single-use contention, and focused rollback/runtime stress passed.
+- Rust `cargo fmt`, `cargo clippy -D warnings`, and all-target tests passed;
+  `22 passed`.
+- Fresh setup smoke: passed.
+- CL hygiene and commercial guards: passed with no findings or blockers.
+
+GCC and Rust boundary:
+
+- GCC was exercised through WSL CGO race builds and PostgreSQL reports its
+  server compiler as GCC 15.2.0.
+- The Rust verifier intentionally uses pure Rust/RustCrypto for canonical JSON
+  and HMAC. Adding a C FFI layer would not add a security property and would
+  enlarge the native-memory and supply-chain surface.
+- Windows Rust 1.96.1 is the validated Rust toolchain for this round. WSL Rust
+  is not claimed because the user-space toolchain download did not complete.
+
+Evidence:
+
+- `docs/a1/evidence/round52_identity_verification_postgres_20260710.md`
+- `docs/a1/evidence/round52_rust_identity_security_verifier_20260711.md`
+- `docs/a1/identity-verification-public-surface.json`
+- `tests/a1/docs/a1/ts_python_gap_matrix.json`
+
+Peer-change boundary:
+
+- Five `fixtures/a2/results/*.json` files contain peer-owned line-ending noise.
+  They remain unstaged and are excluded from this A1 commit.
+- No A2 or A3 business file is part of the Round 52 publication set.
+- Staging remains explicit by reviewed A1 path; bulk staging is prohibited.
+
+Honest remaining gaps:
+
+1. TypeScript matches Python's SDK, typed-client, public-contract, and local
+   durable behavior, but does not yet independently prove Go/PostgreSQL RLS or
+   multi-process production persistence.
+2. Rust verifies authenticated manifests but does not stream object-storage
+   artifact bytes; the artifact service must still compare each declared
+   length and SHA-256 while reading.
+3. Durable replay reservation remains a PostgreSQL transaction responsibility,
+   not process-local Rust state.
+4. Session rotation families, refresh-token reuse detection, revoke-one,
+   revoke-all, recovery-driven session invalidation, and long-running
+   verification delivery workers remain next-round production work.
+5. Equivalent independent-connection races for login/session creation and
+   recovery are not yet proven.
+
+Next commercial A1 mainline:
+
+- durable verification delivery worker with lease heartbeat, fencing,
+  retry/dead-letter/redrive, and opaque SMTP/SMS adapters;
+- session rotation/reuse detection and scoped revocation lifecycle;
+- Go ingestion integration for the Rust authenticated evidence verifier;
+- streaming object-storage verification and tamper-proof audit export;
+- generated OpenAPI plus Python/TypeScript clients for the production identity
+  and session lifecycle.
+
+## Round 53: Production Identity Delivery, Browser Sessions, And Streaming Evidence
+
+Date: 2026-07-11
+
+Round status at this ledger update: implementation, broad validation, A2-owned
+fixture integration and clean commit-tree validation are complete. Two
+Growth-Auditor `NO-GO` reviews found and drove closure of cross-deployment HMAC
+idempotency, publication evidence and commit-tree fixture consistency. A final
+publication re-review remains required before push.
+
+Start-of-round repository and peer calibration:
+
+- Repository: `3351666087/ashr-codex-factory`.
+- Local branch: `codex/a1-local-sdk-runner-clean`.
+- Publication ref: `origin/codex/a1-local-sdk-runner`, PR `#31`.
+- Round base: `ac960bda`; `origin/main` was `5dbf4ee2` and remained eleven
+  commits behind the A1 branch.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`,
+  `git status -sb`, `gh repo view`, and `gh pr list --state all` were run.
+- A2 peer branch `origin/dev/g3-a2-calibration` was inspected read-only. Its
+  multimodal API evidence remains A2-owned and no judge semantic was changed.
+- A3 advanced to `f33144cf` with Signal Form, bilingual dashboard, screenshot,
+  and E2E changes. Those files do not overlap the A1 runtime or contracts and
+  were not copied, staged, or modified.
+
+Round growth lanes executed in parallel:
+
+1. Durable identity verification challenge and receipt storage.
+2. Transactional verification plus session issuance.
+3. Access and refresh token classes with strict non-interchangeability.
+4. Session issue, refresh, revoke-one, revoke-all, and recovery invalidation.
+5. Refresh-family lineage and reuse detection.
+6. Browser access-cookie authentication.
+7. Same-origin browser refresh endpoint.
+8. Deterministic refresh idempotency and response-loss replay.
+9. HMAC key rotation and previous-key continuity.
+10. PostgreSQL forced-RLS security-definer bootstraps.
+11. Verification delivery outbox with lease fencing.
+12. Long-running Go identity-delivery daemon.
+13. Lease heartbeat, retry, dead-letter, and redrive behavior.
+14. mTLS external vault sealing and deletion adapters.
+15. Python delivery/session lifecycle public contracts.
+16. TypeScript executable parity and typed package subpaths.
+17. Python/TypeScript generated capability matrix.
+18. Rust authenticated streaming evidence verification.
+19. Official API read-only and bounded mutation calibration.
+20. Frontend mirror identity/session/delivery field mapping.
+
+Implemented A1 code and contract slices:
+
+- `services/api/migrations/013_a1_identity_session_lifecycle.sql` adds the
+  digest-only session lifecycle, refresh lineage, idempotency ledger,
+  reuse-family revocation, recent-auth enforcement, recovery invalidation,
+  audit events, RLS and narrowly granted functions.
+- `services/api/migrations/014_a1_identity_delivery_outbox.sql` adds atomic
+  challenge creation plus delivery enqueue, leased claims, heartbeat fencing,
+  bounded retry, dead-letter and redrive transitions.
+- `services/api/migrations/015_a1_identity_browser_session_refresh.sql` adds a
+  digest-only browser refresh bootstrap. Idempotent replay now returns the
+  result session's persisted access and refresh expiry instead of recomputing
+  public receipt expiry from retry time.
+- `packages/go/ashrclone/identity_verification*.go` and
+  `production_identity_store.go` implement production verification/session
+  transactions, access-cookie resolution, refresh-cookie rotation, stable
+  errors and fail-closed public boundaries.
+- Browser refresh requires HTTPS, an exact same-origin `Origin`, optional
+  `Sec-Fetch-Site: same-origin`, an empty body, no Authorization header, both
+  secure HttpOnly cookies, and a bounded `Idempotency-Key`.
+- A mismatched Authorization header and access cookie fail before PostgreSQL.
+  Secure-cookie authentication over plaintext transport also fails before
+  PostgreSQL.
+- Same old refresh plus the same idempotency key derives one deterministic
+  token pair. Different-key reuse returns HTTP 409, clears both cookies and
+  revokes the session family.
+- Refresh derivation is pinned to the old refresh token's configured key
+  version. The pair, idempotency digest and request digest therefore remain
+  stable after a process restart that promotes a new active key while retaining
+  the old key in `PreviousSessionKeys`. New login issuance still uses the active
+  key.
+- `packages/go/ashrclone/identity_delivery_*.go` and
+  `cmd/ashr-identity-delivery` implement the production delivery worker,
+  deadline-bounded mTLS vault client, bounded PEM reads, redacted provider
+  errors, connection cleanup and supervised worker entry point.
+- `packages/sdk/ashr_clone/delivery_protocol.py` and
+  `session_lifecycle.py` expose strict public-safe Python contracts.
+- TypeScript adds executable delivery/session lifecycle modules, capability
+  and Python-parity manifests, declaration-tested package subpaths, CLI-safe
+  output and 574-test full-package coverage.
+- Rust verifies authenticated evidence manifests and streams object bytes from
+  an already-open root. Linux uses root-FD/openat traversal hardening; Windows
+  and Linux both verify length and SHA-256, reject links/non-files/path escape,
+  and authenticate a mutation anchor before object access.
+
+Official API and product calibration:
+
+- The credential was read only from `ASHR_API_KEY`; no value was written to a
+  prompt, command, repository file, public evidence or log.
+- Five read-only official operations completed with HTTP 200 and zero quota
+  blocks.
+- One text mutation was sent with small-batch and `--max-retries 0`. Transport
+  returned HTTP 200 but the result envelope was quota-blocked. It is recorded
+  as a failed mutation, not a generation or billing success.
+- No image/audio/file/video mutation was sent after the text control failed;
+  unchanged quota evidence did not justify purposeless repeated spend.
+- Both the in-app Browser controller and Chrome controller failed during local
+  control-runtime asset initialization before navigation. No live dashboard
+  screenshot or official UI claim is made.
+- The fallback static frontend mirror contained 589 entries. Its session and
+  refresh strings are treated only as static hints, not proof of an official
+  Ashr account-session API.
+
+Evidence paths:
+
+- `docs/a1/evidence/official_api_round53_readonly_public_summary.json`
+- `docs/a1/evidence/official_api_round53_text_mutating_public_summary.json`
+- `docs/a1/evidence/round53_official_api_and_frontend_calibration_20260711.md`
+- `docs/a1/evidence/frontend_mirror_identity_session_delivery_map_20260711.json`
+- Git-ignored private records:
+  `docs/evidence/private_refs/a1_readonly_api_round53_20260711.json`,
+  `a1_round53_text_mutating_real_20260711.json`, and
+  `a1_round53_frontend_mirror_identity_session_delivery_scan_20260711.json`.
+
+Validation ledger, including the final cached/staged Gate:
+
+- Focused browser refresh Go lifecycle: passed, including active key
+  `v2 -> v3` restart while retaining `v2`, identical replacement cookies,
+  stable persisted expiry and no reuse response.
+- Windows `go test -count=1 ./...`: passed for all four packages.
+- Windows `go vet ./...`: passed.
+- WSL `Ubuntu-24.04-Ashr`, `CGO_ENABLED=1`, `CC=gcc`, full
+  `go test -race -count=1 ./...`: passed.
+- Live PostgreSQL migrations 012-015: 48 passed before the key-rotation
+  follow-up. Focused browser migration tests passed again afterward and prove
+  replay leaves one rotated plus one active, non-revoked family member.
+- Round 53 identity security integration: 6 passed after the follow-up.
+- TypeScript build plus full package suite: 574 passed, 0 failed.
+- Generated Python/TypeScript parity `--check`: passed.
+- Rust `cargo fmt --check`, `cargo clippy -D warnings`, Windows all-target tests
+  and WSL/Linux all-target tests: passed. Windows executed 31 tests and Linux
+  executed 34 tests.
+- Full `tests/a1 tests/a2`: 1225 passed with 2 expected skips.
+- Fresh setup smoke: 30/30 cases, `max_workers=4`, trace completeness `1.0`.
+- A2 fixture regeneration: all 55 generated fixtures match after the reviewed
+  cross-lane route-count refresh.
+- CL hygiene: passed with zero findings.
+- CL commercial: passed with zero blockers and zero advisories.
+- `git diff --check`: passed with line-ending warnings only.
+
+Failures found and closed during validation:
+
+1. Migration 015 initially referenced a nonexistent
+   `identity_sessions.access_expires_at` column. Live PostgreSQL caught it; the
+   persisted column is `expires_at`, while the function output alias remains
+   `access_expires_at`.
+2. The generated parity test still expected eight session routes after browser
+   refresh made nine. The assertion was updated; generated Python and TS route
+   contracts already matched.
+3. A2 cross-lane fixture check detected the intentional route-count change:
+   total `82 -> 83`, tenant-scoped `69 -> 70`, intentional differences
+   `71 -> 72`.
+4. Growth-Auditor found that deterministic refresh initially used the process's
+   active key. A restart with a new active key could turn a legitimate retry
+   into family reuse revocation. Derivation and operation digests are now pinned
+   to the incoming refresh's retained key version, with restart coverage.
+
+Growth-Auditor instructions and response:
+
+- First publication verdict: `NO-GO` until cross-key idempotency and the
+  publication evidence ledger were closed.
+- Required follow-up: pin derivation and operation-digest key versions; prove a
+  restart replay does not revoke the family; record Browser/Chrome failures;
+  explicitly stage only reviewed A1 files; run cached diff and secret gates.
+- Second publication verdict: `NO-GO` until the A2-owned fixture commit was
+  integrated into A1 and the final cached/commit-tree attestation was recorded.
+- Final publication verdict: `GO`; the third Growth-Auditor review found zero
+  blocking P0/P1 and approved the attestation commit plus explicit A1 push.
+
+Ownership and Gate boundary:
+
+- The reviewed A2 compatibility fixture changes only three counts and must land
+  through an A2-owned integration commit, not the A1 business commit.
+- Five other A2 generated fixtures are CRLF-only. `git diff
+  --ignore-space-at-eol --exit-code` returned zero for each; they remain
+  unstaged.
+- No A3 file is modified.
+- Private API and mirror evidence is ignored by `docs/evidence/.gitignore` and
+  must remain outside the staged manifest.
+- A1 staging must be path-explicit; `git add -A` is prohibited.
+
+Final staged and commit-tree attestation:
+
+- A1 implementation commit: `24f3fbc` (`76` reviewed A1 files,
+  `30,681` insertions and `338` deletions).
+- The cached manifest contained zero A2, A3 or private-evidence paths. After
+  commit, there were zero unstaged A1 paths.
+- `git diff --cached --check` passed after removing four extra EOF blank lines
+  caught only when previously untracked files entered the index.
+- The staged secret scan compared four configured process/user secret values
+  against all 76 blobs and found zero matches. High-confidence private-key,
+  provider-token and same-line bearer scans also found zero matches after an
+  explicitly labelled synthetic test bearer was excluded.
+- A2 owner branch commit `97141b4b` changes only the reviewed cross-lane counts
+  `82 -> 83`, `69 -> 70`, and `71 -> 72`; it was pushed to
+  `origin/dev/g3-a2-calibration` under the configured user identity.
+- A1 integration commit `51a1d70` preserves the A2 author/message and records
+  provenance from `97141b4b`. The integrated fixture blob hash exactly equals
+  the A2 commit's blob hash `c51e15e184b15971193eb894829fcd92f9c0836d`.
+- A clean detached worktree at `51a1d70` had no working-tree changes. In that
+  actual commit tree, `tests/a1 tests/a2` passed `1225` tests with `2` expected
+  skips; all `55` A2 fixtures matched; Python/TS parity passed; CL hygiene had
+  zero findings; CL commercial had zero blockers and zero advisories; and
+  `git diff --check` passed.
+- The five peer-owned A2 CRLF-only files remain outside both A1 commits.
+
+Post-publication CI follow-up:
+
+- PR `#31` CL Gate run `29153584161` passed plan/hygiene, Go, TypeScript and
+  Rust jobs. Its Linux Python job failed one Round 53 integration test while
+  the same test passed on Windows.
+- Root cause: the test copied all of `node_modules` into a clean temporary
+  package. On Linux, `node_modules/.bin/tsc` is a relative symlink; default
+  `shutil.copytree` dereferenced it into a regular script under `.bin`, so its
+  `../lib/tsc.js` import resolved from the wrong directory. Windows npm shims
+  did not expose this defect.
+- Removing all temporary dependencies was insufficient because TypeScript then
+  could not resolve local `@types/node`. The final fix copies `node_modules`
+  while explicitly excluding `.bin`, and executes the compiler from the source
+  package's real `.bin` directory.
+- Post-fix validation: Windows focused clean-build test passed; all six Round 53
+  integration tests passed; TypeScript passed `574/574`; parity passed; and an
+  offline Linux Node 22 container reconstructed a real Linux compiler symlink,
+  compiled the temporary package with local type declarations, and proved
+  prebuild removed the stale-dist sentinel.
+- A bounded Docker registry retry failed twice with `ECONNRESET`; the offline
+  reproduction used already installed public TypeScript package contents and
+  made no credentialed network call.
+
+Next commercial A1 growth points from the first audit:
+
+1. Enforce safe retirement windows for previous session keys.
+2. Define and enforce idempotency replay retention.
+3. Stabilize cookie expiry under shortened configured caps.
+4. Add custom access/refresh Max-Age replay tests.
+5. Centralize secure-cookie validation across every resolver.
+6. Add bounded refresh query and lock timeouts.
+7. Prove concurrent identical refresh retries across processes.
+8. Prove concurrent different-key reuse fencing.
+9. Inject response loss immediately after SQL commit.
+10. Add logout and revoke-all cookie-clearing routes.
+11. Add refresh-family and reuse metrics.
+12. Add public-safe key-version audit fields.
+13. Add migration 012-015 clean-volume and rollback runbooks.
+14. Exercise PostgreSQL failover during refresh rotation.
+15. Add mTLS certificate hot reload and expiry alerts.
+16. Reconcile orphaned vault seals.
+17. Exercise multi-instance delivery lease loss.
+18. Integrate Rust streaming verification into Go ingestion.
+19. Generate browser-session OpenAPI security documentation.
+20. Run Python and TS clients against live Go/PostgreSQL contracts.
+21. Restore browser-control assets and run a real cookie lifecycle.
+22. Require changed quota evidence before another controlled mutation.
+23. Produce SBOM and provenance artifacts.
+24. Bind validation attestation to the published commit.

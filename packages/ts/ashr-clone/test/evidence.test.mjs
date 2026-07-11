@@ -7,10 +7,14 @@ import { test } from "node:test";
 import {
   ASHR_API_FIELD_MAP_VERSION,
   buildPrivateEvidenceIndex,
+  buildPrivateEvidenceIndexFromDir,
   buildResponseFieldMap,
   EVIDENCE_INDEX_SCHEMA_VERSION,
+  mergeEvidenceIndices,
+  renderResponseFieldMapMarkdown,
   validatePublicEvidenceIndex,
   writePrivateEvidenceIndex,
+  writeResponseFieldMapMarkdown,
 } from "../dist/index.js";
 
 test("buildPrivateEvidenceIndex summarizes safe private API records", async () => {
@@ -146,6 +150,33 @@ test("writePrivateEvidenceIndex creates parents and redacts output", async () =>
     assert.equal(payload.endsWith("\n"), true);
     assert.equal(payload.includes("tp_syntheticsecret"), false);
     assert.equal(JSON.parse(payload).token, "[redacted]");
+  } finally {
+    rmSync(temp, { recursive: true, force: true });
+  }
+});
+
+test("TS directory indexing, incremental merge, and Markdown field maps match Python workflows", async () => {
+  const temp = mkdtempSync(join(tmpdir(), "ashr-ts-evidence-parity-"));
+  try {
+    writeFileSync(join(temp, "first.json"), JSON.stringify({ function: "list_runs", status: "ok", dry_run: false, response: { runs: [] } }), "utf8");
+    writeFileSync(join(temp, "second.json"), JSON.stringify({ function: "create_request", status: "planned", dry_run: true, response: { status: "planned" } }), "utf8");
+    writeFileSync(join(temp, "ignored.txt"), "not json", "utf8");
+
+    const initial = await buildPrivateEvidenceIndexFromDir(temp, { label: "directory", maxFiles: 1 });
+    const fresh = await buildPrivateEvidenceIndex([join(temp, "second.json")], { label: "fresh" });
+    const merged = mergeEvidenceIndices(initial, fresh, "merged");
+    const fieldMap = buildResponseFieldMap(merged);
+    const markdown = renderResponseFieldMapMarkdown(fieldMap);
+    const output = join(temp, "nested", "field-map.md");
+
+    assert.equal(initial.total_records, 1);
+    assert.equal(merged.total_records, 2);
+    assert.deepEqual(merged.records.map((record) => record.function), ["list_runs", "create_request"]);
+    assert.match(markdown, /# Ashr Real API Response Field Map/u);
+    assert.match(markdown, /create_request/u);
+    assert.equal(await writeResponseFieldMapMarkdown(output, fieldMap), output);
+    assert.equal(readFileSync(output, "utf8"), markdown);
+    assert.equal(JSON.stringify(merged).includes("private_refs"), false);
   } finally {
     rmSync(temp, { recursive: true, force: true });
   }

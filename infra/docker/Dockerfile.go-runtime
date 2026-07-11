@@ -8,10 +8,11 @@ WORKDIR /app/packages/go/ashrclone
 COPY . /app
 
 RUN go test ./... && go build -o /usr/local/bin/ashr-api ./cmd/ashr-api && go build -o /usr/local/bin/ashr-worker ./cmd/ashr-worker
+RUN go build -o /usr/local/bin/ashr-healthcheck /app/services/runner/a1_docker_healthcheck.go
 
 EXPOSE 8787
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD test -x /usr/local/bin/ashr-api && test -x /usr/local/bin/ashr-worker
+  CMD /usr/local/bin/ashr-healthcheck http://127.0.0.1:8787/healthz postgres_repository_v0
 
 CMD ["/usr/local/bin/ashr-api"]

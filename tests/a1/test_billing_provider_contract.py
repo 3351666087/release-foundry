@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import hmac
 import json
 
 import pytest
@@ -195,8 +197,8 @@ def test_provider_rails_require_reference_prefixes_for_secret_and_account_refs()
         BillingProviderConfig(provider="wechat_pay", mode="test", secret_ref="vault:wechat/test/mch_private_key", account_ref="mch:demo").normalized()
 
 
-def test_billing_webhook_envelope_verification_is_hash_only():
-    verified = verify_billing_webhook_envelope(
+def test_billing_webhook_envelope_rejects_hash_and_header_only_verification():
+    unverified = verify_billing_webhook_envelope(
         provider="stripe",
         mode="test",
         event_type="checkout.session.completed",
@@ -208,10 +210,11 @@ def test_billing_webhook_envelope_verification_is_hash_only():
         signature_header_names=["Stripe-Signature"],
         webhook_secret_ref="env:STRIPE_WEBHOOK_REF_TEST",
     )
-    assert verified["verified"] is True
-    assert verified["signature_header_shape"]["expected_headers"] == ["stripe-signature"]
-    assert verified["raw_payload_included"] is False
-    assert verified["secret_value_present"] is False
+    assert unverified["verified"] is False
+    assert {item["reason"] for item in unverified["failures"]} == {"provider_specific_verification_required"}
+    assert unverified["signature_header_shape"]["expected_headers"] == ["stripe-signature"]
+    assert unverified["raw_payload_included"] is False
+    assert unverified["secret_value_present"] is False
 
     failed = verify_billing_webhook_envelope(
         provider="stripe",
@@ -225,7 +228,77 @@ def test_billing_webhook_envelope_verification_is_hash_only():
         livemode=True,
     )
     assert failed["verified"] is False
-    assert {item["reason"] for item in failed["failures"]} == {"missing_signature_header", "missing_live_webhook_secret_ref"}
+    assert {item["reason"] for item in failed["failures"]} == {
+        "missing_signature_header",
+        "missing_live_webhook_secret_ref",
+        "provider_specific_verification_required",
+    }
+
+
+def test_stripe_webhook_contract_verifies_raw_body_signature_without_persisting_secret_or_body():
+    raw_body = b'{"id":"evt_raw_123","type":"invoice.paid","livemode":false}'
+    signing_material = "local_fixture_signing_material"
+    timestamp = 1780000000
+    signature = hmac.new(signing_material.encode("utf-8"), f"{timestamp}.".encode("utf-8") + raw_body, hashlib.sha256).hexdigest()
+    header = f"t={timestamp},v1={signature}"
+
+    verified = verify_billing_webhook_envelope(
+        provider="stripe",
+        mode="test",
+        event_type="invoice.paid",
+        event_id="evt_raw_123",
+        tenant_id="tenant_bill",
+        project_id="project_bill",
+        payload_sha256="0" * 64,
+        raw_body=raw_body,
+        signature_header_present=True,
+        signature_header_names=["Stripe-Signature"],
+        stripe_signature_header=header,
+        webhook_secret_ref="env:STRIPE_WEBHOOK_REF_TEST",
+        webhook_secret_resolver=lambda ref: signing_material,
+        received_at_unix=timestamp,
+        livemode=False,
+    )
+    text = json.dumps(verified, sort_keys=True)
+
+    assert verified["verified"] is True
+    assert verified["payload_sha256"] == hashlib.sha256(raw_body).hexdigest()
+    assert verified["raw_body_signature_verification"] == {
+        "required": True,
+        "verified": True,
+        "verifier": "stripe_raw_body_hmac_sha256",
+        "attestation_schema_version": "ashr.clone.payment_verification_attestation.v1",
+        "timestamp": timestamp,
+        "v1_signature_count": 1,
+        "failure_reasons": [],
+        "raw_body_included": False,
+        "raw_header_value_included": False,
+        "secret_value_present": False,
+    }
+    assert raw_body.decode("utf-8") not in text
+    assert signing_material not in text
+    assert signature not in text
+
+    replay_or_tamper = verify_billing_webhook_envelope(
+        provider="stripe",
+        mode="test",
+        event_type="invoice.paid",
+        event_id="evt_raw_123",
+        tenant_id="tenant_bill",
+        project_id="project_bill",
+        payload_sha256="0" * 64,
+        raw_body=raw_body + b" ",
+        signature_header_present=True,
+        signature_header_names=["Stripe-Signature"],
+        stripe_signature_header=header,
+        webhook_secret_ref="env:STRIPE_WEBHOOK_REF_TEST",
+        webhook_secret_resolver=lambda ref: signing_material,
+        received_at_unix=timestamp + 301,
+        livemode=False,
+    )
+
+    assert replay_or_tamper["verified"] is False
+    assert {item["reason"] for item in replay_or_tamper["failures"]} == {"invalid_stripe_signature", "stripe_signature_timestamp_outside_tolerance"}
 
 
 @pytest.mark.parametrize(
@@ -236,8 +309,8 @@ def test_billing_webhook_envelope_verification_is_hash_only():
         ("alipay", "alipay.trade.success", "vault:alipay/test/public_key", ["sign", "sign_type", "app_id", "trade_no"]),
     ],
 )
-def test_all_provider_webhook_envelopes_validate_signature_header_shape(provider, event_type, webhook_secret_ref, headers):
-    verified = verify_billing_webhook_envelope(
+def test_all_provider_webhook_envelopes_require_cryptographic_verification_beyond_header_shape(provider, event_type, webhook_secret_ref, headers):
+    unverified = verify_billing_webhook_envelope(
         provider=provider,
         mode="test",
         event_type=event_type,
@@ -251,11 +324,12 @@ def test_all_provider_webhook_envelopes_validate_signature_header_shape(provider
         livemode=False,
     )
 
-    assert verified["verified"] is True
-    assert verified["signature_header_shape"]["valid"] is True
-    assert verified["signature_header_shape"]["raw_header_values_included"] is False
-    assert verified["raw_payload_included"] is False
-    assert verified["secret_value_present"] is False
+    assert unverified["verified"] is False
+    assert {item["reason"] for item in unverified["failures"]} == {"provider_specific_verification_required"}
+    assert unverified["signature_header_shape"]["valid"] is True
+    assert unverified["signature_header_shape"]["raw_header_values_included"] is False
+    assert unverified["raw_payload_included"] is False
+    assert unverified["secret_value_present"] is False
 
 
 def test_provider_webhook_envelopes_reject_missing_refs_bad_headers_and_mode_crossing():
@@ -288,7 +362,10 @@ def test_provider_webhook_envelopes_reject_missing_refs_bad_headers_and_mode_cro
         livemode=False,
     )
     assert missing_ref["verified"] is False
-    assert {failure["reason"] for failure in missing_ref["failures"]} == {"missing_webhook_secret_ref"}
+    assert {failure["reason"] for failure in missing_ref["failures"]} == {
+        "missing_webhook_secret_ref",
+        "provider_specific_verification_required",
+    }
 
     mode_crossing = verify_billing_webhook_envelope(
         provider="stripe",
@@ -304,7 +381,10 @@ def test_provider_webhook_envelopes_reject_missing_refs_bad_headers_and_mode_cro
         livemode=False,
     )
     assert mode_crossing["verified"] is False
-    assert {failure["reason"] for failure in mode_crossing["failures"]} == {"test_event_received_in_live_mode"}
+    assert {failure["reason"] for failure in mode_crossing["failures"]} == {
+        "test_event_received_in_live_mode",
+        "provider_specific_verification_required",
+    }
 
 
 def test_billing_provider_manifest_names_commercial_payment_rails():
@@ -329,6 +409,10 @@ def test_billing_ledger_appends_provider_events_idempotently_and_detects_conflic
         customer_ref="cus_test_123",
         account_ref="acct_test_ref",
     )
+    raw_body = b'{"id":"evt_invoice_paid_1","type":"invoice.paid","livemode":false}'
+    signing_material = "local_fixture_billing_ledger_material"
+    timestamp = 1780000000
+    signature = hmac.new(signing_material.encode("utf-8"), f"{timestamp}.".encode("utf-8") + raw_body, hashlib.sha256).hexdigest()
     envelope = verify_billing_webhook_envelope(
         provider="stripe",
         mode="test",
@@ -337,8 +421,14 @@ def test_billing_ledger_appends_provider_events_idempotently_and_detects_conflic
         tenant_id="tenant_bill",
         project_id="project_bill",
         payload_sha256="c" * 64,
+        raw_body=raw_body,
         signature_header_present=True,
+        signature_header_names=["stripe-signature"],
+        stripe_signature_header=f"t={timestamp},v1={signature}",
         webhook_secret_ref="env:STRIPE_WEBHOOK_REF_TEST",
+        webhook_secret_resolver=lambda ref: signing_material,
+        received_at_unix=timestamp,
+        livemode=False,
     )
 
     accepted = ledger.ingest_provider_webhook(
@@ -374,7 +464,7 @@ def test_billing_ledger_appends_provider_events_idempotently_and_detects_conflic
     assert public["ledger_event_count"] == 1
     assert public["provider_event_count"] == 1
     assert public["totals_by_currency_minor"] == {"usd": 9900}
-    assert public["provider_events"][0]["payload_sha256"] == "c" * 64
+    assert public["provider_events"][0]["payload_sha256"] == hashlib.sha256(raw_body).hexdigest()
     assert public["provider_events"][0]["raw_payload_included"] is False
     assert "provider_config" not in json.dumps(public, sort_keys=True)
     evidence = billing_evidence_snapshot(ledger=ledger, tenant_id="tenant_bill", project_id="project_bill")
@@ -438,6 +528,10 @@ def test_billing_ledger_rejects_unverified_webhooks_and_sensitive_metadata():
     with pytest.raises(BillingContractError, match="unverified"):
         ledger.ingest_provider_webhook(envelope=failed, customer_ref="cus_live")
 
+    raw_body = b'{"id":"evt_secret_bad","type":"invoice.paid","livemode":false}'
+    signing_material = "local_fixture_sensitive_metadata_material"
+    timestamp = 1780000000
+    signature = hmac.new(signing_material.encode("utf-8"), f"{timestamp}.".encode("utf-8") + raw_body, hashlib.sha256).hexdigest()
     verified = verify_billing_webhook_envelope(
         provider="stripe",
         mode="test",
@@ -446,8 +540,14 @@ def test_billing_ledger_rejects_unverified_webhooks_and_sensitive_metadata():
         tenant_id="tenant_secret",
         project_id="project_secret",
         payload_sha256="f" * 64,
+        raw_body=raw_body,
         signature_header_present=True,
+        signature_header_names=["stripe-signature"],
+        stripe_signature_header=f"t={timestamp},v1={signature}",
         webhook_secret_ref="env:STRIPE_WEBHOOK_REF_TEST",
+        webhook_secret_resolver=lambda ref: signing_material,
+        received_at_unix=timestamp,
+        livemode=False,
     )
     with pytest.raises(BillingContractError, match="sensitive billing"):
         ledger.ingest_provider_webhook(envelope=verified, customer_ref="cus_secret", metadata={"client_secret": "sk_test_badbadbadbad"})

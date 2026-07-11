@@ -1,0 +1,17 @@
+#!/bin/sh
+set -eu
+
+: "${ASHR_WORKER_HEARTBEAT_PATH:?ASHR_WORKER_HEARTBEAT_PATH is required}"
+: "${ASHR_WORKER_READINESS_PATH:?ASHR_WORKER_READINESS_PATH is required}"
+: "${ASHR_WORKER_LANE:?ASHR_WORKER_LANE is required}"
+: "${ASHR_WORKER_QUEUE:?ASHR_WORKER_QUEUE is required}"
+: "${ASHR_PAYMENT_WORKER_PROVIDER_FAMILY:?ASHR_PAYMENT_WORKER_PROVIDER_FAMILY is required}"
+
+test -s "$ASHR_WORKER_READINESS_PATH"
+test -s "$ASHR_WORKER_HEARTBEAT_PATH"
+find "$ASHR_WORKER_HEARTBEAT_PATH" -mmin -2 -type f | grep -q .
+grep -Eq '"status":"(ready|disabled)"' "$ASHR_WORKER_READINESS_PATH"
+grep -q "\"lane\":\"$ASHR_WORKER_LANE\"" "$ASHR_WORKER_READINESS_PATH"
+grep -q "\"provider_family\":\"$ASHR_PAYMENT_WORKER_PROVIDER_FAMILY\"" "$ASHR_WORKER_READINESS_PATH"
+grep -q "\"queue\":\"$ASHR_WORKER_QUEUE\"" "$ASHR_WORKER_READINESS_PATH"
+grep -q '"provider_network_enabled":false' "$ASHR_WORKER_READINESS_PATH"

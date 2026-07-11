@@ -3,7 +3,7 @@ name: ashr-a1-self-host
 x-ashr-runtime-env: &ashr-runtime-env
   ASHR_RUNTIME_ENV: self-host
   ASHR_SECRET_PROVIDER: env-ref
-  ASHR_CONTROL_PLANE_BASE_URL: http://api:8080
+  ASHR_CONTROL_PLANE_BASE_URL: http://api:8787
   ASHR_DATABASE_URL_REF: env:ASHR_DATABASE_URL
   ASHR_DATABASE_URL: postgresql://ashr:${ASHR_POSTGRES_AUTH_SECRET}@postgres:5432/ashr?sslmode=disable
   ASHR_POSTGRES_DSN_REF: env:ASHR_DATABASE_URL
@@ -21,53 +21,61 @@ x-ashr-runtime-env: &ashr-runtime-env
   ASHR_WORKER_JOBS_TABLE: ashr_worker_jobs
   ASHR_BILLING_PROVIDER_SECRET_REF: env:ASHR_BILLING_PROVIDER_SECRET
   ASHR_BILLING_WEBHOOK_SECRET_REF: env:ASHR_BILLING_WEBHOOK_SECRET
+  ASHR_WECHAT_PAY_MERCHANT_ID_REF: env:ASHR_WECHAT_PAY_MERCHANT_ID
+  ASHR_WECHAT_PAY_API_V3_KEY_REF: env:ASHR_WECHAT_PAY_API_V3_KEY
+  ASHR_WECHAT_PAY_MERCHANT_PRIVATE_KEY_REF: env:ASHR_WECHAT_PAY_MERCHANT_PRIVATE_KEY
+  ASHR_WECHAT_PAY_PLATFORM_CERT_REF: env:ASHR_WECHAT_PAY_PLATFORM_CERT
+  ASHR_ALIPAY_APP_ID_REF: env:ASHR_ALIPAY_APP_ID
+  ASHR_ALIPAY_APP_PRIVATE_KEY_REF: env:ASHR_ALIPAY_APP_PRIVATE_KEY
+  ASHR_ALIPAY_PUBLIC_KEY_REF: env:ASHR_ALIPAY_PUBLIC_KEY
+  ASHR_CHINA_ACQUIRER_MERCHANT_ID_REF: env:ASHR_CHINA_ACQUIRER_MERCHANT_ID
+  ASHR_CHINA_ACQUIRER_HOSTED_ORIGIN_REF: env:ASHR_CHINA_ACQUIRER_HOSTED_ORIGIN
+  ASHR_CHINA_ACQUIRER_SESSION_TOKEN_REF: env:ASHR_CHINA_ACQUIRER_SESSION_TOKEN
+  ASHR_CHINA_ACQUIRER_SIGNING_KEY_REF: env:ASHR_CHINA_ACQUIRER_SIGNING_KEY
+  ASHR_CHINA_ACQUIRER_MODE: hosted-token-reference-only
+  ASHR_CHINA_PAYMENT_PROVIDER_NETWORK_ENABLED: "false"
+  ASHR_STRIPE_ENABLED: "false"
+  ASHR_STRIPE_ACCOUNT_ID_REF: env:ASHR_STRIPE_ACCOUNT_ID
+  ASHR_STRIPE_SECRET_KEY_REF: env:ASHR_STRIPE_SECRET_KEY
+  ASHR_STRIPE_WEBHOOK_SECRET_REF: env:ASHR_STRIPE_WEBHOOK_SECRET
+  ASHR_STRIPE_CHECKOUT_MODE: hosted-checkout-reference-only
+  ASHR_PAYMENT_EVIDENCE_HASH_PREFIX: evidence/a1/self-host/china-payments/sha256
 
 services:
   api:
     build:
       context: ../..
-      dockerfile: infra/docker/Dockerfile.python-runtime
-    image: ashr/a1-python-runtime:local
-    profiles: ["api", "commercial"]
+      dockerfile: infra/docker/Dockerfile.go-runtime
+    image: ashr/a1-go-runtime:local
+    profiles: ["api", "commercial", "commercial-smoke", "china-payments", "stripe-payments"]
     environment:
       <<: *ashr-runtime-env
-      ASHR_API_HOST: 0.0.0.0
-      ASHR_API_PORT: "8080"
-    command:
-      - python
-      - -c
-      - >-
-        from services.api.control_plane import serve_control_plane_http;
-        server = serve_control_plane_http('0.0.0.0', 8080);
-        server.serve_forever()
+      ASHR_GO_BACKEND: postgres
+      ASHR_POSTGRES_DSN: postgresql://ashr:${ASHR_POSTGRES_AUTH_SECRET}@postgres:5432/ashr?sslmode=disable
+      ASHR_GO_API_ADDR: 0.0.0.0:8787
+    command: ["/usr/local/bin/ashr-api"]
     ports:
-      - "8080:8080"
+      - "127.0.0.1:18787:8787"
     depends_on:
-      postgres:
-        condition: service_healthy
+      postgres-migrate:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
-      minio:
-        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
     healthcheck:
-      test:
-        - CMD
-        - python
-        - -c
-        - >-
-          from services.api.control_plane import SaaSControlPlaneService;
-          assert SaaSControlPlaneService().health()['status'] == 'ok'
-      interval: 30s
+      test: ["CMD", "/usr/local/bin/ashr-healthcheck", "http://127.0.0.1:8787/healthz", "postgres_repository_v0"]
+      interval: 10s
       timeout: 5s
-      retries: 3
-      start_period: 10s
+      retries: 12
+      start_period: 20s
 
   worker:
     image: ashr/a1-go-runtime:local
     build:
       context: ../..
       dockerfile: infra/docker/Dockerfile.go-runtime
-    profiles: ["worker", "daemon", "commercial"]
+    profiles: ["worker", "daemon", "commercial", "commercial-smoke"]
     environment:
       <<: *ashr-runtime-env
       ASHR_WORKER_MODE: daemon
@@ -88,28 +96,20 @@ services:
       ASHR_WORKER_MAX_ATTEMPTS: "3"
       ASHR_WORKER_EVIDENCE_WRITES: object-store
       ASHR_WORKER_SUMMARY_OUTPUT: /runtime/worker/summary.json
-    command:
-      - sh
-      - -c
-      - >-
-        while true; do
-          date -u +%Y-%m-%dT%H:%M:%SZ > /runtime/worker/heartbeat;
-          /usr/local/bin/ashr-worker | tee /runtime/worker/summary.json;
-          date -u +%Y-%m-%dT%H:%M:%SZ > /runtime/worker/heartbeat;
-          sleep 5;
-        done
+      ASHR_WORKER_RESTART_DELAY_SECONDS: "5"
+    command: ["/bin/sh", "/app/services/runner/commercial-worker-entrypoint.sh", "/usr/local/bin/ashr-worker"]
     volumes:
       - ashr-runtime-state:/runtime/state
       - ashr-worker-health:/runtime/worker
     depends_on:
       api:
         condition: service_healthy
-      postgres:
-        condition: service_healthy
+      worker-recovery-seed:
+        condition: service_completed_successfully
       redis:
         condition: service_healthy
-      minio:
-        condition: service_healthy
+      minio-smoke:
+        condition: service_completed_successfully
     healthcheck:
       test:
         - CMD-SHELL
@@ -118,6 +118,224 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
+
+  china-payment-webhook-worker:
+    image: ashr/a1-go-runtime:local
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.go-runtime
+    profiles: ["china-payments"]
+    environment:
+      <<: *ashr-runtime-env
+      ASHR_GO_BACKEND: postgres
+      ASHR_POSTGRES_DSN: postgresql://ashr:${ASHR_POSTGRES_AUTH_SECRET}@postgres:5432/ashr?sslmode=disable
+      ASHR_WORKER_MODE: daemon
+      ASHR_WORKER_DAEMON: "true"
+      ASHR_WORKER_QUEUE: china_payment_webhook_ingestion
+      ASHR_WORKER_JOB_TYPE: china_payment_webhook_ingestion
+      ASHR_WORKER_LANE: payment-webhook
+      ASHR_PAYMENT_WORKER_PROVIDER_FAMILY: china-wallets
+      ASHR_WORKER_TENANT_ID: tenant_self_host
+      ASHR_WORKER_PROJECT_ID: project_self_host
+      ASHR_WORKER_LEASE_OWNER_ID: china_payment_webhook_worker
+      ASHR_WORKER_LEASE_SECONDS: "120"
+      ASHR_WORKER_HEARTBEAT_INTERVAL: "20s"
+      ASHR_WORKER_MAX_JOBS: "50"
+      ASHR_WORKER_MAX_IDLE_LEASES: "3"
+      ASHR_WORKER_MAX_ATTEMPTS: "5"
+      ASHR_WORKER_RETRY_DELAYS_SECONDS: 5,30,120,600
+      ASHR_WORKER_DEAD_LETTER_QUEUE: china_payment_webhook_dead_letter
+      ASHR_WORKER_EVIDENCE_WRITES: object-store-hash-only
+      ASHR_WORKER_HEARTBEAT_PATH: /runtime/payment-webhook/heartbeat
+      ASHR_WORKER_READINESS_PATH: /runtime/payment-webhook/ready.json
+      ASHR_WORKER_SUMMARY_OUTPUT: /runtime/payment-webhook/summary.json
+      ASHR_WORKER_RESTART_DELAY_SECONDS: "5"
+    command: ["/bin/sh", "/app/services/runner/china-payment-worker-entrypoint.sh", "/usr/local/bin/ashr-worker"]
+    volumes:
+      - ashr-payment-webhook-health:/runtime/payment-webhook
+    depends_on:
+      api:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "/bin/sh", "/app/services/runner/china-payment-worker-healthcheck.sh"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  china-payment-reconciliation-worker:
+    image: ashr/a1-go-runtime:local
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.go-runtime
+    profiles: ["china-payments"]
+    environment:
+      <<: *ashr-runtime-env
+      ASHR_GO_BACKEND: postgres
+      ASHR_POSTGRES_DSN: postgresql://ashr:${ASHR_POSTGRES_AUTH_SECRET}@postgres:5432/ashr?sslmode=disable
+      ASHR_WORKER_MODE: daemon
+      ASHR_WORKER_DAEMON: "true"
+      ASHR_WORKER_QUEUE: china_payment_bill_reconciliation
+      ASHR_WORKER_JOB_TYPE: china_payment_bill_reconciliation
+      ASHR_WORKER_LANE: payment-reconciliation
+      ASHR_PAYMENT_WORKER_PROVIDER_FAMILY: china-wallets
+      ASHR_WORKER_TENANT_ID: tenant_self_host
+      ASHR_WORKER_PROJECT_ID: project_self_host
+      ASHR_WORKER_LEASE_OWNER_ID: china_payment_reconciliation_worker
+      ASHR_WORKER_LEASE_SECONDS: "900"
+      ASHR_WORKER_HEARTBEAT_INTERVAL: "30s"
+      ASHR_WORKER_MAX_JOBS: "10"
+      ASHR_WORKER_MAX_IDLE_LEASES: "3"
+      ASHR_WORKER_MAX_ATTEMPTS: "4"
+      ASHR_WORKER_RETRY_DELAYS_SECONDS: 300,1800,7200
+      ASHR_WORKER_DEAD_LETTER_QUEUE: china_payment_reconciliation_dead_letter
+      ASHR_WORKER_EVIDENCE_WRITES: object-store-hash-only
+      ASHR_WORKER_HEARTBEAT_PATH: /runtime/payment-reconciliation/heartbeat
+      ASHR_WORKER_READINESS_PATH: /runtime/payment-reconciliation/ready.json
+      ASHR_WORKER_SUMMARY_OUTPUT: /runtime/payment-reconciliation/summary.json
+      ASHR_WORKER_RESTART_DELAY_SECONDS: "30"
+    command: ["/bin/sh", "/app/services/runner/china-payment-worker-entrypoint.sh", "/usr/local/bin/ashr-worker"]
+    volumes:
+      - ashr-payment-reconciliation-health:/runtime/payment-reconciliation
+    depends_on:
+      api:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "/bin/sh", "/app/services/runner/china-payment-worker-healthcheck.sh"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  china-bank-acquirer-worker:
+    image: ashr/a1-go-runtime:local
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.go-runtime
+    profiles: ["china-payments"]
+    environment:
+      <<: *ashr-runtime-env
+      ASHR_GO_BACKEND: postgres
+      ASHR_POSTGRES_DSN: postgresql://ashr:${ASHR_POSTGRES_AUTH_SECRET}@postgres:5432/ashr?sslmode=disable
+      ASHR_WORKER_MODE: daemon
+      ASHR_WORKER_DAEMON: "true"
+      ASHR_WORKER_QUEUE: china_bank_acquirer_events
+      ASHR_WORKER_JOB_TYPE: china_bank_acquirer_events
+      ASHR_WORKER_LANE: china-bank-acquirer
+      ASHR_PAYMENT_WORKER_PROVIDER_FAMILY: china-bank-acquirer
+      ASHR_WORKER_TENANT_ID: tenant_self_host
+      ASHR_WORKER_PROJECT_ID: project_self_host
+      ASHR_WORKER_LEASE_OWNER_ID: china_bank_acquirer_worker
+      ASHR_WORKER_LEASE_SECONDS: "180"
+      ASHR_WORKER_HEARTBEAT_INTERVAL: "20s"
+      ASHR_WORKER_MAX_JOBS: "50"
+      ASHR_WORKER_MAX_IDLE_LEASES: "3"
+      ASHR_WORKER_MAX_ATTEMPTS: "5"
+      ASHR_WORKER_RETRY_DELAYS_SECONDS: 10,60,300,1800
+      ASHR_WORKER_DEAD_LETTER_QUEUE: china_bank_acquirer_dead_letter
+      ASHR_WORKER_EVIDENCE_WRITES: object-store-hash-only
+      ASHR_WORKER_HEARTBEAT_PATH: /runtime/china-bank-acquirer/heartbeat
+      ASHR_WORKER_READINESS_PATH: /runtime/china-bank-acquirer/ready.json
+      ASHR_WORKER_SUMMARY_OUTPUT: /runtime/china-bank-acquirer/summary.json
+      ASHR_WORKER_RESTART_DELAY_SECONDS: "10"
+    command: ["/bin/sh", "/app/services/runner/china-payment-worker-entrypoint.sh", "/usr/local/bin/ashr-worker"]
+    volumes:
+      - ashr-china-bank-acquirer-health:/runtime/china-bank-acquirer
+    depends_on:
+      api:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "/bin/sh", "/app/services/runner/china-payment-worker-healthcheck.sh"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  stripe-payment-worker:
+    image: ashr/a1-go-runtime:local
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.go-runtime
+    profiles: ["stripe-payments"]
+    environment:
+      <<: *ashr-runtime-env
+      ASHR_GO_BACKEND: postgres
+      ASHR_POSTGRES_DSN: postgresql://ashr:${ASHR_POSTGRES_AUTH_SECRET}@postgres:5432/ashr?sslmode=disable
+      ASHR_WORKER_MODE: daemon
+      ASHR_WORKER_DAEMON: "true"
+      ASHR_WORKER_QUEUE: stripe_payment_events
+      ASHR_WORKER_JOB_TYPE: stripe_payment_events
+      ASHR_WORKER_LANE: stripe-payment
+      ASHR_PAYMENT_WORKER_PROVIDER_FAMILY: stripe
+      ASHR_WORKER_TENANT_ID: tenant_self_host
+      ASHR_WORKER_PROJECT_ID: project_self_host
+      ASHR_WORKER_LEASE_OWNER_ID: stripe_payment_worker
+      ASHR_WORKER_LEASE_SECONDS: "180"
+      ASHR_WORKER_HEARTBEAT_INTERVAL: "20s"
+      ASHR_WORKER_MAX_JOBS: "50"
+      ASHR_WORKER_MAX_IDLE_LEASES: "3"
+      ASHR_WORKER_MAX_ATTEMPTS: "5"
+      ASHR_WORKER_RETRY_DELAYS_SECONDS: 10,60,300,1800
+      ASHR_WORKER_DEAD_LETTER_QUEUE: stripe_payment_dead_letter
+      ASHR_WORKER_EVIDENCE_WRITES: object-store-hash-only
+      ASHR_WORKER_HEARTBEAT_PATH: /runtime/stripe-payment/heartbeat
+      ASHR_WORKER_READINESS_PATH: /runtime/stripe-payment/ready.json
+      ASHR_WORKER_SUMMARY_OUTPUT: /runtime/stripe-payment/summary.json
+      ASHR_WORKER_RESTART_DELAY_SECONDS: "10"
+    command: ["/bin/sh", "/app/services/runner/china-payment-worker-entrypoint.sh", "/usr/local/bin/ashr-worker"]
+    volumes:
+      - ashr-stripe-payment-health:/runtime/stripe-payment
+    depends_on:
+      api:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "/bin/sh", "/app/services/runner/china-payment-worker-healthcheck.sh"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  china-payment-reconciliation-scheduler:
+    image: postgres:16-alpine
+    profiles: ["china-payments"]
+    environment:
+      ASHR_POSTGRES_HOST: postgres
+      ASHR_POSTGRES_DB: ashr
+      ASHR_POSTGRES_USER: ashr
+      ASHR_POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      ASHR_PAYMENT_RECONCILIATION_TENANT_ID: tenant_self_host
+      ASHR_PAYMENT_RECONCILIATION_PROJECT_ID: project_self_host
+      ASHR_PAYMENT_RECONCILIATION_JOB_TYPE: china_payment_bill_reconciliation
+      ASHR_PAYMENT_RECONCILIATION_SCHEDULE_UTC: "02:15"
+      ASHR_PAYMENT_RECONCILIATION_MAX_ATTEMPTS: "4"
+      ASHR_PAYMENT_RECONCILIATION_RUN_ON_START: "false"
+      ASHR_PAYMENT_RECONCILIATION_HEARTBEAT_PATH: /runtime/payment-scheduler/heartbeat
+      ASHR_PAYMENT_RECONCILIATION_READINESS_PATH: /runtime/payment-scheduler/ready
+    command: ["/bin/sh", "/opt/ashr/china-payment-reconciliation-scheduler.sh"]
+    volumes:
+      - ./china-payment-reconciliation-scheduler.sh:/opt/ashr/china-payment-reconciliation-scheduler.sh:ro
+      - ashr-payment-scheduler-health:/runtime/payment-scheduler
+    secrets:
+      - postgres_password
+    depends_on:
+      postgres-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - test -f /runtime/payment-scheduler/ready && test -f /runtime/payment-scheduler/heartbeat && find /runtime/payment-scheduler/heartbeat -mmin -2 -type f | grep -q .
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   postgres:
     image: postgres:16-alpine
@@ -134,6 +352,28 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  postgres-migrate:
+    image: postgres:16-alpine
+    profiles: ["api", "worker", "daemon", "commercial", "commercial-smoke", "china-payments", "stripe-payments"]
+    environment:
+      ASHR_POSTGRES_HOST: postgres
+      ASHR_POSTGRES_DB: ashr
+      ASHR_POSTGRES_USER: ashr
+      ASHR_POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      ASHR_POSTGRES_MIGRATION: /migrations/a1_control_plane_postgres_migration.sql
+      ASHR_POSTGRES_MIGRATION_DIR: /migrations/ordered
+    command: ["/bin/sh", "/opt/ashr/postgres-migrate.sh"]
+    volumes:
+      - ./postgres-migrate.sh:/opt/ashr/postgres-migrate.sh:ro
+      - ../../docs/a1/schemas/a1_control_plane_postgres_migration.sql:/migrations/a1_control_plane_postgres_migration.sql:ro
+      - ../../services/api/migrations:/migrations/ordered:ro
+    secrets:
+      - postgres_password
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
 
   redis:
     image: redis:7-alpine
@@ -166,7 +406,7 @@ services:
 
   minio-init:
     image: minio/mc:RELEASE.2025-04-16T18-13-26Z
-    profiles: ["api", "worker", "daemon", "commercial"]
+    profiles: ["api", "worker", "daemon", "commercial", "commercial-smoke", "china-payments", "stripe-payments"]
     depends_on:
       minio:
         condition: service_healthy
@@ -185,6 +425,64 @@ services:
         mc mb --ignore-existing "local/$${ASHR_OBJECT_STORE_BUCKET}" &&
         mc anonymous set none "local/$${ASHR_OBJECT_STORE_BUCKET}"
 
+  minio-smoke:
+    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+    profiles: ["commercial", "commercial-smoke"]
+    environment:
+      ASHR_OBJECT_STORE_ENDPOINT: http://minio:9000
+      ASHR_OBJECT_STORE_BUCKET: ashr-local-artifacts
+      ASHR_OBJECT_EVIDENCE_PREFIX: evidence/a1/self-host
+      ASHR_OBJECT_STORE_ACCESS_KEY_FILE: /run/secrets/minio_root_user
+      ASHR_OBJECT_STORE_SECRET_KEY_FILE: /run/secrets/minio_root_password
+    entrypoint: ["/bin/sh", "/opt/ashr/minio-checksum-smoke.sh"]
+    volumes:
+      - ./minio-checksum-smoke.sh:/opt/ashr/minio-checksum-smoke.sh:ro
+    secrets:
+      - minio_root_user
+      - minio_root_password
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
+    restart: "no"
+
+  worker-recovery-seed:
+    image: postgres:16-alpine
+    profiles: ["commercial", "commercial-smoke"]
+    environment:
+      ASHR_POSTGRES_HOST: postgres
+      ASHR_POSTGRES_DB: ashr
+      ASHR_POSTGRES_USER: ashr
+      ASHR_POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    command: ["/bin/sh", "/opt/ashr/worker-recovery-seed.sh"]
+    volumes:
+      - ./worker-recovery-seed.sh:/opt/ashr/worker-recovery-seed.sh:ro
+    secrets:
+      - postgres_password
+    depends_on:
+      postgres-migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+  worker-recovery-verify:
+    image: postgres:16-alpine
+    profiles: ["commercial-smoke"]
+    environment:
+      ASHR_POSTGRES_HOST: postgres
+      ASHR_POSTGRES_DB: ashr
+      ASHR_POSTGRES_USER: ashr
+      ASHR_POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      ASHR_WORKER_HEARTBEAT_PATH: /runtime/worker/heartbeat
+    command: ["/bin/sh", "/opt/ashr/worker-recovery-verify.sh"]
+    volumes:
+      - ./worker-recovery-verify.sh:/opt/ashr/worker-recovery-verify.sh:ro
+      - ashr-worker-health:/runtime/worker:ro
+    secrets:
+      - postgres_password
+    depends_on:
+      worker:
+        condition: service_healthy
+    restart: "no"
+
 secrets:
   postgres_password:
     environment: ASHR_POSTGRES_AUTH_SECRET
@@ -200,3 +498,8 @@ volumes:
   ashr-replay-output:
   ashr-worker-health:
   ashr-object-store:
+  ashr-payment-webhook-health:
+  ashr-payment-reconciliation-health:
+  ashr-payment-scheduler-health:
+  ashr-china-bank-acquirer-health:
+  ashr-stripe-payment-health:

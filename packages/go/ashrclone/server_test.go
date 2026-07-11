@@ -635,7 +635,7 @@ func TestHTTPHandlerBillingContractRoutesAreDeterministicAndPublicSafe(t *testin
 	webhook := postJSONForTest[BillingWebhookIngest](t, server.URL+"/v1/projects/project_billing/billing/webhooks/ingest", JSONMap{
 		"tenant_id": "tenant_billing", "api_key_id": "key_billing", "event_type": "subscription.updated", "event_id": "evt_public", "provider": "Stripe", "mode": "test", "plan_id": "Startup", "customer_ref": "cus_public", "status": "Active", "payload_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "signature_header_present": true, "webhook_secret_ref": "env:STRIPE_WEBHOOK_REF", "livemode": false, "metadata": JSONMap{"customer_ref": "cus_public", "card_number": "synthetic-card-fixture", "authorization": "synthetic-auth-fixture"},
 	})
-	if webhook.EventID != "evt_public" || webhook.Provider != "stripe" || webhook.Mode != "test" || webhook.PlanID != "startup" || webhook.CustomerRef != "cus_public" || webhook.Status != "active" || webhook.RawPayloadIncluded || webhook.SecretValuePresent || webhook.PayloadSHA256 != "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" || !webhook.SignatureHeaderPresent || webhook.WebhookSecretRef != "env:STRIPE_WEBHOOK_REF" || !webhook.Verified || len(webhook.Failures) != 0 {
+	if webhook.EventID != "evt_public" || webhook.Provider != "stripe" || webhook.Mode != "test" || webhook.PlanID != "startup" || webhook.CustomerRef != "cus_public" || webhook.Status != "active" || webhook.RawPayloadIncluded || webhook.SecretValuePresent || webhook.PayloadSHA256 != "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" || !webhook.SignatureHeaderPresent || webhook.WebhookSecretRef != "env:STRIPE_WEBHOOK_REF" || webhook.Verified || len(webhook.Failures) == 0 {
 		t.Fatalf("unexpected webhook ingest: %#v", webhook)
 	}
 	if webhook.Metadata["authorization"] != Redacted || webhook.Metadata["customer_ref"] != "cus_public" {
@@ -647,7 +647,7 @@ func TestHTTPHandlerBillingContractRoutesAreDeterministicAndPublicSafe(t *testin
 		t.Fatal(err)
 	}
 	ledger := doJSONForTest[BillingLedger](t, req, http.StatusOK)
-	if ledger.Count != 1 || len(ledger.Events) != 1 || ledger.Events[0].EventID != webhook.EventID || ledger.Events[0].RawPayloadIncluded || ledger.Events[0].SecretValuePresent || ledger.Events[0].PayloadSHA256 != webhook.PayloadSHA256 {
+	if ledger.Count != 0 || len(ledger.Events) != 0 {
 		t.Fatalf("unexpected billing ledger: %#v", ledger)
 	}
 	encoded, err := json.Marshal(ledger)

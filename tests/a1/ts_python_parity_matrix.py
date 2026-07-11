@@ -50,6 +50,50 @@ PYTHON_ROUTE_EXAMPLES = {
     "release_evidence_verify": {"project_id": "project_contract", "run_id": "run_contract"},
     "verify_audit_chain": {"project_id": "project_contract"},
 }
+UNIFIED_IDENTITY_ROUTE_OPERATIONS = [
+    ("account_get", "GET", "identity_account_route", ("account_contract",)),
+    ("credential_list", "GET", "identity_credentials_route", ("account_contract",)),
+    ("membership_list", "GET", "identity_memberships_route", ("account_contract",)),
+    ("credential_link", "POST", "identity_link_route", ("account_contract", "github")),
+    (
+        "credential_unlink",
+        "POST",
+        "identity_unlink_route",
+        ("account_contract", "credential_contract"),
+    ),
+    ("account_merge", "POST", "identity_merge_route", ("account_contract",)),
+    ("recovery_start", "POST", "identity_recovery_start_route", ("account_contract",)),
+    (
+        "recovery_complete",
+        "POST",
+        "identity_recovery_complete_route",
+        ("account_contract", "recovery_contract"),
+    ),
+    (
+        "verification_challenge_create",
+        "POST",
+        "identity_verification_challenges_route",
+        (),
+    ),
+    (
+        "verification_challenge_get",
+        "GET",
+        "identity_verification_challenge_route",
+        ("challenge_contract",),
+    ),
+    (
+        "verification_challenge_resend",
+        "POST",
+        "identity_verification_resend_route",
+        ("challenge_contract",),
+    ),
+    (
+        "verification_challenge_verify",
+        "POST",
+        "identity_verification_verify_route",
+        ("challenge_contract",),
+    ),
+]
 
 
 def repo_path(path: Path) -> str:
@@ -84,6 +128,15 @@ def python_set_literal(path: Path, name: str) -> list[str]:
                 if values == set(MEDIA_MODALITIES):
                     return list(MEDIA_MODALITIES)
                 return sorted(values)
+    raise AssertionError(f"missing {name} in {repo_path(path)}")
+
+
+def python_scalar_literal(path: Path, name: str) -> Any:
+    module = ast.parse(read_text(path), filename=repo_path(path))
+    for node in module.body:
+        if isinstance(node, ast.Assign):
+            if any(isinstance(target, ast.Name) and target.id == name for target in node.targets):
+                return ast.literal_eval(node.value)
     raise AssertionError(f"missing {name} in {repo_path(path)}")
 
 
@@ -159,6 +212,365 @@ def ts_calibration_modalities(path: Path) -> list[str]:
     text = read_text(path)
     values = re.findall(r"[\"'](text|image|audio|file|video)[\"']", text)
     return [item for item in MEDIA_MODALITIES if item in values]
+
+
+def ts_named_string(path: Path, name: str) -> str:
+    text = read_text(path)
+    match = re.search(
+        rf"(?:export\s+)?const\s+{re.escape(name)}\s*=\s*[\"']([^\"']+)[\"']",
+        text,
+    )
+    if not match:
+        raise AssertionError(f"missing {name} in {repo_path(path)}")
+    return match.group(1)
+
+
+def ts_named_string_collection(path: Path, name: str) -> list[str]:
+    text = read_text(path)
+    match = re.search(
+        rf"(?:export\s+)?const\s+{re.escape(name)}(?:\s*:[^=]+)?\s*=\s*"
+        r"(?:(?:new\s+Set(?:<[^>]+>)?|Object\.freeze)\s*\()?\[([^\]]*)\]",
+        text,
+        re.S,
+    )
+    if not match:
+        raise AssertionError(f"missing {name} in {repo_path(path)}")
+    return sorted_unique(re.findall(r"[\"']([^\"']+)[\"']", match.group(1)))
+
+
+def ts_manifest_section(path: Path, section: str) -> dict[str, bool]:
+    text = read_text(path)
+    function_match = re.search(
+        r"export function unifiedIdentityContractManifest\(\).*?return\s*\{(.*?)\n\s*\};\n\}",
+        text,
+        re.S,
+    )
+    if not function_match:
+        raise AssertionError(f"missing unifiedIdentityContractManifest in {repo_path(path)}")
+    section_match = re.search(
+        rf"{re.escape(section)}\s*:\s*\{{(.*?)\}}",
+        function_match.group(1),
+        re.S,
+    )
+    if not section_match:
+        raise AssertionError(f"missing manifest section {section} in {repo_path(path)}")
+    return {
+        key: value == "true"
+        for key, value in re.findall(
+            r"([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(true|false)",
+            section_match.group(1),
+        )
+    }
+
+
+def ts_unified_identity_routes(path: Path) -> list[dict[str, str]]:
+    text = read_text(path)
+    match = re.search(
+        r"UNIFIED_IDENTITY_ROUTES[^=]*=\s*Object\.freeze\(\[(.*?)\]\);",
+        text,
+        re.S,
+    )
+    if not match:
+        raise AssertionError(f"missing UNIFIED_IDENTITY_ROUTES in {repo_path(path)}")
+    routes = [
+        {"operation": operation, "method": method, "path": route}
+        for operation, method, route in re.findall(
+            r"\{\s*operation:\s*[\"']([^\"']+)[\"'],\s*"
+            r"method:\s*[\"']([^\"']+)[\"'],\s*path:\s*[\"']([^\"']+)[\"']\s*\}",
+            match.group(1),
+        )
+    ]
+    if not routes:
+        raise AssertionError(f"empty UNIFIED_IDENTITY_ROUTES in {repo_path(path)}")
+    return routes
+
+
+def python_unified_identity_contract(path: Path) -> dict[str, Any]:
+    sdk_root = ROOT / "packages" / "sdk"
+    if str(sdk_root) not in sys.path:
+        sys.path.insert(0, str(sdk_root))
+    from ashr_clone import unified_identity as identity
+
+    manifest = identity.unified_identity_contract_manifest()
+    replacements = {
+        "account_contract": "{account_id}",
+        "credential_contract": "{credential_id}",
+        "recovery_contract": "{recovery_id}",
+        "challenge_contract": "{challenge_id}",
+        "github": "{provider}",
+    }
+    routes = []
+    for operation, method, function_name, args in UNIFIED_IDENTITY_ROUTE_OPERATIONS:
+        value = getattr(identity, function_name)(*args)
+        for literal, placeholder in replacements.items():
+            value = value.replace(literal, placeholder)
+        if operation == "account_merge":
+            value = value.replace("{account_id}", "{canonical_account_id}")
+        routes.append({"operation": operation, "method": method, "path": value})
+    verification = {
+        **manifest["verification"],
+        "providers": sorted(manifest["verification"]["providers"]),
+        "purposes": sorted(manifest["verification"]["purposes"]),
+        "challenge_statuses": sorted(manifest["verification"]["challenge_statuses"]),
+        "receipt_statuses": sorted(manifest["verification"]["receipt_statuses"]),
+        "public_surface": sorted(manifest["verification"]["public_surface"]),
+    }
+    return {
+        "schema_version": python_scalar_literal(path, "UNIFIED_IDENTITY_SCHEMA_VERSION"),
+        "providers": python_set_literal(path, "UNIFIED_IDENTITY_PROVIDERS"),
+        "account_statuses": python_set_literal(path, "UNIFIED_IDENTITY_ACCOUNT_STATUSES"),
+        "credential_statuses": python_set_literal(path, "UNIFIED_IDENTITY_CREDENTIAL_STATUSES"),
+        "membership_roles": python_set_literal(path, "UNIFIED_IDENTITY_MEMBERSHIP_ROLES"),
+        "membership_statuses": python_set_literal(path, "UNIFIED_IDENTITY_MEMBERSHIP_STATUSES"),
+        "stable_error_codes": python_set_literal(path, "UNIFIED_IDENTITY_ERROR_CODES"),
+        "verification_providers": python_set_literal(path, "IDENTITY_VERIFICATION_PROVIDERS"),
+        "verification_purposes": python_set_literal(path, "IDENTITY_VERIFICATION_PURPOSES"),
+        "verification_challenge_statuses": python_set_literal(
+            path, "IDENTITY_VERIFICATION_CHALLENGE_STATUSES"
+        ),
+        "verification_receipt_statuses": python_set_literal(
+            path, "IDENTITY_VERIFICATION_RECEIPT_STATUSES"
+        ),
+        "verification_audit_event_types": python_set_literal(
+            path, "IDENTITY_VERIFICATION_AUDIT_EVENT_TYPES"
+        ),
+        "verification_audit_outcome_codes": python_set_literal(
+            path, "IDENTITY_VERIFICATION_AUDIT_OUTCOME_CODES"
+        ),
+        "verification_public_surface": python_set_literal(
+            path, "IDENTITY_VERIFICATION_PUBLIC_SURFACE"
+        ),
+        "verification": verification,
+        "subject_model": manifest["subject_model"],
+        "invariants": dict(sorted(manifest["invariants"].items())),
+        "public_safety": dict(sorted(manifest["public_safety"].items())),
+        "forbidden_public_keys": python_set_literal(path, "_FORBIDDEN_PUBLIC_KEYS"),
+        "forbidden_key_suffixes": python_set_literal(path, "_FORBIDDEN_KEY_SUFFIXES"),
+        "recovery_providers": python_set_literal(path, "_RECOVERY_PROVIDERS"),
+        "routes": routes,
+    }
+
+
+def ts_unified_identity_contract(path: Path) -> dict[str, Any]:
+    text = read_text(path)
+    subject_match = re.search(
+        r"subject_model\s*:\s*[\"']([^\"']+)[\"']",
+        text,
+    )
+    if not subject_match:
+        raise AssertionError(f"missing unified identity subject_model in {repo_path(path)}")
+    return {
+        "schema_version": ts_named_string(path, "UNIFIED_IDENTITY_SCHEMA_VERSION"),
+        "providers": ts_named_string_collection(path, "UNIFIED_IDENTITY_PROVIDERS"),
+        "account_statuses": ts_named_string_collection(path, "UNIFIED_IDENTITY_ACCOUNT_STATUSES"),
+        "credential_statuses": ts_named_string_collection(
+            path, "UNIFIED_IDENTITY_CREDENTIAL_STATUSES"
+        ),
+        "membership_roles": ts_named_string_collection(path, "UNIFIED_IDENTITY_MEMBERSHIP_ROLES"),
+        "membership_statuses": ts_named_string_collection(
+            path, "UNIFIED_IDENTITY_MEMBERSHIP_STATUSES"
+        ),
+        "stable_error_codes": ts_named_string_collection(path, "UNIFIED_IDENTITY_ERROR_CODES"),
+        "verification_providers": ts_named_string_collection(
+            path, "IDENTITY_VERIFICATION_PROVIDERS"
+        ),
+        "verification_purposes": ts_named_string_collection(
+            path, "IDENTITY_VERIFICATION_PURPOSES"
+        ),
+        "verification_challenge_statuses": ts_named_string_collection(
+            path, "IDENTITY_VERIFICATION_CHALLENGE_STATUSES"
+        ),
+        "verification_receipt_statuses": ts_named_string_collection(
+            path, "IDENTITY_VERIFICATION_RECEIPT_STATUSES"
+        ),
+        "verification_audit_event_types": ts_named_string_collection(
+            path, "IDENTITY_VERIFICATION_AUDIT_EVENT_TYPES"
+        ),
+        "verification_audit_outcome_codes": ts_named_string_collection(
+            path, "IDENTITY_VERIFICATION_AUDIT_OUTCOME_CODES"
+        ),
+        "verification_public_surface": ts_named_string_collection(
+            path, "IDENTITY_VERIFICATION_PUBLIC_SURFACE"
+        ),
+        "verification": {
+            "providers": ts_named_string_collection(path, "IDENTITY_VERIFICATION_PROVIDERS"),
+            "purposes": ts_named_string_collection(path, "IDENTITY_VERIFICATION_PURPOSES"),
+            "challenge_statuses": ts_named_string_collection(
+                path, "IDENTITY_VERIFICATION_CHALLENGE_STATUSES"
+            ),
+            "receipt_statuses": ts_named_string_collection(
+                path, "IDENTITY_VERIFICATION_RECEIPT_STATUSES"
+            ),
+            "destination_input": "opaque_reference_only",
+            "code_input": "opaque_reference_only",
+            **ts_manifest_section(path, "verification"),
+            "public_surface": ts_named_string_collection(
+                path, "IDENTITY_VERIFICATION_PUBLIC_SURFACE"
+            ),
+        },
+        "subject_model": subject_match.group(1),
+        "invariants": dict(sorted(ts_manifest_section(path, "invariants").items())),
+        "public_safety": dict(sorted(ts_manifest_section(path, "public_safety").items())),
+        "forbidden_public_keys": ts_named_string_collection(path, "FORBIDDEN_PUBLIC_KEYS"),
+        "forbidden_key_suffixes": ts_named_string_collection(path, "FORBIDDEN_KEY_SUFFIXES"),
+        "recovery_providers": ts_named_string_collection(path, "RECOVERY_PROVIDERS"),
+        "routes": ts_unified_identity_routes(path),
+    }
+
+
+def python_session_lifecycle_contract(path: Path) -> dict[str, Any]:
+    sdk_root = ROOT / "packages" / "sdk"
+    if str(sdk_root) not in sys.path:
+        sys.path.insert(0, str(sdk_root))
+    from ashr_clone.session_lifecycle import session_lifecycle_contract_manifest
+
+    manifest = session_lifecycle_contract_manifest()
+    manifest["statuses"] = sorted(manifest["statuses"])
+    manifest["stable_error_codes"] = sorted(manifest["stable_error_codes"])
+    manifest["invariants"] = dict(sorted(manifest["invariants"].items()))
+    return manifest
+
+
+def ts_session_lifecycle_routes(path: Path) -> list[dict[str, str]]:
+    text = read_text(path)
+    match = re.search(
+        r"SESSION_LIFECYCLE_ROUTES[^=]*=\s*Object\.freeze\(\[(.*?)\]\);",
+        text,
+        re.S,
+    )
+    if not match:
+        raise AssertionError(f"missing SESSION_LIFECYCLE_ROUTES in {repo_path(path)}")
+    routes = [
+        {"operation": operation, "method": method, "path": route}
+        for operation, method, route in re.findall(
+            r"\{\s*operation:\s*[\"']([^\"']+)[\"'],\s*"
+            r"method:\s*[\"']([^\"']+)[\"'],\s*path:\s*[\"']([^\"']+)[\"']\s*\}",
+            match.group(1),
+        )
+    ]
+    if not routes:
+        raise AssertionError(f"empty SESSION_LIFECYCLE_ROUTES in {repo_path(path)}")
+    return routes
+
+
+def ts_session_lifecycle_contract(path: Path) -> dict[str, Any]:
+    text = read_text(path)
+    function_match = re.search(
+        r"export function sessionLifecycleContractManifest\(\).*?const manifest\s*=\s*\{(.*?)\n\s*\};",
+        text,
+        re.S,
+    )
+    if not function_match:
+        raise AssertionError(f"missing sessionLifecycleContractManifest in {repo_path(path)}")
+    body = function_match.group(1)
+    invariant_match = re.search(r"invariants\s*:\s*\{(.*?)\}", body, re.S)
+    if not invariant_match:
+        raise AssertionError(f"missing session lifecycle invariants in {repo_path(path)}")
+    invariants = {
+        key: value == "true"
+        for key, value in re.findall(
+            r"([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(true|false)",
+            invariant_match.group(1),
+        )
+    }
+    result: dict[str, Any] = {
+        "schema_version": ts_named_string(path, "SESSION_LIFECYCLE_SCHEMA_VERSION"),
+        "statuses": ts_named_string_collection(path, "SESSION_LIFECYCLE_STATUSES"),
+        "stable_error_codes": ts_named_string_collection(path, "SESSION_LIFECYCLE_ERROR_CODES"),
+        "routes": ts_session_lifecycle_routes(path),
+        "invariants": dict(sorted(invariants.items())),
+    }
+    for key in ("digest_only", "rotation", "reuse_detection", "revocation", "recent_auth", "recovery"):
+        match = re.search(rf"\b{re.escape(key)}\s*:\s*(true|false)", body)
+        if not match:
+            raise AssertionError(f"missing session lifecycle flag {key} in {repo_path(path)}")
+        result[key] = match.group(1) == "true"
+    return result
+
+
+def python_identity_delivery_protocol_contract(path: Path) -> dict[str, Any]:
+    sdk_root = ROOT / "packages" / "sdk"
+    if str(sdk_root) not in sys.path:
+        sys.path.insert(0, str(sdk_root))
+    from ashr_clone.delivery_protocol import identity_delivery_protocol_contract_manifest
+
+    manifest = identity_delivery_protocol_contract_manifest()
+    for key in (
+        "dto_kinds",
+        "statuses",
+        "acceptance_statuses",
+        "stable_error_codes",
+        "failure_codes",
+    ):
+        manifest[key] = sorted(manifest[key])
+    manifest["invariants"] = dict(sorted(manifest["invariants"].items()))
+    return manifest
+
+
+def ts_identity_delivery_protocol_routes(path: Path) -> list[dict[str, str]]:
+    text = read_text(path)
+    match = re.search(
+        r"IDENTITY_DELIVERY_ADMIN_ROUTES[^=]*=\s*Object\.freeze\(\[(.*?)\]\);",
+        text,
+        re.S,
+    )
+    if not match:
+        raise AssertionError(f"missing IDENTITY_DELIVERY_ADMIN_ROUTES in {repo_path(path)}")
+    routes = [
+        {"operation": operation, "method": method, "path": route}
+        for operation, method, route in re.findall(
+            r"\{\s*operation:\s*[\"']([^\"']+)[\"'],\s*"
+            r"method:\s*[\"']([^\"']+)[\"'],\s*path:\s*[\"']([^\"']+)[\"']\s*\}",
+            match.group(1),
+        )
+    ]
+    if not routes:
+        raise AssertionError(f"empty IDENTITY_DELIVERY_ADMIN_ROUTES in {repo_path(path)}")
+    return routes
+
+
+def ts_identity_delivery_protocol_contract(path: Path) -> dict[str, Any]:
+    text = read_text(path)
+    function_match = re.search(
+        r"export function identityDeliveryProtocolContractManifest\(\).*?"
+        r"const manifest\s*=\s*\{(.*?)\n\s*\};",
+        text,
+        re.S,
+    )
+    if not function_match:
+        raise AssertionError(
+            f"missing identityDeliveryProtocolContractManifest in {repo_path(path)}"
+        )
+    invariant_match = re.search(
+        r"invariants\s*:\s*\{(.*?)\}", function_match.group(1), re.S
+    )
+    if not invariant_match:
+        raise AssertionError(f"missing delivery protocol invariants in {repo_path(path)}")
+    invariants = {
+        key: value == "true"
+        for key, value in re.findall(
+            r"([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(true|false)",
+            invariant_match.group(1),
+        )
+    }
+    return {
+        "schema_version": ts_named_string(
+            path, "IDENTITY_DELIVERY_PROTOCOL_SCHEMA_VERSION"
+        ),
+        "dto_kinds": ts_named_string_collection(path, "IDENTITY_DELIVERY_DTO_KINDS"),
+        "statuses": ts_named_string_collection(path, "IDENTITY_DELIVERY_STATUSES"),
+        "acceptance_statuses": ts_named_string_collection(
+            path, "IDENTITY_DELIVERY_ACCEPTANCE_STATUSES"
+        ),
+        "stable_error_codes": ts_named_string_collection(
+            path, "IDENTITY_DELIVERY_ERROR_CODES"
+        ),
+        "failure_codes": ts_named_string_collection(
+            path, "IDENTITY_DELIVERY_FAILURE_CODES"
+        ),
+        "routes": ts_identity_delivery_protocol_routes(path),
+        "invariants": dict(sorted(invariants.items())),
+    }
 
 
 def route_literals(path: Path) -> list[str]:
@@ -257,6 +669,36 @@ def generate_matrix() -> dict[str, Any]:
         "missing_required_exports": sorted(set(required_ts_calibration_exports) - ts_calibration_exports),
         "sdk_import_surface": "public" if "calibrate" in ts_modules else "cli_only",
     }
+    py_identity = python_unified_identity_contract(py_pkg / "unified_identity.py")
+    ts_identity = ts_unified_identity_contract(ts_src / "unified-identity.ts")
+    py_session = python_session_lifecycle_contract(py_pkg / "session_lifecycle.py")
+    ts_session = ts_session_lifecycle_contract(ts_src / "session-lifecycle.ts")
+    py_delivery = python_identity_delivery_protocol_contract(py_pkg / "delivery_protocol.py")
+    ts_delivery = ts_identity_delivery_protocol_contract(ts_src / "delivery-protocol.ts")
+    identity_contract_requirements = {
+        "seven_credential_kinds": len(py_identity["providers"]) == 7
+        and set(py_identity["providers"])
+        == {"github", "google", "wechat", "qq", "alipay", "phone", "email"},
+        "stable_account_principal": py_identity["subject_model"]
+        == "one_account_many_credentials",
+        "memberships_independent": py_identity["invariants"].get(
+            "memberships_attach_to_canonical_account"
+        )
+        is True,
+        "no_email_automerge": py_identity["invariants"].get(
+            "email_match_does_not_merge_accounts"
+        )
+        is True,
+        "public_safe": all(
+            value is False
+            for key, value in py_identity["public_safety"].items()
+            if key != "provider_subject_presence_marker_only"
+        )
+        and py_identity["public_safety"].get("provider_subject_presence_marker_only") is True,
+    }
+    identity_contract_parity = py_identity == ts_identity and all(
+        identity_contract_requirements.values()
+    )
     py_media_set = set(py_media["agent_input_part_types"])
     ts_media_set = set(ts_media["agent_input_part_types"])
 
@@ -321,6 +763,37 @@ def generate_matrix() -> dict[str, Any]:
                 "python_module": "packages/sdk/ashr_clone/calibrate.py",
                 "typescript_module": "packages/ts/ashr-clone/src/calibrate.ts",
                 "typescript": ts_calibration_contract,
+            },
+            "unified_identity": {
+                "requirements": identity_contract_requirements,
+                "python": py_identity,
+                "typescript": ts_identity,
+                "matching_fields": sorted(
+                    key for key in py_identity if py_identity[key] == ts_identity.get(key)
+                ),
+                "differing_fields": sorted(
+                    key for key in py_identity if py_identity[key] != ts_identity.get(key)
+                ),
+            },
+            "session_lifecycle": {
+                "python": py_session,
+                "typescript": ts_session,
+                "matching_fields": sorted(
+                    key for key in py_session if py_session[key] == ts_session.get(key)
+                ),
+                "differing_fields": sorted(
+                    key for key in py_session if py_session[key] != ts_session.get(key)
+                ),
+            },
+            "identity_delivery_protocol": {
+                "python": py_delivery,
+                "typescript": ts_delivery,
+                "matching_fields": sorted(
+                    key for key in py_delivery if py_delivery[key] == ts_delivery.get(key)
+                ),
+                "differing_fields": sorted(
+                    key for key in py_delivery if py_delivery[key] != ts_delivery.get(key)
+                ),
             },
         },
         "gap_matrix": [
@@ -393,6 +866,55 @@ def generate_matrix() -> dict[str, Any]:
                     "packages/ts/ashr-clone/src/calibrate.ts",
                     "packages/ts/ashr-clone/test/calibrate.test.mjs",
                     "packages/ts/ashr-clone/test/calibration-parity.test.mjs",
+                ],
+            },
+            {
+                "area": "Python/TypeScript unified identity contract",
+                "status": "parity" if identity_contract_parity else "partial",
+                "requirements": identity_contract_requirements,
+                "matching_fields": sorted(
+                    key for key in py_identity if py_identity[key] == ts_identity.get(key)
+                ),
+                "differing_fields": sorted(
+                    key for key in py_identity if py_identity[key] != ts_identity.get(key)
+                ),
+                "evidence": [
+                    "packages/sdk/ashr_clone/unified_identity.py",
+                    "packages/ts/ashr-clone/src/unified-identity.ts",
+                    "tests/a1/test_python_unified_identity.py",
+                    "packages/ts/ashr-clone/test/unified-identity.test.mjs",
+                ],
+            },
+            {
+                "area": "Python/TypeScript session lifecycle contract",
+                "status": "parity" if py_session == ts_session else "partial",
+                "matching_fields": sorted(
+                    key for key in py_session if py_session[key] == ts_session.get(key)
+                ),
+                "differing_fields": sorted(
+                    key for key in py_session if py_session[key] != ts_session.get(key)
+                ),
+                "evidence": [
+                    "packages/sdk/ashr_clone/session_lifecycle.py",
+                    "packages/ts/ashr-clone/src/session-lifecycle.ts",
+                    "tests/a1/test_python_session_lifecycle.py",
+                    "packages/ts/ashr-clone/test/session-lifecycle.test.mjs",
+                ],
+            },
+            {
+                "area": "Python/TypeScript identity delivery protocol",
+                "status": "parity" if py_delivery == ts_delivery else "partial",
+                "matching_fields": sorted(
+                    key for key in py_delivery if py_delivery[key] == ts_delivery.get(key)
+                ),
+                "differing_fields": sorted(
+                    key for key in py_delivery if py_delivery[key] != ts_delivery.get(key)
+                ),
+                "evidence": [
+                    "packages/sdk/ashr_clone/delivery_protocol.py",
+                    "packages/ts/ashr-clone/src/delivery-protocol.ts",
+                    "tests/a1/test_identity_delivery_protocol_sdk.py",
+                    "packages/ts/ashr-clone/test/delivery-protocol.test.mjs",
                 ],
             },
         ],

@@ -1,0 +1,142 @@
+{
+  "schema_version": "ashr.clone.google_oauth_localhost.v1",
+  "generated_at": null,
+  "provider": "google",
+  "environment": "localhost",
+  "loopback_host_class": null,
+  "calibration_status": "pending_human_browser_run",
+  "public_safe": true,
+  "contains_secret_values": false,
+  "provider_network_calls": null,
+  "controls": [
+    {
+      "control_id": "start_route_and_pkce",
+      "status": "pending",
+      "expected_method": "POST",
+      "expected_status_code": 200,
+      "pkce_method": "S256",
+      "state_present_at_provider": null,
+      "nonce_present_at_provider": null,
+      "exact_scope_set_present": null
+    },
+    {
+      "control_id": "callback_success",
+      "status": "pending",
+      "expected_method": "GET",
+      "expected_status_code": 200,
+      "issuer_validation_passed": null,
+      "audience_validation_passed": null,
+      "nonce_validation_passed": null,
+      "email_verified": null
+    },
+    {
+      "control_id": "callback_replay",
+      "status": "pending",
+      "expected_method": "GET",
+      "expected_status_code": 400,
+      "expected_failure_code": "invalid_oauth_state",
+      "replay_denied": null
+    },
+    {
+      "control_id": "nonce_rejection",
+      "status": "pending",
+      "expected_failure_code": "google_identity_invalid",
+      "rejected": null
+    },
+    {
+      "control_id": "issuer_rejection",
+      "status": "pending",
+      "expected_failure_code": "google_identity_invalid",
+      "rejected": null
+    },
+    {
+      "control_id": "audience_rejection",
+      "status": "pending",
+      "expected_failure_code": "google_identity_invalid",
+      "rejected": null
+    },
+    {
+      "control_id": "unverified_email_rejection",
+      "status": "pending",
+      "expected_failure_code": "google_identity_invalid",
+      "rejected": null
+    },
+    {
+      "control_id": "provider_timeout_or_outage",
+      "status": "pending",
+      "expected_status_code": 502,
+      "expected_retryable": true,
+      "public_error_redacted": null,
+      "state_retry_policy_observed": null
+    },
+    {
+      "control_id": "public_response_secret_scan",
+      "status": "pending",
+      "expected_passed": true,
+      "public_response_secret_scan_passed": null,
+      "public_error_secret_scan_passed": null
+    },
+    {
+      "control_id": "disconnect_and_reconnect",
+      "status": "pending",
+      "expected_method": "POST",
+      "provider_revocation_status": null,
+      "old_connection_retained_on_revoke_failure": null,
+      "reconnect_completed": null
+    }
+  ],
+  "allowed_evidence_fields": [
+    "generated_at",
+    "provider",
+    "environment",
+    "loopback_host_class",
+    "calibration_status",
+    "provider_network_calls",
+    "control_id",
+    "status",
+    "expected_method",
+    "expected_status_code",
+    "expected_failure_code",
+    "expected_retryable",
+    "expected_passed",
+    "pkce_method",
+    "state_present_at_provider",
+    "nonce_present_at_provider",
+    "exact_scope_set_present",
+    "issuer_validation_passed",
+    "audience_validation_passed",
+    "nonce_validation_passed",
+    "email_verified",
+    "replay_denied",
+    "rejected",
+    "public_error_redacted",
+    "state_retry_policy_observed",
+    "public_response_secret_scan_passed",
+    "public_error_secret_scan_passed",
+    "provider_revocation_status",
+    "old_connection_retained_on_revoke_failure",
+    "reconnect_completed"
+  ],
+  "forbidden_evidence_fields": [
+    "authorization_code",
+    "state",
+    "nonce",
+    "pkce_verifier",
+    "access_token",
+    "refresh_token",
+    "id_token",
+    "client_secret",
+    "token_ref",
+    "cookie",
+    "request_headers",
+    "provider_response_body",
+    "authorization_url",
+    "callback_url_with_query"
+  ],
+  "review_notes": [
+    "Populate only metadata, booleans, counts, HTTP status codes, and stable public error codes.",
+    "Do not paste browser URLs, callback query strings, response bodies, headers, cookies, credential references, or provider tokens.",
+    "A pending control must not be promoted to verified without a dated localhost run and a public-response secret scan.",
+    "The current Go callback consumes state before session validation and provider I/O; record the observed retry policy without recording state or code values."
+  ]
+}

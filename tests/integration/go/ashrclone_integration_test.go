@@ -1,6 +1,7 @@
 package gointegration
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -11,6 +12,77 @@ import (
 
 	ashrclone "github.com/ashr-labs/ashr/packages/go/ashrclone"
 )
+
+func TestPublicChinaPaymentNotificationCannotForgeProviderStatus(t *testing.T) {
+	controlPlane := ashrclone.NewMemoryService()
+	if _, err := controlPlane.BootstrapProject("Tenant", "Payments", ashrclone.Dataset{Name: "Dataset"}, "tenant_payment", "project_payment"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := controlPlane.CreateAPIKey("tenant_payment", "project_payment", ashrclone.CreateAPIKeyOptions{
+		KeyID: "key_webhook", Name: "Webhook", Scopes: []string{ashrclone.ScopeBillingWebhookIngest},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	payments, err := ashrclone.NewPaymentDomainService(ashrclone.NewMemoryPaymentDomainRepository())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := payments.ReceiveOrder(context.Background(), "tenant_payment", "project_payment", ashrclone.PaymentOrderReceive{
+		Provider: ashrclone.PaymentProviderWeChatPay, MerchantID: "merchant_payment", MerchantOrderID: "order_payment",
+		Amount: 100, Currency: "CNY", Channel: "native",
+	}); err != nil {
+		t.Fatal(err)
+	}
+	server := httptest.NewServer(ashrclone.NewHTTPServerWithOptions(controlPlane, ashrclone.HTTPServerOptions{
+		BackendName: "memory_service_v0", BackendReady: true, PaymentDomain: payments,
+	}))
+	defer server.Close()
+
+	for _, attack := range []ashrclone.JSONMap{
+		{
+			"tenant_id": "tenant_payment", "api_key_id": "key_webhook",
+			"provider": "wechat_pay", "merchant_id": "merchant_payment", "provider_event_id": "forged-success",
+			"event_type": "TRANSACTION.SUCCESS", "resource_type": "order", "merchant_order_id": "order_payment",
+			"provider_status": "SUCCESS", "payload_sha256": strings.Repeat("a", 64),
+		},
+		{
+			"tenant_id": "tenant_payment", "api_key_id": "key_webhook",
+			"provider": "wechat_pay", "merchant_id": "merchant_payment", "provider_event_id": "forged-artifact",
+			"event_type": "TRANSACTION.SUCCESS", "resource_type": "order", "merchant_order_id": "order_payment",
+			"provider_status": "SUCCESS", "payload_sha256": strings.Repeat("b", 64),
+			"verification": ashrclone.JSONMap{
+				"verifier_id": "attacker", "verifier_version": "999", "artifact_mac_sha256": strings.Repeat("c", 64),
+			},
+		},
+	} {
+		payload, _ := json.Marshal(attack)
+		response, requestErr := http.Post(server.URL+"/v1/projects/project_payment/billing/payments/notifications", "application/json", bytes.NewReader(payload))
+		if requestErr != nil {
+			t.Fatal(requestErr)
+		}
+		var body ashrclone.JSONMap
+		if decodeErr := json.NewDecoder(response.Body).Decode(&body); decodeErr != nil {
+			response.Body.Close()
+			t.Fatal(decodeErr)
+		}
+		response.Body.Close()
+		if response.StatusCode != http.StatusForbidden {
+			t.Fatalf("forged notification status=%d body=%#v", response.StatusCode, body)
+		}
+		errorBody, _ := body["error"].(map[string]any)
+		if errorBody["code"] != "trusted_payment_verification_required" {
+			t.Fatalf("unexpected rejection: %#v", body)
+		}
+	}
+	order, err := payments.GetOrder(context.Background(), "tenant_payment", "project_payment", "merchant_payment", ashrclone.PaymentProviderWeChatPay, "order_payment")
+	if err != nil || order.Result.Status != ashrclone.PaymentOrderStatusCreated || order.Result.ProviderStatus != "" {
+		t.Fatalf("public attack changed order: %#v err=%v", order.Result, err)
+	}
+	notifications, err := payments.ListNotifications(context.Background(), "tenant_payment", "project_payment", "merchant_payment", ashrclone.PaymentProviderWeChatPay, 100)
+	if err != nil || notifications.Result.Count != 0 {
+		t.Fatalf("public attack persisted notification: %#v err=%v", notifications.Result, err)
+	}
+}
 
 func TestGoSDKRuntimeDTOParitySmoke(t *testing.T) {
 	service := ashrclone.NewMemoryService()

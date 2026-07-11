@@ -154,13 +154,18 @@ def test_billing_and_webhook_surfaces_require_specific_scopes_without_auth_leaks
             "payload_sha256": "a" * 64,
             "signature_header_present": True,
             "webhook_secret_ref": "env:STRIPE_TEST_WEBHOOK_REF",
+            "verified": True,
             "metadata": {"api_key": RAW_AUTH_VALUES[2]},
         },
     )
     assert str(meta["status"]).startswith("202 ")
-    assert accepted["verified"] is True
+    assert accepted["verified"] is False
+    assert "provider_specific_verification_required" in {failure["reason"] for failure in accepted["failures"]}
     assert accepted["secret_value_present"] is False
     _assert_public_safe(accepted_text)
+
+    payment_snapshot = service.commercial_auth_payment_snapshot("tenant_auth", "project_auth")
+    assert payment_snapshot["payment_mode_boundaries"] == []
 
     _, usage, usage_text = _invoke_wsgi(app, "GET", "/v1/projects/project_auth/usage", query="tenant_id=tenant_auth&api_key_id=key_reader")
     checkout_receipts = [event for event in usage["events"] if event.get("operation") == "billing.checkout_plan" and event.get("denied") is True]
