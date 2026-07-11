@@ -649,8 +649,8 @@
         "path": "fixtures/a2/results/a2_g3_coverage_report.json",
         "required": true,
         "content_type": "application/json",
-        "sha256": "1cd8523aac6e01b6888667fb52ebf29fd8bcce34a791ee6c4a035c40c8b1cc41",
-        "byte_size": 51795
+        "sha256": "3e5f8c572056c38c38d93361c64ef6e76850a1e8a5716947c48be6b0cc19d14f",
+        "byte_size": 49867
       },
       {
         "id": "thresholds",
