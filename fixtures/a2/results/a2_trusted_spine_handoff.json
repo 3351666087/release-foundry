@@ -2,8 +2,11 @@
   "schema_version": "a2.trusted_spine_handoff.v1",
   "evidence_snapshot": {
     "schema_version": "a2.evidence_snapshot.v1",
+    "organization_id": "org_local_demo",
     "tenant_id": "org_local_demo",
+    "workspace_id": "workspace_local_demo",
     "project_id": "a2_g3_calibration",
+    "environment_id": "local",
     "run_id": "a2_trusted_spine_demo",
     "case_id": "sample-a2-s031-media-pipeline-pass",
     "scenario_id": "A2-S031",
@@ -19,6 +22,7 @@
       "text"
     ],
     "completeness": "complete",
+    "validation_errors": [],
     "missing_modalities": [],
     "tool_call_count": 3,
     "tool_sequence": [
@@ -56,34 +60,41 @@
     ],
     "security": {
       "tenant_scoped": true,
+      "scope_complete": true,
       "raw_evidence_included": false,
       "private_evidence_included": false,
       "secrets_included": false,
       "artifact_content_included": false
     },
-    "snapshot_id": "sha256:ef2027118b2f53d61c065aa62d63ace67bf15fb60fc1c9851688b4f60b985430",
-    "snapshot_hash": "sha256:a664c5f4789011f9a0e7bd03df014de9b9d3e5a80a189dd896986b4b41505497"
+    "snapshot_id": "sha256:6922ed2e09802f457c6037fdc78ef6fabac1a03e4ec23023acfc42e1cee7f61b",
+    "snapshot_hash": "sha256:44659a6542e127bf2f09f96027ce731890d780397915156b642dc557fcc1da26"
   },
   "decision_ledger": {
     "schema_version": "a2.decision_ledger.v1",
     "ledger_id": "a2_trusted_spine_demo_ledger",
+    "organization_id": "org_local_demo",
     "tenant_id": "org_local_demo",
+    "workspace_id": "workspace_local_demo",
     "project_id": "a2_g3_calibration",
+    "environment_id": "local",
     "created_at": "2026-07-11T00:00:00Z",
     "record_count": 1,
     "genesis_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-    "head_hash": "sha256:346922536cd49ae995c89bc6cbf32ba293aa3acc6613c6e1bf1d9af72ace3a1c",
+    "head_hash": "sha256:31c417d9232f2e3b0361f63b8aad305304774d28d0f68ed6e093f1a0bffa1e18",
     "records": [
       {
         "schema_version": "a2.decision_record.v1",
+        "organization_id": "org_local_demo",
         "tenant_id": "org_local_demo",
+        "workspace_id": "workspace_local_demo",
         "project_id": "a2_g3_calibration",
+        "environment_id": "local",
         "run_id": "a2_trusted_spine_demo",
         "case_id": "sample-a2-s031-media-pipeline-pass",
         "scenario_id": "A2-S031",
         "created_at": "2026-07-11T00:00:00Z",
-        "evidence_snapshot_id": "sha256:ef2027118b2f53d61c065aa62d63ace67bf15fb60fc1c9851688b4f60b985430",
-        "evidence_snapshot_hash": "sha256:a664c5f4789011f9a0e7bd03df014de9b9d3e5a80a189dd896986b4b41505497",
+        "evidence_snapshot_id": "sha256:6922ed2e09802f457c6037fdc78ef6fabac1a03e4ec23023acfc42e1cee7f61b",
+        "evidence_snapshot_hash": "sha256:44659a6542e127bf2f09f96027ce731890d780397915156b642dc557fcc1da26",
         "evidence_completeness": "complete",
         "decision": "block",
         "review_required": false,
@@ -118,8 +129,8 @@
         ],
         "previous_record_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
         "public_safe": true,
-        "record_id": "sha256:aed848a305f8642648d584532a5aecab88382734778ac263537fe0562c1d939e",
-        "record_hash": "sha256:346922536cd49ae995c89bc6cbf32ba293aa3acc6613c6e1bf1d9af72ace3a1c"
+        "record_id": "sha256:e19d38b6f189135256ed1afd9ad4f433cc0d5361a0a251adb936e469fa2e9687",
+        "record_hash": "sha256:31c417d9232f2e3b0361f63b8aad305304774d28d0f68ed6e093f1a0bffa1e18"
       }
     ],
     "metadata": {
@@ -128,7 +139,7 @@
       "chain_verified": true,
       "human_overrides_are_linked_records": true
     },
-    "ledger_hash": "sha256:60992776806e3d5cff39116bd4b65e28e4321c21bde7f0daa804bf0fd28894fb"
+    "ledger_hash": "sha256:246213c8dabddf5c05e697c79da45f5a5ca5c62dd331ca22bada44d0000e19f5"
   },
   "a3_consumption": {
     "release_ready": false,
@@ -136,7 +147,7 @@
     "may_recompute_grade": false,
     "review_queue_status": "blocked",
     "display_decision": "block",
-    "display_provenance_hash": "sha256:346922536cd49ae995c89bc6cbf32ba293aa3acc6613c6e1bf1d9af72ace3a1c"
+    "display_provenance_hash": "sha256:31c417d9232f2e3b0361f63b8aad305304774d28d0f68ed6e093f1a0bffa1e18"
   },
   "metadata": {
     "public_safe": true,

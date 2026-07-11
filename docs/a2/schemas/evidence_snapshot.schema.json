@@ -6,8 +6,11 @@
     "schema_version",
     "snapshot_id",
     "snapshot_hash",
+    "organization_id",
     "tenant_id",
+    "workspace_id",
     "project_id",
+    "environment_id",
     "run_id",
     "case_id",
     "scenario_id",
@@ -24,8 +27,11 @@
     "schema_version": { "const": "a2.evidence_snapshot.v1" },
     "snapshot_id": { "$ref": "#/$defs/hash" },
     "snapshot_hash": { "$ref": "#/$defs/hash" },
+    "organization_id": { "type": "string", "minLength": 1 },
     "tenant_id": { "type": "string", "minLength": 1 },
+    "workspace_id": { "type": "string", "minLength": 1 },
     "project_id": { "type": "string", "minLength": 1 },
+    "environment_id": { "type": "string", "minLength": 1 },
     "run_id": { "type": "string", "minLength": 1 },
     "case_id": { "type": "string", "minLength": 1 },
     "scenario_id": { "type": "string", "minLength": 1 },
@@ -38,6 +44,7 @@
       "enum": ["complete", "partial", "evidence_missing", "invalid"]
     },
     "missing_modalities": { "$ref": "#/$defs/modalities" },
+    "validation_errors": { "$ref": "#/$defs/string_array" },
     "tool_call_count": { "type": "integer", "minimum": 0 },
     "tool_sequence": {
       "type": "array",
@@ -88,6 +95,7 @@
       "type": "object",
       "required": [
         "tenant_scoped",
+        "scope_complete",
         "raw_evidence_included",
         "private_evidence_included",
         "secrets_included",
@@ -95,6 +103,7 @@
       ],
       "properties": {
         "tenant_scoped": { "const": true },
+        "scope_complete": { "const": true },
         "raw_evidence_included": { "const": false },
         "private_evidence_included": { "const": false },
         "secrets_included": { "const": false },
@@ -112,6 +121,11 @@
       "type": "array",
       "uniqueItems": true,
       "items": { "enum": ["text", "image", "audio", "file", "video"] }
+    },
+    "string_array": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string" }
     }
   },
   "additionalProperties": false

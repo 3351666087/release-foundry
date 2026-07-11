@@ -20,8 +20,11 @@ VALID_DECISIONS = {"allow", "block", "review"}
 def build_evidence_snapshot(
     run_payload: dict[str, Any],
     *,
+    organization_id: str,
     tenant_id: str,
+    workspace_id: str,
     project_id: str,
+    environment_id: str,
     run_id: str,
     case_id: str,
     scenario_id: str,
@@ -31,7 +34,20 @@ def build_evidence_snapshot(
 ) -> dict[str, Any]:
     """Freeze public-safe A1 evidence metadata without storing raw evidence."""
     normalized = redact_payload(deepcopy(run_payload))
-    tool_calls = _tool_calls(normalized)
+    scope = {
+        "organization_id": organization_id,
+        "tenant_id": tenant_id,
+        "workspace_id": workspace_id,
+        "project_id": project_id,
+        "environment_id": environment_id,
+    }
+    if not all(scope.values()):
+        raise ValueError("complete five-field tenant scope is required")
+
+    source_run_id = str(normalized.get("run_id") or run_id)
+    selected_case, validation_errors = _select_case(normalized, case_id)
+    source = selected_case or normalized
+    tool_calls = _tool_calls(source)
     artifacts = _artifact_descriptors(tool_calls)
     observed_modalities = sorted(
         {
@@ -39,15 +55,19 @@ def build_evidence_snapshot(
             for item in artifacts
             if item.get("modality")
         }
-        | ({"text"} if _final_text(normalized) else set())
+        | ({"text"} if _final_text(source) else set())
     )
     required = sorted(set(required_modalities or ["text"]))
     missing = sorted(set(required) - set(observed_modalities))
-    completeness = "evidence_missing" if missing else "complete"
+    trace_completeness = normalized.get("trace_completeness")
+    if trace_completeness is not None and float(trace_completeness) < 1:
+        validation_errors.append("trace_incomplete")
+    if source_run_id != run_id:
+        validation_errors.append("run_id_mismatch")
+    completeness = "invalid" if validation_errors else ("evidence_missing" if missing else "complete")
     snapshot_core = {
         "schema_version": EVIDENCE_SNAPSHOT_SCHEMA_VERSION,
-        "tenant_id": tenant_id,
-        "project_id": project_id,
+        **scope,
         "run_id": run_id,
         "case_id": case_id,
         "scenario_id": scenario_id,
@@ -57,6 +77,7 @@ def build_evidence_snapshot(
         "required_modalities": required,
         "observed_modalities": observed_modalities,
         "completeness": completeness,
+        "validation_errors": sorted(set(validation_errors)),
         "missing_modalities": missing,
         "tool_call_count": len(tool_calls),
         "tool_sequence": [str(call.get("tool") or call.get("name") or "") for call in tool_calls],
@@ -70,7 +91,8 @@ def build_evidence_snapshot(
             }
         ],
         "security": {
-            "tenant_scoped": bool(tenant_id),
+            "tenant_scoped": True,
+            "scope_complete": True,
             "raw_evidence_included": False,
             "private_evidence_included": False,
             "secrets_included": False,
@@ -115,8 +137,11 @@ def build_decision_record(
     hard_blockers = _hard_blockers(safe_gate)
     record_core = {
         "schema_version": DECISION_RECORD_SCHEMA_VERSION,
+        "organization_id": str(evidence_snapshot.get("organization_id") or ""),
         "tenant_id": str(evidence_snapshot.get("tenant_id") or ""),
+        "workspace_id": str(evidence_snapshot.get("workspace_id") or ""),
         "project_id": str(evidence_snapshot.get("project_id") or ""),
+        "environment_id": str(evidence_snapshot.get("environment_id") or ""),
         "run_id": str(evidence_snapshot.get("run_id") or ""),
         "case_id": str(evidence_snapshot.get("case_id") or ""),
         "scenario_id": str(evidence_snapshot.get("scenario_id") or ""),
@@ -159,8 +184,11 @@ def build_decision_ledger(
     records: list[dict[str, Any]],
     *,
     ledger_id: str,
+    organization_id: str,
     tenant_id: str,
+    workspace_id: str,
     project_id: str,
+    environment_id: str,
     created_at: str,
 ) -> dict[str, Any]:
     """Build and validate a tenant-scoped append-only decision chain."""
@@ -168,8 +196,13 @@ def build_decision_ledger(
     normalized_records: list[dict[str, Any]] = []
     for position, item in enumerate(records):
         record = deepcopy(item)
-        if record.get("tenant_id") != tenant_id or record.get("project_id") != project_id:
-            raise ValueError("decision record tenant/project scope mismatch")
+        expected_scope = (organization_id, tenant_id, workspace_id, project_id, environment_id)
+        record_scope = tuple(
+            record.get(field)
+            for field in ("organization_id", "tenant_id", "workspace_id", "project_id", "environment_id")
+        )
+        if record_scope != expected_scope:
+            raise ValueError("decision record five-field scope mismatch")
         if record.get("previous_record_hash") != previous_hash:
             raise ValueError(f"decision ledger chain mismatch at position {position}")
         if record.get("record_hash") != _record_hash(record):
@@ -180,8 +213,11 @@ def build_decision_ledger(
     ledger = {
         "schema_version": DECISION_LEDGER_SCHEMA_VERSION,
         "ledger_id": ledger_id,
+        "organization_id": organization_id,
         "tenant_id": tenant_id,
+        "workspace_id": workspace_id,
         "project_id": project_id,
+        "environment_id": environment_id,
         "created_at": created_at,
         "record_count": len(normalized_records),
         "genesis_hash": GENESIS_HASH,
@@ -211,8 +247,11 @@ def build_trusted_spine_handoff(
     scenario_id = str(run_fixture.get("scenario_id") or "")
     snapshot = build_evidence_snapshot(
         run_fixture.get("run", run_fixture),
+        organization_id="org_local_demo",
         tenant_id="org_local_demo",
+        workspace_id="workspace_local_demo",
         project_id="a2_g3_calibration",
+        environment_id="local",
         run_id=run_id,
         case_id=case_id,
         scenario_id=scenario_id,
@@ -249,8 +288,11 @@ def build_trusted_spine_handoff(
     ledger = build_decision_ledger(
         [decision_record],
         ledger_id="a2_trusted_spine_demo_ledger",
+        organization_id="org_local_demo",
         tenant_id="org_local_demo",
+        workspace_id="workspace_local_demo",
         project_id="a2_g3_calibration",
+        environment_id="local",
         created_at=created_at,
     )
     return {
@@ -283,11 +325,49 @@ def _tool_calls(payload: dict[str, Any]) -> list[dict[str, Any]]:
     candidate = payload.get("tool_calls")
     if not isinstance(candidate, list):
         candidate = payload.get("agent_output", {}).get("tool_calls", []) if isinstance(payload.get("agent_output"), dict) else []
+    if not candidate and isinstance(payload.get("observations"), list):
+        candidate = [
+            call
+            for observation in payload["observations"]
+            if isinstance(observation, dict)
+            for call in observation.get("tool_calls", [])
+            if isinstance(call, dict)
+        ]
     return [item for item in candidate if isinstance(item, dict)]
 
 
 def _final_text(payload: dict[str, Any]) -> str:
-    return str(payload.get("final_response") or payload.get("text") or "")
+    agent_output = payload.get("agent_output") if isinstance(payload.get("agent_output"), dict) else {}
+    return str(
+        payload.get("final_response")
+        or payload.get("text")
+        or agent_output.get("final_response")
+        or agent_output.get("text")
+        or agent_output.get("content")
+        or ""
+    )
+
+
+def _select_case(payload: dict[str, Any], case_id: str) -> tuple[dict[str, Any] | None, list[str]]:
+    """Select and validate one case from an A1 RunResult without guessing."""
+    cases = payload.get("cases")
+    if not isinstance(cases, list):
+        return None, []
+    matches = [item for item in cases if isinstance(item, dict) and str(item.get("case_id")) == case_id]
+    if len(matches) != 1:
+        return None, ["case_not_found" if not matches else "duplicate_case_id"]
+    selected = matches[0]
+    errors: list[str] = []
+    run_id = str(payload.get("run_id") or "")
+    for observation in selected.get("observations", []):
+        if not isinstance(observation, dict):
+            errors.append("invalid_observation")
+            continue
+        if str(observation.get("run_id") or "") != run_id:
+            errors.append("observation_run_id_mismatch")
+        if str(observation.get("case_id") or "") != case_id:
+            errors.append("observation_case_id_mismatch")
+    return selected, errors
 
 
 def _artifact_descriptors(tool_calls: list[dict[str, Any]]) -> list[dict[str, Any]]:

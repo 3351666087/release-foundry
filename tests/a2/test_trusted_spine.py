@@ -67,8 +67,11 @@ class A2TrustedSpineTests(unittest.TestCase):
     def test_missing_required_modality_is_fail_closed(self):
         snapshot = build_evidence_snapshot(
             {"final_response": "text only", "tool_calls": []},
+            organization_id="org-a",
             tenant_id="tenant-a",
+            workspace_id="workspace-a",
             project_id="project-a",
+            environment_id="test",
             run_id="run-a",
             case_id="case-a",
             scenario_id="A2-S031",
@@ -88,6 +91,63 @@ class A2TrustedSpineTests(unittest.TestCase):
                 model_versions=["unit:model"],
                 created_at="2026-07-11T00:00:00Z",
             )
+
+    def test_a1_native_run_result_is_selected_and_validated(self):
+        native_run = {
+            "run_id": "run-native",
+            "trace_completeness": 1,
+            "aggregate_metrics": {"schema_version": "ashr.clone.run_result.v1"},
+            "cases": [{
+                "case_id": "case-native",
+                "scenario_id": "A2-S031",
+                "observations": [{
+                    "observation_id": "obs-1",
+                    "run_id": "run-native",
+                    "case_id": "case-native",
+                    "tool_calls": [{"name": "inspect_image", "arguments": {"path": "asset.png"}}],
+                }],
+                "agent_output": {"content": "image inspected"},
+            }],
+        }
+        snapshot = build_evidence_snapshot(
+            native_run,
+            organization_id="org-a",
+            tenant_id="tenant-a",
+            workspace_id="workspace-a",
+            project_id="project-a",
+            environment_id="test",
+            run_id="run-native",
+            case_id="case-native",
+            scenario_id="A2-S031",
+            created_at="2026-07-11T00:00:00Z",
+            required_modalities=["text", "image"],
+            source_schema_version="ashr.clone.run_result.v1",
+        )
+        self.assertEqual(snapshot["completeness"], "complete")
+        self.assertEqual(snapshot["validation_errors"], [])
+        self.assertEqual(snapshot["tool_call_count"], 1)
+        self.assertEqual(snapshot["observed_modalities"], ["image", "text"])
+
+        invalid = deepcopy(native_run)
+        invalid["cases"][0]["observations"][0]["case_id"] = "other-case"
+        invalid["trace_completeness"] = 0.5
+        invalid_snapshot = build_evidence_snapshot(
+            invalid,
+            organization_id="org-a",
+            tenant_id="tenant-a",
+            workspace_id="workspace-a",
+            project_id="project-a",
+            environment_id="test",
+            run_id="run-native",
+            case_id="case-native",
+            scenario_id="A2-S031",
+            created_at="2026-07-11T00:00:00Z",
+        )
+        self.assertEqual(invalid_snapshot["completeness"], "invalid")
+        self.assertEqual(
+            invalid_snapshot["validation_errors"],
+            ["observation_case_id_mismatch", "trace_incomplete"],
+        )
 
     def test_hard_blocker_or_abstain_cannot_allow(self):
         snapshot = load_json(HANDOFF)["evidence_snapshot"]
@@ -120,8 +180,11 @@ class A2TrustedSpineTests(unittest.TestCase):
             build_decision_ledger(
                 [tampered],
                 ledger_id="tampered",
+                organization_id=record["organization_id"],
                 tenant_id=record["tenant_id"],
+                workspace_id=record["workspace_id"],
                 project_id=record["project_id"],
+                environment_id=record["environment_id"],
                 created_at="2026-07-11T00:00:00Z",
             )
 
@@ -131,8 +194,11 @@ class A2TrustedSpineTests(unittest.TestCase):
             build_decision_ledger(
                 [cross_tenant],
                 ledger_id="cross-tenant",
+                organization_id=record["organization_id"],
                 tenant_id=record["tenant_id"],
+                workspace_id=record["workspace_id"],
                 project_id=record["project_id"],
+                environment_id=record["environment_id"],
                 created_at="2026-07-11T00:00:00Z",
             )
 
