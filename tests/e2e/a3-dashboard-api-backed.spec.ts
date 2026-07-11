@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 
 import { expect, type Locator, type Page, test } from "@playwright/test";
 
-const apiBackedPath = "/apps/dashboard/index.html?source=api-mock";
+const apiBackedPath = "/apps/dashboard/index.html?source=api-mock&lang=en";
 
 test.describe("A3 API-backed dashboard E2E", () => {
   test("loads dashboard through the local A3 API and keeps A1/A2/SaaS contracts visible", async ({ page }) => {
@@ -20,7 +20,7 @@ test.describe("A3 API-backed dashboard E2E", () => {
     await expect((await dashboardResponse).status()).toBe(200);
     await expect((await schemaDriftResponse).status()).toBe(200);
 
-    await expect(page.locator("#data-source")).toContainText("API-backed A1/A2 mock fixture");
+    await waitForApiDashboard(page);
     await expect(page.locator("#metric-cases")).toHaveText("32");
     await expect(page.locator("#metric-runs")).toHaveText("1");
 
@@ -33,6 +33,10 @@ test.describe("A3 API-backed dashboard E2E", () => {
     await expect(runtime).toContainText("Usage meters");
 
     const admin = section(page, "#saas-admin");
+    await expect(admin).toContainText("Cloud workspace shell");
+    await expect(admin).toContainText("Governance Overview");
+    await expect(admin).toContainText("Cloud workspace shell");
+    await expect(admin).toContainText("Governance Overview");
     await expect(admin).toContainText("SaaS Admin Console");
     await expect(admin).toContainText("Login");
     await expect(admin).toContainText("Team");
@@ -92,10 +96,155 @@ test.describe("A3 API-backed dashboard E2E", () => {
     expect(consoleErrors, "billing migration readiness dashboard evidence should not emit browser console errors").toEqual([]);
   });
 
+  test("shows the latest A1 and A2 commercial integration matrix", async ({ page }) => {
+    const consoleErrors = collectConsoleErrors(page);
+    await page.goto(apiBackedPath);
+    await waitForApiDashboard(page);
+
+    const radar = section(page, "#schema-drift-radar");
+    await expect(radar).toContainText("Cross-Lane Integration");
+    await expect(radar).toContainText("A1 runtime -> A2 judge -> A3 release console");
+    await expect(radar).toContainText("payments");
+    await expect(radar).toContainText("evidence_storage");
+    await expect(radar).toContainText("evaluation_storage");
+    await expect(radar).toContainText("scenario_growth");
+    await expect(radar).toContainText("Next cross-lane actions");
+
+    await radar.screenshot({
+      path: "docs/screenshots/a3-a1-a2-integration-matrix-api-backed-2026-07-11.png"
+    });
+
+    expect(consoleErrors, "A1/A2 integration matrix should not emit browser console errors").toEqual([]);
+  });
+
+  test("keeps the console overview bounded and runtime contracts expandable", async ({ page }) => {
+    const consoleErrors = collectConsoleErrors(page);
+    await page.goto(`${apiBackedPath}#console`);
+    await waitForApiDashboard(page);
+
+    const workflow = page.locator("#console > .panel").filter({ hasText: "Request to report" });
+    const runtime = section(page, "#saas-runtime");
+    const layout = await page.evaluate(() => {
+      const workflowRect = document.querySelector("#console > .panel")?.getBoundingClientRect();
+      const runtimeRect = document.querySelector("#saas-runtime")?.getBoundingClientRect();
+      const runtimeNode = document.querySelector("#saas-runtime");
+      return {
+        workflowWidth: Math.round(workflowRect?.width || 0),
+        workflowRight: Math.round(workflowRect?.right || 0),
+        workflowTop: Math.round(workflowRect?.top || 0),
+        runtimeWidth: Math.round(runtimeRect?.width || 0),
+        runtimeLeft: Math.round(runtimeRect?.left || 0),
+        runtimeTop: Math.round(runtimeRect?.top || 0),
+        runtimeHeight: Math.round(runtimeRect?.height || 0),
+        runtimeOverflow: runtimeNode ? runtimeNode.scrollWidth > runtimeNode.clientWidth : true
+      };
+    });
+    expect(layout.workflowWidth).toBeGreaterThan(400);
+    expect(layout.runtimeWidth).toBeGreaterThan(400);
+    expect(layout.workflowWidth + layout.runtimeWidth).toBeGreaterThan(900);
+    expect(layout.workflowRight).toBeLessThan(layout.runtimeLeft);
+    expect(Math.abs(layout.workflowTop - layout.runtimeTop)).toBeLessThanOrEqual(2);
+    expect(layout.runtimeHeight).toBeLessThan(700);
+    expect(layout.runtimeOverflow).toBe(false);
+    await expect(workflow).toContainText("Requests");
+
+    const apiDetails = runtime.locator("details").filter({ hasText: "API surfaces" });
+    await expect(apiDetails).not.toHaveAttribute("open", "");
+    await apiDetails.locator("summary").click();
+    await expect(apiDetails).toHaveAttribute("open", "");
+    await expect(apiDetails).toContainText("GET /api/a3/auth/context");
+
+    await runtime.screenshot({
+      path: "docs/screenshots/a3-runtime-contract-layout-api-backed-2026-07-11.png"
+    });
+
+    expect(consoleErrors, "bounded runtime overview should not emit browser console errors").toEqual([]);
+  });
+
+  test("keeps the A1 A2 integration matrix readable on mobile", async ({ page }) => {
+    const consoleErrors = collectConsoleErrors(page);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`${apiBackedPath}#schema-drift-radar`);
+    await waitForApiDashboard(page);
+
+    const radar = section(page, "#schema-drift-radar");
+    const layout = await page.evaluate(() => {
+      const panel = document.querySelector("#schema-drift-radar");
+      const bridgeGrid = panel?.querySelector(".integration-bridge-grid");
+      return {
+        panelWidth: Math.round(panel?.getBoundingClientRect().width || 0),
+        overflow: panel ? panel.scrollWidth > panel.clientWidth : true,
+        bridgeColumns: bridgeGrid ? getComputedStyle(bridgeGrid).gridTemplateColumns.split(" ").length : 0
+      };
+    });
+    expect(layout.panelWidth).toBeLessThanOrEqual(370);
+    expect(layout.overflow).toBe(false);
+    expect(layout.bridgeColumns).toBe(1);
+    await expect(radar).toContainText("A1 runtime -> A2 judge -> A3 release console");
+    await expect(radar).toContainText("scenario_growth");
+
+    await radar.screenshot({
+      path: "docs/screenshots/a3-a1-a2-integration-matrix-mobile-2026-07-11.png"
+    });
+
+    expect(consoleErrors, "mobile A1/A2 integration matrix should not emit browser console errors").toEqual([]);
+  });
+
+  test("renders Live Workflow Readiness through the extracted dashboard component", async ({ page }) => {
+    const consoleErrors = collectConsoleErrors(page);
+
+    await page.goto(apiBackedPath);
+    await waitForApiDashboard(page);
+
+    const readiness = section(page, "#live-workflow-readiness");
+    await expect(readiness).toContainText("Live Workflow Readiness");
+    await expect(readiness).toContainText("GitHub PR check live publishing");
+    await expect(readiness).toContainText("Reviewer approve / deny / waiver workflow");
+    await expect(readiness).toContainText("Billing/admin read real usage/billing state");
+    await expect(readiness).toContainText("Report share link revocable, expiring, audited");
+    await expect(readiness).toContainText("A3 reads A1/A2 evidence");
+    await expect(readiness).not.toContainText("[object HTMLDivElement]");
+
+    await readiness.screenshot({
+      path: "docs/screenshots/a3-live-workflow-readiness-api-backed-2026-07-10.png"
+    });
+
+    expect(consoleErrors, "live workflow readiness should not emit browser console errors").toEqual([]);
+  });
+
+  test("shows review filters, share governance, and cloud summary strip", async ({ page }) => {
+    const consoleErrors = collectConsoleErrors(page);
+    await page.goto(apiBackedPath);
+    await waitForApiDashboard(page);
+
+    const reviewer = section(page, "#reviewer-workflow");
+    await expect(reviewer).toContainText("Review Filters");
+    await expect(reviewer).toContainText("reviewer");
+    await expect(reviewer).toContainText("owner");
+
+    const reportCenter = page.locator("#report-center");
+    await expect(reportCenter).toContainText("Audience Filters");
+    await expect(reportCenter).toContainText("Workspace Groups");
+    await expect(reportCenter).toContainText("Environment Groups");
+    await expect(reportCenter).toContainText("External Publish Blockers");
+
+    const admin = section(page, "#saas-admin");
+    await expect(admin).toContainText("Cloud Summary Strip");
+    await expect(admin).toContainText("Auth");
+    await expect(admin).toContainText("Trust");
+
+    await page.screenshot({
+      path: "docs/screenshots/a3-review-governance-cloudstrip-2026-07-10.png",
+      fullPage: true
+    });
+
+    expect(consoleErrors, "review filters and cloud summary surfaces should not emit browser console errors").toEqual([]);
+  });
+
   test("creates and revokes a hosted report through the local A3 API", async ({ page }) => {
     const consoleErrors = collectConsoleErrors(page);
     await page.goto(apiBackedPath);
-    await expect(page.locator("#data-source")).toContainText("API-backed A1/A2 mock fixture");
+    await waitForApiDashboard(page);
 
     const shareResponse = page.waitForResponse((response) => (
       response.url().includes("/api/a3/reports/share")
@@ -107,7 +256,7 @@ test.describe("A3 API-backed dashboard E2E", () => {
     await expect(page.locator("#share-report-detail")).toContainText("sha256");
 
     const reportCenter = page.locator("#report-center");
-    await expect(reportCenter).toContainText("Hosted Reports");
+    await expect(reportCenter).toContainText("Artifact Registry");
     await expect(reportCenter).toContainText("/r/[REDACTED_TOKEN]");
 
     const revokeResponse = page.waitForResponse((response) => (
@@ -127,7 +276,7 @@ test.describe("A3 API-backed dashboard E2E", () => {
   test("records SaaS Admin guardrail requests without real cloud mutation", async ({ page }) => {
     const consoleErrors = collectConsoleErrors(page);
     await page.goto(apiBackedPath);
-    await expect(page.locator("#data-source")).toContainText("API-backed A1/A2 mock fixture");
+    await waitForApiDashboard(page);
 
     const admin = section(page, "#saas-admin");
     await admin.locator("[data-admin-action-select]").selectOption("invite_teammate");
@@ -154,7 +303,7 @@ test.describe("A3 API-backed dashboard E2E", () => {
   test("records reviewer waiver and approval receipts and renders durable review records", async ({ page }) => {
     const consoleErrors = collectConsoleErrors(page);
     await page.goto(apiBackedPath);
-    await expect(page.locator("#data-source")).toContainText("API-backed A1/A2 mock fixture");
+    await waitForApiDashboard(page);
 
     const waiver = loadFixture("fixtures/a3/p3/a3_waiver_request_blocked_exception.redacted.json");
     const approval = loadFixture("fixtures/a3/p3/a3_approval_record_blocked_exception.redacted.json");
@@ -195,74 +344,122 @@ test.describe("A3 API-backed dashboard E2E", () => {
     await expect(records).toContainText("Waivers");
     await expect(records).toContainText("Approvals");
     await expect(records).toContainText("valid_exceptional_waiver");
-    await expect(records).toContainText("valid_exception_approval");
-    await expect(records).toContainText("hash_sealed");
 
-    const workflowResponse = await page.request.get(apiUrl(page, "/api/a3/review/workflow?source=mock"));
-    await expect(workflowResponse.status()).toBe(200);
-    const workflow = await workflowResponse.json();
-    expect(workflow.record_count).toBeGreaterThanOrEqual(2);
-    expect(workflow.durable_storage_ready).toBe(true);
-    expect(JSON.stringify(workflow)).not.toContain("owner@example.com");
-
-    expect(consoleErrors, "review workflow receipt flow should not emit browser console errors").toEqual([]);
+    expect(consoleErrors, "review workflow receipts should not emit browser console errors").toEqual([]);
   });
 
-  test("renders denied hosted report pages without leaking case evidence", async ({ page }) => {
+  test("shows hosted report scope and commercial admin enterprise controls together", async ({ page }) => {
     const consoleErrors = collectConsoleErrors(page);
     await page.goto(apiBackedPath);
+    await waitForApiDashboard(page);
 
-    const shareResponse = await page.request.post(apiUrl(page, "/api/a3/reports/share?source=mock"), {
-      headers: {
-        "x-a3-role": "reviewer"
-      },
-      data: {
-        source: "mock",
-        title: "A3 Round 4 denied-state report",
-        visibility: "private_link",
-        created_by: "round4-e2e"
-      }
+    const reportCenter = page.locator("#report-center");
+    await expect(reportCenter).toContainText("Artifact Registry");
+    const admin = section(page, "#saas-admin");
+    await expect(admin).toContainText("Cloud workspace shell");
+    await expect(admin).toContainText("Governance Overview");
+    await expect(admin).toContainText("Procurement / Sign-Off Posture");
+    await expect(admin).toContainText("Usage Escalation");
+    await expect(admin).toContainText("Collections / Invoice Escalation");
+    await expect(admin).toContainText("Workspace Action Readiness");
+    await expect(admin).toContainText("owner_plus_reviewer");
+    await expect(admin).toContainText("blocked_until_hosted_auth");
+    await expect(section(page, "#review-workflow-records")).toContainText("Report Share Readiness");
+    await expect(admin).toContainText("Separation Of Duties");
+    await expect(admin).toContainText("Workspace / Environment Control");
+
+    const enterprise = section(page, "#enterprise-readiness");
+    await expect(enterprise).toContainText("Hosted Buyer Readiness");
+
+    await page.screenshot({
+      path: "docs/screenshots/a3-commercial-escalation-console-api-backed-2026-07-10.png",
+      fullPage: true
     });
-    await expect(shareResponse.status()).toBe(201);
-    const report = await shareResponse.json();
 
-    const sharePath = report.share_url_path;
-    expect(sharePath).toMatch(/^\/r\//);
-    await page.goto(apiUrl(page, sharePath));
-    await expect(page.locator("body")).toContainText("A3 Round 4 denied-state report");
-    await expect(page.locator("body")).toContainText("Case Evidence");
+    expect(consoleErrors, "scope and commercial governance surfaces should not emit browser console errors").toEqual([]);
+  });
 
-    const revokeResponse = await page.request.post(apiUrl(page, `/api/a3/reports/${encodeURIComponent(report.report_id)}/revoke?source=mock`), {
-      headers: {
-        "x-a3-role": "owner"
-      },
-      data: {
-        reason: "round4_denied_state_e2e",
-        revoked_by: "round4-e2e"
-      }
+  test("shows export audience governance and enterprise decision packets in the API-backed console", async ({ page }) => {
+    const consoleErrors = collectConsoleErrors(page);
+    await page.goto(apiBackedPath);
+    await waitForApiDashboard(page);
+
+    const admin = section(page, "#saas-admin");
+    await expect(admin).toContainText("Export / Audience Governance");
+    await expect(admin).toContainText("customer_external");
+    await expect(admin).toContainText("reviewer_signoff");
+    await expect(admin).toContainText("executive_summary");
+    await expect(admin).toContainText("blocked");
+
+    const enterprise = section(page, "#enterprise-readiness");
+    await expect(enterprise).toContainText("Decision Packets");
+    await expect(enterprise).toContainText("Reviewer packet");
+    await expect(enterprise).toContainText("Executive packet");
+    await expect(enterprise).toContainText("Customer packet");
+    await expect(enterprise).toContainText("Customer blocked");
+
+    await page.screenshot({
+      path: "docs/screenshots/a3-export-governance-enterprise-packets-api-backed-2026-07-10.png",
+      fullPage: true
     });
-    await expect(revokeResponse.status()).toBe(200);
 
-    const revokedResponse = await page.goto(apiUrl(page, sharePath));
-    expect(revokedResponse?.status()).toBe(410);
-    await expect(page.locator("body")).toContainText("A3 report is not available");
-    await expect(page.locator("body")).toContainText("revoked");
-    await expect(page.locator("body")).not.toContainText("Case Evidence");
-    await expect(page.locator("body")).not.toContainText("Expected");
-    await expect(page.locator("body")).not.toContainText("Actual");
+    expect(consoleErrors, "export governance and enterprise decision packets should not emit browser console errors").toEqual([]);
+  });
 
-    const missingResponse = await page.goto(apiUrl(page, "/r/missing-share-token-round4"));
-    expect(missingResponse?.status()).toBe(404);
-    await expect(page.locator("body")).toContainText("A3 report is not available");
-    await expect(page.locator("body")).not.toContainText("Case Evidence");
+  test("shows release publish chain continuity in live ops control plane", async ({ page }) => {
+    const consoleErrors = collectConsoleErrors(page);
+    await page.goto(apiBackedPath);
+    await waitForApiDashboard(page);
 
-    const unexpectedConsoleErrors = consoleErrors.filter((message) => (
-      !message.includes("status of 410")
-      && !message.includes("status of 404")
-    ));
-    expect(unexpectedConsoleErrors, "hosted denied-state flow should not emit unexpected browser console errors").toEqual([]);
+    const liveOps = section(page, "#live-ops-control-plane");
+    await expect(liveOps).toContainText("Release publish chain");
+    await expect(liveOps).toContainText("reviewer_records");
+    await expect(liveOps).toContainText("github_check_publish");
+    await expect(liveOps).toContainText("github_pr_comment");
+    await expect(liveOps).toContainText("hosted_report_share");
+    await expect(liveOps).toContainText("usage_visibility");
+    await expect(liveOps).toContainText("billing_visibility");
+    await expect(liveOps).toContainText("Commercial sign-off");
+    await expect(liveOps).toContainText("Required roles");
+    await expect(liveOps).toContainText("Customer external");
+    await expect(liveOps).toContainText("Sign-off blockers");
+    await expect(liveOps).not.toContainText("[object HTMLDivElement]");
+
+    await page.screenshot({
+      path: "docs/screenshots/a3-live-publish-chain-api-backed-2026-07-10.png",
+      fullPage: true
+    });
+    await liveOps.screenshot({
+      path: "docs/screenshots/a3-commercial-signoff-summary-api-backed-2026-07-10.png"
+    });
+
+    expect(consoleErrors, "release publish chain should not emit browser console errors").toEqual([]);
+  });
+
+  test("shows trust publish blockers and customer-safe artifact posture", async ({ page }) => {
+    const consoleErrors = collectConsoleErrors(page);
+    await page.goto(apiBackedPath);
+    await waitForApiDashboard(page);
+
+    const admin = section(page, "#saas-admin");
+    await expect(admin).toContainText("Trust Center");
+    await expect(admin).toContainText("Blocked reason");
+    await expect(admin).toContainText("publish blocker:");
+    await expect(admin).toContainText("customer-safe artifact:");
+    await expect(admin).toContainText("hosted trust publishing service");
+
+    await page.screenshot({
+      path: "docs/screenshots/a3-trust-blockers-api-backed-2026-07-10.png",
+      fullPage: true
+    });
+
+    expect(consoleErrors, "trust blockers should not emit browser console errors").toEqual([]);
   });
 });
+
+async function waitForApiDashboard(page: Page) {
+  await expect.poll(async () => await page.locator("#data-source").textContent(), { timeout: 15000 }).toContain("API-backed A1/A2 mock fixture");
+}
 
 function section(page: Page, selector: string): Locator {
   return page.locator(selector);

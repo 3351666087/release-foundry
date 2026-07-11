@@ -94,9 +94,77 @@ export function buildReviewWorkflowIndex(records = [], options = {}) {
     human_action_count: items.length,
     latest_human_action: items[items.length - 1]?.record_type || null,
     latest_record_id: items[items.length - 1]?.record_id || null,
+    scope_summary: buildWorkflowScopeSummary(items),
+    decision_trends: buildDecisionTrendSummary(items),
+    filter_options: buildWorkflowFilterOptions(items),
     durable_storage_ready: options.durableStorageReady !== false,
     real_cloud_mutations_performed: false,
     records: items.slice(-10)
+  };
+}
+
+function buildWorkflowFilterOptions(items = []) {
+  const releases = [...new Set(items.map((item) => item.release_version).filter(Boolean))];
+  const environments = [...new Set(items.map((item) => item.environment).filter(Boolean))];
+  const actorHashes = [...new Set(items.map((item) => item.review?.approval?.payload_hash || item.payload_hash).filter(Boolean))].slice(0, 12);
+  return {
+    schema_version: "a3.review_workflow_filter_options.v1",
+    release_versions: releases,
+    environments,
+    actor_hashes: actorHashes,
+    default_scope: {
+      release_version: releases[releases.length - 1] || null,
+      environment: environments[0] || null,
+      actor_hash: actorHashes[0] || null
+    }
+  };
+}
+
+function buildDecisionTrendSummary(items = []) {
+  const ordered = [...items].slice(-12);
+  const releaseCounts = new Map();
+  const environmentCounts = new Map();
+  const actorCounts = new Map();
+  for (const item of ordered) {
+    if (item.release_version) {
+      releaseCounts.set(item.release_version, (releaseCounts.get(item.release_version) || 0) + 1);
+    }
+    if (item.environment) {
+      environmentCounts.set(item.environment, (environmentCounts.get(item.environment) || 0) + 1);
+    }
+    const actor = item.review?.approval?.reviewer_role
+      || item.review?.waiver?.latest_approver_role
+      || item.review?.denial?.reviewer_role
+      || "unknown";
+    actorCounts.set(actor, (actorCounts.get(actor) || 0) + 1);
+  }
+  return {
+    approvals: ordered.filter((item) => item.record_type === "approval").length,
+    waivers: ordered.filter((item) => item.record_type === "waiver").length,
+    denials: ordered.filter((item) => item.record_type === "denial").length,
+    latest_release_version: ordered[ordered.length - 1]?.release_version || null,
+    latest_environment: ordered[ordered.length - 1]?.environment || null,
+    release_breakdown: [...releaseCounts.entries()].map(([label, count]) => ({ label, count })),
+    environment_breakdown: [...environmentCounts.entries()].map(([label, count]) => ({ label, count })),
+    actor_breakdown: [...actorCounts.entries()].map(([label, count]) => ({ label, count }))
+  };
+}
+
+function buildWorkflowScopeSummary(items = []) {
+  const releases = [...new Set(items.map((item) => item.release_version).filter(Boolean))];
+  const environments = [...new Set(items.map((item) => item.environment).filter(Boolean))];
+  const actorRoles = [...new Set(items.map((item) => item.signature?.signer_role).filter(Boolean))];
+  const actorHashes = [...new Set(items.map((item) => item.subject?.approved_by_actor_hash).filter(Boolean))];
+  return {
+    release_count: releases.length,
+    environment_count: environments.length,
+    actor_role_count: actorRoles.length,
+    actor_hash_count: actorHashes.length,
+    latest_release_version: items[items.length - 1]?.release_version || null,
+    latest_environment: items[items.length - 1]?.environment || null,
+    actor_roles: actorRoles.slice(0, 6),
+    releases: releases.slice(0, 6),
+    environments: environments.slice(0, 6)
   };
 }
 
@@ -287,3 +355,5 @@ function sortForStableJson(value) {
   }
   return value;
 }
+
+

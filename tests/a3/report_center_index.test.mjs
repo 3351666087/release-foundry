@@ -79,3 +79,118 @@ test("A3 Report Center index keeps empty state actionable without pretending rep
   assert.ok(center.next_actions.some((item) => item.includes("Create the first hosted report")));
   assert.equal(center.control_plane.billing_mutations_enabled, false);
 });
+
+test("A3 Report Center report items preserve row-level tenant workspace environment scope", () => {
+  const center = buildReportCenterIndex([
+    {
+      report_id: "a3r_scoped",
+      title: "Scoped report",
+      source: "mock",
+      status: "shareable",
+      tenant_scope: {
+        organization_id: "org-row",
+        tenant_id: "tenant-row",
+        workspace_id: "workspace-row",
+        project_id: "project-row",
+        environment_id: "prod"
+      },
+      share_link: { token_hash: "hash-row", token_hash_prefix: "hash-row", scope: "private_link" },
+      redaction: { status: "passed", blocked: false },
+      sealed_evidence: { payload_hash: "abc", hash_algorithm: "sha256", secret_free: true },
+      lifecycle: { revocable: true, view_audit_enabled: true },
+      view_audit: { view_count: 1 }
+    }
+  ], { now: "2026-07-10T00:00:00.000Z" });
+
+  assert.equal(center.reports[0].tenant_scope.workspace_id, "workspace-row");
+  assert.equal(center.reports[0].tenant_scope.environment_id, "prod");
+  assert.equal(center.reports[0].tenant_scope.project_id, "project-row");
+});
+
+test("A3 Report Center index exposes export audience governance", () => {
+  const center = buildReportCenterIndex([
+    {
+      report_id: "a3r_audience",
+      title: "Audience-governed report",
+      source: "mock",
+      status: "shareable",
+      share_link: { token_hash: "hash-audience", token_hash_prefix: "hash-audience", scope: "private_link" },
+      redaction: { status: "passed", blocked: false },
+      sealed_evidence: { payload_hash: "abc", hash_algorithm: "sha256", secret_free: true },
+      lifecycle: { revocable: true, view_audit_enabled: true },
+      view_audit: { view_count: 1 },
+      release_evidence_summary: { available: true }
+    }
+  ], { now: "2026-07-10T00:00:00.000Z" });
+
+  assert.equal(center.export_audience_governance.status, "audience_gates_visible");
+  assert.equal(center.export_audience_governance.audiences.some((item) => item.audience === "customer_external" && item.allowed === false), true);
+  assert.equal(center.export_audience_governance.audiences.some((item) => item.audience === "reviewer_signoff" && item.allowed === true), true);
+});
+
+test("A3 Report Center rows surface allowed audiences from report contract", () => {
+  const center = buildReportCenterIndex([
+    {
+      report_id: "a3r_row_audience",
+      title: "Row audience report",
+      source: "mock",
+      status: "shareable",
+      share_link: { token_hash: "hash-ra", token_hash_prefix: "hash-ra", scope: "private_link" },
+      redaction: { status: "passed", blocked: false },
+      sealed_evidence: { payload_hash: "abc", hash_algorithm: "sha256", secret_free: true },
+      lifecycle: { revocable: true, view_audit_enabled: true },
+      release_evidence_summary: { available: true }
+    }
+  ], { now: "2026-07-10T00:00:00.000Z" });
+
+  assert.deepEqual(center.reports[0].export_audience.allowed, ["internal_ops", "reviewer_signoff", "executive_summary"]);
+  assert.equal(center.reports[0].export_audience.customer_external_blocked, true);
+});
+
+test("A3 Report Center index exposes audience filters, grouped scopes, and external publish blockers", () => {
+  const center = buildReportCenterIndex([
+    {
+      report_id: "a3r_grouped_1",
+      title: "Workspace A report",
+      source: "mock",
+      status: "shareable",
+      tenant_scope: {
+        organization_id: "org-local",
+        tenant_id: "tenant-local",
+        workspace_id: "workspace-a",
+        project_id: "project-a",
+        environment_id: "prod"
+      },
+      share_link: { token_hash: "hash-ga", token_hash_prefix: "hash-ga", scope: "private_link" },
+      redaction: { status: "passed", blocked: false },
+      sealed_evidence: { payload_hash: "abc", hash_algorithm: "sha256", secret_free: true },
+      lifecycle: { revocable: true, view_audit_enabled: true },
+      release_evidence_summary: { available: true }
+    },
+    {
+      report_id: "a3r_grouped_2",
+      title: "Workspace B report",
+      source: "mock",
+      status: "blocked",
+      tenant_scope: {
+        organization_id: "org-local",
+        tenant_id: "tenant-local",
+        workspace_id: "workspace-b",
+        project_id: "project-b",
+        environment_id: "staging"
+      },
+      share_link: { token_hash: "hash-gb", token_hash_prefix: "hash-gb", scope: "private_link" },
+      redaction: { status: "blocked", blocked: true },
+      sealed_evidence: { payload_hash: "def", hash_algorithm: "sha256", secret_free: true },
+      lifecycle: { revocable: false, view_audit_enabled: true }
+    }
+  ], { now: "2026-07-10T00:00:00.000Z" });
+
+  assert.equal(center.audience_filters.schema_version, "a3.report_center_audience_filters.v1");
+  assert.equal(center.audience_filters.default_filter, "internal_ops");
+  assert.equal(center.audience_filters.filters.some((item) => item.audience === "customer_external" && item.state === "blocked"), true);
+  assert.equal(center.workspace_groups.groups.some((item) => item.workspace_id === "workspace-a"), true);
+  assert.equal(center.environment_groups.groups.some((item) => item.environment_id === "prod"), true);
+  assert.equal(center.external_publish_blockers.status, "customer_external_blocked");
+  assert.ok(center.external_publish_blockers.prerequisites.includes("public export trust workflow"));
+});

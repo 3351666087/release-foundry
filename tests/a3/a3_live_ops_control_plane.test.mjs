@@ -1,4 +1,4 @@
-import assert from "node:assert/strict";
+﻿import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 
@@ -59,7 +59,11 @@ test("A3 live ops control plane tracks the six requested SaaS workflow lanes", a
       revoked_count: 1,
       expired_count: 1,
       total_view_count: 2
-    }
+    },
+    reports: [
+      { report_id: "a3r_live_ops", status: "shareable", expires_at: "2026-07-12T00:00:00Z", view_count: 2 },
+      { report_id: "a3r_revoked", status: "revoked", revoked_at: "2026-07-10T08:00:00Z", view_count: 0 }
+    ]
   };
   const eventOutbox = {
     schema_version: "a3.event_outbox_dashboard.v1",
@@ -109,6 +113,11 @@ test("A3 live ops control plane tracks the six requested SaaS workflow lanes", a
   assert.equal(controlPlane.human_operation_summary.approval_count, 1);
   assert.equal(controlPlane.billing_state_summary.billing_mutations_enabled, false);
   assert.equal(controlPlane.report_link_summary.revoked_count, 1);
+  assert.equal(controlPlane.report_link_summary.latest_report_statuses.length, 2);
+  assert.equal(controlPlane.reviewer_timeline.length, 3);
+  assert.equal(controlPlane.github_publish_timeline.length, 3);
+  assert.equal(controlPlane.share_link_timeline.length, 2);
+  assert.ok(controlPlane.audit_history.length >= 1);
   assert.equal(controlPlane.a1_a2_alignment.a3_mutates_a1_a2_semantics, false);
   assert.equal(controlPlane.safety.secret_values_included, false);
   assert.doesNotMatch(JSON.stringify(controlPlane), /Bearer|sk-|ghp_|github_pat_|@/);

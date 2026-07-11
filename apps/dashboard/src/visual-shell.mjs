@@ -13,7 +13,8 @@ export const primaryAreas = [
       { href: "#summary", label: "Source & exports" },
       { href: "#product-surfaces", label: "Product surfaces" },
       { href: "#workspace-shortcuts", label: "Workspace shortcuts" },
-      { href: "#metrics", label: "Run metrics" }
+      { href: "#metrics", label: "Run metrics" },
+      { href: "#integration-spine", label: "A1/A2 evidence spine" }
     ]
   },
   {
@@ -24,7 +25,10 @@ export const primaryAreas = [
       { href: "#console", label: "Console" },
       { href: "#product-console", label: "Product console" },
       { href: "#media-readiness", label: "Media readiness" },
-      { href: "#official-gap", label: "Official gap" }
+      { href: "#official-gap", label: "Official gap" },
+      { href: "#official-mirror", label: "Frontend mirror" },
+      { href: "#official-code-crawl", label: "Code crawl parity" },
+      { href: "#official-roadmap", label: "Parity roadmap" }
     ]
   },
   {
@@ -35,7 +39,8 @@ export const primaryAreas = [
       { href: "#runs", label: "Run list" },
       { href: "#detail", label: "Case detail" },
       { href: "#timeline", label: "Trace timeline" },
-      { href: "#clusters", label: "Failure clusters" }
+      { href: "#clusters", label: "Failure clusters" },
+      { href: "#reviewer-workflow", label: "Reviewer workflow" }
     ]
   },
   {
@@ -71,10 +76,13 @@ export const primaryAreas = [
     children: [
       { href: "#enterprise-readiness", label: "Enterprise posture" },
       { href: "#schema-drift-radar", label: "Contract radar" },
-      { href: "#peer-branch-calibration", label: "Peer branches" },
+      { href: "#peer-branch-calibration", label: "Peer Branches" },
       { href: "#release-gate", label: "Release gate" },
       { href: "#pr-gate", label: "PR gate" },
-      { href: "#war-room", label: "War room" }
+      { href: "#war-room", label: "War room" },
+      { href: "#incident-replay", label: "Incident replay" },
+      { href: "#observability-replay", label: "Observability replay" },
+      { href: "#regression-factory", label: "Regression factory" }
     ]
   }
 ];
@@ -83,91 +91,58 @@ export const productSurfaces = [
   {
     href: "#summary",
     label: "Workspace",
-    detail: "Evaluation health and source status"
+    detail: "source and release health"
   },
   {
-    href: "#product-console",
-    label: "Product Console / Onboarding / Audit",
-    detail: "product console workflow, projects, audit log"
+    href: "#runs",
+    label: "Evaluation",
+    detail: "runs, cases and traces"
+  },
+  {
+    href: "#reviewer-workflow",
+    label: "Review",
+    detail: "human release decisions"
+  },
+  {
+    href: "#operations",
+    label: "Reports",
+    detail: "evidence and export lifecycle"
   },
   {
     href: "#saas-admin",
-    label: "SaaS Admin / Login / Team / Trust",
-    detail: "SaaS admin guardrails, RBAC, team, API keys"
+    label: "Administration",
+    detail: "identity, team and billing"
   },
   {
-    href: "#saas-runtime",
-    label: "Usage",
-    detail: "quota, meters, reportable activity"
-  },
-  {
-    href: "#cloud-shell",
-    label: "API Keys",
-    detail: "read-only cloud action shell"
-  },
-  {
-    href: "#enterprise-readiness",
+    href: "#schema-drift-radar",
     label: "Trust",
-    detail: "audit, export safety, self-host posture"
+    detail: "contracts, audit and policy"
   }
 ];
 
 export const workspaceRailGroups = [
   {
-    label: "Workflow",
+    label: "Live",
     links: [
-      { href: "#console", label: "Console" },
-      { href: "#runs", label: "Run List" },
-      { href: "#detail", label: "Case Detail" },
-      { href: "#timeline", label: "Trace Timeline" },
-      { href: "#clusters", label: "Failure Clusters" }
+      { href: "#runs", label: "Runs" },
+      { href: "#reviewer-workflow", label: "Review" },
+      { href: "#operations", label: "Reports" }
     ]
   },
   {
-    label: "Platform",
+    label: "Control",
     links: [
-      { href: "#saas-runtime", label: "SaaS Runtime" },
-      { href: "#billing-migration-readiness", label: "Billing Migration" },
-      { href: "#live-workflow-readiness", label: "Live Workflow" },
-      { href: "#live-ops-control-plane", label: "Live Ops" },
-      { href: "#notification-control-plane", label: "Notifications" },
-      { href: "#product-console", label: "Product Console" },
-      { href: "#saas-admin", label: "SaaS Admin" },
-      { href: "#enterprise-readiness", label: "Enterprise" },
-      { href: "#schema-drift-radar", label: "Contracts" },
-      { href: "#peer-branch-calibration", label: "Peer Branches" },
-      { href: "#cloud-shell", label: "Cloud Shell" }
+      { href: "#saas-admin", label: "Admin" },
+      { href: "#billing-migration-readiness", label: "Billing" },
+      { href: "#enterprise-readiness", label: "Enterprise" }
     ]
   },
   {
-    label: "Calibration",
+    label: "Evidence",
     links: [
       { href: "#media-readiness", label: "Media" },
-      { href: "#official-gap", label: "Official Gap" },
-      { href: "#official-mirror", label: "Frontend Mirror" },
-      { href: "#official-code-crawl", label: "Code Crawl" },
-      { href: "#official-roadmap", label: "Parity Roadmap" }
-    ]
-  },
-  {
-    label: "Release",
-    links: [
-      { href: "#release-gate", label: "Release Gate" },
-      { href: "#war-room", label: "War Room" },
-      { href: "#incident-replay", label: "Incident Replay" },
-      { href: "#observability-replay", label: "Observability" },
-      { href: "#regression-factory", label: "Regression" },
-      { href: "#reviewer-workflow", label: "Review" },
-      { href: "#pr-gate", label: "PR Gate" },
-      { href: "#release-evidence", label: "Evidence" }
-    ]
-  },
-  {
-    label: "Output",
-    links: [
-      { href: "#operations", label: "Operations" },
-      { href: "#report-preview", label: "Report" },
-      { href: "#export-redaction", label: "Export Safety" }
+      { href: "#schema-drift-radar", label: "Contracts" },
+      { href: "#official-gap", label: "Official parity" }
     ]
   }
 ];
@@ -194,11 +169,14 @@ function renderPrimaryNav(container) {
     label.textContent = item.label;
     const meta = document.createElement("small");
     meta.textContent = item.meta;
+    const number = document.createElement("span");
+    number.className = "nav-number";
+    number.textContent = String(index + 1).padStart(3, "0");
     const arrow = document.createElement("span");
     arrow.className = "nav-arrow";
     arrow.setAttribute("aria-hidden", "true");
 
-    link.append(label, meta, arrow);
+    link.append(label, meta, number, arrow);
 
     const sublist = document.createElement("div");
     sublist.className = "nav-sublist";

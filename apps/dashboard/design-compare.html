@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>A3 Dashboard Design Comparison</title>
+    <link rel="stylesheet" href="./src/design-compare.css">
+  </head>
+  <body>
+    <header class="compare-header">
+      <div>
+        <span class="compare-kicker">A3 / VISUAL QA</span>
+        <h1>Dashboard 设计对比</h1>
+      </div>
+      <div class="compare-switch" role="group" aria-label="比较布局">
+        <button type="button" data-compare-view="split" aria-pressed="true">并排</button>
+        <button type="button" data-compare-view="a" aria-pressed="false">只看 A</button>
+        <button type="button" data-compare-view="b" aria-pressed="false">只看 B</button>
+      </div>
+    </header>
+
+    <main class="compare-grid" data-view="split">
+      <section class="compare-pane" data-variant="a">
+        <header>
+          <div><span>方案 A</span><strong>Release Intelligence</strong></div>
+          <a href="./index.html?source=api-mock" target="_blank" rel="noreferrer">单独打开</a>
+        </header>
+        <iframe title="方案 A Release Intelligence" src="./index.html?source=api-mock"></iframe>
+      </section>
+
+      <section class="compare-pane" data-variant="b">
+        <header>
+          <div><span>方案 B</span><strong>Signal/Form Operations</strong></div>
+          <a href="./index.html?source=api-mock&amp;design=signal-form" target="_blank" rel="noreferrer">单独打开</a>
+        </header>
+        <iframe title="方案 B Signal Form" src="./index.html?source=api-mock&amp;design=signal-form"></iframe>
+      </section>
+    </main>
+
+    <script type="module" src="./src/design-compare.mjs"></script>
+  </body>
+</html>

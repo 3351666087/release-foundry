@@ -43,7 +43,18 @@ test("A3 product console turns A1/A2 evidence into onboarding, project, and audi
     usageLedger,
     reportCenter,
     auditEvents,
-    importReceipts: [{ schema_version: "a3.a1_run_result_ingest.v1", source: "mock", idempotency: { status: "recorded" } }]
+    importReceipts: [{ schema_version: "a3.a1_run_result_ingest.v1", source: "mock", idempotency: { status: "recorded" } }],
+    reviewWorkflow: {
+      schema_version: "a3.review_workflow_index.v1",
+      record_count: 1
+    },
+    notificationControlPlane: {
+      schema_version: "a3.notification_control_plane.v1",
+      summary: {
+        channel_count: 4,
+        contract_ready_count: 4
+      }
+    }
   });
 
   assert.equal(product.schema_version, "a3.product_console.v1");
@@ -53,7 +64,9 @@ test("A3 product console turns A1/A2 evidence into onboarding, project, and audi
   assert.ok(product.project_console.primary_actions.some((item) => item.action === "create_report" && item.enabled));
   assert.equal(product.audit_log.redacted_payload_only, true);
   assert.ok(product.audit_log.event_count >= 3);
-  assert.ok(product.commercial_readiness.readiness_score >= 80);
+  assert.equal(product.commercial_readiness.readiness_score, 100);
+  assert.equal(product.project_console.operations_summary.review_record_count, 1);
+  assert.equal(product.project_console.operations_summary.notification_channel_count, 4);
 
   const serialized = JSON.stringify(product);
   assert.doesNotMatch(serialized, /Bearer [A-Za-z0-9]/);

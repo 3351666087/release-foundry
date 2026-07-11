@@ -41,6 +41,8 @@ import { buildA3SourceArtifacts } from "./a3_source_artifacts.mjs";
 import { buildA3LiveWorkflowReadiness } from "./a3_live_workflow_readiness.mjs";
 import { buildA3LiveOpsControlPlane } from "./a3_live_ops_control_plane.mjs";
 import { buildA3NotificationControlPlane } from "./a3_notification_control_plane.mjs";
+import { buildA3ReleaseDecisionProvenance } from "./a3_release_decision_provenance.mjs";
+import { buildA3A1A2EvidenceSpine } from "./a3_a1_a2_evidence_spine.mjs";
 import {
   buildA3TenantScope,
   tenantScopeMatches,
@@ -74,7 +76,9 @@ export const A3_SOURCE_FIXTURES = {
   mock: {
     label: "A1/A2 Mock",
     runFixture: "fixtures/a3/mock_run_results.json",
-    gradeFixture: "fixtures/a3/mock_grade_results.json"
+    gradeFixture: "fixtures/a3/mock_grade_results.json",
+    a2GradeResults: "fixtures/a2/results/a2_g3_grade_results.json",
+    a2ReleaseGate: "fixtures/a2/results/a2_release_gate_report.json"
   },
   "raw-a1": {
     label: "Raw A1 RunResult",
@@ -173,6 +177,8 @@ export const A3_DB_CONTRACT = {
     "GET /api/a3/auth/rbac-policy",
     "POST /api/a3/auth/authorize",
     "GET /api/a3/dashboard",
+    "GET /api/a3/release-decision/provenance",
+    "POST /api/a3/ui-actions/preflight",
     "GET /api/a3/runs",
     "GET /api/a3/runs/:runId",
     "GET /api/a3/cases/:caseId",
@@ -204,6 +210,7 @@ export const A3_DB_CONTRACT = {
     "GET /api/a3/commercial-api/contract",
     "GET /api/a3/peer-branches/calibration",
     "GET /api/a3/a1-a2/schema-drift",
+    "GET /api/a3/a1-a2/evidence-spine",
     "GET /api/a3/events/outbox",
     "GET /api/a3/reports/center",
     "GET /api/a3/reports/:reportId/manifest",
@@ -277,6 +284,8 @@ export async function loadA3SourceSnapshot(source = "mock", options = {}) {
     frontendMirror: await readOptionalJson(root, "fixtures/a3/p3/ashr_frontend_mirror_summary.redacted.json"),
     frontendCodeCrawl: await readOptionalJson(root, "fixtures/a3/p3/ashr_frontend_code_crawl_summary.redacted.json"),
     peerBranchCalibration: await readOptionalJson(root, "fixtures/a3/p3/a3_peer_branch_calibration.redacted.json"),
+    a2GradeResults: await readOptionalJson(root, config.a2GradeResults),
+    a2ReleaseGate: await readOptionalJson(root, config.a2ReleaseGate),
     releaseEvidence: await readReleaseEvidenceFixtures(root),
     storage: {
       mode: "fixture_file",
@@ -349,7 +358,7 @@ export function createMemoryA3Store(seed = {}) {
       return normalized;
     },
 
-    async getDashboardSnapshot(source = "mock") {
+    async getDashboardSnapshot(source = "mock", requestOptions = {}) {
       const snapshot = selectSnapshot(snapshots, source);
       return buildDashboardPayload(snapshot, this.storage_mode, {
         reports: filterReportsForSnapshot([...reports.values()], snapshot),
@@ -359,6 +368,8 @@ export function createMemoryA3Store(seed = {}) {
         reviewWorkflowRecords,
         releaseEvidenceReadbacks,
         githubPublishReceipts,
+        actor: requestOptions.actor,
+        auth: requestOptions.auth,
         importReceipts: apiImportReceiptsFromLedger(idempotencyReceipts)
       });
     },
@@ -623,6 +634,14 @@ export function createMemoryA3Store(seed = {}) {
       const billingReadiness = await this.getBillingReadiness(options);
       const reportCenter = await this.getReportCenter(options);
       const reviewWorkflow = await this.getReviewWorkflow(options);
+      const saasAdmin = attachAdminActionRequests(buildSaasAdminConsole(snapshot, {
+        source: snapshot.source,
+        organizationId: scopedSnapshot.organizationId,
+        projectId: scopedSnapshot.projectId
+      }), adminActionRequests, {
+        organizationId: scopedSnapshot.organizationId,
+        projectId: scopedSnapshot.projectId
+      });
       const eventOutboxDashboard = buildEventOutboxDashboard(eventOutbox, {
         source: snapshot.source,
         organizationId: scopedSnapshot.organizationId,
@@ -639,6 +658,7 @@ export function createMemoryA3Store(seed = {}) {
         usageLedger,
         billingReadiness,
         reportCenter,
+        saasAdmin,
         eventOutbox: eventOutboxDashboard,
         liveWorkflowReadiness
       }, {
@@ -713,6 +733,14 @@ export function createMemoryA3Store(seed = {}) {
           environment_id: scopedSnapshot.environmentId
         }
       };
+    },
+
+    async getA1A2EvidenceSpine(options = {}) {
+      const dashboard = await this.getDashboardSnapshot(options.source || "mock", {
+        actor: options.actor,
+        auth: options.auth
+      });
+      return dashboard.a1_a2_evidence_spine;
     },
 
     async planSaasAdminAction(action, options = {}) {
@@ -1988,6 +2016,8 @@ function normalizeSnapshot(snapshot = {}) {
     frontendCodeCrawl: snapshot.frontendCodeCrawl || {},
     peerBranchCalibration: snapshot.peerBranchCalibration || snapshot.peer_branch_calibration || {},
     releaseEvidence: snapshot.releaseEvidence || snapshot.release_evidence || {},
+    a2GradeResults: snapshot.a2GradeResults || snapshot.a2_grade_results || {},
+    a2ReleaseGate: snapshot.a2ReleaseGate || snapshot.a2_release_gate || {},
     summary: buildDashboardSummary(runFixture, gradeFixture),
     case_count: cases.length,
     storage: snapshot.storage || {
@@ -2118,6 +2148,7 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     usageLedger,
     billingReadiness,
     reportCenter,
+    saasAdmin,
     eventOutbox: eventOutboxDashboard,
     liveWorkflowReadiness
   }, {
@@ -2141,6 +2172,33 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     projectId: snapshot.projectId,
     environmentId: snapshot.environmentId
   });
+  const releaseDecisionProvenance = buildA3ReleaseDecisionProvenance({
+    a1RunResult: extractRunRecords(snapshot.runFixture)[0],
+    a2GradeResults: snapshot.a2GradeResults,
+    a2ReleaseGate: snapshot.a2ReleaseGate,
+    reviewWorkflow,
+    shareableReport: reportCenter.reports?.[0],
+    usageLedger,
+    billingVisibility: billingReadiness,
+    audit: (options.auditEvents || []).at(-1)
+  }, {
+    tenantScope: snapshot.tenant_scope,
+    actor: options.actor || {},
+    auth: options.auth || {}
+  });
+  const peerBranchCalibration = summarizeA3PeerBranchCalibration(snapshot.peerBranchCalibration);
+  const a1A2EvidenceSpine = buildA3A1A2EvidenceSpine({
+    source: snapshot.source,
+    runFixture: snapshot.runFixture,
+    gradeFixture: snapshot.gradeFixture,
+    a2ReleaseGate: snapshot.a2ReleaseGate,
+    releaseDecisionProvenance,
+    reviewWorkflow,
+    reportCenter,
+    peerBranchCalibration: snapshot.peerBranchCalibration
+  }, {
+    source: snapshot.source
+  });
   return {
     schema_version: "a3.api_dashboard_payload.v1",
     source: snapshot.source,
@@ -2162,7 +2220,7 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     frontend_summary: snapshot.frontendSummary,
     frontend_mirror: snapshot.frontendMirror,
     frontend_code_crawl: snapshot.frontendCodeCrawl,
-    peer_branch_calibration: summarizeA3PeerBranchCalibration(snapshot.peerBranchCalibration),
+    peer_branch_calibration: peerBranchCalibration,
     release_evidence: releaseEvidenceForDashboard,
     release_evidence_summary: releaseEvidenceForDashboard,
     release_evidence_readbacks: releaseEvidenceReadbackHistory,
@@ -2175,6 +2233,8 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     live_workflow_readiness: liveWorkflowReadiness,
     live_ops_control_plane: liveOpsControlPlane,
     notification_control_plane: notificationControlPlane,
+    release_decision_provenance: releaseDecisionProvenance,
+    a1_a2_evidence_spine: a1A2EvidenceSpine,
     release_evidence_api: {
       schema_version: "a3.release_evidence_api_link.v1",
       release_id: releaseId,

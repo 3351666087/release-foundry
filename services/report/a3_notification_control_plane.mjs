@@ -65,6 +65,9 @@ export function buildA3NotificationControlPlane(inputs = {}, options = {}) {
   const channels = lanes.map(channelProjection);
   const triggerMatrix = lanes.map(triggerProjection);
   const growthPoints = buildGrowthPoints(lanes);
+  const humanSummary = liveOpsControlPlane.human_operation_summary || {};
+  const billingSummary = liveOpsControlPlane.billing_state_summary || {};
+  const shareSummary = liveOpsControlPlane.report_link_summary || {};
 
   return {
     schema_version: A3_NOTIFICATION_CONTROL_PLANE_SCHEMA_VERSION,
@@ -85,6 +88,22 @@ export function buildA3NotificationControlPlane(inputs = {}, options = {}) {
       live_mutation_count: 0,
       growth_point_count: growthPoints.length,
       strongest_money_path: "PR gate + incident replay + enterprise audit notifications"
+    },
+    live_ops_alignment: {
+      review_record_count: numberOr(humanSummary.review_record_count, 0),
+      approval_count: numberOr(humanSummary.approval_count, 0),
+      denial_count: numberOr(humanSummary.denial_count, 0),
+      waiver_count: numberOr(humanSummary.waiver_count, 0),
+      event_outbox_count: numberOr(humanSummary.event_outbox_count, 0),
+      visible_human_ops: Boolean(humanSummary.dashboard_visible),
+      usage_meter_count: numberOr(billingSummary.meter_count, 0),
+      billing_readiness_status: billingSummary.billing_readiness_status || "unknown",
+      billing_mutations_enabled: billingSummary.billing_mutations_enabled === true,
+      shareable_report_count: numberOr(shareSummary.shareable_count, 0),
+      revoked_report_count: numberOr(shareSummary.revoked_count, 0),
+      expired_report_count: numberOr(shareSummary.expired_count, 0),
+      total_report_views: numberOr(shareSummary.total_view_count, 0),
+      why_it_sells: "Notifications become more valuable when tied to reviewer actions, billing/usage visibility, and shareable audit reports."
     },
     counts: {
       lane_count: lanes.length,

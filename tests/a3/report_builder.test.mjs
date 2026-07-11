@@ -39,6 +39,7 @@ import {
   summarizeRegressionFactory,
   summarizeExportRedactionFirewall,
   summarizeIncidentReplayQueue,
+  summarizeLiveOpsControlPlaneExport,
   summarizeReviewerWorkflowBoard,
   summarizeReleaseEvidenceSummary,
   summarizeReleaseGate,
@@ -49,6 +50,7 @@ import {
 } from "../../services/report/report_builder.mjs";
 import { buildA3UsageLedger } from "../../services/report/a3_usage_ledger.mjs";
 import { buildA3ProductConsole } from "../../services/report/a3_product_console.mjs";
+import { buildReportCenterIndex } from "../../services/report/a3_report_center.mjs";
 import { buildA3ArtifactRegistry } from "../../services/report/a3_artifact_registry.mjs";
 import { buildSaasAdminConsole } from "../../services/report/a3_saas_admin.mjs";
 import { mapAshrSampleToA3Fixtures } from "../../services/report/p3_ashr_mapper.mjs";
@@ -2283,4 +2285,221 @@ test("A3 report builder preserves A2 cross-lane security and SQL store summaries
   assert.match(markdown, /Block hosted mutations without A1 auth: yes/);
   assert.match(markdown, /## A2 SQL Store Report/);
   assert.match(markdown, /DB: sqlite \/ target postgres/);
+});
+
+test("A3 report builder summarizes live ops control-plane export", async () => {
+  const checkPublish = await loadJson("../../fixtures/a3/p3/a3_github_check_publish_receipt_dry_run.redacted.json");
+  const prCommentPublish = await loadJson("../../fixtures/a3/p3/a3_github_pr_comment_publish_receipt_dry_run.redacted.json");
+  const checkReadback = await loadJson("../../fixtures/a3/p3/a3_github_check_readback_confirmed.redacted.json");
+  const prCommentReadback = await loadJson("../../fixtures/a3/p3/a3_github_pr_comment_readback_confirmed.redacted.json");
+  const { buildA3LiveOpsControlPlane } = await import("../../services/report/a3_live_ops_control_plane.mjs");
+
+  const controlPlane = buildA3LiveOpsControlPlane({
+    releaseEvidence: {
+      githubCheckPublishReceipt: checkPublish,
+      githubPrCommentPublishReceipt: prCommentPublish,
+      githubCheckReadback: checkReadback,
+      githubPrCommentReadback: prCommentReadback,
+      readback_records: [checkReadback, prCommentReadback]
+    },
+    reviewWorkflow: {
+      schema_version: "a3.review_workflow_index.v1",
+      record_count: 2,
+      approval_count: 1,
+      denial_count: 0,
+      waiver_count: 1,
+      records: [
+        { record_type: "approval", accepted: true, reason: "Ready", actor_hash: "actor-1" },
+        { record_type: "waiver", accepted: true, reason: "Exception approved", actor_hash: "actor-2" }
+      ]
+    },
+    usageLedger: { schema_version: "a3.usage_ledger.v1", meters: [{ meter: "reports", quantity: 1 }], status: "ready" },
+    billingReadiness: { schema_version: "a3.billing_readiness.v1", status: "read_only", billing_mutations_enabled: false, invoice_preview: { ready_for_customer_invoice: true } },
+    saasAdmin: {
+      trust: { status: "not_publishable", publish_enabled: false },
+      billing_account: { collections_posture: { state: "watch_collections_now" } }
+    },
+    reportCenter: {
+      schema_version: "a3.report_center_index.v1",
+      summary: { report_count: 2, shareable_count: 1, revoked_count: 1, expired_count: 0, total_view_count: 3 },
+      reports: [
+        { report_id: "r1", status: "shareable", expires_at: "2026-07-12T00:00:00Z", view_count: 3 },
+        { report_id: "r2", status: "revoked", revoked_at: "2026-07-10T08:00:00Z", view_count: 0 }
+      ]
+    },
+    eventOutbox: { event_count: 4 },
+    liveWorkflowReadiness: { source: "api-mock" }
+  });
+
+  const summary = summarizeLiveOpsControlPlaneExport(controlPlane);
+  assert.equal(summary.available, true);
+  assert.equal(summary.lane_count, 6);
+  assert.equal(summary.reviewer_timeline.length, 2);
+  assert.equal(summary.github_publish_timeline.length, 3);
+  assert.equal(summary.share_link_timeline.length, 2);
+  assert.ok(summary.audit_history.length >= 1);
+  assert.equal(summary.report_link_summary.shareable_count, 1);
+  assert.equal(summary.commercial_signoff_summary.status, "internal_signoff_ready_customer_external_blocked");
+  assert.ok(summary.commercial_signoff_summary.required_roles.includes("billing_admin"));
+  assert.equal(summary.commercial_signoff_summary.customer_external_blocked, true);
+  assert.match(summary.commercial_signoff_summary.blocker_reasons.join(" "), /billing owner review/);
+  assert.equal(controlPlane.release_publish_chain.status, "ready_for_governed_publish");
+  assert.equal(controlPlane.release_publish_chain.reviewer_gate_status, "approved");
+  assert.deepEqual(controlPlane.release_publish_chain.blocker_reasons, []);
+});
+test("A3 report exports preserve richer workspace posture from SaaS Admin", () => {
+  const admin = buildSaasAdminConsole(
+    { totalRuns: 2, totalCases: 6, failed: 2, mediaEvidenceCases: 1 },
+    [{ trace_ready: true, judge_results: [{}], expected: { tool_calls: [] }, actual: { tool_calls: [] } }],
+    {},
+    { available: true },
+    { available: true }
+  );
+  const exported = summarizeSaasAdminExport(admin);
+  assert.equal(exported.cloud_management.workspace_posture.status, "cloud_shell_visible");
+  assert.equal(exported.cloud_management.workspace_posture.tenant_scope_state, "visible");
+  assert.ok(["instrumented_demo_project", "empty_project"].includes(exported.cloud_management.workspace_posture.project_state));
+  assert.equal(Array.isArray(exported.cloud_management.workspace_posture.operator_story), true);
+  assert.equal(exported.cloud_management.workspace_posture.operator_story.length > 0, true);
+});
+
+
+test("A3 report center index preserves tenant workspace and environment scope", () => {
+  const index = buildReportCenterIndex([], {
+    organizationId: "org-scope",
+    tenantId: "tenant-scope",
+    workspaceId: "workspace-scope",
+    projectId: "project-scope",
+    environmentId: "prod"
+  });
+  assert.equal(index.tenant_scope.organization_id, "org-scope");
+  assert.equal(index.tenant_scope.tenant_id, "tenant-scope");
+  assert.equal(index.tenant_scope.workspace_id, "workspace-scope");
+  assert.equal(index.tenant_scope.project_id, "project-scope");
+  assert.equal(index.tenant_scope.environment_id, "prod");
+});
+
+
+
+test("A3 report exports include export audience governance from SaaS admin", () => {
+  const report = buildJsonReport(
+    { runs: [] },
+    { grade_results: [] },
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {
+      export_governance: {
+        schema_version: "a3.export_governance_state.v1",
+        status: "reviewer_and_exec_packets_ready_for_review",
+        allowed_audiences: ["internal_ops", "reviewer_signoff", "executive_summary"],
+        blocked_audiences: ["customer_external"],
+        customer_external_blocked: true,
+        packet_readiness: [
+          { packet: "reviewer_signoff", status: "copy_now", why: "review evidence ready" },
+          { packet: "customer_external", status: "blocked", why: "trust workflow missing" }
+        ],
+        required_controls: ["tenant-scoped hosted reports"],
+        commercial_value: ["Safe reviewer packet"]
+      }
+    }
+  );
+
+  assert.equal(report.export_audience_governance.available, true);
+  assert.equal(report.export_audience_governance.customer_external_blocked, true);
+  assert.deepEqual(report.export_audience_governance.allowed_audiences, ["internal_ops", "reviewer_signoff", "executive_summary"]);
+});
+
+
+test("A3 live ops control plane blocks publish when denial exists", async () => {
+  const { buildA3LiveOpsControlPlane } = await import("../../services/report/a3_live_ops_control_plane.mjs");
+  const controlPlane = buildA3LiveOpsControlPlane({
+    releaseEvidence: {},
+    reviewWorkflow: {
+      schema_version: "a3.review_workflow_index.v1",
+      record_count: 2,
+      approval_count: 0,
+      denial_count: 1,
+      waiver_count: 0
+    },
+    usageLedger: { schema_version: "a3.usage_ledger.v1", meters: [], status: "api_backed" },
+    billingReadiness: { schema_version: "a3.billing_readiness.v1", status: "read_only_state_ready" },
+    reportCenter: { schema_version: "a3.report_center_index.v1", summary: { shareable_count: 0 }, reports: [] }
+  });
+
+  assert.equal(controlPlane.release_publish_chain.status, "blocked_by_denial");
+  assert.equal(controlPlane.release_publish_chain.reviewer_gate_status, "blocked_by_denial");
+  assert.match(controlPlane.release_publish_chain.blocker_reasons[0], /denial record/);
+  assert.equal(controlPlane.release_publish_chain.steps[0].status, "blocked_by_denial");
+  assert.equal(controlPlane.commercial_signoff_summary.status, "blocked_by_human_denial");
+  assert.ok(controlPlane.commercial_signoff_summary.required_roles.includes("owner"));
+  assert.equal(controlPlane.commercial_signoff_summary.evidence.denials, 1);
+});
+
+
+test("A3 SaaS admin model exposes commercial ops, self-host, and developer platform posture", () => {
+  const admin = buildSaasAdminConsole(
+    { runs: { runs: [{ run_id: "run-1", cases: [{ case_id: "case-1", status: "failed" }] }] } },
+    {}
+  );
+  assert.equal(admin.commercial_ops.schema_version, "a3.commercial_ops_state.v1");
+  assert.ok(admin.commercial_ops.domestic_payment_priority.includes("wechat_pay"));
+  assert.equal(admin.self_host_console.schema_version, "a3.self_host_console_state.v1");
+  assert.ok(admin.self_host_console.required_enterprise_controls.includes("tenant-scoped audit export"));
+  assert.equal(admin.developer_platform.schema_version, "a3.developer_platform_state.v1");
+  assert.ok(admin.developer_platform.api_posture.sdk_surface.includes("typescript"));
+});
+
+
+test("A3 SaaS admin commercial ops exports stay available after bootstrap recovery", () => {
+  const admin = buildSaasAdminConsole({ runs: { runs: [{ run_id: "run-1", cases: [{ case_id: "case-1", status: "failed" }] }] } }, {});
+  const exported = summarizeSaasAdminExport(admin);
+  assert.equal(exported.commercial_ops.schema_version, "a3.commercial_ops_state.v1");
+  assert.equal(exported.self_host_console.schema_version, "a3.self_host_console_state.v1");
+  assert.equal(exported.developer_platform.schema_version, "a3.developer_platform_state.v1");
+});
+
+test("A3 SaaS admin preserves procurement, usage, billing, and cloud escalation posture", () => {
+  const admin = buildSaasAdminConsole({
+    runs: {
+      runs: [{
+        run_id: "run-commercial-blocked",
+        cases: [{ case_id: "case-blocked", status: "failed" }]
+      }]
+    },
+    usageQuota: {
+      frontend_known_modules: ["usage", "billing"],
+      plan: {
+        plan_name: "team-cn",
+        included_unit_count: 1,
+        overage_enabled: true,
+        currency: "CNY"
+      },
+      quota: {
+        included_units: 1,
+        used_units: 100
+      }
+    }
+  }, {});
+
+  assert.equal(admin.team.procurement_posture.signoff_lane, "owner_plus_reviewer");
+  assert.equal(admin.usage.escalation_posture.state, "review_failed_case_spike");
+  assert.equal(admin.billing_account.collections_posture.state, "watch_collections_now");
+  assert.equal(admin.cloud_management.workspace_action_readiness.create_project, "blocked_until_hosted_auth");
+
+  const exported = summarizeSaasAdminExport(admin);
+  assert.equal(exported.team.procurement_posture.signoff_lane, "owner_plus_reviewer");
+  assert.equal(exported.usage.escalation_posture.state, "review_failed_case_spike");
+  assert.equal(exported.billing_account.collections_posture.state, "watch_collections_now");
+  assert.equal(exported.billing_account.provider_priority[0].provider, "wechat_pay");
+  assert.equal(exported.cloud_management.workspace_action_readiness.publish_trust_certificate, "blocked_until_trust_service");
+  assert.equal(exported.auth_boundary.real_cloud_mutations_performed, false);
 });

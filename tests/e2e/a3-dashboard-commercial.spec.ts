@@ -1,6 +1,6 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 
-const officialDemoPath = "/apps/dashboard/index.html?source=p3-official-demo";
+const officialDemoPath = "/apps/dashboard/index.html?source=p3-official-demo&lang=en";
 
 test.describe("A3 dashboard commercial E2E", () => {
   test("renders real dashboard content from the official-demo source", async ({ page }) => {
@@ -124,7 +124,7 @@ async function openDashboard(page: Page) {
 
   await page.goto(officialDemoPath);
   await expect(page.locator("#data-source")).not.toContainText("Loading local fixtures");
-  await expect(page.locator("h1")).toHaveText("A3 Product Console");
+  await expect(page.locator("h1")).toHaveText("ReleaseIntelligence");
   expect(consoleErrors, "dashboard should not emit browser console errors while loading").toEqual([]);
 }
 

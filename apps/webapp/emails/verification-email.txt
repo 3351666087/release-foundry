@@ -1,0 +1,9 @@
+ASHR / EMAIL VERIFICATION
+
+Your Ashr verification code is: {{VERIFICATION_CODE}}
+
+This code expires in {{EXPIRES_IN_MINUTES}} minutes and can be used once.
+Secure verification page: {{VERIFICATION_URL}}
+
+If you did not request this code, ignore this message.
+Ashr will never ask for a password, API key, or OAuth token by email.

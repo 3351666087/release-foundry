@@ -1,7 +1,7 @@
 {
   "schema_version": "a3.peer_branch_calibration.v1",
   "source": "origin peer branch calibration",
-  "observed_at": "2026-07-09T13:20:00Z",
+  "observed_at": "2026-07-11T14:40:00Z",
   "private_values_included": false,
   "peer_deltas": [
     {
@@ -199,6 +199,39 @@
       "db_event_artifact_impact": "Requires authz_decisions, audit_events, and event_outbox records to share tenant scope.",
       "suggested_fixture_field": "a2_rbac_outbox_context",
       "next_action": "Add RBAC/outbox cross-lane readiness to A3 dashboard evidence."
+    },
+    {
+      "delta_id": "a1-identity-verification-public-surface",
+      "source_branch": "origin/codex/a1-local-sdk-runner",
+      "source_file": "docs/a1/identity-verification-public-surface.json",
+      "owner_lane": "A1",
+      "a3_surface": "auth_rbac",
+      "contract": "ashr.clone.identity_verification_public_surface.v1",
+      "risk_level": "high",
+      "a3_status": "watch",
+      "a3_blocker": true,
+      "dashboard_impact": "Login and reviewer actions should distinguish a real verified identity backend from client-declared role metadata.",
+      "report_impact": "Audit reports should expose verification receipt availability without exposing identity values.",
+      "api_contract_impact": "A3 hosted writes must wait for A1 verification receipts, durable session validation, and digest-only identity references.",
+      "db_event_artifact_impact": "Future audit and review records should reference A1 durable verification receipts by digest, never raw identity payloads.",
+      "suggested_fixture_field": "a1_identity_verification_readiness",
+      "next_action": "Consume the A1 identity verification read contract after it merges to main; keep A3 hosted actions fail-closed before then."
+    },
+    {
+      "delta_id": "a2-multimodal-real-api-smoke",
+      "source_branch": "origin/dev/g3-a2-calibration",
+      "source_file": "docs/a2/schemas/multimodal_real_api_smoke.schema.json",
+      "owner_lane": "A2",
+      "a3_surface": "media_evidence",
+      "contract": "a2.multimodal_real_api_smoke.v1",
+      "risk_level": "medium",
+      "a3_status": "ready_to_consume",
+      "dashboard_impact": "Media Readiness should show five requested modalities separately from request creation and grading readiness.",
+      "report_impact": "Reports should state that authentication succeeded but quota blocked request creation, without exposing private API output.",
+      "api_contract_impact": "A3 consumes only the public-safe smoke summary and keeps media generation outside the dashboard.",
+      "db_event_artifact_impact": "Store the schema and public evidence hash as calibration refs; do not store binary media or private responses.",
+      "suggested_fixture_field": "a2_multimodal_real_api_smoke",
+      "next_action": "Render A2 multimodal smoke readiness as draft calibration until the contract merges to main."
     }
   ],
   "growth_points": [
@@ -361,6 +394,22 @@
       "surface": "worklog",
       "expected_artifact": "20-point backlog",
       "money_grade_reason": "Keeps the project compounding instead of stopping at one feature."
+    },
+    {
+      "id": "PBC-21",
+      "title": "Connect A1 identity verification receipts to A3 hosted action readiness",
+      "owner_lane": "A3",
+      "surface": "auth_rbac",
+      "expected_artifact": "identity readiness row + fail-closed action contract",
+      "money_grade_reason": "Prevents a polished login shell from being mistaken for production identity enforcement."
+    },
+    {
+      "id": "PBC-22",
+      "title": "Expose A2 five-modality smoke state in the A3 evidence spine",
+      "owner_lane": "A3",
+      "surface": "media_evidence",
+      "expected_artifact": "draft-watch signal + media readiness status",
+      "money_grade_reason": "Makes real multimodal calibration visible without claiming quota-blocked generation succeeded."
     }
   ],
   "safety": {

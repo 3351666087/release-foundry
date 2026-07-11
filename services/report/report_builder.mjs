@@ -1,4 +1,4 @@
-﻿import {
+import {
   redactExport,
   sanitizeCsvCellValue,
   summarizeRedactionResults
@@ -3882,9 +3882,10 @@ function normalizeBillingMeter(meter = {}) {
 function resolveBillingPlan(usageFixture = {}, usageQuota = {}, options = {}) {
   const optionPlan = options.plan || options.billingPlan || {};
   const planFixture = usageFixture.billing_plan || usageFixture.current_plan || usageFixture.plan || {};
+  const hasOptionPlan = isObject(optionPlan) && Object.keys(optionPlan).length > 0;
   const planObject = typeof optionPlan === "string"
     ? { plan_name: optionPlan }
-    : isObject(optionPlan)
+    : hasOptionPlan
       ? optionPlan
       : typeof planFixture === "string"
         ? { plan_name: planFixture }
@@ -3922,7 +3923,7 @@ function resolveBillingPlan(usageFixture = {}, usageQuota = {}, options = {}) {
 function resolveBillingQuota(usageFixture = {}, options = {}, billableUnitCount = 0, plan = {}) {
   const optionQuota = options.quota || {};
   const fixtureQuota = usageFixture.quota || usageFixture.usage_quota || {};
-  const quotaObject = isObject(optionQuota)
+  const quotaObject = isObject(optionQuota) && Object.keys(optionQuota).length > 0
     ? optionQuota
     : isObject(fixtureQuota)
       ? fixtureQuota
@@ -4499,6 +4500,7 @@ export function summarizeSaasAdminExport(saasAdminFixture = {}) {
   const team = saasAdminFixture.team || {};
   const apiKeys = saasAdminFixture.api_keys || {};
   const usage = saasAdminFixture.usage || {};
+  const billing = saasAdminFixture.billing_account || {};
   const trust = saasAdminFixture.trust || {};
   const cloud = saasAdminFixture.cloud_management || {};
   const compatibility = saasAdminFixture.a1_a2_compatibility || {};
@@ -4540,13 +4542,26 @@ export function summarizeSaasAdminExport(saasAdminFixture = {}) {
       invite_mode: team.invite_mode || "unknown",
       member_count: Array.isArray(team.members) ? team.members.length : 0,
       roles: Array.isArray(team.roles) ? team.roles : [],
-      self_approval_allowed: team.approval_policy?.self_approval_allowed === true
+      self_approval_allowed: team.approval_policy?.self_approval_allowed === true,
+      approval_escalation_summary: team.approval_policy?.escalation_summary || "unknown",
+      seat_management: {
+        purchased_seats: team.seat_management?.purchased_seats || 0,
+        assigned_billable_seats: team.seat_management?.assigned_billable_seats || 0,
+        free_audit_seats: team.seat_management?.free_audit_seats || 0,
+        pending_invites: team.seat_management?.pending_invites || 0,
+        overage_risk: team.seat_management?.overage_risk || "unknown"
+      },
+      procurement_posture: team.procurement_posture || {}
     },
     api_keys: {
       status: apiKeys.status || "unknown",
       create_mode: apiKeys.create_mode || "unknown",
       reveal_policy: apiKeys.reveal_policy || "unknown",
+      hygiene_status: apiKeys.hygiene_status || "unknown",
+      rotation_slo_days: apiKeys.rotation_slo_days || 0,
+      leaked_key_detection: apiKeys.leaked_key_detection || "unknown",
       key_count: Array.isArray(apiKeys.keys) ? apiKeys.keys.length : 0,
+      audit_requirements: Array.isArray(apiKeys.audit_requirements) ? apiKeys.audit_requirements : [],
       lifecycle_steps: (apiKeys.lifecycle || []).map((item) => ({
         step: item.step,
         status: item.status
@@ -4556,22 +4571,59 @@ export function summarizeSaasAdminExport(saasAdminFixture = {}) {
       status: usage.status || "unknown",
       plan_name: usage.plan_snapshot?.plan_name || "unknown",
       quota_mutations_enabled: usage.plan_snapshot?.quota_mutations_enabled === true,
+      overage_posture: usage.plan_snapshot?.overage_posture || "unknown",
       channels: Array.isArray(usage.channels) ? usage.channels : [],
-      oauth_only_functions: Array.isArray(usage.oauth_only_functions) ? usage.oauth_only_functions : []
+      oauth_only_functions: Array.isArray(usage.oauth_only_functions) ? usage.oauth_only_functions : [],
+      escalation_posture: usage.escalation_posture || {}
     },
+    billing_account: {
+      schema_version: billing.schema_version || "unknown",
+      status: billing.status || "unknown",
+      plan_name: billing.plan_name || "unknown",
+      quota_window: billing.quota_window || "unknown",
+      invoice_preview_state: billing.invoice_preview_state || "unknown",
+      overage_risk: billing.overage_risk || "unknown",
+      collections_posture: billing.collections_posture || {},
+      provider_priority: (billing.provider_priority || []).slice(0, 4).map((item) => ({
+        provider: item.provider,
+        priority: item.priority,
+        market: item.market,
+        readiness: item.readiness
+      }))
+    },
+    commercial_ops: saasAdminFixture.commercial_ops || {},
+    self_host_console: saasAdminFixture.self_host_console || {},
+    developer_platform: saasAdminFixture.developer_platform || {},
     trust: {
       status: trust.status || "unknown",
       public_certificate_mode: trust.public_certificate_mode || "unknown",
       publish_enabled: trust.publish_enabled === true,
       public_publish_enabled: trust.trust_center?.public_publish_enabled === true,
-      release_gate_label: trust.release_gate_label || trust.release_gate_decision || "unknown"
+      release_gate_label: trust.release_gate_label || trust.release_gate_decision || "unknown",
+      compliance_posture: {
+        audit_export_ready: trust.compliance_posture?.audit_export_ready === true,
+        customer_visible_publish_blocked: trust.compliance_posture?.customer_visible_publish_blocked === true,
+        soc2_surface: trust.compliance_posture?.soc2_surface || "unknown",
+        retention_policy: trust.compliance_posture?.retention_policy || "unknown"
+      }
     },
     cloud_management: {
       status: cloud.status || "unknown",
       resource_count: Array.isArray(cloud.resources) ? cloud.resources.length : 0,
       real_mutations_enabled: cloud.real_mutations_enabled === true,
       supported_readonly_surfaces: Array.isArray(cloud.supported_readonly_surfaces) ? cloud.supported_readonly_surfaces : [],
-      disabled_mutations: Array.isArray(cloud.disabled_mutations) ? cloud.disabled_mutations : []
+      disabled_mutations: Array.isArray(cloud.disabled_mutations) ? cloud.disabled_mutations : [],
+      workspace_action_readiness: cloud.workspace_action_readiness || {},
+      workspace_posture: {
+        schema_version: cloud.workspace_posture?.schema_version || "unknown",
+        status: cloud.workspace_posture?.status || "unknown",
+        tenant_scope_state: cloud.workspace_posture?.tenant_scope_state || "unknown",
+        project_state: cloud.workspace_posture?.project_state || "unknown",
+        environment_state: cloud.workspace_posture?.environment_state || cloud.workspace_posture?.active_environment || "unknown",
+        usage_state: cloud.workspace_posture?.usage_state || "unknown",
+        operator_story: Array.isArray(cloud.workspace_posture?.operator_story) ? cloud.workspace_posture.operator_story : [],
+        next_capabilities: Array.isArray(cloud.workspace_posture?.next_capabilities) ? cloud.workspace_posture.next_capabilities : []
+      }
     },
     a1_a2_compatibility: {
       a1_run_result_ready: compatibility.a1_run_result_ready === true,
@@ -4740,6 +4792,48 @@ export function summarizeGithubPublishEvidence(githubPublishFixture = {}) {
   };
 }
 
+
+export function summarizeLiveOpsControlPlaneExport(controlPlaneFixture = {}) {
+  const available = controlPlaneFixture?.schema_version === "a3.live_ops_control_plane.v1"
+    || Boolean(controlPlaneFixture?.lanes || controlPlaneFixture?.human_operation_summary || controlPlaneFixture?.report_link_summary);
+  if (!available) {
+    return {
+      schema_version: "a3.live_ops_control_plane_export.v1",
+      available: false,
+      status: "missing",
+      recommendation: "Attach live ops control-plane evidence before claiming publish, reviewer, billing, and report-governance readiness."
+    };
+  }
+
+  return {
+    schema_version: "a3.live_ops_control_plane_export.v1",
+    available: true,
+    source: controlPlaneFixture.source || "unknown",
+    status: controlPlaneFixture.status || "unknown",
+    lane_count: controlPlaneFixture.counts?.lane_count || 0,
+    api_backed_count: controlPlaneFixture.counts?.api_backed_count || 0,
+    audit_backed_count: controlPlaneFixture.counts?.audit_backed_count || 0,
+    local_external_mutation_count: controlPlaneFixture.counts?.local_external_mutation_count || 0,
+    human_operation_summary: controlPlaneFixture.human_operation_summary || {},
+    billing_state_summary: controlPlaneFixture.billing_state_summary || {},
+    report_link_summary: controlPlaneFixture.report_link_summary || {},
+    release_publish_chain: controlPlaneFixture.release_publish_chain || {},
+    commercial_signoff_summary: controlPlaneFixture.commercial_signoff_summary || {},
+    reviewer_timeline: Array.isArray(controlPlaneFixture.reviewer_timeline) ? controlPlaneFixture.reviewer_timeline : [],
+    github_publish_timeline: Array.isArray(controlPlaneFixture.github_publish_timeline) ? controlPlaneFixture.github_publish_timeline : [],
+    share_link_timeline: Array.isArray(controlPlaneFixture.share_link_timeline) ? controlPlaneFixture.share_link_timeline : [],
+    audit_history: Array.isArray(controlPlaneFixture.audit_history) ? controlPlaneFixture.audit_history : [],
+    lanes: Array.isArray(controlPlaneFixture.lanes) ? controlPlaneFixture.lanes.map((item) => ({
+      id: item.id,
+      status: item.status,
+      current_mode: item.current_mode,
+      product_surface: item.product_surface,
+      next_action: item.next_action
+    })) : [],
+    safety: controlPlaneFixture.safety || {},
+    recommendation: "Keep live ops export aligned with A1 hosted workers and A2 release semantics while exposing operator-facing governance evidence."
+  };
+}
 export function summarizeNotificationControlPlane(notificationFixture = {}) {
   const available = notificationFixture?.schema_version === "a3.notification_control_plane.v1";
   if (!available) {
@@ -5240,6 +5334,7 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
   const releaseEvidence = summarizeReleaseEvidenceSummary(releaseEvidenceFixture);
   const githubPublishEvidence = summarizeGithubPublishEvidence(githubPublishEvidenceFixture);
   const notificationControlPlane = summarizeNotificationControlPlane(notificationControlPlaneFixture);
+  const liveOpsControlPlane = summarizeLiveOpsControlPlaneExport(notificationControlPlaneFixture.live_ops_control_plane || {});
   const peerBranchCalibration = summarizeA3PeerBranchCalibration(peerBranchCalibrationFixture);
   const clusters = clusterFailures(runFixture, gradeFixture);
   const cases = normalizeCases(runFixture, gradeFixture);
@@ -5323,6 +5418,31 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
       `- Maintainer approval required: ${githubPublishEvidence.maintainer_approval_required ? "yes" : "no"}`,
       ""
     );
+  }
+
+  if (liveOpsControlPlane.available) {
+    lines.push(
+      `## Live Ops Control Plane`,
+      ``,
+      `- Status: ${liveOpsControlPlane.status}`,
+      `- Lanes: ${liveOpsControlPlane.lane_count}`,
+      `- API-backed: ${liveOpsControlPlane.api_backed_count}`,
+      `- Audit-backed: ${liveOpsControlPlane.audit_backed_count}`,
+      `- Local external mutations: ${liveOpsControlPlane.local_external_mutation_count}`,
+      `- Reviewer actions: ${liveOpsControlPlane.human_operation_summary.review_record_count || 0}`,
+      `- Shareable reports: ${liveOpsControlPlane.report_link_summary.shareable_count || 0}`,
+      `- Commercial sign-off: ${liveOpsControlPlane.commercial_signoff_summary.status || "unknown"}`,
+      `- Required roles: ${(liveOpsControlPlane.commercial_signoff_summary.required_roles || []).join(", ") || "unknown"}`,
+      `- Customer external blocked: ${liveOpsControlPlane.commercial_signoff_summary.customer_external_blocked ? "yes" : "no"}`,
+      ``
+    );
+    for (const item of liveOpsControlPlane.reviewer_timeline.slice(0, 4)) {
+      lines.push(`- reviewer ${item.record_type}: ${item.status} / ${item.reason}`);
+    }
+    for (const item of liveOpsControlPlane.github_publish_timeline.slice(0, 3)) {
+      lines.push(`- github ${item.step}: ${item.status} / ${item.target}`);
+    }
+    lines.push(``);
   }
 
   if (notificationControlPlane.available) {
@@ -6142,6 +6262,33 @@ function scanCsvExportSurface(cases = []) {
   };
 }
 
+export function summarizeExportAudienceGovernance(governance = {}) {
+  const packetReadiness = Array.isArray(governance.packet_readiness) ? governance.packet_readiness : [];
+  if (!governance.schema_version && !packetReadiness.length) {
+    return {
+      schema_version: "a3.export_audience_summary.v1",
+      available: false,
+      status: "missing",
+      recommendation: "Attach export audience governance before claiming reviewer, executive, or customer-safe report posture."
+    };
+  }
+  return {
+    schema_version: "a3.export_audience_summary.v1",
+    available: true,
+    status: governance.status || "unknown",
+    allowed_audiences: governance.allowed_audiences || [],
+    blocked_audiences: governance.blocked_audiences || [],
+    customer_external_blocked: governance.customer_external_blocked === true,
+    packet_status: packetReadiness.map((item) => ({
+      packet: item.packet,
+      status: item.status,
+      why: item.why
+    })),
+    required_controls: governance.required_controls || [],
+    commercial_value: governance.commercial_value || []
+  };
+}
+
 export function summarizeReviewWorkflowExport(reviewWorkflowFixture = {}) {
   const available = reviewWorkflowFixture?.schema_version === "a3.review_workflow_index.v1"
     || Boolean(reviewWorkflowFixture?.records || reviewWorkflowFixture?.record_count);
@@ -6228,12 +6375,14 @@ export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixt
     official_parity_roadmap: summarizeOfficialParityRoadmap(runFixture, gradeFixture, coverageFixture, requestFixture, usageFixture, usageApiProbe, reportMediaSignedUrlFixture, frontendMirrorFixture),
     product_console: summarizeProductConsoleExport(productConsoleFixture),
     saas_admin_console: summarizeSaasAdminExport(saasAdminFixture),
+    export_audience_governance: summarizeExportAudienceGovernance(saasAdminFixture.export_governance || {}),
     artifact_registry: summarizeArtifactRegistryExport(artifactRegistryFixture),
     review_workflow: summarizeReviewWorkflowExport(reviewWorkflowFixture),
     release_evidence_summary: summarizeReleaseEvidenceSummary(releaseEvidenceFixture),
     github_publish_evidence: summarizeGithubPublishEvidence(githubPublishEvidenceFixture),
     notification_control_plane: summarizeNotificationControlPlane(notificationControlPlaneFixture),
     peer_branch_calibration: summarizeA3PeerBranchCalibration(peerBranchCalibrationFixture),
+    live_ops_control_plane: summarizeLiveOpsControlPlaneExport(notificationControlPlaneFixture.live_ops_control_plane || {}),
     release_gate: releaseGate,
     release_workflow: summarizeReleaseWorkflow(runFixture, gradeFixture, coverageFixture, reportMediaSignedUrlFixture),
     release_war_room: summarizeReleaseWarRoom(runFixture, gradeFixture, coverageFixture, reportMediaSignedUrlFixture, requestFixture, usageFixture, usageApiProbe, frontendMirrorFixture),

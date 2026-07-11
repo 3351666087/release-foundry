@@ -59,6 +59,14 @@ import { renderSaasRuntimePanel } from "./components/saas-runtime-panel.mjs";
 import { renderSaasAdminConsole } from "./components/saas-admin-console.mjs";
 import { renderEnterpriseReadinessPanel } from "./components/enterprise-readiness-panel.mjs";
 import { renderProductConsolePanel } from "./components/product-console-panel.mjs";
+import { renderNotificationControlPlanePanel } from "./components/notification-control-plane.mjs";
+import { renderLiveOpsControlPlanePanel } from "./components/live-ops-control-plane.mjs";
+import { renderBillingMigrationReadinessPanel } from "./components/billing-migration-readiness-panel.mjs";
+import { renderLiveWorkflowReadinessPanel } from "./components/live-workflow-readiness-panel.mjs";
+import { renderA1A2ContractRadarPanel } from "./components/a1-a2-contract-radar.mjs";
+import { renderA1A2EvidenceSpine } from "./components/a1-a2-evidence-spine.mjs";
+import { renderReportCenterPanel } from "./components/report-center-panel.mjs";
+import { renderReviewerWorkflowPanel } from "./components/reviewer-workflow-panel.mjs";
 import { buildSaasAdminConsole } from "../../../services/report/a3_saas_admin.mjs";
 import { buildEnterpriseReadinessReport } from "../../../services/report/a3_enterprise_readiness.mjs";
 import { buildA3ProductConsole } from "../../../services/report/a3_product_console.mjs";
@@ -68,6 +76,7 @@ import { summarizeA3PeerBranchCalibration } from "../../../services/report/a3_pe
 import { buildA3LiveWorkflowReadiness } from "../../../services/report/a3_live_workflow_readiness.mjs";
 import { buildA3LiveOpsControlPlane } from "../../../services/report/a3_live_ops_control_plane.mjs";
 import { buildA3NotificationControlPlane } from "../../../services/report/a3_notification_control_plane.mjs";
+import { buildA3A1A2EvidenceSpine } from "../../../services/report/a3_a1_a2_evidence_spine.mjs";
 import { setupVisualShell, visualNavigationSelector } from "./visual-shell.mjs";
 
 const state = {
@@ -102,6 +111,8 @@ const state = {
   reportCenter: {},
   artifactRegistry: {},
   schemaDriftRadar: {},
+  releaseDecisionProvenance: {},
+  a1A2EvidenceSpine: {},
   peerBranchCalibration: {},
   githubPublishEvidence: {},
   reviewWorkflow: {},
@@ -111,6 +122,7 @@ const state = {
   selectedAdminPlan: null,
   selectedAdminReceipt: null,
   selectedReviewReceipt: null,
+  reviewFilter: { releaseVersion: "", environment: "", actorHash: "" },
   cases: [],
   filteredCases: [],
   selectedCaseId: null,
@@ -583,7 +595,7 @@ function codeCrawlChunkRow(chunk) {
       <span>${escapeHtml(chunk.signal_count)} signal(s)</span>
       <span>${escapeHtml(chunk.size_bytes)} bytes</span>
     </div>
-    <div class="muted">${escapeHtml(chunk.top_signals.map((item) => `${item.signal}:${item.count}`).join(", ") || "no signals")} · ${escapeHtml(chunk.a3_decision)}</div>
+    <div class="muted">${escapeHtml(chunk.top_signals.map((item) => `${item.signal}:${item.count}`).join(", ") || "no signals")} - ${escapeHtml(chunk.a3_decision)}</div>
   `;
   return node;
 }
@@ -808,6 +820,11 @@ function renderReleaseWarRoom() {
     healthTile(String(warRoom.required_artifact_count), "audit artifacts")
   );
   $("war-room-brief").replaceChildren(...warRoom.executive_brief.slice(0, 4).map((item) => warningItem(item)));
+  const notificationChannels = Array.isArray(state.notificationControlPlane?.channels) ? state.notificationControlPlane.channels : [];
+  const notificationCaption = document.createElement("div");
+  notificationCaption.className = "caption";
+  notificationCaption.textContent = `Notification lanes: ${notificationChannels.map((item) => item.provider).join(", ") || "none"}`;
+  $("war-room-brief").appendChild(notificationCaption);
   $("war-room-lanes").replaceChildren(...(
     warRoom.lanes.length
       ? warRoom.lanes.map((lane) => warRoomLaneRow(lane))
@@ -1132,86 +1149,51 @@ function renderReviewerWorkflowBoard() {
 
 function renderReviewWorkflowRecords() {
   const workflow = state.reviewWorkflow || {};
-  const records = Array.isArray(workflow.records) ? workflow.records : [];
+  const reportCenter = state.reportCenter || {};
   const block = $("review-workflow-records");
   if (!block) {
     return;
   }
-  const recordRows = records.length
-    ? records.slice(-4).reverse().map((record) => reviewWorkflowRecordRow(record))
-    : [emptyMatrixRow("No durable waiver or approval records have been submitted through the A3 API yet.")];
-  block.replaceChildren(
-    matrixKicker("Durable Review Records"),
-    miniRow("Records", String(workflow.record_count || records.length || 0)),
-    miniRow("Waivers", String(workflow.waiver_count || 0)),
-    miniRow("Approvals", String(workflow.approval_count || 0)),
-    miniRow("Denials", String(workflow.denial_count || 0)),
-    miniRow("Accepted", String(workflow.accepted_count || 0)),
-    miniRow("Storage", workflow.durable_storage_ready ? "durable-ready" : "not durable"),
-    reviewWorkflowActionBar(),
-    reviewWorkflowReceiptRow(),
-    ...recordRows
-  );
+  renderReviewerWorkflowPanel(block, {
+    reviewWorkflow: workflow,
+    reportCenter,
+    activeFilter: state.reviewFilter || {},
+    selectedReceipt: state.selectedReviewReceipt,
+    callbacks: {
+      onAction: (action) => submitReviewWorkflowAction(action),
+      onFilterChange: (nextFilter) => {
+        state.reviewFilter = nextFilter;
+        syncReviewFilterQuery();
+        renderReviewWorkflowRecords();
+      },
+      onReceiptSelect: (receipt) => {
+        state.selectedReviewReceipt = receipt;
+        renderReviewWorkflowRecords();
+      }
+    }
+  });
 }
 
-function reviewWorkflowActionBar() {
-  const node = document.createElement("div");
-  node.className = "action-row review-action-row";
-  node.innerHTML = `
-    <button class="button subtle" type="button" data-review-action="waiver">Record Waiver</button>
-    <button class="button subtle" type="button" data-review-action="approval">Record Approval</button>
-    <button class="button subtle" type="button" data-review-action="denial">Record Denial</button>
-  `;
-  for (const button of node.querySelectorAll("[data-review-action]")) {
-    button.addEventListener("click", () => submitReviewWorkflowAction(button.dataset.reviewAction));
+function syncReviewFilterQuery() {
+  const params = new URLSearchParams(window.location.search);
+  if (state.reviewFilter.releaseVersion) {
+    params.set("reviewRelease", state.reviewFilter.releaseVersion);
+  } else {
+    params.delete("reviewRelease");
   }
-  return node;
-}
-
-function reviewWorkflowReceiptRow() {
-  const receipt = state.selectedReviewReceipt || {};
-  const node = document.createElement("div");
-  node.className = "matrix-row";
-  node.innerHTML = receipt.schema_version
-    ? `
-      <div class="matrix-head">
-        <strong>${escapeHtml(receipt.record_type || "review")}</strong>
-        <span class="badge ${receipt.accepted ? "pass" : "warn"}">${escapeHtml(receipt.status || "unknown")}</span>
-      </div>
-      <div class="case-meta">
-        <span>${escapeHtml(receipt.record_id || "no record")}</span>
-        <span>${escapeHtml(receipt.event_envelope?.event_type || "no event")}</span>
-        <span>${receipt.real_cloud_mutation_performed ? "real write" : "no real cloud write"}</span>
-      </div>
-      <div class="muted">payload ${escapeHtml(shortHash(receipt.payload_hash))} / review ${escapeHtml(shortHash(receipt.review_hash))}</div>
-    `
-    : `<div class="muted">Use Record Waiver / Approval / Denial in API-backed mode to create a durable human review record.</div>`;
-  return node;
-}
-
-function matrixKicker(label) {
-  const node = document.createElement("div");
-  node.className = "section-kicker";
-  node.textContent = label;
-  return node;
-}
-
-function reviewWorkflowRecordRow(record) {
-  const node = document.createElement("div");
-  node.className = "matrix-row";
-  node.innerHTML = `
-    <div class="matrix-head">
-      <strong>${escapeHtml(record.record_type || "record")}</strong>
-      <span class="badge ${record.accepted ? "pass" : "warn"}">${escapeHtml(record.status || "unknown")}</span>
-    </div>
-    <div class="case-meta">
-      <span>${escapeHtml(record.record_id)}</span>
-      <span>${escapeHtml(record.run_id || "no run")}</span>
-      <span>${escapeHtml(record.signature?.status || "hash sealed")}</span>
-    </div>
-    <div class="muted">${escapeHtml(record.subject?.decision || record.subject?.follow_up_issue || record.release_version || "")}</div>
-  `;
-  return node;
+  if (state.reviewFilter.environment) {
+    params.set("reviewEnv", state.reviewFilter.environment);
+  } else {
+    params.delete("reviewEnv");
+  }
+  if (state.reviewFilter.actorHash) {
+    params.set("reviewActor", state.reviewFilter.actorHash);
+  } else {
+    params.delete("reviewActor");
+  }
+  const next = `${window.location.pathname}?${params.toString()}${window.location.hash || ""}`.replace(/\?($|#)/, "$1");
+  console.log("syncReviewFilterQuery", next);
+  window.history.replaceState({}, "", next);
 }
 
 function reviewerWorkflowLaneRow(lane) {
@@ -1250,7 +1232,7 @@ function reviewerWorkflowItemRow(item) {
       <span>diffs ${escapeHtml(item.evidence_counts.tool_diffs)}</span>
       <span>judge ${escapeHtml(item.evidence_counts.judge_evidence)}</span>
     </div>
-    <div class="muted">Missing: ${escapeHtml(item.missing_artifacts.join(", ") || "none")} · ${escapeHtml(item.next_action)}</div>
+    <div class="muted">Missing: ${escapeHtml(item.missing_artifacts.join(", ") || "none")} - ${escapeHtml(item.next_action)}</div>
   `;
   node.addEventListener("click", () => {
     state.selectedCaseId = item.case_id;
@@ -1500,8 +1482,13 @@ function renderCoverageHealth() {
 function healthTile(value, label) {
   const node = document.createElement("div");
   node.className = "health-tile";
-  node.innerHTML = `<strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span>`;
+  node.innerHTML = healthTileMarkup(value, label, false);
   return node;
+}
+
+function healthTileMarkup(value, label, includeContainer = true) {
+  const content = `<strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span>`;
+  return includeContainer ? `<div class="health-tile">${content}</div>` : content;
 }
 
 function warningItem(message) {
@@ -1568,68 +1555,51 @@ function triageWeight(item) {
 
 function renderReportCenter() {
   const summary = buildDashboardSummary(state.runs, state.grades);
-  const coverage = summarizeCoverage(state.coverage);
-  const requestProvenance = summarizeRequestProvenance(state.requestProvenance);
-  const usageQuota = summarizeUsageQuota(state.usageQuota, state.usageQuotaApiProbe);
-  const mediaReadiness = summarizeMediaReadiness(state.runs, state.grades, state.usageQuota, state.mediaSignedUrlCoverage);
-  const cloudShell = summarizeCloudConsoleShell(state.authCheck, state.frontendSummary, state.requestProvenance, state.usageQuota, state.usageQuotaApiProbe);
-  const productConsole = summarizeProductConsoleExport(state.productConsole);
-  const saasAdmin = summarizeSaasAdminExport(state.saasAdmin);
-  const officialParityRoadmap = summarizeOfficialParityRoadmap(state.runs, state.grades, state.coverage, state.requestProvenance, state.usageQuota, state.usageQuotaApiProbe, state.mediaSignedUrlCoverage, state.frontendMirror);
-  const officialCodeCrawl = summarizeOfficialCodeCrawlParity(state.frontendCodeCrawl);
   const peerBranchCalibration = summarizeA3PeerBranchCalibration(state.peerBranchCalibration);
   const liveWorkflowReadiness = state.liveWorkflowReadiness || {};
   const liveOpsControlPlane = state.liveOpsControlPlane || {};
   const notificationControlPlane = state.notificationControlPlane || {};
+  const reviewWorkflow = state.reviewWorkflow || {};
   const billingMigrationReadiness = state.billingMigrationReadiness || {};
-  const incidentReplay = summarizeIncidentReplayQueue(state.runs, state.grades, state.mediaSignedUrlCoverage);
-  const observabilityReplay = summarizeObservabilityReplayMatrix(state.runs, state.grades, state.mediaSignedUrlCoverage, state.frontendCodeCrawl);
-  const regressionFactory = summarizeRegressionFactory(state.runs, state.grades, state.coverage, state.mediaSignedUrlCoverage, state.frontendCodeCrawl);
-  const exportRedactionFirewall = summarizeExportRedactionFirewall(state.runs, state.grades, state.coverage, state.mediaSignedUrlCoverage, state.frontendCodeCrawl);
-  const reviewerWorkflowBoard = summarizeReviewerWorkflowBoard(state.runs, state.grades, state.coverage, state.mediaSignedUrlCoverage);
   const releaseGate = summarizeReleaseGate(state.runs, state.grades, state.coverage, state.mediaSignedUrlCoverage);
-  const releaseWorkflow = summarizeReleaseWorkflow(state.runs, state.grades, state.coverage, state.mediaSignedUrlCoverage);
-  const releaseWarRoom = summarizeReleaseWarRoom(state.runs, state.grades, state.coverage, state.mediaSignedUrlCoverage, state.requestProvenance, state.usageQuota, state.usageQuotaApiProbe, state.frontendMirror);
   const releaseEvidence = summarizeReleaseEvidenceSummary(state.releaseEvidence);
   const reportCenter = state.reportCenter || {};
   const artifactRegistry = state.artifactRegistry || reportCenter.artifact_registry || {};
   const hostedReports = Array.isArray(reportCenter.reports) ? reportCenter.reports : [];
+  const commercialLoopSummary = buildReportCommercialLoopSummary({ reportCenter, reviewWorkflow, notificationControlPlane, liveOpsControlPlane });
   $("report-status").className = "badge info";
   $("report-status").textContent = hostedReports.length ? `${hostedReports.length} hosted` : `${summary.totalCases} cases`;
-  $("report-summary").textContent = `Current exports package ${summary.totalCases} normalized case(s), ${summary.failed} failure(s), ${summary.mediaEvidenceCases} media evidence case(s), ${releaseGate.decision_label} release gate, ${releaseWorkflow.github_check.name} ${releaseWorkflow.github_check.conclusion} check, ${releaseWarRoom.decision_label} war room, ${releaseEvidence.available ? `${releaseEvidence.overall_status} release evidence with ${releaseEvidence.readback_record_count || 0} readback record(s)` : "no release evidence"}, ${liveWorkflowReadiness.schema_version ? `${liveWorkflowReadiness.ready_capability_count || 0} live-workflow ready capability(s)` : "no live workflow readiness"}, ${notificationControlPlane.schema_version ? `${notificationControlPlane.summary?.channel_count || 0} notification channel(s)` : "no notification control plane"}, ${incidentReplay.queue_count} incident replay case(s), ${observabilityReplay.replay_case_count} observability replay case(s), ${regressionFactory.candidate_count} regression candidate(s), ${exportRedactionFirewall.status} export firewall, ${reviewerWorkflowBoard.board_label} reviewer workflow, ${productConsole.available ? `${productConsole.onboarding.completion_rate}% onboarding / ${productConsole.audit_log.event_count} audit event(s)` : "no product console workflow"}, ${saasAdmin.available ? `${saasAdmin.team.member_count} SaaS admin member(s) / ${saasAdmin.api_keys.key_count} API-key metadata row(s)` : "no SaaS admin export"}, ${hostedReports.length} hosted report(s), ${reportCenter.summary?.manifest_ready_count || 0} manifest-ready report(s), ${artifactRegistry.summary?.artifact_count || 0} registry artifact(s), ${peerBranchCalibration.available ? `${peerBranchCalibration.peer_delta_count} peer branch delta(s)` : "no peer branch calibration"}, ${officialCodeCrawl.available ? "official code crawl parity" : "no official code crawl parity"}, ${officialParityRoadmap.available ? "official parity roadmap" : "no official parity roadmap"}, ${coverage.available ? "A2 coverage" : "no coverage fixture"}, ${requestProvenance.available ? "request provenance" : "no request provenance"}, ${usageQuota.available ? "usage/quota calibration" : "no usage/quota calibration"}, ${mediaReadiness.available ? "media readiness" : "no media readiness"}, and ${cloudShell.available ? "cloud shell safety map" : "no cloud shell evidence"}.`;
-  const tiles = [
-    reportTile("JSON", "Full machine-readable payload with release gate, war room, incident replay queue, observability replay matrix, regression factory, export redaction firewall, reviewer workflow board, product console workflow, SaaS admin guardrails, PR workflow, official code crawl parity, official parity roadmap, cases, tool-call diffs, media readiness, cloud shell safety, coverage, request provenance, and usage/quota evidence."),
-    reportTile("CSV", "Spreadsheet-friendly triage list for sorting by score, severity, and failure class, with cell-level secret scrubbing and formula hardening."),
-    reportTile("Markdown", "Human-readable release-gate and war-room report with product console onboarding/audit state, SaaS admin guardrails, incident replay queue, observability replay matrix, regression factory, reviewer workflow board, official code crawl parity, official parity roadmap, PR comment template, waiver guidance, media policy, cloud boundaries, worklogs, and group updates."),
-    reportTile("Print/PDF", "Browser-printable executive sign-off report with metrics, release gate, war room, incident replay, observability replay, regression factory, reviewer workflow, official code crawl parity, parity roadmap, media readiness, cloud safety, failures, and selected case evidence.")
-  ];
-    if (releaseEvidence.available) {
-      tiles.push(reportTile("Release Evidence", `${releaseEvidence.overall_status}: check ${releaseEvidence.github_check_publish.status}, PR comment ${releaseEvidence.github_pr_comment_publish.status}, bundle ${releaseEvidence.audit_bundle_verification.status}, archive ${releaseEvidence.audit_archive_verification.status}, readbacks ${releaseEvidence.readback_record_count || 0} (${releaseEvidence.readback_status_counts?.readback_confirmed || 0} confirmed).`));
-    }
-    if (peerBranchCalibration.available) {
-      tiles.push(reportTile("Peer Branch Calibration", `${peerBranchCalibration.status}: ${peerBranchCalibration.peer_delta_count} A1/A2 peer delta(s), ${peerBranchCalibration.blocking_delta_count} blocking, ${peerBranchCalibration.growth_point_count} growth point(s).`));
-    }
-    if (liveWorkflowReadiness.schema_version) {
-      tiles.push(reportTile("Live Workflow Readiness", `${liveWorkflowReadiness.status}: ${liveWorkflowReadiness.ready_capability_count || 0}/${liveWorkflowReadiness.capability_count || 0} ready, ${liveWorkflowReadiness.human_action_count || 0} human record(s), ${liveWorkflowReadiness.needs_backend_or_credentials_count || 0} need live backend/credentials.`));
-    }
-    if (liveOpsControlPlane.schema_version) {
-      tiles.push(reportTile("Live Ops Control Plane", `${liveOpsControlPlane.status}: ${liveOpsControlPlane.counts?.api_backed_count || 0}/${liveOpsControlPlane.counts?.lane_count || 0} API-backed lane(s), ${liveOpsControlPlane.counts?.audit_backed_count || 0} audit-backed, ${liveOpsControlPlane.counts?.local_external_mutation_count || 0} local external mutation(s).`));
-    }
-    if (notificationControlPlane.schema_version) {
-      tiles.push(reportTile("Notification Control Plane", `${notificationControlPlane.status}: ${notificationControlPlane.summary?.channel_count || 0} channel(s), ${notificationControlPlane.summary?.contract_ready_count || 0} contract-ready, ${notificationControlPlane.summary?.growth_point_count || 0} growth point(s), live mutations ${notificationControlPlane.summary?.live_mutation_count || 0}.`));
-    }
-    if (billingMigrationReadiness.schema_version) {
-      tiles.push(reportTile("Billing Migration Readiness", `${billingMigrationReadiness.summary?.status || "unknown"}: ${billingMigrationReadiness.summary?.upstream_commit_count || 0} A1 commit(s), ${billingMigrationReadiness.db_contract?.tables?.length || 0} billing table(s), live billing ${billingMigrationReadiness.summary?.ready_for_live_customer_billing ? "ready" : "blocked"}.`));
-    }
-  if (hostedReports.length) {
-    tiles.push(reportTile("Hosted Reports", `${reportCenter.summary?.shareable_count || 0} shareable, ${reportCenter.summary?.revoked_count || 0} revoked, ${reportCenter.summary?.expired_count || 0} expired, ${reportCenter.summary?.total_view_count || 0} total view(s).`));
-    tiles.push(...hostedReports.map(hostedReportRow));
+  $("report-summary").textContent = `${summary.totalCases} case(s), ${summary.failed} failure(s), ${summary.mediaEvidenceCases} media evidence case(s). Release gate: ${releaseGate.decision_label}. Hosted reports: ${hostedReports.length}; manifest-ready: ${reportCenter.summary?.manifest_ready_count || 0}; registered artifacts: ${artifactRegistry.summary?.artifact_count || 0}.`;
+  const overview = document.createElement("div");
+  overview.className = "report-center-overview";
+  const overviewTiles = [reportTile("Commercial Loop", commercialLoopSummary)];
+  if (releaseEvidence.available) {
+    overviewTiles.push(reportTile("Release Evidence", `${releaseEvidence.overall_status}: ${releaseEvidence.readback_record_count || 0} readback record(s), ${releaseEvidence.readback_status_counts?.readback_confirmed || 0} confirmed.`));
   }
-  if (artifactRegistry.schema_version === "a3.artifact_registry.v1") {
-    tiles.push(artifactRegistrySummaryRow(artifactRegistry));
-    tiles.push(...(artifactRegistry.entries || []).slice(0, 8).map(artifactEntryRow));
+  if (peerBranchCalibration.available) {
+    overviewTiles.push(reportTile("Peer Branch Calibration", `${peerBranchCalibration.status}: ${peerBranchCalibration.peer_delta_count} A1/A2 delta(s), ${peerBranchCalibration.blocking_delta_count} blocking.`));
   }
-  $("report-center").replaceChildren(...tiles);
+  if (liveWorkflowReadiness.schema_version) {
+    overviewTiles.push(reportTile("Live Workflow Readiness", `${liveWorkflowReadiness.status}: ${liveWorkflowReadiness.ready_capability_count || 0}/${liveWorkflowReadiness.capability_count || 0} ready.`));
+  }
+  if (notificationControlPlane.schema_version) {
+    overviewTiles.push(reportTile("Notification Control Plane", `${notificationControlPlane.status}: ${notificationControlPlane.summary?.channel_count || 0} channel(s), ${notificationControlPlane.summary?.contract_ready_count || 0} contract-ready.`));
+  }
+  if (billingMigrationReadiness.schema_version) {
+    overviewTiles.push(reportTile("Billing Migration Readiness", `${billingMigrationReadiness.summary?.status || "unknown"}: live billing ${billingMigrationReadiness.summary?.ready_for_live_customer_billing ? "ready" : "blocked"}.`));
+  }
+  overview.replaceChildren(...overviewTiles);
+
+  const componentHost = document.createElement("div");
+  $("report-center").replaceChildren(overview, componentHost);
+  renderReportCenterPanel(componentHost, {
+    ...reportCenter,
+    artifact_registry: artifactRegistry
+  }, {
+    revoke: (report) => revokeHostedReport(report)
+  }, {
+    showHeaderActions: false
+  });
 }
 
 function renderExportRedactionFirewall() {
@@ -1691,115 +1661,19 @@ function exportFirewallStatusClass(status) {
   return "neutral";
 }
 
+function buildReportCommercialLoopSummary({ reportCenter = {}, reviewWorkflow = {}, notificationControlPlane = {}, liveOpsControlPlane = {} } = {}) {
+  const reportSummary = reportCenter.summary || {};
+  const notificationSummary = notificationControlPlane.summary || {};
+  const liveOpsCounts = liveOpsControlPlane.counts || {};
+  const reviewCount = Number(reviewWorkflow.record_count || 0);
+  return `${reviewCount} review record(s), ${reportSummary.shareable_count || 0} shareable report(s), ${reportSummary.revoked_count || 0} revoked, ${notificationSummary.channel_count || 0} notification lane(s), ${notificationSummary.contract_ready_count || 0} contract-ready, and ${liveOpsCounts.audit_backed_count || 0} audit-backed live-op lane(s).`;
+}
+
 function reportTile(label, description) {
   const node = document.createElement("div");
   node.className = "report-tile";
   node.innerHTML = `<strong>${escapeHtml(label)}</strong><span>${escapeHtml(description)}</span>`;
   return node;
-}
-
-function hostedReportRow(report) {
-  const node = document.createElement("div");
-  node.className = "matrix-row";
-  node.innerHTML = `
-    <div class="matrix-head">
-      <strong>${escapeHtml(report.title || report.report_id)}</strong>
-      <span class="badge ${reportStatusClass(report.status)}">${escapeHtml(report.status)}</span>
-    </div>
-    <div class="case-meta">
-      <span>${escapeHtml(report.report_id)}</span>
-      <span>${escapeHtml(report.share_url_path || "no share path")}</span>
-      <span>${escapeHtml(report.view_count || 0)} view(s)</span>
-    </div>
-    <div class="case-meta">
-      <span>token ${escapeHtml(report.share_link?.token_hash_prefix || "n/a")}</span>
-      <span>manifest ${escapeHtml(report.manifest?.completeness_score ?? 0)}%</span>
-      <span>${escapeHtml(report.manifest?.artifact_count || 0)} artifact(s)</span>
-      <span>${escapeHtml(report.redaction?.status || "unknown")} redaction</span>
-    </div>
-    <div class="muted">${escapeHtml((report.manifest?.missing || []).length ? `Missing: ${report.manifest.missing.join(", ")}` : "Manifest evidence is ready for PR gate and audit bundle linkage.")}</div>
-  `;
-  const canRevoke = isA3ApiSource(state.source)
-    && report.lifecycle?.revocable !== false
-    && !["revoked", "expired"].includes(report.status);
-  if (canRevoke) {
-    const actions = document.createElement("div");
-    actions.className = "report-actions compact";
-    const revokeButton = document.createElement("button");
-    revokeButton.type = "button";
-    revokeButton.className = "button danger";
-    revokeButton.textContent = "Revoke";
-    revokeButton.title = "Revoke hosted report link and refresh Report Center evidence";
-    revokeButton.addEventListener("click", () => revokeHostedReport(report));
-    actions.append(revokeButton);
-    node.append(actions);
-  }
-  return node;
-}
-
-function artifactRegistrySummaryRow(registry = {}) {
-  const summary = registry.summary || {};
-  const node = document.createElement("div");
-  node.className = "matrix-row";
-  node.innerHTML = `
-    <div class="matrix-head">
-      <strong>Artifact Registry</strong>
-      <span class="badge ${summary.blocked_count ? "fail" : summary.artifact_count ? "pass" : "neutral"}">${escapeHtml(registry.registry_status || "unknown")}</span>
-    </div>
-    <div class="case-meta">
-      <span>${escapeHtml(summary.artifact_count || 0)} artifact(s)</span>
-      <span>${escapeHtml(summary.ready_count || 0)} ready</span>
-      <span>${escapeHtml(summary.hash_ready_count || 0)} hash-ready</span>
-      <span>${escapeHtml(summary.billable_meter_count || 0)} billable meter(s)</span>
-    </div>
-    <div class="muted">${escapeHtml((registry.next_actions || []).join(" "))}</div>
-  `;
-  return node;
-}
-
-function artifactEntryRow(entry = {}) {
-  const node = document.createElement("div");
-  node.className = "matrix-row artifact-row";
-  node.innerHTML = `
-    <div class="matrix-head">
-      <strong>${escapeHtml(entry.artifact_type || entry.artifact_id)}</strong>
-      <span class="badge ${artifactLifecycleClass(entry.lifecycle_state)}">${escapeHtml(entry.lifecycle_state || "unknown")}</span>
-    </div>
-    <div class="case-meta">
-      <span>${escapeHtml(entry.content_type || "unknown")}</span>
-      <span>${escapeHtml(entry.hash_status || "unknown")}</span>
-      <span>${escapeHtml(entry.redaction_status || "unknown")} redaction</span>
-      <span>${escapeHtml(entry.billable_meter || "no meter")}</span>
-    </div>
-    <div class="muted">${escapeHtml(entry.customer_value || "")}</div>
-  `;
-  return node;
-}
-
-function artifactLifecycleClass(stateValue) {
-  if (stateValue === "shared" || stateValue === "generated" || stateValue === "retained") {
-    return "pass";
-  }
-  if (stateValue === "planned") {
-    return "warn";
-  }
-  if (stateValue === "blocked") {
-    return "fail";
-  }
-  return "neutral";
-}
-
-function reportStatusClass(status) {
-  if (status === "shareable") {
-    return "pass";
-  }
-  if (status === "expired" || status === "revoked") {
-    return "warn";
-  }
-  if (status === "blocked") {
-    return "fail";
-  }
-  return "neutral";
 }
 
 function renderPrintReport() {
@@ -2901,6 +2775,8 @@ function applyApiDashboardPayload(payload) {
   state.notificationControlPlane = payload.notification_control_plane || {};
   state.reportCenter = payload.report_center || {};
   state.artifactRegistry = payload.artifact_registry || payload.report_center?.artifact_registry || {};
+  state.releaseDecisionProvenance = payload.release_decision_provenance || {};
+  state.a1A2EvidenceSpine = payload.a1_a2_evidence_spine || {};
   state.peerBranchCalibration = payload.peer_branch_calibration || {};
   state.reviewWorkflow = payload.review_workflow || {};
   state.releaseEvidenceReadbacks = releaseEvidenceReadbacks;
@@ -3022,7 +2898,23 @@ function refreshLocalUsageLedger() {
 }
 
 function renderSaasAdmin() {
-  renderSaasAdminConsole($("saas-admin-body"), state.saasAdmin, {
+  renderSaasAdminConsole($("saas-admin-body"), {
+    ...state.saasAdmin,
+    notification_destinations: (state.notificationControlPlane?.channels || []).map((item) => ({
+      label: item.label,
+      provider: item.provider,
+      status: item.status,
+      current_mode: item.current_mode,
+      secret_ref_present: false,
+      next_action: item.next_action
+    })),
+    notification_summary: {
+      channel_count: state.notificationControlPlane?.summary?.channel_count || 0,
+      configured_count: state.notificationControlPlane?.summary?.configured_metadata_count || 0,
+      secret_ref_count: 0,
+      live_send_enabled: false
+    }
+  }, {
     selectedAction: state.selectedAdminAction,
     selectedPlan: state.selectedAdminPlan
   });
@@ -3142,23 +3034,26 @@ function renderSchemaDriftRadar() {
   const statusBadge = $("schema-drift-status");
   statusBadge.textContent = status;
   statusBadge.className = `badge ${status === "compatible" ? "pass" : status === "needs_attention" ? "fail" : "warn"}`;
-  const contracts = Array.isArray(radar.contracts) ? radar.contracts : [];
-  $("schema-drift-body").innerHTML = `
-    <div class="caption">${escapeHtml(radar.a3_action || "A1/A2 schema drift radar is not attached.")}</div>
-    <div class="health-grid">
-      ${healthTile(radar.contract_count || contracts.length || 0, "contracts")}
-      ${healthTile(radar.compatible_count || 0, "compatible")}
-      ${healthTile(radar.drift_count || 0, "drift")}
-      ${healthTile(radar.missing_count || 0, "missing")}
-    </div>
-    ${renderReportTable(["Contract", "Lane", "Status", "Hash"], contracts.slice(0, 8).map((item) => [
-      item.schema_contract_id,
-      item.source_lane,
-      item.status,
-      item.content_hash ? `${item.content_hash.slice(0, 12)}...` : "missing"
-    ]), "No A1/A2 schema radar contracts are loaded.")}
-    <div class="caption">Safety: raw schema payload ${radar.safety?.raw_schema_payload_embedded ? "embedded" : "not embedded"}, hashes only ${radar.safety?.schema_hashes_only ? "yes" : "unknown"}.</div>
-  `;
+  renderA1A2ContractRadarPanel($("schema-drift-body"), radar, state.releaseDecisionProvenance || {});
+}
+
+function refreshLocalA1A2EvidenceSpine() {
+  state.a1A2EvidenceSpine = buildA3A1A2EvidenceSpine({
+    source: state.source,
+    runFixture: state.runs,
+    gradeFixture: state.grades,
+    a2ReleaseGate: state.releaseGate,
+    releaseDecisionProvenance: state.releaseDecisionProvenance,
+    reviewWorkflow: state.reviewWorkflow,
+    reportCenter: state.reportCenter,
+    peerBranchCalibration: state.peerBranchCalibration || {}
+  }, {
+    source: state.source
+  });
+}
+
+function renderEvidenceSpine() {
+  renderA1A2EvidenceSpine($("evidence-spine-body"), state.a1A2EvidenceSpine || {});
 }
 
 function renderPeerBranchCalibration() {
@@ -3169,10 +3064,10 @@ function renderPeerBranchCalibration() {
   $("peer-branch-body").innerHTML = `
     <div class="caption">${escapeHtml(calibration.recommendation)}</div>
     <div class="health-grid">
-      ${healthTile(calibration.peer_branch_count || 0, "branches")}
-      ${healthTile(calibration.peer_delta_count || 0, "peer deltas")}
-      ${healthTile(calibration.blocking_delta_count || 0, "blocking")}
-      ${healthTile(calibration.growth_point_count || 0, "growth points")}
+      ${healthTileMarkup(calibration.peer_branch_count || 0, "branches")}
+      ${healthTileMarkup(calibration.peer_delta_count || 0, "peer deltas")}
+      ${healthTileMarkup(calibration.blocking_delta_count || 0, "blocking")}
+      ${healthTileMarkup(calibration.growth_point_count || 0, "growth points")}
     </div>
     ${renderReportTable(["Delta", "Lane", "Surface", "Risk"], (calibration.top_deltas || []).slice(0, 6).map((item) => [
       item.contract || item.delta_id,
@@ -3219,34 +3114,7 @@ function renderBillingMigrationReadiness() {
   const status = readiness.summary?.status || readiness.status || "checking";
   statusBadge.textContent = status;
   statusBadge.className = `badge ${readiness.summary?.ready_for_live_customer_billing ? "pass" : readiness.schema_version ? "warn" : "neutral"}`;
-  const upstream = readiness.upstream_evidence || {};
-  const dbTables = Array.isArray(readiness.db_contract?.tables) ? readiness.db_contract.tables : [];
-  const apiRoutes = Array.isArray(readiness.api_contract) ? readiness.api_contract : [];
-  $("billing-migration-body").innerHTML = `
-    <div class="caption">${escapeHtml(readiness.purpose || "Billing migration readiness is not attached.")}</div>
-    <div class="health-grid">
-      ${healthTile(readiness.summary?.upstream_commit_count || 0, "A1 commits")}
-      ${healthTile(dbTables.length, "billing tables")}
-      ${healthTile(readiness.summary?.consumed_evidence_count || 0, "evidence inputs")}
-      ${healthTile(readiness.summary?.ready_for_live_customer_billing ? "yes" : "no", "live billing")}
-    </div>
-    ${renderReportTable(["A1 evidence", "Source", "A3 state"], Object.entries(upstream).slice(0, 5).map(([key, item]) => [
-      key,
-      item.source_commit || item.summary_path || item.fixture_path || "local",
-      item.a3_consumption_state || item.status || "mapped"
-    ]), "No A1 billing migration evidence is loaded.")}
-    ${renderReportTable(["DB table", "Purpose", "Tenant scope"], dbTables.map((table) => [
-      table.name,
-      table.purpose,
-      `${table.tenant_column || "organization_id"} / ${table.project_column || "project_id"}`
-    ]), "No billing migration DB tables are mapped.")}
-    ${renderReportTable(["API route", "Owner", "Status"], apiRoutes.map((route) => [
-      route.route,
-      route.owner_lane,
-      route.status
-    ]), "No billing migration API routes are mapped.")}
-    <div class="caption">A3 claim: ${escapeHtml(readiness.summary?.a3_customer_claim || "A3 stays read-only until A1 exposes authenticated billing ledger APIs.")}</div>
-  `;
+  renderBillingMigrationReadinessPanel($("billing-migration-body"), readiness);
 }
 
 function refreshLiveOpsControlPlane() {
@@ -3257,6 +3125,7 @@ function refreshLiveOpsControlPlane() {
     usageLedger: state.usageLedger,
     billingReadiness: state.billingReadiness,
     reportCenter: state.reportCenter,
+    saasAdmin: state.saasAdmin,
     eventOutbox: state.saasRuntime?.event_outbox || {},
     liveWorkflowReadiness: state.liveWorkflowReadiness
   }, {
@@ -3269,23 +3138,7 @@ function renderLiveWorkflowReadiness() {
   const statusBadge = $("live-workflow-status");
   statusBadge.textContent = readiness.status || "checking";
   statusBadge.className = `badge ${readiness.status === "live_evidence_observed" ? "pass" : readiness.status === "contract_ready_needs_live_credentials" ? "warn" : "neutral"}`;
-  const capabilities = Array.isArray(readiness.capabilities) ? readiness.capabilities : [];
-  $("live-workflow-body").innerHTML = `
-    <div class="caption">${escapeHtml(readiness.commercial_value || "Live workflow readiness is not attached.")}</div>
-    <div class="health-grid">
-      ${healthTile(readiness.ready_capability_count || 0, "ready capabilities")}
-      ${healthTile(readiness.needs_backend_or_credentials_count || 0, "need live backend")}
-      ${healthTile(readiness.human_action_count || 0, "human records")}
-      ${healthTile(readiness.audit_backed_count || 0, "audit backed")}
-    </div>
-    ${renderReportTable(["Next capability", "Status", "Dashboard value"], capabilities.map((item) => [
-      item.label,
-      item.status,
-      item.dashboard_value
-    ]), "No live workflow readiness capabilities are loaded.")}
-    ${renderReportTable(["Next action"], (readiness.next_actions || []).map((item) => [item]), "No live workflow next actions are pending.")}
-    <div class="caption">Boundary: ${escapeHtml(readiness.a1_a2_boundary || "A3 keeps live workflow evidence downstream of A1/A2 contracts.")}</div>
-  `;
+  renderLiveWorkflowReadinessPanel($("live-workflow-body"), readiness);
 }
 
 function renderLiveOpsControlPlane() {
@@ -3293,35 +3146,7 @@ function renderLiveOpsControlPlane() {
   const statusBadge = $("live-ops-status");
   statusBadge.textContent = controlPlane.status || "checking";
   statusBadge.className = `badge ${controlPlane.status === "live_mutation_observed" || controlPlane.status === "control_plane_ready_needs_live_workers" ? "pass" : controlPlane.status === "needs_contracts" ? "warn" : "neutral"}`;
-  const lanes = Array.isArray(controlPlane.lanes) ? controlPlane.lanes : [];
-  const counts = controlPlane.counts || {};
-  const human = controlPlane.human_operation_summary || {};
-  const billing = controlPlane.billing_state_summary || {};
-  const share = controlPlane.report_link_summary || {};
-  $("live-ops-body").innerHTML = `
-    <div class="caption">Six live SaaS workflows are tracked as API, DB, event, audit, and dashboard contracts. A3 keeps them safe until A1 hosted workers and A2 release policy are ready.</div>
-    <div class="health-grid">
-      ${healthTile(counts.lane_count || 0, "ops lanes")}
-      ${healthTile(counts.api_backed_count || 0, "API-backed")}
-      ${healthTile(counts.audit_backed_count || 0, "audit-backed")}
-      ${healthTile(counts.local_external_mutation_count || 0, "local mutations")}
-    </div>
-    ${renderReportTable(["Workflow", "Surface", "Status", "Mode", "Next action"], lanes.map((item) => [
-      item.label,
-      item.product_surface,
-      item.status,
-      item.current_mode,
-      item.next_action
-    ]), "No live ops control-plane lanes are loaded.")}
-    ${renderReportTable(["Summary", "Value"], [
-      ["Human records", `${human.review_record_count || 0} review / ${human.event_outbox_count || 0} outbox`],
-      ["Reviewer decisions", `${human.approval_count || 0} approve / ${human.denial_count || 0} deny / ${human.waiver_count || 0} waiver`],
-      ["Billing state", `${billing.billing_readiness_status || "unknown"} / ${billing.meter_count || 0} meter(s)`],
-      ["Share links", `${share.shareable_count || 0} shareable / ${share.revoked_count || 0} revoked / ${share.expired_count || 0} expired / ${share.total_view_count || 0} view(s)`]
-    ])}
-    <div class="caption">A1: ${escapeHtml(controlPlane.a1_a2_alignment?.a1_consumed_contracts?.join(", ") || "usage, GitHub worker, billing ledger")}</div>
-    <div class="caption">A2: ${escapeHtml(controlPlane.a1_a2_alignment?.a2_consumed_contracts?.join(", ") || "grade, release gate, failure taxonomy")}</div>
-  `;
+  renderLiveOpsControlPlanePanel($("live-ops-body"), controlPlane);
 }
 
 function refreshNotificationControlPlane() {
@@ -3343,39 +3168,7 @@ function renderNotificationControlPlane() {
   const statusBadge = $("notification-status");
   statusBadge.textContent = controlPlane.status || "checking";
   statusBadge.className = `badge ${String(controlPlane.status || "").includes("contract_ready") ? "pass" : String(controlPlane.status || "").includes("metadata_present") ? "warn" : "neutral"}`;
-  const summary = controlPlane.summary || {};
-  const channels = Array.isArray(controlPlane.channels) ? controlPlane.channels : [];
-  const triggers = Array.isArray(controlPlane.trigger_matrix) ? controlPlane.trigger_matrix : [];
-  const growthPoints = Array.isArray(controlPlane.growth_points) ? controlPlane.growth_points : [];
-  $("notification-body").innerHTML = `
-    <div class="caption">Slack, Teams, email, and webhook notifications are modeled as API, DB, event, artifact, usage, RBAC, and audit contracts. A3 plans notification evidence; A1 owns hosted delivery workers and connector secrets.</div>
-    <div class="health-grid">
-      ${healthTile(summary.channel_count || 0, "channels")}
-      ${healthTile(summary.contract_ready_count || 0, "contract-ready")}
-      ${healthTile(summary.audit_backed_count || 0, "audit-backed")}
-      ${healthTile(summary.live_mutation_count || 0, "live mutations")}
-    </div>
-    ${renderReportTable(["Channel", "Surface", "Status", "Provider", "Next action"], channels.map((item) => [
-      item.label,
-      item.delivery_surface || item.product_surface || item.provider,
-      item.status,
-      item.provider,
-      item.next_action
-    ]), "No notification control-plane channels are loaded.")}
-    ${renderReportTable(["Trigger", "Channels", "Dashboard state", "Customer value"], triggers.map((item) => [
-      item.label,
-      Array.isArray(item.channels) ? item.channels.join(", ") : item.provider || item.lane_id || "planned",
-      item.dashboard_state || (Array.isArray(item.triggers) ? item.triggers.join(", ") : "planned"),
-      item.customer_value || item.policy_owner || "Release notification evidence is planned."
-    ]), "No notification trigger matrix is loaded.")}
-    ${renderReportTable(["Growth", "Surface", "Artifact"], growthPoints.slice(0, 8).map((item) => [
-      `${item.priority} ${item.id}`,
-      item.surface,
-      item.expected_artifact
-    ]), "No notification growth points are loaded.")}
-    <div class="caption">A1: ${escapeHtml(controlPlane.a1_a2_alignment?.a1_dependency || "hosted notification worker and encrypted connector references")}</div>
-    <div class="caption">A2: ${escapeHtml(controlPlane.a1_a2_alignment?.a2_dependency || "release policy, failure taxonomy, score/pass/fail")}</div>
-  `;
+  renderNotificationControlPlanePanel($("notification-body"), controlPlane);
 }
 
 function refreshLocalProductConsole() {
@@ -3383,11 +3176,15 @@ function refreshLocalProductConsole() {
     source: state.source,
     runFixture: state.runs,
     gradeFixture: state.grades,
-    usageLedger: state.usageLedger
+    usageLedger: state.usageLedger,
+    reviewWorkflow: state.reviewWorkflow || {},
+    notificationControlPlane: state.notificationControlPlane || {}
   }, {
     source: state.source,
     usageLedger: state.usageLedger,
     reportCenter: state.reportCenter || {},
+    reviewWorkflow: state.reviewWorkflow || {},
+    notificationControlPlane: state.notificationControlPlane || {},
     auditEvents: [],
     importReceipts: []
   });
@@ -3414,7 +3211,13 @@ function renderProductConsole() {
 async function loadDataSource(source) {
   state.source = source;
   if (isA3ApiSource(source)) {
-    applyApiDashboardPayload(await fetchA3DashboardSnapshot({ source, baseUrl: getA3ApiBaseUrl() }));
+    try {
+      const dashboardPayload = await fetchA3DashboardSnapshot({ source, baseUrl: getA3ApiBaseUrl() });
+      applyApiDashboardPayload(dashboardPayload);
+    } catch (error) {
+      console.error("A3 API dashboard bootstrap failed", error);
+      throw error;
+    }
     try {
       state.schemaDriftRadar = await fetchA3SchemaDriftRadar({ source, baseUrl: getA3ApiBaseUrl() });
     } catch (error) {
@@ -3472,6 +3275,11 @@ async function loadDataSource(source) {
     }
     state.saasRuntime.usage_ledger = state.usageLedger;
     state.saasRuntime.billing_readiness = state.billingReadiness;
+    state.reportCenter = await fetchA3ReportCenter({ source, baseUrl: getA3ApiBaseUrl() });
+    state.artifactRegistry = await fetchA3ArtifactRegistry({ source, baseUrl: getA3ApiBaseUrl() });
+    state.productConsole = await fetchA3ProductConsole({ source, baseUrl: getA3ApiBaseUrl() });
+    state.reviewWorkflow = await fetchA3ReviewWorkflow({ source, baseUrl: getA3ApiBaseUrl() });
+    state.saasAdmin = await fetchA3AdminConsole({ source, baseUrl: getA3ApiBaseUrl() });
   } else if (source === "p3-media") {
     const sample = await loadJson("../../fixtures/a3/p3/ashr_run_detail_sample.redacted.json");
     const datasetSample = await loadOptionalJson("../../fixtures/a3/p3/ashr_dataset_detail_sample.redacted.json");
@@ -3540,6 +3348,7 @@ async function loadDataSource(source) {
     refreshLiveOpsControlPlane();
     refreshNotificationControlPlane();
     refreshLocalArtifactRegistry();
+    refreshLocalA1A2EvidenceSpine();
   }
   refreshEnterpriseReadiness();
   state.cases = normalizeCases(state.runs, state.grades);
@@ -3559,6 +3368,7 @@ async function loadDataSource(source) {
 
   renderSummary();
   renderConsoleStats();
+  renderEvidenceSpine();
   renderSaasRuntime();
   renderSaasAdmin();
   renderEnterpriseReadiness();
@@ -3635,6 +3445,8 @@ function resetCalibrationState() {
 }
 
 function resetSchemaDriftRadar() {
+  state.releaseDecisionProvenance = {};
+  state.a1A2EvidenceSpine = {};
   state.schemaDriftRadar = {
     schema_version: "a3.schema_drift_dashboard_state.v1",
     status: "not_attached",
@@ -3724,7 +3536,13 @@ function syncExpandedNavigation(id) {
 
 async function init() {
   setupVisualShell();
-  const initialSource = new URLSearchParams(window.location.search).get("source") || "mock";
+  const initParams = new URLSearchParams(window.location.search);
+  state.reviewFilter = {
+    releaseVersion: initParams.get("reviewRelease") || "",
+    environment: initParams.get("reviewEnv") || "",
+    actorHash: initParams.get("reviewActor") || ""
+  };
+  const initialSource = initParams.get("source") || "mock";
   const allowedSources = new Set(["mock", "api-mock", "raw-a1", "raw-a2", "p3-media", "p3-official-demo"]);
   $("source-select").value = allowedSources.has(initialSource) ? initialSource : "mock";
   await loadDataSource($("source-select").value);
