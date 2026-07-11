@@ -26,6 +26,13 @@ from .trusted_spine import (
     build_evidence_snapshot,
     build_trusted_spine_handoff,
 )
+from .provider_gateway import (
+    OllamaAdapter,
+    ProviderDefinition,
+    ProviderGateway,
+    StrictFakeAdapter,
+    default_provider_catalog,
+)
 from .unblock_checklist import build_release_unblock_checklist
 from .service_wrapper import (
     CALIBRATION_EVALUATE_ENDPOINT,
@@ -59,6 +66,9 @@ __all__ = [
     "GradeResult",
     "GroundingJudge",
     "OutcomeJudge",
+    "OllamaAdapter",
+    "ProviderDefinition",
+    "ProviderGateway",
     "CALIBRATION_EVALUATE_ENDPOINT",
     "REGRESSION_REPLAY_ENDPOINT",
     "RELEASE_UNBLOCK_CHECKLIST_ENDPOINT",
@@ -66,6 +76,7 @@ __all__ = [
     "SafetyBoundaryJudge",
     "TraceIntegrityJudge",
     "ToolPolicyJudge",
+    "StrictFakeAdapter",
     "build_batch_plan_report",
     "build_calibration_matrix",
     "build_case_book_report",
@@ -89,6 +100,7 @@ __all__ = [
     "build_decision_record",
     "build_evidence_snapshot",
     "build_trusted_spine_handoff",
+    "default_provider_catalog",
     "handle_internal_request",
     "import_ashr_grading_observations",
     "import_semantic_judge_observations",
