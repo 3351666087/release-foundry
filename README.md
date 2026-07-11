@@ -1,277 +1,295 @@
 <div align="center">
 
-# Ashr Codex Factory
+# Ashr++
 
-### Agent Release OS | Evidence Factory | Evaluation Intelligence | SaaS Control Tower
+### Agent Release Intelligence Platform
+
+**让 Agent 的每一次上线，都经过可重放、可评测、可审核、可签字的发布门禁。**
 
 <p>
-  <img alt="A1" src="https://img.shields.io/badge/A1-Execution%20%26%20Ingestion-7c3aed?style=for-the-badge">
-  <img alt="A2" src="https://img.shields.io/badge/A2-Evaluation%20Intelligence-06b6d4?style=for-the-badge">
-  <img alt="A3" src="https://img.shields.io/badge/A3-Product%20Control%20Tower-f59e0b?style=for-the-badge">
+  <img alt="A1 Runtime" src="https://img.shields.io/badge/A1-Runtime%20%26%20Evidence-7c3aed?style=for-the-badge">
+  <img alt="A2 Intelligence" src="https://img.shields.io/badge/A2-Evaluation%20%26%20Gate-0891b2?style=for-the-badge">
+  <img alt="A3 Product" src="https://img.shields.io/badge/A3-Review%20%26%20Audit-f59e0b?style=for-the-badge">
 </p>
 <p>
-  <img alt="Local first" src="https://img.shields.io/badge/local--first-contract--backed-111827?style=flat-square">
-  <img alt="Evidence safe" src="https://img.shields.io/badge/public--safe-evidence-10b981?style=flat-square">
-  <img alt="Languages" src="https://img.shields.io/badge/Python%20%7C%20TypeScript%20%7C%20Go%20%7C%20SQL-core-6366f1?style=flat-square">
+  <img alt="Self-host" src="https://img.shields.io/badge/Enterprise-Self--hosted-10b981?style=flat-square">
+  <img alt="Provider neutral" src="https://img.shields.io/badge/Models-Provider--neutral-3b82f6?style=flat-square">
+  <img alt="Fail closed" src="https://img.shields.io/badge/Release-Fail--closed-ef4444?style=flat-square">
+  <img alt="Evidence" src="https://img.shields.io/badge/Evidence-Auditable-8b5cf6?style=flat-square">
 </p>
 
-> **Do not ship an agent until its run, trace, judge result, release gate, and audit evidence can be inspected, replayed, and defended.**
+> **没有经过 Replay、Judge、Evidence、Review 与 Release Gate 的 Agent，不应该上线。**
 
 </div>
 
 ---
 
-## What this repo is
+## 产品定位
 
-**Ashr Codex Factory** is a fast-growing product factory for an agent-evaluation SaaS. It is not just a demo dashboard and it is not yet a production hosted service. It is the local, test-backed substrate for an **Agent Release OS**:
+Ashr++ 不是通用聊天壳、工作流搭建器、评测脚本集合或只展示分数的 Dashboard。它面向需要把 Agent 放进正式生产流程的团队，解决五个直接影响采购决策的问题：
 
-- run agents and capture trace/evidence;
-- grade behavior through deterministic evaluation intelligence;
-- block or approve risky releases through policy gates;
-- package redacted audit evidence for reviewers, PRs, reports, and future enterprise workflows;
-- evolve toward multi-tenant SaaS with auth, RBAC, usage, billing, object storage, workers, and audit custody.
+1. **上线前阻断风险**：把错误工具调用、越权、幻觉、敏感信息泄露和业务规则违背变成可执行发布门禁。
+2. **线上事故可复现**：保存 Trace、Tool Call、Artifact、模型、Prompt、Policy 和构建版本，重放事故并比较修复前后行为。
+3. **回归资产可沉淀**：把事故、人工修正、Override 和 Waiver 转化为有 Lineage 的 Golden、Regression 与 Learning Dataset。
+4. **审核结论可签字**：机器判断、人工审核、例外审批和发布决定进入同一条不可抵赖证据链。
+5. **企业环境可交付**：部署到客户自有云、专有云、VPC 或受限网络，并支持升级、回滚、备份、恢复、审计与诊断。
 
-The codebase is intentionally split into three lanes that grow together:
+唯一战略总线：
 
-| Lane | Mission | Current center of gravity |
+[`docs/strategy/large-saas-a1-a2-a3-full-plan.md`](docs/strategy/large-saas-a1-a2-a3-full-plan.md)
+
+---
+
+## 三条产品 Lane
+
+| Lane | 权责 | 交付价值 |
 |---|---|---|
-| **A1 - Execution & Ingestion Core** | Connect agents, SDKs, APIs, queues, storage, quota, billing, and evidence capture. | Python/TS SDK parity, Go ingress, Postgres-backed SaaS slices, worker daemon, object evidence, billing/quota ledgers, public-safe official API calibration. |
-| **A2 - Evaluation Intelligence** | Turn traces into trusted pass/fail, failure taxonomy, scenario coverage, release policies, and persistent judge records. | 60-scenario G3 pack, deterministic judges, release gate, SQL evaluation store contract, cross-lane security context, scenario backlog, result persistence. |
-| **A3 - Product Control Tower** | Turn evidence into product workflows: dashboard, reports, reviewer gates, audit bundles, admin surfaces, and commercial readiness. | Modular dashboard, visual shell, commercial OpenAPI contract, RBAC metadata boundary, event outbox, live ops/notification control plane, billing migration readiness, report sharing. |
+| **A1 · Runtime & Evidence Platform** | SDK、运行接入、Trace、Artifact、身份、租户、队列、存储、Usage、Billing Ledger、自托管基础设施 | 把真实 Agent 执行变成可信、可持久化、可重放的运行事实 |
+| **A2 · Evaluation & Release Intelligence** | 多模态提取、Provider、模型、Judge、校准、审核语义、回归、学习数据、Decision Ledger、Release Gate | 判断一个版本能否上线，并用 Evidence 解释为什么 |
+| **A3 · Enterprise Product & Workflow** | 控制台、Evidence Explorer、Review、Release War Room、报告、管理后台、集成、License 与运维体验 | 让研发、安全、合规、Reviewer 和负责人完成审核与签字 |
+
+### 权威边界
+
+- A1 运行成功不等于 A2 评测通过。
+- A2 是评测语义和 Release Decision 的权威。
+- A3 不得在浏览器中重算分数或自行拼装 `Release Ready`。
+- 没有有效 Decision Ledger，不得允许发布。
+- Override 与 Waiver 只能追加审计记录，不能覆盖机器原始结论。
 
 ---
 
-## Latest integrated main snapshot
-
-This README describes the integrated **A1 + A2 + A3** mainline state after the latest lane sync.
-
-| Signal | Snapshot |
-|---|---:|
-| A1 public-safe real API evidence records | **401** |
-| A1 commercial capability matrix entries | **122** |
-| A2 generated fixture files checked by `scripts/a2_regenerate_fixtures.py` | **55** |
-| A2 G3 scenarios | **60** |
-| A2 calibration cases visible to readiness | **6** |
-| A3 commercial API endpoints tracked in contract | **34** |
-| A3 endpoints implemented or read-only locally | **21** |
-
-### What changed in this sync
-
-- **A1 moved closer to a real SaaS spine**: durable Postgres API keys, route scopes, quota gates, billing ledger migration/replay, payment-provider readiness, local object evidence, worker daemon storage, Go API evidence gates, commercial self-host compose scaffolds, and public-safe official API readiness packets.
-- **A2 moved from judge library toward evaluation intelligence service**: SQL-readable evaluation store, cross-lane security context, A1 billing/payment/API evidence consumption, scenario generation backlog, release unblock contract, persistent judge records, and regenerated fixtures against latest A1 evidence.
-- **A3 moved from dashboard/reporting toward control tower**: polished visual shell, commercial OpenAPI surface, fail-closed RBAC write-path contract, event outbox backbone, schema drift radar, reviewer denial flow, live ops readiness, notification control plane, billing migration readiness, and A1/A2 source-artifact consumers.
-
-> The repository remains **local-first and contract-backed**. Live customer billing, production SSO/RBAC, immutable enterprise storage, and live GitHub enforcement are deliberately future-boundary work until the corresponding backend and operator approvals exist.
-
----
-
-## Product thesis
-
-AI agents fail differently from ordinary software:
-
-- they call the wrong tool;
-- they pass unsafe arguments;
-- they skip required clarification;
-- they hallucinate tool output;
-- they leak secrets;
-- they silently degrade after prompt/model/tooling changes.
-
-Ashr's answer is an evidence chain that is visible from run to release:
+## 从运行事实到发布决定
 
 ```mermaid
-%%{init: {"theme": "base", "themeVariables": {"background": "transparent", "primaryColor": "#111827", "primaryTextColor": "#f8fafc", "primaryBorderColor": "#8b5cf6", "lineColor": "#22d3ee", "secondaryColor": "#0f172a", "tertiaryColor": "#1e293b", "fontFamily": "Inter, ui-sans-serif, system-ui"}}}%%
+%%{init: {"theme": "base", "themeVariables": {"background": "transparent", "primaryTextColor": "#e2e8f0", "lineColor": "#22d3ee", "fontFamily": "Inter, ui-sans-serif, system-ui"}}}%%
 flowchart LR
+  classDef source fill:#111827,stroke:#64748b,color:#f8fafc,stroke-width:1.5px
   classDef a1 fill:#312e81,stroke:#a78bfa,color:#f8fafc,stroke-width:2px
   classDef a2 fill:#164e63,stroke:#67e8f9,color:#ecfeff,stroke-width:2px
   classDef a3 fill:#78350f,stroke:#fbbf24,color:#fff7ed,stroke-width:2px
-  classDef artifact fill:#111827,stroke:#94a3b8,color:#e5e7eb,stroke-width:1.5px
-  classDef decision fill:#064e3b,stroke:#34d399,color:#ecfdf5,stroke-width:2px
+  classDef pass fill:#064e3b,stroke:#34d399,color:#ecfdf5,stroke-width:2px
+  classDef block fill:#7f1d1d,stroke:#fb7185,color:#fff1f2,stroke-width:2px
 
-  Agent["Agent / SDK / API"]:::artifact --> A1["A1 - Execute + Ingest"]:::a1
-  A1 --> Trace["RunResult / Trace / ToolCalls / Evidence"]:::artifact
-  Trace --> A2["A2 - Grade + Policy"]:::a2
-  A2 --> Gate["ReleaseGate / Failure Taxonomy / Regression Plan"]:::artifact
-  Gate --> A3["A3 - Control Tower"]:::a3
-  A3 --> Review["Reviewer / PR / Report / Audit Bundle"]:::artifact
-  Review --> Decision{"Ship?"}:::decision
-  Decision -->|approve| Ship["Release with custody trail"]:::decision
-  Decision -->|block| Replay["Replay / Fix / Re-test"]:::artifact
-  Replay --> A1
+  Agent["Agent / SDK / CI / Production Trace"]:::source
+  A1["A1<br/>Ingest · Persist · Replay · Diff"]:::a1
+  Evidence["Versioned Trace<br/>Tool Calls · Artifacts · Provenance"]:::source
+  A2["A2<br/>Extract · Judge · Calibrate · Decide"]:::a2
+  Ledger["Evidence Snapshot<br/>Decision Ledger · Regression"]:::source
+  A3["A3<br/>Review · War Room · Report · Audit"]:::a3
+  Decision{"Release Decision"}:::source
+  Ship["签字上线<br/>持续监测"]:::pass
+  Stop["阻断发布<br/>复现 · 修复 · 重测"]:::block
+
+  Agent --> A1 --> Evidence --> A2 --> Ledger --> A3 --> Decision
+  Decision -->|"通过"| Ship
+  Decision -->|"阻断 / 审核"| Stop
+  Stop -. "事故与修正进入回归" .-> A2
 ```
 
 ---
 
-## System architecture
+## 系统架构
 
 ```mermaid
-%%{init: {"theme": "base", "themeVariables": {"background": "transparent", "primaryColor": "#020617", "primaryTextColor": "#e2e8f0", "primaryBorderColor": "#38bdf8", "lineColor": "#a78bfa", "clusterBkg": "#0f172a", "clusterBorder": "#475569", "fontFamily": "Inter, ui-sans-serif, system-ui"}}}%%
+%%{init: {"theme": "base", "themeVariables": {"background": "transparent", "primaryTextColor": "#e2e8f0", "lineColor": "#a78bfa", "clusterBkg": "#0f172a", "clusterBorder": "#475569", "fontFamily": "Inter, ui-sans-serif, system-ui"}}}%%
 flowchart TB
-  subgraph Client["Client & Operator Surfaces"]
-    SDK["Python SDK\nTypeScript SDK\nGo ingress"]
-    UI["A3 dashboard\nProduct console\nAdmin shell"]
-    PR["PR check payloads\nReviewer workflow\nReport links"]
+  subgraph Sources["企业 Agent 与交付链"]
+    SDK["Python / TypeScript SDK"]
+    CI["GitHub / GitLab / Webhook"]
+    Trace["Production Trace / Batch / Stream"]
+    Media["Text / Image / Audio / File / Video"]
   end
 
-  subgraph A1["A1 - Execution / Ingestion / Platform Contracts"]
-    Runner["Local runner\nBatch runner\nTrace capture"]
-    API["Local cloud API\nGo API routes\nAPI-key guards"]
-    Queue["Queue replay\nWorker daemon\nDead-letter paths"]
-    Store["Postgres slices\nObject evidence\nQuota + billing ledgers"]
-    Cal["Official API calibration\nPublic-safe evidence index"]
+  subgraph A1["A1 · Runtime & Evidence Platform"]
+    Ingress["Ingress / Runtime / Replay"]
+    Identity["Identity / Tenant / RBAC / Service Account"]
+    Durable["PostgreSQL / Queue / Object Storage"]
+    Platform["Usage / Ledger / Audit / Observability"]
   end
 
-  subgraph A2["A2 - Evaluation Intelligence"]
-    Judges["Tool policy\nOutcome\nTrace integrity\nGrounding\nSafety"]
-    Policy["Release policy\nRelease gate\nUnblock checklist"]
-    SQL["SQL eval store\nResult persistence\nJudge versions"]
-    Backlog["Coverage audit\nScenario backlog\nCross-lane security"]
+  subgraph A2["A2 · Evaluation & Release Intelligence"]
+    Extract["Normalization / OCR / ASR / Keyframes"]
+    Provider["Ollama / vLLM / OpenAI-compatible / Customer Endpoint"]
+    Judge["Deterministic / Semantic / Safety / Multimodal Judges"]
+    Decision["Calibration / Review Semantics / Decision Ledger / Gate"]
+    Learning["Golden / Regression / Preference / Training Lineage"]
   end
 
-  subgraph A3["A3 - Product Control Tower"]
-    Dash["Visual shell\nRun/case/detail views\nSchema drift radar"]
-    Reports["Report center\nHosted report contract\nShare/revoke/denied pages"]
-    Gov["RBAC boundary\nEvent outbox\nNotification control plane"]
-    Audit["Audit bundle\nArtifact registry\nRedaction firewall"]
+  subgraph A3["A3 · Enterprise Product"]
+    Console["Run / Trace / Evidence / Replay / Diff"]
+    Review["Reviewer Queue / Override / Waiver / Approval"]
+    Release["Release War Room / PR Gate / Notifications"]
+    Report["Incident / Audit / Compliance Reports"]
+    Admin["SSO / License / Deploy / Backup / Support Bundle"]
   end
 
-  SDK --> Runner --> API --> Queue --> Store
-  API --> Cal
-  Store --> Judges
-  Cal --> Backlog
-  Judges --> Policy --> SQL
-  SQL --> Dash
-  Backlog --> Dash
-  Dash --> Reports --> PR
-  Reports --> Audit
-  UI --> Dash
-  Gov --> Reports
-  Audit --> PR
+  SDK & CI & Trace & Media --> Ingress
+  Ingress --> Durable
+  Identity --> Ingress
+  Durable --> Platform
+  Durable --> Extract
+  Extract --> Judge
+  Provider --> Judge
+  Judge --> Decision
+  Decision --> Learning
+  Learning -. "候选版本重新过门禁" .-> Judge
+  Platform --> Console
+  Decision --> Console
+  Decision --> Review --> Release --> Report
+  Identity --> Admin
+  Platform --> Admin
 ```
 
 ---
 
-## Lane capabilities
+## 核心能力
 
-### A1 - Execution & SaaS ingestion core
+### A1 · 生产接入与可信运行事实
 
-A1 owns the runtime substrate and evidence boundary.
+- Python、TypeScript 与 Go 接入骨架；
+- Run、Trace、Tool Call、Artifact 与失败分类；
+- 本地与队列执行、重试、Dead Letter 和 Worker 恢复；
+- API Key、路由 Scope、Quota、Usage 与 Billing Ledger 契约；
+- PostgreSQL、对象存储和自托管基础设施切片；
+- Replay、幂等、审计和 Evidence 完整性基础；
+- Docker Compose 与 Terraform 参考资产。
 
-- Python and TypeScript agent adapters, local runner shapes, trace capture, replay fixture output, timeout/failure behavior, and SDK parity evidence.
-- Local cloud API facade with tenant/project/dataset/request/run records, idempotency, cancellation, queue replay, state export, and dead-letter handling.
-- Go ingress surfaces with API-key authentication handles, route-scope manifest, redacted error envelopes, and Postgres backend migration slices.
-- Durable Postgres contracts for tenants, projects, runs, upload traces, artifacts, API keys, worker jobs, quota ledgers, audit chains, billing ledgers, and replay parity.
-- Self-host scaffolds through Docker Compose and Terraform-shaped artifacts for local Postgres/Redis/MinIO/API/worker/billing-webhook boundaries.
-- Official API calibration path that is dry-run first, quota-aware, public-safe, and explicitly separated from ignored private evidence.
+### A2 · 独立评测与发布智能
 
-### A2 - Evaluation intelligence
+- 确定性、语义、安全、Trace 与 Grounding Judge；
+- Golden Case、失败分类、回归重放和 Release Policy；
+- Evidence Snapshot、Decision Ledger 和持久化合同；
+- Provider-neutral Gateway，支持 Ollama、vLLM、OpenAI-compatible 与客户自建端点；
+- 校准、误报/漏报、人工一致率与漂移治理方向；
+- 多模态提取、人工审核、Dataset Lineage 与受治理学习边界。
 
-A2 owns whether behavior is trustworthy enough to release.
+### A3 · 企业审核与商业工作流
 
-- Deterministic judges for tool policy, outcome, trace integrity, grounding, safety boundary behavior, recovery quality, and hallucinated tool-result detection.
-- G3 scenario coverage with 60 scenarios, golden cases, executable calibration fixtures, failure taxonomy, media/tool-output grounding, and regression replay.
-- Release policy engine, release gate report, release unblock checklist, result persistence manifest, judge version registry, and service-wrapper OpenAPI boundary.
-- New SQL evaluation store contract for grade results, calibration data, golden cases, and regression history.
-- New cross-lane security context consuming A1 route/auth/quota evidence and A3 RBAC/outbox signals without taking ownership of auth or dashboard UI.
-- New scenario generation backlog that turns coverage gaps, policy experiments, and regression signals into promotable future cases.
+- Run、Case、Report、Reviewer、Admin 与 Release 页面；
+- Hosted Report、Share、Revoke、Expiry 与导出合同；
+- RBAC 元数据、Fail-closed 写路径和 Event Outbox；
+- GitHub Check、PR Comment、Waiver、Approval 与 Audit Bundle；
+- Artifact Registry、Verifier、通知控制面和运维状态入口；
+- 面向企业管理员、Reviewer、安全与合规角色的产品壳。
 
-### A3 - Product control tower
-
-A3 owns the operator experience: what reviewers see, approve, deny, export, and audit.
-
-- Modular dashboard under `apps/dashboard/` with product-console visuals, run/case views, failure clusters, media metadata, report center, and polished visual shell/navigation.
-- Commercial OpenAPI contract spanning dashboard, release gate, report center, artifact registry, review workflow, admin console, usage/billing, trust, and notification surfaces.
-- Local API server/store, SQLite contract, hosted-report lifecycle, share token/revoke/denied states, report print/export flows, and redaction-aware report generation.
-- RBAC metadata boundary, fail-closed write-path rules, event envelope/outbox backbone, live ops control plane, notification control plane, and schema drift radar across A1/A2/A3 contracts.
-- Gate CLI with JSON/Markdown payloads, GitHub check and PR comment dry-run evidence, waiver/approval validation, readback-shaped contracts, audit bundle index, bundle verification, and artifact registry.
+> 仓库中的代码、测试和契约代表可验证基础；它们不自动等同于生产验证。对外承诺必须经过部署、负载、故障、恢复和安全证据证明。
 
 ---
 
-## Release lifecycle
+## Provider-neutral 模型路线
 
-```mermaid
-%%{init: {"theme": "base", "themeVariables": {"background": "transparent", "actorBkg": "#111827", "actorBorder": "#38bdf8", "actorTextColor": "#f8fafc", "signalColor": "#a78bfa", "signalTextColor": "#e2e8f0", "noteBkgColor": "#1e293b", "noteTextColor": "#f8fafc", "fontFamily": "Inter, ui-sans-serif, system-ui"}}}%%
-sequenceDiagram
-  participant Dev as Developer / Agent Team
-  participant A1 as A1 Runtime
-  participant A2 as A2 Judge Service
-  participant A3 as A3 Control Tower
-  participant Rev as Reviewer / PR Gate
-  participant Audit as Audit Evidence
+Ashr 官方 API 只作为**可选校准 Provider**，不是开发、CI、Release Gate 或企业运行的必需依赖。
 
-  Dev->>A1: Submit agent run / batch / API request
-  A1->>A1: Capture RunResult, trace, tool calls, artifacts
-  A1->>A2: Hand off normalized evidence refs
-  A2->>A2: Grade cases, apply release policy, build unblock checklist
-  A2->>A3: Publish release gate + persistent judge records
-  A3->>A3: Render dashboard, report, drift radar, reviewer state
-  A3->>Rev: Emit PR check/comment payload or review workflow
-  Rev-->>A3: Approve, deny, waive, or request replay
-  A3->>Audit: Seal redacted report, manifest, bundle index, custody refs
-  alt Approved
-    A3-->>Dev: Ship with traceable evidence
-  else Blocked
-    A3-->>Dev: Replay/fix/re-test with failure class and evidence refs
-  end
+```text
+Ollama                开发、小型部署与离线 Profile
+vLLM                  高吞吐自托管参考后端
+OpenAI-compatible     标准化云端或私有 Endpoint
+Customer Endpoint     客户自建模型服务
+Ashr API              可选行为与字段校准来源
 ```
 
+Provider 超时、限流、额度耗尽、付款异常、容量不足或响应不完整，都不能产生假 `Pass`。禁用任意单一 Provider 后，Evidence、Judge、Review 和 Release Gate 仍应保持可运行。
+
 ---
 
-## Quickstart
+## 企业交付形态
+
+| 档位 | 适用场景 | 交付重点 |
+|---|---|---|
+| **Developer** | 本地开发与契约验证 | Compose、可选 Ollama、Seeded Smoke |
+| **Evaluation** | 小型 Kubernetes / VPC 验证 | PostgreSQL、对象存储、Queue、受治理模型后端 |
+| **Enterprise HA** | 企业生产环境 | 多实例、SSO、KMS、扩缩容、完整观测与恢复 |
+| **Restricted / Offline** | 受限网络、专有云、隔离环境 | 离线镜像与模型、私有 Registry、受控升级包 |
+
+企业 Release 的目标制品包括：
+
+- 签名 OCI 镜像；
+- Helm Chart 与 Terraform 模块；
+- Migration、兼容矩阵、升级与回滚工具；
+- 备份、PITR、恢复和灾难演练说明；
+- SBOM、Provenance、漏洞与许可证报告；
+- 离线镜像/模型包；
+- 自动脱敏 Support Bundle；
+- 中文 Operator、Admin、Reviewer、SDK、API 与安全手册。
+
+---
+
+## 国内企业优先
+
+产品优先考虑中文界面、中文错误、国内云/VPC、受限网络、企业微信、钉钉、飞书、GitHub/GitLab，以及企业合同与 License 交付。
+
+在项目主体不具备营业执照及相应平台资质的条件下，以下能力不得标记为生产可用：
+
+- 微信开放平台登录；
+- QQ 互联登录；
+- 支付宝登录；
+- 微信支付商户收款；
+- 支付宝商户收款。
+
+这不阻碍企业私有化交付。身份优先采用客户 OIDC/SAML/LDAP、本地管理员、邮箱、MFA、服务账号和 Scoped API Key；商业交付优先采用合同、License、人工账单与对账。具备主体资质和平台审批后，在线支付以微信支付和支付宝为主要路线。
+
+---
+
+## 快速开始
 
 ```bash
 git clone https://github.com/3351666087/ashr-codex-factory.git
 cd ashr-codex-factory
 ```
 
-Run the core Python checks:
+### Python 合同与评测
 
 ```bash
 python -B -m pytest tests/a1 tests/a2 -q
-```
-
-Check deterministic A2 fixture reproducibility:
-
-```bash
 python -B scripts/a2_regenerate_fixtures.py --check
 ```
 
-Run the A3 Node contracts:
+### A3 Node 合同
 
 ```bash
 node --test tests/a3/*.mjs
 ```
 
-Run the TypeScript SDK package tests:
+### TypeScript SDK
 
 ```bash
 npm install --prefix packages/ts/ashr-clone
 npm test --prefix packages/ts/ashr-clone
 ```
 
-Run the Go runtime/API tests:
+### Go Runtime / API
 
 ```bash
 cd packages/go/ashrclone
 go test ./...
 ```
 
-Start the local dashboard:
+### A3 本地控制台
 
 ```bash
 python -m http.server 5173
 ```
 
-Open:
+打开：
 
 ```text
 http://127.0.0.1:5173/apps/dashboard/index.html
 ```
 
+### 自托管配置校验
+
+```bash
+docker compose -f services/runner/docker-compose.a1.yml config --quiet
+docker compose --env-file infra/docker/self-host.env.example \
+  -f infra/docker/docker-compose.self-host.yml \
+  --profile commercial config --quiet
+```
+
 ---
 
-## Common workflows
+## 常用工作流
 
-Run an agent locally:
+### 运行 Agent 并生成 Trace
 
 ```bash
 python -B -m services.runner.cli \
@@ -285,34 +303,14 @@ python -B -m services.runner.cli \
   --fail-on-case-failure
 ```
 
-Run local cloud queue replay:
-
-```bash
-python -B -m services.api.cli run-agent-queued \
-  --input docs/a1/evidence/local_agent_cases_30.json \
-  --agent examples.agents.mock_agent:RespondingMockAgent \
-  --fixture-output /tmp/ashr_queue_fixture.json \
-  --summary-output /tmp/ashr_queue_summary.json \
-  --run-output /tmp/ashr_queue_run.json \
-  --tenant-id tenant_demo \
-  --project-id project_demo \
-  --dataset-id dataset_demo \
-  --runner-id queue-demo \
-  --queue-workers 4 \
-  --max-workers 4 \
-  --timeout 5 \
-  --wait-timeout 30 \
-  --fail-on-case-failure
-```
-
-Run the A2 internal judge wrapper:
+### 执行 A2 Judge 与 Release Policy
 
 ```bash
 python scripts/a2_judge_service.py /internal/judge/case --input payload.json
 python scripts/a2_judge_service.py /internal/release-policy/evaluate --input payload.json
 ```
 
-Run the A3 release gate CLI:
+### 生成 A3 Release Gate 结果
 
 ```bash
 node services/report/a3_gate_cli.mjs \
@@ -324,98 +322,77 @@ node services/report/a3_gate_cli.mjs \
   --no-fail
 ```
 
-Validate local self-host compose contracts:
-
-```bash
-docker compose -f services/runner/docker-compose.a1.yml config --quiet
-docker compose --env-file infra/docker/self-host.env.example \
-  -f infra/docker/docker-compose.self-host.yml \
-  --profile commercial config --quiet
-```
-
 ---
 
-## Repository map
+## 仓库地图
 
 ```text
-apps/dashboard/                    A3 modular dashboard, visual shell, product console
-services/runner/                   A1 local runner, dataset adapter, API probes
-services/api/                      A1 local cloud API, queue replay, control plane, billing helpers
-services/judge/                    A2 judges, release policy, SQL store, scenario backlog, persistence
-services/report/                   A3 reports, gate CLI, artifact registry, RBAC/outbox/control-plane services
-packages/sdk/ashr_clone/           Python SDK-style runtime and evidence helpers
-packages/ts/ashr-clone/            TypeScript SDK/runtime/probe/cloud parity package
-packages/go/ashrclone/             Go API/runtime, Postgres, auth, quota, worker and SaaS ingress slices
-packages/rust/ashr-runtime-verify/ Static runtime fixture verifier
-packages/scenarios/                A2 scenario packs
-fixtures/a2/                       A2 generated grades, coverage, readiness, SQL, persistence fixtures
-fixtures/a3/                       A3 dashboard/gate/audit/report/admin/readback fixtures
-docs/a1/                           A1 schemas, API calibration, billing/quota/storage evidence
-docs/a2/                           A2 schemas, taxonomy, service contract, worklogs
-docs/a3/                           A3 product, SaaS, audit, report center, visual and growth docs
-docs/strategy/                     A1/A2/A3 large-SaaS roadmap bus
-infra/docker/                      Self-host compose profile and env examples
-infra/terraform/                   Self-host infrastructure-shaped contracts
-tests/a1/                          A1 Python contract tests
-tests/a2/                          A2 Python judge/readiness tests
-tests/a3/                          A3 Node contract tests
+apps/dashboard/                    A3 控制台与产品工作流
+apps/webapp/                       Web 应用边界
+services/runner/                   A1 Runner、数据适配与 API 校准
+services/api/                      A1 API、Queue、Control Plane、Usage/Billing
+services/judge/                    A2 Judge、Policy、Calibration、Persistence
+services/report/                   A3 Report、Gate、Review、Audit 与 Admin 服务
+packages/sdk/ashr_clone/           Python SDK 与 Evidence 辅助能力
+packages/ts/ashr-clone/            TypeScript SDK、Runtime 与 API parity
+packages/go/ashrclone/             Go Runtime/API、PostgreSQL、Auth、Quota、Worker
+packages/rust/ashr-runtime-verify/ Rust Evidence/Runtime Verifier
+packages/scenarios/                A2 Scenario Packs
+fixtures/a2/                       A2 Grade、Coverage、Calibration、Regression Fixture
+fixtures/a3/                       A3 Gate、Report、Review、Audit、Admin Fixture
+docs/a1/                           A1 Schema、API 校准与运行证据
+docs/a2/                           A2 Taxonomy、Contract 与评测证据
+docs/a3/                           A3 Product、Report、Audit 与商业工作流证据
+docs/strategy/                     唯一 A1/A2/A3 企业 Release 战略
+infra/docker/                      Self-host Compose
+infra/terraform/                   Self-host Infrastructure Contract
+tests/a1/                          A1 Python Tests
+tests/a2/                          A2 Python Tests
+tests/a3/                          A3 Node Tests
 ```
 
 ---
 
-## Evidence discipline
+## Evidence Discipline
 
-Evidence is a product feature. Public tracked files may contain:
+Evidence 是产品能力，不是开发副产物。
 
-- schema names and field names;
-- redacted status summaries;
-- fixture shapes;
-- public-safe readiness reports;
-- hash and manifest metadata;
-- deterministic test outputs;
-- path-only pointers to ignored private evidence.
+仓库可以跟踪：
 
-Public tracked files must not contain:
+- Schema 与字段名；
+- 脱敏状态摘要；
+- Fixture 结构；
+- 可公开的 Readiness 与 Calibration 报告；
+- Hash、Manifest 与 Provenance；
+- 确定性测试输出；
+- 指向私有证据的无敏感信息引用。
 
-- API keys, bearer tokens, cookies, or raw share tokens;
-- raw private prompts/responses;
-- account payloads or customer data;
-- unredacted quota/payment/provider values;
-- private screenshots or signed media URLs.
+仓库不得包含：
 
-Private operational artifacts belong under ignored paths such as:
+- API Key、Bearer Token、Cookie 或原始 Share Token；
+- 私有 Prompt、Response 或客户 Payload；
+- 未脱敏账号、Quota、支付或 Provider 数据；
+- 私有截图与仍然有效的 Signed URL；
+- 跨租户 Evidence 或未经授权的 Learning Data。
+
+真实 API 密钥只能从环境变量读取。真实校准必须记录目的、请求类型、响应字段、状态、Quota/Error、成本、私有证据位置和脱敏摘要。
+
+---
+
+## Release 不变量
 
 ```text
-docs/evidence/private_refs/
-```
-
----
-
-## SaaS boundary and next direction
-
-| Layer | Strong local contract now | Still future-boundary |
-|---|---|---|
-| Ingestion | SDK parity, Go ingress, Postgres slices, quota and object-evidence contracts | Published hosted API, long-running compatibility policy, production auth middleware |
-| Evaluation | Deterministic judges, release policies, SQL evaluation store, scenario backlog | Hosted judge service, configurable enterprise policies, semantic/LLM calibration at scale |
-| Product UI | Dashboard, product console, report center, review workflow, drift radar | Full Next.js/React SaaS app, collaborative live mutations, production UX QA |
-| Governance | RBAC metadata, outbox/event envelopes, audit bundle, redaction firewall | Real SSO/OIDC, immutable storage, signed approvals, retention/SOC2 controls |
-| Billing | Ledger/replay/migration readiness and read-only A3 billing surfaces | Payment provider checkout, invoices, quotas enforced by live provider webhooks |
-| GitHub/CI | Dry-run check/comment payloads and readback-shaped evidence | Live required checks, branch protection changes, artifact upload with maintainer approval |
-
-The shortest path to real SaaS is not another mock page. It is replacing fixture-backed contracts with production services while preserving the evidence chain that already works locally:
-
-```mermaid
-%%{init: {"theme": "base", "themeVariables": {"background": "transparent", "primaryColor": "#0f172a", "primaryTextColor": "#e2e8f0", "primaryBorderColor": "#22c55e", "lineColor": "#f59e0b", "fontFamily": "Inter, ui-sans-serif, system-ui"}}}%%
-flowchart LR
-  Contracts["Local contracts\nfixtures / schemas / tests"] --> Services["Production services\nAPI / DB / queue / object store"]
-  Services --> Controls["Control planes\nauth / RBAC / usage / billing / audit"]
-  Controls --> Product["SaaS product\ndashboard / reports / PR gates / reviewers"]
-  Product --> Trust["Enterprise trust\nreplay / custody / retention / proof"]
-  Trust -.drift tests .-> Contracts
+没有 Evidence Snapshot，不得形成 Release Decision
+没有 Decision Ledger，不得显示 Release Ready
+Provider Failure 不得转化为 Pass
+人工 Override 不得删除机器原始决定
+客户数据默认不得跨租户或用于训练
+所有写操作必须具备 Actor、Request、Trace 与 Audit
+所有企业制品必须可安装、可升级、可回滚、可恢复
 ```
 
 <div align="center">
 
-**Ashr = the release gate, evidence ledger, evaluation brain, and control tower for AI agents.**
+### Replay the facts. Judge the risk. Preserve the evidence. Gate the release.
 
 </div>

@@ -4,25 +4,31 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
-STRATEGY = ROOT / "docs/strategy/a2-independent-evaluation-intelligence-platform.md"
+STRATEGY_DIR = ROOT / "docs/strategy"
+STRATEGY = STRATEGY_DIR / "large-saas-a1-a2-a3-full-plan.md"
 
 
-class A2IndependentEvaluationStrategyTests(unittest.TestCase):
+class UnifiedReleaseStrategyTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.text = STRATEGY.read_text(encoding="utf-8")
         cls.normalized_text = " ".join(cls.text.split())
 
-    def test_strategy_defines_commercial_control_plane(self):
+    def test_strategy_directory_has_one_authoritative_document(self):
+        self.assertEqual(
+            [path.name for path in STRATEGY_DIR.glob("*.md")],
+            [STRATEGY.name],
+        )
+
+    def test_strategy_defines_all_three_release_lanes(self):
         required = [
-            "A2_INDEPENDENT_EVALUATION_INTELLIGENCE_PLATFORM",
+            "A1：执行、平台与企业基础设施",
+            "A2：独立评测、学习与发布智能",
+            "A3：产品控制台、审核与商业工作流",
             "Evidence Snapshot",
             "Decision Ledger",
-            "Provider Control Plane",
-            "Multi-Judge Governance",
-            "Multimodal Security",
-            "Dataset And Label Governance",
-            "Commercial Acceptance Metrics",
+            "Provider",
+            "Release Gate",
         ]
         for anchor in required:
             with self.subTest(anchor=anchor):
@@ -30,11 +36,11 @@ class A2IndependentEvaluationStrategyTests(unittest.TestCase):
 
     def test_strategy_locks_cross_lane_authority(self):
         required = [
-            "A1 produces trusted execution facts",
-            "A2 converts those facts into versioned",
-            "A3 turns those decisions into review",
-            "A3 must not recompute A2 grade or release decision",
-            "A1 runtime success does not equal evaluation success",
+            "A1 运行成功不等于 A2 评测成功",
+            "A2 是评测语义和 Release Decision 的权威",
+            "A3 只能展示或请求 A2 决策，不能自行重算分数",
+            "没有有效 Decision Ledger 记录，不得显示 Release Ready",
+            "人工 Override 必须追加新记录，不能删除机器原始决策",
         ]
         for invariant in required:
             with self.subTest(invariant=invariant):
@@ -42,23 +48,37 @@ class A2IndependentEvaluationStrategyTests(unittest.TestCase):
 
     def test_strategy_is_fail_closed_and_provider_independent(self):
         required = [
-            "Ashr API is optional",
-            "evidence_missing",
-            "Provider failure must not become pass",
-            "`abstain`",
-            "No Decision Ledger record means no release-ready state",
-            "Human override preserves the original machine decision",
+            "Ashr 官方 API 降级为**可选校准 Provider**",
+            "Ollama",
+            "vLLM",
+            "OpenAI-compatible",
+            "完全离线",
+            "Provider 超时、限流、额度耗尽、付款状态异常都不能产生“通过”",
         ]
         for invariant in required:
             with self.subTest(invariant=invariant):
                 self.assertIn(invariant, self.text)
 
-    def test_strategy_covers_all_modalities_and_non_goals(self):
-        for modality in ("`text`", "`image`", "`audio`", "`file`", "`video`"):
-            with self.subTest(modality=modality):
-                self.assertIn(modality, self.text)
-        self.assertIn("does not currently claim reinforcement learning or RLHF", self.text)
-        self.assertIn("not a Dify-style general workflow builder", self.text)
+    def test_strategy_covers_enterprise_release_and_domestic_constraints(self):
+        required = [
+            "微信开放平台登录",
+            "QQ 互联登录",
+            "支付宝登录",
+            "微信支付",
+            "支付宝",
+            "OIDC",
+            "SAML",
+            "Helm",
+            "Terraform",
+            "SBOM",
+            "升级",
+            "回滚",
+            "备份",
+            "恢复",
+        ]
+        for anchor in required:
+            with self.subTest(anchor=anchor):
+                self.assertIn(anchor, self.text)
 
     def test_strategy_contains_no_credentials_or_private_evidence_paths(self):
         forbidden = [
