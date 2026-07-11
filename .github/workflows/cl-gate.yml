@@ -74,7 +74,7 @@ jobs:
       - name: Install test dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pytest
+          python -m pip install pytest jsonschema
       - name: Compile Python sources
         run: python -m compileall packages services scripts tests
       - name: Run Python contracts
