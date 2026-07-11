@@ -68,7 +68,7 @@
       "bundle_role": "custody_record",
       "content_type": "application/json",
       "required": false,
-      "sha256": "0a4ae1278f1108ffbb10da77144b271218fc19d84177293c06a7aa457b43d5d0",
+      "sha256": "b40600846b58fa2158903bd45b127257ab58f2dcb52ba33372b71a84498cd234",
       "byte_size": 2002,
       "created_by": "ashr gate generated artifact manifest",
       "redaction_status": "redacted_or_safe_for_audit"
@@ -90,7 +90,7 @@
       "bundle_role": "generated_output",
       "content_type": "application/json",
       "required": true,
-      "sha256": "926bdb81b17a2fa0c1092a26581516f8d7886546d5092be7d1e5a2f361ac3c4c",
+      "sha256": "892aacc17b19eab11186e302673578ceda8dccae568fe1636f0d8af0775c0f52",
       "byte_size": 30865,
       "created_by": "ashr gate output writer",
       "redaction_status": "redacted_or_safe_for_audit"
@@ -101,7 +101,7 @@
       "bundle_role": "generated_output",
       "content_type": "text/markdown",
       "required": true,
-      "sha256": "4f52249037f585c4f5a306370e269fa80b9fa9c0fa4baec151aaf73b274592db",
+      "sha256": "464425cadfe8d24f554625617b5c08b9a33db39c26c599cee8c0037cf822f2a0",
       "byte_size": 3297,
       "created_by": "ashr gate output writer",
       "redaction_status": "redacted_or_safe_for_audit"
@@ -145,8 +145,8 @@
       "bundle_role": "source_input",
       "content_type": "application/json",
       "required": true,
-      "sha256": "3e5f8c572056c38c38d93361c64ef6e76850a1e8a5716947c48be6b0cc19d14f",
-      "byte_size": 49867,
+      "sha256": "1cd8523aac6e01b6888667fb52ebf29fd8bcce34a791ee6c4a035c40c8b1cc41",
+      "byte_size": 51795,
       "created_by": "ashr gate input manifest",
       "redaction_status": "redacted_or_safe_for_audit"
     },
@@ -304,5 +304,5 @@
     "dry_run_compatible": true,
     "redaction_policy": "No API keys, cookies, tokens, emails, or live signed media URLs are allowed in CLI output."
   },
-  "bundle_root_hash": "e28918d5a7ea1b0dc22364e8bb67aab686b45d0b3b2001455086f6f04a43144b"
+  "bundle_root_hash": "31749db8c245e5c45ab039a247b5456774c475cb51a5bacb094c3a964f13c1e2"
 }
