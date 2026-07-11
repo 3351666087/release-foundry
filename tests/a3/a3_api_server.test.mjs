@@ -36,6 +36,15 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.equal(dashboard.live_ops_control_plane.counts.lane_count, 6);
     assert.ok(dashboard.storage.db_contract.api_surfaces.includes("GET /api/a3/live-workflow/readiness"));
     assert.ok(dashboard.storage.db_contract.api_surfaces.includes("GET /api/a3/live-ops/control-plane"));
+    assert.ok(dashboard.storage.db_contract.api_surfaces.includes("GET /api/a3/release-decision/provenance"));
+    assert.ok(dashboard.storage.db_contract.api_surfaces.includes("POST /api/a3/ui-actions/preflight"));
+    assert.equal(dashboard.release_decision_provenance.schema_version, "a3.release_decision_provenance.v1");
+    assert.equal(dashboard.release_decision_provenance.status, "blocked");
+    assert.ok(dashboard.release_decision_provenance.blockers.some((item) => item.type === "auth_untrusted"));
+
+    const provenance = await getJson(`${url}/api/a3/release-decision/provenance?source=mock`);
+    assert.equal(provenance.schema_version, "a3.release_decision_provenance.v1");
+    assert.equal(provenance.release_decision, "block");
 
     const releaseEvidence = await getJson(`${url}${dashboard.release_evidence_api.path}`);
     assert.equal(releaseEvidence.schema_version, "a3.release_evidence_api_response.v1");
@@ -815,6 +824,53 @@ test("A3 API server redacts unexpected internal error messages", async () => {
     assert.match(payload.message, /Bearer \[REDACTED\]/);
     assert.match(payload.message, /ASHR_API_KEY=\[REDACTED\]/);
     assert.doesNotMatch(JSON.stringify(payload), /secret_live_value|owner@example.com|x{24}/);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("A3 API exposes fail-closed UI action preflight without executing a mutation", async () => {
+  const store = await createFixtureBackedA3Store({ sources: ["mock"] });
+  const { server, url } = await startA3ApiServer({ store, trustedIdentityBackend: true });
+  const scope = {
+    organization_id: "org-local",
+    tenant_id: "tenant-local",
+    workspace_id: "workspace-local",
+    project_id: "project-local",
+    environment_id: "staging"
+  };
+  try {
+    const response = await fetch(`${url}/api/a3/ui-actions/preflight`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-a3-role": "reviewer" },
+      body: JSON.stringify({
+        action: "reviewer.approve",
+        hosted_session: true,
+        actor_hash: "a".repeat(64),
+        ...scope,
+        scope,
+        session_ref: "session:reviewer:active",
+        session_expires_at: "2027-07-11T00:00:00.000Z",
+        evidence: {
+          a1: [{ ref: "artifact:a1:run", sha256: "1".repeat(64) }],
+          a2: [{ ref: "artifact:a2:grade", sha256: "2".repeat(64) }]
+        },
+        audit_envelope: {
+          schema_version: "ashr.event_envelope.v1",
+          request_ref: "request:preflight",
+          trace_ref: "trace:preflight",
+          payload_inline: false
+        },
+        payload: { release_ref: "release:mock" }
+      })
+    });
+    assert.equal(response.status, 200);
+    const decision = await response.json();
+    assert.equal(decision.schema_version, "a3.ui_action_security_preflight.v1");
+    assert.equal(decision.allowed, true);
+    assert.equal(decision.execution_boundary.executor_invoked, false);
+    assert.equal(decision.execution_boundary.persistence_write_performed, false);
+    assert.equal(decision.execution_boundary.cloud_write_performed, false);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

@@ -302,7 +302,7 @@ test("A3 dashboard wires official code crawl parity into console and reports", a
   assert.match(html, /state\.frontendCodeCrawl = await loadOptionalJson/);
   assert.match(html, /state\.frontendMirror,\s*state\.frontendCodeCrawl/s);
   assert.match(html, /renderOfficialCodeCrawlParity\(\)/);
-  assert.match(html, /officialCodeCrawl\.available/);
+  assert.match(html, /officialCodeCrawl\.recommendation/);
   assert.match(html, /Official Code Crawl Parity<\/h4>/);
 });
 
@@ -476,6 +476,7 @@ test("A3 dashboard wires export redaction firewall into console and reports", as
 
 test("A3 dashboard wires reviewer workflow board into console and reports", async () => {
   const html = await loadDashboardHtml();
+  const component = await readFile(new URL("../../apps/dashboard/src/components/reviewer-workflow-panel.mjs", import.meta.url), "utf8");
 
   assert.match(html, /summarizeReviewerWorkflowBoard/);
   assertNavigationTarget(html, "#reviewer-workflow");
@@ -491,6 +492,7 @@ test("A3 dashboard wires reviewer workflow board into console and reports", asyn
   assert.match(html, /function reviewerWorkflowLaneRow\(lane\)/);
   assert.match(html, /function reviewerWorkflowItemRow\(item\)/);
   assert.match(html, /function renderReviewWorkflowRecords\(\)/);
+  assert.match(html, /renderReviewerWorkflowPanel/);
   assert.match(html, /fetchA3ReviewWorkflow/);
   assert.match(html, /submitA3ReviewWaiver/);
   assert.match(html, /submitA3ReviewApproval/);
@@ -498,8 +500,8 @@ test("A3 dashboard wires reviewer workflow board into console and reports", asyn
   assert.match(html, /review_workflow/);
   assert.match(html, /GET \/api\/a3\/review\/workflow/);
   assert.match(html, /POST \/api\/a3\/review\/denials/);
-  assert.match(html, /data-review-action="denial"/);
-  assert.match(html, /Record Denial/);
+  assert.match(component, /dataset\.reviewAction = action/);
+  assert.match(component, /"Deny"/);
   assert.match(html, /denial_count/);
   assert.match(html, /function submitReviewWorkflowAction\(action\)/);
   assert.match(html, /function buildDashboardDenialRecord\(\)/);
@@ -542,6 +544,7 @@ test("A3 dashboard wires media readiness and safe cloud shell panels", async () 
 test("A3 dashboard wires API-backed SaaS runtime and hosted report sharing", async () => {
   const html = await loadDashboardHtml();
   const runtimeComponent = await readFile(new URL("../../apps/dashboard/src/components/saas-runtime-panel.mjs", import.meta.url), "utf8");
+  const reportComponent = await readFile(new URL("../../apps/dashboard/src/components/report-center-panel.mjs", import.meta.url), "utf8");
 
   assert.match(html, /api-client\.mjs/);
   assert.match(html, /components\/saas-runtime-panel\.mjs/);
@@ -583,16 +586,17 @@ test("A3 dashboard wires API-backed SaaS runtime and hosted report sharing", asy
   assert.match(html, /GET \/api\/a3\/live-workflow\/readiness/);
   assert.match(html, /GET \/api\/a3\/live-ops\/control-plane/);
   assert.match(html, /GET \/api\/a3\/peer-branches\/calibration/);
-  assert.match(html, /function hostedReportRow\(report\)/);
+  assert.match(html, /renderReportCenterPanel/);
   assert.match(html, /function revokeHostedReport\(report\)/);
   assert.match(html, /function refreshReportEvidence\(\)/);
-  assert.match(html, /Revoke/);
+  assert.match(reportComponent, /"Revoke"/);
   assert.match(html, /dashboard_revoke/);
-  assert.match(html, /function artifactRegistrySummaryRow\(registry/);
-  assert.match(html, /function artifactEntryRow\(entry/);
-  assert.match(html, /Artifact Registry/);
-  assert.match(html, /token \$\{escapeHtml\(report\.share_link\?\.token_hash_prefix/);
-  assert.match(html, /manifest-ready report/);
+  assert.match(reportComponent, /function renderArtifactRegistry/);
+  assert.match(reportComponent, /function renderReport\(/);
+  assert.match(reportComponent, /Artifact Registry/);
+  assert.match(reportComponent, /callbacks\.revoke/);
+  assert.doesNotMatch(reportComponent, /token_hash_prefix/);
+  assert.match(reportComponent, /manifest-ready/);
   assert.match(html, /allowedSources = new Set\(\["mock", "api-mock", "raw-a1", "raw-a2", "p3-media", "p3-official-demo"\]\)/);
 });
 
@@ -791,6 +795,8 @@ test("A3 dashboard wires SaaS admin shell for login, team, usage, API keys, and 
 test("A3 dashboard wires product console onboarding, project, and audit workflow", async () => {
   const html = await loadDashboardHtml();
   const productComponent = await readFile(new URL("../../apps/dashboard/src/components/product-console-panel.mjs", import.meta.url), "utf8");
+  const reportComponent = await readFile(new URL("../../apps/dashboard/src/components/report-center-panel.mjs", import.meta.url), "utf8");
+  const reviewerComponent = await readFile(new URL("../../apps/dashboard/src/components/reviewer-workflow-panel.mjs", import.meta.url), "utf8");
 
   assert.match(html, /a3_product_console\.mjs/);
   assert.match(html, /summarizeProductConsoleExport/);
@@ -806,8 +812,8 @@ test("A3 dashboard wires product console onboarding, project, and audit workflow
   assert.match(html, /SaaS Admin \/ Login \/ Team \/ Trust/);
   assert.match(html, /state\.productConsole/);
   assert.match(html, /state\.saasAdmin/);
-  assert.match(html, /product console workflow/);
-  assert.match(html, /SaaS admin guardrails/);
+  assert.match(productComponent, /Operations Loop/);
+  assert.match(productComponent, /Commercial Governance Loop/);
   assert.match(html, /product_console/);
   assert.match(html, /GET \/api\/a3\/product\/console/);
   assert.match(productComponent, /Onboarding Flow/);
@@ -819,9 +825,9 @@ test("A3 dashboard wires product console onboarding, project, and audit workflow
   assert.match(productComponent, /Notification lanes/);
   assert.match(productComponent, /Audit Log/);
   assert.match(productComponent, /Commercial Readiness/);
-  assert.match(html, /Release Sign-Off/);
-  assert.match(html, /Sign-Off Detail/);
-  assert.match(html, /Review Scope Summary/);
+  assert.match(reportComponent, /Release Sign-Off/);
+  assert.match(reportComponent, /release_signoff_detail/);
+  assert.match(reviewerComponent, /Tenant \/ Project \/ Environment Scope/);
   assert.match(html, /reviewWorkflow: state\.reviewWorkflow/);
   assert.match(html, /notificationControlPlane: state\.notificationControlPlane/);
 });
@@ -858,8 +864,8 @@ test("A3 dashboard wires notification control plane through a dedicated componen
   assert.match(html, /Commercial Loop/);
   assert.match(html, /review record\(s\),/);
   assert.match(html, /shareable report\(s\),/);
-  assert.match(html, /Report Share Readiness/);
-  assert.match(html, /Reviewer actions, hosted reports, and export evidence should converge/);
+  assert.match(html, /renderReviewerWorkflowPanel/);
+  assert.match(html, /renderReportCenterPanel/);
 });
 
 
@@ -881,18 +887,20 @@ test("A3 dashboard wires tenant workspace control and separation-of-duties surfa
 
 test("A3 dashboard wires export audience governance tile into report center", async () => {
   const appSource = await readFile(new URL("../../apps/dashboard/src/app.mjs", import.meta.url), "utf8");
+  const reportComponent = await readFile(new URL("../../apps/dashboard/src/components/report-center-panel.mjs", import.meta.url), "utf8");
   const reportCenterSource = await readFile(new URL("../../services/report/a3_report_center.mjs", import.meta.url), "utf8");
-  assert.match(appSource, /Export Audience/);
-  assert.match(appSource, /buildExportAudienceTile/);
+  assert.match(appSource, /renderReportCenterPanel/);
+  assert.match(reportComponent, /Audience Governance/);
+  assert.match(reportComponent, /export_audience_governance/);
   assert.match(reportCenterSource, /export_audience_governance/);
   assert.match(reportCenterSource, /a3\.export_audience_governance\.v1/);
 });
 
 test("A3 dashboard hosted report rows surface export audience and row-level scope", async () => {
-  const appSource = await readFile(new URL("../../apps/dashboard/src/app.mjs", import.meta.url), "utf8");
+  const reportComponent = await readFile(new URL("../../apps/dashboard/src/components/report-center-panel.mjs", import.meta.url), "utf8");
   const reportCenterSource = await readFile(new URL("../../services/report/a3_report_center.mjs", import.meta.url), "utf8");
-  assert.match(appSource, /const audience = Array\.isArray\(report\.export_audience\?\.allowed\)/);
-  assert.match(appSource, /report\.tenant_scope\?\.workspace_id/);
+  assert.match(reportComponent, /report\.export_audience/);
+  assert.match(reportComponent, /report\.tenant_scope/);
   assert.match(reportCenterSource, /export_audience:/);
   assert.match(reportCenterSource, /buildAllowedAudiences/);
 });
@@ -900,19 +908,18 @@ test("A3 dashboard hosted report rows surface export audience and row-level scop
 
 test("A3 dashboard wires audience filters, grouped scopes, and external publish blockers into report center", async () => {
   const appSource = await readFile(new URL("../../apps/dashboard/src/app.mjs", import.meta.url), "utf8");
+  const reportComponent = await readFile(new URL("../../apps/dashboard/src/components/report-center-panel.mjs", import.meta.url), "utf8");
   const reportCenterSource = await readFile(new URL("../../services/report/a3_report_center.mjs", import.meta.url), "utf8");
-  assert.match(appSource, /Audience Filters/);
-  assert.match(appSource, /Workspace Groups/);
-  assert.match(appSource, /Environment Groups/);
-  assert.match(appSource, /External Publish Blockers/);
-  assert.match(appSource, /buildAudienceFilterSummary/);
-  assert.match(appSource, /buildGroupedScopeSummary/);
-  assert.match(appSource, /buildExternalPublishBlockerSummary/);
+  assert.match(appSource, /renderReportCenterPanel/);
+  assert.match(reportComponent, /Audience Filters/);
+  assert.match(reportComponent, /Workspace Groups/);
+  assert.match(reportComponent, /Environment Groups/);
+  assert.match(reportComponent, /External Publish Blockers/);
   assert.match(reportCenterSource, /audience_filters/);
   assert.match(reportCenterSource, /workspace_groups/);
   assert.match(reportCenterSource, /environment_groups/);
   assert.match(reportCenterSource, /external_publish_blockers/);
-  assert.match(appSource, /customer external blocked/);
+  assert.match(reportComponent, /customer external blocked/);
 });
 
 

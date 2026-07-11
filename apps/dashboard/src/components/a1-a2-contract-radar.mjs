@@ -1,4 +1,4 @@
-export function renderA1A2ContractRadarPanel(target, radar = {}) {
+export function renderA1A2ContractRadarPanel(target, radar = {}, provenance = {}) {
   if (!target) {
     return;
   }
@@ -34,9 +34,36 @@ export function renderA1A2ContractRadarPanel(target, radar = {}) {
       (item.required_by_a3_surfaces || []).join(", ")
     ]), "No A1/A2 integration domains are loaded.", "integration-domain-table"),
     actionList(actions),
+    provenanceSection(provenance),
     caption(matrix.ownership_boundary || radar.a1_a2_boundary || "A3 consumes A1/A2 evidence downstream only."),
     caption(`Safety: raw schema payload ${radar.safety?.raw_schema_payload_embedded ? "embedded" : "not embedded"}; raw integration artifacts ${matrix.safety?.raw_artifact_payload_embedded ? "embedded" : "not embedded"}.`)
   );
+}
+
+function provenanceSection(provenance = {}) {
+  const block = document.createElement("section");
+  block.className = "integration-provenance-section";
+  const blockers = Array.isArray(provenance.blockers) ? provenance.blockers : [];
+  const nodes = Array.isArray(provenance.nodes) ? provenance.nodes : [];
+  const edges = Array.isArray(provenance.edges) ? provenance.edges : [];
+  const missing = Array.isArray(provenance.missing_contracts) ? provenance.missing_contracts : [];
+  block.replaceChildren(
+    sectionHeading("Release Decision Provenance", provenance.status || "not attached"),
+    healthGrid([
+      [nodes.length, "evidence nodes"],
+      [edges.length, "evidence links"],
+      [missing.length, "missing contracts"],
+      [blockers.length, "decision blockers"]
+    ]),
+    caption(`Decision ${provenance.release_decision || "unknown"}; authority ${provenance.decision_authority || "not attached"}.`),
+    reportTable(["Blocker", "Severity", "Evidence"], blockers.slice(0, 8).map((item) => [
+      item.type,
+      item.severity,
+      (item.evidence_refs || []).join(", ")
+    ]), "No release-provenance blockers are loaded.", "release-provenance-table"),
+    caption(`Identity backend: ${provenance.governance?.auth?.trusted_identity_backend ? "trusted" : "not trusted"}; RBAC ${provenance.governance?.rbac?.allowed ? "allowed" : "blocked"}; redaction ${provenance.governance?.redaction?.status || "unknown"}.`)
+  );
+  return block;
 }
 
 function caption(value) {

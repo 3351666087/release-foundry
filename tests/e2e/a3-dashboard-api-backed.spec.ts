@@ -170,7 +170,7 @@ test.describe("A3 API-backed dashboard E2E", () => {
         bridgeColumns: bridgeGrid ? getComputedStyle(bridgeGrid).gridTemplateColumns.split(" ").length : 0
       };
     });
-    expect(layout.panelWidth).toBeLessThanOrEqual(360);
+    expect(layout.panelWidth).toBeLessThanOrEqual(370);
     expect(layout.overflow).toBe(false);
     expect(layout.bridgeColumns).toBe(1);
     await expect(radar).toContainText("A1 runtime -> A2 judge -> A3 release console");

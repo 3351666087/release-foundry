@@ -25,6 +25,8 @@ test("A3 store loads fixture sources through a DB-ready dashboard snapshot", asy
   assert.equal(snapshot.summary.totalRuns, 1);
   assert.equal(snapshot.summary.totalCases, 32);
   assert.equal(snapshot.storage.db_ready, true);
+  assert.equal(snapshot.a2GradeResults.schema_version, "a2.grade_results.v1");
+  assert.equal(snapshot.a2ReleaseGate.schema_version, "a2.release_gate.v1");
 });
 
 test("A3 fixture-backed store exposes runs, cases, and hosted report payloads", async () => {
@@ -44,6 +46,10 @@ test("A3 fixture-backed store exposes runs, cases, and hosted report payloads", 
   assert.equal(dashboard.release_evidence_summary.schema_version, "a3.release_evidence_summary.v1");
   assert.equal(dashboard.release_evidence_summary.available, true);
   assert.equal(dashboard.release_evidence_api.raw_fixture_exposed, false);
+  assert.equal(dashboard.release_decision_provenance.schema_version, "a3.release_decision_provenance.v1");
+  assert.equal(dashboard.release_decision_provenance.status, "blocked");
+  assert.equal(dashboard.release_decision_provenance.governance.auth.trusted_identity_backend, false);
+  assert.ok(dashboard.release_decision_provenance.blockers.some((item) => item.type === "auth_untrusted"));
 
   const runs = await store.listRuns({ source: "mock" });
   assert.equal(runs.length, 1);

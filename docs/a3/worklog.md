@@ -6202,3 +6202,33 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
   - `docs/screenshots/a3-a1-a2-integration-matrix-mobile-2026-07-11.png`
   - `docs/screenshots/a3-runtime-contract-layout-api-backed-2026-07-11.png`
 - Safety: no API key, provider secret, raw evidence payload, real payment call, real object-store call, or A1/A2 semantic mutation was introduced.
+
+## 2026-07-11 - Release Provenance + UI Security + Component Closeout
+
+- Re-read the latest `origin/main` and the newly fetched A1/A2 draft branches. `origin/main` remains `5dbf4ee`; draft-only A1 identity verification and A2 multimodal smoke evidence were used for read-only calibration and were not merged or treated as stable main contracts.
+- Extracted two remaining high-value dashboard surfaces into focused, independently tested DOM components:
+  - `apps/dashboard/src/components/report-center-panel.mjs`
+  - `apps/dashboard/src/components/reviewer-workflow-panel.mjs`
+- Reduced `apps/dashboard/src/app.mjs` from about 3,853 lines to 3,383 lines. The extracted components use DOM APIs and `textContent` for dynamic values instead of trusting upstream text as HTML.
+- Added `a3.release_decision_provenance.v1`, a read-only graph joining A1 run/case/trace/tool-call evidence, A2 grade/failure/release-gate authority, and A3 review/report/usage/billing/audit visibility.
+- Kept A2 `release_gate` as the only upstream decision authority. Missing contracts, dangling evidence references, tenant-scope drift, untrusted identity, RBAC denial, or residual sensitive data force the A3 view to `block` without recomputing A2 policy.
+- Exposed the provenance graph through the API-backed dashboard payload, `GET /api/a3/release-decision/provenance`, and the A1/A2 Contract Radar.
+- Added `a3.ui_action_security_preflight.v1` and `POST /api/a3/ui-actions/preflight` for reviewer approve/deny/waiver and hosted-report create/revoke/export intents. The endpoint returns a metadata-only allow/block decision and never performs a DB or cloud mutation.
+- Kept trusted identity fail-closed. Client headers, query values, and local fixture claims cannot turn themselves into a trusted hosted identity; A1 must later provide authoritative hosted-session or service-account verification.
+- Added a GPT-5.6 visual-system pass for navigation hierarchy, dense tables, focus/hover states, loading/empty/error treatment, responsive layout, and reduced motion. Browser inspection found no horizontal overflow at 390 x 844.
+- Saved current visual evidence:
+  - `docs/screenshots/a3-visual-system-desktop.png`
+  - `docs/screenshots/a3-visual-system-mobile-390x844.png`
+- Ran a real Ashr read-only smoke calibration through the protected local environment. Six operations succeeded (init, health, datasets, runs, requests, agents); only aggregate, redacted evidence was saved in `fixtures/a3/p3/a3_ashr_api_smoke_2026_07_11.redacted.json`.
+- Current sanitized Ashr inventory was 3 datasets, 4 runs, 5 requests, and 0 agents. No API key, account identity, raw response, email, cookie, token, or signed URL was persisted.
+- Generated `docs/a3/growth_auditor_money_grade_round9_2026_07_11.md` with 24 evidence-bound follow-up points instead of silently expanding this closeout round.
+- Verification:
+  - full A3 Node suite -> `321 pass / 0 fail`
+  - full Playwright suite -> `21 pass / 0 fail`
+  - TypeScript SDK plus real Go HTTP vertical slice -> `342 pass / 0 fail`
+  - focused A1 trace/release and A2 contract/persistence/policy suite -> `95 pass / 0 fail`, `987 subtests pass`
+  - `python scripts/cl_guard.py commercial` -> passed, 0 blockers, 0 advisories
+  - `python scripts/cl_guard.py hygiene` -> passed, 0 findings
+  - `git diff --check` -> passed (line-ending warning only)
+- Environment note: Go 1.26.5 was installed as a portable user-local tool under `.codex/tools`, outside the repository. `GOPROXY=https://goproxy.cn,direct` was used for the compatibility test because the default Go proxy timed out; checksum verification was not disabled.
+- Safety closeout: `.env.local` remains ignored, high-confidence secret scanning returned no matches in A3-owned source/docs/fixtures/tests, and no real key or credential entered Git status.

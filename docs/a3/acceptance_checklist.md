@@ -871,3 +871,31 @@
 - [x] Full A3 Node suite passes (`286 pass / 0 fail`).
 - [x] Full Playwright suite passes (`18 pass / 0 fail`).
 - [ ] Continue extracting Report Center and Reviewer Workflow from the remaining 3,853-line `app.mjs`.
+
+## A3 Release Provenance + UI Security Closeout - 2026-07-11
+
+- [x] Re-check `origin/main` and use the latest A1/A2 draft branches only as read-only calibration inputs.
+- [x] Extract Report Center into `components/report-center-panel.mjs`.
+- [x] Extract Reviewer Workflow into `components/reviewer-workflow-panel.mjs`.
+- [x] Reduce `app.mjs` to 3,383 lines without changing A1 runner or A2 judge semantics.
+- [x] Keep both extracted components XSS-safe for dynamic values through DOM nodes and `textContent`.
+- [x] Build a release-decision provenance graph across A1 run/case/trace/tool-call, A2 grade/failure/release gate, and A3 review/report/usage/billing/audit visibility.
+- [x] Keep A2 release gate as the only upstream release-decision authority.
+- [x] Fail closed on missing contracts, broken references, tenant-scope mismatch, untrusted identity, RBAC denial, and residual sensitive material.
+- [x] Expose provenance in the API-backed dashboard payload, a dedicated read API, and Contract Radar.
+- [x] Add metadata-only UI action preflight for reviewer approve/deny/waiver and report create/revoke/export.
+- [x] Confirm preflight executes no DB write, cloud write, review decision, report mutation, usage write, or audit persistence.
+- [x] Confirm client-declared headers/query values cannot create a trusted hosted identity.
+- [x] Complete desktop and 390 x 844 responsive visual inspection with no horizontal overflow.
+- [x] Add visual E2E coverage for hierarchy, focus/hover, loading/empty/error states, mobile bounds, and reduced motion.
+- [x] Run sanitized real Ashr read-only smoke calibration: 6 of 6 operations succeeded.
+- [x] Persist only aggregate redacted Ashr evidence; no key, identity, raw response, signed URL, token, cookie, or email.
+- [x] Full A3 Node suite passes (`321 pass / 0 fail`).
+- [x] Full Playwright suite passes (`21 pass / 0 fail`).
+- [x] TypeScript SDK and real Go HTTP compatibility suite passes (`342 pass / 0 fail`).
+- [x] Focused A1/A2 Python compatibility suite passes (`95 pass / 0 fail`, `987 subtests pass`).
+- [x] Commercial and hygiene CL guards pass with no findings.
+- [x] `.env.local` remains ignored and high-confidence A3 secret scan finds no committed secret.
+- [ ] Replace provenance's blocked identity state only after A1 trusted hosted identity verification enters `main` and A3 consumes its authoritative read contract.
+- [ ] Execute approved UI mutations only after A1 provides authenticated server-side executors with durable audit/usage writes and A2 verifies current evidence/policy state.
+- [ ] Continue route-level web-app decomposition after this closeout; do not re-expand `app.mjs` with new inline panels.
