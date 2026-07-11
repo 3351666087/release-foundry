@@ -7,13 +7,23 @@ from dataclasses import dataclass
 from typing import Any, Callable, Protocol
 from urllib import request
 
+from .provider_runtime import CircuitBreaker, ProviderRateLimited, ProviderUnavailable, RetryPolicy
 from .result_persistence import stable_hash
 
 
 SCHEMA_VERSION = "a2.provider_gateway.v1"
 MODALITIES = frozenset({"text", "image", "audio", "file", "video"})
 TERMINAL_FAILURES = frozenset(
-    {"blocked", "budget_blocked", "provider_error", "timeout", "invalid_response", "unsupported"}
+    {
+        "blocked",
+        "budget_blocked",
+        "provider_error",
+        "provider_unavailable",
+        "rate_limited",
+        "timeout",
+        "invalid_response",
+        "unsupported",
+    }
 )
 
 
@@ -97,10 +107,18 @@ class ProviderGateway:
         adapters: dict[str, ProviderAdapter],
         *,
         audit_writer: Callable[[dict[str, Any]], None] | None = None,
+        request_authorizer: Callable[[dict[str, Any]], list[str]] | None = None,
+        response_validator: Callable[[str], dict[str, Any]] | None = None,
+        retry_policy: RetryPolicy | None = None,
+        circuit_breakers: dict[str, CircuitBreaker] | None = None,
     ) -> None:
         self.providers = {item.provider_id: item for item in providers}
         self.adapters = dict(adapters)
         self.audit_writer = audit_writer or (lambda event: None)
+        self.request_authorizer = request_authorizer or (lambda context: [])
+        self.response_validator = response_validator
+        self.retry_policy = retry_policy or RetryPolicy(max_attempts=1)
+        self.circuit_breakers = circuit_breakers or {}
         self._results: dict[str, dict[str, Any]] = {}
 
     def invoke(
@@ -137,9 +155,30 @@ class ProviderGateway:
             return dict(result)
 
         provider = self.providers[provider_id]
+        policy_blockers = self.request_authorizer(
+            {
+                "tenant_id": tenant_id,
+                "snapshot": snapshot,
+                "provider": provider,
+                "model_id": model_id,
+                "parts": parts,
+                "max_cost_usd": max_cost_usd,
+            }
+        )
+        if policy_blockers:
+            result = self._result(request_core, logical_call_id, "blocked", attempts=[])
+            result["blockers"] = sorted(set(policy_blockers))
+            self._results[logical_call_id] = result
+            return dict(result)
         adapter = self.adapters.get(provider.protocol)
         if adapter is None:
             result = self._result(request_core, logical_call_id, "unsupported", attempts=[])
+            self._results[logical_call_id] = result
+            return dict(result)
+        breaker = self.circuit_breakers.get(provider_id)
+        if breaker is not None and not breaker.allow():
+            result = self._result(request_core, logical_call_id, "provider_unavailable", attempts=[])
+            result["blockers"] = ["circuit_open"]
             self._results[logical_call_id] = result
             return dict(result)
 
@@ -160,29 +199,50 @@ class ProviderGateway:
             self._results[logical_call_id] = result
             return dict(result)
 
-        attempt = {"attempt": 1, "status": "started", "cost_usd": 0}
-        try:
-            response = adapter.invoke(
-                {"model_id": model_id, "base_url": provider.base_url, "response_format": "json"},
-                {"parts": parts},
-                timeout_seconds,
-            )
-            if not isinstance(response, dict) or not isinstance(response.get("output_text"), str):
-                raise ValueError("provider response does not match normalized contract")
-            attempt["status"] = "completed"
-            attempt["usage"] = response.get("usage", {})
-            result = self._result(request_core, logical_call_id, "completed", attempts=[attempt])
-            result["response_hash"] = stable_hash(response)
-            result["output_text"] = response["output_text"]
-        except TimeoutError:
-            attempt["status"] = "timeout"
-            result = self._result(request_core, logical_call_id, "timeout", attempts=[attempt])
-        except ValueError:
-            attempt["status"] = "invalid_response"
-            result = self._result(request_core, logical_call_id, "invalid_response", attempts=[attempt])
-        except Exception:
-            attempt["status"] = "provider_error"
-            result = self._result(request_core, logical_call_id, "provider_error", attempts=[attempt])
+        attempts = []
+        for attempt_number in range(1, self.retry_policy.max_attempts + 1):
+            attempt = {"attempt": attempt_number, "status": "started", "cost_usd": 0}
+            attempts.append(attempt)
+            try:
+                response = adapter.invoke(
+                    {
+                        "model_id": model_id,
+                        "base_url": provider.base_url,
+                        "credential_ref": provider.credential_ref,
+                        "response_format": "json",
+                    },
+                    {"parts": parts},
+                    timeout_seconds,
+                )
+                if not isinstance(response, dict) or not isinstance(response.get("output_text"), str):
+                    raise ValueError("provider response does not match normalized contract")
+                validated = self.response_validator(response["output_text"]) if self.response_validator else None
+                attempt["status"] = "completed"
+                attempt["usage"] = response.get("usage", {})
+                result = self._result(request_core, logical_call_id, "completed", attempts=attempts)
+                result["response_hash"] = stable_hash(response)
+                result["output_text"] = response["output_text"]
+                if validated is not None:
+                    result["structured_output_hash"] = stable_hash(validated)
+                if breaker is not None:
+                    breaker.record(True)
+                break
+            except TimeoutError:
+                status = "timeout"
+            except ProviderRateLimited:
+                status = "rate_limited"
+            except ProviderUnavailable:
+                status = "provider_unavailable"
+            except (ValueError, TypeError):
+                status = "invalid_response"
+            except Exception:
+                status = "provider_error"
+            attempt["status"] = status
+            if not self.retry_policy.should_retry(status, attempt_number):
+                result = self._result(request_core, logical_call_id, status, attempts=attempts)
+                if breaker is not None:
+                    breaker.record(False)
+                break
         self._results[logical_call_id] = result
         return dict(result)
 
