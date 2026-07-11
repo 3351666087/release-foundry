@@ -11,6 +11,10 @@ This module provides the local G1-G2 foundation for:
 - golden cases,
 - sample run fixtures.
 
+The commercial architecture and phased path from this foundation to an
+independent, multimodal evaluation decision platform are defined in
+`docs/strategy/a2-independent-evaluation-intelligence-platform.md`.
+
 ## Current Deliverables
 
 - 20 G2 seed scenarios: `packages/scenarios/a2_g2_seed_pack.json`
