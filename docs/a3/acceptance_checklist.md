@@ -917,6 +917,6 @@
 - [x] Focused A1/A2 Python compatibility passes (`175 pass / 0 fail`, `992 subtests pass`).
 - [x] Commercial and hygiene CL guards pass with no findings.
 - [x] `.env.local` remains outside the change set and no secret-bearing artifact was added.
-- [ ] Refresh remote branch hashes once GitHub network access is restored.
+- [x] Retry remote sync after the transient network failure and confirm the branch still contains current `origin/main`.
 - [ ] Replace draft watch signals only after the A1/A2 contracts merge to `main`.
 - [ ] Continue route-level React/Next.js decomposition without weakening the current API and evidence contracts.

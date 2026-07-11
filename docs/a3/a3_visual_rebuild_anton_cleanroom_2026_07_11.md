@@ -115,6 +115,6 @@ Current screenshots:
 3. Connect hosted identity, durable review/report mutations, and live billing
    only through A1-owned authenticated executors and A2-verified policy state.
 
-GitHub fetch failed during this round because the local machine could not reach
-`github.com:443`. Therefore the hashes above are the latest locally available
-remote references, not proof of a newer remote state.
+The first GitHub fetch attempt failed because the local machine could not reach
+`github.com:443`. A final retry succeeded and confirmed the hashes above were
+still current; `origin/main` is an ancestor of this A3 branch.

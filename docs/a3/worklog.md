@@ -6236,7 +6236,7 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
 ## 2026-07-11 - A1/A2 Evidence Spine + Clean-room Visual Rebuild
 
 - Rechecked the locally available integration base and peer refs: `origin/main` `5dbf4ee`, A1 draft `ac960bd`, and A2 draft `58fe876`.
-- `git fetch origin --prune` could not reach `github.com:443`; this round does not claim that the local refs are newer than the remote repository.
+- The first `git fetch origin --prune` could not reach `github.com:443`; a final retry succeeded and confirmed `origin/main` `5dbf4ee`, A1 `ac960bd`, and A2 `58fe876` were unchanged. `origin/main` is contained in the current branch.
 - Added `a3.a1_a2_evidence_spine.v1` to join A1 capture, A2 evaluation, A2 release-gate authority, and A3 review/report operations without embedding raw upstream payloads or changing upstream semantics.
 - Exposed the spine in the dashboard API payload and through RBAC-protected `GET /api/a3/a1-a2/evidence-spine`.
 - Added a DOM-safe Evidence Spine component and a direct Overview navigation entry.
