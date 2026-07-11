@@ -2301,11 +2301,11 @@ Next commercial A1 mainline:
 
 Date: 2026-07-11
 
-Round status at this ledger update: implementation and broad validation are
-complete; the Growth-Auditor's first publication review returned `NO-GO` for a
-cross-deployment HMAC-key idempotency defect and incomplete publication
-evidence. The key-version defect has since been fixed and focused validation is
-green. A final publication re-review remains required before commit and push.
+Round status at this ledger update: implementation, broad validation, A2-owned
+fixture integration and clean commit-tree validation are complete. Two
+Growth-Auditor `NO-GO` reviews found and drove closure of cross-deployment HMAC
+idempotency, publication evidence and commit-tree fixture consistency. A final
+publication re-review remains required before push.
 
 Start-of-round repository and peer calibration:
 
@@ -2419,7 +2419,7 @@ Evidence paths:
   `a1_round53_text_mutating_real_20260711.json`, and
   `a1_round53_frontend_mirror_identity_session_delivery_scan_20260711.json`.
 
-Validation ledger before the final cached/staged Gate:
+Validation ledger, including the final cached/staged Gate:
 
 - Focused browser refresh Go lifecycle: passed, including active key
   `v2 -> v3` restart while retaining `v2`, identical replacement cookies,
@@ -2469,7 +2469,10 @@ Growth-Auditor instructions and response:
 - Required follow-up: pin derivation and operation-digest key versions; prove a
   restart replay does not revoke the family; record Browser/Chrome failures;
   explicitly stage only reviewed A1 files; run cached diff and secret gates.
-- Final publication verdict: pending after the staged/cached Gate.
+- Second publication verdict: `NO-GO` until the A2-owned fixture commit was
+  integrated into A1 and the final cached/commit-tree attestation was recorded.
+- Final publication verdict: `GO`; the third Growth-Auditor review found zero
+  blocking P0/P1 and approved the attestation commit plus explicit A1 push.
 
 Ownership and Gate boundary:
 
@@ -2482,6 +2485,31 @@ Ownership and Gate boundary:
 - Private API and mirror evidence is ignored by `docs/evidence/.gitignore` and
   must remain outside the staged manifest.
 - A1 staging must be path-explicit; `git add -A` is prohibited.
+
+Final staged and commit-tree attestation:
+
+- A1 implementation commit: `24f3fbc` (`76` reviewed A1 files,
+  `30,681` insertions and `338` deletions).
+- The cached manifest contained zero A2, A3 or private-evidence paths. After
+  commit, there were zero unstaged A1 paths.
+- `git diff --cached --check` passed after removing four extra EOF blank lines
+  caught only when previously untracked files entered the index.
+- The staged secret scan compared four configured process/user secret values
+  against all 76 blobs and found zero matches. High-confidence private-key,
+  provider-token and same-line bearer scans also found zero matches after an
+  explicitly labelled synthetic test bearer was excluded.
+- A2 owner branch commit `97141b4b` changes only the reviewed cross-lane counts
+  `82 -> 83`, `69 -> 70`, and `71 -> 72`; it was pushed to
+  `origin/dev/g3-a2-calibration` under the configured user identity.
+- A1 integration commit `51a1d70` preserves the A2 author/message and records
+  provenance from `97141b4b`. The integrated fixture blob hash exactly equals
+  the A2 commit's blob hash `c51e15e184b15971193eb894829fcd92f9c0836d`.
+- A clean detached worktree at `51a1d70` had no working-tree changes. In that
+  actual commit tree, `tests/a1 tests/a2` passed `1225` tests with `2` expected
+  skips; all `55` A2 fixtures matched; Python/TS parity passed; CL hygiene had
+  zero findings; CL commercial had zero blockers and zero advisories; and
+  `git diff --check` passed.
+- The five peer-owned A2 CRLF-only files remain outside both A1 commits.
 
 Next commercial A1 growth points from the first audit:
 
