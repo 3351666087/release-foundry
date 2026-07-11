@@ -6299,3 +6299,4 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
   - docs/screenshots/a3-webapp-overview-mobile-390x844.png
 - Bundle impact: no sealed bundle inputs changed; screenshots remain public-safe development evidence and are not yet registered as signed bundle artifacts.
 - Detailed record: docs/a3/a3_next_product_webapp_2026_07_11.md.
+- CI follow-up: the first Ubuntu route E2E exposed an OS-specific Next export layout. The static server now checks the direct RSC path first and falls back to the Windows nested alias; local route E2E remains green and the fix is covered by the same GitHub job.
