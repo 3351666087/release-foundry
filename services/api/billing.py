@@ -12,10 +12,11 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 import hashlib
+import hmac
 import json
 import re
 import uuid
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Mapping, Sequence
 
 JsonDict = dict[str, Any]
 
@@ -234,13 +235,22 @@ def verify_billing_webhook_envelope(
     payload_sha256: str,
     signature_header_present: bool,
     signature_header_names: Sequence[str] | None = None,
+    raw_body: bytes | str | None = None,
+    stripe_signature_header: str | None = None,
+    webhook_secret_resolver: Callable[[str], str] | None = None,
+    provider_verifier: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = None,
+    received_at_unix: int | None = None,
+    tolerance_seconds: int = 300,
     webhook_secret_ref: str | None = None,
     livemode: bool | None = None,
 ) -> JsonDict:
     provider_name = _normalize_provider(provider)
     normalized_mode = _normalize_mode(mode)
     _validate_tenant_project(tenant_id, project_id)
-    if not re.fullmatch(r"[a-fA-F0-9]{64}", str(payload_sha256)):
+    raw_body_bytes = _coerce_raw_body(raw_body) if raw_body is not None else None
+    computed_payload_sha256 = hashlib.sha256(raw_body_bytes).hexdigest() if raw_body_bytes is not None else None
+    declared_payload_sha256 = computed_payload_sha256 or str(payload_sha256).lower()
+    if not re.fullmatch(r"[a-fA-F0-9]{64}", declared_payload_sha256):
         raise BillingContractError("payload_sha256 must be a sha256 hex digest")
     header_shape = _validate_webhook_header_shape(provider_name, signature_header_present, signature_header_names)
     if webhook_secret_ref:
@@ -257,6 +267,43 @@ def verify_billing_webhook_envelope(
         failures.append({"reason": "live_event_received_in_test_mode"})
     if normalized_mode == "live" and live_event is False:
         failures.append({"reason": "test_event_received_in_live_mode"})
+    provider_verification: JsonDict = {
+        "required": True,
+        "verified": False,
+        "verifier": None,
+        "attestation_schema_version": None,
+        "raw_body_included": False,
+        "raw_signature_included": False,
+    }
+    if raw_body_bytes is not None or stripe_signature_header is not None:
+        if provider_name != "stripe":
+            failures.append({"reason": "raw_body_signature_verification_only_supported_for_stripe"})
+        else:
+            provider_verification = _verify_stripe_raw_body_signature(
+                raw_body=raw_body_bytes,
+                signature_header=stripe_signature_header,
+                webhook_secret_ref=webhook_secret_ref,
+                webhook_secret_resolver=webhook_secret_resolver,
+                received_at_unix=received_at_unix,
+                tolerance_seconds=tolerance_seconds,
+            )
+            if not provider_verification["verified"]:
+                failures.extend({"reason": reason} for reason in provider_verification["failure_reasons"])
+    elif provider_verifier is not None:
+        provider_verification = _run_provider_verifier(
+            provider_verifier,
+            provider=provider_name,
+            mode=normalized_mode,
+            event_type=str(event_type),
+            event_id=str(event_id),
+            tenant_id=str(tenant_id),
+            project_id=str(project_id),
+            payload_sha256=declared_payload_sha256,
+        )
+        if not provider_verification["verified"]:
+            failures.extend({"reason": reason} for reason in provider_verification["failure_reasons"])
+    else:
+        failures.append({"reason": "provider_specific_verification_required"})
 
     envelope = {
         "schema_version": BILLING_SCHEMA_VERSION,
@@ -267,9 +314,11 @@ def verify_billing_webhook_envelope(
         "project_id": str(project_id),
         "event_type": str(event_type),
         "event_id": str(event_id),
-        "payload_sha256": str(payload_sha256).lower(),
+        "payload_sha256": declared_payload_sha256,
         "signature_header_present": bool(signature_header_present),
         "signature_header_shape": header_shape,
+        "provider_verification": provider_verification,
+        "raw_body_signature_verification": provider_verification,
         "webhook_secret_ref": webhook_secret_ref,
         "provider_mode_boundary": {"livemode": live_event, "test_event_in_live_mode_allowed": False, "live_event_in_test_mode_allowed": False},
         "verified": not failures,
@@ -279,6 +328,126 @@ def verify_billing_webhook_envelope(
         "created_at": _utc_now(),
     }
     return _assert_public_safe(envelope)
+
+
+def _coerce_raw_body(raw_body: bytes | str) -> bytes:
+    if isinstance(raw_body, bytes):
+        return raw_body
+    return str(raw_body).encode("utf-8")
+
+
+def _verify_stripe_raw_body_signature(
+    *,
+    raw_body: bytes | None,
+    signature_header: str | None,
+    webhook_secret_ref: str | None,
+    webhook_secret_resolver: Callable[[str], str] | None,
+    received_at_unix: int | None,
+    tolerance_seconds: int,
+) -> JsonDict:
+    parsed = _parse_stripe_signature_header(signature_header)
+    failures: list[str] = []
+    if raw_body is None:
+        failures.append("missing_raw_body")
+    if not parsed["timestamp"]:
+        failures.append("missing_stripe_signature_timestamp")
+    if not parsed["v1_signatures"]:
+        failures.append("missing_stripe_v1_signature")
+    if not webhook_secret_ref:
+        failures.append("missing_webhook_secret_ref")
+    if webhook_secret_ref and webhook_secret_resolver is None:
+        failures.append("missing_webhook_secret_resolver")
+    if parsed["timestamp"] and received_at_unix is not None and abs(int(received_at_unix) - int(parsed["timestamp"])) > int(tolerance_seconds):
+        failures.append("stripe_signature_timestamp_outside_tolerance")
+
+    matched = False
+    can_verify_signature = (
+        raw_body is not None
+        and parsed["timestamp"] is not None
+        and bool(parsed["v1_signatures"])
+        and bool(webhook_secret_ref)
+        and webhook_secret_resolver is not None
+    )
+    if can_verify_signature:
+        secret = webhook_secret_resolver(webhook_secret_ref)
+        if _looks_like_raw_secret(secret):
+            raise BillingContractError("resolved webhook signing material must be local test material, not a raw provider secret")
+        signed_payload = str(parsed["timestamp"]).encode("utf-8") + b"." + raw_body
+        expected = hmac.new(str(secret).encode("utf-8"), signed_payload, hashlib.sha256).hexdigest()
+        matched = any(hmac.compare_digest(expected, candidate) for candidate in parsed["v1_signatures"])
+        if not matched:
+            failures.append("invalid_stripe_signature")
+
+    return {
+        "required": True,
+        "verified": matched and not failures,
+        "verifier": "stripe_raw_body_hmac_sha256",
+        "attestation_schema_version": "ashr.clone.payment_verification_attestation.v1",
+        "timestamp": parsed["timestamp"],
+        "v1_signature_count": len(parsed["v1_signatures"]),
+        "failure_reasons": failures,
+        "raw_body_included": False,
+        "raw_header_value_included": False,
+        "secret_value_present": False,
+    }
+
+
+def _run_provider_verifier(
+    verifier: Callable[[Mapping[str, Any]], Mapping[str, Any]],
+    **challenge: str,
+) -> JsonDict:
+    attestation = verifier(dict(challenge))
+    if not isinstance(attestation, Mapping):
+        raise BillingContractError("provider verifier must return a structured attestation")
+    failures: list[str] = []
+    expected = {
+        "provider": challenge["provider"],
+        "mode": challenge["mode"],
+        "event_type": challenge["event_type"],
+        "event_id": challenge["event_id"],
+        "tenant_id": challenge["tenant_id"],
+        "project_id": challenge["project_id"],
+        "payload_sha256": challenge["payload_sha256"],
+    }
+    if attestation.get("schema_version") != "ashr.clone.payment_verification_attestation.v1":
+        failures.append("invalid_provider_attestation_schema")
+    verifier_name = str(attestation.get("verifier") or "").strip()
+    if not verifier_name or verifier_name in {"caller_assertion", "header_presence", "payload_hash"}:
+        failures.append("invalid_provider_verifier_identity")
+    for field_name, expected_value in expected.items():
+        if str(attestation.get(field_name) or "") != expected_value:
+            failures.append(f"provider_attestation_{field_name}_mismatch")
+    if attestation.get("verified") is not True:
+        failures.append("provider_signature_not_verified")
+    return {
+        "required": True,
+        "verified": not failures,
+        "verifier": verifier_name or None,
+        "attestation_schema_version": attestation.get("schema_version"),
+        "failure_reasons": failures,
+        "raw_body_included": False,
+        "raw_signature_included": False,
+        "secret_value_present": False,
+    }
+
+
+def _parse_stripe_signature_header(signature_header: str | None) -> JsonDict:
+    timestamp: int | None = None
+    signatures: list[str] = []
+    for part in str(signature_header or "").split(","):
+        if "=" not in part:
+            continue
+        key, value = part.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if key == "t":
+            try:
+                timestamp = int(value)
+            except ValueError:
+                timestamp = None
+        elif key == "v1" and re.fullmatch(r"[a-fA-F0-9]{64}", value):
+            signatures.append(value.lower())
+    return {"timestamp": timestamp, "v1_signatures": signatures}
 
 
 def billing_provider_manifest() -> JsonDict:
@@ -342,11 +511,13 @@ def _provider_checkout_request(config: BillingProviderConfig, price: BillingPric
 
 def _coerce_provider_config(value: BillingProviderConfig | Mapping[str, Any] | None) -> BillingProviderConfig:
     if value is None:
-        return BillingProviderConfig(provider="stripe", mode="test", secret_ref="env:STRIPE_TEST_REF").normalized()
+        raise BillingContractError("provider_config with explicit provider is required")
     if isinstance(value, BillingProviderConfig):
         return value.normalized()
+    if not str(value.get("provider") or "").strip():
+        raise BillingContractError("provider_config.provider is required")
     return BillingProviderConfig(
-        provider=str(value.get("provider", "stripe")),
+        provider=str(value["provider"]),
         mode=str(value.get("mode", "test")),
         secret_ref=value.get("secret_ref"),
         webhook_secret_ref=value.get("webhook_secret_ref"),
@@ -468,6 +639,8 @@ def _validate_webhook_header_shape(provider: str, signature_header_present: bool
         "valid": bool(signature_header_present) and not missing,
         "raw_header_values_included": False,
     }
+
+
 
 
 def _normalize_provider(provider: str) -> str:

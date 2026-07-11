@@ -1,4 +1,4 @@
-export function renderEnterpriseReadinessPanel(target, readiness = {}) {
+﻿export function renderEnterpriseReadinessPanel(target, readiness = {}) {
   if (!target) {
     return;
   }
@@ -6,8 +6,10 @@ export function renderEnterpriseReadinessPanel(target, readiness = {}) {
   const blockers = Array.isArray(readiness.blockers) ? readiness.blockers : [];
   const capabilities = Array.isArray(readiness.enabled_capabilities) ? readiness.enabled_capabilities : [];
   const actions = Array.isArray(readiness.next_actions) ? readiness.next_actions : [];
+  const posture = readiness.cloud_self_host_posture || {};
   const a1 = readiness.a1_a2_compatibility_notes?.a1 || {};
   const a2 = readiness.a1_a2_compatibility_notes?.a2 || {};
+  const missing = Array.isArray(readiness.missing_capabilities) ? readiness.missing_capabilities : [];
 
   target.replaceChildren(
     summary(readiness),
@@ -25,6 +27,20 @@ export function renderEnterpriseReadinessPanel(target, readiness = {}) {
       ? capabilities.slice(0, 8).map((item) => row(item.id, `${item.label} (${item.evidence_count})`, "info"))
       : [row("none", "No enterprise capability evidence is loaded.", "neutral")]
     ),
+    enterpriseValueBlock(readiness.enterprise_value_map || {}),
+    section("Hosted / Self-Host Gaps", missing.length
+      ? missing.slice(0, 8).map((item) => row(item.id || "gap", `${item.label || item.message || item}`, "warn"))
+      : [row("none", "No explicit hosted or self-host gap was published in the current evidence.", "neutral")]
+    ),
+    section("Cloud / Self-Host Posture", [
+      row("Hosted", posture.hosted_readiness || "unknown", posture.hosted_readiness === "read_only_hosted_shell_ready" ? "pass" : "warn"),
+      row("Self-host", posture.self_host_readiness || "unknown", posture.self_host_readiness === "self_host_contract_visible" ? "pass" : "warn"),
+      row("Tenant isolation", posture.tenant_isolation_state || "unknown", posture.tenant_isolation_state === "visible" ? "pass" : "warn"),
+      row("Why it matters", posture.why_it_matters || "Commercial buyers need clear hosted and self-host posture.", "info")
+    ]),
+    decisionPacketBlock(readiness.decision_packets || {}),
+    hostedBuyerReadinessBlock(readiness.self_host_packet || {}),
+    selfHostPacketBlock(readiness.self_host_packet || {}),
     section("Next Actions", actions.length
       ? actions.slice(0, 6).map((item) => row(item.id, `${item.priority}: ${item.action}`, item.priority === "high" ? "warn" : "neutral"))
       : [row("none", "No next action generated.", "neutral")]
@@ -34,6 +50,67 @@ export function renderEnterpriseReadinessPanel(target, readiness = {}) {
       row("A2", `${a2.compatible ? "compatible" : "missing"} / ${a2.grade_case_count || 0} grade case(s), ${a2.judge_result_count || 0} judge result(s)`, a2.compatible ? "pass" : "warn")
     ])
   );
+}
+
+function enterpriseValueBlock(valueMap) {
+  const block = section("Enterprise Value", [
+    row("Sellable now", (valueMap.sellable_now || []).join(", ") || "none", "info"),
+    row("High-value paths", (valueMap.high_value_paths || []).join(", ") || "none", "pass")
+  ]);
+  const buyer = valueMap.buyer_questions_answered || {};
+  for (const [label, ok] of Object.entries(buyer)) {
+    block.appendChild(row(label, ok ? "answered" : "missing", ok ? "pass" : "warn"));
+  }
+  if ((valueMap.blocked_enterprise_claims || []).length) {
+    block.appendChild(row("Blocked claims", valueMap.blocked_enterprise_claims.join(", "), "warn"));
+  }
+  return block;
+}
+
+function decisionPacketBlock(packets) {
+  const reviewer = packets.reviewer_packet || {};
+  const executive = packets.executive_packet || {};
+  const customer = packets.customer_external_packet || {};
+  const block = section("Decision Packets", [
+    row("Reviewer packet", reviewer.status || "unknown", reviewer.status === "ready_for_review" ? "pass" : "warn"),
+    row("Executive packet", executive.status || "unknown", executive.status === "ready_for_signoff" ? "pass" : "warn"),
+    row("Customer packet", customer.status || "unknown", customer.status === "blocked" ? "warn" : "pass")
+  ]);
+  for (const item of [reviewer, executive, customer]) {
+    if (!item || !item.buyer_value) continue;
+    block.appendChild(row(item.status || "packet", item.buyer_value, "info"));
+  }
+  if (customer.blocked_reason) {
+    block.appendChild(row("Customer blocked", customer.blocked_reason, "warn"));
+  }
+  return block;
+}
+
+function hostedBuyerReadinessBlock(packet) {
+  const items = packet.hosted_vs_self_host || [];
+  const block = section("Hosted Buyer Readiness", [
+    row("Comparison rows", String(items.length || 0), items.length ? "pass" : "warn"),
+    row("Packet status", packet.status || "unknown", packet.status === "packet_contract_ready" ? "pass" : "warn")
+  ]);
+  for (const item of items) {
+    block.appendChild(row(item.surface || "surface", `buyer value: ${item.buyer_value || "unknown"}`, "info"));
+  }
+  return block;
+}
+
+function selfHostPacketBlock(packet) {
+  const block = section("Self-Host Packet", [
+    row("Status", packet.status || "unknown", packet.status === "packet_contract_ready" ? "pass" : "warn"),
+    row("Install surfaces", (packet.install_surfaces || []).join(", ") || "none", "info"),
+    row("Blockers", String(packet.blocker_count || 0), (packet.blocker_count || 0) === 0 ? "pass" : "warn")
+  ]);
+  for (const item of packet.buyer_promises || []) {
+    block.appendChild(row("Buyer promise", item, "neutral"));
+  }
+  for (const item of packet.hosted_vs_self_host || []) {
+    block.appendChild(row(item.surface || "surface", `hosted: ${item.hosted || "unknown"} / self-host: ${item.self_host || "unknown"} / value: ${item.buyer_value || "unknown"}`, "info"));
+  }
+  return block;
 }
 
 function summary(readiness) {
@@ -87,3 +164,7 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
 }
+
+
+
+

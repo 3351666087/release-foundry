@@ -1,4 +1,4 @@
-import json
+﻿import json
 import re
 import subprocess
 import sys
@@ -331,6 +331,7 @@ class A2ContractTests(unittest.TestCase):
         scenario_selection_schema = json.loads((schema_dir / "scenario_selection.schema.json").read_text(encoding="utf-8"))
         external_preflight_schema = json.loads((schema_dir / "external_evidence_preflight.schema.json").read_text(encoding="utf-8"))
         real_api_smoke_schema = json.loads((schema_dir / "real_api_smoke.schema.json").read_text(encoding="utf-8"))
+        multimodal_real_api_smoke_schema = json.loads((schema_dir / "multimodal_real_api_smoke.schema.json").read_text(encoding="utf-8"))
         evidence_index_schema = json.loads((schema_dir / "evidence_index.schema.json").read_text(encoding="utf-8"))
         sql_store_schema = json.loads((schema_dir / "sql_store_report.schema.json").read_text(encoding="utf-8"))
         scenario_generation_schema = json.loads((schema_dir / "scenario_generation_backlog.schema.json").read_text(encoding="utf-8"))
@@ -458,7 +459,12 @@ class A2ContractTests(unittest.TestCase):
         self.assertIn("a1_payment_provider_readiness", evidence_readiness_schema["required"])
         self.assertIn("a1_billing_replay_evidence", evidence_readiness_schema["required"])
         self.assertIn("a1_billing_ledger_migration", evidence_readiness_schema["required"])
+        self.assertIn("a1_china_payment_migration", evidence_readiness_schema["required"])
+        self.assertIn("a1_payment_verification_security", evidence_readiness_schema["required"])
+        self.assertIn("a1_oauth_lifecycle_security", evidence_readiness_schema["required"])
+        self.assertIn("a1_unified_identity_security", evidence_readiness_schema["required"])
         self.assertIn("a1_billing_sql_semantic_contract", evidence_readiness_schema["required"])
+        self.assertIn("a1_object_storage_contract", evidence_readiness_schema["required"])
         self.assertIn("ashr_public_merge_gate", evidence_readiness_schema["required"])
         self.assertIn("official_sdk_smoke", evidence_readiness_schema["required"])
         self.assertIn("semantic_live_merge_gate", evidence_readiness_schema["required"])
@@ -537,6 +543,54 @@ class A2ContractTests(unittest.TestCase):
             evidence_readiness_schema["properties"]["a1_billing_ledger_migration"]["$ref"],
             "#/$defs/a1_billing_ledger_migration",
         )
+        china_payment_required = set(evidence_readiness_schema["$defs"]["a1_china_payment_migration"]["required"])
+        self.assertLessEqual(
+            china_payment_required,
+            set(evidence_readiness["a1_china_payment_migration"]),
+        )
+        self.assertIn("ready_for_a2_payment_sql_policy_context", china_payment_required)
+        self.assertIn("c3_grading_ready", china_payment_required)
+        self.assertEqual(
+            evidence_readiness_schema["properties"]["a1_china_payment_migration"]["$ref"],
+            "#/$defs/a1_china_payment_migration",
+        )
+        payment_verification_required = set(
+            evidence_readiness_schema["$defs"]["a1_payment_verification_security"]["required"]
+        )
+        self.assertLessEqual(
+            payment_verification_required,
+            set(evidence_readiness["a1_payment_verification_security"]),
+        )
+        self.assertIn("ready_for_a2_payment_verification_policy_context", payment_verification_required)
+        self.assertIn("c3_grading_ready", payment_verification_required)
+        self.assertEqual(
+            evidence_readiness_schema["properties"]["a1_payment_verification_security"]["$ref"],
+            "#/$defs/a1_payment_verification_security",
+        )
+        oauth_required = set(evidence_readiness_schema["$defs"]["a1_oauth_lifecycle_security"]["required"])
+        self.assertLessEqual(
+            oauth_required,
+            set(evidence_readiness["a1_oauth_lifecycle_security"]),
+        )
+        self.assertIn("ready_for_a2_oauth_policy_context", oauth_required)
+        self.assertIn("c3_grading_ready", oauth_required)
+        self.assertEqual(
+            evidence_readiness_schema["properties"]["a1_oauth_lifecycle_security"]["$ref"],
+            "#/$defs/a1_oauth_lifecycle_security",
+        )
+        unified_identity_required = set(
+            evidence_readiness_schema["$defs"]["a1_unified_identity_security"]["required"]
+        )
+        self.assertLessEqual(
+            unified_identity_required,
+            set(evidence_readiness["a1_unified_identity_security"]),
+        )
+        self.assertIn("ready_for_a2_identity_policy_context", unified_identity_required)
+        self.assertIn("c3_grading_ready", unified_identity_required)
+        self.assertEqual(
+            evidence_readiness_schema["properties"]["a1_unified_identity_security"]["$ref"],
+            "#/$defs/a1_unified_identity_security",
+        )
         billing_sql_required = set(evidence_readiness_schema["$defs"]["a1_billing_sql_semantic_contract"]["required"])
         self.assertLessEqual(
             billing_sql_required,
@@ -548,9 +602,27 @@ class A2ContractTests(unittest.TestCase):
             evidence_readiness_schema["properties"]["a1_billing_sql_semantic_contract"]["$ref"],
             "#/$defs/a1_billing_sql_semantic_contract",
         )
+        object_storage_required = set(evidence_readiness_schema["$defs"]["a1_object_storage_contract"]["required"])
+        self.assertLessEqual(
+            object_storage_required,
+            set(evidence_readiness["a1_object_storage_contract"]),
+        )
+        self.assertIn("ready_for_a2_artifact_policy_context", object_storage_required)
+        self.assertIn("c3_grading_ready", object_storage_required)
+        self.assertEqual(
+            evidence_readiness_schema["properties"]["a1_object_storage_contract"]["$ref"],
+            "#/$defs/a1_object_storage_contract",
+        )
         official_smoke_required = set(evidence_readiness_schema["$defs"]["official_sdk_smoke"]["required"])
         self.assertLessEqual(official_smoke_required, set(evidence_readiness["official_sdk_smoke"]))
         self.assertIn("read_only_reachable", official_smoke_required)
+        multimodal_smoke_required = set(evidence_readiness_schema["$defs"]["multimodal_real_api_smoke"]["required"])
+        self.assertLessEqual(multimodal_smoke_required, set(evidence_readiness["multimodal_real_api_smoke"]))
+        self.assertIn("real_api_boundary_reached", multimodal_smoke_required)
+        self.assertEqual(
+            evidence_readiness_schema["properties"]["multimodal_real_api_smoke"]["$ref"],
+            "#/$defs/multimodal_real_api_smoke",
+        )
         self.assertEqual(
             evidence_readiness_schema["properties"]["official_sdk_smoke"]["$ref"],
             "#/$defs/official_sdk_smoke",
@@ -565,6 +637,11 @@ class A2ContractTests(unittest.TestCase):
             "a2.real_api_smoke.v1",
         )
         self.assertIn("calls", real_api_smoke_schema["required"])
+        self.assertEqual(
+            multimodal_real_api_smoke_schema["properties"]["schema_version"]["const"],
+            "a2.multimodal_real_api_smoke.v1",
+        )
+        self.assertIn("accepted_modalities", multimodal_real_api_smoke_schema["required"])
         self.assertEqual(
             evidence_index_schema["properties"]["schema_version"]["const"],
             evidence_index["schema_version"],
@@ -1457,6 +1534,39 @@ class A2ContractTests(unittest.TestCase):
         self.assertTrue(
             billing_migration["a2_policy_implications"]["must_not_mark_c3_from_billing_context"]
         )
+        china_payment = report["a1_china_payment_migration"]
+        self.assertEqual(
+            china_payment["path"],
+            "docs/a1/schemas/a1_china_payment_migration_manifest.json",
+        )
+        self.assertFalse(china_payment["c3_grading_ready"])
+        self.assertTrue(
+            china_payment["a2_policy_implications"]["must_not_mark_c3_from_payment_sql_context"]
+        )
+        payment_verification = report["a1_payment_verification_security"]
+        self.assertEqual(
+            payment_verification["path"],
+            "services/api/migrations/005_a1_payment_verification_security.sql",
+        )
+        self.assertFalse(payment_verification["c3_grading_ready"])
+        self.assertTrue(
+            payment_verification["a2_policy_implications"][
+                "must_not_mark_c3_from_payment_verification_context"
+            ]
+        )
+        oauth_lifecycle = report["a1_oauth_lifecycle_security"]
+        self.assertEqual(
+            oauth_lifecycle["sql_path"],
+            "services/api/migrations/006_a1_oauth_lifecycle.sql",
+        )
+        self.assertEqual(
+            oauth_lifecycle["evidence_path"],
+            "docs/a1/evidence/github_account_connection_evidence_20260710.json",
+        )
+        self.assertFalse(oauth_lifecycle["c3_grading_ready"])
+        self.assertTrue(
+            oauth_lifecycle["a2_policy_implications"]["must_not_mark_c3_from_oauth_context"]
+        )
         billing_sql = report["a1_billing_sql_semantic_contract"]
         self.assertTrue(billing_sql["available"])
         self.assertEqual(
@@ -1470,12 +1580,37 @@ class A2ContractTests(unittest.TestCase):
         self.assertTrue(
             billing_sql["a2_policy_implications"]["must_not_mark_c3_from_sql_context"]
         )
+        object_storage = report["a1_object_storage_contract"]
+        self.assertTrue(object_storage["available"])
+        self.assertEqual(
+            object_storage["path"],
+            "docs/a1/evidence/object_storage_contract_20260709.md",
+        )
+        self.assertTrue(object_storage["ready_for_a2_artifact_policy_context"])
+        self.assertTrue(object_storage["public_safe"])
+        self.assertEqual(object_storage["backend_count"], 2)
+        self.assertEqual(object_storage["manifest_field_count"], 5)
+        self.assertFalse(object_storage["raw_payload_bytes_included"])
+        self.assertFalse(object_storage["raw_secret_key_values_included"])
+        self.assertFalse(object_storage["c3_grading_ready"])
+        self.assertTrue(
+            object_storage["a2_policy_implications"]["must_not_mark_c3_from_storage_context"]
+        )
         self.assertTrue(report["readiness_checks"]["official_sdk_smoke_readonly_ok"])
+        self.assertTrue(report["readiness_checks"]["multimodal_real_api_smoke_reached"])
         self.assertTrue(report["official_sdk_smoke"]["available"])
         self.assertTrue(report["official_sdk_smoke"]["read_only_reachable"])
         self.assertEqual(report["official_sdk_smoke"]["ok_call_count"], 6)
         self.assertEqual(report["official_sdk_smoke"]["error_call_count"], 0)
         self.assertIn("init", report["official_sdk_smoke"]["call_names"])
+        multimodal_smoke = report["multimodal_real_api_smoke"]
+        self.assertTrue(multimodal_smoke["available"])
+        self.assertTrue(multimodal_smoke["public_safe"])
+        self.assertTrue(multimodal_smoke["all_required_modalities_requested"])
+        self.assertTrue(multimodal_smoke["real_api_boundary_reached"])
+        self.assertTrue(multimodal_smoke["quota_blocked"])
+        self.assertFalse(multimodal_smoke["c3_grading_ready"])
+        self.assertEqual(set(multimodal_smoke["accepted_modalities"]), {"text", "image", "audio", "file", "video"})
         self.assertIn("list_datasets", report["official_sdk_smoke"]["call_names"])
         self.assertIn("list_requests", report["official_sdk_smoke"]["call_names"])
         self.assertIn("list_agents", report["official_sdk_smoke"]["call_names"])
@@ -2142,6 +2277,878 @@ class A2ContractTests(unittest.TestCase):
             billing_migration["a2_policy_implications"]["must_not_mark_c3_from_billing_context"]
         )
 
+    def test_evidence_readiness_consumes_a1_china_payment_migration_manifest(self):
+        calibration_matrix = build_calibration_matrix(
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+            run_dir=ROOT / "fixtures/a2/runs",
+            observations_path=ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        )
+        sdk_parity = build_sdk_parity_report(pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json")
+        semantic_harness = build_semantic_harness_report(calibration_matrix, sdk_parity)
+        table_names = [
+            "china_payment_merchant_applications",
+            "china_payment_config_refs",
+            "china_payment_acquirer_account_bindings",
+            "china_payment_orders",
+            "china_payment_provider_notifications",
+            "china_payment_refunds",
+            "china_payment_daily_bill_files",
+            "china_payment_daily_bill_lines",
+            "china_payment_reconciliation_discrepancies",
+            "china_payment_ledger_links",
+            "china_payment_mutation_events",
+        ]
+        manifest = {
+            "schema_version": "ashr.clone.a1_china_payment_migration_manifest.v1",
+            "version": 3,
+            "migration": "services/api/migrations/003_a1_china_mainland_payments.sql",
+            "providers": ["wechat_pay", "alipay", "domestic_bank_card"],
+            "currency": "cny",
+            "tables": [
+                {
+                    "name": name,
+                    "rls_policy": f"{name}_organization_isolation",
+                    "required_columns": ["id", "organization_id", "project_id"],
+                    "required_constraints": [f"{name}_scope_fk"],
+                    "required_indexes": [f"idx_{name}_scope"],
+                }
+                for name in table_names
+            ],
+            "mutable_audited_tables": [
+                "china_payment_merchant_applications",
+                "china_payment_config_refs",
+                "china_payment_acquirer_account_bindings",
+                "china_payment_orders",
+                "china_payment_refunds",
+                "china_payment_daily_bill_files",
+                "china_payment_reconciliation_discrepancies",
+            ],
+            "append_only_tables": [
+                "china_payment_provider_notifications",
+                "china_payment_daily_bill_lines",
+                "china_payment_ledger_links",
+                "china_payment_mutation_events",
+            ],
+            "required_functions": [
+                "china_payment_public_metadata",
+                "china_payment_reference_only",
+                "china_payment_set_updated_at",
+                "china_payment_record_mutation",
+                "china_payment_reject_mutation",
+                "china_payment_validate_refund",
+                "china_payment_validate_ledger_link",
+            ],
+            "safety": {
+                "raw_provider_payload_stored": False,
+                "raw_provider_headers_stored": False,
+                "raw_provider_secrets_stored": False,
+                "raw_card_data_stored": False,
+                "pan_stored": False,
+                "cvc_stored": False,
+                "otp_stored": False,
+                "merchant_credentials_storage": "reference_only",
+                "notification_storage": "identifier_and_sha256_only",
+                "bill_file_storage": "object_reference_and_sha256_only",
+                "mutation_evidence_storage": "before_and_after_sha256_only",
+            },
+            "enforcement": {
+                "tenant_scope": "organization_id and project_id composite foreign keys plus RLS/FORCE RLS",
+                "currency": "all monetary tables require lowercase cny",
+                "idempotency": [
+                    "china_payment_orders.idempotency_key",
+                    "china_payment_refunds.idempotency_key",
+                ],
+                "billing_ledger_providers": [
+                    "stripe",
+                    "wechat_pay",
+                    "alipay",
+                    "domestic_bank_card",
+                ],
+            },
+        }
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            manifest_path = Path(tmp_dir) / "a1_china_payment_migration_manifest.json"
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            report = build_evidence_readiness_report(
+                calibration_matrix,
+                {},
+                semantic_harness,
+                a1_china_payment_migration_manifest_path=manifest_path,
+            )
+
+        china_payment = report["a1_china_payment_migration"]
+        self.assertTrue(china_payment["available"])
+        self.assertEqual(
+            china_payment["schema_version"],
+            "ashr.clone.a1_china_payment_migration_manifest.v1",
+        )
+        self.assertEqual(china_payment["version"], 3)
+        self.assertEqual(china_payment["currency"], "cny")
+        self.assertEqual(china_payment["providers"], ["alipay", "domestic_bank_card", "wechat_pay"])
+        self.assertEqual(china_payment["provider_count"], 3)
+        self.assertEqual(china_payment["table_count"], 11)
+        self.assertTrue(china_payment["tenant_rls_ready"])
+        self.assertEqual(china_payment["tenant_rls_table_count"], 11)
+        self.assertEqual(china_payment["mutable_audited_table_count"], 7)
+        self.assertEqual(china_payment["append_only_table_count"], 4)
+        self.assertTrue(china_payment["public_safe"])
+        self.assertFalse(china_payment["raw_provider_payload_stored"])
+        self.assertFalse(china_payment["raw_provider_headers_stored"])
+        self.assertFalse(china_payment["raw_provider_secrets_stored"])
+        self.assertFalse(china_payment["raw_card_data_stored"])
+        self.assertFalse(china_payment["pan_stored"])
+        self.assertFalse(china_payment["cvc_stored"])
+        self.assertFalse(china_payment["otp_stored"])
+        self.assertTrue(china_payment["merchant_credentials_reference_only"])
+        self.assertTrue(china_payment["notification_hash_only"])
+        self.assertTrue(china_payment["bill_file_object_reference_only"])
+        self.assertTrue(china_payment["mutation_evidence_hash_only"])
+        self.assertTrue(china_payment["has_money_flow_tables"])
+        self.assertTrue(china_payment["has_fail_closed_functions"])
+        self.assertTrue(china_payment["ready_for_a2_payment_sql_policy_context"])
+        self.assertFalse(china_payment["c3_grading_ready"])
+        self.assertTrue(china_payment["a2_policy_implications"]["china_payment_sql_policy_context"])
+        self.assertTrue(china_payment["a2_policy_implications"]["can_support_payment_abuse_cases"])
+        self.assertTrue(china_payment["a2_policy_implications"]["can_support_payment_reconciliation_regressions"])
+        self.assertTrue(china_payment["a2_policy_implications"]["can_cross_check_billing_ledger_links"])
+        self.assertTrue(
+            china_payment["a2_policy_implications"]["must_not_mark_c3_from_payment_sql_context"]
+        )
+
+    def test_evidence_readiness_consumes_a1_payment_verification_security_sql(self):
+        calibration_matrix = build_calibration_matrix(
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+            run_dir=ROOT / "fixtures/a2/runs",
+            observations_path=ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        )
+        sdk_parity = build_sdk_parity_report(pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json")
+        semantic_harness = build_semantic_harness_report(calibration_matrix, sdk_parity)
+        sql = """
+-- synthetic public-safe payment verification security contract
+CREATE OR REPLACE FUNCTION china_payment_public_metadata(p_metadata JSONB)
+RETURNS BOOLEAN AS $$
+DECLARE
+  normalized_key TEXT;
+BEGIN
+  PERFORM key, value FROM jsonb_each(p_metadata);
+  PERFORM value FROM jsonb_array_elements(p_metadata);
+  normalized_key := 'primaryaccountnumber pan cvc cardnumber cardno accountnumber bankcardnumber';
+  normalized_key := normalized_key || ' cvv pin pinblock track1 track2 trackdata cryptogram otp onetimepassword';
+  normalized_key := normalized_key || ' clientsecret webhooksecret signingsecret privatekey merchantprivatekey certificatepem authorization cookie';
+  RETURN TRUE;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION a1_current_project_id() RETURNS UUID AS $$ SELECT NULL::UUID $$ LANGUAGE sql;
+CREATE OR REPLACE FUNCTION a1_role_is_nobypassrls() RETURNS BOOLEAN AS $$ SELECT TRUE $$ LANGUAGE sql;
+CREATE OR REPLACE FUNCTION a1_assert_role_nobypassrls() RETURNS VOID AS $$ BEGIN END; $$ LANGUAGE plpgsql;
+
+ALTER TABLE billing_accounts ADD CONSTRAINT billing_accounts_metadata_safe
+  CHECK (china_payment_public_metadata(metadata));
+ALTER TABLE billing_provider_events ADD CONSTRAINT billing_provider_events_metadata_safe
+  CHECK (china_payment_public_metadata(metadata));
+ALTER TABLE billing_ledger_events ADD CONSTRAINT billing_ledger_events_metadata_safe
+  CHECK (china_payment_public_metadata(metadata));
+
+CREATE TABLE IF NOT EXISTS china_payment_verification_artifacts (
+  payload_sha256 TEXT NOT NULL,
+  headers_sha256 TEXT,
+  signature_sha256 TEXT NOT NULL,
+  artifact_sha256 TEXT NOT NULL,
+  verification_key_ref TEXT NOT NULL,
+  verification_key_fingerprint TEXT NOT NULL,
+  verified_at TIMESTAMPTZ NOT NULL,
+  fresh_until TIMESTAMPTZ NOT NULL,
+  metadata JSONB NOT NULL,
+  CONSTRAINT china_payment_verification_artifacts_fresh_window
+    CHECK (
+      verified_at <= created_at + INTERVAL '5 minutes'
+      AND fresh_until <= verified_at + INTERVAL '24 hours'
+    ),
+  CONSTRAINT china_payment_verification_artifacts_metadata_safe
+    CHECK (china_payment_public_metadata(metadata))
+);
+
+REVOKE UPDATE, DELETE, TRUNCATE ON china_payment_verification_artifacts FROM PUBLIC;
+CREATE OR REPLACE FUNCTION china_payment_reject_verification_artifact_mutation()
+RETURNS TRIGGER AS $$
+BEGIN
+  RAISE EXCEPTION 'payment verification artifacts are append-only';
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION china_payment_require_verified_notification()
+RETURNS TRIGGER AS $$
+BEGIN
+  RAISE EXCEPTION 'verified payment notification requires trusted verification artifact';
+  RAISE EXCEPTION 'payment notification verification artifact does not match notification scope and digests';
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION china_payment_require_verified_transition()
+RETURNS TRIGGER AS $$
+BEGIN
+  RAISE EXCEPTION 'provider-authoritative payment status transition requires trusted verification artifact';
+  RAISE EXCEPTION 'trusted verification artifact is missing, stale, consumed by another notification, or out of scope';
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION apply_china_payment_verified_order_status()
+RETURNS VOID AS $$ BEGIN PERFORM set_config('app.a1_payment_verification_artifact_id', '00000000-0000-0000-0000-000000000000', TRUE); END; $$ LANGUAGE plpgsql;
+CREATE OR REPLACE FUNCTION apply_china_payment_verified_refund_status()
+RETURNS VOID AS $$ BEGIN PERFORM set_config('app.a1_payment_verification_artifact_id', '00000000-0000-0000-0000-000000000000', TRUE); END; $$ LANGUAGE plpgsql;
+
+CREATE POLICY china_payment_verification_artifacts_project_isolation
+  ON china_payment_verification_artifacts
+  USING (project_id = a1_current_project_id());
+ALTER TABLE china_payment_verification_artifacts FORCE ROW LEVEL SECURITY;
+"""
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            sql_path = Path(tmp_dir) / "005_a1_payment_verification_security.sql"
+            sql_path.write_text(sql, encoding="utf-8")
+            report = build_evidence_readiness_report(
+                calibration_matrix,
+                {},
+                semantic_harness,
+                a1_payment_verification_security_sql_path=sql_path,
+            )
+
+        payment_verification = report["a1_payment_verification_security"]
+        self.assertTrue(payment_verification["available"])
+        self.assertEqual(payment_verification["migration"], "005_a1_payment_verification_security.sql")
+        self.assertTrue(payment_verification["public_safe"])
+        self.assertTrue(payment_verification["recursive_metadata_check"])
+        self.assertGreaterEqual(payment_verification["forbidden_alias_count"], 16)
+        self.assertTrue(payment_verification["has_card_data_aliases"])
+        self.assertTrue(payment_verification["has_secret_material_aliases"])
+        self.assertTrue(payment_verification["verification_artifact_table_present"])
+        self.assertTrue(payment_verification["verification_artifact_digest_fields"])
+        self.assertTrue(payment_verification["verification_artifact_freshness_window"])
+        self.assertTrue(payment_verification["verification_artifact_append_only"])
+        self.assertTrue(payment_verification["notification_requires_verified_artifact"])
+        self.assertTrue(payment_verification["status_transition_requires_artifact"])
+        self.assertTrue(payment_verification["trusted_apply_functions_present"])
+        self.assertTrue(payment_verification["project_rls_ready"])
+        self.assertTrue(payment_verification["role_nobypassrls_assertion"])
+        self.assertTrue(payment_verification["metadata_constraints_present"])
+        self.assertFalse(payment_verification["raw_payload_storage_allowed"])
+        self.assertFalse(payment_verification["secret_value_storage_allowed"])
+        self.assertTrue(payment_verification["ready_for_a2_payment_verification_policy_context"])
+        self.assertFalse(payment_verification["c3_grading_ready"])
+        self.assertTrue(payment_verification["a2_policy_implications"]["payment_verification_policy_context"])
+        self.assertTrue(
+            payment_verification["a2_policy_implications"][
+                "can_support_forbidden_payment_data_abuse_cases"
+            ]
+        )
+        self.assertTrue(
+            payment_verification["a2_policy_implications"][
+                "can_support_fail_closed_payment_transition_regressions"
+            ]
+        )
+        self.assertTrue(
+            payment_verification["a2_policy_implications"]["can_cross_check_verified_notification_artifacts"]
+        )
+        self.assertTrue(
+            payment_verification["a2_policy_implications"][
+                "must_not_mark_c3_from_payment_verification_context"
+            ]
+        )
+
+    def test_evidence_readiness_consumes_a1_oauth_lifecycle_security(self):
+        calibration_matrix = build_calibration_matrix(
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+            run_dir=ROOT / "fixtures/a2/runs",
+            observations_path=ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        )
+        sdk_parity = build_sdk_parity_report(pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json")
+        semantic_harness = build_semantic_harness_report(calibration_matrix, sdk_parity)
+        sql = """
+CREATE OR REPLACE FUNCTION a1_oauth_public_metadata(p_metadata JSONB)
+RETURNS BOOLEAN AS $$
+DECLARE normalized_key TEXT;
+BEGIN
+  PERFORM key, value FROM jsonb_each(p_metadata);
+  PERFORM value FROM jsonb_array_elements(p_metadata);
+  normalized_key := 'accesstoken refreshtoken idtoken authorizationcode codeverifier clientsecret state nonce password cookie';
+  RETURN TRUE;
+END;
+$$ LANGUAGE plpgsql;
+CREATE OR REPLACE FUNCTION a1_oauth_reference_only(p_reference TEXT) RETURNS BOOLEAN AS $$ SELECT TRUE $$ LANGUAGE sql;
+CREATE OR REPLACE FUNCTION a1_current_project_id() RETURNS UUID AS $$ SELECT NULL::UUID $$ LANGUAGE sql;
+CREATE OR REPLACE FUNCTION a1_oauth_assert_runtime_context(p_organization_id UUID, p_project_id UUID) RETURNS VOID AS $$ BEGIN END; $$ LANGUAGE plpgsql;
+
+CREATE TABLE IF NOT EXISTS users (email_digest TEXT, metadata JSONB);
+CREATE TABLE IF NOT EXISTS oauth_attempts (
+  redirect_uri_digest TEXT, state_digest TEXT, code_digest TEXT,
+  pkce_challenge_digest TEXT, nonce_digest TEXT
+);
+CREATE TABLE IF NOT EXISTS external_identities (
+  subject_digest TEXT, account_binding_digest TEXT
+);
+CREATE TABLE IF NOT EXISTS sessions (session_digest TEXT);
+CREATE TABLE IF NOT EXISTS token_secret_refs (
+  secret_ref TEXT NOT NULL, secret_fingerprint TEXT, secret_kind TEXT CHECK (secret_kind IN ('access', 'refresh'))
+);
+CREATE TABLE IF NOT EXISTS oauth_revocations (event_digest TEXT);
+CREATE TABLE IF NOT EXISTS oauth_audit_events (event_digest TEXT);
+CREATE TABLE IF NOT EXISTS oauth_outbox (event_digest TEXT);
+
+CONSTRAINT oauth_attempts_state_key UNIQUE (state_digest);
+CREATE UNIQUE INDEX oauth_attempts_consumed_code_key ON oauth_attempts(code_digest);
+CONSTRAINT external_identities_provider_subject_key UNIQUE (subject_digest);
+CONSTRAINT external_identities_user_provider_key UNIQUE (subject_digest);
+CONSTRAINT sessions_digest_key UNIQUE (session_digest);
+
+CREATE OR REPLACE FUNCTION a1_consume_oauth_attempt() RETURNS oauth_attempts AS $$
+BEGIN
+  RAISE EXCEPTION 'oauth attempt already consumed or closed';
+  RAISE EXCEPTION 'oauth state digest mismatch';
+END;
+$$ LANGUAGE plpgsql;
+CREATE OR REPLACE FUNCTION a1_link_oauth_identity() RETURNS TABLE (user_id UUID, external_identity_id UUID, session_id UUID) AS $$
+BEGIN
+  RAISE EXCEPTION 'oauth identity is already linked to another account';
+  RAISE EXCEPTION 'oauth identity conflicts with an existing account';
+  INSERT INTO sessions (session_digest) VALUES ('synthetic_digest');
+  INSERT INTO oauth_audit_events (event_digest) VALUES ('oauth.identity.linked');
+  INSERT INTO oauth_outbox (event_digest) VALUES ('oauth.identity.linked');
+END;
+$$ LANGUAGE plpgsql;
+CREATE OR REPLACE FUNCTION a1_revoke_oauth_identity() RETURNS oauth_revocations AS $$
+BEGIN
+  UPDATE token_secret_refs SET status = 'revoked';
+  INSERT INTO oauth_audit_events (event_digest) VALUES ('oauth.identity.revoked');
+  INSERT INTO oauth_outbox (event_digest) VALUES ('oauth.identity.revoked');
+END;
+$$ LANGUAGE plpgsql;
+CREATE OR REPLACE FUNCTION a1_oauth_reject_hard_delete() RETURNS TRIGGER AS $$ BEGIN RETURN OLD; END; $$ LANGUAGE plpgsql;
+CREATE TRIGGER users_reject_hard_delete BEFORE DELETE ON users FOR EACH ROW EXECUTE FUNCTION a1_oauth_reject_hard_delete();
+CREATE TRIGGER sessions_reject_hard_delete BEFORE DELETE ON sessions FOR EACH ROW EXECUTE FUNCTION a1_oauth_reject_hard_delete();
+CREATE TRIGGER token_secret_refs_reject_hard_delete BEFORE DELETE ON token_secret_refs FOR EACH ROW EXECUTE FUNCTION a1_oauth_reject_hard_delete();
+CREATE OR REPLACE FUNCTION a1_oauth_reject_append_only_mutation() RETURNS TRIGGER AS $$ BEGIN RETURN OLD; END; $$ LANGUAGE plpgsql;
+CREATE TRIGGER oauth_revocations_append_only BEFORE UPDATE OR DELETE ON oauth_revocations FOR EACH ROW EXECUTE FUNCTION a1_oauth_reject_append_only_mutation();
+CREATE TRIGGER oauth_audit_events_append_only BEFORE UPDATE OR DELETE ON oauth_audit_events FOR EACH ROW EXECUTE FUNCTION a1_oauth_reject_append_only_mutation();
+ALTER TABLE users FORCE ROW LEVEL SECURITY;
+CREATE POLICY users_tenant_isolation ON users USING (project_id = a1_current_project_id());
+CREATE POLICY oauth_attempts_tenant_isolation ON oauth_attempts USING (project_id = a1_current_project_id());
+CREATE POLICY oauth_outbox_tenant_isolation ON oauth_outbox USING (project_id = a1_current_project_id());
+"""
+        evidence = {
+            "schema_version": "ashr.clone.github_account_connection_evidence.v1",
+            "environment": "localhost_development",
+            "provider": "github",
+            "requested_scopes": ["read:user", "user:email"],
+            "granted_scopes": ["read:user", "user:email"],
+            "start_status_code": 200,
+            "callback_status_code": 200,
+            "connection_status_code": 200,
+            "token_reference_present": True,
+            "token_reference_exposed": False,
+            "replay_denied": True,
+            "provider_token_revoked_before_local_delete": True,
+            "raw_state_recorded": False,
+            "pkce_verifier_recorded": False,
+            "authorization_code_recorded": False,
+            "access_token_recorded": False,
+            "client_secret_recorded": False,
+            "raw_provider_response_recorded": False,
+            "memory_backed": True,
+            "production_ready": False,
+        }
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            sql_path = Path(tmp_dir) / "006_a1_oauth_lifecycle.sql"
+            evidence_path = Path(tmp_dir) / "github_account_connection_evidence_20260710.json"
+            sql_path.write_text(sql, encoding="utf-8")
+            evidence_path.write_text(json.dumps(evidence), encoding="utf-8")
+            report = build_evidence_readiness_report(
+                calibration_matrix,
+                {},
+                semantic_harness,
+                a1_oauth_lifecycle_sql_path=sql_path,
+                a1_github_account_connection_evidence_path=evidence_path,
+            )
+
+        oauth = report["a1_oauth_lifecycle_security"]
+        self.assertTrue(oauth["available"])
+        self.assertEqual(oauth["schema_version"], "ashr.clone.github_account_connection_evidence.v1")
+        self.assertEqual(oauth["provider"], "github")
+        self.assertEqual(oauth["environment"], "localhost_development")
+        self.assertTrue(oauth["public_safe"])
+        self.assertEqual(oauth["sql_table_count"], 8)
+        self.assertGreaterEqual(oauth["digest_field_count"], 9)
+        self.assertTrue(oauth["recursive_metadata_check"])
+        self.assertGreaterEqual(oauth["forbidden_key_count"], 8)
+        self.assertTrue(oauth["reference_only_secret_storage"])
+        self.assertTrue(oauth["state_code_replay_controls"])
+        self.assertTrue(oauth["account_takeover_controls"])
+        self.assertTrue(oauth["session_fixation_controls"])
+        self.assertTrue(oauth["revocation_controls"])
+        self.assertTrue(oauth["audit_outbox_controls"])
+        self.assertTrue(oauth["hard_delete_rejected"])
+        self.assertTrue(oauth["append_only_audit"])
+        self.assertTrue(oauth["tenant_rls_ready"])
+        self.assertFalse(oauth["raw_secret_columns_present"])
+        self.assertFalse(oauth["raw_public_evidence_present"])
+        self.assertTrue(oauth["successful_localhost_connection"])
+        self.assertTrue(oauth["scope_boundary_ready"])
+        self.assertTrue(oauth["token_reference_present"])
+        self.assertFalse(oauth["token_reference_exposed"])
+        self.assertTrue(oauth["memory_backed"])
+        self.assertFalse(oauth["production_ready"])
+        self.assertTrue(oauth["ready_for_a2_oauth_policy_context"])
+        self.assertFalse(oauth["c3_grading_ready"])
+        self.assertTrue(oauth["a2_policy_implications"]["oauth_lifecycle_policy_context"])
+        self.assertTrue(oauth["a2_policy_implications"]["can_support_oauth_abuse_cases"])
+        self.assertTrue(oauth["a2_policy_implications"]["can_support_account_takeover_regressions"])
+        self.assertTrue(oauth["a2_policy_implications"]["can_cross_check_audit_outbox_events"])
+        self.assertTrue(oauth["a2_policy_implications"]["must_not_mark_c3_from_oauth_context"])
+
+    def test_evidence_readiness_consumes_a1_unified_identity_security_context(self):
+        calibration_matrix = build_calibration_matrix(
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+            run_dir=ROOT / "fixtures/a2/runs",
+            observations_path=ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        )
+        sdk_parity = build_sdk_parity_report(pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json")
+        semantic_harness = build_semantic_harness_report(calibration_matrix, sdk_parity)
+        runtime_sql = """
+CREATE TABLE IF NOT EXISTS oauth_runtime_transactions (
+  state_digest TEXT NOT NULL,
+  binding_digest TEXT NOT NULL,
+  transaction_ref TEXT NOT NULL CHECK (a1_oauth_reference_only(transaction_ref))
+);
+CREATE TABLE IF NOT EXISTS oauth_replay_ledger (value_digest TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS oauth_token_opaque_refs (
+  opaque_ref TEXT NOT NULL,
+  opaque_ref_digest TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS oauth_account_connections (
+  provider_subject_digest TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS oauth_revocation_outbox (operation_kind TEXT);
+CREATE TABLE IF NOT EXISTS oauth_runtime_audit (event_digest TEXT NOT NULL);
+CREATE UNIQUE INDEX oauth_runtime_transactions_state_key ON oauth_runtime_transactions(state_digest);
+CREATE TRIGGER oauth_replay_ledger_append_only BEFORE UPDATE OR DELETE ON oauth_replay_ledger EXECUTE FUNCTION a1_oauth_reject_append_only_mutation();
+CREATE TRIGGER oauth_runtime_audit_append_only BEFORE UPDATE OR DELETE ON oauth_runtime_audit EXECUTE FUNCTION a1_oauth_reject_append_only_mutation();
+ALTER TABLE oauth_runtime_transactions FORCE ROW LEVEL SECURITY;
+CREATE POLICY oauth_runtime_transactions_tenant_isolation ON oauth_runtime_transactions
+  USING (organization_id = a1_current_organization_id() AND project_id = a1_current_project_id());
+"""
+        identity_sql = """
+CREATE OR REPLACE FUNCTION a1_current_principal_id() RETURNS UUID AS $$ SELECT NULL::UUID; $$ LANGUAGE sql;
+CREATE OR REPLACE FUNCTION a1_identity_digest_valid(p_digest TEXT) RETURNS BOOLEAN AS $$ SELECT TRUE; $$ LANGUAGE sql;
+CREATE OR REPLACE FUNCTION a1_identity_public_metadata(p_metadata JSONB) RETURNS BOOLEAN AS $$
+DECLARE item RECORD; normalized_key TEXT;
+BEGIN
+  FOR item IN SELECT key, value FROM jsonb_each(p_metadata) LOOP
+    PERFORM jsonb_array_elements('[]'::JSONB);
+  END LOOP;
+  RETURN TRUE;
+END;
+$$ LANGUAGE plpgsql;
+CREATE TABLE IF NOT EXISTS identity_principals (id UUID PRIMARY KEY);
+CREATE TABLE IF NOT EXISTS identity_credentials (
+  principal_id UUID NOT NULL,
+  subject_digest TEXT NOT NULL,
+  secret_ref TEXT CHECK (a1_oauth_reference_only(secret_ref)),
+  CONSTRAINT identity_credentials_global_identity_key UNIQUE (subject_digest)
+);
+CREATE TABLE IF NOT EXISTS identity_organization_memberships (principal_id UUID NOT NULL);
+CREATE TABLE IF NOT EXISTS identity_project_memberships (principal_id UUID NOT NULL);
+CREATE TABLE IF NOT EXISTS identity_sessions (
+  session_digest TEXT NOT NULL,
+  request_context_digest TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS identity_link_conflicts (subject_digest TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS identity_account_merges (proof_digest TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS identity_recovery_challenges (request_context_digest TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS identity_audit_events (event_digest TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS identity_outbox (lease_owner_digest TEXT);
+CREATE OR REPLACE FUNCTION a1_unlink_identity_credential() RETURNS VOID AS $$
+BEGIN
+  RAISE EXCEPTION 'cannot unlink the last active login credential';
+END;
+$$ LANGUAGE plpgsql;
+CREATE OR REPLACE FUNCTION a1_merge_identity_accounts() RETURNS VOID AS $$
+BEGIN
+  RAISE EXCEPTION 'account merge requires independent approval';
+END;
+$$ LANGUAGE plpgsql;
+CREATE OR REPLACE FUNCTION a1_consume_identity_recovery() RETURNS VOID AS $$ BEGIN END; $$ LANGUAGE plpgsql;
+CREATE OR REPLACE FUNCTION a1_claim_identity_outbox() RETURNS SETOF identity_outbox AS $$
+BEGIN
+  RETURN QUERY SELECT * FROM identity_outbox FOR UPDATE SKIP LOCKED;
+END;
+$$ LANGUAGE plpgsql;
+CREATE TRIGGER identity_principals_reject_hard_delete BEFORE DELETE ON identity_principals EXECUTE FUNCTION a1_identity_reject_hard_delete();
+CREATE TRIGGER identity_credentials_reject_hard_delete BEFORE DELETE ON identity_credentials EXECUTE FUNCTION a1_identity_reject_hard_delete();
+CREATE TRIGGER identity_sessions_reject_hard_delete BEFORE DELETE ON identity_sessions EXECUTE FUNCTION a1_identity_reject_hard_delete();
+CREATE TRIGGER identity_link_conflicts_append_only BEFORE DELETE ON identity_link_conflicts EXECUTE FUNCTION a1_identity_reject_append_only_mutation();
+CREATE TRIGGER identity_audit_events_append_only BEFORE UPDATE OR DELETE ON identity_audit_events EXECUTE FUNCTION a1_identity_reject_append_only_mutation();
+ALTER TABLE identity_project_memberships FORCE ROW LEVEL SECURITY;
+CREATE POLICY identity_project_memberships_tenant_access ON identity_project_memberships
+  USING (principal_id = a1_current_principal_id() AND organization_id = a1_current_organization_id() AND project_id = a1_current_project_id());
+"""
+        coordinator_sql = """
+CREATE TABLE IF NOT EXISTS oauth_identity_operations (id UUID PRIMARY KEY);
+CREATE OR REPLACE FUNCTION a1_complete_oauth_identity_callback() RETURNS VOID AS $$
+BEGIN
+  RAISE EXCEPTION 'oauth subject already belongs to another principal';
+  RAISE EXCEPTION 'oauth identity idempotency request mismatch';
+END;
+$$ LANGUAGE plpgsql;
+CREATE OR REPLACE FUNCTION a1_disconnect_oauth_identity_credential() RETURNS VOID AS $$
+BEGIN
+  RAISE EXCEPTION 'cannot disconnect the last active login credential';
+END;
+$$ LANGUAGE plpgsql;
+ALTER TABLE oauth_identity_operations FORCE ROW LEVEL SECURITY;
+CREATE POLICY oauth_identity_operations_tenant_isolation ON oauth_identity_operations
+  USING (organization_id = a1_current_organization_id() AND project_id = a1_current_project_id() AND principal_id = a1_current_principal_id());
+INSERT INTO oauth_revocation_outbox (operation_kind) VALUES ('provider_revoke_and_cleanup');
+"""
+        revocation_sql = """
+ALTER TABLE oauth_revocation_outbox
+  ADD COLUMN IF NOT EXISTS lease_generation BIGINT NOT NULL DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS provider_revoked_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS vault_deleted_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS dead_lettered_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS cleanup_completed_at TIMESTAMPTZ;
+ALTER TABLE oauth_revocation_outbox
+  ADD CONSTRAINT oauth_revocation_outbox_terminal_time_check CHECK (status = 'delivered' OR status = 'dead_letter');
+CREATE OR REPLACE FUNCTION a1_claim_identity_revocation_outbox() RETURNS TABLE (outbox_id UUID) AS $$
+BEGIN
+  RETURN QUERY SELECT id FROM oauth_revocation_outbox
+    WHERE status = 'pending' OR (target.status = 'leased' AND target.lease_expires_at <= p_now)
+    FOR UPDATE SKIP LOCKED;
+  UPDATE oauth_revocation_outbox SET lease_generation = target.lease_generation + 1;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+CREATE OR REPLACE FUNCTION a1_mark_identity_revocation_provider_revoked() RETURNS oauth_revocation_outbox AS $$
+BEGIN
+  IF target.lease_generation <> p_lease_generation THEN RAISE EXCEPTION 'oauth revocation lease lost'; END IF;
+  UPDATE oauth_revocation_outbox SET provider_revoked_at = p_now;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+CREATE OR REPLACE FUNCTION a1_mark_identity_revocation_vault_deleted() RETURNS oauth_revocation_outbox AS $$
+BEGIN
+  IF target.lease_generation <> p_lease_generation THEN RAISE EXCEPTION 'oauth revocation lease lost'; END IF;
+  IF target.provider_revoked_at IS NULL THEN RAISE EXCEPTION 'oauth provider revocation is not checkpointed'; END IF;
+  UPDATE oauth_revocation_outbox SET vault_deleted_at = p_now;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+CREATE OR REPLACE FUNCTION a1_complete_identity_revocation_outbox() RETURNS oauth_revocation_outbox AS $$
+BEGIN
+  IF target.lease_generation <> p_lease_generation OR target.vault_deleted_at IS NULL THEN RAISE EXCEPTION 'oauth revocation lease lost'; END IF;
+  UPDATE oauth_token_opaque_refs SET status = 'revoked';
+  UPDATE oauth_account_connections SET status = 'disconnected'
+    WHERE token_ref_id = target.token_ref_id AND status = 'revocation_pending';
+  UPDATE oauth_revocation_outbox SET cleanup_completed_at = p_now, status = 'delivered';
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+CREATE OR REPLACE FUNCTION a1_retry_identity_revocation_outbox() RETURNS oauth_revocation_outbox AS $$
+BEGIN
+  IF target.lease_generation <> p_lease_generation THEN RAISE EXCEPTION 'oauth revocation lease lost'; END IF;
+  IF target.attempts >= target.max_attempts THEN
+    UPDATE oauth_revocation_outbox SET status = 'dead_letter', dead_lettered_at = p_now;
+  ELSE
+    UPDATE oauth_revocation_outbox SET status = 'pending', available_at = p_now + make_interval(secs => p_base_backoff_seconds);
+  END IF;
+  PERFORM p_max_backoff_seconds;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+"""
+        session_auth_sql = """
+CREATE OR REPLACE FUNCTION a1_authenticate_identity_session_digest(
+  p_session_digest TEXT
+) RETURNS TABLE (principal_id UUID, session_id UUID, organization_id UUID, project_id UUID) AS $$
+BEGIN
+  PERFORM a1_assert_role_nobypassrls(session_user);
+  IF NOT a1_identity_digest_valid(p_session_digest) THEN RETURN; END IF;
+  RETURN QUERY SELECT identity_session.principal_id, identity_session.id, identity_session.organization_id, identity_session.project_id
+    FROM identity_sessions AS identity_session
+    JOIN identity_principals AS principal ON principal.id = identity_session.principal_id AND principal.status = 'active'
+    JOIN identity_credentials AS credential ON credential.id = identity_session.credential_id
+      AND credential.principal_id = identity_session.principal_id
+      AND credential.status = 'active'
+      AND credential.login_enabled
+   WHERE identity_session.session_digest = p_session_digest
+     AND identity_session.status = 'active'
+     AND identity_session.expires_at > clock_timestamp()
+     AND EXISTS (
+       SELECT 1
+         FROM identity_organization_memberships AS organization_membership
+         JOIN identity_project_memberships AS project_membership
+           ON project_membership.organization_id = organization_membership.organization_id
+          AND project_membership.principal_id = organization_membership.principal_id
+        WHERE organization_membership.status = 'active'
+          AND project_membership.status = 'active'
+     );
+END;
+$$ LANGUAGE plpgsql STABLE SECURITY DEFINER;
+REVOKE ALL ON FUNCTION a1_authenticate_identity_session_digest(TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION a1_authenticate_identity_session_digest(TEXT) TO a1_runtime;
+"""
+        identity_verification_sql = """
+CREATE TABLE IF NOT EXISTS identity_verification_cooldowns (
+  subject_digest TEXT NOT NULL,
+  blocked_until TIMESTAMPTZ
+);
+CREATE TABLE IF NOT EXISTS identity_verification_challenges (
+  subject_digest TEXT NOT NULL,
+  challenge_digest TEXT NOT NULL,
+  code_digest TEXT NOT NULL,
+  request_context_digest TEXT NOT NULL,
+  issued_at TIMESTAMPTZ NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  max_attempts INTEGER NOT NULL CHECK (max_attempts BETWEEN 1 AND 10),
+  CHECK (expires_at <= issued_at + interval '15 minutes')
+);
+CREATE TABLE IF NOT EXISTS identity_verification_receipts (
+  idempotency_digest TEXT,
+  request_context_digest TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS identity_verification_audit_events (event_digest TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS identity_verification_delivery_outbox (delivery_digest TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS identity_verification_abuse_budgets (subject_digest TEXT NOT NULL);
+ALTER TABLE identity_verification_cooldowns FORCE ROW LEVEL SECURITY;
+ALTER TABLE identity_verification_challenges FORCE ROW LEVEL SECURITY;
+ALTER TABLE identity_verification_receipts FORCE ROW LEVEL SECURITY;
+REVOKE ALL ON TABLE identity_verification_challenges FROM a1_runtime;
+REVOKE ALL ON TABLE identity_verification_receipts FROM a1_runtime;
+CREATE OR REPLACE FUNCTION a1_issue_identity_verification_challenge() RETURNS UUID AS $$ BEGIN RETURN gen_random_uuid(); END; $$ LANGUAGE plpgsql SECURITY DEFINER;
+CREATE OR REPLACE FUNCTION a1_verify_consume_identity_challenge() RETURNS UUID AS $$ BEGIN RETURN gen_random_uuid(); END; $$ LANGUAGE plpgsql SECURITY DEFINER;
+CREATE OR REPLACE FUNCTION a1_bind_verified_identity_credential() RETURNS UUID AS $$ BEGIN RAISE EXCEPTION 'idempotency_conflict'; END; $$ LANGUAGE plpgsql SECURITY DEFINER;
+CREATE OR REPLACE FUNCTION a1_login_with_verified_identity() RETURNS UUID AS $$ BEGIN RETURN gen_random_uuid(); END; $$ LANGUAGE plpgsql SECURITY DEFINER;
+CREATE OR REPLACE FUNCTION a1_recover_verified_identity() RETURNS UUID AS $$ BEGIN RETURN gen_random_uuid(); END; $$ LANGUAGE plpgsql SECURITY DEFINER;
+CREATE OR REPLACE FUNCTION a1_identity_verification_receipt_transition() RETURNS UUID AS $$ BEGIN RETURN gen_random_uuid(); END; $$ LANGUAGE plpgsql SECURITY DEFINER;
+GRANT EXECUTE ON FUNCTION a1_issue_identity_verification_challenge() TO a1_runtime;
+GRANT EXECUTE ON FUNCTION a1_verify_consume_identity_challenge() TO a1_runtime;
+GRANT EXECUTE ON FUNCTION a1_bind_verified_identity_credential() TO a1_runtime;
+"""
+        identity_verification_surface = {
+            "schema_version": "ashr.clone.identity_verification_public_surface.v1",
+            "route_count": 12,
+            "route_neutral": True,
+            "secret_policy": "digest_refs_only",
+        }
+        contract = {
+            "schema_version": "ashr.unified_identity.contract.v1",
+            "public_safe": True,
+            "contains_secret_values": False,
+            "production_ready": False,
+            "required_identity_kinds": ["github", "google", "wechat", "qq", "alipay", "phone", "email"],
+            "security_controls": {
+                "same_email_auto_merge": "forbidden",
+                "unverified_credential_login": "reject",
+                "cross_account_takeover": "reject",
+                "caller_supplied_account_id": "reject",
+                "membership_identity_coupling": "forbidden",
+                "last_credential_unlink": "reject",
+                "public_dto_policy": "allowlist_only",
+            },
+            "membership_model": {
+                "separate_from_identity": True,
+                "references_internal_account_only": True,
+                "credential_unlink_does_not_delete_membership": True,
+            },
+            "real_provider_calibration": {
+                "completed": ["github", "google"],
+                "not_completed": ["wechat", "qq", "alipay", "phone", "email"],
+            },
+            "acceptance_status": {
+                "domain_invariants": "implemented_and_tested",
+                "durable_postgres_runtime_wiring": "not_completed",
+            },
+            "verification_20260710": {
+                "postgres_integration": {
+                    "passed": 8,
+                    "runtime_role": "NOSUPERUSER_NOBYPASSRLS",
+                }
+            },
+            "known_implementation_gaps": [
+                "memory_store_subject_uniqueness_is_not_multi-instance",
+                "durable_postgres_runtime_wiring_not_completed",
+            ],
+            "evidence_boundary": {
+                "contains_account_contact_data": False,
+                "contains_provider_identity_data": False,
+                "contains_credential_material": False,
+                "contains_callback_query_data": False,
+                "contains_session_or_cookie_data": False,
+                "contains_provider_response_payload": False,
+            },
+        }
+        same_account = {
+            "schema_version": "ashr.unified_identity.same_account_localhost.v1",
+            "public_safe": True,
+            "contains_secret_values": False,
+            "production_ready": False,
+            "canonical_account": {
+                "credential_count": 2,
+                "providers": ["github", "google"],
+                "all_credentials_verified": True,
+                "all_credentials_can_login": True,
+                "membership_count": 0,
+            },
+            "runtime_checks": [
+                {"check": "caller_supplied_account_mismatch", "status_code": 403, "failed_closed": True},
+                {"check": "public_response_forbidden_material_scan", "status": "passed", "forbidden_key_hits": 0},
+            ],
+            "public_account_credential_keys": [
+                "can_login",
+                "credential_id",
+                "kind",
+                "linked_at",
+                "provider",
+                "schema_version",
+                "verified",
+            ],
+            "evidence_boundary": {
+                "raw_account_contact_recorded": False,
+                "raw_provider_subject_recorded": False,
+                "subject_digest_recorded": False,
+                "oauth_code_recorded": False,
+                "oauth_state_recorded": False,
+                "oauth_nonce_recorded": False,
+                "pkce_verifier_recorded": False,
+                "access_token_recorded": False,
+                "refresh_token_recorded": False,
+                "id_token_recorded": False,
+                "token_reference_recorded": False,
+                "client_secret_recorded": False,
+                "callback_query_recorded": False,
+                "raw_provider_response_recorded": False,
+            },
+        }
+        google = {
+            "schema_version": "ashr.clone.google_oauth_localhost.v1",
+            "provider": "google",
+            "public_safe": True,
+            "contains_secret_values": False,
+            "production_ready": False,
+            "controls": [
+                {
+                    "control_id": "callback_success",
+                    "status": "verified_real_provider",
+                    "issuer_validation_passed": True,
+                    "audience_validation_passed": True,
+                    "nonce_validation_passed": True,
+                },
+                {"control_id": "callback_replay", "replay_denied": True},
+                {
+                    "control_id": "public_response_secret_scan",
+                    "public_response_secret_scan_passed": True,
+                },
+            ],
+            "raw_state_recorded": False,
+            "nonce_recorded": False,
+            "pkce_verifier_recorded": False,
+            "authorization_code_recorded": False,
+            "access_token_recorded": False,
+            "refresh_token_recorded": False,
+            "id_token_recorded": False,
+            "client_secret_recorded": False,
+            "raw_provider_response_recorded": False,
+            "callback_query_recorded": False,
+            "account_email_recorded": False,
+            "stable_provider_identifier_recorded": False,
+        }
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            runtime_sql_path = Path(tmp_dir) / "007_a1_oauth_runtime_store.sql"
+            identity_sql_path = Path(tmp_dir) / "008_a1_unified_identity_account.sql"
+            coordinator_sql_path = Path(tmp_dir) / "009_a1_oauth_identity_coordinator.sql"
+            revocation_sql_path = Path(tmp_dir) / "010_a1_identity_revocation_outbox.sql"
+            session_auth_sql_path = Path(tmp_dir) / "011_a1_identity_session_authentication.sql"
+            identity_verification_sql_path = Path(tmp_dir) / "012_a1_identity_verification.sql"
+            identity_verification_surface_path = Path(tmp_dir) / "identity-verification-public-surface.json"
+            contract_path = Path(tmp_dir) / "unified_identity_contract_20260710.json"
+            same_account_path = Path(tmp_dir) / "unified_identity_same_account_localhost_20260710.json"
+            google_path = Path(tmp_dir) / "google_oauth_localhost_evidence_20260710.json"
+            runtime_sql_path.write_text(runtime_sql, encoding="utf-8")
+            identity_sql_path.write_text(identity_sql, encoding="utf-8")
+            coordinator_sql_path.write_text(coordinator_sql, encoding="utf-8")
+            revocation_sql_path.write_text(revocation_sql, encoding="utf-8")
+            session_auth_sql_path.write_text(session_auth_sql, encoding="utf-8")
+            identity_verification_sql_path.write_text(identity_verification_sql, encoding="utf-8")
+            identity_verification_surface_path.write_text(json.dumps(identity_verification_surface), encoding="utf-8")
+            contract_path.write_text(json.dumps(contract), encoding="utf-8")
+            same_account_path.write_text(json.dumps(same_account), encoding="utf-8")
+            google_path.write_text(json.dumps(google), encoding="utf-8")
+            report = build_evidence_readiness_report(
+                calibration_matrix,
+                {},
+                semantic_harness,
+                a1_oauth_runtime_store_sql_path=runtime_sql_path,
+                a1_unified_identity_sql_path=identity_sql_path,
+                a1_oauth_identity_coordinator_sql_path=coordinator_sql_path,
+                a1_identity_revocation_outbox_sql_path=revocation_sql_path,
+                a1_identity_session_authentication_sql_path=session_auth_sql_path,
+                a1_identity_verification_sql_path=identity_verification_sql_path,
+                a1_identity_verification_public_surface_path=identity_verification_surface_path,
+                a1_unified_identity_contract_path=contract_path,
+                a1_unified_identity_localhost_evidence_path=same_account_path,
+                a1_google_oauth_localhost_evidence_path=google_path,
+            )
+
+        identity = report["a1_unified_identity_security"]
+        self.assertTrue(identity["available"])
+        self.assertEqual(identity["schema_version"], "ashr.unified_identity.contract.v1")
+        self.assertEqual(identity["same_account_schema_version"], "ashr.unified_identity.same_account_localhost.v1")
+        self.assertEqual(identity["google_schema_version"], "ashr.clone.google_oauth_localhost.v1")
+        self.assertTrue(identity["public_safe"])
+        self.assertEqual(identity["identity_table_count"], 10)
+        self.assertEqual(identity["oauth_runtime_table_count"], 6)
+        self.assertTrue(identity["coordinator_table_present"])
+        self.assertTrue(identity["digest_only_identity_storage"])
+        self.assertTrue(identity["reference_only_secret_storage"])
+        self.assertTrue(identity["recursive_metadata_check"])
+        self.assertTrue(identity["tenant_principal_rls_ready"])
+        self.assertTrue(identity["domain_invariants_ready"])
+        self.assertTrue(identity["postgres_contract_ready"])
+        self.assertTrue(identity["account_takeover_controls"])
+        self.assertTrue(identity["same_account_provider_link_ready"])
+        self.assertTrue(identity["membership_identity_decoupled"])
+        self.assertTrue(identity["public_dto_allowlist_only"])
+        self.assertTrue(identity["secret_material_excluded"])
+        self.assertTrue(identity["google_real_provider_ready"])
+        self.assertTrue(identity["outbox_audit_controls"])
+        self.assertTrue(identity["recovery_merge_controls_present"])
+        self.assertTrue(identity["revocation_outbox_hardening_present"])
+        self.assertTrue(identity["revocation_external_checkpoints"])
+        self.assertTrue(identity["revocation_fenced_retry_ready"])
+        self.assertTrue(identity["revocation_reconnect_cleanup_safe"])
+        self.assertTrue(identity["session_authentication_ready"])
+        self.assertEqual(
+            identity["identity_verification_surface_schema_version"],
+            "ashr.clone.identity_verification_public_surface.v1",
+        )
+        self.assertEqual(identity["identity_verification_route_count"], 12)
+        self.assertTrue(identity["identity_verification_digest_only"])
+        self.assertTrue(identity["identity_verification_abuse_controls"])
+        self.assertTrue(identity["identity_verification_receipt_controls"])
+        self.assertTrue(identity["identity_verification_runtime_boundary"])
+        self.assertTrue(identity["identity_verification_public_surface_ready"])
+        self.assertTrue(identity["identity_verification_ready"])
+        self.assertTrue(identity["append_only_controls"])
+        self.assertTrue(identity["hard_delete_rejected"])
+        self.assertTrue(identity["final_credential_unlink_rejected"])
+        self.assertFalse(identity["raw_secret_columns_present"])
+        self.assertTrue(identity["multi_instance_gap_present"])
+        self.assertFalse(identity["production_ready"])
+        self.assertTrue(identity["ready_for_a2_identity_policy_context"])
+        self.assertFalse(identity["c3_grading_ready"])
+        self.assertTrue(identity["a2_policy_implications"]["identity_policy_context"])
+        self.assertTrue(identity["a2_policy_implications"]["can_support_account_takeover_regressions"])
+        self.assertTrue(identity["a2_policy_implications"]["can_support_membership_decoupling_regressions"])
+        self.assertTrue(identity["a2_policy_implications"]["can_support_provider_linking_abuse_cases"])
+        self.assertTrue(identity["a2_policy_implications"]["must_not_mark_c3_from_identity_context"])
+
     def test_evidence_readiness_consumes_a1_billing_sql_semantic_contract(self):
         calibration_matrix = build_calibration_matrix(
             pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
@@ -2300,6 +3307,81 @@ class A2ContractTests(unittest.TestCase):
         self.assertTrue(billing_sql["a2_policy_implications"]["can_support_replay_regression_cases"])
         self.assertTrue(billing_sql["a2_policy_implications"]["can_support_hash_only_artifact_audit"])
         self.assertTrue(billing_sql["a2_policy_implications"]["must_not_mark_c3_from_sql_context"])
+
+    def test_evidence_readiness_consumes_a1_object_storage_contract(self):
+        calibration_matrix = build_calibration_matrix(
+            pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json",
+            run_dir=ROOT / "fixtures/a2/runs",
+            observations_path=ROOT / "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        )
+        sdk_parity = build_sdk_parity_report(pack_path=ROOT / "packages/scenarios/a2_g3_full_pack.json")
+        semantic_harness = build_semantic_harness_report(calibration_matrix, sdk_parity)
+        contract = """# A1 Object Storage Contract Evidence
+
+- Schema version: `ashr.clone.object_storage.v1`.
+- Supported backends: `local-filesystem` and `s3-compatible`.
+- Object keys are scoped as `category/tenant_id/project_id/run_id/object_id.ext`.
+- Public manifests include `object_key`, `storage_uri`, `content_type`, `size_bytes`, and `sha256`.
+- Public manifests include `manifest_signature` with a canonical JSON sha256 digest.
+- Readback verification returns a structured `checksum` block with expected/actual sha256 values.
+- Public manifests do not include raw payload bytes, absolute local filesystem paths, raw S3/MinIO endpoints, access keys, secret keys, auth tokens, or API keys.
+- S3-compatible manifests accept reference strings only.
+- Optional S3/MinIO readback is exposed through a lazy SDK adapter. Network reads require explicit adapter use.
+- Local filesystem writes perform a sha256 readback verification when a local object root is provided.
+
+## Wiring
+
+- SDK helper: `packages/sdk/ashr_clone/storage.py`.
+- API integration: `services/api/platform.py`.
+- Evidence bundle records add `object_storage` metadata.
+
+## Test Coverage
+
+- `tests/a1/test_object_storage_contract.py`
+- `tests/a1/test_saas_platform.py`
+"""
+
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            contract_path = Path(tmp_dir) / "object_storage_contract_20260709.md"
+            contract_path.write_text(contract, encoding="utf-8")
+            report = build_evidence_readiness_report(
+                calibration_matrix,
+                {},
+                semantic_harness,
+                a1_object_storage_contract_path=contract_path,
+            )
+
+        object_storage = report["a1_object_storage_contract"]
+        self.assertTrue(object_storage["available"])
+        self.assertEqual(object_storage["schema_version"], "ashr.clone.object_storage.v1")
+        self.assertTrue(object_storage["public_safe"])
+        self.assertEqual(object_storage["supported_backends"], ["local-filesystem", "s3-compatible"])
+        self.assertTrue(object_storage["scoped_object_keys"])
+        self.assertEqual(
+            object_storage["manifest_fields"],
+            ["content_type", "object_key", "sha256", "size_bytes", "storage_uri"],
+        )
+        self.assertTrue(object_storage["manifest_signature_sha256"])
+        self.assertTrue(object_storage["checksum_readback"])
+        self.assertTrue(object_storage["local_readback_sha256"])
+        self.assertTrue(object_storage["s3_reference_only"])
+        self.assertTrue(object_storage["lazy_network_adapter"])
+        self.assertTrue(object_storage["sdk_helper_present"])
+        self.assertTrue(object_storage["api_integration_present"])
+        self.assertTrue(object_storage["evidence_bundle_metadata_present"])
+        self.assertFalse(object_storage["raw_payload_bytes_included"])
+        self.assertFalse(object_storage["absolute_local_paths_included"])
+        self.assertFalse(object_storage["raw_endpoint_values_included"])
+        self.assertFalse(object_storage["raw_access_key_values_included"])
+        self.assertFalse(object_storage["raw_secret_key_values_included"])
+        self.assertFalse(object_storage["raw_token_values_included"])
+        self.assertEqual(object_storage["test_target_count"], 2)
+        self.assertTrue(object_storage["ready_for_a2_artifact_policy_context"])
+        self.assertFalse(object_storage["c3_grading_ready"])
+        self.assertTrue(object_storage["a2_policy_implications"]["object_storage_policy_context"])
+        self.assertTrue(object_storage["a2_policy_implications"]["can_support_artifact_bundle_evidence_handoff"])
+        self.assertTrue(object_storage["a2_policy_implications"]["can_support_checksum_regression_cases"])
+        self.assertTrue(object_storage["a2_policy_implications"]["must_not_mark_c3_from_storage_context"])
 
     def test_c4_semantic_live_gate_requires_reviewed_metadata_cost_and_sdk_coverage(self):
         def reviewed_semantic_matrix(*, complete_metadata: bool, include_typescript: bool) -> dict:
@@ -3271,6 +4353,29 @@ class A2ContractTests(unittest.TestCase):
             self.assertNotIn("payload", call)
             self.assertNotIn("response", call)
 
+    def test_multimodal_real_api_smoke_evidence_is_redacted(self):
+        evidence_path = ROOT / "docs/evidence/a2_multimodal_real_api_smoke.json"
+        schema = json.loads((ROOT / "docs/a2/schemas/multimodal_real_api_smoke.schema.json").read_text(encoding="utf-8"))
+        payload_text = evidence_path.read_text(encoding="utf-8")
+        payload = json.loads(payload_text)
+
+        self.assertEqual(payload["schema_version"], "a2.multimodal_real_api_smoke.v1")
+        self.assertEqual(schema["properties"]["schema_version"]["const"], payload["schema_version"])
+        self.assertLessEqual(set(schema["required"]), set(payload))
+        self.assertEqual(set(payload["accepted_modalities"]), {"text", "image", "audio", "file", "video"})
+        self.assertTrue(payload["all_required_modalities_requested"])
+        self.assertTrue(payload["public_safe"])
+        self.assertFalse(payload["c3_grading_ready"])
+        self.assertEqual(payload["api_call_count"], len(payload["calls"]))
+        self.assertTrue(payload["private_ref"].startswith("docs/evidence/private_refs/"))
+        self.assertNotRegex(payload_text, re.compile(r"tp_[A-Za-z0-9_\-]+"))
+        self.assertNotRegex(payload_text, re.compile(r"ashr_live_[A-Za-z0-9_\-]+"))
+        self.assertNotIn("Bearer ", payload_text)
+        self.assertNotIn("signed_url", payload_text.lower())
+        self.assertNotIn("@", payload_text)
+        for call in payload["calls"]:
+            self.assertNotIn("payload", call)
+            self.assertNotIn("response", call)
     def test_real_api_evidence_index_matches_public_safe_schema(self):
         evidence_path = ROOT / "docs/a1/api_calibration/real_api_evidence_index.json"
         schema = json.loads((ROOT / "docs/a2/schemas/evidence_index.schema.json").read_text(encoding="utf-8"))

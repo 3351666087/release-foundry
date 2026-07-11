@@ -3,16 +3,27 @@ package ashrclone
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 )
 
 type HTTPServer struct {
-	service      ControlPlaneBackend
-	backendName  string
-	backendReady bool
+	service                            ControlPlaneBackend
+	paymentReconciliation              *PaymentReconciliationService
+	paymentDomain                      *PaymentDomainService
+	unifiedIdentity                    *UnifiedIdentityService
+	identitySessions                   IdentityHTTPSessionResolver
+	identityVerification               *IdentityVerificationService
+	identityVerificationResponsePolicy *IdentityVerificationResponsePolicy
+	identitySessionReceiptTransport    IdentitySessionReceiptTransport
+	oauthProviders                     map[string]*OAuthService
+	githubOAuth                        *GitHubOAuthService
+	backendName                        string
+	backendReady                       bool
 }
 
 type ControlPlaneBackend interface {
@@ -49,8 +60,17 @@ type ControlPlaneBackend interface {
 }
 
 type HTTPServerOptions struct {
-	BackendName  string
-	BackendReady bool
+	BackendName                        string
+	BackendReady                       bool
+	PaymentReconciliation              *PaymentReconciliationService
+	PaymentDomain                      *PaymentDomainService
+	UnifiedIdentity                    *UnifiedIdentityService
+	IdentitySessions                   IdentityHTTPSessionResolver
+	IdentityVerification               *IdentityVerificationService
+	IdentityVerificationResponsePolicy *IdentityVerificationResponsePolicy
+	IdentitySessionReceiptTransport    IdentitySessionReceiptTransport
+	OAuthProviders                     map[string]*OAuthService
+	GitHubOAuth                        *GitHubOAuthService
 }
 
 func NewHTTPServer(service ControlPlaneBackend) http.Handler {
@@ -65,7 +85,28 @@ func NewHTTPServerWithOptions(service ControlPlaneBackend, options HTTPServerOpt
 	if backendName == "" {
 		backendName = "memory_service_v0"
 	}
-	return &HTTPServer{service: service, backendName: backendName, backendReady: options.BackendReady}
+	oauthProviders := make(map[string]*OAuthService, len(options.OAuthProviders))
+	for providerName, oauthService := range options.OAuthProviders {
+		normalizedProvider := strings.ToLower(strings.TrimSpace(providerName))
+		if normalizedProvider == "" || oauthService == nil || oauthService.ProviderName() != normalizedProvider {
+			continue
+		}
+		oauthProviders[normalizedProvider] = oauthService
+	}
+	return &HTTPServer{
+		service:                            service,
+		paymentReconciliation:              options.PaymentReconciliation,
+		paymentDomain:                      options.PaymentDomain,
+		unifiedIdentity:                    options.UnifiedIdentity,
+		identitySessions:                   options.IdentitySessions,
+		identityVerification:               options.IdentityVerification,
+		identityVerificationResponsePolicy: options.IdentityVerificationResponsePolicy,
+		identitySessionReceiptTransport:    options.IdentitySessionReceiptTransport,
+		oauthProviders:                     oauthProviders,
+		githubOAuth:                        options.GitHubOAuth,
+		backendName:                        backendName,
+		backendReady:                       options.BackendReady,
+	}
 }
 
 func NewHTTPHandler(service ControlPlaneBackend) http.Handler {
@@ -86,7 +127,31 @@ func (server *HTTPServer) ServeHTTP(writer http.ResponseWriter, request *http.Re
 		server.handleBootstrap(writer, request)
 		return
 	}
+	callbackParts := pathParts(request.URL.Path)
+	if len(callbackParts) == 3 && callbackParts[0] == "oauth" && callbackParts[2] == "callback" {
+		if callbackParts[1] == "github" && server.githubOAuth != nil {
+			server.handleGitHubOAuthCallback(writer, request)
+			return
+		}
+		if _, configured := server.oauthProviders[callbackParts[1]]; configured {
+			server.handleOAuthCallback(writer, request, callbackParts[1])
+			return
+		}
+	}
 	parts := pathParts(request.URL.Path)
+	if len(parts) == 3 && parts[0] == "v1" && parts[1] == "identity-verification" {
+		server.handleIdentityVerification(writer, request, parts[2])
+		return
+	}
+	if len(parts) >= 3 && parts[0] == "v1" && parts[1] == "accounts" {
+		server.handleUnifiedIdentityAccount(writer, request, parts[2], parts[3:])
+		return
+	}
+	if len(parts) == 7 && parts[0] == "v1" && parts[1] == "projects" &&
+		parts[3] == "accounts" && parts[5] == "browser-sessions" && parts[6] == "refresh" {
+		server.handleIdentitySessionRefresh(writer, request, parts[2], parts[4])
+		return
+	}
 	if len(parts) >= 3 && parts[0] == "v1" && parts[1] == "projects" {
 		server.handleProject(writer, request, parts[2], parts[3:])
 		return
@@ -196,6 +261,17 @@ func apiKeyIDFromLocalBearerSecret(secret string) string {
 }
 
 func (server *HTTPServer) handleProject(writer http.ResponseWriter, request *http.Request, projectID string, parts []string) {
+	if len(parts) >= 2 && parts[0] == "oauth" {
+		providerName := strings.ToLower(strings.TrimSpace(parts[1]))
+		if providerName == "github" && server.githubOAuth != nil {
+			server.handleGitHubOAuthProject(writer, request, projectID, parts[2:])
+			return
+		}
+		if _, configured := server.oauthProviders[providerName]; configured {
+			server.handleOAuthProject(writer, request, projectID, providerName, parts[2:])
+			return
+		}
+	}
 	if len(parts) >= 1 && parts[0] == "api-keys" {
 		server.handleAPIKeys(writer, request, projectID, parts[1:])
 		return
@@ -299,6 +375,14 @@ func (server *HTTPServer) handleBilling(writer http.ResponseWriter, request *htt
 	if !ok {
 		return
 	}
+	if len(parts) >= 2 && parts[0] == "reconciliation" && parts[1] == "events" {
+		server.handlePaymentReconciliation(writer, request, auth, projectID, parts[2:], body)
+		return
+	}
+	if len(parts) >= 1 && parts[0] == "payments" {
+		server.handlePaymentDomain(writer, request, auth, projectID, parts[1:], body)
+		return
+	}
 	if request.Method == http.MethodPost && len(parts) == 1 && parts[0] == "checkout-plan" {
 		if !server.preflightRequest(writer, auth, projectID, ScopeBillingWrite, "billing.checkout_plan") {
 			return
@@ -332,6 +416,197 @@ func (server *HTTPServer) handleBilling(writer http.ResponseWriter, request *htt
 		}
 		result, err := server.service.BillingLedger(auth.TenantID, projectID)
 		writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
+		return
+	}
+	writeError(writer, http.StatusNotFound, "not_found", "route not found")
+}
+
+func (server *HTTPServer) handlePaymentReconciliation(writer http.ResponseWriter, request *http.Request, auth requestAuthContext, projectID string, parts []string, body JSONMap) {
+	if server.paymentReconciliation == nil {
+		writeError(writer, http.StatusServiceUnavailable, "payment_reconciliation_unavailable", "payment reconciliation capability is not configured")
+		return
+	}
+	if request.Method == http.MethodPost && len(parts) == 0 {
+		if !server.preflightRequest(writer, auth, projectID, ScopeBillingWebhookIngest, "payment.reconciliation.receive") {
+			return
+		}
+		result, err := server.paymentReconciliation.Receive(request.Context(), auth.TenantID, projectID, paymentEventEnvelopeFromBody(body))
+		writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
+		return
+	}
+	if request.Method == http.MethodGet && len(parts) == 0 {
+		if !server.preflightRequest(writer, auth, projectID, ScopeBillingRead, "payment.reconciliation.list") {
+			return
+		}
+		limit, err := intFromQueryOrBody(request.URL.Query().Get("limit"), body, "limit")
+		if err != nil {
+			writeServiceError(writer, fmt.Errorf("limit must be an integer"))
+			return
+		}
+		result, err := server.paymentReconciliation.List(request.Context(), auth.TenantID, projectID, firstNonEmpty(request.URL.Query().Get("status"), stringValue(body, "status")), limit)
+		writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
+		return
+	}
+	if len(parts) < 2 {
+		writeError(writer, http.StatusNotFound, "not_found", "route not found")
+		return
+	}
+	provider, providerEventID := parts[0], parts[1]
+	if request.Method == http.MethodGet && len(parts) == 2 {
+		if !server.preflightRequest(writer, auth, projectID, ScopeBillingRead, "payment.reconciliation.get") {
+			return
+		}
+		result, err := server.paymentReconciliation.Get(request.Context(), auth.TenantID, projectID, provider, providerEventID)
+		writeEnvelopeResult(writer, http.StatusOK, result.Result, err)
+		return
+	}
+	writeError(writer, http.StatusNotFound, "not_found", "route not found")
+}
+
+func (server *HTTPServer) handlePaymentDomain(writer http.ResponseWriter, request *http.Request, auth requestAuthContext, projectID string, parts []string, body JSONMap) {
+	if server.paymentDomain == nil {
+		writeError(writer, http.StatusServiceUnavailable, "payment_domain_unavailable", "payment domain capability is not configured")
+		return
+	}
+	if request.Method == http.MethodGet && len(parts) == 1 && parts[0] == "providers" {
+		if !server.preflightRequest(writer, auth, projectID, ScopeBillingRead, "payment.provider.list") {
+			return
+		}
+		writeJSON(writer, http.StatusOK, PaymentProviderCapabilitiesList())
+		return
+	}
+	if len(parts) == 0 {
+		writeError(writer, http.StatusNotFound, "not_found", "route not found")
+		return
+	}
+	resource := parts[0]
+	merchantID := firstNonEmpty(request.URL.Query().Get("merchant_id"), stringValue(body, "merchant_id"))
+	provider := firstNonEmpty(request.URL.Query().Get("provider"), stringValue(body, "provider"))
+	limit, err := intFromQueryOrBody(request.URL.Query().Get("limit"), body, "limit")
+	if err != nil {
+		writeServiceError(writer, fmt.Errorf("limit must be an integer"))
+		return
+	}
+	if request.Method == http.MethodPost && len(parts) == 1 {
+		if err := rejectPaymentCardSecrets(body); err != nil {
+			writeServiceError(writer, err)
+			return
+		}
+		scope, operation := ScopeBillingWrite, "payment."+resource+".receive"
+		if resource == "notifications" || resource == "bills" {
+			scope = ScopeBillingWebhookIngest
+		}
+		if !server.preflightRequest(writer, auth, projectID, scope, operation) {
+			return
+		}
+		switch resource {
+		case "orders":
+			amount, amountErr := strictInt64Value(body, "amount")
+			if amountErr != nil {
+				writeServiceError(writer, amountErr)
+				return
+			}
+			result, receiveErr := server.paymentDomain.ReceiveOrder(request.Context(), auth.TenantID, projectID, PaymentOrderReceive{
+				Provider: stringValue(body, "provider"), MerchantID: merchantID, MerchantOrderID: stringValue(body, "merchant_order_id"),
+				Amount: amount, Currency: stringValue(body, "currency"), Description: stringValue(body, "description"),
+				Channel: stringValue(body, "channel"), CustomerRef: stringValue(body, "customer_ref"),
+				AcquirerReference: stringValue(body, "acquirer_reference"), PaymentMethodTokenReference: stringValue(body, "payment_method_token_reference"),
+				Metadata: mapValue(body, "metadata"),
+			})
+			writeEnvelopeResult(writer, http.StatusOK, result.Result, receiveErr)
+		case "refunds":
+			amount, amountErr := strictInt64Value(body, "amount")
+			if amountErr != nil {
+				writeServiceError(writer, amountErr)
+				return
+			}
+			result, receiveErr := server.paymentDomain.ReceiveRefund(request.Context(), auth.TenantID, projectID, PaymentRefundReceive{
+				Provider: stringValue(body, "provider"), MerchantID: merchantID, MerchantRefundID: stringValue(body, "merchant_refund_id"),
+				MerchantOrderID: stringValue(body, "merchant_order_id"), Amount: amount, Currency: stringValue(body, "currency"),
+				Reason: stringValue(body, "reason"), Metadata: mapValue(body, "metadata"),
+			})
+			writeEnvelopeResult(writer, http.StatusOK, result.Result, receiveErr)
+		case "notifications":
+			occurredAt, timeErr := optionalPaymentTime(body, "occurred_at")
+			if timeErr != nil {
+				writeServiceError(writer, timeErr)
+				return
+			}
+			result, receiveErr := server.paymentDomain.ReceiveNotification(request.Context(), auth.TenantID, projectID, PaymentNotificationReceive{
+				Provider: stringValue(body, "provider"), MerchantID: merchantID, ProviderEventID: stringValue(body, "provider_event_id"),
+				EventType: stringValue(body, "event_type"), ResourceType: stringValue(body, "resource_type"),
+				MerchantOrderID: stringValue(body, "merchant_order_id"), MerchantRefundID: stringValue(body, "merchant_refund_id"),
+				ProviderObjectID: stringValue(body, "provider_object_id"), ProviderStatus: stringValue(body, "provider_status"),
+				PayloadSHA256: stringValue(body, "payload_sha256"), HeadersSHA256: stringValue(body, "headers_sha256"), OccurredAt: occurredAt,
+			})
+			writeEnvelopeResult(writer, http.StatusOK, result.Result, receiveErr)
+		case "bills":
+			amount, amountErr := strictInt64Value(body, "amount")
+			if amountErr != nil {
+				writeServiceError(writer, amountErr)
+				return
+			}
+			occurredAt, timeErr := optionalPaymentTime(body, "occurred_at")
+			if timeErr != nil {
+				writeServiceError(writer, timeErr)
+				return
+			}
+			result, receiveErr := server.paymentDomain.ReceiveBillEntry(request.Context(), auth.TenantID, projectID, PaymentBillEntryReceive{
+				Provider: stringValue(body, "provider"), MerchantID: merchantID, BillEntryID: stringValue(body, "bill_entry_id"),
+				BillDate: stringValue(body, "bill_date"), BillKind: stringValue(body, "bill_kind"), TransactionID: stringValue(body, "transaction_id"),
+				MerchantOrderID: stringValue(body, "merchant_order_id"), MerchantRefundID: stringValue(body, "merchant_refund_id"),
+				Amount: amount, Currency: stringValue(body, "currency"), ProviderStatus: stringValue(body, "provider_status"),
+				SourceSHA256: stringValue(body, "source_sha256"), OccurredAt: occurredAt,
+			})
+			writeEnvelopeResult(writer, http.StatusOK, result.Result, receiveErr)
+		default:
+			writeError(writer, http.StatusNotFound, "not_found", "route not found")
+		}
+		return
+	}
+	if request.Method == http.MethodGet && len(parts) == 1 {
+		if !server.preflightRequest(writer, auth, projectID, ScopeBillingRead, "payment."+resource+".list") {
+			return
+		}
+		switch resource {
+		case "orders":
+			result, listErr := server.paymentDomain.ListOrders(request.Context(), auth.TenantID, projectID, merchantID, provider, firstNonEmpty(request.URL.Query().Get("status"), stringValue(body, "status")), limit)
+			writeEnvelopeResult(writer, http.StatusOK, result.Result, listErr)
+		case "refunds":
+			result, listErr := server.paymentDomain.ListRefunds(request.Context(), auth.TenantID, projectID, merchantID, provider, firstNonEmpty(request.URL.Query().Get("status"), stringValue(body, "status")), limit)
+			writeEnvelopeResult(writer, http.StatusOK, result.Result, listErr)
+		case "notifications":
+			result, listErr := server.paymentDomain.ListNotifications(request.Context(), auth.TenantID, projectID, merchantID, provider, limit)
+			writeEnvelopeResult(writer, http.StatusOK, result.Result, listErr)
+		case "bills":
+			result, listErr := server.paymentDomain.ListBillEntries(request.Context(), auth.TenantID, projectID, merchantID, provider, firstNonEmpty(request.URL.Query().Get("match_status"), stringValue(body, "match_status")), limit)
+			writeEnvelopeResult(writer, http.StatusOK, result.Result, listErr)
+		default:
+			writeError(writer, http.StatusNotFound, "not_found", "route not found")
+		}
+		return
+	}
+	if request.Method == http.MethodGet && len(parts) == 3 {
+		if !server.preflightRequest(writer, auth, projectID, ScopeBillingRead, "payment."+resource+".get") {
+			return
+		}
+		provider, id := parts[1], parts[2]
+		switch resource {
+		case "orders":
+			result, getErr := server.paymentDomain.GetOrder(request.Context(), auth.TenantID, projectID, merchantID, provider, id)
+			writeEnvelopeResult(writer, http.StatusOK, result.Result, getErr)
+		case "refunds":
+			result, getErr := server.paymentDomain.GetRefund(request.Context(), auth.TenantID, projectID, merchantID, provider, id)
+			writeEnvelopeResult(writer, http.StatusOK, result.Result, getErr)
+		case "notifications":
+			result, getErr := server.paymentDomain.GetNotification(request.Context(), auth.TenantID, projectID, merchantID, provider, id)
+			writeEnvelopeResult(writer, http.StatusOK, result.Result, getErr)
+		case "bills":
+			result, getErr := server.paymentDomain.GetBillEntry(request.Context(), auth.TenantID, projectID, merchantID, provider, id)
+			writeEnvelopeResult(writer, http.StatusOK, result.Result, getErr)
+		default:
+			writeError(writer, http.StatusNotFound, "not_found", "route not found")
+		}
 		return
 	}
 	writeError(writer, http.StatusNotFound, "not_found", "route not found")
@@ -671,6 +946,27 @@ func GoRouteManifestEntries() []RouteManifestEntry {
 		goPublicRoute("GET", "/v1/healthz", "health", "system"),
 		goPublicRoute("GET", "/openapi.json", "openapi", "system"),
 		goPublicRoute("GET", "/v1/openapi.json", "openapi", "system"),
+		goScopedRoute("GET", "/v1/accounts/{account_id}", "identity.account.get", "identity"),
+		goScopedRoute("GET", "/v1/accounts/{account_id}/credentials", "identity.credentials.list", "identity"),
+		goScopedRoute("GET", "/v1/accounts/{account_id}/memberships", "identity.memberships.list", "identity"),
+		goScopedRoute("POST", "/v1/projects/{project_id}/accounts/{account_id}/browser-sessions/refresh", "identity.browser_session.refresh", "identity"),
+		// Reserved fail-closed contracts:
+		// POST /v1/accounts/{account_id}/credentials/{provider}/link
+		// DELETE /v1/accounts/{account_id}/credentials/{credential_id}/unlink
+		// They stay out of the public manifest until a provider-verified
+		// server-side assertion boundary is available.
+		goScopedRoute("GET", "/v1/projects/{project_id}/oauth/github/start", "oauth.github.start", "oauth"),
+		goScopedRoute("POST", "/v1/projects/{project_id}/oauth/github/start", "oauth.github.start", "oauth"),
+		goPublicRoute("GET", "/oauth/github/callback", "oauth.github.callback", "oauth"),
+		goScopedRoute("GET", "/v1/projects/{project_id}/oauth/github/connection", "oauth.github.connection", "oauth"),
+		goScopedRoute("POST", "/v1/projects/{project_id}/oauth/github/disconnect", "oauth.github.disconnect", "oauth"),
+		goScopedRoute("DELETE", "/v1/projects/{project_id}/oauth/github/disconnect", "oauth.github.disconnect", "oauth"),
+		goScopedRoute("GET", "/v1/projects/{project_id}/oauth/google/start", "oauth.google.start", "oauth"),
+		goScopedRoute("POST", "/v1/projects/{project_id}/oauth/google/start", "oauth.google.start", "oauth"),
+		goPublicRoute("GET", "/oauth/google/callback", "oauth.google.callback", "oauth"),
+		goScopedRoute("GET", "/v1/projects/{project_id}/oauth/google/connection", "oauth.google.connection", "oauth"),
+		goScopedRoute("POST", "/v1/projects/{project_id}/oauth/google/disconnect", "oauth.google.disconnect", "oauth"),
+		goScopedRoute("DELETE", "/v1/projects/{project_id}/oauth/google/disconnect", "oauth.google.disconnect", "oauth"),
 		goPublicRoute("POST", "/bootstrap", "bootstrap_project", "bootstrap"),
 		goPublicRoute("POST", "/v1/bootstrap", "bootstrap_project", "bootstrap"),
 		goScopedRoute("POST", "/v1/projects/{project_id}/api-keys", "api_key.create", "auth", ScopeAPIKeyWrite),
@@ -690,6 +986,22 @@ func GoRouteManifestEntries() []RouteManifestEntry {
 		goScopedRoute("POST", "/v1/projects/{project_id}/billing/portal-plan", "billing.portal_plan", "billing", ScopeBillingWrite),
 		goScopedRoute("POST", "/v1/projects/{project_id}/billing/webhooks/ingest", "billing.webhook_ingest", "billing", ScopeBillingWebhookIngest),
 		goScopedRoute("GET", "/v1/projects/{project_id}/billing/ledger", "billing.ledger", "billing", ScopeBillingRead),
+		goScopedRoute("POST", "/v1/projects/{project_id}/billing/reconciliation/events", "payment.reconciliation.receive", "billing", ScopeBillingWebhookIngest),
+		goScopedRoute("GET", "/v1/projects/{project_id}/billing/reconciliation/events", "payment.reconciliation.list", "billing", ScopeBillingRead),
+		goScopedRoute("GET", "/v1/projects/{project_id}/billing/reconciliation/events/{provider}/{event_id}", "payment.reconciliation.get", "billing", ScopeBillingRead),
+		goScopedRoute("GET", "/v1/projects/{project_id}/billing/payments/providers", "payment.provider.list", "billing", ScopeBillingRead),
+		goScopedRoute("POST", "/v1/projects/{project_id}/billing/payments/orders", "payment.orders.receive", "billing", ScopeBillingWrite),
+		goScopedRoute("GET", "/v1/projects/{project_id}/billing/payments/orders", "payment.orders.list", "billing", ScopeBillingRead),
+		goScopedRoute("GET", "/v1/projects/{project_id}/billing/payments/orders/{provider}/{merchant_order_id}", "payment.orders.get", "billing", ScopeBillingRead),
+		goScopedRoute("POST", "/v1/projects/{project_id}/billing/payments/refunds", "payment.refunds.receive", "billing", ScopeBillingWrite),
+		goScopedRoute("GET", "/v1/projects/{project_id}/billing/payments/refunds", "payment.refunds.list", "billing", ScopeBillingRead),
+		goScopedRoute("GET", "/v1/projects/{project_id}/billing/payments/refunds/{provider}/{merchant_refund_id}", "payment.refunds.get", "billing", ScopeBillingRead),
+		goScopedRoute("POST", "/v1/projects/{project_id}/billing/payments/notifications", "payment.notifications.receive", "billing", ScopeBillingWebhookIngest),
+		goScopedRoute("GET", "/v1/projects/{project_id}/billing/payments/notifications", "payment.notifications.list", "billing", ScopeBillingRead),
+		goScopedRoute("GET", "/v1/projects/{project_id}/billing/payments/notifications/{provider}/{event_id}", "payment.notifications.get", "billing", ScopeBillingRead),
+		goScopedRoute("POST", "/v1/projects/{project_id}/billing/payments/bills", "payment.bills.receive", "billing", ScopeBillingWebhookIngest),
+		goScopedRoute("GET", "/v1/projects/{project_id}/billing/payments/bills", "payment.bills.list", "billing", ScopeBillingRead),
+		goScopedRoute("GET", "/v1/projects/{project_id}/billing/payments/bills/{provider}/{bill_entry_id}", "payment.bills.get", "billing", ScopeBillingRead),
 		goScopedRoute("GET", "/v1/projects/{project_id}/audit-log", "audit_log", "audit", ScopeAuditRead),
 		goScopedRoute("GET", "/v1/projects/{project_id}/audit-chain/verify", "audit.chain.verify", "audit", ScopeAuditRead),
 		goScopedRoute("POST", "/v1/projects/{project_id}/audit-chain/verify", "audit.chain.verify", "audit", ScopeAuditRead),
@@ -748,7 +1060,7 @@ func GoScopeManifest(entries []RouteManifestEntry) map[string][]ScopeManifestEnt
 func GoRouteScopeDocs(entries []RouteManifestEntry) RouteScopeDocs {
 	groups := []RouteScopeDocGroup{
 		goRouteScopeDocGroup(entries, "usage_quota", []string{"usage", "usage_quota.configure"}),
-		goRouteScopeDocGroup(entries, "billing_contract", []string{"billing.checkout_plan", "billing.portal_plan", "billing.webhook_ingest", "billing.ledger"}),
+		goRouteScopeDocGroup(entries, "billing_contract", []string{"billing.checkout_plan", "billing.portal_plan", "billing.webhook_ingest", "billing.ledger", "payment.reconciliation.receive", "payment.reconciliation.list", "payment.reconciliation.get"}),
 		goRouteScopeDocGroup(entries, "run_lifecycle", []string{"lifecycle"}),
 		goRouteScopeDocGroup(entries, "audit", []string{"audit.chain.verify", "audit_log"}),
 	}
@@ -885,12 +1197,24 @@ func writeEnvelopeResult[T any](writer http.ResponseWriter, status int, result T
 
 func writeServiceError(writer http.ResponseWriter, err error) {
 	var conflict IdempotencyConflictError
+	var paymentConflict PaymentDomainConflictError
+	var paymentVerificationRequired PaymentNotificationVerificationRequiredError
+	var reconciliationConflict PaymentReconciliationConflictError
+	var reconciliationTransition PaymentReconciliationTransitionError
 	var notFound NotFoundError
 	var authz AuthzError
 	var quota QuotaExceededError
 	switch {
 	case errors.As(err, &conflict):
 		writeError(writer, http.StatusConflict, "idempotency_conflict", conflict.Error())
+	case errors.As(err, &paymentConflict):
+		writeError(writer, http.StatusConflict, "payment_domain_conflict", paymentConflict.Error())
+	case errors.As(err, &paymentVerificationRequired):
+		writeError(writer, http.StatusForbidden, "trusted_payment_verification_required", paymentVerificationRequired.Error())
+	case errors.As(err, &reconciliationConflict):
+		writeError(writer, http.StatusConflict, "payment_reconciliation_conflict", reconciliationConflict.Error())
+	case errors.As(err, &reconciliationTransition):
+		writeError(writer, http.StatusConflict, "payment_reconciliation_transition_conflict", reconciliationTransition.Error())
 	case errors.As(err, &notFound):
 		writeError(writer, http.StatusNotFound, "not_found", notFound.Error())
 	case errors.As(err, &authz):
@@ -1018,6 +1342,16 @@ func billingWebhookFromBody(tenantID, projectID string, body JSONMap) BillingWeb
 	return BillingWebhookIngest{SchemaVersion: ControlPlaneSchemaVersion, TenantID: tenantID, ProjectID: projectID, EventID: stringValue(body, "event_id"), EventType: stringValue(body, "event_type"), Provider: stringValue(body, "provider"), Mode: stringValue(body, "mode"), PlanID: stringValue(body, "plan_id"), CustomerRef: stringValue(body, "customer_ref"), Status: stringValue(body, "status"), PayloadSHA256: stringValue(body, "payload_sha256"), SignatureHeaderPresent: boolValue(body, "signature_header_present"), WebhookSecretRef: stringValue(body, "webhook_secret_ref"), Livemode: boolValue(body, "livemode"), Metadata: mapValue(body, "metadata")}
 }
 
+func paymentEventEnvelopeFromBody(body JSONMap) PaymentEventHashEnvelope {
+	return PaymentEventHashEnvelope{
+		Provider:        stringValue(body, "provider"),
+		ProviderEventID: firstNonEmpty(stringValue(body, "provider_event_id"), stringValue(body, "event_id")),
+		EventType:       stringValue(body, "event_type"),
+		PayloadSHA256:   stringValue(body, "payload_sha256"),
+		HeadersSHA256:   stringValue(body, "headers_sha256"),
+	}
+}
+
 func jsonMapFromAny(value any) JSONMap {
 	switch typed := value.(type) {
 	case JSONMap:
@@ -1043,6 +1377,39 @@ func intFromQueryOrBody(raw string, body JSONMap, key string) (int, error) {
 		return strconv.Atoi(raw)
 	}
 	return intValue(body, key), nil
+}
+
+func strictInt64Value(body JSONMap, key string) (int64, error) {
+	value, ok := body[key]
+	if !ok {
+		return 0, fmt.Errorf("%s is required", key)
+	}
+	switch typed := value.(type) {
+	case json.Number:
+		result, err := typed.Int64()
+		if err != nil {
+			return 0, fmt.Errorf("%s must be an integer within int64 range", key)
+		}
+		return result, nil
+	case int64:
+		return typed, nil
+	case int:
+		return int64(typed), nil
+	default:
+		return 0, fmt.Errorf("%s must be an integer within int64 range", key)
+	}
+}
+
+func optionalPaymentTime(body JSONMap, key string) (time.Time, error) {
+	raw := strings.TrimSpace(stringValue(body, key))
+	if raw == "" {
+		return time.Time{}, nil
+	}
+	value, err := time.Parse(time.RFC3339Nano, raw)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("%s must be an RFC3339 timestamp", key)
+	}
+	return value.UTC(), nil
 }
 
 func intValue(body JSONMap, key string) int {

@@ -32,6 +32,7 @@ from services.judge.sdk_parity import build_sdk_parity_report  # noqa: E402
 from services.judge.semantic_collection import build_semantic_judge_collection_packet  # noqa: E402
 from services.judge.semantic_harness import build_semantic_harness_report  # noqa: E402
 from services.judge.sql_store import build_sql_store_report  # noqa: E402
+from services.judge.trusted_spine import build_trusted_spine_handoff  # noqa: E402
 from services.judge.unblock_checklist import build_release_unblock_checklist  # noqa: E402
 from services.judge.versioning import build_judge_version_registry  # noqa: E402
 
@@ -68,6 +69,7 @@ DEFAULT_JUDGE_VERSIONS = DEFAULT_RESULT_DIR / "a2_judge_versions.json"
 DEFAULT_SQL_STORE = DEFAULT_RESULT_DIR / "a2_sql_store_report.json"
 DEFAULT_SCENARIO_GENERATION_BACKLOG = DEFAULT_RESULT_DIR / "a2_scenario_generation_backlog.json"
 DEFAULT_CROSS_LANE_SECURITY = DEFAULT_RESULT_DIR / "a2_cross_lane_security_context.json"
+DEFAULT_TRUSTED_SPINE_HANDOFF = DEFAULT_RESULT_DIR / "a2_trusted_spine_handoff.json"
 
 
 def main() -> int:
@@ -108,6 +110,7 @@ def main() -> int:
     parser.add_argument("--sql-store", default=DEFAULT_SQL_STORE.as_posix())
     parser.add_argument("--scenario-generation-backlog", default=DEFAULT_SCENARIO_GENERATION_BACKLOG.as_posix())
     parser.add_argument("--cross-lane-security", default=DEFAULT_CROSS_LANE_SECURITY.as_posix())
+    parser.add_argument("--trusted-spine-handoff", default=DEFAULT_TRUSTED_SPINE_HANDOFF.as_posix())
     args = parser.parse_args()
 
     if args.check and args.write:
@@ -147,6 +150,7 @@ def main() -> int:
         sql_store_path=Path(args.sql_store),
         scenario_generation_backlog_path=Path(args.scenario_generation_backlog),
         cross_lane_security_path=Path(args.cross_lane_security),
+        trusted_spine_handoff_path=Path(args.trusted_spine_handoff),
     )
 
     if args.check:
@@ -191,6 +195,7 @@ def generate_outputs(
     sql_store_path: Path,
     scenario_generation_backlog_path: Path,
     cross_lane_security_path: Path,
+    trusted_spine_handoff_path: Path,
 ) -> dict[Path, dict[str, Any]]:
     run_fixtures = load_run_fixtures(run_dir)
     outputs: dict[Path, dict[str, Any]] = {}
@@ -342,6 +347,17 @@ def generate_outputs(
     outputs[scenario_generation_backlog_path] = scenario_generation_backlog
     cross_lane_security_context = build_cross_lane_security_context()
     outputs[cross_lane_security_path] = cross_lane_security_context
+    media_fixture = next(
+        fixture
+        for _, fixture in run_fixtures
+        if fixture.get("case_id") == "sample-a2-s031-media-pipeline-pass"
+    )
+    media_grade = outputs[result_dir / "a2_s031_media_pipeline_pass_grade.json"]
+    outputs[trusted_spine_handoff_path] = build_trusted_spine_handoff(
+        media_fixture,
+        media_grade,
+        release_gate,
+    )
     release_policy_config = json.loads(release_policy_config_path.read_text(encoding="utf-8"))
     outputs[saas_control_plane_path] = build_saas_control_plane_report(
         grade_report=outputs[grade_report_path],

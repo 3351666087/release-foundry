@@ -20,6 +20,34 @@ from .scenario_selection import build_project_scenario_selection, build_scenario
 from .sdk_parity import build_sdk_parity_report
 from .semantic_harness import build_semantic_harness_report
 from .sql_store import build_sql_store_report, initialize_sql_store
+from .trusted_spine import (
+    build_decision_ledger,
+    build_decision_record,
+    build_evidence_snapshot,
+    build_trusted_spine_handoff,
+)
+from .provider_gateway import (
+    OllamaAdapter,
+    ProviderDefinition,
+    ProviderGateway,
+    StrictFakeAdapter,
+    default_provider_catalog,
+)
+from .provider_runtime import (
+    BudgetManager,
+    CircuitBreaker,
+    EnvironmentCredentialResolver,
+    ModelRecord,
+    ModelRegistry,
+    OllamaDiscovery,
+    OpenAICompatibleAdapter,
+    RetryPolicy,
+    TenantProviderPolicy,
+    build_local_smoke_evidence,
+    build_provider_provenance_handoff,
+    validate_semantic_judge_output,
+    verify_authenticated_evidence_bundle,
+)
 from .unblock_checklist import build_release_unblock_checklist
 from .service_wrapper import (
     CALIBRATION_EVALUATE_ENDPOINT,
@@ -53,6 +81,18 @@ __all__ = [
     "GradeResult",
     "GroundingJudge",
     "OutcomeJudge",
+    "OllamaAdapter",
+    "OllamaDiscovery",
+    "OpenAICompatibleAdapter",
+    "ProviderDefinition",
+    "ProviderGateway",
+    "ModelRecord",
+    "ModelRegistry",
+    "TenantProviderPolicy",
+    "EnvironmentCredentialResolver",
+    "BudgetManager",
+    "RetryPolicy",
+    "CircuitBreaker",
     "CALIBRATION_EVALUATE_ENDPOINT",
     "REGRESSION_REPLAY_ENDPOINT",
     "RELEASE_UNBLOCK_CHECKLIST_ENDPOINT",
@@ -60,6 +100,7 @@ __all__ = [
     "SafetyBoundaryJudge",
     "TraceIntegrityJudge",
     "ToolPolicyJudge",
+    "StrictFakeAdapter",
     "build_batch_plan_report",
     "build_calibration_matrix",
     "build_case_book_report",
@@ -79,6 +120,15 @@ __all__ = [
     "build_sdk_parity_report",
     "build_semantic_harness_report",
     "build_sql_store_report",
+    "build_decision_ledger",
+    "build_decision_record",
+    "build_local_smoke_evidence",
+    "build_provider_provenance_handoff",
+    "build_evidence_snapshot",
+    "build_trusted_spine_handoff",
+    "default_provider_catalog",
+    "validate_semantic_judge_output",
+    "verify_authenticated_evidence_bundle",
     "handle_internal_request",
     "import_ashr_grading_observations",
     "import_semantic_judge_observations",

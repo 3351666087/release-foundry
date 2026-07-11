@@ -1,4 +1,4 @@
-export const A3_LIVE_OPS_CONTROL_PLANE_SCHEMA_VERSION = "a3.live_ops_control_plane.v1";
+﻿export const A3_LIVE_OPS_CONTROL_PLANE_SCHEMA_VERSION = "a3.live_ops_control_plane.v1";
 
 export function buildA3LiveOpsControlPlane(inputs = {}, options = {}) {
   const releaseEvidence = inputs.releaseEvidence || inputs.release_evidence || {};
@@ -6,6 +6,7 @@ export function buildA3LiveOpsControlPlane(inputs = {}, options = {}) {
   const usageLedger = inputs.usageLedger || inputs.usage_ledger || {};
   const billingReadiness = inputs.billingReadiness || inputs.billing_readiness || {};
   const reportCenter = inputs.reportCenter || inputs.report_center || {};
+  const saasAdmin = inputs.saasAdmin || inputs.saas_admin || {};
   const eventOutbox = inputs.eventOutbox || inputs.event_outbox || {};
   const liveWorkflowReadiness = inputs.liveWorkflowReadiness || inputs.live_workflow_readiness || {};
   const source = options.source || inputs.source || liveWorkflowReadiness.source || usageLedger.source || "mock";
@@ -27,6 +28,21 @@ export function buildA3LiveOpsControlPlane(inputs = {}, options = {}) {
     local_external_mutation_count: lanes.filter((item) => item.real_external_mutation_performed_locally).length,
     missing_contract_count: lanes.filter((item) => item.status === "missing_contract").length
   };
+  const releasePublishChain = buildReleasePublishChain({
+    releaseEvidence,
+    reviewWorkflow,
+    reportCenter,
+    usageLedger,
+    billingReadiness
+  });
+  const commercialSignoffSummary = buildCommercialSignoffSummary({
+    releasePublishChain,
+    reviewWorkflow,
+    reportCenter,
+    usageLedger,
+    billingReadiness,
+    saasAdmin
+  });
 
   return {
     schema_version: A3_LIVE_OPS_CONTROL_PLANE_SCHEMA_VERSION,
@@ -80,8 +96,23 @@ export function buildA3LiveOpsControlPlane(inputs = {}, options = {}) {
       shareable_count: numberOr(reportCenter.summary?.shareable_count, 0),
       revoked_count: numberOr(reportCenter.summary?.revoked_count, 0),
       expired_count: numberOr(reportCenter.summary?.expired_count, 0),
-      total_view_count: numberOr(reportCenter.summary?.total_view_count, 0)
+      total_view_count: numberOr(reportCenter.summary?.total_view_count, 0),
+      latest_report_statuses: Array.isArray(reportCenter.reports)
+        ? reportCenter.reports.slice(-3).map((item) => ({
+            report_id: item.report_id,
+            status: item.status,
+            expires_at: item.expires_at || null,
+            revoked_at: item.revoked_at || null,
+            view_count: numberOr(item.view_count, 0)
+          }))
+        : []
     },
+    reviewer_timeline: buildReviewerTimeline(reviewWorkflow),
+    github_publish_timeline: buildGithubPublishTimeline(releaseEvidence),
+    share_link_timeline: buildShareLinkTimeline(reportCenter),
+    audit_history: buildAuditHistory(reviewWorkflow, eventOutbox, reportCenter),
+    release_publish_chain: releasePublishChain,
+    commercial_signoff_summary: commercialSignoffSummary,
     a1_a2_alignment: {
       a1_consumed_contracts: ["RunResult", "Trace", "ToolCall", "usage ledger / billing migration evidence"],
       a2_consumed_contracts: ["GradeResult", "ReleaseGate", "failure taxonomy", "cross-lane security context"],
@@ -118,15 +149,11 @@ function githubCheckLane(releaseEvidence = {}) {
         ? "publish_contract_ready"
         : "missing_contract",
     current_mode: livePostedByReceipt ? "live_mutation_receipt" : publishReady ? "dry_run_publish_plan" : "missing",
-    live_worker_ready: publishReady && Boolean(receipt.request?.requires_token_scope || receipt.requires_token_scope || "checks:write"),
+    live_worker_ready: publishReady && Boolean(receipt.plan?.requires_token_scope || receipt.requires_token_scope || "checks:write"),
     api_backed: publishReady,
     audit_backed: publishReady || readbackConfirmed,
     real_external_mutation_performed_locally: livePostedByReceipt,
-    evidence_sources: compact([
-      receipt.schema_version,
-      readback.schema_version,
-      readback.readback_id
-    ]),
+    evidence_sources: compact([receipt.schema_version, readback.schema_version, readback.readback_id]),
     api_routes: ["POST /internal/github/check-run", "POST /api/a3/releases/:releaseId/readbacks"],
     db_tables: ["release_evidence_readbacks", "event_outbox", "audit_events"],
     audit_events: ["github.check_publish_requested", "release_evidence.readback_captured"],
@@ -159,11 +186,7 @@ function prCommentLane(releaseEvidence = {}) {
     api_backed: publishReady,
     audit_backed: publishReady || readbackConfirmed,
     real_external_mutation_performed_locally: livePostedByReceipt,
-    evidence_sources: compact([
-      receipt.schema_version,
-      readback.schema_version,
-      readback.readback_id
-    ]),
+    evidence_sources: compact([receipt.schema_version, readback.schema_version, readback.readback_id]),
     api_routes: ["POST /internal/github/pr-comment", "POST /api/a3/releases/:releaseId/readbacks"],
     db_tables: ["release_evidence_readbacks", "event_outbox", "audit_events"],
     audit_events: ["github.pr_comment_publish_requested", "release_evidence.readback_captured"],
@@ -174,6 +197,148 @@ function prCommentLane(releaseEvidence = {}) {
       ? "Keep comment readback freshness visible beside reviewer workflow."
       : "Run PR comment upsert through a GitHub App/Action and capture sanitized readback."
   });
+}
+
+function buildReleasePublishChain({ releaseEvidence = {}, reviewWorkflow = {}, reportCenter = {}, usageLedger = {}, billingReadiness = {} } = {}) {
+  const reviewRecords = numberOr(reviewWorkflow.record_count, 0);
+  const approvals = numberOr(reviewWorkflow.approval_count, 0);
+  const denials = numberOr(reviewWorkflow.denial_count, 0);
+  const waivers = numberOr(reviewWorkflow.waiver_count, 0);
+  const reports = Array.isArray(reportCenter.reports) ? reportCenter.reports : [];
+  const shareableCount = reports.filter((item) => item.status === "shareable").length;
+  const githubTimeline = buildGithubPublishTimeline(releaseEvidence);
+  const checkReady = githubTimeline.some((item) => item.step?.includes("check") && item.status !== "missing_contract");
+  const commentReady = githubTimeline.some((item) => item.step?.includes("comment") && item.status !== "missing_contract");
+  const usageReady = usageLedger.status === "api_backed" || usageLedger.status === "read_only_calibrated" || Array.isArray(usageLedger.meters);
+  const billingReady = billingReadiness.status === "read_only_state_ready" || billingReadiness.schema_version === "a3.billing_readiness.v1";
+  const reviewerGateStatus = denials > 0
+    ? "blocked_by_denial"
+    : approvals > 0
+      ? "approved"
+      : reviewRecords > 0
+        ? "records_present_waiting_for_approval"
+        : "waiting_for_reviewer_records";
+  const publishStatus = denials > 0
+    ? "blocked_by_denial"
+    : approvals > 0 && shareableCount > 0 && checkReady
+      ? "ready_for_governed_publish"
+      : approvals > 0
+        ? "approved_waiting_for_publish_evidence"
+        : "waiting_for_reviewer_approval";
+  const blockerReasons = [];
+  if (denials > 0) {
+    blockerReasons.push(denials + " denial record(s) must be resolved before publish.");
+  }
+  if (approvals === 0) {
+    blockerReasons.push(reviewRecords > 0
+      ? "Reviewer records exist, but no approval has been accepted yet."
+      : "No reviewer approval record exists yet.");
+  }
+  if (!checkReady) {
+    blockerReasons.push("GitHub required-check publish path is not ready.");
+  }
+  if (!commentReady) {
+    blockerReasons.push("GitHub PR comment publish path is not ready.");
+  }
+  if (shareableCount === 0) {
+    blockerReasons.push("No shareable hosted report is available for governed publish.");
+  }
+  return {
+    schema_version: "a3.release_publish_chain.v1",
+    status: publishStatus,
+    reviewer_gate_status: reviewerGateStatus,
+    blocker_reasons: blockerReasons,
+    steps: [
+      {
+        step: "reviewer_records",
+        status: reviewerGateStatus,
+        detail: reviewRecords + " record(s), " + approvals + " approval(s), " + denials + " denial(s), " + waivers + " waiver(s)"
+      },
+      { step: "github_check_publish", status: checkReady ? "contract_ready" : "missing", detail: "PR gate check publication path" },
+      { step: "github_pr_comment", status: commentReady ? "contract_ready" : "missing", detail: "PR comment publication path" },
+      { step: "hosted_report_share", status: shareableCount > 0 ? "shareable" : "missing", detail: shareableCount + " shareable hosted report(s)" },
+      { step: "usage_visibility", status: usageReady ? "visible" : "missing", detail: (Array.isArray(usageLedger.meters) ? usageLedger.meters.length : 0) + " meter(s)" },
+      { step: "billing_visibility", status: billingReady ? "visible" : "missing", detail: billingReadiness.status || "unknown" }
+    ],
+    commercial_value: "Shows release owners one publish chain from reviewer evidence to GitHub gate, hosted report, usage, and billing posture.",
+    next_action: publishStatus === "ready_for_governed_publish"
+      ? "Keep reviewer records, GitHub publish receipts, hosted report lifecycle, and billing posture on one sign-off path."
+      : blockerReasons[0] || "Close the missing publish-chain steps before claiming governed release publication."
+  };
+}
+
+function buildCommercialSignoffSummary({
+  releasePublishChain = {},
+  reviewWorkflow = {},
+  reportCenter = {},
+  usageLedger = {},
+  billingReadiness = {},
+  saasAdmin = {}
+} = {}) {
+  const trust = saasAdmin.trust || {};
+  const billingAccount = saasAdmin.billing_account || {};
+  const reportSummary = reportCenter.summary || {};
+  const externalBlockers = reportCenter.external_publish_blockers || {};
+  const publishSteps = Array.isArray(releasePublishChain.steps) ? releasePublishChain.steps : [];
+  const stepStatus = (step) => publishSteps.find((item) => item.step === step)?.status || "missing";
+  const denialCount = numberOr(reviewWorkflow.denial_count, 0);
+  const approvalCount = numberOr(reviewWorkflow.approval_count, 0);
+  const customerExternalBlocked = trust.publish_enabled !== true
+    || numberOr(externalBlockers.blocker_count, 0) > 0;
+  const collectionsState = billingAccount.collections_posture?.state || "unknown";
+  const blockers = [...(releasePublishChain.blocker_reasons || [])];
+
+  if (customerExternalBlocked) {
+    blockers.push("Customer-external publication remains blocked until trust, redaction, and revocable hosted-audit controls are live.");
+  }
+  if (collectionsState === "watch_collections_now") {
+    blockers.push("Usage is over quota; billing owner review is required before customer expansion or renewal sign-off.");
+  }
+
+  const internalReady = releasePublishChain.status === "ready_for_governed_publish";
+  const status = denialCount > 0
+    ? "blocked_by_human_denial"
+    : internalReady && customerExternalBlocked
+      ? "internal_signoff_ready_customer_external_blocked"
+      : internalReady
+        ? "commercial_signoff_ready"
+        : "signoff_evidence_incomplete";
+  const requiredRoles = ["reviewer"];
+  if (denialCount > 0 || approvalCount === 0 || customerExternalBlocked) {
+    requiredRoles.push("owner");
+  }
+  if (collectionsState === "watch_collections_now") {
+    requiredRoles.push("billing_admin");
+  }
+
+  return {
+    schema_version: "a3.commercial_signoff_summary.v1",
+    status,
+    release_publish_status: releasePublishChain.status || "unknown",
+    customer_external_blocked: customerExternalBlocked,
+    required_roles: [...new Set(requiredRoles)],
+    evidence: {
+      reviewer_gate: releasePublishChain.reviewer_gate_status || "unknown",
+      approvals: approvalCount,
+      denials: denialCount,
+      github_check: stepStatus("github_check_publish"),
+      github_pr_comment: stepStatus("github_pr_comment"),
+      hosted_report: stepStatus("hosted_report_share"),
+      shareable_report_count: numberOr(reportSummary.shareable_count, 0),
+      trust_publish: trust.status || "unknown",
+      usage_visibility: stepStatus("usage_visibility"),
+      billing_visibility: stepStatus("billing_visibility"),
+      collections_state: collectionsState,
+      billing_mutations_enabled: billingReadiness.billing_mutations_enabled === true
+    },
+    blocker_reasons: [...new Set(blockers)],
+    commercial_value: "Compresses reviewer, GitHub, hosted-report, trust, usage, and billing evidence into one sign-off packet for release owners and buyers.",
+    next_action: status === "commercial_signoff_ready"
+      ? "Capture final owner receipt and preserve all readbacks in the audit bundle."
+      : status === "internal_signoff_ready_customer_external_blocked"
+        ? "Keep the release internal while trust/public-export controls and customer-safe audit publication are completed."
+        : blockers[0] || "Complete the missing reviewer and publish evidence before sign-off."
+  };
 }
 
 function reviewerDecisionLane(reviewWorkflow = {}) {
@@ -211,21 +376,21 @@ function humanOperationLane(reviewWorkflow = {}, eventOutbox = {}) {
     label: "Dashboard shows human operation records",
     product_surface: "Audit Log",
     status: visibleCount > 0 ? "visible" : "api_backed_no_records",
-    current_mode: visibleCount > 0 ? "audit_metadata_visible" : "waiting_for_human_actions",
+    current_mode: visibleCount > 0 ? "visible_records" : "api_backed_no_records",
     live_worker_ready: true,
     api_backed: true,
     audit_backed: visibleCount > 0,
     real_external_mutation_performed_locally: false,
     evidence_sources: compact([reviewWorkflow.schema_version, eventOutbox.schema_version]),
-    api_routes: ["GET /api/a3/events/outbox", "GET /api/a3/review/workflow", "GET /api/a3/admin/actions"],
-    db_tables: ["event_outbox", "audit_events", "review_workflow_records", "saas_admin_action_requests"],
-    audit_events: ["review.*", "admin_action.*", "report.*", "release_evidence.readback_captured"],
-    dashboard_fields: ["event id", "event type", "resource id", "delivery status", "payload hash prefix", "actor hash"],
-    a1_dependency: "A1 durable audit/outbox backend will replace local memory/file persistence.",
-    a2_dependency: "A2 can consume cross-lane security context from these records.",
+    api_routes: ["GET /api/a3/review/workflow", "GET /api/a3/events/outbox"],
+    db_tables: ["review_workflow_records", "event_outbox", "audit_events"],
+    audit_events: ["approval.submitted", "denial.submitted", "waiver.submitted", "audit_event.created"],
+    dashboard_fields: ["record type", "accepted", "actor hash", "event count", "latest action"],
+    a1_dependency: "A1 later feeds hosted operator events and durable outbox delivery receipts.",
+    a2_dependency: "A2 gate and waiver semantics determine which human operations matter.",
     next_action: visibleCount > 0
-      ? "Promote the latest human events into dashboard timeline and report manifests."
-      : "Create one review/admin/report action so dashboard has real operation rows to show."
+      ? "Render a reviewer/audit timeline beside release evidence and share governance."
+      : "Create one human operation receipt so the dashboard stops being an empty audit shell."
   });
 }
 
@@ -302,6 +467,76 @@ function lane(value = {}) {
     a2_dependency: value.a2_dependency,
     next_action: value.next_action
   };
+}
+
+function buildReviewerTimeline(reviewWorkflow = {}) {
+  const records = Array.isArray(reviewWorkflow.records) ? reviewWorkflow.records : [];
+  return records.slice(-6).reverse().map((item, index) => ({
+    timeline_id: item.record_id || `review-${index}`,
+    record_type: item.record_type || "review",
+    status: item.accepted === true ? "accepted" : item.accepted === false ? "rejected" : (item.status || "recorded"),
+    actor_hash: item.actor_hash || item.reviewer_hash || "redacted-actor",
+    reason: item.reason || item.summary || "No reviewer reason recorded.",
+    created_at: item.created_at || item.recorded_at || null
+  }));
+}
+
+function buildGithubPublishTimeline(releaseEvidence = {}) {
+  const check = releaseEvidence.githubCheckPublishReceipt || releaseEvidence.github_check_publish || {};
+  const comment = releaseEvidence.githubPrCommentPublishReceipt || releaseEvidence.github_pr_comment_publish || {};
+  const readbacks = Array.isArray(releaseEvidence.readback_records) ? releaseEvidence.readback_records : [];
+  return [
+    {
+      step: "check_publish",
+      status: check.status || "missing",
+      dry_run: check.dry_run === true,
+      target: check.check_name || check.name || "unknown_check"
+    },
+    {
+      step: "pr_comment_publish",
+      status: comment.status || "missing",
+      dry_run: comment.dry_run === true,
+      target: comment.comment_id || comment.pr_number || "unknown_comment_target"
+    },
+    {
+      step: "readback_verification",
+      status: readbacks.length > 0 ? "observed" : "missing",
+      dry_run: false,
+      target: `${readbacks.length} readback record(s)`
+    }
+  ];
+}
+
+function buildShareLinkTimeline(reportCenter = {}) {
+  const reports = Array.isArray(reportCenter.reports) ? reportCenter.reports : [];
+  return reports.slice(-4).reverse().map((item, index) => ({
+    timeline_id: item.report_id || `report-${index}`,
+    status: item.status || "unknown",
+    expires_at: item.expires_at || null,
+    revoked_at: item.revoked_at || null,
+    share_url_path: item.share_url_path || null,
+    view_count: numberOr(item.view_count, 0)
+  }));
+}
+
+function buildAuditHistory(reviewWorkflow = {}, eventOutbox = {}, reportCenter = {}) {
+  const events = [];
+  for (const item of (reviewWorkflow.records || []).slice(-3)) {
+    events.push({
+      event_type: `review.${item.record_type || "recorded"}`,
+      status: item.accepted === true ? "accepted" : item.accepted === false ? "rejected" : "recorded"
+    });
+  }
+  for (const item of (reportCenter.reports || []).slice(-2)) {
+    events.push({
+      event_type: `report.${item.status || "unknown"}`,
+      status: item.status || "unknown"
+    });
+  }
+  if (numberOr(eventOutbox.event_count, 0) > 0) {
+    events.push({ event_type: "event_outbox.visible", status: String(eventOutbox.event_count) });
+  }
+  return events.slice(-6).reverse();
 }
 
 function findReadback(releaseEvidence = {}, resourceKind) {

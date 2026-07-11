@@ -3,6 +3,7 @@ package ashrclone
 import (
 	"errors"
 	"testing"
+	"time"
 )
 
 func TestMemoryServiceAPIKeyLifecyclePreflightAndQuota(t *testing.T) {
@@ -268,7 +269,7 @@ func TestMemoryServiceWorkerJobLifecycleRetriesAndCompletes(t *testing.T) {
 	}
 }
 
-func TestMemoryServiceWorkerJobLeaseExpiryAndDeadLetter(t *testing.T) {
+func TestMemoryServiceWorkerJobFinalLeaseExpiryDeadLetters(t *testing.T) {
 	service := NewMemoryService()
 	if _, err := service.BootstrapProject("Tenant", "Worker Queue", Dataset{Name: "Dataset"}, "tenant_worker", "project_worker"); err != nil {
 		t.Fatal(err)
@@ -291,16 +292,39 @@ func TestMemoryServiceWorkerJobLeaseExpiryAndDeadLetter(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if released.Result.Job == nil || released.Result.Job.LeaseOwnerID != "new_owner" || released.Result.Job.Attempts != 2 {
-		t.Fatalf("expected expired lease to become leaseable, got %#v", released.Result)
+	if released.Result.Leased || released.Result.Job != nil {
+		t.Fatalf("final expired lease must not be leased again, got %#v", released.Result)
 	}
-	dead, err := service.FailWorkerJob("tenant_worker", "project_worker", "job_dead", "new_owner", JSONMap{"message": "no more retries"}, FailWorkerJobOptions{})
+	jobs, err := service.ListWorkerJobs("tenant_worker", "project_worker", ListWorkerJobsOptions{Status: WorkerJobStatusDeadLettered})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if dead.Result.Status != WorkerJobStatusDeadLettered || dead.Result.DeadLetteredAt == nil || dead.Result.AvailableAt != nil {
-		t.Fatalf("expected dead-lettered terminal job, got %#v", dead.Result)
+	if jobs.Result.Count != 1 {
+		t.Fatalf("expected one dead-lettered job, got %#v", jobs.Result)
 	}
+	dead := jobs.Result.Jobs[0]
+	if dead.Status != WorkerJobStatusDeadLettered || dead.DeadLetteredAt == nil || dead.AvailableAt != nil || dead.Attempts != 1 {
+		t.Fatalf("expected final lease expiry to dead-letter, got %#v", dead)
+	}
+	if dead.LastError == nil || dead.LastError.Type != "worker_lease_expired" || dead.LastError.SHA256 == "" || dead.LastError.RawPayloadIncluded {
+		t.Fatalf("expected public-safe lease expiry error, got %#v", dead.LastError)
+	}
+}
+
+func TestRecoverExpiredWorkerLeaseRetriesBeforeFinalAttempt(t *testing.T) {
+	now := time.Unix(100, 0).UTC()
+	job := WorkerJob{Status: WorkerJobStatusLeased, Attempts: 1, MaxAttempts: 2, LeaseOwnerID: "worker_a", LeaseExpiresAt: timePointer(now.Add(-time.Second))}
+	recovered := recoverExpiredWorkerLease(job, now)
+	if recovered.Status != WorkerJobStatusRetrying || recovered.AvailableAt == nil || !recovered.AvailableAt.Equal(now) || recovered.DeadLetteredAt != nil {
+		t.Fatalf("expected retryable recovery, got %#v", recovered)
+	}
+	if recovered.LeaseOwnerID != "" || recovered.LeaseExpiresAt != nil || recovered.LastError == nil || recovered.LastError.Type != "worker_lease_expired" {
+		t.Fatalf("expected released lease with expiry evidence, got %#v", recovered)
+	}
+}
+
+func timePointer(value time.Time) *time.Time {
+	return &value
 }
 
 func TestMemoryServiceAuditLogAndReleaseEvidencePacket(t *testing.T) {

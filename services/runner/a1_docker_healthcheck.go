@@ -2,9 +2,11 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -33,5 +35,30 @@ func main() {
 	if response.StatusCode != http.StatusOK {
 		fmt.Fprintf(os.Stderr, "healthcheck returned HTTP %d\n", response.StatusCode)
 		os.Exit(1)
+	}
+
+	if len(os.Args) > 2 {
+		var payload struct {
+			Status       string `json:"status"`
+			Backend      string `json:"backend"`
+			BackendReady bool   `json:"backend_ready"`
+			LocalOnly    bool   `json:"local_only"`
+		}
+		if err := json.NewDecoder(response.Body).Decode(&payload); err != nil {
+			fmt.Fprintf(os.Stderr, "decode healthcheck response: %v\n", err)
+			os.Exit(1)
+		}
+		expectedBackend := strings.TrimSpace(os.Args[2])
+		if payload.Status != "ok" || payload.Backend != expectedBackend || !payload.BackendReady || payload.LocalOnly {
+			fmt.Fprintf(
+				os.Stderr,
+				"healthcheck fail closed: status=%q backend=%q ready=%t local_only=%t\n",
+				payload.Status,
+				payload.Backend,
+				payload.BackendReady,
+				payload.LocalOnly,
+			)
+			os.Exit(1)
+		}
 	}
 }

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any, Mapping, Sequence
@@ -59,6 +60,31 @@ def build_parser() -> argparse.ArgumentParser:
     key_rate_snapshot = subparsers.add_parser("api-key-rate-limits", help="Read local per-key operation rate-limit buckets.")
     _add_project_args(key_rate_snapshot)
     key_rate_snapshot.add_argument("--key-id")
+
+    oauth_start = subparsers.add_parser(
+        "oauth-connect-start",
+        help="Start a hosted provider account connection without accepting callback credentials.",
+    )
+    _add_project_args(oauth_start)
+    oauth_start.add_argument("--provider", choices=("github", "google"), required=True)
+    oauth_start.add_argument("--account-id", required=True)
+    oauth_start.add_argument("--expected-google-audience")
+
+    oauth_disconnect = subparsers.add_parser(
+        "oauth-disconnect",
+        help="Revoke and disconnect a hosted provider account connection.",
+    )
+    _add_project_args(oauth_disconnect)
+    oauth_disconnect.add_argument("--provider", choices=("github", "google"), required=True)
+    oauth_disconnect.add_argument("--account-id", required=True)
+
+    oauth_connection = subparsers.add_parser(
+        "oauth-connection",
+        help="Read a redacted hosted provider account connection.",
+    )
+    _add_project_args(oauth_connection)
+    oauth_connection.add_argument("--provider", choices=("github", "google"), required=True)
+    oauth_connection.add_argument("--account-id", required=True)
 
     submit = subparsers.add_parser("sdk-submit", help="Create a local SDK-submitted queued run.")
     _add_project_args(submit)
@@ -121,7 +147,7 @@ def build_parser() -> argparse.ArgumentParser:
     portal.add_argument("--idempotency-key")
     portal.add_argument("--auth-key-id")
 
-    webhook = subparsers.add_parser("billing-webhook-ingest", help="Ingest a hash-only billing webhook envelope into the local billing ledger.")
+    webhook = subparsers.add_parser("billing-webhook-ingest", help="Verify and ingest a provider webhook into the local billing ledger.")
     _add_project_args(webhook)
     webhook.add_argument("--provider", required=True)
     webhook.add_argument("--mode", required=True)
@@ -129,6 +155,12 @@ def build_parser() -> argparse.ArgumentParser:
     webhook.add_argument("--event-id", required=True)
     webhook.add_argument("--payload-sha256", required=True)
     webhook.add_argument("--signature-header-present", action="store_true")
+    webhook.add_argument("--signature-header-name", action="append", dest="signature_header_names")
+    webhook.add_argument("--raw-body")
+    webhook.add_argument("--stripe-signature-header")
+    webhook.add_argument("--webhook-signing-material-env", help="Name of an environment variable containing local synthetic Stripe signing material.")
+    webhook.add_argument("--received-at-unix", type=int)
+    webhook.add_argument("--tolerance-seconds", type=int, default=300)
     webhook.add_argument("--webhook-secret-ref")
     webhook.add_argument("--livemode", action="store_true")
     webhook.add_argument("--customer-ref")
@@ -222,6 +254,28 @@ def run_command(args: argparse.Namespace) -> dict[str, Any]:
         envelope = client.configure_api_key_rate_limit(args.tenant_id, args.project_id, args.key_id, operation=args.operation, limit=args.limit, period=args.period, auth_key_id=args.auth_key_id)
     elif command == "api-key-rate-limits":
         envelope = client.api_key_rate_limit_snapshot(args.tenant_id, args.project_id, key_id=args.key_id)
+    elif command == "oauth-connect-start":
+        envelope = client.start_account_connection(
+            args.tenant_id,
+            args.project_id,
+            provider=args.provider,
+            account_id=args.account_id,
+            expected_google_audience=args.expected_google_audience,
+        )
+    elif command == "oauth-disconnect":
+        envelope = client.disconnect_account_connection(
+            args.tenant_id,
+            args.project_id,
+            provider=args.provider,
+            account_id=args.account_id,
+        )
+    elif command == "oauth-connection":
+        envelope = client.get_account_connection(
+            args.tenant_id,
+            args.project_id,
+            provider=args.provider,
+            account_id=args.account_id,
+        )
     elif command == "sdk-submit":
         envelope = client.sdk_submit(
             args.tenant_id,
@@ -287,6 +341,16 @@ def run_command(args: argparse.Namespace) -> dict[str, Any]:
             auth_key_id=args.auth_key_id,
         )
     elif command == "billing-webhook-ingest":
+        signing_material_env = args.webhook_signing_material_env
+        webhook_secret_resolver = None
+        if signing_material_env:
+            signing_material = os.environ.get(signing_material_env)
+            if not signing_material:
+                raise SecretInputError(f"webhook signing material environment variable is missing: {signing_material_env}")
+
+            def webhook_secret_resolver(_: str, *, _material: str = signing_material) -> str:
+                return _material
+
         envelope = client.billing_webhook_ingest(
             args.tenant_id,
             args.project_id,
@@ -296,6 +360,12 @@ def run_command(args: argparse.Namespace) -> dict[str, Any]:
             event_id=args.event_id,
             payload_sha256=args.payload_sha256,
             signature_header_present=args.signature_header_present,
+            signature_header_names=args.signature_header_names,
+            raw_body=args.raw_body,
+            stripe_signature_header=args.stripe_signature_header,
+            webhook_secret_resolver=webhook_secret_resolver,
+            received_at_unix=args.received_at_unix,
+            tolerance_seconds=args.tolerance_seconds,
             webhook_secret_ref=args.webhook_secret_ref,
             livemode=args.livemode,
             customer_ref=args.customer_ref,

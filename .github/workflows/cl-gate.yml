@@ -74,7 +74,7 @@ jobs:
       - name: Install test dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install pytest
+          python -m pip install pytest jsonschema
       - name: Compile Python sources
         run: python -m compileall packages services scripts tests
       - name: Run Python contracts
@@ -93,6 +93,32 @@ jobs:
           node-version: "24"
       - name: Run A3 Node contracts
         run: node --test tests/a3/*.mjs
+
+  a3-webapp:
+    name: A3 Next.js and Playwright
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: plan
+    if: needs.plan.outputs.a3 == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/webapp/package-lock.json
+      - name: Install root Playwright dependencies
+        run: npm ci
+      - name: Install A3 webapp dependencies
+        run: npm ci --prefix apps/webapp
+      - name: Typecheck and export A3 webapp
+        run: npm run check --prefix apps/webapp
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run A3 route-level E2E
+        run: npx playwright test tests/e2e/a3-webapp-product-routes.spec.ts
 
   typescript-sdk:
     name: TypeScript SDK parity
@@ -187,6 +213,7 @@ jobs:
       - plan
       - python-a1-a2
       - a3-node
+      - a3-webapp
       - typescript-sdk
       - go-sdk
       - rust-verifier
@@ -199,6 +226,7 @@ jobs:
           echo "plan=${{ needs.plan.result }}"
           echo "python-a1-a2=${{ needs.python-a1-a2.result }}"
           echo "a3-node=${{ needs.a3-node.result }}"
+          echo "a3-webapp=${{ needs.a3-webapp.result }}"
           echo "typescript-sdk=${{ needs.typescript-sdk.result }}"
           echo "go-sdk=${{ needs.go-sdk.result }}"
           echo "rust-verifier=${{ needs.rust-verifier.result }}"
@@ -207,6 +235,7 @@ jobs:
             "${{ needs.plan.result }}" \
             "${{ needs.python-a1-a2.result }}" \
             "${{ needs.a3-node.result }}" \
+            "${{ needs.a3-webapp.result }}" \
             "${{ needs.typescript-sdk.result }}" \
             "${{ needs.go-sdk.result }}" \
             "${{ needs.rust-verifier.result }}" \

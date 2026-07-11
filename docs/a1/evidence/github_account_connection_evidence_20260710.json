@@ -1,0 +1,45 @@
+{
+  "schema_version": "ashr.clone.github_account_connection_evidence.v1",
+  "environment": "localhost_development",
+  "provider": "github",
+  "public_safe": true,
+  "contains_secret_values": false,
+  "captured_at": "2026-07-10T08:53:14.7446297Z",
+  "callback_uri": "http://localhost:8787/oauth/github/callback",
+  "requested_scopes": [
+    "read:user",
+    "user:email"
+  ],
+  "granted_scopes": [
+    "read:user",
+    "user:email"
+  ],
+  "start_status_code": 200,
+  "callback_status_code": 200,
+  "connection_status_code": 200,
+  "credential_id_present": true,
+  "provider_subject_present": true,
+  "email_present": true,
+  "token_reference_present": true,
+  "token_reference_exposed": false,
+  "replay_denied": true,
+  "replay_error_code": "invalid_oauth_state",
+  "disconnect_status_code": 200,
+  "provider_token_revoked_before_local_delete": true,
+  "temporary_listener_remaining": false,
+  "temporary_binary_count": 0,
+  "raw_state_recorded": false,
+  "pkce_verifier_recorded": false,
+  "authorization_code_recorded": false,
+  "access_token_recorded": false,
+  "client_secret_recorded": false,
+  "raw_provider_response_recorded": false,
+  "memory_backed": true,
+  "production_ready": false,
+  "notes": [
+    "Controlled existing-session localhost account connection only; not login, registration, or production OAuth.",
+    "Provider token revocation completed before local connection deletion.",
+    "OAuth transactions, token references, raw tokens, and connections remain process-local.",
+    "No provider payloads, headers, cookies, codes, states, verifiers, tokens, or secrets are recorded."
+  ]
+}

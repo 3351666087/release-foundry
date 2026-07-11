@@ -10,24 +10,38 @@ export function renderSaasRuntimePanel(target, runtime = {}) {
   const migrations = runtime.db_migrations || {};
   const usageLedger = runtime.usage_ledger || {};
   const billingReadiness = runtime.billing_readiness || {};
+  const eventOutbox = runtime.event_outbox || {};
+  const burnSummary = usageLedger.burn_summary || {};
 
   target.replaceChildren(
     runtimeSummary(runtime),
     runtimeGrid([
-      ["Mode", runtime.mode || "static_fixture"],
+      ["Mode", humanize(runtime.mode || "static_fixture")],
       ["DB ready", runtime.db_ready ? "yes" : "planned"],
       ["Primary DB", dbContract.recommended_primary_db || "postgres"],
       ["MySQL", dbContract.mysql_compatible ? "compatible" : "not planned"],
       ["Migrations", String(migrations.migration_count || 0)],
       ["Usage meters", String((usageLedger.meters || []).length)],
-      ["Billing", billingReadiness.status || "not loaded"]
+      ["Billing", humanize(billingReadiness.status || "not loaded")],
+      ["Runway", humanize(burnSummary.status || "unknown")],
+      ["Event outbox", String(eventOutbox.event_count || 0)]
     ]),
-    runtimeList("API surfaces", apiSurfaces),
-    runtimeList("DB tables", tables.slice(0, 8)),
-    runtimeList("Migration batches", (migrations.statements || []).map((item) => `${item.id}: ${item.tables.join(", ")}`)),
-    runtimeList("Usage meters", (usageLedger.meters || []).map((item) => `${item.meter}: ${item.quantity}`)),
-    runtimeList("Billing readiness", billingReadiness.schema_version ? billingRows(billingReadiness) : []),
-    runtimeList("Guardrails", guardrails)
+    runtimeSpine([
+      ["API routes", apiSurfaces.length],
+      ["DB tables", tables.length],
+      ["A1 usage", billingReadiness.a1_a2_alignment?.a1_usage_source_ready ? "ready" : "waiting"],
+      ["A2 judge meter", billingReadiness.a1_a2_alignment?.a2_judge_meter_ready ? "ready" : "waiting"]
+    ]),
+    runtimeDisclosureGrid([
+      runtimeDisclosure("API surfaces", apiSurfaces),
+      runtimeDisclosure("DB tables", tables),
+      runtimeDisclosure("Migration batches", (migrations.statements || []).map((item) => `${item.id}: ${item.tables.join(", ")}`)),
+      runtimeDisclosure("Usage meters", (usageLedger.meters || []).map((item) => `${item.meter}: ${item.quantity}`)),
+      runtimeDisclosure("Burn / Runway", burnRows(burnSummary)),
+      runtimeDisclosure("Billing readiness", billingReadiness.schema_version ? billingRows(billingReadiness) : []),
+      runtimeDisclosure("Event outbox", eventOutboxRows(eventOutbox)),
+      runtimeDisclosure("Guardrails", guardrails)
+    ])
   );
 }
 
@@ -42,13 +56,33 @@ function runtimeSummary(runtime) {
 
 function runtimeGrid(rows) {
   const grid = document.createElement("div");
-  grid.className = "health-grid";
+  grid.className = "health-grid runtime-health-grid";
   grid.replaceChildren(...rows.map(([label, value]) => {
     const tile = document.createElement("div");
     tile.className = "health-tile";
-    tile.innerHTML = `<strong>${escapeHtml(value)}</strong><span>${escapeHtml(label)}</span>`;
+    const strong = document.createElement("strong");
+    strong.textContent = value;
+    const span = document.createElement("span");
+    span.textContent = label;
+    tile.append(strong, span);
     return tile;
   }));
+  return grid;
+}
+
+function runtimeSpine(rows) {
+  const grid = document.createElement("div");
+  grid.className = "runtime-spine-grid";
+  for (const [label, value] of rows) {
+    const item = document.createElement("div");
+    item.className = "runtime-spine-item";
+    const strong = document.createElement("strong");
+    strong.textContent = String(value);
+    const span = document.createElement("span");
+    span.textContent = label;
+    item.append(strong, span);
+    grid.appendChild(item);
+  }
   return grid;
 }
 
@@ -63,7 +97,10 @@ function runtimeList(label, items) {
   if (!items.length) {
     const empty = document.createElement("div");
     empty.className = "matrix-row";
-    empty.innerHTML = `<div class="muted">No ${escapeHtml(label.toLowerCase())} loaded.</div>`;
+    const text = document.createElement("div");
+    text.className = "muted";
+    text.textContent = `No ${label.toLowerCase()} loaded.`;
+    empty.appendChild(text);
     list.appendChild(empty);
     return list;
   }
@@ -71,10 +108,47 @@ function runtimeList(label, items) {
   for (const item of items) {
     const row = document.createElement("div");
     row.className = "matrix-row";
-    row.innerHTML = `<div class="muted">${escapeHtml(item)}</div>`;
+    const text = document.createElement("div");
+    text.className = "muted";
+    text.textContent = item;
+    row.appendChild(text);
     list.appendChild(row);
   }
   return list;
+}
+
+function runtimeDisclosure(label, items) {
+  const details = document.createElement("details");
+  details.className = "runtime-disclosure";
+  const summary = document.createElement("summary");
+  const title = document.createElement("span");
+  title.textContent = label;
+  const count = document.createElement("span");
+  count.className = "runtime-disclosure-count";
+  count.textContent = String(items.length);
+  summary.append(title, count);
+  details.append(summary, runtimeList(label, items));
+  return details;
+}
+
+function runtimeDisclosureGrid(items) {
+  const grid = document.createElement("div");
+  grid.className = "runtime-disclosure-grid";
+  grid.replaceChildren(...items);
+  return grid;
+}
+
+function burnRows(burn = {}) {
+  if (!burn.status) {
+    return [];
+  }
+  return [
+    `status: ${burn.status || "unknown"}`,
+    `billable units: ${burn.billable_units || 0}`,
+    `quota included: ${burn.quota_included_units || 0}`,
+    `remaining units: ${burn.estimated_remaining_units || 0}`,
+    `active meters: ${(burn.active_billable_meters || []).join(", ") || "none"}`
+  ];
 }
 
 function billingRows(billing = {}) {
@@ -92,11 +166,18 @@ function billingRows(billing = {}) {
   ];
 }
 
-function escapeHtml(value) {
-  return String(value ?? "")
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+function eventOutboxRows(eventOutbox = {}) {
+  const rows = [];
+  rows.push(`events: ${eventOutbox.event_count || 0}`);
+  rows.push(`pending: ${eventOutbox.pending_count || 0}`);
+  rows.push(`delivered: ${eventOutbox.delivered_count || 0}`);
+  rows.push(`audit only: ${eventOutbox.audit_only_count || 0}`);
+  return rows;
 }
+
+function humanize(value) {
+  const text = String(value ?? "").replaceAll("_", " ");
+  return text ? text[0].toUpperCase() + text.slice(1) : "";
+}
+
+

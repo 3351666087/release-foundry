@@ -1,4 +1,4 @@
-import { createReadStream, statSync } from "node:fs";
+import { createReadStream, existsSync, statSync } from "node:fs";
 import { createServer } from "node:http";
 import { extname, join, normalize, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -85,7 +85,13 @@ function parsePort(args, fallback) {
 function resolveRequestPath(pathname) {
   const decoded = decodeURIComponent(pathname);
   const withoutLeadingSlash = decoded.replace(/^\/+/, "");
-  return resolve(root, normalize(withoutLeadingSlash || "apps/dashboard/index.html"));
+  const directPath = resolve(root, normalize(withoutLeadingSlash || "apps/dashboard/index.html"));
+  if (existsSync(directPath)) return directPath;
+  const nextExportAlias = withoutLeadingSlash.replace(
+    /(__next\.\$d\$section)\.__PAGE__\.txt$/,
+    "$1/__PAGE__.txt"
+  );
+  return resolve(root, normalize(nextExportAlias || "apps/dashboard/index.html"));
 }
 
 function isA3ApiPath(pathname) {

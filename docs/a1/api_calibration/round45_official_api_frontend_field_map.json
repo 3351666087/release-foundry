@@ -1,0 +1,158 @@
+{
+  "schema_version": "ashr.a1.official_api_frontend_field_map.v1",
+  "round": 45,
+  "generated_date": "2026-07-10",
+  "official_api_observed": {
+    "source_public_summary": "docs/a1/evidence/official_api_round45_public_summary.json",
+    "source_private_manifest": "docs/evidence/private_refs/a1_readonly_api_round45_20260710.json",
+    "mode": "read-only small batch",
+    "status": "ok",
+    "functions": {
+      "init": {
+        "response_keys": [
+          "features",
+          "notes",
+          "status",
+          "tenant",
+          "user"
+        ]
+      },
+      "keep_alive": {
+        "response_keys": [
+          "db",
+          "message",
+          "status"
+        ]
+      },
+      "list_agents": {
+        "response_keys": [
+          "_user",
+          "agents",
+          "status"
+        ]
+      },
+      "list_datasets": {
+        "response_keys": [
+          "_user",
+          "datasets",
+          "next_cursor",
+          "status"
+        ]
+      },
+      "list_requests": {
+        "response_keys": [
+          "_user",
+          "next_cursor",
+          "requests",
+          "status"
+        ]
+      }
+    },
+    "usage_or_quota_fields_observed": [],
+    "media_fields_observed": [],
+    "interpretation": "Round45 confirms only the listed top-level response field names. It does not claim hosted usage, quota, or media payload fields were returned by this read-only batch."
+  },
+  "frontend_mirror_static": {
+    "source_archive": "C:/Users/33516/Desktop/Ashr_frontend_mirror_20260707_125507.zip",
+    "source_sha256": "1d12159feb2e1133941bba05d46f24a0e38002dabdfaa29c9cadc7a63d056793",
+    "inspection_mode": "read-only ZIP entry inspection",
+    "assets": {
+      "usage": "mirror/lab.ashr.io/assets/UsagePage-CoD18uzD.js",
+      "request_creation": "mirror/lab.ashr.io/assets/CreateRequestModal-LwtjGDgm.js",
+      "request_lifecycle": "mirror/lab.ashr.io/assets/RequestDetailDrawer-SLqhBzSz.js",
+      "api_dispatch": "mirror/lab.ashr.io/assets/index-DSO2XOq6.js"
+    },
+    "api_functions": [
+      "billing_create_checkout_session",
+      "billing_create_portal_session",
+      "billing_get_public_pricing",
+      "billing_get_status",
+      "create_request",
+      "get_request",
+      "get_usage",
+      "list_requests",
+      "update_request_status"
+    ],
+    "usage_fields": [
+      "audios",
+      "files",
+      "graded_scenarios",
+      "images",
+      "observations",
+      "simulations",
+      "videos",
+      "voice_minutes"
+    ],
+    "usage_control_fields": [
+      "over_limit",
+      "plan_key"
+    ],
+    "usage_labels": [
+      "Assets",
+      "Audio",
+      "Files",
+      "Graded scenarios",
+      "Images",
+      "Limit reached",
+      "Observations",
+      "Over included usage",
+      "Overage billing",
+      "Plan limit reached",
+      "Plan limits",
+      "Simulations",
+      "Usage",
+      "Videos",
+      "Voice minutes"
+    ],
+    "media_and_generation_fields": [
+      "audio_provider",
+      "audio_tags",
+      "file_path",
+      "generate_audio",
+      "generate_files",
+      "generate_simulations",
+      "generation_method",
+      "generation_options",
+      "generation_type",
+      "max_duration_seconds",
+      "simulation_config",
+      "simulation_status",
+      "video_fps",
+      "video_size_bytes"
+    ],
+    "request_lifecycle_fields": [
+      "actual_duration_s",
+      "estimated_duration_s",
+      "request_input_schema",
+      "request_name",
+      "request_status",
+      "requestor_details"
+    ],
+    "request_lifecycle_labels": [
+      "Completed",
+      "Failed",
+      "Processing",
+      "Queued",
+      "Retry",
+      "Retrying"
+    ],
+    "interpretation": "These names are static frontend contract evidence only. They are not proof that the official API returned the fields in round45."
+  },
+  "mutation_decision": {
+    "performed": false,
+    "decision": "fail-closed",
+    "readiness_gate": "docs/a1/api_calibration/official_api_readiness_packet.json",
+    "mutating_small_batch_ready": false,
+    "fresh_target_bound_quota_gate_present": false,
+    "reason": "The existing readiness gate explicitly blocks mutation until a fresh reviewed plan-batch quota gate and an explicit modality are available. No qualifying gate was supplied for round45."
+  },
+  "public_safety": {
+    "raw_archive_committed": false,
+    "raw_mirrored_source_committed": false,
+    "raw_api_payload_values_included": false,
+    "raw_header_values_included": false,
+    "secret_values_included": false,
+    "private_evidence_contents_included": false,
+    "private_evidence_paths_only": true
+  }
+}

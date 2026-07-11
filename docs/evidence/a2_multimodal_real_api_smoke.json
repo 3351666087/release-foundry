@@ -1,0 +1,72 @@
+{
+  "accepted_modalities": [
+    "text",
+    "image",
+    "audio",
+    "file",
+    "video"
+  ],
+  "all_required_modalities_requested": true,
+  "api_call_count": 2,
+  "auth": {
+    "note_count": 0,
+    "session_reached": true,
+    "status": "ok",
+    "tenant_id_present": true,
+    "tenant_name_present": true,
+    "user_email_sha256_12": "b28feb653070",
+    "user_id_present": true
+  },
+  "base_url": "https://api.ashr.io/testing-platform-api",
+  "c3_grading_ready": false,
+  "calls": [
+    {
+      "name": "init",
+      "status": "ok",
+      "summary": {
+        "keys": [
+          "features",
+          "notes",
+          "status",
+          "tenant",
+          "user"
+        ],
+        "status_value": "ok",
+        "type": "dict"
+      }
+    },
+    {
+      "error_message": "[400] Usage limit exceeded for requests: 5/5 used, requested 1, 0 remaining",
+      "error_type": "AshrLabsError",
+      "name": "create_request",
+      "status": "error"
+    }
+  ],
+  "create_request_reached": false,
+  "dataset_id_present": false,
+  "dataset_id_sha256_12": "",
+  "dataset_summary": {
+    "available": false
+  },
+  "generated_at": "2026-07-10T23:46:02Z",
+  "generation_options": {
+    "generate_audio": true,
+    "generate_files": true,
+    "generate_images": true,
+    "generate_videos": true
+  },
+  "notes": [
+    "This is a redacted public summary of a real Ashr multimodal request smoke.",
+    "The private ref is ignored by git and may contain raw API structure for human review.",
+    "No API key, authorization header, signed URL, binary payload, or raw private response is stored in this public summary."
+  ],
+  "private_ref": "docs/evidence/private_refs/a2_multimodal_real_api_smoke.private.json",
+  "private_ref_sha256_12": "084c566f8467",
+  "public_safe": true,
+  "request_id_present": false,
+  "request_id_sha256_12": "",
+  "request_status": "",
+  "schema_version": "a2.multimodal_real_api_smoke.v1",
+  "sdk_source": "docs/a1/_pypi_artifacts/ashr_labs-0.3.1-py3-none-any.whl",
+  "wait_completed": false
+}

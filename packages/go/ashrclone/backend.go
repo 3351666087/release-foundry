@@ -18,11 +18,13 @@ type BackendConfig struct {
 }
 
 type BackendSelection struct {
-	Backend ControlPlaneBackend
-	Name    string
-	Ready   bool
-	Close   func() error
-	Migrate func(context.Context) error
+	Backend               ControlPlaneBackend
+	PaymentReconciliation *PaymentReconciliationService
+	PaymentDomain         *PaymentDomainService
+	Name                  string
+	Ready                 bool
+	Close                 func() error
+	Migrate               func(context.Context) error
 }
 
 func BackendConfigFromEnv() BackendConfig {
@@ -37,7 +39,15 @@ func NewBackend(config BackendConfig) (BackendSelection, error) {
 	kind := normalizeBackendKind(config.Kind)
 	switch kind {
 	case BackendKindMemory:
-		return BackendSelection{Backend: NewMemoryService(), Name: "memory_service_v0", Ready: true}, nil
+		reconciliation, err := NewPaymentReconciliationService(NewMemoryPaymentReconciliationRepository())
+		if err != nil {
+			return BackendSelection{}, err
+		}
+		payments, err := NewPaymentDomainService(NewMemoryPaymentDomainRepository())
+		if err != nil {
+			return BackendSelection{}, err
+		}
+		return BackendSelection{Backend: NewMemoryService(), PaymentReconciliation: reconciliation, PaymentDomain: payments, Name: "memory_service_v0", Ready: true}, nil
 	case BackendKindPostgres:
 		dsn := strings.TrimSpace(config.PostgresDSN)
 		if dsn == "" {
@@ -47,7 +57,26 @@ func NewBackend(config BackendConfig) (BackendSelection, error) {
 		if err != nil {
 			return BackendSelection{}, err
 		}
-		return BackendSelection{Backend: repository, Name: "postgres_repository_v0", Close: repository.Close, Migrate: repository.Migrate}, nil
+		reconciliation, err := NewPaymentReconciliationService(repository)
+		if err != nil {
+			_ = repository.Close()
+			return BackendSelection{}, err
+		}
+		payments, err := NewPaymentDomainService(repository)
+		if err != nil {
+			_ = repository.Close()
+			return BackendSelection{}, err
+		}
+		migrate := func(ctx context.Context) error {
+			if err := repository.Migrate(ctx); err != nil {
+				return err
+			}
+			if err := repository.MigratePaymentReconciliation(ctx); err != nil {
+				return err
+			}
+			return repository.MigratePaymentDomain(ctx)
+		}
+		return BackendSelection{Backend: repository, PaymentReconciliation: reconciliation, PaymentDomain: payments, Name: "postgres_repository_v0", Close: repository.Close, Migrate: migrate}, nil
 	default:
 		return BackendSelection{}, fmt.Errorf("unsupported backend %q", config.Kind)
 	}

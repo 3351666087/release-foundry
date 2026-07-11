@@ -1,4 +1,6 @@
 import json
+import hashlib
+import hmac
 import os
 import subprocess
 import sys
@@ -268,6 +270,15 @@ def test_sdk_saas_cli_end_to_end_and_redacts(tmp_path: Path):
         "portal_python_cli",
     )
     assert portal["operation"] == "billing_portal_plan"
+    raw_body = '{"id":"evt_python_cli","livemode":false,"type":"invoice.paid"}'
+    signing_material = "local_cli_fixture_signing_material"
+    timestamp = 1780000000
+    stripe_signature = hmac.new(
+        signing_material.encode("utf-8"),
+        f"{timestamp}.{raw_body}".encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+    os.environ["ASHR_TEST_STRIPE_SIGNING_MATERIAL"] = signing_material
     webhook = cli(
         "--state-input",
         str(state),
@@ -287,8 +298,18 @@ def test_sdk_saas_cli_end_to_end_and_redacts(tmp_path: Path):
         "--event-id",
         "evt_python_cli",
         "--payload-sha256",
-        "d" * 64,
+        hashlib.sha256(raw_body.encode("utf-8")).hexdigest(),
         "--signature-header-present",
+        "--signature-header-name",
+        "stripe-signature",
+        "--raw-body",
+        raw_body,
+        "--stripe-signature-header",
+        f"t={timestamp},v1={stripe_signature}",
+        "--webhook-signing-material-env",
+        "ASHR_TEST_STRIPE_SIGNING_MATERIAL",
+        "--received-at-unix",
+        str(timestamp),
         "--webhook-secret-ref",
         "env:STRIPE_WEBHOOK_REF_TEST",
         "--customer-ref",
@@ -302,6 +323,7 @@ def test_sdk_saas_cli_end_to_end_and_redacts(tmp_path: Path):
         "--metadata-json",
         '{"billing_period":"2026-07"}',
     )
+    os.environ.pop("ASHR_TEST_STRIPE_SIGNING_MATERIAL", None)
     assert webhook["operation"] == "billing_webhook_ingest"
     assert webhook["result"]["raw_payload_included"] is False
     billing_ledger = cli("--state-input", str(state), "billing-ledger", "--tenant-id", "tenant_sdk_cli", "--project-id", "project_sdk_cli")

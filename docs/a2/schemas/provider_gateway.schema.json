@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A2ProviderGatewayResult",
+  "type": "object",
+  "required": [
+    "schema_version", "logical_call_id", "tenant_id", "snapshot_id", "snapshot_hash",
+    "provider_id", "model_id", "modalities", "payload_hash", "idempotency_key", "status",
+    "evaluation_eligible", "release_authority", "attempts", "blockers", "raw_request_included",
+    "raw_response_included", "secret_included"
+  ],
+  "properties": {
+    "schema_version": { "const": "a2.provider_gateway.v1" },
+    "logical_call_id": { "$ref": "#/$defs/hash" },
+    "tenant_id": { "type": "string", "minLength": 1 },
+    "snapshot_id": { "$ref": "#/$defs/hash" },
+    "snapshot_hash": { "$ref": "#/$defs/hash" },
+    "provider_id": { "type": "string", "minLength": 1 },
+    "model_id": { "type": "string", "minLength": 1 },
+    "modalities": { "type": "array", "uniqueItems": true, "items": { "enum": ["text", "image", "audio", "file", "video"] } },
+    "payload_hash": { "$ref": "#/$defs/hash" },
+    "idempotency_key": { "type": "string", "minLength": 1 },
+    "status": { "enum": ["completed", "blocked", "budget_blocked", "provider_error", "provider_unavailable", "rate_limited", "timeout", "invalid_response", "unsupported"] },
+    "evaluation_eligible": { "type": "boolean" },
+    "release_authority": { "const": false },
+    "attempts": { "type": "array", "items": { "type": "object" } },
+    "blockers": { "type": "array", "items": { "type": "string" } },
+    "response_hash": { "$ref": "#/$defs/hash" },
+    "structured_output_hash": { "$ref": "#/$defs/hash" },
+    "output_text": { "type": "string" },
+    "raw_request_included": { "const": false },
+    "raw_response_included": { "const": false },
+    "secret_included": { "const": false }
+  },
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,148 @@
+{
+  "schema_version": "ashr.clone.a1_china_payment_migration_manifest.v1",
+  "version": 3,
+  "migration": "services/api/migrations/003_a1_china_mainland_payments.sql",
+  "depends_on": [
+    "services/api/migrations/001_a1_large_saas_foundation.sql",
+    "services/api/migrations/002_a1_billing_ledger.sql"
+  ],
+  "purpose": "Tenant-isolated Postgres persistence for WeChat Pay, Alipay, and reference-only domestic bank card acquiring, with CNY orders/refunds, notification evidence, daily bills, reconciliation, and append-only billing-ledger linkage.",
+  "providers": ["wechat_pay", "alipay", "domestic_bank_card"],
+  "currency": "cny",
+  "tables": [
+    {
+      "name": "china_payment_merchant_applications",
+      "kind": "mutable_audited",
+      "rls_policy": "china_payment_merchant_applications_organization_isolation",
+      "required_columns": ["id", "organization_id", "project_id", "provider", "mode", "merchant_ref", "application_ref", "status", "application_fingerprint", "metadata", "created_at", "updated_at"],
+      "required_constraints": ["china_payment_merchant_applications_scope_provider_mode_key", "china_payment_merchant_applications_project_scope_fk", "china_payment_merchant_applications_provider_ref_key", "china_payment_merchant_applications_fingerprint_key", "china_payment_merchant_applications_metadata_safe"],
+      "required_indexes": ["idx_china_payment_merchant_applications_scope_status"]
+    },
+    {
+      "name": "china_payment_config_refs",
+      "kind": "mutable_audited",
+      "rls_policy": "china_payment_config_refs_organization_isolation",
+      "required_columns": ["id", "organization_id", "project_id", "merchant_application_id", "provider", "mode", "credential_ref", "platform_key_ref", "notification_verification_ref", "config_fingerprint", "status", "effective_from", "effective_until", "created_at", "updated_at"],
+      "required_constraints": ["china_payment_config_refs_order_scope_key", "china_payment_config_refs_application_scope_fk", "china_payment_config_refs_fingerprint_key", "china_payment_config_refs_credential_reference_only", "china_payment_config_refs_platform_key_reference_only", "china_payment_config_refs_notification_reference_only"],
+      "required_indexes": ["idx_china_payment_config_refs_scope_status"]
+    },
+    {
+      "name": "china_payment_acquirer_account_bindings",
+      "kind": "mutable_audited",
+      "rls_policy": "china_payment_acquirer_account_bindings_organization_isolation",
+      "required_columns": ["id", "organization_id", "project_id", "merchant_application_id", "provider", "mode", "acquirer", "acquirer_account_ref", "credential_ref", "hosted_checkout_profile_ref", "tokenization_profile_ref", "binding_fingerprint", "status", "capabilities", "metadata", "created_at", "updated_at"],
+      "required_constraints": ["china_payment_acquirer_account_bindings_order_scope_key", "china_payment_acquirer_account_bindings_account_key", "china_payment_acquirer_account_bindings_fingerprint_key", "china_payment_acquirer_account_bindings_application_scope_fk", "china_payment_acquirer_account_bindings_account_reference_only", "china_payment_acquirer_bindings_credential_ref_only", "china_payment_acquirer_account_bindings_hosted_reference_only", "china_payment_acquirer_account_bindings_token_reference_only", "china_payment_acquirer_account_bindings_capabilities", "china_payment_acquirer_account_bindings_metadata_safe"],
+      "required_indexes": ["idx_china_payment_acquirer_account_bindings_scope_status"]
+    },
+    {
+      "name": "china_payment_orders",
+      "kind": "mutable_audited",
+      "rls_policy": "china_payment_orders_organization_isolation",
+      "required_columns": ["id", "organization_id", "project_id", "merchant_application_id", "config_ref_id", "provider", "mode", "acquirer_account_binding_id", "payment_contract", "hosted_session_ref", "payment_token_ref", "card_reference", "merchant_order_no", "provider_order_ref", "idempotency_key", "request_fingerprint", "amount_minor", "currency", "status", "subject", "customer_ref", "expires_at", "paid_at", "closed_at", "metadata", "created_at", "updated_at"],
+      "required_constraints": ["china_payment_orders_scope_provider_mode_key", "china_payment_orders_merchant_order_key", "china_payment_orders_idempotency_key", "china_payment_orders_request_fingerprint_key", "china_payment_orders_application_scope_fk", "china_payment_orders_config_application_scope_fk", "china_payment_orders_acquirer_binding_scope_fk", "china_payment_orders_hosted_reference_only", "china_payment_orders_token_reference_only", "china_payment_orders_card_reference_only", "china_payment_orders_card_contract", "china_payment_orders_metadata_safe"],
+      "required_indexes": ["idx_china_payment_orders_scope_status_created", "idx_china_payment_orders_provider_ref"]
+    },
+    {
+      "name": "china_payment_provider_notifications",
+      "kind": "append_only",
+      "rls_policy": "china_payment_provider_notifications_organization_isolation",
+      "required_columns": ["id", "organization_id", "project_id", "merchant_application_id", "order_id", "provider", "mode", "provider_notification_id", "notification_type", "payload_sha256", "headers_sha256", "signature_verified", "occurred_at", "received_at", "raw_payload_included", "metadata"],
+      "required_constraints": ["china_payment_provider_notifications_provider_id_key", "china_payment_provider_notifications_fingerprint_key", "china_payment_provider_notifications_application_scope_fk", "china_payment_provider_notifications_order_scope_fk", "china_payment_provider_notifications_metadata_safe"],
+      "required_indexes": ["idx_china_payment_provider_notifications_scope_received", "idx_china_payment_provider_notifications_order"]
+    },
+    {
+      "name": "china_payment_refunds",
+      "kind": "mutable_audited",
+      "rls_policy": "china_payment_refunds_organization_isolation",
+      "required_columns": ["id", "organization_id", "project_id", "order_id", "provider", "mode", "merchant_refund_no", "provider_refund_ref", "idempotency_key", "request_fingerprint", "amount_minor", "currency", "reason_code", "status", "requested_at", "completed_at", "metadata", "created_at", "updated_at"],
+      "required_constraints": ["china_payment_refunds_merchant_refund_key", "china_payment_refunds_idempotency_key", "china_payment_refunds_request_fingerprint_key", "china_payment_refunds_order_scope_fk", "china_payment_refunds_metadata_safe"],
+      "required_indexes": ["idx_china_payment_refunds_scope_status_created", "idx_china_payment_refunds_order"]
+    },
+    {
+      "name": "china_payment_daily_bill_files",
+      "kind": "mutable_audited",
+      "rls_policy": "china_payment_daily_bill_files_organization_isolation",
+      "required_columns": ["id", "organization_id", "project_id", "merchant_application_id", "provider", "mode", "bill_date", "provider_bill_ref", "object_ref", "file_sha256", "line_count", "status", "downloaded_at", "verified_at", "parsed_at", "reconciled_at", "metadata", "created_at", "updated_at"],
+      "required_constraints": ["china_payment_daily_bill_files_provider_date_key", "china_payment_daily_bill_files_provider_ref_key", "china_payment_daily_bill_files_hash_key", "china_payment_daily_bill_files_application_scope_fk", "china_payment_daily_bill_files_object_reference_only", "china_payment_daily_bill_files_metadata_safe"],
+      "required_indexes": ["idx_china_payment_daily_bill_files_scope_date"]
+    },
+    {
+      "name": "china_payment_daily_bill_lines",
+      "kind": "append_only",
+      "rls_policy": "china_payment_daily_bill_lines_organization_isolation",
+      "required_columns": ["id", "organization_id", "project_id", "bill_file_id", "order_id", "refund_id", "provider_line_ref", "line_type", "direction", "amount_minor", "fee_minor", "currency", "occurred_at", "line_fingerprint", "metadata", "created_at"],
+      "required_constraints": ["china_payment_daily_bill_lines_provider_line_key", "china_payment_daily_bill_lines_fingerprint_key", "china_payment_daily_bill_lines_file_scope_fk", "china_payment_daily_bill_lines_order_scope_fk", "china_payment_daily_bill_lines_refund_scope_fk", "china_payment_daily_bill_lines_subject_shape", "china_payment_daily_bill_lines_metadata_safe"],
+      "required_indexes": ["idx_china_payment_daily_bill_lines_file_occurred"]
+    },
+    {
+      "name": "china_payment_reconciliation_discrepancies",
+      "kind": "mutable_audited",
+      "rls_policy": "china_payment_recon_discrepancies_org_isolation",
+      "required_columns": ["id", "organization_id", "project_id", "bill_file_id", "bill_line_id", "order_id", "refund_id", "discrepancy_type", "expected_amount_minor", "observed_amount_minor", "difference_minor", "currency", "evidence_fingerprint", "status", "resolution_code", "resolution_evidence_sha256", "detected_at", "resolved_at", "metadata", "created_at", "updated_at"],
+      "required_constraints": ["china_payment_reconciliation_discrepancies_evidence_key", "china_payment_reconciliation_discrepancies_file_scope_fk", "china_payment_reconciliation_discrepancies_line_scope_fk", "china_payment_reconciliation_discrepancies_order_scope_fk", "china_payment_reconciliation_discrepancies_refund_scope_fk", "china_payment_reconciliation_discrepancies_resolution_shape", "china_payment_reconciliation_discrepancies_difference_check", "china_payment_reconciliation_discrepancies_metadata_safe"],
+      "required_indexes": ["idx_china_payment_reconciliation_discrepancies_scope_status"]
+    },
+    {
+      "name": "china_payment_ledger_links",
+      "kind": "append_only",
+      "rls_policy": "china_payment_ledger_links_organization_isolation",
+      "required_columns": ["id", "organization_id", "project_id", "billing_ledger_event_id", "link_type", "order_id", "refund_id", "notification_id", "bill_line_id", "discrepancy_id", "link_fingerprint", "created_at"],
+      "required_constraints": ["china_payment_ledger_links_ledger_subject_key", "china_payment_ledger_links_fingerprint_key", "china_payment_ledger_links_ledger_scope_fk", "china_payment_ledger_links_order_scope_fk", "china_payment_ledger_links_refund_scope_fk", "china_payment_ledger_links_notification_scope_fk", "china_payment_ledger_links_bill_line_scope_fk", "china_payment_ledger_links_discrepancy_scope_fk", "china_payment_ledger_links_exactly_one_subject", "china_payment_ledger_links_subject_matches_type"],
+      "required_indexes": ["idx_china_payment_ledger_links_ledger"]
+    },
+    {
+      "name": "china_payment_mutation_events",
+      "kind": "append_only",
+      "rls_policy": "china_payment_mutation_events_organization_isolation",
+      "required_columns": ["id", "organization_id", "project_id", "table_name", "row_id", "operation", "before_sha256", "after_sha256", "actor_ref", "request_id", "occurred_at"],
+      "required_constraints": ["china_payment_mutation_events_fingerprint_key", "china_payment_mutation_events_project_scope_fk", "china_payment_mutation_events_evidence_shape"],
+      "required_indexes": ["idx_china_payment_mutation_events_row"]
+    }
+  ],
+  "mutable_audited_tables": [
+    "china_payment_merchant_applications",
+    "china_payment_config_refs",
+    "china_payment_acquirer_account_bindings",
+    "china_payment_orders",
+    "china_payment_refunds",
+    "china_payment_daily_bill_files",
+    "china_payment_reconciliation_discrepancies"
+  ],
+  "append_only_tables": [
+    "china_payment_provider_notifications",
+    "china_payment_daily_bill_lines",
+    "china_payment_ledger_links",
+    "china_payment_mutation_events"
+  ],
+  "required_functions": [
+    "china_payment_public_metadata",
+    "china_payment_reference_only",
+    "china_payment_set_updated_at",
+    "china_payment_record_mutation",
+    "china_payment_reject_mutation",
+    "china_payment_validate_refund",
+    "china_payment_validate_ledger_link"
+  ],
+  "safety": {
+    "raw_provider_payload_stored": false,
+    "raw_provider_headers_stored": false,
+    "raw_provider_secrets_stored": false,
+    "raw_card_data_stored": false,
+    "pan_stored": false,
+    "cvc_stored": false,
+    "otp_stored": false,
+    "merchant_credentials_storage": "reference_only",
+    "domestic_bank_card_contracts": ["hosted", "token", "reference"],
+    "notification_storage": "identifier_and_sha256_only",
+    "bill_file_storage": "object_reference_and_sha256_only",
+    "mutation_evidence_storage": "before_and_after_sha256_only"
+  },
+  "enforcement": {
+    "tenant_scope": "organization_id and project_id composite foreign keys plus RLS/FORCE RLS",
+    "currency": "all monetary tables require lowercase cny",
+    "idempotency": ["china_payment_orders.idempotency_key", "china_payment_refunds.idempotency_key"],
+    "fingerprints": ["merchant application", "provider config", "acquirer binding", "order request", "notification payload", "refund request", "bill file", "bill line", "reconciliation evidence", "ledger link"],
+    "ledger_linkage": "china_payment_ledger_links.billing_ledger_event_id references billing_ledger_events in the same organization and project; an insert trigger requires ledger and payment subject provider/mode equality",
+    "billing_ledger_providers": ["stripe", "wechat_pay", "alipay", "domestic_bank_card"]
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "schema_version": "ashr.clone.identity_verification_public_surface.v1",
+  "route_count": 12,
+  "route_neutral": true,
+  "secret_policy": "digest_refs_only",
+  "python_typescript_shared": [
+    "IdentityVerificationAbuseDimensions",
+    "IdentityVerificationAdminFilter",
+    "IdentityVerificationAuditEvent",
+    "IdentityVerificationAuditEventPage",
+    "IdentityVerificationDigestEnvelope",
+    "IdentityVerificationDurableReceipt",
+    "IdentityVerificationDurableReceiptPage",
+    "IdentityVerificationDurableStore",
+    "IdentityVerificationMemoryStore",
+    "IdentityVerificationTransactionCoordinator"
+  ]
+}

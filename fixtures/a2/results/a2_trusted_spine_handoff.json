@@ -1,0 +1,158 @@
+{
+  "schema_version": "a2.trusted_spine_handoff.v1",
+  "evidence_snapshot": {
+    "schema_version": "a2.evidence_snapshot.v1",
+    "organization_id": "org_local_demo",
+    "tenant_id": "org_local_demo",
+    "workspace_id": "workspace_local_demo",
+    "project_id": "a2_g3_calibration",
+    "environment_id": "local",
+    "run_id": "a2_trusted_spine_demo",
+    "case_id": "sample-a2-s031-media-pipeline-pass",
+    "scenario_id": "A2-S031",
+    "created_at": "2026-07-11T00:00:00Z",
+    "source_schema_version": "a1.run_fixture.v1",
+    "source_payload_hash": "sha256:c0fbf9d4e8fa1af276b75e9a5964a82ebf8af08f3fe7db1c41d743e66b3f51cd",
+    "required_modalities": [
+      "image",
+      "text"
+    ],
+    "observed_modalities": [
+      "image",
+      "text"
+    ],
+    "completeness": "complete",
+    "validation_errors": [],
+    "missing_modalities": [],
+    "tool_call_count": 3,
+    "tool_sequence": [
+      "media.fetch",
+      "image.view",
+      "media.classify"
+    ],
+    "artifacts": [
+      {
+        "artifact_id": "artifact-1",
+        "modality": "image",
+        "producer_tool": "media.fetch",
+        "reference_hash": "sha256:35296beed0d6b0109c8c8f334ef597fc3d70f8843669cbd2cf44653e3f8c6912",
+        "content_hash": "sha256:5bfeeb0e8951eff13bb1658146936f23728074fc10f6f41e44918ac55a833f3a",
+        "content_included": false,
+        "collection_status": "complete"
+      },
+      {
+        "artifact_id": "artifact-2",
+        "modality": "image",
+        "producer_tool": "image.view",
+        "reference_hash": "sha256:35296beed0d6b0109c8c8f334ef597fc3d70f8843669cbd2cf44653e3f8c6912",
+        "content_hash": "sha256:3bdc36bcfcb99368c2dca8d44764ee93635a3bcf34cc07c5c59eb48b2a5caca4",
+        "content_included": false,
+        "collection_status": "complete"
+      }
+    ],
+    "extractor_provenance": [
+      {
+        "extractor_id": "a2.public_safe_run_normalizer",
+        "extractor_version": "1.0.0",
+        "input_hash": "sha256:c0fbf9d4e8fa1af276b75e9a5964a82ebf8af08f3fe7db1c41d743e66b3f51cd",
+        "status": "complete"
+      }
+    ],
+    "security": {
+      "tenant_scoped": true,
+      "scope_complete": true,
+      "raw_evidence_included": false,
+      "private_evidence_included": false,
+      "secrets_included": false,
+      "artifact_content_included": false
+    },
+    "snapshot_id": "sha256:6922ed2e09802f457c6037fdc78ef6fabac1a03e4ec23023acfc42e1cee7f61b",
+    "snapshot_hash": "sha256:44659a6542e127bf2f09f96027ce731890d780397915156b642dc557fcc1da26"
+  },
+  "decision_ledger": {
+    "schema_version": "a2.decision_ledger.v1",
+    "ledger_id": "a2_trusted_spine_demo_ledger",
+    "organization_id": "org_local_demo",
+    "tenant_id": "org_local_demo",
+    "workspace_id": "workspace_local_demo",
+    "project_id": "a2_g3_calibration",
+    "environment_id": "local",
+    "created_at": "2026-07-11T00:00:00Z",
+    "record_count": 1,
+    "genesis_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "head_hash": "sha256:31c417d9232f2e3b0361f63b8aad305304774d28d0f68ed6e093f1a0bffa1e18",
+    "records": [
+      {
+        "schema_version": "a2.decision_record.v1",
+        "organization_id": "org_local_demo",
+        "tenant_id": "org_local_demo",
+        "workspace_id": "workspace_local_demo",
+        "project_id": "a2_g3_calibration",
+        "environment_id": "local",
+        "run_id": "a2_trusted_spine_demo",
+        "case_id": "sample-a2-s031-media-pipeline-pass",
+        "scenario_id": "A2-S031",
+        "created_at": "2026-07-11T00:00:00Z",
+        "evidence_snapshot_id": "sha256:6922ed2e09802f457c6037fdc78ef6fabac1a03e4ec23023acfc42e1cee7f61b",
+        "evidence_snapshot_hash": "sha256:44659a6542e127bf2f09f96027ce731890d780397915156b642dc557fcc1da26",
+        "evidence_completeness": "complete",
+        "decision": "block",
+        "review_required": false,
+        "policy_version": "a2.release_policy.v1",
+        "policy_hash": "sha256:be2963949d99dc160d3722282c56a5d6c1235f3976668df88286aebdfa30ab86",
+        "model_versions": [
+          "deterministic:a2-local-judges"
+        ],
+        "judge_versions": [
+          "g1_trace_contract_judge:0.1.0",
+          "g2_output_contract_judge:0.1.0",
+          "g3_replay_sandbox_judge:0.1.0",
+          "g3_safety_boundary_judge:0.1.0",
+          "g3_semantic_reference_judge:0.1.0"
+        ],
+        "judge_result_hashes": [
+          "sha256:f6f63901da4695ed6281f93e3ed6d6d6d56b3dcb4b6d0bcf4b17e2407db1245e",
+          "sha256:1f8e8d16d0b49ea90d0275767312e2fe3bd10c686d6118b572c72c4d8c928d40",
+          "sha256:07d26cf2f17c7b6ecd5014982457f1d6c6f1946df096ada4758a834f8885aac2",
+          "sha256:0ee7d2cfb1ebc27c38de5788dc08438ff8aabf53d7c4e94d3068fac5eb8720d7",
+          "sha256:c48ab672aad4df049b1690d360ce6c804515229ad053cafe3a0744b133fbb592"
+        ],
+        "judge_summary": {
+          "judge_count": 5,
+          "failed_judges": [],
+          "abstain_count": 0,
+          "disagreement": false
+        },
+        "release_gate_hash": "sha256:000e4cc176098151685dae7536390b90a164f9058978b78e05f8450d43be2e17",
+        "hard_blockers": [
+          "release_gate_blocked"
+        ],
+        "previous_record_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+        "public_safe": true,
+        "record_id": "sha256:e19d38b6f189135256ed1afd9ad4f433cc0d5361a0a251adb936e469fa2e9687",
+        "record_hash": "sha256:31c417d9232f2e3b0361f63b8aad305304774d28d0f68ed6e093f1a0bffa1e18"
+      }
+    ],
+    "metadata": {
+      "append_only": true,
+      "public_safe": true,
+      "chain_verified": true,
+      "human_overrides_are_linked_records": true
+    },
+    "ledger_hash": "sha256:246213c8dabddf5c05e697c79da45f5a5ca5c62dd331ca22bada44d0000e19f5"
+  },
+  "a3_consumption": {
+    "release_ready": false,
+    "decision_record_required": true,
+    "may_recompute_grade": false,
+    "review_queue_status": "blocked",
+    "display_decision": "block",
+    "display_provenance_hash": "sha256:31c417d9232f2e3b0361f63b8aad305304774d28d0f68ed6e093f1a0bffa1e18"
+  },
+  "metadata": {
+    "public_safe": true,
+    "raw_evidence_included": false,
+    "secrets_included": false,
+    "requires_network": false
+  }
+}

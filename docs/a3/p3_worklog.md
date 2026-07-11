@@ -3814,3 +3814,20 @@ Safety boundary:
 - No raw key, token, cookie, email, account value, signed URL, local path,
   payment secret, raw webhook URL, connector secret, or raw share token was
   written.
+
+## 2026-07-11 - API Reference And Identity Contract Calibration
+
+- Fetched current main and read latest A1/A2 remote branches without merging
+  either peer branch.
+- Calibrated A1 Google/GitHub OAuth, unified identity, email verification,
+  anti-enumeration response, SMTP, and callback contracts at `ac960bd`.
+- Calibrated A2 identity/security context at `58fe876` while preserving A2
+  score, pass/fail, failure-class, and release-policy authority.
+- Added route-level API Reference, OAuth start adapters, email challenge
+  request, fail-closed verification UX, and transactional email templates.
+- Recorded the challenge-context and callback-session blockers instead of
+  claiming production registration/login.
+- Passed 334 A3 Node tests, 31 Playwright tests, 562 current-main A1/A2 Python
+  tests plus 1013 subtests, both CL guards, build, audit, and secret scan.
+- No live provider, SMTP, OAuth, email, account, or secret-bearing operation was
+  executed.

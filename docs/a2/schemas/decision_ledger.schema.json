@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A2DecisionLedger",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "ledger_id",
+    "ledger_hash",
+    "organization_id",
+    "tenant_id",
+    "workspace_id",
+    "project_id",
+    "environment_id",
+    "created_at",
+    "record_count",
+    "genesis_hash",
+    "head_hash",
+    "records",
+    "metadata"
+  ],
+  "properties": {
+    "schema_version": { "const": "a2.decision_ledger.v1" },
+    "ledger_id": { "type": "string", "minLength": 1 },
+    "ledger_hash": { "$ref": "#/$defs/hash" },
+    "organization_id": { "type": "string", "minLength": 1 },
+    "tenant_id": { "type": "string", "minLength": 1 },
+    "workspace_id": { "type": "string", "minLength": 1 },
+    "project_id": { "type": "string", "minLength": 1 },
+    "environment_id": { "type": "string", "minLength": 1 },
+    "created_at": { "type": "string", "format": "date-time" },
+    "record_count": { "type": "integer", "minimum": 0 },
+    "genesis_hash": { "$ref": "#/$defs/hash" },
+    "head_hash": { "$ref": "#/$defs/hash" },
+    "records": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/record" }
+    },
+    "metadata": {
+      "type": "object",
+      "required": [
+        "append_only",
+        "public_safe",
+        "chain_verified",
+        "human_overrides_are_linked_records"
+      ],
+      "properties": {
+        "append_only": { "const": true },
+        "public_safe": { "const": true },
+        "chain_verified": { "const": true },
+        "human_overrides_are_linked_records": { "const": true }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "record": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "record_id",
+        "record_hash",
+        "previous_record_hash",
+        "organization_id",
+        "tenant_id",
+        "workspace_id",
+        "project_id",
+        "environment_id",
+        "run_id",
+        "case_id",
+        "scenario_id",
+        "created_at",
+        "evidence_snapshot_id",
+        "evidence_snapshot_hash",
+        "evidence_completeness",
+        "decision",
+        "review_required",
+        "policy_version",
+        "policy_hash",
+        "model_versions",
+        "judge_versions",
+        "judge_result_hashes",
+        "judge_summary",
+        "release_gate_hash",
+        "hard_blockers",
+        "public_safe"
+      ],
+      "properties": {
+        "schema_version": { "const": "a2.decision_record.v1" },
+        "record_id": { "$ref": "#/$defs/hash" },
+        "record_hash": { "$ref": "#/$defs/hash" },
+        "previous_record_hash": { "$ref": "#/$defs/hash" },
+        "organization_id": { "type": "string", "minLength": 1 },
+        "tenant_id": { "type": "string", "minLength": 1 },
+        "workspace_id": { "type": "string", "minLength": 1 },
+        "project_id": { "type": "string", "minLength": 1 },
+        "environment_id": { "type": "string", "minLength": 1 },
+        "run_id": { "type": "string", "minLength": 1 },
+        "case_id": { "type": "string", "minLength": 1 },
+        "scenario_id": { "type": "string", "minLength": 1 },
+        "created_at": { "type": "string", "format": "date-time" },
+        "evidence_snapshot_id": { "$ref": "#/$defs/hash" },
+        "evidence_snapshot_hash": { "$ref": "#/$defs/hash" },
+        "evidence_completeness": {
+          "enum": ["complete", "partial", "evidence_missing", "invalid"]
+        },
+        "decision": { "enum": ["allow", "block", "review"] },
+        "review_required": { "type": "boolean" },
+        "policy_version": { "type": "string" },
+        "policy_hash": { "$ref": "#/$defs/hash" },
+        "model_versions": { "$ref": "#/$defs/string_array" },
+        "judge_versions": { "$ref": "#/$defs/string_array" },
+        "judge_result_hashes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/hash" }
+        },
+        "judge_summary": { "type": "object" },
+        "release_gate_hash": { "$ref": "#/$defs/hash" },
+        "hard_blockers": { "$ref": "#/$defs/string_array" },
+        "public_safe": { "const": true }
+      },
+      "additionalProperties": false
+    },
+    "string_array": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "additionalProperties": false
+}

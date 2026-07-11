@@ -3,14 +3,22 @@ import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 
 async function loadDashboardHtml() {
-  const [html, app, apiClient, visualShell, styles] = await Promise.all([
+  const [html, app, apiClient, visualShell, styles, notificationComponent, saasAdminComponent, liveOpsComponent, billingMigrationComponent, liveWorkflowComponent, contractRadarComponent, evidenceSpineComponent, saasRuntimeComponent] = await Promise.all([
     readFile(new URL("../../apps/dashboard/index.html", import.meta.url), "utf8"),
     readFile(new URL("../../apps/dashboard/src/app.mjs", import.meta.url), "utf8"),
     readFile(new URL("../../apps/dashboard/src/api-client.mjs", import.meta.url), "utf8"),
     readFile(new URL("../../apps/dashboard/src/visual-shell.mjs", import.meta.url), "utf8"),
-    readFile(new URL("../../apps/dashboard/src/styles.css", import.meta.url), "utf8")
+    readFile(new URL("../../apps/dashboard/src/styles.css", import.meta.url), "utf8"),
+    readFile(new URL("../../apps/dashboard/src/components/notification-control-plane.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../../apps/dashboard/src/components/saas-admin-console.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../../apps/dashboard/src/components/live-ops-control-plane.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../../apps/dashboard/src/components/billing-migration-readiness-panel.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../../apps/dashboard/src/components/live-workflow-readiness-panel.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../../apps/dashboard/src/components/a1-a2-contract-radar.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../../apps/dashboard/src/components/a1-a2-evidence-spine.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../../apps/dashboard/src/components/saas-runtime-panel.mjs", import.meta.url), "utf8")
   ]);
-  return [html, app, apiClient, visualShell, styles].join("\n");
+  return [html, app, apiClient, visualShell, styles, notificationComponent, saasAdminComponent, liveOpsComponent, billingMigrationComponent, liveWorkflowComponent, contractRadarComponent, evidenceSpineComponent, saasRuntimeComponent].join("\n");
 }
 
 function assertNavigationTarget(source, hash) {
@@ -22,7 +30,8 @@ test("A3 dashboard is split into a webapp shell, module, and stylesheet", async 
   const html = await loadDashboardHtml();
   const indexHtml = await readFile(new URL("../../apps/dashboard/index.html", import.meta.url), "utf8");
 
-  assert.match(indexHtml, /<link rel="stylesheet" href="\.\/src\/styles\.css" \/>/);
+  assert.match(indexHtml, /<link id="design-stylesheet" rel="stylesheet" href="\.\/src\/styles\.css" \/>/);
+  assert.match(indexHtml, /<script src="\.\/src\/design-mode\.js"><\/script>/);
   assert.match(indexHtml, /<script type="module" src="\.\/src\/app\.mjs"><\/script>/);
   assert.doesNotMatch(indexHtml, /<style>/);
   assert.doesNotMatch(indexHtml, /<script type="module">\s*import/);
@@ -34,6 +43,41 @@ test("A3 dashboard is split into a webapp shell, module, and stylesheet", async 
   assert.match(html, /className = "nav-group"/);
   assert.match(html, /className = "nav-sublist"/);
   assert.match(html, /function syncExpandedNavigation\(id\)/);
+  assert.match(html, /Procurement \/ Sign-Off Posture/);
+  assert.match(html, /Usage Escalation/);
+  assert.match(html, /Collections \/ Invoice Escalation/);
+  assert.match(html, /Workspace Action Readiness/);
+});
+
+test("A3 dashboard keeps release-intelligence and Signal/Form as isolated design variants", async () => {
+  const [designMode, i18n, signalFormStyles, comparisonHtml, comparisonScript, assetSource] = await Promise.all([
+    readFile(new URL("../../apps/dashboard/src/design-mode.js", import.meta.url), "utf8"),
+    readFile(new URL("../../apps/dashboard/src/i18n.js", import.meta.url), "utf8"),
+    readFile(new URL("../../apps/dashboard/src/signal-form.css", import.meta.url), "utf8"),
+    readFile(new URL("../../apps/dashboard/design-compare.html", import.meta.url), "utf8"),
+    readFile(new URL("../../apps/dashboard/src/design-compare.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../../apps/dashboard/assets/signal-form/SOURCE.md", import.meta.url), "utf8")
+  ]);
+
+  assert.match(designMode, /get\("design"\)/);
+  assert.match(designMode, /design === "signal-form"/);
+  assert.match(designMode, /stylesheet\.href = "\.\/src\/signal-form\.css"/);
+  assert.match(i18n, /const STORAGE_KEY = "a3\.dashboard\.language"/);
+  assert.match(i18n, /return "zh-CN"/);
+  assert.match(i18n, /data-language-choice/);
+  assert.match(i18n, /MutationObserver/);
+  assert.match(i18n, /A1 采集，A2 判定，A3 运营/);
+  assert.match(i18n, /window\.A3_I18N/);
+  assert.doesNotMatch(signalFormStyles, /@import\s+[^;]*styles\.css/);
+  assert.match(signalFormStyles, /--accent:\s*#f04d2f/);
+  assert.match(comparisonHtml, /src="\.\/index\.html\?source=api-mock"/);
+  assert.match(comparisonHtml, /src="\.\/index\.html\?source=api-mock&amp;design=signal-form"/);
+  assert.match(comparisonHtml, /data-compare-view="split"/);
+  assert.match(comparisonHtml, /data-compare-view="a"/);
+  assert.match(comparisonHtml, /data-compare-view="b"/);
+  assert.match(comparisonScript, /grid\.dataset\.view = view/);
+  assert.match(assetSource, /CC0 1\.0/);
+  assert.match(assetSource, /88832F6A8DB6D5C3307A27BBA808B5A0322D6871CE50E53AD03823F896DF1D6B/);
 });
 
 test("A3 dashboard wires optional A2 coverage into JSON and Markdown exports", async () => {
@@ -70,6 +114,7 @@ test("A3 dashboard wires optional A2 coverage into JSON and Markdown exports", a
 
 test("A3 dashboard wires A1/A2 schema drift radar into the API-backed console", async () => {
   const html = await loadDashboardHtml();
+  const component = await readFile(new URL("../../apps/dashboard/src/components/a1-a2-contract-radar.mjs", import.meta.url), "utf8");
 
   assert.match(html, /id="schema-drift-radar"/);
   assert.match(html, /A1\/A2 Contract Radar/);
@@ -82,7 +127,46 @@ test("A3 dashboard wires A1/A2 schema drift radar into the API-backed console", 
   assert.match(html, /function resetSchemaDriftRadar\(\)/);
   assert.match(html, /function renderSchemaDriftRadar\(\)/);
   assert.match(html, /raw_schema_payload_embedded/);
+  assert.match(html, /renderA1A2ContractRadarPanel/);
+  assert.match(html, /Cross-Lane Integration/);
+  assert.match(component, /bridge\.label/);
+  assert.match(component, /evidence domains/);
+  assert.match(html, /Next cross-lane actions/);
+  assert.doesNotMatch(component, /innerHTML/);
   assert.match(html, /renderSchemaDriftRadar\(\)/);
+});
+
+test("A3 dashboard makes the A1 capture, A2 decision, and A3 operation chain visible", async () => {
+  const html = await loadDashboardHtml();
+  const [component, apiServer] = await Promise.all([
+    readFile(new URL("../../apps/dashboard/src/components/a1-a2-evidence-spine.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../../services/report/a3_api_server.mjs", import.meta.url), "utf8")
+  ]);
+
+  assertNavigationTarget(html, "#integration-spine");
+  assert.match(html, /id="integration-spine"/);
+  assert.match(html, /id="evidence-spine-body"/);
+  assert.match(html, /a1A2EvidenceSpine: \{\}/);
+  assert.match(html, /buildA3A1A2EvidenceSpine/);
+  assert.match(html, /renderA1A2EvidenceSpine/);
+  assert.match(html, /payload\.a1_a2_evidence_spine/);
+  assert.match(apiServer, /\/api\/a3\/a1-a2\/evidence-spine/);
+  assert.match(component, /A1 captures execution/);
+  assert.match(component, /A2 owns evaluation and release policy/);
+  assert.match(component, /draft watch \/ not main authority/);
+  assert.doesNotMatch(component, /innerHTML/);
+});
+
+test("A3 dashboard uses a bounded two-column console and collapsible SaaS runtime details", async () => {
+  const html = await loadDashboardHtml();
+  const runtime = await readFile(new URL("../../apps/dashboard/src/components/saas-runtime-panel.mjs", import.meta.url), "utf8");
+
+  assert.match(html, /\.console-grid,[\s\S]*?grid-template-columns:\s*repeat\(12, minmax\(0, 1fr\)\)/);
+  assert.match(html, /\.console-grid > \.panel,[\s\S]*?grid-column:\s*span 6/);
+  assert.match(html, /\.wide-panel,[\s\S]*?grid-column:\s*1 \/ -1 !important/);
+  assert.match(runtime, /function runtimeDisclosure/);
+  assert.match(runtime, /document\.createElement\("details"\)/);
+  assert.doesNotMatch(runtime, /innerHTML/);
 });
 
 test("A3 dashboard wires product-console operations panels", async () => {
@@ -272,7 +356,7 @@ test("A3 dashboard wires official code crawl parity into console and reports", a
   assert.match(html, /state\.frontendCodeCrawl = await loadOptionalJson/);
   assert.match(html, /state\.frontendMirror,\s*state\.frontendCodeCrawl/s);
   assert.match(html, /renderOfficialCodeCrawlParity\(\)/);
-  assert.match(html, /officialCodeCrawl\.available/);
+  assert.match(html, /officialCodeCrawl\.recommendation/);
   assert.match(html, /Official Code Crawl Parity<\/h4>/);
 });
 
@@ -446,6 +530,7 @@ test("A3 dashboard wires export redaction firewall into console and reports", as
 
 test("A3 dashboard wires reviewer workflow board into console and reports", async () => {
   const html = await loadDashboardHtml();
+  const component = await readFile(new URL("../../apps/dashboard/src/components/reviewer-workflow-panel.mjs", import.meta.url), "utf8");
 
   assert.match(html, /summarizeReviewerWorkflowBoard/);
   assertNavigationTarget(html, "#reviewer-workflow");
@@ -461,6 +546,7 @@ test("A3 dashboard wires reviewer workflow board into console and reports", asyn
   assert.match(html, /function reviewerWorkflowLaneRow\(lane\)/);
   assert.match(html, /function reviewerWorkflowItemRow\(item\)/);
   assert.match(html, /function renderReviewWorkflowRecords\(\)/);
+  assert.match(html, /renderReviewerWorkflowPanel/);
   assert.match(html, /fetchA3ReviewWorkflow/);
   assert.match(html, /submitA3ReviewWaiver/);
   assert.match(html, /submitA3ReviewApproval/);
@@ -468,8 +554,8 @@ test("A3 dashboard wires reviewer workflow board into console and reports", asyn
   assert.match(html, /review_workflow/);
   assert.match(html, /GET \/api\/a3\/review\/workflow/);
   assert.match(html, /POST \/api\/a3\/review\/denials/);
-  assert.match(html, /data-review-action="denial"/);
-  assert.match(html, /Record Denial/);
+  assert.match(component, /dataset\.reviewAction = action/);
+  assert.match(component, /"Deny"/);
   assert.match(html, /denial_count/);
   assert.match(html, /function submitReviewWorkflowAction\(action\)/);
   assert.match(html, /function buildDashboardDenialRecord\(\)/);
@@ -482,6 +568,7 @@ test("A3 dashboard wires reviewer workflow board into console and reports", asyn
 
 test("A3 dashboard wires media readiness and safe cloud shell panels", async () => {
   const html = await loadDashboardHtml();
+  const mediaQueueSource = html.match(/function mediaQueueRow\(item\)[\s\S]*?function emptyMatrixRow/)?.[0] || "";
 
   assert.match(html, /summarizeMediaReadiness/);
   assert.match(html, /summarizeCloudConsoleShell/);
@@ -493,6 +580,8 @@ test("A3 dashboard wires media readiness and safe cloud shell panels", async () 
   assert.match(html, /function renderMediaReadiness\(\)/);
   assert.match(html, /function mediaMatrixRow\(channel\)/);
   assert.match(html, /function mediaQueueRow\(item\)/);
+  assert.doesNotMatch(mediaQueueSource, /report\./);
+  assert.doesNotMatch(html, /锟/);
   assert.match(html, /media\.evidence_queue/);
   assert.match(html, /ashr_signed_media_url_coverage\.redacted\.json/);
   assert.match(html, /metadata only/);
@@ -509,6 +598,7 @@ test("A3 dashboard wires media readiness and safe cloud shell panels", async () 
 test("A3 dashboard wires API-backed SaaS runtime and hosted report sharing", async () => {
   const html = await loadDashboardHtml();
   const runtimeComponent = await readFile(new URL("../../apps/dashboard/src/components/saas-runtime-panel.mjs", import.meta.url), "utf8");
+  const reportComponent = await readFile(new URL("../../apps/dashboard/src/components/report-center-panel.mjs", import.meta.url), "utf8");
 
   assert.match(html, /api-client\.mjs/);
   assert.match(html, /components\/saas-runtime-panel\.mjs/);
@@ -550,21 +640,23 @@ test("A3 dashboard wires API-backed SaaS runtime and hosted report sharing", asy
   assert.match(html, /GET \/api\/a3\/live-workflow\/readiness/);
   assert.match(html, /GET \/api\/a3\/live-ops\/control-plane/);
   assert.match(html, /GET \/api\/a3\/peer-branches\/calibration/);
-  assert.match(html, /function hostedReportRow\(report\)/);
+  assert.match(html, /renderReportCenterPanel/);
   assert.match(html, /function revokeHostedReport\(report\)/);
   assert.match(html, /function refreshReportEvidence\(\)/);
-  assert.match(html, /Revoke/);
+  assert.match(reportComponent, /"Revoke"/);
   assert.match(html, /dashboard_revoke/);
-  assert.match(html, /function artifactRegistrySummaryRow\(registry/);
-  assert.match(html, /function artifactEntryRow\(entry/);
-  assert.match(html, /Artifact Registry/);
-  assert.match(html, /token \$\{escapeHtml\(report\.share_link\?\.token_hash_prefix/);
-  assert.match(html, /manifest-ready report/);
+  assert.match(reportComponent, /function renderArtifactRegistry/);
+  assert.match(reportComponent, /function renderReport\(/);
+  assert.match(reportComponent, /Artifact Registry/);
+  assert.match(reportComponent, /callbacks\.revoke/);
+  assert.doesNotMatch(reportComponent, /token_hash_prefix/);
+  assert.match(reportComponent, /manifest-ready/);
   assert.match(html, /allowedSources = new Set\(\["mock", "api-mock", "raw-a1", "raw-a2", "p3-media", "p3-official-demo"\]\)/);
 });
 
 test("A3 dashboard wires billing migration readiness into API-backed and static console", async () => {
   const html = await loadDashboardHtml();
+  const component = await readFile(new URL("../../apps/dashboard/src/components/billing-migration-readiness-panel.mjs", import.meta.url), "utf8");
 
   assert.match(html, /id="billing-migration-readiness"/);
   assert.match(html, /Billing Migration Readiness/);
@@ -579,10 +671,13 @@ test("A3 dashboard wires billing migration readiness into API-backed and static 
   assert.match(html, /GET \/api\/a3\/billing\/migration-readiness/);
   assert.match(html, /A1 billing ledger migration, replay, and read-only billing API evidence/);
   assert.match(html, /billing_migration_readiness/);
+  assert.match(html, /renderBillingMigrationReadinessPanel/);
+  assert.doesNotMatch(component, /innerHTML/);
 });
 
 test("A3 dashboard wires live workflow readiness for GitHub, review, billing, and hosted reports", async () => {
   const html = await loadDashboardHtml();
+  const component = await readFile(new URL("../../apps/dashboard/src/components/live-workflow-readiness-panel.mjs", import.meta.url), "utf8");
 
   assert.match(html, /id="live-workflow-readiness"/);
   assert.match(html, /Live Workflow Readiness/);
@@ -598,6 +693,8 @@ test("A3 dashboard wires live workflow readiness for GitHub, review, billing, an
   assert.match(html, /GitHub, reviewer, billing, and hosted-report readiness/);
   assert.match(html, /human records/);
   assert.match(html, /need live backend/);
+  assert.match(html, /renderLiveWorkflowReadinessPanel/);
+  assert.doesNotMatch(component, /innerHTML/);
 });
 
 test("A3 dashboard wires live ops control plane for PR, review, billing, human ops, and share links", async () => {
@@ -610,6 +707,10 @@ test("A3 dashboard wires live ops control plane for PR, review, billing, human o
   assert.match(html, /buildA3LiveOpsControlPlane/);
   assert.match(html, /fetchA3LiveOpsControlPlane/);
   assert.match(html, /function refreshLiveOpsControlPlane\(\)/);
+  assert.match(html, /Reviewer timeline/);
+  assert.match(html, /GitHub publish step/);
+  assert.match(html, /Share-link lifecycle/);
+  assert.match(html, /Audit history/);
   assert.match(html, /function renderLiveOpsControlPlane\(\)/);
   assert.match(html, /state\.liveOpsControlPlane = await fetchA3LiveOpsControlPlane/);
   assert.match(html, /live_ops_control_plane/);
@@ -626,8 +727,7 @@ test("A3 dashboard wires peer branch calibration into console and exports", asyn
   assert.match(html, /id="peer-branch-status"/);
   assert.match(html, /id="peer-branch-body"/);
   assertNavigationTarget(html, "#peer-branch-calibration");
-  assert.match(html, /Peer branches/);
-  assert.match(html, /Peer Branches/);
+  assert.match(html, /Peer Branches/i);
   assert.match(html, /peerBranchCalibration: \{\}/);
   assert.match(html, /summarizeA3PeerBranchCalibration/);
   assert.match(html, /function renderPeerBranchCalibration\(\)/);
@@ -701,13 +801,37 @@ test("A3 dashboard wires SaaS admin shell for login, team, usage, API keys, and 
   assert.match(html, /login, team, usage, API key, and trust state/);
   assert.match(adminComponent, /RBAC Matrix/);
   assert.match(adminComponent, /Invite Workflow/);
+  assert.match(adminComponent, /Seat \/ License Posture/);
   assert.match(adminComponent, /API Key Lifecycle/);
+  assert.match(adminComponent, /API Key Audit/);
+  assert.match(adminComponent, /Control Summary/);
+  assert.match(adminComponent, /Tenant \/ Environment Control/);
+  assert.match(adminComponent, /Release \/ Rollout Control/);
+  assert.match(adminComponent, /Notification Destinations/);
+  assert.match(adminComponent, /Billing Account/);
+  assert.match(adminComponent, /invoice_preview/);
+  assert.match(adminComponent, /plan_comparison|plan.tier|subtotal_label/);
+  assert.match(adminModel, /buildInvoicePreview/);
   assert.match(adminComponent, /Trust Center/);
+  assert.match(adminComponent, /Compliance Posture/);
   assert.match(adminComponent, /Cloud Management/);
+  assert.match(adminComponent, /Workspace \/ Cloud Posture/);
   assert.match(adminComponent, /Product Console Map/);
   assert.match(adminComponent, /Admin Action Requests/);
   assert.match(adminComponent, /Record Request|Record Guardrail/);
   assert.match(adminModel, /quota_mutations_enabled/);
+  assert.match(adminModel, /seat_management/);
+  assert.match(adminModel, /rotation_slo_days/);
+  assert.match(adminModel, /compliance_posture/);
+  assert.match(adminModel, /workspace_posture/);
+  assert.match(html, /Seat \/ License Posture/);
+  assert.match(html, /API Key Audit/);
+  assert.match(html, /Compliance Posture/);
+  assert.match(html, /Workspace \/ Cloud Posture/);
+  assert.match(adminModel, /buildTenantControlState/);
+  assert.match(adminModel, /buildRolloutControlState/);
+  assert.match(adminModel, /buildNotificationDestinations/);
+  assert.match(adminModel, /buildNotificationSummary/);
   assert.match(adminModel, /buildSaasAdminActionRequest/);
   assert.match(html, /state\.saasRuntime\.usage_ledger/);
   assert.match(html, /state\.saasRuntime\.billing_readiness/);
@@ -724,6 +848,8 @@ test("A3 dashboard wires SaaS admin shell for login, team, usage, API keys, and 
 test("A3 dashboard wires product console onboarding, project, and audit workflow", async () => {
   const html = await loadDashboardHtml();
   const productComponent = await readFile(new URL("../../apps/dashboard/src/components/product-console-panel.mjs", import.meta.url), "utf8");
+  const reportComponent = await readFile(new URL("../../apps/dashboard/src/components/report-center-panel.mjs", import.meta.url), "utf8");
+  const reviewerComponent = await readFile(new URL("../../apps/dashboard/src/components/reviewer-workflow-panel.mjs", import.meta.url), "utf8");
 
   assert.match(html, /a3_product_console\.mjs/);
   assert.match(html, /summarizeProductConsoleExport/);
@@ -739,14 +865,24 @@ test("A3 dashboard wires product console onboarding, project, and audit workflow
   assert.match(html, /SaaS Admin \/ Login \/ Team \/ Trust/);
   assert.match(html, /state\.productConsole/);
   assert.match(html, /state\.saasAdmin/);
-  assert.match(html, /product console workflow/);
-  assert.match(html, /SaaS admin guardrails/);
+  assert.match(productComponent, /Operations Loop/);
+  assert.match(productComponent, /Commercial Governance Loop/);
   assert.match(html, /product_console/);
   assert.match(html, /GET \/api\/a3\/product\/console/);
   assert.match(productComponent, /Onboarding Flow/);
   assert.match(productComponent, /Project Console/);
+  assert.match(productComponent, /Operations Loop/);
+  assert.match(productComponent, /Commercial Governance Loop/);
+  assert.match(productComponent, /Go-To-Market/);
+  assert.match(productComponent, /Review records/);
+  assert.match(productComponent, /Notification lanes/);
   assert.match(productComponent, /Audit Log/);
   assert.match(productComponent, /Commercial Readiness/);
+  assert.match(reportComponent, /Release Sign-Off/);
+  assert.match(reportComponent, /release_signoff_detail/);
+  assert.match(reviewerComponent, /Tenant \/ Project \/ Environment Scope/);
+  assert.match(html, /reviewWorkflow: state\.reviewWorkflow/);
+  assert.match(html, /notificationControlPlane: state\.notificationControlPlane/);
 });
 
 test("A3 dashboard wires enterprise readiness for self-host and audit review", async () => {
@@ -767,4 +903,153 @@ test("A3 dashboard wires enterprise readiness for self-host and audit review", a
   assert.match(html, /renderEnterpriseReadiness\(\)/);
   assert.match(html, /GET \/api\/a3\/enterprise\/readiness/);
   assert.match(html, /self-host \/ audit/);
+});
+
+test("A3 dashboard wires notification control plane through a dedicated component", async () => {
+  const html = await loadDashboardHtml();
+
+  assert.match(html, /notification-control-plane\.mjs/);
+  assert.match(html, /renderNotificationControlPlanePanel/);
+  assert.match(html, /Notification Control Plane/);
+  assert.match(html, /notificationDestinationsBlock/);
+  assert.match(html, /enterprise-readiness-panel\.mjs/);
+  assert.match(html, /Notification lanes:/);
+  assert.match(html, /Commercial Loop/);
+  assert.match(html, /review record\(s\),/);
+  assert.match(html, /shareable report\(s\),/);
+  assert.match(html, /renderReviewerWorkflowPanel/);
+  assert.match(html, /renderReportCenterPanel/);
+});
+
+
+
+
+
+test("A3 dashboard wires tenant workspace control and separation-of-duties surfaces", async () => {
+  const adminSource = await readFile(new URL("../../services/report/a3_saas_admin.mjs", import.meta.url), "utf8");
+  const adminComponent = await readFile(new URL("../../apps/dashboard/src/components/saas-admin-console.mjs", import.meta.url), "utf8");
+  const enterpriseComponent = await readFile(new URL("../../apps/dashboard/src/components/enterprise-readiness-panel.mjs", import.meta.url), "utf8");
+
+  assert.match(adminSource, /buildTenantControlState/);
+  assert.match(adminSource, /buildWorkspacePosture/);
+  assert.match(adminSource, /separation_of_duties/);
+  assert.match(adminComponent, /Separation Of Duties/);
+  assert.match(adminComponent, /Workspace \/ Environment Control/);
+  assert.match(enterpriseComponent, /Hosted Buyer Readiness/);
+});
+
+test("A3 dashboard wires export audience governance tile into report center", async () => {
+  const appSource = await readFile(new URL("../../apps/dashboard/src/app.mjs", import.meta.url), "utf8");
+  const reportComponent = await readFile(new URL("../../apps/dashboard/src/components/report-center-panel.mjs", import.meta.url), "utf8");
+  const reportCenterSource = await readFile(new URL("../../services/report/a3_report_center.mjs", import.meta.url), "utf8");
+  assert.match(appSource, /renderReportCenterPanel/);
+  assert.match(reportComponent, /Audience Governance/);
+  assert.match(reportComponent, /export_audience_governance/);
+  assert.match(reportCenterSource, /export_audience_governance/);
+  assert.match(reportCenterSource, /a3\.export_audience_governance\.v1/);
+});
+
+test("A3 dashboard hosted report rows surface export audience and row-level scope", async () => {
+  const reportComponent = await readFile(new URL("../../apps/dashboard/src/components/report-center-panel.mjs", import.meta.url), "utf8");
+  const reportCenterSource = await readFile(new URL("../../services/report/a3_report_center.mjs", import.meta.url), "utf8");
+  assert.match(reportComponent, /report\.export_audience/);
+  assert.match(reportComponent, /report\.tenant_scope/);
+  assert.match(reportCenterSource, /export_audience:/);
+  assert.match(reportCenterSource, /buildAllowedAudiences/);
+});
+
+
+test("A3 dashboard wires audience filters, grouped scopes, and external publish blockers into report center", async () => {
+  const appSource = await readFile(new URL("../../apps/dashboard/src/app.mjs", import.meta.url), "utf8");
+  const reportComponent = await readFile(new URL("../../apps/dashboard/src/components/report-center-panel.mjs", import.meta.url), "utf8");
+  const reportCenterSource = await readFile(new URL("../../services/report/a3_report_center.mjs", import.meta.url), "utf8");
+  assert.match(appSource, /renderReportCenterPanel/);
+  assert.match(reportComponent, /Audience Filters/);
+  assert.match(reportComponent, /Workspace Groups/);
+  assert.match(reportComponent, /Environment Groups/);
+  assert.match(reportComponent, /External Publish Blockers/);
+  assert.match(reportCenterSource, /audience_filters/);
+  assert.match(reportCenterSource, /workspace_groups/);
+  assert.match(reportCenterSource, /environment_groups/);
+  assert.match(reportCenterSource, /external_publish_blockers/);
+  assert.match(reportComponent, /customer external blocked/);
+});
+
+
+test("A3 dashboard wires SaaS admin export audience governance shell", async () => {
+  const adminSource = await readFile(new URL("../../services/report/a3_saas_admin.mjs", import.meta.url), "utf8");
+  const adminComponent = await readFile(new URL("../../apps/dashboard/src/components/saas-admin-console.mjs", import.meta.url), "utf8");
+  const reportBuilderSource = await readFile(new URL("../../services/report/report_builder.mjs", import.meta.url), "utf8");
+
+  assert.match(adminSource, /buildExportGovernanceState/);
+  assert.match(adminComponent, /Export \/ Audience Governance/);
+  assert.match(reportBuilderSource, /summarizeExportAudienceGovernance/);
+  assert.match(reportBuilderSource, /export_audience_governance/);
+  assert.match(adminComponent, /customer_external/);
+});
+
+
+test("A3 enterprise readiness surfaces reviewer, executive, and blocked customer packets", async () => {
+  const enterpriseSource = await readFile(new URL("../../services/report/a3_enterprise_readiness.mjs", import.meta.url), "utf8");
+  const enterpriseComponent = await readFile(new URL("../../apps/dashboard/src/components/enterprise-readiness-panel.mjs", import.meta.url), "utf8");
+  assert.match(enterpriseSource, /buildDecisionPackets/);
+  assert.match(enterpriseSource, /reviewer_packet/);
+  assert.match(enterpriseSource, /executive_packet/);
+  assert.match(enterpriseSource, /customer_external_packet/);
+  assert.match(enterpriseComponent, /Decision Packets/);
+  assert.match(enterpriseComponent, /Customer blocked/);
+});
+
+
+test("A3 live ops control plane now exposes a release publish chain", async () => {
+  const liveOpsSource = await readFile(new URL("../../services/report/a3_live_ops_control_plane.mjs", import.meta.url), "utf8");
+  const appSource = await readFile(new URL("../../apps/dashboard/src/app.mjs", import.meta.url), "utf8");
+  const componentSource = await readFile(new URL("../../apps/dashboard/src/components/live-ops-control-plane.mjs", import.meta.url), "utf8");
+  assert.match(liveOpsSource, /buildReleasePublishChain/);
+  assert.match(liveOpsSource, /reviewer_gate_status/);
+  assert.match(liveOpsSource, /blocked_by_denial/);
+  assert.match(appSource, /renderLiveOpsControlPlanePanel/);
+  assert.match(componentSource, /Release publish chain/);
+  assert.match(componentSource, /Publish blockers/);
+  assert.match(componentSource, /controlPlane\.release_publish_chain\?\.steps/);
+  assert.match(componentSource, /controlPlane\.release_publish_chain\?\.blocker_reasons/);
+  assert.match(componentSource, /Commercial sign-off/);
+  assert.match(componentSource, /Sign-off blockers/);
+  assert.match(componentSource, /commercial_signoff_summary/);
+  assert.match(appSource, /function healthTileMarkup\(/);
+  assert.doesNotMatch(appSource, /\$\{healthTile\(/);
+  assert.doesNotMatch(componentSource, /innerHTML/);
+});
+
+
+test("A3 SaaS admin trust center now explains customer-facing publish blockers", async () => {
+  const adminSource = await readFile(new URL("../../services/report/a3_saas_admin.mjs", import.meta.url), "utf8");
+  const adminComponent = await readFile(new URL("../../apps/dashboard/src/components/saas-admin-console.mjs", import.meta.url), "utf8");
+  assert.match(adminSource, /publish_blockers/);
+  assert.match(adminSource, /customer_safe_artifacts/);
+  assert.match(adminComponent, /Blocked reason/);
+  assert.match(adminComponent, /publish blocker:/);
+  assert.match(adminComponent, /customer-safe artifact:/);
+});
+
+
+test("A3 SaaS admin now exposes commercial ops, self-host console, and developer platform shells", async () => {
+  const adminSource = await readFile(new URL("../../services/report/a3_saas_admin.mjs", import.meta.url), "utf8");
+  const adminComponent = await readFile(new URL("../../apps/dashboard/src/components/saas-admin-console.mjs", import.meta.url), "utf8");
+  assert.match(adminSource, /buildCommercialOpsState/);
+  assert.match(adminSource, /buildSelfHostConsoleState/);
+  assert.match(adminSource, /buildDeveloperPlatformState/);
+  assert.match(adminComponent, /Commercial Ops/);
+  assert.match(adminComponent, /Self-Host Console/);
+  assert.match(adminComponent, /Developer Platform/);
+});
+
+
+test("A3 API-backed bootstrap now loads admin/report/workflow surfaces during first load", async () => {
+  const appSource = await readFile(new URL("../../apps/dashboard/src/app.mjs", import.meta.url), "utf8");
+  assert.match(appSource, /state.reportCenter = await fetchA3ReportCenter/);
+  assert.match(appSource, /state.artifactRegistry = await fetchA3ArtifactRegistry/);
+  assert.match(appSource, /state.productConsole = await fetchA3ProductConsole/);
+  assert.match(appSource, /state.reviewWorkflow = await fetchA3ReviewWorkflow/);
+  assert.match(appSource, /state.saasAdmin = await fetchA3AdminConsole/);
 });

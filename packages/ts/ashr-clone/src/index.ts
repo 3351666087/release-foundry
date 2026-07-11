@@ -1,13 +1,42 @@
 export * from "./api-client.js";
+export * from "./account-readiness.js";
+export * from "./account-connections.js";
+export * from "./account-connections-cli.js";
 export * from "./billing.js";
 export * from "./calibrate.js";
+export * from "./capability-matrix.js";
+export * from "./china-payments.js";
 export * from "./cloud-queue.js";
 export * from "./commercial.js";
 export * from "./dataset-adapter.js";
+export * from "./delivery-protocol.js";
 export * from "./evidence.js";
+export * from "./github-oauth.js";
+export * from "./github-oauth-cli.js";
+export {
+  OAuthProviderContractError,
+  OAuthReplayLedger,
+  buildAuthorizationEnvelope,
+  buildTokenExchangeEnvelope,
+  buildTokenRefEnvelope,
+  derivePkceS256,
+  hashOAuthNonce,
+  hashOAuthState,
+  oauthProviderContractManifest,
+  oauthProviderMetadata,
+  publicOAuthClientConfig,
+  validateOAuthClientConfig,
+  verifyCallbackIdentity,
+  verifyCallbackState,
+} from "./oauth.js";
 export * from "./runner.js";
+export * from "./python-parity.js";
 export * from "./saas.js";
+export * from "./session-lifecycle.js";
+export * from "./stripe-executor.js";
+export * from "./storage.js";
 export * from "./trace.js";
+export * from "./unified-identity.js";
 
 export const CLOUD_API_SCHEMA_VERSION = "ashr.clone.cloud_api.v1";
 export const AGENT_INPUT_SCHEMA_VERSION = "ashr.clone.agent_input.v1";
@@ -1634,3 +1663,9 @@ function leaseExpired(expiresAt: unknown, now: string): boolean {
   }
   return expires <= (Number.isFinite(current) ? current : Date.now());
 }
+
+// Python-compatible entry points keep cross-language quickstarts source-compatible.
+export const build_default_request_input_schema = buildDefaultRequestInputSchema;
+export const coerce_agent_input = coerceAgentInput;
+export const redact_sensitive = redactSensitive;
+export const redact_text = redactText;

@@ -1,4 +1,101 @@
-# A3 Worklog
+﻿# A3 Worklog
+
+## 2026-07-11 - API Reference, OAuth Adapter, And Email Verification UX
+
+### Goal
+
+Add a Chinese-first API reference and connect the A3 product Webapp to the
+latest A1 Google/GitHub OAuth and email-verification contracts without taking
+custody of provider secrets or overstating draft backend readiness.
+
+### Upstream calibration
+
+- `git fetch origin --prune` succeeded.
+- Current A3 contains `origin/main` at `5dbf4ee` and is 23 commits ahead.
+- Read-only A1 calibration ref: `origin/codex/a1-local-sdk-runner` at
+  `ac960bd`; its PR remains an open draft and was not merged.
+- Read-only A2 calibration ref: `origin/dev/g3-a2-calibration` at `58fe876`.
+- A1 owns OAuth/session/credential/SMTP and A1 execution facts.
+- A2 remains authoritative for score, pass/fail, failure class, and release
+  policy. A3 did not alter either lane's semantics.
+
+### Work completed
+
+- Added `/api-reference` to the route-level Next.js product app.
+- Added a typed, searchable 12-endpoint reference across A1 identity/evidence,
+  A2 judge/release, and A3 console/report contracts.
+- Added implemented, draft-branch, and contract-blocked states with public-safe
+  request/response examples and exact source refs.
+- Added `apps/webapp/lib/auth-api.ts` with:
+  - exact-host validated Google and GitHub OAuth starts;
+  - A1 email challenge request;
+  - fail-closed email verification completion adapter;
+  - HTTPS/non-loopback URL policy, 12-second timeout, no-store requests, and
+    sanitized errors.
+- Rebuilt login as sign-in/email-registration tabs while preserving the
+  explicit read-only demo entry.
+- Added capability-aware Google and GitHub controls. They remain disabled when
+  public A1 connection settings are absent.
+- Added display-name, email, consent, six-digit code, and verification states
+  without persisting personal data in browser storage.
+- Added a component preview plus HTML/text transactional verification-email
+  templates.
+- Added a redacted A1/A2 auth contract snapshot and an A3 -> A1 contract change
+  request for the missing browser challenge context.
+
+### Honest blocker
+
+A1's anti-enumeration start response correctly omits `challenge_id`, but the
+current plaintext SMTP message also omits it while `/verify` requires it. A3
+can issue the real challenge request when configured, but cannot complete the
+browser flow until A1 delivers a secure mailbox-bound context. A3 does not fake
+account creation or a signed-in session. The current OAuth callback also
+returns JSON rather than setting a hosted browser session and redirecting to
+an allowlisted Webapp path.
+
+### Verification
+
+```text
+npm.cmd run check --prefix apps/webapp
+node --test tests/a3/*.mjs
+npm.cmd run test:e2e
+python -B -m pytest tests/a1 tests/a2 -q -p no:cacheprovider
+python scripts/cl_guard.py commercial
+python scripts/cl_guard.py hygiene
+npm.cmd audit --audit-level=high --prefix apps/webapp
+git diff --check
+git check-ignore -v .env.local apps/webapp/node_modules apps/webapp/out docs/screenshots/playwright-results
+```
+
+Results:
+
+- Next.js TypeScript check and 14-page static export: passed.
+- Full A3 Node suite: 334 passed, 0 failed.
+- Full Playwright suite: 31 passed, 0 failed.
+- Current-main A1/A2 Python: 562 passed, 5 conditional skips, 1013 subtests
+  passed.
+- Commercial CL: passed with 0 blockers and 0 advisories.
+- Hygiene CL: passed with no findings.
+- Webapp dependency audit: 0 vulnerabilities.
+- Changed-file high-confidence secret scan: no findings.
+- `.env.local`, build output, dependencies, and Playwright transient output
+  remain ignored.
+
+### Visual evidence
+
+- `docs/screenshots/a3-webapp-login-desktop.png`
+- `docs/screenshots/a3-webapp-api-reference-desktop.png`
+- `docs/screenshots/a3-webapp-api-reference-mobile-390x844.png`
+- `docs/screenshots/a3-webapp-email-signup-preview-desktop.png`
+
+### Safety
+
+- No `.env.local`, API key, OAuth secret, SMTP credential, token, cookie,
+  authorization code, OTP, or real email value was read or committed.
+- No real OAuth redirect, verification email, account mutation, or provider
+  call was executed by tests.
+- The email template has no JavaScript, remote image, tracking pixel, form,
+  third-party font, or user-controlled HTML.
 
 ## 2026-07-09 - Commercial Growth Round 6 Reviewer Denial And SaaS Runtime Reads
 
@@ -5667,3 +5764,636 @@ Safety:
 - No live GitHub, Slack, Teams, email, webhook, billing provider, or cloud call.
 - No raw key, token, cookie, email, signed URL, local account path, payment
   secret, raw webhook URL, connector secret, or raw share token was written.
+
+## 2026-07-10 - A3 Notification Panel Component Pass
+
+- Extracted Notification Control Plane rendering into apps/dashboard/src/components/notification-control-plane.mjs.
+- Reduced notification HTML in apps/dashboard/src/app.mjs and kept status badge wiring in place.
+- Added SaaS Runtime event-outbox visibility and Enterprise hosted/self-host gap visibility in component panels.
+- Verified with `node --test tests/a3/dashboard_wiring.test.mjs tests/a3/a3_api_server.test.mjs` and `npm.cmd run test:e2e` (10 pass).
+
+
+## 2026-07-10 - GitHub Main Alignment Connectivity Audit
+
+- Re-tried `git fetch origin` after browser GitHub login and confirmed git transport still fails against `https://github.com/3351666087/ashr-codex-factory.git` with connection reset / port 443 failures.
+- Re-tried `git ls-remote origin HEAD` and confirmed direct git HTTPS connectivity to `github.com` remains unavailable from this workstation.
+- Verified GitHub CLI auth remains healthy with `gh auth status` and repo metadata is reachable via `gh api`.
+- Verified `api.github.com` is reachable while `github.com` root HTTPS remains unavailable, so the blocker is network-path specific rather than account-auth specific.
+- Queried remote `main` through `gh api` and confirmed latest remote main SHA `5dbf4ee2ab4c0ea8568623899244070dce9f9ce4`.
+- Compared current A3 branch head against remote main through GitHub API and confirmed `behind_by: 0`, so the branch is not missing latest main ancestry even though local `origin/main` cannot refresh.
+- Kept A3 work downstream of latest visible A1/A2/A3 main evidence while transport remains degraded.
+
+
+## 2026-07-10 - A3 Notification Live-Ops Alignment Pass
+
+- Extended `services/report/a3_notification_control_plane.mjs` with `live_ops_alignment` so notification readiness can directly explain reviewer records, billing/usage readiness, and hosted report sharing context.
+- Extended `apps/dashboard/src/components/notification-control-plane.mjs` with a `Live Ops Alignment` section that shows why notifications matter commercially instead of leaving them as isolated delivery lanes.
+- Kept the change downstream-only: A3 still consumes A1 event-outbox/usage-ledger style facts and A2 release-policy facts without mutating runner, judge, or release semantics.
+- Verified with `node --test tests/a3/a3_notification_control_plane.test.mjs tests/a3/dashboard_wiring.test.mjs tests/a3/a3_api_server.test.mjs` (42 pass, 0 fail).
+
+
+## 2026-07-10 - A3 Product Console Operations Loop Pass
+
+- Extended `services/report/a3_product_console.mjs` so the product console now consumes review-workflow and notification-control-plane summaries in addition to run, grade, usage, and hosted report data.
+- Added `operations_summary` to the project console model with review-record count, hosted-report counts, notification-lane counts, and a commercial explanation of why the loop matters.
+- Extended `apps/dashboard/src/components/product-console-panel.mjs` with an `Operations Loop` section so Product Console behaves more like a true SaaS landing console instead of a static onboarding card stack.
+- Updated `apps/dashboard/src/app.mjs` to pass `reviewWorkflow` and `notificationControlPlane` into local product-console refresh.
+- Extended `tests/a3/dashboard_wiring.test.mjs` to assert Product Console wiring includes `Operations Loop`, review records, notification lanes, and the new state inputs.
+- Verified with `node --test tests/a3/dashboard_wiring.test.mjs tests/a3/a3_api_server.test.mjs tests/a3/report_builder.test.mjs` (85 pass, 0 fail).
+
+
+## 2026-07-10 - A3 Report Center Commercial Loop Pass
+
+- Extended `apps/dashboard/src/app.mjs` so Report Center now summarizes a commercial loop across reviewer records, hosted shareable reports, notification lanes, and audit-backed live-ops lanes.
+- Added a `Commercial Loop` report tile that makes the Report Center read more like a release-intelligence hub instead of a plain export list.
+- Extended `tests/a3/dashboard_wiring.test.mjs` so the dashboard wiring now asserts the `Commercial Loop` tile and its reviewer/shareable-report language.
+- Verified syntax with `node --check apps/dashboard/src/app.mjs`.
+- Attempted `node --test tests/a3/dashboard_wiring.test.mjs tests/a3/a3_api_server.test.mjs tests/a3/report_builder.test.mjs`, but the current managed environment returned `spawn EPERM` before test execution, so this round's code-level validation is limited to static checks and prior green test history.
+
+
+## 2026-07-10 - A3 Reviewer to Report Share Readiness Pass
+
+- Extended the dashboard review-workflow records panel so it now shows shareable-report and manifest-ready counts from Report Center alongside durable waiver/approval/denial records.
+- Added a `Report Share Readiness` row that explains reviewer actions, hosted reports, and export evidence should converge before external sharing or release sign-off.
+- Extended `tests/a3/dashboard_wiring.test.mjs` so the wiring evidence now includes `Report Share Readiness` language in addition to the Report Center `Commercial Loop` tile.
+- Verified syntax with `node --check apps/dashboard/src/app.mjs`.
+- Full `node --test` remains blocked in the current managed environment by `spawn EPERM`, so this round continues to rely on static validation plus prior green A3 test history.
+
+
+## 2026-07-10 - GitHub Transport Recovery + Enterprise Posture Pass
+
+- Re-ran `git fetch origin` and confirmed GitHub transport recovered during this round.
+- Confirmed `origin/main` advanced from the older local tracking state to the current remote main tip, so A3 can now calibrate against fresh main state without relying only on GitHub API compare calls.
+- Extended `services/report/a3_enterprise_readiness.mjs` with `cloud_self_host_posture` so enterprise readiness now states hosted-shell posture, self-host contract posture, and tenant-isolation visibility more explicitly.
+- Extended `apps/dashboard/src/components/enterprise-readiness-panel.mjs` with a `Cloud / Self-Host Posture` section.
+- Verified syntax with `node --check services/report/a3_enterprise_readiness.mjs` and `node --check apps/dashboard/src/components/enterprise-readiness-panel.mjs`.
+
+
+## 2026-07-10 - A3 SaaS Admin Control Summary + Notification Destinations Pass
+
+- Extended `services/report/a3_saas_admin.mjs` so SaaS Admin now derives notification destination metadata and notification summary counters from the A3 Notification Control Plane instead of leaving that lane isolated.
+- Extended `apps/dashboard/src/components/saas-admin-console.mjs` with a `Control Summary` section that surfaces release, cloud posture, usage state, team seats, admin request count, and notification lane count in one glance.
+- Wired `Notification Destinations` into the SaaS Admin surface so login/team/API-key/trust workflow reads more like one commercial control plane instead of a set of disconnected panels.
+- Updated `tests/a3/dashboard_wiring.test.mjs` to assert the new SaaS Admin control-summary and notification-destination wiring.
+- Verified with `node --check apps/dashboard/src/components/saas-admin-console.mjs`, `node --check services/report/a3_saas_admin.mjs`, and `node --test tests/a3/dashboard_wiring.test.mjs tests/a3/report_builder.test.mjs` (82 pass, 0 fail).
+
+
+## 2026-07-10 - A3 Commercial Console Growth Pass: GTM + Tenant + Rollout + Enterprise Value
+
+- Extended `services/report/a3_product_console.mjs` with a `go_to_market` summary so Product Console now explains sellable motion, buyer value, hosted-report/reviewer/notification/usage signals, and next sales moves instead of behaving like a purely internal ops page.
+- Extended `services/report/a3_saas_admin.mjs` with `tenant_control` and `rollout_control` contracts so the SaaS Admin surface now communicates tenant/environment boundaries, rollout posture, quota posture, rollback surface, and pre-live sign-off requirements in a more commercial cloud-console shape.
+- Extended `services/report/a3_enterprise_readiness.mjs` with `enterprise_value_map` so Enterprise Readiness can explain what is sellable now, which enterprise claims are still blocked, and which buyer questions are already answered by current A1/A2/A3 evidence.
+- Extended dashboard components for Product Console, SaaS Admin, and Enterprise Readiness to render the new GTM / tenant / rollout / enterprise-value sections.
+- Updated dashboard wiring tests to assert the new sections and service-layer builders.
+- Verified with `node --check` on all touched service/component files and `node --test tests/a3/dashboard_wiring.test.mjs tests/a3/report_builder.test.mjs` (82 pass, 0 fail).
+- Re-tried GitHub transport earlier in the round; direct `git fetch origin` still behaved unstably, so this pass continued with local evidence-first development instead of blocking product progress.
+
+
+## 2026-07-10 - GitHub Recovery + Sign-Off / Billing / Self-Host Growth Pass
+
+- Re-verified GitHub remote reachability with `git ls-remote origin HEAD`, `gh auth status`, and `git fetch origin --prune`; direct git + GitHub CLI connectivity is healthy again and `origin/main` resolves to `5dbf4ee2ab4c0ea8568623899244070dce9f9ce4`.
+- Extended `services/report/a3_report_center.mjs` with `release_signoff_summary` so Report Center can summarize shareable hosted reports, release-evidence-ready reports, manifest-ready reports, usage readiness, and migration readiness as one release packet.
+- Extended `services/report/a3_saas_admin.mjs` with `billing_account` so the admin surface can explain plan packaging, read-only invoice preview posture, billable meter count, and overage risk.
+- Extended `services/report/a3_enterprise_readiness.mjs` with `self_host_packet` so Enterprise Readiness can show install surfaces, buyer promises, blocker count, and explicit A1/A2 readiness in self-host language.
+- Extended dashboard rendering so Report Center shows a new `Release Sign-Off` tile, SaaS Admin shows a `Billing Account` block, and Enterprise Readiness shows a `Self-Host Packet` block.
+- Updated dashboard wiring assertions for the new commercial sections.
+- Verified with `node --check` on touched service/UI files and `node --test tests/a3/dashboard_wiring.test.mjs tests/a3/report_builder.test.mjs` (82 pass, 0 fail).
+
+
+## 2026-07-10 - Reviewer Scope + Usage Runway Growth Pass
+
+- Extended `services/report/a3_review_workflow.mjs` with `scope_summary` so durable review records now summarize release-version count, environment count, actor-role count, actor-hash count, and latest scoped release/environment.
+- Extended `apps/dashboard/src/app.mjs` reviewer-workflow rendering with a new `Review Scope Summary` row so reviewer records read more like a governed release-signoff surface instead of a raw receipt list.
+- Extended `services/report/a3_usage_ledger.mjs` with `burn_summary` so usage now communicates billable-unit burn, quota-included units, estimated remaining units, active billable meters, and runway state.
+- Extended `apps/dashboard/src/components/saas-runtime-panel.mjs` with a new `Burn / Runway` section and runway headline tile so the runtime surface reads more like a real SaaS operations console.
+- Updated dashboard wiring assertions for `Review Scope Summary` and `Burn / Runway`.
+- Verified with `node --check services/report/a3_review_workflow.mjs services/report/a3_usage_ledger.mjs apps/dashboard/src/app.mjs apps/dashboard/src/components/saas-runtime-panel.mjs` and `node --test tests/a3/dashboard_wiring.test.mjs tests/a3/report_builder.test.mjs` (82 pass, 0 fail).
+
+
+## 2026-07-10 - Plan Comparison + Invoice Preview + Sign-Off Detail Pass
+
+- Extended `services/report/a3_saas_admin.mjs` billing-account state with `plan_comparison` and `invoice_preview` so the admin model now better communicates package tiers and read-only billing line items.
+- Extended `apps/dashboard/src/components/saas-admin-console.mjs` billing rendering so Billing Account now shows plan tiers and invoice-preview-style line items instead of only top-level account metadata.
+- Extended `services/report/a3_report_center.mjs` with `release_signoff_detail` so Report Center now carries a checklist-oriented release-signoff packet in addition to the summary tile.
+- Extended `apps/dashboard/src/app.mjs` so Report Center now exposes a `Sign-Off Detail` tile derived from the new sign-off detail payload.
+- Updated dashboard wiring assertions to cover invoice-preview/plan-comparison structure and the sign-off-detail tile.
+- Verified with `node --check services/report/a3_saas_admin.mjs services/report/a3_report_center.mjs apps/dashboard/src/components/saas-admin-console.mjs apps/dashboard/src/app.mjs` and `node --test tests/a3/dashboard_wiring.test.mjs tests/a3/report_builder.test.mjs` (82 pass, 0 fail).
+
+
+## 2026-07-10 - China-First Billing Priority Pass
+
+- Re-aligned A3 billing and admin surfaces for a China-first payment posture instead of treating international checkout as the default path.
+- Updated `services/report/a3_billing_readiness.mjs` so supported future providers now prioritize `wechat_pay`, `alipay`, then `manual_invoice`, with `stripe` pushed to a secondary position.
+- Updated billing-readiness copy and next actions so the product now explicitly states WeChat Pay and Alipay should come before secondary international checkout providers.
+- Updated `services/report/a3_saas_admin.mjs` packaging and plan-comparison language so Team/Enterprise billing posture references domestic payment onboarding and China-first billing readiness.
+- Verified with `node --check services/report/a3_billing_readiness.mjs services/report/a3_saas_admin.mjs` and `node --test tests/a3/dashboard_wiring.test.mjs tests/a3/report_builder.test.mjs` (82 pass, 0 fail).
+- Also re-confirmed A1 latest direction remains richer on runtime/API probe/SDK paths, so A3 continues to align downstream with that more realistic runtime shape.
+
+
+## 2026-07-10 - Official Ashr Public Calibration: Pricing + Observability Note
+
+- Checked public Ashr product pages and docs for current product shape.
+- Public product evidence shows Ashr now clearly presents a usage-based plans story with Developer / Startup / Enterprise tiers and startup overage meters tied to Stripe on the official site.
+- Public Python SDK docs also separate Testing Platform from Observability and state traces are stored in Postgres and rendered in the Observability panel.
+- A3 implication: our current direction stays valid because the product needs to feel like a combined release-intelligence + observability + report + billing/admin shell, not only an eval results viewer.
+- Local commercial implication for this student clone: keep public Ashr international billing/reference awareness, but continue expressing our own A3 billing/admin path as China-first with WeChat Pay and Alipay prioritized for domestic commercialization.
+- Source note: public-only calibration from ashr.io homepage, pricing section, and Python SDK overview; no secret, account-private, or real billing mutation used.
+
+## 2026-07-10 - Domestic Billing + Review Trend Pass
+
+- Extended `services/report/a3_saas_admin.mjs` billing-account state with `provider_priority` so A3 now explicitly ranks `wechat_pay`, `alipay`, `manual_invoice`, then `stripe` instead of leaving domestic billing as only copy.
+- Extended `services/report/a3_saas_admin.mjs` with an `invoice_workflow` shell so the admin surface can explain billing-contact capture, finance review, provider-or-transfer routing, and receipt/audit linkage without performing any live payment mutation.
+- Reframed invoice preview currency and pricing labels to a China-first `CNY` posture so the shell reads more like a domestic commercial product instead of a US-default placeholder.
+- Extended `apps/dashboard/src/components/saas-admin-console.mjs` with a new `Provider Priority` section and a `Domestic Invoice Workflow` section so the dashboard now shows payment-order strategy and enterprise procurement flow directly in UI.
+- Extended `services/report/a3_review_workflow.mjs` with `decision_trends` so reviewer records now summarize approval / waiver / denial counts plus release, environment, and actor breakdowns for a more realistic sign-off console shape.
+- Verified with `node --check services/report/a3_saas_admin.mjs services/report/a3_review_workflow.mjs apps/dashboard/src/components/saas-admin-console.mjs` and `node --test tests/a3/dashboard_wiring.test.mjs tests/a3/report_builder.test.mjs` (82 pass, 0 fail).
+
+## 2026-07-10 - Cloud Governance + Hosted Product Reality Pass
+
+- Re-confirmed GitHub connectivity is healthy again with `git rev-parse origin/main` and `gh auth status`, so A3 no longer needs to assume remote publication is blocked.
+- Re-read `docs/strategy/large-saas-a1-a2-a3-full-plan.md` and continued A3 in the direction of hosted product console, enterprise shell, usage/billing, and governed report workflows instead of isolated demo UI.
+- Extended `services/report/a3_report_center.mjs` with `share_link_governance` so hosted reports now carry a product-facing revoke / expiry / blocked-share governance summary.
+- Extended `services/report/a3_enterprise_readiness.mjs` self-host packet with a `hosted_vs_self_host` comparison so enterprise buyers can see identity, artifact-storage, and billing/usage differences in one packet.
+- Extended `services/report/a3_usage_ledger.mjs` with `overage_alerts` so the runtime surface can now express near-quota and over-quota commercial risk, not only static meter counts.
+- Extended `apps/dashboard/src/components/enterprise-readiness-panel.mjs` and `apps/dashboard/src/components/saas-runtime-panel.mjs` so the new hosted/self-host comparison and overage alerts are visible in product UI.
+- Updated the round-8 growth-auditor note with another 20 concrete next growth points centered on hosted report governance, review filters, trust, cloud summary, PR publish gate, and GitHub publication.
+- Verified with `node --check services/report/a3_report_center.mjs services/report/a3_enterprise_readiness.mjs services/report/a3_usage_ledger.mjs apps/dashboard/src/components/enterprise-readiness-panel.mjs apps/dashboard/src/components/saas-runtime-panel.mjs` and `node --test tests/a3/dashboard_wiring.test.mjs tests/a3/report_builder.test.mjs` (82 pass, 0 fail).
+
+## 2026-07-10 - Review Workflow Filters + Cloud Summary Strip Pass
+
+- Re-checked remote health: GitHub remains reachable, `origin/main` remains readable, and A3 can keep planning against live remote state instead of assuming publication is blocked.
+- Extended `services/report/a3_review_workflow.mjs` with `filter_options` so review workflow now exposes release-version, environment, and actor-hash filter candidates in a product-facing contract.
+- Extended `apps/dashboard/src/app.mjs` review-workflow rendering with `Review Filter Options` and `Decision Trends` rows so the durable-review area now reads more like a release sign-off console than a raw record list.
+- Extended `services/report/a3_saas_admin.mjs` with `cloud_summary_strip` so the admin surface now has a top-level hosted auth / tenant / usage / frontend / trust strip that feels closer to a real cloud operator console.
+- Extended `apps/dashboard/src/components/saas-admin-console.mjs` with a `Cloud Summary Strip` block so operators can see the top cloud posture before drilling into lower-level sections.
+- Verified with `node --check services/report/a3_review_workflow.mjs services/report/a3_saas_admin.mjs apps/dashboard/src/components/saas-admin-console.mjs apps/dashboard/src/app.mjs` and `node --test tests/a3/dashboard_wiring.test.mjs tests/a3/report_builder.test.mjs` (82 pass, 0 fail).
+
+## 2026-07-10 - Interactive Review Filters + Report Governance Card Pass
+
+- Re-confirmed GitHub remote health again: `origin/main` remained readable and GitHub CLI auth remained healthy, so A3 can keep moving toward publishable cloud-product work instead of waiting on remote recovery.
+- Extended `apps/dashboard/src/app.mjs` with local `reviewFilter` state plus `applyReviewWorkflowFilters()` so durable review records now support real local filtering by release version, environment, and actor-hash candidate instead of only showing preview scope text.
+- Upgraded the review-workflow area from `Review Filter Options` preview into interactive selects that rerender the durable-record list in place, making the sign-off surface feel closer to a real operator console.
+- Extended `renderReportCenter()` with a dedicated `Share Link Governance` tile so hosted report revoke / expiry / blocked-share posture is no longer hidden only in the report-center data contract.
+- Added `inline-select-grid` styling in `apps/dashboard/src/styles.css` so the new filter controls fit the existing polished control surface.
+- Verified with `node --check apps/dashboard/src/app.mjs services/report/a3_review_workflow.mjs` and `node --test tests/a3/dashboard_wiring.test.mjs tests/a3/report_builder.test.mjs` (82 pass, 0 fail).
+
+## 2026-07-10 - Playwright-Proven Review Governance + Cloud Strip Pass
+
+- Re-confirmed again that GitHub remote state is healthy (`origin/main` readable, GitHub CLI authenticated), so the current A3 blocker is product depth, not remote connectivity.
+- Extended `tests/e2e/a3-dashboard-api-backed.spec.ts` with a new browser-level flow that creates hosted-review context, then proves `Review Filters`, `Share Link Governance`, and `Cloud Summary Strip` render together in the API-backed dashboard.
+- Refreshed A3 browser evidence by saving `docs/screenshots/a3-review-governance-cloudstrip-2026-07-10.png` from the Playwright flow.
+- Upgraded this round from source-level/product-contract progress into browser-proven commercial-console evidence.
+- Verified with `npx.cmd playwright test tests/e2e/a3-dashboard-api-backed.spec.ts --project=chromium` (7 passed) in addition to the existing Node checks and A3 dashboard/report tests.
+
+## 2026-07-10 - Filter Scope + Overage Surfacing Pass
+
+- Extended `apps/dashboard/src/app.mjs` review-workflow rendering with an `Active Filter Scope` row so operators can see exactly which release/environment/actor scope is currently narrowing durable records.
+- Surfaced overage risk into the SaaS Admin control summary so quota pressure is visible earlier in the hosted-operations view instead of staying buried only inside deeper billing/runtime sections.
+- Re-verified A3 dashboard/report tests after the new operator-facing summary changes (`node --check apps/dashboard/src/app.mjs apps/dashboard/src/components/saas-admin-console.mjs` and `node --test tests/a3/dashboard_wiring.test.mjs tests/a3/report_builder.test.mjs`, 82 pass, 0 fail).
+- Publication-prep implication: the branch now has stronger hosted-console operator cues and browser-proven governance evidence before the next A3-only commit/push grouping step.
+
+## 2026-07-10 - URL-Persisted Filters + GitHub Publish Posture Pass
+
+- Extended `apps/dashboard/src/app.mjs` so review filter scope now persists in the URL query (`reviewRelease`, `reviewEnv`, `reviewActor`) and restores on page load, moving the reviewer sign-off surface closer to a real shareable/operator workflow.
+- Added a `GitHub Publish Posture` report-center tile so dry-run publish receipts, PR-comment posture, required-check naming, and release-evidence status are more visible to operators and reviewers.
+- Re-verified the dashboard wiring and report-builder suite after the new URL/query behavior and GitHub posture card (`node --check apps/dashboard/src/app.mjs` and `node --test tests/a3/dashboard_wiring.test.mjs tests/a3/report_builder.test.mjs`, 82 pass, 0 fail).
+- Commercial implication: A3 now better supports reviewer handoff and GitHub-facing release conversations without pretending local dry-run receipts are live branch protection.
+
+## 2026-07-10 - URL Filter Persistence Follow-Up
+
+- Added URL query persistence logic for review filters in `apps/dashboard/src/app.mjs` so reviewer scope can move toward shareable deep-link behavior.
+- Node validation and A3 dashboard/report tests still pass after the new query-sync behavior (`node --check apps/dashboard/src/app.mjs` and `node --test tests/a3/dashboard_wiring.test.mjs tests/a3/report_builder.test.mjs`, 82 pass, 0 fail).
+- Browser follow-up: Playwright still shows a gap between the newly added query-sync logic and observable URL mutation in the `shows review filters, share governance, and cloud summary strip` flow. The current failure is evidence that the operator-facing shareable filter loop is not finished yet, not a reason to claim completion.
+- Next step: inspect the rendered filter options and rerender path so `reviewRelease` becomes browser-proven instead of only source-proven.
+
+## 2026-07-10 - Browser Gap Still Open: Review Filter URL Mutation
+
+- Re-attached `syncReviewFilterQuery()` to the review-filter change handler and re-ran browser validation.
+- Result: Node syntax and A3 dashboard/report tests remain healthy, but the Playwright flow still does not observe `reviewRelease=` entering the URL after selecting the first release option in API-backed mode.
+- This means the remaining gap is no longer conceptual. It is a concrete browser/runtime mismatch around the rendered select options, their values, or rerender timing in the API-backed dashboard.
+- Next debugging move should inspect `select` option values and `inputValue()` under Playwright before asserting URL mutation, then trace whether the review-workflow block rerenders before `history.replaceState()` becomes observable.
+
+## 2026-07-10 - Review Filter Browser Diagnosis Narrowed Further
+
+- Added Playwright runtime diagnostics for the review filter select under API-backed mode.
+- Confirmed the browser sees two release options (`all releases`, `local-mock-commercial-gate`) and the selected value becomes `local-mock-commercial-gate` after `selectOption({ index: 1 })`.
+- Despite the valid selected value, the page URL still does not expose `reviewRelease=...` during the test. This narrows the remaining gap away from fixture availability and onto browser-observable sync timing or the update path around `history.replaceState` and rerender behavior.
+- The next best debugging move is to instrument or observe the browser-side call to `syncReviewFilterQuery()` / `history.replaceState` directly instead of continuing blind edits.
+
+## 2026-07-10 - Browser-Proven Reviewer Deep-Link Pass
+
+- Repaired the local review-filter event block in `apps/dashboard/src/app.mjs` and restored a clean, executable `syncReviewFilterQuery()` path after prior text-edit pollution.
+- Proved with Playwright that the API-backed reviewer filter flow now browser-observably updates state and still supports the hosted-governance / cloud-strip surface.
+- Re-ran the focused reviewer/governance browser test and then the full `tests/e2e/a3-dashboard-api-backed.spec.ts` suite: the previously failing `shows review filters, share governance, and cloud summary strip` case now passes, and the full E2E file is green (7 passed).
+- Re-ran the A3 dashboard/report Node suite after the repair: `node --test tests/a3/dashboard_wiring.test.mjs tests/a3/report_builder.test.mjs` remains green (82 pass, 0 fail).
+- Commercial implication: reviewer scope is now closer to a genuinely shareable deep-link control surface instead of only a local in-memory filter experiment.
+
+## 2026-07-10 - Reload-Preserves-Filter Follow-Up
+
+- Extended the focused Playwright reviewer/governance test so it now asserts not only URL mutation, but also reload preservation expectations.
+- New evidence: after selecting the release filter, the URL still retains `reviewRelease=...` on reload, which means the first half of deep-link persistence is working.
+- Remaining gap: after reload, the reviewer block still does not visibly render the `Active Filter Scope` row in the tested flow, so the second half of the shared-view experience is not yet browser-proven.
+- This narrows the next issue from generic deep-linking to a more precise reload/render-state mismatch: query params survive, but the scoped reviewer presentation is not fully rehydrated into the visible block.
+
+## 2026-07-10 - Reload Visible Review Scope Rehydration Fixed
+
+- Fixed `apps/dashboard/src/app.mjs` so the review workflow records panel now actually renders the `Active Filter Scope` row during the same render path that restores `reviewRelease`, `reviewEnv`, and `reviewActor` from the URL.
+- Root cause: the deep-link state was already being restored into `state.reviewFilter`, but the visible scope row component existed without being inserted into the reviewer records block. That meant the URL could be correct while the operator-facing reviewer surface still looked unscoped after reload.
+- Re-ran Node validation: `node --test tests/a3/dashboard_wiring.test.mjs tests/a3/report_builder.test.mjs` stays green (82 pass, 0 fail).
+- Re-ran browser validation: `npx.cmd playwright test tests/e2e/a3-dashboard-api-backed.spec.ts --project=chromium` is green (7 passed), including the reviewer/governance/cloud-strip flow.
+- Commercial implication: A3 reviewer filtering is now stronger as a shareable operational workflow because the operator can reload a scoped review URL and still see the scope reflected in the visible dashboard state instead of only in the address bar.
+
+## 2026-07-10 - SaaS Admin Commercial Cloud Hardening Pass
+
+- Re-checked GitHub connectivity posture before coding. `gh auth status` remains healthy for `yangx2www-dot`, while `git fetch origin` hit a transient `Recv failure: Connection was reset`. This means GitHub auth is connected, but network stability is still the thing to watch before pushing.
+- Extended `services/report/a3_saas_admin.mjs` so the SaaS Admin model now exposes more commercial control-plane signals instead of only basic shells: `team.seat_management`, API key hygiene and audit requirements, usage overage posture, trust/compliance posture, and cloud workspace posture.
+- Extended `apps/dashboard/src/components/saas-admin-console.mjs` so the dashboard now visibly renders those new commercial signals: `Seat / License Posture`, `API Key Audit`, `Compliance Posture`, and `Workspace / Cloud Posture`.
+- Kept the work A3-scoped and A1/A2-compatible: all new state is derived from existing A1 run summaries, A2 grade/release-gate summaries, and A3 usage/admin/report contracts without changing A1 runner logic or A2 judge semantics.
+- Re-ran validation after the hardening pass: `node --check apps/dashboard/src/components/saas-admin-console.mjs`, `node --check services/report/a3_saas_admin.mjs`, `node --check tests/a3/dashboard_wiring.test.mjs`, and `node --test tests/a3/dashboard_wiring.test.mjs tests/a3/report_builder.test.mjs` are green (82 pass, 0 fail).
+- Commercial implication: A3 now looks less like a static evaluator shell and more like a real release-intelligence admin console that can talk about seats, usage, keys, compliance, and workspace state the way a paying team would expect.
+
+## 2026-07-10 - GitHub Recovery + Commercial Governance Loop Pass
+
+- Re-tested GitHub from the repo instead of assuming the previous network failure would persist. `git ls-remote origin HEAD` and `git fetch origin --prune` now succeed, so A3 can continue syncing with `origin/main` and remote feature branches.
+- Extended `services/report/report_builder.mjs` so SaaS Admin exports now carry the new commercial-cloud signals all the way into report/export land: seat management, API key hygiene, usage overage posture, trust compliance posture, and workspace posture.
+- Extended `apps/dashboard/src/components/product-console-panel.mjs` with a `Commercial Governance Loop` section so product operators can read reviewer sign-off, hosted report readiness, audit events, and commercial readiness as one sellable workflow instead of scattered tiles.
+- Re-ran validation after the governance pass: `node --check apps/dashboard/src/components/product-console-panel.mjs`, `node --check apps/dashboard/src/components/saas-admin-console.mjs`, `node --check services/report/report_builder.mjs`, `node --check tests/a3/dashboard_wiring.test.mjs`, and `node --test tests/a3/dashboard_wiring.test.mjs tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.test.mjs` are green (83 pass, 0 fail).
+- Commercial implication: A3 now does a better job of showing not just that release evidence exists, but that GitHub publication, reviewer workflow, hosted reports, workspace posture, and audit retention can be understood as one operator-facing release-governance loop.
+
+## 2026-07-10 - Live Ops Governance Recovery Pass
+
+- Rebuilt services/report/a3_live_ops_control_plane.mjs cleanly after prior text-edit pollution so the live-ops layer now stably returns reviewer timeline, GitHub publish timeline, share-link lifecycle, and audit-history summaries instead of only lane counts.
+- Kept the change downstream of A1/A2 contracts: A1 still owns hosted GitHub workers, usage events, and billing enforcement; A2 still owns release semantics, failure taxonomy, and unblock policy. A3 only turns those contracts into operator-facing workflow state.
+- Re-ran validation after the recovery pass: 
+ode --check services/report/a3_live_ops_control_plane.mjs, 
+ode --check apps/dashboard/src/app.mjs, 
+ode --check tests/a3/dashboard_wiring.test.mjs, 
+ode --check tests/a3/a3_live_ops_control_plane.test.mjs, and 
+ode --test tests/a3/dashboard_wiring.test.mjs tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.test.mjs are green (83 pass, 0 fail).
+- Commercial implication: A3 now shows more than static workflow readiness. It now exposes the reviewer, GitHub publish, hosted-report lifecycle, and audit trail slices that a real team would inspect before signing off on an agent release.
+
+## 2026-07-10 - Live Ops Governance UX Pass
+
+- Extended the live-ops dashboard rendering in pps/dashboard/src/app.mjs so governance data is easier to scan as a product surface: a summary strip now highlights review records, approvals, shareable reports, and lifecycle rows before the deeper live-ops tables.
+- Kept the deeper contract-backed governance slices visible in the same panel: reviewer timeline, GitHub publish step timeline, share-link lifecycle, and audit history all render from the recovered 3_live_ops_control_plane contract.
+- Added browser-level proof in 	ests/e2e/a3-dashboard-api-backed.spec.ts that the API-backed dashboard now visibly contains the live-ops governance elements (Reviewer timeline, GitHub publish step, Share-link lifecycle, Audit history, Governance drilldown).
+- Re-ran validation: 
+ode --test tests/a3/dashboard_wiring.test.mjs tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.test.mjs is green (83 pass, 0 fail), and 
+px.cmd playwright test tests/e2e/a3-dashboard-api-backed.spec.ts --project=chromium is green (7 passed).
+- Commercial implication: A3 now presents release governance less like disconnected evidence tables and more like a real operations console where a reviewer or release owner can quickly understand approval state, GitHub publication state, hosted-report lifecycle, and audit trail posture.
+
+## 2026-07-10 - Live Ops Governance Export Pass
+
+- Extended services/report/report_builder.mjs so live-ops governance is no longer dashboard-only. Report-building code now has a dedicated summarizeLiveOpsControlPlaneExport(...) path for reviewer timeline, GitHub publish timeline, share-link lifecycle, and audit history.
+- Added a focused report-builder contract test proving that the new live-ops export summary carries lane counts, reviewer timeline entries, GitHub publish steps, share-link lifecycle rows, and audit history.
+- Re-ran validation: 
+ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.test.mjs is green (47 pass, 0 fail).
+- Commercial implication: A3 governance evidence is now more portable. The same live-ops narrative used in the dashboard can be exported into report flows, which is closer to a real enterprise audit packet instead of a UI-only experience.
+
+## 2026-07-10 - Tenant Workspace + Separation-Of-Duties Commercial Pass
+
+- Strengthened A3 SaaS Admin with explicit tenant/workspace/environment control state instead of a thin project-switch shell.
+- Added separation-of-duties commercial posture so release approval, API-key hygiene, and billing/procurement are presented as distinct enterprise controls.
+- Added workspace posture storytelling tying report governance, review gating, usage visibility, and audit-safe operator access together.
+- Extended Enterprise Readiness with a hosted buyer-readiness block so hosted vs self-host value is legible to procurement and security reviewers.
+- Added dashboard wiring test coverage for tenant workspace control, separation-of-duties, and hosted buyer-readiness surfaces.
+- Verification: `node --test tests/a3/dashboard_wiring.test.mjs tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.test.mjs` -> 85 pass / 0 fail.
+- GitHub remote state check this round: `git fetch origin --prune` hit `Recv failure: Connection was reset`; prior push on this branch had already succeeded, so remote auth remains healthy while transport is intermittent.
+
+## 2026-07-10 - Report Scope + Commercial Cloud Continuity Pass
+
+- Confirmed GitHub remote readback window is partially healthy again: `git ls-remote origin HEAD` succeeded even though transport remains intermittently fragile.
+- Extended Report Center customer-facing tiles so hosted report scope now echoes tenant/project identity instead of reading like an unscoped export shelf.
+- Extended SaaS Admin export mapping so richer workspace posture survives into report/export contracts: status, tenant-scope visibility, project state, environment state, operator story, and next-capability hints.
+- Rewired cloud-management workspace posture to reuse the stronger `buildWorkspacePosture()` contract rather than an older shallow field set.
+- Added Node test coverage proving richer workspace posture survives SaaS Admin export.
+- Added Playwright coverage proving hosted report scope plus commercial admin/enterprise controls render together in the API-backed dashboard.
+- Verification: `node --test tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs tests/a3/a3_live_ops_control_plane.test.mjs` -> 86 pass / 0 fail.
+- Verification: `npx.cmd playwright test tests/e2e/a3-dashboard-api-backed.spec.ts --project=chromium` -> 8 passed.
+
+## 2026-07-10 - Environment-Aware Report Scope Pass
+
+- Extended `services/report/a3_report_center.mjs` so Report Center tenant scope now carries `organization_id`, `tenant_id`, `workspace_id`, `project_id`, and `environment_id` rather than only org/project.
+- Extended `apps/dashboard/src/app.mjs` hosted-report and release-signoff scope strings so the API-backed dashboard now surfaces `org / workspace / project / environment` continuity in customer-visible report tiles.
+- Added Node test coverage proving report-center scope preserves tenant/workspace/environment identifiers.
+- Refreshed Playwright expectation so browser proof covers the richer scope string in Hosted Reports.
+- Verification: `node --test tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs tests/a3/a3_live_ops_control_plane.test.mjs` -> 87 pass / 0 fail.
+- Verification: `npx.cmd playwright test tests/e2e/a3-dashboard-api-backed.spec.ts --project=chromium` -> 8 passed.
+- GitHub state update: `git ls-remote origin HEAD` still succeeds, but `git push origin codex/a3-commercial-growth-round4` failed this round with `Failed to connect to github.com port 443`, confirming read-path availability with write-path transport instability.
+
+## 2026-07-10 - Row-Level Report Scope Continuity Pass
+
+- Extended `services/report/a3_report_center.mjs` so each report-center item now preserves row-level `tenant_scope` with workspace/project/environment continuity, not only the index-level scope block.
+- Extended `apps/dashboard/src/app.mjs` hosted report rows so each row now shows workspace, project, environment, and share-link scope alongside report metadata.
+- Added Node coverage proving row-level report-center items preserve workspace/project/environment scope.
+- Refreshed Playwright scope assertions so browser proof now covers row-level scope continuity in the hosted-report area.
+- Verification: `node --test tests/a3/report_center_index.test.mjs tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs tests/a3/a3_live_ops_control_plane.test.mjs` -> 90 pass / 0 fail.
+- Verification: `npx.cmd playwright test tests/e2e/a3-dashboard-api-backed.spec.ts --project=chromium` -> 8 passed.
+
+## 2026-07-10 - Export Audience Governance Pass
+
+- Extended `services/report/a3_report_center.mjs` with `export_audience_governance` so Report Center now models which audiences can consume which report/export surface: internal ops, reviewer sign-off, executive summary, and blocked customer-external export.
+- Extended `apps/dashboard/src/app.mjs` report-center tiles with a new `Export Audience` tile so the UI now explains who a hosted report packet is for, not only whether it exists.
+- Kept the governance commercial: customer-external export remains blocked until explicit trust/public export workflow exists; reviewer/executive audiences depend on sign-off and redacted hosted-report readiness.
+- Added Node coverage in `tests/a3/report_center_index.test.mjs` for the new audience-governance contract and in `tests/a3/dashboard_wiring.test.mjs` for the dashboard tile wiring.
+- Verification: `node --test tests/a3/report_center_index.test.mjs tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs tests/a3/a3_live_ops_control_plane.test.mjs` -> 92 pass / 0 fail.
+- Playwright note: this round's API-backed dashboard run hit startup/response instability (`Loading local fixtures...` / initial API waits timing out) before the new audience-governance surface could be proven end-to-end. This is recorded as a runtime-path instability, not as a failed contract change.
+- GitHub note: current environment still shows intermittent remote instability; prior evidence proves remote HEAD read success, but push remains transport-fragile.
+
+## 2026-07-10 - Audience Badge + Public Export Blocker Pass
+
+- Extended `services/report/a3_report_center.mjs` so each hosted report row now carries `export_audience` metadata with allowed audiences derived from report status, redaction, and release-evidence readiness.
+- Extended `apps/dashboard/src/app.mjs` hosted-report rows so the report center now displays row-level audience badges alongside workspace/project/environment/share-scope data.
+- Kept customer-external posture intentionally blocked in the contract so the UI communicates that public/customer-facing export still requires a future trust/public export workflow.
+- Added Node coverage in `tests/a3/report_center_index.test.mjs` for row-level audience derivation and in `tests/a3/dashboard_wiring.test.mjs` for hosted-report row audience/scope wiring.
+- Verification: `node --test tests/a3/report_center_index.test.mjs tests/a3/dashboard_wiring.test.mjs tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.test.mjs` -> 94 pass / 0 fail.
+- GitHub read-path note: `git ls-remote origin HEAD` continues to succeed, so remote visibility is still alive even when write-path transport remains fragile.
+
+## 2026-07-10 - Report Center Audience / Scope / External Publish Governance Pass
+
+- Added `audience_filters`, `workspace_groups`, `environment_groups`, and `external_publish_blockers` to `services/report/a3_report_center.mjs` so hosted reports are not only listed but also grouped by workspace/environment and governed by export audience posture.
+- Upgraded `apps/dashboard/src/app.mjs` to render new Report Center product tiles: `Audience Filters`, `Workspace Groups`, `Environment Groups`, and `External Publish Blockers`.
+- Extended hosted report rows so each row now shows allowed audiences, blocked audiences, customer-external blocker posture, release-evidence readiness, and audit visibility.
+- Kept A3 downstream-only: no A1 runner mutation, no A2 judge semantic change, no real cloud billing/auth/report mutation.
+- Verification: `node --test tests/a3/report_center_index.test.mjs tests/a3/dashboard_wiring.test.mjs tests/a3/report_builder.test.mjs` -> `95 pass / 0 fail`.
+- Commercial reason: this pushes A3 from a plain hosted-report list toward a real release-governance console where operators can answer `which workspace`, `which environment`, `who can see this`, and `why customer external is still blocked` before sign-off.
+
+## 2026-07-10 - SaaS Admin Export Audience Governance Pass
+
+- Added `export_governance` to `services/report/a3_saas_admin.mjs` so A3 can explicitly model reviewer packet, executive packet, and blocked customer-external export posture.
+- Extended `apps/dashboard/src/components/saas-admin-console.mjs` with `Export / Audience Governance` so operators can see allowed audiences, blocked audiences, packet readiness, and required controls in the admin surface.
+- Added `summarizeExportAudienceGovernance()` to `services/report/report_builder.mjs` and included it in JSON report exports as `export_audience_governance`.
+- Reinforced the China-first commercial direction: export governance now stays aligned with CN-first billing posture and avoids claiming customer-safe public export before trust workflow exists.
+- Verification: `node --test tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs tests/a3/report_center_index.test.mjs` -> `97 pass / 0 fail`.
+- Commercial reason: this makes A3 closer to a sellable release-governance console because it explains which packet can go to reviewers, which can go to executives, and why customer-facing export is still blocked.
+
+## 2026-07-10 - Enterprise Decision Packet Commercial Pass
+
+- Added `decision_packets` to `services/report/a3_enterprise_readiness.mjs` so enterprise readiness now models three decision layers: `reviewer_packet`, `executive_packet`, and `customer_external_packet`.
+- Extended `apps/dashboard/src/components/enterprise-readiness-panel.mjs` with a `Decision Packets` section that shows which packet is ready, which is blocked, and why blocked customer-facing export remains unsafe.
+- Kept the decision model aligned with A1/A2 evidence: reviewer and executive packet readiness now depends on trace + judge evidence, while customer packet remains blocked by trust/redaction/publish controls.
+- Verification: `node --test tests/a3/dashboard_wiring.test.mjs tests/a3/report_builder.test.mjs tests/a3/report_center_index.test.mjs` -> `98 pass / 0 fail`.
+- Commercial reason: this brings A3 closer to a real release-signoff system because it distinguishes operator/reviewer evidence, leadership sign-off summary, and future customer-safe trust output.
+
+## 2026-07-10 - Playwright Proof For Export Governance + Decision Packets
+
+- Added Playwright coverage in `tests/e2e/a3-dashboard-api-backed.spec.ts` for `Export / Audience Governance` and `Decision Packets`.
+- Browser-proved that the API-backed console shows `customer_external`, `reviewer_signoff`, `executive_summary`, and the enterprise `Reviewer packet / Executive packet / Customer packet` surfaces together.
+- Saved screenshot evidence to `docs/screenshots/a3-export-governance-enterprise-packets-api-backed-2026-07-10.png`.
+- Verification: `cmd /c npx playwright test tests/e2e/a3-dashboard-api-backed.spec.ts --grep "export audience governance|hosted report scope and commercial admin enterprise controls together|review filters, share governance, and cloud summary strip"` -> `3 passed`.
+- Commercial reason: this converts recently-added A3 governance features from source-level contracts into browser-proven SaaS surfaces, which is much stronger evidence for a release-signoff product.
+
+## 2026-07-10 - Live Publish Chain Continuity Pass
+
+- Added `release_publish_chain` to `services/report/a3_live_ops_control_plane.mjs` so live ops now models one chain across reviewer records, GitHub check publish, PR comment publish, hosted report sharing, usage visibility, and billing visibility.
+- Extended `apps/dashboard/src/app.mjs` to render a `Release publish chain` table in the Live Ops Control Plane.
+- Added Node and Playwright proof for the new release-publish chain continuity.
+- Browser screenshot evidence saved to `docs/screenshots/a3-live-publish-chain-api-backed-2026-07-10.png`.
+- Verification:
+  - `node --test tests/a3/dashboard_wiring.test.mjs tests/a3/report_builder.test.mjs tests/a3/report_center_index.test.mjs` -> `99 pass / 0 fail`
+  - `cmd /c npx playwright test tests/e2e/a3-dashboard-api-backed.spec.ts --grep "release publish chain continuity|export audience governance and enterprise decision packets in the API-backed console"` -> `2 passed`
+- Commercial reason: this moves A3 closer to a real release-operations console because publish readiness is no longer scattered across cards; it is shown as a single operator-visible chain.
+
+## 2026-07-10 - Trust Blockers + Customer-Safe Artifact Posture Pass
+
+- Extended `services/report/a3_saas_admin.mjs` trust state with `publish_blockers` and `customer_safe_artifacts` so the admin console can explain why customer-facing publish is still blocked.
+- Extended `apps/dashboard/src/components/saas-admin-console.mjs` trust panel to render blocked reason, publish blockers, and customer-safe artifact posture.
+- Added browser proof for trust blockers in `tests/e2e/a3-dashboard-api-backed.spec.ts` and saved screenshot evidence to `docs/screenshots/a3-trust-blockers-api-backed-2026-07-10.png`.
+- Verification:
+  - `node --test tests/a3/dashboard_wiring.test.mjs` -> `45 pass / 0 fail`
+  - `cmd /c npx playwright test tests/e2e/a3-dashboard-api-backed.spec.ts --grep "trust publish blockers|release publish chain continuity|export audience governance and enterprise decision packets in the API-backed console"` -> `3 passed`
+- Commercial reason: this makes A3 trust posture more credible because it now explains not only that customer-facing publish is blocked, but exactly what blockers and sanitized artifacts sit between internal sign-off and future external sharing.
+
+## 2026-07-10 - Reviewer Gate Publish Blocker Pass
+
+- Tightened `services/report/a3_live_ops_control_plane.mjs` so `release_publish_chain` no longer collapses every not-ready state into vague missing evidence.
+- The publish chain now distinguishes:
+  - `waiting_for_reviewer_records`
+  - `records_present_waiting_for_approval`
+  - `approved`
+  - `blocked_by_denial`
+  - `approved_waiting_for_publish_evidence`
+  - `ready_for_governed_publish`
+- Added explicit `reviewer_gate_status` and `blocker_reasons` so operators can see why governed publish is blocked instead of guessing from counters.
+- Extended `apps/dashboard/src/app.mjs` Live Ops Control Plane with a `Publish blockers` table that renders the blocker reasons directly beside the release publish chain.
+- Added Node coverage in `tests/a3/report_builder.test.mjs` for both the ready path and a denial-blocked path.
+- Extended `tests/a3/dashboard_wiring.test.mjs` so the dashboard wiring now proves `reviewer_gate_status`, `blocked_by_denial`, and `Publish blockers` are all present in source wiring.
+- Verification:
+  - `node --test tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs` -> `95 pass / 0 fail`
+  - `cmd /c npx playwright test tests/e2e/a3-dashboard-api-backed.spec.ts --grep "release publish chain continuity|trust publish blockers|export audience governance and enterprise decision packets in the API-backed console"` -> `3 passed`
+- Commercial reason: this makes A3 feel more like a real release-governance console because it now explains whether publish is blocked by human denial, waiting on approval, or simply missing downstream publish evidence.
+
+## 2026-07-10 - Commercial Ops + Self-Host + Developer Platform Shell Pass
+
+- Extended `services/report/a3_saas_admin.mjs` with three additional money-facing control surfaces:
+  - `commercial_ops`
+  - `self_host_console`
+  - `developer_platform`
+- These additions move A3 closer to a real commercial product shell by making pricing/quote posture, enterprise self-host posture, and API/SDK platform posture visible inside the same SaaS Admin surface.
+- Extended `apps/dashboard/src/components/saas-admin-console.mjs` so the dashboard now renders `Commercial Ops`, `Self-Host Console`, and `Developer Platform` blocks instead of leaving those revenue and platform conversations outside the product.
+- Tightened API-backed dashboard initialization in `apps/dashboard/src/app.mjs` so report-center, artifact-registry, product-console, review-workflow, and SaaS-admin evidence are loaded during first API-backed bootstrap rather than being deferred until later user actions.
+- Added Node proof in:
+  - `tests/a3/report_builder.test.mjs`
+  - `tests/a3/dashboard_wiring.test.mjs`
+- Verification:
+  - `node --test tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs` -> `97 pass / 0 fail`
+- Browser result:
+  - Playwright subset still exposes an API-backed bootstrap issue where the page can remain on `Loading local fixtures...` under the static E2E server even though direct `/api/a3/dashboard?source=mock` requests return `200` with full payloads.
+  - This is now recorded as a real product/test bootstrap bug, not hidden.
+- Commercial reason: this round adds more sellable enterprise/product signals while also attacking a genuine API-backed boot path bug that would matter in a hosted SaaS console.
+
+## 2026-07-10 - API-Backed Bootstrap Recovery Pass
+
+- Root-caused the API-backed dashboard boot issue down to frontend module execution rather than backend data availability.
+- Confirmed direct `GET /api/a3/dashboard?source=mock` returns `200` with the full payload, which ruled out the A3 API server and store as the blocker.
+- Found and fixed a real syntax error in `apps/dashboard/src/components/saas-admin-console.mjs` introduced while expanding commercial SaaS surfaces (`Commercial Ops`, `Self-Host Console`, `Developer Platform`).
+- The syntax error prevented the dashboard module graph from executing fully, which is why the page stayed at `Loading local fixtures...` even though API routes were healthy.
+- Cleaned and normalized `tests/e2e/a3-dashboard-api-backed.spec.ts` so the E2E suite no longer carries brittle temporary debug edits from previous rounds.
+- Re-ran syntax checks and product-critical tests:
+  - `node --check apps/dashboard/src/components/saas-admin-console.mjs`
+  - `node --check apps/dashboard/src/app.mjs`
+  - `node --check tests/e2e/a3-dashboard-api-backed.spec.ts`
+  - `node --test tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs` -> `97 pass / 0 fail`
+  - `cmd /c npx playwright test tests/e2e/a3-dashboard-api-backed.spec.ts --grep "export audience governance and enterprise decision packets in the API-backed console|release publish chain continuity in live ops control plane|trust publish blockers and customer-safe artifact posture"` -> `3 passed`
+- Commercial reason: this was not cosmetic. Recovering API-backed bootstrap means A3 behaves more like a real hosted product console instead of a static report shell. It directly improves operator trust and reduces launch risk for every commercial surface that depends on first-load data.
+
+## 2026-07-10 - Commercial Escalation + Billing Normalization Pass
+
+- Added four API-backed SaaS Admin surfaces: `Procurement / Sign-Off Posture`, `Usage Escalation`, `Collections / Invoice Escalation`, and `Workspace Action Readiness`.
+- Kept these surfaces downstream of A1/A2: A1 run volume and future billing ledger remain the durable source, while A2 release-gate failures continue to determine reviewer/owner escalation. A3 only normalizes and presents the commercial state.
+- Fixed a real billing normalization bug in `resolveBillingPlan()` and `resolveBillingQuota()`: default empty option objects previously shadowed fixture plan/quota input, forcing `local-readonly / unknown_limit` even when calibrated billing data existed.
+- Connected `buildSaasAdminConsole()` to `summarizeBillingUsage()` so plan, CNY currency, billable meters, quota, and overage status now flow into team, billing, commercial ops, trust, rollout, and cloud summaries.
+- Extended `a3.saas_admin_export.v1` additively with team procurement posture, usage escalation posture, billing account/collections posture, CN-first provider priority, and workspace-action readiness.
+- Preserved safety boundaries: no live payment mutation, invite, secret rotation, trust publication, or raw customer identity was enabled.
+- Verification:
+  - billing diagnostic -> `team-cn / CNY / used 100 / over_quota`
+  - `node --test tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs` -> `100 pass / 0 fail`
+  - API-backed Playwright subset for hosted-report lifecycle, durable review records, and commercial admin controls -> `3 passed`
+- Evidence screenshot: `docs/screenshots/a3-commercial-escalation-console-api-backed-2026-07-10.png`.
+- Screenshot limitation: the current single-page console is extremely tall, so full-page evidence is useful for audit existence but weak for detailed visual review. This reinforces the existing need to continue component/page decomposition.
+- Commercial reason: paying teams need usage spikes, seat approvals, invoice escalation, and blocked cloud actions explained beside release risk. This pass makes those operator and buyer decisions explicit without pretending live billing or hosted auth already exists.
+
+## 2026-07-10 - Commercial Sign-Off Control Summary Pass
+
+- Added `a3.commercial_signoff_summary.v1` to the Live Ops Control Plane.
+- The summary joins reviewer approval/denial/waiver state, GitHub check/comment readiness, hosted-report sharing, trust/public-export blockers, usage visibility, billing visibility, and collections escalation.
+- Added explicit states for `blocked_by_human_denial`, `signoff_evidence_incomplete`, `internal_signoff_ready_customer_external_blocked`, and `commercial_signoff_ready`.
+- Added required-role derivation for reviewer, owner, and billing admin instead of presenting release readiness without accountable human owners.
+- Passed SaaS Admin state into static refresh, API store, and API dashboard live-ops construction so trust and collections posture are consistent across runtime paths.
+- Extended `a3.live_ops_control_plane_export.v1` and Markdown report output with the commercial sign-off summary and release publish chain.
+- Added Live Ops UI tables for commercial sign-off evidence and sign-off blockers.
+- Screenshot review found and fixed a real UI bug where DOM-returning `healthTile()` calls were interpolated into template strings and displayed as `[object HTMLDivElement]`.
+- Added `healthTileMarkup()` for string-rendered panels and regression assertions proving no template still interpolates `healthTile()` directly.
+- Verification:
+  - `node --test tests/a3/a3_live_ops_control_plane.test.mjs tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs` -> `101 pass / 0 fail`
+  - API-backed Playwright subset for commercial admin, release publish/sign-off, and trust blockers -> `3 passed`
+- Visual evidence: `docs/screenshots/a3-commercial-signoff-summary-api-backed-2026-07-10.png` now renders real health metrics and no object-string artifacts.
+- Commercial reason: release owners and enterprise buyers now get one accountable sign-off summary rather than manually reconciling reviewer, GitHub, report, trust, usage, and billing panels.
+
+## 2026-07-10 - Live Ops Component Extraction Pass
+
+- Extracted Live Ops rendering from `apps/dashboard/src/app.mjs` into `apps/dashboard/src/components/live-ops-control-plane.mjs`.
+- The new component owns health metrics, workflow lanes, commercial sign-off, blockers, reviewer/GitHub/share timelines, release publish chain, audit history, and A1/A2 boundary copy through one explicit `controlPlane` input.
+- Replaced string-heavy `innerHTML` composition with DOM node creation and `textContent` in the component, reducing injection risk and avoiding DOM-object interpolation bugs.
+- Reduced `app.mjs` by roughly 74 lines while creating a focused 130-line component; the app remains large and further route/component extraction is still required.
+- Updated dashboard wiring tests to load the component directly, assert the component boundary, and forbid `innerHTML` inside this component.
+- Verification:
+  - `node --test tests/a3/a3_live_ops_control_plane.test.mjs tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs` -> `101 pass / 0 fail`
+  - API-backed Playwright subset for commercial admin, release sign-off, and trust blockers -> `3 passed`
+- Commercial reason: componentizing a high-value control surface makes future role-based pages, route-level loading, and hosted product iteration safer without changing A1/A2 contracts.
+
+## 2026-07-10 - Billing + Workflow Readiness Component Extraction Pass
+
+- Extracted Billing Migration Readiness and Live Workflow Readiness rendering from `apps/dashboard/src/app.mjs` into focused components:
+  - `apps/dashboard/src/components/billing-migration-readiness-panel.mjs`
+  - `apps/dashboard/src/components/live-workflow-readiness-panel.mjs`
+- Both components accept one normalized readiness contract and render with DOM nodes plus `textContent`; neither component uses `innerHTML`.
+- Preserved A1/A2 ownership boundaries: Billing Migration continues to display A1-owned ledger/API evidence read-only, while Live Workflow consumes A1 run/trace and A2 judge/release-gate outputs without changing their semantics.
+- Reduced `app.mjs` to 3,874 lines. The web app still needs further extraction, especially Report Center and Reviewer Workflow, before route-level migration is practical.
+- Added browser proof that the extracted Live Workflow component still renders GitHub publishing, human review, billing readback, hosted report lifecycle, and the A1/A2 boundary.
+- Verification:
+  - `node --test tests/a3/a3_live_ops_control_plane.test.mjs tests/a3/report_builder.test.mjs tests/a3/dashboard_wiring.test.mjs` -> `101 pass / 0 fail`
+  - `cmd /c npx playwright test tests/e2e/a3-dashboard-api-backed.spec.ts --grep "Billing Migration Readiness|Live Workflow Readiness|release publish chain continuity"` -> `3 passed`
+- Visual evidence: `docs/screenshots/a3-live-workflow-readiness-api-backed-2026-07-10.png`.
+- Commercial reason: these panels are now independently testable product surfaces, which makes future tenant-aware routes and API loading safer without pretending hosted billing or live GitHub credentials already exist.
+
+## 2026-07-11 - Main Sync + A1/A2 Integration Matrix + Visual Architecture Pass
+
+- Merged the last locally fetched `origin/main` (`5dbf4ee`) into the A3 branch with no merge conflicts, preserving the lead's integrated A1/A2/A3 mainline as the new base.
+- Added `a3.a1_a2_integration_matrix.v1` under the existing Contract Radar API. It validates and hashes four A1 public-safe domains and three A2 domains without embedding raw artifacts.
+- Connected A1 route/quota, billing ledger, payment provider, and object-storage evidence with A2 cross-lane security, SQL evaluation history, and scenario-generation backlog.
+- Added three visible bridges: runtime-to-judge-to-release, object-evidence-to-evaluation-to-report, and billing-ledger-to-policy-to-commercial-sign-off.
+- Added `apps/dashboard/src/components/a1-a2-contract-radar.mjs`, using DOM nodes and `textContent` rather than `innerHTML`.
+- Reworked the console grid and SaaS Runtime disclosure architecture. Browser measurement reduced SaaS Runtime height from about 6,301 px to 457 px, removed horizontal overflow, and kept all contract detail available through expandable groups.
+- Added responsive Contract Radar records for the 390 x 844 mobile viewport; no horizontal overflow was observed.
+- Fixed a real official-demo media crash caused by invalid `report` references in `mediaQueueRow(item)` and removed two mojibake separators.
+- Fixed Report Center empty-state governance so Audience Filters, Workspace/Environment Groups, and External Publish Blockers remain visible before a hosted report exists.
+- Verification:
+  - full A3 Node suite -> `286 pass / 0 fail`
+  - A1/A2 focused Python contracts -> `30 pass / 0 fail`
+  - TypeScript SDK -> `341 pass`; the one Go HTTP test could not run because Go is not installed
+  - full Playwright suite -> `18 pass / 0 fail`
+- Evidence:
+  - `docs/a3/a3_a1_a2_integration_visual_pass_2026_07_11.md`
+  - `docs/screenshots/a3-a1-a2-integration-matrix-api-backed-2026-07-11.png`
+  - `docs/screenshots/a3-a1-a2-integration-matrix-mobile-2026-07-11.png`
+  - `docs/screenshots/a3-runtime-contract-layout-api-backed-2026-07-11.png`
+- Safety: no API key, provider secret, raw evidence payload, real payment call, real object-store call, or A1/A2 semantic mutation was introduced.
+
+## 2026-07-11 - Release Provenance + UI Security + Component Closeout
+
+- Re-read the latest `origin/main` and the newly fetched A1/A2 draft branches. `origin/main` remains `5dbf4ee`; draft-only A1 identity verification and A2 multimodal smoke evidence were used for read-only calibration and were not merged or treated as stable main contracts.
+- Extracted two remaining high-value dashboard surfaces into focused, independently tested DOM components:
+  - `apps/dashboard/src/components/report-center-panel.mjs`
+  - `apps/dashboard/src/components/reviewer-workflow-panel.mjs`
+- Reduced `apps/dashboard/src/app.mjs` from about 3,853 lines to 3,383 lines. The extracted components use DOM APIs and `textContent` for dynamic values instead of trusting upstream text as HTML.
+- Added `a3.release_decision_provenance.v1`, a read-only graph joining A1 run/case/trace/tool-call evidence, A2 grade/failure/release-gate authority, and A3 review/report/usage/billing/audit visibility.
+- Kept A2 `release_gate` as the only upstream decision authority. Missing contracts, dangling evidence references, tenant-scope drift, untrusted identity, RBAC denial, or residual sensitive data force the A3 view to `block` without recomputing A2 policy.
+- Exposed the provenance graph through the API-backed dashboard payload, `GET /api/a3/release-decision/provenance`, and the A1/A2 Contract Radar.
+- Added `a3.ui_action_security_preflight.v1` and `POST /api/a3/ui-actions/preflight` for reviewer approve/deny/waiver and hosted-report create/revoke/export intents. The endpoint returns a metadata-only allow/block decision and never performs a DB or cloud mutation.
+- Kept trusted identity fail-closed. Client headers, query values, and local fixture claims cannot turn themselves into a trusted hosted identity; A1 must later provide authoritative hosted-session or service-account verification.
+- Added a GPT-5.6 visual-system pass for navigation hierarchy, dense tables, focus/hover states, loading/empty/error treatment, responsive layout, and reduced motion. Browser inspection found no horizontal overflow at 390 x 844.
+- Saved current visual evidence:
+  - `docs/screenshots/a3-visual-system-desktop.png`
+  - `docs/screenshots/a3-visual-system-mobile-390x844.png`
+- Ran a real Ashr read-only smoke calibration through the protected local environment. Six operations succeeded (init, health, datasets, runs, requests, agents); only aggregate, redacted evidence was saved in `fixtures/a3/p3/a3_ashr_api_smoke_2026_07_11.redacted.json`.
+- Current sanitized Ashr inventory was 3 datasets, 4 runs, 5 requests, and 0 agents. No API key, account identity, raw response, email, cookie, token, or signed URL was persisted.
+- Generated `docs/a3/growth_auditor_money_grade_round9_2026_07_11.md` with 24 evidence-bound follow-up points instead of silently expanding this closeout round.
+- Verification:
+  - full A3 Node suite -> `321 pass / 0 fail`
+  - full Playwright suite -> `21 pass / 0 fail`
+  - TypeScript SDK plus real Go HTTP vertical slice -> `342 pass / 0 fail`
+  - focused A1 trace/release and A2 contract/persistence/policy suite -> `95 pass / 0 fail`, `987 subtests pass`
+  - `python scripts/cl_guard.py commercial` -> passed, 0 blockers, 0 advisories
+  - `python scripts/cl_guard.py hygiene` -> passed, 0 findings
+  - `git diff --check` -> passed (line-ending warning only)
+- Environment note: Go 1.26.5 was installed as a portable user-local tool under `.codex/tools`, outside the repository. `GOPROXY=https://goproxy.cn,direct` was used for the compatibility test because the default Go proxy timed out; checksum verification was not disabled.
+- Safety closeout: `.env.local` remains ignored, high-confidence secret scanning returned no matches in A3-owned source/docs/fixtures/tests, and no real key or credential entered Git status.
+
+## 2026-07-11 - A1/A2 Evidence Spine + Clean-room Visual Rebuild
+
+- Rechecked the locally available integration base and peer refs: `origin/main` `5dbf4ee`, A1 draft `ac960bd`, and A2 draft `58fe876`.
+- The first `git fetch origin --prune` could not reach `github.com:443`; a final retry succeeded and confirmed `origin/main` `5dbf4ee`, A1 `ac960bd`, and A2 `58fe876` were unchanged. `origin/main` is contained in the current branch.
+- Added `a3.a1_a2_evidence_spine.v1` to join A1 capture, A2 evaluation, A2 release-gate authority, and A3 review/report operations without embedding raw upstream payloads or changing upstream semantics.
+- Exposed the spine in the dashboard API payload and through RBAC-protected `GET /api/a3/a1-a2/evidence-spine`.
+- Added a DOM-safe Evidence Spine component and a direct Overview navigation entry.
+- Kept A1 identity verification and A2 multimodal smoke as draft watch signals only; `draft_contracts_are_authoritative` remains `false`.
+- Rebuilt the dashboard HTML/CSS visual language from scratch using only high-level observations from Anton Skvortsov's public portfolio and Dribbble work. No external code, CSS, HTML, assets, fonts, imagery, particles, branding, or proprietary implementation was copied.
+- Consolidated navigation into six numbered, collapsible product areas while restoring direct access to every existing calibration, replay, regression, review, admin, and trust surface.
+- Added numbered page chapters, a stronger release-intelligence masthead, compact source/export controls, a monochrome data-first palette, stable focus/hover states, print styling, and reduced-motion behavior.
+- Fixed a real topbar overlap between `(001)` and the status chips.
+- Compacted the default SaaS Runtime panel from 941 px to 586 px while preserving all eight API/DB/migration/usage/billing/outbox/guardrail disclosures.
+- Browser verification found no horizontal overflow on desktop or at 390 x 844; mobile navigation remains two columns.
+- Verification:
+  - full A3 Node suite -> `324 pass / 0 fail`
+  - full Playwright suite -> `21 pass / 0 fail`
+  - focused A1/A2 runner/trace/release/storage/billing/contracts/judge/persistence/policy/scenario suite -> `175 pass / 0 fail`, `992 subtests pass`
+  - `python scripts/cl_guard.py commercial` -> passed, 0 blockers, 0 advisories
+  - `python scripts/cl_guard.py hygiene` -> passed, 0 findings
+  - `git diff --check` -> passed
+- Design and integration evidence: `docs/a3/a3_visual_rebuild_anton_cleanroom_2026_07_11.md`.
+- Safety: `.env.local` was not read or changed; no real API key, token, cookie, email, signed URL, account value, external asset, or private source was added.
+
+## 2026-07-11 - Signal/Form A/B Visual Variant + Chinese-First UI
+
+- Added an independent Signal/Form visual variant without deleting the existing Release Intelligence baseline, so the two designs can be reviewed against identical A1/A2 evidence and product behavior.
+- Added `design=signal-form` stylesheet selection and a dedicated comparison surface with split, A-only, and B-only modes.
+- Used the team-supplied Signal/Form library only for high-level design tokens/grid guidance and one CC0 procedural bitmap. The optional B stylesheet does not import A's stylesheet or the upstream runtime/catalog.
+- Added a Chinese-first bilingual layer shared by both variants. Chinese is the default; `中文 / EN` switches immediately, persists through browser storage, and preserves `source`, `design`, and `lang` URL state.
+- Translation is presentation-only. A1/A2 ids, traces, tool-call values, scores, failure classes, release authority, and raw evidence contracts remain unchanged.
+- Added browser coverage for shared 32-case A1/A2 data, stylesheet isolation, Signal/Form visual constraints, 390 x 844 bounds, bilingual persistence, and the comparison controls.
+- Added four screenshots for A, B, B mobile, and side-by-side comparison.
+- Final verification: full A3 Node `325 pass / 0 fail`; full Playwright `25 pass / 0 fail`; focused A1/A2 compatibility `157 pass / 0 fail`, `987 subtests pass`; commercial and hygiene CL guards passed with no findings; `git diff --check` passed.
+- The first full Playwright rerun reused a stale local server on port 4173 that predated the Evidence Spine route. After verifying its exact test-server command, the stale process was stopped and a clean current-code rerun passed all 25 tests.
+- The 1200 x 800 procedural masthead bitmap is nonblank; a 24 x 24 sampling grid observed 142 distinct colors.
+- Design/source record: `docs/a3/a3_signal_form_design_comparison_2026_07_11.md`.
+
+## 2026-07-11 - Next.js Route-level Product Webapp
+
+- Added apps/webapp as the A3 TypeScript/React/Next.js product-console mainline while preserving apps/dashboard as the exhaustive evidence inspector.
+- Split the product workflow into ten routes: login, overview, projects, runs, case detail, review, reports, team, billing, and trust.
+- Kept all product pages on the existing GET /api/a3/dashboard read contract. A1 remains authoritative for run/trace/tool-call evidence; A2 remains authoritative for score/pass-fail/failure/release decisions.
+- Added Chinese-first bilingual presentation without translating evidence IDs or upstream decision values.
+- Reworked visual hierarchy with stronger page headers, numbered sections, larger body/table typography, high-contrast table headers, Expected-vs-Actual comparison, and reduced-motion-aware route transitions.
+- Added ten-row Runs pagination and query/status filtering to prevent the 32-case queue from becoming a text wall.
+- Kept auth, reviewer mutations, hosted sharing, API-key creation, and billing actions fail-closed until trusted A1 hosted services exist.
+- Added Next static-export routing support to the A3 E2E server, including the generated RSC alias mapping needed for client-side navigation without 404s.
+- Added tests/a3/a3_webapp_contract.test.mjs and tests/e2e/a3-webapp-product-routes.spec.ts.
+- Added a dedicated a3-webapp CL job for npm install, typecheck, static export, Chromium, and route-level Playwright.
+- Upgraded the transitive PostCSS runtime through an npm override; production audit now reports zero vulnerabilities.
+- Verification:
+  - Next.js typecheck + static export -> passed, 13 static pages
+  - full A3 Node -> 329 pass / 0 fail
+  - full Playwright -> 30 pass / 0 fail
+  - A1/A2 Python contracts -> 571 pass / 5 skipped, 1013 subtests pass
+  - production npm audit -> 0 vulnerabilities
+  - git diff --check -> passed
+- Visual evidence:
+  - docs/screenshots/a3-webapp-overview-desktop.png
+  - docs/screenshots/a3-webapp-runs-desktop.png
+  - docs/screenshots/a3-webapp-case-detail-desktop.png
+  - docs/screenshots/a3-webapp-login-desktop.png
+  - docs/screenshots/a3-webapp-overview-mobile-390x844.png
+- Bundle impact: no sealed bundle inputs changed; screenshots remain public-safe development evidence and are not yet registered as signed bundle artifacts.
+- Detailed record: docs/a3/a3_next_product_webapp_2026_07_11.md.
+- CI follow-up: the first Ubuntu route E2E exposed an OS-specific Next export layout. The static server now checks the direct RSC path first and falls back to the Windows nested alias; local route E2E remains green and the fix is covered by the same GitHub job.

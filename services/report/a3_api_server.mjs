@@ -14,6 +14,7 @@ import {
 } from "./a3_auth_rbac_boundary.mjs";
 import { renderShareableReportHtml } from "./a3_shareable_report.mjs";
 import { buildA1A2SchemaDriftRadar } from "./a3_schema_drift_radar.mjs";
+import { preflightA3UiAction } from "./a3_ui_action_security.mjs";
 
 export function createA3ApiHandler(options = {}) {
   const storePromise = Promise.resolve(options.store || createFixtureBackedA3Store({
@@ -70,6 +71,37 @@ export function createA3ApiHandler(options = {}) {
         return sendJson(response, 200, authorizeA3Operation(body.operation || body.route || "read_dashboard", authContext, {
           requestId: body.request_id || body.requestId,
           traceId: body.trace_id || body.traceId
+        }));
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/a3/ui-actions/preflight") {
+        const body = await readJsonBody(request);
+        const authContext = buildAuthContextFromRequest(request, url, body);
+        const trustedIdentity = options.trustedIdentityBackend === true
+          && ["hosted_session", "service_account"].includes(authContext.auth_state);
+        return sendJson(response, 200, preflightA3UiAction({
+          action: body.action,
+          scope: body.scope || authContext.tenant_scope,
+          auth: {
+            authenticated: trustedIdentity,
+            auth_state: authContext.auth_state,
+            scope: authContext.tenant_scope
+          },
+          session: {
+            state: trustedIdentity ? "active" : "untrusted",
+            session_ref: trustedIdentity ? body.session_ref : null,
+            expires_at: body.session_expires_at,
+            scope: authContext.tenant_scope
+          },
+          actor: {
+            role: authContext.role,
+            permissions: authContext.permissions,
+            actor_hash: authContext.actor_hash,
+            scope: authContext.tenant_scope
+          },
+          evidence: body.evidence,
+          audit_envelope: body.audit_envelope,
+          payload: body.payload
         }));
       }
 
@@ -168,6 +200,16 @@ export function createA3ApiHandler(options = {}) {
         }));
       }
 
+      if (request.method === "GET" && url.pathname === "/api/a3/a1-a2/evidence-spine") {
+        const authz = authorizeRequest(request, url, "read_schema_drift");
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
+        return sendJson(response, 200, await store.getA1A2EvidenceSpine({
+          source: sourceFrom(url)
+        }));
+      }
+
       if (request.method === "GET" && url.pathname === "/api/a3/events/outbox") {
         const authz = authorizeRequest(request, url, "read_event_outbox");
         if (!authz.allowed) {
@@ -218,7 +260,14 @@ export function createA3ApiHandler(options = {}) {
       }
 
       if (request.method === "GET" && url.pathname === "/api/a3/dashboard") {
-        return sendJson(response, 200, await store.getDashboardSnapshot(sourceFrom(url)));
+        const security = dashboardSecurityContext(request, url, options);
+        return sendJson(response, 200, await store.getDashboardSnapshot(sourceFrom(url), security));
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/a3/release-decision/provenance") {
+        const security = dashboardSecurityContext(request, url, options);
+        const dashboard = await store.getDashboardSnapshot(sourceFrom(url), security);
+        return sendJson(response, 200, dashboard.release_decision_provenance);
       }
 
       const releaseEvidenceMatch = url.pathname.match(/^\/api\/a3\/releases\/([^/]+)\/evidence-summary$/);
@@ -706,6 +755,22 @@ function buildAuthContextFromRequest(request, url, body = {}) {
     project_id: body.project_id || body.projectId || url.searchParams.get("project_id") || request.headers["x-a3-project-id"],
     environment_id: body.environment_id || body.environmentId || url.searchParams.get("environment_id") || request.headers["x-a3-environment-id"]
   });
+}
+
+function dashboardSecurityContext(request, url, options = {}) {
+  const authContext = buildAuthContextFromRequest(request, url);
+  const trustedIdentity = options.trustedIdentityBackend === true
+    && ["hosted_session", "service_account"].includes(authContext.auth_state);
+  return {
+    actor: trustedIdentity ? {
+      role: authContext.role,
+      ...authContext.tenant_scope
+    } : {},
+    auth: {
+      trusted: trustedIdentity,
+      auth_state: authContext.auth_state
+    }
+  };
 }
 
 function reportScopeFrom(url, body = {}) {
