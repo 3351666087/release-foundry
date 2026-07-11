@@ -3,7 +3,7 @@ import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 
 async function loadDashboardHtml() {
-  const [html, app, apiClient, visualShell, styles, notificationComponent, saasAdminComponent, liveOpsComponent, billingMigrationComponent, liveWorkflowComponent] = await Promise.all([
+  const [html, app, apiClient, visualShell, styles, notificationComponent, saasAdminComponent, liveOpsComponent, billingMigrationComponent, liveWorkflowComponent, contractRadarComponent, saasRuntimeComponent] = await Promise.all([
     readFile(new URL("../../apps/dashboard/index.html", import.meta.url), "utf8"),
     readFile(new URL("../../apps/dashboard/src/app.mjs", import.meta.url), "utf8"),
     readFile(new URL("../../apps/dashboard/src/api-client.mjs", import.meta.url), "utf8"),
@@ -13,9 +13,11 @@ async function loadDashboardHtml() {
     readFile(new URL("../../apps/dashboard/src/components/saas-admin-console.mjs", import.meta.url), "utf8"),
     readFile(new URL("../../apps/dashboard/src/components/live-ops-control-plane.mjs", import.meta.url), "utf8"),
     readFile(new URL("../../apps/dashboard/src/components/billing-migration-readiness-panel.mjs", import.meta.url), "utf8"),
-    readFile(new URL("../../apps/dashboard/src/components/live-workflow-readiness-panel.mjs", import.meta.url), "utf8")
+    readFile(new URL("../../apps/dashboard/src/components/live-workflow-readiness-panel.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../../apps/dashboard/src/components/a1-a2-contract-radar.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../../apps/dashboard/src/components/saas-runtime-panel.mjs", import.meta.url), "utf8")
   ]);
-  return [html, app, apiClient, visualShell, styles, notificationComponent, saasAdminComponent, liveOpsComponent, billingMigrationComponent, liveWorkflowComponent].join("\n");
+  return [html, app, apiClient, visualShell, styles, notificationComponent, saasAdminComponent, liveOpsComponent, billingMigrationComponent, liveWorkflowComponent, contractRadarComponent, saasRuntimeComponent].join("\n");
 }
 
 function assertNavigationTarget(source, hash) {
@@ -79,6 +81,7 @@ test("A3 dashboard wires optional A2 coverage into JSON and Markdown exports", a
 
 test("A3 dashboard wires A1/A2 schema drift radar into the API-backed console", async () => {
   const html = await loadDashboardHtml();
+  const component = await readFile(new URL("../../apps/dashboard/src/components/a1-a2-contract-radar.mjs", import.meta.url), "utf8");
 
   assert.match(html, /id="schema-drift-radar"/);
   assert.match(html, /A1\/A2 Contract Radar/);
@@ -91,7 +94,25 @@ test("A3 dashboard wires A1/A2 schema drift radar into the API-backed console", 
   assert.match(html, /function resetSchemaDriftRadar\(\)/);
   assert.match(html, /function renderSchemaDriftRadar\(\)/);
   assert.match(html, /raw_schema_payload_embedded/);
+  assert.match(html, /renderA1A2ContractRadarPanel/);
+  assert.match(html, /Cross-Lane Integration/);
+  assert.match(component, /bridge\.label/);
+  assert.match(component, /evidence domains/);
+  assert.match(html, /Next cross-lane actions/);
+  assert.doesNotMatch(component, /innerHTML/);
   assert.match(html, /renderSchemaDriftRadar\(\)/);
+});
+
+test("A3 dashboard uses a bounded two-column console and collapsible SaaS runtime details", async () => {
+  const html = await loadDashboardHtml();
+  const runtime = await readFile(new URL("../../apps/dashboard/src/components/saas-runtime-panel.mjs", import.meta.url), "utf8");
+
+  assert.match(html, /\.console-grid\s*\{[^}]*grid-template-columns:\s*repeat\(12, minmax\(0, 1fr\)\)/s);
+  assert.match(html, /\.console-grid > \.panel\s*\{[^}]*grid-column:\s*span 6/s);
+  assert.match(html, /\.wide-panel\s*\{[^}]*grid-column:\s*1 \/ -1 !important/s);
+  assert.match(runtime, /function runtimeDisclosure/);
+  assert.match(runtime, /document\.createElement\("details"\)/);
+  assert.doesNotMatch(runtime, /innerHTML/);
 });
 
 test("A3 dashboard wires product-console operations panels", async () => {
@@ -491,6 +512,7 @@ test("A3 dashboard wires reviewer workflow board into console and reports", asyn
 
 test("A3 dashboard wires media readiness and safe cloud shell panels", async () => {
   const html = await loadDashboardHtml();
+  const mediaQueueSource = html.match(/function mediaQueueRow\(item\)[\s\S]*?function emptyMatrixRow/)?.[0] || "";
 
   assert.match(html, /summarizeMediaReadiness/);
   assert.match(html, /summarizeCloudConsoleShell/);
@@ -502,6 +524,8 @@ test("A3 dashboard wires media readiness and safe cloud shell panels", async () 
   assert.match(html, /function renderMediaReadiness\(\)/);
   assert.match(html, /function mediaMatrixRow\(channel\)/);
   assert.match(html, /function mediaQueueRow\(item\)/);
+  assert.doesNotMatch(mediaQueueSource, /report\./);
+  assert.doesNotMatch(html, /锟/);
   assert.match(html, /media\.evidence_queue/);
   assert.match(html, /ashr_signed_media_url_coverage\.redacted\.json/);
   assert.match(html, /metadata only/);

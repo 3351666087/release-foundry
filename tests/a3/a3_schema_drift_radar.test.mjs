@@ -6,6 +6,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { test } from "node:test";
 
 import {
+  A3_A1_A2_INTEGRATION_ARTIFACTS,
   A3_A1_A2_SCHEMA_CONTRACTS,
   buildA1A2SchemaDriftRadar
 } from "../../services/report/a3_schema_drift_radar.mjs";
@@ -23,6 +24,17 @@ test("A3 schema drift radar validates current A1/A2 source contracts without emb
   assert.equal(radar.safety.raw_schema_payload_embedded, false);
   assert.equal(radar.safety.schema_hashes_only, true);
   assert.match(radar.a1_a2_boundary, /does not modify A1 runner semantics or A2 judge semantics/);
+  assert.equal(radar.integration_matrix.schema_version, "a3.a1_a2_integration_matrix.v1");
+  assert.equal(radar.integration_matrix.status, "aligned");
+  assert.equal(radar.integration_matrix.domain_count, A3_A1_A2_INTEGRATION_ARTIFACTS.length);
+  assert.equal(radar.integration_matrix.aligned_domain_count, A3_A1_A2_INTEGRATION_ARTIFACTS.length);
+  assert.equal(radar.integration_matrix.a1_domain_count, 4);
+  assert.equal(radar.integration_matrix.a2_domain_count, 3);
+  assert.equal(radar.integration_matrix.commercial_summary.china_payment_contract_ready, true);
+  assert.equal(radar.integration_matrix.commercial_summary.durable_eval_store_ready, true);
+  assert.equal(radar.integration_matrix.commercial_summary.scenario_candidate_count, 12);
+  assert.equal(radar.integration_matrix.commercial_summary.main_scenario_pack_mutated_by_a3, false);
+  assert.equal(radar.integration_matrix.safety.raw_artifact_payload_embedded, false);
 
   const byId = Object.fromEntries(radar.contracts.map((item) => [item.schema_contract_id, item]));
   assert.equal(byId.a1_run_result.status, "compatible");
@@ -99,6 +111,8 @@ test("A3 API exposes schema drift radar behind audit RBAC", async () => {
     assert.equal(radar.schema_version, "a3.a1_a2_schema_drift_radar.v1");
     assert.equal(radar.status, "compatible");
     assert.equal(radar.safety.schema_hashes_only, true);
+    assert.equal(radar.integration_matrix.schema_version, "a3.a1_a2_integration_matrix.v1");
+    assert.equal(radar.integration_matrix.domains.some((item) => item.integration_id === "a2_scenario_generation"), true);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

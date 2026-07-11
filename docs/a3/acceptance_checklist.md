@@ -857,4 +857,17 @@
 - [x] Both readiness components use DOM nodes and `textContent` rather than `innerHTML`.
 - [x] Playwright proves Billing Migration, Live Workflow, and release publish-chain continuity after extraction (`3 passed`).
 - [x] Screenshot evidence exists at `docs/screenshots/a3-live-workflow-readiness-api-backed-2026-07-10.png`.
-- [ ] Continue extracting Report Center and Reviewer Workflow from the remaining 3,874-line `app.mjs`.
+- [x] Merge the last locally fetched `origin/main` (`5dbf4ee`) and re-run A1/A2/A3 compatibility checks.
+- [x] Contract Radar validates 8 core A1/A2 schemas and 7 public-safe commercial integration domains.
+- [x] A1 route/quota, billing, payment, and object-storage evidence is mapped to explicit A3 surfaces.
+- [x] A2 security, SQL evaluation-store, and scenario-generation evidence is mapped to explicit A3 surfaces.
+- [x] Dashboard shows runtime-to-judge, evidence-to-report, and billing-to-sign-off cross-lane bridges.
+- [x] Cross-lane matrix does not embed raw upstream artifacts or mutate A1/A2 semantics.
+- [x] SaaS Runtime long contracts are grouped into expandable API, DB, migration, usage, billing, outbox, and guardrail sections.
+- [x] Desktop browser measurement keeps SaaS Runtime below 700 px and free of horizontal overflow.
+- [x] Mobile Contract Radar uses readable record rows and has no horizontal overflow at 390 x 844.
+- [x] Official-demo media rendering no longer throws an undefined `report` error.
+- [x] Report Center governance remains visible when hosted report count is zero.
+- [x] Full A3 Node suite passes (`286 pass / 0 fail`).
+- [x] Full Playwright suite passes (`18 pass / 0 fail`).
+- [ ] Continue extracting Report Center and Reviewer Workflow from the remaining 3,853-line `app.mjs`.

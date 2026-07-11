@@ -63,6 +63,7 @@ import { renderNotificationControlPlanePanel } from "./components/notification-c
 import { renderLiveOpsControlPlanePanel } from "./components/live-ops-control-plane.mjs";
 import { renderBillingMigrationReadinessPanel } from "./components/billing-migration-readiness-panel.mjs";
 import { renderLiveWorkflowReadinessPanel } from "./components/live-workflow-readiness-panel.mjs";
+import { renderA1A2ContractRadarPanel } from "./components/a1-a2-contract-radar.mjs";
 import { buildSaasAdminConsole } from "../../../services/report/a3_saas_admin.mjs";
 import { buildEnterpriseReadinessReport } from "../../../services/report/a3_enterprise_readiness.mjs";
 import { buildA3ProductConsole } from "../../../services/report/a3_product_console.mjs";
@@ -439,12 +440,6 @@ function mediaQueueRow(item) {
       <span class="badge ${item.safe_to_render ? "pass" : item.signed_url_status === "unconfirmed" ? "warn" : "neutral"}">${escapeHtml(item.preview_policy)}</span>
     </div>
     <div class="case-meta">
-      <span>${escapeHtml(report.tenant_scope?.workspace_id || "workspace-local")}</span>
-      <span>${escapeHtml(report.tenant_scope?.project_id || "project-local")}</span>
-      <span>${escapeHtml(report.tenant_scope?.environment_id || "staging")}</span>
-      <span>${escapeHtml(report.share_link?.scope || "private_link")}</span>
-    </div>
-    <div class="case-meta">
       <span>${escapeHtml(item.primary_media_type)}</span>
       <span>${escapeHtml(item.media_types.join(", ") || "unknown")}</span>
       <span>${escapeHtml(item.evidence_count)} evidence</span>
@@ -594,7 +589,7 @@ function codeCrawlChunkRow(chunk) {
       <span>${escapeHtml(chunk.signal_count)} signal(s)</span>
       <span>${escapeHtml(chunk.size_bytes)} bytes</span>
     </div>
-    <div class="muted">${escapeHtml(chunk.top_signals.map((item) => `${item.signal}:${item.count}`).join(", ") || "no signals")} 锟?${escapeHtml(chunk.a3_decision)}</div>
+    <div class="muted">${escapeHtml(chunk.top_signals.map((item) => `${item.signal}:${item.count}`).join(", ") || "no signals")} - ${escapeHtml(chunk.a3_decision)}</div>
   `;
   return node;
 }
@@ -1495,7 +1490,7 @@ function reviewerWorkflowItemRow(item) {
       <span>diffs ${escapeHtml(item.evidence_counts.tool_diffs)}</span>
       <span>judge ${escapeHtml(item.evidence_counts.judge_evidence)}</span>
     </div>
-    <div class="muted">Missing: ${escapeHtml(item.missing_artifacts.join(", ") || "none")} 锟?${escapeHtml(item.next_action)}</div>
+    <div class="muted">Missing: ${escapeHtml(item.missing_artifacts.join(", ") || "none")} - ${escapeHtml(item.next_action)}</div>
   `;
   node.addEventListener("click", () => {
     state.selectedCaseId = item.case_id;
@@ -1879,14 +1874,14 @@ function renderReportCenter() {
     if (billingMigrationReadiness.schema_version) {
       tiles.push(reportTile("Billing Migration Readiness", `${billingMigrationReadiness.summary?.status || "unknown"}: ${billingMigrationReadiness.summary?.upstream_commit_count || 0} A1 commit(s), ${billingMigrationReadiness.db_contract?.tables?.length || 0} billing table(s), live billing ${billingMigrationReadiness.summary?.ready_for_live_customer_billing ? "ready" : "blocked"}.`));
     }
+  tiles.push(reportTile("Audience Filters", audienceFilterSummary));
+  tiles.push(reportTile("Workspace Groups", workspaceGroupSummary));
+  tiles.push(reportTile("Environment Groups", environmentGroupSummary));
+  tiles.push(reportTile("External Publish Blockers", externalPublishBlockerSummary));
   if (hostedReports.length) {
     tiles.push(reportTile("Hosted Reports", `${reportCenter.summary?.shareable_count || 0} shareable, ${reportCenter.summary?.revoked_count || 0} revoked, ${reportCenter.summary?.expired_count || 0} expired, ${reportCenter.summary?.total_view_count || 0} total view(s). Scope ${(reportCenter.tenant_scope?.organization_id || "org-local")} / ${(reportCenter.tenant_scope?.workspace_id || "workspace-local")} / ${(reportCenter.tenant_scope?.project_id || "project-local")} / ${(reportCenter.tenant_scope?.environment_id || "staging")}.`));
     tiles.push(reportTile("Share Link Governance", buildShareLinkGovernanceTile(reportCenter)));
     tiles.push(reportTile("Export Audience", buildExportAudienceTile(reportCenter)));
-    tiles.push(reportTile("Audience Filters", audienceFilterSummary));
-    tiles.push(reportTile("Workspace Groups", workspaceGroupSummary));
-    tiles.push(reportTile("Environment Groups", environmentGroupSummary));
-    tiles.push(reportTile("External Publish Blockers", externalPublishBlockerSummary));
     tiles.push(reportTile("Release Sign-Off", buildReleaseSignoffTile(reportCenter)));
     tiles.push(reportTile("Sign-Off Detail", buildReleaseSignoffDetailTile(reportCenter)));
     tiles.push(...hostedReports.map(hostedReportRow));
@@ -3527,23 +3522,7 @@ function renderSchemaDriftRadar() {
   const statusBadge = $("schema-drift-status");
   statusBadge.textContent = status;
   statusBadge.className = `badge ${status === "compatible" ? "pass" : status === "needs_attention" ? "fail" : "warn"}`;
-  const contracts = Array.isArray(radar.contracts) ? radar.contracts : [];
-  $("schema-drift-body").innerHTML = `
-    <div class="caption">${escapeHtml(radar.a3_action || "A1/A2 schema drift radar is not attached.")}</div>
-    <div class="health-grid">
-      ${healthTileMarkup(radar.contract_count || contracts.length || 0, "contracts")}
-      ${healthTileMarkup(radar.compatible_count || 0, "compatible")}
-      ${healthTileMarkup(radar.drift_count || 0, "drift")}
-      ${healthTileMarkup(radar.missing_count || 0, "missing")}
-    </div>
-    ${renderReportTable(["Contract", "Lane", "Status", "Hash"], contracts.slice(0, 8).map((item) => [
-      item.schema_contract_id,
-      item.source_lane,
-      item.status,
-      item.content_hash ? `${item.content_hash.slice(0, 12)}...` : "missing"
-    ]), "No A1/A2 schema radar contracts are loaded.")}
-    <div class="caption">Safety: raw schema payload ${radar.safety?.raw_schema_payload_embedded ? "embedded" : "not embedded"}, hashes only ${radar.safety?.schema_hashes_only ? "yes" : "unknown"}.</div>
-  `;
+  renderA1A2ContractRadarPanel($("schema-drift-body"), radar);
 }
 
 function renderPeerBranchCalibration() {

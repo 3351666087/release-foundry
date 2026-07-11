@@ -96,6 +96,93 @@ test.describe("A3 API-backed dashboard E2E", () => {
     expect(consoleErrors, "billing migration readiness dashboard evidence should not emit browser console errors").toEqual([]);
   });
 
+  test("shows the latest A1 and A2 commercial integration matrix", async ({ page }) => {
+    const consoleErrors = collectConsoleErrors(page);
+    await page.goto(apiBackedPath);
+    await waitForApiDashboard(page);
+
+    const radar = section(page, "#schema-drift-radar");
+    await expect(radar).toContainText("Cross-Lane Integration");
+    await expect(radar).toContainText("A1 runtime -> A2 judge -> A3 release console");
+    await expect(radar).toContainText("payments");
+    await expect(radar).toContainText("evidence_storage");
+    await expect(radar).toContainText("evaluation_storage");
+    await expect(radar).toContainText("scenario_growth");
+    await expect(radar).toContainText("Next cross-lane actions");
+
+    await radar.screenshot({
+      path: "docs/screenshots/a3-a1-a2-integration-matrix-api-backed-2026-07-11.png"
+    });
+
+    expect(consoleErrors, "A1/A2 integration matrix should not emit browser console errors").toEqual([]);
+  });
+
+  test("keeps the console overview bounded and runtime contracts expandable", async ({ page }) => {
+    const consoleErrors = collectConsoleErrors(page);
+    await page.goto(`${apiBackedPath}#console`);
+    await waitForApiDashboard(page);
+
+    const workflow = page.locator("#console > .panel").filter({ hasText: "Request to report" });
+    const runtime = section(page, "#saas-runtime");
+    const layout = await page.evaluate(() => {
+      const workflowRect = document.querySelector("#console > .panel")?.getBoundingClientRect();
+      const runtimeRect = document.querySelector("#saas-runtime")?.getBoundingClientRect();
+      const runtimeNode = document.querySelector("#saas-runtime");
+      return {
+        workflowWidth: Math.round(workflowRect?.width || 0),
+        runtimeWidth: Math.round(runtimeRect?.width || 0),
+        runtimeHeight: Math.round(runtimeRect?.height || 0),
+        runtimeOverflow: runtimeNode ? runtimeNode.scrollWidth > runtimeNode.clientWidth : true
+      };
+    });
+    expect(layout.workflowWidth).toBeGreaterThan(900);
+    expect(layout.runtimeWidth).toBeGreaterThan(900);
+    expect(layout.runtimeHeight).toBeLessThan(700);
+    expect(layout.runtimeOverflow).toBe(false);
+    await expect(workflow).toContainText("Requests");
+
+    const apiDetails = runtime.locator("details").filter({ hasText: "API surfaces" });
+    await expect(apiDetails).not.toHaveAttribute("open", "");
+    await apiDetails.locator("summary").click();
+    await expect(apiDetails).toHaveAttribute("open", "");
+    await expect(apiDetails).toContainText("GET /api/a3/auth/context");
+
+    await runtime.screenshot({
+      path: "docs/screenshots/a3-runtime-contract-layout-api-backed-2026-07-11.png"
+    });
+
+    expect(consoleErrors, "bounded runtime overview should not emit browser console errors").toEqual([]);
+  });
+
+  test("keeps the A1 A2 integration matrix readable on mobile", async ({ page }) => {
+    const consoleErrors = collectConsoleErrors(page);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`${apiBackedPath}#schema-drift-radar`);
+    await waitForApiDashboard(page);
+
+    const radar = section(page, "#schema-drift-radar");
+    const layout = await page.evaluate(() => {
+      const panel = document.querySelector("#schema-drift-radar");
+      const bridgeGrid = panel?.querySelector(".integration-bridge-grid");
+      return {
+        panelWidth: Math.round(panel?.getBoundingClientRect().width || 0),
+        overflow: panel ? panel.scrollWidth > panel.clientWidth : true,
+        bridgeColumns: bridgeGrid ? getComputedStyle(bridgeGrid).gridTemplateColumns.split(" ").length : 0
+      };
+    });
+    expect(layout.panelWidth).toBeLessThanOrEqual(360);
+    expect(layout.overflow).toBe(false);
+    expect(layout.bridgeColumns).toBe(1);
+    await expect(radar).toContainText("A1 runtime -> A2 judge -> A3 release console");
+    await expect(radar).toContainText("scenario_growth");
+
+    await radar.screenshot({
+      path: "docs/screenshots/a3-a1-a2-integration-matrix-mobile-2026-07-11.png"
+    });
+
+    expect(consoleErrors, "mobile A1/A2 integration matrix should not emit browser console errors").toEqual([]);
+  });
+
   test("renders Live Workflow Readiness through the extracted dashboard component", async ({ page }) => {
     const consoleErrors = collectConsoleErrors(page);
 
@@ -124,7 +211,7 @@ test.describe("A3 API-backed dashboard E2E", () => {
     await waitForApiDashboard(page);
 
     const reviewer = section(page, "#reviewer-workflow");
-    await expect(reviewer).toContainText("Filter records");
+    await expect(reviewer).toContainText("Review Filters");
     await expect(reviewer).toContainText("reviewer");
     await expect(reviewer).toContainText("owner");
 

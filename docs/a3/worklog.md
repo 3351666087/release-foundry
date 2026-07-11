@@ -5900,7 +5900,7 @@ Safety:
 
 ## 2026-07-10 - Reload Visible Review Scope Rehydration Fixed
 
-- Fixed [apps/dashboard/src/app.mjs](C:\Users\yang\Documents\Codex\2026-07-02\i-am-a-beginner-explain-ashr\ashr-codex-factory\apps\dashboard\src\app.mjs) so the review workflow records panel now actually renders the `Active Filter Scope` row during the same render path that restores `reviewRelease`, `reviewEnv`, and `reviewActor` from the URL.
+- Fixed `apps/dashboard/src/app.mjs` so the review workflow records panel now actually renders the `Active Filter Scope` row during the same render path that restores `reviewRelease`, `reviewEnv`, and `reviewActor` from the URL.
 - Root cause: the deep-link state was already being restored into `state.reviewFilter`, but the visible scope row component existed without being inserted into the reviewer records block. That meant the URL could be correct while the operator-facing reviewer surface still looked unscoped after reload.
 - Re-ran Node validation: `node --test tests/a3/dashboard_wiring.test.mjs tests/a3/report_builder.test.mjs` stays green (82 pass, 0 fail).
 - Re-ran browser validation: `npx.cmd playwright test tests/e2e/a3-dashboard-api-backed.spec.ts --project=chromium` is green (7 passed), including the reviewer/governance/cloud-strip flow.
@@ -6179,3 +6179,26 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
   - `cmd /c npx playwright test tests/e2e/a3-dashboard-api-backed.spec.ts --grep "Billing Migration Readiness|Live Workflow Readiness|release publish chain continuity"` -> `3 passed`
 - Visual evidence: `docs/screenshots/a3-live-workflow-readiness-api-backed-2026-07-10.png`.
 - Commercial reason: these panels are now independently testable product surfaces, which makes future tenant-aware routes and API loading safer without pretending hosted billing or live GitHub credentials already exist.
+
+## 2026-07-11 - Main Sync + A1/A2 Integration Matrix + Visual Architecture Pass
+
+- Merged the last locally fetched `origin/main` (`5dbf4ee`) into the A3 branch with no merge conflicts, preserving the lead's integrated A1/A2/A3 mainline as the new base.
+- Added `a3.a1_a2_integration_matrix.v1` under the existing Contract Radar API. It validates and hashes four A1 public-safe domains and three A2 domains without embedding raw artifacts.
+- Connected A1 route/quota, billing ledger, payment provider, and object-storage evidence with A2 cross-lane security, SQL evaluation history, and scenario-generation backlog.
+- Added three visible bridges: runtime-to-judge-to-release, object-evidence-to-evaluation-to-report, and billing-ledger-to-policy-to-commercial-sign-off.
+- Added `apps/dashboard/src/components/a1-a2-contract-radar.mjs`, using DOM nodes and `textContent` rather than `innerHTML`.
+- Reworked the console grid and SaaS Runtime disclosure architecture. Browser measurement reduced SaaS Runtime height from about 6,301 px to 457 px, removed horizontal overflow, and kept all contract detail available through expandable groups.
+- Added responsive Contract Radar records for the 390 x 844 mobile viewport; no horizontal overflow was observed.
+- Fixed a real official-demo media crash caused by invalid `report` references in `mediaQueueRow(item)` and removed two mojibake separators.
+- Fixed Report Center empty-state governance so Audience Filters, Workspace/Environment Groups, and External Publish Blockers remain visible before a hosted report exists.
+- Verification:
+  - full A3 Node suite -> `286 pass / 0 fail`
+  - A1/A2 focused Python contracts -> `30 pass / 0 fail`
+  - TypeScript SDK -> `341 pass`; the one Go HTTP test could not run because Go is not installed
+  - full Playwright suite -> `18 pass / 0 fail`
+- Evidence:
+  - `docs/a3/a3_a1_a2_integration_visual_pass_2026_07_11.md`
+  - `docs/screenshots/a3-a1-a2-integration-matrix-api-backed-2026-07-11.png`
+  - `docs/screenshots/a3-a1-a2-integration-matrix-mobile-2026-07-11.png`
+  - `docs/screenshots/a3-runtime-contract-layout-api-backed-2026-07-11.png`
+- Safety: no API key, provider secret, raw evidence payload, real payment call, real object-store call, or A1/A2 semantic mutation was introduced.
