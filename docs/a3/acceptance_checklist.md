@@ -941,3 +941,29 @@
 - [x] Commercial and hygiene CL guards pass with no findings.
 - [x] High-confidence changed-file secret scan finds no key, token, or private-key material.
 - [ ] Continue route-level React/Next.js decomposition after visual selection; do not merge both styles into one growing stylesheet.
+
+## Next.js Route-level Product Webapp - 2026-07-11
+
+- [x] Preserve the legacy dashboard as the full evidence inspector.
+- [x] Add a TypeScript + React + Next.js A3 product app.
+- [x] Create independent login, overview, projects, runs, case, review, reports, team, billing, and trust routes.
+- [x] Consume the existing A3 API instead of duplicating A1/A2 fixtures in page components.
+- [x] Keep A1 authoritative for run, trace, observation, and tool-call evidence.
+- [x] Keep A2 authoritative for score, pass/fail, failure class, and release decision.
+- [x] Default to Chinese and support English without rewriting upstream evidence values.
+- [x] Strengthen page title, body, section, metric, and table hierarchy.
+- [x] Paginate the 32-case queue at ten rows per page.
+- [x] Keep full technical JSON in collapsible evidence sections.
+- [x] Add desktop and 390 x 844 responsive layouts without page-level horizontal overflow.
+- [x] Keep gradients absent, letter spacing at zero, and radii at or below 8 px.
+- [x] Keep hosted auth, reviewer writes, report sharing, key creation, and payment mutations disabled.
+- [x] Add source-level A3 webapp contract tests.
+- [x] Add route-level Playwright coverage for all pages, navigation, language, pagination, and mobile layout.
+- [x] Add a GitHub CL job that typechecks, exports, and browser-tests the webapp.
+- [x] Remove the PostCSS audit finding and confirm zero production vulnerabilities.
+- [x] Full A3 Node suite passes (329 pass / 0 fail).
+- [x] Full Playwright suite passes (30 pass / 0 fail).
+- [x] A1/A2 Python contracts pass (571 pass / 5 skipped, 1013 subtests pass).
+- [x] Save desktop and mobile screenshot evidence.
+- [ ] Replace preview login only after A1 hosted identity/session contracts are authoritative in main.
+- [ ] Enable reviewer/report/billing writes only after authenticated API, RBAC, DB, usage, and audit executors exist.

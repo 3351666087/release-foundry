@@ -6270,3 +6270,32 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
 - The first full Playwright rerun reused a stale local server on port 4173 that predated the Evidence Spine route. After verifying its exact test-server command, the stale process was stopped and a clean current-code rerun passed all 25 tests.
 - The 1200 x 800 procedural masthead bitmap is nonblank; a 24 x 24 sampling grid observed 142 distinct colors.
 - Design/source record: `docs/a3/a3_signal_form_design_comparison_2026_07_11.md`.
+
+## 2026-07-11 - Next.js Route-level Product Webapp
+
+- Added apps/webapp as the A3 TypeScript/React/Next.js product-console mainline while preserving apps/dashboard as the exhaustive evidence inspector.
+- Split the product workflow into ten routes: login, overview, projects, runs, case detail, review, reports, team, billing, and trust.
+- Kept all product pages on the existing GET /api/a3/dashboard read contract. A1 remains authoritative for run/trace/tool-call evidence; A2 remains authoritative for score/pass-fail/failure/release decisions.
+- Added Chinese-first bilingual presentation without translating evidence IDs or upstream decision values.
+- Reworked visual hierarchy with stronger page headers, numbered sections, larger body/table typography, high-contrast table headers, Expected-vs-Actual comparison, and reduced-motion-aware route transitions.
+- Added ten-row Runs pagination and query/status filtering to prevent the 32-case queue from becoming a text wall.
+- Kept auth, reviewer mutations, hosted sharing, API-key creation, and billing actions fail-closed until trusted A1 hosted services exist.
+- Added Next static-export routing support to the A3 E2E server, including the generated RSC alias mapping needed for client-side navigation without 404s.
+- Added tests/a3/a3_webapp_contract.test.mjs and tests/e2e/a3-webapp-product-routes.spec.ts.
+- Added a dedicated a3-webapp CL job for npm install, typecheck, static export, Chromium, and route-level Playwright.
+- Upgraded the transitive PostCSS runtime through an npm override; production audit now reports zero vulnerabilities.
+- Verification:
+  - Next.js typecheck + static export -> passed, 13 static pages
+  - full A3 Node -> 329 pass / 0 fail
+  - full Playwright -> 30 pass / 0 fail
+  - A1/A2 Python contracts -> 571 pass / 5 skipped, 1013 subtests pass
+  - production npm audit -> 0 vulnerabilities
+  - git diff --check -> passed
+- Visual evidence:
+  - docs/screenshots/a3-webapp-overview-desktop.png
+  - docs/screenshots/a3-webapp-runs-desktop.png
+  - docs/screenshots/a3-webapp-case-detail-desktop.png
+  - docs/screenshots/a3-webapp-login-desktop.png
+  - docs/screenshots/a3-webapp-overview-mobile-390x844.png
+- Bundle impact: no sealed bundle inputs changed; screenshots remain public-safe development evidence and are not yet registered as signed bundle artifacts.
+- Detailed record: docs/a3/a3_next_product_webapp_2026_07_11.md.
