@@ -4,7 +4,9 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>A3 Dashboard & Triage</title>
-    <link rel="stylesheet" href="./src/styles.css" />
+    <link id="design-stylesheet" rel="stylesheet" href="./src/styles.css" />
+    <script src="./src/design-mode.js"></script>
+    <script src="./src/i18n.js" defer></script>
   </head>
   <body>
     <div class="shell">
@@ -31,6 +33,10 @@
           </div>
           <div class="topbar-controls">
             <div class="topbar-meta">
+              <div class="language-switch" role="group" aria-label="Language">
+                <button type="button" data-language-choice="zh-CN" aria-pressed="true">中文</button>
+                <button type="button" data-language-choice="en" aria-pressed="false">EN</button>
+              </div>
               <span class="status-chip">Read only</span>
               <span class="status-chip">Redacted</span>
               <span class="status-chip">No cloud mutations</span>

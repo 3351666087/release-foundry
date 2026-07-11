@@ -30,7 +30,8 @@ test("A3 dashboard is split into a webapp shell, module, and stylesheet", async 
   const html = await loadDashboardHtml();
   const indexHtml = await readFile(new URL("../../apps/dashboard/index.html", import.meta.url), "utf8");
 
-  assert.match(indexHtml, /<link rel="stylesheet" href="\.\/src\/styles\.css" \/>/);
+  assert.match(indexHtml, /<link id="design-stylesheet" rel="stylesheet" href="\.\/src\/styles\.css" \/>/);
+  assert.match(indexHtml, /<script src="\.\/src\/design-mode\.js"><\/script>/);
   assert.match(indexHtml, /<script type="module" src="\.\/src\/app\.mjs"><\/script>/);
   assert.doesNotMatch(indexHtml, /<style>/);
   assert.doesNotMatch(indexHtml, /<script type="module">\s*import/);
@@ -46,6 +47,37 @@ test("A3 dashboard is split into a webapp shell, module, and stylesheet", async 
   assert.match(html, /Usage Escalation/);
   assert.match(html, /Collections \/ Invoice Escalation/);
   assert.match(html, /Workspace Action Readiness/);
+});
+
+test("A3 dashboard keeps release-intelligence and Signal/Form as isolated design variants", async () => {
+  const [designMode, i18n, signalFormStyles, comparisonHtml, comparisonScript, assetSource] = await Promise.all([
+    readFile(new URL("../../apps/dashboard/src/design-mode.js", import.meta.url), "utf8"),
+    readFile(new URL("../../apps/dashboard/src/i18n.js", import.meta.url), "utf8"),
+    readFile(new URL("../../apps/dashboard/src/signal-form.css", import.meta.url), "utf8"),
+    readFile(new URL("../../apps/dashboard/design-compare.html", import.meta.url), "utf8"),
+    readFile(new URL("../../apps/dashboard/src/design-compare.mjs", import.meta.url), "utf8"),
+    readFile(new URL("../../apps/dashboard/assets/signal-form/SOURCE.md", import.meta.url), "utf8")
+  ]);
+
+  assert.match(designMode, /get\("design"\)/);
+  assert.match(designMode, /design === "signal-form"/);
+  assert.match(designMode, /stylesheet\.href = "\.\/src\/signal-form\.css"/);
+  assert.match(i18n, /const STORAGE_KEY = "a3\.dashboard\.language"/);
+  assert.match(i18n, /return "zh-CN"/);
+  assert.match(i18n, /data-language-choice/);
+  assert.match(i18n, /MutationObserver/);
+  assert.match(i18n, /A1 采集，A2 判定，A3 运营/);
+  assert.match(i18n, /window\.A3_I18N/);
+  assert.doesNotMatch(signalFormStyles, /@import\s+[^;]*styles\.css/);
+  assert.match(signalFormStyles, /--accent:\s*#f04d2f/);
+  assert.match(comparisonHtml, /src="\.\/index\.html\?source=api-mock"/);
+  assert.match(comparisonHtml, /src="\.\/index\.html\?source=api-mock&amp;design=signal-form"/);
+  assert.match(comparisonHtml, /data-compare-view="split"/);
+  assert.match(comparisonHtml, /data-compare-view="a"/);
+  assert.match(comparisonHtml, /data-compare-view="b"/);
+  assert.match(comparisonScript, /grid\.dataset\.view = view/);
+  assert.match(assetSource, /CC0 1\.0/);
+  assert.match(assetSource, /88832F6A8DB6D5C3307A27BBA808B5A0322D6871CE50E53AD03823F896DF1D6B/);
 });
 
 test("A3 dashboard wires optional A2 coverage into JSON and Markdown exports", async () => {

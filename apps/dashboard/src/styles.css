@@ -362,6 +362,44 @@ code {
   padding-right: 48px;
 }
 
+.language-switch {
+  display: inline-grid;
+  grid-auto-flow: column;
+  width: fit-content;
+  min-height: 24px;
+  overflow: hidden;
+  border: 1px solid var(--ink);
+  border-radius: 4px;
+}
+
+.language-switch button {
+  min-width: 34px;
+  padding: 2px 7px;
+  color: var(--ink-soft);
+  background: transparent;
+  border: 0;
+  border-right: 1px solid var(--ink);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.language-switch button:last-child {
+  border-right: 0;
+}
+
+.language-switch button[aria-pressed="true"] {
+  color: #fff;
+  background: var(--ink);
+}
+
+.language-switch button:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline: 2px solid var(--ink);
+  outline-offset: -2px;
+}
+
 .topbar-index {
   position: absolute;
   top: 27px;

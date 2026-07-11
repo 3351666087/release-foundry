@@ -1,6 +1,6 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 
-const officialDemoPath = "/apps/dashboard/index.html?source=p3-official-demo";
+const officialDemoPath = "/apps/dashboard/index.html?source=p3-official-demo&lang=en";
 
 test.describe("A3 dashboard commercial E2E", () => {
   test("renders real dashboard content from the official-demo source", async ({ page }) => {

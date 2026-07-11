@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 
 import { expect, type Locator, type Page, test } from "@playwright/test";
 
-const apiBackedPath = "/apps/dashboard/index.html?source=api-mock";
+const apiBackedPath = "/apps/dashboard/index.html?source=api-mock&lang=en";
 
 test.describe("A3 API-backed dashboard E2E", () => {
   test("loads dashboard through the local A3 API and keeps A1/A2/SaaS contracts visible", async ({ page }) => {

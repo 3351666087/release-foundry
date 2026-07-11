@@ -1,6 +1,6 @@
 import { expect, type Page, test } from "@playwright/test";
 
-const apiBackedPath = "/apps/dashboard/index.html?source=api-mock";
+const apiBackedPath = "/apps/dashboard/index.html?source=api-mock&lang=en";
 
 test.describe("A3 commercial dashboard visual system", () => {
   test("establishes desktop hierarchy, readable data, and interaction states", async ({ page }) => {

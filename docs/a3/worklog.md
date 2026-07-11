@@ -6256,3 +6256,17 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
   - `git diff --check` -> passed
 - Design and integration evidence: `docs/a3/a3_visual_rebuild_anton_cleanroom_2026_07_11.md`.
 - Safety: `.env.local` was not read or changed; no real API key, token, cookie, email, signed URL, account value, external asset, or private source was added.
+
+## 2026-07-11 - Signal/Form A/B Visual Variant + Chinese-First UI
+
+- Added an independent Signal/Form visual variant without deleting the existing Release Intelligence baseline, so the two designs can be reviewed against identical A1/A2 evidence and product behavior.
+- Added `design=signal-form` stylesheet selection and a dedicated comparison surface with split, A-only, and B-only modes.
+- Used the team-supplied Signal/Form library only for high-level design tokens/grid guidance and one CC0 procedural bitmap. The optional B stylesheet does not import A's stylesheet or the upstream runtime/catalog.
+- Added a Chinese-first bilingual layer shared by both variants. Chinese is the default; `中文 / EN` switches immediately, persists through browser storage, and preserves `source`, `design`, and `lang` URL state.
+- Translation is presentation-only. A1/A2 ids, traces, tool-call values, scores, failure classes, release authority, and raw evidence contracts remain unchanged.
+- Added browser coverage for shared 32-case A1/A2 data, stylesheet isolation, Signal/Form visual constraints, 390 x 844 bounds, bilingual persistence, and the comparison controls.
+- Added four screenshots for A, B, B mobile, and side-by-side comparison.
+- Final verification: full A3 Node `325 pass / 0 fail`; full Playwright `25 pass / 0 fail`; focused A1/A2 compatibility `157 pass / 0 fail`, `987 subtests pass`; commercial and hygiene CL guards passed with no findings; `git diff --check` passed.
+- The first full Playwright rerun reused a stale local server on port 4173 that predated the Evidence Spine route. After verifying its exact test-server command, the stale process was stopped and a clean current-code rerun passed all 25 tests.
+- The 1200 x 800 procedural masthead bitmap is nonblank; a 24 x 24 sampling grid observed 142 distinct colors.
+- Design/source record: `docs/a3/a3_signal_form_design_comparison_2026_07_11.md`.

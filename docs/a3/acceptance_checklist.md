@@ -920,3 +920,24 @@
 - [x] Retry remote sync after the transient network failure and confirm the branch still contains current `origin/main`.
 - [ ] Replace draft watch signals only after the A1/A2 contracts merge to `main`.
 - [ ] Continue route-level React/Next.js decomposition without weakening the current API and evidence contracts.
+
+## Signal/Form A/B Design + Chinese-First UI - 2026-07-11
+
+- [x] Keep the existing Release Intelligence design as a stable A variant.
+- [x] Add an independent Signal/Form B stylesheet without importing A's CSS.
+- [x] Keep A and B on the same A1/A2 API, fixture, DOM id, report, and interaction contracts.
+- [x] Add an A/B comparison page with split, A-only, and B-only controls.
+- [x] Record the supplied archive SHA-256 and MIT/CC0 source boundaries.
+- [x] Keep the procedural bitmap local, nonblank, and free of account or secret data.
+- [x] Default both variants to Chinese and provide an immediate `中文 / EN` switch.
+- [x] Persist language choice while preserving source/design URL state.
+- [x] Keep ids, traces, tool-call payloads, scores, failure values, and A2 release authority untranslated and unchanged.
+- [x] Browser-prove both variants load the same 32 A1/A2 cases and Evidence Spine.
+- [x] Browser-prove desktop and 390 x 844 bounds with no page-level horizontal overflow.
+- [x] Save A, B, B-mobile, and A/B comparison screenshots.
+- [x] Full A3 Node suite passes (`325 pass / 0 fail`).
+- [x] Full Playwright suite passes (`25 pass / 0 fail`).
+- [x] Focused A1/A2 compatibility passes (`157 pass / 0 fail`, `987 subtests pass`).
+- [x] Commercial and hygiene CL guards pass with no findings.
+- [x] High-confidence changed-file secret scan finds no key, token, or private-key material.
+- [ ] Continue route-level React/Next.js decomposition after visual selection; do not merge both styles into one growing stylesheet.
