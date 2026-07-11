@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {
   Activity,
+  BookOpenText,
   CreditCard,
   FileSearch,
   FileText,
@@ -28,13 +29,14 @@ const icons = {
   case: FileSearch,
   review: UserCheck,
   reports: FileText,
+  "api-reference": BookOpenText,
   team: Users,
   billing: CreditCard,
   trust: ShieldCheck,
   login: LogIn
 };
 
-const routeGroups = ["workspace", "evaluate", "release", "manage"] as const;
+const routeGroups = ["workspace", "evaluate", "release", "developer", "manage"] as const;
 
 export function AppShell({ route, children }: { route: ProductRoute; children: React.ReactNode }) {
   const { language, setLanguage, t } = useI18n();
@@ -106,7 +108,7 @@ export function AppShell({ route, children }: { route: ProductRoute; children: R
         <main className="route-content" data-route={route}>{children}</main>
 
         <nav className="mobile-route-nav" aria-label="Mobile product navigation">
-          {productRoutes.filter((item) => ["overview", "runs", "case", "review", "reports"].includes(item.id)).map((item) => {
+          {productRoutes.filter((item) => ["overview", "runs", "review", "reports", "api-reference"].includes(item.id)).map((item) => {
             const Icon = icons[item.id];
             return <Link href={`/${item.id}`} className={route === item.id ? "active" : ""} key={item.id}><Icon size={17} /><span>{t(item.labelKey)}</span></Link>;
           })}

@@ -967,3 +967,30 @@
 - [x] Save desktop and mobile screenshot evidence.
 - [ ] Replace preview login only after A1 hosted identity/session contracts are authoritative in main.
 - [ ] Enable reviewer/report/billing writes only after authenticated API, RBAC, DB, usage, and audit executors exist.
+
+## API Reference + Identity Webapp Integration - 2026-07-11
+
+- [x] Fetch and inspect current main plus latest A1/A2 remote refs before editing.
+- [x] Keep A1 OAuth/session/credential/SMTP authority and A2 judge/release authority unchanged.
+- [x] Add a Chinese-first `/api-reference` route with English support.
+- [x] Cover A1 identity/evidence, A2 judge/release, and A3 console/report endpoints.
+- [x] Show implemented, open-draft, and contract-blocked states without overstating readiness.
+- [x] Add Google OAuth start adapter with exact `accounts.google.com` validation.
+- [x] Add GitHub OAuth start adapter with exact `github.com` validation.
+- [x] Never expose or accept provider client secrets in the A3 browser bundle.
+- [x] Add email challenge request and verification adapters against actual A1 Go routes.
+- [x] Keep email, display name, code, and challenge context out of localStorage and logs.
+- [x] Preserve a clearly labeled read-only demo identity path.
+- [x] Add an HTML/text verification email handoff without scripts, trackers, or remote assets.
+- [x] Document the missing challenge-context blocker as an A3 -> A1 contract change request.
+- [x] Keep verification disabled when a server-issued challenge context is unavailable.
+- [x] Keep OAuth hosted login incomplete until A1 creates a secure browser session and redirects to an allowlisted Webapp path.
+- [x] Pass TypeScript and Next.js static export.
+- [x] Pass full A3 Node suite (`334 pass / 0 fail`).
+- [x] Pass full Playwright suite (`31 pass / 0 fail`).
+- [x] Pass current-main A1/A2 Python contracts (`562 pass / 5 skip`, `1013 subtests pass`).
+- [x] Pass commercial CL, hygiene CL, dependency audit, diff check, and high-confidence secret scan.
+- [x] Save desktop API/auth/email and mobile API Reference screenshots.
+- [ ] Merge or consume A1 hosted identity only after its open draft PR passes review and enters main.
+- [ ] Close the browser email-verification flow after A1 delivers mailbox-bound challenge context.
+- [ ] Close hosted OAuth login after A1 callback establishes a durable session and performs an exact allowlisted redirect.

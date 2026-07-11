@@ -5,6 +5,7 @@ export const productRoutes = [
   { id: "case", labelKey: "nav.case", group: "evaluate" },
   { id: "review", labelKey: "nav.review", group: "release" },
   { id: "reports", labelKey: "nav.reports", group: "release" },
+  { id: "api-reference", labelKey: "nav.apiReference", group: "developer" },
   { id: "team", labelKey: "nav.team", group: "manage" },
   { id: "billing", labelKey: "nav.billing", group: "manage" },
   { id: "trust", labelKey: "nav.trust", group: "manage" },

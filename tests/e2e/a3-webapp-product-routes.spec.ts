@@ -7,6 +7,7 @@ const dataRoutes = [
   ["runs", "运行与案例"],
   ["review", "人工审核"],
   ["reports", "报告中心"],
+  ["api-reference", "API 文档与参考"],
   ["team", "团队与权限"],
   ["billing", "用量与计费"],
   ["trust", "信任与审计"]
@@ -34,7 +35,9 @@ test.describe("A3 Next.js product console", () => {
 
     await page.goto(`${base}/login/`);
     await expect(page.getByRole("heading", { name: "进入工作区" })).toBeVisible();
-    await expect(page.locator(".auth-roadmap")).toContainText("Google OAuth");
+    await expect(page.getByRole("button", { name: /使用 Google 继续/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /使用 GitHub 继续/ })).toBeVisible();
+    await expect(page.locator(".auth-roadmap")).toContainText("A1 身份服务未连接");
     await page.screenshot({ path: "docs/screenshots/a3-webapp-login-desktop.png", fullPage: false });
 
     expect(consoleErrors).toEqual([]);
@@ -103,6 +106,26 @@ test.describe("A3 Next.js product console", () => {
     await expect(page.locator("html")).toHaveAttribute("lang", "en");
   });
 
+  test("renders searchable API reference and a fail-closed email registration flow", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto(`${base}/api-reference/`);
+    await expect(page.getByRole("heading", { name: "API 文档与参考" })).toBeVisible();
+    await expect(page.getByText("请求邮箱验证码", { exact: true })).toBeVisible();
+    await page.getByLabel("搜索 API").fill("missing_required_tool");
+    await expect(page.getByRole("heading", { name: "评判单个案例" })).toBeVisible();
+    await page.getByLabel("搜索 API").fill("verification");
+    await expect(page.getByText("完成邮箱验证", { exact: true })).toBeVisible();
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-api-reference-desktop.png", fullPage: false });
+
+    await page.goto(`${base}/login/`);
+    await page.getByRole("tab", { name: "邮箱注册" }).click();
+    await expect(page.getByRole("button", { name: /发送验证码/ })).toBeDisabled();
+    await page.getByText("查看验证邮件设计稿").click();
+    await expect(page.getByLabel("验证码邮件设计预览")).toBeVisible();
+    await expect(page.getByText(/当前 A1 SMTP 仍发送纯文本/)).toBeVisible();
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-email-signup-preview-desktop.png", fullPage: false });
+  });
+
   test("stays readable at 390 by 844 with mobile navigation", async ({ page }) => {
     const consoleErrors = collectConsoleErrors(page);
     await page.setViewportSize({ width: 390, height: 844 });
@@ -129,6 +152,20 @@ test.describe("A3 Next.js product console", () => {
     await page.goto(`${base}/login/`);
     await expect(page.getByRole("heading", { name: "进入工作区" })).toBeVisible();
     expect(await page.locator(".login-page").evaluate((node) => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
+
+    await page.goto(`${base}/api-reference/`);
+    await expect(page.getByRole("heading", { name: "API 文档与参考" })).toBeVisible();
+    const apiReferenceBounds = await page.evaluate(() => ({
+      viewport: document.documentElement.clientWidth,
+      documentScrollWidth: document.documentElement.scrollWidth,
+      bodyScrollWidth: document.body.scrollWidth,
+      routeRight: document.querySelector(".route-content")!.getBoundingClientRect().right
+    }));
+    expect(apiReferenceBounds.documentScrollWidth).toBeLessThanOrEqual(apiReferenceBounds.viewport);
+    expect(apiReferenceBounds.bodyScrollWidth).toBeLessThanOrEqual(apiReferenceBounds.viewport);
+    expect(apiReferenceBounds.routeRight).toBeLessThanOrEqual(apiReferenceBounds.viewport);
+    await expect(page.locator(".route-content")).toHaveCSS("opacity", "1");
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-api-reference-mobile-390x844.png", fullPage: false });
     expect(consoleErrors).toEqual([]);
   });
 });

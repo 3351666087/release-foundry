@@ -1,5 +1,102 @@
 ﻿# A3 Worklog
 
+## 2026-07-11 - API Reference, OAuth Adapter, And Email Verification UX
+
+### Goal
+
+Add a Chinese-first API reference and connect the A3 product Webapp to the
+latest A1 Google/GitHub OAuth and email-verification contracts without taking
+custody of provider secrets or overstating draft backend readiness.
+
+### Upstream calibration
+
+- `git fetch origin --prune` succeeded.
+- Current A3 contains `origin/main` at `5dbf4ee` and is 23 commits ahead.
+- Read-only A1 calibration ref: `origin/codex/a1-local-sdk-runner` at
+  `ac960bd`; its PR remains an open draft and was not merged.
+- Read-only A2 calibration ref: `origin/dev/g3-a2-calibration` at `58fe876`.
+- A1 owns OAuth/session/credential/SMTP and A1 execution facts.
+- A2 remains authoritative for score, pass/fail, failure class, and release
+  policy. A3 did not alter either lane's semantics.
+
+### Work completed
+
+- Added `/api-reference` to the route-level Next.js product app.
+- Added a typed, searchable 12-endpoint reference across A1 identity/evidence,
+  A2 judge/release, and A3 console/report contracts.
+- Added implemented, draft-branch, and contract-blocked states with public-safe
+  request/response examples and exact source refs.
+- Added `apps/webapp/lib/auth-api.ts` with:
+  - exact-host validated Google and GitHub OAuth starts;
+  - A1 email challenge request;
+  - fail-closed email verification completion adapter;
+  - HTTPS/non-loopback URL policy, 12-second timeout, no-store requests, and
+    sanitized errors.
+- Rebuilt login as sign-in/email-registration tabs while preserving the
+  explicit read-only demo entry.
+- Added capability-aware Google and GitHub controls. They remain disabled when
+  public A1 connection settings are absent.
+- Added display-name, email, consent, six-digit code, and verification states
+  without persisting personal data in browser storage.
+- Added a component preview plus HTML/text transactional verification-email
+  templates.
+- Added a redacted A1/A2 auth contract snapshot and an A3 -> A1 contract change
+  request for the missing browser challenge context.
+
+### Honest blocker
+
+A1's anti-enumeration start response correctly omits `challenge_id`, but the
+current plaintext SMTP message also omits it while `/verify` requires it. A3
+can issue the real challenge request when configured, but cannot complete the
+browser flow until A1 delivers a secure mailbox-bound context. A3 does not fake
+account creation or a signed-in session. The current OAuth callback also
+returns JSON rather than setting a hosted browser session and redirecting to
+an allowlisted Webapp path.
+
+### Verification
+
+```text
+npm.cmd run check --prefix apps/webapp
+node --test tests/a3/*.mjs
+npm.cmd run test:e2e
+python -B -m pytest tests/a1 tests/a2 -q -p no:cacheprovider
+python scripts/cl_guard.py commercial
+python scripts/cl_guard.py hygiene
+npm.cmd audit --audit-level=high --prefix apps/webapp
+git diff --check
+git check-ignore -v .env.local apps/webapp/node_modules apps/webapp/out docs/screenshots/playwright-results
+```
+
+Results:
+
+- Next.js TypeScript check and 14-page static export: passed.
+- Full A3 Node suite: 334 passed, 0 failed.
+- Full Playwright suite: 31 passed, 0 failed.
+- Current-main A1/A2 Python: 562 passed, 5 conditional skips, 1013 subtests
+  passed.
+- Commercial CL: passed with 0 blockers and 0 advisories.
+- Hygiene CL: passed with no findings.
+- Webapp dependency audit: 0 vulnerabilities.
+- Changed-file high-confidence secret scan: no findings.
+- `.env.local`, build output, dependencies, and Playwright transient output
+  remain ignored.
+
+### Visual evidence
+
+- `docs/screenshots/a3-webapp-login-desktop.png`
+- `docs/screenshots/a3-webapp-api-reference-desktop.png`
+- `docs/screenshots/a3-webapp-api-reference-mobile-390x844.png`
+- `docs/screenshots/a3-webapp-email-signup-preview-desktop.png`
+
+### Safety
+
+- No `.env.local`, API key, OAuth secret, SMTP credential, token, cookie,
+  authorization code, OTP, or real email value was read or committed.
+- No real OAuth redirect, verification email, account mutation, or provider
+  call was executed by tests.
+- The email template has no JavaScript, remote image, tracking pixel, form,
+  third-party font, or user-controlled HTML.
+
 ## 2026-07-09 - Commercial Growth Round 6 Reviewer Denial And SaaS Runtime Reads
 
 ### Goal

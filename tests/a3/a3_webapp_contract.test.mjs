@@ -4,6 +4,7 @@ import test from "node:test";
 
 const webappUrl = new URL("../../apps/webapp/", import.meta.url);
 const expectedRoutes = [
+  "api-reference-page.tsx",
   "billing-page.tsx",
   "case-page.tsx",
   "login-page.tsx",
@@ -23,7 +24,7 @@ test("A3 webapp exposes the complete product workflow as typed routes", async ()
     readdir(new URL("components/pages/", webappUrl))
   ]);
 
-  for (const route of ["login", "overview", "projects", "runs", "case", "review", "reports", "team", "billing", "trust"]) {
+  for (const route of ["login", "overview", "projects", "runs", "case", "review", "reports", "api-reference", "team", "billing", "trust"]) {
     assert.match(routesSource, new RegExp(`id: "${route}"`));
   }
   assert.deepEqual(pageFiles.filter((file) => file.endsWith("-page.tsx")).sort(), expectedRoutes);
@@ -51,7 +52,7 @@ test("A3 webapp consumes A1 and A2 through the existing read-only dashboard API"
   assert.match(reviewSource, /A2 release authority/);
 });
 
-test("A3 webapp keeps preview auth and commercial writes explicitly fail-closed", async () => {
+test("A3 webapp keeps auth and commercial writes explicitly fail-closed", async () => {
   const [loginSource, reviewSource, reportsSource, billingSource, teamSource] = await Promise.all([
     readFile(new URL("components/pages/login-page.tsx", webappUrl), "utf8"),
     readFile(new URL("components/pages/review-page.tsx", webappUrl), "utf8"),
@@ -62,6 +63,9 @@ test("A3 webapp keeps preview auth and commercial writes explicitly fail-closed"
 
   assert.match(loginSource, /READ-ONLY DEMO IDENTITY/);
   assert.match(loginSource, /does not create an account/);
+  assert.match(loginSource, /startOAuth/);
+  assert.match(loginSource, /requestEmailVerification/);
+  assert.match(loginSource, /contractBlocker/);
   assert.match(reviewSource, /disabled/);
   assert.match(reportsSource, /hosted report service/);
   assert.match(billingSource, /live payment backend/);

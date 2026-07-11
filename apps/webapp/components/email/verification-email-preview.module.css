@@ -1,0 +1,70 @@
+.email {
+  overflow: hidden;
+  color: #171716;
+  background: #f7f6f2;
+  border: 1px solid #8f8c84;
+  border-radius: 4px;
+  box-shadow: 8px 8px 0 #d9d6ce;
+}
+
+.header {
+  display: flex;
+  min-height: 54px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 13px;
+  color: #fff;
+  background: #171716;
+  border-bottom: 3px solid #f04d2f;
+}
+
+.brand { display: flex; align-items: center; gap: 8px; }
+.brand > span { display: grid; width: 27px; height: 27px; place-items: center; color: #fff; background: #f04d2f; font-family: var(--font-mono); font-size: 7px; font-weight: 800; }
+.brand strong { font-family: var(--font-display); font-size: 14px; }
+.security { display: flex; align-items: center; gap: 5px; color: #bdb9b0; font-family: var(--font-mono); font-size: 6px; }
+
+.body { display: grid; gap: 11px; padding: 23px 21px 20px; }
+.eyebrow { color: #f04d2f; font-family: var(--font-mono); font-size: 7px; font-weight: 800; }
+.body h3 { font-family: var(--font-display); font-size: 26px; line-height: 1.05; }
+.body p { color: #625f59; font-size: 9px; }
+
+.code {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 4px;
+  margin: 4px 0 1px;
+}
+
+.code span {
+  display: grid;
+  aspect-ratio: 1 / 1.12;
+  place-items: center;
+  color: #fff;
+  background: #171716;
+  border-bottom: 3px solid #f04d2f;
+  font-family: var(--font-mono);
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.expiry { display: flex; align-items: center; gap: 6px; color: #625f59; font-size: 8px; }
+.action { display: inline-flex; width: fit-content; min-height: 34px; align-items: center; gap: 7px; margin-top: 3px; padding: 0 11px; color: #fff; background: #39725c; font-size: 8px; font-weight: 750; }
+
+.email footer {
+  display: grid;
+  gap: 4px;
+  padding: 13px 21px 16px;
+  color: #625f59;
+  background: #ece9e2;
+  border-top: 1px solid #cfcbc1;
+  font-size: 7px;
+}
+
+.email footer strong { color: #171716; font-size: 8px; }
+
+@media (max-width: 420px) {
+  .body { padding-right: 15px; padding-left: 15px; }
+  .code span { font-size: 15px; }
+  .security { display: none; }
+}

@@ -1,0 +1,108 @@
+{
+  "schema_version": "a3.auth_contract_snapshot.v1",
+  "calibrated_at": "2026-07-11",
+  "public_safe": true,
+  "contains_secret_values": false,
+  "main": {
+    "ref": "origin/main",
+    "sha": "5dbf4ee2ab4c0ea8568623899244070dce9f9ce4",
+    "contained_by_a3_branch": true
+  },
+  "a1": {
+    "ref": "origin/codex/a1-local-sdk-runner",
+    "sha": "ac960bdaf9d3ca2afe27b5e07e4625bdc1f824f2",
+    "pull_request_state": "open_draft",
+    "merged_to_main": false,
+    "authority": [
+      "identity session",
+      "oauth provider exchange",
+      "credential binding",
+      "verification delivery",
+      "run and trace facts"
+    ],
+    "implemented_go_routes": [
+      "POST /v1/projects/{project_id}/oauth/google/start",
+      "GET /oauth/google/callback",
+      "GET /v1/projects/{project_id}/oauth/google/connection",
+      "POST /v1/projects/{project_id}/oauth/google/disconnect",
+      "POST /v1/projects/{project_id}/oauth/github/start",
+      "GET /oauth/github/callback",
+      "GET /v1/projects/{project_id}/oauth/github/connection",
+      "POST /v1/projects/{project_id}/oauth/github/disconnect",
+      "POST /v1/identity-verification/challenges",
+      "POST /v1/identity-verification/verify",
+      "GET /v1/accounts/{account_id}",
+      "GET /v1/accounts/{account_id}/credentials",
+      "GET /v1/accounts/{account_id}/memberships"
+    ],
+    "calibration": {
+      "github_localhost": "passed",
+      "google_localhost": "passed",
+      "smtp_development_send": "passed_once_by_a1",
+      "postgres_verification_race": "passed",
+      "production_ready": false
+    }
+  },
+  "a2": {
+    "ref": "origin/dev/g3-a2-calibration",
+    "sha": "58fe8762de982b2b5d285de9ae4a438f120ec318",
+    "authority": [
+      "score",
+      "pass_fail",
+      "failure_class",
+      "release_policy"
+    ],
+    "auth_role": "security_context_consumer_only",
+    "identity_session_context_tracked": true,
+    "identity_verification_context_tracked": true
+  },
+  "a3": {
+    "role": "product_ui_and_public_reference",
+    "oauth_provider_secrets_owned": false,
+    "oauth_token_custody_owned": false,
+    "verification_delivery_owned": false,
+    "browser_config": [
+      "NEXT_PUBLIC_A1_API_BASE_URL",
+      "NEXT_PUBLIC_A1_PROJECT_ID",
+      "NEXT_PUBLIC_A1_TENANT_ID"
+    ],
+    "implemented_this_round": [
+      "api_reference_route",
+      "google_oauth_start_adapter",
+      "github_oauth_start_adapter",
+      "email_verification_request_adapter",
+      "email_verification_completion_adapter",
+      "capability_aware_login_and_signup_ui",
+      "html_and_text_email_template_handoff"
+    ]
+  },
+  "known_blockers": [
+    {
+      "id": "verification_context_not_delivered_to_browser",
+      "severity": "blocking",
+      "fact": "The public challenge response intentionally omits challenge_id and the current A1 plaintext email also omits challenge_id, while verify requires challenge_id.",
+      "a3_behavior": "fail_closed"
+    },
+    {
+      "id": "oauth_callback_has_no_webapp_session_redirect",
+      "severity": "blocking_for_hosted_login",
+      "fact": "The current A1 OAuth callback returns a JSON connection result instead of establishing a hosted browser session and redirecting to the webapp.",
+      "a3_behavior": "disclose_draft_state"
+    },
+    {
+      "id": "a1_auth_not_in_main",
+      "severity": "integration_risk",
+      "fact": "The calibrated A1 auth implementation is still an open draft PR.",
+      "a3_behavior": "consume_contract_without_merging_or_mutating_a1"
+    }
+  ],
+  "safety": {
+    "api_key_read": false,
+    "provider_secret_read": false,
+    "cookie_read": false,
+    "real_email_recorded": false,
+    "verification_code_recorded": false,
+    "oauth_code_or_token_recorded": false,
+    "same_email_implicit_merge_allowed": false
+  }
+}
