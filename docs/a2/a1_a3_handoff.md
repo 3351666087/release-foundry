@@ -2,6 +2,30 @@
 
 This page describes the current local G1-G2 handoff around Kay's A2 module.
 
+The authority boundaries, trusted evidence spine, provider governance,
+multimodal security, and production roadmap are defined in
+`docs/strategy/a2-independent-evaluation-intelligence-platform.md`. This
+handoff remains the concrete integration contract; the strategy document
+defines the system invariants that future A1 producers and A3 consumers must
+preserve.
+
+## Trusted Evidence Spine
+
+The executable reference is `services/judge/trusted_spine.py`, with the
+public-safe sample at
+`fixtures/a2/results/a2_trusted_spine_handoff.json`.
+
+A1 provides tenant-scoped run facts. A2 freezes their safe metadata as
+`a2.evidence_snapshot.v1`, then binds the snapshot to judge, model, policy, and
+release-gate versions in an append-only `a2.decision_ledger.v1` chain. Raw
+artifact content, private evidence, and credentials are not copied into the
+handoff.
+
+A3 consumes `a3_consumption.display_decision` and
+`display_provenance_hash`. A3 must keep `release_ready=false` when there is no
+valid decision record, must not recompute the grade, and must route `review`
+or `block` decisions through the recorded review status.
+
 ## A1 -> A2 Run Input
 
 A1 can produce a normalized A2 run object with tool calls and a final response:

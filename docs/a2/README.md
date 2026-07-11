@@ -11,6 +11,10 @@ This module provides the local G1-G2 foundation for:
 - golden cases,
 - sample run fixtures.
 
+The commercial architecture and phased path from this foundation to an
+independent, multimodal evaluation decision platform are defined in
+`docs/strategy/a2-independent-evaluation-intelligence-platform.md`.
+
 ## Current Deliverables
 
 - 20 G2 seed scenarios: `packages/scenarios/a2_g2_seed_pack.json`
@@ -49,6 +53,8 @@ This module provides the local G1-G2 foundation for:
 - Configurable release policy engine: `services/judge/release_policy.py`
 - Project-aware scenario selection: `services/judge/scenario_selection.py`
 - Public-safe result persistence manifest: `services/judge/result_persistence.py`
+- Trusted Evidence Snapshot and append-only Decision Ledger: `services/judge/trusted_spine.py`
+- A3 public-safe trusted-spine handoff: `fixtures/a2/results/a2_trusted_spine_handoff.json`
 - SaaS scenario selection report: `fixtures/a2/results/a2_scenario_selection_report.json`
 - SaaS result persistence manifest: `fixtures/a2/results/a2_result_persistence_manifest.json`
 - Scenario quality dimension audit and advisory warnings in the G3 coverage report
@@ -117,6 +123,8 @@ Config and schemas:
 - `docs/a2/schemas/release_policy.schema.json`
 - `docs/a2/schemas/scenario_selection.schema.json`
 - `docs/a2/schemas/result_persistence_manifest.schema.json`
+- `docs/a2/schemas/evidence_snapshot.schema.json`
+- `docs/a2/schemas/decision_ledger.schema.json`
 
 This layer supports SaaS direction without taking ownership of tenant auth, queues, storage credentials, billing, or dashboard UI.
 

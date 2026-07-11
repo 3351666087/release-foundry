@@ -13,6 +13,7 @@
     "semantic_required_fields_documented": true,
     "semantic_sdk_language_matrix_ready": true,
     "official_sdk_smoke_readonly_ok": true,
+    "multimodal_real_api_smoke_reached": true,
     "private_payload_boundary_documented": true
   },
   "calibration_case_count": 6,
@@ -531,6 +532,289 @@
       "It does not count as reviewed ashr_grading rows for C3."
     ]
   },
+  "a1_china_payment_migration": {
+    "available": true,
+    "path": "docs/a1/schemas/a1_china_payment_migration_manifest.json",
+    "schema_version": "ashr.clone.a1_china_payment_migration_manifest.v1",
+    "version": 3,
+    "migration": "services/api/migrations/003_a1_china_mainland_payments.sql",
+    "currency": "cny",
+    "provider_count": 3,
+    "providers": [
+      "alipay",
+      "domestic_bank_card",
+      "wechat_pay"
+    ],
+    "table_count": 11,
+    "table_names": [
+      "china_payment_acquirer_account_bindings",
+      "china_payment_config_refs",
+      "china_payment_daily_bill_files",
+      "china_payment_daily_bill_lines",
+      "china_payment_ledger_links",
+      "china_payment_merchant_applications",
+      "china_payment_mutation_events",
+      "china_payment_orders",
+      "china_payment_provider_notifications",
+      "china_payment_reconciliation_discrepancies",
+      "china_payment_refunds"
+    ],
+    "mutable_audited_table_count": 7,
+    "mutable_audited_tables": [
+      "china_payment_acquirer_account_bindings",
+      "china_payment_config_refs",
+      "china_payment_daily_bill_files",
+      "china_payment_merchant_applications",
+      "china_payment_orders",
+      "china_payment_reconciliation_discrepancies",
+      "china_payment_refunds"
+    ],
+    "append_only_table_count": 4,
+    "append_only_tables": [
+      "china_payment_daily_bill_lines",
+      "china_payment_ledger_links",
+      "china_payment_mutation_events",
+      "china_payment_provider_notifications"
+    ],
+    "tenant_rls_table_count": 11,
+    "tenant_rls_ready": true,
+    "required_constraint_count": 77,
+    "required_index_count": 14,
+    "required_function_names": [
+      "china_payment_public_metadata",
+      "china_payment_record_mutation",
+      "china_payment_reference_only",
+      "china_payment_reject_mutation",
+      "china_payment_set_updated_at",
+      "china_payment_validate_ledger_link",
+      "china_payment_validate_refund"
+    ],
+    "public_safe": true,
+    "raw_provider_payload_stored": false,
+    "raw_provider_headers_stored": false,
+    "raw_provider_secrets_stored": false,
+    "raw_card_data_stored": false,
+    "pan_stored": false,
+    "cvc_stored": false,
+    "otp_stored": false,
+    "merchant_credentials_reference_only": true,
+    "notification_hash_only": true,
+    "bill_file_object_reference_only": true,
+    "mutation_evidence_hash_only": true,
+    "idempotency_keys": [
+      "china_payment_orders.idempotency_key",
+      "china_payment_refunds.idempotency_key"
+    ],
+    "billing_ledger_providers": [
+      "alipay",
+      "domestic_bank_card",
+      "stripe",
+      "wechat_pay"
+    ],
+    "has_money_flow_tables": true,
+    "has_fail_closed_functions": true,
+    "ready_for_a2_payment_sql_policy_context": true,
+    "c3_grading_ready": false,
+    "a2_policy_implications": {
+      "china_payment_sql_policy_context": true,
+      "can_support_payment_abuse_cases": true,
+      "can_support_payment_reconciliation_regressions": true,
+      "can_cross_check_billing_ledger_links": true,
+      "must_not_mark_c3_from_payment_sql_context": true
+    },
+    "notes": [
+      "A1 China payment migration manifest is public-safe SQL contract evidence for A2 payment abuse, reconciliation, and fail-closed policy checks.",
+      "It proves hash/reference-only payment persistence semantics, not live money movement or reviewed Ashr grading rows."
+    ]
+  },
+  "a1_payment_verification_security": {
+    "available": true,
+    "path": "services/api/migrations/005_a1_payment_verification_security.sql",
+    "migration": "005_a1_payment_verification_security.sql",
+    "public_safe": true,
+    "recursive_metadata_check": true,
+    "forbidden_alias_count": 23,
+    "has_card_data_aliases": true,
+    "has_secret_material_aliases": true,
+    "verification_artifact_table_present": true,
+    "verification_artifact_digest_fields": true,
+    "verification_artifact_freshness_window": true,
+    "verification_artifact_append_only": true,
+    "notification_requires_verified_artifact": true,
+    "status_transition_requires_artifact": true,
+    "trusted_apply_functions_present": true,
+    "project_rls_ready": true,
+    "role_nobypassrls_assertion": true,
+    "metadata_constraints_present": true,
+    "raw_payload_storage_allowed": false,
+    "secret_value_storage_allowed": false,
+    "ready_for_a2_payment_verification_policy_context": true,
+    "c3_grading_ready": false,
+    "a2_policy_implications": {
+      "payment_verification_policy_context": true,
+      "can_support_forbidden_payment_data_abuse_cases": true,
+      "can_support_fail_closed_payment_transition_regressions": true,
+      "can_cross_check_verified_notification_artifacts": true,
+      "must_not_mark_c3_from_payment_verification_context": true
+    },
+    "notes": [
+      "A1 payment verification security SQL is public-safe policy context for forbidden payment data, trusted notification, and fail-closed transition checks.",
+      "It proves SQL guard semantics, not live provider verification or reviewed Ashr grading rows."
+    ]
+  },
+  "a1_oauth_lifecycle_security": {
+    "available": true,
+    "sql_path": "services/api/migrations/006_a1_oauth_lifecycle.sql",
+    "evidence_path": "docs/a1/evidence/github_account_connection_evidence_20260710.json",
+    "schema_version": "ashr.clone.github_account_connection_evidence.v1",
+    "provider": "github",
+    "environment": "localhost_development",
+    "public_safe": true,
+    "sql_table_count": 8,
+    "sql_tables": [
+      "external_identities",
+      "oauth_attempts",
+      "oauth_audit_events",
+      "oauth_outbox",
+      "oauth_revocations",
+      "sessions",
+      "token_secret_refs",
+      "users"
+    ],
+    "digest_field_count": 11,
+    "recursive_metadata_check": true,
+    "forbidden_key_count": 10,
+    "reference_only_secret_storage": true,
+    "state_code_replay_controls": true,
+    "account_takeover_controls": true,
+    "session_fixation_controls": true,
+    "revocation_controls": true,
+    "audit_outbox_controls": true,
+    "hard_delete_rejected": true,
+    "append_only_audit": true,
+    "tenant_rls_ready": true,
+    "raw_secret_columns_present": false,
+    "raw_public_evidence_present": false,
+    "successful_localhost_connection": true,
+    "scope_boundary_ready": true,
+    "token_reference_present": true,
+    "token_reference_exposed": false,
+    "memory_backed": true,
+    "production_ready": false,
+    "ready_for_a2_oauth_policy_context": true,
+    "c3_grading_ready": false,
+    "a2_policy_implications": {
+      "oauth_lifecycle_policy_context": true,
+      "can_support_oauth_abuse_cases": true,
+      "can_support_account_takeover_regressions": true,
+      "can_cross_check_audit_outbox_events": true,
+      "must_not_mark_c3_from_oauth_context": true
+    },
+    "notes": [
+      "A1 OAuth lifecycle evidence is public-safe auth policy context for A2 replay, account-linking, and secret-redaction checks.",
+      "The current public provider proof is localhost and memory-backed; it is not production OAuth readiness or reviewed Ashr grading evidence."
+    ]
+  },
+  "a1_unified_identity_security": {
+    "available": true,
+    "runtime_sql_path": "services/api/migrations/007_a1_oauth_runtime_store.sql",
+    "identity_sql_path": "services/api/migrations/008_a1_unified_identity_account.sql",
+    "coordinator_sql_path": "services/api/migrations/009_a1_oauth_identity_coordinator.sql",
+    "revocation_outbox_sql_path": "services/api/migrations/010_a1_identity_revocation_outbox.sql",
+    "session_authentication_sql_path": "services/api/migrations/011_a1_identity_session_authentication.sql",
+    "contract_path": "docs/a1/evidence/unified_identity_contract_20260710.json",
+    "same_account_evidence_path": "docs/a1/evidence/unified_identity_same_account_localhost_20260710.json",
+    "google_evidence_path": "docs/a1/evidence/google_oauth_localhost_evidence_20260710.json",
+    "schema_version": "ashr.unified_identity.contract.v1",
+    "same_account_schema_version": "ashr.unified_identity.same_account_localhost.v1",
+    "google_schema_version": "ashr.clone.google_oauth_localhost.v1",
+    "public_safe": true,
+    "required_identity_kinds": [
+      "alipay",
+      "email",
+      "github",
+      "google",
+      "phone",
+      "qq",
+      "wechat"
+    ],
+    "real_provider_calibrated": [
+      "github",
+      "google"
+    ],
+    "pending_provider_count": 5,
+    "identity_table_count": 10,
+    "identity_tables": [
+      "identity_account_merges",
+      "identity_audit_events",
+      "identity_credentials",
+      "identity_link_conflicts",
+      "identity_organization_memberships",
+      "identity_outbox",
+      "identity_principals",
+      "identity_project_memberships",
+      "identity_recovery_challenges",
+      "identity_sessions"
+    ],
+    "oauth_runtime_table_count": 6,
+    "oauth_runtime_tables": [
+      "oauth_account_connections",
+      "oauth_replay_ledger",
+      "oauth_revocation_outbox",
+      "oauth_runtime_audit",
+      "oauth_runtime_transactions",
+      "oauth_token_opaque_refs"
+    ],
+    "coordinator_table_present": true,
+    "digest_only_identity_storage": true,
+    "reference_only_secret_storage": true,
+    "recursive_metadata_check": true,
+    "tenant_principal_rls_ready": true,
+    "domain_invariants_ready": true,
+    "postgres_contract_ready": true,
+    "account_takeover_controls": true,
+    "same_account_provider_link_ready": true,
+    "membership_identity_decoupled": true,
+    "public_dto_allowlist_only": true,
+    "secret_material_excluded": true,
+    "google_real_provider_ready": true,
+    "outbox_audit_controls": true,
+    "recovery_merge_controls_present": true,
+    "revocation_outbox_hardening_present": true,
+    "revocation_external_checkpoints": true,
+    "revocation_fenced_retry_ready": true,
+    "revocation_reconnect_cleanup_safe": true,
+    "session_authentication_ready": true,
+    "identity_verification_sql_path": "services/api/migrations/012_a1_identity_verification.sql",
+    "identity_verification_public_surface_path": "docs/a1/identity-verification-public-surface.json",
+    "identity_verification_surface_schema_version": "ashr.clone.identity_verification_public_surface.v1",
+    "identity_verification_route_count": 12,
+    "identity_verification_digest_only": true,
+    "identity_verification_abuse_controls": true,
+    "identity_verification_receipt_controls": true,
+    "identity_verification_runtime_boundary": true,
+    "identity_verification_public_surface_ready": true,
+    "identity_verification_ready": true,
+    "append_only_controls": true,
+    "hard_delete_rejected": true,
+    "final_credential_unlink_rejected": true,
+    "raw_secret_columns_present": false,
+    "multi_instance_gap_present": true,
+    "production_ready": false,
+    "ready_for_a2_identity_policy_context": true,
+    "c3_grading_ready": false,
+    "a2_policy_implications": {
+      "identity_policy_context": true,
+      "can_support_account_takeover_regressions": true,
+      "can_support_membership_decoupling_regressions": true,
+      "can_support_provider_linking_abuse_cases": true,
+      "must_not_mark_c3_from_identity_context": true
+    },
+    "notes": [
+      "A1 unified identity evidence is public-safe auth policy context for A2 identity, OAuth linking, and membership-decoupling regressions.",
+      "Current real-provider proof is localhost and not production readiness; pending China/phone/email providers remain contract-only."
+    ]
+  },
   "a1_billing_sql_semantic_contract": {
     "available": true,
     "path": "docs/a1/evidence/billing_sql_semantic_contract.json",
@@ -598,6 +882,57 @@
       "It validates hash/reference-only billing storage semantics, not reviewed Ashr grading rows."
     ]
   },
+  "a1_object_storage_contract": {
+    "available": true,
+    "path": "docs/a1/evidence/object_storage_contract_20260709.md",
+    "schema_version": "ashr.clone.object_storage.v1",
+    "public_safe": true,
+    "backend_count": 2,
+    "supported_backends": [
+      "local-filesystem",
+      "s3-compatible"
+    ],
+    "scoped_object_keys": true,
+    "manifest_field_count": 5,
+    "manifest_fields": [
+      "content_type",
+      "object_key",
+      "sha256",
+      "size_bytes",
+      "storage_uri"
+    ],
+    "manifest_signature_sha256": true,
+    "checksum_readback": true,
+    "local_readback_sha256": true,
+    "s3_reference_only": true,
+    "lazy_network_adapter": true,
+    "sdk_helper_present": true,
+    "api_integration_present": true,
+    "evidence_bundle_metadata_present": true,
+    "raw_payload_bytes_included": false,
+    "absolute_local_paths_included": false,
+    "raw_endpoint_values_included": false,
+    "raw_access_key_values_included": false,
+    "raw_secret_key_values_included": false,
+    "raw_token_values_included": false,
+    "test_target_count": 2,
+    "test_targets": [
+      "tests/a1/test_object_storage_contract.py",
+      "tests/a1/test_saas_platform.py"
+    ],
+    "ready_for_a2_artifact_policy_context": true,
+    "c3_grading_ready": false,
+    "a2_policy_implications": {
+      "object_storage_policy_context": true,
+      "can_support_artifact_bundle_evidence_handoff": true,
+      "can_support_checksum_regression_cases": true,
+      "must_not_mark_c3_from_storage_context": true
+    },
+    "notes": [
+      "A1 object storage contract is public-safe artifact and bundle handoff context for A2 evidence policy.",
+      "It validates manifest/checksum/redaction semantics, not reviewed Ashr grading rows."
+    ]
+  },
   "official_sdk_smoke": {
     "available": true,
     "path": "docs/evidence/a2_real_api_smoke.json",
@@ -624,6 +959,56 @@
     "notes": [
       "This is a redacted official ashr_labs SDK smoke summary, separate from clone API calibration.",
       "It proves current authenticated read/list reachability but does not count as C3 server-side grading evidence."
+    ]
+  },
+  "multimodal_real_api_smoke": {
+    "available": true,
+    "path": "docs/evidence/a2_multimodal_real_api_smoke.json",
+    "schema_version": "a2.multimodal_real_api_smoke.v1",
+    "generated_at": "2026-07-10T23:46:02Z",
+    "sdk_source": "docs/a1/_pypi_artifacts/ashr_labs-0.3.1-py3-none-any.whl",
+    "base_url": "https://api.ashr.io/testing-platform-api",
+    "private_ref": "docs/evidence/private_refs/a2_multimodal_real_api_smoke.private.json",
+    "private_ref_sha256_12": "084c566f8467",
+    "accepted_modalities": [
+      "audio",
+      "file",
+      "image",
+      "text",
+      "video"
+    ],
+    "generation_options": {
+      "generate_audio": true,
+      "generate_files": true,
+      "generate_images": true,
+      "generate_videos": true
+    },
+    "api_call_count": 2,
+    "ok_call_count": 1,
+    "error_call_count": 1,
+    "call_status_counts": {
+      "error": 1,
+      "ok": 1
+    },
+    "call_names": [
+      "create_request",
+      "init"
+    ],
+    "quota_blocked": true,
+    "create_request_error_type": "AshrLabsError",
+    "create_request_error_message": "[400] Usage limit exceeded for requests: 5/5 used, requested 1, 0 remaining",
+    "real_api_boundary_reached": true,
+    "all_required_modalities_requested": true,
+    "create_request_reached": false,
+    "wait_completed": false,
+    "dataset_id_present": false,
+    "public_safe": true,
+    "ready_for_a2_multimodal_context": true,
+    "c3_grading_ready": false,
+    "notes": [
+      "This is a redacted real Ashr API multimodal smoke summary for image/audio/file/video request injection.",
+      "A quota-blocked create_request still proves the request payload reached the authenticated API gate after local SDK validation.",
+      "It is not reviewed Ashr grading evidence and does not mark C3 ready."
     ]
   },
   "ashr_public_merge_gate": {
