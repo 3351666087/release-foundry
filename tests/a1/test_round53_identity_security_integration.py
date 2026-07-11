@@ -321,7 +321,11 @@ def test_typescript_clean_build_and_typed_subpath_parity(tmp_path: Path) -> None
         package_copy,
         ignore=shutil.ignore_patterns("dist", "node_modules"),
     )
-    shutil.copytree(TS_PACKAGE / "node_modules", package_copy / "node_modules")
+    shutil.copytree(
+        TS_PACKAGE / "node_modules",
+        package_copy / "node_modules",
+        ignore=shutil.ignore_patterns(".bin"),
+    )
     stale = package_copy / "dist" / "stale-round53-sentinel.js"
     stale.parent.mkdir(parents=True)
     stale.write_text("throw new Error('stale output loaded');\n", encoding="utf-8")

@@ -2511,6 +2511,29 @@ Final staged and commit-tree attestation:
   `git diff --check` passed.
 - The five peer-owned A2 CRLF-only files remain outside both A1 commits.
 
+Post-publication CI follow-up:
+
+- PR `#31` CL Gate run `29153584161` passed plan/hygiene, Go, TypeScript and
+  Rust jobs. Its Linux Python job failed one Round 53 integration test while
+  the same test passed on Windows.
+- Root cause: the test copied all of `node_modules` into a clean temporary
+  package. On Linux, `node_modules/.bin/tsc` is a relative symlink; default
+  `shutil.copytree` dereferenced it into a regular script under `.bin`, so its
+  `../lib/tsc.js` import resolved from the wrong directory. Windows npm shims
+  did not expose this defect.
+- Removing all temporary dependencies was insufficient because TypeScript then
+  could not resolve local `@types/node`. The final fix copies `node_modules`
+  while explicitly excluding `.bin`, and executes the compiler from the source
+  package's real `.bin` directory.
+- Post-fix validation: Windows focused clean-build test passed; all six Round 53
+  integration tests passed; TypeScript passed `574/574`; parity passed; and an
+  offline Linux Node 22 container reconstructed a real Linux compiler symlink,
+  compiled the temporary package with local type declarations, and proved
+  prebuild removed the stale-dist sentinel.
+- A bounded Docker registry retry failed twice with `ECONNRESET`; the offline
+  reproduction used already installed public TypeScript package contents and
+  made no credentialed network call.
+
 Next commercial A1 growth points from the first audit:
 
 1. Enforce safe retirement windows for previous session keys.
