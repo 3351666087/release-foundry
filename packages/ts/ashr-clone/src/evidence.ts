@@ -1,5 +1,5 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { dirname } from "node:path";
+import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
 
 import { ASHR_API_FIELD_MAP_VERSION, redactApiSensitive, redactApiText } from "./api-client.js";
 
@@ -11,6 +11,8 @@ const PUBLIC_SECRET_PATTERNS = [/tp_[A-Za-z0-9_-]+/, /sk-[A-Za-z0-9_-]{8,}/, /Be
 export interface EvidenceIndexOptions {
   label?: string;
   maxFiles?: number | null;
+  includePatterns?: string[];
+  strictPublic?: boolean;
 }
 
 export async function buildPrivateEvidenceIndex(paths: Iterable<string>, options: EvidenceIndexOptions = {}): Promise<JsonRecord> {
@@ -23,16 +25,45 @@ export async function buildPrivateEvidenceIndex(paths: Iterable<string>, options
   }
   entries.sort((left, right) => String(left.path).localeCompare(String(right.path)));
   const limited = options.maxFiles === null || options.maxFiles === undefined ? entries : entries.slice(0, normalizeMaxFiles(options.maxFiles));
+  const index = buildEvidenceIndex(limited, options.label ?? "a1-real-api");
+  if (options.strictPublic === true) {
+    assertPublicEvidenceIndexSafe(index);
+  }
+  return index;
+}
+
+export async function buildPrivateEvidenceIndexFromDir(root: string, options: EvidenceIndexOptions = {}): Promise<JsonRecord> {
+  const patterns = options.includePatterns ?? ["*.json"];
+  const names = (await readdir(root, { withFileTypes: true }))
+    .filter((entry) => entry.isFile() && patterns.some((pattern) => globMatches(entry.name, pattern)))
+    .map((entry) => join(root, entry.name))
+    .sort();
+  return buildPrivateEvidenceIndex(names, options);
+}
+
+export function mergeEvidenceIndices(existingIndex: JsonRecord | null, freshIndex: JsonRecord, label = "a1-real-api"): JsonRecord {
+  const records = new Map<string, JsonRecord>();
+  for (const index of [existingIndex, freshIndex]) {
+    if (index === null || !Array.isArray(index.records)) continue;
+    for (const value of index.records) {
+      if (isRecord(value) && typeof value.path === "string") records.set(value.path, cloneRecord(value));
+    }
+  }
+  return buildEvidenceIndex([...records.values()].sort((left, right) => String(left.path).localeCompare(String(right.path))), label);
+}
+
+function buildEvidenceIndex(entries: JsonRecord[], label: string): JsonRecord {
   return redactApiSensitive({
     schema_version: EVIDENCE_INDEX_SCHEMA_VERSION,
-    label: options.label ?? "a1-real-api",
+    label,
     field_map_version: ASHR_API_FIELD_MAP_VERSION,
-    total_records: limited.length,
-    status_counts: countBy(limited, "status"),
-    function_counts: countBy(limited, "function"),
-    error_kind_counts: countBy(limited, "error_kind"),
-    quota_block_count: limited.filter((entry) => isRecord(entry.quota) && entry.quota.blocked === true).length,
-    records: limited,
+    total_records: entries.length,
+    status_counts: countBy(entries, "status"),
+    function_counts: countBy(entries, "function"),
+    error_kind_counts: countBy(entries, "error_kind"),
+    quota_block_count: entries.filter((entry) => isRecord(entry.quota) && entry.quota.blocked === true).length,
+    output_policy_counts: outputPolicyCounts(entries),
+    records: entries,
   }) as JsonRecord;
 }
 
@@ -79,6 +110,13 @@ export function validatePublicEvidenceIndex(index: JsonRecord): JsonRecord[] {
     }
   });
   return issues;
+}
+
+export function assertPublicEvidenceIndexSafe(index: JsonRecord): void {
+  const blockers = validatePublicEvidenceIndex(index).filter((issue) => issue.severity === "error");
+  if (blockers.length > 0) {
+    throw new Error(`public evidence index has ${blockers.length} blocking issue(s)`);
+  }
 }
 
 export function buildResponseFieldMap(index: JsonRecord): JsonRecord {
@@ -129,6 +167,45 @@ export function buildResponseFieldMap(index: JsonRecord): JsonRecord {
   };
 }
 
+export function renderResponseFieldMapMarkdown(fieldMap: JsonRecord): string {
+  const functions = isRecord(fieldMap.functions) ? fieldMap.functions : {};
+  const lines = [
+    "# Ashr Real API Response Field Map",
+    "",
+    "| Field | Value |",
+    "| --- | --- |",
+    `| Schema | \`${markdownCode(fieldMap.schema_version)}\` |`,
+    `| Source label | \`${markdownCode(fieldMap.source_label)}\` |`,
+    `| Source records | \`${markdownCode(fieldMap.source_total_records)}\` |`,
+    `| Field map version | \`${markdownCode(fieldMap.field_map_version)}\` |`,
+    "",
+    "## Function Coverage",
+    "",
+    "| Function | Records | Statuses | Response keys | Error keys | Top count keys | Quota blocks |",
+    "| --- | ---: | --- | --- | --- | --- | ---: |",
+  ];
+  for (const [name, value] of Object.entries(functions).sort(([left], [right]) => left.localeCompare(right))) {
+    if (!isRecord(value)) continue;
+    lines.push(`| ${markdownCode(name)} | ${Number(value.records ?? 0)} | ${formatCounts(value.statuses)} | ${formatInlineList(value.response_keys)} | ${formatInlineList(value.error_keys)} | ${formatInlineList(value.top_count_keys)} | ${Number(value.quota_block_count ?? 0)} |`);
+  }
+  lines.push(
+    "",
+    "## Commercial Readiness Notes",
+    "",
+    "- Public report intentionally lists field names, statuses, and quota-block presence only; exact hosted quota counts and raw payloads remain in ignored private evidence.",
+    "- Functions with quota blocks need quota-reset or plan-upgrade confirmation before paid mutating probes are scaled.",
+    "- Functions with both ok and error statuses are candidates for typed error taxonomy and replay fixture hardening.",
+    "",
+  );
+  return lines.join("\n");
+}
+
+export async function writeResponseFieldMapMarkdown(path: string, fieldMap: JsonRecord): Promise<string> {
+  await mkdir(dirname(path), { recursive: true });
+  await writeFile(path, renderResponseFieldMapMarkdown(fieldMap), "utf8");
+  return path;
+}
+
 async function summarizeRecordPath(path: string): Promise<JsonRecord | null> {
   let parsed: unknown;
   try {
@@ -164,7 +241,7 @@ async function summarizeRecordPath(path: string): Promise<JsonRecord | null> {
   return redactApiSensitive(entry) as JsonRecord;
 }
 
-function summarizeQuotaError(value: JsonRecord): JsonRecord | null {
+export function summarizeQuotaError(value: JsonRecord): JsonRecord | null {
   const candidates = quotaCandidates(value);
   const quotaCandidatesFirst = candidates.filter((candidate) => isRecord(candidate.quota));
   const messageCandidates = candidates.filter((candidate) => !isRecord(candidate.quota));
@@ -256,6 +333,38 @@ function countBy(entries: JsonRecord[], key: string): JsonRecord {
     counts[countKey] = (counts[countKey] ?? 0) + 1;
   }
   return Object.fromEntries(Object.entries(counts).sort(([left], [right]) => left.localeCompare(right)));
+}
+
+function outputPolicyCounts(entries: JsonRecord[]): JsonRecord {
+  const counts: Record<string, number> = {};
+  for (const entry of entries) {
+    if (!isRecord(entry.output_policy)) continue;
+    const recordClass = typeof entry.output_policy.record_class === "string" ? entry.output_policy.record_class : "unknown";
+    counts[recordClass] = (counts[recordClass] ?? 0) + 1;
+  }
+  return Object.fromEntries(Object.entries(counts).sort(([left], [right]) => left.localeCompare(right)));
+}
+
+function globMatches(name: string, pattern: string): boolean {
+  const escaped = pattern.replace(/[.+^${}()|[\]\\]/gu, "\\$&").replaceAll("*", ".*").replaceAll("?", ".");
+  return new RegExp(`^${escaped}$`, "u").test(name);
+}
+
+function markdownCode(value: unknown): string {
+  return String(value ?? "").replaceAll("|", "\\|").replaceAll("`", "\\`");
+}
+
+function formatCounts(value: unknown): string {
+  if (!isRecord(value)) return "";
+  return Object.entries(value).sort(([left], [right]) => left.localeCompare(right)).map(([key, count]) => `${markdownCode(key)}=${Number(count)}`).join(", ");
+}
+
+function formatInlineList(value: unknown): string {
+  return arrayItems(value).filter((item): item is string => typeof item === "string").map(markdownCode).join(", ");
+}
+
+function cloneRecord(value: JsonRecord): JsonRecord {
+  return JSON.parse(JSON.stringify(value)) as JsonRecord;
 }
 
 function mergeStringArrays(left: unknown, right: unknown): string[] {

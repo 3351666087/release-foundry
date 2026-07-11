@@ -158,6 +158,10 @@ export const UNSUPPORTED_GO_ROUTE_GAPS: Record<string, { reason: string; replace
     replacement_route: "POST /v1/bootstrap",
     consumer_action: "keep unsupported until root bootstrap aliases are part of generated SDK contracts",
   },
+  "POST /v1/projects/{project_id}/accounts/{account_id}/browser-sessions/refresh": {
+    reason: "Go owns the same-origin HttpOnly cookie refresh boundary; the hosted JSON client intentionally accepts neither raw refresh cookies nor digest payloads for this browser-only route.",
+    consumer_action: "invoke through a same-origin browser transport with credentials and Idempotency-Key; keep it outside the hosted JSON body client",
+  },
   "POST /v1/projects/{project_id}/api-keys/preflight": {
     reason: "Go advertises an API-key preflight route that TS/Python hosted clients have not implemented yet.",
     consumer_action: "keep unsupported until preflight request and response semantics are added to both hosted SDKs",

@@ -1,9 +1,23 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/pem"
+	"fmt"
+	"math/big"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/ashr-labs/ashr/packages/go/ashrclone"
 )
@@ -203,6 +217,355 @@ func TestProductionIdentityRuntimeRefusesMemoryVerification(t *testing.T) {
 	}
 }
 
+func TestProductionIdentityDeliveryVaultFromEnvBuildsMTLSSealerAndDeleter(t *testing.T) {
+	values := productionIdentityDeliveryVaultTestEnv(t)
+	vault, err := productionIdentityDeliveryVaultFromEnv(lookup(values))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer vault.close()
+	if vault.sealer == nil || vault.client == nil {
+		t.Fatalf("production delivery vault was not fully constructed: %#v", vault)
+	}
+	var sealer ashrclone.IdentityDeliveryVaultSealer = vault.sealer
+	var deleter ashrclone.IdentityDeliveryVaultDeleter = vault.sealer
+	if sealer == nil || deleter == nil {
+		t.Fatal("production delivery vault did not implement both lifecycle operations")
+	}
+	transport, ok := vault.client.Transport.(*http.Transport)
+	if !ok || transport.TLSClientConfig == nil {
+		t.Fatalf("production delivery vault did not use the mTLS transport: %T", vault.client.Transport)
+	}
+	if transport.TLSClientConfig.ServerName != values["ASHR_IDENTITY_DELIVERY_VAULT_MTLS_SERVER_NAME"] ||
+		transport.TLSClientConfig.RootCAs == nil ||
+		len(transport.TLSClientConfig.Certificates) != 1 ||
+		vault.client.Timeout != productionIdentityDeliveryVaultRequestTimeout {
+		t.Fatal("production delivery vault lost its trust, identity, server name, or timeout binding")
+	}
+}
+
+func TestProductionIdentityDeliveryVaultConfigIsAllOrNoneAndRedacted(t *testing.T) {
+	base := productionIdentityDeliveryVaultTestEnv(t)
+	keys := []string{
+		"ASHR_IDENTITY_DELIVERY_VAULT_SEAL_URL",
+		"ASHR_IDENTITY_DELIVERY_VAULT_DELETE_URL",
+		"ASHR_IDENTITY_DELIVERY_VAULT_MTLS_CA_FILE",
+		"ASHR_IDENTITY_DELIVERY_VAULT_MTLS_CLIENT_CERT_FILE",
+		"ASHR_IDENTITY_DELIVERY_VAULT_MTLS_CLIENT_KEY_FILE",
+		"ASHR_IDENTITY_DELIVERY_VAULT_MTLS_SERVER_NAME",
+	}
+	for _, missing := range keys {
+		t.Run(missing, func(t *testing.T) {
+			values := cloneStrings(base)
+			delete(values, missing)
+			_, err := productionIdentityDeliveryVaultConfigFromEnv(lookup(values))
+			if err == nil || !strings.Contains(err.Error(), missing) ||
+				!strings.Contains(err.Error(), "all-or-none") {
+				t.Fatalf("partial vault configuration was accepted: %v", err)
+			}
+			assertErrorOmitsValues(t, err, values)
+		})
+	}
+
+	values := cloneStrings(base)
+	unsafeValue := values["ASHR_IDENTITY_DELIVERY_VAULT_MTLS_CLIENT_KEY_FILE"] + "\r\nprivate-path"
+	values["ASHR_IDENTITY_DELIVERY_VAULT_MTLS_CLIENT_KEY_FILE"] = unsafeValue
+	_, err := productionIdentityDeliveryVaultConfigFromEnv(lookup(values))
+	if err == nil || strings.Contains(err.Error(), unsafeValue) {
+		t.Fatalf("unsafe vault configuration was accepted or echoed: %v", err)
+	}
+}
+
+func TestProductionIdentityDeliveryVaultPEMReadIsBoundedAndPathSafe(t *testing.T) {
+	tempDirectory := t.TempDir()
+	emptyPath := filepath.Join(tempDirectory, "empty-secret.pem")
+	if err := os.WriteFile(emptyPath, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	oversizedPath := filepath.Join(tempDirectory, "oversized-secret.pem")
+	if err := os.WriteFile(oversizedPath, bytes.Repeat([]byte("S"), 33), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	missingPath := filepath.Join(tempDirectory, "missing-secret.pem")
+	for _, test := range []struct {
+		name  string
+		path  string
+		limit int64
+	}{
+		{name: "missing", path: missingPath, limit: 32},
+		{name: "empty", path: emptyPath, limit: 32},
+		{name: "directory", path: tempDirectory, limit: 32},
+		{name: "oversized", path: oversizedPath, limit: 32},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			encoded, err := readProductionIdentityDeliveryVaultPEM(test.path, test.limit)
+			if err == nil || encoded != nil {
+				t.Fatalf("unsafe credential file was accepted: bytes=%d err=%v", len(encoded), err)
+			}
+			if strings.Contains(err.Error(), test.path) || strings.Contains(err.Error(), "SSSS") {
+				t.Fatalf("credential file error leaked path or material: %v", err)
+			}
+		})
+	}
+}
+
+func TestProductionIdentityDeliveryVaultRejectsUnsafeInputsWithoutEcho(t *testing.T) {
+	const privateMaterial = "private-key-material-that-must-not-leak"
+	for _, test := range []struct {
+		name   string
+		mutate func(*testing.T, map[string]string)
+	}{
+		{
+			name: "malformed private key",
+			mutate: func(t *testing.T, values map[string]string) {
+				t.Helper()
+				if err := os.WriteFile(
+					values["ASHR_IDENTITY_DELIVERY_VAULT_MTLS_CLIENT_KEY_FILE"],
+					[]byte(privateMaterial),
+					0o600,
+				); err != nil {
+					t.Fatal(err)
+				}
+			},
+		},
+		{
+			name: "non TLS endpoint",
+			mutate: func(_ *testing.T, values map[string]string) {
+				values["ASHR_IDENTITY_DELIVERY_VAULT_SEAL_URL"] = "http://secret-vault.invalid/seal"
+			},
+		},
+		{
+			name: "invalid server name",
+			mutate: func(_ *testing.T, values map[string]string) {
+				values["ASHR_IDENTITY_DELIVERY_VAULT_MTLS_SERVER_NAME"] = "secret-vault.invalid/path"
+			},
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			values := productionIdentityDeliveryVaultTestEnv(t)
+			test.mutate(t, values)
+			_, err := productionIdentityDeliveryVaultFromEnv(lookup(values))
+			if err == nil {
+				t.Fatal("unsafe production vault input was accepted")
+			}
+			assertErrorOmitsValues(t, err, values)
+			if strings.Contains(err.Error(), privateMaterial) {
+				t.Fatalf("vault startup error leaked private material: %v", err)
+			}
+		})
+	}
+}
+
+func TestProductionIdentityVerificationRequiresVaultBeforeDatabaseAccess(t *testing.T) {
+	const (
+		dsnSecret = "postgres://runtime-db-secret@database-must-not-be-contacted.invalid/ashr"
+		keySecret = "production-session-secret-that-must-not-leak"
+	)
+	_, err := newIdentityRuntimeFromEnv(context.Background(), lookup(map[string]string{
+		"ASHR_POSTGRES_DSN":                         dsnSecret,
+		"ASHR_IDENTITY_SESSION_HMAC_ACTIVE_VERSION": "v1",
+		"ASHR_IDENTITY_SESSION_HMAC_KEY":            keySecret,
+		"ASHR_IDENTITY_SESSION_HMAC_LEGACY_VERSION": "v1",
+		"ASHR_IDENTITY_VERIFICATION_ENABLED":        "true",
+		"ASHR_IDENTITY_VERIFICATION_HMAC_KEY":       "production-verification-secret-must-not-leak",
+	}))
+	if err == nil || !strings.Contains(err.Error(), "ASHR_IDENTITY_DELIVERY_VAULT_SEAL_URL") ||
+		!strings.Contains(err.Error(), "all-or-none") {
+		t.Fatalf("production verification did not fail closed on its vault dependency: %v", err)
+	}
+	for _, secret := range []string{dsnSecret, keySecret, "production-verification-secret-must-not-leak"} {
+		if strings.Contains(err.Error(), secret) {
+			t.Fatalf("production startup error leaked a secret: %v", err)
+		}
+	}
+}
+
+type recordingCloseIdleTransport struct {
+	closed bool
+}
+
+func (*recordingCloseIdleTransport) RoundTrip(*http.Request) (*http.Response, error) {
+	return nil, fmt.Errorf("unexpected request")
+}
+
+func (transport *recordingCloseIdleTransport) CloseIdleConnections() {
+	transport.closed = true
+}
+
+func TestProductionIdentityDeliveryVaultRuntimeClosesIdleConnections(t *testing.T) {
+	transport := &recordingCloseIdleTransport{}
+	vault := &productionIdentityDeliveryVaultRuntime{
+		client: &http.Client{Transport: transport},
+	}
+	vault.close()
+	if !transport.closed {
+		t.Fatal("production vault runtime left idle connections open")
+	}
+}
+
+func TestIdentitySessionHMACRuntimeConfigSupportsRotationAndExplicitLegacy(t *testing.T) {
+	activeKey := strings.Repeat("A", 40)
+	previousV2 := strings.Repeat("B", 40)
+	previousV1 := strings.Repeat("C", 40)
+	config, err := identitySessionHMACRuntimeConfigFromEnv(lookup(map[string]string{
+		"ASHR_IDENTITY_SESSION_HMAC_ACTIVE_VERSION": "v3",
+		"ASHR_IDENTITY_SESSION_HMAC_KEY":            activeKey,
+		"ASHR_IDENTITY_SESSION_HMAC_LEGACY_VERSION": "v1",
+		"ASHR_IDENTITY_SESSION_HMAC_PREVIOUS_KEYS_JSON": fmt.Sprintf(
+			`[{"version":"v2","key":%q},{"version":"v1","key":%q}]`,
+			previousV2,
+			previousV1,
+		),
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.activeVersion != "v3" || string(config.activeKey) != activeKey ||
+		config.legacyVersion != "v1" || len(config.previousKeys) != 2 ||
+		config.previousKeys[0].Version != "v2" || string(config.previousKeys[0].Key) != previousV2 ||
+		config.previousKeys[1].Version != "v1" || string(config.previousKeys[1].Key) != previousV1 {
+		t.Fatalf("unexpected keyring config: active=%q legacy=%q previous=%d", config.activeVersion, config.legacyVersion, len(config.previousKeys))
+	}
+	activeBytes := config.activeKey
+	previousBytes := config.previousKeys[0].Key
+	config.clear()
+	for _, value := range append(activeBytes, previousBytes...) {
+		if value != 0 {
+			t.Fatal("cleared keyring retained key bytes")
+		}
+	}
+}
+
+func TestIdentitySessionHMACRuntimeConfigRejectsUnsafeInputsWithoutEchoingKeys(t *testing.T) {
+	activeSecret := "active-secret-value-that-must-not-leak-123456"
+	previousSecret := "previous-secret-value-that-must-not-leak-1234"
+	base := map[string]string{
+		"ASHR_IDENTITY_SESSION_HMAC_ACTIVE_VERSION": "v2",
+		"ASHR_IDENTITY_SESSION_HMAC_KEY":            activeSecret,
+		"ASHR_IDENTITY_SESSION_HMAC_LEGACY_VERSION": "v1",
+		"ASHR_IDENTITY_SESSION_HMAC_PREVIOUS_KEYS_JSON": fmt.Sprintf(
+			`[{"version":"v1","key":%q}]`,
+			previousSecret,
+		),
+	}
+	tests := []struct {
+		name   string
+		mutate func(map[string]string)
+	}{
+		{name: "short active key", mutate: func(values map[string]string) {
+			values["ASHR_IDENTITY_SESSION_HMAC_KEY"] = "short-active-secret"
+		}},
+		{name: "duplicate active version", mutate: func(values map[string]string) {
+			values["ASHR_IDENTITY_SESSION_HMAC_PREVIOUS_KEYS_JSON"] = fmt.Sprintf(
+				`[{"version":"v2","key":%q}]`,
+				previousSecret,
+			)
+		}},
+		{name: "short previous key", mutate: func(values map[string]string) {
+			values["ASHR_IDENTITY_SESSION_HMAC_PREVIOUS_KEYS_JSON"] =
+				`[{"version":"v1","key":"short-previous-secret"}]`
+		}},
+		{name: "unknown JSON field", mutate: func(values map[string]string) {
+			values["ASHR_IDENTITY_SESSION_HMAC_PREVIOUS_KEYS_JSON"] = fmt.Sprintf(
+				`[{"version":"v1","key":%q,"raw_secret":%q}]`,
+				previousSecret,
+				"unknown-field-secret-value",
+			)
+		}},
+		{name: "legacy version missing", mutate: func(values map[string]string) {
+			values["ASHR_IDENTITY_SESSION_HMAC_LEGACY_VERSION"] = "v0"
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			values := cloneStrings(base)
+			test.mutate(values)
+			_, err := identitySessionHMACRuntimeConfigFromEnv(lookup(values))
+			if err == nil {
+				t.Fatal("unsafe keyring configuration was accepted")
+			}
+			for _, secret := range []string{
+				activeSecret,
+				previousSecret,
+				"short-active-secret",
+				"short-previous-secret",
+				"unknown-field-secret-value",
+			} {
+				if strings.Contains(err.Error(), secret) {
+					t.Fatalf("keyring error leaked secret material: %v", err)
+				}
+			}
+		})
+	}
+}
+
+func TestProductionIdentityRuntimeRequiresExplicitVersionedKeyringBeforeDatabaseAccess(t *testing.T) {
+	_, err := newIdentityRuntimeFromEnv(context.Background(), lookup(map[string]string{
+		"ASHR_POSTGRES_DSN":                         "postgres://runtime-must-not-connect.invalid/ashr",
+		"ASHR_IDENTITY_SESSION_HMAC_KEY":            strings.Repeat("A", 40),
+		"ASHR_IDENTITY_SESSION_HMAC_ACTIVE_VERSION": "v2",
+	}))
+	if err == nil || !strings.Contains(err.Error(), "ASHR_IDENTITY_SESSION_HMAC_LEGACY_VERSION") {
+		t.Fatalf("production runtime accepted an implicit legacy version: %v", err)
+	}
+}
+
+func TestProductionIdentitySessionCookieTransportUsesExplicitProxyTrustOnly(t *testing.T) {
+	transport, err := productionIdentitySessionReceiptTransportFromEnv(lookup(map[string]string{
+		"ASHR_IDENTITY_SESSION_COOKIE_MAX_AGE_SECONDS":     "3600",
+		"ASHR_IDENTITY_REFRESH_COOKIE_MAX_AGE_SECONDS":     "7200",
+		"ASHR_IDENTITY_SESSION_COOKIE_TRUSTED_PROXY_CIDRS": "10.0.0.0/8,2001:db8:1234::/48",
+		"ASHR_IDENTITY_VERIFICATION_SMTP_ENABLED":          "true",
+		"ASHR_SMTP_AUTH_CODE":                              "ignored-production-smtp-secret",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	directTLS := httptest.NewRequest(http.MethodPost, "https://api.example.test/verify", nil)
+	if err := transport.ValidateIdentitySessionRequest(directTLS); err != nil {
+		t.Fatalf("direct TLS rejected: %v", err)
+	}
+	untrusted := httptest.NewRequest(http.MethodPost, "http://api.example.test/verify", nil)
+	untrusted.RemoteAddr = "203.0.113.7:3000"
+	untrusted.Header.Set("X-Forwarded-Proto", "https")
+	if err := transport.ValidateIdentitySessionRequest(untrusted); err == nil {
+		t.Fatal("untrusted forwarded scheme was accepted")
+	}
+	trusted := httptest.NewRequest(http.MethodPost, "http://api.example.test/verify", nil)
+	trusted.RemoteAddr = "10.2.3.4:3000"
+	trusted.Header.Set("X-Forwarded-Proto", "https")
+	if err := transport.ValidateIdentitySessionRequest(trusted); err != nil {
+		t.Fatalf("trusted proxy HTTPS rejected: %v", err)
+	}
+}
+
+func TestProductionIdentitySessionCookieTransportRejectsInvalidEnvWithoutEcho(t *testing.T) {
+	for _, values := range []map[string]string{
+		{
+			"ASHR_IDENTITY_SESSION_COOKIE_MAX_AGE_SECONDS": "invalid-max-age-secret",
+		},
+		{
+			"ASHR_IDENTITY_REFRESH_COOKIE_MAX_AGE_SECONDS": "invalid-refresh-max-age-secret",
+		},
+		{
+			"ASHR_IDENTITY_SESSION_COOKIE_TRUSTED_PROXY_CIDRS": "invalid-cidr-secret",
+		},
+		{
+			"ASHR_IDENTITY_SESSION_COOKIE_TRUSTED_PROXY_CIDRS": "10.0.0.1/8,10.0.0.0/8",
+		},
+	} {
+		_, err := productionIdentitySessionReceiptTransportFromEnv(lookup(values))
+		if err == nil {
+			t.Fatalf("invalid cookie transport config was accepted: %#v", values)
+		}
+		for _, value := range values {
+			if strings.Contains(err.Error(), value) {
+				t.Fatalf("cookie transport error leaked configuration value: %v", err)
+			}
+		}
+	}
+}
+
 func cloneStrings(values map[string]string) map[string]string {
 	cloned := make(map[string]string, len(values))
 	for key, value := range values {
@@ -215,7 +578,69 @@ func assertErrorOmitsValues(t *testing.T, err error, values map[string]string) {
 	t.Helper()
 	for _, value := range values {
 		if value != "" && strings.Contains(err.Error(), value) {
-			t.Fatalf("SMTP configuration error leaked a value: %v", err)
+			t.Fatalf("configuration error leaked a value: %v", err)
 		}
+	}
+}
+
+func productionIdentityDeliveryVaultTestEnv(t *testing.T) map[string]string {
+	t.Helper()
+	privateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Now().UTC()
+	template := &x509.Certificate{
+		SerialNumber:          big.NewInt(now.UnixNano()),
+		Subject:               pkix.Name{CommonName: "runtime-vault-client"},
+		NotBefore:             now.Add(-time.Minute),
+		NotAfter:              now.Add(time.Hour),
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature,
+		ExtKeyUsage:           []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth},
+		BasicConstraintsValid: true,
+		IsCA:                  true,
+	}
+	encodedCertificate, err := x509.CreateCertificate(
+		rand.Reader,
+		template,
+		template,
+		&privateKey.PublicKey,
+		privateKey,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encodedPrivateKey, err := x509.MarshalPKCS8PrivateKey(privateKey)
+	if err != nil {
+		t.Fatal(err)
+	}
+	certificatePEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "CERTIFICATE",
+		Bytes: encodedCertificate,
+	})
+	privateKeyPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "PRIVATE KEY",
+		Bytes: encodedPrivateKey,
+	})
+	tempDirectory := t.TempDir()
+	caPath := filepath.Join(tempDirectory, "vault-ca-private-path.pem")
+	certificatePath := filepath.Join(tempDirectory, "vault-client-certificate-private-path.pem")
+	privateKeyPath := filepath.Join(tempDirectory, "vault-client-key-private-path.pem")
+	for path, content := range map[string][]byte{
+		caPath:          certificatePEM,
+		certificatePath: certificatePEM,
+		privateKeyPath:  privateKeyPEM,
+	} {
+		if err := os.WriteFile(path, content, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return map[string]string{
+		"ASHR_IDENTITY_DELIVERY_VAULT_SEAL_URL":              "https://vault-runtime-secret.invalid/v1/seal",
+		"ASHR_IDENTITY_DELIVERY_VAULT_DELETE_URL":            "https://vault-runtime-secret.invalid/v1/delete",
+		"ASHR_IDENTITY_DELIVERY_VAULT_MTLS_CA_FILE":          caPath,
+		"ASHR_IDENTITY_DELIVERY_VAULT_MTLS_CLIENT_CERT_FILE": certificatePath,
+		"ASHR_IDENTITY_DELIVERY_VAULT_MTLS_CLIENT_KEY_FILE":  privateKeyPath,
+		"ASHR_IDENTITY_DELIVERY_VAULT_MTLS_SERVER_NAME":      "vault-runtime-secret.invalid",
 	}
 }

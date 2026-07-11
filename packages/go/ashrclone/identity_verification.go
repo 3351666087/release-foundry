@@ -16,6 +16,18 @@ import (
 
 const IdentityVerificationSchemaVersion = "ashr.identity_verification.v1"
 
+const (
+	defaultIdentityAccessSessionTTL  = 24 * time.Hour
+	defaultIdentityRefreshSessionTTL = 30 * 24 * time.Hour
+)
+
+type IdentityVerificationDeliveryMode string
+
+const (
+	IdentityVerificationDeliverySynchronous         IdentityVerificationDeliveryMode = "synchronous"
+	IdentityVerificationDeliveryTransactionalOutbox IdentityVerificationDeliveryMode = "transactional_outbox"
+)
+
 type IdentityVerificationPurpose string
 
 const (
@@ -32,8 +44,13 @@ const (
 )
 
 var (
-	ErrIdentityVerificationNotFound = errors.New("identity verification challenge not found")
-	ErrIdentityVerificationConsumed = errors.New("identity verification challenge already consumed")
+	ErrIdentityVerificationNotFound              = errors.New("identity verification challenge not found")
+	ErrIdentityVerificationConsumed              = errors.New("identity verification challenge already consumed")
+	ErrIdentitySessionBearerTaken                = errors.New("identity session bearer is no longer available")
+	ErrIdentitySessionBearerPairRequired         = errors.New("identity session bearer pair transfer is required")
+	ErrIdentityVerificationDeliveryCommitUnknown = errors.New(
+		"identity verification delivery commit outcome is unknown",
+	)
 )
 
 type IdentityVerificationError struct {
@@ -49,12 +66,28 @@ func (err IdentityVerificationError) Error() string {
 }
 
 type IdentityVerificationDelivery struct {
-	ChallengeID string
-	Channel     IdentityVerificationChannel
-	Destination string
-	Code        string
-	Purpose     IdentityVerificationPurpose
-	ExpiresAt   time.Time
+	ChallengeID            string                      `json:"challenge_id"`
+	Channel                IdentityVerificationChannel `json:"channel"`
+	Destination            string                      `json:"destination"`
+	Code                   string                      `json:"code"`
+	Purpose                IdentityVerificationPurpose `json:"purpose"`
+	ExpiresAt              time.Time                   `json:"expires_at"`
+	ProviderIdempotencyKey string                      `json:"provider_idempotency_key,omitempty"`
+}
+
+func (delivery IdentityVerificationDelivery) String() string {
+	return fmt.Sprintf(
+		"IdentityVerificationDelivery{challenge_id:%q,channel:%q,purpose:%q,expires_at:%q,provider_idempotency_key:%q,destination:<redacted>,code:<redacted>}",
+		delivery.ChallengeID,
+		delivery.Channel,
+		delivery.Purpose,
+		delivery.ExpiresAt.UTC().Format(time.RFC3339),
+		delivery.ProviderIdempotencyKey,
+	)
+}
+
+func (delivery IdentityVerificationDelivery) GoString() string {
+	return delivery.String()
 }
 
 type IdentityVerificationSender interface {
@@ -117,6 +150,7 @@ type IdentityVerificationCompletionCommand struct {
 	DisplayName         string
 	VerifiedAt          time.Time
 	SessionExpiresAt    time.Time
+	RefreshExpiresAt    time.Time
 	Verify              func(IdentityVerificationChallenge) error
 	Mutate              IdentityVerificationMutation
 }
@@ -130,12 +164,76 @@ type IdentityVerificationTransactionCoordinator interface {
 	) (IdentityVerificationResultDTO, error)
 }
 
+// IdentityVerificationSessionTransactionCoordinator is the narrow production
+// boundary that may create a session and return its one-time bearer receipt.
+// The receipt is intentionally separate from every public response DTO.
+type IdentityVerificationSessionTransactionCoordinator interface {
+	CompleteIdentityVerificationAndIssueSession(
+		context.Context,
+		IdentityVerificationCompletionCommand,
+	) (IdentityVerificationResultDTO, IdentitySessionIssuanceReceipt, error)
+}
+
 // ProductionIdentityVerificationStore marks a durable challenge store. It is
 // intentionally capability based so HTTP/service code does not depend on a
 // concrete PostgreSQL implementation.
 type ProductionIdentityVerificationStore interface {
 	IdentityVerificationStore
 	IsProductionIdentityVerificationStore()
+}
+
+// ProductionIdentityVerificationOutboxStore guarantees that challenge
+// creation and delivery enqueueing share one durable transaction.
+type ProductionIdentityVerificationOutboxStore interface {
+	ProductionIdentityVerificationStore
+	UsesTransactionalIdentityVerificationOutbox()
+	IdentityVerificationDeliveryScope() (string, string)
+	CreateIdentityVerificationChallengeWithDelivery(
+		context.Context,
+		IdentityVerificationChallenge,
+		time.Duration,
+		string,
+		string,
+	) error
+}
+
+// IdentityDeliverySealRequest is an ephemeral secret-bearing command. It is
+// never persisted, returned from a public handler, or included in audit data.
+type IdentityDeliverySealRequest struct {
+	ReservationID   string
+	TenantID        string
+	ProjectID       string
+	ChallengeHandle string
+	Channel         IdentityVerificationChannel
+	Purpose         IdentityVerificationPurpose
+	Destination     string
+	Code            string
+	ExpiresAt       time.Time
+}
+
+func (request IdentityDeliverySealRequest) String() string {
+	return fmt.Sprintf(
+		"IdentityDeliverySealRequest{reservation_id:%q,tenant_id:%q,project_id:%q,challenge_handle:%q,channel:%q,purpose:%q,expires_at:%q,destination:<redacted>,code:<redacted>}",
+		request.ReservationID,
+		request.TenantID,
+		request.ProjectID,
+		request.ChallengeHandle,
+		request.Channel,
+		request.Purpose,
+		request.ExpiresAt.UTC().Format(time.RFC3339),
+	)
+}
+
+func (request IdentityDeliverySealRequest) GoString() string {
+	return request.String()
+}
+
+type IdentityDeliveryVaultSealer interface {
+	SealIdentityDelivery(context.Context, IdentityDeliverySealRequest) (string, error)
+}
+
+type IdentityDeliveryVaultDeleter interface {
+	DeleteIdentityDelivery(context.Context, string) error
 }
 
 // ProductionIdentityVerificationTransactionCoordinator marks a coordinator
@@ -202,9 +300,168 @@ type IdentityVerificationResultDTO struct {
 	VerifiedAt    time.Time                   `json:"verified_at"`
 }
 
+type identitySessionBearerSecret struct {
+	mu            sync.Mutex
+	accessBearer  string
+	refreshBearer string
+	accessTaken   bool
+	refreshTaken  bool
+}
+
+// IdentitySessionIssuanceReceipt is an ephemeral, one-use handoff to a trusted
+// handler. Its fields are private so JSON encoding cannot disclose the bearer.
+type IdentitySessionIssuanceReceipt struct {
+	sessionID         string
+	keyVersion        string
+	refreshKeyVersion string
+	expiresAt         time.Time
+	refreshExpiresAt  time.Time
+	secret            *identitySessionBearerSecret
+}
+
+func newIdentitySessionIssuanceReceipt(
+	sessionID string,
+	keyVersion string,
+	expiresAt time.Time,
+	bearer string,
+) IdentitySessionIssuanceReceipt {
+	return IdentitySessionIssuanceReceipt{
+		sessionID:  sessionID,
+		keyVersion: keyVersion,
+		expiresAt:  expiresAt,
+		secret:     &identitySessionBearerSecret{accessBearer: bearer},
+	}
+}
+
+func newIdentitySessionIssuanceReceiptWithRefresh(
+	sessionID string,
+	keyVersion string,
+	refreshKeyVersion string,
+	expiresAt time.Time,
+	refreshExpiresAt time.Time,
+	bearer string,
+	refreshBearer string,
+) IdentitySessionIssuanceReceipt {
+	return IdentitySessionIssuanceReceipt{
+		sessionID:         sessionID,
+		keyVersion:        keyVersion,
+		refreshKeyVersion: refreshKeyVersion,
+		expiresAt:         expiresAt,
+		refreshExpiresAt:  refreshExpiresAt,
+		secret: &identitySessionBearerSecret{
+			accessBearer:  bearer,
+			refreshBearer: refreshBearer,
+		},
+	}
+}
+
+func (receipt IdentitySessionIssuanceReceipt) SessionID() string {
+	return receipt.sessionID
+}
+
+func (receipt IdentitySessionIssuanceReceipt) KeyVersion() string {
+	return receipt.keyVersion
+}
+
+func (receipt IdentitySessionIssuanceReceipt) RefreshKeyVersion() string {
+	return receipt.refreshKeyVersion
+}
+
+func (receipt IdentitySessionIssuanceReceipt) ExpiresAt() time.Time {
+	return receipt.expiresAt
+}
+
+func (receipt IdentitySessionIssuanceReceipt) RefreshExpiresAt() time.Time {
+	return receipt.refreshExpiresAt
+}
+
+// TakeBearerToken transfers the raw bearer exactly once and clears the copy
+// retained by the receipt.
+func (receipt IdentitySessionIssuanceReceipt) TakeBearerToken() (string, error) {
+	if receipt.secret == nil {
+		return "", ErrIdentitySessionBearerTaken
+	}
+	receipt.secret.mu.Lock()
+	defer receipt.secret.mu.Unlock()
+	if receipt.secret.refreshBearer != "" || receipt.refreshKeyVersion != "" ||
+		!receipt.refreshExpiresAt.IsZero() {
+		return "", ErrIdentitySessionBearerPairRequired
+	}
+	if receipt.secret.accessTaken || receipt.secret.accessBearer == "" {
+		return "", ErrIdentitySessionBearerTaken
+	}
+	bearer := receipt.secret.accessBearer
+	receipt.secret.accessBearer = ""
+	receipt.secret.accessTaken = true
+	return bearer, nil
+}
+
+// TakeRefreshToken transfers the refresh bearer exactly once. A refresh
+// bearer is a separate token class and cannot be resolved as an access token.
+func (receipt IdentitySessionIssuanceReceipt) TakeRefreshToken() (string, error) {
+	if receipt.secret == nil {
+		return "", ErrIdentitySessionBearerTaken
+	}
+	receipt.secret.mu.Lock()
+	defer receipt.secret.mu.Unlock()
+	if receipt.secret.accessBearer != "" || receipt.keyVersion != "" ||
+		!receipt.expiresAt.IsZero() {
+		return "", ErrIdentitySessionBearerPairRequired
+	}
+	if receipt.secret.refreshTaken || receipt.secret.refreshBearer == "" {
+		return "", ErrIdentitySessionBearerTaken
+	}
+	bearer := receipt.secret.refreshBearer
+	receipt.secret.refreshBearer = ""
+	receipt.secret.refreshTaken = true
+	return bearer, nil
+}
+
+// TakeBearerTokens atomically transfers both bearer classes to a trusted
+// transport. It never consumes one token when the other is unavailable.
+func (receipt IdentitySessionIssuanceReceipt) TakeBearerTokens() (string, string, error) {
+	if receipt.secret == nil {
+		return "", "", ErrIdentitySessionBearerTaken
+	}
+	receipt.secret.mu.Lock()
+	defer receipt.secret.mu.Unlock()
+	if receipt.secret.accessTaken || receipt.secret.refreshTaken ||
+		receipt.secret.accessBearer == "" || receipt.secret.refreshBearer == "" {
+		return "", "", ErrIdentitySessionBearerTaken
+	}
+	accessBearer := receipt.secret.accessBearer
+	refreshBearer := receipt.secret.refreshBearer
+	receipt.secret.accessBearer = ""
+	receipt.secret.refreshBearer = ""
+	receipt.secret.accessTaken = true
+	receipt.secret.refreshTaken = true
+	return accessBearer, refreshBearer, nil
+}
+
+func (receipt IdentitySessionIssuanceReceipt) String() string {
+	if receipt.sessionID == "" {
+		return "IdentitySessionIssuanceReceipt<empty>"
+	}
+	return fmt.Sprintf(
+		"IdentitySessionIssuanceReceipt{session_id:%q,key_version:%q,refresh_key_version:%q,expires_at:%q,refresh_expires_at:%q,bearer:<redacted>,refresh_bearer:<redacted>}",
+		receipt.sessionID,
+		receipt.keyVersion,
+		receipt.refreshKeyVersion,
+		receipt.expiresAt.UTC().Format(time.RFC3339),
+		receipt.refreshExpiresAt.UTC().Format(time.RFC3339),
+	)
+}
+
+func (receipt IdentitySessionIssuanceReceipt) GoString() string {
+	return receipt.String()
+}
+
 type IdentityVerificationServiceOptions struct {
 	Store                  IdentityVerificationStore
 	Sender                 IdentityVerificationSender
+	DeliveryVaultSealer    IdentityDeliveryVaultSealer
+	DeliveryVaultDeleter   IdentityDeliveryVaultDeleter
+	DeliveryMode           IdentityVerificationDeliveryMode
 	Identity               *UnifiedIdentityService
 	IdentityStore          IdentityVerificationIdentityStore
 	TransactionCoordinator IdentityVerificationTransactionCoordinator
@@ -220,9 +477,13 @@ type IdentityVerificationServiceOptions struct {
 type IdentityVerificationService struct {
 	store                  IdentityVerificationStore
 	sender                 IdentityVerificationSender
+	deliveryVaultSealer    IdentityDeliveryVaultSealer
+	deliveryVaultDeleter   IdentityDeliveryVaultDeleter
+	productionOutboxStore  ProductionIdentityVerificationOutboxStore
 	identity               IdentityVerificationIdentityStore
 	transactionCoordinator IdentityVerificationTransactionCoordinator
 	responsePolicy         *IdentityVerificationResponsePolicy
+	deliveryMode           IdentityVerificationDeliveryMode
 	now                    func() time.Time
 	random                 io.Reader
 	digestKey              []byte
@@ -238,16 +499,40 @@ func NewIdentityVerificationService(options IdentityVerificationServiceOptions) 
 	if options.Store == nil {
 		return nil, fmt.Errorf("identity verification store is required")
 	}
-	if options.Sender == nil {
-		return nil, fmt.Errorf("identity verification sender is required")
-	}
 	identity := options.IdentityStore
 	if identity == nil && options.Identity != nil {
 		identity = unifiedIdentityVerificationStore{service: options.Identity}
 	}
 	coordinator := options.TransactionCoordinator
 	_, productionStore := options.Store.(ProductionIdentityVerificationStore)
+	_, productionOutboxStore := options.Store.(ProductionIdentityVerificationOutboxStore)
 	_, productionCoordinator := coordinator.(ProductionIdentityVerificationTransactionCoordinator)
+	deliveryMode := options.DeliveryMode
+	if deliveryMode == "" {
+		if productionStore {
+			deliveryMode = IdentityVerificationDeliveryTransactionalOutbox
+		} else {
+			deliveryMode = IdentityVerificationDeliverySynchronous
+		}
+	}
+	switch deliveryMode {
+	case IdentityVerificationDeliverySynchronous:
+		if productionStore {
+			return nil, fmt.Errorf("production identity verification must use transactional outbox delivery")
+		}
+		if options.Sender == nil {
+			return nil, fmt.Errorf("synchronous identity verification sender is required")
+		}
+	case IdentityVerificationDeliveryTransactionalOutbox:
+		if !productionOutboxStore {
+			return nil, fmt.Errorf("transactional outbox delivery requires a production identity verification store")
+		}
+		if options.DeliveryVaultSealer == nil || options.DeliveryVaultDeleter == nil {
+			return nil, fmt.Errorf("transactional outbox delivery requires a vault sealer and deleter")
+		}
+	default:
+		return nil, fmt.Errorf("unsupported identity verification delivery mode %q", deliveryMode)
+	}
 	if productionStore && !productionCoordinator {
 		return nil, fmt.Errorf("production identity verification requires a postgres transaction coordinator")
 	}
@@ -288,10 +573,23 @@ func NewIdentityVerificationService(options IdentityVerificationServiceOptions) 
 	if options.ResendCooldown >= options.TTL {
 		return nil, fmt.Errorf("identity verification resend cooldown must be shorter than TTL")
 	}
+	sender := options.Sender
+	if deliveryMode == IdentityVerificationDeliveryTransactionalOutbox {
+		sender = nil
+	}
 	return &IdentityVerificationService{
-		store: options.Store, sender: options.Sender, identity: identity,
+		store: options.Store, sender: sender, identity: identity,
+		deliveryVaultSealer:  options.DeliveryVaultSealer,
+		deliveryVaultDeleter: options.DeliveryVaultDeleter,
+		productionOutboxStore: func() ProductionIdentityVerificationOutboxStore {
+			if productionOutboxStore {
+				return options.Store.(ProductionIdentityVerificationOutboxStore)
+			}
+			return nil
+		}(),
 		transactionCoordinator: coordinator,
 		responsePolicy:         options.ResponsePolicy,
+		deliveryMode:           deliveryMode,
 		now:                    options.Now, random: options.Random, digestKey: append([]byte(nil), options.DigestKey...),
 		ttl: options.TTL, attemptCap: options.AttemptCap, resendCooldown: options.ResendCooldown,
 		audit: []IdentityVerificationAuditEvent{},
@@ -342,9 +640,25 @@ func (service *IdentityVerificationService) Start(
 		Purpose:          purpose, TenantID: tenantID, AccountID: accountID,
 		AttemptCap: service.attemptCap, CreatedAt: now, ExpiresAt: expiresAt,
 	}
-	if err := service.store.CreateIdentityVerificationChallenge(ctx, challenge, service.resendCooldown); err != nil {
+	if service.deliveryMode == IdentityVerificationDeliveryTransactionalOutbox {
+		if err := service.createSealedIdentityVerificationChallenge(
+			ctx, challenge, normalized, code,
+		); err != nil {
+			service.appendAudit("identity.verification.start", channel, purpose, tenantID, accountID, "rejected", verificationErrorCode(err), now)
+			return IdentityVerificationChallengeDTO{}, err
+		}
+	} else if err := service.store.CreateIdentityVerificationChallenge(ctx, challenge, service.resendCooldown); err != nil {
 		service.appendAudit("identity.verification.start", channel, purpose, tenantID, accountID, "rejected", verificationErrorCode(err), now)
 		return IdentityVerificationChallengeDTO{}, err
+	}
+	result := IdentityVerificationChallengeDTO{
+		SchemaVersion: IdentityVerificationSchemaVersion, ChallengeID: challengeID,
+		Channel: channel, Purpose: purpose, TenantID: tenantID, AccountBound: accountID != "",
+		ExpiresAt: expiresAt, ResendAfter: now.Add(service.resendCooldown),
+	}
+	if service.deliveryMode == IdentityVerificationDeliveryTransactionalOutbox {
+		service.appendAudit("identity.verification.start", channel, purpose, tenantID, accountID, "accepted", "", now)
+		return result, nil
 	}
 	delivery := IdentityVerificationDelivery{
 		ChallengeID: challengeID, Channel: channel, Destination: normalized,
@@ -358,28 +672,122 @@ func (service *IdentityVerificationService) Start(
 		}
 	}
 	service.appendAudit("identity.verification.start", channel, purpose, tenantID, accountID, "accepted", "", now)
-	return IdentityVerificationChallengeDTO{
-		SchemaVersion: IdentityVerificationSchemaVersion, ChallengeID: challengeID,
-		Channel: channel, Purpose: purpose, TenantID: tenantID, AccountBound: accountID != "",
-		ExpiresAt: expiresAt, ResendAfter: now.Add(service.resendCooldown),
-	}, nil
+	return result, nil
+}
+
+func (service *IdentityVerificationService) createSealedIdentityVerificationChallenge(
+	ctx context.Context,
+	challenge IdentityVerificationChallenge,
+	destination string,
+	code string,
+) error {
+	if service.productionOutboxStore == nil || service.deliveryVaultSealer == nil ||
+		service.deliveryVaultDeleter == nil {
+		return IdentityVerificationError{
+			Code: "verification_delivery_unavailable", Message: "identity verification delivery is temporarily unavailable",
+		}
+	}
+	reservationID, err := service.newDeliveryReservationID()
+	if err != nil {
+		return IdentityVerificationError{
+			Code: "verification_delivery_unavailable", Message: "identity verification delivery is temporarily unavailable",
+		}
+	}
+	tenantID, projectID := service.productionOutboxStore.IdentityVerificationDeliveryScope()
+	sealRequest := IdentityDeliverySealRequest{
+		ReservationID: reservationID, TenantID: tenantID, ProjectID: projectID,
+		ChallengeHandle: challenge.ChallengeID, Channel: challenge.Channel, Purpose: challenge.Purpose,
+		Destination: destination, Code: code, ExpiresAt: challenge.ExpiresAt,
+	}
+	if err := validateIdentityDeliverySealRequest(sealRequest); err != nil {
+		return IdentityVerificationError{
+			Code: "verification_delivery_unavailable", Message: "identity verification delivery is temporarily unavailable",
+		}
+	}
+	opaqueRef, sealErr := service.deliveryVaultSealer.SealIdentityDelivery(ctx, sealRequest)
+	sealRequest.Destination = ""
+	sealRequest.Code = ""
+	if sealErr != nil {
+		return IdentityVerificationError{
+			Code: "verification_delivery_unavailable", Message: "identity verification delivery is temporarily unavailable",
+		}
+	}
+	if !identityDeliveryOpaqueReferencePattern.MatchString(opaqueRef) {
+		_ = service.compensateIdentityDeliverySeal(ctx, opaqueRef)
+		return IdentityVerificationError{
+			Code: "verification_delivery_unavailable", Message: "identity verification delivery is temporarily unavailable",
+		}
+	}
+	createErr := service.productionOutboxStore.CreateIdentityVerificationChallengeWithDelivery(
+		ctx, challenge, service.resendCooldown, reservationID, opaqueRef,
+	)
+	if createErr == nil {
+		return nil
+	}
+	if errors.Is(createErr, ErrIdentityVerificationDeliveryCommitUnknown) {
+		return IdentityVerificationError{
+			Code: "verification_delivery_commit_unknown", Message: "identity verification delivery status is temporarily unavailable",
+		}
+	}
+	if deleteErr := service.compensateIdentityDeliverySeal(ctx, opaqueRef); deleteErr != nil {
+		return IdentityVerificationError{
+			Code: "verification_delivery_compensation_failed", Message: "identity verification delivery is temporarily unavailable",
+		}
+	}
+	return createErr
+}
+
+func (service *IdentityVerificationService) compensateIdentityDeliverySeal(
+	ctx context.Context,
+	opaqueRef string,
+) error {
+	if service.deliveryVaultDeleter == nil || strings.TrimSpace(opaqueRef) == "" {
+		return errors.New("identity delivery seal compensation is unavailable")
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	} else {
+		ctx = context.WithoutCancel(ctx)
+	}
+	compensationCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	return service.deliveryVaultDeleter.DeleteIdentityDelivery(compensationCtx, opaqueRef)
 }
 
 func (service *IdentityVerificationService) Complete(
 	ctx context.Context,
 	request IdentityVerificationCompleteRequest,
 ) (IdentityVerificationResultDTO, error) {
+	result, _, err := service.complete(ctx, request, false)
+	return result, err
+}
+
+// CompleteAndIssueSession is the trusted login/recovery boundary. Unlike the
+// public Complete method, it can return a one-use bearer receipt after the
+// durable transaction commits.
+func (service *IdentityVerificationService) CompleteAndIssueSession(
+	ctx context.Context,
+	request IdentityVerificationCompleteRequest,
+) (IdentityVerificationResultDTO, IdentitySessionIssuanceReceipt, error) {
+	return service.complete(ctx, request, true)
+}
+
+func (service *IdentityVerificationService) complete(
+	ctx context.Context,
+	request IdentityVerificationCompleteRequest,
+	issueSession bool,
+) (IdentityVerificationResultDTO, IdentitySessionIssuanceReceipt, error) {
 	channel, kind, normalized, purpose, tenantID, accountID, err := normalizeVerificationRequest(
 		request.Channel, request.Identifier, request.Purpose, request.TenantID, request.AccountID,
 	)
 	now := service.now().UTC()
 	if err != nil {
-		return IdentityVerificationResultDTO{}, err
+		return IdentityVerificationResultDTO{}, IdentitySessionIssuanceReceipt{}, err
 	}
 	challengeID := strings.TrimSpace(request.ChallengeID)
 	code := strings.TrimSpace(request.Code)
 	if challengeID == "" || code == "" || len(code) > 32 {
-		return IdentityVerificationResultDTO{}, IdentityVerificationError{Code: "invalid_verification_proof", Message: "verification proof is invalid"}
+		return IdentityVerificationResultDTO{}, IdentitySessionIssuanceReceipt{}, IdentityVerificationError{Code: "invalid_verification_proof", Message: "verification proof is invalid"}
 	}
 	verify := func(challenge IdentityVerificationChallenge) error {
 		switch {
@@ -446,17 +854,42 @@ func (service *IdentityVerificationService) Complete(
 		ActorID:             strings.TrimSpace(request.ActorID),
 		DisplayName:         strings.TrimSpace(request.DisplayName),
 		VerifiedAt:          now,
-		SessionExpiresAt:    now.Add(24 * time.Hour),
+		SessionExpiresAt:    now.Add(defaultIdentityAccessSessionTTL),
+		RefreshExpiresAt:    now.Add(defaultIdentityRefreshSessionTTL),
 		Verify:              verify,
 		Mutate:              mutate,
 	}
-	result, err := service.transactionCoordinator.CompleteIdentityVerification(ctx, command)
+	var result IdentityVerificationResultDTO
+	var receipt IdentitySessionIssuanceReceipt
+	if issueSession {
+		if purpose != IdentityVerificationLogin && purpose != IdentityVerificationRecovery {
+			err = IdentityVerificationError{Code: "session_issuance_not_applicable", Message: "session issuance requires login or recovery verification"}
+		} else if coordinator, ok := service.transactionCoordinator.(IdentityVerificationSessionTransactionCoordinator); !ok {
+			err = IdentityVerificationError{Code: "session_issuance_unavailable", Message: "identity session issuance is unavailable"}
+		} else {
+			result, receipt, err = coordinator.CompleteIdentityVerificationAndIssueSession(ctx, command)
+		}
+	} else {
+		_, productionCoordinator := service.transactionCoordinator.(ProductionIdentityVerificationTransactionCoordinator)
+		if productionCoordinator && (purpose == IdentityVerificationLogin || purpose == IdentityVerificationRecovery) {
+			err = IdentityVerificationError{Code: "session_issuance_required", Message: "trusted identity session issuance is required"}
+		} else {
+			result, err = service.transactionCoordinator.CompleteIdentityVerification(ctx, command)
+		}
+	}
 	if err != nil {
 		service.appendAudit("identity.verification.complete", channel, purpose, tenantID, accountID, "rejected", verificationErrorCode(err), now)
-		return IdentityVerificationResultDTO{}, err
+		return IdentityVerificationResultDTO{}, IdentitySessionIssuanceReceipt{}, err
 	}
 	service.appendAudit("identity.verification.complete", channel, purpose, tenantID, result.Account.AccountID, "success", "", now)
-	return result, nil
+	return result, receipt, nil
+}
+
+func (service *IdentityVerificationService) DeliveryMode() IdentityVerificationDeliveryMode {
+	if service == nil {
+		return ""
+	}
+	return service.deliveryMode
 }
 
 func (service *IdentityVerificationService) AuditEvents() []IdentityVerificationAuditEvent {
@@ -507,6 +940,47 @@ func (service *IdentityVerificationService) newChallengeID() (string, error) {
 		return "", fmt.Errorf("generate identity verification id: %w", err)
 	}
 	return "ivc_" + hex.EncodeToString(raw), nil
+}
+
+func (service *IdentityVerificationService) newDeliveryReservationID() (string, error) {
+	raw := make([]byte, 16)
+	if _, err := io.ReadFull(service.random, raw); err != nil {
+		return "", fmt.Errorf("generate identity delivery reservation id: %w", err)
+	}
+	raw[6] = (raw[6] & 0x0f) | 0x40
+	raw[8] = (raw[8] & 0x3f) | 0x80
+	encoded := hex.EncodeToString(raw)
+	return encoded[0:8] + "-" + encoded[8:12] + "-" + encoded[12:16] + "-" +
+		encoded[16:20] + "-" + encoded[20:32], nil
+}
+
+func validateIdentityDeliverySealRequest(request IdentityDeliverySealRequest) error {
+	if !validPostgresIdentityVerificationUUID(request.ReservationID) ||
+		!validPostgresIdentityVerificationHandle(request.ChallengeHandle, "ivc_", 256) {
+		return errors.New("identity delivery seal reservation is invalid")
+	}
+	if !validIdentityDeliveryIdentifier(request.TenantID) ||
+		!validIdentityDeliveryIdentifier(request.ProjectID) {
+		return errors.New("identity delivery seal scope is invalid")
+	}
+	if !validIdentityDeliveryPurpose(request.Purpose) || request.ExpiresAt.IsZero() ||
+		!validIdentityVerificationCode(request.Code) {
+		return errors.New("identity delivery seal payload is invalid")
+	}
+	switch request.Channel {
+	case IdentityVerificationEmail:
+		canonical, err := canonicalSMTPMailbox(request.Destination)
+		if err != nil || canonical != request.Destination || len(canonical) > 320 {
+			return errors.New("identity delivery seal destination is invalid")
+		}
+	case IdentityVerificationPhone:
+		if !validIdentityDeliveryPhone(request.Destination) {
+			return errors.New("identity delivery seal destination is invalid")
+		}
+	default:
+		return errors.New("identity delivery seal channel is invalid")
+	}
+	return nil
 }
 
 func (service *IdentityVerificationService) newCode() (string, error) {

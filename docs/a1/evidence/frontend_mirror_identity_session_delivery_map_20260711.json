@@ -1,0 +1,215 @@
+{
+  "schema_version": "ashr.a1.frontend_mirror_identity_session_delivery_map.v1",
+  "generated_date": "2026-07-11",
+  "provenance": {
+    "source_kind": "offline_frontend_mirror_snapshot",
+    "source_archive_basename": "Ashr_frontend_mirror_20260707_125507.zip",
+    "source_sha256": "1d12159feb2e1133941bba05d46f24a0e38002dabdfaa29c9cadc7a63d056793",
+    "archive_entry_count": 589,
+    "inspection_mode": "read-only static marker inspection",
+    "live_browser_verified": false,
+    "live_ui_claimed": false,
+    "raw_source_committed": false,
+    "private_evidence_ref": "docs/evidence/private_refs/a1_round53_frontend_mirror_identity_session_delivery_scan_20260711.json"
+  },
+  "assets": [
+    {
+      "role": "hosted_auth_and_api_dispatch",
+      "path": "mirror/lab.ashr.io/assets/index-DSO2XOq6.js",
+      "sha256": "12a3b6594f29a4a98e5296a7bac2e952bb92452c9ae8fb1c746e43ae11445b4d",
+      "size_bytes": 468722
+    },
+    {
+      "role": "api_key_page",
+      "path": "mirror/lab.ashr.io/assets/ApiKeysPage-DcsMtTi4.js",
+      "sha256": "76dbfa6719fcb45ed4f43fe251e1d0696c9861dbac324c52d5c2c5e506c0046d",
+      "size_bytes": 9933
+    },
+    {
+      "role": "observability_sessions",
+      "path": "mirror/lab.ashr.io/assets/ObservabilityPage-BmNyibq8.js",
+      "sha256": "03ec9310550976e1006c1ce344ce8590cd4d56d1e707d3b7f5e730dcf8efad8e",
+      "size_bytes": 60484
+    },
+    {
+      "role": "request_lifecycle",
+      "path": "mirror/lab.ashr.io/assets/RequestDetailDrawer-SLqhBzSz.js",
+      "sha256": "de15c43304907f29840c56a8cc06330308fdfc5c4d3a43b548caee952545d590",
+      "size_bytes": 5082
+    },
+    {
+      "role": "python_authentication_documentation",
+      "path": "mirror/ashr.io/docs/python-sdk/authentication/index.html",
+      "sha256": "aa47f8bf27dcf535c8c22d82c2d403cfd52d461ec9c4d299676fba8cc60d6286",
+      "size_bytes": 63466
+    },
+    {
+      "role": "typescript_authentication_documentation",
+      "path": "mirror/ashr.io/docs/typescript-sdk/authentication/index.html",
+      "sha256": "701cd8a8ecf679f25b72c8224412df3ad16a371728ef58779e5bcd1d2ea25c91",
+      "size_bytes": 79257
+    }
+  ],
+  "field_and_state_map": {
+    "verified_identity": {
+      "evidence_level": "not_observed",
+      "observed_fields": [],
+      "observed_actions": [],
+      "state_machine": {
+        "observed_states": [],
+        "verified_transitions": [],
+        "transition_graph_verified": false
+      },
+      "interpretation": "The scoped Ashr snapshot had no exact identity challenge, verification, proof, receipt, recovery, or identity-delivery marker. Local A1 identity verification remains an Ashr++ boundary, not mirror parity."
+    },
+    "hosted_auth_session": {
+      "evidence_level": "static_marker_presence",
+      "observed_fields": [
+        "access_token",
+        "auth_provider",
+        "expires_in",
+        "refresh_token"
+      ],
+      "observed_actions": [
+        "sign in",
+        "sign out"
+      ],
+      "state_machine": {
+        "observed_states": [
+          "authenticated"
+        ],
+        "verified_transitions": [],
+        "transition_graph_verified": false
+      },
+      "interpretation": "Static names establish bundle vocabulary only. They do not verify issuance, rotation, refresh reuse detection, revocation, cookie policy, or an official public session API."
+    },
+    "voice_and_observability_session": {
+      "evidence_level": "static_marker_presence",
+      "observed_fields": [
+        "duration_ms",
+        "observations",
+        "session_id",
+        "status_code",
+        "status_message"
+      ],
+      "observed_api_functions": [
+        "get_voice_session",
+        "list_voice_sessions"
+      ],
+      "state_machine": {
+        "observed_states": [
+          "completed",
+          "failed"
+        ],
+        "verified_transitions": [],
+        "transition_graph_verified": false
+      },
+      "interpretation": "These are voice or observability session markers and must not be treated as account-login session semantics."
+    },
+    "identity_verification_delivery": {
+      "evidence_level": "not_observed",
+      "observed_fields": [],
+      "observed_actions": [],
+      "state_machine": {
+        "observed_states": [],
+        "verified_transitions": [],
+        "transition_graph_verified": false
+      },
+      "interpretation": "No exact challenge, receipt, OTP, destination reference, or delivery status marker was found in the scoped Ashr snapshot. Delivery acceptance, retry, lease, dead-letter, and redrive behavior remain uncalibrated against the mirror."
+    },
+    "api_key_lifecycle": {
+      "evidence_level": "static_marker_presence",
+      "observed_fields": [
+        "api_key_id",
+        "expires_at",
+        "expires_in",
+        "key_prefix"
+      ],
+      "observed_api_functions": [
+        "create_api_key",
+        "list_api_keys",
+        "revoke_api_key"
+      ],
+      "observed_ui_actions": [
+        "Create API Key",
+        "I've copied my key",
+        "revoke API key"
+      ],
+      "state_machine": {
+        "observed_actions": [
+          "list",
+          "create",
+          "acknowledge_copy",
+          "revoke"
+        ],
+        "verified_transitions": [],
+        "transition_graph_verified": false
+      },
+      "interpretation": "The snapshot supports field and action naming only. It does not prove one-time secret visibility, storage, hashing, rate limits, revocation propagation, or endpoint behavior."
+    },
+    "api_dispatch": {
+      "evidence_level": "static_marker_presence",
+      "observed_request_fields": [
+        "auth_provider",
+        "function"
+      ],
+      "observed_result_fields": [
+        "error",
+        "message",
+        "status"
+      ],
+      "observed_request_functions": [
+        "create_request",
+        "delete_request",
+        "get_request",
+        "list_requests",
+        "update_request_status"
+      ],
+      "endpoint_behavior_verified": false,
+      "interpretation": "The mapping records static dispatch vocabulary. It does not claim transport status, authentication acceptance, response shape, mutation success, or quota behavior."
+    },
+    "request_lifecycle": {
+      "evidence_level": "static_marker_presence",
+      "observed_fields": [
+        "actual_duration_s",
+        "estimated_duration_s",
+        "request_status"
+      ],
+      "state_machine": {
+        "observed_state_labels": [
+          "Queued",
+          "Processing",
+          "Completed",
+          "Failed",
+          "pending"
+        ],
+        "observed_action_labels": [
+          "Retry",
+          "Retrying"
+        ],
+        "verified_transitions": [],
+        "transition_graph_verified": false
+      },
+      "interpretation": "The labels describe frontend presentation branches. Their ordering and legal server-side transitions were not verified."
+    }
+  },
+  "unknowns": [
+    "Live UI state was unavailable, so current labels, navigation, and account state are not claimed.",
+    "Pricing, usage counters, quotas, and plan enforcement were not inspected in this task.",
+    "No endpoint was called, so request and response behavior are not claimed.",
+    "No public identity verification, recovery, receipt, or delivery contract was established from the snapshot.",
+    "Authentication-session markers and voice-session markers have separate, unproven semantics.",
+    "The snapshot cannot establish storage, encryption, hashing, cookie, rotation, replay, or revocation guarantees."
+  ],
+  "public_safety": {
+    "token_values_included": false,
+    "secret_values_included": false,
+    "email_values_included": false,
+    "provider_identifier_values_included": false,
+    "callback_queries_included": false,
+    "source_code_or_excerpts_included": false,
+    "user_or_account_data_included": false,
+    "raw_payloads_included": false,
+    "raw_mirror_files_committed": false
+  }
+}

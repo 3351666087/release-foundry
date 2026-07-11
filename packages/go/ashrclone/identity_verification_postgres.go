@@ -38,6 +38,7 @@ type PostgresIdentityVerificationStore struct {
 	digestKey        []byte
 	operationTimeout time.Duration
 	random           io.Reader
+	sessionTokens    *identitySessionTokenCodec
 }
 
 type PostgresIdentityVerificationStoreOptions struct {
@@ -48,6 +49,7 @@ type PostgresIdentityVerificationStoreOptions struct {
 	DigestKey        []byte
 	OperationTimeout time.Duration
 	Random           io.Reader
+	sessionTokens    *identitySessionTokenCodec
 }
 
 // PostgresIdentityVerificationProof contains the digest-only input required by
@@ -143,13 +145,37 @@ func NewPostgresIdentityVerificationStoreWithOptions(
 		digestKey:        append([]byte(nil), options.DigestKey...),
 		operationTimeout: options.OperationTimeout,
 		random:           options.Random,
+		sessionTokens:    options.sessionTokens,
 	}, nil
 }
 
 func (store *PostgresIdentityVerificationStore) CreateIdentityVerificationChallenge(
+	context.Context,
+	IdentityVerificationChallenge,
+	time.Duration,
+) error {
+	if store == nil || store.db == nil {
+		return identityVerificationStoreUnavailable()
+	}
+	return IdentityVerificationError{
+		Code:    "verification_delivery_seal_required",
+		Message: "identity verification delivery requires a sealed payload",
+	}
+}
+
+func (store *PostgresIdentityVerificationStore) IdentityVerificationDeliveryScope() (string, string) {
+	if store == nil {
+		return "", ""
+	}
+	return store.organizationID, store.projectID
+}
+
+func (store *PostgresIdentityVerificationStore) CreateIdentityVerificationChallengeWithDelivery(
 	ctx context.Context,
 	challenge IdentityVerificationChallenge,
 	resendCooldown time.Duration,
+	deliveryReservationID string,
+	opaqueRef string,
 ) error {
 	if store == nil || store.db == nil {
 		return identityVerificationStoreUnavailable()
@@ -157,8 +183,12 @@ func (store *PostgresIdentityVerificationStore) CreateIdentityVerificationChalle
 	if err := store.validateChallenge(challenge, resendCooldown); err != nil {
 		return err
 	}
+	if !validPostgresIdentityVerificationUUID(deliveryReservationID) ||
+		!identityDeliveryOpaqueReferencePattern.MatchString(opaqueRef) {
+		return invalidPostgresIdentityVerificationChallenge()
+	}
 	metadata, err := json.Marshal(map[string]any{
-		"source": "go_identity_verification_store",
+		"source": "go_identity_verification_delivery_store",
 	})
 	if err != nil {
 		return identityVerificationStoreUnavailable()
@@ -187,9 +217,22 @@ func (store *PostgresIdentityVerificationStore) CreateIdentityVerificationChalle
 	var retryAfterSeconds int
 	err = tx.QueryRowContext(operationCtx, `
 SELECT challenge_id::text, accepted, retry_after_seconds
-  FROM a1_issue_identity_verification_challenge(
-    $1::uuid, $2::uuid, NULLIF($3, '')::uuid, $4, $5, $6, $7, $8, $9,
-    $10, $11, $12, $13, $14::jsonb
+  FROM a1_issue_identity_verification_challenge_with_delivery(
+    p_organization_id => $1::uuid,
+    p_project_id => $2::uuid,
+    p_principal_id => NULLIF($3, '')::uuid,
+    p_channel => $4,
+    p_purpose => $5,
+    p_subject_digest => $6,
+    p_challenge_digest => $7,
+    p_code_digest => $8,
+    p_request_context_digest => $9,
+    p_expires_at => $10,
+    p_max_attempts => $11,
+    p_cooldown_seconds => $12,
+    p_event_digest => $13,
+    p_opaque_ref => $14,
+    p_metadata => $15::jsonb
   )
 `,
 		store.organizationID,
@@ -205,6 +248,7 @@ SELECT challenge_id::text, accepted, retry_after_seconds
 		challenge.AttemptCap,
 		int(resendCooldown/time.Second),
 		eventDigest,
+		opaqueRef,
 		string(metadata),
 	).Scan(&databaseChallengeID, &accepted, &retryAfterSeconds)
 	if err != nil {
@@ -223,7 +267,7 @@ SELECT challenge_id::text, accepted, retry_after_seconds
 		return identityVerificationStoreUnavailable()
 	}
 	if err := tx.Commit(); err != nil {
-		return identityVerificationStoreUnavailable()
+		return ErrIdentityVerificationDeliveryCommitUnknown
 	}
 	return nil
 }
@@ -354,6 +398,8 @@ func (store *PostgresIdentityVerificationStore) ConsumeIdentityVerificationChall
 
 func (*PostgresIdentityVerificationStore) IsProductionIdentityVerificationStore() {}
 
+func (*PostgresIdentityVerificationStore) UsesTransactionalIdentityVerificationOutbox() {}
+
 func (*PostgresIdentityVerificationTransactionCoordinator) IsProductionIdentityVerificationTransactionCoordinator() {
 }
 
@@ -361,12 +407,50 @@ func (coordinator *PostgresIdentityVerificationTransactionCoordinator) CompleteI
 	ctx context.Context,
 	command IdentityVerificationCompletionCommand,
 ) (IdentityVerificationResultDTO, error) {
+	if command.Purpose == IdentityVerificationLogin || command.Purpose == IdentityVerificationRecovery {
+		return IdentityVerificationResultDTO{}, IdentityVerificationError{
+			Code:    "session_issuance_required",
+			Message: "trusted identity session issuance is required",
+		}
+	}
+	result, _, err := coordinator.completeIdentityVerification(ctx, command, false)
+	return result, err
+}
+
+func (coordinator *PostgresIdentityVerificationTransactionCoordinator) CompleteIdentityVerificationAndIssueSession(
+	ctx context.Context,
+	command IdentityVerificationCompletionCommand,
+) (IdentityVerificationResultDTO, IdentitySessionIssuanceReceipt, error) {
+	if command.Purpose != IdentityVerificationLogin && command.Purpose != IdentityVerificationRecovery {
+		return IdentityVerificationResultDTO{}, IdentitySessionIssuanceReceipt{}, IdentityVerificationError{
+			Code:    "session_issuance_not_applicable",
+			Message: "session issuance requires login or recovery verification",
+		}
+	}
+	return coordinator.completeIdentityVerification(ctx, command, true)
+}
+
+func (coordinator *PostgresIdentityVerificationTransactionCoordinator) completeIdentityVerification(
+	ctx context.Context,
+	command IdentityVerificationCompletionCommand,
+	issueSession bool,
+) (IdentityVerificationResultDTO, IdentitySessionIssuanceReceipt, error) {
 	if coordinator == nil || coordinator.store == nil || coordinator.store.db == nil {
-		return IdentityVerificationResultDTO{}, identityVerificationStoreUnavailable()
+		return IdentityVerificationResultDTO{}, IdentitySessionIssuanceReceipt{}, identityVerificationStoreUnavailable()
 	}
 	store := coordinator.store
 	if err := validatePostgresIdentityVerificationCompletion(command, store); err != nil {
-		return IdentityVerificationResultDTO{}, err
+		return IdentityVerificationResultDTO{}, IdentitySessionIssuanceReceipt{}, err
+	}
+	var sessionToken identitySessionTokenMaterial
+	var refreshToken identitySessionTokenMaterial
+	if issueSession {
+		if store.sessionTokens == nil {
+			return IdentityVerificationResultDTO{}, IdentitySessionIssuanceReceipt{}, IdentityVerificationError{
+				Code:    "session_issuance_unavailable",
+				Message: "identity session issuance is unavailable",
+			}
+		}
 	}
 	requestContextDigest := store.requestContextDigest(IdentityVerificationChallenge{
 		ChallengeID: command.ChallengeID, Channel: command.Channel,
@@ -375,43 +459,34 @@ func (coordinator *PostgresIdentityVerificationTransactionCoordinator) CompleteI
 	})
 	receiptDigest, err := store.uniqueDigest("receipt", command.ChallengeID)
 	if err != nil {
-		return IdentityVerificationResultDTO{}, identityVerificationStoreUnavailable()
+		return IdentityVerificationResultDTO{}, IdentitySessionIssuanceReceipt{}, identityVerificationStoreUnavailable()
 	}
 	verifyEventDigest, err := store.uniqueDigest("verify-event", command.ChallengeID)
 	if err != nil {
-		return IdentityVerificationResultDTO{}, identityVerificationStoreUnavailable()
+		return IdentityVerificationResultDTO{}, IdentitySessionIssuanceReceipt{}, identityVerificationStoreUnavailable()
 	}
 	mutationEventDigest, err := store.uniqueDigest("mutation-event", command.ChallengeID)
 	if err != nil {
-		return IdentityVerificationResultDTO{}, identityVerificationStoreUnavailable()
+		return IdentityVerificationResultDTO{}, IdentitySessionIssuanceReceipt{}, identityVerificationStoreUnavailable()
 	}
-	idempotencyDigest := store.digest(
-		"completion-idempotency", command.ChallengeID, string(command.Purpose),
-		command.AccountID, command.ActorID,
-	)
-	requestDigest := store.digest(
-		"completion-request", command.ChallengeID, command.CandidateCodeDigest,
-		command.IdentifierDigest, string(command.Channel), string(command.Purpose),
-		command.AccountID,
-	)
 	metadata, err := marshalPostgresIdentityVerificationMetadata(map[string]any{
 		"source": "go_identity_verification_transaction_coordinator",
 	})
 	if err != nil {
-		return IdentityVerificationResultDTO{}, invalidPostgresIdentityVerificationProof()
+		return IdentityVerificationResultDTO{}, IdentitySessionIssuanceReceipt{}, invalidPostgresIdentityVerificationProof()
 	}
 
 	operationCtx, cancel := store.boundedContext(ctx)
 	defer cancel()
 	tx, err := store.db.BeginTx(operationCtx, &sql.TxOptions{Isolation: sql.LevelSerializable})
 	if err != nil {
-		return IdentityVerificationResultDTO{}, identityVerificationStoreUnavailable()
+		return IdentityVerificationResultDTO{}, IdentitySessionIssuanceReceipt{}, identityVerificationStoreUnavailable()
 	}
 	defer func() { _ = tx.Rollback() }()
 	if err := setPostgresIdentityVerificationScope(
 		operationCtx, tx, store.organizationID, store.projectID,
 	); err != nil {
-		return IdentityVerificationResultDTO{}, identityVerificationStoreUnavailable()
+		return IdentityVerificationResultDTO{}, IdentitySessionIssuanceReceipt{}, identityVerificationStoreUnavailable()
 	}
 
 	receipt, err := store.verifyIdentityVerificationAttemptTx(
@@ -431,20 +506,59 @@ func (coordinator *PostgresIdentityVerificationTransactionCoordinator) CompleteI
 	if err != nil {
 		if verificationErrorCode(err) == "verification_rejected" {
 			if commitErr := tx.Commit(); commitErr != nil {
-				return IdentityVerificationResultDTO{}, identityVerificationStoreUnavailable()
+				return IdentityVerificationResultDTO{}, IdentitySessionIssuanceReceipt{}, identityVerificationStoreUnavailable()
 			}
 		}
-		return IdentityVerificationResultDTO{}, err
+		return IdentityVerificationResultDTO{}, IdentitySessionIssuanceReceipt{}, err
 	}
+	if issueSession {
+		sessionToken, err = store.sessionTokens.issue()
+		if err != nil {
+			return IdentityVerificationResultDTO{}, IdentitySessionIssuanceReceipt{}, identityVerificationStoreUnavailable()
+		}
+		refreshToken, err = store.sessionTokens.issueRefresh()
+		if err != nil {
+			sessionToken.bearer = ""
+			return IdentityVerificationResultDTO{}, IdentitySessionIssuanceReceipt{}, identityVerificationStoreUnavailable()
+		}
+	}
+	idempotencyParts := []string{
+		"completion-idempotency", command.ChallengeID, string(command.Purpose),
+		command.AccountID, command.ActorID,
+	}
+	requestParts := []string{
+		"completion-request", command.ChallengeID, command.CandidateCodeDigest,
+		command.IdentifierDigest, string(command.Channel), string(command.Purpose),
+		command.AccountID,
+	}
+	if issueSession {
+		idempotencyParts = append(
+			idempotencyParts,
+			sessionToken.keyVersion,
+			sessionToken.digest,
+			refreshToken.keyVersion,
+			refreshToken.digest,
+		)
+		requestParts = append(
+			requestParts,
+			sessionToken.keyVersion,
+			sessionToken.digest,
+			refreshToken.keyVersion,
+			refreshToken.digest,
+		)
+	}
+	idempotencyDigest := store.digest(idempotencyParts...)
+	requestDigest := store.digest(requestParts...)
 	resultID, err := coordinator.applyIdentityMutationTx(
 		operationCtx, tx, command, receipt, receiptDigest,
 		idempotencyDigest, requestDigest, mutationEventDigest, metadata,
+		sessionToken.digest, refreshToken.digest,
 	)
 	if err != nil {
-		return IdentityVerificationResultDTO{}, err
+		return IdentityVerificationResultDTO{}, IdentitySessionIssuanceReceipt{}, err
 	}
 	if err := tx.Commit(); err != nil {
-		return IdentityVerificationResultDTO{}, identityVerificationStoreUnavailable()
+		return IdentityVerificationResultDTO{}, IdentitySessionIssuanceReceipt{}, identityVerificationStoreUnavailable()
 	}
 
 	accountID := command.AccountID
@@ -477,7 +591,21 @@ func (coordinator *PostgresIdentityVerificationTransactionCoordinator) CompleteI
 	if command.Purpose == IdentityVerificationBinding {
 		result.Credential.CredentialID = resultID
 	}
-	return result, nil
+	if !issueSession {
+		return result, IdentitySessionIssuanceReceipt{}, nil
+	}
+	issuance := newIdentitySessionIssuanceReceiptWithRefresh(
+		resultID,
+		sessionToken.keyVersion,
+		refreshToken.keyVersion,
+		command.SessionExpiresAt.UTC(),
+		command.RefreshExpiresAt.UTC(),
+		sessionToken.bearer,
+		refreshToken.bearer,
+	)
+	sessionToken.bearer = ""
+	refreshToken.bearer = ""
+	return result, issuance, nil
 }
 
 func (store *PostgresIdentityVerificationStore) verifyIdentityVerificationAttemptTx(
@@ -563,6 +691,8 @@ func (coordinator *PostgresIdentityVerificationTransactionCoordinator) applyIden
 	requestDigest string,
 	eventDigest string,
 	metadata []byte,
+	sessionDigest string,
+	refreshDigest string,
 ) (string, error) {
 	store := coordinator.store
 	var resultID string
@@ -581,26 +711,28 @@ SELECT a1_bind_verified_identity_credential(
 			return "", mapPostgresIdentityVerificationMutationError(err)
 		}
 	case IdentityVerificationLogin, IdentityVerificationRecovery:
-		sessionDigest, err := store.uniqueDigest("session", command.ChallengeID)
-		if err != nil {
-			return "", identityVerificationStoreUnavailable()
+		if !validPostgresIdentityVerificationDigest(sessionDigest) ||
+			!validPostgresIdentityVerificationDigest(refreshDigest) ||
+			sessionDigest == refreshDigest {
+			return "", invalidPostgresIdentityVerificationProof()
 		}
 		rotationDigest, err := store.uniqueDigest("rotation-family", command.ChallengeID)
 		if err != nil {
 			return "", identityVerificationStoreUnavailable()
 		}
-		functionName := "a1_login_with_verified_identity"
+		functionName := "a1_login_with_verified_identity_with_refresh"
 		if command.Purpose == IdentityVerificationRecovery {
-			functionName = "a1_recover_verified_identity"
+			functionName = "a1_recover_verified_identity_with_refresh"
 		}
 		query := fmt.Sprintf(`
 SELECT %s(
-  $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10::jsonb
+  $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12::jsonb
 )::text
 `, functionName)
 		err = tx.QueryRowContext(ctx, query,
 			store.organizationID, store.projectID, receiptDigest,
-			sessionDigest, rotationDigest, command.SessionExpiresAt.UTC(),
+			sessionDigest, refreshDigest, rotationDigest,
+			command.SessionExpiresAt.UTC(), command.RefreshExpiresAt.UTC(),
 			idempotencyDigest, requestDigest, eventDigest, string(metadata),
 		).Scan(&resultID)
 		if err != nil {
@@ -638,7 +770,9 @@ func validatePostgresIdentityVerificationCompletion(
 		command.Purpose != IdentityVerificationRecovery {
 		return invalidPostgresIdentityVerificationProof()
 	}
-	if command.SessionExpiresAt.IsZero() || !command.SessionExpiresAt.After(command.VerifiedAt) {
+	if command.SessionExpiresAt.IsZero() || !command.SessionExpiresAt.After(command.VerifiedAt) ||
+		command.RefreshExpiresAt.IsZero() ||
+		!command.RefreshExpiresAt.After(command.SessionExpiresAt) {
 		return invalidPostgresIdentityVerificationProof()
 	}
 	return nil
@@ -870,5 +1004,7 @@ func identityVerificationStoreUnavailable() IdentityVerificationError {
 var (
 	_ IdentityVerificationStore                            = (*PostgresIdentityVerificationStore)(nil)
 	_ ProductionIdentityVerificationStore                  = (*PostgresIdentityVerificationStore)(nil)
+	_ ProductionIdentityVerificationOutboxStore            = (*PostgresIdentityVerificationStore)(nil)
 	_ ProductionIdentityVerificationTransactionCoordinator = (*PostgresIdentityVerificationTransactionCoordinator)(nil)
+	_ IdentityVerificationSessionTransactionCoordinator    = (*PostgresIdentityVerificationTransactionCoordinator)(nil)
 )

@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 MIGRATIONS = ROOT / "services" / "api" / "migrations"
 CONTAINER = os.environ.get("A1_POSTGRES_TEST_CONTAINER", "ashr-oauth-pg-test")
 RUNTIME_ROLE = "a1_runtime"
+LEGACY_IDENTITY_MIGRATION_CEILING = "012_a1_identity_verification.sql"
 DIGEST_A = "a" * 64
 DIGEST_B = "b" * 64
 DIGEST_C = "c" * 64
@@ -90,7 +91,12 @@ def identity_database() -> str:
     database = f"a1_identity_it_{uuid.uuid4().hex[:12]}"
     _psql("postgres", f'CREATE DATABASE "{database}";', tuples=False)
     try:
+        # This suite proves the access-only identity contract that migrations
+        # 013+ intentionally supersede. Current refresh-family behavior is
+        # exercised against the full migration chain in its dedicated live suite.
         for migration in sorted(MIGRATIONS.glob("*.sql")):
+            if migration.name > LEGACY_IDENTITY_MIGRATION_CEILING:
+                break
             _psql(
                 database,
                 migration.read_text(encoding="utf-8"),

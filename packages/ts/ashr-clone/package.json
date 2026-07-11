@@ -6,10 +6,99 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "examples",
+    "README.md"
+  ],
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./account-connections": {
+      "types": "./dist/account-connections.d.ts",
+      "import": "./dist/account-connections.js"
+    },
+    "./account-readiness": {
+      "types": "./dist/account-readiness.d.ts",
+      "import": "./dist/account-readiness.js"
+    },
+    "./api-client": {
+      "types": "./dist/api-client.d.ts",
+      "import": "./dist/api-client.js"
+    },
+    "./billing": {
+      "types": "./dist/billing.d.ts",
+      "import": "./dist/billing.js"
+    },
+    "./calibrate": {
+      "types": "./dist/calibrate.d.ts",
+      "import": "./dist/calibrate.js"
+    },
+    "./capability-matrix": {
+      "types": "./dist/capability-matrix.d.ts",
+      "import": "./dist/capability-matrix.js"
+    },
+    "./china-payments": {
+      "types": "./dist/china-payments.d.ts",
+      "import": "./dist/china-payments.js"
+    },
+    "./cloud-queue": {
+      "types": "./dist/cloud-queue.d.ts",
+      "import": "./dist/cloud-queue.js"
+    },
+    "./commercial": {
+      "types": "./dist/commercial.d.ts",
+      "import": "./dist/commercial.js"
+    },
+    "./dataset-adapter": {
+      "types": "./dist/dataset-adapter.d.ts",
+      "import": "./dist/dataset-adapter.js"
+    },
+    "./delivery-protocol": {
+      "types": "./dist/delivery-protocol.d.ts",
+      "import": "./dist/delivery-protocol.js"
+    },
+    "./evidence": {
+      "types": "./dist/evidence.d.ts",
+      "import": "./dist/evidence.js"
+    },
+    "./github-oauth": {
+      "types": "./dist/github-oauth.d.ts",
+      "import": "./dist/github-oauth.js"
+    },
+    "./oauth": {
+      "types": "./dist/oauth.d.ts",
+      "import": "./dist/oauth.js"
+    },
+    "./python-parity": {
+      "types": "./dist/python-parity.d.ts",
+      "import": "./dist/python-parity.js"
+    },
+    "./runner": {
+      "types": "./dist/runner.d.ts",
+      "import": "./dist/runner.js"
+    },
+    "./saas": {
+      "types": "./dist/saas.d.ts",
+      "import": "./dist/saas.js"
+    },
+    "./session-lifecycle": {
+      "types": "./dist/session-lifecycle.d.ts",
+      "import": "./dist/session-lifecycle.js"
+    },
+    "./storage": {
+      "types": "./dist/storage.d.ts",
+      "import": "./dist/storage.js"
+    },
+    "./stripe-executor": {
+      "types": "./dist/stripe-executor.d.ts",
+      "import": "./dist/stripe-executor.js"
+    },
+    "./trace": {
+      "types": "./dist/trace.d.ts",
+      "import": "./dist/trace.js"
     },
     "./unified-identity": {
       "types": "./dist/unified-identity.d.ts",
@@ -29,6 +118,8 @@
     "ashr-clone-saas": "./dist/saas.js"
   },
   "scripts": {
+    "clean": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\"",
+    "prebuild": "npm run clean",
     "build": "tsc -p tsconfig.json",
     "cloud": "node dist/cloud-cli.js",
     "probe": "node dist/probe.js",

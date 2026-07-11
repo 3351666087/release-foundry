@@ -93,6 +93,7 @@ func main() {
 			IdentitySessions:                   identitySessions,
 			IdentityVerification:               identityRuntime.verification,
 			IdentityVerificationResponsePolicy: identityRuntime.verificationResponsePolicy,
+			IdentitySessionReceiptTransport:    identityRuntime.sessionReceiptTransport,
 			OAuthProviders:                     oauthProviders,
 			GitHubOAuth:                        githubOAuth,
 		}),

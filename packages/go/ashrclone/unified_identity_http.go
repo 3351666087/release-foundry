@@ -22,6 +22,21 @@ type IdentityHTTPSessionResolver interface {
 	ResolveIdentityHTTPSession(context.Context, *http.Request) (IdentityHTTPSession, error)
 }
 
+var (
+	ErrIdentitySessionRefreshInvalid = errors.New("identity session refresh is unavailable")
+	ErrIdentitySessionRefreshReused  = errors.New("identity session refresh credential was reused")
+)
+
+type IdentityHTTPSessionRefresher interface {
+	RefreshIdentityHTTPSession(
+		context.Context,
+		*http.Request,
+		string,
+		string,
+		string,
+	) (IdentitySessionIssuanceReceipt, error)
+}
+
 // UnifiedIdentityHTTPStore is the production HTTP read boundary. A durable
 // control-plane backend can implement it without exposing a memory service.
 type UnifiedIdentityHTTPStore interface {
@@ -172,6 +187,13 @@ func (server *HTTPServer) resolveIdentityHTTPSession(writer http.ResponseWriter,
 		writeError(writer, http.StatusUnauthorized, "identity_session_required", "a trusted identity session is required")
 		return IdentityHTTPSession{}, false
 	}
+	if identitySessionCookiePresent(request, IdentitySessionCookieName) {
+		if server.identitySessionReceiptTransport == nil ||
+			server.identitySessionReceiptTransport.ValidateIdentitySessionRequest(request) != nil {
+			writeError(writer, http.StatusUnauthorized, "identity_session_invalid", "identity session could not be authenticated")
+			return IdentityHTTPSession{}, false
+		}
+	}
 	session, err := server.identitySessions.ResolveIdentityHTTPSession(request.Context(), request)
 	if err != nil {
 		writeError(writer, http.StatusUnauthorized, "identity_session_invalid", "identity session could not be authenticated")
@@ -189,6 +211,18 @@ func (server *HTTPServer) resolveIdentityHTTPSession(writer http.ResponseWriter,
 		return IdentityHTTPSession{}, false
 	}
 	return session, true
+}
+
+func identitySessionCookiePresent(request *http.Request, name string) bool {
+	if request == nil {
+		return false
+	}
+	for _, cookie := range request.Cookies() {
+		if cookie.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 type publicIdentityAccountView struct {

@@ -19,6 +19,7 @@ type HTTPServer struct {
 	identitySessions                   IdentityHTTPSessionResolver
 	identityVerification               *IdentityVerificationService
 	identityVerificationResponsePolicy *IdentityVerificationResponsePolicy
+	identitySessionReceiptTransport    IdentitySessionReceiptTransport
 	oauthProviders                     map[string]*OAuthService
 	githubOAuth                        *GitHubOAuthService
 	backendName                        string
@@ -67,6 +68,7 @@ type HTTPServerOptions struct {
 	IdentitySessions                   IdentityHTTPSessionResolver
 	IdentityVerification               *IdentityVerificationService
 	IdentityVerificationResponsePolicy *IdentityVerificationResponsePolicy
+	IdentitySessionReceiptTransport    IdentitySessionReceiptTransport
 	OAuthProviders                     map[string]*OAuthService
 	GitHubOAuth                        *GitHubOAuthService
 }
@@ -99,6 +101,7 @@ func NewHTTPServerWithOptions(service ControlPlaneBackend, options HTTPServerOpt
 		identitySessions:                   options.IdentitySessions,
 		identityVerification:               options.IdentityVerification,
 		identityVerificationResponsePolicy: options.IdentityVerificationResponsePolicy,
+		identitySessionReceiptTransport:    options.IdentitySessionReceiptTransport,
 		oauthProviders:                     oauthProviders,
 		githubOAuth:                        options.GitHubOAuth,
 		backendName:                        backendName,
@@ -142,6 +145,11 @@ func (server *HTTPServer) ServeHTTP(writer http.ResponseWriter, request *http.Re
 	}
 	if len(parts) >= 3 && parts[0] == "v1" && parts[1] == "accounts" {
 		server.handleUnifiedIdentityAccount(writer, request, parts[2], parts[3:])
+		return
+	}
+	if len(parts) == 7 && parts[0] == "v1" && parts[1] == "projects" &&
+		parts[3] == "accounts" && parts[5] == "browser-sessions" && parts[6] == "refresh" {
+		server.handleIdentitySessionRefresh(writer, request, parts[2], parts[4])
 		return
 	}
 	if len(parts) >= 3 && parts[0] == "v1" && parts[1] == "projects" {
@@ -941,6 +949,7 @@ func GoRouteManifestEntries() []RouteManifestEntry {
 		goScopedRoute("GET", "/v1/accounts/{account_id}", "identity.account.get", "identity"),
 		goScopedRoute("GET", "/v1/accounts/{account_id}/credentials", "identity.credentials.list", "identity"),
 		goScopedRoute("GET", "/v1/accounts/{account_id}/memberships", "identity.memberships.list", "identity"),
+		goScopedRoute("POST", "/v1/projects/{project_id}/accounts/{account_id}/browser-sessions/refresh", "identity.browser_session.refresh", "identity"),
 		// Reserved fail-closed contracts:
 		// POST /v1/accounts/{account_id}/credentials/{provider}/link
 		// DELETE /v1/accounts/{account_id}/credentials/{credential_id}/unlink

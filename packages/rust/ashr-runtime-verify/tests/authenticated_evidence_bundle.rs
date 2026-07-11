@@ -191,6 +191,10 @@ fn cli_verifies_signed_bundle_without_exposing_key() {
     );
     let result: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(result["status"], "ok");
+    assert_eq!(result["verification_level"], "manifest_authenticated");
+    assert_eq!(result["manifest_authenticated"], true);
+    assert_eq!(result["object_verification_performed"], false);
+    assert_eq!(result["objects_verified"], 0);
     assert_eq!(result["evidence_items"], 2);
     assert!(!String::from_utf8_lossy(&output.stdout).contains(std::str::from_utf8(KEY).unwrap()));
 }

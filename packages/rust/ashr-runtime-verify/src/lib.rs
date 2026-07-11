@@ -1,11 +1,33 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashSet};
+#[cfg(unix)]
+use std::ffi::CString;
 use std::fmt::Write;
+use std::fs::{self, File, Metadata, OpenOptions};
+use std::io::{self, Read};
+#[cfg(unix)]
+use std::os::fd::{AsRawFd, FromRawFd};
+use std::path::{Path, PathBuf};
+
+#[cfg(unix)]
+use std::os::unix::fs::{MetadataExt, OpenOptionsExt};
+#[cfg(windows)]
+use std::os::windows::fs::{MetadataExt, OpenOptionsExt};
+#[cfg(windows)]
+use std::os::windows::io::AsRawHandle;
 
 use hmac::{Hmac, Mac};
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
 use sha2::{Digest, Sha256};
 use subtle::ConstantTimeEq;
+
+#[cfg(windows)]
+use windows_sys::Win32::Foundation::HANDLE;
+#[cfg(windows)]
+use windows_sys::Win32::Storage::FileSystem::{
+    GetFileInformationByHandle, BY_HANDLE_FILE_INFORMATION, FILE_ATTRIBUTE_REPARSE_POINT,
+    FILE_FLAG_BACKUP_SEMANTICS, FILE_FLAG_OPEN_REPARSE_POINT,
+};
 
 pub const AUTHENTICATED_ENVELOPE_SCHEMA_VERSION: &str =
     "ashr.identity_verification.authenticated_envelope.v1";
@@ -17,6 +39,9 @@ pub const MIN_HMAC_KEY_BYTES: usize = 32;
 pub const SHA256_HEX_LENGTH: usize = 64;
 pub const MAX_EVIDENCE_ITEMS: usize = 10_000;
 pub const MAX_ARTIFACT_PATH_BYTES: usize = 1_024;
+pub const DEFAULT_MAX_ARTIFACT_BYTES: u64 = 1024 * 1024 * 1024;
+pub const DEFAULT_MAX_TOTAL_ARTIFACT_BYTES: u64 = 4 * DEFAULT_MAX_ARTIFACT_BYTES;
+const STREAM_BUFFER_BYTES: usize = 64 * 1024;
 
 type HmacSha256 = Hmac<Sha256>;
 
@@ -110,10 +135,48 @@ struct EvidenceBundleSigningPayload<'a> {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct VerifiedEvidenceBundle {
     pub bundle: AuthenticatedEvidenceBundle,
     pub canonical_signing_bytes: Vec<u8>,
     pub authenticated_bundle_digest: String,
+    // Anchors the public snapshot fields against coherent post-verification mutation.
+    authentication_binding: [u8; 32],
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VerifiedEvidenceObject {
+    pub artifact_path: String,
+    pub size_bytes: u64,
+    pub sha256: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct VerifiedEvidenceObjects {
+    pub objects: Vec<VerifiedEvidenceObject>,
+    pub total_size_bytes: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EvidenceObjectVerificationPolicy {
+    pub max_object_bytes: u64,
+    pub max_total_bytes: u64,
+}
+
+impl Default for EvidenceObjectVerificationPolicy {
+    fn default() -> Self {
+        Self {
+            max_object_bytes: DEFAULT_MAX_ARTIFACT_BYTES,
+            max_total_bytes: DEFAULT_MAX_TOTAL_ARTIFACT_BYTES,
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct LocalEvidenceObjectRoot {
+    canonical_root: PathBuf,
+    root_handle: File,
+    root_identity: FileIdentity,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -228,6 +291,20 @@ pub enum VerifyError {
     UnsafeArtifactPath,
     DuplicateArtifactPath,
     EvidenceDigestMismatch,
+    ArtifactSizeLimitExceeded,
+    ArtifactTotalSizeLimitExceeded,
+    ArtifactOpenFailed,
+    ArtifactReadFailed,
+    ArtifactUndersize,
+    ArtifactOversize,
+    ArtifactDigestMismatch,
+    ArtifactNotRegularFile,
+    ArtifactSymlinkRejected,
+    ArtifactRootEscape,
+    ArtifactRootNotDirectory,
+    ArtifactIdentityUnavailable,
+    ArtifactChangedDuringVerification,
+    DuplicateArtifactReference,
 }
 
 impl std::fmt::Display for VerifyError {
@@ -269,6 +346,46 @@ impl std::fmt::Display for VerifyError {
             }
             Self::EvidenceDigestMismatch => {
                 formatter.write_str("authenticated evidence bundle digest mismatch")
+            }
+            Self::ArtifactSizeLimitExceeded => {
+                formatter.write_str("artifact declared size exceeds verification policy")
+            }
+            Self::ArtifactTotalSizeLimitExceeded => {
+                formatter.write_str("artifact declared total size exceeds verification policy")
+            }
+            Self::ArtifactOpenFailed => formatter.write_str("artifact could not be opened"),
+            Self::ArtifactReadFailed => {
+                formatter.write_str("artifact stream ended with an I/O failure")
+            }
+            Self::ArtifactUndersize => {
+                formatter.write_str("artifact stream ended before its declared length")
+            }
+            Self::ArtifactOversize => {
+                formatter.write_str("artifact stream exceeded its declared length")
+            }
+            Self::ArtifactDigestMismatch => {
+                formatter.write_str("artifact SHA-256 does not match its declaration")
+            }
+            Self::ArtifactNotRegularFile => {
+                formatter.write_str("artifact path is not a regular file")
+            }
+            Self::ArtifactSymlinkRejected => {
+                formatter.write_str("artifact path contains a symlink or reparse point")
+            }
+            Self::ArtifactRootEscape => {
+                formatter.write_str("artifact path escaped the configured object root")
+            }
+            Self::ArtifactRootNotDirectory => {
+                formatter.write_str("configured artifact object root is not a directory")
+            }
+            Self::ArtifactIdentityUnavailable => {
+                formatter.write_str("artifact file identity could not be established")
+            }
+            Self::ArtifactChangedDuringVerification => {
+                formatter.write_str("artifact changed while it was being verified")
+            }
+            Self::DuplicateArtifactReference => {
+                formatter.write_str("multiple artifact paths reference the same local object")
             }
         }
     }
@@ -464,11 +581,13 @@ impl AuthenticatedEvidenceBundle {
         let signature =
             hex::decode(&self.signature).map_err(|_| VerifyError::InvalidSignatureEncoding)?;
         verifier.verify(&self.key_id, &canonical_signing_bytes, &signature)?;
+        let authentication_binding = Sha256::digest(&canonical_signing_bytes).into();
 
         Ok(VerifiedEvidenceBundle {
             bundle: self.clone(),
             authenticated_bundle_digest: sha256_hex(&canonical_signing_bytes),
             canonical_signing_bytes,
+            authentication_binding,
         })
     }
 
@@ -523,6 +642,313 @@ impl AuthenticatedEvidenceBundle {
             ));
         }
         Ok(())
+    }
+}
+
+impl VerifiedEvidenceBundle {
+    pub fn verify_objects<F, R>(
+        &self,
+        policy: &EvidenceObjectVerificationPolicy,
+        mut open: F,
+    ) -> Result<VerifiedEvidenceObjects, VerifyError>
+    where
+        F: FnMut(&EvidenceArtifact) -> Result<R, VerifyError>,
+        R: Read,
+    {
+        let total_size_bytes = self.validate_object_manifest_binding(policy)?;
+        let mut objects = Vec::with_capacity(self.bundle.evidence.len());
+        for artifact in &self.bundle.evidence {
+            let mut reader = open(artifact)?;
+            objects.push(verify_artifact_stream(artifact, &mut reader)?);
+        }
+        Ok(VerifiedEvidenceObjects {
+            objects,
+            total_size_bytes,
+        })
+    }
+
+    pub fn verify_local_objects(
+        &self,
+        object_root: impl AsRef<Path>,
+        policy: &EvidenceObjectVerificationPolicy,
+    ) -> Result<VerifiedEvidenceObjects, VerifyError> {
+        LocalEvidenceObjectRoot::new(object_root)?.verify(self, policy)
+    }
+
+    fn validate_object_manifest_binding(
+        &self,
+        policy: &EvidenceObjectVerificationPolicy,
+    ) -> Result<u64, VerifyError> {
+        self.bundle.validate_schema()?;
+        let actual_evidence_digest = sha256_hex(&self.bundle.canonical_evidence_bytes()?);
+        if actual_evidence_digest
+            .as_bytes()
+            .ct_eq(self.bundle.evidence_digest.as_bytes())
+            .unwrap_u8()
+            != 1
+        {
+            return Err(VerifyError::EvidenceDigestMismatch);
+        }
+
+        let current_signing_bytes = self.bundle.canonical_signing_bytes()?;
+        let current_authentication_binding: [u8; 32] =
+            Sha256::digest(&current_signing_bytes).into();
+        if current_signing_bytes
+            .as_slice()
+            .ct_eq(self.canonical_signing_bytes.as_slice())
+            .unwrap_u8()
+            != 1
+            || current_authentication_binding
+                .ct_eq(&self.authentication_binding)
+                .unwrap_u8()
+                != 1
+            || sha256_hex(&current_signing_bytes)
+                .as_bytes()
+                .ct_eq(self.authenticated_bundle_digest.as_bytes())
+                .unwrap_u8()
+                != 1
+        {
+            return Err(VerifyError::EvidenceDigestMismatch);
+        }
+
+        let mut total_size_bytes = 0_u64;
+        let mut artifact_paths = HashSet::with_capacity(self.bundle.evidence.len());
+        for artifact in &self.bundle.evidence {
+            validate_artifact_path(&artifact.artifact_path)?;
+            if !artifact_paths.insert(artifact.artifact_path.as_str()) {
+                return Err(VerifyError::DuplicateArtifactPath);
+            }
+            if artifact.size_bytes > policy.max_object_bytes {
+                return Err(VerifyError::ArtifactSizeLimitExceeded);
+            }
+            total_size_bytes = total_size_bytes
+                .checked_add(artifact.size_bytes)
+                .ok_or(VerifyError::ArtifactTotalSizeLimitExceeded)?;
+            if total_size_bytes > policy.max_total_bytes {
+                return Err(VerifyError::ArtifactTotalSizeLimitExceeded);
+            }
+        }
+        Ok(total_size_bytes)
+    }
+}
+
+impl LocalEvidenceObjectRoot {
+    pub fn new(root: impl AsRef<Path>) -> Result<Self, VerifyError> {
+        let root = root.as_ref();
+        let supplied_metadata =
+            fs::symlink_metadata(root).map_err(|_| VerifyError::ArtifactOpenFailed)?;
+        reject_link_or_reparse(&supplied_metadata)?;
+        if !supplied_metadata.is_dir() {
+            return Err(VerifyError::ArtifactRootNotDirectory);
+        }
+
+        let canonical_root = fs::canonicalize(root).map_err(|_| VerifyError::ArtifactOpenFailed)?;
+        let canonical_metadata =
+            fs::symlink_metadata(&canonical_root).map_err(|_| VerifyError::ArtifactOpenFailed)?;
+        reject_link_or_reparse(&canonical_metadata)?;
+        if !canonical_metadata.is_dir() {
+            return Err(VerifyError::ArtifactRootNotDirectory);
+        }
+
+        let root_handle = open_directory_no_follow(&canonical_root)
+            .map_err(|_| VerifyError::ArtifactOpenFailed)?;
+        let handle_metadata = root_handle
+            .metadata()
+            .map_err(|_| VerifyError::ArtifactIdentityUnavailable)?;
+        reject_link_or_reparse(&handle_metadata)?;
+        if !handle_metadata.is_dir() {
+            return Err(VerifyError::ArtifactRootNotDirectory);
+        }
+        let root_identity = file_identity(&root_handle)?;
+
+        Ok(Self {
+            canonical_root,
+            root_handle,
+            root_identity,
+        })
+    }
+
+    pub fn canonical_path(&self) -> &Path {
+        &self.canonical_root
+    }
+
+    pub fn verify(
+        &self,
+        verified_bundle: &VerifiedEvidenceBundle,
+        policy: &EvidenceObjectVerificationPolicy,
+    ) -> Result<VerifiedEvidenceObjects, VerifyError> {
+        let total_size_bytes = verified_bundle.validate_object_manifest_binding(policy)?;
+        let mut objects = Vec::with_capacity(verified_bundle.bundle.evidence.len());
+        let mut seen_objects = HashSet::with_capacity(verified_bundle.bundle.evidence.len());
+
+        for artifact in &verified_bundle.bundle.evidence {
+            self.ensure_root_stable()?;
+            let canonical_before = self.inspect_artifact_path(&artifact.artifact_path)?;
+            let mut file = self.open_artifact_file(&artifact.artifact_path)?;
+            let metadata_before = regular_file_metadata(&file)?;
+            let identity = file_identity(&file)?;
+            self.confirm_path_binding(&artifact.artifact_path, &canonical_before, identity)?;
+
+            if !seen_objects.insert(identity) {
+                return Err(VerifyError::DuplicateArtifactReference);
+            }
+            match metadata_before.len().cmp(&artifact.size_bytes) {
+                std::cmp::Ordering::Less => return Err(VerifyError::ArtifactUndersize),
+                std::cmp::Ordering::Greater => return Err(VerifyError::ArtifactOversize),
+                std::cmp::Ordering::Equal => {}
+            }
+
+            let stamp_before = metadata_stamp(&metadata_before);
+            let verified_object = verify_artifact_stream(artifact, &mut file)?;
+            let metadata_after = regular_file_metadata(&file)?;
+            if stamp_before != metadata_stamp(&metadata_after) {
+                return Err(VerifyError::ArtifactChangedDuringVerification);
+            }
+            self.confirm_path_binding(&artifact.artifact_path, &canonical_before, identity)?;
+            objects.push(verified_object);
+        }
+
+        Ok(VerifiedEvidenceObjects {
+            objects,
+            total_size_bytes,
+        })
+    }
+
+    #[cfg(not(unix))]
+    fn candidate_path(&self, artifact_path: &str) -> PathBuf {
+        let mut candidate = self.canonical_root.clone();
+        for component in artifact_path.split('/') {
+            candidate.push(component);
+        }
+        candidate
+    }
+
+    #[cfg(unix)]
+    fn open_artifact_file(&self, artifact_path: &str) -> Result<File, VerifyError> {
+        open_unix_artifact_beneath(&self.root_handle, artifact_path)
+    }
+
+    #[cfg(not(unix))]
+    fn open_artifact_file(&self, artifact_path: &str) -> Result<File, VerifyError> {
+        open_file_no_follow(&self.candidate_path(artifact_path))
+            .map_err(|_| VerifyError::ArtifactOpenFailed)
+    }
+
+    fn ensure_root_stable(&self) -> Result<(), VerifyError> {
+        if file_identity(&self.root_handle)? != self.root_identity {
+            return Err(VerifyError::ArtifactChangedDuringVerification);
+        }
+        let metadata = fs::symlink_metadata(&self.canonical_root)
+            .map_err(|_| VerifyError::ArtifactChangedDuringVerification)?;
+        reject_link_or_reparse(&metadata)?;
+        if !metadata.is_dir() {
+            return Err(VerifyError::ArtifactChangedDuringVerification);
+        }
+        let current = open_directory_no_follow(&self.canonical_root)
+            .map_err(|_| VerifyError::ArtifactChangedDuringVerification)?;
+        if file_identity(&current)? != self.root_identity {
+            return Err(VerifyError::ArtifactChangedDuringVerification);
+        }
+        Ok(())
+    }
+
+    fn inspect_artifact_path(&self, artifact_path: &str) -> Result<PathBuf, VerifyError> {
+        validate_artifact_path(artifact_path)?;
+        let mut candidate = self.canonical_root.clone();
+        let mut components = artifact_path.split('/').peekable();
+        while let Some(component) = components.next() {
+            candidate.push(component);
+            let metadata =
+                fs::symlink_metadata(&candidate).map_err(|_| VerifyError::ArtifactOpenFailed)?;
+            reject_link_or_reparse(&metadata)?;
+            if components.peek().is_some() {
+                if !metadata.is_dir() {
+                    return Err(VerifyError::ArtifactNotRegularFile);
+                }
+            } else if !metadata.is_file() {
+                return Err(VerifyError::ArtifactNotRegularFile);
+            }
+        }
+
+        let canonical =
+            fs::canonicalize(&candidate).map_err(|_| VerifyError::ArtifactOpenFailed)?;
+        if canonical.strip_prefix(&self.canonical_root).is_err() {
+            return Err(VerifyError::ArtifactRootEscape);
+        }
+        Ok(canonical)
+    }
+
+    fn confirm_path_binding(
+        &self,
+        artifact_path: &str,
+        expected_canonical: &Path,
+        expected_identity: FileIdentity,
+    ) -> Result<(), VerifyError> {
+        self.ensure_root_stable()?;
+        let canonical = self.inspect_artifact_path(artifact_path)?;
+        if canonical != expected_canonical {
+            return Err(VerifyError::ArtifactChangedDuringVerification);
+        }
+        let current = self.open_artifact_file(artifact_path)?;
+        regular_file_metadata(&current)?;
+        if file_identity(&current)? != expected_identity {
+            return Err(VerifyError::ArtifactChangedDuringVerification);
+        }
+        Ok(())
+    }
+}
+
+fn verify_artifact_stream<R: Read>(
+    artifact: &EvidenceArtifact,
+    reader: &mut R,
+) -> Result<VerifiedEvidenceObject, VerifyError> {
+    let mut hasher = Sha256::new();
+    let mut buffer = [0_u8; STREAM_BUFFER_BYTES];
+    {
+        let mut bounded = reader.by_ref().take(artifact.size_bytes);
+        while bounded.limit() != 0 {
+            let requested = if bounded.limit() < buffer.len() as u64 {
+                bounded.limit() as usize
+            } else {
+                buffer.len()
+            };
+            let read = read_retry(&mut bounded, &mut buffer[..requested])?;
+            if read == 0 {
+                return Err(VerifyError::ArtifactUndersize);
+            }
+            hasher.update(&buffer[..read]);
+        }
+    }
+
+    let mut extra = [0_u8; 1];
+    if read_retry(reader, &mut extra)? != 0 {
+        return Err(VerifyError::ArtifactOversize);
+    }
+
+    let sha256 = hex::encode(hasher.finalize());
+    if sha256
+        .as_bytes()
+        .ct_eq(artifact.sha256.as_bytes())
+        .unwrap_u8()
+        != 1
+    {
+        return Err(VerifyError::ArtifactDigestMismatch);
+    }
+
+    Ok(VerifiedEvidenceObject {
+        artifact_path: artifact.artifact_path.clone(),
+        size_bytes: artifact.size_bytes,
+        sha256,
+    })
+}
+
+fn read_retry(reader: &mut impl Read, buffer: &mut [u8]) -> Result<usize, VerifyError> {
+    loop {
+        match reader.read(buffer) {
+            Ok(read) => return Ok(read),
+            Err(error) if error.kind() == io::ErrorKind::Interrupted => {}
+            Err(_) => return Err(VerifyError::ArtifactReadFailed),
+        }
     }
 }
 
@@ -672,6 +1098,268 @@ fn validate_media_type(media_type: &str) -> Result<(), VerifyError> {
         return Err(VerifyError::InvalidField("evidence[].media_type"));
     }
     Ok(())
+}
+
+fn reject_link_or_reparse(metadata: &Metadata) -> Result<(), VerifyError> {
+    if metadata.file_type().is_symlink() || metadata_is_reparse(metadata) {
+        return Err(VerifyError::ArtifactSymlinkRejected);
+    }
+    Ok(())
+}
+
+fn regular_file_metadata(file: &File) -> Result<Metadata, VerifyError> {
+    let metadata = file
+        .metadata()
+        .map_err(|_| VerifyError::ArtifactIdentityUnavailable)?;
+    reject_link_or_reparse(&metadata)?;
+    if !metadata.is_file() {
+        return Err(VerifyError::ArtifactNotRegularFile);
+    }
+    Ok(metadata)
+}
+
+#[cfg(unix)]
+fn open_unix_artifact_beneath(
+    root_handle: &File,
+    artifact_path: &str,
+) -> Result<File, VerifyError> {
+    open_unix_artifact_beneath_with_hook(root_handle, artifact_path, |_| {})
+}
+
+#[cfg(unix)]
+fn open_unix_artifact_beneath_with_hook<F>(
+    root_handle: &File,
+    artifact_path: &str,
+    mut after_directory_opened: F,
+) -> Result<File, VerifyError>
+where
+    F: FnMut(usize),
+{
+    validate_artifact_path(artifact_path)?;
+    let mut opened_directory: Option<File> = None;
+    let mut components = artifact_path.split('/').enumerate().peekable();
+
+    while let Some((index, component)) = components.next() {
+        let is_leaf = components.peek().is_none();
+        let parent = opened_directory.as_ref().unwrap_or(root_handle);
+        let component = CString::new(component).map_err(|_| VerifyError::UnsafeArtifactPath)?;
+        let flags = if is_leaf {
+            libc::O_RDONLY | libc::O_CLOEXEC | libc::O_NOFOLLOW | libc::O_NONBLOCK
+        } else {
+            libc::O_RDONLY | libc::O_CLOEXEC | libc::O_NOFOLLOW | libc::O_DIRECTORY
+        };
+
+        // SAFETY: `parent` remains alive for the call, `component` is NUL-terminated,
+        // and a successful descriptor is immediately transferred into `File`.
+        let descriptor = unsafe { libc::openat(parent.as_raw_fd(), component.as_ptr(), flags) };
+        if descriptor < 0 {
+            return Err(map_unix_open_error(io::Error::last_os_error()));
+        }
+        // SAFETY: `openat` returned a new owned descriptor that has not been wrapped.
+        let opened = unsafe { File::from_raw_fd(descriptor) };
+        let metadata = opened
+            .metadata()
+            .map_err(|_| VerifyError::ArtifactIdentityUnavailable)?;
+        reject_link_or_reparse(&metadata)?;
+
+        if is_leaf {
+            if !metadata.is_file() {
+                return Err(VerifyError::ArtifactNotRegularFile);
+            }
+            return Ok(opened);
+        }
+        if !metadata.is_dir() {
+            return Err(VerifyError::ArtifactNotRegularFile);
+        }
+        opened_directory = Some(opened);
+        after_directory_opened(index);
+    }
+
+    Err(VerifyError::UnsafeArtifactPath)
+}
+
+#[cfg(unix)]
+fn map_unix_open_error(error: io::Error) -> VerifyError {
+    match error.raw_os_error() {
+        Some(libc::ELOOP) => VerifyError::ArtifactSymlinkRejected,
+        Some(libc::ENOTDIR) => VerifyError::ArtifactNotRegularFile,
+        _ => VerifyError::ArtifactOpenFailed,
+    }
+}
+
+#[cfg(windows)]
+fn metadata_is_reparse(metadata: &Metadata) -> bool {
+    metadata.file_attributes() & FILE_ATTRIBUTE_REPARSE_POINT != 0
+}
+
+#[cfg(not(windows))]
+fn metadata_is_reparse(_metadata: &Metadata) -> bool {
+    false
+}
+
+#[cfg(windows)]
+fn open_file_no_follow(path: &Path) -> io::Result<File> {
+    let mut options = OpenOptions::new();
+    options
+        .read(true)
+        .custom_flags(FILE_FLAG_OPEN_REPARSE_POINT)
+        .open(path)
+}
+
+#[cfg(not(any(unix, windows)))]
+fn open_file_no_follow(path: &Path) -> io::Result<File> {
+    File::open(path)
+}
+
+#[cfg(unix)]
+fn open_directory_no_follow(path: &Path) -> io::Result<File> {
+    let mut options = OpenOptions::new();
+    options
+        .read(true)
+        .custom_flags(libc::O_DIRECTORY | libc::O_NOFOLLOW)
+        .open(path)
+}
+
+#[cfg(windows)]
+fn open_directory_no_follow(path: &Path) -> io::Result<File> {
+    let mut options = OpenOptions::new();
+    options
+        .read(true)
+        .custom_flags(FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT)
+        .open(path)
+}
+
+#[cfg(not(any(unix, windows)))]
+fn open_directory_no_follow(path: &Path) -> io::Result<File> {
+    File::open(path)
+}
+
+#[cfg(unix)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct FileIdentity {
+    device: u64,
+    inode: u64,
+}
+
+#[cfg(unix)]
+fn file_identity(file: &File) -> Result<FileIdentity, VerifyError> {
+    let metadata = file
+        .metadata()
+        .map_err(|_| VerifyError::ArtifactIdentityUnavailable)?;
+    Ok(FileIdentity {
+        device: metadata.dev(),
+        inode: metadata.ino(),
+    })
+}
+
+#[cfg(windows)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct FileIdentity {
+    volume: u32,
+    index: u64,
+}
+
+#[cfg(windows)]
+fn file_identity(file: &File) -> Result<FileIdentity, VerifyError> {
+    let information = windows_file_information(file)?;
+    Ok(FileIdentity {
+        volume: information.dwVolumeSerialNumber,
+        index: u64::from(information.nFileIndexHigh) << 32 | u64::from(information.nFileIndexLow),
+    })
+}
+
+#[cfg(windows)]
+fn windows_file_information(file: &File) -> Result<BY_HANDLE_FILE_INFORMATION, VerifyError> {
+    let mut information = std::mem::MaybeUninit::<BY_HANDLE_FILE_INFORMATION>::zeroed();
+    // SAFETY: `file` owns a valid handle for the duration of the call and the
+    // output points to writable, correctly sized storage.
+    let succeeded = unsafe {
+        GetFileInformationByHandle(file.as_raw_handle() as HANDLE, information.as_mut_ptr())
+    };
+    if succeeded == 0 {
+        return Err(VerifyError::ArtifactIdentityUnavailable);
+    }
+    // SAFETY: a successful `GetFileInformationByHandle` initializes the full
+    // `BY_HANDLE_FILE_INFORMATION` value.
+    Ok(unsafe { information.assume_init() })
+}
+
+#[cfg(not(any(unix, windows)))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct FileIdentity;
+
+#[cfg(not(any(unix, windows)))]
+fn file_identity(_file: &File) -> Result<FileIdentity, VerifyError> {
+    Err(VerifyError::ArtifactIdentityUnavailable)
+}
+
+#[cfg(unix)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct MetadataStamp {
+    length: u64,
+    device: u64,
+    inode: u64,
+    mode: u32,
+    owner: u32,
+    group: u32,
+    link_count: u64,
+    modified_seconds: i64,
+    modified_nanoseconds: i64,
+    changed_seconds: i64,
+    changed_nanoseconds: i64,
+}
+
+#[cfg(unix)]
+fn metadata_stamp(metadata: &Metadata) -> MetadataStamp {
+    MetadataStamp {
+        length: metadata.len(),
+        device: metadata.dev(),
+        inode: metadata.ino(),
+        mode: metadata.mode(),
+        owner: metadata.uid(),
+        group: metadata.gid(),
+        link_count: metadata.nlink(),
+        modified_seconds: metadata.mtime(),
+        modified_nanoseconds: metadata.mtime_nsec(),
+        changed_seconds: metadata.ctime(),
+        changed_nanoseconds: metadata.ctime_nsec(),
+    }
+}
+
+#[cfg(windows)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct MetadataStamp {
+    length: u64,
+    file_attributes: u32,
+    creation_time: u64,
+    last_write_time: u64,
+}
+
+#[cfg(windows)]
+fn metadata_stamp(metadata: &Metadata) -> MetadataStamp {
+    MetadataStamp {
+        length: metadata.file_size(),
+        file_attributes: metadata.file_attributes(),
+        creation_time: metadata.creation_time(),
+        last_write_time: metadata.last_write_time(),
+    }
+}
+
+#[cfg(not(any(unix, windows)))]
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct MetadataStamp {
+    length: u64,
+    modified: Option<std::time::SystemTime>,
+    readonly: bool,
+}
+
+#[cfg(not(any(unix, windows)))]
+fn metadata_stamp(metadata: &Metadata) -> MetadataStamp {
+    MetadataStamp {
+        length: metadata.len(),
+        modified: metadata.modified().ok(),
+        readonly: metadata.permissions().readonly(),
+    }
 }
 
 fn write_canonical_json(value: &Value, output: &mut String) -> Result<(), VerifyError> {
@@ -849,4 +1537,87 @@ pub fn object_without_signature(
         .ok_or(VerifyError::InvalidSchema(
             "signing payload must be an object",
         ))
+}
+
+#[cfg(all(test, unix))]
+mod unix_path_security_tests {
+    use super::*;
+    use std::os::unix::ffi::OsStrExt;
+    use std::os::unix::fs::{symlink, PermissionsExt};
+
+    #[test]
+    fn descriptor_walk_stays_on_opened_directory_and_rebinding_fails_closed() {
+        let temp = tempfile::tempdir().unwrap();
+        let root = temp.path().join("root");
+        let nested = root.join("nested");
+        let detached = root.join("detached");
+        let outside = temp.path().join("outside");
+        fs::create_dir_all(&nested).unwrap();
+        fs::create_dir_all(&outside).unwrap();
+        fs::write(nested.join("object.bin"), b"inside-root").unwrap();
+        fs::write(outside.join("object.bin"), b"outside-root").unwrap();
+
+        let anchored = LocalEvidenceObjectRoot::new(&root).unwrap();
+        let canonical_before = anchored.inspect_artifact_path("nested/object.bin").unwrap();
+        let mut swapped = false;
+        let mut opened = open_unix_artifact_beneath_with_hook(
+            &anchored.root_handle,
+            "nested/object.bin",
+            |index| {
+                if index == 0 {
+                    fs::rename(&nested, &detached).unwrap();
+                    symlink(&outside, &nested).unwrap();
+                    swapped = true;
+                }
+            },
+        )
+        .unwrap();
+        assert!(swapped);
+
+        let opened_identity = file_identity(&opened).unwrap();
+        let mut bytes = Vec::new();
+        opened.read_to_end(&mut bytes).unwrap();
+        assert_eq!(bytes, b"inside-root");
+        assert_eq!(
+            anchored
+                .confirm_path_binding("nested/object.bin", &canonical_before, opened_identity,)
+                .unwrap_err(),
+            VerifyError::ArtifactSymlinkRejected
+        );
+    }
+
+    #[test]
+    fn descriptor_walk_rejects_fifo_without_waiting_for_a_writer() {
+        let temp = tempfile::tempdir().unwrap();
+        let fifo = temp.path().join("stream.pipe");
+        let fifo_path = CString::new(fifo.as_os_str().as_bytes()).unwrap();
+        // SAFETY: `fifo_path` is a valid NUL-terminated path and no pointer is retained.
+        assert_eq!(unsafe { libc::mkfifo(fifo_path.as_ptr(), 0o600) }, 0);
+        let root = open_directory_no_follow(temp.path()).unwrap();
+
+        assert_eq!(
+            open_unix_artifact_beneath(&root, "stream.pipe").unwrap_err(),
+            VerifyError::ArtifactNotRegularFile
+        );
+    }
+
+    #[test]
+    fn metadata_stamp_covers_permission_and_link_count_changes() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("object.bin");
+        fs::write(&path, b"stable bytes").unwrap();
+        let file = File::open(&path).unwrap();
+        let before = metadata_stamp(&file.metadata().unwrap());
+
+        let changed_mode = before.mode ^ 0o100;
+        fs::set_permissions(&path, fs::Permissions::from_mode(changed_mode)).unwrap();
+        let after_permissions = metadata_stamp(&file.metadata().unwrap());
+        assert_ne!(before.mode, after_permissions.mode);
+        assert_ne!(before, after_permissions);
+
+        fs::hard_link(&path, temp.path().join("object-alias.bin")).unwrap();
+        let after_link = metadata_stamp(&file.metadata().unwrap());
+        assert_eq!(after_link.link_count, after_permissions.link_count + 1);
+        assert_ne!(after_permissions, after_link);
+    }
 }

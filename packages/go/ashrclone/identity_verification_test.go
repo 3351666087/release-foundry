@@ -1,8 +1,10 @@
 package ashrclone
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -10,6 +12,140 @@ import (
 	"testing"
 	"time"
 )
+
+type countingIdentityVerificationSender struct {
+	calls int
+	err   error
+}
+
+func (sender *countingIdentityVerificationSender) SendIdentityVerification(
+	context.Context,
+	IdentityVerificationDelivery,
+) error {
+	sender.calls++
+	return sender.err
+}
+
+type countingIdentityVerificationStore struct {
+	delegate     IdentityVerificationStore
+	createCalls  int
+	consumeCalls int
+}
+
+func (store *countingIdentityVerificationStore) CreateIdentityVerificationChallenge(
+	ctx context.Context,
+	challenge IdentityVerificationChallenge,
+	cooldown time.Duration,
+) error {
+	store.createCalls++
+	return store.delegate.CreateIdentityVerificationChallenge(ctx, challenge, cooldown)
+}
+
+func (store *countingIdentityVerificationStore) ConsumeIdentityVerificationChallenge(
+	ctx context.Context,
+	challengeID string,
+	verify func(IdentityVerificationChallenge) error,
+) (IdentityVerificationChallenge, error) {
+	store.consumeCalls++
+	return store.delegate.ConsumeIdentityVerificationChallenge(ctx, challengeID, verify)
+}
+
+type productionOutboxVerificationStore struct {
+	createCalls           int
+	consumeCalls          int
+	createErr             error
+	deliveryReservationID string
+	opaqueRef             string
+}
+
+func (store *productionOutboxVerificationStore) CreateIdentityVerificationChallenge(
+	context.Context,
+	IdentityVerificationChallenge,
+	time.Duration,
+) error {
+	store.createCalls++
+	return store.createErr
+}
+
+func (store *productionOutboxVerificationStore) ConsumeIdentityVerificationChallenge(
+	context.Context,
+	string,
+	func(IdentityVerificationChallenge) error,
+) (IdentityVerificationChallenge, error) {
+	store.consumeCalls++
+	return IdentityVerificationChallenge{}, nil
+}
+
+func (*productionOutboxVerificationStore) IsProductionIdentityVerificationStore() {}
+
+func (*productionOutboxVerificationStore) UsesTransactionalIdentityVerificationOutbox() {}
+
+func (*productionOutboxVerificationStore) IdentityVerificationDeliveryScope() (string, string) {
+	return "tenant-outbox", "project-outbox"
+}
+
+func (store *productionOutboxVerificationStore) CreateIdentityVerificationChallengeWithDelivery(
+	_ context.Context,
+	_ IdentityVerificationChallenge,
+	_ time.Duration,
+	deliveryReservationID string,
+	opaqueRef string,
+) error {
+	store.createCalls++
+	store.deliveryReservationID = deliveryReservationID
+	store.opaqueRef = opaqueRef
+	return store.createErr
+}
+
+type recordingIdentityDeliveryVault struct {
+	sealCalls         int
+	deleteCalls       int
+	sealRequest       IdentityDeliverySealRequest
+	deleteRef         string
+	sealRef           string
+	sealErr           error
+	deleteErr         error
+	deleteHadDeadline bool
+	deleteContextErr  error
+}
+
+func (vault *recordingIdentityDeliveryVault) SealIdentityDelivery(
+	_ context.Context,
+	request IdentityDeliverySealRequest,
+) (string, error) {
+	vault.sealCalls++
+	vault.sealRequest = request
+	if vault.sealRef == "" {
+		vault.sealRef = "vault:identity-delivery/sealed-1"
+	}
+	return vault.sealRef, vault.sealErr
+}
+
+func (vault *recordingIdentityDeliveryVault) DeleteIdentityDelivery(
+	ctx context.Context,
+	opaqueRef string,
+) error {
+	vault.deleteCalls++
+	vault.deleteRef = opaqueRef
+	_, vault.deleteHadDeadline = ctx.Deadline()
+	vault.deleteContextErr = ctx.Err()
+	return vault.deleteErr
+}
+
+type productionOutboxVerificationCoordinator struct {
+	calls int
+}
+
+func (coordinator *productionOutboxVerificationCoordinator) CompleteIdentityVerification(
+	context.Context,
+	IdentityVerificationCompletionCommand,
+) (IdentityVerificationResultDTO, error) {
+	coordinator.calls++
+	return IdentityVerificationResultDTO{}, nil
+}
+
+func (*productionOutboxVerificationCoordinator) IsProductionIdentityVerificationTransactionCoordinator() {
+}
 
 type verificationClock struct {
 	mu  sync.Mutex
@@ -66,6 +202,287 @@ func lastVerificationCode(t *testing.T, sender *MemoryIdentityVerificationSender
 		t.Fatal("verification sender received no delivery")
 	}
 	return deliveries[len(deliveries)-1].Code
+}
+
+func TestIdentityVerificationProductionStartUsesOnlyTransactionalOutbox(t *testing.T) {
+	now := time.Date(2026, 7, 11, 10, 0, 0, 0, time.UTC)
+	store := &productionOutboxVerificationStore{}
+	sender := &countingIdentityVerificationSender{
+		err: IdentityVerificationError{Code: "provider_must_not_be_called"},
+	}
+	coordinator := &productionOutboxVerificationCoordinator{}
+	vault := &recordingIdentityDeliveryVault{}
+	service, err := NewIdentityVerificationService(IdentityVerificationServiceOptions{
+		Store:                  store,
+		Sender:                 sender,
+		DeliveryVaultSealer:    vault,
+		DeliveryVaultDeleter:   vault,
+		TransactionCoordinator: coordinator,
+		Now:                    func() time.Time { return now },
+		Random:                 bytes.NewReader(bytes.Repeat([]byte{0x31}, 128)),
+		DigestKey:              []byte("production-verification-hmac-key-32-bytes"),
+		TTL:                    5 * time.Minute,
+		AttemptCap:             3,
+		ResendCooldown:         time.Minute,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(service.Close)
+
+	result, err := service.Start(context.Background(), IdentityVerificationStartRequest{
+		Channel: IdentityVerificationEmail, Identifier: "outbox@example.test",
+		Purpose: IdentityVerificationBinding, TenantID: "tenant-outbox",
+	})
+	if err != nil || result.ChallengeID == "" {
+		t.Fatalf("durable start failed: result=%#v err=%v", result, err)
+	}
+	if service.DeliveryMode() != IdentityVerificationDeliveryTransactionalOutbox {
+		t.Fatalf("delivery mode=%q", service.DeliveryMode())
+	}
+	if store.createCalls != 1 || sender.calls != 0 || store.consumeCalls != 0 {
+		t.Fatalf(
+			"durable side effects create=%d provider=%d consume=%d",
+			store.createCalls,
+			sender.calls,
+			store.consumeCalls,
+		)
+	}
+	if vault.sealCalls != 1 || vault.deleteCalls != 0 ||
+		store.deliveryReservationID == "" ||
+		store.deliveryReservationID != vault.sealRequest.ReservationID ||
+		vault.sealRequest.ChallengeHandle != result.ChallengeID ||
+		store.opaqueRef != vault.sealRef {
+		t.Fatal("durable seal binding was not preserved")
+	}
+
+	failedStore := &productionOutboxVerificationStore{
+		createErr: IdentityVerificationError{Code: "verification_store_unavailable"},
+	}
+	failedSender := &countingIdentityVerificationSender{}
+	failedVault := &recordingIdentityDeliveryVault{}
+	failedService, err := NewIdentityVerificationService(IdentityVerificationServiceOptions{
+		Store: failedStore, Sender: failedSender,
+		DeliveryVaultSealer: failedVault, DeliveryVaultDeleter: failedVault,
+		TransactionCoordinator: &productionOutboxVerificationCoordinator{},
+		Now:                    func() time.Time { return now },
+		Random:                 bytes.NewReader(bytes.Repeat([]byte{0x32}, 128)),
+		DigestKey:              []byte("production-verification-hmac-key-32-bytes"),
+		TTL:                    5 * time.Minute,
+		AttemptCap:             3,
+		ResendCooldown:         time.Minute,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(failedService.Close)
+	_, err = failedService.Start(context.Background(), IdentityVerificationStartRequest{
+		Channel: IdentityVerificationEmail, Identifier: "outbox-failure@example.test",
+		Purpose: IdentityVerificationBinding, TenantID: "tenant-outbox",
+	})
+	if verificationErrorCode(err) != "verification_store_unavailable" {
+		t.Fatalf("durable enqueue failure was remapped incorrectly: %v", err)
+	}
+	if failedStore.createCalls != 1 || failedSender.calls != 0 || failedStore.consumeCalls != 0 {
+		t.Fatalf(
+			"failed durable side effects create=%d provider=%d consume=%d",
+			failedStore.createCalls,
+			failedSender.calls,
+			failedStore.consumeCalls,
+		)
+	}
+	if failedVault.sealCalls != 1 || failedVault.deleteCalls != 1 ||
+		failedVault.deleteRef != failedVault.sealRef {
+		t.Fatal("failed durable enqueue was not compensated")
+	}
+}
+
+func TestIdentityVerificationProductionDeliveryFailsClosedAndCompensates(t *testing.T) {
+	now := time.Date(2026, 7, 11, 10, 15, 0, 0, time.UTC)
+	baseOptions := func(
+		store *productionOutboxVerificationStore,
+		vault *recordingIdentityDeliveryVault,
+	) IdentityVerificationServiceOptions {
+		return IdentityVerificationServiceOptions{
+			Store: store, TransactionCoordinator: &productionOutboxVerificationCoordinator{},
+			DeliveryVaultSealer: vault, DeliveryVaultDeleter: vault,
+			Now:       func() time.Time { return now },
+			Random:    bytes.NewReader(bytes.Repeat([]byte{0x39}, 256)),
+			DigestKey: []byte("production-verification-hmac-key-32-bytes"),
+			TTL:       5 * time.Minute, AttemptCap: 3, ResendCooldown: time.Minute,
+		}
+	}
+
+	t.Run("missing vault capabilities", func(t *testing.T) {
+		options := baseOptions(&productionOutboxVerificationStore{}, &recordingIdentityDeliveryVault{})
+		options.DeliveryVaultSealer = nil
+		if _, err := NewIdentityVerificationService(options); err == nil {
+			t.Fatal("production service accepted a missing vault sealer")
+		}
+		options = baseOptions(&productionOutboxVerificationStore{}, &recordingIdentityDeliveryVault{})
+		options.DeliveryVaultDeleter = nil
+		if _, err := NewIdentityVerificationService(options); err == nil {
+			t.Fatal("production service accepted a missing vault deleter")
+		}
+	})
+
+	t.Run("seal failure does not write database", func(t *testing.T) {
+		store := &productionOutboxVerificationStore{}
+		vault := &recordingIdentityDeliveryVault{sealErr: errors.New("private vault failure")}
+		service, err := NewIdentityVerificationService(baseOptions(store, vault))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer service.Close()
+		_, err = service.Start(context.Background(), IdentityVerificationStartRequest{
+			Channel: IdentityVerificationEmail, Identifier: "seal-failure@example.test",
+			Purpose: IdentityVerificationBinding, TenantID: "tenant-outbox",
+		})
+		if verificationErrorCode(err) != "verification_delivery_unavailable" ||
+			store.createCalls != 0 || vault.deleteCalls != 0 {
+			t.Fatalf("seal failure crossed durable boundary: code=%q create=%d delete=%d", verificationErrorCode(err), store.createCalls, vault.deleteCalls)
+		}
+	})
+
+	t.Run("database failure deletes seal despite canceled request", func(t *testing.T) {
+		store := &productionOutboxVerificationStore{
+			createErr: IdentityVerificationError{Code: "verification_store_unavailable"},
+		}
+		vault := &recordingIdentityDeliveryVault{}
+		service, err := NewIdentityVerificationService(baseOptions(store, vault))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer service.Close()
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		_, err = service.Start(ctx, IdentityVerificationStartRequest{
+			Channel: IdentityVerificationEmail, Identifier: "rollback@example.test",
+			Purpose: IdentityVerificationBinding, TenantID: "tenant-outbox",
+		})
+		if verificationErrorCode(err) != "verification_store_unavailable" ||
+			vault.deleteCalls != 1 || !vault.deleteHadDeadline || vault.deleteContextErr != nil {
+			t.Fatalf("seal compensation was not detached and bounded: code=%q calls=%d deadline=%v context=%v", verificationErrorCode(err), vault.deleteCalls, vault.deleteHadDeadline, vault.deleteContextErr)
+		}
+	})
+
+	t.Run("compensation failure is public safe", func(t *testing.T) {
+		const secret = "private-vault-secret-value"
+		store := &productionOutboxVerificationStore{createErr: errors.New(secret)}
+		vault := &recordingIdentityDeliveryVault{deleteErr: errors.New(secret)}
+		service, err := NewIdentityVerificationService(baseOptions(store, vault))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer service.Close()
+		_, err = service.Start(context.Background(), IdentityVerificationStartRequest{
+			Channel: IdentityVerificationEmail, Identifier: "compensation@example.test",
+			Purpose: IdentityVerificationBinding, TenantID: "tenant-outbox",
+		})
+		if verificationErrorCode(err) != "verification_delivery_compensation_failed" ||
+			strings.Contains(err.Error(), secret) {
+			t.Fatalf("unsafe compensation failure: %v", err)
+		}
+	})
+
+	t.Run("unknown commit preserves sealed payload for reconciliation", func(t *testing.T) {
+		store := &productionOutboxVerificationStore{
+			createErr: ErrIdentityVerificationDeliveryCommitUnknown,
+		}
+		vault := &recordingIdentityDeliveryVault{}
+		service, err := NewIdentityVerificationService(baseOptions(store, vault))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer service.Close()
+		_, err = service.Start(context.Background(), IdentityVerificationStartRequest{
+			Channel: IdentityVerificationEmail, Identifier: "commit-unknown@example.test",
+			Purpose: IdentityVerificationBinding, TenantID: "tenant-outbox",
+		})
+		if verificationErrorCode(err) != "verification_delivery_commit_unknown" ||
+			vault.sealCalls != 1 || vault.deleteCalls != 0 {
+			t.Fatalf("unknown commit deleted a potentially committed payload: code=%q seal=%d delete=%d", verificationErrorCode(err), vault.sealCalls, vault.deleteCalls)
+		}
+	})
+}
+
+func TestIdentityVerificationDeliveryModesFailClosedAndCallSynchronousProviderOnce(t *testing.T) {
+	now := time.Date(2026, 7, 11, 10, 30, 0, 0, time.UTC)
+	identity, err := NewUnifiedIdentityService(UnifiedIdentityServiceOptions{
+		Now: func() time.Time { return now }, FingerprintKey: []byte("delivery-mode-fingerprint-key-32-bytes"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("invalid mode combinations", func(t *testing.T) {
+		_, err := NewIdentityVerificationService(IdentityVerificationServiceOptions{
+			Store: &productionOutboxVerificationStore{}, Sender: &countingIdentityVerificationSender{},
+			DeliveryMode:           IdentityVerificationDeliverySynchronous,
+			TransactionCoordinator: &productionOutboxVerificationCoordinator{},
+			DigestKey:              []byte("production-verification-hmac-key-32-bytes"),
+		})
+		if err == nil {
+			t.Fatal("production store accepted synchronous delivery")
+		}
+		_, err = NewIdentityVerificationService(IdentityVerificationServiceOptions{
+			Store:        NewMemoryIdentityVerificationStore(func() time.Time { return now }),
+			DeliveryMode: IdentityVerificationDeliveryTransactionalOutbox,
+			Identity:     identity,
+			DigestKey:    []byte("development-verification-key-32-bytes"),
+		})
+		if err == nil {
+			t.Fatal("memory store accepted transactional outbox delivery")
+		}
+	})
+
+	for _, test := range []struct {
+		name         string
+		identifier   string
+		providerErr  error
+		wantErrCode  string
+		wantConsumes int
+	}{
+		{name: "success", identifier: "sync-success@example.test"},
+		{name: "provider failure", identifier: "sync-failure@example.test", providerErr: IdentityVerificationError{Code: "provider_down"}, wantErrCode: "delivery_failed", wantConsumes: 1},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			store := &countingIdentityVerificationStore{
+				delegate: NewMemoryIdentityVerificationStore(func() time.Time { return now }),
+			}
+			sender := &countingIdentityVerificationSender{err: test.providerErr}
+			service, err := NewIdentityVerificationService(IdentityVerificationServiceOptions{
+				Store: store, Sender: sender, Identity: identity,
+				DeliveryMode:   IdentityVerificationDeliverySynchronous,
+				Now:            func() time.Time { return now },
+				Random:         bytes.NewReader(bytes.Repeat([]byte{0x41}, 128)),
+				DigestKey:      []byte("development-verification-key-32-bytes"),
+				TTL:            5 * time.Minute,
+				AttemptCap:     3,
+				ResendCooldown: time.Minute,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(service.Close)
+			_, startErr := service.Start(context.Background(), IdentityVerificationStartRequest{
+				Channel: IdentityVerificationEmail, Identifier: test.identifier,
+				Purpose: IdentityVerificationBinding, TenantID: "tenant-memory",
+			})
+			if (test.wantErrCode == "" && startErr != nil) ||
+				(test.wantErrCode != "" && verificationErrorCode(startErr) != test.wantErrCode) {
+				t.Fatalf("start error=%v, want code %q", startErr, test.wantErrCode)
+			}
+			if store.createCalls != 1 || sender.calls != 1 || store.consumeCalls != test.wantConsumes {
+				t.Fatalf(
+					"synchronous side effects create=%d provider=%d consume=%d",
+					store.createCalls,
+					sender.calls,
+					store.consumeCalls,
+				)
+			}
+		})
+	}
 }
 
 func TestIdentityVerificationBindingCreatesCredentialWithoutImplicitMerge(t *testing.T) {

@@ -2296,3 +2296,216 @@ Next commercial A1 mainline:
 - streaming object-storage verification and tamper-proof audit export;
 - generated OpenAPI plus Python/TypeScript clients for the production identity
   and session lifecycle.
+
+## Round 53: Production Identity Delivery, Browser Sessions, And Streaming Evidence
+
+Date: 2026-07-11
+
+Round status at this ledger update: implementation and broad validation are
+complete; the Growth-Auditor's first publication review returned `NO-GO` for a
+cross-deployment HMAC-key idempotency defect and incomplete publication
+evidence. The key-version defect has since been fixed and focused validation is
+green. A final publication re-review remains required before commit and push.
+
+Start-of-round repository and peer calibration:
+
+- Repository: `3351666087/ashr-codex-factory`.
+- Local branch: `codex/a1-local-sdk-runner-clean`.
+- Publication ref: `origin/codex/a1-local-sdk-runner`, PR `#31`.
+- Round base: `ac960bda`; `origin/main` was `5dbf4ee2` and remained eleven
+  commits behind the A1 branch.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`,
+  `git status -sb`, `gh repo view`, and `gh pr list --state all` were run.
+- A2 peer branch `origin/dev/g3-a2-calibration` was inspected read-only. Its
+  multimodal API evidence remains A2-owned and no judge semantic was changed.
+- A3 advanced to `f33144cf` with Signal Form, bilingual dashboard, screenshot,
+  and E2E changes. Those files do not overlap the A1 runtime or contracts and
+  were not copied, staged, or modified.
+
+Round growth lanes executed in parallel:
+
+1. Durable identity verification challenge and receipt storage.
+2. Transactional verification plus session issuance.
+3. Access and refresh token classes with strict non-interchangeability.
+4. Session issue, refresh, revoke-one, revoke-all, and recovery invalidation.
+5. Refresh-family lineage and reuse detection.
+6. Browser access-cookie authentication.
+7. Same-origin browser refresh endpoint.
+8. Deterministic refresh idempotency and response-loss replay.
+9. HMAC key rotation and previous-key continuity.
+10. PostgreSQL forced-RLS security-definer bootstraps.
+11. Verification delivery outbox with lease fencing.
+12. Long-running Go identity-delivery daemon.
+13. Lease heartbeat, retry, dead-letter, and redrive behavior.
+14. mTLS external vault sealing and deletion adapters.
+15. Python delivery/session lifecycle public contracts.
+16. TypeScript executable parity and typed package subpaths.
+17. Python/TypeScript generated capability matrix.
+18. Rust authenticated streaming evidence verification.
+19. Official API read-only and bounded mutation calibration.
+20. Frontend mirror identity/session/delivery field mapping.
+
+Implemented A1 code and contract slices:
+
+- `services/api/migrations/013_a1_identity_session_lifecycle.sql` adds the
+  digest-only session lifecycle, refresh lineage, idempotency ledger,
+  reuse-family revocation, recent-auth enforcement, recovery invalidation,
+  audit events, RLS and narrowly granted functions.
+- `services/api/migrations/014_a1_identity_delivery_outbox.sql` adds atomic
+  challenge creation plus delivery enqueue, leased claims, heartbeat fencing,
+  bounded retry, dead-letter and redrive transitions.
+- `services/api/migrations/015_a1_identity_browser_session_refresh.sql` adds a
+  digest-only browser refresh bootstrap. Idempotent replay now returns the
+  result session's persisted access and refresh expiry instead of recomputing
+  public receipt expiry from retry time.
+- `packages/go/ashrclone/identity_verification*.go` and
+  `production_identity_store.go` implement production verification/session
+  transactions, access-cookie resolution, refresh-cookie rotation, stable
+  errors and fail-closed public boundaries.
+- Browser refresh requires HTTPS, an exact same-origin `Origin`, optional
+  `Sec-Fetch-Site: same-origin`, an empty body, no Authorization header, both
+  secure HttpOnly cookies, and a bounded `Idempotency-Key`.
+- A mismatched Authorization header and access cookie fail before PostgreSQL.
+  Secure-cookie authentication over plaintext transport also fails before
+  PostgreSQL.
+- Same old refresh plus the same idempotency key derives one deterministic
+  token pair. Different-key reuse returns HTTP 409, clears both cookies and
+  revokes the session family.
+- Refresh derivation is pinned to the old refresh token's configured key
+  version. The pair, idempotency digest and request digest therefore remain
+  stable after a process restart that promotes a new active key while retaining
+  the old key in `PreviousSessionKeys`. New login issuance still uses the active
+  key.
+- `packages/go/ashrclone/identity_delivery_*.go` and
+  `cmd/ashr-identity-delivery` implement the production delivery worker,
+  deadline-bounded mTLS vault client, bounded PEM reads, redacted provider
+  errors, connection cleanup and supervised worker entry point.
+- `packages/sdk/ashr_clone/delivery_protocol.py` and
+  `session_lifecycle.py` expose strict public-safe Python contracts.
+- TypeScript adds executable delivery/session lifecycle modules, capability
+  and Python-parity manifests, declaration-tested package subpaths, CLI-safe
+  output and 574-test full-package coverage.
+- Rust verifies authenticated evidence manifests and streams object bytes from
+  an already-open root. Linux uses root-FD/openat traversal hardening; Windows
+  and Linux both verify length and SHA-256, reject links/non-files/path escape,
+  and authenticate a mutation anchor before object access.
+
+Official API and product calibration:
+
+- The credential was read only from `ASHR_API_KEY`; no value was written to a
+  prompt, command, repository file, public evidence or log.
+- Five read-only official operations completed with HTTP 200 and zero quota
+  blocks.
+- One text mutation was sent with small-batch and `--max-retries 0`. Transport
+  returned HTTP 200 but the result envelope was quota-blocked. It is recorded
+  as a failed mutation, not a generation or billing success.
+- No image/audio/file/video mutation was sent after the text control failed;
+  unchanged quota evidence did not justify purposeless repeated spend.
+- Both the in-app Browser controller and Chrome controller failed during local
+  control-runtime asset initialization before navigation. No live dashboard
+  screenshot or official UI claim is made.
+- The fallback static frontend mirror contained 589 entries. Its session and
+  refresh strings are treated only as static hints, not proof of an official
+  Ashr account-session API.
+
+Evidence paths:
+
+- `docs/a1/evidence/official_api_round53_readonly_public_summary.json`
+- `docs/a1/evidence/official_api_round53_text_mutating_public_summary.json`
+- `docs/a1/evidence/round53_official_api_and_frontend_calibration_20260711.md`
+- `docs/a1/evidence/frontend_mirror_identity_session_delivery_map_20260711.json`
+- Git-ignored private records:
+  `docs/evidence/private_refs/a1_readonly_api_round53_20260711.json`,
+  `a1_round53_text_mutating_real_20260711.json`, and
+  `a1_round53_frontend_mirror_identity_session_delivery_scan_20260711.json`.
+
+Validation ledger before the final cached/staged Gate:
+
+- Focused browser refresh Go lifecycle: passed, including active key
+  `v2 -> v3` restart while retaining `v2`, identical replacement cookies,
+  stable persisted expiry and no reuse response.
+- Windows `go test -count=1 ./...`: passed for all four packages.
+- Windows `go vet ./...`: passed.
+- WSL `Ubuntu-24.04-Ashr`, `CGO_ENABLED=1`, `CC=gcc`, full
+  `go test -race -count=1 ./...`: passed.
+- Live PostgreSQL migrations 012-015: 48 passed before the key-rotation
+  follow-up. Focused browser migration tests passed again afterward and prove
+  replay leaves one rotated plus one active, non-revoked family member.
+- Round 53 identity security integration: 6 passed after the follow-up.
+- TypeScript build plus full package suite: 574 passed, 0 failed.
+- Generated Python/TypeScript parity `--check`: passed.
+- Rust `cargo fmt --check`, `cargo clippy -D warnings`, Windows all-target tests
+  and WSL/Linux all-target tests: passed. Windows executed 31 tests and Linux
+  executed 34 tests.
+- Full `tests/a1 tests/a2`: 1225 passed with 2 expected skips.
+- Fresh setup smoke: 30/30 cases, `max_workers=4`, trace completeness `1.0`.
+- A2 fixture regeneration: all 55 generated fixtures match after the reviewed
+  cross-lane route-count refresh.
+- CL hygiene: passed with zero findings.
+- CL commercial: passed with zero blockers and zero advisories.
+- `git diff --check`: passed with line-ending warnings only.
+
+Failures found and closed during validation:
+
+1. Migration 015 initially referenced a nonexistent
+   `identity_sessions.access_expires_at` column. Live PostgreSQL caught it; the
+   persisted column is `expires_at`, while the function output alias remains
+   `access_expires_at`.
+2. The generated parity test still expected eight session routes after browser
+   refresh made nine. The assertion was updated; generated Python and TS route
+   contracts already matched.
+3. A2 cross-lane fixture check detected the intentional route-count change:
+   total `82 -> 83`, tenant-scoped `69 -> 70`, intentional differences
+   `71 -> 72`.
+4. Growth-Auditor found that deterministic refresh initially used the process's
+   active key. A restart with a new active key could turn a legitimate retry
+   into family reuse revocation. Derivation and operation digests are now pinned
+   to the incoming refresh's retained key version, with restart coverage.
+
+Growth-Auditor instructions and response:
+
+- First publication verdict: `NO-GO` until cross-key idempotency and the
+  publication evidence ledger were closed.
+- Required follow-up: pin derivation and operation-digest key versions; prove a
+  restart replay does not revoke the family; record Browser/Chrome failures;
+  explicitly stage only reviewed A1 files; run cached diff and secret gates.
+- Final publication verdict: pending after the staged/cached Gate.
+
+Ownership and Gate boundary:
+
+- The reviewed A2 compatibility fixture changes only three counts and must land
+  through an A2-owned integration commit, not the A1 business commit.
+- Five other A2 generated fixtures are CRLF-only. `git diff
+  --ignore-space-at-eol --exit-code` returned zero for each; they remain
+  unstaged.
+- No A3 file is modified.
+- Private API and mirror evidence is ignored by `docs/evidence/.gitignore` and
+  must remain outside the staged manifest.
+- A1 staging must be path-explicit; `git add -A` is prohibited.
+
+Next commercial A1 growth points from the first audit:
+
+1. Enforce safe retirement windows for previous session keys.
+2. Define and enforce idempotency replay retention.
+3. Stabilize cookie expiry under shortened configured caps.
+4. Add custom access/refresh Max-Age replay tests.
+5. Centralize secure-cookie validation across every resolver.
+6. Add bounded refresh query and lock timeouts.
+7. Prove concurrent identical refresh retries across processes.
+8. Prove concurrent different-key reuse fencing.
+9. Inject response loss immediately after SQL commit.
+10. Add logout and revoke-all cookie-clearing routes.
+11. Add refresh-family and reuse metrics.
+12. Add public-safe key-version audit fields.
+13. Add migration 012-015 clean-volume and rollback runbooks.
+14. Exercise PostgreSQL failover during refresh rotation.
+15. Add mTLS certificate hot reload and expiry alerts.
+16. Reconcile orphaned vault seals.
+17. Exercise multi-instance delivery lease loss.
+18. Integrate Rust streaming verification into Go ingestion.
+19. Generate browser-session OpenAPI security documentation.
+20. Run Python and TS clients against live Go/PostgreSQL contracts.
+21. Restore browser-control assets and run a real cookie lifecycle.
+22. Require changed quota evidence before another controlled mutation.
+23. Produce SBOM and provenance artifacts.
+24. Bind validation attestation to the published commit.

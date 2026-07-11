@@ -467,12 +467,14 @@ def test_live_retryable_proof_outbox_budget_and_runtime_boundary(
         verification_database,
         runtime_scope + f"""
           SELECT challenge_id, accepted
-            FROM a1_issue_identity_verification_challenge(
+            FROM a1_issue_identity_verification_challenge_with_delivery(
               '{organization}', '{project}', '{principal}', 'email',
               'credential_binding', '{digests["subject"]}',
               '{digests["challenge"]}', '{digests["code"]}',
               '{digests["context"]}', clock_timestamp() + interval '5 minutes',
-              5, 30, '{digests["issue_event"]}', '{{}}'::jsonb
+              5, 30, '{digests["issue_event"]}',
+              'opaque-ref:identity-delivery/{digests["challenge"]}',
+              '{{}}'::jsonb
             );
         """,
         user="a1_runtime",
@@ -485,7 +487,10 @@ def test_live_retryable_proof_outbox_budget_and_runtime_boundary(
         f"""
           SELECT
             (SELECT count(*) FROM identity_verification_delivery_outbox
-              WHERE challenge_id = '{challenge_id}'),
+              WHERE challenge_id = '{challenge_id}'
+                AND opaque_ref =
+                  'opaque-ref:identity-delivery/{digests["challenge"]}'
+                AND provider_idempotency_key IS NOT NULL),
             (SELECT count(*) FROM identity_verification_abuse_budgets
               WHERE organization_id = '{organization}'
                 AND project_id = '{project}'

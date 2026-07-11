@@ -40,6 +40,7 @@
     "GET /v1/projects/{project_id}/worker-jobs",
     "POST /bootstrap",
     "POST /v1/bootstrap",
+    "POST /v1/projects/{project_id}/accounts/{account_id}/browser-sessions/refresh",
     "POST /v1/projects/{project_id}/api-keys",
     "POST /v1/projects/{project_id}/api-keys/preflight",
     "POST /v1/projects/{project_id}/api-keys/{key_id}/rate-limit",
@@ -72,7 +73,7 @@
     "POST /v1/projects/{project_id}/worker-jobs/{job_id}/fail",
     "POST /v1/projects/{project_id}/worker-jobs/{job_id}/heartbeat"
   ],
-  "go_route_count": 71,
+  "go_route_count": 72,
   "intentional_route_differences": {
     "go_only": [
       "DELETE /v1/projects/{project_id}/oauth/github/disconnect",
@@ -93,6 +94,7 @@
       "GET /v1/projects/{project_id}/billing/reconciliation/events/{provider}/{event_id}",
       "GET /v1/projects/{project_id}/oauth/github/start",
       "POST /bootstrap",
+      "POST /v1/projects/{project_id}/accounts/{account_id}/browser-sessions/refresh",
       "POST /v1/projects/{project_id}/api-keys/preflight",
       "POST /v1/projects/{project_id}/billing/payments/bills",
       "POST /v1/projects/{project_id}/billing/payments/notifications",

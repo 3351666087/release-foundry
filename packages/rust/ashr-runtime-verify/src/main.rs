@@ -1,13 +1,15 @@
 use std::env;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use ashr_runtime_verify::{
     canonical_json, sha256_hex, AllowFreshReplayGuard, AuthenticatedEnvelope,
-    AuthenticatedEvidenceBundle, HmacSha256Verifier, VerificationPolicy,
+    AuthenticatedEvidenceBundle, EvidenceObjectVerificationPolicy, HmacSha256Verifier,
+    VerificationPolicy,
 };
 use serde_json::Value;
+use zeroize::Zeroizing;
 
 const MAX_INPUT_BYTES: usize = 10 * 1024 * 1024;
 const SECRET_MARKERS: [&str; 5] = [
@@ -80,7 +82,8 @@ fn run() -> Result<(), String> {
             Ok(())
         }
         "verify-envelope" => verify_authenticated_envelope(&input, args),
-        "verify-signed-bundle" => verify_authenticated_bundle(&input, args),
+        "verify-signed-bundle" => verify_authenticated_bundle(&input, args, false),
+        "verify-signed-bundle-objects" => verify_authenticated_bundle(&input, args, true),
         _ => Err(usage()),
     }
 }
@@ -88,32 +91,67 @@ fn run() -> Result<(), String> {
 fn verify_authenticated_bundle(
     input: &str,
     args: impl Iterator<Item = String>,
+    require_object_root: bool,
 ) -> Result<(), String> {
     let VerificationArguments {
         key_env,
         now_unix_ms,
-    } = parse_verification_arguments(args, "verify-signed-bundle")?;
+        expected_tenant_digest,
+        expected_project_digest,
+        object_root,
+        object_policy,
+    } = parse_verification_arguments(
+        args,
+        if require_object_root {
+            "verify-signed-bundle-objects"
+        } else {
+            "verify-signed-bundle"
+        },
+        require_object_root,
+    )?;
+    if require_object_root && object_root.is_none() {
+        return Err("verify-signed-bundle-objects requires --object-root <PATH>".to_string());
+    }
     let key = read_verification_key(&key_env)?;
     let bundle =
         AuthenticatedEvidenceBundle::parse_strict(input).map_err(|error| error.to_string())?;
     let verifier = HmacSha256Verifier::new(&bundle.key_id, key.as_bytes())
         .map_err(|error| error.to_string())?;
+    let mut verification_policy =
+        VerificationPolicy::at(now_unix_ms.unwrap_or_else(current_unix_ms));
+    verification_policy.expected_tenant_digest = expected_tenant_digest;
+    verification_policy.expected_project_digest = expected_project_digest;
     let verified = bundle
-        .verify(
-            &verifier,
-            &VerificationPolicy::at(now_unix_ms.unwrap_or_else(current_unix_ms)),
-        )
+        .verify(&verifier, &verification_policy)
         .map_err(|error| error.to_string())?;
-    println!(
-        "{{\"status\":\"ok\",\"schema_version\":\"{}\",\"algorithm\":\"{}\",\"key_id\":\"{}\",\"authenticated_bundle_digest\":\"{}\",\"evidence_digest\":\"{}\",\"evidence_items\":{},\"expires_at_unix_ms\":{}}}",
-        json_escape(&verified.bundle.schema_version),
-        json_escape(&verified.bundle.algorithm),
-        json_escape(&verified.bundle.key_id),
-        verified.authenticated_bundle_digest,
-        verified.bundle.evidence_digest,
-        verified.bundle.evidence.len(),
-        verified.bundle.expires_at_unix_ms,
-    );
+    if let Some(object_root) = object_root {
+        let verified_objects = verified
+            .verify_local_objects(object_root, &object_policy)
+            .map_err(|error| error.to_string())?;
+        println!(
+            "{{\"status\":\"ok\",\"verification_level\":\"objects_verified\",\"manifest_authenticated\":true,\"object_verification_performed\":true,\"schema_version\":\"{}\",\"algorithm\":\"{}\",\"key_id\":\"{}\",\"authenticated_bundle_digest\":\"{}\",\"evidence_digest\":\"{}\",\"evidence_items\":{},\"objects_verified\":{},\"total_size_bytes\":{},\"expires_at_unix_ms\":{}}}",
+            json_escape(&verified.bundle.schema_version),
+            json_escape(&verified.bundle.algorithm),
+            json_escape(&verified.bundle.key_id),
+            verified.authenticated_bundle_digest,
+            verified.bundle.evidence_digest,
+            verified.bundle.evidence.len(),
+            verified_objects.objects.len(),
+            verified_objects.total_size_bytes,
+            verified.bundle.expires_at_unix_ms,
+        );
+    } else {
+        println!(
+            "{{\"status\":\"ok\",\"verification_level\":\"manifest_authenticated\",\"manifest_authenticated\":true,\"object_verification_performed\":false,\"objects_verified\":0,\"schema_version\":\"{}\",\"algorithm\":\"{}\",\"key_id\":\"{}\",\"authenticated_bundle_digest\":\"{}\",\"evidence_digest\":\"{}\",\"evidence_items\":{},\"expires_at_unix_ms\":{}}}",
+            json_escape(&verified.bundle.schema_version),
+            json_escape(&verified.bundle.algorithm),
+            json_escape(&verified.bundle.key_id),
+            verified.authenticated_bundle_digest,
+            verified.bundle.evidence_digest,
+            verified.bundle.evidence.len(),
+            verified.bundle.expires_at_unix_ms,
+        );
+    }
     Ok(())
 }
 
@@ -124,18 +162,21 @@ fn verify_authenticated_envelope(
     let VerificationArguments {
         key_env,
         now_unix_ms,
-    } = parse_verification_arguments(args, "verify-envelope")?;
+        expected_tenant_digest,
+        expected_project_digest,
+        object_root: _,
+        object_policy: _,
+    } = parse_verification_arguments(args, "verify-envelope", false)?;
     let key = read_verification_key(&key_env)?;
     let envelope = AuthenticatedEnvelope::parse_strict(input).map_err(|error| error.to_string())?;
     let verifier = HmacSha256Verifier::new(&envelope.key_id, key.as_bytes())
         .map_err(|error| error.to_string())?;
     let now_unix_ms = now_unix_ms.unwrap_or_else(current_unix_ms);
+    let mut verification_policy = VerificationPolicy::at(now_unix_ms);
+    verification_policy.expected_tenant_digest = expected_tenant_digest;
+    verification_policy.expected_project_digest = expected_project_digest;
     let verified = envelope
-        .verify(
-            &verifier,
-            &AllowFreshReplayGuard,
-            &VerificationPolicy::at(now_unix_ms),
-        )
+        .verify(&verifier, &AllowFreshReplayGuard, &verification_policy)
         .map_err(|error| error.to_string())?;
     println!(
         "{{\"status\":\"ok\",\"schema_version\":\"{}\",\"algorithm\":\"{}\",\"key_id\":\"{}\",\"envelope_digest\":\"{}\",\"event_id_digest\":\"{}\",\"idempotency_key_digest\":\"{}\",\"request_digest\":\"{}\",\"nonce_digest\":\"{}\",\"expires_at_unix_ms\":{}}}",
@@ -155,40 +196,107 @@ fn verify_authenticated_envelope(
 struct VerificationArguments {
     key_env: String,
     now_unix_ms: Option<u64>,
+    expected_tenant_digest: Option<String>,
+    expected_project_digest: Option<String>,
+    object_root: Option<PathBuf>,
+    object_policy: EvidenceObjectVerificationPolicy,
 }
 
 fn parse_verification_arguments(
     mut args: impl Iterator<Item = String>,
     command: &str,
+    allow_object_root: bool,
 ) -> Result<VerificationArguments, String> {
     let mut key_env = None;
     let mut now_unix_ms = None;
+    let mut expected_tenant_digest = None;
+    let mut expected_project_digest = None;
+    let mut object_root = None;
+    let mut max_object_bytes = None;
+    let mut max_total_bytes = None;
     while let Some(flag) = args.next() {
         match flag.as_str() {
-            "--key-env" => key_env = Some(args.next().ok_or_else(usage)?),
+            "--key-env" => set_once(&mut key_env, args.next().ok_or_else(usage)?, "--key-env")?,
             "--now-ms" => {
-                now_unix_ms = Some(
-                    args.next()
-                        .ok_or_else(usage)?
-                        .parse::<u64>()
-                        .map_err(|_| "--now-ms must be an unsigned integer".to_string())?,
-                )
+                let value = parse_u64_argument(args.next(), "--now-ms")?;
+                set_once(&mut now_unix_ms, value, "--now-ms")?;
+            }
+            "--expected-tenant-digest" => set_once(
+                &mut expected_tenant_digest,
+                parse_digest_argument(args.next(), "--expected-tenant-digest")?,
+                "--expected-tenant-digest",
+            )?,
+            "--expected-project-digest" => set_once(
+                &mut expected_project_digest,
+                parse_digest_argument(args.next(), "--expected-project-digest")?,
+                "--expected-project-digest",
+            )?,
+            "--object-root" if allow_object_root => {
+                let value = args.next().ok_or_else(usage)?;
+                if value.is_empty() {
+                    return Err("--object-root must not be empty".to_string());
+                }
+                set_once(&mut object_root, PathBuf::from(value), "--object-root")?;
+            }
+            "--max-object-bytes" if allow_object_root => {
+                let value = parse_u64_argument(args.next(), "--max-object-bytes")?;
+                set_once(&mut max_object_bytes, value, "--max-object-bytes")?;
+            }
+            "--max-total-bytes" if allow_object_root => {
+                let value = parse_u64_argument(args.next(), "--max-total-bytes")?;
+                set_once(&mut max_total_bytes, value, "--max-total-bytes")?;
             }
             _ => return Err(usage()),
         }
     }
     let key_env = key_env.ok_or_else(|| format!("{command} requires --key-env <NAME>"))?;
     validate_environment_name(&key_env)?;
+    if object_root.is_none() && (max_object_bytes.is_some() || max_total_bytes.is_some()) {
+        return Err("object size limits require --object-root".to_string());
+    }
+    let defaults = EvidenceObjectVerificationPolicy::default();
     Ok(VerificationArguments {
         key_env,
         now_unix_ms,
+        expected_tenant_digest,
+        expected_project_digest,
+        object_root,
+        object_policy: EvidenceObjectVerificationPolicy {
+            max_object_bytes: max_object_bytes.unwrap_or(defaults.max_object_bytes),
+            max_total_bytes: max_total_bytes.unwrap_or(defaults.max_total_bytes),
+        },
     })
 }
 
-fn read_verification_key(key_env: &str) -> Result<String, String> {
+fn set_once<T>(slot: &mut Option<T>, value: T, flag: &str) -> Result<(), String> {
+    if slot.replace(value).is_some() {
+        return Err(format!("{flag} may be specified only once"));
+    }
+    Ok(())
+}
+
+fn parse_u64_argument(value: Option<String>, flag: &str) -> Result<u64, String> {
+    value
+        .ok_or_else(usage)?
+        .parse::<u64>()
+        .map_err(|_| format!("{flag} must be an unsigned integer"))
+}
+
+fn parse_digest_argument(value: Option<String>, flag: &str) -> Result<String, String> {
+    let value = value.ok_or_else(usage)?;
+    if !is_lower_hex_sha256(&value) {
+        return Err(format!(
+            "{flag} must be 64 lowercase hexadecimal characters"
+        ));
+    }
+    Ok(value)
+}
+
+fn read_verification_key(key_env: &str) -> Result<Zeroizing<String>, String> {
     let key = env::var_os(key_env)
         .ok_or_else(|| format!("verification key environment variable {key_env} is not set"))?;
     key.into_string()
+        .map(Zeroizing::new)
         .map_err(|_| "verification key environment value must be UTF-8".to_string())
 }
 
@@ -393,7 +501,7 @@ fn brackets_are_balanced(input: &str) -> bool {
 }
 
 fn usage() -> String {
-    "usage: ashr-runtime-verify <verify|replay-plan|verify-bundle|canonicalize> <json-path>\n       ashr-runtime-verify <verify-envelope|verify-signed-bundle> <json-path> --key-env <NAME> [--now-ms <MILLISECONDS>]".to_string()
+    "usage: ashr-runtime-verify <verify|replay-plan|verify-bundle|canonicalize> <json-path>\n       ashr-runtime-verify verify-envelope <json-path> --key-env <NAME> [--now-ms <MILLISECONDS>] [--expected-tenant-digest <SHA256>] [--expected-project-digest <SHA256>]\n       ashr-runtime-verify verify-signed-bundle <json-path> --key-env <NAME> [--now-ms <MILLISECONDS>] [--expected-tenant-digest <SHA256>] [--expected-project-digest <SHA256>]\n       ashr-runtime-verify verify-signed-bundle-objects <json-path> --key-env <NAME> --object-root <PATH> [--max-object-bytes <BYTES>] [--max-total-bytes <BYTES>] [--now-ms <MILLISECONDS>] [--expected-tenant-digest <SHA256>] [--expected-project-digest <SHA256>]".to_string()
 }
 
 #[cfg(test)]
