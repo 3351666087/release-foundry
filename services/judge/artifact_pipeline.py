@@ -47,6 +47,17 @@ class ArtifactScanner(Protocol):
     def scan(self, content: bytes, media_type: str) -> dict[str, Any]: ...
 
 
+class ExtractorRuntime(Protocol):
+    def extract(
+        self,
+        content: bytes,
+        *,
+        media_type: str,
+        input_hash: str,
+        limits: "ArtifactLimits",
+    ) -> dict[str, Any]: ...
+
+
 @dataclass(frozen=True)
 class ArtifactLimits:
     max_artifact_bytes: int = 25 * 1024 * 1024
@@ -84,6 +95,8 @@ def process_artifact(
     scanner: ArtifactScanner | None,
     limits: ArtifactLimits | None = None,
     require_production_scanner: bool = False,
+    extractor_runtime: ExtractorRuntime | None = None,
+    require_isolated_extraction: bool = False,
 ) -> dict[str, Any]:
     """Validate, scan and extract one artifact without returning raw content."""
     limits = limits or ArtifactLimits()
@@ -122,12 +135,26 @@ def process_artifact(
 
     extraction = _blocked_extraction(actual_hash, detected_media_type, blockers)
     if not blockers:
-        extraction = extract_artifact(
-            content,
-            media_type=detected_media_type,
-            input_hash=actual_hash,
-            limits=limits,
-        )
+        if require_isolated_extraction and extractor_runtime is None:
+            extraction = _blocked_extraction(
+                actual_hash,
+                detected_media_type,
+                ["isolated_extractor_required"],
+            )
+        elif extractor_runtime is not None:
+            extraction = extractor_runtime.extract(
+                content,
+                media_type=detected_media_type,
+                input_hash=actual_hash,
+                limits=limits,
+            )
+        else:
+            extraction = extract_artifact(
+                content,
+                media_type=detected_media_type,
+                input_hash=actual_hash,
+                limits=limits,
+            )
         blockers.extend(extraction["blockers"])
 
     blockers = sorted(set(blockers))
@@ -171,6 +198,8 @@ def process_artifact_reference(
     scanner: ArtifactScanner | None,
     limits: ArtifactLimits | None = None,
     require_production_scanner: bool = False,
+    extractor_runtime: ExtractorRuntime | None = None,
+    require_isolated_extraction: bool = False,
     key_resolver: KeyResolver | None = None,
     authorization_ledger: ArtifactAuthorizationLedger | None = None,
     expected_issuer: str = "",
@@ -230,6 +259,8 @@ def process_artifact_reference(
         scanner=scanner,
         limits=limits,
         require_production_scanner=require_production_scanner,
+        extractor_runtime=extractor_runtime,
+        require_isolated_extraction=require_isolated_extraction,
     )
     core = {
         key: value

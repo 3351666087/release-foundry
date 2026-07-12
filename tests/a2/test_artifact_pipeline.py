@@ -15,6 +15,7 @@ from services.judge.artifact_pipeline import (
     process_artifact,
     process_artifact_reference,
 )
+from services.judge.extractor_runtime import SubprocessExtractorRuntime
 from services.judge.artifact_reference import (
     ARTIFACT_REFERENCE_SCHEMA_VERSION,
     InMemoryVersionedObjectReader,
@@ -137,6 +138,83 @@ class ProductionScanner:
             "production_qualified": True,
             "signature_set": "20260712",
         }
+
+
+class ArtifactExtractorRuntimeTest(unittest.TestCase):
+    def test_real_subprocess_extraction_is_schema_valid_and_bound_to_input(self):
+        content = png()
+        result = process_artifact(
+            submission(content, "image/png", "sample.png"),
+            content,
+            scanner=ProductionScanner(),
+            require_production_scanner=True,
+            extractor_runtime=SubprocessExtractorRuntime(timeout_seconds=5),
+            require_isolated_extraction=True,
+        )
+        self.assertTrue(result["evaluation_eligible"])
+        self.assertEqual(result["extraction"]["metadata"]["width"], 2)
+        self.assertEqual(result["extraction"]["execution"]["isolation"], "subprocess")
+        self.assertEqual(result["extraction"]["execution"]["exit_code"], 0)
+        schema = json.loads(
+            (ROOT / "docs/a2/schemas/multimodal_artifact_pipeline.schema.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        resolver = jsonschema.RefResolver(
+            base_uri=(ROOT / "docs/a2/schemas/").as_uri() + "/",
+            referrer=schema,
+        )
+        jsonschema.Draft202012Validator(schema, resolver=resolver).validate(result)
+
+    def test_production_policy_fails_closed_without_isolated_runtime(self):
+        content = png()
+        result = process_artifact(
+            submission(content, "image/png", "sample.png"),
+            content,
+            scanner=ProductionScanner(),
+            require_production_scanner=True,
+            require_isolated_extraction=True,
+        )
+        self.assertFalse(result["evaluation_eligible"])
+        self.assertEqual(result["blockers"], ["isolated_extractor_required"])
+
+    def test_worker_timeout_is_a_blocker_not_a_pass(self):
+        content = png()
+        result = process_artifact(
+            submission(content, "image/png", "sample.png"),
+            content,
+            scanner=ProductionScanner(),
+            extractor_runtime=SubprocessExtractorRuntime(timeout_seconds=0.0001),
+            require_isolated_extraction=True,
+        )
+        self.assertFalse(result["evaluation_eligible"])
+        self.assertEqual(result["extraction"]["status"], "failed")
+        self.assertEqual(result["blockers"], ["extractor_timeout"])
+        self.assertIsNone(result["extraction"]["execution"]["exit_code"])
+
+    def test_authorized_reference_cannot_bypass_isolated_extraction_policy(self):
+        content = png()
+        reference = artifact_reference(content)
+        result = process_artifact_reference(
+            reference,
+            reader=versioned_reader(reference, content),
+            expected_scope=scope(),
+            expected_purpose="release-evaluation",
+            now="2026-07-12T12:00:00Z",
+            scanner=ProductionScanner(),
+            require_production_scanner=True,
+            extractor_runtime=SubprocessExtractorRuntime(timeout_seconds=5),
+            require_isolated_extraction=True,
+        )
+        self.assertTrue(result["evaluation_eligible"])
+        self.assertEqual(
+            result["extraction"]["execution"]["runtime_id"],
+            "a2.python_subprocess",
+        )
+        self.assertEqual(
+            result["artifact_reference_resolution"]["status"],
+            "verified",
+        )
 
 
 class ArtifactPipelineTests(unittest.TestCase):

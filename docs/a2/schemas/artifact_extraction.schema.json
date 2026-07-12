@@ -39,6 +39,28 @@
     "error_class": { "type": "string" },
     "raw_content_included": { "const": false },
     "derived_content_included": { "const": false },
+    "execution": {
+      "type": "object",
+      "required": [
+        "isolation",
+        "runtime_id",
+        "runtime_version",
+        "protocol_version",
+        "config_hash",
+        "latency_ms",
+        "exit_code"
+      ],
+      "properties": {
+        "isolation": { "enum": ["subprocess"] },
+        "runtime_id": { "type": "string", "minLength": 1 },
+        "runtime_version": { "type": "string", "minLength": 1 },
+        "protocol_version": { "type": "string", "minLength": 1 },
+        "config_hash": { "$ref": "#/$defs/hash" },
+        "latency_ms": { "type": "integer", "minimum": 0 },
+        "exit_code": { "type": ["integer", "null"] }
+      },
+      "additionalProperties": false
+    },
     "extraction_hash": { "$ref": "#/$defs/hash" }
   },
   "$defs": {
