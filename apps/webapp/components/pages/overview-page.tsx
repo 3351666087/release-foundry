@@ -13,7 +13,13 @@ export function OverviewPage() {
 
   return <DataBoundary>{(model) => {
     const spine = record(model.raw.a1_a2_evidence_spine);
-    const releaseDecision = string(spine.release_decision, "block");
+    const authority = model.trustedReleaseAuthority;
+    const releaseSignal = authority.releaseReady ? "release_ready" : authority.status;
+    const releaseTone = authority.releaseReady
+      ? "pass"
+      : authority.status === "blocked" || authority.status === "integrity_invalid"
+        ? "fail"
+        : "warn";
     const stages = array(spine.stages).map(record);
     const failureCounts = new Map<string, number>();
     for (const item of model.cases.filter((entry) => !entry.passed)) {
@@ -26,16 +32,20 @@ export function OverviewPage() {
         <PageHeader
           eyebrow="A3 / RELEASE INTELLIGENCE"
           title={zh ? "发布总览" : "Release overview"}
-          summary={zh ? "先看发布结论，再进入案例和证据。" : "Start with the release decision, then inspect cases and evidence."}
+          summary={zh ? "先核验 A2 决策账本，再查看案例、证据和人工审核。" : "Verify the A2 Decision Ledger before inspecting cases, evidence, and review."}
           meta={<><span>{model.sourceLabel}</span><strong>{model.summary.lastRunId}</strong></>}
         />
 
         <section className="release-signal">
           <div className="release-signal-copy">
-            <span className="eyebrow">{zh ? "当前发布信号" : "CURRENT RELEASE SIGNAL"}</span>
-            <StatusBadge value={releaseDecision} tone={releaseDecision.includes("block") ? "fail" : "pass"} />
-            <h2>{zh ? `${model.summary.failed} 个案例需要处理` : `${model.summary.failed} cases need attention`}</h2>
-            <p>{zh ? "A2 仍拥有发布判定权；A3 只展示阻塞原因和人工审核入口。" : "A2 remains the release authority; A3 presents blockers and human review."}</p>
+            <span className="eyebrow">{zh ? "A2 可信发布信号" : "A2 TRUSTED RELEASE SIGNAL"}</span>
+            <StatusBadge value={releaseSignal} tone={releaseTone} />
+            <h2>{authority.releaseReady
+              ? (zh ? "决策账本已核验，可以进入发布流程" : "Verified ledger permits the release workflow")
+              : (zh ? "当前不得发布，需要先处理阻断项" : "Release is not authorized; resolve the blockers first")}</h2>
+            <p>{zh
+              ? `账本完整性：${authority.integrityVerified ? "已核验" : "未通过"}；A2 决策：${authority.upstreamDecision}；原因：${authority.reasonCode}。`
+              : `Ledger integrity: ${authority.integrityVerified ? "verified" : "not verified"}; A2 decision: ${authority.upstreamDecision}; reason: ${authority.reasonCode}.`}</p>
             <Link className="signal-action" href="/review">{zh ? "进入人工审核" : "Open review"}<ArrowRight size={17} /></Link>
           </div>
           <div className="release-signal-aside">

@@ -105,6 +105,125 @@ export const A3_AUTHZ_OPERATION_POLICIES = [
     event: "project.dashboard_read",
     resourceType: "dashboard"
   }),
+  operation("preflight_ui_action", "POST /api/a3/ui-actions/preflight", "project:read", "read_only", {
+    event: "ui_action.preflight_checked",
+    resourceType: "ui_action_preflight"
+  }),
+  operation("read_db_contract", "GET /api/a3/db-contract", "audit:read", "read_only", {
+    event: "database.contract_read",
+    resourceType: "database_contract",
+    surface: "admin_console"
+  }),
+  operation("read_db_migrations", "GET /api/a3/db-migrations", "audit:read", "read_only", {
+    event: "database.migrations_read",
+    resourceType: "database_migration_plan",
+    surface: "admin_console"
+  }),
+  operation("read_live_workflow_readiness", "GET /api/a3/live-workflow/readiness", "audit:read", "read_only", {
+    event: "live_workflow.readiness_read",
+    resourceType: "live_workflow_readiness"
+  }),
+  operation("read_live_ops_control_plane", "GET /api/a3/live-ops/control-plane", "audit:read", "read_only", {
+    event: "live_ops.control_plane_read",
+    resourceType: "live_ops_control_plane"
+  }),
+  operation("read_commercial_api_contract", "GET /api/a3/commercial-api/contract", "audit:read", "read_only", {
+    event: "commercial_api.contract_read",
+    resourceType: "commercial_api_contract",
+    surface: "admin_console"
+  }),
+  operation("read_evidence_spine", "GET /api/a3/a1-a2/evidence-spine", "audit:read", "read_only", {
+    event: "a1_a2.evidence_spine_read",
+    resourceType: "a1_a2_evidence_spine",
+    a1: ["RunResult, TraceEvent, Observation, ToolCall evidence references"],
+    a2: ["GradeResult, Judge, and Decision Ledger evidence references"]
+  }),
+  operation("read_release_decision_provenance", "GET /api/a3/release-decision/provenance", "project:read", "read_only", {
+    event: "release_decision.provenance_read",
+    resourceType: "release_decision_provenance",
+    a2: ["A2 owns Release Decision and Decision Ledger semantics; A3 reads without recomputation"]
+  }),
+  operation("read_release_evidence_summary", "GET /api/a3/releases/:releaseId/evidence-summary", "project:read", "read_only", {
+    event: "release_evidence.summary_read",
+    resourceType: "release_evidence_summary",
+    a2: ["A2 owns release policy and decision semantics; A3 presents supplied evidence"]
+  }),
+  operation("read_release_evidence_health", "GET /api/a3/releases/:releaseId/evidence-health", "project:read", "read_only", {
+    event: "release_evidence.health_read",
+    resourceType: "release_evidence_health",
+    a2: ["A2 owns release policy and decision semantics; A3 presents supplied evidence"]
+  }),
+  operation("read_release_evidence_diff", "GET /api/a3/releases/:releaseId/evidence-diff", "project:read", "read_only", {
+    event: "release_evidence.diff_read",
+    resourceType: "release_evidence_diff",
+    a2: ["A2 owns release policy and decision semantics; A3 compares supplied evidence metadata"]
+  }),
+  operation("read_release_readbacks", "GET /api/a3/releases/:releaseId/readbacks", "audit:read", "read_only", {
+    event: "release_evidence.readbacks_read",
+    resourceType: "release_evidence_readback",
+    a1: ["GitHub readback worker boundary"],
+    a2: ["ReleaseGate evidence state"]
+  }),
+  operation("read_admin_console", "GET /api/a3/admin/console", "admin:plan", "read_only", {
+    event: "admin.console_read",
+    resourceType: "saas_admin_console",
+    surface: "admin_console"
+  }),
+  operation("read_enterprise_readiness", "GET /api/a3/enterprise/readiness", "audit:read", "read_only", {
+    event: "enterprise.readiness_read",
+    resourceType: "enterprise_readiness",
+    surface: "admin_console"
+  }),
+  operation("read_admin_actions", "GET /api/a3/admin/actions", "admin:plan", "read_only", {
+    event: "admin.actions_read",
+    resourceType: "saas_admin_action",
+    surface: "admin_console"
+  }),
+  operation("read_review_workflow", "GET /api/a3/review/workflow", "release:review", "read_only", {
+    event: "review.workflow_read",
+    resourceType: "review_workflow",
+    a2: ["A2 ReleaseGate and policy evaluation are authoritative"]
+  }),
+  operation("list_runs", "GET /api/a3/runs", "project:read", "read_only", {
+    event: "run.listed",
+    resourceType: "run"
+  }),
+  operation("read_run", "GET /api/a3/runs/:runId", "project:read", "read_only", {
+    event: "run.read",
+    resourceType: "run"
+  }),
+  operation("read_case", "GET /api/a3/cases/:caseId", "project:read", "read_only", {
+    event: "case.read",
+    resourceType: "case"
+  }),
+  operation("read_report_center", "GET /api/a3/reports/center", "project:read", "read_only", {
+    event: "report.center_read",
+    resourceType: "report_center"
+  }),
+  operation("read_artifact_registry", "GET /api/a3/artifacts/registry", "audit:read", "read_only", {
+    event: "artifact.registry_read",
+    resourceType: "artifact_registry"
+  }),
+  operation("read_product_console", "GET /api/a3/product/console", "project:read", "read_only", {
+    event: "product.console_read",
+    resourceType: "product_console"
+  }),
+  operation("list_reports", "GET /api/a3/reports", "project:read", "read_only", {
+    event: "report.listed",
+    resourceType: "shareable_report"
+  }),
+  operation("read_report", "GET /api/a3/reports/:reportId", "project:read", "read_only", {
+    event: "report.read",
+    resourceType: "shareable_report"
+  }),
+  operation("read_report_manifest", "GET /api/a3/reports/:reportId/manifest", "project:read", "read_only", {
+    event: "report.manifest_read",
+    resourceType: "report_manifest"
+  }),
+  operation("read_hosted_report", "GET /reports/:reportId", "project:read", "read_only", {
+    event: "hosted_report.read",
+    resourceType: "shareable_report"
+  }),
   operation("import_a1_run_result", "POST /api/a3/import/a1-run-result", "project:ingest", "local_write", {
     event: "a1.run_result_imported",
     resourceType: "a1_run_result",

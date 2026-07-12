@@ -79,7 +79,7 @@ test("A3 readback capture CLI submits sanitized readback into the A3 API", async
   const readbackPath = join(dir, "readback.json");
   const outputReceipt = join(dir, "capture.json");
   const store = await createFixtureBackedA3Store({ sources: ["mock"] });
-  const { server, url } = await startA3ApiServer({ store });
+  const { server, url } = await startA3ApiServer({ store, routeAccessMode: "demo_contract" });
   try {
     const fixture = await loadJson("../../fixtures/a3/p3/a3_github_check_readback_confirmed.redacted.json");
     await writeFile(readbackPath, JSON.stringify({

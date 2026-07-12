@@ -439,8 +439,6 @@ export function buildGitHubActionWorkflowExample(options = {}) {
     "    runs-on: ubuntu-latest",
     "    permissions:",
     "      contents: read",
-    "      checks: write",
-    "      pull-requests: write",
     "    steps:",
     "      - uses: actions/checkout@v4",
     "      - uses: actions/setup-node@v4",
@@ -454,16 +452,12 @@ export function buildGitHubActionWorkflowExample(options = {}) {
     "        with:",
     "          name: ashr-release-gate",
     "          path: artifacts/",
-    "      - name: Publish Ashr++ GitHub Check",
-    "        env:",
-    "          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}",
+    "      - name: Plan Ashr++ GitHub Check",
     "        run: |",
-    `          node services/report/a3_github_publish_cli.mjs --gate artifacts/ashr-gate.json --repo \${{ github.repository }} --head-sha \${{ github.event.pull_request.head.sha }} --details-url \${{ github.server_url }}/\${{ github.repository }}/actions/runs/\${{ github.run_id }} --output-receipt artifacts/ashr-github-check-receipt.json --live --json`,
-    "      - name: Publish Ashr++ PR Comment",
-    "        env:",
-    "          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}",
+    `          node services/report/a3_github_publish_cli.mjs --gate artifacts/ashr-gate.json --repo \${{ github.repository }} --head-sha \${{ github.event.pull_request.head.sha }} --details-url \${{ github.server_url }}/\${{ github.repository }}/actions/runs/\${{ github.run_id }} --output-receipt artifacts/ashr-github-check-receipt.json --dry-run --json`,
+    "      - name: Plan Ashr++ PR Comment",
     "        run: |",
-    `          node services/report/a3_github_publish_cli.mjs --gate artifacts/ashr-gate.json --repo \${{ github.repository }} --pull-number \${{ github.event.pull_request.number }} --pr-comment --output-receipt artifacts/ashr-pr-comment-receipt.json --live --json`,
+    `          node services/report/a3_github_publish_cli.mjs --gate artifacts/ashr-gate.json --repo \${{ github.repository }} --pull-number \${{ github.event.pull_request.number }} --pr-comment --output-receipt artifacts/ashr-pr-comment-receipt.json --dry-run --json`,
     "      - name: Enforce local gate result",
     "        run: |",
     "          node -e \"const fs=require('fs'); const gate=JSON.parse(fs.readFileSync('artifacts/ashr-gate.json','utf8')); process.exit(gate.exit_code_hint || 0);\"",
@@ -506,6 +500,7 @@ export async function publishGitHubCheckRun(gatePayload = {}, options = {}) {
   if (typeof fetchImpl !== "function") {
     throw new Error("fetch implementation is required to publish a GitHub check run.");
   }
+  assertTrustedLiveGitHubUrl(request.url, options);
 
   const response = await fetchImpl(request.url, {
     method: request.method,
@@ -567,6 +562,7 @@ export async function publishPrCommentUpsert(gatePayload = {}, options = {}) {
   }
 
   const lookupPlan = buildPrCommentUpsertPlan(gatePayload, { ...options, existingComments: [] });
+  assertTrustedLiveGitHubUrl(lookupPlan.find_existing.url, options);
   const commentsResponse = await githubFetch(fetchImpl, lookupPlan.find_existing.url, {
     method: "GET",
     token,
@@ -600,6 +596,7 @@ export async function publishPrCommentUpsert(gatePayload = {}, options = {}) {
   }
   const comments = Array.isArray(commentsResponse.json) ? commentsResponse.json : [];
   const plan = buildPrCommentUpsertPlan(gatePayload, { ...options, existingComments: comments });
+  assertTrustedLiveGitHubUrl(plan.request.url, options);
   const response = await githubFetch(fetchImpl, plan.request.url, {
     method: plan.request.method,
     token,
@@ -687,9 +684,23 @@ function runtimeToken(options = {}) {
     return String(options.token);
   }
   if (options.tokenEnvName) {
+    if (!["GITHUB_TOKEN", "GH_TOKEN"].includes(options.tokenEnvName)) {
+      throw new Error("Only fixed GitHub token environment references are allowed.");
+    }
     return process.env[options.tokenEnvName];
   }
   return process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+}
+
+function assertTrustedLiveGitHubUrl(value, options = {}) {
+  const url = new URL(value);
+  const trustedOrigins = new Set([
+    new URL(DEFAULT_API_BASE_URL).origin,
+    ...(Array.isArray(options.trustedApiOrigins) ? options.trustedApiOrigins : [])
+  ]);
+  if (url.protocol !== "https:" || !trustedOrigins.has(url.origin)) {
+    throw new Error("Live GitHub requests require a server-approved HTTPS API origin.");
+  }
 }
 
 async function safeResponseJson(response) {
@@ -775,7 +786,7 @@ function expectedCheckRunFields(publishReceipt = {}, options = {}) {
     check_name: options.checkName || requestBody.name || checkRun.name || "Ashr++ Release Gate",
     head_sha_alias: options.headSha || requestBody.head_sha || checkRun.head_sha || null,
     conclusion: options.conclusion || requestBody.conclusion || checkRun.conclusion || null,
-    output_hash: hashCheckOutput(output)
+    output_hash: options.skipOutputHash === true ? null : hashCheckOutput(output)
   };
 }
 
@@ -794,6 +805,9 @@ function sanitizeCheckRunReadback(value = {}) {
     details_url: value.details_url || null,
     output_title: output.title || null,
     output_hash: hashCheckOutput(output),
+    app_id_alias: Number.isInteger(Number(value.app?.id)) ? Number(value.app.id) : null,
+    app_slug: value.app?.slug || null,
+    app_owner_type: value.app?.owner?.type || null,
     started_at: value.started_at || null,
     completed_at: value.completed_at || null
   };
@@ -905,8 +919,13 @@ function sanitizeGitHubRequestId(value) {
 }
 
 function extractHeadShaAlias(body = "") {
-  const match = String(body).match(/\b[0-9a-f]{7,40}\b/i);
-  return match ? match[0] : null;
+  const value = String(body);
+  const labeled = value.match(/(?:candidate(?:[\s_-]+head)?|head(?:[\s_-]+sha)?|commit)\s*(?:\||:|=)\s*`?([0-9a-f]{7,40})\b/i);
+  if (labeled) return labeled[1];
+  const full = value.match(/\b[0-9a-f]{40}\b/i);
+  if (full) return full[0];
+  const abbreviated = value.match(/\b(?=[0-9a-f]{7,39}\b)(?=[0-9a-f]*[a-f])[0-9a-f]{7,39}\b/i);
+  return abbreviated ? abbreviated[0] : null;
 }
 
 function hashCheckOutput(output = {}) {

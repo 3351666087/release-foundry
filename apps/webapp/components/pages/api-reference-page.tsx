@@ -52,12 +52,39 @@ export function ApiReferencePage() {
       <section className={styles.releaseBand} aria-label={zh ? "契约状态" : "Contract status"}>
         <div><span>{zh ? "接口条目" : "Endpoints"}</span><strong>{apiEndpoints.length}</strong></div>
         <div><span>{zh ? "已实现" : "Implemented"}</span><strong>{implemented}</strong></div>
-        <div><span>{zh ? "草案分支" : "Draft branch"}</span><strong>{draft}</strong></div>
+        <div><span>{zh ? "本地草案" : "Local draft"}</span><strong>{draft}</strong></div>
         <div><span>{zh ? "契约阻塞" : "Contract blocker"}</span><strong>{blocked}</strong></div>
         <div className={styles.authority}>
           <ShieldCheck size={18} />
           <span>{zh ? "权威边界" : "Authority"}</span>
           <strong>A1 Capture · A2 Judge · A3 Operate</strong>
+        </div>
+      </section>
+
+      <section className={styles.upstreamDelta} aria-label={zh ? "上游契约更新" : "Upstream contract delta"}>
+        <header>
+          <span>UPSTREAM MAIN INTEGRATION / 2026-07-12</span>
+          <strong>{zh ? "A1 身份会话与 A2 可信判定链已进入 main，首次 OAuth 登录仍未完成" : "A1 identity sessions and the A2 trusted decision spine are in main; initial OAuth sign-in remains incomplete"}</strong>
+        </header>
+        <div>
+          <article>
+            <span>A1 · {apiReferenceMeta.a1Sha}</span>
+            <strong>{zh ? "安全浏览器会话" : "Secure browser session"}</strong>
+            <p>{zh ? "邮箱 login/recovery 可签发双 HttpOnly Cookie，并支持同源轮换、幂等重放和复用检测。Google/GitHub 仍只有账号绑定。" : "Email login/recovery can issue paired HttpOnly cookies with same-origin rotation, idempotent replay, and reuse detection. Google/GitHub remain account-linking only."}</p>
+            <StatusBadge value={zh ? "main 已集成" : "Integrated in main"} tone="pass" />
+          </article>
+          <article>
+            <span>A2 · {apiReferenceMeta.a2Sha}</span>
+            <strong>{zh ? "可信证据与决策账本" : "Trusted evidence and decision ledger"}</strong>
+            <p>{zh ? "可信链会直接校验 A1 RunResult、五层作用域与 validation_errors；A3 只读取 decision、provenance hash 和 chain 状态。" : "The trusted spine directly validates A1 RunResult, five-level scope, and validation_errors; A3 only reads the decision, provenance hash, and chain state."}</p>
+            <div className={styles.schemaTags}>
+              <code>{apiReferenceMeta.a2EvidenceSnapshotSchema}</code>
+              <code>{apiReferenceMeta.a2DecisionLedgerSchema}</code>
+              <code>{apiReferenceMeta.a2TrustedSpineSchema}</code>
+              {apiReferenceMeta.a2RequiredScope.map((field) => <code key={field}>{field}</code>)}
+            </div>
+            <StatusBadge value={zh ? "main 已集成" : "Integrated in main"} tone="pass" />
+          </article>
         </div>
       </section>
 
@@ -161,8 +188,8 @@ export function ApiReferencePage() {
 
       <footer className={styles.sourceFooter}>
         <span>main {apiReferenceMeta.mainSha}</span>
-        <span>A1 {apiReferenceMeta.a1Sha} · open draft</span>
-        <span>A2 {apiReferenceMeta.a2Sha}</span>
+        <span>A1 {apiReferenceMeta.a1Sha} · merged to main</span>
+        <span>A2 {apiReferenceMeta.a2Sha} · merged to main</span>
         <span>{zh ? "不包含 key、token、cookie 或真实账号数据" : "No keys, tokens, cookies, or real account data"}</span>
       </footer>
     </>
@@ -181,7 +208,7 @@ function PayloadBlock({ title, value }: { title: string; value: unknown }) {
 function statusLabel(status: ApiStatus, zh: boolean) {
   const labels = {
     implemented: zh ? "已实现" : "Implemented",
-    draft: zh ? "草案分支" : "Draft branch",
+    draft: zh ? "本地草案" : "Local draft",
     blocked: zh ? "契约阻塞" : "Contract blocked"
   } as const;
   return labels[status];

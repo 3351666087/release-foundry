@@ -7,6 +7,7 @@ const expectedRoutes = [
   "api-reference-page.tsx",
   "billing-page.tsx",
   "case-page.tsx",
+  "delivery-page.tsx",
   "login-page.tsx",
   "overview-page.tsx",
   "projects-page.tsx",
@@ -24,7 +25,7 @@ test("A3 webapp exposes the complete product workflow as typed routes", async ()
     readdir(new URL("components/pages/", webappUrl))
   ]);
 
-  for (const route of ["login", "overview", "projects", "runs", "case", "review", "reports", "api-reference", "team", "billing", "trust"]) {
+  for (const route of ["login", "overview", "projects", "runs", "case", "review", "reports", "delivery", "api-reference", "team", "billing", "trust"]) {
     assert.match(routesSource, new RegExp(`id: "${route}"`));
   }
   assert.deepEqual(pageFiles.filter((file) => file.endsWith("-page.tsx")).sort(), expectedRoutes);
@@ -42,11 +43,15 @@ test("A3 webapp consumes A1 and A2 through the existing read-only dashboard API"
   ]);
 
   assert.match(apiSource, /\/api\/a3\/dashboard/);
-  assert.match(apiSource, /x-a3-role/);
+  assert.match(apiSource, /credentials:\s*"include"/);
+  assert.doesNotMatch(apiSource, /headers:\s*\{\s*"x-a3-role"/);
   assert.match(apiSource, /run_fixture/);
   assert.match(apiSource, /grade_fixture/);
+  assert.match(apiSource, /trusted_release_authority/);
   assert.match(providerSource, /fetchDashboard/);
   assert.match(overviewSource, /a1_a2_evidence_spine/);
+  assert.match(overviewSource, /trustedReleaseAuthority/);
+  assert.doesNotMatch(overviewSource, /releaseDecision\.includes\("block"\)/);
   assert.match(caseSource, /Trace timeline/);
   assert.match(caseSource, /Judge decisions/);
   assert.match(reviewSource, /A2 release authority/);
@@ -63,7 +68,8 @@ test("A3 webapp keeps auth and commercial writes explicitly fail-closed", async 
 
   assert.match(loginSource, /READ-ONLY DEMO IDENTITY/);
   assert.match(loginSource, /does not create an account/);
-  assert.match(loginSource, /startOAuth/);
+  assert.match(loginSource, /authContractCapabilities/);
+  assert.match(loginSource, /oauthInitialLogin/);
   assert.match(loginSource, /requestEmailVerification/);
   assert.match(loginSource, /contractBlocker/);
   assert.match(reviewSource, /disabled/);

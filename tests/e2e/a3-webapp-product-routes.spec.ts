@@ -7,6 +7,7 @@ const dataRoutes = [
   ["runs", "运行与案例"],
   ["review", "人工审核"],
   ["reports", "报告中心"],
+  ["delivery", "交付闭环"],
   ["api-reference", "API 文档与参考"],
   ["team", "团队与权限"],
   ["billing", "用量与计费"],
@@ -35,8 +36,8 @@ test.describe("A3 Next.js product console", () => {
 
     await page.goto(`${base}/login/`);
     await expect(page.getByRole("heading", { name: "进入工作区" })).toBeVisible();
-    await expect(page.getByRole("button", { name: /使用 Google 继续/ })).toBeVisible();
-    await expect(page.getByRole("button", { name: /使用 GitHub 继续/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Google 登录待接入/ })).toBeDisabled();
+    await expect(page.getByRole("button", { name: /GitHub 登录待接入/ })).toBeDisabled();
     await expect(page.locator(".auth-roadmap")).toContainText("A1 身份服务未连接");
     await page.screenshot({ path: "docs/screenshots/a3-webapp-login-desktop.png", fullPage: false });
 
@@ -47,6 +48,11 @@ test.describe("A3 Next.js product console", () => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto(`${base}/overview/`);
     await expect(page.getByRole("heading", { name: "发布总览" })).toBeVisible();
+    await expect(page.locator(".release-signal .status-badge")).toHaveText("integrity_invalid");
+    await expect(page.locator(".release-signal .status-badge")).toHaveClass(/status-fail/);
+    await expect(page.locator(".release-signal")).toContainText("当前不得发布");
+    await expect(page.locator(".release-signal")).toContainText("evidence_scope_mismatch");
+    await expect(page.locator(".partial-data-state")).toHaveCount(0);
 
     const visual = await page.evaluate(() => {
       const painted = [...document.querySelectorAll<HTMLElement>("body, body *")];
@@ -97,6 +103,45 @@ test.describe("A3 Next.js product console", () => {
     await expect(page.locator(".table-pagination")).toContainText("第 1 / 1 页");
   });
 
+  test("shows the new-run delivery golden path without overstating production readiness", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto(`${base}/delivery/?source=a3-golden-path`);
+    await expect(page.getByRole("heading", { name: "交付闭环" })).toBeVisible();
+    await expect(page.locator(".source-control select")).toHaveValue("a3-golden-path");
+    await expect(page.locator(".delivery-signal")).toContainText("候选版本保持阻塞");
+    await expect(page.locator(".delivery-stage-list article")).toHaveCount(11);
+    await expect(page.locator('.delivery-stage-list article[data-status="passed"]')).toHaveCount(7);
+    await expect(page.getByText("A2 Decision Ledger authorizes release", { exact: true })).toBeVisible();
+    await expect(page.getByText("Tenant-bound GitHub App installation", { exact: true })).toBeVisible();
+    await expect(page.getByText("Required Check enforced on main", { exact: true })).toBeVisible();
+    await expect(page.getByText("GitHub Actions artifact live readback", { exact: true })).toBeVisible();
+    const bounds = await page.evaluate(() => ({
+      viewport: document.documentElement.clientWidth,
+      documentScrollWidth: document.documentElement.scrollWidth,
+      routeRight: document.querySelector(".route-content")!.getBoundingClientRect().right
+    }));
+    expect(bounds.documentScrollWidth).toBeLessThanOrEqual(bounds.viewport);
+    expect(bounds.routeRight).toBeLessThanOrEqual(bounds.viewport);
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-delivery-golden-path-desktop.png", fullPage: false });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "交付闭环" })).toBeVisible();
+    await expect(page.locator(".route-content")).toHaveCSS("opacity", "1");
+    const mobileBounds = await page.evaluate(() => ({
+      viewport: document.documentElement.clientWidth,
+      documentScrollWidth: document.documentElement.scrollWidth,
+      bodyScrollWidth: document.body.scrollWidth,
+      signalRight: document.querySelector(".delivery-signal")!.getBoundingClientRect().right,
+      mobileNavDisplay: getComputedStyle(document.querySelector(".mobile-route-nav")!).display
+    }));
+    expect(mobileBounds.documentScrollWidth).toBeLessThanOrEqual(mobileBounds.viewport);
+    expect(mobileBounds.bodyScrollWidth).toBeLessThanOrEqual(mobileBounds.viewport);
+    expect(mobileBounds.signalRight).toBeLessThanOrEqual(mobileBounds.viewport);
+    expect(mobileBounds.mobileNavDisplay).toBe("grid");
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-delivery-golden-path-mobile-390x844.png", fullPage: false });
+  });
+
   test("switches Chinese and English without losing the selected evidence source", async ({ page }) => {
     await page.goto(`${base}/overview/?source=api-mock`);
     await expect(page.getByRole("heading", { name: "发布总览" })).toBeVisible();
@@ -110,11 +155,16 @@ test.describe("A3 Next.js product console", () => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto(`${base}/api-reference/`);
     await expect(page.getByRole("heading", { name: "API 文档与参考" })).toBeVisible();
+    await expect(page.getByText(/A1 身份会话与 A2 可信判定链已进入 main/)).toBeVisible();
+    await expect(page.getByText("organization_id", { exact: true })).toBeVisible();
+    await expect(page.getByText("可信证据与决策账本", { exact: true })).toBeVisible();
     await expect(page.getByText("请求邮箱验证码", { exact: true })).toBeVisible();
     await page.getByLabel("搜索 API").fill("missing_required_tool");
     await expect(page.getByRole("heading", { name: "评判单个案例" })).toBeVisible();
     await page.getByLabel("搜索 API").fill("verification");
     await expect(page.getByText("完成邮箱验证", { exact: true })).toBeVisible();
+    await page.getByLabel("搜索 API").fill("browser-sessions/refresh");
+    await expect(page.getByRole("heading", { name: "轮换浏览器会话", level: 2 })).toBeVisible();
     await page.screenshot({ path: "docs/screenshots/a3-webapp-api-reference-desktop.png", fullPage: false });
 
     await page.goto(`${base}/login/`);
@@ -167,6 +217,125 @@ test.describe("A3 Next.js product console", () => {
     await expect(page.locator(".route-content")).toHaveCSS("opacity", "1");
     await page.screenshot({ path: "docs/screenshots/a3-webapp-api-reference-mobile-390x844.png", fullPage: false });
     expect(consoleErrors).toEqual([]);
+  });
+
+  test("renders distinct hosted authentication and permission denial states", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.route("**/api/a3/dashboard**", async (route) => {
+      await route.fulfill({
+        status: 401,
+        contentType: "application/json",
+        body: JSON.stringify({
+          schema_version: "a3.route_access_error.v1",
+          error: "unauthorized",
+          message: "Authentication is required."
+        })
+      });
+    });
+    await page.goto(`${base}/overview/`);
+    const unauthenticated = page.locator('[data-boundary-state="unauthenticated"]');
+    await expect(unauthenticated).toContainText("请先登录");
+    await expect(unauthenticated.getByRole("link", { name: "前往登录" })).toHaveAttribute("href", `${base}/login/`);
+    await expect(unauthenticated.getByRole("button", { name: "重试" })).toHaveCount(0);
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-auth-required-desktop.png", fullPage: false });
+
+    await page.unroute("**/api/a3/dashboard**");
+    await page.route("**/api/a3/dashboard**", async (route) => {
+      await route.fulfill({
+        status: 403,
+        contentType: "application/json",
+        body: JSON.stringify({
+          schema_version: "a3.route_access_error.v1",
+          error: "forbidden",
+          message: "The request is not allowed."
+        })
+      });
+    });
+    await page.goto(`${base}/reports/`);
+    const denied = page.locator('[data-boundary-state="denied"]');
+    await expect(denied).toContainText("无权访问");
+    await expect(denied).toContainText("重新加载不会改变权限");
+    await expect(denied.getByRole("link")).toHaveCount(0);
+    await expect(denied.getByRole("button")).toHaveCount(0);
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-access-denied-desktop.png", fullPage: false });
+  });
+
+  test("renders a bounded partial-data state when unsafe aggregate records are excluded", async ({ page }) => {
+    await page.route("**/api/a3/dashboard**", async (route) => {
+      const response = await route.fetch();
+      const payload = await response.json();
+      payload.aggregate_scope_status = {
+        schema_version: "a3.aggregate_scope_status.v1",
+        strict_scope_enforced: true,
+        status: "partial",
+        excluded_record_count: 2,
+        excluded_counts: { auditEvents: 1, reviewWorkflowRecords: 1 },
+        reason: "Unsafe records were excluded.",
+        retry: "Re-ingest records with exact scope.",
+        safety: {
+          unscoped_records_included: false,
+          cross_tenant_fallback_allowed: false,
+          foreign_record_counts_exposed: false
+        }
+      };
+      await route.fulfill({ response, json: payload });
+    });
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto(`${base}/overview/`);
+    const desktopState = page.locator(".partial-data-state");
+    await expect(desktopState).toBeVisible();
+    await expect(desktopState).toContainText("2");
+    await expect(desktopState).toContainText("Re-ingest records with exact scope.");
+    await expect(desktopState.getByRole("button")).toHaveCount(0);
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-partial-data-desktop.png", fullPage: false });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.reload();
+    const mobileState = page.locator(".partial-data-state");
+    await expect(mobileState).toBeVisible();
+    const bounds = await page.evaluate(() => ({
+      viewport: document.documentElement.clientWidth,
+      documentScrollWidth: document.documentElement.scrollWidth,
+      bannerRight: document.querySelector(".partial-data-state")!.getBoundingClientRect().right
+    }));
+    expect(bounds.documentScrollWidth).toBeLessThanOrEqual(bounds.viewport);
+    expect(bounds.bannerRight).toBeLessThanOrEqual(bounds.viewport);
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-partial-data-mobile-390x844.png", fullPage: false });
+  });
+});
+
+test("A3 malformed JSON is a fixed 400 and never becomes an internal error", async ({ request }) => {
+  const response = await request.fetch("/api/a3/reports/share?source=mock", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    data: Buffer.from("{\"title\":\"unfinished request\"", "utf8")
+  });
+
+  expect(response.status()).toBe(400);
+  expect(await response.json()).toEqual({
+    schema_version: "a3.sanitized_bad_request.v1",
+    error: "invalid_json"
+  });
+  expect(await response.text()).not.toContain("unfinished request");
+});
+
+test("A3 OPTIONS resolves the requested route instead of bypassing access control", async ({ request }) => {
+  const protectedPreflight = await request.fetch("/api/a3/reports/share", {
+    method: "OPTIONS",
+    headers: { "access-control-request-method": "POST" }
+  });
+  expect(protectedPreflight.status()).toBe(204);
+  expect(await protectedPreflight.text()).toBe("");
+
+  const unsupportedPreflight = await request.fetch("/api/a3/reports/share", {
+    method: "OPTIONS",
+    headers: { "access-control-request-method": "TRACE" }
+  });
+  expect(unsupportedPreflight.status()).toBe(403);
+  expect(await unsupportedPreflight.json()).toEqual({
+    schema_version: "a3.sanitized_forbidden.v1",
+    error: "access_denied"
   });
 });
 

@@ -1,5 +1,17 @@
 export type OAuthProvider = "google" | "github";
 
+export const authContractCapabilities = {
+  sourceSha: "c784163",
+  sourceState: "merged_to_main",
+  oauthAccountLinking: true,
+  oauthInitialLogin: false,
+  emailChallengeRequest: true,
+  emailBrowserCompletion: false,
+  emailLoginSessionCookie: true,
+  browserSessionRefresh: true,
+  productionReady: false
+} as const;
+
 export type AuthRuntimeConfig = {
   apiBaseUrl: string | null;
   projectId: string;
@@ -8,7 +20,7 @@ export type AuthRuntimeConfig = {
   reason: "ready" | "api_base_missing" | "api_base_invalid" | "project_missing" | "tenant_missing";
 };
 
-type OAuthStartResponse = {
+type OAuthAccountLinkStartResponse = {
   schema_version: string;
   provider: OAuthProvider;
   authorize_url: string;
@@ -36,6 +48,11 @@ export type VerificationCompleteResponse = {
     kind: string;
     verified: boolean;
   };
+};
+
+export type IdentitySessionRefreshResponse = {
+  schema_version: "ashr.identity_session_refresh.v1";
+  status: "rotated";
 };
 
 const rawApiBase = process.env.NEXT_PUBLIC_A1_API_BASE_URL || "";
@@ -69,7 +86,7 @@ export function getAuthRuntimeConfig(): AuthRuntimeConfig {
   };
 }
 
-export async function startOAuth(provider: OAuthProvider): Promise<OAuthStartResponse> {
+export async function startOAuthAccountLinking(provider: OAuthProvider): Promise<OAuthAccountLinkStartResponse> {
   const config = requireConfig();
   const payload = await fetchJson(
     `${config.apiBaseUrl}/v1/projects/${encodeURIComponent(config.projectId)}/oauth/${provider}/start`,
@@ -161,6 +178,33 @@ export async function completeEmailVerification(input: {
   };
 }
 
+export async function refreshIdentitySession(accountId: string): Promise<IdentitySessionRefreshResponse> {
+  const config = requireConfig();
+  const apiOrigin = new URL(config.apiBaseUrl).origin;
+  if (window.location.origin !== apiOrigin) {
+    throw new AuthApiError(
+      "A1 browser session refresh requires the webapp and API to share one origin.",
+      "identity_session_same_origin_required"
+    );
+  }
+  const normalizedAccountId = normalizeScopeId(accountId, "account_id");
+  const payload = await fetchJson(
+    `${config.apiBaseUrl}/v1/projects/${encodeURIComponent(config.projectId)}/accounts/${encodeURIComponent(normalizedAccountId)}/browser-sessions/refresh`,
+    {
+      method: "POST",
+      headers: { "Idempotency-Key": `a3-refresh-${crypto.randomUUID()}` },
+      credentials: "include"
+    }
+  );
+  if (readString(payload, "status") !== "rotated") {
+    throw new AuthApiError("A1 returned an unexpected session refresh status.", "identity_session_refresh_invalid");
+  }
+  return {
+    schema_version: "ashr.identity_session_refresh.v1",
+    status: "rotated"
+  };
+}
+
 function requireConfig(): AuthRuntimeConfig & { apiBaseUrl: string } {
   const config = getAuthRuntimeConfig();
   if (!config.configured || !config.apiBaseUrl) {
@@ -198,6 +242,14 @@ function normalizeEmail(value: string) {
   const normalized = value.trim().toLowerCase();
   if (normalized.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalized)) {
     throw new AuthApiError("Enter a valid email address.", "email_invalid");
+  }
+  return normalized;
+}
+
+function normalizeScopeId(value: string, field: string) {
+  const normalized = value.trim();
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{1,255}$/.test(normalized)) {
+    throw new AuthApiError(`${field} is invalid.`, "identity_scope_invalid");
   }
   return normalized;
 }

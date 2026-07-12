@@ -1,0 +1,165 @@
+{
+  "schema_version": "a3.request_boundary_audit_evidence.v1",
+  "captured_at": "2026-07-12T00:00:00.000Z",
+  "source": "local_automated_integration_and_e2e",
+  "proof_level": "implemented_local",
+  "production_validated": false,
+  "authority": {
+    "identity_and_session": "A1",
+    "route_authorization_and_audit_orchestration": "A3",
+    "release_decision": "A2"
+  },
+  "cases": [
+    {
+      "case_id": "malformed_json_authorized",
+      "transport_method": "POST",
+      "route_pattern": "/api/a3/reports/share",
+      "request_body_state": "malformed_json",
+      "principal_state": "trusted_and_authorized",
+      "expected_status": 400,
+      "expected_error": "invalid_json",
+      "body_read": true,
+      "access_audit": "route_access.denied"
+    },
+    {
+      "case_id": "malformed_json_unauthenticated",
+      "transport_method": "POST",
+      "route_pattern": "/api/a3/reports/share",
+      "request_body_state": "not_read",
+      "principal_state": "missing",
+      "expected_status": 401,
+      "expected_error": "authentication_required",
+      "body_read": false,
+      "access_audit": "route_access.denied"
+    },
+    {
+      "case_id": "malformed_json_forbidden",
+      "transport_method": "POST",
+      "route_pattern": "/api/a3/reports/share",
+      "request_body_state": "not_read",
+      "principal_state": "trusted_without_permission",
+      "expected_status": 403,
+      "expected_error": "access_denied",
+      "body_read": false,
+      "access_audit": "route_access.denied"
+    },
+    {
+      "case_id": "body_read_timeout_authorized",
+      "transport_method": "POST",
+      "route_pattern": "/api/a3/reports/share",
+      "request_body_state": "body_read_timeout",
+      "principal_state": "trusted_and_authorized",
+      "expected_status": 408,
+      "expected_error": "request_timeout",
+      "body_read": true,
+      "access_audit": "route_access.denied"
+    },
+    {
+      "case_id": "payload_too_large_authorized",
+      "transport_method": "POST",
+      "route_pattern": "/api/a3/reports/share",
+      "request_body_state": "payload_too_large",
+      "principal_state": "trusted_and_authorized",
+      "expected_status": 413,
+      "expected_error": "payload_too_large",
+      "body_read": false,
+      "access_audit": "route_access.denied"
+    },
+    {
+      "case_id": "unsupported_media_type_authorized",
+      "transport_method": "POST",
+      "route_pattern": "/api/a3/reports/share",
+      "request_body_state": "unsupported_media_type",
+      "principal_state": "trusted_and_authorized",
+      "expected_status": 415,
+      "expected_error": "unsupported_media_type",
+      "body_read": false,
+      "access_audit": "route_access.denied"
+    },
+    {
+      "case_id": "invalid_json_shape_authorized",
+      "transport_method": "POST",
+      "route_pattern": "/api/a3/reports/share",
+      "request_body_state": "invalid_json_shape",
+      "principal_state": "trusted_and_authorized",
+      "expected_status": 422,
+      "expected_error": "invalid_json_shape",
+      "body_read": true,
+      "access_audit": "route_access.denied"
+    },
+    {
+      "case_id": "protected_options_authorized",
+      "transport_method": "OPTIONS",
+      "preflight_for_method": "POST",
+      "route_pattern": "/api/a3/reports/share",
+      "principal_state": "trusted_and_authorized",
+      "expected_status": 204,
+      "expected_error": null,
+      "body_read": false,
+      "access_audit": "route_access.allowed"
+    },
+    {
+      "case_id": "protected_options_unauthenticated",
+      "transport_method": "OPTIONS",
+      "preflight_for_method": "POST",
+      "route_pattern": "/api/a3/reports/share",
+      "principal_state": "missing",
+      "expected_status": 401,
+      "expected_error": "authentication_required",
+      "body_read": false,
+      "access_audit": "route_access.denied"
+    },
+    {
+      "case_id": "protected_options_unregistered",
+      "transport_method": "OPTIONS",
+      "preflight_for_method": "POST",
+      "route_pattern": null,
+      "principal_state": "not_resolved",
+      "expected_status": 403,
+      "expected_error": "access_denied",
+      "body_read": false,
+      "access_audit": "route_access.denied"
+    },
+    {
+      "case_id": "protected_options_unsupported_method",
+      "transport_method": "OPTIONS",
+      "preflight_for_method": null,
+      "route_pattern": null,
+      "principal_state": "not_resolved",
+      "expected_status": 403,
+      "expected_error": "access_denied",
+      "body_read": false,
+      "access_audit": "route_access.denied"
+    },
+    {
+      "case_id": "public_health_options",
+      "transport_method": "OPTIONS",
+      "preflight_for_method": "GET",
+      "route_pattern": "/api/a3/health",
+      "principal_state": "not_required",
+      "expected_status": 204,
+      "expected_error": null,
+      "body_read": false,
+      "access_audit": "not_required_for_public_health"
+    }
+  ],
+  "audit_policy": {
+    "payload_inline": false,
+    "redaction_status": "metadata_only",
+    "raw_request_body_stored": false,
+    "raw_identity_stored": false,
+    "raw_token_stored": false,
+    "raw_cookie_stored": false,
+    "raw_origin_stored": false,
+    "source": "hosted-access",
+    "default_maximum_body_bytes": 1048576,
+    "default_body_read_timeout_ms": 10000,
+    "required_media_type": "application/json",
+    "required_top_level_shape": "object"
+  },
+  "limitations": [
+    "This is local implementation evidence, not a customer-like production deployment receipt.",
+    "A deployed A1 principal verifier and durable production audit store are still required.",
+    "The OPTIONS contract does not claim that cross-origin CORS is enabled."
+  ]
+}

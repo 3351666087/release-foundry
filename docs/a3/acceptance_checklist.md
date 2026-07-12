@@ -1,5 +1,129 @@
 ﻿# A3 Acceptance Checklist
 
+## New A3 Lane Goal / Trusted Resource Isolation - 2026-07-12
+
+- [x] Read the new A3 Lane Goal and preserve it as the continuing enterprise
+  Product / Workflow / Commercial UI mandate.
+- [x] Confirm GitHub `main` is `ccf6ce5` through the official connector after
+  direct Git HTTPS was reset.
+- [x] Confirm local and remote-main strategy blob is `575b31b8`.
+- [x] Keep A1 as identity/runtime/usage/deploy authority.
+- [x] Keep A2 as grade/evidence/Decision Ledger/Release Decision authority.
+- [x] Keep A2 `release_ready=false` and do not recompute Release Ready in A3.
+- [x] Require a per-request server-side principal resolver in hosted mode.
+- [x] Require trusted, authenticated, active, unexpired principal state.
+- [x] Require explicit effective permissions and actor/subject reference.
+- [x] Reject browser role/header/query/body authority in hosted mode.
+- [x] Make hosted `source` lookup exact with no foreign snapshot fallback.
+- [x] Validate organization, tenant, workspace, project, and environment
+  before returning tenant-owned data.
+- [x] Compare report source and all five scope fields.
+- [x] Support colliding report IDs through a scope-aware internal key.
+- [x] Prove colliding run/case/report IDs cannot cross tenants.
+- [x] Ignore client report-view time and use the server clock.
+- [x] Prove expired share tokens cannot be backdated into an allowed state.
+- [x] Persist metadata-only denial audit for unknown hosted routes.
+- [x] Align runtime 401/403 with closed OpenAPI denial schemas.
+- [x] Technically prevent demo mode from performing live GitHub mutations.
+- [x] Preserve dry-run GitHub planning in demo mode.
+- [x] Default direct server startup to hosted enforcement regardless of
+  `NODE_ENV`; require an explicit setting for demo mode.
+- [x] Disable standalone CLI live GitHub publication before token or network
+  access and keep the workflow example dry-run/read-only.
+- [x] Require an A2 release-ready, chain-verified Decision Ledger record and
+  current ledger selectors before live GitHub transport.
+- [x] Require a server-side A2 authority resolver, A1 trusted worker, and
+  tenant-bound GitHub installation target for hosted live publication.
+- [x] Prove self-consistent local A2 allow JSON cannot authorize transport.
+- [x] Reject exception approval when only a foreign-scope waiver ID exists.
+- [x] Keep the merged-main A2 `release_ready=false` fixture blocked from live
+  publication.
+- [x] Exclude foreign and legacy unscoped audit/admin/review/readback/GitHub/
+  import records from hosted aggregates.
+- [x] Persist source and all five scope fields on newly created aggregate
+  records and their metadata-only audit receipts.
+- [x] Expose `a3.aggregate_scope_status.v1` with honest `partial` status and
+  excluded counts.
+- [x] Normalize Partial state in the typed Webapp client and render a
+  Chinese-first retry path.
+- [x] Prove the Partial banner is bounded on desktop and 390 x 844 mobile.
+- [x] Persist access decisions across SQLite restart as local durability proof.
+- [x] Persist GitHub publish receipts and event-outbox rows in dedicated SQLite
+  tables and verify them with direct SQL queries after restart.
+- [x] Preserve two same-name sources across different five-level tenant scopes.
+- [x] Scope A1/A2 import idempotency namespaces by source plus tenant scope.
+- [x] Validate runtime/OpenAPI parity for all `53/53` protected operations and
+  enforce permission equality with the RBAC registry.
+- [x] Report fixture storage as `db_ready=false`; reserve true for SQLite.
+- [x] Render Partial-scope warning before empty data state.
+- [x] Clear stale Webapp data and distinguish 401/403/404/network/server states.
+- [x] Save Chinese 401/403 screenshots without account or secret data.
+- [x] Full A3 Node suite passes (`387/387`).
+- [x] Webapp typecheck and production build pass.
+- [x] Fresh-port Playwright suite passes (`33/33`).
+- [x] A1 TypeScript session lifecycle passes (`35/35`).
+- [x] A2 trusted spine passes (`7/7`).
+- [x] Commercial and hygiene CL guards pass.
+- [x] Changed-file real-format long token/key scan reports zero matches;
+  credential-shaped negative-test fixtures remain redacted test inputs.
+- [x] `.env.local` remains ignored and absent from Git status.
+- [x] `git diff --check` passes.
+- [ ] Wire the hosted resolver to a deployed A1 session/service-account
+  verifier; the current interface is not production identity proof.
+- [ ] Replace memory/SQLite authority with PostgreSQL and forced RLS.
+- [x] Replace source-only snapshot keys with a source plus five-level scope
+  composite identity and prove same-source multi-tenant coexistence locally.
+- [ ] Persist all five scope columns in authoritative SQL tables and enforce
+  them in every repository query.
+- [x] Generate and validate exact runtime-route/OpenAPI parity (`53/53`).
+- [x] Audit malformed JSON and protected OPTIONS attempts consistently in the
+  local hosted-reference path; production ingress/CORS/RLS proof remains open.
+- [ ] Prove customer IdP, multi-instance, object custody, GitHub worker,
+  deployment, upgrade, rollback, backup, and restore in a customer-like VPC.
+
+## Round 12 Request Boundary - 2026-07-12
+
+- [x] Authenticate and authorize hosted protected mutations before consuming
+  their request body.
+- [x] Preserve sanitized `401/403` precedence for missing identity, permission,
+  or five-level scope.
+- [x] Return fixed metadata-only `400` for authorized malformed JSON.
+- [x] Require `application/json` and return fixed `415` otherwise.
+- [x] Require a top-level JSON object and return fixed `422` for null, arrays,
+  strings, and numbers.
+- [x] Enforce a default 1 MiB streaming body limit with fixed `413`.
+- [x] Enforce a default 10 second body-read deadline with fixed `408`.
+- [x] Persist `request_body_state`, decision, status, canonical operation,
+  transport method, preflight target, and metadata-only five-level scope.
+- [x] Keep raw body, identity, token, cookie, origin, path parameters, and
+  client-selected audit source out of persisted access events.
+- [x] Resolve protected `OPTIONS` against `Access-Control-Request-Method`
+  before returning `204`.
+- [x] Reject missing/unsupported/unregistered protected preflight targets with
+  sanitized audit-backed failures.
+- [x] Keep public health preflight distinct from protected routes.
+- [x] Add closed OpenAPI `400/408/413/415/422` responses and protected OPTIONS
+  metadata to all 53 runtime RBAC operations.
+- [x] Document sanitized fail-closed `503` when authorization configuration or
+  access-audit persistence is unavailable.
+- [x] Keep runtime/OpenAPI parity at `53/53`.
+- [x] Run focused Node request-boundary tests (`44/44`).
+- [x] Run the full A3 Node suite (`397/397`).
+- [x] Run the CI-mainline Webapp/HTTP Playwright spec (`10/10`).
+- [x] Run the full fresh-port Playwright suite with one worker (`35/35`).
+- [x] Pass Webapp TypeScript and Next.js production build (14 pages).
+- [x] Pass A1 TypeScript session lifecycle (`35/35`) and A2 trusted spine
+  (`7/7`) without changing either lane's semantics.
+- [x] Pass commercial and hygiene CL checks with no findings.
+- [x] Record independent Money-Grade findings, remediation, capability levels,
+  and 24 next-round growth points.
+- [ ] Generate the redacted request-boundary evidence from a runtime probe with
+  receipt IDs, hashes, commit SHA, and verifier output.
+- [ ] Prove dual-Origin browser CORS/CSRF behavior behind a production-like
+  ingress and deployed A1 principal verifier.
+- [ ] Move authoritative audit custody to PostgreSQL with five-level columns,
+  forced RLS, transactional outbox, retention, backup, and restore proof.
+
 ## G2.3 Dashboard Skeleton
 
 - [x] `apps/dashboard` exists.
@@ -991,6 +1115,75 @@
 - [x] Pass current-main A1/A2 Python contracts (`562 pass / 5 skip`, `1013 subtests pass`).
 - [x] Pass commercial CL, hygiene CL, dependency audit, diff check, and high-confidence secret scan.
 - [x] Save desktop API/auth/email and mobile API Reference screenshots.
-- [ ] Merge or consume A1 hosted identity only after its open draft PR passes review and enters main.
+- [x] Consume the implemented A1 account-linking/session/challenge contracts after A1 `c784163` entered `main` `7dd14d7`.
 - [ ] Close the browser email-verification flow after A1 delivers mailbox-bound challenge context.
 - [ ] Close hosted OAuth login after A1 callback establishes a durable session and performs an exact allowlisted redirect.
+
+## Upstream Identity + Trusted Spine Alignment Patch - 2026-07-11
+
+- [x] Fetch current remote refs and confirm this branch contains `origin/main` `5dbf4ee`.
+- [x] Recalibrate against A1 `c784163` and A2 `47c05e5` without merging either draft branch.
+- [x] Correct Google/GitHub from initial-login wording to authenticated account linking.
+- [x] Keep initial provider login controls disabled instead of presenting a false success path.
+- [x] Add explicit A1 capability metadata and a same-origin typed browser-session refresh adapter.
+- [x] Never read or persist A1 access or refresh cookie values.
+- [x] Add A1 browser-session refresh plus A2 evidence-snapshot/decision-ledger facts to API Reference.
+- [x] Preserve A2 as the only grade and release-decision authority.
+- [x] Upgrade the public-safe auth fixture to `a3.auth_contract_snapshot.v2`.
+- [x] Pass focused A3 auth/reference contract tests (`9 pass / 0 fail`).
+- [x] Pass TypeScript typecheck, Next.js production build, and `git diff --check`.
+- [x] Record fresh desktop/mobile browser screenshots after the correction.
+- [x] Pass full A3, Playwright, A1/A2 peer-contract, CL, dependency, and secret checks.
+- [x] Consume these identity and trusted-spine contracts as authoritative after A1 `c784163` and A2 `8cd1d4f` entered `main` `7dd14d7`.
+
+## Merged-main Identity + Trusted Spine Recalibration - 2026-07-12
+
+- [x] Confirm current GitHub `main` is `ccf6ce5` and contains A1 `c784163` plus A2 `8cd1d4f` through integration commit `7dd14d7`.
+- [x] Re-read the unified provider-neutral enterprise Release strategy merged in `ccf6ce5`.
+- [x] Replace A3 API Reference open-draft labels with merged-main implementation state.
+- [x] Keep Google/GitHub initial sign-in unavailable; do not confuse account linking with first login.
+- [x] Keep browser email-verification completion blocked until mailbox-bound challenge context exists.
+- [x] Upgrade the public-safe auth snapshot to `a3.auth_contract_snapshot.v3`.
+- [x] Record A2's required `organization_id`, `tenant_id`, `workspace_id`, `project_id`, and `environment_id` scope.
+- [x] Record `scope_complete`, `validation_errors`, direct A1 RunResult validation, and `release_ready=false`.
+- [x] Remove the obsolete `a1_auth_not_in_main` blocker.
+- [x] Preserve A2 as the only score, failure-class, and release-decision authority.
+- [x] Keep key, token, cookie, OTP, email, and account data out of source, fixtures, docs, and screenshots.
+- [ ] Add initial Google/GitHub login only after A1 publishes an authenticated callback-to-Webapp session flow.
+- [ ] Enable browser verification completion only after A1 publishes mailbox-bound challenge context and registration session handoff.
+
+## Release Delivery Golden Path - 2026-07-12
+
+- [x] Re-read the latest known main strategy and current A1/A2 contracts before editing A3.
+- [x] Generate a fresh A1 TypeScript RunResult instead of reusing run `11926`.
+- [x] Feed the exact new A1 cases through the existing A2 internal judge service.
+- [x] Preserve A2 score, pass/fail, failure class, and Trusted Spine release authority.
+- [x] Prove that A1 execution success can coexist with A2 evaluation failure.
+- [x] Include the media-pipeline scenario `A2-S031` in the new run.
+- [x] Add an A2 judge-service wrapper adapter to Gate CLI without changing A2 semantics.
+- [x] Add the A2 Trusted Spine as an authority record in the run-specific Audit Bundle.
+- [x] Verify the new Audit Bundle root, 14 artifacts, and 7 custody events.
+- [x] Verify the signed archive root, signature, and 15 entries.
+- [x] Add a versioned `a3.release_artifact_manifest.v1` and verifier.
+- [x] Add a 16-check `a3.deployment_acceptance.v1` that fails closed.
+- [x] Add an 11-stage `a3.delivery_golden_path.v1` that does not overstate readiness.
+- [x] Reject contract-only GitHub receipts as live production evidence.
+- [x] Add read-only GitHub Check, PR comment, and required-check observation CLI.
+- [x] Add a Next.js `/delivery` page and `a3-golden-path` data source.
+- [x] Add CI generation and GitHub Actions artifact upload for `0.2.0-rc.1`.
+- [x] Add release notes, implementation docs, and a 30-point growth audit.
+- [x] Pass final A3 Node (`406/406`) and A2 (`186/186`, `1050` subtests) contract suites.
+- [x] Pass Next.js typecheck/build (15 pages) and route-level Playwright (`11/11`).
+- [x] Pass CL, dependency audit, YAML/JSON, secret/path, and diff hygiene checks.
+- [x] Record Docker/PostgreSQL, Go, and Cargo-dependent A1 checks as local environment gaps without changing upstream tests.
+- [x] Produce and download a real GitHub Actions release-candidate artifact for commit `01f8707`.
+- [x] Separate candidate-head SHA from the CI-tested pull-request merge SHA.
+- [x] Attach a real GitHub Check readback for candidate `ad6113e`.
+- [x] Publish and read back a real operator PR comment for candidate `ad6113e`.
+- [x] Download and verify the real versioned GitHub Actions artifact receipt.
+- [x] Make CI independently verify and upload the sealed candidate packet instead of regenerating a different head-bound packet.
+- [x] Normalize generated evidence to LF and prove the sealed packet is byte-stable across Windows and Linux.
+- [ ] Install and prove a tenant-bound custom GitHub App.
+- [ ] Enable branch protection and prove the required check is enforced.
+- [ ] Attach a deployed staging/VPC acceptance receipt.
+- [ ] Obtain a new A2 `allow` Decision Ledger record before any production release.

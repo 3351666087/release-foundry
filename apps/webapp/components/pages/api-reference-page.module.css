@@ -55,6 +55,73 @@
   border: 1px solid var(--line-strong);
 }
 
+.upstreamDelta {
+  margin-bottom: 28px;
+  border-top: 1px solid var(--ink);
+  border-bottom: 1px solid var(--ink);
+}
+
+.upstreamDelta > header {
+  display: grid;
+  gap: 4px;
+  padding: 13px 2px;
+}
+
+.upstreamDelta > header span,
+.upstreamDelta article > span {
+  color: var(--ember);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 800;
+}
+
+.upstreamDelta > header strong {
+  font-family: var(--font-display);
+  font-size: 18px;
+}
+
+.upstreamDelta > div {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-top: 1px solid var(--line);
+}
+
+.upstreamDelta article {
+  display: grid;
+  min-height: 150px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-content: start;
+  gap: 7px 14px;
+  padding: 18px 20px;
+  border-right: 1px solid var(--line);
+}
+
+.upstreamDelta article:last-child { border-right: 0; }
+.upstreamDelta article > span,
+.upstreamDelta article > p { grid-column: 1 / -1; }
+.upstreamDelta article > strong { font-family: var(--font-display); font-size: 20px; }
+.upstreamDelta article > p { color: var(--ink-soft); font-size: 10px; }
+.upstreamDelta article > :last-child { grid-column: 2; grid-row: 2; }
+
+.schemaTags {
+  display: flex;
+  grid-column: 1 / -1;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.schemaTags code {
+  max-width: 100%;
+  padding: 4px 6px;
+  overflow-wrap: anywhere;
+  color: var(--ink-soft);
+  background: var(--surface-soft);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  font-family: var(--font-mono);
+  font-size: 8px;
+}
+
 .toolbar {
   display: flex;
   min-height: 64px;
@@ -312,6 +379,9 @@
   .endpointRail { max-height: 260px; border-right: 0; border-bottom: 1px solid var(--line-strong); }
   .endpointDetail { padding: 25px 20px 30px; }
   .sourceFooter span:last-child { width: 100%; margin-left: 0; }
+  .upstreamDelta > div { grid-template-columns: minmax(0, 1fr); }
+  .upstreamDelta article { border-right: 0; border-bottom: 1px solid var(--line); }
+  .upstreamDelta article:last-child { border-bottom: 0; }
 }
 
 @media (max-width: 560px) {

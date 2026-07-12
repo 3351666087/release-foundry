@@ -148,7 +148,7 @@ test("A3 SaaS admin export and artifact registry include auth/RBAC boundary evid
 
 test("A3 API exposes auth/RBAC boundary routes without leaking actor secrets", async () => {
   const store = await createFixtureBackedA3Store({ sources: ["mock"] });
-  const { server, url } = await startA3ApiServer({ store });
+  const { server, url } = await startA3ApiServer({ store, routeAccessMode: "demo_contract" });
   try {
     const actor = ["owner", "example.com"].join("@");
     const context = await getJson(`${url}/api/a3/auth/context?role=reviewer&actor_id=${encodeURIComponent(actor)}&organization_id=org-api&tenant_id=tenant-api&workspace_id=workspace-api&project_id=project-api`);

@@ -10,6 +10,7 @@ import {
   FolderKanban,
   Gauge,
   Languages,
+  PackageCheck,
   LogIn,
   SearchCheck,
   ShieldCheck,
@@ -29,6 +30,7 @@ const icons = {
   case: FileSearch,
   review: UserCheck,
   reports: FileText,
+  delivery: PackageCheck,
   "api-reference": BookOpenText,
   team: Users,
   billing: CreditCard,
@@ -89,6 +91,7 @@ export function AppShell({ route, children }: { route: ProductRoute; children: R
               <option value="p3-official-demo">Ashr demo 884/11926</option>
               <option value="raw-a1">Raw A1 RunResult</option>
               <option value="raw-a2">Raw A2 GradeResult</option>
+              <option value="a3-golden-path">A3 Golden Path 20260712</option>
             </select>
           </label>
           <div className="command-actions">
@@ -108,7 +111,7 @@ export function AppShell({ route, children }: { route: ProductRoute; children: R
         <main className="route-content" data-route={route}>{children}</main>
 
         <nav className="mobile-route-nav" aria-label="Mobile product navigation">
-          {productRoutes.filter((item) => ["overview", "runs", "review", "reports", "api-reference"].includes(item.id)).map((item) => {
+          {productRoutes.filter((item) => ["overview", "runs", "review", "delivery", "reports"].includes(item.id)).map((item) => {
             const Icon = icons[item.id];
             return <Link href={`/${item.id}`} className={route === item.id ? "active" : ""} key={item.id}><Icon size={17} /><span>{t(item.labelKey)}</span></Link>;
           })}

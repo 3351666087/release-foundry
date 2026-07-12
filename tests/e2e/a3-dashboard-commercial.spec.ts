@@ -20,7 +20,7 @@ test.describe("A3 dashboard commercial E2E", () => {
 
     await page.screenshot({
       path: "docs/screenshots/a3-playwright-dashboard-commercial-2026-07-09.png",
-      fullPage: true
+      fullPage: false
     });
   });
 
