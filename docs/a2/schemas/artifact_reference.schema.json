@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A2ArtifactReference",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "reference_id",
+    "tenant_scope",
+    "artifact_id",
+    "storage_provider",
+    "container_ref",
+    "object_ref",
+    "object_version",
+    "content_hash",
+    "size_bytes",
+    "media_type",
+    "purpose",
+    "issued_at",
+    "expires_at",
+    "authorization_binding_hash"
+  ],
+  "properties": {
+    "schema_version": { "const": "a2.artifact_reference.v1" },
+    "reference_id": { "$ref": "#/$defs/opaqueRef" },
+    "tenant_scope": { "$ref": "#/$defs/scope" },
+    "artifact_id": { "$ref": "#/$defs/opaqueRef" },
+    "storage_provider": {
+      "enum": ["a1-object-store", "s3-compatible", "azure-blob", "gcs"]
+    },
+    "container_ref": { "$ref": "#/$defs/opaqueRef" },
+    "object_ref": { "$ref": "#/$defs/opaqueRef" },
+    "object_version": {
+      "allOf": [
+        { "$ref": "#/$defs/opaqueRef" },
+        { "not": { "enum": ["latest", "current", "head", "LATEST", "CURRENT", "HEAD"] } }
+      ]
+    },
+    "content_hash": { "$ref": "#/$defs/hash" },
+    "size_bytes": { "type": "integer", "minimum": 1 },
+    "media_type": { "type": "string", "minLength": 1 },
+    "purpose": { "type": "string", "minLength": 1 },
+    "issued_at": { "type": "string", "format": "date-time" },
+    "expires_at": { "type": "string", "format": "date-time" },
+    "authorization_binding_hash": { "$ref": "#/$defs/hash" }
+  },
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "opaqueRef": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,255}$"
+    },
+    "scope": {
+      "type": "object",
+      "required": [
+        "organization_id",
+        "tenant_id",
+        "workspace_id",
+        "project_id",
+        "environment_id"
+      ],
+      "properties": {
+        "organization_id": { "type": "string", "minLength": 1 },
+        "tenant_id": { "type": "string", "minLength": 1 },
+        "workspace_id": { "type": "string", "minLength": 1 },
+        "project_id": { "type": "string", "minLength": 1 },
+        "environment_id": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

@@ -5,6 +5,7 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
+from .derived_evidence import public_derived_evidence
 from .result_persistence import redact_payload, stable_hash
 
 
@@ -31,6 +32,8 @@ def build_evidence_snapshot(
     created_at: str,
     required_modalities: list[str] | None = None,
     source_schema_version: str = "unknown",
+    artifact_pipeline_records: list[dict[str, Any]] | None = None,
+    derived_evidence_records: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Freeze public-safe A1 evidence metadata without storing raw evidence."""
     normalized = redact_payload(deepcopy(run_payload))
@@ -49,14 +52,26 @@ def build_evidence_snapshot(
     source = selected_case or normalized
     tool_calls = _tool_calls(source)
     artifacts = _artifact_descriptors(tool_calls)
-    observed_modalities = sorted(
+    pipeline_artifacts, pipeline_extractors, pipeline_errors = _artifact_pipeline_evidence(
+        artifact_pipeline_records or [],
+        scope=scope,
+    )
+    artifacts.extend(pipeline_artifacts)
+    validation_errors.extend(pipeline_errors)
+    artifact_modalities = sorted(
         {
             str(item["modality"])
             for item in artifacts
             if item.get("modality")
         }
-        | ({"text"} if _final_text(source) else set())
     )
+    derived_evidence, semantic_modalities, derived_errors = _derived_evidence(
+        derived_evidence_records or [],
+        artifacts=artifacts,
+        scope=scope,
+    )
+    validation_errors.extend(derived_errors)
+    observed_modalities = sorted(semantic_modalities | ({"text"} if _final_text(source) else set()))
     required = sorted(set(required_modalities or ["text"]))
     missing = sorted(set(required) - set(observed_modalities))
     trace_completeness = normalized.get("trace_completeness")
@@ -75,6 +90,7 @@ def build_evidence_snapshot(
         "source_schema_version": source_schema_version,
         "source_payload_hash": stable_hash(normalized),
         "required_modalities": required,
+        "artifact_modalities": artifact_modalities,
         "observed_modalities": observed_modalities,
         "completeness": completeness,
         "validation_errors": sorted(set(validation_errors)),
@@ -82,6 +98,7 @@ def build_evidence_snapshot(
         "tool_call_count": len(tool_calls),
         "tool_sequence": [str(call.get("tool") or call.get("name") or "") for call in tool_calls],
         "artifacts": artifacts,
+        "derived_evidence": derived_evidence,
         "extractor_provenance": [
             {
                 "extractor_id": "a2.public_safe_run_normalizer",
@@ -89,7 +106,8 @@ def build_evidence_snapshot(
                 "input_hash": stable_hash(normalized),
                 "status": "complete",
             }
-        ],
+        ]
+        + pipeline_extractors,
         "security": {
             "tenant_scoped": True,
             "scope_complete": True,
@@ -104,12 +122,148 @@ def build_evidence_snapshot(
     return snapshot_core
 
 
+def _derived_evidence(
+    records: list[dict[str, Any]],
+    *,
+    artifacts: list[dict[str, Any]],
+    scope: dict[str, str],
+) -> tuple[list[dict[str, Any]], set[str], list[str]]:
+    public_records: list[dict[str, Any]] = []
+    semantic_modalities: set[str] = set()
+    errors: list[str] = []
+    artifact_bindings = {
+        (str(item.get("artifact_id") or ""), str(item.get("content_hash") or ""))
+        for item in artifacts
+    }
+    for position, record in enumerate(records):
+        prefix = f"derived_evidence_{position}"
+        try:
+            public = public_derived_evidence(record)
+        except (KeyError, TypeError, ValueError):
+            errors.append(f"{prefix}_integrity_invalid")
+            continue
+        if public.get("tenant_scope") != scope:
+            errors.append(f"{prefix}_scope_mismatch")
+            continue
+        binding = (
+            str(public.get("artifact_id") or ""),
+            str(public.get("content_hash") or ""),
+        )
+        if binding not in artifact_bindings:
+            errors.append(f"{prefix}_artifact_binding_invalid")
+            continue
+        public_records.append(public)
+        if public.get("production_eligible") is not True:
+            errors.extend(
+                f"{prefix}_{blocker}"
+                for blocker in public.get("blockers", [])
+            )
+            if not public.get("blockers"):
+                errors.append(f"{prefix}_not_production_eligible")
+            continue
+        if public.get("derivation_type") == "ocr":
+            semantic_modalities.add("image")
+    return public_records, semantic_modalities, errors
+
+
+def _artifact_pipeline_evidence(
+    records: list[dict[str, Any]],
+    *,
+    scope: dict[str, str],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
+    artifacts: list[dict[str, Any]] = []
+    extractors: list[dict[str, Any]] = []
+    errors: list[str] = []
+    for position, record in enumerate(records):
+        prefix = f"artifact_pipeline_{position}"
+        if record.get("schema_version") != "a2.multimodal_artifact_pipeline.v1":
+            errors.append(f"{prefix}_schema_invalid")
+            continue
+        if record.get("tenant_scope") != scope:
+            errors.append(f"{prefix}_scope_mismatch")
+            continue
+        if record.get("pipeline_record_hash") != _pipeline_record_hash(record):
+            errors.append(f"{prefix}_integrity_invalid")
+            continue
+        resolution = record.get("artifact_reference_resolution")
+        if resolution is not None:
+            if not isinstance(resolution, dict):
+                errors.append(f"{prefix}_reference_resolution_contract_invalid")
+                continue
+            resolution_core = {
+                key: value for key, value in resolution.items() if key != "resolution_hash"
+            }
+            if (
+                resolution.get("schema_version")
+                not in {
+                    "a2.artifact_reference_resolution.v1",
+                    "a2.artifact_reference_resolution.v2",
+                }
+                or resolution.get("tenant_scope") != scope
+                or resolution.get("status") != "verified"
+                or resolution.get("resolution_hash") != stable_hash(resolution_core)
+            ):
+                errors.append(f"{prefix}_reference_resolution_integrity_invalid")
+                continue
+            if resolution.get("schema_version") == "a2.artifact_reference_resolution.v2" and (
+                resolution.get("signature_verified") is not True
+                or resolution.get("revocation_checked") is not True
+                or resolution.get("consumption_status") != "consumed"
+                or not resolution.get("authorization_receipt_hash")
+            ):
+                errors.append(f"{prefix}_reference_authorization_invalid")
+                continue
+        manifest = record.get("manifest")
+        extraction = record.get("extraction")
+        if not isinstance(manifest, dict) or not isinstance(extraction, dict):
+            errors.append(f"{prefix}_contract_invalid")
+            continue
+        blockers = record.get("blockers")
+        if not isinstance(blockers, list):
+            blockers = ["pipeline_blockers_invalid"]
+        eligible = record.get("evaluation_eligible") is True and not blockers
+        artifacts.append(
+            {
+                "artifact_id": str(manifest.get("artifact_id") or ""),
+                "modality": str(manifest.get("modality") or "file"),
+                "producer_tool": "a2.artifact_pipeline",
+                "reference_hash": str(manifest.get("manifest_id") or ""),
+                "reference_resolution_hash": str(
+                    (record.get("artifact_reference_resolution") or {}).get("resolution_hash")
+                    or ""
+                ),
+                "content_hash": str(manifest.get("content_hash") or ""),
+                "content_included": False,
+                "collection_status": "complete" if eligible else "invalid",
+            }
+        )
+        extractors.append(
+            {
+                "extractor_id": str(extraction.get("extractor_id") or ""),
+                "extractor_version": str(extraction.get("extractor_version") or ""),
+                "input_hash": str(extraction.get("input_hash") or ""),
+                "status": str(extraction.get("status") or "invalid"),
+            }
+        )
+        if not eligible:
+            errors.extend(f"{prefix}_{blocker}" for blocker in blockers)
+            if not blockers:
+                errors.append(f"{prefix}_not_evaluation_eligible")
+    return artifacts, extractors, errors
+
+
+def _pipeline_record_hash(record: dict[str, Any]) -> str:
+    core = {key: value for key, value in record.items() if key != "pipeline_record_hash"}
+    return stable_hash(core)
+
+
 def build_decision_record(
     evidence_snapshot: dict[str, Any],
     *,
     decision: str,
     release_gate_report: dict[str, Any],
     judge_results: list[dict[str, Any]],
+    provider_provenance: list[dict[str, Any]] | None = None,
     policy_version: str,
     policy_hash: str,
     model_versions: list[str],
@@ -128,6 +282,10 @@ def build_decision_record(
 
     safe_gate = redact_payload(deepcopy(release_gate_report))
     safe_judges = [redact_payload(deepcopy(item)) for item in judge_results]
+    safe_provider_provenance = [
+        _validate_provider_provenance(evidence_snapshot, redact_payload(deepcopy(item)))
+        for item in (provider_provenance or [])
+    ]
     abstain_count = sum(1 for item in safe_judges if str(item.get("outcome")) == "abstain")
     failed_judges = [
         str(item.get("judge_id") or item.get("judge_mode") or "unknown")
@@ -162,6 +320,27 @@ def build_decision_record(
             }
         ),
         "judge_result_hashes": [stable_hash(item) for item in safe_judges],
+        "provider_provenance_hashes": [stable_hash(item) for item in safe_provider_provenance],
+        "provider_summary": {
+            "call_count": len(safe_provider_provenance),
+            "providers": sorted(
+                {
+                    str(item.get("provider_id") or "unknown")
+                    for item in safe_provider_provenance
+                }
+            ),
+            "models": sorted(
+                {
+                    str(item.get("model_id") or "unknown")
+                    for item in safe_provider_provenance
+                }
+            ),
+            "blocked_call_count": sum(
+                1
+                for item in safe_provider_provenance
+                if item.get("status") != "ready" or item.get("evaluation_eligible") is not True
+            ),
+        },
         "judge_summary": {
             "judge_count": len(safe_judges),
             "failed_judges": failed_judges,
@@ -175,9 +354,37 @@ def build_decision_record(
     }
     if decision == "allow" and (hard_blockers or abstain_count):
         raise ValueError("hard blockers or abstentions cannot produce an allow decision")
+    if decision == "allow" and record_core["provider_summary"]["blocked_call_count"]:
+        raise ValueError("blocked provider provenance cannot produce an allow decision")
     record_core["record_id"] = stable_hash(record_core)
     record_core["record_hash"] = stable_hash(record_core)
     return record_core
+
+
+def _validate_provider_provenance(
+    evidence_snapshot: dict[str, Any],
+    provenance: dict[str, Any],
+) -> dict[str, Any]:
+    expected_scope = {
+        field: str(evidence_snapshot.get(field) or "")
+        for field in ("organization_id", "tenant_id", "workspace_id", "project_id", "environment_id")
+    }
+    actual_scope = provenance.get("tenant_scope")
+    if not isinstance(actual_scope, dict) or {
+        field: str(actual_scope.get(field) or "")
+        for field in expected_scope
+    } != expected_scope:
+        raise ValueError("provider provenance five-field scope mismatch")
+    if provenance.get("snapshot_id") != evidence_snapshot.get("snapshot_id"):
+        raise ValueError("provider provenance snapshot id mismatch")
+    if provenance.get("snapshot_hash") != evidence_snapshot.get("snapshot_hash"):
+        raise ValueError("provider provenance snapshot hash mismatch")
+    if provenance.get("release_authority") is not False:
+        raise ValueError("provider provenance cannot claim release authority")
+    required = ("logical_call_id", "provider_id", "model_id")
+    if any(not provenance.get(field) for field in required):
+        raise ValueError("provider provenance identity is incomplete")
+    return provenance
 
 
 def build_decision_ledger(
@@ -386,6 +593,7 @@ def _artifact_descriptors(tool_calls: list[dict[str, Any]]) -> list[dict[str, An
                 "modality": modality,
                 "producer_tool": tool,
                 "reference_hash": stable_hash(safe_ref),
+                "reference_resolution_hash": "",
                 "content_hash": stable_hash(output),
                 "content_included": False,
                 "collection_status": "complete",

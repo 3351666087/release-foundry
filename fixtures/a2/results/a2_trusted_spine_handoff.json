@@ -17,13 +17,17 @@
       "image",
       "text"
     ],
+    "artifact_modalities": [
+      "image"
+    ],
     "observed_modalities": [
-      "image",
       "text"
     ],
-    "completeness": "complete",
+    "completeness": "evidence_missing",
     "validation_errors": [],
-    "missing_modalities": [],
+    "missing_modalities": [
+      "image"
+    ],
     "tool_call_count": 3,
     "tool_sequence": [
       "media.fetch",
@@ -36,6 +40,7 @@
         "modality": "image",
         "producer_tool": "media.fetch",
         "reference_hash": "sha256:35296beed0d6b0109c8c8f334ef597fc3d70f8843669cbd2cf44653e3f8c6912",
+        "reference_resolution_hash": "",
         "content_hash": "sha256:5bfeeb0e8951eff13bb1658146936f23728074fc10f6f41e44918ac55a833f3a",
         "content_included": false,
         "collection_status": "complete"
@@ -45,11 +50,13 @@
         "modality": "image",
         "producer_tool": "image.view",
         "reference_hash": "sha256:35296beed0d6b0109c8c8f334ef597fc3d70f8843669cbd2cf44653e3f8c6912",
+        "reference_resolution_hash": "",
         "content_hash": "sha256:3bdc36bcfcb99368c2dca8d44764ee93635a3bcf34cc07c5c59eb48b2a5caca4",
         "content_included": false,
         "collection_status": "complete"
       }
     ],
+    "derived_evidence": [],
     "extractor_provenance": [
       {
         "extractor_id": "a2.public_safe_run_normalizer",
@@ -66,8 +73,8 @@
       "secrets_included": false,
       "artifact_content_included": false
     },
-    "snapshot_id": "sha256:6922ed2e09802f457c6037fdc78ef6fabac1a03e4ec23023acfc42e1cee7f61b",
-    "snapshot_hash": "sha256:44659a6542e127bf2f09f96027ce731890d780397915156b642dc557fcc1da26"
+    "snapshot_id": "sha256:04c6f7301e391cf404dd2617623832a483af7e3f691f9b5d3e79ea0a2f0aa56a",
+    "snapshot_hash": "sha256:04287e7321396f734dd460a12dd8c392e0fd4e892d930a7066fc0dbdb9cad9ad"
   },
   "decision_ledger": {
     "schema_version": "a2.decision_ledger.v1",
@@ -80,7 +87,7 @@
     "created_at": "2026-07-11T00:00:00Z",
     "record_count": 1,
     "genesis_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-    "head_hash": "sha256:31c417d9232f2e3b0361f63b8aad305304774d28d0f68ed6e093f1a0bffa1e18",
+    "head_hash": "sha256:609630b0db4a08167351f7b016918459966aeab1e9bd4923787252cc3f0de6d4",
     "records": [
       {
         "schema_version": "a2.decision_record.v1",
@@ -93,9 +100,9 @@
         "case_id": "sample-a2-s031-media-pipeline-pass",
         "scenario_id": "A2-S031",
         "created_at": "2026-07-11T00:00:00Z",
-        "evidence_snapshot_id": "sha256:6922ed2e09802f457c6037fdc78ef6fabac1a03e4ec23023acfc42e1cee7f61b",
-        "evidence_snapshot_hash": "sha256:44659a6542e127bf2f09f96027ce731890d780397915156b642dc557fcc1da26",
-        "evidence_completeness": "complete",
+        "evidence_snapshot_id": "sha256:04c6f7301e391cf404dd2617623832a483af7e3f691f9b5d3e79ea0a2f0aa56a",
+        "evidence_snapshot_hash": "sha256:04287e7321396f734dd460a12dd8c392e0fd4e892d930a7066fc0dbdb9cad9ad",
+        "evidence_completeness": "evidence_missing",
         "decision": "block",
         "review_required": false,
         "policy_version": "a2.release_policy.v1",
@@ -117,6 +124,13 @@
           "sha256:0ee7d2cfb1ebc27c38de5788dc08438ff8aabf53d7c4e94d3068fac5eb8720d7",
           "sha256:c48ab672aad4df049b1690d360ce6c804515229ad053cafe3a0744b133fbb592"
         ],
+        "provider_provenance_hashes": [],
+        "provider_summary": {
+          "call_count": 0,
+          "providers": [],
+          "models": [],
+          "blocked_call_count": 0
+        },
         "judge_summary": {
           "judge_count": 5,
           "failed_judges": [],
@@ -129,8 +143,8 @@
         ],
         "previous_record_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
         "public_safe": true,
-        "record_id": "sha256:e19d38b6f189135256ed1afd9ad4f433cc0d5361a0a251adb936e469fa2e9687",
-        "record_hash": "sha256:31c417d9232f2e3b0361f63b8aad305304774d28d0f68ed6e093f1a0bffa1e18"
+        "record_id": "sha256:550683fdff390a47b8c80b9eb9ff60df7886e01f23f3afd29a5f1da14e007b06",
+        "record_hash": "sha256:609630b0db4a08167351f7b016918459966aeab1e9bd4923787252cc3f0de6d4"
       }
     ],
     "metadata": {
@@ -139,7 +153,7 @@
       "chain_verified": true,
       "human_overrides_are_linked_records": true
     },
-    "ledger_hash": "sha256:246213c8dabddf5c05e697c79da45f5a5ca5c62dd331ca22bada44d0000e19f5"
+    "ledger_hash": "sha256:9612493617c10637f2ae077bfca010d3eadd67d0bae55dc72b9274ecf2facbc6"
   },
   "a3_consumption": {
     "release_ready": false,
@@ -147,7 +161,7 @@
     "may_recompute_grade": false,
     "review_queue_status": "blocked",
     "display_decision": "block",
-    "display_provenance_hash": "sha256:31c417d9232f2e3b0361f63b8aad305304774d28d0f68ed6e093f1a0bffa1e18"
+    "display_provenance_hash": "sha256:609630b0db4a08167351f7b016918459966aeab1e9bd4923787252cc3f0de6d4"
   },
   "metadata": {
     "public_safe": true,

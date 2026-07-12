@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A2SignedArtifactReferenceV2",
+  "type": "object",
+  "required": [
+    "schema_version", "reference_id", "tenant_scope", "artifact_id",
+    "storage_provider", "container_ref", "object_ref", "object_version",
+    "content_hash", "size_bytes", "media_type", "purpose", "issuer",
+    "subject", "audience", "evaluation_job_id", "nonce", "issued_at",
+    "not_before", "expires_at", "algorithm", "key_id", "signature"
+  ],
+  "properties": {
+    "schema_version": { "const": "a2.artifact_reference.v2" },
+    "reference_id": { "$ref": "#/$defs/opaqueRef" },
+    "tenant_scope": { "$ref": "#/$defs/scope" },
+    "artifact_id": { "$ref": "#/$defs/opaqueRef" },
+    "storage_provider": {
+      "enum": ["a1-object-store", "s3-compatible", "azure-blob", "gcs"]
+    },
+    "container_ref": { "$ref": "#/$defs/opaqueRef" },
+    "object_ref": { "$ref": "#/$defs/opaqueRef" },
+    "object_version": {
+      "allOf": [
+        { "$ref": "#/$defs/opaqueRef" },
+        { "not": { "enum": ["latest", "current", "head", "LATEST", "CURRENT", "HEAD"] } }
+      ]
+    },
+    "content_hash": { "$ref": "#/$defs/hash" },
+    "size_bytes": { "type": "integer", "minimum": 1 },
+    "media_type": { "type": "string", "minLength": 1 },
+    "purpose": { "type": "string", "minLength": 1 },
+    "issuer": { "$ref": "#/$defs/opaqueRef" },
+    "subject": { "$ref": "#/$defs/opaqueRef" },
+    "audience": { "$ref": "#/$defs/opaqueRef" },
+    "evaluation_job_id": { "$ref": "#/$defs/opaqueRef" },
+    "nonce": { "type": "string", "pattern": "^[A-Za-z0-9_-]{22,128}$" },
+    "issued_at": { "type": "string", "format": "date-time" },
+    "not_before": { "type": "string", "format": "date-time" },
+    "expires_at": { "type": "string", "format": "date-time" },
+    "algorithm": { "const": "ed25519" },
+    "key_id": { "$ref": "#/$defs/opaqueRef" },
+    "signature": { "type": "string", "pattern": "^[A-Za-z0-9_-]{86}$" }
+  },
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "opaqueRef": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.-]{0,255}$"
+    },
+    "scope": {
+      "type": "object",
+      "required": [
+        "organization_id", "tenant_id", "workspace_id", "project_id", "environment_id"
+      ],
+      "properties": {
+        "organization_id": { "type": "string", "minLength": 1 },
+        "tenant_id": { "type": "string", "minLength": 1 },
+        "workspace_id": { "type": "string", "minLength": 1 },
+        "project_id": { "type": "string", "minLength": 1 },
+        "environment_id": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

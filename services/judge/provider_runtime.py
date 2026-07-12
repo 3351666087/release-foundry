@@ -442,6 +442,7 @@ def build_provider_provenance_handoff(
         "logical_call_id": provider_result.get("logical_call_id"),
         "provider_id": provider_result.get("provider_id"),
         "model_id": provider_result.get("model_id"),
+        "attempt_count": len(provider_result.get("attempts") or []),
         "evaluation_eligible": ready,
         "release_authority": False,
         "decision_authority": "a2.release_gate.v1",
@@ -462,13 +463,26 @@ def build_local_smoke_evidence(
     model_id: str,
     provider_result: dict[str, Any],
     content_hashes: list[str],
+    model_digest: str = "",
 ) -> dict[str, Any]:
+    status = str(provider_result.get("status", "blocked"))
     return {
         "schema_version": "a2.local_provider_smoke.v1",
         "provider_id": "ollama-local",
         "model_id": model_id,
+        "model_digest": model_digest,
         "modality": modality,
-        "status": provider_result.get("status", "blocked"),
+        "status": status,
+        "capability_state": (
+            "callable"
+            if status == "completed"
+            else "protocol_reachable"
+            if status in {"timeout", "invalid_response"}
+            else "unavailable"
+        ),
+        # A smoke call proves transport/runtime callability only. It never
+        # substitutes for golden regression, disagreement analysis, or review.
+        "calibration_state": "uncalibrated",
         "logical_call_id": provider_result.get("logical_call_id"),
         "response_hash": provider_result.get("response_hash"),
         "content_hashes": content_hashes,

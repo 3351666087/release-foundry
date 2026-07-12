@@ -12,7 +12,18 @@ from .result_persistence import stable_hash
 
 
 SCHEMA_VERSION = "a2.provider_gateway.v1"
+RECONCILIATION_SCHEMA_VERSION = "a2.provider_reconciliation.v1"
+RECONCILIATION_MODES = frozenset({"unsupported", "provider_status_lookup"})
 MODALITIES = frozenset({"text", "image", "audio", "file", "video"})
+RECONCILIATION_STATUSES = frozenset(
+    {
+        "remote_completed",
+        "remote_pending",
+        "remote_not_found",
+        "remote_unknown",
+        "reconciliation_unsupported",
+    }
+)
 TERMINAL_FAILURES = frozenset(
     {
         "blocked",
@@ -41,6 +52,11 @@ class ProviderDefinition:
     allowed_tenants: frozenset[str]
     enabled: bool = True
     data_residency: str = "unspecified"
+    reconciliation_mode: str = "unsupported"
+
+    def __post_init__(self) -> None:
+        if self.reconciliation_mode not in RECONCILIATION_MODES:
+            raise ValueError("unsupported Provider reconciliation mode")
 
 
 class StrictFakeAdapter:
@@ -56,6 +72,29 @@ class StrictFakeAdapter:
         if self.failure:
             raise RuntimeError(self.failure)
         return dict(self.response)
+
+
+class StrictFakeReconciliationAdapter(StrictFakeAdapter):
+    """Deterministic reconciliation adapter for governed recovery tests."""
+
+    def __init__(
+        self,
+        response: dict[str, Any] | None = None,
+        *,
+        reconciliation_response: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(response)
+        self.reconciliation_response = reconciliation_response or {"status": "remote_unknown"}
+        self.reconciliation_calls = 0
+
+    def reconcile(
+        self,
+        model: dict[str, Any],
+        reconciliation_request: dict[str, Any],
+        timeout_seconds: float,
+    ) -> dict[str, Any]:
+        self.reconciliation_calls += 1
+        return dict(self.reconciliation_response)
 
 
 class OllamaAdapter:
@@ -132,6 +171,7 @@ class ProviderGateway:
         idempotency_key: str,
         timeout_seconds: float = 30,
         max_cost_usd: float = 0,
+        model_options: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         request_core = {
             "schema_version": SCHEMA_VERSION,
@@ -210,6 +250,7 @@ class ProviderGateway:
                         "base_url": provider.base_url,
                         "credential_ref": provider.credential_ref,
                         "response_format": "json",
+                        "options": dict(model_options or {}),
                     },
                     {"parts": parts},
                     timeout_seconds,
@@ -256,6 +297,61 @@ class ProviderGateway:
             and (not item.allowed_tenants or tenant_id in item.allowed_tenants)
         )
 
+    def reconcile(
+        self,
+        *,
+        scope: dict[str, str],
+        operation_id: str,
+        provider_call_id: str,
+        logical_call_id: str,
+        provider_id: str,
+        model_id: str,
+        snapshot_hash: str,
+        payload_hash: str,
+        idempotency_key_hash: str,
+        provider_endpoint_hash: str,
+        provider_generation: int,
+        timeout_seconds: float = 30,
+    ) -> dict[str, Any]:
+        """Query an explicitly capable Provider without authorizing blind replay."""
+        request_core = {
+            "schema_version": RECONCILIATION_SCHEMA_VERSION,
+            "scope": dict(scope),
+            "operation_id": operation_id,
+            "provider_call_id": provider_call_id,
+            "logical_call_id": logical_call_id,
+            "provider_id": provider_id,
+            "model_id": model_id,
+            "snapshot_hash": snapshot_hash,
+            "payload_hash": payload_hash,
+            "idempotency_key_hash": idempotency_key_hash,
+            "provider_endpoint_hash": provider_endpoint_hash,
+            "provider_generation": provider_generation,
+        }
+        blocker = self._reconciliation_preflight(request_core)
+        if blocker:
+            return self._reconciliation_result(request_core, blocker)
+        provider = self.providers.get(provider_id)
+        adapter = self.adapters.get(provider.protocol) if provider else None
+        if provider is None or provider.reconciliation_mode != "provider_status_lookup":
+            return self._reconciliation_result(request_core, "reconciliation_unsupported")
+        reconcile = getattr(adapter, "reconcile", None)
+        if not callable(reconcile):
+            return self._reconciliation_result(request_core, "reconciliation_unsupported")
+        try:
+            response = reconcile(
+                {
+                    "model_id": model_id,
+                    "base_url": provider.base_url,
+                    "credential_ref": provider.credential_ref,
+                },
+                dict(request_core),
+                timeout_seconds,
+            )
+            return self._normalize_reconciliation_response(request_core, response)
+        except Exception:
+            return self._reconciliation_result(request_core, "remote_unknown")
+
     def _preflight(
         self,
         tenant_id: str,
@@ -277,11 +373,97 @@ class ProviderGateway:
         requested = {str(part.get("modality") or "") for part in parts}
         if not requested or not requested <= MODALITIES or not requested <= provider.allowed_modalities:
             return "unsupported"
-        if any("data" in part and part.get("modality") != "text" and not part.get("content_hash") for part in parts):
-            return "blocked"
+        for part in parts:
+            modality = str(part.get("modality") or "")
+            if modality == "text":
+                if not isinstance(part.get("text"), str) or not part["text"].strip():
+                    return "blocked"
+                continue
+            if not isinstance(part.get("data"), str) or not part["data"]:
+                return "blocked"
+            if not part.get("content_hash"):
+                return "blocked"
         if max_cost_usd < 0:
             return "budget_blocked"
         return ""
+
+    def _reconciliation_preflight(self, request_core: dict[str, Any]) -> str:
+        scope = request_core.get("scope")
+        if not isinstance(scope, dict) or set(scope) != {
+            "organization_id", "tenant_id", "workspace_id", "project_id", "environment_id",
+        }:
+            return "remote_unknown"
+        if any(not isinstance(value, str) or not value for value in scope.values()):
+            return "remote_unknown"
+        provider = self.providers.get(str(request_core.get("provider_id") or ""))
+        if (
+            provider is None
+            or not provider.enabled
+            or (provider.allowed_tenants and scope["tenant_id"] not in provider.allowed_tenants)
+        ):
+            return "reconciliation_unsupported"
+        required_strings = (
+            "operation_id", "provider_call_id", "logical_call_id", "model_id",
+            "snapshot_hash", "payload_hash", "idempotency_key_hash", "provider_endpoint_hash",
+        )
+        if any(not isinstance(request_core.get(field), str) or not request_core[field] for field in required_strings):
+            return "remote_unknown"
+        generation = request_core.get("provider_generation")
+        if isinstance(generation, bool) or not isinstance(generation, int) or generation <= 0:
+            return "remote_unknown"
+        return ""
+
+    def _normalize_reconciliation_response(
+        self,
+        request_core: dict[str, Any],
+        response: Any,
+    ) -> dict[str, Any]:
+        if not isinstance(response, dict) or set(response) - {
+            "status", "provider_call_id", "logical_call_id", "provider_id", "model_id",
+            "snapshot_hash", "payload_hash", "idempotency_key_hash",
+            "provider_endpoint_hash", "scope", "operation_id", "provider_generation", "output",
+        }:
+            return self._reconciliation_result(request_core, "remote_unknown")
+        status = response.get("status")
+        if status not in RECONCILIATION_STATUSES:
+            return self._reconciliation_result(request_core, "remote_unknown")
+        if status != "remote_completed":
+            return self._reconciliation_result(request_core, str(status))
+        bindings = (
+            "provider_call_id", "logical_call_id", "provider_id", "model_id",
+            "snapshot_hash", "payload_hash", "idempotency_key_hash",
+            "provider_endpoint_hash", "scope", "operation_id", "provider_generation",
+        )
+        if any(response.get(field) != request_core.get(field) for field in bindings):
+            return self._reconciliation_result(request_core, "remote_unknown")
+        output = response.get("output")
+        if (
+            not isinstance(output, dict)
+            or not isinstance(output.get("output_text"), str)
+            or self.response_validator is None
+        ):
+            return self._reconciliation_result(request_core, "remote_unknown")
+        try:
+            normalized_output = self.response_validator(output["output_text"])
+        except (TypeError, ValueError):
+            return self._reconciliation_result(request_core, "remote_unknown")
+        result = self._reconciliation_result(request_core, "remote_completed")
+        result["normalized_output"] = normalized_output
+        result["output_hash"] = stable_hash(output)
+        return result
+
+    @staticmethod
+    def _reconciliation_result(request_core: dict[str, Any], status: str) -> dict[str, Any]:
+        return {
+            **request_core,
+            "status": status,
+            "evaluation_eligible": status == "remote_completed",
+            "retry_authorized": False,
+            "release_authority": False,
+            "public_safe": True,
+            "raw_response_included": False,
+            "blockers": [] if status == "remote_completed" else [status],
+        }
 
     @staticmethod
     def _result(

@@ -17,9 +17,11 @@
     "created_at",
     "source_payload_hash",
     "required_modalities",
+    "artifact_modalities",
     "observed_modalities",
     "completeness",
     "artifacts",
+    "derived_evidence",
     "extractor_provenance",
     "security"
   ],
@@ -39,6 +41,7 @@
     "source_schema_version": { "type": "string" },
     "source_payload_hash": { "$ref": "#/$defs/hash" },
     "required_modalities": { "$ref": "#/$defs/modalities" },
+    "artifact_modalities": { "$ref": "#/$defs/modalities" },
     "observed_modalities": { "$ref": "#/$defs/modalities" },
     "completeness": {
       "enum": ["complete", "partial", "evidence_missing", "invalid"]
@@ -59,6 +62,7 @@
           "modality",
           "producer_tool",
           "reference_hash",
+          "reference_resolution_hash",
           "content_hash",
           "content_included",
           "collection_status"
@@ -68,6 +72,9 @@
           "modality": { "enum": ["text", "image", "audio", "file", "video"] },
           "producer_tool": { "type": "string" },
           "reference_hash": { "$ref": "#/$defs/hash" },
+          "reference_resolution_hash": {
+            "oneOf": [{ "const": "" }, { "$ref": "#/$defs/hash" }]
+          },
           "content_hash": { "$ref": "#/$defs/hash" },
           "content_included": { "const": false },
           "collection_status": {
@@ -76,6 +83,10 @@
         },
         "additionalProperties": false
       }
+    },
+    "derived_evidence": {
+      "type": "array",
+      "items": { "$ref": "derived_evidence.schema.json" }
     },
     "extractor_provenance": {
       "type": "array",

@@ -337,6 +337,7 @@ class ProviderRuntimeTests(unittest.TestCase):
         evidence = build_local_smoke_evidence(
             modality="image",
             model_id="vision",
+            model_digest="sha256:" + "a" * 64,
             provider_result={
                 "status": "completed",
                 "logical_call_id": stable_hash("call"),
@@ -346,7 +347,25 @@ class ProviderRuntimeTests(unittest.TestCase):
         )
         self.assertFalse(evidence["raw_payload_included"])
         self.assertFalse(evidence["secret_included"])
+        self.assertEqual(evidence["capability_state"], "callable")
+        self.assertEqual(evidence["calibration_state"], "uncalibrated")
+        self.assertEqual(evidence["model_digest"], "sha256:" + "a" * 64)
         self.assertNotIn("data", evidence)
+
+        timed_out = build_local_smoke_evidence(
+            modality="image",
+            model_id="vision",
+            model_digest="sha256:" + "a" * 64,
+            provider_result={
+                "status": "timeout",
+                "logical_call_id": stable_hash("timeout-call"),
+                "response_hash": None,
+            },
+            content_hashes=[stable_hash("image")],
+        )
+        self.assertEqual(timed_out["capability_state"], "protocol_reachable")
+        self.assertNotEqual(timed_out["capability_state"], "callable")
+        self.assertEqual(timed_out["calibration_state"], "uncalibrated")
 
 
 if __name__ == "__main__":
