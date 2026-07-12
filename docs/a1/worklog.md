@@ -2906,3 +2906,75 @@ The first candidate had the highest immediate ROI and was selected.
 Next top three: durable idempotent request journaling across restart; real
 model-by-modality capability probes without false claims; Ollama-to-Go-to-
 PostgreSQL/object-storage acceptance with stable authenticated evidence IDs.
+
+## Round 58: Restart-Persistent Provider Dispatch And Stream Integrity
+
+Date: 2026-07-12
+
+Commercial enhancement candidates:
+
+| Candidate | Demo | Risk reduction | Contract impact | Effort | API evidence |
+|---|---:|---:|---:|---:|---:|
+| Restart-persistent local provider journal and stream integrity | 5 | 5 | 2 | 4 | 4 |
+| Real five-modality capability expansion | 5 | 4 | 3 | 5 | 5 |
+| PostgreSQL multi-host provider dispatch coordinator | 4 | 5 | 4 | 5 | 3 |
+
+The first candidate had the highest bounded ROI. It closes the most dangerous
+provider failure mode: silently issuing a second paid request after dispatch
+acceptance becomes uncertain.
+
+- Added Python and TypeScript restart-persistent local JSON request journals scoped by tenant,
+  project, provider, model, operation, and idempotency key. Claims carry lease
+  ownership and fencing tokens. Conflicting fingerprints fail closed.
+- Restarted or lease-expired in-flight work becomes `indeterminate`; timeout,
+  disconnect, process loss, response loss, or any observed stream frame cannot
+  trigger an automatic provider retry. Explicit reconciliation is required.
+- Added the shared `ashr.clone.provider_stream.v1` protocol in Python and
+  TypeScript. It records monotonic sequence numbers, content digests, a
+  previous-frame digest chain, terminal state, and a final stream digest while
+  persisting no raw text or media content.
+- Duplicate sequence/same-content frames are idempotent. Sequence conflicts,
+  gaps, out-of-order frames, post-terminal frames, missing terminal frames, and
+  tampered snapshots fail closed.
+- A pytest-managed real Node subprocess now validates Python stream snapshots,
+  emits a TypeScript stream snapshot, and verifies it in Python. Canonical JSON
+  and digest chains for `ashr.clone.provider_stream.v1` are cross-language
+  compatible, including Unicode input, and raw chunk content is absent from
+  both fixtures. Journal persistence is intentionally language-specific:
+  `ashr.clone.provider_request_journal.python.v1` and
+  `ashr.clone.provider_request_journal.typescript.v1` are not claimed to be
+  mutually readable.
+- TypeScript publishes `./provider-request-journal` and `./provider-stream`.
+  Final `npm test` passed `623/623`; `npm pack --dry-run` passed with 111 files
+  and included both JavaScript and declaration artifacts.
+- Focused Python journal/stream validation passed `39 passed`. The full
+  A1 Python suite passed `1320 passed, 2 skipped in 283.94s`; the earlier
+  isolated wheel import anomaly did not reproduce.
+- Audit follow-up binds stream snapshots to the active journal entry and fence,
+  rejects stale or mismatched bindings, and requires a terminal stream proof
+  before success. Python also proves exactly one same-process threaded claimant.
+- TypeScript persisted-entry loading now rejects non-canonical fields,
+  malformed digests, unsafe counters, invalid timestamps/evidence, incomplete
+  modality or persistence capability metadata, and inconsistent
+  state/lease/terminal combinations. Its in-process persistence write chain
+  also recovers after a reported transient write failure instead of remaining
+  permanently rejected.
+- This round proves unit behavior, process-level Python/TypeScript
+  interoperability, file-backed restart semantics, and content-free stream
+  integrity. It does not prove PostgreSQL coordination, multi-host consensus,
+  distributed locking, or provider-native idempotency.
+- No real provider call was needed to prove these deterministic failure
+  semantics, and no paid call was made merely to increase call volume. Round 57
+  remains the real-provider evidence for Ollama, XJTLU, and Qwen.
+- Remote inventory after fetch contains exactly one A1 branch:
+  `origin/codex/a1-local-sdk-runner`. The local
+  `codex/a1-round54-publish` worktree branch is only a staging worktree and must
+  be pushed exclusively to that canonical remote ref.
+- Final CL hygiene passed with zero findings. These file-backed journals remain
+  explicitly single-process and restart-persistent only: they provide no
+  cross-instance/process claim lock, multi-worker safety, multi-host safety, or
+  proven power-loss durability.
+
+Next top three: run a bounded real Ollama partial-stream process-loss probe;
+add PostgreSQL-backed multi-worker journal coordination; expand verified
+model-by-modality coverage without promoting discovery to callability.

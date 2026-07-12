@@ -84,6 +84,14 @@
       "types": "./dist/provider-adapter.d.ts",
       "import": "./dist/provider-adapter.js"
     },
+    "./provider-request-journal": {
+      "types": "./dist/provider-request-journal.d.ts",
+      "import": "./dist/provider-request-journal.js"
+    },
+    "./provider-stream": {
+      "types": "./dist/provider-stream.d.ts",
+      "import": "./dist/provider-stream.js"
+    },
     "./runner": {
       "types": "./dist/runner.d.ts",
       "import": "./dist/runner.js"

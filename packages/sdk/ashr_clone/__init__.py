@@ -270,6 +270,24 @@ from .storage import (
     verify_object_bytes,
     verify_object_manifest_signature,
 )
+from .provider_journal import (
+    PROVIDER_JOURNAL_SCHEMA_VERSION,
+    PROVIDER_JOURNAL_STATES,
+    PROVIDER_MODALITIES,
+    JournalDecision,
+    ProviderJournalConflict,
+    ProviderJournalError,
+    ProviderJournalStateError,
+    ProviderRequestIdentity,
+    ProviderRequestJournal,
+)
+from .provider_stream import (
+    PROVIDER_STREAM_SCHEMA_VERSION,
+    ProviderStreamFrame,
+    ProviderStreamIntegrityError,
+    ProviderStreamLedger,
+    canonical_provider_json,
+)
 from .types import CaseResult, GradeResult, Observation, RunResult, ToolCall
 
 _ACCOUNT_READINESS_EXPORTS = {
@@ -543,6 +561,20 @@ __all__ = [
     "SAAS_CLIENT_VERSION",
     "SaaSIngestionClient",
     "SecretInputError",
+    "PROVIDER_JOURNAL_SCHEMA_VERSION",
+    "PROVIDER_JOURNAL_STATES",
+    "PROVIDER_MODALITIES",
+    "JournalDecision",
+    "ProviderJournalConflict",
+    "ProviderJournalError",
+    "ProviderJournalStateError",
+    "ProviderRequestIdentity",
+    "ProviderRequestJournal",
+    "PROVIDER_STREAM_SCHEMA_VERSION",
+    "ProviderStreamFrame",
+    "ProviderStreamIntegrityError",
+    "ProviderStreamLedger",
+    "canonical_provider_json",
     "consume_official_api_mutating_calibration_index",
     "OBJECT_STORAGE_ADAPTER_STATUS_VERSION",
     "OBJECT_STORAGE_CONTRACT_VERSION",
