@@ -2809,3 +2809,40 @@ Round 55 password/MFA executable closure, 2026-07-12:
   limit. No audit output is fabricated. Next top three: connect the trusted Go
   ticket resolver and activate handlers; add explicit enterprise OIDC/SAML
   linking; enforce identity RBAC through API, worker, and PostgreSQL RLS.
+
+## Round 56: Trusted Identity Security HTTP Boundary
+
+Date: 2026-07-12
+
+- Re-read `origin/main:docs/strategy/large-saas-a1-a2-a3-full-plan.md` and
+  preserved separate registration and login state machines. Login still cannot
+  create, infer, link, or merge an account; matching email is never linking
+  proof. Domestic email remains the preferred deployable registration path.
+- Added an injectable Go HTTP boundary for password enrollment/change/recovery and TOTP
+  enrollment/confirmation. Public bodies accept only `mutation_ticket_id`,
+  `step_up_receipt_id`, and an `Idempotency-Key`-matching identifier. Password,
+  OTP/TOTP, recovery-code, secret reference, digest, actor, and account fields
+  are rejected before a trusted resolver or store can run.
+- Tickets are resolved server-side and must match the authenticated canonical
+  account, exact operation, and expiration. Public failures intentionally do
+  not reveal account, ticket, receipt, or backend existence.
+- Added a secret-safe security posture route and narrowed Go redaction so only
+  public posture booleans/statuses survive; raw password and secret material
+  remains redacted.
+- The new routes remain absent from the unconditional Go route manifest until
+  the PostgreSQL store and production runtime wiring are executable. This is
+  deliberately contract support, not a production-availability claim.
+- Go full suite passed. Two command-entry failures were environmental and are
+  retained here: repository-root `go test` had no module, and Git Bash could
+  not find the Codex-local `apply_patch`; corrected module-local tests passed.
+- Mandatory next-round hard acceptance chain: fresh user SDK install -> wrap a
+  real Agent -> invoke a local real Ollama model -> submit one run -> query the
+  run, trace, tool calls, and artifact through API -> restart services -> prove
+  PostgreSQL/object persistence -> fetch authenticated A2 evidence by stable
+  IDs. Mock/fake model substitution is forbidden.
+- Local model inventory found no Windows/WSL Ollama CLI or user model manifest,
+  but Docker already contains `ollama/ollama:latest` (8.06 GB). Inspect Docker
+  volumes before pulling a model; download only when no reusable model exists.
+- Next top three: (1) real Ollama durable SDK-to-A2 evidence acceptance chain,
+  (2) production PostgreSQL mutation-ticket issuance/consumption and HTTP store,
+  (3) enterprise OIDC/SAML explicit credential binding and conflict controls.

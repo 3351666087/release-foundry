@@ -18,6 +18,8 @@ type HTTPServer struct {
 	unifiedIdentity                    *UnifiedIdentityService
 	identityLifecycle                  *IdentityLifecycleService
 	identitySessions                   IdentityHTTPSessionResolver
+	identitySecurityTickets            IdentitySecurityTicketResolver
+	identitySecurity                   IdentitySecurityHTTPStore
 	identityVerification               *IdentityVerificationService
 	identityVerificationResponsePolicy *IdentityVerificationResponsePolicy
 	identitySessionReceiptTransport    IdentitySessionReceiptTransport
@@ -68,6 +70,8 @@ type HTTPServerOptions struct {
 	UnifiedIdentity                    *UnifiedIdentityService
 	IdentityLifecycle                  *IdentityLifecycleService
 	IdentitySessions                   IdentityHTTPSessionResolver
+	IdentitySecurityTickets            IdentitySecurityTicketResolver
+	IdentitySecurity                   IdentitySecurityHTTPStore
 	IdentityVerification               *IdentityVerificationService
 	IdentityVerificationResponsePolicy *IdentityVerificationResponsePolicy
 	IdentitySessionReceiptTransport    IdentitySessionReceiptTransport
@@ -102,6 +106,8 @@ func NewHTTPServerWithOptions(service ControlPlaneBackend, options HTTPServerOpt
 		unifiedIdentity:                    options.UnifiedIdentity,
 		identityLifecycle:                  options.IdentityLifecycle,
 		identitySessions:                   options.IdentitySessions,
+		identitySecurityTickets:            options.IdentitySecurityTickets,
+		identitySecurity:                   options.IdentitySecurity,
 		identityVerification:               options.IdentityVerification,
 		identityVerificationResponsePolicy: options.IdentityVerificationResponsePolicy,
 		identitySessionReceiptTransport:    options.IdentitySessionReceiptTransport,

@@ -83,13 +83,17 @@ func (server *HTTPServer) handleUnifiedIdentityAccount(writer http.ResponseWrite
 	writer.Header().Set("Cache-Control", "no-store")
 	writer.Header().Set("Pragma", "no-cache")
 	writer.Header().Set("X-Content-Type-Options", "nosniff")
+	session, ok := server.resolveIdentityHTTPSession(writer, request, assertedAccountID)
+	if !ok {
+		return
+	}
+	if len(parts) >= 1 && (parts[0] == "security" || parts[0] == "password" || parts[0] == "two-factor") {
+		server.handleIdentitySecurity(writer, request, session, parts)
+		return
+	}
 	identity := server.unifiedIdentityHTTPStore()
 	if identity == nil {
 		writeError(writer, http.StatusNotFound, "not_found", "route not found")
-		return
-	}
-	session, ok := server.resolveIdentityHTTPSession(writer, request, assertedAccountID)
-	if !ok {
 		return
 	}
 
