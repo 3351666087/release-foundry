@@ -128,6 +128,9 @@ test.describe("A3 Next.js product console", () => {
     await page.reload();
     await expect(page.getByRole("heading", { name: "交付闭环" })).toBeVisible();
     await expect(page.locator(".route-content")).toHaveCSS("opacity", "1");
+    await expect(page.locator(".delivery-signal")).toContainText("通过 7/11 个步骤");
+    await page.waitForTimeout(500);
+    await expect(page.locator(".route-content")).toHaveCSS("opacity", "1");
     const mobileBounds = await page.evaluate(() => ({
       viewport: document.documentElement.clientWidth,
       documentScrollWidth: document.documentElement.scrollWidth,
@@ -140,6 +143,77 @@ test.describe("A3 Next.js product console", () => {
     expect(mobileBounds.signalRight).toBeLessThanOrEqual(mobileBounds.viewport);
     expect(mobileBounds.mobileNavDisplay).toBe("grid");
     await page.screenshot({ path: "docs/screenshots/a3-webapp-delivery-golden-path-mobile-390x844.png", fullPage: false });
+  });
+
+  test("shows the rc.2 tool-chain repair with CI evidence while A2 authority still blocks", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto(`${base}/delivery/?source=a3-golden-path-rc2`);
+
+    await expect(page.getByRole("heading", { name: "交付闭环" })).toBeVisible();
+    await expect(page.locator(".source-control select")).toHaveValue("a3-golden-path-rc2");
+    await expect(page.locator(".metric-strip")).toContainText("7/11");
+    await expect(page.locator(".metric-strip")).toContainText("0.2.0-rc.2");
+    await expect(page.locator('.delivery-stage-list article[data-status="passed"]')).toHaveCount(7);
+    const newRunEvidence = page.locator("section").filter({ has: page.getByRole("heading", { name: "新 Run 证据" }) });
+    await expect(newRunEvidence).toContainText("A1 执行");
+    await expect(newRunEvidence).toContainText("A2 案例评分");
+    await expect(newRunEvidence).toContainText("3/3");
+    await expect(newRunEvidence).toContainText("4");
+    await expect(newRunEvidence).toContainText("block");
+    await expect(page.getByText("A2 Decision Ledger authorizes release", { exact: true })).toBeVisible();
+    const githubReadback = page.locator("section").filter({ has: page.getByRole("heading", { name: "GitHub 真实回读" }) });
+    await expect(githubReadback).toContainText("github-actions");
+    await expect(githubReadback).toContainText("86656698704");
+    await expect(githubReadback).toContainText("4951428174");
+    await expect(githubReadback).toContainText("8260724828");
+    await expect(githubReadback).toContainText("main 返回 404");
+    await expect(githubReadback).toContainText("不是发布批准");
+    const githubLinks = await githubReadback.locator("a").evaluateAll((links) => links.map((link) => ({
+      href: (link as HTMLAnchorElement).href,
+      target: (link as HTMLAnchorElement).target,
+      rel: (link as HTMLAnchorElement).rel
+    })));
+    expect(githubLinks.length).toBe(3);
+    expect(githubLinks.every((link) => link.href.startsWith("https://github.com/"))).toBe(true);
+    expect(githubLinks.every((link) => link.target === "_blank" && link.rel.includes("noreferrer"))).toBe(true);
+    await githubReadback.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-delivery-github-readback-rc2-desktop.png", fullPage: false, animations: "disabled" });
+    await page.getByRole("button", { name: "EN", exact: true }).click();
+    const englishReadback = page.locator("section").filter({ has: page.getByRole("heading", { name: "Live GitHub readback" }) });
+    await expect(englishReadback).toContainText("not enforced");
+    await expect(englishReadback).toContainText("release approval");
+    await page.getByRole("button", { name: "中", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "GitHub 真实回读" })).toBeVisible();
+    const releaseArtifact = page.locator("section").filter({ has: page.getByRole("heading", { name: "版本化 Release Artifact" }) });
+    await expect(releaseArtifact).toContainText("c8420813ed6cb94535bd108b30bd97663b906bdb");
+    await expect(releaseArtifact).toContainText("746ecbe959a9c8781e8e1fc7d2520a50fd92785b");
+    await expect(releaseArtifact).toContainText("no");
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-delivery-golden-path-rc2-desktop.png", fullPage: false, animations: "disabled" });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "交付闭环" })).toBeVisible();
+    const mobileGithubReadback = page.locator("section").filter({ has: page.getByRole("heading", { name: "GitHub 真实回读" }) });
+    await mobileGithubReadback.evaluate((node) => {
+      document.documentElement.style.scrollBehavior = "auto";
+      window.scrollTo(0, node.getBoundingClientRect().top + window.scrollY - 70);
+    });
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(300);
+    await expect(mobileGithubReadback).toContainText("8260724828");
+    const mobileBounds = await page.evaluate(() => ({
+      viewport: document.documentElement.clientWidth,
+      documentScrollWidth: document.documentElement.scrollWidth,
+      bodyScrollWidth: document.body.scrollWidth,
+      signalRight: document.querySelector(".delivery-signal")!.getBoundingClientRect().right
+    }));
+    expect(mobileBounds.documentScrollWidth).toBeLessThanOrEqual(mobileBounds.viewport);
+    expect(mobileBounds.bodyScrollWidth).toBeLessThanOrEqual(mobileBounds.viewport);
+    expect(mobileBounds.signalRight).toBeLessThanOrEqual(mobileBounds.viewport);
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-delivery-github-readback-rc2-mobile-390x844.png", fullPage: false, animations: "disabled" });
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-delivery-golden-path-rc2-mobile-390x844.png", fullPage: false, animations: "disabled" });
   });
 
   test("switches Chinese and English without losing the selected evidence source", async ({ page }) => {

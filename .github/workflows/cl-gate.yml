@@ -229,8 +229,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          node -e "const fs=require('node:fs');const v=JSON.parse(fs.readFileSync('fixtures/a3/golden-path/release-delivery-index.json','utf8'));process.stdout.write('candidate_sha='+v.git_sha_alias+'\\nrelease_version='+v.release_version+'\\n')" >> "$GITHUB_OUTPUT"
-      - name: Verify sealed Audit Bundle, archive, and release manifest
+          node -e "const fs=require('node:fs');const v=JSON.parse(fs.readFileSync('fixtures/a3/golden-path/rc2/release-delivery-index.json','utf8'));process.stdout.write('candidate_sha='+v.git_sha_alias+'\\nrelease_version='+v.release_version+'\\n')" >> "$GITHUB_OUTPUT"
+      - name: Verify historical rc.1 packet
         shell: bash
         run: |
           set -euo pipefail
@@ -248,11 +248,29 @@ jobs:
             --verified-at 2026-07-12T11:40:05.000Z \
             --strict-exit \
             --json
+      - name: Verify sealed rc.2 Audit Bundle, archive, and release manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          node services/report/a3_gate_cli.mjs \
+            --verify-index fixtures/a3/golden-path/rc2/audit-bundle-index.json \
+            --generated-at 2026-07-12T14:02:01.000Z \
+            --strict-exit \
+            --json
+          node services/report/a3_audit_archive.mjs \
+            --verify fixtures/a3/golden-path/rc2/audit-archive-manifest.json \
+            --generated-at 2026-07-12T14:02:03.000Z \
+            --json
+          node services/report/a3_release_delivery_cli.mjs \
+            --verify-manifest fixtures/a3/golden-path/rc2/release-artifact-manifest.json \
+            --verified-at 2026-07-12T14:02:06.000Z \
+            --strict-exit \
+            --json
       - name: Upload versioned release candidate packet
         uses: actions/upload-artifact@v4
         with:
           name: ashr-a3-${{ steps.release.outputs.release_version }}-${{ steps.release.outputs.candidate_sha }}
-          path: fixtures/a3/golden-path
+          path: fixtures/a3/golden-path/rc2
           if-no-files-found: error
           retention-days: 14
 

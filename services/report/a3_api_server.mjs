@@ -47,7 +47,7 @@ class A3RequestBodyBoundaryError extends Error {
 
 export function createA3ApiHandler(options = {}) {
   const storePromise = Promise.resolve(options.store || createFixtureBackedA3Store({
-    sources: options.sources || ["mock", "raw-a1", "raw-a2", "p3-media", "p3-official-demo", "a3-golden-path"],
+    sources: options.sources || ["mock", "raw-a1", "raw-a2", "p3-media", "p3-official-demo", "a3-golden-path", "a3-golden-path-rc2"],
     repoRoot: options.repoRoot
   }));
 

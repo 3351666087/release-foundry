@@ -91,7 +91,8 @@ export function AppShell({ route, children }: { route: ProductRoute; children: R
               <option value="p3-official-demo">Ashr demo 884/11926</option>
               <option value="raw-a1">Raw A1 RunResult</option>
               <option value="raw-a2">Raw A2 GradeResult</option>
-              <option value="a3-golden-path">A3 Golden Path 20260712</option>
+              <option value="a3-golden-path-rc2">A3 Golden Path rc.2 - 3/3</option>
+              <option value="a3-golden-path">A3 Golden Path rc.1 - history</option>
             </select>
           </label>
           <div className="command-actions">

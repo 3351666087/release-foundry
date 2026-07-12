@@ -1,0 +1,152 @@
+{
+  "schema_version": "a3.delivery_golden_path.v1",
+  "golden_path_id": "gpath_9a0802b675baaa094f9a",
+  "generated_at": "2026-07-12T14:02:04.000Z",
+  "status": "blocked_by_a2",
+  "production_ready": false,
+  "release_version": "0.2.0-rc.2",
+  "run_ids": [
+    "a3-golden-20260712-002"
+  ],
+  "stages": [
+    {
+      "id": "capture",
+      "label": "A1 captures a new run",
+      "owner": "A1",
+      "status": "passed",
+      "evidence_ref": "a3-golden-20260712-002",
+      "blocked_reason": null
+    },
+    {
+      "id": "evaluate",
+      "label": "A2 grades every case",
+      "owner": "A2",
+      "status": "passed",
+      "evidence_ref": "a3-golden-20260712-002",
+      "blocked_reason": null
+    },
+    {
+      "id": "decide",
+      "label": "A2 Decision Ledger authorizes release",
+      "owner": "A2",
+      "status": "blocked",
+      "evidence_ref": "sha256:31c417d9232f2e3b0361f63b8aad305304774d28d0f68ed6e093f1a0bffa1e18",
+      "blocked_reason": "a2_decision_blocks_release"
+    },
+    {
+      "id": "bundle",
+      "label": "A3 seals and verifies the Audit Bundle",
+      "owner": "A3",
+      "status": "passed",
+      "evidence_ref": "a3-bundle-0-2-0-rc-2-a3-golden-20260712-002-cc22b9f0ddf7",
+      "blocked_reason": null
+    },
+    {
+      "id": "archive",
+      "label": "A3 verifies the signed archive",
+      "owner": "A3",
+      "status": "passed",
+      "evidence_ref": "a3-archive-a3-bundle-0-2-0-rc-2-a3-golden-20260712-002-cc22b9f0dd-f0bf4b2a8145",
+      "blocked_reason": null
+    },
+    {
+      "id": "package",
+      "label": "Versioned release artifact is verifiable",
+      "owner": "A3",
+      "status": "passed",
+      "evidence_ref": "8f84c5e3d4f064ae5d042b0f8ef72f2a3fb4d7ae06eb0a7d4dea01dc113d5a2f",
+      "blocked_reason": null
+    },
+    {
+      "id": "deploy",
+      "label": "Deployment acceptance passes",
+      "owner": "A1/A3",
+      "status": "blocked",
+      "evidence_ref": "dpa_b3ce00f9ea8dfa6be9b8",
+      "blocked_reason": "Deployment acceptance is blocked."
+    },
+    {
+      "id": "github_app",
+      "label": "Tenant GitHub App is trusted",
+      "owner": "A1/A3",
+      "status": "blocked",
+      "evidence_ref": "dpa_b3ce00f9ea8dfa6be9b8",
+      "blocked_reason": "A tenant-bound GitHub App installation is not proven."
+    },
+    {
+      "id": "github_check",
+      "label": "GitHub Check is published and read back",
+      "owner": "A3",
+      "status": "passed",
+      "evidence_ref": "ghcrb_8d7528dacef727ee",
+      "blocked_reason": null
+    },
+    {
+      "id": "pr_comment",
+      "label": "PR comment is published and read back",
+      "owner": "A3",
+      "status": "passed",
+      "evidence_ref": "ghprb_4ee73acc63725ab7",
+      "blocked_reason": null
+    },
+    {
+      "id": "required_check",
+      "label": "main enforces the release check",
+      "owner": "Repository maintainer",
+      "status": "blocked",
+      "evidence_ref": "ghrcp_a4ecb62318d7fa47",
+      "blocked_reason": "Branch protection does not enforce the release check."
+    }
+  ],
+  "progress": {
+    "total": 11,
+    "passed": 7,
+    "blocked": 4,
+    "percent": 63.6
+  },
+  "authoritative_release": {
+    "owner": "A2",
+    "integrity_verified": true,
+    "upstream_decision": "block",
+    "release_ready": false,
+    "blockers": [
+      "a2_decision_blocks_release",
+      "a2_release_not_ready",
+      "a2_hard_blockers_present"
+    ]
+  },
+  "next_actions": [
+    {
+      "stage_id": "decide",
+      "owner": "A2",
+      "action": "a2_decision_blocks_release"
+    },
+    {
+      "stage_id": "deploy",
+      "owner": "A1/A3",
+      "action": "Deployment acceptance is blocked."
+    },
+    {
+      "stage_id": "github_app",
+      "owner": "A1/A3",
+      "action": "A tenant-bound GitHub App installation is not proven."
+    }
+  ],
+  "evidence_links": {
+    "deployment_acceptance_id": "dpa_b3ce00f9ea8dfa6be9b8",
+    "release_artifact_manifest_hash": "8f84c5e3d4f064ae5d042b0f8ef72f2a3fb4d7ae06eb0a7d4dea01dc113d5a2f",
+    "audit_bundle_verification_id": null,
+    "audit_archive_verification_id": null,
+    "github_check_readback_id": "ghcrb_8d7528dacef727ee",
+    "github_pr_comment_readback_id": "ghprb_4ee73acc63725ab7",
+    "required_check_proof_id": "ghrcp_a4ecb62318d7fa47"
+  },
+  "safety": {
+    "a1_runtime_recomputed": false,
+    "a2_score_recomputed": false,
+    "a2_decision_recomputed": false,
+    "dry_run_claimed_as_live": false,
+    "fixture_claimed_as_production": false,
+    "secret_values_allowed": false
+  }
+}

@@ -657,6 +657,47 @@ test("A3 gate CLI seals GitHub publish evidence into generated manifest and audi
   }
 });
 
+test("A3 gate CLI seals GitHub Actions artifact readback into the audit bundle", async () => {
+  const tempDir = await mkdtemp(join(fixturePath("../../fixtures/a3/p3/"), "tmp-actions-artifact-readback-"));
+  const manifestPath = join(tempDir, "generated-artifacts.json");
+  const bundlePath = join(tempDir, "audit-bundle-index.json");
+  const readbackPath = "fixtures/a3/golden-path/github-actions-artifact-live-readback.redacted.json";
+  try {
+    const completed = await execFileAsync(process.execPath, [
+      fixturePath("../../services/report/a3_gate_cli.mjs"),
+      "--runs", "fixtures/a3/mock_run_results.json",
+      "--grades", "fixtures/a3/mock_grade_results.json",
+      "--coverage", "fixtures/a2/results/a2_g3_coverage_report.json",
+      "--thresholds", "fixtures/a3/release_gate_thresholds.json",
+      "--release-version", "local-actions-artifact-readback",
+      "--source", "cli-actions-artifact-readback-test",
+      "--output-manifest", manifestPath,
+      "--output-bundle", bundlePath,
+      "--github-actions-artifact-readback", readbackPath,
+      "--no-fail",
+      "--json"
+    ], {
+      cwd: fixturePath("../../"),
+      maxBuffer: 1024 * 1024
+    });
+
+    assert.equal(completed.stderr, "");
+    const sourceBytes = await readFile(fixturePath(`../../${readbackPath}`));
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+    const bundle = JSON.parse(await readFile(bundlePath, "utf8"));
+    const manifestArtifact = manifest.generated_artifacts.find((item) => item.id === "github_actions_artifact_readback");
+    const bundleArtifact = bundle.bundle_artifacts.find((item) => item.id === "github_actions_artifact_readback");
+
+    assert.equal(manifestArtifact.origin, "external_github_live_readback");
+    assert.equal(bundleArtifact.bundle_role, "readback_record");
+    assert.equal(bundleArtifact.sha256, sha256(sourceBytes));
+    assert.equal(bundleArtifact.byte_size, sourceBytes.length);
+    assert.ok(bundle.artifact_groups.readback_records.includes("github_actions_artifact_readback"));
+  } finally {
+    await rm(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("A3 audit bundle verifier passes committed bundle and renders markdown evidence", async () => {
   const verification = await verifyAuditBundleIndex(
     fixturePath("../../fixtures/a3/p3/a3_audit_bundle_index_blocked_exception.redacted.json"),

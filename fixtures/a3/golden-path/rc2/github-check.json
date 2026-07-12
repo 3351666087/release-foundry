@@ -1,0 +1,13 @@
+{
+  "name": "Ashr++ Release Gate",
+  "head_sha": "c8420813ed6cb94535bd108b30bd97663b906bdb",
+  "status": "completed",
+  "conclusion": "failure",
+  "details_url": "https://github.com/3351666087/ashr-codex-factory/actions/runs/29195142625",
+  "output": {
+    "title": "A2 blocked: a3-golden-20260712-002",
+    "summary": "Local case-quality gate: Approve release. Authoritative A2 decision: block; release_ready=false.\n\nAuthoritative A2 status: blocked; reason: a2_decision_blocks_release.",
+    "text": "Run: a3-golden-20260712-002\nRelease: 0.2.0-rc.2\nEnvironment: staging\nPass rate: 100%\nAverage score: 100\nTrace completeness: 100%\nFailed checks: none\nPR gate next action: Merge may proceed after JSON, Markdown, and audit artifacts are attached to the release record.\nSign-off risk: low\n\nTop risk cases:\n- none\n\nA2 Decision Ledger: block\nA2 release_ready: false\nNext action: Do not merge or publish until A2 issues an allow Decision Ledger record for a3-golden-20260712-002.",
+    "annotations": []
+  }
+}

@@ -118,7 +118,13 @@ export async function buildReleaseDeliveryOutputs(options = {}) {
     ["github_check_readback", options.githubCheckReadback, "github_readback", "A3"],
     ["github_pr_comment_readback", options.githubPrCommentReadback, "github_readback", "A3"],
     ["github_required_check_proof", options.githubRequiredCheckProof, "repository_policy", "A3"],
-    ["github_actions_artifact_readback", options.githubActionsArtifactReadback, "release_distribution_readback", "A3"]
+    ["github_actions_artifact_readback", options.githubActionsArtifactReadback, "release_distribution_readback", "A3"],
+    ...options.documentation.map((path, index) => [
+      `release_document_${String(index + 1).padStart(2, "0")}`,
+      path,
+      "release_documentation",
+      "A3"
+    ])
   ].filter(([, path]) => Boolean(path));
   const artifacts = await Promise.all(artifactInputs.map(([id, path, role, sourceLane]) => describeArtifactFile(id, path, {
     workspaceRoot,
@@ -186,7 +192,7 @@ export async function buildReleaseDeliveryOutputs(options = {}) {
     generated_at: generatedAt,
     release_version: options.releaseVersion,
     git_sha_alias: options.gitSha || null,
-    ci_tested_sha_alias: options.ciTestedSha || options.gitSha || null,
+    ci_tested_sha_alias: options.ciTestedSha || null,
     status: goldenPath.status,
     production_ready: goldenPath.production_ready,
     files: {

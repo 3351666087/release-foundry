@@ -1608,6 +1608,81 @@ pre {
 .delivery-authority-list span { color: var(--muted); font-family: var(--font-mono); font-size: 8px; }
 .delivery-authority-list strong { font-size: 10px; }
 
+.github-readback-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  background: var(--line-strong);
+  border: 1px solid var(--line-strong);
+  gap: 1px;
+}
+
+.github-readback-grid > article {
+  display: grid;
+  min-height: 248px;
+  align-content: start;
+  gap: 16px;
+  padding: 20px;
+  background: var(--surface);
+  border-top: 3px solid var(--success);
+}
+
+.github-readback-grid > article[data-state="blocked"] {
+  background: #fffaf7;
+  border-top-color: var(--danger);
+}
+
+.github-readback-head {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
+}
+
+.github-readback-head > svg { margin-top: 2px; color: var(--cobalt); }
+.github-readback-grid > article[data-state="blocked"] .github-readback-head > svg { color: var(--danger); }
+.github-readback-head > div { display: grid; min-width: 0; gap: 4px; }
+.github-readback-head span { color: var(--muted); font-family: var(--font-mono); font-size: 8px; }
+.github-readback-head strong { overflow-wrap: anywhere; font-size: 11px; }
+
+.github-readback-grid dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+}
+
+.github-readback-grid dl > div {
+  display: grid;
+  min-height: 54px;
+  align-content: center;
+  gap: 4px;
+  padding: 9px 11px;
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.github-readback-grid dt { color: var(--muted); font-size: 8px; }
+.github-readback-grid dd { min-width: 0; margin: 0; overflow-wrap: anywhere; font-size: 10px; font-weight: 700; }
+.github-readback-grid code { font-size: 9px; }
+.github-readback-grid p { color: var(--ink-soft); font-size: 9px; line-height: 1.65; }
+
+.github-readback-link {
+  display: inline-flex;
+  width: fit-content;
+  min-height: 32px;
+  align-items: center;
+  gap: 7px;
+  padding: 0 10px;
+  color: var(--ink);
+  border: 1px solid var(--line-strong);
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.github-readback-link:hover { color: #fff; background: var(--ink); }
+
 .release-artifact-band {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -1943,6 +2018,7 @@ pre {
   .delivery-signal { grid-template-columns: minmax(0, 1fr); }
   .delivery-progress { border-top: 1px solid #4b5358; border-left: 0; }
   .release-artifact-band { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .github-readback-grid { grid-template-columns: minmax(0, 1fr); }
   .review-actions, .report-spotlight-actions { min-width: 0; grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .artifact-grid { grid-template-columns: minmax(0, 1fr); }
   .mobile-route-nav {
@@ -2021,6 +2097,9 @@ pre {
   .delivery-stage-list article > .status-badge { grid-column: 3; justify-self: start; }
   .delivery-stage-list p { grid-column: 3; }
   .release-artifact-band { grid-template-columns: minmax(0, 1fr); }
+  .github-readback-head { grid-template-columns: 20px minmax(0, 1fr); }
+  .github-readback-head > .status-badge { grid-column: 2; justify-self: start; }
+  .github-readback-grid dl { grid-template-columns: minmax(0, 1fr); }
   .login-signal { min-height: 390px; padding: 22px 20px; }
   .login-statement h1, [data-language="zh"] .login-statement h1 { font-size: 48px; }
   .login-panel { min-height: 560px; padding: 76px 20px 34px; }

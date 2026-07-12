@@ -6801,3 +6801,51 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
 - Kept the verifier strict. Normalized the one runtime-generated grade fixture to the repository's existing LF policy, then regenerated and reverified the Gate, 14-artifact bundle, 15-entry archive, and Release Artifact hash chain.
 - Current true blockers: A2 Decision Ledger says block; no tenant custom GitHub App; no branch protection; no deployed identity/Postgres/queue/object-storage/rollback receipts.
 - Detailed record: `docs/a3/a3_release_delivery_golden_path_2026_07_12.md`.
+
+## 2026-07-12 - Golden Agent Tool-chain Repair and rc.2
+
+- Re-fetched GitHub and confirmed authoritative `origin/main` remains `ccf6ce5`; current A1 peer ref is `f956249` and A2 peer ref is `db12d21`. Peer changes were inspected but not merged or presented as main contracts.
+- Traced the rc.1 `missing_required_tool` failures to the Echo-only sample Agent rather than A1 Runner or A2 Judge defects.
+- Added `services/report/a3_golden_path_demo_agent.mjs`, a deterministic read-only Agent that executes the A2-required price and media tools against public local fixtures.
+- Created independent case set and A1 RunResult under `fixtures/a3/golden-path/rc2` rather than mutating sealed rc.1 evidence.
+- A1 run `a3-golden-20260712-002` completed 3/3 cases with 100% Trace completeness and four Tool Calls.
+- The unchanged A2 internal Judge graded the same RunResult 3/3, each score 100 with failure class `none`. A second judge execution produced an identical normalized JSON SHA-256.
+- Kept A2 Trusted Spine authoritative. Its merged-main Decision Ledger still reports `block`, so A3 leaves rc.2 `blocked_by_a2` despite passing case grades.
+- Fixed a provenance bug that copied candidate SHA into `ci_tested_sha_alias` before CI existed. Manifest, Deployment Acceptance, and delivery index now preserve `null` until real CI readback.
+- Generated and verified an rc.2 Audit Bundle with 11/11 artifacts and 6/6 custody events, plus an archive with 12/12 entries, root hash, and Ed25519 signature.
+- Generated locally verified `0.2.0-rc.2`; before GitHub readback it reports Golden Path 5/11 and Deployment Acceptance 5/17, with `production_release=false`.
+- Added release-document hashing to the Release Delivery CLI so `--doc` files become required SHA-256 artifacts instead of unverified names.
+- Added `a3-golden-path-rc2` to Store/API/Webapp and kept rc.1 selectable as history.
+- Added a New-run Evidence band showing A1 3/3, A2 3/3, Trace 100%, Tool Calls 4, and Decision Ledger block.
+- Fixed UI Tool Call double-counting by consuming A1 `aggregate_metrics.total_tool_calls` rather than summing duplicate normalized representations.
+- Added desktop/mobile E2E and final-frame screenshots. Pixel verification confirmed the mobile delivery hero is the intended `#20272c`; Playwright animation disabling prevents mid-transition baselines.
+- Candidate commit `c842081` was created. The first Git push timed out; a normal retry succeeded without force push or credential workaround.
+- GitHub Actions run `29193799075` passed all applicable checks for candidate `c842081`. The PR merge ref inspected by CI was `746ecbe`; the candidate and CI-tested SHA are stored separately.
+- The candidate run still used the previously committed rc.1 artifact-upload workflow. Artifact `8260336831` is explicitly rc.1 and is not counted as rc.2 artifact readback.
+- Security: `.env.local` was not read, no network/API key was needed by the Agent, and no token, cookie, email, signed URL, private path, or customer data was added.
+- Detailed record: `docs/a3/a3_golden_agent_tool_chain_2026_07_12.md`.
+- Release notes: `docs/a3/releases/a3-0.2.0-rc.2.md`.
+- Growth audit: `docs/a3/growth_auditor_money_grade_round14_2026_07_12.md`.
+
+## 2026-07-12 - rc.2 GitHub Readback and Distribution Closure
+
+- Published evidence commit `984bafa` to Draft PR #35 without force push. Git smart-HTTP was unavailable, so a one-time Git Data API fallback uploaded exact Git blobs, verified the tree hash, and fast-forwarded the branch; the temporary script was deleted.
+- GitHub Actions run `29195142625` passed Plan/Hygiene, A3 Node, pinned evidence, rc.1 + rc.2 bundle/archive/manifest verification, Next.js/Playwright, and CL summary. Unchanged-language jobs were correctly skipped by the selective plan.
+- Read back GitHub Actions Check `86656698704`: completed/success, exact name and head `984bafa`, app slug `github-actions`. This is real CI evidence but not a tenant custom GitHub App.
+- Published operator OAuth PR block comment `4951428174`. Marker, body SHA-256, candidate `c842081`, and the explicit A2 Decision Ledger `block` all matched on readback.
+- Read main required status checks and received HTTP `404`; the receipt preserves `enforced=false`. No branch-protection mutation was attempted.
+- Read back Actions artifact `8260724828`, name `ashr-a3-0.2.0-rc.2-c8420813ed6cb94535bd108b30bd97663b906bdb`, size 35,497 bytes, and GitHub digest `sha256:056b434d467feb52f8eb371f251fac1d83a014e4c3044b644db64f75e6b2f935`.
+- Downloaded the artifact ZIP to an unrecorded temporary path. Its SHA-256 matched GitHub, all 19 uploaded rc.2 files matched the committed snapshot, and no raw archive/path/token was retained in the public receipt.
+- Extended Gate CLI so the Actions artifact readback is a hashed `readback_record` in the new-run Audit Bundle, with focused tests passing 31/31.
+- Final expected posture remains blocked: Golden Path 7/11, Deployment Acceptance 8/17, A2 Decision Ledger `block`, tenant GitHub App absent, required check absent, and staging/PostgreSQL/RLS/queue/object-storage/recovery proof absent.
+
+## 2026-07-12 - GitHub Readback Product Surface
+
+- Promoted the sealed rc.1/rc.2 GitHub Check, PR comment, required-check, and Actions-artifact receipts from raw bundle-only evidence into source-configured Store and Dashboard API fields.
+- Added a Chinese-first Delivery section with four evidence cards showing provider/authority, IDs, SHA or digest, conclusion, and enforcement state.
+- Preserved the crucial distinction between successful GitHub Actions packet verification and the authoritative A2 Decision Ledger `block`.
+- Marked the operator OAuth comment as calibration rather than a tenant GitHub App, and kept main HTTP 404 as `not enforced` rather than a green plan.
+- Added an HTTPS `github.com` allowlist before rendering Check, comment, or workflow links; no browser token or direct GitHub fetch was introduced.
+- Added Node source assertions and Playwright checks for all four live receipt IDs, authority text, three safe external links, desktop layout, and 390 x 844 layout.
+- Added `docs/a3/a3_github_readback_ui_2026_07_12.md` and dedicated desktop/mobile screenshots.
+- This is a post-seal UI increment. It did not rewrite the signed rc.2 release manifest or its hashed release documentation.
