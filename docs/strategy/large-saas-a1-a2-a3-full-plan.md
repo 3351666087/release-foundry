@@ -1,663 +1,534 @@
-# Ashr Commercial SaaS Endgame Architecture Bus
+# 企业级 Agent Release OS 总战略
 
-> 本文件不是阶段计划。
->
-> 本文件定义 Ashr 的商业终局、生长环境、技术栈、服务边界、接口契约、数据模型、安全底线和 Codex agent 生长规则。
->
-> 所有分支、goal、sub-agent、测试、文档、fixture、API、UI、SDK 都必须向这个终局收敛。
+> 本文是 A1、A2、A3 唯一的产品与工程战略总线。
+> 首要交付形态：**部署到企业自有云、专有云或 VPC 的版本化 Release**
 
 ---
 
-## 0. 终局定义
+## 0. 战略转向
 
-Ashr 的终局不是复刻一个网页产品，也不是堆一个学生项目。
+项目不再围绕 Ashr 官方 API 构建。
 
-Ashr 的终局是：
+已确认的供应风险是：账号充值后仍显示免费额度，额度没有自动增加，且申诉流程无法为服务可用性提供确定保障。这个问题证明了一个根本风险：**付款成功、账户状态、可用额度和实际服务能力不能被假定为同一件事**。任何单一模型厂商的配额、计费、可用性或商业政策，都不能成为本项目的开发前提、CI 前提或企业交付前提。
+
+因此立即确立以下原则：
+
+1. Ashr 官方 API 降级为**可选校准 Provider**，不是必需依赖。
+2. A2 必须支持 Ollama、vLLM、OpenAI-compatible API、客户自建模型端点和任意合规厂商。
+3. 企业部署必须存在完全离线或无外部模型 API 的工作路径。
+4. Provider 超时、限流、额度耗尽、付款状态异常都不能产生“通过”。
+5. 平台必须拥有真实的模型后端、模型注册、路由、容量治理和回滚能力，不能停留在笔记本上的模型调用脚本。
+6. 从系统设计起建立合规的数据闭环，为评测、回归、偏好学习和受治理的强化学习提供可追溯数据，但不得把“使用产品”等同于“同意训练”。
+
+这不是缩小目标，而是把项目从单厂商依赖中解放出来，向真正可交付的企业产品靠近。
+
+---
+
+## 1. 产品终局
+
+项目的终局不是网页复刻、Prompt 集合、模型 API 包装器或通用聊天应用，而是：
 
 ```text
 Agent Release OS
 ```
 
-它面向真实公司、真实团队、真实发布流程、真实账单、真实安全风险。
-
-它要解决的问题是：
+它回答企业在 AI Agent 上线前后最关键的问题：
 
 ```text
-AI Agent 在上线前，能否被接入、运行、记录、评测、复盘、阻断、审计、协作、计费、追责。
+如何接入运行事实？
+如何保存证据与调用链？
+如何评价正确性、安全性和业务风险？
+如何让人工审核、例外审批和事故复盘进入同一条证据链？
+如何阻断危险版本？
+如何把真实使用反馈变成回归资产和受治理的学习数据？
+如何在企业自己的云或 VPC 中安装、升级、回滚、恢复和审计？
 ```
 
-一句话：
+最终商业交付不是“给客户一个仓库”，而是：
 
-```text
-Ashr = AI Agent 的发布门禁、评测平台、证据系统、审计系统和团队协作后台。
-```
-
-商业化描述：
-
-```text
-Upload or connect your agent.
-Run production-grade evaluation.
-Inspect traces and tool calls.
-Block risky releases.
-Generate audit evidence.
-Integrate with GitHub and enterprise identity.
-Bill by usage.
-```
+> 一套签名、版本化、可安装、可升级、可回滚、可恢复、可观测、可审计的企业 Release。
 
 ---
 
-## 1. 生长环境原则
+## 2. 能力基线与 Release 缺口
 
-我们不是按时间一步一步做。
+战略判断只以仓库中可执行代码、自动化测试、契约、迁移和部署资产为依据，不绑定易失的版本快照或分支状态。能力描述必须可由持续验证重复证明；一旦实现与描述不一致，以验证结果为准并收紧对外承诺。
 
-我们搭建一个让 Codex 可以持续生长的商业平台环境。
+### 已经真实具备
 
-每个 Codex goal 必须回答：
+- A1：本地 Runner、Python/TypeScript SDK、Go ingress、Trace/Evidence、API Key/路由/配额/计费账本契约、PostgreSQL 切片、Queue/Worker/Dead Letter、本地对象存储、Compose/Terraform 自托管脚手架。
+- A2：60 个 G3 场景、32 个 Golden Case、确定性 Judge、语义 Provider Gateway、校准、失败分类、回归重放、Release Policy/Gate、Evidence Snapshot、Decision Ledger、SQL 持久化契约、Ollama smoke。
+- A3：Next.js 产品界面、Run/Case/Report/Reviewer/Admin 页面、商业 OpenAPI 契约、Hosted Report 生命周期、RBAC 元数据、Fail-closed 写路径规则、Event Outbox、通知控制面、GitHub Check/PR Comment dry-run、Waiver/Approval/Audit Bundle/Verifier/Artifact Registry。
+- 基础设施：Docker Compose、运行时镜像、PostgreSQL migration、MinIO smoke、Worker recovery、支付对账 scheduler、Terraform 自托管模块。
 
-```text
-1. 我属于哪个 lane？
-2. 我修改哪个服务边界？
-3. 我使用哪种语言和框架？
-4. 我新增或修改哪些 API / DB / event / artifact contract？
-5. 我如何验证 tenant/auth/RBAC/usage/audit/redaction？
-6. 我如何和其他 lane 的输出拼接？
-7. 我如何把工作日志写入本地？
-8. 我如何在开始、中途、结束时读取历史 worklog？
-9. 我如何让 Bus-Auditor 审核方向、接口、测试和证据链？
-10. 我是否把生成物接入 artifact bundle 自动重封机制？
-```
+### 尚未形成生产证明
 
-禁止的生长方式：
+- 没有正式 Git tag 和 GitHub Release。
+- 没有客户环境中的生产部署证据。
+- 没有完整的企业 SSO、SCIM、多租户强隔离和生产授权闭环。
+- 没有经负载、故障、恢复验证的生产数据面。
+- 没有完整的模型服务调度、GPU 容量治理和模型上线/回滚系统。
+- 没有生产级多模态提取服务。
+- 没有真实微信/支付宝商户收款闭环。
+- 没有完整的安装、升级、回滚、备份、恢复和离线交付包。
+- 没有成熟的 SLO、告警、值班、渗透测试和供应链签名体系。
 
-```text
-只做 demo 页面
-只做 mock shell
-只加无服务边界的函数
-只写不能接入 auth/tenant/audit 的业务逻辑
-只写不能进入 API/SDK/DB/event contract 的代码
-只写不能被测试和证据链验证的功能
-```
+### 状态术语
 
-允许的生长方式：
+| 状态 | 准确定义 |
+|---|---|
+| 已实现 | 可执行代码存在，并且有对应测试。 |
+| 契约支撑 | Schema、API、Fixture、Migration 或本地参考实现存在。 |
+| 生产验证 | 已在类客户环境中部署、运维、压测、故障恢复并通过安全验证。 |
 
-```text
-从真实商业系统的边界反推代码
-从接口契约反推实现
-从数据库模型反推 API
-从审计证据反推工作流
-从安全威胁反推权限模型
-从 billing/usage 反推资源计量
-从部署运维反推服务拆分
-从 GitHub/SSO/支付/对象存储等真实平台反推适配层
-```
+禁止把“契约支撑”写成“生产验证”，禁止把页面存在写成后端能力已经闭环。
 
 ---
 
-## 2. 语言裁决
+## 3. 国内优先与企业交付原则
 
-语言不是越多越好。
+### 3.1 国内用户优先
 
-语言必须绑定商业职责。
+产品默认考虑：
 
-| 语言 | Ashr 中的职责 | 是否主力 |
+- 中文界面、文档、错误信息和运维手册；
+- 中国大陆网络条件和镜像源；
+- 国内云厂商与客户私有基础设施；
+- 微信支付、支付宝和企业合同付款；
+- 企业微信、钉钉、飞书、GitHub/GitLab 等集成；
+- 数据驻留、审计、私有化和离线交付需求。
+
+国内优先不等于绑定国内单一厂商。所有身份、支付、模型、对象存储、消息通知和云基础设施都必须经由 Adapter 或稳定契约接入。
+
+### 3.2 主体资质约束
+
+在项目主体不具备营业执照及对应平台资质的条件下，无法按正常商业路径申请并生产使用：
+
+- 微信开放平台登录；
+- QQ 互联登录；
+- 支付宝登录；
+- 微信支付商户；
+- 支付宝商户收款。
+
+这不是企业 Release 的阻塞项，因为私有化交付可以优先使用：
+
+- 客户自己的 OIDC/SAML/LDAP/企业身份系统；
+- 本地管理员初始化；
+- 邮箱密码或密码无关登录；
+- 服务账号和 Scoped API Key；
+- 企业合同、人工开票/对账或客户自有支付系统。
+
+但不得伪造微信、QQ、支付宝生产能力。资质就绪前只允许：
+
+- 定义 Provider Contract；
+- 提供 Sandbox/Mock Adapter；
+- 编写回调、签名、幂等、对账和安全测试；
+- 在取得主体、AppID、商户号和正式密钥后完成生产接入。
+
+### 3.3 支付优先级
+
+商业支付路线：
+
+1. **企业私有化**：合同、采购、License、人工账单和客户内部结算优先。
+2. **国内托管版**：微信支付、支付宝为主要在线支付方式。
+3. **海外或特殊客户**：通过可插拔 Provider 支持 Stripe 或其他方式。
+
+支付成功必须由服务端验签，并与订单、账单、权益和可用额度独立对账。任何支付 Provider 的异常都不得丢失客户数据、破坏审计记录或阻止合法数据导出。
+
+---
+
+## 4. 三条 Lane 的权责
+
+| Lane | 定位 | 核心责任 |
 |---|---|---|
-| TypeScript | Web app、SDK、edge/client、dashboard、admin console、GitHub integration、React Native/PWA | 是 |
-| Python | Judge、eval、model calling、calibration、data tooling、research scripts、offline analysis | 是 |
-| Go | API gateway、ingestion service、worker service、queue consumer、high concurrency backend、webhook delivery | 是 |
-| SQL / PLpgSQL | Postgres schema、RLS、migration、tenant policy、audit trigger、usage rollup | 是 |
-| Bash | CI/devops glue only | 辅助 |
-| C / C++ | sandbox runtime、native runner、WASM host、high-performance trace parser，只有出现明确瓶颈才启用 | 否 |
-| C# | Microsoft enterprise SDK / .NET customer integration，只有客户或生态要求时启用 | 否 |
-| Swift / Kotlin | 原生 iOS/Android，只有 PWA/React Native 不够时启用 | 否 |
-| Rust | security-sensitive signer/verifier/sandbox，可选，不作为当前主线 | 否 |
+| A1 | Platform / Runtime / Identity / Infra | SDK、执行接入、API、身份后端、租户、存储、队列、Worker、部署、观测、Usage、Billing Ledger |
+| A2 | Evaluation / Learning / Policy | 多模态接入、标准化、提取、Provider、模型、Judge、校准、审核语义、回归、学习数据、Release Policy |
+| A3 | Product / Workflow / Commercial UI | 产品控制台、审核、报告、发布工作流、管理后台、身份 UI、计费 UI、集成与客户体验 |
 
-裁决：
+共同主键至少包括：
 
 ```text
-主干只承认 TypeScript + Python + Go + SQL/PLpgSQL。
-其他语言必须证明商业必要性，否则不得进入核心路径。
-```
-
----
-
-## 3. 框架裁决
-
-### 3.1 Product Web
-
-目标：
-
-```text
-从当前 dashboard 进化为真实 SaaS product console。
-```
-
-裁决：
-
-```text
-TypeScript + React + Next.js
-```
-
-不采用 Vue/Nuxt 作为主线。
-
-原因：
-
-```text
-React/Next 更适合和 Vercel AI SDK、enterprise dashboard、React Native、组件生态、GitHub examples、AI SaaS 模板结合。
-Vue 可以做局部实验，但不能成为主产品主线。
-```
-
-UI 约束：
-
-```text
-shadcn/ui 或 Radix primitives
-Tailwind 作为 utility layer
-TanStack Query 管理 server state
-TanStack Table 管理 run/case/report tables
-Zod 管理 client schema validation
-Playwright 做 E2E
-Storybook 可选，只有组件复杂度上来后启用
-```
-
-### 3.2 Backend API
-
-目标：
-
-```text
-承载真实 tenant、auth、run ingestion、artifact、worker dispatch、usage、billing、audit。
-```
-
-裁决：
-
-```text
-Go + chi/gin/fiber 之一
-OpenAPI first
-Postgres first
-Redis/Valkey for cache and short locks
-Temporal for durable workflow when job complexity上升
-```
-
-TypeScript/NestJS 可用于 BFF 或 admin API，但不作为高吞吐 ingestion 的最终主线。
-
-Python 不作为主 API gateway，只做 judge/eval service。
-
-### 3.3 Judge Service
-
-目标：
-
-```text
-让 A2 从本地 judge 变成可配置、可审计、可版本化、可计费的评测智能服务。
-```
-
-裁决：
-
-```text
-Python + FastAPI
-Pydantic models
-OpenAPI schema
-async model providers
-pytest contracts
-```
-
-Judge service 只通过 API、queue job、artifact ref 和 DB record 与平台交互。
-
-### 3.4 Workers
-
-目标：
-
-```text
-长期运行、可重试、可取消、可恢复、可观测。
-```
-
-裁决：
-
-```text
-Go workers: ingestion, artifact, webhook, billing, bundle sealing
-Python workers: judge, semantic eval, calibration, regression replay
-Temporal workflows: durable multi-step release/evidence jobs
-Redis/Valkey queues: early local/dev fallback
-```
-
-### 3.5 Storage
-
-目标：
-
-```text
-真实多租户数据和大文件证据存储。
-```
-
-裁决：
-
-```text
-Postgres = source of truth
-S3/R2/MinIO = artifact/trace/report/audit bundle storage
-Redis/Valkey = cache, rate limit, ephemeral locks
-ClickHouse = later analytics/event warehouse
-OpenSearch = later full-text and trace search
-```
-
-### 3.6 Mobile / Client
-
-目标：
-
-```text
-让用户能在手机上看 release gate、审批、告警、报告，而不是把移动端当主工作台。
-```
-
-裁决：
-
-```text
-第一主线：PWA
-第二主线：React Native / Expo
-中国商业场景：微信小程序归入 A3 client surface
-原生 Swift/Kotlin：只有 App Store/企业客户要求时才做
-```
-
-### 3.7 Development Environment
-
-开发环境不是个人偏好。
-
-它是代码树继续生长时的统一土壤。
-
-默认裁决：
-
-| Layer | Decision | Owner | Purpose |
-|---|---|---|---|
-| Runtime OS | macOS for local dev, Linux containers for service runtime | A1 | 保证本机可跑、容器可复现、云端可部署 |
-| Node.js | latest available Node toolchain | A3 primary, A1 SDK support | Next.js、TypeScript SDK、CLI、Playwright、dashboard |
-| Package manager | pnpm workspace | A3 primary | monorepo JS/TS dependency control |
-| TypeScript | strict mode, ESM first, Zod at boundaries | A3 primary, A1 SDK support | 前端、SDK、typed API client、integration scripts |
-| Python | latest available CPython toolchain | A2 primary | judge、semantic eval、calibration、model provider adapters |
-| Python tooling | uv + pytest + ruff + mypy optional | A2 primary | 快速环境恢复、测试、静态检查 |
-| Go | latest available Go toolchain | A1 primary | API gateway、ingestion、workers、webhooks、billing backend |
-| SQL | latest available PostgreSQL dialect, PLpgSQL allowed | A1 primary, A2 policy review | tenant isolation、RLS、audit、usage rollup |
-| Containers | Docker Compose for local, Kubernetes-ready manifests later | A1 primary | Postgres、Redis/Valkey、MinIO、Temporal、OpenTelemetry |
-| Cache / Queue | Redis or Valkey | A1 primary | rate limit、short lock、local queue fallback |
-| Object Storage | MinIO locally, S3/R2 compatible contract | A1 primary | evidence、trace、report、bundle artifacts |
-| Workflow Engine | Temporal for durable jobs | A1 primary, A2 judge jobs | long-running release/eval/artifact workflows |
-| Browser tests | Playwright | A3 primary | login、dashboard、review、billing、report flow |
-| API contract | OpenAPI + generated clients | A1 primary, A3 client consumer | backend/frontend/SDK 拼接边界 |
-| Observability | OpenTelemetry + structured logs | A1 primary | trace_id、request_id、tenant_id 全链路追踪 |
-| CI | GitHub Actions | A1 primary | test matrix、bundle reseal check、contract drift check |
-
-版本策略：
-
-```text
-总线文件不写死 Node / Python / Go / PostgreSQL 的具体版本。
-默认使用当前可获得的最新开发环境。
-Codex 每轮启动时必须检测本机、CI、容器镜像和包管理器可用版本。
-如果新版本破坏兼容性，允许在具体 lockfile、CI matrix、container image 或 toolchain file 中临时 pin。
-任何 pin 都必须写明原因、影响范围和解除条件。
-版本选择不能成为降低商业目标、跳过测试或退回 mock 的理由。
-```
-
-本地开发必须能一条命令启动核心依赖：
-
-```text
-Postgres
-Redis/Valkey
-MinIO
-Temporal
-OpenTelemetry Collector
-local API gateway
-judge service
-web console
-worker service
-```
-
-仓库必须逐步收敛到这些标准入口：
-
-```text
-make dev
-make test
-make lint
-make typecheck
-make db-up
-make db-migrate
-make seed
-make bundle-reseal
-make smoke
-```
-
-环境变量必须以 contract 形式出现：
-
-```text
-DATABASE_URL
-REDIS_URL
-OBJECT_STORAGE_ENDPOINT
-OBJECT_STORAGE_BUCKET
-OBJECT_STORAGE_ACCESS_KEY_ID
-OBJECT_STORAGE_SECRET_ACCESS_KEY
-TEMPORAL_ADDRESS
-OTEL_EXPORTER_OTLP_ENDPOINT
-ASHR_API_BASE_URL
-ASHR_PUBLIC_WEB_URL
-ASHR_JUDGE_SERVICE_URL
-ASHR_SECRET_ENCRYPTION_KEY_REF
-OPENAI_API_KEY
-ANTHROPIC_API_KEY
-STRIPE_SECRET_KEY
-STRIPE_WEBHOOK_SECRET
-GITHUB_CLIENT_ID
-GITHUB_CLIENT_SECRET
-GOOGLE_CLIENT_ID
-GOOGLE_CLIENT_SECRET
-MICROSOFT_CLIENT_ID
-MICROSOFT_CLIENT_SECRET
-WECHAT_APP_ID
-WECHAT_APP_SECRET
-QQ_CLIENT_ID
-QQ_CLIENT_SECRET
-```
-
-环境变量规则：
-
-```text
-本地只允许 .env.local / .env.dev。
-提交仓库的只能是 .env.example。
-任何真实 secret 不得进入 git。
-所有 provider key 必须由 service boundary 消费，不能散落在 UI 或脚本里。
-所有 Codex goal 新增 env 时必须同步更新 .env.example、docs、tests。
-```
-
-A1/A2/A3 的环境边界：
-
-| Lane | 必须能独立启动 | 必须能独立验证 | 不得绕过 |
-|---|---|---|---|
-| A1 | API、DB、storage、queue、worker、auth backend | API tests、migration tests、contract tests、smoke tests | tenant/auth/audit/usage |
-| A2 | judge service、model adapters、scenario packs、calibration jobs | pytest、golden tests、semantic judge regression、policy tests | evidence integrity/redaction/cost policy |
-| A3 | web console、SDK examples、client workflows、E2E tests | Playwright、component tests、typed client tests、report rendering tests | API contract/RBAC/billing state |
-
-Codex 默认环境权限：
-
-```text
-Codex 可以安装缺失的本地工具、语言运行时、包管理器、数据库客户端、容器组件和测试依赖。
-如果需要管理员权限，Codex 必须明确说明要安装什么、为什么安装、会影响哪里。
-Codex 不能因为环境缺失而把商业目标降级成 mock。
-环境缺失时，应优先补环境，其次补 adapter，最后才允许临时 fake，并且 fake 必须被标注为待替换。
-```
-
----
-
-## 4. 平台 lane 定义
-
-真实商业平台需要 identity、infra、security、billing、mobile、integrations。
-
-但团队只有 3 个人，所以组织结构不能扩成 8 条人力 lane。
-
-终局必须压缩为 3 条超级 lane。
-
-| Lane | 名称 | 吸收能力 | 责任 |
-|---|---|---|
-| A1 | Platform / Identity / Infra | 后端、身份、部署、计量底座 | API、SDK、DB、object storage、queue、workers、auth backend、RBAC backend、deployment、observability、usage source、billing ledger |
-| A2 | Evaluation / Policy / Security | 评测、策略、安全验证、证据正确性 | judge、policy、scenario、calibration、regression、semantic eval、security verification、privacy validation、abuse detection、bundle verifier correctness |
-| A3 | Product / Workflow / Commercial UI | 产品、协作、商业界面、客户端和集成体验 | web app、dashboard、report center、review workflow、GitHub/Slack/Teams、auth UI、admin UI、billing UI、PWA、React Native、WeChat mini program |
-
-能力压缩规则：
-
-```text
-Identity/Auth/RBAC:
-  A1 owns backend/session/token/provider adapters.
-  A2 owns auth/security tests and abuse rules.
-  A3 owns login/account/team/admin UI.
-
-Infra/Deploy/Observability:
-  A1 owns Docker/K8s/Terraform/CI runtime/telemetry pipelines.
-  A2 owns service health semantics for judge/policy.
-  A3 owns status UI and incident-facing surfaces.
-
-Security/Privacy/Abuse:
-  A1 owns technical enforcement.
-  A2 owns verification, policy, threat cases, redaction correctness.
-  A3 owns user-visible trust, privacy, audit, and admin controls.
-
-Billing/Usage/Payment:
-  A1 owns usage events, quota, billing ledger, payment provider backend.
-  A2 owns cost/risk policy for judge/model usage.
-  A3 owns pricing, checkout, invoice, plan, and usage UI.
-
-Mobile/Integrations:
-  A1 owns integration APIs and webhooks.
-  A2 owns integration policy checks.
-  A3 owns PWA, React Native, WeChat mini program, Slack/Teams/GitHub user workflows.
-```
-
-所有超级 lane 必须共享同一套 contract：
-
-```text
-tenant_id
 organization_id
+tenant_id
 project_id
 environment_id
+actor_id
+service_account_id
 run_id
 case_id
 artifact_id
-evidence_bundle_id
+evidence_snapshot_id
+decision_id
 release_gate_id
-audit_event_id
-actor_id
-api_key_id
 request_id
 trace_id
 ```
 
----
+### 不可逾越的边界
 
-## 5. 终局服务拓扑
-
-```text
-web-console [A3]
-  Next.js product app
-  dashboard / reports / admin / settings / billing / review
-
-api-gateway [A1]
-  Go public API
-  auth middleware
-  tenant middleware
-  rate limit
-  OpenAPI
-
-identity-service [A1 primary, A3 UI, A2 security verification]
-  OIDC/OAuth provider adapters
-  email/phone login
-  WebAuthn/passkeys
-  session/token lifecycle
-  RBAC/ABAC
-
-ingestion-service [A1]
-  runs
-  cases
-  trace events
-  observations
-  artifact manifests
-  SDK and CI uploads
-
-judge-service [A2]
-  deterministic judges
-  semantic judges
-  policy evaluation
-  calibration
-  regression replay
-
-artifact-service [A1 primary, A2 redaction/verifier rules, A3 report surface]
-  signed upload/download
-  object metadata
-  checksum
-  redaction
-  malware scan hook
-  retention
-
-release-service [A3 primary, A2 policy, A1 persistence/events]
-  release gate
-  reviewer workflow
-  waiver/approval
-  GitHub check
-  PR comment
-  Slack/Teams notification
-
-bundle-service [A1 storage/sealing, A2 verification correctness, A3 export UI]
-  evidence bundle
-  manifest
-  root hash
-  signature
-  verifier
-  immutable audit export
-
-billing-service [A1 ledger/provider backend, A3 billing UI, A2 usage risk policy]
-  usage meter
-  quota
-  plan
-  invoice
-  payment provider adapter
-
-worker-service [A1 primary, A2 judge workers]
-  background jobs
-  Temporal workflows
-  queue consumers
-  retries
-  dead letter
-
-observability-stack [A1 primary, A2/A3 domain dashboards]
-  OpenTelemetry
-  metrics
-  logs
-  traces
-  alerts
-  incidents
-```
+- A1 运行成功不等于 A2 评测成功。
+- A2 是评测语义和 Release Decision 的权威。
+- A3 只能展示或请求 A2 决策，不能自行重算分数。
+- 没有有效 Decision Ledger 记录，不得显示 Release Ready。
+- 人工 Override 必须追加新记录，不能删除机器原始决策。
 
 ---
 
-## 6. 终局数据模型
+## 5. A1：执行、平台与企业基础设施
 
-Postgres 是 source of truth。
-
-所有核心表必须 tenant scoped。
-
-核心表：
+### 5.1 A1 的目标结构
 
 ```text
-users
-identities
-sessions
-organizations
-organization_members
-teams
-team_members
-roles
-permissions
-role_bindings
-projects
-environments
-api_keys
-service_accounts
-datasets
-scenarios
-scenario_packs
-runs
-run_cases
-trace_events
-observations
-tool_calls
-judge_runs
-judge_results
-release_policies
-release_gates
-review_workflows
-review_assignments
-waivers
-approvals
-artifacts
-artifact_manifests
-evidence_bundles
-bundle_signatures
-audit_events
-usage_events
-usage_rollups
-quota_policies
-billing_customers
-billing_subscriptions
-billing_invoices
-webhooks
-webhook_deliveries
-integrations
-notifications
-incidents
-worker_jobs
+a1/
+  sdk/                Python、TypeScript，并按明确客户需求扩展
+  ingress/            API、Batch、Stream、Webhook、CI 接入
+  runtime/            Agent/Skill 执行与本地/远程 Runner
+  identity/           用户、身份绑定、会话、SSO、服务账号
+  tenancy/            组织、项目、环境、RBAC/ABAC
+  artifacts/          上传、校验、对象存储、保留与导出
+  queue/              作业、重试、幂等、死信与恢复
+  usage/              调用、Token、存储、模型和 Worker 计量
+  billing/            订单、账单、权益、支付与对账
+  audit/              不可抵赖操作记录与证据索引
+  deploy/             Compose、Helm、Terraform、离线包
+  observability/      Logs、Metrics、Traces、SLO、Alert
 ```
 
-Postgres 约束：
+### 5.2 A1 可验证基础
 
-```text
-所有 tenant-owned tables 必须有 organization_id
-所有 project-owned tables 必须有 project_id
-所有 write path 必须带 actor_id 或 service_account_id
-所有外部请求必须带 request_id
-所有 release/audit/artifact path 必须可追溯 trace_id
-所有 secret 只存 hash 或 encrypted reference
-所有 customer payload 默认不能进入 logs
-```
+- 已经有跨 Python/TypeScript/Go 的接入和运行骨架。
+- 已经有 Trace/Evidence、本地 API facade、API Key、配额、Usage/Billing Ledger 契约。
+- 已经有 PostgreSQL、Queue/Worker/Dead Letter、对象存储和自托管脚手架切片。
+- 已经形成公开安全校准与较强测试纪律。
 
-PLpgSQL / RLS 终局：
+### 5.3 A1 Release 缺口
 
-```text
-Row Level Security 默认开启
-tenant isolation 在 DB 层和 API 层双重执行
-audit trigger 记录关键 mutation
-usage rollup 可用 DB job 或 worker job 生成
-retention policy 可由 scheduled worker 执行
-```
+#### 身份与租户
+
+- 密码、邮箱验证、找回、MFA、Session Revocation 仍未形成完整生产闭环。
+- 同一用户绑定 GitHub、Google、Microsoft、企业 IdP 等多个身份的冲突处理和防接管流程不完整。
+- 在主体资质不满足时无法生产接入微信、QQ、支付宝登录；必须保留 Adapter 边界但不得假装可用。
+- OIDC/SAML、SCIM、服务账号、Workload Identity 和 Break-glass 管理未完成生产验证。
+- RBAC 已存在大量契约和元数据，但尚需把授权落实到每条 API、DB Row/Object 和异步 Worker。
+
+#### 数据面
+
+- PostgreSQL 还不是所有核心路径的唯一权威存储。
+- SQLite/内存/本地文件参考路径必须退出企业生产主链。
+- 缺少完整的 Migration 兼容矩阵、PITR、备份恢复演练和灾难恢复指标。
+- Queue 的多实例并发、消息去重、顺序、Backpressure、Poison Message 和跨版本恢复尚未充分验证。
+- 对象存储缺少完整的租户隔离、保留、删除、Legal Hold、不可变策略和跨区域策略。
+
+#### 执行与 SDK
+
+- SDK 需要统一事件 Envelope、离线缓冲、断线续传、幂等、批处理、采样和 Backpressure。
+- 调用记录必须同时覆盖平台使用和 SDK 使用，并区分运行遥测、计费事实、评测证据和学习许可。
+- 需要真实的高并发、长任务、取消、超时、重试、资源配额和隔离验证。
+- 需要明确支持 Agent、Skill、Tool、Model、Prompt、Build 和 Environment 版本。
+
+#### 运维与交付
+
+- Compose 和 Terraform 的定位仍是脚手架，不是完整企业安装器。
+- 缺 Helm 生产参考、离线镜像包、预检、安装验证、升级、回滚和 Support Bundle。
+- 缺完整 SLI/SLO、告警、容量规划、值班和事故 Runbook。
+- 缺签名镜像、SBOM、Provenance、依赖/容器扫描和漏洞响应流程。
+
+#### 商业系统
+
+- Usage Event、账本、Quota、Entitlement、Invoice 和 Payment 之间还未形成严格对账闭环。
+- 微信/支付宝商户接入受主体资质阻塞，资质就绪前只能完成契约、Sandbox 和安全测试。
+- 企业 License、离线授权、续期、宽限期、撤销和数据导出政策需要实装。
+
+### 5.4 A1 Release 验收
+
+- 客户能在干净 VPC 安装并通过预检。
+- 本地管理员或企业 IdP 能完成登录、组织初始化和服务账号创建。
+- SDK 能在网络中断后安全续传并避免重复计量。
+- Postgres、对象存储和队列在多实例下保持租户隔离和一致性。
+- 备份、PITR、恢复、升级和回滚演练通过。
+- 所有写路径有 Actor、Request、Trace 和 Audit。
+- Usage、账单和 Entitlement 可重放、可对账、可解释。
 
 ---
 
-## 7. 终局 Auth / Identity / RBAC
+## 6. A2：独立评测、学习与发布智能
 
-Ashr 不能只做 API key。
-
-商业平台必须支持：
+### 6.1 A2 的目标结构
 
 ```text
-Email magic link
-Email/password with strong policy, optional
-Phone OTP, region-dependent
-Google OAuth / OIDC
-Microsoft Entra ID / OIDC
-GitHub OAuth
-QQ OAuth2
-WeChat Open Platform login
-SAML SSO for enterprise
-OIDC enterprise provider
-WebAuthn / passkeys
+a2/
+  ingestion/          多模态输入、平台/SDK Trace、批量与流式接入
+  normalization/      Evidence 标准化、校验、脱敏、分类和 Lineage
+  extractors/         OCR、ASR、文档解析、压缩包、视频关键帧
+  providers/          本地、云端、OpenAI-compatible、Ollama、vLLM、Ashr
+  models/             模型注册、服务配置、路由、容量和生命周期
+  judges/             规则、语义、安全、多模态和 Ensemble Judge
+  calibration/        一致率、漂移、偏差、误报和漏报
+  review/             人工审核、仲裁、Override、Waiver、双人审批
+  regression/         Golden、事故重放、晋级和复发检测
+  release/            Evidence 完整性、Policy 与 Release Gate
+  learning/           数据集、偏好、Reward、训练编排和模型晋级
+  persistence/        结果、历史、Ledger、Dataset 和 Retention
+  api/                内外部服务契约与健康接口
+  workers/            提取、Judge、Replay 和 Training Job
+  observability/      质量、成本、容量、Trace 和 SLO
+```
+
+这些是稳定的职责边界，不要求先创建空目录。每个模块必须随可执行纵向切片、Schema、测试、持久化、观测和回滚一起进入主干。
+
+### 6.2 A2 可验证基础
+
+- 已有 60 场景、Golden Case、确定性 Judge 和失败分类。
+- 已有校准、回归重放、Release Policy/Gate 和 Fail-closed 语义。
+- 已有 Evidence Snapshot、Decision Ledger、Provider Gateway/Runtime、Model Registry 和 SQL Store 契约。
+- 已有 Ollama smoke，Provider Independence 已具备起点。
+
+### 6.3 A2 Release 缺口
+
+#### Ingestion 与多模态
+
+- 尚未形成生产级 Upload/Batch/Stream/SDK 统一接入。
+- OCR、ASR、文档解析、压缩包隔离和视频关键帧仍缺完整 Worker 服务。
+- 缺 Malware Scan、Decompression Bomb、Parser Sandbox、Prompt Injection 标签和提取完整性指标。
+- Extractor 失败必须与 Agent 失败分离，仍需端到端证明。
+
+#### Provider 与真实模型后端
+
+- Ashr API 配额不可依赖，所有 CI 和 Release Gate 必须可在禁用 Ashr 时通过。
+- Ollama 只能作为开发和小型部署后端，不能代表生产模型平台。
+- 需要 vLLM 或等价高吞吐参考后端，以及客户自建 OpenAI-compatible Endpoint。
+- 缺 GPU/CPU Profile、Scheduler、Admission Control、Warm Pool、Backpressure、Canary、Shadow、Drain 和 Rollback。
+- 缺模型 Artifact 校验、许可证、Tokenizer、量化、硬件兼容、SBOM 和离线安装。
+
+#### Judge 与 Calibration
+
+- 语义 Judge 需要更多真实人工标注和 Holdout，而不只是 Fixture。
+- 必须测量 Precision、Recall、误报、漏报、Abstain 质量和机器/人工一致率。
+- 多 Judge 不能只按数量投票，必须分析 Provider、模型家族、Prompt Lineage 和失败相关性。
+- 阈值变化必须作为版本化 Policy，先重放 Golden、事故和滚动窗口样本。
+
+#### Review 与 Regression
+
+- Reviewer 身份、资质、冲突、双人审批和 Override 质量控制尚未生产闭环。
+- Override 不能自动成为 Gold Label。
+- 事故进入 Regression 的晋级、数据许可、复现和责任人机制仍需完善。
+- 客户私有 Regression Pack 和公共基准必须物理/逻辑隔离。
+
+#### 学习与强化学习
+
+- 在缺少训练、评估、晋级、回滚和安全证据时，不得宣称拥有 RLHF 或生产强化学习。
+- 必须先收集有授权、有 Lineage 的修正、偏好、接受/拒绝、编辑、重试、比较和审核数据。
+- 需要支持 SFT、Preference Dataset、Reward Model、DPO 等离线优化路线。
+- 可通过 TRL-compatible Trainer、Ray 或其他受治理框架适配分布式训练，但不绑定单一框架。
+- 在线 Bandit 或环境 RL 只能在安全、回滚、因果测量和 Reward Hacking 测试完成后启用。
+
+#### Persistence
+
+- PostgreSQL、对象存储和 Durable Queue 必须成为权威数据面。
+- Dataset、Label、Checkpoint 和 Decision 必须不可变版本化并保留完整 Lineage。
+- 跨租户训练默认禁止；企业私有学习必须能完全在客户 VPC 内进行。
+
+### 6.4 设计内生的数据闭环
+
+必须收集但必须分层治理：
+
+```text
+平台 UI/API 使用事件
+SDK 调用、Trace、Tool Call、模型和 Provider 记录
+延迟、重试、错误、Token、成本和容量
+用户选择模型、接受、拒绝、编辑、重试、显式评分
+Reviewer Label、分歧、Override、Waiver 和理由
+Release Decision、上线后事故和回归结果
+```
+
+每条事件至少绑定：
+
+```text
+tenant/project/environment/user-or-service/session/run/request
+source/schema_version/idempotency_key/causal_parent/integrity_hash
+agent/skill/tool/model/provider/prompt/policy/build version
+purpose/consent/data_class/residency/retention/deletion class
+artifact reference，而不是不安全的私有内容内联
+```
+
+强制规则：
+
+- 使用平台不等于授权训练。
+- 运行遥测、计费事实、评测证据和学习数据必须分开。
+- 跨租户聚合或训练必须有明确合同与授权。
+- Secret、支付数据和禁止的 PII 不得进入 Evidence 或 Dataset。
+- 企业能导出自己的 Evidence、Decision、Audit 和 Dataset。
+
+### 6.5 A2 Release 验收
+
+- 禁用 Ashr 后完整评测和 Release Gate 仍可运行。
+- 同一评测包可在本地模型和云 Provider 上执行并保留可比 Provenance。
+- Provider 宕机、额度耗尽和容量不足不会制造假 Pass。
+- 至少一个多模态 Case 从接入到提取、Judge、Review、Decision、Regression 全链路可重放。
+- 每个 Judge 版本有准确率、召回率、误报、漏报、漂移和相关性指标。
+- 人工审核事故能进入版本化 Dataset/Regression，并可生成候选模型后重新过 Gate。
+
+---
+
+## 7. A3：产品控制台、审核与商业工作流
+
+### 7.1 A3 的目标结构
+
+```text
+a3/
+  onboarding/         安装后初始化、组织、项目和环境向导
+  identity-ui/        登录、验证、MFA、账号绑定、SSO 设置
+  console/            Run、Case、Trace、Evidence、Model、Provider
+  review/             队列、仲裁、Override、Waiver、Approval
+  release/            Gate、War Room、GitHub/GitLab、通知
+  reports/            Report、Share、Revoke、Expiry、Export
+  datasets/           Golden、Regression、Label 和 Learning Data
+  admin/              Tenant、RBAC、Audit、Health、Retention
+  billing/            Plan、Usage、Entitlement、订单、账单、支付
+  deploy/             安装状态、Migration、Backup、Upgrade、Support Bundle
+  integrations/       企业微信、钉钉、飞书、GitHub/GitLab、Webhook
+```
+
+### 7.2 A3 可验证基础
+
+- 已有 Next.js 产品壳和主要业务页面。
+- 已有 Review、Report、Share/Revoke/Denied、Admin 和商业 API 契约。
+- 已有 GitHub Gate dry-run、Waiver、Approval、Audit Bundle、Verifier、Artifact Registry。
+- 已有 Fail-closed 写路径规则、RBAC 元数据和 Event Outbox 契约。
+
+### 7.3 A3 Release 缺口
+
+#### UI 与真实后端
+
+- 多数页面仍需要从 Fixture/本地 Store 迁移到真实 A1/A2 API。
+- 每个按钮都必须对应真实授权、幂等、审计、加载、失败、重试和并发冲突状态。
+- 禁止 Dashboard 自行拼装 Release Ready；必须读取 A2 Decision。
+- 需要把“契约存在”“本地可用”“生产可用”在 UI 中清楚标记。
+
+#### 身份体验
+
+- 需要完整的注册/邀请、邮箱验证、密码重置、MFA、Session 管理和设备/会话撤销。
+- 同账号绑定多个平台必须有重新认证、唯一性冲突、解绑保护和接管风险提示。
+- 企业私有化优先支持客户 OIDC/SAML；微信/QQ/支付宝登录必须标记为“需主体资质”，不得出现在生产可用清单中。
+- 需要组织、团队、项目、环境、Role Binding 和服务账号的管理界面。
+
+#### 审核与发布
+
+- Reviewer Queue 需要分配、锁定、超时、转交、双人审批和冲突处理。
+- Override/Waiver 要显示作用域、有效期、风险和原始机器结论。
+- Release War Room 需要真实状态流、阻断原因、变更历史和回滚入口。
+- GitHub 之外还需按企业需求支持 GitLab、Webhook，以及企业微信/钉钉/飞书通知。
+
+#### Report 与 Evidence
+
+- Share Token 必须有签名、权限、过期、撤销、下载控制和审计。
+- Report 必须能展示 Evidence 完整性、模型/Provider/Judge/Policy 版本和人工动作。
+- Export 必须防止 Secret、PII、跨租户引用、CSV Injection 和失效 Signed URL。
+- Audit Bundle 的生成、签名、验证和下载必须连接真实存储与权限。
+
+#### 商业与部署体验
+
+- Usage、Quota、Entitlement、订单、账单和支付状态尚未形成端到端真实 UI。
+- 微信/支付宝 Checkout 需等待主体和商户资质；资质就绪前采用企业 License/合同交付。
+- 管理后台需要真实部署健康、队列深度、模型容量、Migration、Backup、Restore 和 Support Bundle。
+- 需要中文优先的安装、错误诊断、运维和安全配置体验。
+
+#### 产品质量
+
+- 需要系统化无障碍、响应式、国际化、浏览器兼容和大数据量性能测试。
+- Playwright 需要覆盖真实身份、权限拒绝、审核、发布、报告分享、升级和故障恢复关键流程。
+- 视觉美观不能掩盖状态不真实；所有高风险操作必须清楚、可撤销或需确认。
+
+### 7.4 A3 Release 验收
+
+- 新企业管理员能完成安装后的组织初始化、IdP 配置、项目创建和 SDK 接入。
+- 不同角色只能看到并执行被授权的动作。
+- Reviewer 可完成分配、审核、Override/Waiver 和双人审批。
+- Release Gate 能真实阻断 CI/CD，并把原因送达代码平台和国内协作工具。
+- Report 可安全分享、撤销、过期、导出和审计。
+- 管理员能看到服务、队列、模型、存储、备份、Migration 和 License 状态。
+
+---
+
+## 8. 企业 Release 的标准内容
+
+### 8.1 必须交付
+
+- Web、API、A1、A2、Worker、Model Serving 等签名 OCI 镜像。
+- Helm Chart 作为生产参考，Docker Compose 作为开发/试用参考。
+- Terraform 模块和 Bring Your Own Infrastructure 文档。
+- PostgreSQL Migration、兼容矩阵、预检、升级、回滚、备份和恢复命令。
+- 对象存储、Queue、Ingress、TLS、DNS、IdP、SMTP、KMS、Observability、Provider 和模型配置模板。
+- Readiness/Liveness/Startup、Migration、Queue、Model Capacity 和依赖诊断。
+- SBOM、镜像签名、Provenance、漏洞报告、许可证和校验和。
+- 离线镜像/模型包与私有 Registry 指南。
+- 默认拒绝的网络策略、最小权限服务身份和 Secret Reference。
+- Seeded Smoke、Golden Pack、安装验证和自动脱敏 Support Bundle。
+- 中文优先的 Operator、Admin、Reviewer、SDK、API、安全、容量和事故手册。
+- Release Note、Known Limitations、支持版本政策和生产证据。
+
+### 8.2 部署档位
+
+1. **Developer**：单机 Compose，可选 Ollama。
+2. **Evaluation**：小型 Kubernetes/VPC，Postgres、对象存储、Queue 和一个受治理模型后端。
+3. **Enterprise HA**：多实例、托管依赖、Worker/Model 自动扩缩容、SSO、KMS、备份恢复和完整观测。
+4. **受限/离线**：不要求公网 Provider，离线镜像与模型、私有 Registry、客户 IdP 和受控升级包。
+
+“开箱即用”必须包含预检、安装、Migration、Seed、Smoke、健康报告和可操作错误，不是用一个不透明脚本隐藏不可逆操作。
+
+---
+
+## 9. 技术裁决
+
+| 层 | 主技术 | 原则 |
+|---|---|---|
+| Web/Product | TypeScript + React + Next.js | A3 主线，严格 Typed API，Playwright E2E |
+| SDK | TypeScript + Python | A1 主线，统一 Event Contract |
+| Platform API/Ingress | Go | 高并发接入、授权、计量和 Worker |
+| Evaluation/Learning | Python | A2 Judge、Extractor、Provider、Training |
+| 数据库 | PostgreSQL/PLpgSQL | 权威存储、Migration、RLS Defense-in-depth |
+| 对象存储 | S3-compatible/MinIO | Evidence、Dataset、Report、Bundle、Model |
+| Queue/Workflow | Durable Queue，复杂流程可用 Temporal | 幂等、重试、恢复、Backpressure |
+| Model Serving | Ollama 开发；vLLM 或等价后端生产参考 | Provider-neutral |
+| Observability | OpenTelemetry + Metrics/Logs/Traces | 全链路 Tenant/Request/Trace |
+| Deploy | Docker + Helm + Terraform | VPC、自托管、离线优先 |
+
+Rust 只用于安全敏感的签名、验证或 Sandbox；其他语言只有在客户/生态有明确需求时进入核心路径。
+
+---
+
+## 10. 身份、授权与账号绑定
+
+### 无外部主体资质依赖的交付优先级
+
+```text
+企业 OIDC / SAML
+本地管理员初始化
+邮箱密码或密码无关登录
+服务账号
+Scoped API Key
 MFA
-Service accounts
-Scoped API keys
 ```
 
-账号绑定模型：
+### 具备主体资质与平台审批后的可选接入
 
 ```text
-user
-  id
-  primary_email
-  primary_phone
-  status
-
-identity
-  provider
-  provider_subject
-  provider_union_id
-  verified_email
-  verified_phone
-  profile_snapshot
-  linked_user_id
-  risk_score
+微信开放平台登录
+QQ 互联登录
+支付宝登录
+微信支付
+支付宝支付
 ```
 
-权限模型：
+内部身份模型必须将 `user` 与 `identity` 分离，一个用户可绑定多个已验证身份。绑定/解绑必须重新认证、防 CSRF、校验 Provider Subject 唯一性、处理邮箱冲突，并记录完整审计。
+
+权限模型至少支持：
 
 ```text
 organization owner
 organization admin
-billing admin
 security admin
+billing admin
 project admin
 developer
 reviewer
@@ -666,626 +537,160 @@ read-only viewer
 service account
 ```
 
-权限判断必须支持：
-
-```text
-RBAC: role grants permission
-ABAC: action depends on org/project/env/resource attributes
-policy: enterprise custom release approval rules
-```
-
-所有 auth code 必须有测试：
-
-```text
-CSRF state
-PKCE
-redirect URI validation
-token exchange error handling
-account linking conflict
-session fixation protection
-refresh token rotation
-logout / revoke
-MFA challenge
-```
+RBAC 决定基本权限，ABAC 结合组织、项目、环境、资源、数据分类和发布策略作最终授权。
 
 ---
 
-## 8. 终局 API Contract
+## 11. 数据、安全与隐私底线
 
-所有 public API 使用：
-
-```text
-/v1
-JSON
-OpenAPI
-idempotency key
-pagination
-rate limit headers
-request_id
-error code contract
-tenant scoped auth
-```
-
-### 8.1 Core Public API
-
-```http
-GET  /v1/me
-GET  /v1/organizations
-POST /v1/organizations
-GET  /v1/projects
-POST /v1/projects
-GET  /v1/projects/{project_id}
-PATCH /v1/projects/{project_id}
-
-POST /v1/api-keys
-GET  /v1/api-keys
-POST /v1/api-keys/{api_key_id}/rotate
-POST /v1/api-keys/{api_key_id}/revoke
-
-POST /v1/datasets
-GET  /v1/datasets
-GET  /v1/datasets/{dataset_id}
-POST /v1/datasets/{dataset_id}/cases
-
-POST /v1/runs
-GET  /v1/runs
-GET  /v1/runs/{run_id}
-POST /v1/runs/{run_id}/cases
-POST /v1/runs/{run_id}/trace-events
-POST /v1/runs/{run_id}/observations
-POST /v1/runs/{run_id}/complete
-POST /v1/runs/{run_id}/cancel
-
-POST /v1/artifacts/upload-url
-POST /v1/artifacts/complete
-GET  /v1/artifacts/{artifact_id}
-
-POST /v1/release-gates/evaluate
-GET  /v1/release-gates/{release_gate_id}
-POST /v1/release-gates/{release_gate_id}/waivers
-POST /v1/release-gates/{release_gate_id}/approvals
-
-GET  /v1/evidence-bundles/{bundle_id}
-POST /v1/evidence-bundles/{bundle_id}/verify
-
-GET  /v1/reports
-GET  /v1/reports/{report_id}
-POST /v1/reports/{report_id}/share
-
-GET  /v1/usage
-GET  /v1/billing/subscription
-POST /v1/billing/checkout
-POST /v1/billing/portal
-```
-
-### 8.2 Internal API
-
-```http
-POST /internal/judge/case
-POST /internal/judge/run
-POST /internal/judge/batch
-POST /internal/policy/evaluate
-POST /internal/regression/replay
-POST /internal/bundles/seal
-POST /internal/artifacts/redact
-POST /internal/usage/rollup
-POST /internal/webhooks/deliver
-POST /internal/github/check
-POST /internal/github/pr-comment
-```
-
-### 8.3 Event Contract
-
-所有跨服务事件必须有 schema。
-
-```text
-run.created
-run.completed
-run.failed
-trace.ingested
-artifact.uploaded
-judge.completed
-policy.evaluated
-release_gate.blocked
-release_gate.approved
-review.assigned
-review.approved
-bundle.sealed
-bundle.verified
-usage.recorded
-quota.exceeded
-billing.subscription_changed
-webhook.delivered
-github.check_published
-security.secret_detected
-auth.login_succeeded
-auth.login_failed
-```
-
-事件字段：
-
-```text
-event_id
-event_type
-schema_version
-organization_id
-project_id
-actor_id
-request_id
-trace_id
-resource_type
-resource_id
-created_at
-payload_ref
-redaction_status
-```
+- 所有 Tenant-owned 数据必须带组织/租户主键。
+- 所有写操作必须带 Actor 或 Service Account。
+- 外部请求必须有 Request ID，关键链路必须有 Trace ID。
+- Customer Payload 默认不进入日志。
+- Secret 只存 Hash 或加密引用。
+- Evidence、Label、Dataset、Decision 和 Model 有独立 Retention。
+- 客户数据默认不跨租户，不用于训练，不离开客户 VPC。
+- 需要支持 KMS、密钥轮换、TLS、RLS Defense-in-depth、Signed Webhook、Signed Bundle。
+- 上传内容必须防 Malware、SSRF、压缩炸弹、Parser Escape 和 Prompt Injection。
+- Export 必须防 Secret/PII 泄露、CSV Injection 和跨租户对象引用。
+- 安全扫描覆盖依赖、SAST、容器、SBOM 和供应链 Provenance。
 
 ---
 
-## 9. 终局 Evidence / Artifact / Bundle
+## 12. 面向 Release 的能力建设路径
 
-Ashr 的护城河是证据链。
+### 路线与契约治理
 
-所有重要输出都必须进入 artifact registry。
+- Ashr 全面可选化，禁用后 CI 与评测可运行。
+- 冻结 Event、Evidence Snapshot、Provider、Decision Ledger、Review、Dataset Lineage 和 Release Decision 契约。
+- 对全部能力标注“已实现/契约支撑/生产验证”。
+- 在扩大数据收集前冻结 Consent、Purpose、Retention、Deletion 和 Tenant 默认策略。
 
-Artifact 类型：
-
-```text
-run_result
-trace_event_batch
-case_result
-judge_result
-release_gate_report
-markdown_report
-csv_export
-json_export
-pr_comment
-github_check
-waiver
-approval
-audit_bundle_index
-bundle_verification
-screen_capture
-model_call_summary
-redaction_report
-usage_rollup
-invoice_snapshot
-```
-
-Evidence bundle 必须包含：
+### 完整纵向主链
 
 ```text
-input artifact hashes
-generated artifact hashes
-release decision
-judge versions
-policy versions
-actor approvals
-waiver record
-chain of custody
-root hash
-signature
-retention policy
-verification command
+SDK/Platform -> A1 Ingestion -> A2 Normalize/Extract
+-> Judge -> Decision -> Review -> Release Gate -> A3
 ```
 
-自动重封规则：
+- PostgreSQL、对象存储和 Durable Queue 成为权威路径。
+- 一个多模态 Case 可端到端重放。
+- 所有失败严格 Fail Closed。
 
-```text
-任何 source artifact 改变
-任何 generated artifact 改变
-任何 waiver/approval 改变
-任何 release gate threshold 改变
-任何 judge/policy version 改变
-都必须触发 bundle reseal
-```
+### Provider 与模型后端
 
-CI 规则：
+- 生产化 Ollama、vLLM、OpenAI-compatible 和客户自建 Endpoint。
+- 完成 Model Registry、路由、健康、Quota、成本、Circuit Breaker、Shadow、Canary 和 Rollback。
+- 交付至少一个本地/离线模型 Profile。
 
-```text
-如果 bundle index hash drift，CI fail
-如果 verifier fail，CI fail
-如果 public artifact 泄露 secret，CI fail
-如果 artifact 没有 registry record，CI fail
-```
+### 身份、审核与国内企业体验
+
+- 完成企业 OIDC/SAML、本地登录、MFA、账号绑定、服务账号和真实 RBAC。
+- 完成 Reviewer、Override、Waiver、双人审批和 Audit。
+- 完成企业微信/钉钉/飞书及代码平台集成优先路径。
+- 微信/QQ/支付宝身份与支付保持 Ready-to-integrate，等待主体资质。
+
+### 数据闭环与学习
+
+- 将事故、人工修正和偏好变成版本化 Golden/Regression/Dataset。
+- 建立一个可复现的 SFT/Preference Training 参考流程。
+- 候选模型必须重新通过 A2 Gate 才能晋级。
+
+### 企业 Release 制品与验证
+
+- 完成 Helm/Terraform、签名镜像、SBOM、离线包、预检、安装验证、升级、回滚、备份、恢复和 Support Bundle。
+- 在类客户 VPC 完成 Load、Soak、Failure、Restore 和 Restricted-network Drill。
+- 形成 SLO、告警和事故响应。
+
+### 生产证明
+
+- 设计合作企业试点。
+- 安全评审与渗透测试闭环。
+- 发布容量、恢复、升级和评测质量证据。
+- 建立支持版本、漏洞响应和 Release Cadence。
 
 ---
 
-## 10. 终局 Security / Privacy
+## 13. Main 合并与 Release 门禁
 
-安全不是后补功能。
-
-每个 lane 都必须按安全模型生长。
-
-安全基线：
+任何进入 `main` 的变更必须：
 
 ```text
-OWASP ASVS as verification checklist
-HTTPS only
-secure cookies
-CSRF protection
-PKCE for OAuth
-MFA support
-WebAuthn support
-rate limiting
-brute-force protection
-audit log
-secret redaction
-encrypted credentials
-KMS envelope encryption
-least privilege
-tenant isolation
-RLS defense in depth
-signed webhook
-signed artifact bundle
-dependency scanning
-SAST
-container scanning
-security headers
-```
-
-隐私基线：
-
-```text
-PII classification
-data retention policy
-data deletion workflow
-export user/org data
-customer payload never logged raw
-private prompt/response redaction
-region-aware storage, later
-```
-
-防攻击重点：
-
-```text
-OAuth redirect attack
-CSRF
-session fixation
-IDOR
-broken tenant isolation
-API key leakage
-prompt/trace secret leakage
-artifact poisoning
-webhook replay
-billing abuse
-rate limit bypass
-SSRF through artifact URL
-malicious uploaded files
-SQL injection
-XSS in report/dashboard
-CSV injection
-dependency supply-chain attack
-```
-
----
-
-## 11. 终局 Billing / Usage
-
-Ashr 必须能收钱。
-
-Usage meter：
-
-```text
-api_requests
-run_count
-case_count
-trace_event_count
-observation_count
-artifact_bytes_uploaded
-artifact_bytes_stored_days
-judge_invocations
-semantic_judge_tokens
-model_cost_usd
-replay_jobs
-report_exports
-webhook_deliveries
-github_check_publishes
-team_members
-retention_days
-```
-
-Plan：
-
-```text
-free
-student
-team
-pro
-enterprise
-self-host enterprise
-```
-
-Payment provider abstraction：
-
-```text
-Stripe
-WeChat Pay
-Alipay
-manual invoice
-enterprise contract
-```
-
-Billing service 只接收 usage event，不直接读取业务私密 payload。
-
----
-
-## 12. 终局 Deploy / Ops
-
-生产环境必须可部署、可恢复、可观测。
-
-部署：
-
-```text
-Docker
-docker-compose for local integration
-Kubernetes for production
-Terraform for cloud resources
-Helm charts or Kustomize
-GitHub Actions CI/CD
-staging / production separation
-preview environment
-```
-
-运行：
-
-```text
-api deployment
-web deployment
-judge deployment
-worker deployment
-scheduler
-Postgres
-Redis/Valkey
-object storage
-OpenTelemetry collector
-metrics backend
-log backend
-error tracking
-```
-
-运维能力：
-
-```text
-health check
-readiness check
-liveness check
-db migration command
-rollback command
-backup restore drill
-incident runbook
-SLO
-alert rules
-on-call notification
-```
-
----
-
-## 13. Codex 生长协议
-
-每个 goal 必须粘贴这段协议。
-
-```text
-You are growing Ashr toward the commercial SaaS endgame defined in:
-docs/strategy/large-saas-a1-a2-a3-full-plan.md
-
-You have full local environment, software, library, runtime, browser, network, and repository access.
-If administrator permission is required, ask explicitly.
-
-Do not build isolated demos.
-Every change must declare:
-- lane
-- language/framework
-- service boundary
-- API/DB/event/artifact contract
-- tenant/auth/RBAC/usage/audit implications
-- tests
-- local worklog path
-- bundle/artifact reseal impact
-
-Spawn six sub-agents inside the current A1/A2/A3 lane.
-These are not people or new ownership lanes.
-They are internal reviewers used to make one person's Codex window behave like a small production team:
-
-- Bus-Auditor: continuously checks this strategy bus, detects drift, suggests toolchain/environment/goal corrections.
-- Contract-Agent: API/DB/event/schema compatibility.
-- Security-Agent: auth/RBAC/tenant/privacy/abuse/security tests.
-- Evidence-Agent: artifact registry, redaction, bundle sealing, verifier.
-- Test-Agent: unit/integration/E2E/fixture regeneration.
-- Integration-Agent: reads other branches, pulls others' work, distinguishes own changes from others' changes.
-
-Main agent must periodically ask Bus-Auditor what changed and must write progress to local worklog.
-Before final answer, reread worklog and summarize what changed, what passed, what failed, and what should grow next.
-```
-
-禁止 goal：
-
-```text
-只写页面
-只写 README
-只写 mock
-只写没有测试的模块
-只写没有 contract 的服务
-只写不能拼进 main 的分支
-```
-
-合格 goal：
-
-```text
-能够自己发现当前 repo 状态
-能够读取其他 branch
-能够拉取别人代码分析
-能够运行测试
-能够补齐 contract
-能够写 worklog
-能够给出 merge risk
-能够说明是否需要 bundle reseal
-```
-
----
-
-## 14. Main 合并门禁
-
-任何分支进入 main 前必须满足：
-
-```text
-git status clean
-origin/main is ancestor
-Python tests for touched lane pass
-Node/TS tests for touched lane pass
+基于目标 main 的远端 HEAD，并在合并前完成同步验证
 diff --check clean
-no secret leakage
-README and strategy bus not accidentally corrupted
-artifact registry updated if artifacts changed
-bundle resealed if bundle inputs changed
-worklog updated
-merge summary names own work vs others' work
+触及 Lane 的单元/契约/集成测试通过
+跨 Lane Fixture 和 Schema 兼容
+无 Secret、私有证据和禁止支付数据泄露
+Migration 可升级且有回滚/兼容说明
+Artifact Registry 和 Bundle 在需要时重封
+文档不把契约能力冒充生产能力
+明确 Tenant/Auth/RBAC/Usage/Audit/Retention 影响
 ```
 
-如果修改这些路径，必须额外验证：
+正式 Release 还必须：
 
 ```text
-fixtures/a3/p3/a3_audit_bundle_index_blocked_exception.redacted.json
-fixtures/a3/p3/a3_audit_bundle_verification_passed.redacted.json
-fixtures/a3/p3/a3_gate_cli_mock_blocked.redacted.json
-fixtures/a3/p3/a3_gate_cli_generated_artifact_manifest.redacted.json
-fixtures/a3/p3/a3_gate_cli_github_check.redacted.json
-fixtures/a3/p3/a3_gate_cli_report.redacted.md
-fixtures/a3/p3/a3_gate_cli_pr_comment.redacted.md
-```
-
-必须运行：
-
-```text
-node services/report/a3_gate_cli.mjs --verify-index fixtures/a3/p3/a3_audit_bundle_index_blocked_exception.redacted.json --strict-exit --json
-node --test tests/a3/a3_gate_cli.test.mjs
+版本 Tag
+不可变制品
+镜像签名、SBOM、Provenance
+Migration 与兼容矩阵
+安装/升级/回滚/备份/恢复验证
+安全扫描
+Seeded Smoke 与 Golden Gate
+Known Limitations
+Support Bundle
+生产或类生产演练证据
 ```
 
 ---
 
-## 15. 当前 A1/A2/A3 的终局定位
+## 14. 最终验收标准
 
-### A1
+项目只有同时满足以下闭环，才能被定义为企业可发布版本：
 
-A1 不只是 runner owner。
+- 企业能在自己的云/VPC 中安装、升级、回滚和恢复。
+- 不依赖 Ashr 或任意单一外部 Provider。
+- SDK 与平台调用能安全、合规、可追溯地进入证据和计量系统。
+- 多模态 Evidence 有完整提取、质量和安全状态。
+- Judge 有可量化准确率、误报、漏报、漂移和人工一致率。
+- Reviewer、Override、Waiver、Approval 和 Release Gate 完整可审计。
+- 真实 RBAC、SSO、服务账号和租户隔离生效。
+- Report、Share、Export、Bundle 和 Verifier 连接真实数据面。
+- Usage、Entitlement、账单和 License 可对账。
+- 国内企业可先通过合同/License 交付；取得主体后接入微信/支付宝收款。
+- 数据闭环能够产生有授权、有 Lineage 的 Regression、Preference 和 Training Dataset。
+- 模型训练、晋级、部署和回滚全部经过 A2 评测门禁。
+- SLO、告警、备份恢复、事故响应和供应链安全可验证。
 
-A1 是：
-
-```text
-Platform API / SDK / Storage / Worker / Identity Backend / Infra / Usage Ledger owner
-```
-
-A1 每次生长都必须问：
-
-```text
-这个能力能否被真实 SDK/API 用户调用？
-这个数据是否能进入 Postgres/object storage？
-这个流程是否支持 tenant isolation？
-这个登录、API key、RBAC、session、provider adapter 是否能被后端强制执行？
-这个操作是否有 usage event？
-这个服务是否能部署、观测、回滚？
-这个 artifact 是否可审计？
-```
-
-### A2
-
-A2 不只是 judge owner。
-
-A2 是：
-
-```text
-Evaluation Intelligence / Policy / Calibration / Regression / Security Verification owner
-```
-
-A2 每次生长都必须问：
-
-```text
-这个 judge 是否可版本化？
-这个 policy 是否可配置？
-这个结果是否可解释？
-这个 blocker 是否能进入 release gate？
-这个失败是否能变成 regression asset？
-这个安全/隐私/滥用风险是否有测试样本？
-这个 redaction、bundle verifier、policy gate 是否能抓 drift？
-```
-
-### A3
-
-A3 不只是 dashboard owner。
-
-A3 是：
-
-```text
-Product Console / Review Workflow / Report Center / GitHub Gate / Commercial UI / Client owner
-```
-
-A3 每次生长都必须问：
-
-```text
-这个页面是否对应真实 API？
-这个操作是否有权限和审计？
-这个报告是否可分享、撤销、过期？
-这个 release decision 是否能进入 GitHub/Slack/Teams？
-这个 UI 是否让用户完成真实工作流？
-这个登录、团队、billing、usage、mobile/PWA/小程序体验是否让商业用户能用？
-```
+任何未满足上述闭环的构建都只能作为开发、验证或试点制品，不得标记为成熟商业 Release。
 
 ---
 
-## 16. 终局验收标准
+## 15. 不做什么
 
-Ashr 触碰商业级别，不是因为代码行数，而是因为这些闭环同时成立：
-
-```text
-真实用户可注册/登录/绑定账号
-组织和项目可管理
-API key 可创建、验证、撤销、限流
-SDK 可提交真实 run 和 trace
-Postgres 持久化核心数据
-Object storage 持久化大 artifact
-Worker 长期运行并可恢复
-Judge service 可配置、可版本化、可审计
-Release gate 可阻断危险发布
-Reviewer workflow 可审批/拒绝/豁免
-GitHub check / PR comment 可发布
-Report Center 可分享、撤销、过期
-Evidence bundle 可重封、签名、验证
-Usage 可计量
-Billing 可收款
-Tenant isolation 可测试
-Security baseline 可验证
-CI/CD 可稳定部署
-Observability 可定位事故
-Mobile/PWA 可处理审批和告警
-```
-
-如果这些没有闭环，Ashr 仍然是高级原型。
-
-如果这些闭环成立，Ashr 就不再是学生项目，而是商业 SaaS 的 early production system。
+- 不做依赖单一 Ashr API 的产品。
+- 不做 Dify 式通用工作流或聊天壳。
+- 不把 Ollama 当作完整生产模型平台。
+- 不因为收集了反馈就宣称拥有 RLHF。
+- 不把用户使用产品视为训练授权。
+- 不在没有主体资质时宣称微信、QQ、支付宝登录或支付已上线。
+- 不把 Fixture、Mock、OpenAPI、页面或 Terraform 形状当作生产证明。
+- 不为了炫酷界面牺牲真实状态、权限、审计和失败语义。
+- 不交付无法升级、回滚、恢复和支持的“单次安装脚本”。
 
 ---
 
-## 17. 最终裁决
+## 16. 系统不变量
 
-不要再把 Ashr 当成一个复现项目设计。
-
-要把 Ashr 当成一个真实公司要卖的系统设计。
-
-从现在开始，所有生长都必须遵守：
-
-```text
-语言有职责
-框架有边界
-接口有契约
-数据有租户
-权限有证明
-证据有哈希
-报告有出处
-计费用 usage
-部署有环境
-故障有观测
-合并有门禁
-Codex 有总线
-```
-
-这就是 Ashr 的终局生长环境。
+- A1 运行成功不等于 A2 评测成功。
+- Evidence 缺失、无效、隔离或不支持绝不变成 Pass。
+- Provider 失败、额度耗尽和支付不一致绝不变成 Pass。
+- 禁用 Ashr 不影响开发、CI、Release Gate 和企业运行。
+- A3 不重算 A2 分数或 Release Decision。
+- 没有 Decision Ledger 就没有 Release Ready。
+- 人工 Override 保留机器原始决策。
+- 每个 Release Decision 绑定 Evidence、Extractor、Judge、Model、Provider、Prompt、Rubric、Scenario、Dataset 和 Policy 版本。
+- 每个学习样本绑定 Tenant、Purpose、Consent、Source 和 Label Lineage。
+- 私有证据、Credential 和禁止支付数据不得进入公共 Fixture、日志、报告、Support Bundle 或跨租户 Dataset。
+- 企业自有云/VPC 是第一交付目标。
+- 不能复现安装、升级、回滚、恢复、安全与运维证据，就不能称为企业 Release。
