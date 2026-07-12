@@ -150,14 +150,19 @@ class OpenAICompatibleAdapter:
 
     def invoke(self, model: dict[str, Any], payload: dict[str, Any], timeout_seconds: float) -> dict[str, Any]:
         key = self.credential_resolver.resolve(str(model.get("credential_ref") or ""))
+        options = dict(model.get("options") or {})
+        allowed_options = {"temperature", "max_tokens", "seed", "top_p"}
+        unsupported = sorted(set(options) - allowed_options)
+        if unsupported:
+            raise ValueError(f"unsupported OpenAI-compatible model options: {','.join(unsupported)}")
         content = [_openai_part(part) for part in payload.get("parts", [])]
-        body = json.dumps(
-            {
-                "model": model["model_id"],
-                "messages": [{"role": "user", "content": content}],
-                "response_format": {"type": "json_object"},
-            }
-        ).encode("utf-8")
+        request_body = {
+            "model": model["model_id"],
+            "messages": [{"role": "user", "content": content}],
+            "response_format": {"type": "json_object"},
+        }
+        request_body.update(options)
+        body = json.dumps(request_body).encode("utf-8")
         endpoint = str(model["base_url"]).rstrip("/") + "/chat/completions"
         call = request.Request(
             endpoint,
@@ -169,6 +174,8 @@ class OpenAICompatibleAdapter:
             with request.urlopen(call, timeout=timeout_seconds) as response:
                 parsed = json.loads(response.read().decode("utf-8"))
         except error.HTTPError as exc:
+            if exc.code in {401, 403}:
+                raise ProviderAuthenticationFailed from exc
             if exc.code == 429:
                 raise ProviderRateLimited from exc
             if exc.code >= 500:
@@ -191,6 +198,10 @@ class ProviderRateLimited(RuntimeError):
 
 
 class ProviderUnavailable(RuntimeError):
+    pass
+
+
+class ProviderAuthenticationFailed(RuntimeError):
     pass
 
 
@@ -466,12 +477,18 @@ def build_local_smoke_evidence(
     content_hashes: list[str],
     model_digest: str = "",
     duration_seconds: float | None = None,
+    credential_rotation_marker: str = "",
 ) -> dict[str, Any]:
     sha256 = re.compile(r"^sha256:[0-9a-f]{64}$")
     if model_digest and not sha256.fullmatch(model_digest):
         raise ValueError("model_digest must be an empty value or canonical sha256:<lowercase-hex>")
     if any(not isinstance(value, str) or not sha256.fullmatch(value) for value in content_hashes):
         raise ValueError("content_hashes must contain canonical sha256:<lowercase-hex> values")
+    if credential_rotation_marker and not re.fullmatch(
+        r"hmac-sha256:[0-9a-f]{64}",
+        credential_rotation_marker,
+    ):
+        raise ValueError("credential_rotation_marker must be empty or canonical hmac-sha256")
     if duration_seconds is None:
         duration_bucket = "not_recorded"
     elif duration_seconds < 1:
@@ -506,6 +523,7 @@ def build_local_smoke_evidence(
         "logical_call_id": provider_result.get("logical_call_id"),
         "response_hash": provider_result.get("response_hash"),
         "content_hashes": content_hashes,
+        "credential_rotation_marker": credential_rotation_marker,
         "raw_payload_included": False,
         "secret_included": False,
     }

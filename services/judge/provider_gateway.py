@@ -7,7 +7,13 @@ from dataclasses import dataclass
 from typing import Any, Callable, Protocol
 from urllib import request
 
-from .provider_runtime import CircuitBreaker, ProviderRateLimited, ProviderUnavailable, RetryPolicy
+from .provider_runtime import (
+    CircuitBreaker,
+    ProviderAuthenticationFailed,
+    ProviderRateLimited,
+    ProviderUnavailable,
+    RetryPolicy,
+)
 from .result_persistence import stable_hash
 
 
@@ -33,9 +39,14 @@ TERMINAL_FAILURES = frozenset(
         "rate_limited",
         "timeout",
         "invalid_response",
+        "authentication_failed",
         "unsupported",
     }
 )
+MODEL_OPTION_ALLOWLISTS = {
+    "ollama": frozenset({"temperature", "num_predict", "seed", "top_p", "top_k"}),
+    "openai_compatible": frozenset({"temperature", "max_tokens", "seed", "top_p"}),
+}
 
 
 class ProviderAdapter(Protocol):
@@ -101,6 +112,10 @@ class OllamaAdapter:
     """Minimal Ollama /api/chat adapter; credentials are intentionally unsupported."""
 
     def invoke(self, model: dict[str, Any], payload: dict[str, Any], timeout_seconds: float) -> dict[str, Any]:
+        options = dict(model.get("options") or {})
+        unsupported = sorted(set(options) - MODEL_OPTION_ALLOWLISTS["ollama"])
+        if unsupported:
+            raise ValueError(f"unsupported Ollama model options: {','.join(unsupported)}")
         content = "\n".join(
             str(part.get("text") or "")
             for part in payload.get("parts", [])
@@ -120,7 +135,7 @@ class OllamaAdapter:
                 "messages": [message],
                 "stream": False,
                 "format": model.get("response_format", "json"),
-                "options": model.get("options", {}),
+                "options": options,
             }
         ).encode("utf-8")
         endpoint = str(model["base_url"]).rstrip("/") + "/api/chat"
@@ -188,6 +203,7 @@ class ProviderGateway:
             "modalities": sorted({str(part.get("modality") or "") for part in parts}),
             "payload_hash": stable_hash(parts),
             "idempotency_key": idempotency_key,
+            "model_options_hash": stable_hash(model_options or {}),
         }
         logical_call_id = stable_hash(request_core)
         if logical_call_id in self._results:
@@ -275,17 +291,26 @@ class ProviderGateway:
                 break
             except TimeoutError:
                 status = "timeout"
+            except ProviderAuthenticationFailed:
+                status = "authentication_failed"
             except ProviderRateLimited:
                 status = "rate_limited"
             except ProviderUnavailable:
                 status = "provider_unavailable"
-            except (ValueError, TypeError):
+            except (ValueError, TypeError) as exc:
                 status = "invalid_response"
+                failure_detail = (
+                    "empty_public_content"
+                    if "message content is empty" in str(exc)
+                    else "malformed_or_invalid_output"
+                )
             except Exception:
                 status = "provider_error"
             attempt["status"] = status
             if not self.retry_policy.should_retry(status, attempt_number):
                 result = self._result(request_core, logical_call_id, status, attempts=attempts)
+                if status == "invalid_response":
+                    result["failure_detail"] = failure_detail
                 if breaker is not None:
                     breaker.record(False)
                 break

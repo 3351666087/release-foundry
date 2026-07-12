@@ -7,7 +7,7 @@
   "required": [
     "schema_version", "provider_id", "model_id", "model_digest", "modality",
     "status", "capability_state", "calibration_state", "duration_bucket",
-    "logical_call_id", "response_hash", "content_hashes",
+    "logical_call_id", "response_hash", "content_hashes", "credential_rotation_marker",
     "raw_payload_included", "secret_included"
   ],
   "properties": {
@@ -23,6 +23,9 @@
     "logical_call_id": {"type": ["string", "null"]},
     "response_hash": {"type": ["string", "null"]},
     "content_hashes": {"type": "array", "items": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}},
+    "credential_rotation_marker": {
+      "anyOf": [{"const": ""}, {"type": "string", "pattern": "^hmac-sha256:[0-9a-f]{64}$"}]
+    },
     "raw_payload_included": {"const": false},
     "secret_included": {"const": false}
   },

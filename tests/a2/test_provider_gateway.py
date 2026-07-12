@@ -9,6 +9,7 @@ from services.judge.provider_gateway import (
     StrictFakeReconciliationAdapter,
     default_provider_catalog,
 )
+from services.judge.provider_runtime import ProviderAuthenticationFailed, RetryPolicy
 from services.judge.provider_runtime import validate_semantic_judge_output
 from services.judge.result_persistence import stable_hash
 
@@ -97,6 +98,48 @@ class A2ProviderGatewayTests(unittest.TestCase):
                     10,
                 )
 
+    def test_ollama_public_content_is_used_and_private_thinking_is_ignored(self):
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return False
+
+            def read(self):
+                return (
+                    b'{"message":{"content":"{\\"passed\\":false}",'
+                    b'"thinking":"{\\"passed\\":true}"},'
+                    b'"prompt_eval_count":1,"eval_count":1}'
+                )
+
+        with patch("services.judge.provider_gateway.request.urlopen", return_value=Response()):
+            result = OllamaAdapter().invoke(
+                {
+                    "model_id": "qwen3-vl:4b",
+                    "base_url": "http://127.0.0.1:11434",
+                    "options": {"temperature": 0},
+                },
+                {"parts": [{"modality": "text", "text": "return JSON"}]},
+                10,
+            )
+        self.assertEqual(result["output_text"], '{"passed":false}')
+        self.assertNotIn("thinking", result)
+
+    def test_ollama_rejects_unsupported_model_options_before_network(self):
+        with patch("services.judge.provider_gateway.request.urlopen") as urlopen:
+            with self.assertRaisesRegex(ValueError, "unsupported Ollama model options"):
+                OllamaAdapter().invoke(
+                    {
+                        "model_id": "qwen3-vl:4b",
+                        "base_url": "http://127.0.0.1:11434",
+                        "options": {"credential_ref": "not-allowed"},
+                    },
+                    {"parts": [{"modality": "text", "text": "return JSON"}]},
+                    10,
+                )
+        urlopen.assert_not_called()
+
     def test_incomplete_or_cross_tenant_snapshot_never_calls_provider(self):
         for tenant, evidence in [
             ("tenant-a", snapshot(completeness="partial")),
@@ -182,6 +225,50 @@ class A2ProviderGatewayTests(unittest.TestCase):
             self.assertFalse(result["evaluation_eligible"])
             self.assertFalse(result["release_authority"])
             self.assertEqual(result["attempts"][0]["status"], expected)
+
+    def test_invalid_response_distinguishes_empty_public_content(self):
+        class EmptyPublicAdapter:
+            def invoke(self, model, payload, timeout_seconds):
+                raise ValueError("Ollama response message content is empty")
+
+        gateway = ProviderGateway([self.provider], {"strict_fake": EmptyPublicAdapter()})
+        result = gateway.invoke(
+            tenant_id="tenant-a",
+            snapshot=snapshot(),
+            provider_id="unit-provider",
+            model_id="unit-model",
+            parts=[{"modality": "text", "text": "x"}],
+            idempotency_key="empty-public",
+        )
+        self.assertEqual(result["status"], "invalid_response")
+        self.assertEqual(result["failure_detail"], "empty_public_content")
+
+    def test_authentication_failure_is_terminal_even_with_retry_budget(self):
+        class AuthenticationFailureAdapter:
+            def __init__(self):
+                self.calls = 0
+
+            def invoke(self, model, payload, timeout_seconds):
+                self.calls += 1
+                raise ProviderAuthenticationFailed
+
+        adapter = AuthenticationFailureAdapter()
+        gateway = ProviderGateway(
+            [self.provider],
+            {"strict_fake": adapter},
+            retry_policy=RetryPolicy(max_attempts=3),
+        )
+        result = gateway.invoke(
+            tenant_id="tenant-a",
+            snapshot=snapshot(),
+            provider_id="unit-provider",
+            model_id="unit-model",
+            parts=[{"modality": "text", "text": "x"}],
+            idempotency_key="auth-terminal",
+        )
+        self.assertEqual(result["status"], "authentication_failed")
+        self.assertEqual(adapter.calls, 1)
+        self.assertEqual(len(result["attempts"]), 1)
 
     def test_unknown_protocol_and_capability_selection_are_explicit(self):
         unknown = ProviderDefinition(
