@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from services.judge.bundle_evaluation import evaluate_a1_bundle
+from services.judge.evaluation_trust_policy import normalize_evaluation_trust_policy
 from services.judge.provider_gateway import OllamaAdapter, ProviderDefinition, ProviderGateway
 from services.judge.provider_runtime import EnvironmentCredentialResolver, OllamaDiscovery, OpenAICompatibleAdapter, validate_semantic_judge_output
 from services.judge.sql_store import initialize_sql_store
@@ -29,6 +30,7 @@ def main() -> int:
     parser.add_argument("--base-url", default="")
     parser.add_argument("--credential-env", default="")
     parser.add_argument("--quality-proof", type=Path)
+    parser.add_argument("--trust-policy", type=Path)
     parser.add_argument("--bundle-key-env", default="A1_EVIDENCE_HMAC_KEY")
     parser.add_argument("--model-storage-path", type=Path)
     parser.add_argument("--minimum-free-gb", type=float, default=0)
@@ -43,6 +45,11 @@ def main() -> int:
         if not isinstance(quality_proof, dict):
             raise SystemExit("quality proof must be one JSON object")
         payload["evaluation_quality_proof"] = quality_proof
+    trust_policy = None
+    if args.trust_policy:
+        trust_policy = normalize_evaluation_trust_policy(
+            json.loads(args.trust_policy.read_text(encoding="utf-8"))
+        )
     payload["provider_id"] = args.provider_id
     payload["model_id"] = args.model
     tenant = str(payload.get("tenant_id") or "")
@@ -80,7 +87,11 @@ def main() -> int:
     connection = sqlite3.connect(args.database)
     try:
         initialize_sql_store(connection)
-        result = evaluate_a1_bundle(payload, gateway=gateway, key_resolver=lambda _: key.encode("utf-8"), now_unix_ms=args.now_unix_ms, persistence_connection=connection)
+        result = evaluate_a1_bundle(
+            payload, gateway=gateway, key_resolver=lambda _: key.encode("utf-8"),
+            now_unix_ms=args.now_unix_ms, persistence_connection=connection,
+            quality_trust_policy=trust_policy,
+        )
     finally:
         connection.close()
     text = json.dumps(result, indent=2, sort_keys=True) + "\n"
@@ -116,6 +127,18 @@ def _validate_model_storage(path: Path, minimum_free_gb: float) -> None:
             f"configured model storage has insufficient free space: "
             f"{free_gb:.2f} GiB available, {minimum_free_gb:.2f} GiB required"
         )
+
+
+def _validate_local_runtime_paths(executable_path: Path, model_path: Path) -> None:
+    executable = executable_path.expanduser().resolve()
+    models = model_path.expanduser().resolve()
+    if not executable.is_file():
+        raise SystemExit("configured local runtime executable does not exist")
+    model_parent = next((item for item in (models, *models.parents) if item.exists()), None)
+    if model_parent is None:
+        raise SystemExit("configured local model path has no existing parent")
+    if executable.drive.lower() != models.drive.lower():
+        raise SystemExit("local runtime executable and model directory must use the same drive")
 
 
 if __name__ == "__main__":

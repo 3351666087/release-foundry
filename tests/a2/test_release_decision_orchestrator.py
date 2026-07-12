@@ -18,6 +18,7 @@ from services.judge.provider_gateway import (
 from services.judge.artifact_pipeline import process_artifact
 from services.judge.derived_evidence import build_ocr_derived_evidence
 from services.judge.evaluation_quality_proof import EVALUATION_QUALITY_PROOF_SCHEMA_VERSION
+from services.judge.evaluation_trust_policy import normalize_evaluation_trust_policy
 from tests.a2.test_derived_evidence import qualification
 from services.judge.provider_runtime import AUTHENTICATED_BUNDLE_SCHEMA_VERSION, validate_semantic_judge_output
 from services.judge.release_decision_orchestrator import (
@@ -349,6 +350,43 @@ class ProcessInterruptedAdapter:
 
 
 class ReleaseDecisionOrchestratorTests(unittest.TestCase):
+    def test_trust_policy_normalization_rejects_ungoverned_issuers_and_hashes(self):
+        base = {
+            "schema_version": "a2.evaluation_trust_policy.v1",
+            "allowed_issuers": ["issuer-a"],
+            "issuer_tenants": {"issuer-a": ["tenant-a"]},
+            "revoked_key_ids": [],
+            "revoked_proof_hashes": [],
+            "maximum_lifetime_ms": 1000,
+            "maximum_review_age_ms": 1000,
+        }
+        invalid_issuer = {**base, "issuer_tenants": {"issuer-b": ["tenant-a"]}}
+        with self.assertRaisesRegex(ValueError, "allowed issuer"):
+            normalize_evaluation_trust_policy(invalid_issuer)
+        invalid_hash = {**base, "revoked_proof_hashes": ["not-a-hash"]}
+        with self.assertRaisesRegex(ValueError, "proof hashes"):
+            normalize_evaluation_trust_policy(invalid_hash)
+
+    def test_review_receipt_age_boundary_and_negative_time(self):
+        reviewer = "sha256:" + "e" * 64
+        for reviewed_at, decision, blocker in (
+            (NOW - 604_800_000, "allow", None),
+            (-1, "block", "disagreement_review_receipt_stale"),
+        ):
+            with self.subTest(reviewed_at=reviewed_at):
+                candidate = request()
+                candidate["evaluation_quality_proof"] = signed_quality_proof(
+                    candidate, disagreement="reviewed",
+                    reviewer_identity_digest=reviewer,
+                    reviewed_at_unix_ms=reviewed_at,
+                )
+                result = execute_release_decision(
+                    candidate, gateway=gateway(), key_resolver=lambda _: KEY,
+                    now_unix_ms=NOW,
+                )
+                self.assertEqual(result["a3_consumption"]["display_decision"], decision)
+                if blocker:
+                    self.assertIn(blocker, result["release_gate"]["blocking_reasons"])
     def test_issuer_tenant_authorization_fails_closed(self):
         result = execute_release_decision(
             request(), gateway=gateway(), key_resolver=lambda _: KEY, now_unix_ms=NOW,
@@ -1055,12 +1093,88 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
                 "a2.evaluation_quality.v2",
             )
             self.assertEqual(migrated["evaluation_quality"]["reviewer_identity_digest"], "")
+            operation_id = connection.execute(
+                "SELECT operation_id FROM a2_decision_operations"
+            ).fetchone()[0]
+            migrated["provider_outcome_hash"] = connection.execute(
+                "SELECT outcome_hash FROM a2_provider_outcomes"
+            ).fetchone()[0]
+            connection.execute(
+                "UPDATE a2_provider_outcomes SET recovery_envelope_json = ?, "
+                "recovery_envelope_hash = ?",
+                (
+                    json.dumps(migrated, sort_keys=True, separators=(",", ":")),
+                    stable_hash(migrated),
+                ),
+            )
+            connection.commit()
+            loaded = load_decision_recovery_envelope(
+                connection, operation_id=operation_id,
+                scope={field: request()[field] for field in (
+                    "organization_id", "tenant_id", "workspace_id",
+                    "project_id", "environment_id",
+                )},
+            )
+            self.assertEqual(loaded["evaluation_quality"]["schema_version"], "a2.evaluation_quality.v2")
+            self.assertEqual(loaded["evaluation_quality"]["disagreement"], "agree")
+            disagree = json.loads(json.dumps(envelope))
+            disagree["evaluation_quality"]["disagreement"] = "disagree"
+            disagree["evaluation_quality"]["human_review_required"] = True
+            disagree["evaluation_quality"]["blockers"] = ["disagreement_requires_review"]
+            migrated_disagree = migrate_evaluation_quality_v1_recovery_envelope(
+                disagree,
+                evaluation_trust_policy_hash=envelope["evaluation_trust_policy_hash"],
+            )
+            self.assertTrue(migrated_disagree["evaluation_quality"]["human_review_required"])
+            self.assertIn(
+                "disagreement_requires_review",
+                migrated_disagree["evaluation_quality"]["blockers"],
+            )
             reviewed = json.loads(json.dumps(envelope))
             reviewed["evaluation_quality"]["disagreement"] = "reviewed"
             with self.assertRaisesRegex(ValueError, "reviewer receipt"):
                 migrate_evaluation_quality_v1_recovery_envelope(
                     reviewed,
                     evaluation_trust_policy_hash=envelope["evaluation_trust_policy_hash"],
+                )
+        finally:
+            connection.close()
+
+    def test_recovery_rejects_invalid_trust_policy_hash(self):
+        connection = sqlite3.connect(":memory:")
+        try:
+            initialize_sql_store(connection)
+
+            def fail(point):
+                if point == "after_provider_outcome_committed":
+                    raise OSError("stop")
+
+            with self.assertRaises(OSError):
+                execute_release_decision(
+                    request(), gateway=gateway(), key_resolver=lambda _: KEY,
+                    now_unix_ms=NOW, persistence_connection=connection,
+                    persistence_failure_injector=fail,
+                )
+            operation_id = connection.execute(
+                "SELECT operation_id FROM a2_decision_operations"
+            ).fetchone()[0]
+            envelope = json.loads(connection.execute(
+                "SELECT recovery_envelope_json FROM a2_provider_outcomes"
+            ).fetchone()[0])
+            envelope["evaluation_trust_policy_hash"] = "sha256:not-canonical"
+            connection.execute(
+                "UPDATE a2_provider_outcomes SET recovery_envelope_json = ?, "
+                "recovery_envelope_hash = ?",
+                (json.dumps(envelope, sort_keys=True, separators=(",", ":")), stable_hash(envelope)),
+            )
+            connection.commit()
+            with self.assertRaisesRegex(ValueError, "trust policy hash"):
+                load_decision_recovery_envelope(
+                    connection, operation_id=operation_id,
+                    scope={field: request()[field] for field in (
+                        "organization_id", "tenant_id", "workspace_id",
+                        "project_id", "environment_id",
+                    )},
                 )
         finally:
             connection.close()

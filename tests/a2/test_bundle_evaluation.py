@@ -20,7 +20,11 @@ from tests.a2.test_release_decision_orchestrator import (
 )
 from services.judge.provider_gateway import ProviderDefinition, ProviderGateway
 from services.judge.provider_runtime import validate_semantic_judge_output
-from scripts.a2_evaluate_bundle import _validate_model_storage, _validate_ollama_model
+from scripts.a2_evaluate_bundle import (
+    _validate_local_runtime_paths,
+    _validate_model_storage,
+    _validate_ollama_model,
+)
 from services.judge.provider_runtime import ModelRecord
 
 
@@ -183,6 +187,20 @@ class BundleEvaluationTests(unittest.TestCase):
         )
         jsonschema.validate(candidate["evaluation_quality_proof"], schema)
 
+    def test_trust_policy_schema_accepts_governed_fixture(self):
+        schema = json.loads(
+            (ROOT / "docs/a2/schemas/evaluation_trust_policy.schema.json").read_text()
+        )
+        jsonschema.validate({
+            "schema_version": "a2.evaluation_trust_policy.v1",
+            "allowed_issuers": ["a2-calibration-service"],
+            "issuer_tenants": {"a2-calibration-service": ["tenant-a"]},
+            "revoked_key_ids": [],
+            "revoked_proof_hashes": ["sha256:" + "a" * 64],
+            "maximum_lifetime_ms": 86_400_000,
+            "maximum_review_age_ms": 604_800_000,
+        }, schema)
+
     def test_cli_missing_bundle_key_fails_without_leaking_provider_secret(self):
         completed = self.run_cli(
             "ollama",
@@ -210,6 +228,11 @@ class BundleEvaluationTests(unittest.TestCase):
         self.assertNotEqual(completed.returncode, 0)
         self.assertIn("Provider credential environment variable is unavailable", completed.stderr)
         self.assertNotIn("bundle-key", completed.stdout + completed.stderr)
+
+    def test_qwen_default_url_is_the_dashscope_compatible_endpoint(self):
+        source = (ROOT / "scripts/a2_evaluate_bundle.py").read_text(encoding="utf-8")
+        self.assertIn("https://dashscope.aliyuncs.com/compatible-mode/v1", source)
+        self.assertIn('credential_env or "DASHSCOPE_API_KEY"', source)
 
     def test_cli_exit_codes_pass_block_and_incomplete_through_http_protocol(self):
         class Handler(BaseHTTPRequestHandler):
@@ -344,6 +367,15 @@ class BundleEvaluationTests(unittest.TestCase):
             _validate_model_storage(Path(directory) / "models", 0)
             with self.assertRaisesRegex(SystemExit, "insufficient free space"):
                 _validate_model_storage(Path(directory), 10 ** 9)
+
+    def test_local_runtime_paths_must_exist_and_share_a_drive(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            executable = root / "ollama.exe"
+            executable.write_bytes(b"test")
+            _validate_local_runtime_paths(executable, root / "models")
+            with self.assertRaisesRegex(SystemExit, "does not exist"):
+                _validate_local_runtime_paths(root / "missing.exe", root / "models")
 
     def assert_response_schema(self, result):
         schema = json.loads((ROOT / "docs/a2/schemas/bundle_evaluation.schema.json").read_text(encoding="utf-8"))

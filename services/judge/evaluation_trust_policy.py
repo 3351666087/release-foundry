@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
+import re
 
 from .result_persistence import stable_hash
 
@@ -17,6 +18,7 @@ _FIELDS = {
     "maximum_lifetime_ms",
     "maximum_review_age_ms",
 }
+_SHA256_REF = re.compile(r"sha256:[0-9a-f]{64}\Z")
 
 
 def normalize_evaluation_trust_policy(policy: dict[str, Any] | None) -> dict[str, Any]:
@@ -44,6 +46,11 @@ def normalize_evaluation_trust_policy(policy: dict[str, Any] | None) -> dict[str
         issuer: _strings(values, f"issuer tenants for {issuer}")
         for issuer, values in sorted(tenants.items())
     }
+    unknown_tenant_issuers = sorted(set(normalized_tenants) - set(allowed))
+    if unknown_tenant_issuers:
+        raise ValueError("evaluation trust policy issuer tenants require an allowed issuer")
+    if any(_SHA256_REF.fullmatch(item) is None for item in revoked_proofs):
+        raise ValueError("evaluation trust policy revoked proof hashes are invalid")
     for field in ("maximum_lifetime_ms", "maximum_review_age_ms"):
         value = candidate[field]
         if isinstance(value, bool) or not isinstance(value, int) or value <= 0:

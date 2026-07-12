@@ -19,6 +19,7 @@ def evaluate_a1_bundle(
     key_resolver: Callable[[str], bytes],
     now_unix_ms: int,
     persistence_connection: sqlite3.Connection | None = None,
+    quality_trust_policy: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Evaluate one authenticated A1 bundle and expose PASS/BLOCK/INCOMPLETE.
 
@@ -34,6 +35,7 @@ def evaluate_a1_bundle(
             key_resolver=key_resolver,
             now_unix_ms=now_unix_ms,
             persistence_connection=persistence_connection,
+            quality_trust_policy=quality_trust_policy,
         )
     except (KeyError, TypeError, ValueError) as exc:
         finding = _safe_finding(exc)
