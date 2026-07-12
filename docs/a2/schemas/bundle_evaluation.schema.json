@@ -45,11 +45,12 @@
     "request_fingerprint": { "$ref": "#/$defs/hash" },
     "reproducibility": {
       "type": "object",
-      "required": ["input_version", "policy_version", "request_fingerprint", "persisted", "idempotent_replay"],
+      "required": ["input_version", "policy_version", "request_fingerprint", "evaluation_trust_policy_hash", "persisted", "idempotent_replay"],
       "properties": {
         "input_version": { "type": "string", "minLength": 1 },
         "policy_version": { "type": "string", "minLength": 1 },
         "request_fingerprint": { "$ref": "#/$defs/hash" },
+        "evaluation_trust_policy_hash": { "$ref": "#/$defs/hashOrEmpty" },
         "persisted": { "type": "boolean" },
         "idempotent_replay": { "type": "boolean" },
         "operation_id": { "type": "string" },

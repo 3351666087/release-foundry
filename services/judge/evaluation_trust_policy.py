@@ -19,6 +19,7 @@ _FIELDS = {
     "maximum_review_age_ms",
 }
 _SHA256_REF = re.compile(r"sha256:[0-9a-f]{64}\Z")
+_PUBLIC_IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}\Z")
 
 
 def normalize_evaluation_trust_policy(policy: dict[str, Any] | None) -> dict[str, Any]:
@@ -51,6 +52,8 @@ def normalize_evaluation_trust_policy(policy: dict[str, Any] | None) -> dict[str
         raise ValueError("evaluation trust policy issuer tenants require an allowed issuer")
     if any(_SHA256_REF.fullmatch(item) is None for item in revoked_proofs):
         raise ValueError("evaluation trust policy revoked proof hashes are invalid")
+    if any(_PUBLIC_IDENTIFIER.fullmatch(item) is None for item in revoked_keys):
+        raise ValueError("evaluation trust policy revoked key ids are invalid")
     for field in ("maximum_lifetime_ms", "maximum_review_age_ms"):
         value = candidate[field]
         if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
@@ -71,6 +74,11 @@ def evaluation_trust_policy_hash(policy: dict[str, Any]) -> str:
 
 
 def verifier_arguments(policy: dict[str, Any]) -> dict[str, Any]:
+    """Build verifier arguments.
+
+    An empty ``allowed_issuers`` list means no issuer allowlist is enforced.
+    Tenant mappings remain invalid unless their issuer is explicitly allowlisted.
+    """
     normalized = normalize_evaluation_trust_policy(policy)
     return {
         "allowed_issuers": frozenset(normalized["allowed_issuers"]) or None,

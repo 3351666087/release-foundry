@@ -17,3 +17,10 @@ be committed with evidence. Different tenants should produce different digests
 for the same human. Rotation creates a new digest and must be auditable by the
 identity authority. A2 treats the digest as provenance, not proof that the
 review was substantively correct; calibration and policy checks remain required.
+
+For rotation, the identity authority should retain a public-safe receipt with
+the tenant reference, old salt-version identifier, new salt-version identifier,
+rotation timestamp, reason code and authorizing principal digest. It must never
+retain either salt in A2. Existing signed reviews keep their original reviewer
+digest and salt-version provenance; rotation must not rewrite historical
+Decision Ledger records or silently relink identities across salt versions.

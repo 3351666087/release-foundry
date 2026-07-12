@@ -18,7 +18,10 @@ from services.judge.provider_gateway import (
 from services.judge.artifact_pipeline import process_artifact
 from services.judge.derived_evidence import build_ocr_derived_evidence
 from services.judge.evaluation_quality_proof import EVALUATION_QUALITY_PROOF_SCHEMA_VERSION
-from services.judge.evaluation_trust_policy import normalize_evaluation_trust_policy
+from services.judge.evaluation_trust_policy import (
+    normalize_evaluation_trust_policy,
+    verifier_arguments,
+)
 from tests.a2.test_derived_evidence import qualification
 from services.judge.provider_runtime import AUTHENTICATED_BUNDLE_SCHEMA_VERSION, validate_semantic_judge_output
 from services.judge.release_decision_orchestrator import (
@@ -366,11 +369,34 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
         invalid_hash = {**base, "revoked_proof_hashes": ["not-a-hash"]}
         with self.assertRaisesRegex(ValueError, "proof hashes"):
             normalize_evaluation_trust_policy(invalid_hash)
+        invalid_key = {**base, "revoked_key_ids": ["unsafe key"]}
+        with self.assertRaisesRegex(ValueError, "key ids"):
+            normalize_evaluation_trust_policy(invalid_key)
+
+    def test_empty_allowlist_is_unrestricted_and_duplicate_tenants_normalize(self):
+        unrestricted = {
+            "schema_version": "a2.evaluation_trust_policy.v1",
+            "allowed_issuers": [],
+            "issuer_tenants": {},
+            "revoked_key_ids": [],
+            "revoked_proof_hashes": [],
+            "maximum_lifetime_ms": 1000,
+            "maximum_review_age_ms": 1000,
+        }
+        self.assertIsNone(verifier_arguments(unrestricted)["allowed_issuers"])
+        duplicated = {
+            **unrestricted,
+            "allowed_issuers": ["issuer-a"],
+            "issuer_tenants": {"issuer-a": ["tenant-b", "tenant-a", "tenant-a"]},
+        }
+        normalized = normalize_evaluation_trust_policy(duplicated)
+        self.assertEqual(normalized["issuer_tenants"]["issuer-a"], ["tenant-a", "tenant-b"])
 
     def test_review_receipt_age_boundary_and_negative_time(self):
         reviewer = "sha256:" + "e" * 64
         for reviewed_at, decision, blocker in (
             (NOW - 604_800_000, "allow", None),
+            (NOW + 1, "block", "disagreement_review_receipt_stale"),
             (-1, "block", "disagreement_review_receipt_stale"),
         ):
             with self.subTest(reviewed_at=reviewed_at):
@@ -1597,6 +1623,60 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
             )
             self.assertEqual(adapter.calls, 0)
             self.assertEqual(adapter.reconciliation_calls, 1)
+        finally:
+            connection.close()
+
+    def test_reconciled_remote_completion_still_honors_proof_revocation(self):
+        connection = sqlite3.connect(":memory:")
+        interrupted = ProviderGateway(
+            [ProviderDefinition(
+                "unit", "fake", "local", "", frozenset({"text"}), frozenset({"tenant-a"}),
+                reconciliation_mode="provider_status_lookup",
+            )],
+            {"fake": ProcessInterruptedAdapter()},
+            response_validator=validate_semantic_judge_output,
+        )
+        try:
+            initialize_sql_store(connection)
+            with self.assertRaises(KeyboardInterrupt):
+                execute_release_decision(
+                    request(), gateway=interrupted, key_resolver=lambda _: KEY,
+                    now_unix_ms=NOW, persistence_connection=connection,
+                )
+            operation = connection.execute(
+                """SELECT operation_id, provider_call_id, fencing_token, logical_call_id,
+                          snapshot_hash, provider_payload_hash,
+                          provider_idempotency_key_hash, provider_endpoint_hash
+                   FROM a2_decision_operations"""
+            ).fetchone()
+            provider_gateway = reconciliation_gateway("remote_completed")
+            provider_gateway.adapters["fake"].reconciliation_response.update({
+                "provider_call_id": operation[1],
+                "logical_call_id": operation[3],
+                "provider_id": "unit",
+                "model_id": "semantic-1",
+                "snapshot_hash": operation[4],
+                "payload_hash": operation[5],
+                "idempotency_key_hash": operation[6],
+                "provider_endpoint_hash": operation[7],
+                "scope": {field: request()[field] for field in (
+                    "organization_id", "tenant_id", "workspace_id",
+                    "project_id", "environment_id",
+                )},
+                "operation_id": operation[0],
+                "provider_generation": operation[2],
+            })
+            with self.assertRaisesRegex(
+                IdempotencyConflictError, "input changed before commit"
+            ):
+                reconcile_release_decision(
+                    request(), gateway=provider_gateway, key_resolver=lambda _: KEY,
+                    now_unix_ms=NOW, connection=connection, operation_id=operation[0],
+                    now="2026-07-12T00:00:01Z",
+                    quality_revoked_key_ids=frozenset({"quality-key-1"}),
+                )
+            self.assertEqual(_count(connection, "a2_release_decisions"), 0)
+            self.assertEqual(_count(connection, "a2_decision_outbox"), 0)
         finally:
             connection.close()
 

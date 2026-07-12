@@ -5,6 +5,10 @@ from __future__ import annotations
 import sqlite3
 from typing import Any, Callable
 
+from .evaluation_trust_policy import (
+    evaluation_trust_policy_hash,
+    normalize_evaluation_trust_policy,
+)
 from .provider_gateway import ProviderGateway
 from .release_decision_orchestrator import execute_release_decision
 from .result_persistence import stable_hash
@@ -28,14 +32,17 @@ def evaluate_a1_bundle(
     Judge; every Provider/Judge/policy failure remains BLOCK or INCOMPLETE, never PASS.
     """
     request_fingerprint = stable_hash(_public_request_identity(request))
+    trust_policy_hash = ""
     try:
+        normalized_trust_policy = normalize_evaluation_trust_policy(quality_trust_policy)
+        trust_policy_hash = evaluation_trust_policy_hash(normalized_trust_policy)
         result = execute_release_decision(
             request,
             gateway=gateway,
             key_resolver=key_resolver,
             now_unix_ms=now_unix_ms,
             persistence_connection=persistence_connection,
-            quality_trust_policy=quality_trust_policy,
+            quality_trust_policy=normalized_trust_policy,
         )
     except (KeyError, TypeError, ValueError) as exc:
         finding = _safe_finding(exc)
@@ -52,6 +59,7 @@ def evaluate_a1_bundle(
                 "input_version": str(request.get("source_schema_version") or "unknown"),
                 "policy_version": str(request.get("policy_version") or "a2.semantic_release_policy.v1"),
                 "request_fingerprint": request_fingerprint,
+                "evaluation_trust_policy_hash": trust_policy_hash,
                 "persisted": False,
                 "idempotent_replay": False,
             },
@@ -91,6 +99,10 @@ def evaluate_a1_bundle(
             "input_version": str(request.get("source_schema_version") or snapshot.get("source_schema_version") or "unknown"),
             "policy_version": str(request.get("policy_version") or "a2.semantic_release_policy.v1"),
             "request_fingerprint": request_fingerprint,
+            "evaluation_trust_policy_hash": str(
+                result.get("metadata", {}).get("evaluation_trust_policy_hash")
+                or trust_policy_hash
+            ),
             "persisted": persistence.get("committed") is True,
             "idempotent_replay": persistence.get("idempotent_replay") is True,
             "operation_id": persistence.get("operation_id", ""),

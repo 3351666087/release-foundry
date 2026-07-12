@@ -24,7 +24,11 @@
         "uniqueItems": true
       }
     },
-    "revoked_key_ids": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "revoked_key_ids": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$"},
+      "uniqueItems": true
+    },
     "revoked_proof_hashes": {
       "type": "array",
       "items": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},

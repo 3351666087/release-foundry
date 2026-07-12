@@ -2,7 +2,8 @@ param(
     [Parameter(Mandatory = $true)][string]$ArchiveUrl,
     [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-fA-F]{64}$')][string]$Sha256,
     [string]$InstallRoot = 'D:\Ashr\ollama',
-    [string]$ModelRoot = 'D:\Ashr\ollama-models'
+    [string]$ModelRoot = 'D:\Ashr\ollama-models',
+    [switch]$DryRun
 )
 
 $ErrorActionPreference = 'Stop'
@@ -18,6 +19,15 @@ if ($free -lt 20GB) {
 }
 
 $download = Join-Path $env:TEMP 'a2-ollama-download.zip'
+if ($DryRun) {
+    Write-Output 'DRY_RUN=true'
+    Write-Output "ARCHIVE_URL=$ArchiveUrl"
+    Write-Output "ARCHIVE_SHA256=$($Sha256.ToLowerInvariant())"
+    Write-Output "INSTALL_ROOT=$install"
+    Write-Output "MODEL_ROOT=$models"
+    Write-Output "DOWNLOAD_PATH=$download"
+    exit 0
+}
 Invoke-WebRequest -Uri $ArchiveUrl -OutFile $download
 $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $download).Hash
 if ($actual -ne $Sha256.ToUpperInvariant()) {

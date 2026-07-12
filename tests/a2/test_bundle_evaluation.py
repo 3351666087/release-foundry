@@ -13,6 +13,7 @@ from unittest.mock import patch
 import jsonschema
 
 from services.judge.bundle_evaluation import evaluate_a1_bundle
+from services.judge.evaluation_trust_policy import evaluation_trust_policy_hash
 from services.judge.sql_store import initialize_sql_store
 from tests.a2.test_release_decision_orchestrator import (
     KEY, NOW, GroundedRecordingAdapter, gateway, image_pipeline_and_evidence, request,
@@ -46,6 +47,10 @@ class BundleEvaluationTests(unittest.TestCase):
             self.assertTrue(result["provider_called"])
             self.assertTrue(result["release_ready"])
             self.assertTrue(result["reproducibility"]["persisted"])
+            self.assertRegex(
+                result["reproducibility"]["evaluation_trust_policy_hash"],
+                r"^sha256:[0-9a-f]{64}$",
+            )
             self.assertTrue(result["decision_record_hash"].startswith("sha256:"))
             self.assert_response_schema(result)
         finally:
@@ -201,6 +206,49 @@ class BundleEvaluationTests(unittest.TestCase):
             "maximum_review_age_ms": 604_800_000,
         }, schema)
 
+    def test_facade_binds_normalized_trust_policy_hash_to_reproducibility(self):
+        policy = {
+            "schema_version": "a2.evaluation_trust_policy.v1",
+            "allowed_issuers": ["a2-calibration-service"],
+            "issuer_tenants": {"a2-calibration-service": ["tenant-a", "tenant-a"]},
+            "revoked_key_ids": [],
+            "revoked_proof_hashes": [],
+            "maximum_lifetime_ms": 86_400_000,
+            "maximum_review_age_ms": 604_800_000,
+        }
+        connection = self.connection()
+        try:
+            result = evaluate_a1_bundle(
+                request(), gateway=gateway(), key_resolver=lambda _: KEY,
+                now_unix_ms=NOW, persistence_connection=connection,
+                quality_trust_policy=policy,
+            )
+            self.assertEqual(
+                result["reproducibility"]["evaluation_trust_policy_hash"],
+                evaluation_trust_policy_hash(policy),
+            )
+            self.assert_response_schema(result)
+        finally:
+            connection.close()
+
+    def test_cli_valid_trust_policy_reaches_provider_end_to_end(self):
+        completed, calls = self.run_complete_cli_with_policy(self.trust_policy())
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertEqual(calls(), 1)
+        result = json.loads(completed.stdout)
+        self.assertEqual(
+            result["reproducibility"]["evaluation_trust_policy_hash"],
+            evaluation_trust_policy_hash(self.trust_policy()),
+        )
+
+    def test_cli_invalid_trust_policy_fails_before_provider_invocation(self):
+        invalid = self.trust_policy()
+        invalid["revoked_key_ids"] = ["contains whitespace"]
+        completed, calls = self.run_complete_cli_with_policy(invalid)
+        self.assertNotEqual(completed.returncode, 0)
+        self.assertEqual(calls(), 0)
+        self.assertIn("revoked key ids are invalid", completed.stderr)
+
     def test_cli_missing_bundle_key_fails_without_leaking_provider_secret(self):
         completed = self.run_cli(
             "ollama",
@@ -317,6 +365,88 @@ class BundleEvaluationTests(unittest.TestCase):
                 command, cwd=ROOT, env=environment, capture_output=True, text=True, check=False
             )
 
+    def run_complete_cli_with_policy(self, policy):
+        class Handler(BaseHTTPRequestHandler):
+            calls = 0
+
+            def do_POST(self):
+                type(self).calls += 1
+                length = int(self.headers.get("Content-Length", "0"))
+                self.rfile.read(length)
+                content = json.dumps({
+                    "passed": True, "score": 0.97, "reason": "policy reached judge",
+                    "failure_classes": [], "evidence_refs": ["snapshot"], "abstained": False,
+                })
+                body = json.dumps({
+                    "id": "stub-request",
+                    "choices": [{"message": {"content": content}}],
+                    "usage": {"prompt_tokens": 4, "completion_tokens": 3},
+                }).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+
+            def log_message(self, *_):
+                return
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                candidate = request()
+                candidate["provider_id"] = "local-judge"
+                candidate["model_id"] = "test-model"
+                candidate["evaluation_quality_proof"] = signed_quality_proof(candidate)
+                proof = candidate.pop("evaluation_quality_proof")
+                for name, value in (
+                    ("bundle.json", candidate), ("quality-proof.json", proof),
+                    ("trust-policy.json", policy),
+                ):
+                    (root / name).write_text(json.dumps(value), encoding="utf-8")
+                command = [
+                    sys.executable, "-B", "scripts/a2_evaluate_bundle.py",
+                    "--input", str(root / "bundle.json"),
+                    "--quality-proof", str(root / "quality-proof.json"),
+                    "--trust-policy", str(root / "trust-policy.json"),
+                    "--database", str(root / "decisions.sqlite"),
+                    "--provider", "openai-compatible",
+                    "--provider-id", "local-judge",
+                    "--model", "test-model",
+                    "--base-url", f"http://127.0.0.1:{server.server_port}/v1",
+                    "--credential-env", "A2_TEST_PROVIDER_KEY",
+                    "--now-unix-ms", str(NOW),
+                ]
+                environment = dict(os.environ)
+                environment.update({
+                    "A1_EVIDENCE_HMAC_KEY": KEY.decode(),
+                    "A2_TEST_PROVIDER_KEY": "stub-only-secret",
+                })
+                completed = subprocess.run(
+                    command, cwd=ROOT, env=environment,
+                    capture_output=True, text=True, check=False,
+                )
+                return completed, lambda: Handler.calls
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
+    @staticmethod
+    def trust_policy():
+        return {
+            "schema_version": "a2.evaluation_trust_policy.v1",
+            "allowed_issuers": ["a2-calibration-service"],
+            "issuer_tenants": {"a2-calibration-service": ["tenant-a"]},
+            "revoked_key_ids": [],
+            "revoked_proof_hashes": [],
+            "maximum_lifetime_ms": 86_400_000,
+            "maximum_review_age_ms": 604_800_000,
+        }
+
     def run_cli(self, provider, *, extra_arguments=None, environment=None):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -376,6 +506,18 @@ class BundleEvaluationTests(unittest.TestCase):
             _validate_local_runtime_paths(executable, root / "models")
             with self.assertRaisesRegex(SystemExit, "does not exist"):
                 _validate_local_runtime_paths(root / "missing.exe", root / "models")
+
+    def test_ollama_installer_dry_run_performs_no_download_or_writes(self):
+        script = ROOT / "scripts/a2_install_ollama_d_drive.ps1"
+        text = script.read_text(encoding="utf-8")
+        dry_run_index = text.index("if ($DryRun)")
+        download_index = text.index("Invoke-WebRequest")
+        write_index = text.index("New-Item -ItemType Directory")
+        environment_index = text.index("[Environment]::SetEnvironmentVariable")
+        self.assertLess(dry_run_index, download_index)
+        self.assertLess(dry_run_index, write_index)
+        self.assertLess(dry_run_index, environment_index)
+        self.assertIn("[switch]$DryRun", text)
 
     def assert_response_schema(self, result):
         schema = json.loads((ROOT / "docs/a2/schemas/bundle_evaluation.schema.json").read_text(encoding="utf-8"))
