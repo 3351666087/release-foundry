@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.local/schemas/a2/multimodal_adversarial_golden_case.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "case_id", "artifact_hash", "expected_risk", "human_label_hash", "observation_hash", "candidate_state", "golden_eligible", "release_authority", "human_review_required", "blockers", "public_safe"],
+  "properties": {
+    "schema_version": {"const": "a2.multimodal_adversarial_golden_case.v1"},
+    "case_id": {"type": "string", "minLength": 1},
+    "artifact_hash": {"$ref": "#/$defs/hash"},
+    "expected_risk": {"type": "boolean"},
+    "human_label_hash": {"type": "string", "pattern": "^(|sha256:[a-f0-9]{64})$"},
+    "observation_hash": {"$ref": "#/$defs/hash"},
+    "candidate_state": {"enum": ["unreviewed_candidate", "reviewed_candidate"]},
+    "golden_eligible": {"type": "boolean"},
+    "release_authority": {"const": false},
+    "human_review_required": {"type": "boolean"},
+    "blockers": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "public_safe": {"const": true}
+  },
+  "$defs": {"hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}}
+}
