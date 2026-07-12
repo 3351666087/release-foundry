@@ -1,5 +1,42 @@
 # P3 Worklog
 
+## 2026-07-12 - Provider-Neutral Goal Reconfirmation And Security Closure
+
+- Reconfirmed current GitHub `main` `ccf6ce5` and strategy blob `575b31b8`.
+- The new A3 Goal preserves prior P3 official-product calibration as optional
+  reference evidence; it does not restore Ashr as a required runtime or CI
+  dependency.
+- No Ashr API call, mutation, quota spend, browser-account action, or key read
+  was needed for this security round.
+- `.env.local` remained ignored and was not printed, edited, staged, or
+  included in evidence.
+- Closed hosted resource-selection, five-level scope, share-token server-time,
+  trusted-principal, denial-schema, unknown-route-audit, and demo live-GitHub
+  escape defects.
+- Added identical-ID cross-tenant tests while preserving A1 RunResult and A2
+  GradeResult/Decision Ledger semantics.
+- Added an A2 Decision Ledger authorization barrier before any live GitHub
+  transport and kept the merged-main `release_ready=false` sample blocked.
+- Closed the follow-up independent-audit bypasses: direct startup is hosted by
+  default, the standalone GitHub CLI is dry-run only, hosted live writes need
+  server-side A2 and tenant GitHub resolvers, and foreign-only waivers fail.
+- Added exact-scope aggregate filtering, fully scoped new records, a typed
+  Partial state, and desktop/mobile visual evidence. No Ashr API was needed:
+  Ashr remains an optional calibration provider, not a runtime dependency.
+- Read-only peer calibration records A2 draft `a1cdc00` provider provenance and
+  independent high-risk review as unmerged watch signals only.
+- Added source-plus-five-level snapshot identity, dedicated SQLite GitHub
+  receipt/event-outbox persistence, honest fixture `db_ready=false`,
+  Partial-before-empty rendering, and runtime/OpenAPI parity `53/53`.
+- Current verification: A3 `387/387`, Playwright `33/33`, Webapp check passed,
+  A1 session lifecycle `35/35`, A2 trusted spine `7/7`, both CL guards passed,
+  real-format long token/key scan 0 matches, and diff check passed.
+- Current status remains local implementation plus contract support, not
+  production hosted identity, Postgres/RLS, or customer deployment proof.
+- Production PostgreSQL/RLS, complete production-table scope policies,
+  deployed A1/A2/GitHub resolvers, and malformed/OPTIONS audit coverage remain
+  open. The local SQLite proof must not be described as production custody.
+
 ## 2026-07-09 - Commercial Growth Round 6 Reviewer Denial / Human Action / Runtime Reads
 
 Continued A3 from the commercial SaaS strategy bus and focused on the next

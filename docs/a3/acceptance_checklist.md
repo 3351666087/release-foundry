@@ -1,5 +1,85 @@
 ﻿# A3 Acceptance Checklist
 
+## New A3 Lane Goal / Trusted Resource Isolation - 2026-07-12
+
+- [x] Read the new A3 Lane Goal and preserve it as the continuing enterprise
+  Product / Workflow / Commercial UI mandate.
+- [x] Confirm GitHub `main` is `ccf6ce5` through the official connector after
+  direct Git HTTPS was reset.
+- [x] Confirm local and remote-main strategy blob is `575b31b8`.
+- [x] Keep A1 as identity/runtime/usage/deploy authority.
+- [x] Keep A2 as grade/evidence/Decision Ledger/Release Decision authority.
+- [x] Keep A2 `release_ready=false` and do not recompute Release Ready in A3.
+- [x] Require a per-request server-side principal resolver in hosted mode.
+- [x] Require trusted, authenticated, active, unexpired principal state.
+- [x] Require explicit effective permissions and actor/subject reference.
+- [x] Reject browser role/header/query/body authority in hosted mode.
+- [x] Make hosted `source` lookup exact with no foreign snapshot fallback.
+- [x] Validate organization, tenant, workspace, project, and environment
+  before returning tenant-owned data.
+- [x] Compare report source and all five scope fields.
+- [x] Support colliding report IDs through a scope-aware internal key.
+- [x] Prove colliding run/case/report IDs cannot cross tenants.
+- [x] Ignore client report-view time and use the server clock.
+- [x] Prove expired share tokens cannot be backdated into an allowed state.
+- [x] Persist metadata-only denial audit for unknown hosted routes.
+- [x] Align runtime 401/403 with closed OpenAPI denial schemas.
+- [x] Technically prevent demo mode from performing live GitHub mutations.
+- [x] Preserve dry-run GitHub planning in demo mode.
+- [x] Default direct server startup to hosted enforcement regardless of
+  `NODE_ENV`; require an explicit setting for demo mode.
+- [x] Disable standalone CLI live GitHub publication before token or network
+  access and keep the workflow example dry-run/read-only.
+- [x] Require an A2 release-ready, chain-verified Decision Ledger record and
+  current ledger selectors before live GitHub transport.
+- [x] Require a server-side A2 authority resolver, A1 trusted worker, and
+  tenant-bound GitHub installation target for hosted live publication.
+- [x] Prove self-consistent local A2 allow JSON cannot authorize transport.
+- [x] Reject exception approval when only a foreign-scope waiver ID exists.
+- [x] Keep the merged-main A2 `release_ready=false` fixture blocked from live
+  publication.
+- [x] Exclude foreign and legacy unscoped audit/admin/review/readback/GitHub/
+  import records from hosted aggregates.
+- [x] Persist source and all five scope fields on newly created aggregate
+  records and their metadata-only audit receipts.
+- [x] Expose `a3.aggregate_scope_status.v1` with honest `partial` status and
+  excluded counts.
+- [x] Normalize Partial state in the typed Webapp client and render a
+  Chinese-first retry path.
+- [x] Prove the Partial banner is bounded on desktop and 390 x 844 mobile.
+- [x] Persist access decisions across SQLite restart as local durability proof.
+- [x] Persist GitHub publish receipts and event-outbox rows in dedicated SQLite
+  tables and verify them with direct SQL queries after restart.
+- [x] Preserve two same-name sources across different five-level tenant scopes.
+- [x] Scope A1/A2 import idempotency namespaces by source plus tenant scope.
+- [x] Validate runtime/OpenAPI parity for all `53/53` protected operations and
+  enforce permission equality with the RBAC registry.
+- [x] Report fixture storage as `db_ready=false`; reserve true for SQLite.
+- [x] Render Partial-scope warning before empty data state.
+- [x] Clear stale Webapp data and distinguish 401/403/404/network/server states.
+- [x] Save Chinese 401/403 screenshots without account or secret data.
+- [x] Full A3 Node suite passes (`387/387`).
+- [x] Webapp typecheck and production build pass.
+- [x] Fresh-port Playwright suite passes (`33/33`).
+- [x] A1 TypeScript session lifecycle passes (`35/35`).
+- [x] A2 trusted spine passes (`7/7`).
+- [x] Commercial and hygiene CL guards pass.
+- [x] Changed-file real-format long token/key scan reports zero matches;
+  credential-shaped negative-test fixtures remain redacted test inputs.
+- [x] `.env.local` remains ignored and absent from Git status.
+- [x] `git diff --check` passes.
+- [ ] Wire the hosted resolver to a deployed A1 session/service-account
+  verifier; the current interface is not production identity proof.
+- [ ] Replace memory/SQLite authority with PostgreSQL and forced RLS.
+- [x] Replace source-only snapshot keys with a source plus five-level scope
+  composite identity and prove same-source multi-tenant coexistence locally.
+- [ ] Persist all five scope columns in authoritative SQL tables and enforce
+  them in every repository query.
+- [x] Generate and validate exact runtime-route/OpenAPI parity (`53/53`).
+- [ ] Audit malformed JSON and protected OPTIONS attempts consistently.
+- [ ] Prove customer IdP, multi-instance, object custody, GitHub worker,
+  deployment, upgrade, rollback, backup, and restore in a customer-like VPC.
+
 ## G2.3 Dashboard Skeleton
 
 - [x] `apps/dashboard` exists.

@@ -1,5 +1,126 @@
 ﻿# A3 Worklog
 
+## 2026-07-12 - New A3 Lane Goal Alignment And Trusted Resource Isolation
+
+### Goal and strategy check
+
+- Read the new A3 Lane Goal as the continuing enterprise Product / Workflow /
+  Commercial UI mandate.
+- Confirmed through the official GitHub connector that remote `main` remains
+  `ccf6ce5` after direct Git HTTPS was reset.
+- Confirmed both local and GitHub `main` use strategy blob
+  `575b31b80981542fc96f9a9310e66a9318974abb` at
+  `docs/strategy/large-saas-a1-a2-a3-full-plan.md`.
+- Recorded the responsibility and non-claim boundary in
+  `docs/a3/a3_lane_goal_alignment_2026_07_12.md`.
+
+### Security defects closed
+
+- Completed the previously interrupted hosted-read patch.
+- Hosted source lookup is exact and never falls back to the first snapshot.
+- Hosted reads validate organization, tenant, workspace, project, and
+  environment against stored data instead of relabeling it.
+- Report matching now compares source and all five scope fields.
+- The memory/file reference store uses a scope-aware report key, so two
+  tenants can safely have the same public `report_id`.
+- Added black-box collision coverage with identical `run_id`, `case_id`, and
+  `report_id` in two tenants.
+- Public share-token HTTP access ignores client `viewed_at` and uses the
+  server clock; a backdated expired-token request remains `410`.
+- Hosted principals require explicit trusted/authenticated flags, active
+  state, expiry, effective permissions, and an actor/subject reference.
+- Hosted API setup requires a per-request A1 principal resolver; a static
+  principal object is rejected.
+- Unknown hosted routes persist a metadata-only denial audit.
+- Runtime 401/403 bodies exactly match the closed OpenAPI denial schemas.
+- Demo mode is incapable of live GitHub mutation even when a caller forges
+  hosted-session/service-account flags. Dry-run behavior remains available.
+- Direct server startup now defaults to `hosted_enforced` in every
+  `NODE_ENV`; `demo_contract` requires an explicit operator setting.
+- The standalone GitHub publish CLI is permanently dry-run. Its former
+  `--live` path fails before token lookup or network transport, and the
+  example GitHub Action no longer requests check/comment write permission.
+- Live GitHub publication now requires the current A2 Trusted Spine, verified
+  append-only Decision Ledger, matching Evidence Snapshot, exact five-level
+  scope, `release_ready=true`, an exact `allow` decision, and current ledger-head
+  and decision-record selectors. The merged-main fixture is still blocked.
+- A hosted live request additionally requires a server-side A2 trusted
+  authority resolver, an A1 trusted GitHub worker, and a tenant-bound A1
+  GitHub installation/repository resolver. A self-consistent local A2 JSON
+  document is integrity evidence only and cannot authorize a mutation.
+- Exception approval now requires a real waiver record in the same source and
+  five-level scope. A foreign-only waiver with the same public ID is rejected.
+- Dashboard, usage, review, admin, readback, GitHub, report, and import
+  aggregates now exclude foreign-source, foreign-scope, and legacy unscoped
+  records in hosted mode.
+- New import, admin, review, GitHub, readback, report-view, report-revoke, and
+  access-audit records persist source plus organization, tenant, workspace,
+  project, and environment fields.
+- Excluded legacy/foreign aggregate records produce an explicit
+  `a3.aggregate_scope_status.v1` `partial` state instead of disappearing behind
+  a false green summary.
+- The typed Next.js client renders a Chinese-first, retryable Partial banner;
+  desktop and 390 x 844 screenshots prove bounded rendering.
+- A same-source aggregate collision test injects foreign audit, admin, review,
+  readback, GitHub, and import records and proves none enter tenant A totals.
+- Snapshot storage now uses source plus five-level scope identity when the
+  same source name appears in multiple tenants. Two tenants can independently
+  import the same run/case IDs and even reuse the same client idempotency key.
+- SQLite now writes GitHub publish receipts and metadata-only event-outbox
+  rows into dedicated SQL tables; restart tests query those tables directly
+  instead of treating the all-state JSON blob as the durability proof.
+- The runtime/OpenAPI synchronizer covers all `53/53` protected RBAC routes
+  and corrects permission drift from the canonical runtime registry.
+- Fixture-backed health now reports `db_ready=false`; only the SQLite adapter
+  reports a database ready. Partial-scope warnings render before empty state.
+
+### A1/A2 authority
+
+- A1 remains authoritative for identity/session membership, run, trace,
+  tool-call, usage, billing-ledger, deployment, and external executor facts.
+- A2 remains authoritative for GradeResult, score, pass/fail, failure class,
+  Evidence Snapshot, Decision Ledger, and Release Decision.
+- A3 did not recalculate a score or release decision. The merged-main A2
+  trusted spine remains `release_ready=false` and `decision=block`.
+- Read-only peer calibration found A2 draft `a1cdc00` adds durable provider
+  provenance, release-decision persistence, and independent high-risk review.
+  It is not merged and therefore remains a compatibility watch signal only.
+
+### Verification
+
+- Full A3 Node suite: `387 pass / 0 fail`.
+- Webapp TypeScript typecheck and Next.js production build: passed.
+- Fresh-port Playwright with one worker: `33 pass / 0 fail`.
+- A1 TypeScript session lifecycle: `35 pass / 0 fail`.
+- A2 trusted spine: `7 pass / 0 fail`.
+- CL hygiene: passed, 0 findings.
+- CL commercial: passed, 0 blockers and 0 advisories.
+- Changed-file real-format long token/key scan: 0 matches. Deliberate
+  `Bearer`/`Cookie`/`ASHR_API_KEY` negative-test strings remain redacted test
+  inputs, not credentials.
+- `.env.local` remains ignored by `.gitignore`.
+- `git diff --check`: passed.
+
+### Honest remaining boundary
+
+This is an implemented and tested local/contract security increment, not a
+production multi-tenant claim. A deployed A1 verifier, authoritative A3
+PostgreSQL store, forced RLS, multi-instance transactions, KMS/object custody,
+customer IdP, durable GitHub worker/readback, and VPC deployment/recovery proof
+remain open enterprise Release work.
+
+The local memory/SQLite reference path now proves same-source five-level
+snapshot coexistence, structured GitHub/outbox rows, and exact runtime/OpenAPI
+route parity. It is still not an authoritative production datastore:
+PostgreSQL/RLS, transactional multi-instance writes, complete five-level
+columns and policies across every production table, malformed JSON/OPTIONS
+audit coverage, and deployed A1/A2/GitHub resolvers remain explicit blockers.
+
+### Visual evidence
+
+- `docs/screenshots/a3-webapp-partial-data-desktop.png`
+- `docs/screenshots/a3-webapp-partial-data-mobile-390x844.png`
+
 ## 2026-07-12 - Merged-main Identity And Trusted-Spine Recalibration
 
 ### Goal
