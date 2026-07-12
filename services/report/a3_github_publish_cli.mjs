@@ -39,6 +39,9 @@ export async function buildGitHubPublishCliReceipt(options = {}) {
   if (options.help) {
     return usageReceipt();
   }
+  if (options.dryRun === false) {
+    throw new Error("Direct live GitHub CLI publishing is disabled. Use the hosted A3 API with server-verified A1 identity, A2 release authority, and a tenant-bound GitHub installation.");
+  }
   if (!options.gate) {
     throw new Error("--gate is required.");
   }
@@ -107,11 +110,12 @@ function usageReceipt() {
     command: "node services/report/a3_github_publish_cli.mjs --gate artifacts/ashr-gate.json --repo owner/repo --head-sha <sha> --output-receipt artifacts/ashr-github-check-receipt.json",
     pr_comment_command: "node services/report/a3_github_publish_cli.mjs --gate artifacts/ashr-gate.json --repo owner/repo --pull-number <number> --pr-comment --output-receipt artifacts/ashr-pr-comment-receipt.json",
     default_mode: "dry-run",
-    live_mode: "Add --live and provide a token through --token-env GITHUB_TOKEN.",
+    live_mode: "Disabled in this CLI. Live writes must use the hosted trusted-worker path.",
     safety: {
       prints_token: false,
       commits_token: false,
-      default_posts_to_github: false
+      default_posts_to_github: false,
+      direct_live_publish_allowed: false
     }
   };
 }

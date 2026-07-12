@@ -228,7 +228,7 @@ test("A3 API server can run on the SQLite store without changing API contracts",
         snapshot: await loadA3SourceSnapshot("mock")
       }
     });
-    const started = await startA3ApiServer({ store });
+    const started = await startA3ApiServer({ store, routeAccessMode: "demo_contract" });
     server = started.server;
     const url = started.url;
 
@@ -266,6 +266,61 @@ test("A3 API server can run on the SQLite store without changing API contracts",
     if (store?.close) {
       store.close();
     }
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test("A3 SQLite store keeps GitHub publish receipts, audit, and outbox after restart", async () => {
+  const dir = await mkdtemp(join(tmpdir(), "a3-sqlite-github-publish-"));
+  const dbPath = join(dir, "a3.sqlite");
+  let store;
+  try {
+    store = await createSqliteA3Store({
+      dbPath,
+      seed: { snapshot: await loadA3SourceSnapshot("mock") }
+    });
+    const checkReceipt = await store.publishGitHubCheckRun({
+      source: "mock",
+      repo: "acme/refund-agent",
+      headSha: "sqlite-dry-run-head",
+      dryRun: true,
+      idempotencyKey: "sqlite-github-check-publish"
+    });
+    const commentReceipt = await store.publishGitHubPrComment({
+      source: "mock",
+      repo: "acme/refund-agent",
+      pullNumber: 17,
+      dryRun: true,
+      idempotencyKey: "sqlite-github-comment-publish"
+    });
+    assert.equal(checkReceipt.status, "planned");
+    assert.equal(commentReceipt.status, "planned");
+
+    store.close();
+    store = await createSqliteA3Store({ dbPath });
+    const state = store.exportState();
+    assert.equal(state.githubPublishReceipts.length, 2);
+    assert.deepEqual(state.githubPublishReceipts.map((item) => item.resource_kind).sort(), ["github_check", "pr_comment"]);
+    assert.equal(state.auditEvents.filter((item) => item.event_type.startsWith("github.")).length, 2);
+    assert.equal(state.eventOutbox.filter((item) => item.event_type.startsWith("github.")).length, 2);
+    assert.equal(state.idempotencyReceipts.filter((item) => item.request_type.startsWith("github_")).length, 2);
+    const inspection = store.inspectSqliteState();
+    assert.equal(inspection.operational_tables.github_publish_receipts, 2);
+    assert.equal(inspection.operational_tables.event_outbox, 2);
+    const sqlCheck = new DatabaseSync(dbPath, { readOnly: true });
+    try {
+      const receiptRows = sqlCheck.prepare("SELECT resource_kind, dry_run, posted FROM github_publish_receipts ORDER BY resource_kind").all();
+      const outboxRows = sqlCheck.prepare("SELECT event_type, delivery_status FROM event_outbox WHERE event_type LIKE 'github.%' ORDER BY event_type").all();
+      assert.deepEqual(receiptRows.map((row) => row.resource_kind), ["github_check", "pr_comment"]);
+      assert.equal(receiptRows.every((row) => row.dry_run === 1 && row.posted === 0), true);
+      assert.equal(outboxRows.length, 2);
+      assert.equal(outboxRows.every((row) => row.delivery_status === "pending"), true);
+    } finally {
+      sqlCheck.close();
+    }
+    assert.doesNotMatch(JSON.stringify(state), /Authorization|Bearer\s+[A-Za-z0-9._-]{12,}/);
+  } finally {
+    if (store?.close) store.close();
     await rm(dir, { recursive: true, force: true });
   }
 });

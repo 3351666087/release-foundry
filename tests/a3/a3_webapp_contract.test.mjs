@@ -42,11 +42,15 @@ test("A3 webapp consumes A1 and A2 through the existing read-only dashboard API"
   ]);
 
   assert.match(apiSource, /\/api\/a3\/dashboard/);
-  assert.match(apiSource, /x-a3-role/);
+  assert.match(apiSource, /credentials:\s*"include"/);
+  assert.doesNotMatch(apiSource, /headers:\s*\{\s*"x-a3-role"/);
   assert.match(apiSource, /run_fixture/);
   assert.match(apiSource, /grade_fixture/);
+  assert.match(apiSource, /trusted_release_authority/);
   assert.match(providerSource, /fetchDashboard/);
   assert.match(overviewSource, /a1_a2_evidence_spine/);
+  assert.match(overviewSource, /trustedReleaseAuthority/);
+  assert.doesNotMatch(overviewSource, /releaseDecision\.includes\("block"\)/);
   assert.match(caseSource, /Trace timeline/);
   assert.match(caseSource, /Judge decisions/);
   assert.match(reviewSource, /A2 release authority/);

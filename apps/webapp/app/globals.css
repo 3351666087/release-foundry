@@ -1488,6 +1488,57 @@ pre {
 
 .empty-state span { max-width: 400px; font-size: 9px; }
 
+.error-state {
+  min-height: 180px;
+  color: var(--ink-soft);
+  background: var(--surface);
+  border-style: solid;
+}
+
+.error-state > svg { color: var(--cobalt); }
+
+.error-state[data-boundary-state="unauthenticated"] {
+  border-top: 3px solid var(--cobalt);
+}
+
+.error-state[data-boundary-state="denied"] {
+  border-top: 3px solid var(--danger);
+}
+
+.error-state[data-boundary-state="denied"] > svg { color: var(--danger); }
+
+.error-state strong {
+  font-family: var(--font-display);
+  font-size: 18px;
+}
+
+.error-state > span {
+  max-width: 620px;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.error-state .command-button { margin-top: 4px; }
+
+.partial-data-state {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  color: var(--ink-soft);
+  background: var(--sulfur-soft);
+  border: 1px solid #c8a91f;
+  border-left: 4px solid var(--sulfur);
+}
+
+.partial-data-state > svg { color: #7a6411; }
+.partial-data-state div { display: grid; gap: 2px; }
+.partial-data-state strong { color: var(--ink); font-size: 12px; }
+.partial-data-state span { font-size: 10px; }
+.partial-data-state .command-button { white-space: nowrap; }
+
 .loading-state {
   min-height: 70vh;
   border: 0;
@@ -1755,6 +1806,8 @@ pre {
   .language-control > svg { display: none; }
   .account-command { display: none; }
   .route-content { padding-right: 14px; padding-left: 14px; }
+  .partial-data-state { grid-template-columns: 22px minmax(0, 1fr); }
+  .partial-data-state .command-button { grid-column: 2; justify-self: start; }
   .page-header { min-height: 132px; padding-bottom: 22px; }
   .page-heading-copy h1, [data-language="zh"] .page-heading-copy h1 { font-size: 34px; }
   .page-heading-copy p { font-size: 12px; }

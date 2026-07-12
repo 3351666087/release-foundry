@@ -19,7 +19,9 @@ export async function createSqliteA3Store(options = {}) {
   const seed = existingState || options.seed || {};
   const store = createMemoryA3Store({
     ...seed,
-    storageMode: "sqlite"
+    storageMode: "sqlite",
+    dbReady: true,
+    githubExecutorAuthority: options.githubExecutorAuthority
   });
 
   const persist = async () => {
@@ -106,6 +108,27 @@ export async function createSqliteA3Store(options = {}) {
       return result;
     },
 
+    async publishGitHubCheckRun(options = {}) {
+      const result = await store.publishGitHubCheckRun(options);
+      await persist();
+      return result;
+    },
+
+    async publishGitHubPrComment(options = {}) {
+      const result = await store.publishGitHubPrComment(options);
+      await persist();
+      return result;
+    },
+
+    async recordAccessDecision(decision, options = {}) {
+      const result = await store.recordAccessDecision(decision, options);
+      await persist();
+      return {
+        ...result,
+        storage_mode: "sqlite"
+      };
+    },
+
     async persist() {
       await persist();
     },
@@ -143,6 +166,8 @@ export function inspectSqliteA3Store(db) {
       release_evidence_diffs: countRows(db, "release_evidence_diffs"),
       release_evidence_readbacks: countRows(db, "release_evidence_readbacks"),
       audit_events: countRows(db, "audit_events"),
+      event_outbox: countRows(db, "event_outbox"),
+      github_publish_receipts: countRows(db, "github_publish_receipts"),
       usage_ledger: countRows(db, "usage_ledger")
     },
     safety: {
@@ -198,6 +223,8 @@ async function persistSqliteState(db, store) {
     persistSaasAdminActionRequests(db, state, updatedAt);
     persistReviewWorkflowRecords(db, state, updatedAt);
     persistAuditEvents(db, state, updatedAt);
+    persistEventOutbox(db, state, updatedAt);
+    persistGitHubPublishReceipts(db, state, updatedAt);
     await persistUsageLedger(db, store, state, updatedAt);
     db.exec("COMMIT");
   } catch (error) {
@@ -220,6 +247,8 @@ function clearOperationalRows(db) {
     "report_revocations",
     "report_view_events",
     "audit_events",
+    "event_outbox",
+    "github_publish_receipts",
     "artifact_lifecycle_events",
     "artifact_registry_entries",
     "release_evidence_readbacks",
@@ -275,13 +304,15 @@ VALUES (?, ?, ?, ?, ?)
 }
 
 async function persistSnapshots(db, store, state, updatedAt) {
-  for (const [source, snapshot] of Object.entries(state.sources || {})) {
-    const dashboard = await store.getDashboardSnapshot(source);
+  for (const [storageKey, snapshot] of Object.entries(state.sources || {})) {
+    const canonicalSource = snapshot.source || storageKey;
+    const scopeOptions = sqliteSnapshotScopeOptions(snapshot, canonicalSource);
+    const dashboard = await store.getDashboardSnapshot(canonicalSource, scopeOptions);
     db.prepare(`
 INSERT INTO dashboard_snapshots (source, organization_id, project_id, case_count, total_runs, pass_rate, payload_json, updated_at)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 `).run(
-      source,
+      storageKey,
       snapshot.organizationId || "org-local",
       snapshot.projectId || "project-local",
       dashboard.cases.length,
@@ -290,12 +321,15 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       JSON.stringify(dashboard),
       updatedAt
     );
-    for (const run of await store.listRuns({ source })) {
+    const runIdMap = new Map();
+    for (const run of await store.listRuns(scopeOptions)) {
+      const scopedRunId = sqliteScopedEntityId("run", snapshot, run.run_id);
+      runIdMap.set(run.run_id, scopedRunId);
       db.prepare(`
 INSERT INTO runs (id, organization_id, project_id, dataset_id, runner_id, status, trace_completeness, raw_payload_hash, created_at)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 `).run(
-        run.run_id,
+        scopedRunId,
         snapshot.organizationId || "org-local",
         snapshot.projectId || "project-local",
         run.dataset_id || "local-dataset",
@@ -307,14 +341,16 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       );
     }
     for (const item of dashboard.cases) {
+      const scopedCaseId = sqliteScopedEntityId("case", snapshot, item.case_id);
+      const scopedRunId = runIdMap.get(item.run_id) || sqliteScopedEntityId("run", snapshot, item.run_id);
       db.prepare(`
 INSERT INTO cases (id, organization_id, project_id, run_id, scenario_id, status, score, primary_failure_class, payload)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 `).run(
-        item.case_id,
+        scopedCaseId,
         snapshot.organizationId || "org-local",
         snapshot.projectId || "project-local",
-        item.run_id,
+        scopedRunId,
         item.scenario_id || null,
         item.status || "unknown",
         item.score ?? null,
@@ -324,13 +360,13 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     }
     const releaseEvidenceSummary = dashboard.release_evidence_summary || {};
     if (releaseEvidenceSummary.available === true) {
-      const releaseId = dashboard.release_evidence_api?.release_id || `${source}-release`;
+      const releaseId = dashboard.release_evidence_api?.release_id || `${canonicalSource}-release`;
       const summaryHash = sha256(JSON.stringify(releaseEvidenceSummary));
       let authority = null;
       let authorityDiff = null;
       try {
-        authority = await store.getReleaseEvidenceSummary(releaseId, { source, version: "2" });
-        authorityDiff = await store.getReleaseEvidenceDiff(releaseId, { source });
+        authority = await store.getReleaseEvidenceSummary(releaseId, { ...scopeOptions, version: "2" });
+        authorityDiff = await store.getReleaseEvidenceDiff(releaseId, scopeOptions);
       } catch {
         authority = null;
         authorityDiff = null;
@@ -343,7 +379,7 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         snapshot.organizationId || "org-local",
         snapshot.projectId || "project-local",
         releaseId,
-        source,
+        canonicalSource,
         releaseEvidenceSummary.schema_version || "unknown",
         releaseEvidenceSummary.overall_status || "unknown",
         summaryHash,
@@ -378,7 +414,7 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ["required_check", payload.required_check_proof],
           ...((state.releaseEvidenceReadbacks || [])
             .filter((item) => (
-              (item.source || source) === source
+              (item.source || canonicalSource) === canonicalSource
               && (item.release_id || releaseId) === releaseId
               && (item.organization_id || "org-local") === (snapshot.organizationId || "org-local")
               && (item.project_id || "project-local") === (snapshot.projectId || "project-local")
@@ -607,9 +643,73 @@ VALUES (?, ?, ?, ?, ?, ?)
   }
 }
 
+function persistEventOutbox(db, state, updatedAt) {
+  for (const row of state.eventOutbox || []) {
+    db.prepare(`
+INSERT INTO event_outbox (
+  id, event_type, event_schema_version, organization_id, tenant_id, workspace_id,
+  project_id, environment_id, actor_id, request_id, trace_id, resource_type,
+  resource_id, payload_ref, payload_hash, redaction_status, delivery_status, created_at
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`).run(
+      row.event_id || row.id,
+      row.event_type || "unknown.event",
+      row.event_schema_version || "a3.event_envelope.v1",
+      row.organization_id || "org-local",
+      row.tenant_id || "tenant-local",
+      row.workspace_id || "workspace-local",
+      row.project_id || "project-local",
+      row.environment_id || "staging",
+      row.actor_id || "actor_[REDACTED_HASH]",
+      row.request_id || "req_unknown",
+      row.trace_id || "trace_unknown",
+      row.resource_type || "unknown",
+      row.resource_id || "unknown",
+      row.payload_ref || null,
+      row.payload_hash || sha256(JSON.stringify(row)),
+      row.redaction_status || "metadata_only",
+      row.delivery_status || "pending",
+      row.created_at || updatedAt
+    );
+  }
+}
+
+function persistGitHubPublishReceipts(db, state, updatedAt) {
+  for (const receipt of state.githubPublishReceipts || []) {
+    db.prepare(`
+INSERT INTO github_publish_receipts (
+  id, organization_id, tenant_id, workspace_id, project_id, environment_id,
+  source, release_id, resource_kind, repo_alias, external_id_alias,
+  publish_status, dry_run, posted, payload_hash, payload, created_at
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`).run(
+      receipt.publish_id,
+      receipt.organization_id || "org-local",
+      receipt.tenant_id || "tenant-local",
+      receipt.workspace_id || "workspace-local",
+      receipt.project_id || "project-local",
+      receipt.environment_id || "staging",
+      receipt.source || "mock",
+      receipt.release_id || "current",
+      receipt.resource_kind || "unknown",
+      typeof receipt.repo === "string" ? receipt.repo : null,
+      receipt.external_id_alias == null ? null : String(receipt.external_id_alias),
+      receipt.status || "unknown",
+      receipt.dry_run !== false ? 1 : 0,
+      receipt.posted === true ? 1 : 0,
+      receipt.payload_hash || sha256(JSON.stringify(receipt)),
+      JSON.stringify(receipt),
+      receipt.published_at || updatedAt
+    );
+  }
+}
+
 async function persistUsageLedger(db, store, state, updatedAt) {
-  for (const source of Object.keys(state.sources || {})) {
-    const ledger = await store.getUsageLedger({ source });
+  for (const [storageKey, snapshot] of Object.entries(state.sources || {})) {
+    const source = snapshot.source || storageKey;
+    const ledger = await store.getUsageLedger(sqliteSnapshotScopeOptions(snapshot, source));
     for (const meter of ledger.meters || []) {
       db.prepare(`
 INSERT INTO usage_ledger (organization_id, project_id, meter, quantity, source, period_start, period_end)
@@ -625,6 +725,26 @@ VALUES (?, ?, ?, ?, ?, ?, ?)
       );
     }
   }
+}
+
+function sqliteSnapshotScopeOptions(snapshot = {}, source = "mock") {
+  const nested = snapshot.tenant_scope || {};
+  return {
+    source,
+    organizationId: snapshot.organizationId || snapshot.organization_id || nested.organization_id || "org-local",
+    tenantId: snapshot.tenantId || snapshot.tenant_id || nested.tenant_id || "tenant-local",
+    workspaceId: snapshot.workspaceId || snapshot.workspace_id || nested.workspace_id || "workspace-local",
+    projectId: snapshot.projectId || snapshot.project_id || nested.project_id || "project-local",
+    environmentId: snapshot.environmentId || snapshot.environment_id || nested.environment_id || "staging",
+    enforceScope: true
+  };
+}
+
+function sqliteScopedEntityId(kind, snapshot = {}, externalId = "unknown") {
+  return `${kind}_${sha256(JSON.stringify({
+    scope: sqliteSnapshotScopeOptions(snapshot, snapshot.source || "mock"),
+    external_id: externalId
+  })).slice(0, 24)}`;
 }
 
 function countRows(db, table) {

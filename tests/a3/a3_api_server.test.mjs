@@ -11,11 +11,11 @@ async function loadJson(path) {
 
 test("A3 API server exposes dashboard, run, case, and shareable report routes", async () => {
   const store = await createFixtureBackedA3Store({ sources: ["mock"] });
-  const { server, url } = await startA3ApiServer({ store });
+  const { server, url } = await startA3ApiServer({ store, routeAccessMode: "demo_contract" });
   try {
     const health = await getJson(`${url}/api/a3/health`);
     assert.equal(health.ok, true);
-    assert.equal(health.db_ready, true);
+    assert.equal(health.db_ready, false);
 
     const dashboard = await getJson(`${url}/api/a3/dashboard?source=mock`);
     assert.equal(dashboard.schema_version, "a3.api_dashboard_payload.v1");
@@ -655,6 +655,24 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
     assert.equal(revokedOutbox.event_count, 1);
     assert.equal(revokedOutbox.events[0].event_type, "report.revoked");
 
+    const persisted = store.exportState();
+    for (const collectionName of [
+      "auditEvents",
+      "adminActionRequests",
+      "reviewWorkflowRecords",
+      "releaseEvidenceReadbacks",
+      "githubPublishReceipts"
+    ]) {
+      const records = persisted[collectionName];
+      assert.ok(records.length > 0, `${collectionName} should contain test evidence`);
+      assert.ok(records.every(hasExactTenantScope), `${collectionName} must persist exact five-level scope`);
+    }
+    const importReceipts = persisted.idempotencyReceipts
+      .filter((entry) => ["a1_run_result_import", "a2_grade_result_import"].includes(entry.request_type))
+      .map((entry) => entry.receipt);
+    assert.ok(importReceipts.length > 0);
+    assert.ok(importReceipts.every(hasExactTenantScope));
+
     const missingShareToken = await fetch(`${url}/r/missing-share-token`);
     assert.equal(missingShareToken.status, 404);
 
@@ -665,9 +683,15 @@ test("A3 API server exposes dashboard, run, case, and shareable report routes", 
   }
 });
 
+function hasExactTenantScope(record = {}) {
+  const scope = record.tenant_scope || {};
+  return ["organization_id", "tenant_id", "workspace_id", "project_id", "environment_id"]
+    .every((field) => typeof (record[field] || scope[field]) === "string" && (record[field] || scope[field]).length > 0);
+}
+
 test("A3 API server fails closed on unauthorized write and audit routes", async () => {
   const store = await createFixtureBackedA3Store({ sources: ["mock"] });
-  const { server, url } = await startA3ApiServer({ store });
+  const { server, url } = await startA3ApiServer({ store, routeAccessMode: "demo_contract" });
   try {
     const releaseEvidence = await getJson(`${url}/api/a3/releases/current/evidence-summary?source=mock`);
     const deniedShare = await fetch(`${url}/api/a3/reports/share?source=mock`, {
@@ -749,6 +773,27 @@ test("A3 API server fails closed on unauthorized write and audit routes", async 
     assert.equal(deniedLivePublishPayload.safety.real_github_mutation_performed, false);
     assert.doesNotMatch(JSON.stringify(deniedLivePublishPayload), /reviewer@example.com|Bearer|ghp_|github_pat_|sk-/);
 
+    const deniedForgedHostedPublish = await fetch(`${url}/api/a3/github/check-run/publish?source=mock`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-a3-role": "owner"
+      },
+      body: JSON.stringify({
+        repo: "acme/refund-agent",
+        head_sha: "forged-hosted-sha",
+        allow_live: true,
+        hosted_session: true,
+        service_account: true
+      })
+    });
+    assert.equal(deniedForgedHostedPublish.status, 403);
+    const deniedForgedHostedPayload = await deniedForgedHostedPublish.json();
+    assert.equal(deniedForgedHostedPayload.schema_version, "a3.github_live_publish_denied.v1");
+    assert.match(deniedForgedHostedPayload.reason, /hosted enforcement and a server-verified/i);
+    assert.equal(deniedForgedHostedPayload.safety.real_github_mutation_performed, false);
+    assert.doesNotMatch(JSON.stringify(deniedForgedHostedPayload), /forged-hosted-sha/);
+
     const deniedAdminPlan = await fetch(`${url}/api/a3/admin/actions/plan?source=mock`, {
       method: "POST",
       headers: {
@@ -827,7 +872,7 @@ test("A3 API server redacts unexpected internal error messages", async () => {
       throw new Error(`Authorization: Bearer ${"x".repeat(24)} ASHR_API_KEY=secret_live_value owner@example.com`);
     }
   };
-  const { server, url } = await startA3ApiServer({ store });
+  const { server, url } = await startA3ApiServer({ store, routeAccessMode: "demo_contract" });
   try {
     const response = await fetch(`${url}/api/a3/dashboard`);
     assert.equal(response.status, 500);
@@ -843,7 +888,7 @@ test("A3 API server redacts unexpected internal error messages", async () => {
 
 test("A3 API exposes fail-closed UI action preflight without executing a mutation", async () => {
   const store = await createFixtureBackedA3Store({ sources: ["mock"] });
-  const { server, url } = await startA3ApiServer({ store, trustedIdentityBackend: true });
+  const { server, url } = await startA3ApiServer({ store, trustedIdentityBackend: true, routeAccessMode: "demo_contract" });
   const scope = {
     organization_id: "org-local",
     tenant_id: "tenant-local",

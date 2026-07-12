@@ -114,7 +114,7 @@ test("A3 commercial API contract fixture and docs are generated and secret-free"
 
 test("A3 API exposes commercial API contract and DB migration coverage", async () => {
   const store = await createFixtureBackedA3Store({ sources: ["mock"] });
-  const { server, url } = await startA3ApiServer({ store });
+  const { server, url } = await startA3ApiServer({ store, routeAccessMode: "demo_contract" });
   try {
     const response = await fetch(`${url}/api/a3/commercial-api/contract?source=mock&environment_id=staging`);
     assert.equal(response.status, 200);

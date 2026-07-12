@@ -598,6 +598,29 @@ CREATE TABLE IF NOT EXISTS webhook_deliveries (
   created_at ${types.timestamp} NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_project ON webhook_deliveries(project_id, delivery_status, created_at);`)
+    ,
+    statement("016_github_publish_receipts", ["github_publish_receipts"], `
+CREATE TABLE IF NOT EXISTS github_publish_receipts (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL,
+  workspace_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  environment_id TEXT NOT NULL,
+  source TEXT NOT NULL,
+  release_id TEXT NOT NULL,
+  resource_kind TEXT NOT NULL,
+  repo_alias TEXT,
+  external_id_alias TEXT,
+  publish_status TEXT NOT NULL,
+  dry_run BOOLEAN NOT NULL,
+  posted BOOLEAN NOT NULL,
+  payload_hash TEXT NOT NULL,
+  payload ${types.json} NOT NULL,
+  created_at ${types.timestamp} NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_github_publish_receipts_scope ON github_publish_receipts(organization_id, tenant_id, workspace_id, project_id, environment_id, source, created_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_github_publish_receipts_payload ON github_publish_receipts(project_id, resource_kind, payload_hash);`)
   ];
 }
 

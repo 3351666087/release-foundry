@@ -573,7 +573,11 @@ export function validateApprovalRecord(approval = {}, gate = {}, workflow = {}, 
   }
 
   const waiver = options.waiver || {};
-  if (approval.waiver_id && waiver.waiver_id && approval.waiver_id !== waiver.waiver_id) {
+  const hasWaiverEvidence = waiver && typeof waiver === "object" && Object.keys(waiver).length > 0;
+  if (gate.decision !== "approve_release" && !hasWaiverEvidence) {
+    findings.push(approvalFinding("missing_waiver_evidence", "blocking", "Exception approvals must resolve a waiver record in the same tenant scope."));
+  }
+  if (approval.waiver_id && approval.waiver_id !== waiver.waiver_id) {
     findings.push(approvalFinding("waiver_id_mismatch", "blocking", "Approval waiver_id does not match the provided waiver."));
   }
   if (gate.decision !== "approve_release" && isBlank(approval.waiver_id)) {

@@ -3,35 +3,43 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Ashr++ A3 Commercial Product Console API",
-    "version": "2026.07.09",
-    "summary": "Machine-readable A3 OpenAPI contract for commercial dashboard, reports, release gate, admin, billing, and trust surfaces.",
-    "description": "This contract translates the existing A3 commercial API matrix into an OpenAPI 3.1 artifact. A3 owns product workflow and UI surfaces; A1 remains the durable platform/API/auth/usage owner; A2 remains the judge/policy/release-gate authority."
+    "version": "2026.07.12",
+    "summary": "Machine-readable A3 hosted security contract for tenant-sensitive product-console reads and commercial workflows.",
+    "description": "A3 owns hosted product enforcement and product workflow surfaces. Protected operations consume a server-verified A1 browser-session or service-account principal with a complete five-level tenant scope. This artifact is a contract, not proof that A1 hosted login or every A3 route is production-complete. A2 remains the sole judge, scoring, policy, and release-decision authority."
   },
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
-  "x-schema-version": "a3.openapi.commercial_api.v1",
-  "x-contract-id": "a3_commercial_api_openapi_2026_07_09",
+  "x-schema-version": "a3.openapi.commercial_api.v2",
+  "x-contract-id": "a3_commercial_api_openapi_2026_07_12",
   "x-contract-source": [
     "docs/strategy/large-saas-a1-a2-a3-full-plan.md",
+    "docs/a3/a3_trusted_read_access_contract_2026_07_12.md",
     "services/report/a3_commercial_api_contract.mjs",
     "fixtures/a3/p3/a3_commercial_api_contract.redacted.json"
   ],
   "x-service-boundary": {
     "lane": "A3",
-    "owner": "Product Console / Review Workflow / Report Center / Commercial UI",
+    "owner": "Hosted Product Enforcement / Product Console / Review Workflow / Report Center / Commercial UI",
+    "consumes": [
+      "A1 server-verified browser-session principals",
+      "A1 server-verified service-account principals",
+      "A1 tenant and usage facts",
+      "A2 immutable evidence and release-decision facts"
+    ],
     "does_not_own": [
+      "A1 login, session issuance, or principal verification",
       "A1 runner core logic",
-      "A1 auth middleware",
       "A1 billing ledger",
       "A2 judge scoring",
-      "A2 release policy semantics"
+      "A2 release policy or decision semantics"
     ]
   },
   "x-required-commercial-notes": {
-    "tenant": "Every hosted endpoint must be scoped by organization_id, tenant_id, workspace_id, project_id, and environment_id where applicable. Cross-tenant reads must fail closed with sanitized 404 or empty state.",
-    "auth": "Hosted SaaS calls require an authenticated actor or service account supplied by A1. This OpenAPI artifact never stores or displays credential values.",
-    "rbac": "Every customer action must declare a role or permission. Denied states must be explicit and safe for dashboard rendering.",
+    "tenant": "Every protected hosted operation binds organization_id, tenant_id, workspace_id, project_id, and environment_id from a server-verified A1 principal. Client scope values are selectors only and never authority.",
+    "auth": "A3 hosted enforcement accepts only an A1-verified browser-session or service-account principal. This does not claim that A1 hosted login is production-complete.",
+    "rbac": "Every protected operation declares one permission. A3 evaluates it server-side and never trusts a client-declared role.",
     "usage": "Usage meters are read-only in A3 and must come from A1 usage ledger events before billing claims become live.",
-    "audit": "Mutating or shareable actions must emit append-only audit events with ids, refs, hashes, statuses, and counts only."
+    "audit": "Mutating, sensitive-read, and share-capability actions emit metadata-only audit events with ids, refs, hashes, statuses, and counts.",
+    "a2": "A3 displays A2 evidence and decisions without recomputing scores, pass/fail, policy, or release decisions."
   },
   "x-secret-policy": {
     "raw_secrets_allowed": false,
@@ -72,10 +80,10 @@
   ],
   "security": [
     {
-      "A3Session": []
+      "A1VerifiedSession": []
     },
     {
-      "A3ServiceBearer": []
+      "A1ServiceAccount": []
     }
   ],
   "tags": [
@@ -102,6 +110,18 @@
     {
       "name": "Trust",
       "description": "Enterprise readiness, artifact registry, audit export, redaction, and evidence-chain posture."
+    },
+    {
+      "name": "Review",
+      "description": "Reviewer workflow reads and human actions that preserve the original A2 decision."
+    },
+    {
+      "name": "Operations",
+      "description": "Hosted workflow readiness, live operations, schema calibration, and event delivery posture."
+    },
+    {
+      "name": "Notifications",
+      "description": "Tenant-scoped notification control-plane posture and sanitized delivery metadata."
     }
   ],
   "paths": {
@@ -116,20 +136,37 @@
         "x-tenant-scope": {
           "required": [
             "organization_id",
+            "tenant_id",
+            "workspace_id",
             "project_id",
             "environment_id"
           ],
-          "source": "query_or_session",
-          "cross_tenant_default": "sanitized_empty_or_404"
+          "source": "server_verified_a1_principal",
+          "cross_tenant_default": "sanitized_403_or_404",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true
         },
         "x-auth": {
           "required_for_hosted_saas": true,
           "current_local_state": "fixture_backed_read_only",
-          "backend_owner": "A1"
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
         },
         "x-rbac": {
-          "permission": "auditor_or_admin",
-          "denied_state_required": true
+          "permission": "audit:read",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false,
+          "operation_id": "read_commercial_api_contract"
         },
         "x-usage": {
           "meters": [
@@ -165,8 +202,23 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           }
-        }
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_read"
       }
     },
     "/api/a3/auth/context": {
@@ -183,19 +235,35 @@
             "organization_id",
             "tenant_id",
             "workspace_id",
-            "project_id"
+            "project_id",
+            "environment_id"
           ],
-          "source": "headers_query_or_session",
-          "cross_tenant_default": "sanitized_empty_or_404"
+          "source": "server_verified_a1_principal",
+          "cross_tenant_default": "sanitized_403_or_404",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true
         },
         "x-auth": {
           "required_for_hosted_saas": true,
           "current_local_state": "local_contract_only",
-          "backend_owner": "A1"
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
         },
         "x-rbac": {
-          "permission": "project_reader",
-          "denied_state_required": true
+          "permission": "project:read",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false,
+          "operation_id": "read_auth_context"
         },
         "x-usage": {
           "meters": [
@@ -230,8 +298,23 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           }
-        }
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_read"
       }
     },
     "/api/a3/auth/rbac-policy": {
@@ -248,19 +331,35 @@
             "organization_id",
             "tenant_id",
             "workspace_id",
-            "project_id"
+            "project_id",
+            "environment_id"
           ],
-          "source": "query_or_session",
-          "cross_tenant_default": "sanitized_empty_or_404"
+          "source": "server_verified_a1_principal",
+          "cross_tenant_default": "sanitized_403_or_404",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true
         },
         "x-auth": {
           "required_for_hosted_saas": true,
           "current_local_state": "local_contract_only",
-          "backend_owner": "A1"
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
         },
         "x-rbac": {
-          "permission": "auditor_or_admin",
-          "denied_state_required": true
+          "permission": "audit:read",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false,
+          "operation_id": "read_rbac_policy"
         },
         "x-usage": {
           "meters": [
@@ -295,8 +394,23 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           }
-        }
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_read"
       }
     },
     "/api/a3/auth/authorize": {
@@ -313,19 +427,35 @@
             "organization_id",
             "tenant_id",
             "workspace_id",
-            "project_id"
+            "project_id",
+            "environment_id"
           ],
-          "source": "body_headers_or_session",
-          "cross_tenant_default": "sanitized_403_or_404"
+          "source": "server_verified_a1_principal",
+          "cross_tenant_default": "sanitized_403_or_404",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true
         },
         "x-auth": {
           "required_for_hosted_saas": true,
           "current_local_state": "local_contract_only",
-          "backend_owner": "A1"
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
         },
         "x-rbac": {
-          "permission": "project_reader",
-          "denied_state_required": true
+          "permission": "project:read",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false,
+          "operation_id": "authorize_operation"
         },
         "x-usage": {
           "meters": [
@@ -398,8 +528,23 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           }
-        }
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_protected_operation"
       }
     },
     "/api/a3/dashboard": {
@@ -413,19 +558,37 @@
         "x-tenant-scope": {
           "required": [
             "organization_id",
-            "project_id"
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
           ],
-          "source": "query_or_session",
-          "cross_tenant_default": "sanitized_empty_or_404"
+          "source": "server_verified_a1_principal",
+          "cross_tenant_default": "sanitized_403_or_404",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true
         },
         "x-auth": {
           "required_for_hosted_saas": true,
           "current_local_state": "fixture_backed_read_only",
-          "backend_owner": "A1"
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
         },
         "x-rbac": {
-          "permission": "project_reader",
-          "denied_state_required": true
+          "permission": "project:read",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false,
+          "operation_id": "read_dashboard"
         },
         "x-usage": {
           "meters": [
@@ -461,8 +624,23 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           }
-        }
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_read"
       }
     },
     "/api/a3/runs": {
@@ -476,19 +654,37 @@
         "x-tenant-scope": {
           "required": [
             "organization_id",
-            "project_id"
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
           ],
-          "source": "query_or_session",
-          "cross_tenant_default": "sanitized_empty_or_404"
+          "source": "server_verified_a1_principal",
+          "cross_tenant_default": "sanitized_403_or_404",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true
         },
         "x-auth": {
           "required_for_hosted_saas": true,
           "current_local_state": "fixture_backed_read_only",
-          "backend_owner": "A1"
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
         },
         "x-rbac": {
-          "permission": "project_reader",
-          "denied_state_required": true
+          "permission": "project:read",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false,
+          "operation_id": "list_runs"
         },
         "x-usage": {
           "meters": [
@@ -520,8 +716,23 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           }
-        }
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_read"
       }
     },
     "/api/a3/runs/{runId}": {
@@ -535,19 +746,37 @@
         "x-tenant-scope": {
           "required": [
             "organization_id",
-            "project_id"
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
           ],
-          "source": "query_or_session",
-          "cross_tenant_default": "sanitized_empty_or_404"
+          "source": "server_verified_a1_principal",
+          "cross_tenant_default": "sanitized_403_or_404",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true
         },
         "x-auth": {
           "required_for_hosted_saas": true,
           "current_local_state": "fixture_backed_read_only",
-          "backend_owner": "A1"
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
         },
         "x-rbac": {
-          "permission": "project_reader",
-          "denied_state_required": true
+          "permission": "project:read",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false,
+          "operation_id": "read_run"
         },
         "x-usage": {
           "meters": [
@@ -589,10 +818,25 @@
               }
             }
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           }
-        }
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_read"
       }
     },
     "/api/a3/releases/{releaseId}/evidence-summary": {
@@ -607,20 +851,38 @@
         "x-tenant-scope": {
           "required": [
             "organization_id",
+            "tenant_id",
+            "workspace_id",
             "project_id",
+            "environment_id",
             "release_id"
           ],
-          "source": "query_or_session",
-          "cross_tenant_default": "sanitized_empty_or_404"
+          "source": "server_verified_a1_principal",
+          "cross_tenant_default": "sanitized_403_or_404",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true
         },
         "x-auth": {
           "required_for_hosted_saas": true,
           "current_local_state": "fixture_backed_read_only",
-          "backend_owner": "A1"
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
         },
         "x-rbac": {
-          "permission": "project_reviewer",
-          "denied_state_required": true
+          "permission": "project:read",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false,
+          "operation_id": "read_release_evidence_summary"
         },
         "x-usage": {
           "meters": [
@@ -665,10 +927,25 @@
               }
             }
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           }
-        }
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_read"
       }
     },
     "/api/a3/releases/{releaseId}/evidence-health": {
@@ -683,20 +960,38 @@
         "x-tenant-scope": {
           "required": [
             "organization_id",
+            "tenant_id",
+            "workspace_id",
             "project_id",
+            "environment_id",
             "release_id"
           ],
-          "source": "query_or_session",
-          "cross_tenant_default": "sanitized_empty_or_404"
+          "source": "server_verified_a1_principal",
+          "cross_tenant_default": "sanitized_403_or_404",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true
         },
         "x-auth": {
           "required_for_hosted_saas": true,
           "current_local_state": "fixture_backed_read_only",
-          "backend_owner": "A1"
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
         },
         "x-rbac": {
-          "permission": "project_reviewer",
-          "denied_state_required": true
+          "permission": "project:read",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false,
+          "operation_id": "read_release_evidence_health"
         },
         "x-usage": {
           "meters": [
@@ -737,10 +1032,25 @@
               }
             }
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           }
-        }
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_read"
       }
     },
     "/api/a3/review/waivers": {
@@ -755,20 +1065,38 @@
         "x-tenant-scope": {
           "required": [
             "organization_id",
+            "tenant_id",
+            "workspace_id",
             "project_id",
+            "environment_id",
             "release_id"
           ],
-          "source": "body_or_session",
-          "cross_tenant_default": "sanitized_403_or_404"
+          "source": "server_verified_a1_principal",
+          "cross_tenant_default": "sanitized_403_or_404",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true
         },
         "x-auth": {
           "required_for_hosted_saas": true,
           "current_local_state": "planned_actor_alias",
-          "backend_owner": "A1"
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
         },
         "x-rbac": {
-          "permission": "reviewer_or_security_admin",
-          "denied_state_required": true
+          "permission": "release:review",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false,
+          "operation_id": "submit_review_waiver"
         },
         "x-usage": {
           "meters": [
@@ -803,8 +1131,23 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           }
-        }
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_protected_operation"
       }
     },
     "/api/a3/review/approvals": {
@@ -819,20 +1162,38 @@
         "x-tenant-scope": {
           "required": [
             "organization_id",
+            "tenant_id",
+            "workspace_id",
             "project_id",
+            "environment_id",
             "release_id"
           ],
-          "source": "body_or_session",
-          "cross_tenant_default": "sanitized_403_or_404"
+          "source": "server_verified_a1_principal",
+          "cross_tenant_default": "sanitized_403_or_404",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true
         },
         "x-auth": {
           "required_for_hosted_saas": true,
           "current_local_state": "planned_actor_alias",
-          "backend_owner": "A1"
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
         },
         "x-rbac": {
-          "permission": "reviewer_or_owner",
-          "denied_state_required": true
+          "permission": "release:approve",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false,
+          "operation_id": "submit_review_approval"
         },
         "x-usage": {
           "meters": [
@@ -867,8 +1228,23 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           }
-        }
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_protected_operation"
       }
     },
     "/api/a3/review/denials": {
@@ -883,20 +1259,38 @@
         "x-tenant-scope": {
           "required": [
             "organization_id",
+            "tenant_id",
+            "workspace_id",
             "project_id",
+            "environment_id",
             "release_id"
           ],
-          "source": "body_or_session",
-          "cross_tenant_default": "sanitized_403_or_404"
+          "source": "server_verified_a1_principal",
+          "cross_tenant_default": "sanitized_403_or_404",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true
         },
         "x-auth": {
           "required_for_hosted_saas": true,
           "current_local_state": "planned_actor_alias",
-          "backend_owner": "A1"
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
         },
         "x-rbac": {
-          "permission": "reviewer_or_owner",
-          "denied_state_required": true
+          "permission": "release:review",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false,
+          "operation_id": "submit_review_denial"
         },
         "x-usage": {
           "meters": [
@@ -931,8 +1325,23 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           }
-        }
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_protected_operation"
       }
     },
     "/api/a3/reports": {
@@ -946,19 +1355,37 @@
         "x-tenant-scope": {
           "required": [
             "organization_id",
-            "project_id"
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
           ],
-          "source": "query_or_session",
-          "cross_tenant_default": "sanitized_empty_or_404"
+          "source": "server_verified_a1_principal",
+          "cross_tenant_default": "sanitized_403_or_404",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true
         },
         "x-auth": {
           "required_for_hosted_saas": true,
           "current_local_state": "fixture_backed_read_only",
-          "backend_owner": "A1"
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
         },
         "x-rbac": {
-          "permission": "project_reader",
-          "denied_state_required": true
+          "permission": "project:read",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false,
+          "operation_id": "list_reports"
         },
         "x-usage": {
           "meters": [
@@ -993,8 +1420,23 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           }
-        }
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_read"
       }
     },
     "/api/a3/reports/share": {
@@ -1009,19 +1451,37 @@
         "x-tenant-scope": {
           "required": [
             "organization_id",
-            "project_id"
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
           ],
-          "source": "body_or_session",
-          "cross_tenant_default": "sanitized_403_or_404"
+          "source": "server_verified_a1_principal",
+          "cross_tenant_default": "sanitized_403_or_404",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true
         },
         "x-auth": {
           "required_for_hosted_saas": true,
           "current_local_state": "local_created_by_alias",
-          "backend_owner": "A1"
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
         },
         "x-rbac": {
-          "permission": "project_reviewer_or_owner",
-          "denied_state_required": true
+          "permission": "reports:share",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false,
+          "operation_id": "share_report"
         },
         "x-usage": {
           "meters": [
@@ -1058,8 +1518,23 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           }
-        }
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_protected_operation"
       }
     },
     "/api/a3/reports/{reportId}": {
@@ -1073,20 +1548,38 @@
         "x-tenant-scope": {
           "required": [
             "organization_id",
+            "tenant_id",
+            "workspace_id",
             "project_id",
+            "environment_id",
             "report_id"
           ],
-          "source": "query_or_session",
-          "cross_tenant_default": "sanitized_empty_or_404"
+          "source": "server_verified_a1_principal",
+          "cross_tenant_default": "sanitized_403_or_404",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true
         },
         "x-auth": {
           "required_for_hosted_saas": true,
           "current_local_state": "fixture_backed_read_only",
-          "backend_owner": "A1"
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
         },
         "x-rbac": {
-          "permission": "project_reader",
-          "denied_state_required": true
+          "permission": "project:read",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false,
+          "operation_id": "read_report"
         },
         "x-usage": {
           "meters": [
@@ -1126,10 +1619,25 @@
               }
             }
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           }
-        }
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_read"
       }
     },
     "/api/a3/reports/{reportId}/manifest": {
@@ -1144,20 +1652,38 @@
         "x-tenant-scope": {
           "required": [
             "organization_id",
+            "tenant_id",
+            "workspace_id",
             "project_id",
+            "environment_id",
             "report_id"
           ],
-          "source": "query_or_session",
-          "cross_tenant_default": "sanitized_empty_or_404"
+          "source": "server_verified_a1_principal",
+          "cross_tenant_default": "sanitized_403_or_404",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true
         },
         "x-auth": {
           "required_for_hosted_saas": true,
           "current_local_state": "fixture_backed_read_only",
-          "backend_owner": "A1"
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
         },
         "x-rbac": {
-          "permission": "auditor_or_project_reader",
-          "denied_state_required": true
+          "permission": "project:read",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false,
+          "operation_id": "read_report_manifest"
         },
         "x-usage": {
           "meters": [
@@ -1198,10 +1724,25 @@
               }
             }
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           }
-        }
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_read"
       }
     },
     "/api/a3/reports/{reportId}/revoke": {
@@ -1216,20 +1757,38 @@
         "x-tenant-scope": {
           "required": [
             "organization_id",
+            "tenant_id",
+            "workspace_id",
             "project_id",
+            "environment_id",
             "report_id"
           ],
-          "source": "body_or_session",
-          "cross_tenant_default": "sanitized_403_or_404"
+          "source": "server_verified_a1_principal",
+          "cross_tenant_default": "sanitized_403_or_404",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true
         },
         "x-auth": {
           "required_for_hosted_saas": true,
           "current_local_state": "local_revoked_by_alias",
-          "backend_owner": "A1"
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
         },
         "x-rbac": {
-          "permission": "project_reviewer_or_owner",
-          "denied_state_required": true
+          "permission": "reports:revoke",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false,
+          "operation_id": "revoke_report"
         },
         "x-usage": {
           "meters": [
@@ -1268,8 +1827,23 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           }
-        }
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_protected_operation"
       }
     },
     "/api/a3/admin/console": {
@@ -1283,19 +1857,37 @@
         "x-tenant-scope": {
           "required": [
             "organization_id",
-            "project_id"
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
           ],
-          "source": "query_or_session",
-          "cross_tenant_default": "sanitized_empty_or_404"
+          "source": "server_verified_a1_principal",
+          "cross_tenant_default": "sanitized_403_or_404",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true
         },
         "x-auth": {
           "required_for_hosted_saas": true,
           "current_local_state": "fixture_backed_read_only",
-          "backend_owner": "A1"
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
         },
         "x-rbac": {
-          "permission": "organization_admin",
-          "denied_state_required": true
+          "permission": "admin:plan",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false,
+          "operation_id": "read_admin_console"
         },
         "x-usage": {
           "meters": [
@@ -1331,8 +1923,23 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           }
-        }
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_read"
       }
     },
     "/api/a3/admin/actions/submit": {
@@ -1347,19 +1954,37 @@
         "x-tenant-scope": {
           "required": [
             "organization_id",
-            "project_id"
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
           ],
-          "source": "body_or_session",
-          "cross_tenant_default": "sanitized_403_or_404"
+          "source": "server_verified_a1_principal",
+          "cross_tenant_default": "sanitized_403_or_404",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true
         },
         "x-auth": {
           "required_for_hosted_saas": true,
           "current_local_state": "planned_actor_alias",
-          "backend_owner": "A1"
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
         },
         "x-rbac": {
-          "permission": "organization_admin",
-          "denied_state_required": true
+          "permission": "admin:plan",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false,
+          "operation_id": "submit_admin_action"
         },
         "x-usage": {
           "meters": [
@@ -1393,8 +2018,23 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           }
-        }
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_protected_operation"
       }
     },
     "/api/a3/billing/readiness": {
@@ -1408,19 +2048,37 @@
         "x-tenant-scope": {
           "required": [
             "organization_id",
-            "project_id"
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
           ],
-          "source": "query_or_session",
-          "cross_tenant_default": "sanitized_empty_or_404"
+          "source": "server_verified_a1_principal",
+          "cross_tenant_default": "sanitized_403_or_404",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true
         },
         "x-auth": {
           "required_for_hosted_saas": true,
           "current_local_state": "read_only_preview",
-          "backend_owner": "A1"
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
         },
         "x-rbac": {
-          "permission": "billing_admin",
-          "denied_state_required": true
+          "permission": "billing:read",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false,
+          "operation_id": "read_billing_readiness"
         },
         "x-usage": {
           "meters": [
@@ -1455,8 +2113,23 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           }
-        }
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_read"
       }
     },
     "/api/a3/billing/migration-readiness": {
@@ -1475,17 +2148,32 @@
             "project_id",
             "environment_id"
           ],
-          "source": "query_or_session",
-          "cross_tenant_default": "sanitized_empty_or_404"
+          "source": "server_verified_a1_principal",
+          "cross_tenant_default": "sanitized_403_or_404",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true
         },
         "x-auth": {
           "required_for_hosted_saas": true,
           "current_local_state": "read_only_preview",
-          "backend_owner": "A1"
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
         },
         "x-rbac": {
           "permission": "billing:read",
-          "denied_state_required": true
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false,
+          "operation_id": "read_billing_migration_readiness"
         },
         "x-usage": {
           "meters": [
@@ -1522,8 +2210,23 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           }
-        }
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_read"
       }
     },
     "/api/a3/usage/ledger": {
@@ -1538,19 +2241,37 @@
         "x-tenant-scope": {
           "required": [
             "organization_id",
-            "project_id"
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
           ],
-          "source": "query_or_session",
-          "cross_tenant_default": "sanitized_empty_or_404"
+          "source": "server_verified_a1_principal",
+          "cross_tenant_default": "sanitized_403_or_404",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true
         },
         "x-auth": {
           "required_for_hosted_saas": true,
           "current_local_state": "read_only_preview",
-          "backend_owner": "A1"
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
         },
         "x-rbac": {
-          "permission": "billing_admin_or_auditor",
-          "denied_state_required": true
+          "permission": "usage:read",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false,
+          "operation_id": "read_usage"
         },
         "x-usage": {
           "meters": [
@@ -1583,8 +2304,23 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           }
-        }
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_read"
       }
     },
     "/api/a3/artifacts/registry": {
@@ -1599,19 +2335,37 @@
         "x-tenant-scope": {
           "required": [
             "organization_id",
-            "project_id"
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
           ],
-          "source": "query_or_session",
-          "cross_tenant_default": "sanitized_empty_or_404"
+          "source": "server_verified_a1_principal",
+          "cross_tenant_default": "sanitized_403_or_404",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true
         },
         "x-auth": {
           "required_for_hosted_saas": true,
           "current_local_state": "fixture_backed_read_only",
-          "backend_owner": "A1"
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
         },
         "x-rbac": {
-          "permission": "auditor_or_project_reader",
-          "denied_state_required": true
+          "permission": "audit:read",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false,
+          "operation_id": "read_artifact_registry"
         },
         "x-usage": {
           "meters": [
@@ -1648,8 +2402,23 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           }
-        }
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_read"
       }
     },
     "/api/a3/enterprise/readiness": {
@@ -1664,20 +2433,37 @@
         "x-tenant-scope": {
           "required": [
             "organization_id",
+            "tenant_id",
+            "workspace_id",
             "project_id",
             "environment_id"
           ],
-          "source": "query_or_session",
-          "cross_tenant_default": "sanitized_empty_or_404"
+          "source": "server_verified_a1_principal",
+          "cross_tenant_default": "sanitized_403_or_404",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true
         },
         "x-auth": {
           "required_for_hosted_saas": true,
           "current_local_state": "fixture_backed_read_only",
-          "backend_owner": "A1"
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
         },
         "x-rbac": {
-          "permission": "security_admin_or_auditor",
-          "denied_state_required": true
+          "permission": "audit:read",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false,
+          "operation_id": "read_enterprise_readiness"
         },
         "x-usage": {
           "meters": [
@@ -1714,6 +2500,3148 @@
                 }
               }
             }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_read"
+      }
+    },
+    "/api/a3/health": {
+      "get": {
+        "operationId": "getA3Health",
+        "summary": "Read a public, tenant-free service health envelope.",
+        "tags": [
+          "Operations"
+        ],
+        "security": [],
+        "x-access-class": "public_health",
+        "x-public-access": {
+          "kind": "health_probe",
+          "credential_required": false,
+          "tenant_data_allowed": false,
+          "customer_payload_allowed": false
+        },
+        "responses": {
+          "200": {
+            "description": "Public service health.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiHealth"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/a3/cases/{caseId}": {
+      "get": {
+        "operationId": "getA3Case",
+        "summary": "Read one tenant-scoped case with A1 execution facts and A2 decision facts.",
+        "tags": [
+          "Dashboard",
+          "Release Gate"
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CaseId"
+          }
+        ],
+        "x-schema-version": "a3.api_case_detail.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id",
+            "case_id"
+          ],
+          "source": "server_verified_a1_principal",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true,
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "fixture_backed_read_only",
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
+        },
+        "x-rbac": {
+          "permission": "project:read",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false,
+          "operation_id": "read_case"
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger"
+        },
+        "x-audit": {
+          "events": [
+            "case.detail_read"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "RunResult",
+            "TraceEvent",
+            "Observation",
+            "ToolCall"
+          ],
+          "a2": [
+            "GradeResult display-only",
+            "failure taxonomy display-only"
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Tenant-scoped, redacted response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaseDetail"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_read"
+      }
+    },
+    "/api/a3/review/workflow": {
+      "get": {
+        "operationId": "getA3ReviewWorkflow",
+        "summary": "Read the tenant-scoped reviewer workflow without changing A2 decisions.",
+        "tags": [
+          "Review",
+          "Release Gate"
+        ],
+        "x-schema-version": "a3.review_workflow_index.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
+          ],
+          "source": "server_verified_a1_principal",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true,
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "fixture_backed_read_only",
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
+        },
+        "x-rbac": {
+          "permission": "release:review",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false,
+          "operation_id": "read_review_workflow"
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger"
+        },
+        "x-audit": {
+          "events": [
+            "review.workflow_read"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "server-verified principal",
+            "durable audit boundary"
+          ],
+          "a2": [
+            "ReleaseGate decision remains immutable",
+            "policy evaluation display-only"
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Tenant-scoped, redacted response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReviewWorkflow"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_read"
+      }
+    },
+    "/api/a3/reports/center": {
+      "get": {
+        "operationId": "getA3ReportCenter",
+        "summary": "Read the tenant-scoped report lifecycle and governance center.",
+        "tags": [
+          "Reports"
+        ],
+        "x-schema-version": "a3.report_center_index.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
+          ],
+          "source": "server_verified_a1_principal",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true,
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "fixture_backed_read_only",
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
+        },
+        "x-rbac": {
+          "permission": "project:read",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false,
+          "operation_id": "read_report_center"
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger"
+        },
+        "x-audit": {
+          "events": [
+            "report.center_read"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "artifact refs",
+            "object storage",
+            "audit events"
+          ],
+          "a2": [
+            "GradeResult",
+            "ReleaseGate",
+            "redaction verifier"
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Tenant-scoped, redacted response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReportCenter"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_read"
+      }
+    },
+    "/api/a3/live-workflow/readiness": {
+      "get": {
+        "operationId": "getA3LiveWorkflowReadiness",
+        "summary": "Read tenant-scoped hosted workflow readiness.",
+        "tags": [
+          "Operations"
+        ],
+        "x-schema-version": "a3.live_workflow_readiness.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
+          ],
+          "source": "server_verified_a1_principal",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true,
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "fixture_backed_read_only",
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
+        },
+        "x-rbac": {
+          "permission": "audit:read",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false,
+          "operation_id": "read_live_workflow_readiness"
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger"
+        },
+        "x-audit": {
+          "events": [
+            "live_workflow.readiness_read"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "hosted workers",
+            "usage ledger",
+            "audit events"
+          ],
+          "a2": [
+            "ReleaseGate read-only decision",
+            "failure taxonomy"
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Tenant-scoped, redacted response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveWorkflowReadiness"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_read"
+      }
+    },
+    "/api/a3/live-ops/control-plane": {
+      "get": {
+        "operationId": "getA3LiveOpsControlPlane",
+        "summary": "Read the tenant-scoped live operations control plane.",
+        "tags": [
+          "Operations"
+        ],
+        "x-schema-version": "a3.live_ops_control_plane.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
+          ],
+          "source": "server_verified_a1_principal",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true,
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "fixture_backed_read_only",
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
+        },
+        "x-rbac": {
+          "permission": "audit:read",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false,
+          "operation_id": "read_live_ops_control_plane"
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger"
+        },
+        "x-audit": {
+          "events": [
+            "live_ops.control_plane_read"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "hosted workers",
+            "provider readbacks",
+            "usage ledger"
+          ],
+          "a2": [
+            "ReleaseGate read-only decision",
+            "security verification"
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Tenant-scoped, redacted response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiveOpsControlPlane"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_read"
+      }
+    },
+    "/api/a3/notifications/control-plane": {
+      "get": {
+        "operationId": "getA3NotificationControlPlane",
+        "summary": "Read tenant-scoped notification configuration and delivery posture.",
+        "tags": [
+          "Notifications",
+          "Operations"
+        ],
+        "x-schema-version": "a3.notification_control_plane.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
+          ],
+          "source": "server_verified_a1_principal",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true,
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "fixture_backed_read_only",
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
+        },
+        "x-rbac": {
+          "permission": "notifications:read",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false,
+          "operation_id": "read_notification_control_plane"
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger"
+        },
+        "x-audit": {
+          "events": [
+            "notification.control_plane_read"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "hosted notification workers",
+            "encrypted connector refs",
+            "event outbox"
+          ],
+          "a2": [
+            "release policy display-only",
+            "redaction verification"
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Tenant-scoped, redacted response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationControlPlane"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_read"
+      }
+    },
+    "/api/a3/product/console": {
+      "get": {
+        "operationId": "getA3ProductConsole",
+        "summary": "Read the tenant-scoped product console composition.",
+        "tags": [
+          "Dashboard",
+          "Operations"
+        ],
+        "x-schema-version": "a3.product_console.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
+          ],
+          "source": "server_verified_a1_principal",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true,
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "fixture_backed_read_only",
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
+        },
+        "x-rbac": {
+          "permission": "project:read",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false,
+          "operation_id": "read_product_console"
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger"
+        },
+        "x-audit": {
+          "events": [
+            "product.console_read"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "RunResult",
+            "usage ledger",
+            "audit events"
+          ],
+          "a2": [
+            "GradeResult display-only",
+            "ReleaseGate display-only"
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Tenant-scoped, redacted response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProductConsole"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_read"
+      }
+    },
+    "/api/a3/a1-a2/schema-drift": {
+      "get": {
+        "operationId": "getA3A1A2SchemaDrift",
+        "summary": "Read the tenant-scoped A1/A2 consumer schema drift radar.",
+        "tags": [
+          "Trust",
+          "Operations"
+        ],
+        "x-schema-version": "a3.a1_a2_schema_drift_radar.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
+          ],
+          "source": "server_verified_a1_principal",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true,
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "fixture_backed_read_only",
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
+        },
+        "x-rbac": {
+          "permission": "audit:read",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false,
+          "operation_id": "read_schema_drift"
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger"
+        },
+        "x-audit": {
+          "events": [
+            "schema_drift.read"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "RunResult and trace schema hashes"
+          ],
+          "a2": [
+            "GradeResult and ReleaseGate schema hashes",
+            "no semantic reinterpretation"
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Tenant-scoped, redacted response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SchemaDriftRadar"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_read"
+      }
+    },
+    "/api/a3/peer-branches/calibration": {
+      "get": {
+        "operationId": "getA3PeerBranchCalibration",
+        "summary": "Read tenant-scoped, metadata-only peer contract calibration.",
+        "tags": [
+          "Trust",
+          "Operations"
+        ],
+        "x-schema-version": "a3.peer_branch_calibration.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
+          ],
+          "source": "server_verified_a1_principal",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true,
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "fixture_backed_read_only",
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
+        },
+        "x-rbac": {
+          "permission": "audit:read",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false,
+          "operation_id": "read_peer_branch_calibration"
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger"
+        },
+        "x-audit": {
+          "events": [
+            "peer_branch_calibration.read"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "route and tenancy contract calibration"
+          ],
+          "a2": [
+            "cross-lane security and release contract calibration only"
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Tenant-scoped, redacted response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PeerBranchCalibration"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_read"
+      }
+    },
+    "/api/a3/a1-a2/evidence-spine": {
+      "get": {
+        "operationId": "getA3A1A2EvidenceSpine",
+        "summary": "Read the tenant-scoped A1 execution and A2 decision evidence spine.",
+        "tags": [
+          "Release Gate",
+          "Trust"
+        ],
+        "x-schema-version": "a3.a1_a2_evidence_spine.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
+          ],
+          "source": "server_verified_a1_principal",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true,
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "fixture_backed_read_only",
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
+        },
+        "x-rbac": {
+          "permission": "audit:read",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false,
+          "operation_id": "read_evidence_spine"
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger"
+        },
+        "x-audit": {
+          "events": [
+            "evidence_spine.read"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "RunResult",
+            "TraceEvent",
+            "artifact refs"
+          ],
+          "a2": [
+            "EvidenceSnapshot",
+            "DecisionLedger",
+            "ReleaseGate remains authoritative"
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Tenant-scoped, redacted response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/A1A2EvidenceSpine"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_read"
+      }
+    },
+    "/api/a3/events/outbox": {
+      "get": {
+        "operationId": "listA3EventOutbox",
+        "summary": "Read the tenant-scoped metadata-only event outbox.",
+        "tags": [
+          "Trust",
+          "Operations"
+        ],
+        "x-schema-version": "a3.event_outbox_list.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
+          ],
+          "source": "server_verified_a1_principal",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true,
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "fixture_backed_read_only",
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
+        },
+        "x-rbac": {
+          "permission": "audit:read",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false,
+          "operation_id": "read_event_outbox"
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger"
+        },
+        "x-audit": {
+          "events": [
+            "event_outbox.read"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "tenant and audit authority",
+            "durable worker boundary"
+          ],
+          "a2": [
+            "decision references remain immutable and display-only"
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Tenant-scoped, redacted response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EventOutboxList"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          }
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_read"
+      }
+    },
+    "/r/{shareToken}": {
+      "get": {
+        "operationId": "getA3ReportByShareToken",
+        "summary": "Read a redacted report through an opaque, expiring, revocable share capability.",
+        "tags": [
+          "Reports"
+        ],
+        "security": [],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ShareToken"
+          }
+        ],
+        "x-access-class": "public_share_capability",
+        "x-public-access": {
+          "kind": "share_token",
+          "session_or_service_principal_required": false,
+          "share_capability_required": true,
+          "session_principal_accepted": false,
+          "access_model": "opaque_path_capability",
+          "token_lookup": "server_side_digest_only",
+          "token_logging_allowed": false,
+          "tenant_scope_resolution": "server_side_from_valid_token",
+          "lifecycle_enforcement": [
+            "expiry",
+            "revocation",
+            "download_control",
+            "view_audit"
+          ]
+        },
+        "x-usage": {
+          "meters": [
+            "report_share_views"
+          ],
+          "source_of_truth": "A1 usage ledger"
+        },
+        "x-audit": {
+          "events": [
+            "report.share_token_viewed"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "server-side share-token digest lookup",
+            "audit events"
+          ],
+          "a2": [
+            "redaction verifier",
+            "displayed decision remains unchanged"
+          ]
+        },
+        "responses": {
+          "200": {
+            "description": "Redacted shareable report.",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Sanitized not-found response with no report or tenant existence disclosure.",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "410": {
+            "description": "Sanitized expired or revoked response.",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/a3/ui-actions/preflight": {
+      "post": {
+        "operationId": "a3PreflightUiAction",
+        "summary": "A3 protected operation: preflight_ui_action.",
+        "tags": [
+          "Operations"
+        ],
+        "x-schema-version": "a3.openapi_runtime_parity.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
+          ],
+          "source": "server_verified_a1_principal",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true,
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "contract_only_fail_closed",
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
+        },
+        "x-rbac": {
+          "operation_id": "preflight_ui_action",
+          "permission": "project:read",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger; A3 only emits a metering intent."
+        },
+        "x-audit": {
+          "events": [
+            "preflight_ui_action.requested"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "verified principal",
+            "tenant scope",
+            "usage and audit execution"
+          ],
+          "a2": [
+            "GradeResult and release decision authority remain unchanged"
+          ],
+          "a3_rule": "A3 orchestrates product workflow and must not reinterpret A1 runtime facts or A2 decision semantics."
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_write",
+        "responses": {
+          "202": {
+            "description": "Mutation accepted for trusted execution or returned as a fail-closed plan.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "x-secret-policy": "raw_secret_values_forbidden",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Operation-specific typed payload. Tenant scope and identity are always resolved server-side.",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/a3/db-contract": {
+      "get": {
+        "operationId": "a3ReadDbContract",
+        "summary": "A3 protected operation: read_db_contract.",
+        "tags": [
+          "Operations"
+        ],
+        "x-schema-version": "a3.openapi_runtime_parity.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
+          ],
+          "source": "server_verified_a1_principal",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true,
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "contract_only_fail_closed",
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
+        },
+        "x-rbac": {
+          "operation_id": "read_db_contract",
+          "permission": "audit:read",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger; A3 only emits a metering intent."
+        },
+        "x-audit": {
+          "events": [
+            "read_db_contract.requested"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "verified principal",
+            "tenant scope",
+            "usage and audit execution"
+          ],
+          "a2": [
+            "GradeResult and release decision authority remain unchanged"
+          ],
+          "a3_rule": "A3 orchestrates product workflow and must not reinterpret A1 runtime facts or A2 decision semantics."
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_read",
+        "responses": {
+          "200": {
+            "description": "Sanitized tenant-scoped response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/a3/db-migrations": {
+      "get": {
+        "operationId": "a3ReadDbMigrations",
+        "summary": "A3 protected operation: read_db_migrations.",
+        "tags": [
+          "Operations"
+        ],
+        "x-schema-version": "a3.openapi_runtime_parity.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
+          ],
+          "source": "server_verified_a1_principal",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true,
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "contract_only_fail_closed",
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
+        },
+        "x-rbac": {
+          "operation_id": "read_db_migrations",
+          "permission": "audit:read",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger; A3 only emits a metering intent."
+        },
+        "x-audit": {
+          "events": [
+            "read_db_migrations.requested"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "verified principal",
+            "tenant scope",
+            "usage and audit execution"
+          ],
+          "a2": [
+            "GradeResult and release decision authority remain unchanged"
+          ],
+          "a3_rule": "A3 orchestrates product workflow and must not reinterpret A1 runtime facts or A2 decision semantics."
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_read",
+        "responses": {
+          "200": {
+            "description": "Sanitized tenant-scoped response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/a3/release-decision/provenance": {
+      "get": {
+        "operationId": "a3ReadReleaseDecisionProvenance",
+        "summary": "A3 protected operation: read_release_decision_provenance.",
+        "tags": [
+          "Release Gate",
+          "Review"
+        ],
+        "x-schema-version": "a3.openapi_runtime_parity.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
+          ],
+          "source": "server_verified_a1_principal",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true,
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "contract_only_fail_closed",
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
+        },
+        "x-rbac": {
+          "operation_id": "read_release_decision_provenance",
+          "permission": "project:read",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger; A3 only emits a metering intent."
+        },
+        "x-audit": {
+          "events": [
+            "read_release_decision_provenance.requested"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "verified principal",
+            "tenant scope",
+            "usage and audit execution"
+          ],
+          "a2": [
+            "GradeResult and release decision authority remain unchanged"
+          ],
+          "a3_rule": "A3 orchestrates product workflow and must not reinterpret A1 runtime facts or A2 decision semantics."
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_read",
+        "responses": {
+          "200": {
+            "description": "Sanitized tenant-scoped response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/api/a3/releases/{releaseId}/evidence-diff": {
+      "get": {
+        "operationId": "a3ReadReleaseEvidenceDiff",
+        "summary": "A3 protected operation: read_release_evidence_diff.",
+        "tags": [
+          "Release Gate",
+          "Review"
+        ],
+        "x-schema-version": "a3.openapi_runtime_parity.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
+          ],
+          "source": "server_verified_a1_principal",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true,
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "contract_only_fail_closed",
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
+        },
+        "x-rbac": {
+          "operation_id": "read_release_evidence_diff",
+          "permission": "project:read",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger; A3 only emits a metering intent."
+        },
+        "x-audit": {
+          "events": [
+            "read_release_evidence_diff.requested"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "verified principal",
+            "tenant scope",
+            "usage and audit execution"
+          ],
+          "a2": [
+            "GradeResult and release decision authority remain unchanged"
+          ],
+          "a3_rule": "A3 orchestrates product workflow and must not reinterpret A1 runtime facts or A2 decision semantics."
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_read",
+        "responses": {
+          "200": {
+            "description": "Sanitized tenant-scoped response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ReleaseId"
+          }
+        ]
+      }
+    },
+    "/api/a3/releases/{releaseId}/readbacks": {
+      "get": {
+        "operationId": "a3ReadReleaseReadbacks",
+        "summary": "A3 protected operation: read_release_readbacks.",
+        "tags": [
+          "Release Gate",
+          "Review"
+        ],
+        "x-schema-version": "a3.openapi_runtime_parity.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
+          ],
+          "source": "server_verified_a1_principal",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true,
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "contract_only_fail_closed",
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
+        },
+        "x-rbac": {
+          "operation_id": "read_release_readbacks",
+          "permission": "audit:read",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger; A3 only emits a metering intent."
+        },
+        "x-audit": {
+          "events": [
+            "read_release_readbacks.requested"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "verified principal",
+            "tenant scope",
+            "usage and audit execution"
+          ],
+          "a2": [
+            "GradeResult and release decision authority remain unchanged"
+          ],
+          "a3_rule": "A3 orchestrates product workflow and must not reinterpret A1 runtime facts or A2 decision semantics."
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_read",
+        "responses": {
+          "200": {
+            "description": "Sanitized tenant-scoped response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ReleaseId"
+          }
+        ]
+      },
+      "post": {
+        "operationId": "a3CaptureReleaseReadback",
+        "summary": "A3 protected operation: capture_release_readback.",
+        "tags": [
+          "Release Gate",
+          "Review"
+        ],
+        "x-schema-version": "a3.openapi_runtime_parity.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
+          ],
+          "source": "server_verified_a1_principal",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true,
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "contract_only_fail_closed",
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
+        },
+        "x-rbac": {
+          "operation_id": "capture_release_readback",
+          "permission": "release:review",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger; A3 only emits a metering intent."
+        },
+        "x-audit": {
+          "events": [
+            "capture_release_readback.requested"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "verified principal",
+            "tenant scope",
+            "usage and audit execution"
+          ],
+          "a2": [
+            "GradeResult and release decision authority remain unchanged"
+          ],
+          "a3_rule": "A3 orchestrates product workflow and must not reinterpret A1 runtime facts or A2 decision semantics."
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_write",
+        "responses": {
+          "202": {
+            "description": "Mutation accepted for trusted execution or returned as a fail-closed plan.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ReleaseId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "x-secret-policy": "raw_secret_values_forbidden",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Operation-specific typed payload. Tenant scope and identity are always resolved server-side.",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/a3/admin/actions": {
+      "get": {
+        "operationId": "a3ReadAdminActions",
+        "summary": "A3 protected operation: read_admin_actions.",
+        "tags": [
+          "Admin"
+        ],
+        "x-schema-version": "a3.openapi_runtime_parity.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
+          ],
+          "source": "server_verified_a1_principal",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true,
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "contract_only_fail_closed",
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
+        },
+        "x-rbac": {
+          "operation_id": "read_admin_actions",
+          "permission": "admin:plan",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger; A3 only emits a metering intent."
+        },
+        "x-audit": {
+          "events": [
+            "read_admin_actions.requested"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "verified principal",
+            "tenant scope",
+            "usage and audit execution"
+          ],
+          "a2": [
+            "GradeResult and release decision authority remain unchanged"
+          ],
+          "a3_rule": "A3 orchestrates product workflow and must not reinterpret A1 runtime facts or A2 decision semantics."
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_read",
+        "responses": {
+          "200": {
+            "description": "Sanitized tenant-scoped response.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        }
+      }
+    },
+    "/reports/{reportId}": {
+      "get": {
+        "operationId": "a3ReadHostedReport",
+        "summary": "A3 protected operation: read_hosted_report.",
+        "tags": [
+          "Reports"
+        ],
+        "x-schema-version": "a3.openapi_runtime_parity.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
+          ],
+          "source": "server_verified_a1_principal",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true,
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "contract_only_fail_closed",
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
+        },
+        "x-rbac": {
+          "operation_id": "read_hosted_report",
+          "permission": "project:read",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger; A3 only emits a metering intent."
+        },
+        "x-audit": {
+          "events": [
+            "read_hosted_report.requested"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "verified principal",
+            "tenant scope",
+            "usage and audit execution"
+          ],
+          "a2": [
+            "GradeResult and release decision authority remain unchanged"
+          ],
+          "a3_rule": "A3 orchestrates product workflow and must not reinterpret A1 runtime facts or A2 decision semantics."
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_read",
+        "responses": {
+          "200": {
+            "description": "Sanitized tenant-scoped response.",
+            "content": {
+              "text/html": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ReportId"
+          }
+        ]
+      }
+    },
+    "/api/a3/import/a1-run-result": {
+      "post": {
+        "operationId": "a3ImportA1RunResult",
+        "summary": "A3 protected operation: import_a1_run_result.",
+        "tags": [
+          "Operations"
+        ],
+        "x-schema-version": "a3.openapi_runtime_parity.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
+          ],
+          "source": "server_verified_a1_principal",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true,
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "contract_only_fail_closed",
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
+        },
+        "x-rbac": {
+          "operation_id": "import_a1_run_result",
+          "permission": "project:ingest",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger; A3 only emits a metering intent."
+        },
+        "x-audit": {
+          "events": [
+            "import_a1_run_result.requested"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "verified principal",
+            "tenant scope",
+            "usage and audit execution"
+          ],
+          "a2": [
+            "GradeResult and release decision authority remain unchanged"
+          ],
+          "a3_rule": "A3 orchestrates product workflow and must not reinterpret A1 runtime facts or A2 decision semantics."
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_write",
+        "responses": {
+          "202": {
+            "description": "Mutation accepted for trusted execution or returned as a fail-closed plan.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "x-secret-policy": "raw_secret_values_forbidden",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Operation-specific typed payload. Tenant scope and identity are always resolved server-side.",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/a3/import/a2-grade-result": {
+      "post": {
+        "operationId": "a3ImportA2GradeResult",
+        "summary": "A3 protected operation: import_a2_grade_result.",
+        "tags": [
+          "Operations"
+        ],
+        "x-schema-version": "a3.openapi_runtime_parity.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
+          ],
+          "source": "server_verified_a1_principal",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true,
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "contract_only_fail_closed",
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
+        },
+        "x-rbac": {
+          "operation_id": "import_a2_grade_result",
+          "permission": "project:ingest",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger; A3 only emits a metering intent."
+        },
+        "x-audit": {
+          "events": [
+            "import_a2_grade_result.requested"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "verified principal",
+            "tenant scope",
+            "usage and audit execution"
+          ],
+          "a2": [
+            "GradeResult and release decision authority remain unchanged"
+          ],
+          "a3_rule": "A3 orchestrates product workflow and must not reinterpret A1 runtime facts or A2 decision semantics."
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_write",
+        "responses": {
+          "202": {
+            "description": "Mutation accepted for trusted execution or returned as a fail-closed plan.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "x-secret-policy": "raw_secret_values_forbidden",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Operation-specific typed payload. Tenant scope and identity are always resolved server-side.",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/a3/reports/{reportId}/view": {
+      "post": {
+        "operationId": "a3ViewReport",
+        "summary": "A3 protected operation: view_report.",
+        "tags": [
+          "Reports"
+        ],
+        "x-schema-version": "a3.openapi_runtime_parity.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
+          ],
+          "source": "server_verified_a1_principal",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true,
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "contract_only_fail_closed",
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
+        },
+        "x-rbac": {
+          "operation_id": "view_report",
+          "permission": "project:read",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger; A3 only emits a metering intent."
+        },
+        "x-audit": {
+          "events": [
+            "view_report.requested"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "verified principal",
+            "tenant scope",
+            "usage and audit execution"
+          ],
+          "a2": [
+            "GradeResult and release decision authority remain unchanged"
+          ],
+          "a3_rule": "A3 orchestrates product workflow and must not reinterpret A1 runtime facts or A2 decision semantics."
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_write",
+        "responses": {
+          "202": {
+            "description": "Mutation accepted for trusted execution or returned as a fail-closed plan.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ReportId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "x-secret-policy": "raw_secret_values_forbidden",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Operation-specific typed payload. Tenant scope and identity are always resolved server-side.",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/a3/admin/actions/plan": {
+      "post": {
+        "operationId": "a3PlanAdminAction",
+        "summary": "A3 protected operation: plan_admin_action.",
+        "tags": [
+          "Admin"
+        ],
+        "x-schema-version": "a3.openapi_runtime_parity.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
+          ],
+          "source": "server_verified_a1_principal",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true,
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "contract_only_fail_closed",
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
+        },
+        "x-rbac": {
+          "operation_id": "plan_admin_action",
+          "permission": "admin:plan",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger; A3 only emits a metering intent."
+        },
+        "x-audit": {
+          "events": [
+            "plan_admin_action.requested"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "verified principal",
+            "tenant scope",
+            "usage and audit execution"
+          ],
+          "a2": [
+            "GradeResult and release decision authority remain unchanged"
+          ],
+          "a3_rule": "A3 orchestrates product workflow and must not reinterpret A1 runtime facts or A2 decision semantics."
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_write",
+        "responses": {
+          "202": {
+            "description": "Mutation accepted for trusted execution or returned as a fail-closed plan.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "x-secret-policy": "raw_secret_values_forbidden",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Operation-specific typed payload. Tenant scope and identity are always resolved server-side.",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/a3/github/check-run/publish": {
+      "post": {
+        "operationId": "a3PublishGithubCheck",
+        "summary": "A3 protected operation: publish_github_check.",
+        "tags": [
+          "Release Gate",
+          "Review"
+        ],
+        "x-schema-version": "a3.openapi_runtime_parity.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
+          ],
+          "source": "server_verified_a1_principal",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true,
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "contract_only_fail_closed",
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
+        },
+        "x-rbac": {
+          "operation_id": "publish_github_check",
+          "permission": "release:review",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger; A3 only emits a metering intent."
+        },
+        "x-audit": {
+          "events": [
+            "publish_github_check.requested"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "verified principal",
+            "tenant scope",
+            "usage and audit execution"
+          ],
+          "a2": [
+            "GradeResult and release decision authority remain unchanged"
+          ],
+          "a3_rule": "A3 orchestrates product workflow and must not reinterpret A1 runtime facts or A2 decision semantics."
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_write",
+        "responses": {
+          "202": {
+            "description": "Mutation accepted for trusted execution or returned as a fail-closed plan.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "x-secret-policy": "raw_secret_values_forbidden",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Operation-specific typed payload. Tenant scope and identity are always resolved server-side.",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/a3/github/pr-comment/publish": {
+      "post": {
+        "operationId": "a3PublishGithubPrComment",
+        "summary": "A3 protected operation: publish_github_pr_comment.",
+        "tags": [
+          "Release Gate",
+          "Review"
+        ],
+        "x-schema-version": "a3.openapi_runtime_parity.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
+          ],
+          "source": "server_verified_a1_principal",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true,
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "contract_only_fail_closed",
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
+        },
+        "x-rbac": {
+          "operation_id": "publish_github_pr_comment",
+          "permission": "release:review",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger; A3 only emits a metering intent."
+        },
+        "x-audit": {
+          "events": [
+            "publish_github_pr_comment.requested"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "verified principal",
+            "tenant scope",
+            "usage and audit execution"
+          ],
+          "a2": [
+            "GradeResult and release decision authority remain unchanged"
+          ],
+          "a3_rule": "A3 orchestrates product workflow and must not reinterpret A1 runtime facts or A2 decision semantics."
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_write",
+        "responses": {
+          "202": {
+            "description": "Mutation accepted for trusted execution or returned as a fail-closed plan.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "x-secret-policy": "raw_secret_values_forbidden",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Operation-specific typed payload. Tenant scope and identity are always resolved server-side.",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/api-keys/{api_key_id}/rotate": {
+      "post": {
+        "operationId": "a3RotateApiKey",
+        "summary": "A3 protected operation: rotate_api_key.",
+        "tags": [
+          "Admin"
+        ],
+        "x-schema-version": "a3.openapi_runtime_parity.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
+          ],
+          "source": "server_verified_a1_principal",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true,
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "contract_only_fail_closed",
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
+        },
+        "x-rbac": {
+          "operation_id": "rotate_api_key",
+          "permission": "api_keys:manage",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger; A3 only emits a metering intent."
+        },
+        "x-audit": {
+          "events": [
+            "rotate_api_key.requested"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "verified principal",
+            "tenant scope",
+            "usage and audit execution"
+          ],
+          "a2": [
+            "GradeResult and release decision authority remain unchanged"
+          ],
+          "a3_rule": "A3 orchestrates product workflow and must not reinterpret A1 runtime facts or A2 decision semantics."
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_write",
+        "responses": {
+          "202": {
+            "description": "Mutation accepted for trusted execution or returned as a fail-closed plan.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ApiKeyId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "x-secret-policy": "raw_secret_values_forbidden",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Operation-specific typed payload. Tenant scope and identity are always resolved server-side.",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/team/invites": {
+      "post": {
+        "operationId": "a3InviteTeammate",
+        "summary": "A3 protected operation: invite_teammate.",
+        "tags": [
+          "Admin"
+        ],
+        "x-schema-version": "a3.openapi_runtime_parity.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
+          ],
+          "source": "server_verified_a1_principal",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true,
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "contract_only_fail_closed",
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
+        },
+        "x-rbac": {
+          "operation_id": "invite_teammate",
+          "permission": "team:manage",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger; A3 only emits a metering intent."
+        },
+        "x-audit": {
+          "events": [
+            "invite_teammate.requested"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "verified principal",
+            "tenant scope",
+            "usage and audit execution"
+          ],
+          "a2": [
+            "GradeResult and release decision authority remain unchanged"
+          ],
+          "a3_rule": "A3 orchestrates product workflow and must not reinterpret A1 runtime facts or A2 decision semantics."
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_write",
+        "responses": {
+          "202": {
+            "description": "Mutation accepted for trusted execution or returned as a fail-closed plan.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "x-secret-policy": "raw_secret_values_forbidden",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Operation-specific typed payload. Tenant scope and identity are always resolved server-side.",
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/trust/reports/publish": {
+      "post": {
+        "operationId": "a3PublishTrustReport",
+        "summary": "A3 protected operation: publish_trust_report.",
+        "tags": [
+          "Reports"
+        ],
+        "x-schema-version": "a3.openapi_runtime_parity.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
+          ],
+          "source": "server_verified_a1_principal",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true,
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "contract_only_fail_closed",
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
+        },
+        "x-rbac": {
+          "operation_id": "publish_trust_report",
+          "permission": "trust:publish",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger; A3 only emits a metering intent."
+        },
+        "x-audit": {
+          "events": [
+            "publish_trust_report.requested"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "verified principal",
+            "tenant scope",
+            "usage and audit execution"
+          ],
+          "a2": [
+            "GradeResult and release decision authority remain unchanged"
+          ],
+          "a3_rule": "A3 orchestrates product workflow and must not reinterpret A1 runtime facts or A2 decision semantics."
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_write",
+        "responses": {
+          "202": {
+            "description": "Mutation accepted for trusted execution or returned as a fail-closed plan.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "x-secret-policy": "raw_secret_values_forbidden",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "description": "Operation-specific typed payload. Tenant scope and identity are always resolved server-side.",
+                "additionalProperties": true
+              }
+            }
           }
         }
       }
@@ -1721,16 +5649,22 @@
   },
   "components": {
     "securitySchemes": {
-      "A3Session": {
+      "A1VerifiedSession": {
         "type": "apiKey",
         "in": "cookie",
-        "name": "a3_session",
-        "description": "Hosted session cookie issued and validated by A1 auth middleware. This contract never includes cookie values."
+        "name": "__Host-ashr_session",
+        "description": "A1 browser session accepted only after trusted same-origin server middleware verifies it and supplies an immutable principal to A3. The cookie remains HttpOnly. This hosted enforcement requirement is not a claim that A1 hosted login is production-complete.",
+        "x-principal-kind": "browser_session",
+        "x-verification": "server_side_a1",
+        "x-client-readable": false
       },
-      "A3ServiceBearer": {
+      "A1ServiceAccount": {
         "type": "http",
         "scheme": "bearer",
-        "description": "Service-account bearer credential validated by A1 auth middleware. This contract never includes token values."
+        "bearerFormat": "opaque A1 service-account credential",
+        "description": "Service-account credential verified server-side by A1 before A3 receives an immutable service principal. Raw credentials are never included in this contract or exposed to A3 clients.",
+        "x-principal-kind": "service_account",
+        "x-verification": "server_side_a1"
       }
     },
     "parameters": {
@@ -1760,6 +5694,40 @@
           "type": "string",
           "minLength": 1
         }
+      },
+      "CaseId": {
+        "name": "caseId",
+        "in": "path",
+        "required": true,
+        "schema": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "ShareToken": {
+        "name": "shareToken",
+        "in": "path",
+        "required": true,
+        "description": "Opaque share capability. Servers must redact it from logs, traces, analytics, and error payloads.",
+        "schema": {
+          "type": "string",
+          "minLength": 20,
+          "format": "password",
+          "writeOnly": true
+        },
+        "x-sensitive": true,
+        "x-log-policy": "redact"
+      },
+      "ApiKeyId": {
+        "name": "api_key_id",
+        "in": "path",
+        "required": true,
+        "description": "A1 API-key handle; never raw key material.",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        }
       }
     },
     "responses": {
@@ -1771,6 +5739,47 @@
               "$ref": "#/components/schemas/ApiError"
             }
           }
+        },
+        "x-sanitized": true
+      },
+      "Unauthorized": {
+        "description": "Authentication is required or the presented A1 credential could not be verified. The response reveals no tenant, resource, role, or credential detail.",
+        "x-sanitized": true,
+        "headers": {
+          "Cache-Control": {
+            "description": "Prevents caching of authorization failures.",
+            "schema": {
+              "type": "string",
+              "const": "no-store"
+            }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/SanitizedUnauthorizedError"
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "The verified principal is not authorized for this operation or complete scope. The response reveals no tenant membership, resource existence, role binding, or required permission detail.",
+        "x-sanitized": true,
+        "headers": {
+          "Cache-Control": {
+            "description": "Prevents caching of authorization failures.",
+            "schema": {
+              "type": "string",
+              "const": "no-store"
+            }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/SanitizedForbiddenError"
+            }
+          }
         }
       }
     },
@@ -1779,7 +5788,10 @@
         "type": "object",
         "required": [
           "organization_id",
-          "project_id"
+          "tenant_id",
+          "workspace_id",
+          "project_id",
+          "environment_id"
         ],
         "properties": {
           "organization_id": {
@@ -1887,7 +5899,9 @@
         "required": [
           "schema_version",
           "summary",
-          "runs"
+          "runs",
+          "aggregate_scope_status",
+          "trusted_release_authority"
         ],
         "properties": {
           "schema_version": {
@@ -1907,9 +5921,246 @@
           },
           "a1_a2_evidence_refs": {
             "$ref": "#/components/schemas/A1A2EvidenceRefs"
+          },
+          "aggregate_scope_status": {
+            "$ref": "#/components/schemas/AggregateScopeStatus"
+          },
+          "trusted_release_authority": {
+            "$ref": "#/components/schemas/TrustedReleaseAuthority"
           }
         },
         "additionalProperties": true
+      },
+      "AggregateScopeStatus": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "strict_scope_enforced",
+          "status",
+          "excluded_record_count",
+          "excluded_counts",
+          "reason",
+          "retry",
+          "safety"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.aggregate_scope_status.v1"
+          },
+          "strict_scope_enforced": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "complete",
+              "partial"
+            ]
+          },
+          "excluded_record_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "excluded_counts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "reason": {
+            "type": "string"
+          },
+          "retry": {
+            "type": "string"
+          },
+          "safety": {
+            "type": "object",
+            "required": [
+              "unscoped_records_included",
+              "cross_tenant_fallback_allowed",
+              "foreign_record_counts_exposed"
+            ],
+            "properties": {
+              "unscoped_records_included": {
+                "type": "boolean",
+                "const": false
+              },
+              "cross_tenant_fallback_allowed": {
+                "type": "boolean",
+                "const": false
+              },
+              "foreign_record_counts_exposed": {
+                "type": "boolean",
+                "const": false
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "TrustedReleaseAuthority": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "integrity_verified",
+          "status",
+          "release_ready",
+          "upstream_decision",
+          "reason_code",
+          "blockers",
+          "decision_ledger",
+          "safety"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.trusted_release_authority.v1"
+          },
+          "integrity_verified": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "release_ready",
+              "blocked",
+              "review_required",
+              "integrity_invalid",
+              "not_ready"
+            ]
+          },
+          "release_ready": {
+            "type": "boolean",
+            "description": "Server-validated A2 authority result. Clients must not recompute it from scores or cards."
+          },
+          "upstream_decision": {
+            "type": "string",
+            "enum": [
+              "allow",
+              "block",
+              "review",
+              "unknown"
+            ]
+          },
+          "reason_code": {
+            "type": "string"
+          },
+          "blockers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "integrity_blockers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "decision_ledger": {
+            "type": "object",
+            "required": [
+              "schema_version",
+              "head_hash",
+              "ledger_hash",
+              "record_id",
+              "record_hash",
+              "chain_verified"
+            ],
+            "properties": {
+              "schema_version": {
+                "type": "string"
+              },
+              "ledger_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "head_hash": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "ledger_hash": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "record_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "record_hash": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "record_count": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 0
+              },
+              "chain_verified": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          },
+          "evidence_snapshot": {
+            "type": "object",
+            "description": "Public-safe identifiers, hashes, and completeness only; no raw evidence."
+          },
+          "safety": {
+            "type": "object",
+            "required": [
+              "a2_authority_preserved",
+              "a3_score_recomputed",
+              "a3_release_ready_recomputed",
+              "client_chain_verified_flag_trusted_without_recalculation",
+              "raw_evidence_included",
+              "secret_values_allowed"
+            ],
+            "properties": {
+              "a2_authority_preserved": {
+                "type": "boolean",
+                "const": true
+              },
+              "a3_score_recomputed": {
+                "type": "boolean",
+                "const": false
+              },
+              "a3_release_ready_recomputed": {
+                "type": "boolean",
+                "const": false
+              },
+              "client_chain_verified_flag_trusted_without_recalculation": {
+                "type": "boolean",
+                "const": false
+              },
+              "raw_evidence_included": {
+                "type": "boolean",
+                "const": false
+              },
+              "secret_values_allowed": {
+                "type": "boolean",
+                "const": false
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
       },
       "RunListResponse": {
         "type": "object",
@@ -2510,7 +6761,235 @@
           }
         },
         "additionalProperties": true
+      },
+      "SanitizedUnauthorizedError": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "error"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.sanitized_unauthorized.v1"
+          },
+          "error": {
+            "type": "string",
+            "const": "authentication_required"
+          },
+          "request_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "additionalProperties": false,
+        "x-sanitized": true
+      },
+      "SanitizedForbiddenError": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "error"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.sanitized_forbidden.v1"
+          },
+          "error": {
+            "type": "string",
+            "const": "access_denied"
+          },
+          "request_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "additionalProperties": false,
+        "x-sanitized": true
+      },
+      "ApiHealth": {
+        "type": "object",
+        "required": [
+          "schema_version"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.api_health.v1"
+          }
+        },
+        "additionalProperties": true
+      },
+      "CaseDetail": {
+        "type": "object",
+        "required": [
+          "schema_version"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.api_case_detail.v1"
+          }
+        },
+        "additionalProperties": true
+      },
+      "ReviewWorkflow": {
+        "type": "object",
+        "required": [
+          "schema_version"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.review_workflow_index.v1"
+          }
+        },
+        "additionalProperties": true
+      },
+      "ReportCenter": {
+        "type": "object",
+        "required": [
+          "schema_version"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.report_center_index.v1"
+          }
+        },
+        "additionalProperties": true
+      },
+      "LiveWorkflowReadiness": {
+        "type": "object",
+        "required": [
+          "schema_version"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.live_workflow_readiness.v1"
+          }
+        },
+        "additionalProperties": true
+      },
+      "LiveOpsControlPlane": {
+        "type": "object",
+        "required": [
+          "schema_version"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.live_ops_control_plane.v1"
+          }
+        },
+        "additionalProperties": true
+      },
+      "NotificationControlPlane": {
+        "type": "object",
+        "required": [
+          "schema_version"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.notification_control_plane.v1"
+          }
+        },
+        "additionalProperties": true
+      },
+      "ProductConsole": {
+        "type": "object",
+        "required": [
+          "schema_version"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.product_console.v1"
+          }
+        },
+        "additionalProperties": true
+      },
+      "SchemaDriftRadar": {
+        "type": "object",
+        "required": [
+          "schema_version"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.a1_a2_schema_drift_radar.v1"
+          }
+        },
+        "additionalProperties": true
+      },
+      "PeerBranchCalibration": {
+        "type": "object",
+        "required": [
+          "schema_version"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.peer_branch_calibration.v1"
+          }
+        },
+        "additionalProperties": true
+      },
+      "A1A2EvidenceSpine": {
+        "type": "object",
+        "required": [
+          "schema_version"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.a1_a2_evidence_spine.v1"
+          }
+        },
+        "additionalProperties": true
+      },
+      "EventOutboxList": {
+        "type": "object",
+        "required": [
+          "schema_version"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.event_outbox_list.v1"
+          }
+        },
+        "additionalProperties": true
       }
     }
+  },
+  "x-hosted-security-contract": {
+    "schema_version": "a3.hosted_read_enforcement.v1",
+    "status": "contract_only_not_production_proof",
+    "enforcement_owner": "A3 hosted API or same-origin BFF",
+    "principal_authority": "A1 server-side identity and tenancy verifier",
+    "server_verified_principal_required": true,
+    "accepted_principal_kinds": [
+      "browser_session",
+      "service_account"
+    ],
+    "client_declared_identity_headers_authoritative": false,
+    "client_declared_role_headers_authoritative": false,
+    "client_declared_tenant_scope_authoritative": false,
+    "a1_hosted_login_production_complete_claimed": false,
+    "a2_decision_semantics_unchanged": true
+  },
+  "x-public-access-contract": {
+    "default_read_classification": "tenant_sensitive",
+    "public_routes": {
+      "health": "GET /api/a3/health exposes operational status only and no tenant data.",
+      "share_token": "GET /r/{shareToken} is an opaque, expiring, revocable capability route; it is not session-authenticated public console access."
+    },
+    "all_other_reads_require_verified_principal": true
   }
 }

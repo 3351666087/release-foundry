@@ -82,7 +82,7 @@ export function buildReleaseEvidenceSummaryV2(summary = {}, context = {}) {
     },
     storage: {
       mode: context.storageMode || "memory",
-      db_ready: context.dbReady !== false,
+      db_ready: context.dbReady === true,
       durable_summary_table: "release_evidence_summaries",
       postgres_contract_required: true,
       immutable_snapshot_table_required: true

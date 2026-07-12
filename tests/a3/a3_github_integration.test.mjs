@@ -102,8 +102,7 @@ test("A3 GitHub Action workflow example keeps the integration in docs-owned scop
   const workflow = buildGitHubActionWorkflowExample();
 
   assert.match(workflow, /name: Ashr\+\+ Release Gate/);
-  assert.match(workflow, /checks: write/);
-  assert.match(workflow, /pull-requests: write/);
+  assert.doesNotMatch(workflow, /checks: write|pull-requests: write/);
   assert.match(workflow, /services\/report\/a3_gate_cli\.mjs/);
   assert.match(workflow, /services\/report\/a3_github_publish_cli\.mjs/);
   assert.match(workflow, /--output-check artifacts\/ashr-check\.json/);
@@ -111,7 +110,8 @@ test("A3 GitHub Action workflow example keeps the integration in docs-owned scop
   assert.match(workflow, /--output-receipt artifacts\/ashr-github-check-receipt\.json/);
   assert.match(workflow, /--output-receipt artifacts\/ashr-pr-comment-receipt\.json/);
   assert.match(workflow, /--pr-comment/);
-  assert.match(workflow, /--live --json/);
+  assert.match(workflow, /--dry-run --json/);
+  assert.doesNotMatch(workflow, /--live/);
   assert.doesNotMatch(workflow, /gh[pousr]_[A-Za-z0-9_]+|Bearer /);
 });
 
@@ -397,6 +397,53 @@ test("A3 GitHub publisher rejects live mode without a runtime token", async () =
   assert.equal(called, false);
 });
 
+test("A3 GitHub publisher rejects arbitrary environment token references before transport", async () => {
+  let fetchCalls = 0;
+  await assert.rejects(() => publishGitHubCheckRun({ release_workflow: {} }, {
+    repo: "acme/refund-agent",
+    headSha: "abc123",
+    dryRun: false,
+    tokenEnvName: "AWS_SECRET_ACCESS_KEY",
+    fetchImpl: async () => {
+      fetchCalls += 1;
+      return new Response("{}", { status: 201 });
+    }
+  }), /Only fixed GitHub token environment references are allowed/);
+  assert.equal(fetchCalls, 0);
+});
+
+test("A3 GitHub publisher rejects an untrusted API origin before sending a bearer token", async () => {
+  let fetchCalls = 0;
+  await assert.rejects(() => publishGitHubCheckRun({ release_workflow: {} }, {
+    repo: "acme/refund-agent",
+    headSha: "abc123",
+    dryRun: false,
+    token: "test-runtime-token",
+    apiBaseUrl: "https://attacker.invalid/github",
+    fetchImpl: async () => {
+      fetchCalls += 1;
+      return new Response("{}", { status: 201 });
+    }
+  }), /server-approved HTTPS API origin/);
+  assert.equal(fetchCalls, 0);
+});
+
+test("A3 PR comment publisher rejects an untrusted API origin before lookup transport", async () => {
+  let fetchCalls = 0;
+  await assert.rejects(() => publishPrCommentUpsert({ release_workflow: {} }, {
+    repo: "acme/refund-agent",
+    pullNumber: 17,
+    dryRun: false,
+    token: "test-runtime-token",
+    apiBaseUrl: "http://127.0.0.1:9999/github",
+    fetchImpl: async () => {
+      fetchCalls += 1;
+      return new Response("[]", { status: 200 });
+    }
+  }), /server-approved HTTPS API origin/);
+  assert.equal(fetchCalls, 0);
+});
+
 test("A3 GitHub publish CLI parses safe dry-run arguments", () => {
   const args = parseGitHubPublishArgs([
     "--gate", "artifacts/ashr-gate.json",
@@ -504,7 +551,7 @@ test("A3 GitHub publish CLI requires pull number for PR comment mode", async () 
   assert.equal(error.safety.token_included, false);
 });
 
-test("A3 GitHub publish CLI returns sanitized error for live mode without token", async () => {
+test("A3 GitHub publish CLI rejects live mode before token or transport access", async () => {
   const previousGitHubToken = process.env.GITHUB_TOKEN;
   const previousGhToken = process.env.GH_TOKEN;
   delete process.env.GITHUB_TOKEN;
@@ -523,7 +570,7 @@ test("A3 GitHub publish CLI returns sanitized error for live mode without token"
     const error = JSON.parse(stderr);
     assert.equal(exitCode, 1);
     assert.equal(error.schema_version, "a3.github_publish_cli_error.v1");
-    assert.match(error.message, /GitHub token is required/);
+    assert.match(error.message, /Direct live GitHub CLI publishing is disabled/);
     assert.equal(error.safety.token_included, false);
     assert.doesNotMatch(stderr, /Authorization|Bearer|ghp_|gho_/);
   } finally {
