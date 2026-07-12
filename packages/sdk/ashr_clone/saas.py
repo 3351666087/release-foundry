@@ -1258,9 +1258,11 @@ class SaaSIngestionClient:
             url = f"{url}?{urlencode(body)}"
         response = dict(_call_http_transport(self._http_transport, method, url, {} if method == "GET" else body, headers=headers))
         if {"schema_version", "operation", "result"}.issubset(response):
-            return redact_sensitive(response)
-        return _remote_envelope(operation, response)
+            sanitized = redact_sensitive(response)
+            return _restore_explicit_one_time_secret(operation, payload, response, sanitized)
+        sanitized = _remote_envelope(operation, response)
 
+        return _restore_explicit_one_time_secret(operation, payload, response, sanitized)
 
 _GET_OPERATIONS = {
     "list_api_keys",
@@ -1459,6 +1461,42 @@ def _remote_envelope(operation: str, result: Mapping[str, Any]) -> JsonDict:
         "result": redact_sensitive(result),
         "metadata": {"local_only": False, "ashr_api_used": False, "raw_auth_material_used": False, "transport": "http"},
     }
+def _restore_explicit_one_time_secret(
+    operation: str,
+    payload: Mapping[str, Any],
+    response: Mapping[str, Any],
+    sanitized: JsonDict,
+) -> JsonDict:
+    if operation != "create_api_key" or not bool(payload.get("reveal_secret")):
+        return sanitized
+    raw_result = response.get("result") if isinstance(response.get("result"), Mapping) else response
+    sanitized_result = sanitized.get("result")
+    if not isinstance(raw_result, Mapping) or not isinstance(sanitized_result, dict):
+        return sanitized
+    secret = raw_result.get("one_time_secret")
+    if raw_result.get("one_time_secret_displayed") is not True or not isinstance(secret, str) or not secret:
+        return sanitized
+    _redact_exact_secret(sanitized, secret)
+    sanitized_result["one_time_secret"] = secret
+    sanitized_result["one_time_secret_displayed"] = True
+    return sanitized
+
+
+def _redact_exact_secret(value: Any, secret: str) -> None:
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if isinstance(item, str):
+                value[key] = item.replace(secret, "[redacted]")
+            else:
+                _redact_exact_secret(item, secret)
+    elif isinstance(value, list):
+        for index, item in enumerate(value):
+            if isinstance(item, str):
+                value[index] = item.replace(secret, "[redacted]")
+            else:
+                _redact_exact_secret(item, secret)
+
+
 
 
 def load_json_file(path: str | Path) -> Any:
