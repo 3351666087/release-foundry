@@ -138,6 +138,17 @@ export const A3_SOURCE_FIXTURES = {
     releaseArtifactManifest: "fixtures/a3/golden-path/release-artifact-manifest.json",
     releaseArtifactVerification: "fixtures/a3/golden-path/release-artifact-verification.json",
     deliveryGoldenPath: "fixtures/a3/golden-path/golden-path-status.json"
+  },
+  "a3-golden-path-rc2": {
+    label: "A3 Golden Path rc.2 - A1/A2 3 of 3",
+    runFixture: "fixtures/a3/golden-path/rc2/a3_new_run_result.redacted.json",
+    gradeFixture: "fixtures/a3/golden-path/rc2/a2_new_run_judge_response.redacted.json",
+    a2TrustedSpine: "fixtures/a2/results/a2_trusted_spine_handoff.json",
+    deploymentProbe: "fixtures/a3/golden-path/rc2/deployment_probe.redacted.json",
+    deploymentAcceptance: "fixtures/a3/golden-path/rc2/deployment-acceptance.json",
+    releaseArtifactManifest: "fixtures/a3/golden-path/rc2/release-artifact-manifest.json",
+    releaseArtifactVerification: "fixtures/a3/golden-path/rc2/release-artifact-verification.json",
+    deliveryGoldenPath: "fixtures/a3/golden-path/rc2/golden-path-status.json"
   }
 };
 

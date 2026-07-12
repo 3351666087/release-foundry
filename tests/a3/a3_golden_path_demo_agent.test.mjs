@@ -5,6 +5,7 @@ import { join, resolve } from "node:path";
 import test from "node:test";
 
 import { A3GoldenPathDemoAgent } from "../../services/report/a3_golden_path_demo_agent.mjs";
+import { loadA3SourceSnapshot } from "../../services/report/a3_store.mjs";
 
 test("A3 Golden Agent keeps direct answers tool-free", async () => {
   const result = await new A3GoldenPathDemoAgent().respond(
@@ -103,3 +104,35 @@ test("the rc.2 A1 run and unchanged A2 Judge preserve the passing tool evidence"
 async function loadJson(path) {
   return JSON.parse(await readFile(resolve(path), "utf8"));
 }
+
+test("the rc.2 dashboard source exposes passing A1/A2 evidence without inventing release authority", async () => {
+  const snapshot = await loadA3SourceSnapshot("a3-golden-path-rc2");
+
+  assert.equal(snapshot.source, "a3-golden-path-rc2");
+  assert.equal(snapshot.summary.totalCases, 3);
+  assert.equal(snapshot.summary.passed, 3);
+  assert.equal(snapshot.summary.failed, 0);
+  assert.equal(snapshot.summary.passRate, 100);
+  assert.equal(snapshot.releaseArtifactManifest.release.version, "0.2.0-rc.2");
+  assert.equal(snapshot.releaseArtifactManifest.release.git_sha_alias, "c8420813ed6cb94535bd108b30bd97663b906bdb");
+  assert.equal(snapshot.releaseArtifactManifest.release.ci_tested_sha_alias, "746ecbe959a9c8781e8e1fc7d2520a50fd92785b");
+  assert.equal(snapshot.deliveryGoldenPath.status, "blocked_by_a2");
+  assert.equal(snapshot.deliveryGoldenPath.production_ready, false);
+  assert.equal(snapshot.deliveryGoldenPath.progress.passed, 5);
+});
+
+test("the rc.2 Gate keeps a passing local quality gate blocked by A2 authority", async () => {
+  const gate = await loadJson("fixtures/a3/golden-path/rc2/gate-report.json");
+  const comment = await readFile(resolve("fixtures/a3/golden-path/rc2/pr-comment.md"), "utf8");
+
+  assert.equal(gate.local_quality_gate.decision, "approve_release");
+  assert.equal(gate.release_gate.decision, "block_release");
+  assert.equal(gate.release_gate.pr_gate.blocks_merge, true);
+  assert.equal(gate.release_workflow.reviewer_workflow.state, "blocked_by_a2");
+  assert.equal(gate.release_workflow.reviewer_workflow.sign_off_risk.can_sign_off, false);
+  assert.equal(gate.github_check_run.conclusion, "failure");
+  assert.match(comment, /Decision: \*\*Block release\*\*/);
+  assert.match(comment, /Authority: \*\*A2 Decision Ledger\*\*/);
+  assert.match(comment, /Candidate SHA: `c8420813ed6cb94535bd108b30bd97663b906bdb`/);
+  assert.doesNotMatch(comment, /Merge may proceed/);
+});

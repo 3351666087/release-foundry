@@ -6801,3 +6801,28 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
 - Kept the verifier strict. Normalized the one runtime-generated grade fixture to the repository's existing LF policy, then regenerated and reverified the Gate, 14-artifact bundle, 15-entry archive, and Release Artifact hash chain.
 - Current true blockers: A2 Decision Ledger says block; no tenant custom GitHub App; no branch protection; no deployed identity/Postgres/queue/object-storage/rollback receipts.
 - Detailed record: `docs/a3/a3_release_delivery_golden_path_2026_07_12.md`.
+
+## 2026-07-12 - Golden Agent Tool-chain Repair and rc.2
+
+- Re-fetched GitHub and confirmed authoritative `origin/main` remains `ccf6ce5`; current A1 peer ref is `f956249` and A2 peer ref is `db12d21`. Peer changes were inspected but not merged or presented as main contracts.
+- Traced the rc.1 `missing_required_tool` failures to the Echo-only sample Agent rather than A1 Runner or A2 Judge defects.
+- Added `services/report/a3_golden_path_demo_agent.mjs`, a deterministic read-only Agent that executes the A2-required price and media tools against public local fixtures.
+- Created independent case set and A1 RunResult under `fixtures/a3/golden-path/rc2` rather than mutating sealed rc.1 evidence.
+- A1 run `a3-golden-20260712-002` completed 3/3 cases with 100% Trace completeness and four Tool Calls.
+- The unchanged A2 internal Judge graded the same RunResult 3/3, each score 100 with failure class `none`. A second judge execution produced an identical normalized JSON SHA-256.
+- Kept A2 Trusted Spine authoritative. Its merged-main Decision Ledger still reports `block`, so A3 leaves rc.2 `blocked_by_a2` despite passing case grades.
+- Fixed a provenance bug that copied candidate SHA into `ci_tested_sha_alias` before CI existed. Manifest, Deployment Acceptance, and delivery index now preserve `null` until real CI readback.
+- Generated and verified an rc.2 Audit Bundle with 11/11 artifacts and 6/6 custody events, plus an archive with 12/12 entries, root hash, and Ed25519 signature.
+- Generated locally verified `0.2.0-rc.2`; before GitHub readback it reports Golden Path 5/11 and Deployment Acceptance 5/17, with `production_release=false`.
+- Added release-document hashing to the Release Delivery CLI so `--doc` files become required SHA-256 artifacts instead of unverified names.
+- Added `a3-golden-path-rc2` to Store/API/Webapp and kept rc.1 selectable as history.
+- Added a New-run Evidence band showing A1 3/3, A2 3/3, Trace 100%, Tool Calls 4, and Decision Ledger block.
+- Fixed UI Tool Call double-counting by consuming A1 `aggregate_metrics.total_tool_calls` rather than summing duplicate normalized representations.
+- Added desktop/mobile E2E and final-frame screenshots. Pixel verification confirmed the mobile delivery hero is the intended `#20272c`; Playwright animation disabling prevents mid-transition baselines.
+- Candidate commit `c842081` was created. The first Git push timed out; a normal retry succeeded without force push or credential workaround.
+- GitHub Actions run `29193799075` passed all applicable checks for candidate `c842081`. The PR merge ref inspected by CI was `746ecbe`; the candidate and CI-tested SHA are stored separately.
+- The candidate run still used the previously committed rc.1 artifact-upload workflow. Artifact `8260336831` is explicitly rc.1 and is not counted as rc.2 artifact readback.
+- Security: `.env.local` was not read, no network/API key was needed by the Agent, and no token, cookie, email, signed URL, private path, or customer data was added.
+- Detailed record: `docs/a3/a3_golden_agent_tool_chain_2026_07_12.md`.
+- Release notes: `docs/a3/releases/a3-0.2.0-rc.2.md`.
+- Growth audit: `docs/a3/growth_auditor_money_grade_round14_2026_07_12.md`.

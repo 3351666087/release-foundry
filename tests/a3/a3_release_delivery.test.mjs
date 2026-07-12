@@ -138,6 +138,40 @@ test("release artifact manifest hashes files and its verifier detects tampering"
   }
 });
 
+test("release evidence never invents a CI-tested SHA from the candidate SHA", () => {
+  const gitSha = "c8420813ed6cb94535bd108b30bd97663b906bdb";
+  const runFixture = {
+    schema_version: "ashr.clone.run_result.v1",
+    run_id: "run-not-yet-tested",
+    trace_completeness: 1,
+    cases: [{ case_id: "case-1", observations: [{ event_type: "agent_response" }] }]
+  };
+  const gradeFixture = {
+    schema_version: "a2.grade_results.v1",
+    report_id: "grade-not-yet-tested",
+    grade_results: [{ case_id: "case-1", passed: true, score: 100 }]
+  };
+  const manifest = buildReleaseArtifactManifest({ runFixture, gradeFixture }, {
+    releaseVersion: "0.2.0-rc.2",
+    gitSha,
+    generatedAt: "2026-07-12T12:34:25.000Z"
+  });
+  const acceptance = buildDeploymentAcceptance({
+    runFixture,
+    gradeFixture,
+    deploymentProbe: { git_sha_alias: gitSha }
+  }, {
+    releaseVersion: "0.2.0-rc.2",
+    gitSha,
+    generatedAt: "2026-07-12T12:34:25.000Z"
+  });
+
+  assert.equal(manifest.release.git_sha_alias, gitSha);
+  assert.equal(manifest.release.ci_tested_sha_alias, null);
+  assert.equal(acceptance.release_identity.git_sha_alias, gitSha);
+  assert.equal(acceptance.release_identity.ci_tested_sha_alias, null);
+});
+
 test("golden path distinguishes a live github.com readback from a confirmed fixture", () => {
   const runFixture = {
     schema_version: "ashr.clone.run_result.v1",
@@ -220,6 +254,10 @@ test("release delivery CLI builds a blocked but verifiable packet from A1/A2 evi
     assert.equal(result.releaseArtifactVerification.status, "passed");
     assert.equal(result.releaseArtifactManifest.release.git_sha_alias, "ad6113e01f5999f99b378e678d4f0a9602e8fdbc");
     assert.equal(result.releaseArtifactManifest.release.ci_tested_sha_alias, "e07c5f6e3cb8c44e8d75ea781feeec778bb5ccb8");
+    const releaseDocument = result.releaseArtifactManifest.artifact_set.artifacts.find((item) => item.id === "release_document_01");
+    assert.equal(releaseDocument.path, "docs/strategy/large-saas-a1-a2-a3-full-plan.md");
+    assert.equal(releaseDocument.role, "release_documentation");
+    assert.match(releaseDocument.sha256, /^[a-f0-9]{64}$/);
     assert.equal(result.deploymentAcceptance.release_identity.ci_tested_sha_alias, "e07c5f6e3cb8c44e8d75ea781feeec778bb5ccb8");
     assert.equal(result.deploymentAcceptance.checks.find((item) => item.id === "github_actions_artifact_readback").status, "passed");
     assert.equal(result.deploymentAcceptance.status, "blocked");
@@ -315,6 +353,15 @@ test("Gate CLI consumes wrapped A2 judge-service output and preserves trusted-sp
     assert.equal(payload.summary.totalCases > 0, true);
     assert.equal(payload.trusted_release_authority.upstream_decision, "block");
     assert.equal(payload.trusted_release_authority.release_ready, false);
+    assert.equal(payload.local_quality_gate.decision, "block_release");
+    assert.equal(payload.release_gate.decision, "block_release");
+    assert.equal(payload.release_gate.pr_gate.blocks_merge, true);
+    assert.equal(payload.release_workflow.reviewer_workflow.state, "blocked_by_a2");
+    assert.equal(payload.release_workflow.reviewer_workflow.sign_off_risk.can_sign_off, false);
+    assert.match(payload.pr_comment_markdown, /Decision: \*\*Block release\*\*/);
+    assert.match(payload.pr_comment_markdown, /Authority: \*\*A2 Decision Ledger\*\*/);
+    assert.match(payload.pr_comment_markdown, /Candidate SHA: `abc123`/);
+    assert.doesNotMatch(payload.pr_comment_markdown, /Merge may proceed/);
     assert.equal(payload.github_check_run.conclusion, "failure");
     assert.equal(payload.process_exit_code, 0);
   } finally {

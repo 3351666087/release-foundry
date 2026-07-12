@@ -28,9 +28,12 @@ export function DeliveryPage() {
     const artifact = record(model.raw.release_artifact_manifest);
     const release = record(artifact.release);
     const authority = record(path.authoritative_release);
+    const runFixture = record(model.raw.run_fixture);
+    const runMetrics = record(runFixture.aggregate_metrics);
     const stages = array(path.stages).map(record);
     const checks = array(acceptance.checks).map(record);
     const blockers = checks.filter((item) => string(item.status) !== "passed");
+    const toolCallCount = number(runMetrics.total_tool_calls);
     const productionReady = path.production_ready === true;
 
     return (
@@ -71,6 +74,21 @@ export function DeliveryPage() {
           { label: zh ? "阻塞项" : "Blockers", value: blockers.length, tone: blockers.length ? "fail" : "pass", detail: zh ? "必须有证据" : "evidence required" },
           { label: zh ? "Release 版本" : "Release version", value: string(release.version, "unsealed"), tone: "cobalt", detail: string(release.channel) }
         ]} />
+
+        <Section
+          title={zh ? "新 Run 证据" : "New-run evidence"}
+          description={zh
+            ? "案例执行与发布授权是两套独立证据；A3 只并列展示，不把案例通过换算成发布批准"
+            : "Case execution and release authorization are independent evidence; A3 displays both without converting passing cases into approval"}
+        >
+          <div className="release-artifact-band">
+            <div><span>{zh ? "A1 执行" : "A1 execution"}</span><strong>{number(runFixture.passed)}/{number(runFixture.total_cases)}</strong></div>
+            <div><span>{zh ? "A2 案例评分" : "A2 case grades"}</span><strong>{model.summary.passed}/{model.summary.totalCases}</strong></div>
+            <div><span>{zh ? "Trace 完整率" : "Trace completeness"}</span><strong>{number(model.summary.traceCompleteness)}%</strong></div>
+            <div><span>{zh ? "工具调用" : "Tool calls"}</span><strong>{toolCallCount}</strong></div>
+            <div><span>{zh ? "Decision Ledger" : "Decision ledger"}</span><strong>{string(authority.upstream_decision, "unknown")}</strong></div>
+          </div>
+        </Section>
 
         <Section
           title={zh ? "Golden Path 阶段" : "Golden path stages"}

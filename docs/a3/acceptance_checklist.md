@@ -1187,3 +1187,30 @@
 - [ ] Enable branch protection and prove the required check is enforced.
 - [ ] Attach a deployed staging/VPC acceptance receipt.
 - [ ] Obtain a new A2 `allow` Decision Ledger record before any production release.
+
+## Golden Agent Tool-chain Repair - 2026-07-12
+
+- [x] Re-fetch current `origin/main` and inspect current A1/A2 peer refs without treating draft contracts as authoritative.
+- [x] Preserve the sealed `0.2.0-rc.1` directory instead of overwriting historical evidence.
+- [x] Add an A3-owned deterministic, local-only, read-only Golden Agent.
+- [x] Execute `web.search` against the A2 official-price fixture.
+- [x] Execute `media.fetch` → `image.view` → `media.classify` in the A2-required order.
+- [x] Validate PNG signature, dimensions, provenance path, and SHA-256 before classification.
+- [x] Fail closed when evidence is missing, malformed, or outside the versioned case set.
+- [x] Run the unchanged A1 TypeScript Runner and record 3/3 execution, 100% Trace completeness, and 4 Tool Calls.
+- [x] Run the unchanged A2 Judge and record 3/3 grades, score 100, and failure class `none`.
+- [x] Recompute the A2 response a second time and prove byte-identical SHA-256 output after LF normalization.
+- [x] Preserve the merged-main A2 Trusted Spine `block`; do not synthesize A2 `allow` in A3.
+- [x] Build and verify an independent rc.2 Audit Bundle and custody chain.
+- [x] Build and verify an independent rc.2 signed archive.
+- [x] Build a blocked `0.2.0-rc.2` Release Artifact with `production_release=false`.
+- [x] Keep `ci_tested_sha_alias=null` until real CI evidence exists.
+- [x] Hash release documentation into the Release Artifact manifest.
+- [x] Add `a3-golden-path-rc2` to Store, API, and Next.js source selection.
+- [x] Show A1 execution, A2 grades, Trace completeness, Tool Calls, and Decision Ledger as separate evidence.
+- [x] Use A1 aggregate Tool Call count instead of double-counting normalized calls.
+- [x] Add desktop and 390 x 844 Playwright evidence without overflow.
+- [x] Capture final-frame screenshots with animations disabled.
+- [ ] Push candidate/evidence commits and attach rc.2 GitHub Check, comment, and Actions artifact readbacks.
+- [ ] Obtain an A2 Decision Ledger record tied to `a3-golden-20260712-002`.
+- [ ] Install a tenant GitHub App, enable required branch protection, and attach deployed staging evidence.

@@ -1,0 +1,55 @@
+{
+  "schema_version": "a3.deployment_probe.v1",
+  "generated_at": "2026-07-12T12:34:15.000Z",
+  "environment": "staging",
+  "release_version": "0.2.0-rc.2",
+  "git_sha_alias": "c8420813ed6cb94535bd108b30bd97663b906bdb",
+  "hosted_identity": {
+    "status": "not_proven",
+    "verified": false,
+    "evidence_class": "contract_only",
+    "reason": "A1 hosted identity work remains outside the authoritative main contract and no deployed verifier receipt is attached."
+  },
+  "database": {
+    "status": "not_proven",
+    "verified": false,
+    "evidence_class": "contract_only",
+    "reason": "PostgreSQL and RLS contracts exist, but this candidate has no deployed database receipt."
+  },
+  "queue_worker": {
+    "status": "not_proven",
+    "verified": false,
+    "evidence_class": "contract_only",
+    "reason": "No deployed queue, retry, dead-letter, and worker-health receipt is attached."
+  },
+  "object_storage": {
+    "status": "not_proven",
+    "verified": false,
+    "evidence_class": "contract_only",
+    "reason": "The rc.2 Audit Bundle has not been written to and read back from immutable object storage."
+  },
+  "deployment_target": {
+    "status": "not_proven",
+    "verified": false,
+    "evidence_class": "not_proven",
+    "reason": "No staging or VPC deployment URL and versioned health receipt is configured."
+  },
+  "upgrade_rollback": {
+    "status": "not_proven",
+    "verified": false,
+    "evidence_class": "not_proven",
+    "reason": "Install, upgrade, rollback, backup, and restore have not been rehearsed against a deployed target."
+  },
+  "github_app": {
+    "status": "not_proven",
+    "verified": false,
+    "evidence_class": "not_proven",
+    "reason": "No tenant-bound custom GitHub App installation and permission receipt is available for rc.2."
+  },
+  "safety": {
+    "token_included": false,
+    "cookie_included": false,
+    "installation_token_included": false,
+    "fixture_claimed_as_production": false
+  }
+}
