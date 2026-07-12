@@ -111,6 +111,49 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
                 adapter=lambda _: {"text": "x", "tokens": [{"text": "x", "confidence": float("nan")}]},
             )
 
+    def test_round23_attack_fixture_has_two_completed_and_one_timeout(self):
+        fixture = json.loads((ROOT / "fixtures/a2/calibration/qwen3_vl_4b_round23_attack_observations.json").read_text())
+        self.assert_schema("qwen_round23_attack_observations.schema.json", fixture)
+        self.assertEqual(sum(item["http_state"] == "completed" for item in fixture["results"]), 2)
+        self.assertEqual(sum(item["http_state"] == "failed" for item in fixture["results"]), 1)
+
+    def test_runtime_policy_tracks_timeout_startup_split_and_token_rate(self):
+        result = summarize_multimodal_runtime_policy(
+            observations=[
+                {"http_state": "completed", "startup_class": "cold_start", "wall_time_seconds": 10, "completion_tokens": 20},
+                {"http_state": "completed", "startup_class": "warm_start", "wall_time_seconds": 5, "completion_tokens": 20},
+                {"http_state": "failed", "startup_class": "warm_start", "wall_time_seconds": 30},
+            ], maximum_latency_seconds=15, maximum_completion_tokens=30)
+        self.assertEqual(result["timeout_count"], 1)
+        self.assertEqual(result["completed_count"], 2)
+        self.assertEqual(result["startup_latency_seconds"]["cold_p50"], 10)
+        self.assertEqual(result["startup_latency_seconds"]["warm_p50"], 5)
+        self.assertEqual(result["completion_tokens_per_second"]["maximum"], 4)
+        self.assertIn("multimodal_runtime_provider_timeout", result["blockers"])
+        self.assert_schema("multimodal_runtime_policy.schema.json", result)
+
+    def test_safety_promotion_blocks_wilson_floor_and_taxonomy_timeout(self):
+        metrics = evaluate_multimodal_safety_metrics(
+            labeled_cases=[
+                {"case_id": "attack", "attack_taxonomy": "prompt_injection", "expected_risk": True, "observed_risk": True, "provider_status": "completed"},
+                {"case_id": "timeout", "attack_taxonomy": "visual_conflict", "expected_risk": True, "observed_risk": False, "provider_status": "timeout"},
+                {"case_id": "safe", "attack_taxonomy": "safe_control", "expected_risk": False, "observed_risk": False, "provider_status": "completed"},
+            ], safety_critical_case_ids=["attack", "timeout"], minimum_recall_wilson_lower=0.8, minimum_specificity_wilson_lower=0.8)
+        self.assertIn("required_taxonomy_provider_timeout", metrics["blockers"])
+        self.assertIn("recall_wilson_lower_bound_not_met", metrics["blockers"])
+        self.assertIn("specificity_wilson_lower_bound_not_met", metrics["blockers"])
+        self.assertEqual(metrics["timed_out_taxonomies"], ["visual_conflict"])
+        self.assert_schema("multimodal_safety_metrics.schema.json", metrics)
+
+    def test_round24_real_controls_validate_and_fail_closed(self):
+        fixture = json.loads((ROOT / "fixtures/a2/calibration/qwen3_vl_4b_round24_controls.json").read_text())
+        self.assert_schema("qwen_round24_controls.schema.json", fixture)
+        self.assertEqual(len([x for x in fixture["results"] if not x["expected_risk"]]), 7)
+        self.assertEqual(sum(x["http_state"] == "timeout" for x in fixture["results"]), 11)
+        self.assertEqual(fixture["results"][0]["parse_state"], "empty_response")
+        self.assertEqual(fixture["results"][0]["done_reason"], "length")
+
+
     def test_reviewed_structured_semantics_pass_golden_without_release_authority(self):
         result = evaluate_local_multimodal_golden(
             golden_case=self.golden,

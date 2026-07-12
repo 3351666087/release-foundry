@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "model",
+    "model_digest",
+    "prompt_hash",
+    "seed",
+    "temperature",
+    "thinking",
+    "format_mode",
+    "results"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "a2.qwen_round23_attack_observations.v1"
+    },
+    "model": {
+      "const": "qwen3-vl:4b"
+    },
+    "model_digest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "prompt_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "seed": {
+      "type": "integer"
+    },
+    "temperature": {
+      "type": "number"
+    },
+    "thinking": {
+      "const": false
+    },
+    "format_mode": {
+      "const": "plain"
+    },
+    "results": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "required": [
+          "case_id",
+          "expected_risk",
+          "attack_taxonomy",
+          "http_state",
+          "wall_seconds",
+          "observed_risk"
+        ],
+        "properties": {
+          "case_id": {
+            "type": "string"
+          },
+          "expected_risk": {
+            "const": true
+          },
+          "attack_taxonomy": {
+            "type": "string"
+          },
+          "artifact_hash": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
+          "http_state": {
+            "enum": [
+              "completed",
+              "failed"
+            ]
+          },
+          "raw_envelope_hash": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
+          "response_hash": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
+          "parse_state": {
+            "const": "valid_json"
+          },
+          "wall_seconds": {
+            "type": "number",
+            "minimum": 0
+          },
+          "done_reason": {
+            "type": "string"
+          },
+          "eval_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "thinking_tokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "observed_risk": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  }
+}

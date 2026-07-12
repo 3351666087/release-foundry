@@ -9,6 +9,10 @@
     "maximum_latency_seconds",
     "maximum_completion_tokens",
     "maximum_observed_completion_tokens",
+    "timeout_count",
+    "completed_count",
+    "completion_tokens_per_second",
+    "startup_latency_seconds",
     "thinking_metadata_observed",
     "qualification_state",
     "release_authority",
@@ -60,7 +64,10 @@
       "minimum": 1
     },
     "maximum_observed_completion_tokens": {
-      "type": "integer",
+      "type": [
+        "integer",
+        "null"
+      ],
       "minimum": 0
     },
     "thinking_metadata_observed": {
@@ -84,6 +91,72 @@
     },
     "public_safe": {
       "const": true
+    },
+    "timeout_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "completed_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "completion_tokens_per_second": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "minimum",
+        "maximum"
+      ],
+      "properties": {
+        "minimum": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "maximum": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        }
+      }
+    },
+    "startup_latency_seconds": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cold_count",
+        "warm_count",
+        "cold_p50",
+        "warm_p50"
+      ],
+      "properties": {
+        "cold_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "warm_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "cold_p50": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "warm_p50": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        }
+      }
     }
   }
 }

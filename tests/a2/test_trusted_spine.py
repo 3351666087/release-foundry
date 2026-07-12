@@ -40,6 +40,12 @@ def load_json(path: Path) -> dict:
 
 
 class A2TrustedSpineTests(unittest.TestCase):
+    def assert_schema(self, name, value):
+        jsonschema.Draft202012Validator(
+            load_json(ROOT / "docs/a2/schemas" / name),
+            format_checker=jsonschema.FormatChecker(),
+        ).validate(value)
+
     def test_candidate_rejects_stale_a2_and_decision_binding(self):
         candidate = build_trusted_spine_candidate_manifest(
             a1_sha="1" * 40,
@@ -56,6 +62,9 @@ class A2TrustedSpineTests(unittest.TestCase):
         )
         self.assertEqual(result["status"], "rejected")
         self.assertIn("trusted_spine_candidate_a2_sha_stale", result["blockers"])
+        self.assert_schema("trusted_spine_candidate.schema.json", candidate)
+        self.assert_schema("trusted_spine_candidate_validation.schema.json", result)
+
     def test_handoff_fixture_matches_builder(self):
         actual = build_trusted_spine_handoff(
             load_json(RUN_FIXTURE),

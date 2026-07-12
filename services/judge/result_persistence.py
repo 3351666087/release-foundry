@@ -840,6 +840,41 @@ def build_structured_output_failure_record(
         created_at=created_at,
     )
 
+
+def build_ocr_vision_disagreement_record(
+    disagreement: dict[str, Any],
+    *,
+    org_id: str,
+    project_id: str,
+    run_id: str,
+    case_id: str,
+    created_at: str,
+) -> dict[str, Any]:
+    """Persist an OCR/vision disagreement using only public-safe hashes and reason codes."""
+    if disagreement.get("state") != "disagreement":
+        raise ValueError("disagreement persistence requires disagreement state")
+    payload = {
+        key: disagreement.get(key)
+        for key in (
+            "artifact_hash",
+            "ocr_observation_hash",
+            "vision_output_hash",
+            "reason_code",
+            "review_packet_hash",
+            "blockers",
+        )
+    }
+    return build_result_record(
+        payload,
+        org_id=org_id,
+        project_id=project_id,
+        run_id=run_id,
+        case_id=case_id,
+        kind="ocr_vision_disagreement",
+        input_payload={"disagreement_hash": stable_hash(disagreement)},
+        created_at=created_at,
+    )
+
 def _judge_policy_payload(scenario: dict[str, Any], judge_id: str, judge_version: str) -> dict[str, Any]:
     return {
         "judge_id": judge_id,

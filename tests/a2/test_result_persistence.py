@@ -6,6 +6,7 @@ from pathlib import Path
 from services.judge.result_persistence import (
     build_result_persistence_manifest,
     build_result_record,
+    build_ocr_vision_disagreement_record,
     build_structured_output_failure_record,
     stable_hash,
 )
@@ -49,6 +50,12 @@ def load_json(path: Path) -> dict:
 
 
 class A2ResultPersistenceTests(unittest.TestCase):
+    def test_ocr_vision_disagreement_record_is_hash_only(self):
+        disagreement = {"state": "disagreement", "artifact_hash": "sha256:" + "1" * 64, "ocr_observation_hash": "sha256:" + "2" * 64, "vision_output_hash": "sha256:" + "3" * 64, "reason_code": "vision_hallucinated_text", "review_packet_hash": "sha256:" + "4" * 64, "blockers": ["ocr_vision_text_disagreement"], "raw_text": "do not persist"}
+        record = build_ocr_vision_disagreement_record(disagreement, org_id="org", project_id="project", run_id="run", case_id="case", created_at="2026-07-13T00:00:00Z")
+        self.assertEqual(record["record_type"], "ocr_vision_disagreement")
+        self.assertNotIn("do not persist", json.dumps(record))
+
     def test_structured_output_failure_record_is_hash_only(self):
         receipt = {
             "state": "invalid_json",
