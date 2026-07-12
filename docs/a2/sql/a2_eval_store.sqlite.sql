@@ -131,8 +131,18 @@ CREATE TABLE IF NOT EXISTS a2_decision_operations (
   recovery_owner TEXT,
   recovery_lease_expires_at TEXT,
   recovery_generation INTEGER NOT NULL DEFAULT 0 CHECK (recovery_generation >= 0),
+  reconciliation_owner TEXT,
+  reconciliation_lease_expires_at TEXT,
+  reconciliation_generation INTEGER NOT NULL DEFAULT 0 CHECK (reconciliation_generation >= 0),
+  reconciliation_attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (reconciliation_attempt_count >= 0),
+  reconciliation_next_at TEXT,
+  last_reconciliation_status TEXT,
+  last_reconciliation_observation_hash TEXT,
   attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
   provider_call_id TEXT,
+  logical_call_id TEXT,
+  provider_payload_hash TEXT,
+  provider_idempotency_key_hash TEXT,
   provider_outcome_hash TEXT,
   record_id TEXT,
   record_hash TEXT,
@@ -177,6 +187,41 @@ CREATE TABLE IF NOT EXISTS a2_provider_outcomes (
   completed_at TEXT NOT NULL,
   public_safe INTEGER NOT NULL CHECK (public_safe = 1),
   UNIQUE(operation_id, fencing_token)
+);
+
+CREATE TABLE IF NOT EXISTS a2_provider_reconciliation_observations (
+  observation_id TEXT PRIMARY KEY,
+  operation_id TEXT NOT NULL REFERENCES a2_decision_operations(operation_id) ON DELETE CASCADE,
+  organization_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL,
+  workspace_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  environment_id TEXT NOT NULL,
+  provider_call_id TEXT NOT NULL,
+  provider_fencing_token INTEGER NOT NULL CHECK (provider_fencing_token > 0),
+  reconciliation_generation INTEGER NOT NULL CHECK (reconciliation_generation > 0),
+  provider_id TEXT NOT NULL,
+  model_id TEXT NOT NULL,
+  logical_call_id TEXT NOT NULL,
+  snapshot_hash TEXT NOT NULL,
+  payload_hash TEXT NOT NULL,
+  idempotency_key_hash TEXT NOT NULL,
+  query_hash TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (
+    status IN (
+      'remote_completed', 'remote_pending', 'remote_not_found',
+      'remote_unknown', 'reconciliation_unsupported'
+    )
+  ),
+  output_hash TEXT,
+  normalized_output_json TEXT,
+  normalized_output_hash TEXT,
+  observation_hash TEXT NOT NULL,
+  retry_authorized INTEGER NOT NULL DEFAULT 0 CHECK (retry_authorized = 0),
+  observed_at TEXT NOT NULL,
+  next_reconcile_at TEXT,
+  public_safe INTEGER NOT NULL CHECK (public_safe = 1),
+  UNIQUE(operation_id, reconciliation_generation, observation_hash)
 );
 
 CREATE TABLE IF NOT EXISTS a2_release_decision_audit (

@@ -7,19 +7,24 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from services.judge.provider_gateway import ProviderDefinition, ProviderGateway, StrictFakeAdapter
+from services.judge.provider_gateway import (
+    ProviderDefinition, ProviderGateway, StrictFakeAdapter, StrictFakeReconciliationAdapter,
+)
 from services.judge.provider_runtime import AUTHENTICATED_BUNDLE_SCHEMA_VERSION, validate_semantic_judge_output
 from services.judge.release_decision_orchestrator import (
     execute_release_decision,
+    reconcile_release_decision,
     recover_release_decision,
 )
 from services.judge.release_decision_store import (
     IdempotencyConflictError,
     authorize_provider_call,
     claim_decision_recovery,
+    claim_provider_reconciliation,
     claim_decision_outbox,
     load_decision_recovery_envelope,
     persist_provider_outcome,
+    persist_provider_reconciliation_observation,
     persist_release_decision,
     reserve_decision_operation,
     settle_decision_outbox,
@@ -115,6 +120,27 @@ def gateway(response=None, *, failure="", audit_writer=None):
         {"fake": StrictFakeAdapter(response, failure=failure)},
         audit_writer=audit_writer,
         response_validator=validate_semantic_judge_output,
+    )
+
+
+def reconciliation_gateway(status="remote_pending"):
+    provider = ProviderDefinition(
+        "unit", "fake", "local", "", frozenset({"text"}), frozenset({"tenant-a"}),
+        data_residency="local", reconciliation_mode="query",
+    )
+    response = {"status": status}
+    if status == "remote_completed":
+        response["output"] = {
+            "output_text": json.dumps(
+                {
+                    "passed": True, "score": 0.98, "reason": "verified",
+                    "failure_classes": [], "evidence_refs": ["snapshot"], "abstained": False,
+                }
+            )
+        }
+    adapter = StrictFakeReconciliationAdapter(reconciliation_response=response)
+    return ProviderGateway(
+        [provider], {"fake": adapter}, response_validator=validate_semantic_judge_output,
     )
 
 
@@ -654,6 +680,188 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
             finally:
                 first_connection.close()
                 second_connection.close()
+
+    def test_recovery_required_never_reauthorizes_provider_call(self):
+        connection = sqlite3.connect(":memory:")
+        provider_gateway = ProviderGateway(
+            [ProviderDefinition(
+                "unit", "fake", "local", "", frozenset({"text"}), frozenset({"tenant-a"}),
+            )],
+            {"fake": ProcessInterruptedAdapter()},
+            response_validator=validate_semantic_judge_output,
+        )
+        try:
+            initialize_sql_store(connection)
+            with self.assertRaises(KeyboardInterrupt):
+                execute_release_decision(
+                    request(), gateway=provider_gateway, key_resolver=lambda _: KEY,
+                    now_unix_ms=NOW, persistence_connection=connection, lease_seconds=1,
+                )
+            operation_id = connection.execute(
+                "SELECT operation_id FROM a2_decision_operations"
+            ).fetchone()[0]
+            with self.assertRaisesRegex(ValueError, "recovery_required"):
+                authorize_provider_call(
+                    connection, operation_id=operation_id, scope=request(),
+                    created_at="2026-07-12T00:00:02Z", worker_id="blind-retry",
+                )
+            self.assertEqual(provider_gateway.adapters["fake"].calls, 1)
+        finally:
+            connection.close()
+
+    def test_pending_reconciliation_is_durable_and_release_closed(self):
+        connection = sqlite3.connect(":memory:")
+        interrupted = ProviderGateway(
+            [ProviderDefinition(
+                "unit", "fake", "local", "", frozenset({"text"}), frozenset({"tenant-a"}),
+            )],
+            {"fake": ProcessInterruptedAdapter()},
+            response_validator=validate_semantic_judge_output,
+        )
+        try:
+            initialize_sql_store(connection)
+            with self.assertRaises(KeyboardInterrupt):
+                execute_release_decision(
+                    request(), gateway=interrupted, key_resolver=lambda _: KEY,
+                    now_unix_ms=NOW, persistence_connection=connection,
+                )
+            operation_id = connection.execute(
+                "SELECT operation_id FROM a2_decision_operations"
+            ).fetchone()[0]
+            provider_gateway = reconciliation_gateway()
+            result = reconcile_release_decision(
+                request(), gateway=provider_gateway, key_resolver=lambda _: KEY,
+                now_unix_ms=NOW, connection=connection, operation_id=operation_id,
+                now="2026-07-12T00:00:01Z", next_reconcile_at="2026-07-12T00:01:00Z",
+            )
+            self.assertFalse(result["a3_consumption"]["release_ready"])
+            self.assertTrue(result["a3_consumption"]["review_required"])
+            self.assertFalse(result["metadata"]["retry_authorized"])
+            self.assertEqual(result["metadata"]["reconciliation_status"], "remote_pending")
+            self.assertEqual(_count(connection, "a2_provider_reconciliation_observations"), 1)
+            self.assertEqual(_count(connection, "a2_provider_outcomes"), 0)
+            self.assertEqual(_count(connection, "a2_release_decisions"), 0)
+            row = connection.execute(
+                """SELECT status, last_reconciliation_status, reconciliation_next_at
+                   FROM a2_decision_operations"""
+            ).fetchone()
+            self.assertEqual(row, ("recovery_required", "remote_pending", "2026-07-12T00:01:00Z"))
+            self.assertEqual(provider_gateway.adapters["fake"].calls, 0)
+            self.assertEqual(provider_gateway.adapters["fake"].reconciliation_calls, 1)
+        finally:
+            connection.close()
+
+    def test_reconciled_completion_atomically_recovers_decision(self):
+        connection = sqlite3.connect(":memory:")
+        interrupted = ProviderGateway(
+            [ProviderDefinition(
+                "unit", "fake", "local", "", frozenset({"text"}), frozenset({"tenant-a"}),
+            )],
+            {"fake": ProcessInterruptedAdapter()},
+            response_validator=validate_semantic_judge_output,
+        )
+        try:
+            initialize_sql_store(connection)
+            with self.assertRaises(KeyboardInterrupt):
+                execute_release_decision(
+                    request(), gateway=interrupted, key_resolver=lambda _: KEY,
+                    now_unix_ms=NOW, persistence_connection=connection,
+                )
+            operation = connection.execute(
+                """SELECT operation_id, provider_call_id, fencing_token
+                   FROM a2_decision_operations"""
+            ).fetchone()
+            provider_gateway = reconciliation_gateway("remote_completed")
+            adapter = provider_gateway.adapters["fake"]
+            base = adapter.reconciliation_response
+            base.update(
+                {
+                    "provider_call_id": operation[1],
+                    "logical_call_id": connection.execute(
+                        "SELECT logical_call_id FROM a2_decision_operations"
+                    ).fetchone()[0],
+                    "provider_id": "unit", "model_id": "semantic-1",
+                    "snapshot_hash": connection.execute(
+                        "SELECT snapshot_hash FROM a2_decision_operations"
+                    ).fetchone()[0],
+                    "payload_hash": connection.execute(
+                        "SELECT provider_payload_hash FROM a2_decision_operations"
+                    ).fetchone()[0],
+                    "provider_generation": operation[2],
+                }
+            )
+            result = reconcile_release_decision(
+                request(), gateway=provider_gateway, key_resolver=lambda _: KEY,
+                now_unix_ms=NOW, connection=connection, operation_id=operation[0],
+                now="2026-07-12T00:00:01Z",
+            )
+            self.assertTrue(result["persistence"]["committed"])
+            self.assertTrue(result["a3_consumption"]["release_ready"])
+            self.assertEqual(_count(connection, "a2_provider_reconciliation_observations"), 1)
+            self.assertEqual(_count(connection, "a2_provider_outcomes"), 1)
+            self.assertEqual(_count(connection, "a2_release_decisions"), 1)
+            self.assertEqual(_count(connection, "a2_decision_outbox"), 1)
+            self.assertEqual(
+                connection.execute("SELECT status FROM a2_decision_operations").fetchone()[0],
+                "committed",
+            )
+            self.assertEqual(adapter.calls, 0)
+            self.assertEqual(adapter.reconciliation_calls, 1)
+        finally:
+            connection.close()
+
+    def test_stale_and_failed_reconciliation_writes_are_fenced_and_atomic(self):
+        scope = {field: request()[field] for field in (
+            "organization_id", "tenant_id", "workspace_id", "project_id", "environment_id"
+        )}
+        connection = sqlite3.connect(":memory:")
+        try:
+            initialize_sql_store(connection)
+            operation = reserve_decision_operation(
+                connection, scope=scope, idempotency_key="reconcile-case",
+                request_hash="sha256:request", snapshot_id="snapshot",
+                snapshot_hash="sha256:snapshot", provider_id="unit", model_id="semantic-1",
+                created_at="2026-07-12T00:00:00Z",
+            )
+            lease = authorize_provider_call(
+                connection, operation_id=operation["operation_id"], scope=scope,
+                created_at="2026-07-12T00:00:00Z", worker_id="provider", lease_seconds=1,
+                logical_call_id="sha256:logical", payload_hash="sha256:payload",
+                idempotency_key_hash="sha256:key",
+            )
+            from services.judge.release_decision_store import mark_operation_recovery_required
+            mark_operation_recovery_required(
+                connection, operation_id=operation["operation_id"], scope=scope,
+                created_at="2026-07-12T00:00:01Z", lease=lease,
+            )
+            stale = claim_provider_reconciliation(
+                connection, operation_id=operation["operation_id"], scope=scope,
+                worker_id="reconciler-old", now="2026-07-12T00:00:01Z", lease_seconds=1,
+            )
+            fresh = claim_provider_reconciliation(
+                connection, operation_id=operation["operation_id"], scope=scope,
+                worker_id="reconciler-new", now="2026-07-12T00:00:03Z",
+            )
+            observation = {
+                **{key: fresh[key] for key in (
+                    "operation_id", "provider_call_id", "provider_id", "model_id",
+                    "logical_call_id", "snapshot_hash", "payload_hash", "idempotency_key_hash",
+                )},
+                "status": "remote_pending", "retry_authorized": False, "public_safe": True,
+            }
+            with self.assertRaisesRegex(ValueError, "stale|expired"):
+                persist_provider_reconciliation_observation(
+                    connection, operation_id=operation["operation_id"], scope=scope,
+                    lease=stale, observation={**observation, "provider_call_id": stale["provider_call_id"]},
+                    observed_at="2026-07-12T00:00:04Z",
+                )
+            persist_provider_reconciliation_observation(
+                connection, operation_id=operation["operation_id"], scope=scope,
+                lease=fresh, observation=observation, observed_at="2026-07-12T00:00:04Z",
+            )
+            self.assertEqual(_count(connection, "a2_provider_reconciliation_observations"), 1)
+        finally:
+            connection.close()
 
     def test_outbox_delivery_is_fenced_retryable_and_idempotent(self):
         connection = sqlite3.connect(":memory:")

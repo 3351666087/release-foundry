@@ -96,6 +96,9 @@ def authorize_provider_call(
     created_at: str,
     worker_id: str = "a2-inline-worker",
     lease_seconds: int = 60,
+    logical_call_id: str = "",
+    payload_hash: str = "",
+    idempotency_key_hash: str = "",
 ) -> dict[str, Any]:
     """Acquire fenced execution authority before handing control to the provider."""
     normalized_scope = _scope(scope)
@@ -107,9 +110,7 @@ def authorize_provider_call(
         if row is None or any(row[field] != value for field, value in normalized_scope.items()):
             raise ValueError("decision operation scope mismatch")
         expired = bool(row.get("lease_expires_at")) and _timestamp(row["lease_expires_at"]) <= now
-        if row["status"] != "reserved" and not (
-            row["status"] in {"provider_running", "recovery_required"} and expired
-        ):
+        if row["status"] != "reserved" and not (row["status"] == "provider_running" and expired):
             raise ValueError(f"decision operation cannot acquire lease from status {row['status']}")
         fencing_token = int(row["fencing_token"]) + 1
         provider_call_id = stable_hash(
@@ -120,11 +121,13 @@ def authorize_provider_call(
             UPDATE a2_decision_operations
             SET status = 'provider_running', lease_owner = ?, lease_expires_at = ?,
                 fencing_token = ?, attempt_count = attempt_count + 1,
-                provider_call_id = ?, updated_at = ?
+                provider_call_id = ?, logical_call_id = ?, provider_payload_hash = ?,
+                provider_idempotency_key_hash = ?, updated_at = ?
             WHERE operation_id = ? AND fencing_token = ?
             """,
             (
                 worker_id, lease_expires_at, fencing_token, provider_call_id,
+                logical_call_id, payload_hash, idempotency_key_hash,
                 created_at, operation_id, row["fencing_token"],
             ),
         )
@@ -145,6 +148,120 @@ def authorize_provider_call(
         "provider_call_id": provider_call_id,
         "lease_expires_at": lease_expires_at,
     }
+
+
+def claim_provider_reconciliation(
+    connection: sqlite3.Connection,
+    *,
+    operation_id: str,
+    scope: dict[str, str],
+    worker_id: str,
+    now: str,
+    lease_seconds: int = 60,
+) -> dict[str, Any]:
+    """Claim one uncertain Provider operation without authorizing another call."""
+    if lease_seconds <= 0:
+        raise ValueError("lease_seconds must be positive")
+    normalized_scope = _scope(scope)
+    now_value = _timestamp(now)
+    lease_expires_at = (now_value + timedelta(seconds=lease_seconds)).isoformat().replace("+00:00", "Z")
+    try:
+        connection.execute("BEGIN IMMEDIATE")
+        row = _operation_by_id(connection, operation_id)
+        if row is None or any(row[field] != value for field, value in normalized_scope.items()):
+            raise ValueError("decision operation scope mismatch")
+        if row["status"] != "recovery_required":
+            raise ValueError(f"provider reconciliation cannot claim status {row['status']}")
+        active = (
+            bool(row.get("reconciliation_owner"))
+            and bool(row.get("reconciliation_lease_expires_at"))
+            and _timestamp(row["reconciliation_lease_expires_at"]) > now_value
+        )
+        if active:
+            raise ValueError("provider reconciliation lease contention")
+        required = ("provider_call_id", "logical_call_id", "provider_payload_hash", "provider_idempotency_key_hash")
+        if any(not row.get(field) for field in required):
+            raise ValueError("provider reconciliation identity is incomplete")
+        generation = int(row["reconciliation_generation"]) + 1
+        cursor = connection.execute(
+            """
+            UPDATE a2_decision_operations
+            SET reconciliation_owner = ?, reconciliation_lease_expires_at = ?,
+                reconciliation_generation = ?,
+                reconciliation_attempt_count = reconciliation_attempt_count + 1,
+                reconciliation_next_at = NULL, updated_at = ?
+            WHERE operation_id = ? AND status = 'recovery_required'
+              AND reconciliation_generation = ?
+            """,
+            (worker_id, lease_expires_at, generation, now, operation_id, row["reconciliation_generation"]),
+        )
+        if cursor.rowcount != 1:
+            raise ValueError("provider reconciliation lease contention")
+        _write_operation_audit(
+            connection, operation_id, normalized_scope, "provider_reconciliation_claimed", now,
+            {"provider_fencing_token": row["fencing_token"], "reconciliation_generation": generation},
+        )
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+    return {
+        "operation_id": operation_id,
+        "worker_id": worker_id,
+        "provider_call_id": row["provider_call_id"],
+        "fencing_token": int(row["fencing_token"]),
+        "reconciliation_generation": generation,
+        "lease_expires_at": lease_expires_at,
+        "provider_id": row["provider_id"],
+        "model_id": row["model_id"],
+        "logical_call_id": row["logical_call_id"],
+        "snapshot_hash": row["snapshot_hash"],
+        "payload_hash": row["provider_payload_hash"],
+        "idempotency_key_hash": row["provider_idempotency_key_hash"],
+    }
+
+
+def persist_provider_reconciliation_observation(
+    connection: sqlite3.Connection,
+    *,
+    operation_id: str,
+    scope: dict[str, str],
+    lease: dict[str, Any],
+    observation: dict[str, Any],
+    observed_at: str,
+    next_reconcile_at: str | None = None,
+) -> dict[str, Any]:
+    """Append one public-safe observation while keeping release and retry closed."""
+    normalized_scope = _scope(scope)
+    record = _reconciliation_record(operation_id, normalized_scope, lease, observation, observed_at, next_reconcile_at)
+    try:
+        connection.execute("BEGIN IMMEDIATE")
+        row = _operation_by_id(connection, operation_id)
+        _assert_reconciliation_fence(row, normalized_scope, lease, observed_at)
+        _insert_reconciliation_observation(connection, record)
+        connection.execute(
+            """
+            UPDATE a2_decision_operations
+            SET last_reconciliation_status = ?, last_reconciliation_observation_hash = ?,
+                reconciliation_next_at = ?, reconciliation_owner = NULL,
+                reconciliation_lease_expires_at = NULL, updated_at = ?
+            WHERE operation_id = ? AND reconciliation_owner = ?
+              AND reconciliation_generation = ?
+            """,
+            (
+                record["status"], record["observation_hash"], next_reconcile_at, observed_at,
+                operation_id, lease["worker_id"], lease["reconciliation_generation"],
+            ),
+        )
+        _write_operation_audit(
+            connection, operation_id, normalized_scope, "provider_reconciliation_observed", observed_at,
+            {"status": record["status"], "observation_hash": record["observation_hash"]},
+        )
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+    return record
 
 
 def persist_provider_outcome(
@@ -237,6 +354,103 @@ def persist_provider_outcome(
         "provider_call_id": str(lease["provider_call_id"]),
         "outcome_hash": outcome_hash,
         "recovery_envelope_hash": recovery_envelope_hash,
+    }
+
+
+def persist_reconciled_provider_outcome(
+    connection: sqlite3.Connection,
+    *,
+    operation_id: str,
+    scope: dict[str, str],
+    lease: dict[str, Any],
+    observation: dict[str, Any],
+    provider_result: dict[str, Any],
+    semantic_output: dict[str, Any],
+    recovery_envelope: dict[str, Any],
+    completed_at: str,
+    failure_injector: FailureInjector | None = None,
+) -> dict[str, str]:
+    """Atomically bridge a verified remote completion into the normal outcome path."""
+    normalized_scope = _scope(scope)
+    _validate_recovery_envelope(recovery_envelope, normalized_scope)
+    record = _reconciliation_record(operation_id, normalized_scope, lease, observation, completed_at, None)
+    if record["status"] != "remote_completed":
+        raise ValueError("only remote_completed may persist a reconciled outcome")
+    outcome = {
+        "provider_call_id": lease["provider_call_id"],
+        "operation_id": operation_id,
+        "fencing_token": lease["fencing_token"],
+        "provider_id": provider_result.get("provider_id"),
+        "model_id": provider_result.get("model_id"),
+        "normalized_status": provider_result.get("status"),
+        "response_hash": stable_hash(provider_result),
+        "semantic_output_hash": stable_hash(semantic_output),
+        "usage_hash": stable_hash(provider_result.get("usage") or {}),
+    }
+    outcome_hash = stable_hash(outcome)
+    envelope = dict(recovery_envelope)
+    envelope["provider_outcome_hash"] = outcome_hash
+    envelope_json = json.dumps(envelope, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    envelope_hash = stable_hash(envelope)
+    injector = failure_injector or (lambda _: None)
+    try:
+        connection.execute("BEGIN IMMEDIATE")
+        row = _operation_by_id(connection, operation_id)
+        _assert_reconciliation_fence(row, normalized_scope, lease, completed_at)
+        _insert_reconciliation_observation(connection, record)
+        injector("after_reconciliation_observation")
+        connection.execute(
+            """
+            INSERT INTO a2_provider_outcomes (
+              provider_call_id, operation_id, organization_id, tenant_id, workspace_id,
+              project_id, environment_id, fencing_token, provider_id, model_id,
+              normalized_status, response_hash, semantic_output_hash, usage_hash,
+              outcome_hash, recovery_envelope_schema, recovery_envelope_json,
+              recovery_envelope_hash, completed_at, public_safe
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+            """,
+            (
+                lease["provider_call_id"], operation_id, normalized_scope["organization_id"],
+                normalized_scope["tenant_id"], normalized_scope["workspace_id"],
+                normalized_scope["project_id"], normalized_scope["environment_id"],
+                lease["fencing_token"], str(provider_result.get("provider_id") or ""),
+                str(provider_result.get("model_id") or ""), str(provider_result.get("status") or "unknown"),
+                outcome["response_hash"], outcome["semantic_output_hash"], outcome["usage_hash"],
+                outcome_hash, envelope["schema_version"], envelope_json, envelope_hash, completed_at,
+            ),
+        )
+        injector("after_reconciled_provider_outcome")
+        cursor = connection.execute(
+            """
+            UPDATE a2_decision_operations
+            SET status = 'provider_completed', provider_outcome_hash = ?,
+                last_reconciliation_status = 'remote_completed',
+                last_reconciliation_observation_hash = ?,
+                reconciliation_owner = NULL, reconciliation_lease_expires_at = NULL,
+                updated_at = ?
+            WHERE operation_id = ? AND status = 'recovery_required'
+              AND reconciliation_owner = ? AND reconciliation_generation = ?
+              AND fencing_token = ?
+            """,
+            (
+                outcome_hash, record["observation_hash"], completed_at, operation_id,
+                lease["worker_id"], lease["reconciliation_generation"], lease["fencing_token"],
+            ),
+        )
+        if cursor.rowcount != 1:
+            raise ValueError("stale provider reconciliation fence")
+        _write_operation_audit(
+            connection, operation_id, normalized_scope, "reconciled_provider_outcome_persisted", completed_at,
+            {"observation_hash": record["observation_hash"], "outcome_hash": outcome_hash},
+        )
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+    return {
+        "provider_call_id": str(lease["provider_call_id"]),
+        "outcome_hash": outcome_hash,
+        "recovery_envelope_hash": envelope_hash,
     }
 
 
@@ -810,6 +1024,117 @@ def _assert_recovery_fence(
         or _timestamp(row["recovery_lease_expires_at"]) <= _timestamp(commit_now)
     ):
         raise ValueError("recovery lease expired")
+
+
+def _assert_reconciliation_fence(
+    row: dict[str, Any] | None,
+    scope: dict[str, str],
+    lease: dict[str, Any],
+    observed_at: str,
+) -> None:
+    if row is None or any(row[field] != value for field, value in scope.items()):
+        raise ValueError("decision operation scope mismatch")
+    if row["status"] != "recovery_required":
+        raise ValueError(f"decision operation expected recovery_required, got {row['status']}")
+    if (
+        row["reconciliation_owner"] != lease["worker_id"]
+        or int(row["reconciliation_generation"]) != int(lease["reconciliation_generation"])
+        or int(row["fencing_token"]) != int(lease["fencing_token"])
+    ):
+        raise ValueError("stale provider reconciliation fence")
+    if (
+        not row.get("reconciliation_lease_expires_at")
+        or _timestamp(row["reconciliation_lease_expires_at"]) <= _timestamp(observed_at)
+    ):
+        raise ValueError("provider reconciliation lease expired")
+
+
+def _reconciliation_record(
+    operation_id: str,
+    scope: dict[str, str],
+    lease: dict[str, Any],
+    observation: dict[str, Any],
+    observed_at: str,
+    next_reconcile_at: str | None,
+) -> dict[str, Any]:
+    status = str(observation.get("status") or "")
+    allowed = {
+        "remote_completed", "remote_pending", "remote_not_found",
+        "remote_unknown", "reconciliation_unsupported",
+    }
+    if status not in allowed:
+        raise ValueError("unsupported provider reconciliation status")
+    if observation.get("retry_authorized") is not False or observation.get("public_safe") is not True:
+        raise ValueError("provider reconciliation must remain public-safe and retry-closed")
+    normalized_output = observation.get("normalized_output")
+    if status != "remote_completed" and normalized_output is not None:
+        raise ValueError("non-completed reconciliation cannot contain normalized output")
+    normalized_json = (
+        json.dumps(normalized_output, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+        if normalized_output is not None else None
+    )
+    identity = {
+        "operation_id": operation_id,
+        "provider_call_id": lease["provider_call_id"],
+        "provider_fencing_token": lease["fencing_token"],
+        "reconciliation_generation": lease["reconciliation_generation"],
+        "provider_id": lease["provider_id"],
+        "model_id": lease["model_id"],
+        "logical_call_id": lease["logical_call_id"],
+        "snapshot_hash": lease["snapshot_hash"],
+        "payload_hash": lease["payload_hash"],
+        "idempotency_key_hash": lease["idempotency_key_hash"],
+    }
+    for field, expected in identity.items():
+        if observation.get(field) != expected and field not in {"provider_fencing_token", "reconciliation_generation"}:
+            raise ValueError(f"provider reconciliation {field} mismatch")
+    safe_observation = {
+        **identity,
+        "status": status,
+        "output_hash": observation.get("output_hash"),
+        "normalized_output_hash": stable_hash(normalized_output) if normalized_output is not None else None,
+        "observed_at": observed_at,
+        "next_reconcile_at": next_reconcile_at,
+        "retry_authorized": False,
+    }
+    observation_hash = stable_hash(safe_observation)
+    return {
+        "observation_id": stable_hash({"operation_id": operation_id, "observation_hash": observation_hash}),
+        **scope,
+        **safe_observation,
+        "query_hash": stable_hash(identity),
+        "normalized_output_json": normalized_json,
+        "observation_hash": observation_hash,
+        "public_safe": True,
+    }
+
+
+def _insert_reconciliation_observation(
+    connection: sqlite3.Connection,
+    record: dict[str, Any],
+) -> None:
+    connection.execute(
+        """
+        INSERT INTO a2_provider_reconciliation_observations (
+          observation_id, operation_id, organization_id, tenant_id, workspace_id,
+          project_id, environment_id, provider_call_id, provider_fencing_token,
+          reconciliation_generation, provider_id, model_id, logical_call_id,
+          snapshot_hash, payload_hash, idempotency_key_hash, query_hash, status,
+          output_hash, normalized_output_json, normalized_output_hash, observation_hash,
+          retry_authorized, observed_at, next_reconcile_at, public_safe
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 1)
+        """,
+        (
+            record["observation_id"], record["operation_id"], record["organization_id"],
+            record["tenant_id"], record["workspace_id"], record["project_id"],
+            record["environment_id"], record["provider_call_id"], record["provider_fencing_token"],
+            record["reconciliation_generation"], record["provider_id"], record["model_id"],
+            record["logical_call_id"], record["snapshot_hash"], record["payload_hash"],
+            record["idempotency_key_hash"], record["query_hash"], record["status"],
+            record["output_hash"], record["normalized_output_json"], record["normalized_output_hash"],
+            record["observation_hash"], record["observed_at"], record["next_reconcile_at"],
+        ),
+    )
 
 
 def _validate_recovery_envelope(

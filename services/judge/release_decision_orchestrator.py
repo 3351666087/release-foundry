@@ -15,10 +15,13 @@ from .result_persistence import stable_hash
 from .release_decision_store import (
     FailureInjector,
     authorize_provider_call,
+    claim_provider_reconciliation,
     claim_decision_recovery,
     load_decision_recovery_envelope,
     mark_operation_recovery_required,
     persist_provider_outcome,
+    persist_provider_reconciliation_observation,
+    persist_reconciled_provider_outcome,
     persist_release_decision,
     reserve_decision_operation,
 )
@@ -69,6 +72,18 @@ def execute_release_decision(
         ),
     )
     request_hash = stable_hash(_request_identity(request, snapshot))
+    parts = _provider_parts(snapshot, request.get("judge_prompt"))
+    provider_request_core = {
+        "schema_version": "a2.provider_gateway.v1",
+        "tenant_id": scope["tenant_id"],
+        "snapshot_id": str(snapshot["snapshot_id"]),
+        "snapshot_hash": str(snapshot["snapshot_hash"]),
+        "provider_id": str(request["provider_id"]),
+        "model_id": str(request["model_id"]),
+        "modalities": sorted({str(part.get("modality") or "") for part in parts}),
+        "payload_hash": stable_hash(parts),
+        "idempotency_key": str(request["idempotency_key"]),
+    }
     operation = None
     lease = None
     if persistence_connection is not None:
@@ -92,8 +107,10 @@ def execute_release_decision(
             created_at=str(request["created_at"]),
             worker_id=worker_id,
             lease_seconds=lease_seconds,
+            logical_call_id=stable_hash(provider_request_core),
+            payload_hash=provider_request_core["payload_hash"],
+            idempotency_key_hash=stable_hash(str(request["idempotency_key"])),
         )
-    parts = _provider_parts(snapshot, request.get("judge_prompt"))
     try:
         provider_result = gateway.invoke(
             tenant_id=scope["tenant_id"],
@@ -158,6 +175,85 @@ def execute_release_decision(
     return result
 
 
+def reconcile_release_decision(
+    request: dict[str, Any],
+    *,
+    gateway: ProviderGateway,
+    key_resolver: Callable[[str], bytes],
+    now_unix_ms: int,
+    connection: sqlite3.Connection,
+    operation_id: str,
+    worker_id: str = "a2-reconciliation-worker",
+    now: str,
+    lease_seconds: int = 60,
+    next_reconcile_at: str | None = None,
+    persistence_failure_injector: FailureInjector | None = None,
+) -> dict[str, Any]:
+    """Reconcile an uncertain Provider call without invoking or retrying it."""
+    scope = _scope(request)
+    run_payload, bundle_verification = _authenticated_run(
+        request, key_resolver=key_resolver, now_unix_ms=now_unix_ms,
+        tenant_id=scope["tenant_id"], project_id=scope["project_id"],
+    )
+    snapshot = build_evidence_snapshot(
+        run_payload, **scope, run_id=str(request["run_id"]), case_id=str(request["case_id"]),
+        scenario_id=str(request["scenario_id"]), created_at=str(request["created_at"]),
+        required_modalities=[str(item) for item in request.get("required_modalities", ["text"])],
+        source_schema_version=str(
+            run_payload.get("aggregate_metrics", {}).get("schema_version")
+            or request.get("source_schema_version") or "unknown"
+        ),
+    )
+    lease = claim_provider_reconciliation(
+        connection, operation_id=operation_id, scope=scope, worker_id=worker_id,
+        now=now, lease_seconds=lease_seconds,
+    )
+    observation = gateway.reconcile(
+        scope=scope, operation_id=operation_id, provider_call_id=lease["provider_call_id"],
+        logical_call_id=lease["logical_call_id"], provider_id=lease["provider_id"],
+        model_id=lease["model_id"], snapshot_hash=lease["snapshot_hash"],
+        payload_hash=lease["payload_hash"], idempotency_key_hash=lease["idempotency_key_hash"],
+        provider_generation=lease["fencing_token"],
+        timeout_seconds=float(request.get("timeout_seconds", 30)),
+    )
+    if observation["status"] != "remote_completed":
+        persist_provider_reconciliation_observation(
+            connection, operation_id=operation_id, scope=scope, lease=lease,
+            observation=observation, observed_at=now, next_reconcile_at=next_reconcile_at,
+        )
+        return _reconciliation_blocked(operation_id, observation["status"])
+    semantic_output = observation["normalized_output"]
+    provider_result = {
+        "provider_id": lease["provider_id"],
+        "model_id": lease["model_id"],
+        "status": "completed",
+        "logical_call_id": lease["logical_call_id"],
+        "response_hash": observation["output_hash"],
+        "blockers": [],
+        "usage": {},
+        "evaluation_eligible": True,
+        "release_authority": False,
+        "raw_request_included": False,
+        "raw_response_included": False,
+        "secret_included": False,
+    }
+    envelope = _build_recovery_envelope(
+        request=request, scope=scope, snapshot=snapshot, provider_result=provider_result,
+        semantic_output=semantic_output, bundle_verification=bundle_verification,
+    )
+    persist_reconciled_provider_outcome(
+        connection, operation_id=operation_id, scope=scope, lease=lease,
+        observation=observation, provider_result=provider_result,
+        semantic_output=semantic_output, recovery_envelope=envelope, completed_at=now,
+        failure_injector=persistence_failure_injector,
+    )
+    return recover_release_decision(
+        connection, operation_id=operation_id, scope=scope, worker_id=worker_id,
+        now=now, lease_seconds=lease_seconds,
+        persistence_failure_injector=persistence_failure_injector,
+    )
+
+
 def recover_release_decision(
     connection: sqlite3.Connection,
     *,
@@ -197,6 +293,13 @@ def recover_release_decision(
     result["metadata"]["recovered_without_provider_call"] = True
     result["a3_consumption"]["release_ready"] = decision == "allow"
     result["a3_consumption"]["committed_record_id"] = persistence["record_id"]
+    return result
+
+
+def _reconciliation_blocked(operation_id: str, status: str) -> dict[str, Any]:
+    result = _replayed_operation({"operation_id": operation_id, "status": "recovery_required"})
+    result["metadata"]["reconciliation_status"] = status
+    result["metadata"]["retry_authorized"] = False
     return result
 
 
