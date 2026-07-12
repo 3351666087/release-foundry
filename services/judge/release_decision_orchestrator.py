@@ -12,7 +12,13 @@ from .provider_runtime import (
     verify_authenticated_evidence_bundle,
 )
 from .result_persistence import stable_hash
-from .release_decision_store import FailureInjector, persist_release_decision
+from .release_decision_store import (
+    FailureInjector,
+    authorize_provider_call,
+    mark_operation_recovery_required,
+    persist_release_decision,
+    reserve_decision_operation,
+)
 from .trusted_spine import (
     build_decision_ledger,
     build_decision_record,
@@ -56,17 +62,49 @@ def execute_release_decision(
             or "unknown"
         ),
     )
+    request_hash = stable_hash(_request_identity(request, snapshot))
+    operation = None
+    if persistence_connection is not None:
+        operation = reserve_decision_operation(
+            persistence_connection,
+            scope=scope,
+            idempotency_key=str(request["idempotency_key"]),
+            request_hash=request_hash,
+            snapshot_id=str(snapshot["snapshot_id"]),
+            snapshot_hash=str(snapshot["snapshot_hash"]),
+            provider_id=str(request["provider_id"]),
+            model_id=str(request["model_id"]),
+            created_at=str(request["created_at"]),
+        )
+        if operation["replay"]:
+            return _replayed_operation(operation)
+        authorize_provider_call(
+            persistence_connection,
+            operation_id=str(operation["operation_id"]),
+            scope=scope,
+            created_at=str(request["created_at"]),
+        )
     parts = _provider_parts(snapshot, request.get("judge_prompt"))
-    provider_result = gateway.invoke(
-        tenant_id=scope["tenant_id"],
-        snapshot=snapshot,
-        provider_id=str(request["provider_id"]),
-        model_id=str(request["model_id"]),
-        parts=parts,
-        idempotency_key=str(request["idempotency_key"]),
-        timeout_seconds=float(request.get("timeout_seconds", 30)),
-        max_cost_usd=float(request.get("max_cost_usd", 0)),
-    )
+    try:
+        provider_result = gateway.invoke(
+            tenant_id=scope["tenant_id"],
+            snapshot=snapshot,
+            provider_id=str(request["provider_id"]),
+            model_id=str(request["model_id"]),
+            parts=parts,
+            idempotency_key=str(request["idempotency_key"]),
+            timeout_seconds=float(request.get("timeout_seconds", 30)),
+            max_cost_usd=float(request.get("max_cost_usd", 0)),
+        )
+    except BaseException:
+        if persistence_connection is not None and operation is not None:
+            mark_operation_recovery_required(
+                persistence_connection,
+                operation_id=str(operation["operation_id"]),
+                scope=scope,
+                created_at=str(request["created_at"]),
+            )
+        raise
     semantic_output = _semantic_output(provider_result)
     provenance = build_provider_provenance_handoff(
         tenant_scope=scope,
@@ -131,7 +169,8 @@ def execute_release_decision(
             persistence_connection,
             result,
             idempotency_key=str(request["idempotency_key"]),
-            request_hash=stable_hash(_request_identity(request, snapshot)),
+            request_hash=request_hash,
+            operation_id=str(operation["operation_id"]) if operation else None,
             failure_injector=persistence_failure_injector,
         )
         result["persistence"] = persistence
@@ -139,6 +178,65 @@ def execute_release_decision(
         result["a3_consumption"]["release_ready"] = decision == "allow"
         result["a3_consumption"]["committed_record_id"] = persistence["record_id"]
     return result
+
+
+def _replayed_operation(operation: dict[str, Any]) -> dict[str, Any]:
+    status = str(operation.get("status") or "recovery_required")
+    if status == "committed":
+        decision = str(operation.get("decision") or "block")
+        return {
+            "schema_version": ORCHESTRATION_SCHEMA_VERSION,
+            "persistence": {
+                "committed": True,
+                "idempotent_replay": True,
+                "operation_id": operation["operation_id"],
+                "record_id": operation["record_id"],
+                "record_hash": operation["record_hash"],
+                "decision": decision,
+            },
+            "a3_consumption": {
+                "release_ready": decision == "allow",
+                "display_decision": decision,
+                "review_required": decision == "review",
+                "display_provenance_hash": operation["record_hash"],
+                "may_recompute_grade": False,
+                "committed_decision_required": True,
+                "committed_record_id": operation["record_id"],
+            },
+            "metadata": {
+                "public_safe": True,
+                "persistence_status": "committed",
+                "idempotent_replay": True,
+                "raw_evidence_included": False,
+                "raw_provider_payload_included": False,
+                "secrets_included": False,
+            },
+        }
+    replay_status = "in_progress" if status in {"reserved", "evaluating"} else "recovery_required"
+    return {
+        "schema_version": ORCHESTRATION_SCHEMA_VERSION,
+        "persistence": {
+            "committed": False,
+            "idempotent_replay": True,
+            "operation_id": operation["operation_id"],
+            "status": replay_status,
+        },
+        "a3_consumption": {
+            "release_ready": False,
+            "display_decision": "review",
+            "review_required": True,
+            "may_recompute_grade": False,
+            "committed_decision_required": True,
+        },
+        "metadata": {
+            "public_safe": True,
+            "persistence_status": replay_status,
+            "idempotent_replay": True,
+            "raw_evidence_included": False,
+            "raw_provider_payload_included": False,
+            "secrets_included": False,
+        },
+    }
 
 
 def _request_identity(request: dict[str, Any], snapshot: dict[str, Any]) -> dict[str, Any]:

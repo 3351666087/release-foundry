@@ -132,6 +132,44 @@ CREATE TABLE IF NOT EXISTS a2_release_decisions (
   UNIQUE(tenant_id, project_id, idempotency_key)
 );
 
+CREATE TABLE IF NOT EXISTS a2_decision_operations (
+  operation_id TEXT PRIMARY KEY,
+  idempotency_key TEXT NOT NULL,
+  organization_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL,
+  workspace_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  environment_id TEXT NOT NULL,
+  request_hash TEXT NOT NULL,
+  snapshot_id TEXT NOT NULL,
+  snapshot_hash TEXT NOT NULL,
+  provider_id TEXT NOT NULL,
+  model_id TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (
+    status IN ('reserved', 'evaluating', 'committed', 'recovery_required')
+  ),
+  record_id TEXT,
+  record_hash TEXT,
+  decision TEXT CHECK (decision IS NULL OR decision IN ('allow', 'block', 'review')),
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL,
+  UNIQUE(
+    organization_id, tenant_id, workspace_id, project_id, environment_id,
+    idempotency_key
+  )
+);
+
+CREATE TABLE IF NOT EXISTS a2_decision_operation_audit (
+  audit_id TEXT PRIMARY KEY,
+  operation_id TEXT NOT NULL REFERENCES a2_decision_operations(operation_id) ON DELETE CASCADE,
+  tenant_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  event_type TEXT NOT NULL,
+  event_hash TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  UNIQUE(operation_id, event_type)
+);
+
 CREATE TABLE IF NOT EXISTS a2_release_decision_audit (
   audit_id TEXT PRIMARY KEY,
   record_id TEXT NOT NULL REFERENCES a2_release_decisions(record_id) ON DELETE CASCADE,
@@ -150,6 +188,8 @@ CREATE INDEX IF NOT EXISTS idx_a2_golden_scenario ON a2_golden_cases(scenario_id
 CREATE INDEX IF NOT EXISTS idx_a2_regression_scenario ON a2_regression_history(scenario_id);
 CREATE INDEX IF NOT EXISTS idx_a2_release_decisions_scope
   ON a2_release_decisions(tenant_id, project_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_a2_decision_operations_status
+  ON a2_decision_operations(tenant_id, project_id, status, updated_at);
 """
 
 

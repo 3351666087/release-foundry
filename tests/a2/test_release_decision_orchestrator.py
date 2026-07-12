@@ -3,11 +3,13 @@ import hmac
 import json
 import sqlite3
 import unittest
+from unittest.mock import patch
 
 from services.judge.provider_gateway import ProviderDefinition, ProviderGateway, StrictFakeAdapter
 from services.judge.provider_runtime import AUTHENTICATED_BUNDLE_SCHEMA_VERSION, validate_semantic_judge_output
 from services.judge.release_decision_orchestrator import execute_release_decision
 from services.judge.release_decision_store import IdempotencyConflictError, persist_release_decision
+from services.judge.release_decision_store import reserve_decision_operation
 from services.judge.result_persistence import stable_hash
 from services.judge.sql_store import initialize_sql_store
 
@@ -100,6 +102,14 @@ def gateway(response=None, *, failure="", audit_writer=None):
         audit_writer=audit_writer,
         response_validator=validate_semantic_judge_output,
     )
+
+
+class ProcessInterruptedAdapter:
+    calls = 0
+
+    def invoke(self, model, payload, timeout_seconds):
+        self.calls += 1
+        raise KeyboardInterrupt("worker terminated during provider call")
 
 
 class ReleaseDecisionOrchestratorTests(unittest.TestCase):
@@ -203,6 +213,132 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
             self.assertTrue(repeated["persistence"]["idempotent_replay"])
             self.assertEqual(_count(connection, "a2_release_decisions"), 1)
             self.assertEqual(_count(connection, "a2_release_decision_audit"), 1)
+            self.assertEqual(_count(connection, "a2_decision_operations"), 1)
+            self.assertEqual(_count(connection, "a2_decision_operation_audit"), 3)
+        finally:
+            connection.close()
+
+    def test_durable_retry_after_worker_restart_does_not_call_provider_again(self):
+        connection = sqlite3.connect(":memory:")
+        try:
+            initialize_sql_store(connection)
+            first_gateway = gateway()
+            first = execute_release_decision(
+                request(), gateway=first_gateway, key_resolver=lambda _: KEY, now_unix_ms=NOW,
+                persistence_connection=connection,
+            )
+            second_gateway = gateway()
+            replay = execute_release_decision(
+                request(), gateway=second_gateway, key_resolver=lambda _: KEY, now_unix_ms=NOW,
+                persistence_connection=connection,
+            )
+            self.assertEqual(first_gateway.adapters["fake"].calls, 1)
+            self.assertEqual(second_gateway.adapters["fake"].calls, 0)
+            self.assertTrue(replay["persistence"]["idempotent_replay"])
+            self.assertEqual(replay["persistence"]["record_hash"], first["persistence"]["record_hash"])
+            self.assertTrue(replay["a3_consumption"]["release_ready"])
+        finally:
+            connection.close()
+
+    def test_interrupted_provider_call_requires_recovery_and_is_not_replayed(self):
+        connection = sqlite3.connect(":memory:")
+        try:
+            initialize_sql_store(connection)
+            provider = ProviderDefinition(
+                "unit", "interrupt", "local", "", frozenset({"text"}), frozenset({"tenant-a"}),
+                data_residency="local",
+            )
+            interrupted = ProcessInterruptedAdapter()
+            interrupted_gateway = ProviderGateway(
+                [provider],
+                {"interrupt": interrupted},
+                audit_writer=lambda _: None,
+                response_validator=validate_semantic_judge_output,
+            )
+            with self.assertRaises(KeyboardInterrupt):
+                execute_release_decision(
+                    request(), gateway=interrupted_gateway, key_resolver=lambda _: KEY, now_unix_ms=NOW,
+                    persistence_connection=connection,
+                )
+            retry_gateway = gateway()
+            recovery = execute_release_decision(
+                request(), gateway=retry_gateway, key_resolver=lambda _: KEY, now_unix_ms=NOW,
+                persistence_connection=connection,
+            )
+            status = connection.execute(
+                "SELECT status FROM a2_decision_operations"
+            ).fetchone()[0]
+            self.assertEqual(interrupted.calls, 1)
+            self.assertEqual(retry_gateway.adapters["fake"].calls, 0)
+            self.assertEqual(status, "recovery_required")
+            self.assertEqual(recovery["metadata"]["persistence_status"], "recovery_required")
+            self.assertTrue(recovery["a3_consumption"]["review_required"])
+            self.assertFalse(recovery["a3_consumption"]["release_ready"])
+            self.assertEqual(_count(connection, "a2_release_decisions"), 0)
+        finally:
+            connection.close()
+
+    def test_active_reservation_replay_stays_in_progress_without_provider_call(self):
+        connection = sqlite3.connect(":memory:")
+        try:
+            initialize_sql_store(connection)
+            scope = {
+                "organization_id": "org-a",
+                "tenant_id": "tenant-a",
+                "workspace_id": "workspace-a",
+                "project_id": "project-a",
+                "environment_id": "test",
+            }
+            first = reserve_decision_operation(
+                connection,
+                scope=scope,
+                idempotency_key="abandoned",
+                request_hash="sha256:request",
+                snapshot_id="sha256:snapshot-id",
+                snapshot_hash="sha256:snapshot",
+                provider_id="unit",
+                model_id="semantic-1",
+                created_at="2026-07-12T00:00:00Z",
+            )
+            replay = reserve_decision_operation(
+                connection,
+                scope=scope,
+                idempotency_key="abandoned",
+                request_hash="sha256:request",
+                snapshot_id="sha256:snapshot-id",
+                snapshot_hash="sha256:snapshot",
+                provider_id="unit",
+                model_id="semantic-1",
+                created_at="2026-07-12T00:01:00Z",
+            )
+            self.assertEqual(first["status"], "reserved")
+            self.assertEqual(replay["status"], "reserved")
+            self.assertFalse(replay["provider_call_allowed"])
+            self.assertEqual(
+                connection.execute("SELECT status FROM a2_decision_operations").fetchone()[0],
+                "reserved",
+            )
+            self.assertEqual(_count(connection, "a2_decision_operation_audit"), 1)
+        finally:
+            connection.close()
+
+    def test_reservation_failure_prevents_provider_invocation(self):
+        connection = sqlite3.connect(":memory:")
+        try:
+            initialize_sql_store(connection)
+            provider_gateway = gateway()
+            with patch(
+                "services.judge.release_decision_orchestrator.reserve_decision_operation",
+                side_effect=sqlite3.OperationalError("reservation unavailable"),
+            ):
+                with self.assertRaisesRegex(sqlite3.OperationalError, "reservation unavailable"):
+                    execute_release_decision(
+                        request(), gateway=provider_gateway, key_resolver=lambda _: KEY,
+                        now_unix_ms=NOW, persistence_connection=connection,
+                    )
+            self.assertEqual(provider_gateway.adapters["fake"].calls, 0)
+            self.assertEqual(_count(connection, "a2_release_decisions"), 0)
+            self.assertEqual(_count(connection, "a2_decision_operations"), 0)
         finally:
             connection.close()
 
