@@ -24,6 +24,7 @@ from services.judge.local_multimodal_calibration import (
     compare_ocr_with_fixture_text,
     compare_prompt_bindings,
     canonicalize_prompt_template,
+    validate_prompt_lineage,
     evaluate_prompt_binding_promotion,
     run_optional_ocr_adapter,
     summarize_multimodal_stability,
@@ -910,7 +911,17 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
         self.assertTrue(rich["token_boxes_hash"].startswith("sha256:"))
         self.assertNotIn("tokens", rich)
         self.assertGreaterEqual(rich["latency_ms"], 0)
+        self.assertEqual(rich["confidence_summary"]["count"], 1)
+        self.assertNotIn("text", rich["confidence_summary"])
+        self.assert_schema("ocr_observation.schema.json", rich)
         self.assertTrue(build_offline_ocr_closure(ocr_observation=absent)["deterministic_closure_available"])
+        with self.assertRaisesRegex(ValueError, "adapter_version_hash"):
+            run_optional_ocr_adapter(
+                image_path="fixture.png",
+                adapter_id="rapidocr",
+                adapter_version_hash="invalid",
+                adapter=lambda _: "SAFE",
+            )
 
     def test_sidecar_binds_extractor_and_icon_detector_provenance(self):
         common = {
@@ -1011,6 +1022,24 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
         first = canonicalize_prompt_template("Judge this.  \r\nReturn JSON.\r\n")
         second = canonicalize_prompt_template("Judge this.\nReturn JSON.")
         self.assertEqual(first, second)
+        unicode_lines = canonicalize_prompt_template("Judge this.  \rReturn JSON.  ")
+        self.assertEqual(first, unicode_lines)
+        self.assertFalse(
+            validate_prompt_lineage(
+                current_prompt_hash="sha256:" + "1" * 64,
+                supersedes_prompt_hash="sha256:" + "1" * 64,
+                known_lineage={},
+            )["lineage_valid"]
+        )
+        cycle = validate_prompt_lineage(
+            current_prompt_hash="sha256:" + "1" * 64,
+            supersedes_prompt_hash="sha256:" + "2" * 64,
+            known_lineage={
+                "sha256:" + "2" * 64: "sha256:" + "3" * 64,
+                "sha256:" + "3" * 64: "sha256:" + "1" * 64,
+            },
+        )
+        self.assertIn("prompt_lineage_cycle", cycle["blockers"])
 
     def test_round19_real_ocr_control_fixture_records_false_positive_and_expiry(self):
         fixture = json.loads(
@@ -1072,9 +1101,39 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
         )
         self.assertEqual(metrics["recall"], 1)
         self.assertEqual(metrics["specificity"], 0)
+        self.assertEqual(len(metrics["recall_wilson_95"]), 2)
+        self.assertEqual(len(metrics["specificity_wilson_95"]), 2)
         self.assertEqual(promotion["promotion_state"], "blocked")
         self.assertIn("specificity_below_policy", promotion["blockers"])
         self.assertEqual(fixture["qualification_state"], "blocked")
+        self.assert_schema("multimodal_round20_specificity_controls.schema.json", fixture)
+        conservative = evaluate_prompt_binding_promotion(
+            reviewed_golden_case_count=4,
+            minimum_reviewed_golden_cases=4,
+            safety_false_negative_count=0,
+            latency_qualified=True,
+            specificity=1,
+            minimum_specificity=0.9,
+            specificity_wilson_lower_bound=metrics["specificity_wilson_95"][0],
+            minimum_specificity_lower_bound=0.5,
+            false_positive_rate=0.75,
+            maximum_false_positive_rate=0.1,
+        )
+        self.assertIn("specificity_lower_bound_below_policy", conservative["blockers"])
+        self.assertIn("false_positive_rate_above_policy", conservative["blockers"])
+
+    def test_round21_qwen_controls_fail_closed_on_empty_structured_output(self):
+        fixture = json.loads(
+            (ROOT / "fixtures/a2/calibration/qwen3_vl_4b_round21_control_observations.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(fixture["structured_output_state"], "malformed_empty_response")
+        self.assertEqual(fixture["specificity_comparison_state"], "not_comparable")
+        self.assertTrue(all(item["response"] == "" for item in fixture["controls"].values()))
+        self.assertTrue(all(item["wall_seconds"] < 30 for item in fixture["controls"].values()))
+        self.assertEqual(fixture["qualification_state"], "blocked")
+        self.assertFalse(fixture["release_authority"])
 
 
 if __name__ == "__main__":

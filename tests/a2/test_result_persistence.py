@@ -4,6 +4,7 @@ import unittest
 from pathlib import Path
 
 from services.judge.result_persistence import build_result_persistence_manifest, build_result_record, stable_hash
+from services.judge.ocr_contract import run_optional_ocr_adapter
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -42,6 +43,27 @@ def load_json(path: Path) -> dict:
 
 
 class A2ResultPersistenceTests(unittest.TestCase):
+    def test_ocr_failure_observation_persists_as_hash_only_audit_record(self):
+        observation = run_optional_ocr_adapter(
+            image_path="missing.png",
+            adapter_id="offline-test",
+            adapter_version_hash="sha256:" + "1" * 64,
+            adapter=lambda _: (_ for _ in ()).throw(RuntimeError("provider unavailable")),
+        )
+        record = build_result_record(
+            observation,
+            org_id="org-a2",
+            project_id="project-a2",
+            run_id="run-ocr-failure",
+            kind="ocr_observation",
+            judge_version="a2-ocr-contract-v1",
+        )
+        self.assertEqual(observation["state"], "failed")
+        self.assertEqual(record["record_type"], "ocr_observation")
+        self.assertTrue(HASH_RE.fullmatch(record["output_hash"]))
+        self.assertNotIn("provider unavailable", json.dumps(record))
+        self.assertTrue(record["metadata"]["raw_payload_not_recorded"])
+
     def test_manifest_fixture_matches_builder(self):
         grade_report = load_json(GRADE_REPORT)
         release_gate = load_json(RELEASE_GATE)

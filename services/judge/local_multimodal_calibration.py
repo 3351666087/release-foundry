@@ -767,6 +767,10 @@ def evaluate_multimodal_safety_metrics(
     precision = true_positive_count / precision_denominator if precision_denominator else 0.0
     recall = true_positive_count / positive_count if positive_count else 0.0
     specificity = true_negative_count / negative_count if negative_count else 0.0
+    recall_wilson_95 = wilson_interval(true_positive_count, positive_count) if positive_count else [0.0, 0.0]
+    specificity_wilson_95 = (
+        wilson_interval(true_negative_count, negative_count) if negative_count else [0.0, 0.0]
+    )
     return {
         "schema_version": SAFETY_METRICS_SCHEMA_VERSION,
         "case_count": len(labeled_cases),
@@ -789,6 +793,8 @@ def evaluate_multimodal_safety_metrics(
         "precision": precision,
         "recall": recall,
         "specificity": specificity,
+        "recall_wilson_95": recall_wilson_95,
+        "specificity_wilson_95": specificity_wilson_95,
         "balanced_accuracy": (recall + specificity) / 2,
         "by_attack_taxonomy": taxonomy,
         "false_negative_case_ids": false_negative_ids,
@@ -890,6 +896,10 @@ def evaluate_prompt_binding_promotion(
     minimum_specificity: float = 0.0,
     prompt_version: str = "unversioned",
     supersedes_prompt_hash: str = "",
+    specificity_wilson_lower_bound: float | None = None,
+    minimum_specificity_lower_bound: float = 0.0,
+    false_positive_rate: float = 0.0,
+    maximum_false_positive_rate: float = 1.0,
 ) -> dict[str, Any]:
     blockers = []
     if reviewed_golden_case_count < minimum_reviewed_golden_cases:
@@ -900,6 +910,13 @@ def evaluate_prompt_binding_promotion(
         blockers.append("latency_not_qualified")
     if specificity < minimum_specificity:
         blockers.append("specificity_below_policy")
+    if (
+        specificity_wilson_lower_bound is not None
+        and specificity_wilson_lower_bound < minimum_specificity_lower_bound
+    ):
+        blockers.append("specificity_lower_bound_below_policy")
+    if false_positive_rate > maximum_false_positive_rate:
+        blockers.append("false_positive_rate_above_policy")
     return {
         "promotion_state": "eligible_for_human_approval" if not blockers else "blocked",
         "reviewed_golden_case_count": reviewed_golden_case_count,
@@ -908,6 +925,10 @@ def evaluate_prompt_binding_promotion(
         "minimum_specificity": minimum_specificity,
         "prompt_version": prompt_version,
         "supersedes_prompt_hash": supersedes_prompt_hash,
+        "specificity_wilson_lower_bound": specificity_wilson_lower_bound,
+        "minimum_specificity_lower_bound": minimum_specificity_lower_bound,
+        "false_positive_rate": false_positive_rate,
+        "maximum_false_positive_rate": maximum_false_positive_rate,
         "release_authority": False,
         "human_review_required": True,
         "blockers": blockers,
@@ -916,8 +937,38 @@ def evaluate_prompt_binding_promotion(
 
 
 def canonicalize_prompt_template(template: str) -> dict[str, str]:
-    canonical = "\n".join(line.rstrip() for line in template.replace("\r\n", "\n").strip().splitlines())
+    canonical = "\n".join(
+        line.rstrip()
+        for line in template.replace("\r\n", "\n").replace("\r", "\n").strip().splitlines()
+    )
     return {"canonical_template": canonical, "prompt_hash": stable_hash(canonical)}
+
+
+def validate_prompt_lineage(
+    *,
+    current_prompt_hash: str,
+    supersedes_prompt_hash: str,
+    known_lineage: dict[str, str],
+) -> dict[str, Any]:
+    blockers: list[str] = []
+    if supersedes_prompt_hash == current_prompt_hash:
+        blockers.append("prompt_cannot_supersede_itself")
+    seen = {current_prompt_hash}
+    cursor = supersedes_prompt_hash
+    while cursor:
+        if cursor in seen:
+            blockers.append("prompt_lineage_cycle")
+            break
+        seen.add(cursor)
+        cursor = known_lineage.get(cursor, "")
+    return {
+        "lineage_valid": not blockers,
+        "current_prompt_hash": current_prompt_hash,
+        "supersedes_prompt_hash": supersedes_prompt_hash,
+        "release_authority": False,
+        "blockers": blockers,
+        "public_safe": True,
+    }
 
 
 def build_adversarial_golden_candidate(

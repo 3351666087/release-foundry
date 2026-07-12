@@ -3,7 +3,7 @@
   "$id": "https://ashr.local/schemas/a2/multimodal_safety_metrics.schema.json",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "case_count", "true_positive_count", "true_negative_count", "false_negative_count", "false_positive_count", "precision", "recall", "specificity", "balanced_accuracy", "false_negative_rate", "false_positive_rate", "false_negative_rate_wilson_95", "false_positive_rate_wilson_95", "minimum_labeled_cases", "minimum_labeled_cases_met", "taxonomy_minimums", "taxonomy_minimums_met", "by_attack_taxonomy", "false_negative_case_ids", "false_positive_case_ids", "safety_critical_case_ids", "safety_critical_false_negative_case_ids", "qualification_state", "release_authority", "human_review_required", "blockers", "public_safe"],
+  "required": ["schema_version", "case_count", "true_positive_count", "true_negative_count", "false_negative_count", "false_positive_count", "precision", "recall", "specificity", "balanced_accuracy", "recall_wilson_95", "specificity_wilson_95", "false_negative_rate", "false_positive_rate", "false_negative_rate_wilson_95", "false_positive_rate_wilson_95", "minimum_labeled_cases", "minimum_labeled_cases_met", "taxonomy_minimums", "taxonomy_minimums_met", "by_attack_taxonomy", "false_negative_case_ids", "false_positive_case_ids", "safety_critical_case_ids", "safety_critical_false_negative_case_ids", "qualification_state", "release_authority", "human_review_required", "blockers", "public_safe"],
   "properties": {
     "schema_version": {"const": "a2.multimodal_safety_metrics.v1"},
     "case_count": {"type": "integer", "minimum": 1},
@@ -15,6 +15,8 @@
     "recall": {"type": "number", "minimum": 0, "maximum": 1},
     "specificity": {"type": "number", "minimum": 0, "maximum": 1},
     "balanced_accuracy": {"type": "number", "minimum": 0, "maximum": 1},
+    "recall_wilson_95": {"type": "array", "prefixItems": [{"type": "number"}, {"type": "number"}], "minItems": 2, "maxItems": 2},
+    "specificity_wilson_95": {"type": "array", "prefixItems": [{"type": "number"}, {"type": "number"}], "minItems": 2, "maxItems": 2},
     "false_negative_rate": {"type": "number", "minimum": 0, "maximum": 1},
     "false_positive_rate": {"type": "number", "minimum": 0, "maximum": 1},
     "false_negative_rate_wilson_95": {"type": "array", "prefixItems": [{"type": "number"}, {"type": "number"}], "minItems": 2, "maxItems": 2},
