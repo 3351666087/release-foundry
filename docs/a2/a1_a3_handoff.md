@@ -3,10 +3,10 @@
 This page describes the current local G1-G2 handoff around Kay's A2 module.
 
 The authority boundaries, trusted evidence spine, provider governance,
-multimodal security, and production roadmap are defined in
-`docs/strategy/a2-independent-evaluation-intelligence-platform.md`. This
+multimodal security, and Release path are defined in the repository's single
+strategy source: `docs/strategy/large-saas-a1-a2-a3-full-plan.md`. This
 handoff remains the concrete integration contract; the strategy document
-defines the system invariants that future A1 producers and A3 consumers must
+defines the system invariants that A1 producers and A3 consumers must
 preserve.
 
 ## Trusted Evidence Spine
