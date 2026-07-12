@@ -526,6 +526,67 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
         finally:
             connection.close()
 
+    def test_recovery_envelope_lookup_is_bound_to_full_scope(self):
+        connection = sqlite3.connect(":memory:")
+        try:
+            initialize_sql_store(connection)
+            execute_release_decision(
+                request(), gateway=gateway(), key_resolver=lambda _: KEY, now_unix_ms=NOW,
+                persistence_connection=connection,
+            )
+            operation_id = connection.execute(
+                "SELECT operation_id FROM a2_decision_operations"
+            ).fetchone()[0]
+            wrong_scope = {
+                "organization_id": "org-a", "tenant_id": "tenant-a",
+                "workspace_id": "workspace-other", "project_id": "project-a",
+                "environment_id": "test",
+            }
+            with self.assertRaisesRegex(ValueError, "binding mismatch"):
+                load_decision_recovery_envelope(
+                    connection, operation_id=operation_id, scope=wrong_scope,
+                )
+        finally:
+            connection.close()
+
+    def test_expired_recovery_lease_cannot_commit(self):
+        connection = sqlite3.connect(":memory:")
+        try:
+            initialize_sql_store(connection)
+
+            def fail(point):
+                if point == "after_provider_outcome_committed":
+                    raise OSError("crash")
+
+            with self.assertRaises(OSError):
+                execute_release_decision(
+                    request(), gateway=gateway(), key_resolver=lambda _: KEY, now_unix_ms=NOW,
+                    persistence_connection=connection, persistence_failure_injector=fail,
+                )
+            operation_id = connection.execute(
+                "SELECT operation_id FROM a2_decision_operations"
+            ).fetchone()[0]
+            scope = {key: request()[key] for key in (
+                "organization_id", "tenant_id", "workspace_id", "project_id", "environment_id",
+            )}
+            lease = claim_decision_recovery(
+                connection, operation_id=operation_id, scope=scope, worker_id="expired-worker",
+                now="2026-07-12T00:00:00Z", lease_seconds=1,
+            )
+            envelope = load_decision_recovery_envelope(
+                connection, operation_id=operation_id, scope=scope,
+            )
+            from services.judge.release_decision_orchestrator import _build_decision_result
+            with self.assertRaisesRegex(ValueError, "recovery lease expired"):
+                persist_release_decision(
+                    connection, _build_decision_result(envelope),
+                    idempotency_key=envelope["idempotency_key"],
+                    request_hash=envelope["request_hash"], operation_id=operation_id,
+                    lease=lease, commit_now="2026-07-12T00:00:02Z",
+                )
+        finally:
+            connection.close()
+
     def test_outbox_failure_rolls_back_decision_operation_and_audit(self):
         connection = sqlite3.connect(":memory:")
         try:

@@ -188,6 +188,7 @@ def recover_release_decision(
         request_hash=str(envelope["request_hash"]),
         operation_id=operation_id,
         lease=lease,
+        commit_now=now,
         failure_injector=persistence_failure_injector,
     )
     decision = result["a3_consumption"]["display_decision"]

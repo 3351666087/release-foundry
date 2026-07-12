@@ -5,8 +5,10 @@ from services.judge.provider_gateway import (
     ProviderDefinition,
     ProviderGateway,
     StrictFakeAdapter,
+    StrictFakeReconciliationAdapter,
     default_provider_catalog,
 )
+from services.judge.provider_runtime import validate_semantic_judge_output
 from services.judge.result_persistence import stable_hash
 
 
@@ -30,6 +32,7 @@ class A2ProviderGatewayTests(unittest.TestCase):
             "secret://unit/key",
             frozenset({"text", "image"}),
             frozenset({"tenant-a"}),
+            reconciliation_mode="provider_status_lookup",
         )
         self.audits = []
         self.gateway = ProviderGateway(
@@ -189,6 +192,91 @@ class A2ProviderGatewayTests(unittest.TestCase):
         for provider_id in ("openai", "anthropic", "google", "dashscope", "openrouter", "azure-openai"):
             self.assertFalse(catalog[provider_id].enabled)
             self.assertTrue(catalog[provider_id].credential_ref.startswith("secret://"))
+
+    def test_reconciliation_is_capability_gated_and_never_authorizes_retry(self):
+        base = {
+            "scope": {
+                "organization_id": "org-a", "tenant_id": "tenant-a",
+                "workspace_id": "workspace-a", "project_id": "project-a",
+                "environment_id": "test",
+            },
+            "operation_id": stable_hash("operation"),
+            "provider_call_id": stable_hash("provider-call"),
+            "logical_call_id": stable_hash("logical-call"),
+            "provider_id": "unit-provider",
+            "model_id": "unit-model",
+            "snapshot_hash": stable_hash("snapshot"),
+            "payload_hash": stable_hash("payload"),
+            "idempotency_key_hash": stable_hash("idempotency"),
+            "provider_generation": 1,
+        }
+        unsupported = self.gateway.reconcile(**base)
+        self.assertEqual(unsupported["status"], "reconciliation_unsupported")
+        self.assertFalse(unsupported["retry_authorized"])
+        self.assertFalse(unsupported["release_authority"])
+
+        adapter = StrictFakeReconciliationAdapter(
+            reconciliation_response={"status": "remote_not_found"}
+        )
+        gateway = ProviderGateway(
+            [self.provider], {"strict_fake": adapter},
+            response_validator=validate_semantic_judge_output,
+        )
+        not_found = gateway.reconcile(**base)
+        self.assertEqual(not_found["status"], "remote_not_found")
+        self.assertFalse(not_found["retry_authorized"])
+        self.assertFalse(not_found["evaluation_eligible"])
+
+    def test_only_fully_bound_remote_completion_is_evaluation_eligible(self):
+        base = {
+            "scope": {
+                "organization_id": "org-a", "tenant_id": "tenant-a",
+                "workspace_id": "workspace-a", "project_id": "project-a",
+                "environment_id": "test",
+            },
+            "operation_id": stable_hash("operation"),
+            "provider_call_id": stable_hash("provider-call"),
+            "logical_call_id": stable_hash("logical-call"),
+            "provider_id": "unit-provider",
+            "model_id": "unit-model",
+            "snapshot_hash": stable_hash("snapshot"),
+            "payload_hash": stable_hash("payload"),
+            "idempotency_key_hash": stable_hash("idempotency"),
+            "provider_generation": 1,
+        }
+        completed = {
+            "status": "remote_completed",
+            **{key: base[key] for key in (
+                "provider_call_id", "logical_call_id", "provider_id", "model_id",
+                "snapshot_hash", "payload_hash", "provider_generation",
+            )},
+            "output": {
+                "output_text": (
+                    '{"passed":true,"score":1,"reason":"verified",'
+                    '"failure_classes":[],"evidence_refs":["snapshot"],"abstained":false}'
+                ),
+                "usage": {},
+            },
+        }
+        adapter = StrictFakeReconciliationAdapter(reconciliation_response=completed)
+        gateway = ProviderGateway(
+            [self.provider], {"strict_fake": adapter},
+            response_validator=validate_semantic_judge_output,
+        )
+        verified = gateway.reconcile(**base)
+        self.assertEqual(verified["status"], "remote_completed")
+        self.assertTrue(verified["evaluation_eligible"])
+        self.assertIn("output_hash", verified)
+        self.assertIn("normalized_output", verified)
+        self.assertNotIn("output_text", str(verified))
+
+        adapter.reconciliation_response = {**completed, "snapshot_hash": stable_hash("wrong")}
+        rejected = ProviderGateway(
+            [self.provider], {"strict_fake": adapter},
+            response_validator=validate_semantic_judge_output,
+        ).reconcile(**base)
+        self.assertEqual(rejected["status"], "remote_unknown")
+        self.assertFalse(rejected["evaluation_eligible"])
 
 
 if __name__ == "__main__":

@@ -322,8 +322,17 @@ def load_decision_recovery_envelope(
         FROM a2_decision_operations o
         JOIN a2_provider_outcomes p ON p.operation_id = o.operation_id
         WHERE o.operation_id = ?
+          AND o.organization_id = ? AND o.tenant_id = ? AND o.workspace_id = ?
+          AND o.project_id = ? AND o.environment_id = ?
+          AND p.organization_id = o.organization_id AND p.tenant_id = o.tenant_id
+          AND p.workspace_id = o.workspace_id AND p.project_id = o.project_id
+          AND p.environment_id = o.environment_id
         """,
-        (operation_id,),
+        (
+            operation_id, normalized_scope["organization_id"], normalized_scope["tenant_id"],
+            normalized_scope["workspace_id"], normalized_scope["project_id"],
+            normalized_scope["environment_id"],
+        ),
     )
     row = _row_dict(cursor)
     if row is None or row["provider_outcome_hash"] != row["outcome_hash"]:
@@ -387,6 +396,7 @@ def persist_release_decision(
     request_hash: str,
     operation_id: str | None = None,
     lease: dict[str, Any] | None = None,
+    commit_now: str | None = None,
     failure_injector: FailureInjector | None = None,
 ) -> dict[str, Any]:
     """Atomically commit one decision and its mandatory audit event."""
@@ -444,7 +454,7 @@ def persist_release_decision(
             if lease is None:
                 raise ValueError("decision operation lease is required")
             if "recovery_generation" in lease:
-                _assert_recovery_fence(operation, scope, lease)
+                _assert_recovery_fence(operation, scope, lease, commit_now)
             else:
                 _assert_fence(operation, scope, lease, "provider_completed")
         connection.execute(
@@ -778,6 +788,7 @@ def _assert_recovery_fence(
     row: dict[str, Any] | None,
     scope: dict[str, str],
     lease: dict[str, Any],
+    commit_now: str | None,
 ) -> None:
     if row is None or any(row[field] != value for field, value in scope.items()):
         raise ValueError("decision operation scope mismatch")
@@ -792,6 +803,13 @@ def _assert_recovery_fence(
         or int(row["recovery_generation"]) != int(lease["recovery_generation"])
     ):
         raise ValueError("stale recovery generation")
+    if commit_now is None:
+        raise ValueError("recovery commit time is required")
+    if (
+        not row.get("recovery_lease_expires_at")
+        or _timestamp(row["recovery_lease_expires_at"]) <= _timestamp(commit_now)
+    ):
+        raise ValueError("recovery lease expired")
 
 
 def _validate_recovery_envelope(
