@@ -9,6 +9,11 @@ from .evaluation_quality_proof import (
     quality_proof_bindings,
     verify_evaluation_quality_proof,
 )
+from .evaluation_trust_policy import (
+    evaluation_trust_policy_hash,
+    normalize_evaluation_trust_policy,
+    verifier_arguments,
+)
 from .provider_gateway import ProviderGateway
 from .provider_runtime import (
     build_provider_provenance_handoff,
@@ -56,6 +61,9 @@ def execute_release_decision(
     quality_revoked_key_ids: frozenset[str] = frozenset(),
     quality_revoked_proof_hashes: frozenset[str] = frozenset(),
     quality_maximum_lifetime_ms: int = 86_400_000,
+    quality_issuer_tenants: dict[str, frozenset[str]] | None = None,
+    quality_maximum_review_age_ms: int = 604_800_000,
+    quality_trust_policy: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Execute one fail-closed semantic release decision from authenticated A1 evidence."""
     scope = _scope(request)
@@ -88,6 +96,15 @@ def execute_release_decision(
         _record_list(request, "derived_evidence_records"),
     )
     provider_payload_hash = stable_hash(parts)
+    trust_policy = _trust_policy(
+        quality_trust_policy,
+        allowed_issuers=quality_allowed_issuers,
+        issuer_tenants=quality_issuer_tenants,
+        revoked_key_ids=quality_revoked_key_ids,
+        revoked_proof_hashes=quality_revoked_proof_hashes,
+        maximum_lifetime_ms=quality_maximum_lifetime_ms,
+        maximum_review_age_ms=quality_maximum_review_age_ms,
+    )
     evaluation_quality = verify_evaluation_quality_proof(
         request.get("evaluation_quality_proof"),
         expected_bindings=quality_proof_bindings(
@@ -98,10 +115,7 @@ def execute_release_decision(
         ),
         key_resolver=key_resolver,
         now_unix_ms=now_unix_ms,
-        allowed_issuers=quality_allowed_issuers,
-        revoked_key_ids=quality_revoked_key_ids,
-        revoked_proof_hashes=quality_revoked_proof_hashes,
-        maximum_lifetime_ms=quality_maximum_lifetime_ms,
+        **verifier_arguments(trust_policy),
     )
     request_hash = stable_hash(
         _request_identity(
@@ -109,6 +123,7 @@ def execute_release_decision(
             snapshot,
             provider_payload_hash=provider_payload_hash,
             evaluation_quality=evaluation_quality,
+            trust_policy_hash=evaluation_trust_policy_hash(trust_policy),
         )
     )
     provider_request_core = {
@@ -192,6 +207,7 @@ def execute_release_decision(
         bundle_verification=bundle_verification,
         provider_payload_hash=provider_payload_hash,
         evaluation_quality=evaluation_quality,
+        trust_policy_hash=evaluation_trust_policy_hash(trust_policy),
     )
     if persistence_connection is not None and operation is not None and lease is not None:
         persist_provider_outcome(
@@ -244,6 +260,9 @@ def reconcile_release_decision(
     quality_revoked_key_ids: frozenset[str] = frozenset(),
     quality_revoked_proof_hashes: frozenset[str] = frozenset(),
     quality_maximum_lifetime_ms: int = 86_400_000,
+    quality_issuer_tenants: dict[str, frozenset[str]] | None = None,
+    quality_maximum_review_age_ms: int = 604_800_000,
+    quality_trust_policy: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Reconcile an uncertain Provider call without invoking or retrying it."""
     scope = _scope(request)
@@ -302,6 +321,15 @@ def reconcile_release_decision(
         _record_list(request, "derived_evidence_records"),
     )
     provider_payload_hash = stable_hash(parts)
+    trust_policy = _trust_policy(
+        quality_trust_policy,
+        allowed_issuers=quality_allowed_issuers,
+        issuer_tenants=quality_issuer_tenants,
+        revoked_key_ids=quality_revoked_key_ids,
+        revoked_proof_hashes=quality_revoked_proof_hashes,
+        maximum_lifetime_ms=quality_maximum_lifetime_ms,
+        maximum_review_age_ms=quality_maximum_review_age_ms,
+    )
     evaluation_quality = verify_evaluation_quality_proof(
         request.get("evaluation_quality_proof"),
         expected_bindings=quality_proof_bindings(
@@ -312,10 +340,7 @@ def reconcile_release_decision(
         ),
         key_resolver=key_resolver,
         now_unix_ms=now_unix_ms,
-        allowed_issuers=quality_allowed_issuers,
-        revoked_key_ids=quality_revoked_key_ids,
-        revoked_proof_hashes=quality_revoked_proof_hashes,
-        maximum_lifetime_ms=quality_maximum_lifetime_ms,
+        **verifier_arguments(trust_policy),
     )
     citation_validation = _validate_evidence_refs(
         snapshot,
@@ -327,6 +352,7 @@ def reconcile_release_decision(
         semantic_output=semantic_output, citation_validation=citation_validation,
         bundle_verification=bundle_verification, provider_payload_hash=provider_payload_hash,
         evaluation_quality=evaluation_quality,
+        trust_policy_hash=evaluation_trust_policy_hash(trust_policy),
     )
     persist_reconciled_provider_outcome(
         connection, operation_id=operation_id, scope=scope, lease=lease,
@@ -455,6 +481,7 @@ def _request_identity(
     *,
     provider_payload_hash: str = "",
     evaluation_quality: dict[str, Any] | None = None,
+    trust_policy_hash: str = "",
 ) -> dict[str, Any]:
     return {
         "scope": _scope(request),
@@ -465,6 +492,7 @@ def _request_identity(
         "model_id": request.get("model_id"),
         "policy_version": request.get("policy_version"),
         "evaluation_quality": evaluation_quality,
+        "evaluation_trust_policy_hash": trust_policy_hash,
         "required_modalities": snapshot.get("required_modalities"),
         "snapshot_hash": snapshot.get("snapshot_hash"),
         "provider_payload_hash": provider_payload_hash,
@@ -584,6 +612,7 @@ def _build_recovery_envelope(
     bundle_verification: dict[str, Any],
     provider_payload_hash: str,
     evaluation_quality: dict[str, Any],
+    trust_policy_hash: str,
 ) -> dict[str, Any]:
     provenance = build_provider_provenance_handoff(
         tenant_scope=scope,
@@ -611,6 +640,7 @@ def _build_recovery_envelope(
                 snapshot,
                 provider_payload_hash=provider_payload_hash,
                 evaluation_quality=evaluation_quality,
+                trust_policy_hash=trust_policy_hash,
             )
         ),
         "snapshot": snapshot,
@@ -634,6 +664,7 @@ def _build_recovery_envelope(
         },
         "policy_version": str(request.get("policy_version") or "a2.semantic_release_policy.v1"),
         "evaluation_quality": evaluation_quality,
+        "evaluation_trust_policy_hash": trust_policy_hash,
         "ledger_id": str(request.get("ledger_id") or f"{request['run_id']}:{request['case_id']}"),
         "judge_version": "provider-strict-v1",
         "builder_version": "a2.release-decision-builder.v1",
@@ -709,6 +740,7 @@ def _build_decision_result(envelope: dict[str, Any]) -> dict[str, Any]:
                 "policy_version": policy_version,
                 "required_modalities": snapshot["required_modalities"],
                 "evaluation_quality": quality,
+                "evaluation_trust_policy_hash": envelope["evaluation_trust_policy_hash"],
             }
         ),
         model_versions=[f"{provider['provider_id']}:{provider['model_id']}"],
@@ -740,8 +772,35 @@ def _build_decision_result(envelope: dict[str, Any]) -> dict[str, Any]:
             "raw_provider_payload_included": False,
             "secrets_included": False,
             "persistence_status": "not_configured",
+            "evaluation_trust_policy_hash": envelope["evaluation_trust_policy_hash"],
         },
     }
+
+
+def _trust_policy(
+    supplied: dict[str, Any] | None,
+    *,
+    allowed_issuers: frozenset[str] | None,
+    issuer_tenants: dict[str, frozenset[str]] | None,
+    revoked_key_ids: frozenset[str],
+    revoked_proof_hashes: frozenset[str],
+    maximum_lifetime_ms: int,
+    maximum_review_age_ms: int,
+) -> dict[str, Any]:
+    if supplied is not None:
+        return normalize_evaluation_trust_policy(supplied)
+    return normalize_evaluation_trust_policy({
+        "schema_version": "a2.evaluation_trust_policy.v1",
+        "allowed_issuers": sorted(allowed_issuers or []),
+        "issuer_tenants": {
+            issuer: sorted(tenants)
+            for issuer, tenants in sorted((issuer_tenants or {}).items())
+        },
+        "revoked_key_ids": sorted(revoked_key_ids),
+        "revoked_proof_hashes": sorted(revoked_proof_hashes),
+        "maximum_lifetime_ms": maximum_lifetime_ms,
+        "maximum_review_age_ms": maximum_review_age_ms,
+    })
 
 
 def _decision(

@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.io/schemas/a2/evaluation_trust_policy.schema.json",
+  "title": "A2 Evaluation Trust Policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "allowed_issuers",
+    "issuer_tenants",
+    "revoked_key_ids",
+    "revoked_proof_hashes",
+    "maximum_lifetime_ms",
+    "maximum_review_age_ms"
+  ],
+  "properties": {
+    "schema_version": {"const": "a2.evaluation_trust_policy.v1"},
+    "allowed_issuers": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "issuer_tenants": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "array",
+        "items": {"type": "string", "minLength": 1},
+        "uniqueItems": true
+      }
+    },
+    "revoked_key_ids": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "revoked_proof_hashes": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+      "uniqueItems": true
+    },
+    "maximum_lifetime_ms": {"type": "integer", "minimum": 1},
+    "maximum_review_age_ms": {"type": "integer", "minimum": 1}
+  }
+}

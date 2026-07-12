@@ -1219,7 +1219,7 @@ def _validate_recovery_envelope(
     supported_top = {
         "schema_version", *scope.keys(), "idempotency_key", "request_hash", "snapshot",
         "provider", "provider_provenance", "semantic_output", "citation_validation",
-        "bundle_verification", "evaluation_quality",
+        "bundle_verification", "evaluation_quality", "evaluation_trust_policy_hash",
         "policy_version", "ledger_id", "judge_version", "builder_version", "created_at",
         "provider_outcome_hash", "public_safe", "recovery_supported",
         "raw_provider_payload_included", "raw_evidence_included",
@@ -1228,6 +1228,8 @@ def _validate_recovery_envelope(
     _assert_exact_keys(envelope, supported_top, "recovery envelope")
     if envelope.get("schema_version") != "a2.normalized_decision_envelope.v1":
         raise ValueError("unsupported recovery envelope schema")
+    if _SHA256_REF.fullmatch(str(envelope.get("evaluation_trust_policy_hash") or "")) is None:
+        raise ValueError("evaluation trust policy hash is invalid")
     _assert_scope(envelope, scope, "recovery envelope")
     for flag in (
         "public_safe", "recovery_supported",
@@ -1259,6 +1261,7 @@ def _validate_recovery_envelope(
         {
             "schema_version", "proof_status", "issuer", "key_id_hash", "proof_hash",
             "calibration", "golden_regression", "disagreement", "human_review_required",
+            "reviewer_identity_digest", "reviewed_at_unix_ms",
             "evidence_refs", "blockers", "public_safe",
         },
         "evaluation quality",
@@ -1279,6 +1282,13 @@ def _validate_recovery_envelope(
         raise ValueError("evaluation quality regression status is invalid")
     if quality.get("disagreement") not in {"agree", "disagree", "reviewed", "unknown"}:
         raise ValueError("evaluation quality disagreement status is invalid")
+    reviewer_digest = quality.get("reviewer_identity_digest")
+    if not isinstance(reviewer_digest, str) or (
+        reviewer_digest and _SHA256_REF.fullmatch(reviewer_digest) is None
+    ):
+        raise ValueError("evaluation quality reviewer identity digest is invalid")
+    if not isinstance(quality.get("reviewed_at_unix_ms"), int) or quality["reviewed_at_unix_ms"] < 0:
+        raise ValueError("evaluation quality reviewed time is invalid")
     if not isinstance(quality.get("human_review_required"), bool):
         raise ValueError("evaluation quality review state is invalid")
     if not isinstance(quality.get("evidence_refs"), list) or not all(
@@ -1338,6 +1348,36 @@ def _validate_recovery_envelope(
         if semantic.get("evidence_ref_hashes") != reference_hashes:
             raise ValueError("recovery semantic citation hashes do not match validation")
     _scan_public_safe_value(envelope)
+
+
+def migrate_evaluation_quality_v1_recovery_envelope(
+    envelope: dict[str, Any],
+    *,
+    evaluation_trust_policy_hash: str,
+) -> dict[str, Any]:
+    """Explicitly migrate a safe v1 quality state; direct legacy recovery remains rejected."""
+    if not isinstance(envelope, dict):
+        raise ValueError("legacy recovery envelope must be an object")
+    migrated = json.loads(json.dumps(envelope))
+    quality = migrated.get("evaluation_quality")
+    if not isinstance(quality, dict) or quality.get("schema_version") != "a2.evaluation_quality.v1":
+        raise ValueError("legacy evaluation quality v1 state is required")
+    expected = {
+        "schema_version", "proof_status", "issuer", "key_id_hash", "proof_hash",
+        "calibration", "golden_regression", "disagreement", "human_review_required",
+        "evidence_refs", "blockers", "public_safe",
+    }
+    if set(quality) != expected:
+        raise ValueError("legacy evaluation quality fields do not match the migration contract")
+    if quality.get("disagreement") == "reviewed":
+        raise ValueError("legacy reviewed state lacks a verifiable reviewer receipt")
+    if _SHA256_REF.fullmatch(evaluation_trust_policy_hash) is None:
+        raise ValueError("evaluation trust policy hash is invalid")
+    quality["schema_version"] = "a2.evaluation_quality.v2"
+    quality["reviewer_identity_digest"] = ""
+    quality["reviewed_at_unix_ms"] = 0
+    migrated["evaluation_trust_policy_hash"] = evaluation_trust_policy_hash
+    return migrated
 
 
 def _assert_exact_keys(value: dict[str, Any], expected: set[str], label: str) -> None:

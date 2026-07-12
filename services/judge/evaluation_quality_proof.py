@@ -45,6 +45,8 @@ def verify_evaluation_quality_proof(
     revoked_key_ids: frozenset[str] = frozenset(),
     revoked_proof_hashes: frozenset[str] = frozenset(),
     maximum_lifetime_ms: int = 86_400_000,
+    issuer_tenants: dict[str, frozenset[str]] | None = None,
+    maximum_review_age_ms: int = 604_800_000,
 ) -> dict[str, Any]:
     """Verify a public-safe, content-addressed quality proof and normalize its gate state."""
     if not isinstance(proof, dict):
@@ -58,6 +60,8 @@ def verify_evaluation_quality_proof(
         "calibration",
         "golden_regression",
         "disagreement",
+        "reviewer_identity_digest",
+        "reviewed_at_unix_ms",
         "evidence_refs",
         "issued_at_unix_ms",
         "expires_at_unix_ms",
@@ -76,6 +80,8 @@ def verify_evaluation_quality_proof(
         return _blocked("quality_proof_contract_invalid")
     if allowed_issuers is not None and proof["issuer"] not in allowed_issuers:
         return _blocked("quality_proof_issuer_unauthorized")
+    if issuer_tenants is not None and proof["tenant_id"] not in issuer_tenants.get(proof["issuer"], frozenset()):
+        return _blocked("quality_proof_issuer_tenant_unauthorized")
     if proof["key_id"] in revoked_key_ids:
         return _blocked("quality_proof_key_revoked")
     issued_at = proof.get("issued_at_unix_ms")
@@ -104,6 +110,15 @@ def verify_evaluation_quality_proof(
         return _blocked("quality_proof_contract_invalid")
     if proof.get("disagreement") not in _DISAGREEMENT:
         return _blocked("quality_proof_contract_invalid")
+    reviewer_digest = proof.get("reviewer_identity_digest")
+    reviewed_at = proof.get("reviewed_at_unix_ms")
+    if proof["disagreement"] == "reviewed":
+        if _SHA256_REF.fullmatch(str(reviewer_digest or "")) is None or not isinstance(reviewed_at, int):
+            return _blocked("disagreement_review_receipt_invalid")
+        if reviewed_at > now_unix_ms or now_unix_ms - reviewed_at > maximum_review_age_ms:
+            return _blocked("disagreement_review_receipt_stale")
+    elif reviewer_digest != "" or reviewed_at != 0:
+        return _blocked("disagreement_review_receipt_unexpected")
     refs = proof.get("evidence_refs")
     if (
         not isinstance(refs, list)
@@ -151,6 +166,8 @@ def verify_evaluation_quality_proof(
         "calibration": proof["calibration"],
         "golden_regression": proof["golden_regression"],
         "disagreement": proof["disagreement"],
+        "reviewer_identity_digest": reviewer_digest,
+        "reviewed_at_unix_ms": reviewed_at,
         "human_review_required": bool(blockers),
         "evidence_refs": sorted(set(refs)),
         "blockers": sorted(set(blockers)),
@@ -199,6 +216,8 @@ def _blocked(blocker: str) -> dict[str, Any]:
         "calibration": "missing",
         "golden_regression": "missing",
         "disagreement": "unknown",
+        "reviewer_identity_digest": "",
+        "reviewed_at_unix_ms": 0,
         "human_review_required": True,
         "evidence_refs": [],
         "blockers": [blocker],

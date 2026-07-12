@@ -8,7 +8,8 @@
     "authenticated_bundle_digest", "snapshot_hash", "provider_id", "model_id",
     "model_digest", "prompt_hash", "rubric_version", "golden_dataset_digest",
     "calibration_thresholds_hash", "policy_version", "calibration",
-    "golden_regression", "disagreement", "evidence_refs",
+    "golden_regression", "disagreement", "reviewer_identity_digest",
+    "reviewed_at_unix_ms", "evidence_refs",
     "issued_at_unix_ms", "expires_at_unix_ms", "signature"
   ],
   "properties": {
@@ -34,6 +35,10 @@
     "calibration": { "enum": ["passed", "failed"] },
     "golden_regression": { "enum": ["passed", "failed"] },
     "disagreement": { "enum": ["agree", "disagree", "reviewed", "unknown"] },
+    "reviewer_identity_digest": {
+      "oneOf": [{ "const": "" }, { "$ref": "#/$defs/hash" }]
+    },
+    "reviewed_at_unix_ms": { "type": "integer", "minimum": 0 },
     "evidence_refs": {
       "type": "array",
       "minItems": 1,

@@ -33,6 +33,7 @@ from services.judge.release_decision_store import (
     claim_provider_reconciliation,
     claim_decision_outbox,
     load_decision_recovery_envelope,
+    migrate_evaluation_quality_v1_recovery_envelope,
     mark_operation_recovery_required,
     persist_provider_outcome,
     persist_provider_reconciliation_observation,
@@ -168,6 +169,8 @@ def signed_quality_proof(candidate, **overrides):
         "calibration": "passed",
         "golden_regression": "passed",
         "disagreement": "agree",
+        "reviewer_identity_digest": "",
+        "reviewed_at_unix_ms": 0,
         "evidence_refs": ["sha256:" + "a" * 64],
         "issued_at_unix_ms": NOW - 1000,
         "expires_at_unix_ms": NOW + 1000,
@@ -346,6 +349,99 @@ class ProcessInterruptedAdapter:
 
 
 class ReleaseDecisionOrchestratorTests(unittest.TestCase):
+    def test_issuer_tenant_authorization_fails_closed(self):
+        result = execute_release_decision(
+            request(), gateway=gateway(), key_resolver=lambda _: KEY, now_unix_ms=NOW,
+            quality_allowed_issuers=frozenset({"a2-calibration-service"}),
+            quality_issuer_tenants={"a2-calibration-service": frozenset({"tenant-b"})},
+        )
+        self.assertEqual(result["a3_consumption"]["display_decision"], "block")
+        self.assertIn(
+            "quality_proof_issuer_tenant_unauthorized",
+            result["release_gate"]["blocking_reasons"],
+        )
+
+    def test_malformed_ed25519_material_fails_closed(self):
+        for public_key, signature in ((b"short", "00" * 64), (b"x" * 32, "not-hex")):
+            with self.subTest(signature=signature):
+                candidate = request()
+                proof = signed_quality_proof(candidate, algorithm="ed25519", key_id="ed-key")
+                proof["signature"] = signature
+                candidate["evaluation_quality_proof"] = proof
+                result = execute_release_decision(
+                    candidate, gateway=gateway(),
+                    key_resolver=lambda key_id: public_key if key_id == "ed-key" else KEY,
+                    now_unix_ms=NOW,
+                )
+                self.assertIn(
+                    "quality_proof_signature_mismatch",
+                    result["release_gate"]["blocking_reasons"],
+                )
+
+    def test_disagreement_reviewer_receipt_is_strict_and_public_safe(self):
+        valid_digest = "sha256:" + "e" * 64
+        cases = (
+            (
+                {"disagreement": "reviewed", "reviewer_identity_digest": valid_digest,
+                 "reviewed_at_unix_ms": NOW - 1000},
+                "allow", None,
+            ),
+            (
+                {"disagreement": "reviewed"},
+                "block", "disagreement_review_receipt_invalid",
+            ),
+            (
+                {"disagreement": "reviewed", "reviewer_identity_digest": valid_digest,
+                 "reviewed_at_unix_ms": NOW - 604_800_001},
+                "block", "disagreement_review_receipt_stale",
+            ),
+            (
+                {"reviewer_identity_digest": valid_digest, "reviewed_at_unix_ms": NOW - 1000},
+                "block", "disagreement_review_receipt_unexpected",
+            ),
+        )
+        for overrides, decision, blocker in cases:
+            with self.subTest(blocker=blocker):
+                candidate = request()
+                candidate["evaluation_quality_proof"] = signed_quality_proof(candidate, **overrides)
+                result = execute_release_decision(
+                    candidate, gateway=gateway(), key_resolver=lambda _: KEY, now_unix_ms=NOW,
+                )
+                self.assertEqual(result["a3_consumption"]["display_decision"], decision)
+                if blocker:
+                    self.assertIn(blocker, result["release_gate"]["blocking_reasons"])
+                else:
+                    quality = result["release_gate"]["evaluation_quality"]
+                    self.assertEqual(quality["reviewer_identity_digest"], valid_digest)
+                    self.assertEqual(quality["reviewed_at_unix_ms"], NOW - 1000)
+                    self.assertNotIn("reviewer_email", json.dumps(result))
+
+    def test_versioned_trust_policy_hash_is_replay_provenance(self):
+        policy = {
+            "schema_version": "a2.evaluation_trust_policy.v1",
+            "allowed_issuers": ["a2-calibration-service"],
+            "issuer_tenants": {"a2-calibration-service": ["tenant-a"]},
+            "revoked_key_ids": [],
+            "revoked_proof_hashes": [],
+            "maximum_lifetime_ms": 86_400_000,
+            "maximum_review_age_ms": 604_800_000,
+        }
+        result = execute_release_decision(
+            request(), gateway=gateway(), key_resolver=lambda _: KEY, now_unix_ms=NOW,
+            quality_trust_policy=policy,
+        )
+        policy_hash = result["metadata"]["evaluation_trust_policy_hash"]
+        self.assertRegex(policy_hash, r"^sha256:[0-9a-f]{64}$")
+        self.assertEqual(
+            result["decision_ledger"]["records"][0]["policy_hash"],
+            stable_hash({
+                "policy_version": "a2.semantic_release_policy.v1",
+                "required_modalities": ["text"],
+                "evaluation_quality": result["release_gate"]["evaluation_quality"],
+                "evaluation_trust_policy_hash": policy_hash,
+            }),
+        )
+
     def test_ed25519_quality_proof_is_verified(self):
         candidate = request()
         private_key = Ed25519PrivateKey.generate()
@@ -924,6 +1020,47 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
                 load_decision_recovery_envelope(
                     connection, operation_id=operation_id, scope=scope,
 
+                )
+        finally:
+            connection.close()
+
+    def test_legacy_quality_recovery_requires_explicit_safe_migration(self):
+        connection = sqlite3.connect(":memory:")
+        try:
+            initialize_sql_store(connection)
+
+            def fail(point):
+                if point == "after_provider_outcome_committed":
+                    raise OSError("stop")
+
+            with self.assertRaises(OSError):
+                execute_release_decision(
+                    request(), gateway=gateway(), key_resolver=lambda _: KEY,
+                    now_unix_ms=NOW, persistence_connection=connection,
+                    persistence_failure_injector=fail,
+                )
+            raw = connection.execute(
+                "SELECT recovery_envelope_json FROM a2_provider_outcomes"
+            ).fetchone()[0]
+            envelope = json.loads(raw)
+            envelope["evaluation_quality"]["schema_version"] = "a2.evaluation_quality.v1"
+            envelope["evaluation_quality"].pop("reviewer_identity_digest")
+            envelope["evaluation_quality"].pop("reviewed_at_unix_ms")
+            migrated = migrate_evaluation_quality_v1_recovery_envelope(
+                envelope,
+                evaluation_trust_policy_hash=envelope["evaluation_trust_policy_hash"],
+            )
+            self.assertEqual(
+                migrated["evaluation_quality"]["schema_version"],
+                "a2.evaluation_quality.v2",
+            )
+            self.assertEqual(migrated["evaluation_quality"]["reviewer_identity_digest"], "")
+            reviewed = json.loads(json.dumps(envelope))
+            reviewed["evaluation_quality"]["disagreement"] = "reviewed"
+            with self.assertRaisesRegex(ValueError, "reviewer receipt"):
+                migrate_evaluation_quality_v1_recovery_envelope(
+                    reviewed,
+                    evaluation_trust_policy_hash=envelope["evaluation_trust_policy_hash"],
                 )
         finally:
             connection.close()

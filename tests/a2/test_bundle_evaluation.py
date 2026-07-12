@@ -202,6 +202,15 @@ class BundleEvaluationTests(unittest.TestCase):
         self.assertIn("Provider credential environment variable is unavailable", completed.stderr)
         self.assertNotIn("bundle-secret-must-not-appear", completed.stdout + completed.stderr)
 
+    def test_qwen_preset_uses_dashscope_url_and_standard_environment_key(self):
+        completed = self.run_cli(
+            "qwen",
+            environment={"A1_EVIDENCE_HMAC_KEY": "bundle-key"},
+        )
+        self.assertNotEqual(completed.returncode, 0)
+        self.assertIn("Provider credential environment variable is unavailable", completed.stderr)
+        self.assertNotIn("bundle-key", completed.stdout + completed.stderr)
+
     def test_cli_exit_codes_pass_block_and_incomplete_through_http_protocol(self):
         class Handler(BaseHTTPRequestHandler):
             status = 200
