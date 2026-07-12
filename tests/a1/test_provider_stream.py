@@ -1,4 +1,5 @@
 import json
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -13,6 +14,24 @@ from ashr_clone.provider_stream import (
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 TS_PACKAGE = REPO_ROOT / "packages" / "ts" / "ashr-clone"
+TS_PROVIDER_STREAM = TS_PACKAGE / "dist" / "provider-stream.js"
+
+
+def build_typescript_provider_stream() -> None:
+    if TS_PROVIDER_STREAM.is_file():
+        return
+    npm = shutil.which("npm") or shutil.which("npm.cmd")
+    assert npm is not None, "npm is required for the TypeScript interoperability test"
+    result = subprocess.run(
+        [npm, "run", "build"],
+        cwd=TS_PACKAGE,
+        check=False,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+    )
+    assert result.returncode == 0, result.stderr or result.stdout
+    assert TS_PROVIDER_STREAM.is_file()
 
 
 def complete_stream() -> ProviderStreamLedger:
@@ -106,6 +125,7 @@ def test_journal_binding_is_digest_bound_strict_and_content_free():
 
 
 def test_python_and_typescript_snapshots_are_cross_language_compatible(tmp_path: Path):
+    build_typescript_provider_stream()
     snapshot_path = tmp_path / "python-stream.json"
     python_snapshot = bound_stream().finalize()
     snapshot_path.write_text(canonical_provider_json(python_snapshot), encoding="utf-8")

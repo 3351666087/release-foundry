@@ -2978,3 +2978,34 @@ acceptance becomes uncertain.
 Next top three: run a bounded real Ollama partial-stream process-loss probe;
 add PostgreSQL-backed multi-worker journal coordination; expand verified
 model-by-modality coverage without promoting discovery to callability.
+
+## Round 59: CL Fresh-Checkout Repair
+
+Date: 2026-07-12
+
+- GitHub PR 36 run `29191539967` exposed a fresh-checkout defect in the Round
+  58 cross-language stream test. The Python job did not build the ignored
+  TypeScript `dist/provider-stream.js` module before importing it.
+- The earlier local full-suite result was not valid fresh-setup evidence
+  because a generated local `dist/` directory masked the missing build step.
+- The Python CL job now installs Node 24, runs locked TypeScript dependency
+  installation, and builds the SDK before Python contracts.
+- The test itself also performs the build when the required generated module
+  is absent, so direct pytest execution remains deterministic after locked
+  TypeScript dependencies are installed.
+- Added ignore protection for Python SDK `build/` and `*.egg-info/` output.
+- After deleting TypeScript `dist/`, focused validation passed `10 passed`.
+- The exact GitHub Python contract command passed `1515 passed, 2 skipped in
+  277.89s`; `git diff --check` passed.
+- Peer changes observed at round start: A3 contract-alignment and A2
+  calibration remote branches advanced. They were inspected only as remote
+  state and were not merged or modified.
+- Bus-Auditor correctly held new feature work until PR 36 is green and then
+  directs the next commercial slice toward PostgreSQL-backed multi-worker
+  dispatch plus durable Ollama acceptance proof.
+- Publication remains restricted to the single canonical remote branch
+  `codex/a1-local-sdk-runner`; the local staging branch is not publishable.
+
+Next top three: PostgreSQL multi-worker provider dispatch coordination with
+fencing and reconciliation; durable Ollama SDK-to-run acceptance across
+service restart; verified five-modality provider capability expansion.

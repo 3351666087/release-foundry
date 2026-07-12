@@ -71,10 +71,19 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: packages/ts/ashr-clone/package-lock.json
       - name: Install test dependencies
         run: |
           python -m pip install --upgrade pip
           python -m pip install pytest jsonschema
+      - name: Build TypeScript cross-language fixtures
+        run: |
+          npm ci --prefix packages/ts/ashr-clone
+          npm run build --prefix packages/ts/ashr-clone
       - name: Compile Python sources
         run: python -m compileall packages services scripts tests
       - name: Run Python contracts
