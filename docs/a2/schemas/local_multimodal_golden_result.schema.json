@@ -21,10 +21,11 @@
       "additionalProperties": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["present", "matched"],
+        "required": ["present", "matched", "severity"],
         "properties": {
           "present": {"type": "boolean"},
-          "matched": {"type": "boolean"}
+          "matched": {"type": "boolean"},
+          "severity": {"enum": ["semantic", "safety"]}
         }
       }
     },

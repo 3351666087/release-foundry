@@ -3,14 +3,19 @@ import unittest
 from pathlib import Path
 
 import jsonschema
+from services.judge.result_persistence import stable_hash
 
 from services.judge.local_multimodal_calibration import (
     aggregate_local_multimodal_golden_suite,
+    build_evidence_evaluation_identity,
     build_multimodal_disagreement_review_packet,
     build_multimodal_disagreement_receipt,
     build_credential_rotation_marker,
     evaluate_provider_fallback,
     evaluate_local_multimodal_golden,
+    govern_structured_output_repair,
+    observe_local_model_resources,
+    validate_a3_decision_consumption,
 )
 
 
@@ -32,6 +37,16 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
             "provider_id": "dashscope",
             "model_id": "qwen-vl-max",
             "model_version": "provider-managed",
+        }
+        self.llava_model = {
+            "provider_id": "ollama-local",
+            "model_id": "llava:7b",
+            "model_version": "sha256:8dd30f6b0cb19f555f2c7a7ebda861449ea2cc76bf1f44e262931f45fc81d081",
+        }
+        self.calibration_binding = {
+            "prompt_hash": self.binding["prompt_hash"],
+            "generation_options_hash": self.binding["generation_options_hash"],
+            "artifact_hash": self.binding["artifact_hash"],
         }
 
     def assert_result_schema(self, result):
@@ -247,6 +262,7 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
         replay = build_multimodal_disagreement_review_packet(receipts[-1])
         self.assertEqual(packet, replay)
         self.assertFalse(packet["release_authority"])
+        self.assert_schema("multimodal_disagreement_review.schema.json", packet)
 
     def test_fallback_never_upgrades_failed_primary_into_release_pass(self):
         blocked = evaluate_provider_fallback(
@@ -257,13 +273,138 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
         self.assertEqual(blocked["status"], "blocked")
         self.assertIn("fallback_not_calibrated", blocked["blockers"])
         self.assertFalse(blocked["release_authority"])
+        self.assert_schema("provider_fallback_evaluation.schema.json", blocked)
         review = evaluate_provider_fallback(
             primary_result={"status": "authentication_failed"},
             fallback_result={"status": "completed", "structured_output_hash": "sha256:" + "a" * 64},
             fallback_calibration_state="golden_passed",
+            primary_model_binding=self.cloud_model,
+            fallback_model_binding=self.llava_model,
+            fallback_calibration_binding=self.calibration_binding,
+            runtime_calibration_binding=self.calibration_binding,
         )
         self.assertEqual(review["status"], "review_available")
         self.assertFalse(review["release_authority"])
+        self.assert_schema("provider_fallback_evaluation.schema.json", review)
+
+    def test_fallback_rejects_missing_runtime_binding_and_changed_options_hash(self):
+        missing = evaluate_provider_fallback(
+            primary_result={"status": "timeout"},
+            fallback_result={"status": "completed"},
+            fallback_calibration_state="golden_passed",
+        )
+        self.assertEqual(missing["status"], "blocked")
+        self.assertIn("fallback_model_binding_missing_or_invalid", missing["blockers"])
+        self.assertIn("fallback_calibration_binding_missing_or_invalid", missing["blockers"])
+        self.assert_schema("provider_fallback_evaluation.schema.json", missing)
+
+        changed = dict(self.calibration_binding)
+        changed["generation_options_hash"] = "sha256:" + "f" * 64
+        mismatch = evaluate_provider_fallback(
+            primary_result={"status": "timeout"},
+            fallback_result={"status": "completed"},
+            fallback_calibration_state="golden_passed",
+            primary_model_binding=self.cloud_model,
+            fallback_model_binding=self.llava_model,
+            fallback_calibration_binding=self.calibration_binding,
+            runtime_calibration_binding=changed,
+        )
+        self.assertEqual(mismatch["status"], "blocked")
+        self.assertIn("fallback_calibration_binding_mismatch", mismatch["blockers"])
+        self.assert_schema("provider_fallback_evaluation.schema.json", mismatch)
+
+    def test_structured_output_repair_is_explicit_hashed_and_never_calibrated(self):
+        original = {"contains_text": True, "primary_color": "gray"}
+        blocked = govern_structured_output_repair(
+            original_output=original,
+            required_fields=["contains_text", "primary_color", "safety_risk"],
+        )
+        self.assertEqual(blocked["state"], "blocked")
+        self.assertEqual(blocked["repaired_output_hash"], "")
+        self.assertIn("repair_policy_not_configured", blocked["blockers"])
+        self.assertTrue(blocked["human_review_required"])
+
+        repaired = govern_structured_output_repair(
+            original_output=original,
+            required_fields=["contains_text", "primary_color", "safety_risk"],
+            repair_policy={
+                "mode": "deterministic_defaults",
+                "allowed_defaults": {"safety_risk": "unknown"},
+            },
+        )
+        self.assertEqual(repaired["state"], "repaired_for_review")
+        self.assertNotEqual(repaired["original_output_hash"], repaired["repaired_output_hash"])
+        self.assertEqual(repaired["repaired_output"]["safety_risk"], "unknown")
+        self.assertEqual(repaired["calibration_state"], "uncalibrated")
+        self.assertFalse(repaired["release_authority"])
+
+    def test_missing_safety_field_has_explicit_safety_severity(self):
+        result = evaluate_local_multimodal_golden(
+            golden_case=self.golden,
+            structured_output={"contains_text": True, "primary_color": "blue"},
+            runtime_binding=self.binding,
+        )
+        self.assertEqual(result["field_results"]["safety_risk"]["severity"], "safety")
+        self.assertIn("safety_field_missing:safety_risk", result["blockers"])
+        self.assertTrue(result["human_review_required"])
+
+    def test_local_resource_observation_enforces_incomplete_latency_policy(self):
+        observation = observe_local_model_resources(
+            model_binding=self.llava_model,
+            installed_bytes=4733363377,
+            wall_time_seconds=50.946,
+            prompt_tokens=645,
+            completion_tokens=16,
+            maximum_latency_seconds=30,
+        )
+        self.assertEqual(observation["latency_policy_state"], "incomplete")
+        self.assertFalse(observation["evaluation_eligible"])
+        self.assertIn("local_judge_latency_exceeded", observation["blockers"])
+        within = observe_local_model_resources(
+            model_binding=self.llava_model,
+            installed_bytes=4733363377,
+            wall_time_seconds=20,
+            prompt_tokens=645,
+            completion_tokens=16,
+            maximum_latency_seconds=30,
+        )
+        self.assertEqual(within["latency_policy_state"], "within_limit")
+        self.assertTrue(within["evaluation_eligible"])
+
+    def test_a1_replay_under_rotated_credentials_preserves_a2_evaluation_identity(self):
+        inputs = {
+            "evidence_snapshot_hash": "sha256:" + "1" * 64,
+            "policy_version": "release-policy-v7",
+            "golden_suite_hash": "sha256:" + "2" * 64,
+        }
+        generation_a = build_credential_rotation_marker("credential-a", provider_id="dashscope")
+        generation_b = build_credential_rotation_marker("credential-b", provider_id="dashscope")
+        self.assertNotEqual(generation_a, generation_b)
+        first = build_evidence_evaluation_identity(**inputs)
+        replay = build_evidence_evaluation_identity(**inputs)
+        self.assertEqual(first, replay)
+
+    def test_a3_consumes_exact_reviewed_decision_and_cannot_recompute_release_state(self):
+        committed = {
+            "decision_id": "decision-reviewed-disagreement-1",
+            "status": "BLOCK",
+            "review_packet_hash": "sha256:" + "3" * 64,
+            "policy_version": "release-policy-v7",
+        }
+        exact = validate_a3_decision_consumption(
+            committed_decision=committed,
+            consumed_decision={"a2_committed_decision_hash": stable_hash(committed)},
+        )
+        self.assertTrue(exact["consumption_valid"])
+        recomputed = validate_a3_decision_consumption(
+            committed_decision=committed,
+            consumed_decision={
+                "a2_committed_decision_hash": exact["committed_decision_hash"],
+                "recomputed_status": "PASS",
+            },
+        )
+        self.assertFalse(recomputed["consumption_valid"])
+        self.assertIn("a3_recomputed_release_state_forbidden", recomputed["blockers"])
 
     def test_credential_rotation_marker_is_stable_provider_bound_and_secret_free(self):
         first = build_credential_rotation_marker("credential-a", provider_id="dashscope")

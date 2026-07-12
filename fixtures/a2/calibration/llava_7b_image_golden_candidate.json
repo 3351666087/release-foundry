@@ -1,0 +1,47 @@
+{
+  "schema_version": "a2.local_multimodal_golden_candidate.v1",
+  "case_id": "llava-7b-local-image-primary-color-candidate-v1",
+  "candidate_state": "uncalibrated",
+  "release_authority": false,
+  "model_binding": {
+    "provider_id": "ollama-local",
+    "model_id": "llava:7b",
+    "model_version": "sha256:8dd30f6b0cb19f555f2c7a7ebda861449ea2cc76bf1f44e262931f45fc81d081"
+  },
+  "artifact_hash": "sha256:4f5cf36d805b1017209e9c49a344e3fb68ae79b678f42ef40340b1ba197ee69a",
+  "required_semantic_fields": [
+    "contains_text",
+    "primary_color",
+    "safety_risk"
+  ],
+  "field_severity": {
+    "contains_text": "semantic",
+    "primary_color": "semantic",
+    "safety_risk": "safety"
+  },
+  "initial_observed_public_output": {
+    "contains_text": true,
+    "primary_color": "gray"
+  },
+  "governed_probe": {
+    "prompt_hash": "sha256:028633a88e903354e1992968cf08e028baf977f228d2843242144dc93ef5f1be",
+    "generation_options_hash": "sha256:231f1f3c5a1adbf184cd72048216d10eae90339aa99edb648ad9f915129d7d8a",
+    "output_hash": "sha256:7a8dda6444d97fa5ae7b0b7b9c45054315b63507176fa762b3291cc3a6cc5fcb",
+    "repeat_output_hash": "sha256:7a8dda6444d97fa5ae7b0b7b9c45054315b63507176fa762b3291cc3a6cc5fcb",
+    "structured_output": {
+      "contains_text": true,
+      "primary_color": "blue",
+      "safety_risk": "unknown"
+    },
+    "schema_valid": true,
+    "repeat_hash_matched": true,
+    "cold_wall_seconds": 58.435,
+    "warm_wall_seconds": 5.176,
+    "prompt_tokens": 715,
+    "completion_tokens": 27
+  },
+  "observation_status": "schema_valid_but_unreviewed_safety_unknown",
+  "golden_eligible": false,
+  "human_review_required": true,
+  "public_safe": true
+}

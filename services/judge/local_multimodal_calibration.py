@@ -14,6 +14,9 @@ GOLDEN_RESULT_SCHEMA_VERSION = "a2.local_multimodal_golden_result.v1"
 GOLDEN_SUITE_SCHEMA_VERSION = "a2.local_multimodal_golden_suite.v1"
 DISAGREEMENT_SCHEMA_VERSION = "a2.multimodal_disagreement_receipt.v1"
 DISAGREEMENT_REVIEW_SCHEMA_VERSION = "a2.multimodal_disagreement_review.v1"
+FALLBACK_SCHEMA_VERSION = "a2.provider_fallback_evaluation.v1"
+REPAIR_SCHEMA_VERSION = "a2.structured_output_repair.v1"
+LOCAL_RESOURCE_SCHEMA_VERSION = "a2.local_model_resource_observation.v1"
 
 
 def build_credential_rotation_marker(credential: str, *, provider_id: str) -> str:
@@ -66,15 +69,19 @@ def evaluate_local_multimodal_golden(
         blockers.append("structured_output_missing")
         structured_output = {}
 
+    severity_by_field = dict(golden_case.get("field_severity") or {})
     field_results = {}
     if isinstance(expected, dict) and isinstance(required_fields, list):
         for field in required_fields:
             name = str(field)
             present = name in structured_output
             matched = present and structured_output.get(name) == expected.get(name)
-            field_results[name] = {"present": present, "matched": matched}
+            severity = str(severity_by_field.get(name) or ("safety" if name == "safety_risk" else "semantic"))
+            field_results[name] = {"present": present, "matched": matched, "severity": severity}
             if not present:
                 blockers.append(f"missing_semantic_field:{name}")
+                if severity == "safety":
+                    blockers.append(f"safety_field_missing:{name}")
             elif not matched:
                 blockers.append(f"golden_mismatch:{name}")
 
@@ -233,27 +240,185 @@ def build_multimodal_disagreement_review_packet(receipt: dict[str, Any]) -> dict
     return {**packet_core, "review_packet_hash": stable_hash(packet_core)}
 
 
+def govern_structured_output_repair(
+    *,
+    original_output: dict[str, Any],
+    required_fields: list[str],
+    repair_policy: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Record deterministic repair explicitly; never replace the original observation silently."""
+    missing = sorted(str(field) for field in required_fields if str(field) not in original_output)
+    policy = dict(repair_policy or {})
+    allowed_defaults = dict(policy.get("allowed_defaults") or {})
+    repair_allowed = policy.get("mode") == "deterministic_defaults" and bool(missing)
+    can_repair = repair_allowed and all(field in allowed_defaults for field in missing)
+    repaired = dict(original_output)
+    if can_repair:
+        for field in missing:
+            repaired[field] = allowed_defaults[field]
+    blockers = []
+    if missing and not repair_allowed:
+        blockers.append("repair_policy_not_configured")
+    elif missing and not can_repair:
+        blockers.append("deterministic_repair_not_available")
+    return {
+        "schema_version": REPAIR_SCHEMA_VERSION,
+        "state": "repaired_for_review" if can_repair else ("blocked" if missing else "not_required"),
+        "original_output_hash": stable_hash(original_output),
+        "repaired_output_hash": stable_hash(repaired) if can_repair else "",
+        "original_output": dict(original_output),
+        "repaired_output": repaired if can_repair else None,
+        "missing_required_fields": missing,
+        "semantic_observation_modified": can_repair,
+        "calibration_state": "uncalibrated",
+        "release_authority": False,
+        "human_review_required": bool(missing),
+        "blockers": blockers,
+        "public_safe": True,
+    }
+
+
+def observe_local_model_resources(
+    *,
+    model_binding: dict[str, str],
+    installed_bytes: int,
+    wall_time_seconds: float,
+    prompt_tokens: int,
+    completion_tokens: int,
+    maximum_latency_seconds: float,
+) -> dict[str, Any]:
+    """Create public-safe resource evidence and fail closed on excessive local Judge latency."""
+    required = {"provider_id", "model_id", "model_version"}
+    if set(model_binding) != required or any(not isinstance(v, str) or not v for v in model_binding.values()):
+        raise ValueError("local resource observation requires exact model binding")
+    numeric = (installed_bytes, wall_time_seconds, prompt_tokens, completion_tokens, maximum_latency_seconds)
+    if any(isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0 for value in numeric):
+        raise ValueError("local resource observation values must be non-negative numbers")
+    if maximum_latency_seconds <= 0:
+        raise ValueError("maximum latency must be positive")
+    latency_exceeded = wall_time_seconds > maximum_latency_seconds
+    return {
+        "schema_version": LOCAL_RESOURCE_SCHEMA_VERSION,
+        "model_binding": dict(model_binding),
+        "installed_bytes": installed_bytes,
+        "wall_time_seconds": wall_time_seconds,
+        "prompt_tokens": prompt_tokens,
+        "completion_tokens": completion_tokens,
+        "maximum_latency_seconds": maximum_latency_seconds,
+        "latency_policy_state": "incomplete" if latency_exceeded else "within_limit",
+        "evaluation_eligible": not latency_exceeded,
+        "release_authority": False,
+        "blockers": ["local_judge_latency_exceeded"] if latency_exceeded else [],
+        "public_safe": True,
+    }
+
+
+def build_evidence_evaluation_identity(
+    *,
+    evidence_snapshot_hash: str,
+    policy_version: str,
+    golden_suite_hash: str,
+) -> str:
+    """Keep the A2 semantic evaluation identity independent from Provider credentials."""
+    if not all(isinstance(value, str) and value for value in (
+        evidence_snapshot_hash,
+        policy_version,
+        golden_suite_hash,
+    )):
+        raise ValueError("evaluation identity requires immutable evidence, policy, and Golden bindings")
+    return stable_hash(
+        {
+            "evidence_snapshot_hash": evidence_snapshot_hash,
+            "policy_version": policy_version,
+            "golden_suite_hash": golden_suite_hash,
+        }
+    )
+
+
+def validate_a3_decision_consumption(
+    *,
+    committed_decision: dict[str, Any],
+    consumed_decision: dict[str, Any],
+) -> dict[str, Any]:
+    """A3 may consume the exact committed A2 decision but may not recompute or mutate it."""
+    committed_hash = stable_hash(committed_decision)
+    supplied_hash = str(consumed_decision.get("a2_committed_decision_hash") or "")
+    forbidden = sorted(
+        set(consumed_decision)
+        & {"recomputed_status", "recomputed_score", "recomputed_policy_result", "release_authority"}
+    )
+    blockers = []
+    if supplied_hash != committed_hash:
+        blockers.append("a2_committed_decision_hash_mismatch")
+    if forbidden:
+        blockers.append("a3_recomputed_release_state_forbidden")
+    return {
+        "schema_version": "a2.a3_decision_consumption_validation.v1",
+        "committed_decision_hash": committed_hash,
+        "consumption_valid": not blockers,
+        "release_authority": False,
+        "forbidden_fields": forbidden,
+        "blockers": blockers,
+        "public_safe": True,
+    }
+
+
 def evaluate_provider_fallback(
     *,
     primary_result: dict[str, Any],
     fallback_result: dict[str, Any],
     fallback_calibration_state: str,
+    primary_model_binding: dict[str, str] | None = None,
+    fallback_model_binding: dict[str, str] | None = None,
+    fallback_calibration_binding: dict[str, str] | None = None,
+    runtime_calibration_binding: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """A fallback may preserve availability but cannot manufacture release authority."""
+    model_fields = {"provider_id", "model_id", "model_version"}
+    calibration_fields = {"prompt_hash", "generation_options_hash", "artifact_hash"}
+    model_bindings_valid = all(
+        isinstance(binding, dict)
+        and set(binding) == model_fields
+        and all(isinstance(value, str) and value for value in binding.values())
+        for binding in (primary_model_binding, fallback_model_binding)
+    )
+    calibration_bindings_valid = all(
+        isinstance(binding, dict)
+        and set(binding) == calibration_fields
+        and all(isinstance(value, str) and value for value in binding.values())
+        for binding in (fallback_calibration_binding, runtime_calibration_binding)
+    )
+    calibration_binding_matches = (
+        calibration_bindings_valid and fallback_calibration_binding == runtime_calibration_binding
+    )
     fallback_completed = fallback_result.get("status") == "completed"
-    calibrated = fallback_calibration_state == "golden_passed"
+    calibrated = (
+        fallback_calibration_state == "golden_passed"
+        and model_bindings_valid
+        and calibration_binding_matches
+    )
     usable_for_review = fallback_completed and calibrated
     blockers = []
     if primary_result.get("status") != "completed":
         blockers.append("primary_provider_failed")
     if not fallback_completed:
         blockers.append("fallback_provider_failed")
-    if not calibrated:
+    if not model_bindings_valid:
+        blockers.append("fallback_model_binding_missing_or_invalid")
+    if not calibration_bindings_valid:
+        blockers.append("fallback_calibration_binding_missing_or_invalid")
+    elif not calibration_binding_matches:
+        blockers.append("fallback_calibration_binding_mismatch")
+    if fallback_calibration_state != "golden_passed":
         blockers.append("fallback_not_calibrated")
     return {
-        "schema_version": "a2.provider_fallback_evaluation.v1",
+        "schema_version": FALLBACK_SCHEMA_VERSION,
         "primary_result_hash": stable_hash(primary_result),
         "fallback_result_hash": stable_hash(fallback_result),
+        "primary_model_binding": dict(primary_model_binding or {}),
+        "fallback_model_binding": dict(fallback_model_binding or {}),
+        "fallback_calibration_binding": dict(fallback_calibration_binding or {}),
+        "runtime_calibration_binding": dict(runtime_calibration_binding or {}),
         "fallback_calibration_state": fallback_calibration_state,
         "usable_for_review": usable_for_review,
         "release_authority": False,
