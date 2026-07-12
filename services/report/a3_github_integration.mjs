@@ -919,8 +919,13 @@ function sanitizeGitHubRequestId(value) {
 }
 
 function extractHeadShaAlias(body = "") {
-  const match = String(body).match(/\b[0-9a-f]{7,40}\b/i);
-  return match ? match[0] : null;
+  const value = String(body);
+  const labeled = value.match(/(?:candidate(?:[\s_-]+head)?|head(?:[\s_-]+sha)?|commit)\s*(?:\||:|=)\s*`?([0-9a-f]{7,40})\b/i);
+  if (labeled) return labeled[1];
+  const full = value.match(/\b[0-9a-f]{40}\b/i);
+  if (full) return full[0];
+  const abbreviated = value.match(/\b(?=[0-9a-f]{7,39}\b)(?=[0-9a-f]*[a-f])[0-9a-f]{7,39}\b/i);
+  return abbreviated ? abbreviated[0] : null;
 }
 
 function hashCheckOutput(output = {}) {

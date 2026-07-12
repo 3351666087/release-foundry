@@ -1,9 +1,9 @@
 {
   "name": "Ashr++ Release Gate",
-  "head_sha": "45bec48e65f3ae11f0252174990365eb20e46ef6",
+  "head_sha": "ad6113e01f5999f99b378e678d4f0a9602e8fdbc",
   "status": "completed",
   "conclusion": "failure",
-  "details_url": "https://github.com/3351666087/ashr-codex-factory/pull/35",
+  "details_url": "https://github.com/3351666087/ashr-codex-factory/actions/runs/29190953806",
   "output": {
     "title": "A2 blocked: a3-golden-20260712-001",
     "summary": "Block release with risk score 87 and 2 failed check(s).\n\nAuthoritative A2 status: blocked; reason: a2_decision_blocks_release.",

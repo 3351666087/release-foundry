@@ -1,8 +1,9 @@
 {
   "schema_version": "a3.release_delivery_index.v1",
-  "generated_at": "2026-07-12T12:00:04.000Z",
+  "generated_at": "2026-07-12T11:40:04.000Z",
   "release_version": "0.2.0-rc.1",
-  "git_sha_alias": "45bec48e65f3ae11f0252174990365eb20e46ef6",
+  "git_sha_alias": "ad6113e01f5999f99b378e678d4f0a9602e8fdbc",
+  "ci_tested_sha_alias": "e07c5f6e3cb8c44e8d75ea781feeec778bb5ccb8",
   "status": "blocked_by_a2",
   "production_ready": false,
   "files": {

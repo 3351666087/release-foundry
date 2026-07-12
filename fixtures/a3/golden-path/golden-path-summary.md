@@ -3,7 +3,7 @@
 - Status: blocked_by_a2
 - Production ready: no
 - Release version: 0.2.0-rc.1
-- Progress: 5/11 (45.5%)
+- Progress: 7/11 (63.6%)
 - Deployment acceptance: blocked
 - A2 decision: block
 
@@ -20,10 +20,8 @@
   Reason: Deployment acceptance is blocked.
 - [ ] Tenant GitHub App is trusted - blocked (A1/A3)
   Reason: A tenant-bound GitHub App installation is not proven.
-- [ ] GitHub Check is published and read back - blocked (A3)
-  Reason: GitHub Check is only a fixture/contract receipt, not a live github.com readback.
-- [ ] PR comment is published and read back - blocked (A3)
-  Reason: PR comment is only a fixture/contract receipt, not a live github.com readback.
+- [x] GitHub Check is published and read back - passed (A3)
+- [x] PR comment is published and read back - passed (A3)
 - [ ] main enforces the release check - blocked (Repository maintainer)
   Reason: Branch protection does not enforce the release check.
 

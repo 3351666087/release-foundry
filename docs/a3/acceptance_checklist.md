@@ -1172,14 +1172,15 @@
 - [x] Add a Next.js `/delivery` page and `a3-golden-path` data source.
 - [x] Add CI generation and GitHub Actions artifact upload for `0.2.0-rc.1`.
 - [x] Add release notes, implementation docs, and a 30-point growth audit.
-- [x] Pass full A3 Node (`405/405`) and A2 (`186/186`, `1050` subtests) contract suites.
+- [x] Pass final A3 Node (`406/406`) and A2 (`186/186`, `1050` subtests) contract suites.
 - [x] Pass Next.js typecheck/build (15 pages) and route-level Playwright (`11/11`).
 - [x] Pass CL, dependency audit, YAML/JSON, secret/path, and diff hygiene checks.
 - [x] Record Docker/PostgreSQL, Go, and Cargo-dependent A1 checks as local environment gaps without changing upstream tests.
 - [x] Produce and download a real GitHub Actions release-candidate artifact for commit `01f8707`.
 - [x] Separate candidate-head SHA from the CI-tested pull-request merge SHA.
-- [ ] Attach a real GitHub Check readback for the new candidate SHA.
-- [ ] Attach a real PR comment readback for the new candidate SHA.
+- [x] Attach a real GitHub Check readback for candidate `ad6113e`.
+- [x] Publish and read back a real operator PR comment for candidate `ad6113e`.
+- [x] Download and verify the real versioned GitHub Actions artifact receipt.
 - [ ] Install and prove a tenant-bound custom GitHub App.
 - [ ] Enable branch protection and prove the required check is enforced.
 - [ ] Attach a deployed staging/VPC acceptance receipt.

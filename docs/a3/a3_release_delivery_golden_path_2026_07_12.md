@@ -62,23 +62,26 @@ The machine-readable status is `fixtures/a3/golden-path/golden-path-status.json`
 | Verify Release Artifact | A3 | passed | Manifest and artifact-set hashes passed |
 | Accept deployment | A1/A3 | blocked | No deployed target receipt |
 | Trust tenant GitHub App | A1/A3 | blocked | No installation/permission receipt |
-| Read back GitHub Check | A3 | blocked in the first packet | Existing committed receipt is contract-only |
-| Read back PR comment | A3 | blocked in the first packet | Existing committed receipt is contract-only |
+| Read back GitHub Check | A3 | passed | Live Check `86645448215` matches candidate `ad6113e` |
+| Read back PR comment | A3 | passed | Live comment `4951021915` matches marker, body hash, and candidate SHA |
 | Enforce required check | Maintainer | blocked | `main` is not branch protected |
 
-Current progress is 5 of 11 stages, or 45.5%. This is a verifiable release candidate packet, not a production release.
+Current progress is 7 of 11 stages, or 63.6%. This is a verifiable release candidate packet, not a production release.
 
 ## 4. Deployment Acceptance
 
 The machine-readable receipt is `fixtures/a3/golden-path/deployment-acceptance.json`.
 
-Deployment Acceptance has 16 checks. Five local evidence checks pass:
+Deployment Acceptance has 17 checks. Eight evidence checks pass:
 
 - A1 RunResult and trace exist.
 - A2 grades join to all A1 cases.
 - Audit Bundle verification passes.
 - Signed archive verification passes.
 - Versioned Release Artifact verification passes.
+- Live GitHub Check readback matches the candidate head.
+- Live operator PR comment readback matches its marker, body hash, and candidate head.
+- GitHub Actions artifact `8259493055` was downloaded, is unexpired, carries a server SHA-256 digest, and contains a passing embedded manifest verification.
 
 The following production checks remain blocked or not proven:
 
@@ -90,7 +93,6 @@ The following production checks remain blocked or not proven:
 - No staging/VPC deployment health and version receipt exists.
 - Upgrade, rollback, backup, and restore have not been rehearsed.
 - No tenant-bound custom GitHub App installation is proven.
-- Live Check and PR comment readback must be attached.
 - `main` does not enforce the required check.
 
 ## 5. GitHub truth boundary
@@ -184,6 +186,6 @@ For pull-request workflows, `<sha>` is the candidate PR head. The manifest separ
 
 ## 10. Next three actions
 
-1. Read back the new CI Check and calibration PR comment from GitHub, then reseal the candidate packet against that exact candidate SHA.
-2. Install and bind a real tenant GitHub App with `checks:write` and `pull-requests:write`; keep its installation token in the A1 trusted worker only.
+1. Obtain a new A2 `allow` Decision Ledger only after the two `missing_required_tool` failures are fixed and rerun.
+2. Install and bind a real tenant GitHub App, then enable `A3 golden path release artifact` as a required `main` check.
 3. Deploy a staging stack with A1 identity, PostgreSQL/RLS, queue worker, object storage, health/version endpoint, and rollback rehearsal; attach the resulting receipts to Deployment Acceptance.

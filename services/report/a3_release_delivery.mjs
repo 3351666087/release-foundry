@@ -94,6 +94,7 @@ export function buildDeploymentAcceptance(input = {}, options = {}) {
   const checkReadback = object(input.githubCheckReadback);
   const commentReadback = object(input.githubPrCommentReadback);
   const requiredCheck = object(input.githubRequiredCheckProof);
+  const actionsArtifact = object(input.githubActionsArtifactReadback);
   const bundleVerification = object(input.auditBundleVerification);
   const archiveVerification = object(input.auditArchiveVerification);
   const artifactVerification = object(input.releaseArtifactVerification);
@@ -141,6 +142,23 @@ export function buildDeploymentAcceptance(input = {}, options = {}) {
       evidenceClass: liveGitHubReadback(commentReadback, "pr_comment") ? "live_readback" : readbackEvidenceClass(commentReadback),
       evidenceRef: commentReadback.readback_id || null,
       blockedReason: githubReadbackReason(commentReadback, "PR comment")
+    }),
+    acceptanceCheck("github_actions_artifact_readback", "GitHub Actions artifact live readback", liveGitHubActionsArtifactReadback(actionsArtifact, {
+      candidateSha: options.gitSha || input.gitSha,
+      ciTestedSha: options.ciTestedSha || input.ciTestedSha
+    }), {
+      owner: "A3",
+      evidenceClass: liveGitHubActionsArtifactReadback(actionsArtifact, {
+        candidateSha: options.gitSha || input.gitSha,
+        ciTestedSha: options.ciTestedSha || input.ciTestedSha
+      }) ? "live_readback" : readbackEvidenceClass(actionsArtifact),
+      evidenceRef: actionsArtifact.artifact_id_alias || null,
+      blockedReason: "A versioned GitHub Actions artifact has not been downloaded and read back for this candidate.",
+      details: {
+        artifact_name: actionsArtifact.artifact_name || null,
+        digest: actionsArtifact.digest || null,
+        expired: actionsArtifact.expired ?? null
+      }
     }),
     acceptanceCheck("required_check_enforcement", "Required Check enforced on main", requiredCheck.enforced === true && requiredCheck.readback_status === "readback_confirmed", {
       owner: "Repository maintainer",
@@ -437,7 +455,7 @@ export function renderDeliveryGoldenPathMarkdown(goldenPath = {}, acceptance = {
     lines.push(`- [${item.status === "passed" ? "x" : " "}] ${item.label} - ${item.status} (${item.owner})`);
     if (item.status !== "passed") lines.push(`  Reason: ${item.blocked_reason}`);
   }
-  lines.push("", "## Safety", "", "A3 consumes A1 runtime evidence and A2 decisions. It does not recompute A2 score, pass/fail, or release authority.", "");
+  lines.push("", "## Safety", "", "A3 consumes A1 runtime evidence and A2 decisions. It does not recompute A2 score, pass/fail, or release authority.");
   return `${lines.join("\n")}\n`;
 }
 
@@ -551,6 +569,21 @@ function githubReadbackReason(receipt, label) {
     return `${label} is only a fixture/contract receipt, not a live github.com readback.`;
   }
   return `${label} live readback status is ${status}.`;
+}
+
+function liveGitHubActionsArtifactReadback(receipt = {}, expected = {}) {
+  const value = object(receipt);
+  return value.provider === "github"
+    && value.resource_kind === "actions_artifact"
+    && value.readback_status === "readback_confirmed"
+    && value.readback_confirmed === true
+    && value.expired === false
+    && value.download_observed === true
+    && /^sha256:[0-9a-f]{64}$/i.test(text(value.digest))
+    && (!expected.candidateSha || value.candidate_head_sha_alias === expected.candidateSha)
+    && (!expected.ciTestedSha || value.ci_tested_sha_alias === expected.ciTestedSha)
+    && value.embedded_verification?.release_artifact_manifest === "passed"
+    && value.embedded_verification?.production_release === false;
 }
 
 function normalizeArtifactDescriptor(value = {}) {

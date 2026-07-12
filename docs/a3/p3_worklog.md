@@ -3945,4 +3945,8 @@ Safety boundary:
 - A1 compatibility was also exercised broadly (`1232` Python passes and `573` TypeScript SDK passes). Docker/PostgreSQL, Go, and Cargo-dependent tests remain explicitly environment-blocked rather than being weakened, skipped by code changes, or reported as passed.
 - First live GitHub publish succeeded for candidate `01f8707`: workflow `29190601539`, release-artifact Check `86644503081`, and Actions artifact `8259384802` all completed successfully. The artifact was downloaded and its embedded Release Artifact verification remained `passed` while the Golden Path correctly remained `blocked_by_a2`.
 - A pull-request SHA calibration issue was found from that real evidence and fixed: the release packet now distinguishes candidate head from the CI-tested synthetic merge commit.
+- Corrected run `29190953806` produced artifact `8259493055`; the downloaded packet independently records candidate `ad6113e`, tested merge `e07c5f6`, a passing embedded manifest verification, and `production_release=false`.
+- Real Check and operator PR-comment readbacks now confirm ID/name/conclusion/head plus marker/body-hash/head respectively. The live branch-policy readback remains missing (HTTP 404), and custom tenant GitHub App proof remains false.
+- Resealed output now reports Golden Path `7/11`, Deployment Acceptance `8/17`, Audit Bundle `14/14`, custody `7/7`, and archive `15/15` while preserving the A2 `block` decision.
+- Final post-readback gates passed: A3 Node `406/406`, A2 `186/186` plus `1050` subtests, Next.js 15-page build, Playwright `11/11`, CL, audits, YAML/JSON, secret/path, and diff checks.
 - No key, token, cookie, email, installation token, private signing key, or raw GitHub response was persisted.

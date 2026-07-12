@@ -1,6 +1,6 @@
 {
   "schema_version": "a3.generated_artifact_manifest.v1",
-  "generated_at": "2026-07-12T12:00:00.000Z",
+  "generated_at": "2026-07-12T11:40:00.000Z",
   "source": "a3-golden-path",
   "command_shape": "ashr gate --json",
   "manifest_file": "fixtures/a3/golden-path/generated-artifact-manifest.json",
@@ -23,8 +23,8 @@
       "id": "json_report",
       "path": "fixtures/a3/golden-path/gate-report.json",
       "content_type": "application/json",
-      "sha256": "5559875e25ae54227126955a9e4d9541c6801b99531879b315361b97e71c115d",
-      "byte_size": 23730,
+      "sha256": "5137703491bdd8c01d1f336c7313aa249dc7633ec0c7668430dc43fb4e92947c",
+      "byte_size": 23747,
       "required": true
     },
     {
@@ -39,8 +39,8 @@
       "id": "github_check_run",
       "path": "fixtures/a3/golden-path/github-check.json",
       "content_type": "application/json",
-      "sha256": "42eb080c27f8a27c7f4c9579719c9586f0d61ba47255cf735db510be975928c0",
-      "byte_size": 2176,
+      "sha256": "4534eb4663c37517f03d707bbfa3f5cde1ddd0e8d9d3cacb9bef6b57ee4b656b",
+      "byte_size": 2193,
       "required": true
     },
     {
@@ -63,30 +63,30 @@
     },
     {
       "id": "github_check_readback",
-      "path": "fixtures/a3/p3/a3_github_check_readback_confirmed.redacted.json",
+      "path": "fixtures/a3/golden-path/github-check-live-readback.redacted.json",
       "content_type": "application/json",
-      "sha256": "84d38fe4b5208e8c556799a9ddeb149794c34a7451dcf1451213683c108b4b7e",
-      "byte_size": 1613,
+      "sha256": "034ae7376ffb1bb3cd3a8ba5f0af7207c15a05bed222a00ec4117176b1d8333b",
+      "byte_size": 2151,
       "required": true,
       "bundle_role": "readback_record",
       "origin": "external_github_live_readback"
     },
     {
       "id": "github_pr_comment_readback",
-      "path": "fixtures/a3/p3/a3_github_pr_comment_readback_confirmed.redacted.json",
+      "path": "fixtures/a3/golden-path/github-pr-comment-live-readback.redacted.json",
       "content_type": "application/json",
-      "sha256": "2334d0d29cdc314f6871f41371e5aceab69014b305d5efe21501896027a283fd",
-      "byte_size": 1668,
+      "sha256": "25c17c8eb61f035c02287d81ea831bd76b5590495aed6a0c924885c94f355f11",
+      "byte_size": 2116,
       "required": true,
       "bundle_role": "readback_record",
       "origin": "external_github_live_readback"
     },
     {
       "id": "github_required_check_proof",
-      "path": "fixtures/a3/p3/a3_github_required_check_proof_plan_only.redacted.json",
+      "path": "fixtures/a3/golden-path/github-required-check-live-readback.redacted.json",
       "content_type": "application/json",
-      "sha256": "1d137bfe38ccc9d19f8118675cfc379d8d19b0138e1fc166266baab9f0490339",
-      "byte_size": 1123,
+      "sha256": "4e6ac32205a88507e3b66ae6fbcfe2a3fe515d88bff7c5a32936d2ace21bd133",
+      "byte_size": 1459,
       "required": true,
       "bundle_role": "readback_record",
       "origin": "external_github_live_readback"

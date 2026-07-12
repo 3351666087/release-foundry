@@ -763,6 +763,31 @@ test("A3 PR comment readback confirms marker and body hash", async () => {
   assert.doesNotMatch(JSON.stringify(readback), /rt_secret|Authorization|Bearer/);
 });
 
+test("A3 PR comment readback prefers a labeled candidate SHA over numeric run markers", () => {
+  const marker = "<!-- ashr-plus-plus:release-gate:a3-golden-20260712-001 -->";
+  const headSha = "ad6113e01f5999f99b378e678d4f0a9602e8fdbc";
+  const body = `${marker}\n| Candidate head | \`${headSha}\` |`;
+  const receipt = {
+    posted: true,
+    dry_run: false,
+    plan: {
+      marker,
+      repo: { owner: "acme", repo: "refund-agent" },
+      pull_number: 17,
+      request: { body: { body } }
+    }
+  };
+  const readback = buildPrCommentReadbackReceipt(receipt, {
+    headSha,
+    comment: { id: 2002, body },
+    httpStatus: 200
+  });
+
+  assert.equal(readback.observed.head_sha_alias, headSha);
+  assert.equal(readback.matches.head_sha, true);
+  assert.equal(readback.readback_status, "readback_confirmed");
+});
+
 test("A3 PR comment readback detects marker and body mismatches", async () => {
   const payload = await loadJson("../../fixtures/a3/p3/a3_gate_cli_mock_blocked.redacted.json");
   const publishReceipt = await publishPrCommentUpsert(payload, {

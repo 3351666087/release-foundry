@@ -110,9 +110,11 @@ test.describe("A3 Next.js product console", () => {
     await expect(page.locator(".source-control select")).toHaveValue("a3-golden-path");
     await expect(page.locator(".delivery-signal")).toContainText("候选版本保持阻塞");
     await expect(page.locator(".delivery-stage-list article")).toHaveCount(11);
+    await expect(page.locator('.delivery-stage-list article[data-status="passed"]')).toHaveCount(7);
     await expect(page.getByText("A2 Decision Ledger authorizes release", { exact: true })).toBeVisible();
     await expect(page.getByText("Tenant-bound GitHub App installation", { exact: true })).toBeVisible();
     await expect(page.getByText("Required Check enforced on main", { exact: true })).toBeVisible();
+    await expect(page.getByText("GitHub Actions artifact live readback", { exact: true })).toBeVisible();
     const bounds = await page.evaluate(() => ({
       viewport: document.documentElement.clientWidth,
       documentScrollWidth: document.documentElement.scrollWidth,

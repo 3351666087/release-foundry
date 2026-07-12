@@ -46,6 +46,7 @@ export function parseReleaseDeliveryArgs(argv = []) {
     else if (item === "--github-check-readback") options.githubCheckReadback = next();
     else if (item === "--github-pr-comment-readback") options.githubPrCommentReadback = next();
     else if (item === "--github-required-check-proof") options.githubRequiredCheckProof = next();
+    else if (item === "--github-actions-artifact-readback") options.githubActionsArtifactReadback = next();
     else if (item === "--deployment-probe") options.deploymentProbe = next();
     else if (item === "--release-version") options.releaseVersion = next();
     else if (item === "--environment") options.environment = next();
@@ -84,6 +85,7 @@ export async function buildReleaseDeliveryOutputs(options = {}) {
   const githubCheckReadback = await readJsonOptional(options.githubCheckReadback);
   const githubPrCommentReadback = await readJsonOptional(options.githubPrCommentReadback);
   const githubRequiredCheckProof = await readJsonOptional(options.githubRequiredCheckProof);
+  const githubActionsArtifactReadback = await readJsonOptional(options.githubActionsArtifactReadback);
   const deploymentProbe = await readJson(options.deploymentProbe);
   const trustedReleaseAuthority = evaluateA2TrustedReleaseAuthority(a2TrustedSpine);
   const a1RunSummary = summarizeA1RunEvidence(runFixture);
@@ -100,7 +102,8 @@ export async function buildReleaseDeliveryOutputs(options = {}) {
     ["deployment_probe", options.deploymentProbe, "deployment_evidence", "A1/A3"],
     ["github_check_readback", options.githubCheckReadback, "github_readback", "A3"],
     ["github_pr_comment_readback", options.githubPrCommentReadback, "github_readback", "A3"],
-    ["github_required_check_proof", options.githubRequiredCheckProof, "repository_policy", "A3"]
+    ["github_required_check_proof", options.githubRequiredCheckProof, "repository_policy", "A3"],
+    ["github_actions_artifact_readback", options.githubActionsArtifactReadback, "release_distribution_readback", "A3"]
   ].filter(([, path]) => Boolean(path));
   const artifacts = await Promise.all(artifactInputs.map(([id, path, role, sourceLane]) => describeArtifactFile(id, path, {
     workspaceRoot,
@@ -145,6 +148,7 @@ export async function buildReleaseDeliveryOutputs(options = {}) {
     githubCheckReadback,
     githubPrCommentReadback,
     githubRequiredCheckProof,
+    githubActionsArtifactReadback,
     deploymentProbe,
     releaseArtifactManifest,
     releaseArtifactVerification,
@@ -241,7 +245,7 @@ export async function runReleaseDeliveryCli(argv = process.argv.slice(2), io = {
 function usageReceipt() {
   return {
     schema_version: "a3.release_delivery_cli_usage.v1",
-    command: "node services/report/a3_release_delivery_cli.mjs --runs <a1-run.json> --grades <a2-service-response.json> --trusted-spine <a2-trusted-spine.json> --audit-bundle <bundle.json> --audit-bundle-verification <bundle-verification.json> --audit-archive <archive.json> --audit-archive-verification <archive-verification.json> --deployment-probe <probe.json> --release-version 0.2.0-rc.1 --git-sha <candidate-sha> --ci-tested-sha <tested-sha> --output-dir artifacts/a3-release-delivery --no-fail --json",
+    command: "node services/report/a3_release_delivery_cli.mjs --runs <a1-run.json> --grades <a2-service-response.json> --trusted-spine <a2-trusted-spine.json> --audit-bundle <bundle.json> --audit-bundle-verification <bundle-verification.json> --audit-archive <archive.json> --audit-archive-verification <archive-verification.json> --deployment-probe <probe.json> --github-actions-artifact-readback <artifact.json> --release-version 0.2.0-rc.1 --git-sha <candidate-sha> --ci-tested-sha <tested-sha> --output-dir artifacts/a3-release-delivery --no-fail --json",
     notes: [
       "The CLI consumes A1/A2 evidence and never recomputes A2 score, pass/fail, or release authority.",
       "Use --no-fail in evidence-producing CI when a blocked release must still upload its audit packet."

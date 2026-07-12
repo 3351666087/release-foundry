@@ -6789,5 +6789,11 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
 - GitHub workflow run `29190601539` passed the new `A3 golden path release artifact` Check (`86644503081`), A3 Node, Next.js/Playwright, pinned evidence, CL plan, and final summary.
 - GitHub Actions artifact `8259384802` was created and downloaded for verification. It is 28,815 bytes, carries a server SHA-256 digest, is not expired, and is retained through 2026-07-26.
 - The first real artifact exposed a provenance ambiguity: pull-request `${{ github.sha }}` is the tested merge commit, not the candidate head. The workflow, CLI, manifest, Deployment Acceptance, API Reference, page, and tests now keep `git_sha_alias` for the candidate head and `ci_tested_sha_alias` for the merge commit.
+- The corrected workflow run `29190953806` passed all applicable checks and uploaded artifact `8259493055` under the candidate-head name. The downloaded packet binds candidate `ad6113e` and CI-tested merge `e07c5f6` separately.
+- Published operator calibration comment `4951021915` on PR #35 and read it back by marker, body hash, and candidate SHA. The observer remains explicit that operator OAuth is not a tenant custom GitHub App.
+- Fixed a real readback parser bug where numeric run marker `20260712` could be mistaken for a short commit SHA; labeled/full SHA values now take precedence. Focused GitHub and delivery tests passed `41/41`.
+- Resealed the new-run Audit Bundle with live Check/comment/policy receipts: 14/14 artifacts, 7/7 custody events, and root hash passed. The signed archive passed 15/15 entries, root hash, and Ed25519 signature.
+- The final packet reaches Golden Path `7/11` and Deployment Acceptance `8/17`; the Actions artifact readback passes while A2, custom GitHub App, required-check enforcement, and deployed infrastructure remain blocked.
+- Final post-readback verification passed: A3 Node `406/406`, A2 `186/186` plus `1050` subtests, Next.js typecheck/build with 15 pages, Playwright `11/11`, both CL guards, both npm audits, workflow YAML, 20 JSON fixtures, secret/path scan, and `git diff --check`.
 - Current true blockers: A2 Decision Ledger says block; no tenant custom GitHub App; no branch protection; no deployed identity/Postgres/queue/object-storage/rollback receipts.
 - Detailed record: `docs/a3/a3_release_delivery_golden_path_2026_07_12.md`.
