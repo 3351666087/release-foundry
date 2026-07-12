@@ -14,7 +14,7 @@ OUTPUT_POLICY_SCHEMA_VERSION = "ashr.clone.output_policy.v1"
 _REAL_RECORD_CLASSES = {"real_readonly", "real_mutating", "quota_gate"}
 EVIDENCE_INDEX_SCHEMA_VERSION = "ashr.clone.evidence_index.v1"
 _PUBLIC_SECRET_PATTERNS = (
-    re.compile(r"tp_[A-Za-z0-9_\-]+"),
+    re.compile(r"(?<![A-Za-z0-9_])tp_[A-Za-z0-9_-]+"),
     re.compile(r"sk-[A-Za-z0-9_\-]{8,}"),
     re.compile(r"Bearer\s+(?=[A-Za-z0-9._\-]*(?:\d|[._\-]))[A-Za-z0-9._\-]+", re.IGNORECASE),
     re.compile(r"ashr_live_[A-Za-z0-9_\-]+"),

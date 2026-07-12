@@ -139,6 +139,26 @@ test("validatePublicEvidenceIndex flags unsafe public evidence details", () => {
   );
 });
 
+test("validatePublicEvidenceIndex distinguishes tp credentials from identifier fragments", () => {
+  const credentialIssues = validatePublicEvidenceIndex({
+    records: [{ path: "public.json", note: "credential=tp_actualCredentialShape" }],
+  });
+  const benignIssues = validatePublicEvidenceIndex({
+    records: [
+      {
+        path: "public.json",
+        http_status: "ok",
+        http_test: "passed",
+        trusted_proof: "verified",
+        otp_present: true,
+      },
+    ],
+  });
+
+  assert.equal(credentialIssues.some((issue) => issue.kind === "secret_like_text"), true);
+  assert.equal(benignIssues.some((issue) => issue.kind === "secret_like_text"), false);
+});
+
 test("writePrivateEvidenceIndex creates parents and redacts output", async () => {
   const temp = mkdtempSync(join(tmpdir(), "ashr-ts-evidence-write-"));
   try {

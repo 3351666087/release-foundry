@@ -2716,3 +2716,27 @@ Round 54 final identity-lifecycle and parity closure, 2026-07-12:
 - The mandatory post-integration Bus-Auditor spawn was attempted again and
   still failed with `agent thread limit reached`. This environmental limit is
   recorded without fabricating an audit result.
+
+Round 54 hosted CI repair, 2026-07-12:
+
+- Re-ran the repository, branch, remote, PR, peer, strategy, and worklog
+  baseline before modifying files. PR `#36` had one substantive Python job
+  failure: the public evidence scanner treated `tp_` fragments embedded in
+  ordinary identifiers as credentials. The same over-broad matcher existed
+  in Python and TypeScript.
+- Tightened only the `tp_` credential matcher to require a non-identifier
+  left boundary. Actual `tp_...` credential-shaped values remain blocked,
+  while `http_status`, `http_test`, `trusted_proof`, and `otp_present` are
+  accepted as ordinary schema identifiers.
+- Added Python and TypeScript parity regressions for both the blocked token
+  shape and allowed identifier fragments.
+- `python -m pytest -q tests/a1/test_evidence_index.py` passed `21 passed`.
+- TypeScript `npm test` passed `599 passed, 0 failed` after a clean build.
+- Full `python -m pytest -q tests/a1` passed `1242 passed, 2 skipped in
+  318.40s`.
+- The remaining hosted Python failures are A2 generated-fixture drift caused
+  by the five newly documented A1 identity routes. No judge semantic failure
+  was observed. The A2 snapshot will be regenerated in an isolated A2
+  worktree and committed to the A2 branch; it is excluded from this A1 commit.
+- The Bus-Auditor spawn was retried before this repair and again failed with
+  `agent thread limit reached`. No audit result is fabricated.
