@@ -1,11 +1,19 @@
+import json
 import sqlite3
+import tempfile
 import unittest
+from pathlib import Path
+
+import jsonschema
 
 from services.judge.human_review_store import (
+    build_review_resolution_handoff,
     claim_review_case,
+    claim_review_resolution_outbox,
     get_authoritative_review_resolution,
     open_review_case,
     resolve_arbitration,
+    settle_review_resolution_outbox,
     submit_review,
 )
 from services.judge.sql_store import initialize_sql_store
@@ -15,6 +23,7 @@ SCOPE = {
     "organization_id": "org-a", "tenant_id": "tenant-a", "workspace_id": "workspace-a",
     "project_id": "project-a", "environment_id": "test",
 }
+ROOT = Path(__file__).resolve().parents[2]
 
 
 class HumanReviewStoreTests(unittest.TestCase):
@@ -154,6 +163,186 @@ class HumanReviewStoreTests(unittest.TestCase):
         self.assertTrue(authority["release_authority"])
         self.assertEqual(authority["effective_decision"], "block")
         self.assertFalse(authority["release_ready"])
+        event = self.db.execute(
+            "SELECT * FROM a2_review_resolution_outbox WHERE review_id = ?",
+            (review["review_id"],),
+        ).fetchone()
+        self.assertEqual(event["delivery_status"], "pending")
+        self.assertEqual(event["automatic_unblock"], 0)
+        handoff = build_review_resolution_handoff(
+            self.db, event_id=event["event_id"], scope=SCOPE
+        )
+        schema = json.loads(
+            (ROOT / "docs/a2/schemas/human_review_resolution.schema.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        jsonschema.Draft202012Validator(schema).validate(handoff)
+        self.assertEqual(handoff["effective_decision"], "block")
+        self.assertFalse(handoff["release_ready"])
+        self.assertFalse(handoff["automatic_unblock"])
+        self.assertFalse(handoff["raw_evidence_included"])
+        self.assertFalse(handoff["review_reason_included"])
+
+    def test_review_resolution_outbox_is_scoped_retryable_and_fenced(self):
+        review = self._open()
+        lease = claim_review_case(
+            self.db, review_id=review["review_id"], scope=SCOPE, reviewer_id_hash="reviewer",
+            now="2026-07-12T00:00:00Z",
+        )
+        submit_review(
+            self.db, lease=lease, scope=SCOPE, outcome="confirm", reason_code="agreed",
+            submitted_at="2026-07-12T00:00:10Z",
+        )
+        claimed = claim_review_resolution_outbox(
+            self.db, worker_id="dispatcher-a", now="2026-07-12T00:00:20Z",
+            lease_seconds=10,
+        )
+        self.assertEqual(claimed["attempt_count"], 1)
+        takeover = claim_review_resolution_outbox(
+            self.db, worker_id="dispatcher-b", now="2026-07-12T00:00:31Z",
+        )
+        with self.assertRaisesRegex(ValueError, "stale"):
+            settle_review_resolution_outbox(
+                self.db, event_id=claimed["event_id"], worker_id="dispatcher-a",
+                lease_generation=claimed["lease_generation"], settled_at="2026-07-12T00:00:32Z",
+                outcome="delivered",
+            )
+        settle_review_resolution_outbox(
+            self.db, event_id=takeover["event_id"], worker_id="dispatcher-b",
+            lease_generation=takeover["lease_generation"], settled_at="2026-07-12T00:00:32Z",
+            outcome="retry", retry_at="2026-07-12T00:01:00Z", error_class="a3_unavailable",
+        )
+        self.assertIsNone(
+            claim_review_resolution_outbox(
+                self.db, worker_id="dispatcher-c", now="2026-07-12T00:00:59Z"
+            )
+        )
+        retry = claim_review_resolution_outbox(
+            self.db, worker_id="dispatcher-c", now="2026-07-12T00:01:00Z"
+        )
+        settle_review_resolution_outbox(
+            self.db, event_id=retry["event_id"], worker_id="dispatcher-c",
+            lease_generation=retry["lease_generation"], settled_at="2026-07-12T00:01:01Z",
+            outcome="delivered",
+        )
+        self.assertIsNone(
+            claim_review_resolution_outbox(
+                self.db, worker_id="dispatcher-d", now="2026-07-12T00:02:00Z"
+            )
+        )
+        wrong_scope = {**SCOPE, "tenant_id": "tenant-b"}
+        with self.assertRaisesRegex(ValueError, "scope mismatch"):
+            build_review_resolution_handoff(
+                self.db, event_id=retry["event_id"], scope=wrong_scope
+            )
+
+    def test_dead_letter_tamper_and_arbitration_handoff_fail_closed(self):
+        review = open_review_case(
+            self.db, scope=SCOPE, record_id="machine", reason_code="high_risk_conflict",
+            required_approvals=2, created_at="2026-07-12T00:00:00Z",
+        )
+        first = claim_review_case(
+            self.db, review_id=review["review_id"], scope=SCOPE,
+            reviewer_id_hash="reviewer-one", now="2026-07-12T00:01:00Z",
+        )
+        submit_review(
+            self.db, lease=first, scope=SCOPE, outcome="confirm", reason_code="agree",
+            submitted_at="2026-07-12T00:02:00Z",
+        )
+        second = claim_review_case(
+            self.db, review_id=review["review_id"], scope=SCOPE,
+            reviewer_id_hash="reviewer-two", now="2026-07-12T00:03:00Z",
+        )
+        submit_review(
+            self.db, lease=second, scope=SCOPE, outcome="overturn", reason_code="disagree",
+            superseding_record_id="human", submitted_at="2026-07-12T00:04:00Z",
+        )
+        resolution = resolve_arbitration(
+            self.db, review_id=review["review_id"], scope=SCOPE,
+            arbitrator_id_hash="arbitrator", arbitrator_role="release_arbitrator",
+            final_outcome="overturn", superseding_record_id="human",
+            resolved_at="2026-07-12T00:05:00Z",
+        )
+        event = self.db.execute(
+            "SELECT * FROM a2_review_resolution_outbox WHERE review_id = ?",
+            (review["review_id"],),
+        ).fetchone()
+        payload = build_review_resolution_handoff(
+            self.db, event_id=event["event_id"], scope=SCOPE
+        )
+        schema = json.loads(
+            (ROOT / "docs/a2/schemas/human_review_resolution.schema.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        jsonschema.Draft202012Validator(schema).validate(payload)
+        self.assertEqual(payload["resolution_type"], "arbitration")
+        self.assertEqual(payload["final_outcome"], "overturn")
+        self.assertEqual(payload["effective_record_id"], "human")
+        self.assertEqual(payload["effective_decision"], "allow")
+        self.assertTrue(payload["release_ready"])
+        self.assertEqual(payload["resolution_hash"], resolution["resolution_hash"])
+
+        claimed = claim_review_resolution_outbox(
+            self.db, worker_id="dispatcher", now="2026-07-12T00:06:00Z"
+        )
+        settle_review_resolution_outbox(
+            self.db, event_id=claimed["event_id"], worker_id="dispatcher",
+            lease_generation=claimed["lease_generation"], settled_at="2026-07-12T00:06:01Z",
+            outcome="dead", error_class="contract_rejected",
+        )
+        self.assertIsNone(
+            claim_review_resolution_outbox(
+                self.db, worker_id="dispatcher-two", now="2026-07-13T00:00:00Z"
+            )
+        )
+
+        self.db.execute(
+            "UPDATE a2_review_resolution_outbox SET payload_hash = ? WHERE event_id = ?",
+            ("sha256:" + ("0" * 64), event["event_id"]),
+        )
+        self.db.commit()
+        with self.assertRaisesRegex(ValueError, "payload mismatch"):
+            build_review_resolution_handoff(
+                self.db, event_id=event["event_id"], scope=SCOPE
+            )
+
+    def test_resolution_and_outbox_are_one_transaction(self):
+        with tempfile.TemporaryDirectory() as directory:
+            connection = sqlite3.connect(Path(directory) / "review.sqlite")
+            try:
+                connection.row_factory = sqlite3.Row
+                initialize_sql_store(connection)
+                self._copy_decisions(connection)
+                review = open_review_case(
+                    connection, scope=SCOPE, record_id="machine", reason_code="judge_disagreement",
+                    created_at="2026-07-12T00:00:00Z",
+                )
+                lease = claim_review_case(
+                    connection, review_id=review["review_id"], scope=SCOPE,
+                    reviewer_id_hash="reviewer", now="2026-07-12T00:00:01Z",
+                )
+                connection.execute(
+                    """
+                    CREATE TRIGGER reject_review_resolution_outbox
+                    BEFORE INSERT ON a2_review_resolution_outbox
+                    BEGIN SELECT RAISE(ABORT, 'outbox rejected'); END
+                    """
+                )
+                with self.assertRaisesRegex(sqlite3.IntegrityError, "outbox rejected"):
+                    submit_review(
+                        connection, lease=lease, scope=SCOPE, outcome="confirm",
+                        reason_code="agreed", submitted_at="2026-07-12T00:00:02Z",
+                    )
+                self.assertEqual(
+                    connection.execute("SELECT COUNT(*) FROM a2_review_events").fetchone()[0], 0
+                )
+                self.assertEqual(
+                    connection.execute("SELECT COUNT(*) FROM a2_review_resolutions").fetchone()[0], 0
+                )
+            finally:
+                connection.close()
 
     def test_high_risk_review_requires_two_distinct_matching_approvals(self):
         review = open_review_case(
@@ -272,7 +461,6 @@ class HumanReviewStoreTests(unittest.TestCase):
                 self.db, review_id=review["review_id"], scope=SCOPE,
                 reviewer_id_hash="three", now="2026-07-12T00:05:00Z",
             )
-
         self.assertIsNone(
             get_authoritative_review_resolution(
                 self.db, review_id=review["review_id"], scope=SCOPE
@@ -310,6 +498,24 @@ class HumanReviewStoreTests(unittest.TestCase):
                 arbitrator_id_hash="other-arb", arbitrator_role="release_arbitrator",
                 final_outcome="confirm", resolved_at="2026-07-12T00:07:00Z",
             )
+
+    def _copy_decisions(self, connection):
+        for record_id, decision in (("machine", "block"), ("human", "allow")):
+            connection.execute(
+                """
+                INSERT INTO a2_release_decisions VALUES (
+                  ?, ?, ?, ?, ?, ?, ?, 'run', 'case', 'scenario', ?, ?, 'snapshot',
+                  'snapshot-hash', 'provider-hash', 'judge-hash', 'gate-hash', 'previous',
+                  ?, 'ledger', 'ledger-hash', 'request-hash', '2026-07-12T00:00:00Z', 1
+                )
+                """,
+                (
+                    record_id, f"key-{record_id}", SCOPE["organization_id"], SCOPE["tenant_id"],
+                    SCOPE["workspace_id"], SCOPE["project_id"], SCOPE["environment_id"],
+                    decision, int(decision == "review"), f"record-hash-{record_id}",
+                ),
+            )
+        connection.commit()
 
 
 if __name__ == "__main__":

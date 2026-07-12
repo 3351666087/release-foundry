@@ -305,6 +305,120 @@ def get_authoritative_review_resolution(
     }
 
 
+def claim_review_resolution_outbox(
+    connection: sqlite3.Connection,
+    *,
+    worker_id: str,
+    now: str,
+    lease_seconds: int = 60,
+) -> dict[str, Any] | None:
+    """Claim one committed review resolution with monotonic delivery fencing."""
+    if not worker_id or lease_seconds <= 0:
+        raise ValueError("worker identity and positive lease are required")
+    expires = (_timestamp(now) + timedelta(seconds=lease_seconds)).isoformat().replace("+00:00", "Z")
+    connection.execute("BEGIN IMMEDIATE")
+    try:
+        row = connection.execute(
+            """
+            SELECT * FROM a2_review_resolution_outbox
+            WHERE (
+              delivery_status IN ('pending', 'retry')
+              OR (delivery_status = 'leased' AND lease_expires_at <= ?)
+            ) AND available_at <= ?
+            ORDER BY created_at, event_id
+            LIMIT 1
+            """,
+            (now, now),
+        ).fetchone()
+        if row is None:
+            connection.commit()
+            return None
+        value = dict(row)
+        generation = int(value["lease_generation"]) + 1
+        cursor = connection.execute(
+            """
+            UPDATE a2_review_resolution_outbox
+            SET delivery_status = 'leased', lease_owner = ?, lease_generation = ?,
+                lease_expires_at = ?, attempt_count = attempt_count + 1
+            WHERE event_id = ? AND lease_generation = ?
+            """,
+            (worker_id, generation, expires, value["event_id"], value["lease_generation"]),
+        )
+        if cursor.rowcount != 1:
+            raise ValueError("review resolution outbox claim contention")
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+    value.update(
+        delivery_status="leased", lease_owner=worker_id, lease_generation=generation,
+        lease_expires_at=expires, attempt_count=int(value["attempt_count"]) + 1,
+    )
+    return value
+
+
+def settle_review_resolution_outbox(
+    connection: sqlite3.Connection,
+    *,
+    event_id: str,
+    worker_id: str,
+    lease_generation: int,
+    settled_at: str,
+    outcome: str,
+    retry_at: str | None = None,
+    error_class: str | None = None,
+) -> None:
+    """Settle delivery without allowing stale workers to overwrite newer state."""
+    if outcome not in {"delivered", "retry", "dead"}:
+        raise ValueError("outbox outcome must be delivered, retry, or dead")
+    if outcome == "retry" and not retry_at:
+        raise ValueError("retry_at is required for retry")
+    cursor = connection.execute(
+        """
+        UPDATE a2_review_resolution_outbox
+        SET delivery_status = ?, available_at = ?, delivered_at = ?,
+            last_error_class = ?, lease_owner = NULL, lease_expires_at = NULL
+        WHERE event_id = ? AND delivery_status = 'leased'
+          AND lease_owner = ? AND lease_generation = ?
+        """,
+        (
+            outcome, retry_at or settled_at, settled_at if outcome == "delivered" else None,
+            error_class, event_id, worker_id, lease_generation,
+        ),
+    )
+    if cursor.rowcount != 1:
+        connection.rollback()
+        raise ValueError("stale review resolution outbox fencing generation")
+    connection.commit()
+
+
+def build_review_resolution_handoff(
+    connection: sqlite3.Connection,
+    *,
+    event_id: str,
+    scope: dict[str, str],
+) -> dict[str, Any]:
+    """Build the metadata-only A3 payload for one committed outbox event."""
+    normalized = _scope(scope)
+    row = connection.execute(
+        "SELECT * FROM a2_review_resolution_outbox WHERE event_id = ?", (event_id,)
+    ).fetchone()
+    if row is None:
+        raise ValueError("review resolution outbox event not found")
+    value = dict(row)
+    if any(value[field] != expected for field, expected in normalized.items()):
+        raise ValueError("review resolution outbox scope mismatch")
+    resolution = get_authoritative_review_resolution(
+        connection, review_id=value["review_id"], scope=normalized
+    )
+    if resolution is None or resolution["resolution_hash"] != value["resolution_hash"]:
+        raise ValueError("review resolution outbox integrity mismatch")
+    payload = _handoff_payload(resolution)
+    if stable_hash(payload) != value["payload_hash"]:
+        raise ValueError("review resolution outbox payload mismatch")
+    return payload
+
+
 def _write_resolution(
     connection: sqlite3.Connection,
     *,
@@ -360,7 +474,67 @@ def _write_resolution(
             row["required_approvals"], arbitrator_id_hash, resolution_hash, resolved_at,
         ),
     )
-    return {**core, "resolution_id": resolution_id, "resolution_hash": resolution_hash, "release_authority": True}
+    resolution = {
+        **core, "resolution_id": resolution_id, "resolution_hash": resolution_hash,
+        "release_authority": True,
+    }
+    payload = _handoff_payload(resolution)
+    event_id = stable_hash(
+        {"event_type": "a2.review_resolution.committed.v1", "payload": payload}
+    )
+    connection.execute(
+        """
+        INSERT INTO a2_review_resolution_outbox (
+          event_id, event_type, resolution_id, review_id, organization_id, tenant_id,
+          workspace_id, project_id, environment_id, schema_version, payload_hash,
+          resolution_hash, effective_record_id, effective_decision, release_ready,
+          automatic_unblock, delivery_status, available_at, created_at, public_safe
+        ) VALUES (?, 'a2.review_resolution.committed.v1', ?, ?, ?, ?, ?, ?, ?,
+                  'a2.human_review_resolution.v1', ?, ?, ?, ?, ?, 0, 'pending', ?, ?, 1)
+        """,
+        (
+            event_id, resolution_id, row["review_id"], scope["organization_id"],
+            scope["tenant_id"], scope["workspace_id"], scope["project_id"],
+            scope["environment_id"], stable_hash(payload), resolution_hash,
+            effective["record_id"], effective["decision"],
+            int(effective["decision"] == "allow"), resolved_at, resolved_at,
+        ),
+    )
+    return resolution
+
+
+def _handoff_payload(resolution: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "schema_version": "a2.human_review_resolution.v1",
+        "event_type": "a2.review_resolution.committed.v1",
+        "tenant_scope": {
+            field: resolution[field]
+            for field in (
+                "organization_id", "tenant_id", "workspace_id", "project_id", "environment_id"
+            )
+        },
+        "resolution_id": resolution["resolution_id"],
+        "resolution_hash": resolution["resolution_hash"],
+        "review_id": resolution["review_id"],
+        "resolution_type": resolution["resolution_type"],
+        "final_outcome": resolution["final_outcome"],
+        "machine_record_id": resolution["record_id"],
+        "machine_record_hash": resolution["machine_record_hash"],
+        "superseding_record_id": resolution["superseding_record_id"],
+        "superseding_record_hash": resolution["superseding_record_hash"],
+        "effective_record_id": resolution["effective_record_id"],
+        "effective_decision": resolution["effective_decision"],
+        "release_ready": bool(resolution["release_ready"]),
+        "release_authority": True,
+        "automatic_unblock": False,
+        "evidence_snapshot_hash": resolution["evidence_snapshot_hash"],
+        "policy_hash": resolution["policy_hash"],
+        "approval_count": resolution["approval_count"],
+        "required_approvals": resolution["required_approvals"],
+        "resolved_at": resolution["resolved_at"],
+        "raw_evidence_included": False,
+        "review_reason_included": False,
+    }
 
 
 def _resolution_core(value: dict[str, Any]) -> dict[str, Any]:

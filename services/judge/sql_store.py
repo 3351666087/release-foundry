@@ -316,6 +316,29 @@ CREATE TABLE IF NOT EXISTS a2_review_resolutions (
   public_safe INTEGER NOT NULL CHECK (public_safe = 1)
 );
 
+CREATE TABLE IF NOT EXISTS a2_review_resolution_outbox (
+  event_id TEXT PRIMARY KEY,
+  event_type TEXT NOT NULL CHECK (event_type = 'a2.review_resolution.committed.v1'),
+  resolution_id TEXT NOT NULL UNIQUE REFERENCES a2_review_resolutions(resolution_id),
+  review_id TEXT NOT NULL UNIQUE REFERENCES a2_review_cases(review_id),
+  organization_id TEXT NOT NULL, tenant_id TEXT NOT NULL, workspace_id TEXT NOT NULL,
+  project_id TEXT NOT NULL, environment_id TEXT NOT NULL,
+  schema_version TEXT NOT NULL CHECK (schema_version = 'a2.human_review_resolution.v1'),
+  payload_hash TEXT NOT NULL, resolution_hash TEXT NOT NULL,
+  effective_record_id TEXT NOT NULL REFERENCES a2_release_decisions(record_id),
+  effective_decision TEXT NOT NULL CHECK (effective_decision IN ('allow', 'block', 'review')),
+  release_ready INTEGER NOT NULL CHECK (release_ready IN (0, 1)),
+  automatic_unblock INTEGER NOT NULL DEFAULT 0 CHECK (automatic_unblock = 0),
+  delivery_status TEXT NOT NULL CHECK (
+    delivery_status IN ('pending', 'leased', 'retry', 'delivered', 'dead')
+  ),
+  attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
+  lease_owner TEXT, lease_generation INTEGER NOT NULL DEFAULT 0 CHECK (lease_generation >= 0),
+  lease_expires_at TEXT, available_at TEXT NOT NULL, created_at TEXT NOT NULL,
+  delivered_at TEXT, last_error_class TEXT,
+  public_safe INTEGER NOT NULL CHECK (public_safe = 1)
+);
+
 CREATE TABLE IF NOT EXISTS a2_learning_candidates (
   candidate_id TEXT PRIMARY KEY,
   review_event_id TEXT NOT NULL REFERENCES a2_review_events(event_id),
@@ -376,6 +399,8 @@ CREATE INDEX IF NOT EXISTS idx_a2_decision_operations_reconciliation_due
   );
 CREATE INDEX IF NOT EXISTS idx_a2_decision_outbox_delivery
   ON a2_decision_outbox(delivery_status, available_at);
+CREATE INDEX IF NOT EXISTS idx_a2_review_resolution_outbox_delivery
+  ON a2_review_resolution_outbox(delivery_status, available_at);
 """
 
 

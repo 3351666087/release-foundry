@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A2HumanReviewResolution",
+  "type": "object",
+  "required": [
+    "schema_version", "event_type", "tenant_scope", "resolution_id", "resolution_hash",
+    "review_id", "resolution_type", "final_outcome", "machine_record_id",
+    "machine_record_hash", "superseding_record_id", "superseding_record_hash",
+    "effective_record_id", "effective_decision", "release_ready", "release_authority",
+    "automatic_unblock", "evidence_snapshot_hash", "policy_hash", "approval_count",
+    "required_approvals", "resolved_at", "raw_evidence_included", "review_reason_included"
+  ],
+  "properties": {
+    "schema_version": { "const": "a2.human_review_resolution.v1" },
+    "event_type": { "const": "a2.review_resolution.committed.v1" },
+    "tenant_scope": {
+      "type": "object",
+      "required": ["organization_id", "tenant_id", "workspace_id", "project_id", "environment_id"],
+      "properties": {
+        "organization_id": { "type": "string", "minLength": 1 },
+        "tenant_id": { "type": "string", "minLength": 1 },
+        "workspace_id": { "type": "string", "minLength": 1 },
+        "project_id": { "type": "string", "minLength": 1 },
+        "environment_id": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "resolution_id": { "$ref": "#/$defs/hash" },
+    "resolution_hash": { "$ref": "#/$defs/hash" },
+    "review_id": { "$ref": "#/$defs/hash" },
+    "resolution_type": { "enum": ["review_consensus", "arbitration"] },
+    "final_outcome": { "enum": ["confirm", "overturn"] },
+    "machine_record_id": { "type": "string", "minLength": 1 },
+    "machine_record_hash": { "type": "string", "minLength": 1 },
+    "superseding_record_id": { "type": ["string", "null"] },
+    "superseding_record_hash": { "type": ["string", "null"] },
+    "effective_record_id": { "type": "string", "minLength": 1 },
+    "effective_decision": { "enum": ["allow", "block", "review"] },
+    "release_ready": { "type": "boolean" },
+    "release_authority": { "const": true },
+    "automatic_unblock": { "const": false },
+    "evidence_snapshot_hash": { "type": "string", "minLength": 1 },
+    "policy_hash": { "type": "string", "minLength": 1 },
+    "approval_count": { "type": "integer", "minimum": 1 },
+    "required_approvals": { "type": "integer", "enum": [1, 2] },
+    "resolved_at": { "type": "string", "format": "date-time" },
+    "raw_evidence_included": { "const": false },
+    "review_reason_included": { "const": false }
+  },
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "final_outcome": { "const": "confirm" } } },
+      "then": {
+        "properties": {
+          "superseding_record_id": { "type": "null" },
+          "superseding_record_hash": { "type": "null" }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "final_outcome": { "const": "overturn" } } },
+      "then": {
+        "properties": {
+          "superseding_record_id": { "type": "string", "minLength": 1 },
+          "superseding_record_hash": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    {
+      "if": { "properties": { "effective_decision": { "const": "allow" } } },
+      "then": { "properties": { "release_ready": { "const": true } } },
+      "else": { "properties": { "release_ready": { "const": false } } }
+    }
+  ],
+  "additionalProperties": false
+}
