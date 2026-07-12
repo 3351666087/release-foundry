@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sqlite3
 from typing import Any, Callable
 
 from .provider_gateway import ProviderGateway
@@ -11,6 +12,7 @@ from .provider_runtime import (
     verify_authenticated_evidence_bundle,
 )
 from .result_persistence import stable_hash
+from .release_decision_store import FailureInjector, persist_release_decision
 from .trusted_spine import (
     build_decision_ledger,
     build_decision_record,
@@ -28,6 +30,8 @@ def execute_release_decision(
     gateway: ProviderGateway,
     key_resolver: Callable[[str], bytes],
     now_unix_ms: int,
+    persistence_connection: sqlite3.Connection | None = None,
+    persistence_failure_injector: FailureInjector | None = None,
 ) -> dict[str, Any]:
     """Execute one fail-closed semantic release decision from authenticated A1 evidence."""
     scope = _scope(request)
@@ -99,7 +103,7 @@ def execute_release_decision(
         **scope,
         created_at=str(request["created_at"]),
     )
-    return {
+    result = {
         "schema_version": ORCHESTRATION_SCHEMA_VERSION,
         "evidence_snapshot": snapshot,
         "provider_provenance": provenance,
@@ -107,18 +111,47 @@ def execute_release_decision(
         "release_gate": gate,
         "decision_ledger": ledger,
         "a3_consumption": {
-            "release_ready": decision == "allow",
+            "release_ready": False,
             "display_decision": decision,
             "review_required": decision == "review",
             "display_provenance_hash": record["record_hash"],
             "may_recompute_grade": False,
+            "committed_decision_required": True,
         },
         "metadata": {
             "public_safe": True,
             "raw_evidence_included": False,
             "raw_provider_payload_included": False,
             "secrets_included": False,
+            "persistence_status": "not_configured",
         },
+    }
+    if persistence_connection is not None:
+        persistence = persist_release_decision(
+            persistence_connection,
+            result,
+            idempotency_key=str(request["idempotency_key"]),
+            request_hash=stable_hash(_request_identity(request, snapshot)),
+            failure_injector=persistence_failure_injector,
+        )
+        result["persistence"] = persistence
+        result["metadata"]["persistence_status"] = "committed"
+        result["a3_consumption"]["release_ready"] = decision == "allow"
+        result["a3_consumption"]["committed_record_id"] = persistence["record_id"]
+    return result
+
+
+def _request_identity(request: dict[str, Any], snapshot: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "scope": _scope(request),
+        "run_id": request.get("run_id"),
+        "case_id": request.get("case_id"),
+        "scenario_id": request.get("scenario_id"),
+        "provider_id": request.get("provider_id"),
+        "model_id": request.get("model_id"),
+        "policy_version": request.get("policy_version"),
+        "required_modalities": snapshot.get("required_modalities"),
+        "snapshot_hash": snapshot.get("snapshot_hash"),
     }
 
 

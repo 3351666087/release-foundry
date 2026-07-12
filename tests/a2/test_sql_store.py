@@ -48,6 +48,8 @@ class A2SqlStoreTests(unittest.TestCase):
             "a2_golden_cases",
             "a2_regression_history",
             "a2_sql_ingest_log",
+            "a2_release_decisions",
+            "a2_release_decision_audit",
         ):
             self.assertIn(f"CREATE TABLE IF NOT EXISTS {table}", ddl)
 

@@ -81,8 +81,49 @@ CREATE TABLE IF NOT EXISTS a2_sql_ingest_log (
   created_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS a2_release_decisions (
+  record_id TEXT PRIMARY KEY,
+  idempotency_key TEXT NOT NULL,
+  organization_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL,
+  workspace_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  environment_id TEXT NOT NULL,
+  run_id TEXT NOT NULL,
+  case_id TEXT NOT NULL,
+  scenario_id TEXT NOT NULL,
+  decision TEXT NOT NULL CHECK (decision IN ('allow', 'block', 'review')),
+  review_required INTEGER NOT NULL CHECK (review_required IN (0, 1)),
+  snapshot_id TEXT NOT NULL,
+  snapshot_hash TEXT NOT NULL,
+  provider_provenance_hash TEXT NOT NULL,
+  judge_result_hash TEXT NOT NULL,
+  release_gate_hash TEXT NOT NULL,
+  previous_record_hash TEXT NOT NULL,
+  record_hash TEXT NOT NULL,
+  ledger_id TEXT NOT NULL,
+  ledger_hash TEXT NOT NULL,
+  request_hash TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  public_safe INTEGER NOT NULL CHECK (public_safe = 1),
+  UNIQUE(tenant_id, project_id, idempotency_key)
+);
+
+CREATE TABLE IF NOT EXISTS a2_release_decision_audit (
+  audit_id TEXT PRIMARY KEY,
+  record_id TEXT NOT NULL REFERENCES a2_release_decisions(record_id) ON DELETE CASCADE,
+  tenant_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  event_type TEXT NOT NULL,
+  event_hash TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  UNIQUE(record_id, event_type)
+);
+
 CREATE INDEX IF NOT EXISTS idx_a2_judge_results_case ON a2_judge_results(case_id);
 CREATE INDEX IF NOT EXISTS idx_a2_judge_results_failure ON a2_judge_results(primary_failure_class);
 CREATE INDEX IF NOT EXISTS idx_a2_calibration_scenario ON a2_calibration_cases(scenario_id);
 CREATE INDEX IF NOT EXISTS idx_a2_golden_scenario ON a2_golden_cases(scenario_id);
 CREATE INDEX IF NOT EXISTS idx_a2_regression_scenario ON a2_regression_history(scenario_id);
+CREATE INDEX IF NOT EXISTS idx_a2_release_decisions_scope
+  ON a2_release_decisions(tenant_id, project_id, created_at);
