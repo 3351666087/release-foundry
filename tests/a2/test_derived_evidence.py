@@ -10,6 +10,10 @@ from services.judge.derived_evidence import (
     provider_text_parts,
     public_derived_evidence,
 )
+from services.judge.extractor_registry import (
+    ExtractorQualificationRegistry,
+    qualification_record_hash,
+)
 
 
 ROOT = Path(__file__).parents[2]
@@ -36,6 +40,7 @@ def extractor(*, production_qualified=True):
         "extractor_version": "3.9.1",
         "runtime_id": "onnxruntime-cpu",
         "runtime_version": "1.23.2",
+            "runtime_platform": "windows-x86_64",
         "model_id": "pp-ocrv6-small",
         "model_hash": digest("model"),
         "config_hash": digest("config"),
@@ -44,11 +49,83 @@ def extractor(*, production_qualified=True):
     }
 
 
-def qualification(**overrides):
-    value = extractor()
-    value["production_qualified"] = True
+def qualification_record(**overrides):
+    value = {
+        "schema_version": "a2.extractor_qualification.v1",
+        "record_id": "qual.rapidocr.3.9.1.2026-07",
+        "extractor": {"id": "rapidocr", "version": "3.9.1"},
+        "runtime": {
+            "id": "onnxruntime-cpu",
+            "version": "1.23.2",
+            "platform": "windows-x86_64",
+        },
+        "artifact_digest": digest("model"),
+        "license": "Apache-2.0",
+        "supported_media_types": ["image/jpeg", "image/png"],
+        "supported_languages": ["en"],
+        "quality_thresholds": {
+            "minimum_precision": 0.95,
+            "minimum_recall": 0.95,
+            "minimum_content_coverage": 0.95,
+        },
+        "security_checks": {
+            "malformed_input": True,
+            "resource_limits": True,
+            "path_isolation": True,
+            "active_content_disabled": True,
+        },
+        "offline_checks": {
+            "network_disabled": True,
+            "model_artifacts_pinned": True,
+            "dependency_lock_verified": True,
+        },
+        "promotion_status": "qualified",
+        "valid_from": "2026-07-01T00:00:00Z",
+        "valid_until": "2027-07-01T00:00:00Z",
+        "issuer": {
+            "id": "a2.qualification-authority",
+            "authority": "extractor-promotion",
+        },
+        "issuer_attestation": {
+            "method": "external-record",
+            "reference": "change-control/EXQ-2042",
+            "issued_at": "2026-07-01T00:00:00Z",
+        },
+        "record_hash": "",
+    }
     value.update(overrides)
+    value["record_hash"] = qualification_record_hash(value)
     return value
+
+
+def qualification(*, artifact_digest=None, **record_overrides):
+    artifact_digest = artifact_digest or digest("model")
+    record_overrides["artifact_digest"] = artifact_digest
+    registry = ExtractorQualificationRegistry(
+        [qualification_record(**record_overrides)],
+        trusted_issuers={
+            "a2.qualification-authority": frozenset({"extractor-promotion"})
+        },
+    )
+    return registry.qualify(
+        {
+            "extractor_id": "rapidocr",
+            "extractor_version": "3.9.1",
+            "runtime_id": "onnxruntime-cpu",
+            "runtime_version": "1.23.2",
+            "runtime_platform": "windows-x86_64",
+            "runtime_platform": "windows-x86_64",
+            "artifact_digest": artifact_digest,
+        },
+        media_type="image/png",
+        language="en",
+        observed_quality={
+            "minimum_precision": 0.99,
+            "minimum_recall": 0.99,
+            "minimum_content_coverage": 0.99,
+        },
+        now="2026-07-12T00:00:00Z",
+    )
 
 
 def record(**overrides):
@@ -86,6 +163,14 @@ class DerivedEvidenceTests(unittest.TestCase):
         jsonschema.validate(public, schema)
         self.assertTrue(public["semantic_ready"])
         self.assertTrue(public["production_eligible"])
+        self.assertEqual(
+            public["extractor"]["qualification"]["record_id"],
+            "qual.rapidocr.3.9.1.2026-07",
+        )
+        self.assertFalse(
+            public["extractor"]["qualification"]["cryptographic_signature_verified"]
+        )
+        self.assertNotIn("change-control/EXQ-2042", json.dumps(public))
         self.assertEqual(public["derived_evidence_hash"], private["public_projection_hash"])
         self.assertNotIn("text", public["blocks"][0])
         self.assertNotIn("RELEASE BLOCKED", json.dumps(public))
@@ -116,11 +201,23 @@ class DerivedEvidenceTests(unittest.TestCase):
         self.assertIn("ocr_runtime_not_production_qualified", private["blockers"])
 
     def test_mismatched_trusted_qualification_fails_closed(self):
+        qualified = qualification()
         private = record(
-            extractor_qualification=qualification(model_hash=digest("other-model"))
+            extractor={**extractor(), "model_hash": digest("other-model")},
+            extractor_qualification=qualified,
         )
         self.assertFalse(private["production_eligible"])
         self.assertIn("ocr_runtime_not_production_qualified", private["blockers"])
+
+    def test_plain_mapping_cannot_impersonate_registry_qualification(self):
+        private = record(
+            extractor_qualification={
+                "record_id": "qual.rapidocr.3.9.1.2026-07",
+                "record_hash": digest("forged"),
+            }
+        )
+        self.assertFalse(private["production_eligible"])
+        self.assertIsNone(private["extractor"]["qualification"])
 
     def test_unassessed_safety_controls_are_blockers(self):
         private = record(prompt_injection_status="not_assessed", redaction_status="not_assessed")

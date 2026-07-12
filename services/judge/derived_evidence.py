@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any
 
+from .extractor_registry import QualifiedExtractor
 from .result_persistence import stable_hash
 
 
@@ -27,7 +28,7 @@ def build_ocr_derived_evidence(
     height: int,
     blocks: list[dict[str, Any]],
     extractor: dict[str, Any],
-    extractor_qualification: dict[str, Any] | None = None,
+    extractor_qualification: QualifiedExtractor | None = None,
     minimum_confidence: float = 0.75,
     provider_disclosure_allowed: bool = False,
     prompt_injection_status: str = "not_assessed",
@@ -93,11 +94,13 @@ def build_ocr_derived_evidence(
     if mean_confidence < minimum_confidence:
         blockers.append("ocr_confidence_below_policy")
     extractor_core = _extractor_identity(extractor)
-    production_qualified = _is_production_qualified(
+    qualification_projection = _qualification_projection(
         extractor_core,
         extractor_qualification,
     )
+    production_qualified = qualification_projection is not None
     extractor_core["production_qualified"] = production_qualified
+    extractor_core["qualification"] = qualification_projection
     if not production_qualified:
         blockers.append("ocr_runtime_not_production_qualified")
     if prompt_injection_status != "passed":
@@ -313,6 +316,7 @@ def _extractor_identity(extractor: dict[str, Any]) -> dict[str, Any]:
         "extractor_version",
         "runtime_id",
         "runtime_version",
+        "runtime_platform",
         "model_id",
         "model_hash",
         "config_hash",
@@ -328,15 +332,33 @@ def _extractor_identity(extractor: dict[str, Any]) -> dict[str, Any]:
     return {key: extractor[key] for key in required}
 
 
-def _is_production_qualified(
+def _qualification_projection(
     extractor: dict[str, Any],
-    qualification: dict[str, Any] | None,
-) -> bool:
-    """Resolve qualification from a trusted policy record, never producer metadata."""
-    if not isinstance(qualification, dict):
-        return False
-    expected = {**extractor, "production_qualified": True}
-    return qualification == expected
+    qualification: QualifiedExtractor | None,
+) -> dict[str, Any] | None:
+    """Bind registry-issued qualification to the exact deployed extractor."""
+    if not isinstance(qualification, QualifiedExtractor):
+        return None
+    expected = {
+        "extractor_id": qualification.extractor_id,
+        "extractor_version": qualification.extractor_version,
+        "runtime_id": qualification.runtime_id,
+        "runtime_version": qualification.runtime_version,
+        "model_hash": qualification.artifact_digest,
+    }
+    if any(extractor[field] != value for field, value in expected.items()):
+        return None
+    return {
+        "schema_version": "a2.extractor_qualification_binding.v1",
+        "record_id": qualification.record_id,
+        "record_hash": qualification.record_hash,
+        "issuer_id": qualification.issuer_id,
+        "artifact_digest": qualification.artifact_digest,
+        "runtime_platform": qualification.runtime_platform,
+        "valid_until": qualification.valid_until,
+        "cryptographic_signature_verified": False,
+        "raw_attestation_included": False,
+    }
 
 
 def _finite_score(value: Any) -> float | None:

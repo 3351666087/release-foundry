@@ -14,6 +14,7 @@ from services.judge.provider_gateway import (
 )
 from services.judge.artifact_pipeline import process_artifact
 from services.judge.derived_evidence import build_ocr_derived_evidence
+from tests.a2.test_derived_evidence import qualification
 from services.judge.provider_runtime import AUTHENTICATED_BUNDLE_SCHEMA_VERSION, validate_semantic_judge_output
 from services.judge.release_decision_orchestrator import (
     execute_release_decision,
@@ -224,23 +225,18 @@ def image_pipeline_and_evidence(*, production_qualified=True, disclosure=True):
             "extractor_version": "3.9.1",
             "runtime_id": "onnxruntime-cpu",
             "runtime_version": "1.23.2",
+            "runtime_platform": "windows-x86_64",
             "model_id": "pp-ocrv6-small",
             "model_hash": stable_hash("model"),
             "config_hash": stable_hash("config"),
             "dictionary_hash": stable_hash("dictionary"),
             "production_qualified": production_qualified,
         },
-        extractor_qualification={
-            "extractor_id": "rapidocr",
-            "extractor_version": "3.9.1",
-            "runtime_id": "onnxruntime-cpu",
-            "runtime_version": "1.23.2",
-            "model_id": "pp-ocrv6-small",
-            "model_hash": stable_hash("model"),
-            "config_hash": stable_hash("config"),
-            "dictionary_hash": stable_hash("dictionary"),
-            "production_qualified": production_qualified,
-        },
+        extractor_qualification=(
+            qualification(artifact_digest=stable_hash("model"))
+            if production_qualified
+            else None
+        ),
         provider_disclosure_allowed=disclosure,
         prompt_injection_status="passed",
         redaction_status="passed",

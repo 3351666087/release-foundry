@@ -49,22 +49,56 @@
         "extractor_version",
         "runtime_id",
         "runtime_version",
+        "runtime_platform",
         "model_id",
         "model_hash",
         "config_hash",
         "dictionary_hash",
-        "production_qualified"
+        "production_qualified",
+        "qualification"
       ],
       "properties": {
         "extractor_id": { "type": "string", "minLength": 1 },
         "extractor_version": { "type": "string", "minLength": 1 },
         "runtime_id": { "type": "string", "minLength": 1 },
         "runtime_version": { "type": "string", "minLength": 1 },
+        "runtime_platform": { "type": "string", "minLength": 1 },
         "model_id": { "type": "string", "minLength": 1 },
         "model_hash": { "$ref": "#/$defs/hash" },
         "config_hash": { "$ref": "#/$defs/hash" },
         "dictionary_hash": { "$ref": "#/$defs/hash" },
-        "production_qualified": { "type": "boolean" }
+        "production_qualified": { "type": "boolean" },
+        "qualification": {
+          "oneOf": [
+            { "type": "null" },
+            {
+              "type": "object",
+              "required": [
+                "schema_version",
+                "record_id",
+                "record_hash",
+                "issuer_id",
+                "artifact_digest",
+                "runtime_platform",
+                "valid_until",
+                "cryptographic_signature_verified",
+                "raw_attestation_included"
+              ],
+              "properties": {
+                "schema_version": { "const": "a2.extractor_qualification_binding.v1" },
+                "record_id": { "type": "string", "minLength": 1 },
+                "record_hash": { "$ref": "#/$defs/hash" },
+                "issuer_id": { "type": "string", "minLength": 1 },
+                "artifact_digest": { "$ref": "#/$defs/hash" },
+                "runtime_platform": { "type": "string", "minLength": 1 },
+                "valid_until": { "type": "string", "format": "date-time" },
+                "cryptographic_signature_verified": { "const": false },
+                "raw_attestation_included": { "const": false }
+              },
+              "additionalProperties": false
+            }
+          ]
+        }
       },
       "additionalProperties": false
     },

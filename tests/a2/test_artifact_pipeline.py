@@ -17,6 +17,7 @@ from services.judge.artifact_pipeline import (
 )
 from services.judge.extractor_runtime import SubprocessExtractorRuntime
 from services.judge.derived_evidence import build_ocr_derived_evidence
+from tests.a2.test_derived_evidence import qualification
 from services.judge.artifact_reference import (
     ARTIFACT_REFERENCE_SCHEMA_VERSION,
     InMemoryVersionedObjectReader,
@@ -379,23 +380,14 @@ class ArtifactPipelineTests(unittest.TestCase):
                 "extractor_version": "3.9.1",
                 "runtime_id": "onnxruntime-cpu",
                 "runtime_version": "1.23.2",
+            "runtime_platform": "windows-x86_64",
                 "model_id": "pp-ocrv6-small",
                 "model_hash": digest(b"model"),
                 "config_hash": digest(b"config"),
                 "dictionary_hash": digest(b"dictionary"),
             "production_qualified": True,
         },
-        extractor_qualification={
-            "extractor_id": "rapidocr",
-            "extractor_version": "3.9.1",
-            "runtime_id": "onnxruntime-cpu",
-            "runtime_version": "1.23.2",
-            "model_id": "pp-ocrv6-small",
-            "model_hash": digest(b"model"),
-            "config_hash": digest(b"config"),
-            "dictionary_hash": digest(b"dictionary"),
-            "production_qualified": True,
-        },
+        extractor_qualification=qualification(),
             prompt_injection_status="passed",
             redaction_status="passed",
         )
