@@ -594,7 +594,8 @@ def load_decision_recovery_envelope(
     normalized_scope = _scope(scope)
     cursor = connection.execute(
         """
-        SELECT o.provider_outcome_hash, p.outcome_hash, p.recovery_envelope_json,
+        SELECT o.provider_outcome_hash, o.request_hash AS operation_request_hash,
+               o.provider_payload_hash, p.outcome_hash, p.recovery_envelope_json,
                p.recovery_envelope_hash
         FROM a2_decision_operations o
         JOIN a2_provider_outcomes p ON p.operation_id = o.operation_id
@@ -625,6 +626,26 @@ def load_decision_recovery_envelope(
     if envelope.get("recovery_supported") is not True:
         raise ValueError("provider outcome does not contain a recoverable envelope")
     _validate_recovery_envelope(envelope, normalized_scope)
+    if envelope.get("request_hash") != row["operation_request_hash"]:
+        raise IdempotencyConflictError("decision input changed before commit")
+    snapshot = _dict(envelope.get("snapshot"), "recovery snapshot")
+    provider = _dict(envelope.get("provider"), "recovery provider")
+    reconstructed_request_hash = stable_hash({
+        "scope": normalized_scope,
+        "run_id": snapshot.get("run_id"),
+        "case_id": snapshot.get("case_id"),
+        "scenario_id": snapshot.get("scenario_id"),
+        "provider_id": provider.get("provider_id"),
+        "model_id": provider.get("model_id"),
+        "policy_version": envelope.get("policy_version"),
+        "evaluation_quality": envelope.get("evaluation_quality"),
+        "evaluation_trust_policy_hash": envelope.get("evaluation_trust_policy_hash"),
+        "required_modalities": snapshot.get("required_modalities"),
+        "snapshot_hash": snapshot.get("snapshot_hash"),
+        "provider_payload_hash": row["provider_payload_hash"],
+    })
+    if reconstructed_request_hash != row["operation_request_hash"]:
+        raise IdempotencyConflictError("decision input changed before commit")
     if envelope.get("provider_outcome_hash") != row["outcome_hash"]:
         raise ValueError("recovery envelope outcome hash mismatch")
     return envelope

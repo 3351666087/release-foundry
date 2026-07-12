@@ -367,6 +367,33 @@ class ProviderRuntimeTests(unittest.TestCase):
         self.assertNotEqual(timed_out["capability_state"], "callable")
         self.assertEqual(timed_out["calibration_state"], "uncalibrated")
 
+        invalid = build_local_smoke_evidence(
+            modality="text", model_id="vision", provider_result={"status": "invalid_response"},
+            content_hashes=[],
+        )
+        self.assertEqual(invalid["capability_state"], "protocol_reachable")
+        self.assertEqual(invalid["calibration_state"], "uncalibrated")
+        unavailable = build_local_smoke_evidence(
+            modality="text", model_id="vision", provider_result={"status": "provider_unavailable"},
+            content_hashes=[],
+        )
+        self.assertEqual(unavailable["capability_state"], "unavailable")
+        self.assertEqual(unavailable["calibration_state"], "uncalibrated")
+        for item in (evidence, timed_out, invalid, unavailable):
+            self.assert_schema(item, "local_provider_smoke.schema.json")
+
+    def test_local_smoke_rejects_noncanonical_hashes(self):
+        with self.assertRaises(ValueError):
+            build_local_smoke_evidence(
+                modality="image", model_id="vision", provider_result={"status": "completed"},
+                content_hashes=["SHA256:not-canonical"],
+            )
+        with self.assertRaises(ValueError):
+            build_local_smoke_evidence(
+                modality="text", model_id="vision", provider_result={"status": "completed"},
+                content_hashes=[], model_digest="not-a-digest",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

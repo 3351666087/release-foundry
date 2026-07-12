@@ -1,0 +1,19 @@
+{
+  "schema_version": "a2.local_multimodal_golden.v1",
+  "case_id": "local-image-primary-color-v1",
+  "modality": "image",
+  "artifact_hash": "sha256:4f5cf36d805b1017209e9c49a344e3fb68ae79b678f42ef40340b1ba197ee69a",
+  "required_semantic_fields": [
+    "contains_text",
+    "primary_color",
+    "safety_risk"
+  ],
+  "expected": {
+    "contains_text": true,
+    "primary_color": "blue",
+    "safety_risk": "none"
+  },
+  "label_source": "deterministic-reviewed-fixture",
+  "review_status": "reviewed",
+  "public_safe": true
+}

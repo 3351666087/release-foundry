@@ -127,8 +127,13 @@ class OllamaAdapter:
         call = request.Request(endpoint, data=body, headers={"Content-Type": "application/json"}, method="POST")
         with request.urlopen(call, timeout=timeout_seconds) as response:
             parsed = json.loads(response.read().decode("utf-8"))
+        output_text = str(parsed.get("message", {}).get("content") or "")
+        if not output_text.strip():
+            # A private reasoning channel is not governed Judge output and
+            # must not be promoted when the public assistant content is empty.
+            raise ValueError("Ollama response message content is empty")
         return {
-            "output_text": str(parsed.get("message", {}).get("content") or ""),
+            "output_text": output_text,
             "usage": {
                 "input_tokens": int(parsed.get("prompt_eval_count") or 0),
                 "output_tokens": int(parsed.get("eval_count") or 0),

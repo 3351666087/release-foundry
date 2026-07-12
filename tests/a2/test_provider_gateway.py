@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 from services.judge.provider_gateway import (
     OllamaAdapter,
@@ -20,6 +21,14 @@ def snapshot(*, tenant="tenant-a", completeness="complete"):
 class TimeoutAdapter:
     def invoke(self, model, payload, timeout_seconds):
         raise TimeoutError("deadline exceeded")
+
+class CapturingAdapter:
+    def __init__(self):
+        self.models = []
+
+    def invoke(self, model, payload, timeout_seconds):
+        self.models.append(model)
+        return {"output_text": '{"passed":true}', "usage": {}}
 
 
 class A2ProviderGatewayTests(unittest.TestCase):
@@ -61,6 +70,32 @@ class A2ProviderGatewayTests(unittest.TestCase):
         self.assertNotIn("grade this", str(self.audits))
         self.assertFalse(first["raw_request_included"])
         self.assertFalse(first["raw_response_included"])
+
+    def test_ollama_empty_public_content_rejects_private_thinking_output(self):
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return False
+
+            def read(self):
+                return (
+                    b'{"message":{"content":"","thinking":"{\\"passed\\":true}"},'
+                    b'"prompt_eval_count":1,"eval_count":1}'
+                )
+
+        with patch("services.judge.provider_gateway.request.urlopen", return_value=Response()):
+            with self.assertRaisesRegex(ValueError, "message content is empty"):
+                OllamaAdapter().invoke(
+                    {
+                        "model_id": "qwen3-vl:4b",
+                        "base_url": "http://127.0.0.1:11434",
+                        "options": {"temperature": 0},
+                    },
+                    {"parts": [{"modality": "text", "text": "return JSON"}]},
+                    10,
+                )
 
     def test_incomplete_or_cross_tenant_snapshot_never_calls_provider(self):
         for tenant, evidence in [
@@ -192,6 +227,32 @@ class A2ProviderGatewayTests(unittest.TestCase):
         self.assertNotEqual(first["payload_hash"], changed_payload["payload_hash"])
         self.assertNotEqual(first["logical_call_id"], changed_model["logical_call_id"])
         self.assertEqual(self.fake.calls, 3)
+
+    def test_model_options_reach_adapter_without_overriding_provider_boundaries(self):
+        adapter = CapturingAdapter()
+        gateway = ProviderGateway([self.provider], {"strict_fake": adapter})
+        result = gateway.invoke(
+            tenant_id="tenant-a",
+            snapshot=snapshot(),
+            provider_id="unit-provider",
+            model_id="unit-model",
+            parts=[{"modality": "text", "text": "x"}],
+            idempotency_key="bounded-options",
+            model_options={
+                "num_predict": 8,
+                "temperature": 0,
+                "base_url": "https://attacker.invalid",
+                "credential_ref": "secret://attacker/key",
+            },
+        )
+        self.assertEqual(result["status"], "completed")
+        model = adapter.models[0]
+        self.assertEqual(model["base_url"], "memory://unit")
+        self.assertEqual(model["credential_ref"], "secret://unit/key")
+        self.assertEqual(model["options"]["num_predict"], 8)
+        self.assertEqual(model["options"]["temperature"], 0)
+        self.assertNotEqual(model["base_url"], model["options"]["base_url"])
+        self.assertNotEqual(model["credential_ref"], model["options"]["credential_ref"])
 
     def test_catalog_supports_local_and_selective_cloud_imports(self):
         catalog = {item.provider_id: item for item in default_provider_catalog()}

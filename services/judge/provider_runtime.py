@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping, Protocol
@@ -464,7 +465,25 @@ def build_local_smoke_evidence(
     provider_result: dict[str, Any],
     content_hashes: list[str],
     model_digest: str = "",
+    duration_seconds: float | None = None,
 ) -> dict[str, Any]:
+    sha256 = re.compile(r"^sha256:[0-9a-f]{64}$")
+    if model_digest and not sha256.fullmatch(model_digest):
+        raise ValueError("model_digest must be an empty value or canonical sha256:<lowercase-hex>")
+    if any(not isinstance(value, str) or not sha256.fullmatch(value) for value in content_hashes):
+        raise ValueError("content_hashes must contain canonical sha256:<lowercase-hex> values")
+    if duration_seconds is None:
+        duration_bucket = "not_recorded"
+    elif duration_seconds < 1:
+        duration_bucket = "under_1s"
+    elif duration_seconds < 10:
+        duration_bucket = "1_to_10s"
+    elif duration_seconds < 60:
+        duration_bucket = "10_to_60s"
+    elif duration_seconds < 300:
+        duration_bucket = "1_to_5m"
+    else:
+        duration_bucket = "over_5m"
     status = str(provider_result.get("status", "blocked"))
     return {
         "schema_version": "a2.local_provider_smoke.v1",
@@ -483,6 +502,7 @@ def build_local_smoke_evidence(
         # A smoke call proves transport/runtime callability only. It never
         # substitutes for golden regression, disagreement analysis, or review.
         "calibration_state": "uncalibrated",
+        "duration_bucket": duration_bucket,
         "logical_call_id": provider_result.get("logical_call_id"),
         "response_hash": provider_result.get("response_hash"),
         "content_hashes": content_hashes,
