@@ -3009,3 +3009,122 @@ Date: 2026-07-12
 Next top three: PostgreSQL multi-worker provider dispatch coordination with
 fencing and reconciliation; durable Ollama SDK-to-run acceptance across
 service restart; verified five-modality provider capability expansion.
+
+## Round 60: PostgreSQL Provider Dispatch Coordination
+
+Date: 2026-07-12
+
+Commercial enhancement candidates:
+
+| Candidate | Demo | Risk reduction | Contract impact | Effort | API evidence |
+|---|---:|---:|---:|---:|---:|
+| PostgreSQL provider-dispatch coordinator | 4 | 5 | 3 | 4 | 3 |
+| Go provider-dispatch HTTP and cross-language clients | 5 | 4 | 3 | 4 | 4 |
+| Five-modality real-provider matrix expansion | 5 | 4 | 3 | 5 | 5 |
+
+The PostgreSQL coordinator was the highest bounded ROI because the existing
+file journal could not safely coordinate several service instances.
+
+- Added a Go provider-dispatch state machine and PostgreSQL repository with
+  idempotent submit, lease claim, fencing, heartbeat, stream observation,
+  terminal proof, indeterminate state, and explicit reconciliation.
+- Claim runs at `READ COMMITTED`, uses `FOR UPDATE SKIP LOCKED`, retries
+  PostgreSQL `40001` and `40P01` up to four attempts, honors cancellation and
+  deadlines, and never retries an ambiguous commit.
+- Added stable public operational errors. Driver, SQL, table, host, and
+  credential detail are not returned through claim failures.
+- Added transaction-local A1 organization/project scope to submit, claim,
+  lease mutations, and completion replay.
+- Migration 019 and the embedded Go schema now enable and force fail-closed
+  RLS using `app.a1_organization_id` and `app.a1_project_id` in both `USING`
+  and `WITH CHECK`.
+- A real `NOSUPERUSER NOBYPASSRLS` role proves missing-scope invisibility,
+  tenant/project isolation, correct-scope writes, rejected cross-scope writes,
+  idempotent migration, and legacy upgrade without data loss.
+- Python focused provider-dispatch and migration verification passed
+  `22 passed`; Go `go test ./...` passed; TypeScript build and all `629` tests
+  passed.
+- The live PostgreSQL 16-client claim test passed ten consecutive repetitions.
+  Each repetition had exactly one fenced winner and no claim errors.
+- The PostgreSQL container was actually restarted. Durable dispatch fields
+  before and after restart were identical; the public-safe record digest is
+  recorded in `docs/a1/evidence/round60_provider_dispatch_postgres.md`.
+- Latest remote CL before this dirty round is green at SHA `f9562494` (run
+  `29191978911`). The new provider-dispatch files require a new CL after push.
+- Peer changes observed: remote A2/A3 branches exist but no peer file was
+  merged into or modified by this A1 round.
+
+Next top three: publish provider-dispatch through the Go HTTP server and drive
+it from Python/TypeScript; run durable local Ollama SDK-to-run acceptance;
+expand verified five-modality provider capability evidence.
+
+### Round 60 release closure
+
+- Rebuilt `services/runner/docker-compose.a1.yml` from scratch through
+  `infra/docker/Dockerfile.go-runtime`. The final container executes compiled
+  `/usr/local/bin/ashr-api`; PostgreSQL was healthy, the BusyBox filesystem
+  object-store placeholder was running, and `/health` reported `ready=true`,
+  `backend_ready=true`, and `backend=postgres_repository_v0`.
+- The Python SDK to real Go control-plane vertical test passed `1 passed`.
+  The deployment scaffold acceptance contract was deliberately upgraded from
+  the obsolete Python/dependency-free assumptions and passed `5/5`.
+- Provider dispatch is now published through Go HTTP and represented in both
+  Python and TypeScript. The previous evidence statement that HTTP publication
+  remained future work was obsolete and was corrected.
+- TypeScript passed `634/634`; `npm pack --dry-run` contained 114 files and
+  1.7 MB unpacked. The generated TS/Python gap matrix check passed.
+- Full A1 plus integration Python verification passed `1329 passed, 37
+  skipped in 110.86s`. The CL A2 plus large-SaaS migration supplement passed
+  `195 passed`.
+- Go package and Go integration `go test -count=1 ./...` and `go vet ./...`
+  passed. The live PostgreSQL dispatch claim proof passed ten consecutive
+  repetitions with one fenced winner each.
+- `python scripts/cl_guard.py hygiene`, `python scripts/cl_guard.py
+  commercial`, `git diff --check`, and `git diff --cached --check` passed.
+- A direct local `compileall` traversed ignored build products and encountered
+  read-only stale `__pycache__` files because this publishing worktree has
+  unusual ACLs. Source syntax was then verified without bytecode writes by
+  parsing all 174 Python files with `ast.parse`.
+- The Rust bundle verifier passed all suites with `CARGO_TARGET_DIR` redirected
+  to a writable temporary directory. A3 passed `334/334` with `TEMP` and `TMP`
+  redirected to the same writable area, and the pinned audit bundle verifier
+  passed. These ACL workarounds did not change product code or release
+  behavior.
+- The first earlier Docker dependency download encountered a transient
+  `proxy.golang.org` EOF. The later retry and final no-cache build succeeded.
+  One combined command also sent a Node test to pytest and another fresh
+  PowerShell process saw Docker pipe/config warnings; authoritative commands
+  were rerun independently and passed.
+- Peer branches `origin/codex/a3-main-contract-alignment-v2` and
+  `origin/dev/g3-a2-calibration` advanced. No peer files were merged into or
+  modified by this A1 round.
+- Known boundary: quickstart `object-store` remains a BusyBox local filesystem
+  placeholder. MinIO belongs to the separate commercial self-host Compose.
+- Bus-Auditor keeps publication at NO-GO until this Round 60 snapshot is
+  committed, pushed, and its new CL Gate is green.
+
+Next top three: durable Ollama SDK-to-run acceptance across service restart;
+verified five-modality provider capability expansion; production-grade
+object-store acceptance for trace/artifact evidence.
+
+### Round 60 CL publication correction
+
+- GitHub Actions run `29197725997` evaluated commit `365d5cdf`. Plan and
+  hygiene, TypeScript SDK parity, Rust verifier, and Go SDK and integration
+  all passed.
+- Python A1/A2 contracts reported `2 failed, 1494 passed, 50 skipped, 1056
+  subtests passed`. Both failures had one publication root cause:
+  `docs/a1/ts_python_gap_matrix.json` was generated by the repository-root
+  parity script but omitted from the Round 60 commit.
+- Regenerated the public-safe artifact with
+  `python tests/a1/ts_python_parity_matrix.py --write`; its freshness check
+  passed with `--check`.
+- Focused reproduction of the two CL failures passed `2 passed in 6.35s`:
+  `tests/a1/test_ts_python_gap_matrix.py` and
+  `test_typescript_clean_build_and_typed_subpath_parity`.
+- No product implementation or shared contract changed in this correction.
+  Peer A2 advanced from `7e70c234` to `e7c1ff18`; no peer file was merged or
+  modified.
+
+Next: publish the generated artifact, require the new SHA's CL Gate summary
+to pass, and return the result to Bus-Auditor for final GO/NO-GO.

@@ -84,6 +84,10 @@
       "types": "./dist/provider-adapter.d.ts",
       "import": "./dist/provider-adapter.js"
     },
+    "./provider-dispatch": {
+      "types": "./dist/provider-dispatch.d.ts",
+      "import": "./dist/provider-dispatch.js"
+    },
     "./provider-request-journal": {
       "types": "./dist/provider-request-journal.d.ts",
       "import": "./dist/provider-request-journal.js"

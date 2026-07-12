@@ -62,8 +62,9 @@ def test_a1_compose_declares_local_go_api_and_postgres_services():
     postgres = _service_block(compose_text, "postgres")
     api_env = compose["services"]["api"]["environment"]
 
-    assert "image: golang:1.22-bookworm" in api
-    assert "go run ./cmd/ashr-api" in api
+    assert "image: ashr/a1-go-runtime:local" in api
+    assert "dockerfile: infra/docker/Dockerfile.go-runtime" in api
+    assert "/usr/local/bin/ashr-api" in api
     assert "ASHR_GO_API_ADDR: 0.0.0.0:8787" in api
     assert api_env["ASHR_GO_BACKEND"] == "postgres"
     assert api_env["ASHR_POSTGRES_DSN"] == "postgres://ashr@postgres:5432/ashr?sslmode=disable"
@@ -71,7 +72,7 @@ def test_a1_compose_declares_local_go_api_and_postgres_services():
     assert "postgres:" in api
     assert "condition: service_healthy" in api
     assert "healthcheck:" in api
-    assert "a1_docker_healthcheck.go" in api
+    assert "/usr/local/bin/ashr-healthcheck" in api
     assert "http://127.0.0.1:8787/healthz" in api
     assert "start_period: 20s" in api
 
@@ -111,15 +112,17 @@ def test_a1_compose_declares_commercial_self_host_services_and_secret_refs():
     assert worker_env["ASHR_WORKER_MODE"] == "long-running"
     assert worker_env["ASHR_WORKER_QUEUE"] == "ashr_worker_jobs"
     assert worker_env["ASHR_WORKER_EVIDENCE_WRITES"] == "object-store"
-    assert "while true" in " ".join(services["worker"]["command"])
-    assert "TestServiceWorkerQueueLifecycle" in " ".join(services["worker"]["command"])
-    assert "a1-worker-state:/var/lib/ashr/worker" in services["worker"]["volumes"]
+    assert services["worker"]["build"]["dockerfile"] == "infra/docker/Dockerfile.go-runtime"
+    assert services["worker"]["command"] == ["/usr/local/bin/ashr-worker"]
+    assert "a1-worker-state:/runtime/worker" in services["worker"]["volumes"]
 
     assert billing_env["ASHR_BILLING_WEBHOOK_RECEIVER"] == "enabled"
     assert billing_env["ASHR_BILLING_LEDGER_TABLE"] == "ashr_billing_ledger"
     assert billing_env["ASHR_BILLING_QUOTA_LEDGER_TABLE"] == "ashr_quota_ledger"
     assert billing_env["ASHR_BILLING_WEBHOOK_SECRET_REQUIRED"] == "true"
     assert services["billing-webhook"]["ports"] == ["127.0.0.1:18788:8788"]
+    assert services["billing-webhook"]["build"]["dockerfile"] == "infra/docker/Dockerfile.go-runtime"
+    assert services["billing-webhook"]["command"] == ["/usr/local/bin/ashr-api"]
 
     object_store = services["object-store"]
     assert object_store["image"] == "busybox:1.36"

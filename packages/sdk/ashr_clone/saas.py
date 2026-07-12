@@ -1467,9 +1467,12 @@ def _restore_explicit_one_time_secret(
     response: Mapping[str, Any],
     sanitized: JsonDict,
 ) -> JsonDict:
-    if operation != "create_api_key" or not bool(payload.get("reveal_secret")):
+    if operation != "create_api_key" or payload.get("reveal_secret") is not True:
         return sanitized
-    is_envelope_like = "schema_version" in response or "operation" in response or "result" in response
+    # Go control-plane domain results carry schema_version directly. Only
+    # transport-shaped operation/result fields make a response envelope-like;
+    # otherwise an exact create_api_key response may restore its one-time value.
+    is_envelope_like = "operation" in response or "result" in response
     raw_result = response.get("result") if isinstance(response.get("result"), Mapping) else response
     sanitized_result = sanitized.get("result")
     if not isinstance(raw_result, Mapping) or not isinstance(sanitized_result, dict):
@@ -1479,6 +1482,20 @@ def _restore_explicit_one_time_secret(
         _redact_exact_secret(sanitized, secret)
     if is_envelope_like and response.get("operation") != "create_api_key":
         return sanitized
+    if "schema_version" in response and not is_envelope_like:
+        api_key = response.get("api_key")
+        requested_key_id = payload.get("key_id")
+        if (
+            response.get("status") == "error"
+            or "error" in response
+            or not isinstance(api_key, Mapping)
+            or (
+                isinstance(requested_key_id, str)
+                and requested_key_id
+                and api_key.get("key_id") != requested_key_id
+            )
+        ):
+            return sanitized
     if raw_result.get("one_time_secret_displayed") is not True or not isinstance(secret, str) or not secret:
         return sanitized
     sanitized_result["one_time_secret"] = secret

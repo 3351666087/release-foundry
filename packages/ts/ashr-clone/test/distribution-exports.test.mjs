@@ -36,6 +36,7 @@ const runtimeMarkers = {
   "github-oauth": "GitHubOAuthHttpClient",
   oauth: "buildAuthorizationEnvelope",
   "provider-adapter": "ModelProviderAdapter",
+  "provider-dispatch": "ProviderDispatchClient",
   "provider-request-journal": "ProviderRequestJournal",
   "provider-stream": "ProviderStreamLedger",
   "python-parity": "stable_id",

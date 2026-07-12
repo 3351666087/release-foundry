@@ -19,6 +19,7 @@ import { identityDeliveryProtocolContractManifest } from "@ashr-clone/sdk/delive
 import { buildPrivateEvidenceIndex } from "@ashr-clone/sdk/evidence";
 import { GitHubOAuthHttpClient } from "@ashr-clone/sdk/github-oauth";
 import { buildAuthorizationEnvelope } from "@ashr-clone/sdk/oauth";
+import { ProviderDispatchClient } from "@ashr-clone/sdk/provider-dispatch";
 import { stable_id } from "@ashr-clone/sdk/python-parity";
 import { AgentAdapter } from "@ashr-clone/sdk/runner";
 import { SaaSIngestionClient } from "@ashr-clone/sdk/saas";
@@ -46,6 +47,7 @@ export const typedDistributionImports: readonly unknown[] = [
   buildPrivateEvidenceIndex,
   GitHubOAuthHttpClient,
   buildAuthorizationEnvelope,
+  ProviderDispatchClient,
   stable_id,
   AgentAdapter,
   SaaSIngestionClient,

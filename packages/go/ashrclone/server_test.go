@@ -48,7 +48,7 @@ func TestHTTPHandlerHealthReportsExplicitBackendReadiness(t *testing.T) {
 	if err := json.NewDecoder(resp.Body).Decode(&body); err != nil {
 		t.Fatal(err)
 	}
-	if body["backend"] != "postgres_repository_v0" || body["backend_ready"] != false || body["backend_mode"] != "postgres" {
+	if body["backend"] != "postgres_repository_v0" || body["ready"] != false || body["backend_ready"] != false || body["backend_mode"] != "postgres" {
 		t.Fatalf("unexpected backend health fields: %#v", body)
 	}
 }

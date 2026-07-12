@@ -9,7 +9,7 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[2]
-ARTIFACT = ROOT / "tests" / "a1" / "docs" / "a1" / "ts_python_gap_matrix.json"
+ARTIFACT = ROOT / "docs" / "a1" / "ts_python_gap_matrix.json"
 MEDIA_MODALITIES = ["text", "image", "audio", "file", "video"]
 PUBLIC_INPUT_SOURCES = [
     "packages/sdk/ashr_clone public module source",
