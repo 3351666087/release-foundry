@@ -9,11 +9,16 @@ from unittest.mock import patch
 
 from services.judge.provider_gateway import ProviderDefinition, ProviderGateway, StrictFakeAdapter
 from services.judge.provider_runtime import AUTHENTICATED_BUNDLE_SCHEMA_VERSION, validate_semantic_judge_output
-from services.judge.release_decision_orchestrator import execute_release_decision
+from services.judge.release_decision_orchestrator import (
+    execute_release_decision,
+    recover_release_decision,
+)
 from services.judge.release_decision_store import (
     IdempotencyConflictError,
     authorize_provider_call,
+    claim_decision_recovery,
     claim_decision_outbox,
+    load_decision_recovery_envelope,
     persist_provider_outcome,
     persist_release_decision,
     reserve_decision_operation,
@@ -248,6 +253,126 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
             self.assertTrue(replay["persistence"]["idempotent_replay"])
             self.assertEqual(replay["persistence"]["record_hash"], first["persistence"]["record_hash"])
             self.assertTrue(replay["a3_consumption"]["release_ready"])
+        finally:
+            connection.close()
+
+    def test_provider_completed_crash_recovers_without_second_provider_call(self):
+        crashed = sqlite3.connect(":memory:")
+        normal = sqlite3.connect(":memory:")
+        try:
+            initialize_sql_store(crashed)
+            initialize_sql_store(normal)
+            provider_gateway = gateway()
+
+            def fail(point):
+                if point == "after_provider_outcome_committed":
+                    raise OSError("worker crashed after provider outcome commit")
+
+            with self.assertRaisesRegex(OSError, "after provider outcome commit"):
+                execute_release_decision(
+                    request(), gateway=provider_gateway, key_resolver=lambda _: KEY,
+                    now_unix_ms=NOW, persistence_connection=crashed,
+                    persistence_failure_injector=fail,
+                )
+            operation_id, status = crashed.execute(
+                "SELECT operation_id, status FROM a2_decision_operations"
+            ).fetchone()
+            self.assertEqual(status, "provider_completed")
+            self.assertEqual(provider_gateway.adapters["fake"].calls, 1)
+
+            recovered = recover_release_decision(
+                crashed,
+                operation_id=operation_id,
+                scope={
+                    "organization_id": "org-a",
+                    "tenant_id": "tenant-a",
+                    "workspace_id": "workspace-a",
+                    "project_id": "project-a",
+                    "environment_id": "test",
+                },
+                now="2026-07-12T00:00:01Z",
+            )
+            expected = execute_release_decision(
+                request(), gateway=gateway(), key_resolver=lambda _: KEY,
+                now_unix_ms=NOW, persistence_connection=normal,
+            )
+            self.assertEqual(provider_gateway.adapters["fake"].calls, 1)
+            self.assertEqual(
+                recovered["persistence"]["record_hash"],
+                expected["persistence"]["record_hash"],
+            )
+            self.assertEqual(
+                recovered["decision_ledger"]["ledger_hash"],
+                expected["decision_ledger"]["ledger_hash"],
+            )
+            self.assertEqual(_count(crashed, "a2_release_decisions"), 1)
+            self.assertEqual(_count(crashed, "a2_decision_outbox"), 1)
+            with self.assertRaisesRegex(ValueError, "cannot claim status committed"):
+                recover_release_decision(
+                    crashed,
+                    operation_id=operation_id,
+                    scope={
+                        "organization_id": "org-a", "tenant_id": "tenant-a",
+                        "workspace_id": "workspace-a", "project_id": "project-a",
+                        "environment_id": "test",
+                    },
+                    now="2026-07-12T00:00:02Z",
+                )
+        finally:
+            crashed.close()
+            normal.close()
+
+    def test_recovery_envelope_tamper_and_active_lease_fail_closed(self):
+        connection = sqlite3.connect(":memory:")
+        try:
+            initialize_sql_store(connection)
+
+            def fail(point):
+                if point == "after_provider_outcome_committed":
+                    raise OSError("stop")
+
+            with self.assertRaises(OSError):
+                execute_release_decision(
+                    request(), gateway=gateway(), key_resolver=lambda _: KEY,
+                    now_unix_ms=NOW, persistence_connection=connection,
+                    persistence_failure_injector=fail,
+                )
+            operation_id = connection.execute(
+                "SELECT operation_id FROM a2_decision_operations"
+            ).fetchone()[0]
+            scope = {
+                "organization_id": "org-a", "tenant_id": "tenant-a",
+                "workspace_id": "workspace-a", "project_id": "project-a",
+                "environment_id": "test",
+            }
+            first = claim_decision_recovery(
+                connection, operation_id=operation_id, scope=scope,
+                worker_id="worker-1", now="2026-07-12T00:00:01Z", lease_seconds=60,
+            )
+            self.assertEqual(first["recovery_generation"], 1)
+            with self.assertRaisesRegex(ValueError, "lease contention"):
+                claim_decision_recovery(
+                    connection, operation_id=operation_id, scope=scope,
+                    worker_id="worker-2", now="2026-07-12T00:00:02Z", lease_seconds=60,
+                )
+            raw = connection.execute(
+                "SELECT recovery_envelope_json FROM a2_provider_outcomes"
+            ).fetchone()[0]
+            envelope = json.loads(raw)
+            envelope["reason"] = "Bearer secret"
+            connection.execute(
+                "UPDATE a2_provider_outcomes SET recovery_envelope_json = ?, "
+                "recovery_envelope_hash = ?",
+                (
+                    json.dumps(envelope, sort_keys=True, separators=(",", ":")),
+                    stable_hash(envelope),
+                ),
+            )
+            connection.commit()
+            with self.assertRaisesRegex(ValueError, "fields do not match"):
+                load_decision_recovery_envelope(
+                    connection, operation_id=operation_id, scope=scope,
+                )
         finally:
             connection.close()
 

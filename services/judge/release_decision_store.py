@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import json
+import math
+import re
 import sqlite3
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable
@@ -15,6 +18,9 @@ class IdempotencyConflictError(ValueError):
 
 
 FailureInjector = Callable[[str], None]
+_SECRET_OR_LOCATION = re.compile(
+    r"(?i)(bearer\s+|api[_-]?key|token=|https?://|file://|[a-z]:\\|/private_refs/)"
+)
 
 
 def reserve_decision_operation(
@@ -148,12 +154,22 @@ def persist_provider_outcome(
     scope: dict[str, str],
     lease: dict[str, Any],
     provider_result: dict[str, Any],
-    semantic_output: dict[str, Any],
+    semantic_output: dict[str, Any] | None,
+    recovery_envelope: dict[str, Any] | None = None,
     completed_at: str,
     failure_injector: FailureInjector | None = None,
 ) -> dict[str, str]:
-    """Persist a hash-only Provider outcome under the current fencing token."""
+    """Persist Provider hashes plus a governed public-safe recovery envelope."""
     normalized_scope = _scope(scope)
+    if recovery_envelope is None:
+        recovery_envelope = {
+            "schema_version": "a2.normalized_decision_envelope.v1",
+            **normalized_scope,
+            "provider_outcome_hash": "",
+            "public_safe": True,
+            "recovery_supported": False,
+        }
+    _validate_recovery_envelope(recovery_envelope, normalized_scope)
     outcome = {
         "provider_call_id": lease["provider_call_id"],
         "operation_id": operation_id,
@@ -166,6 +182,12 @@ def persist_provider_outcome(
         "usage_hash": stable_hash(provider_result.get("usage") or {}),
     }
     outcome_hash = stable_hash(outcome)
+    recovery_envelope = dict(recovery_envelope)
+    recovery_envelope["provider_outcome_hash"] = outcome_hash
+    recovery_envelope_json = json.dumps(
+        recovery_envelope, sort_keys=True, separators=(",", ":"), ensure_ascii=True,
+    )
+    recovery_envelope_hash = stable_hash(recovery_envelope)
     injector = failure_injector or (lambda _: None)
     try:
         connection.execute("BEGIN IMMEDIATE")
@@ -177,8 +199,9 @@ def persist_provider_outcome(
               provider_call_id, operation_id, organization_id, tenant_id, workspace_id,
               project_id, environment_id, fencing_token, provider_id, model_id,
               normalized_status, response_hash, semantic_output_hash, usage_hash,
-              outcome_hash, completed_at, public_safe
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+              outcome_hash, recovery_envelope_schema, recovery_envelope_json,
+              recovery_envelope_hash, completed_at, public_safe
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
             """,
             (
                 lease["provider_call_id"], operation_id, normalized_scope["organization_id"],
@@ -187,7 +210,8 @@ def persist_provider_outcome(
                 lease["fencing_token"], str(provider_result.get("provider_id") or ""),
                 str(provider_result.get("model_id") or ""), str(provider_result.get("status") or "unknown"),
                 outcome["response_hash"], outcome["semantic_output_hash"], outcome["usage_hash"],
-                outcome_hash, completed_at,
+                outcome_hash, recovery_envelope["schema_version"], recovery_envelope_json,
+                recovery_envelope_hash, completed_at,
             ),
         )
         injector("after_provider_outcome")
@@ -209,7 +233,115 @@ def persist_provider_outcome(
     except Exception:
         connection.rollback()
         raise
-    return {"provider_call_id": str(lease["provider_call_id"]), "outcome_hash": outcome_hash}
+    return {
+        "provider_call_id": str(lease["provider_call_id"]),
+        "outcome_hash": outcome_hash,
+        "recovery_envelope_hash": recovery_envelope_hash,
+    }
+
+
+def claim_decision_recovery(
+    connection: sqlite3.Connection,
+    *,
+    operation_id: str,
+    scope: dict[str, str],
+    worker_id: str,
+    now: str,
+    lease_seconds: int = 60,
+) -> dict[str, Any]:
+    """Claim a completed Provider outcome without authorizing another Provider call."""
+    if lease_seconds <= 0:
+        raise ValueError("lease_seconds must be positive")
+    normalized_scope = _scope(scope)
+    lease_expires_at = (
+        _timestamp(now) + timedelta(seconds=lease_seconds)
+    ).isoformat().replace("+00:00", "Z")
+    try:
+        connection.execute("BEGIN IMMEDIATE")
+        row = _operation_by_id(connection, operation_id)
+        if row is None or any(row[field] != value for field, value in normalized_scope.items()):
+            raise ValueError("decision operation scope mismatch")
+        if row["status"] != "provider_completed":
+            raise ValueError(f"decision recovery cannot claim status {row['status']}")
+        active_recovery = (
+            bool(row.get("recovery_owner"))
+            and bool(row.get("recovery_lease_expires_at"))
+            and _timestamp(row["recovery_lease_expires_at"]) > _timestamp(now)
+        )
+        if active_recovery:
+            raise ValueError("decision recovery lease contention")
+        recovery_generation = int(row["recovery_generation"]) + 1
+        cursor = connection.execute(
+            """
+            UPDATE a2_decision_operations
+            SET recovery_owner = ?, recovery_lease_expires_at = ?,
+                recovery_generation = ?, updated_at = ?
+            WHERE operation_id = ? AND status = 'provider_completed'
+              AND recovery_generation = ?
+            """,
+            (
+                worker_id, lease_expires_at, recovery_generation, now,
+                operation_id, row["recovery_generation"],
+            ),
+        )
+        if cursor.rowcount != 1:
+            raise ValueError("decision recovery lease contention")
+        _write_operation_audit(
+            connection, operation_id, normalized_scope, "decision_recovery_claimed", now,
+            {
+                "provider_fencing_token": row["fencing_token"],
+                "recovery_generation": recovery_generation,
+            },
+        )
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+    return {
+        "operation_id": operation_id,
+        "worker_id": worker_id,
+        "fencing_token": int(row["fencing_token"]),
+        "recovery_generation": recovery_generation,
+        "provider_call_id": row["provider_call_id"],
+        "lease_expires_at": lease_expires_at,
+    }
+
+
+def load_decision_recovery_envelope(
+    connection: sqlite3.Connection,
+    *,
+    operation_id: str,
+    scope: dict[str, str],
+) -> dict[str, Any]:
+    """Load and verify the canonical public-safe recovery input."""
+    normalized_scope = _scope(scope)
+    cursor = connection.execute(
+        """
+        SELECT o.provider_outcome_hash, p.outcome_hash, p.recovery_envelope_json,
+               p.recovery_envelope_hash
+        FROM a2_decision_operations o
+        JOIN a2_provider_outcomes p ON p.operation_id = o.operation_id
+        WHERE o.operation_id = ?
+        """,
+        (operation_id,),
+    )
+    row = _row_dict(cursor)
+    if row is None or row["provider_outcome_hash"] != row["outcome_hash"]:
+        raise ValueError("provider outcome recovery binding mismatch")
+    try:
+        envelope = json.loads(row["recovery_envelope_json"])
+    except (TypeError, ValueError) as exc:
+        raise ValueError("recovery envelope is not canonical JSON") from exc
+    if not isinstance(envelope, dict) or stable_hash(envelope) != row["recovery_envelope_hash"]:
+        raise ValueError("recovery envelope hash mismatch")
+    if envelope.get("schema_version") != "a2.normalized_decision_envelope.v1":
+        raise ValueError("unsupported recovery envelope schema")
+    if envelope.get("recovery_supported") is not True:
+        raise ValueError("provider outcome does not contain a recoverable envelope")
+    _validate_recovery_envelope(envelope, normalized_scope)
+    if envelope.get("provider_outcome_hash") != row["outcome_hash"]:
+        raise ValueError("recovery envelope outcome hash mismatch")
+    return envelope
 
 
 def mark_operation_recovery_required(
@@ -311,7 +443,10 @@ def persist_release_decision(
                 raise ValueError(f"decision operation cannot commit from status {operation['status']}")
             if lease is None:
                 raise ValueError("decision operation lease is required")
-            _assert_fence(operation, scope, lease, "provider_completed")
+            if "recovery_generation" in lease:
+                _assert_recovery_fence(operation, scope, lease)
+            else:
+                _assert_fence(operation, scope, lease, "provider_completed")
         connection.execute(
             """
             INSERT INTO a2_release_decisions (
@@ -358,12 +493,19 @@ def persist_release_decision(
                 """
                 UPDATE a2_decision_operations
                 SET status = 'committed', record_id = ?, record_hash = ?, decision = ?,
-                    lease_owner = NULL, lease_expires_at = NULL, updated_at = ?
-                WHERE operation_id = ? AND lease_owner = ? AND fencing_token = ?
+                    lease_owner = NULL, lease_expires_at = NULL,
+                    recovery_owner = NULL, recovery_lease_expires_at = NULL, updated_at = ?
+                WHERE operation_id = ? AND (
+                  (recovery_owner = ? AND recovery_generation = ? AND fencing_token = ?)
+                  OR
+                  (recovery_owner IS NULL AND lease_owner = ? AND fencing_token = ?)
+                )
                 """,
                 (
                     record["record_id"], record["record_hash"], record["decision"], record["created_at"],
-                    operation_id, lease["worker_id"], lease["fencing_token"],
+                    operation_id,
+                    lease["worker_id"], lease.get("recovery_generation", -1), lease["fencing_token"],
+                    lease["worker_id"], lease["fencing_token"],
                 ),
             )
             if cursor.rowcount != 1:
@@ -630,6 +772,116 @@ def _assert_fence(
         raise ValueError(f"decision operation expected {expected_status}, got {row['status']}")
     if row["lease_owner"] != lease["worker_id"] or int(row["fencing_token"]) != int(lease["fencing_token"]):
         raise ValueError("stale fencing token")
+
+
+def _assert_recovery_fence(
+    row: dict[str, Any] | None,
+    scope: dict[str, str],
+    lease: dict[str, Any],
+) -> None:
+    if row is None or any(row[field] != value for field, value in scope.items()):
+        raise ValueError("decision operation scope mismatch")
+    if row["status"] != "provider_completed":
+        raise ValueError(
+            f"decision operation expected provider_completed, got {row['status']}"
+        )
+    if int(row["fencing_token"]) != int(lease["fencing_token"]):
+        raise ValueError("provider outcome generation mismatch")
+    if (
+        row["recovery_owner"] != lease["worker_id"]
+        or int(row["recovery_generation"]) != int(lease["recovery_generation"])
+    ):
+        raise ValueError("stale recovery generation")
+
+
+def _validate_recovery_envelope(
+    envelope: dict[str, Any],
+    scope: dict[str, str],
+) -> None:
+    unsupported_fields = {
+        "schema_version", *scope.keys(), "provider_outcome_hash",
+        "public_safe", "recovery_supported",
+    }
+    if set(envelope) == unsupported_fields and envelope.get("recovery_supported") is False:
+        if envelope.get("schema_version") != "a2.normalized_decision_envelope.v1":
+            raise ValueError("unsupported recovery envelope schema")
+        _assert_scope(envelope, scope, "recovery envelope")
+        if envelope.get("public_safe") is not True:
+            raise ValueError("recovery envelope public_safe must be true")
+        return
+    supported_top = {
+        "schema_version", *scope.keys(), "idempotency_key", "request_hash", "snapshot",
+        "provider", "provider_provenance", "semantic_output", "bundle_verification",
+        "policy_version", "ledger_id", "judge_version", "builder_version", "created_at",
+        "provider_outcome_hash", "public_safe", "recovery_supported",
+        "raw_provider_payload_included", "raw_evidence_included",
+        "free_text_reason_included", "secrets_included",
+    }
+    _assert_exact_keys(envelope, supported_top, "recovery envelope")
+    if envelope.get("schema_version") != "a2.normalized_decision_envelope.v1":
+        raise ValueError("unsupported recovery envelope schema")
+    _assert_scope(envelope, scope, "recovery envelope")
+    for flag in (
+        "public_safe", "recovery_supported",
+    ):
+        if envelope.get(flag) is not True:
+            raise ValueError(f"recovery envelope {flag} must be true")
+    for flag in (
+        "raw_provider_payload_included", "raw_evidence_included",
+        "free_text_reason_included", "secrets_included",
+    ):
+        if envelope.get(flag) is not False:
+            raise ValueError(f"recovery envelope {flag} must be false")
+    _assert_exact_keys(
+        _dict(envelope.get("provider"), "recovery provider"),
+        {
+            "provider_id", "model_id", "status", "logical_call_id", "response_hash",
+            "blockers", "release_authority",
+        },
+        "recovery provider",
+    )
+    _assert_exact_keys(
+        _dict(envelope.get("bundle_verification"), "bundle verification"),
+        {"manifest_authenticated", "authenticated_bundle_digest"},
+        "bundle verification",
+    )
+    semantic = envelope.get("semantic_output")
+    if semantic is not None:
+        semantic = _dict(semantic, "recovery semantic output")
+        _assert_exact_keys(
+            semantic,
+            {"passed", "score", "failure_classes", "evidence_ref_hashes", "abstained"},
+            "recovery semantic output",
+        )
+        score = semantic.get("score")
+        if isinstance(score, bool) or not isinstance(score, (int, float)):
+            raise ValueError("recovery semantic score must be numeric")
+        if not math.isfinite(float(score)) or not 0 <= float(score) <= 1:
+            raise ValueError("recovery semantic score must be finite and between 0 and 1")
+    _scan_public_safe_value(envelope)
+
+
+def _assert_exact_keys(value: dict[str, Any], expected: set[str], label: str) -> None:
+    actual = set(value)
+    if actual != expected:
+        raise ValueError(f"{label} fields do not match the governed schema")
+
+
+def _scan_public_safe_value(value: Any) -> None:
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if str(key).lower() in {
+                "reason", "output_text", "prompt", "raw_request", "raw_response",
+                "filename", "local_path", "signed_url", "object_key", "private_evidence_ref",
+                "api_key", "authorization", "headers", "stack_trace",
+            }:
+                raise ValueError("recovery envelope contains forbidden field")
+            _scan_public_safe_value(item)
+    elif isinstance(value, list):
+        for item in value:
+            _scan_public_safe_value(item)
+    elif isinstance(value, str) and _SECRET_OR_LOCATION.search(value):
+        raise ValueError("recovery envelope contains secret or location-like text")
 
 
 def _timestamp(value: str) -> datetime:

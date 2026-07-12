@@ -15,6 +15,8 @@ from .result_persistence import stable_hash
 from .release_decision_store import (
     FailureInjector,
     authorize_provider_call,
+    claim_decision_recovery,
+    load_decision_recovery_envelope,
     mark_operation_recovery_required,
     persist_provider_outcome,
     persist_release_decision,
@@ -29,6 +31,7 @@ from .trusted_spine import (
 
 ORCHESTRATION_SCHEMA_VERSION = "a2.release_decision_orchestration.v1"
 SCOPE_FIELDS = ("organization_id", "tenant_id", "workspace_id", "project_id", "environment_id")
+RECOVERY_ENVELOPE_SCHEMA_VERSION = "a2.normalized_decision_envelope.v1"
 
 
 def execute_release_decision(
@@ -113,6 +116,14 @@ def execute_release_decision(
             )
         raise
     semantic_output = _semantic_output(provider_result)
+    recovery_envelope = _build_recovery_envelope(
+        request=request,
+        scope=scope,
+        snapshot=snapshot,
+        provider_result=provider_result,
+        semantic_output=semantic_output,
+        bundle_verification=bundle_verification,
+    )
     if persistence_connection is not None and operation is not None and lease is not None:
         persist_provider_outcome(
             persistence_connection,
@@ -121,67 +132,15 @@ def execute_release_decision(
             lease=lease,
             provider_result=provider_result,
             semantic_output=semantic_output,
+            recovery_envelope=recovery_envelope,
             completed_at=str(request["created_at"]),
             failure_injector=persistence_failure_injector,
         )
-    provenance = build_provider_provenance_handoff(
-        tenant_scope=scope,
-        snapshot=snapshot,
-        provider_result=provider_result,
-        semantic_output=semantic_output,
-        bundle_verification=bundle_verification,
-    )
-    decision, blockers = _decision(snapshot, provider_result, semantic_output, provenance)
-    gate = {
-        "schema_version": "a2.release_gate.v1",
-        "decision": "pass" if decision == "allow" else "warn" if decision == "review" else "block",
-        "blocking_reasons": blockers,
-        "review_required": decision == "review",
-        "provider_status": provider_result.get("status"),
-        "public_safe": True,
-    }
-    judge_result = _judge_result(semantic_output, provider_result)
-    policy_version = str(request.get("policy_version") or "a2.semantic_release_policy.v1")
-    record = build_decision_record(
-        snapshot,
-        decision=decision,
-        release_gate_report=gate,
-        judge_results=[judge_result],
-        provider_provenance=[provenance],
-        policy_version=policy_version,
-        policy_hash=stable_hash({"policy_version": policy_version, "required_modalities": snapshot["required_modalities"]}),
-        model_versions=[f"{request['provider_id']}:{request['model_id']}"],
-        created_at=str(request["created_at"]),
-    )
-    ledger = build_decision_ledger(
-        [record],
-        ledger_id=str(request.get("ledger_id") or f"{request['run_id']}:{request['case_id']}"),
-        **scope,
-        created_at=str(request["created_at"]),
-    )
-    result = {
-        "schema_version": ORCHESTRATION_SCHEMA_VERSION,
-        "evidence_snapshot": snapshot,
-        "provider_provenance": provenance,
-        "judge_result": judge_result,
-        "release_gate": gate,
-        "decision_ledger": ledger,
-        "a3_consumption": {
-            "release_ready": False,
-            "display_decision": decision,
-            "review_required": decision == "review",
-            "display_provenance_hash": record["record_hash"],
-            "may_recompute_grade": False,
-            "committed_decision_required": True,
-        },
-        "metadata": {
-            "public_safe": True,
-            "raw_evidence_included": False,
-            "raw_provider_payload_included": False,
-            "secrets_included": False,
-            "persistence_status": "not_configured",
-        },
-    }
+        if persistence_failure_injector is not None:
+            persistence_failure_injector("after_provider_outcome_committed")
+    result = _build_decision_result(recovery_envelope)
+    provenance = result["provider_provenance"]
+    decision = result["a3_consumption"]["display_decision"]
     if persistence_connection is not None:
         persistence = persist_release_decision(
             persistence_connection,
@@ -196,6 +155,47 @@ def execute_release_decision(
         result["metadata"]["persistence_status"] = "committed"
         result["a3_consumption"]["release_ready"] = decision == "allow"
         result["a3_consumption"]["committed_record_id"] = persistence["record_id"]
+    return result
+
+
+def recover_release_decision(
+    connection: sqlite3.Connection,
+    *,
+    operation_id: str,
+    scope: dict[str, str],
+    worker_id: str = "a2-recovery-worker",
+    now: str,
+    lease_seconds: int = 60,
+    persistence_failure_injector: FailureInjector | None = None,
+) -> dict[str, Any]:
+    """Recover a provider-completed operation without invoking any Provider."""
+    lease = claim_decision_recovery(
+        connection,
+        operation_id=operation_id,
+        scope=scope,
+        worker_id=worker_id,
+        now=now,
+        lease_seconds=lease_seconds,
+    )
+    envelope = load_decision_recovery_envelope(
+        connection, operation_id=operation_id, scope=scope,
+    )
+    result = _build_decision_result(envelope)
+    persistence = persist_release_decision(
+        connection,
+        result,
+        idempotency_key=str(envelope["idempotency_key"]),
+        request_hash=str(envelope["request_hash"]),
+        operation_id=operation_id,
+        lease=lease,
+        failure_injector=persistence_failure_injector,
+    )
+    decision = result["a3_consumption"]["display_decision"]
+    result["persistence"] = persistence
+    result["metadata"]["persistence_status"] = "committed"
+    result["metadata"]["recovered_without_provider_call"] = True
+    result["a3_consumption"]["release_ready"] = decision == "allow"
+    result["a3_consumption"]["committed_record_id"] = persistence["record_id"]
     return result
 
 
@@ -323,6 +323,146 @@ def _semantic_output(provider_result: dict[str, Any]) -> dict[str, Any] | None:
         return validate_semantic_judge_output(str(provider_result.get("output_text") or ""))
     except ValueError:
         return None
+
+
+def _build_recovery_envelope(
+    *,
+    request: dict[str, Any],
+    scope: dict[str, str],
+    snapshot: dict[str, Any],
+    provider_result: dict[str, Any],
+    semantic_output: dict[str, Any] | None,
+    bundle_verification: dict[str, Any],
+) -> dict[str, Any]:
+    provenance = build_provider_provenance_handoff(
+        tenant_scope=scope,
+        snapshot=snapshot,
+        provider_result=provider_result,
+        semantic_output=semantic_output,
+        bundle_verification=bundle_verification,
+    )
+    safe_semantic = None
+    if semantic_output is not None:
+        safe_semantic = {
+            "passed": semantic_output["passed"],
+            "score": semantic_output["score"],
+            "failure_classes": semantic_output["failure_classes"],
+            "evidence_ref_hashes": [stable_hash(item) for item in semantic_output["evidence_refs"]],
+            "abstained": semantic_output["abstained"],
+        }
+    return {
+        "schema_version": RECOVERY_ENVELOPE_SCHEMA_VERSION,
+        **scope,
+        "idempotency_key": str(request["idempotency_key"]),
+        "request_hash": stable_hash(_request_identity(request, snapshot)),
+        "snapshot": snapshot,
+        "provider": {
+            "provider_id": str(provider_result.get("provider_id") or request["provider_id"]),
+            "model_id": str(provider_result.get("model_id") or request["model_id"]),
+            "status": str(provider_result.get("status") or "unknown"),
+            "logical_call_id": str(provider_result.get("logical_call_id") or ""),
+            "response_hash": str(provider_result.get("response_hash") or stable_hash(provider_result)),
+            "blockers": sorted(set(str(item) for item in provider_result.get("blockers") or [])),
+            "release_authority": False,
+        },
+        "provider_provenance": provenance,
+        "semantic_output": safe_semantic,
+        "bundle_verification": {
+            "manifest_authenticated": bundle_verification.get("manifest_authenticated") is True,
+            "authenticated_bundle_digest": str(
+                bundle_verification.get("authenticated_bundle_digest") or ""
+            ),
+        },
+        "policy_version": str(request.get("policy_version") or "a2.semantic_release_policy.v1"),
+        "ledger_id": str(request.get("ledger_id") or f"{request['run_id']}:{request['case_id']}"),
+        "judge_version": "provider-strict-v1",
+        "builder_version": "a2.release-decision-builder.v1",
+        "created_at": str(request["created_at"]),
+        "provider_outcome_hash": "",
+        "public_safe": True,
+        "recovery_supported": True,
+        "raw_provider_payload_included": False,
+        "raw_evidence_included": False,
+        "free_text_reason_included": False,
+        "secrets_included": False,
+    }
+
+
+def _build_decision_result(envelope: dict[str, Any]) -> dict[str, Any]:
+    if envelope.get("schema_version") != RECOVERY_ENVELOPE_SCHEMA_VERSION:
+        raise ValueError("unsupported recovery envelope schema")
+    if envelope.get("builder_version") != "a2.release-decision-builder.v1":
+        raise ValueError("unsupported recovery decision builder")
+    scope = _scope(envelope)
+    snapshot = envelope.get("snapshot")
+    provider = envelope.get("provider")
+    provenance = envelope.get("provider_provenance")
+    if not isinstance(snapshot, dict) or not isinstance(provider, dict) or not isinstance(provenance, dict):
+        raise ValueError("recovery envelope structures are incomplete")
+    if snapshot.get("snapshot_hash") != stable_hash(
+        {key: value for key, value in snapshot.items() if key != "snapshot_hash"}
+    ):
+        raise ValueError("recovery snapshot hash mismatch")
+    semantic = envelope.get("semantic_output")
+    if semantic is not None:
+        semantic = dict(semantic)
+        semantic["evidence_refs"] = list(semantic.pop("evidence_ref_hashes"))
+        semantic["reason"] = "public-safe reason omitted"
+    if provenance.get("tenant_scope") != scope:
+        raise ValueError("recovery provenance scope mismatch")
+    if provenance.get("snapshot_hash") != snapshot.get("snapshot_hash"):
+        raise ValueError("recovery provenance snapshot mismatch")
+    decision, blockers = _decision(snapshot, provider, semantic, provenance)
+    gate = {
+        "schema_version": "a2.release_gate.v1",
+        "decision": "pass" if decision == "allow" else "warn" if decision == "review" else "block",
+        "blocking_reasons": blockers,
+        "review_required": decision == "review",
+        "provider_status": provider.get("status"),
+        "public_safe": True,
+    }
+    judge_result = _judge_result(semantic, provider)
+    policy_version = str(envelope["policy_version"])
+    record = build_decision_record(
+        snapshot,
+        decision=decision,
+        release_gate_report=gate,
+        judge_results=[judge_result],
+        provider_provenance=[provenance],
+        policy_version=policy_version,
+        policy_hash=stable_hash(
+            {"policy_version": policy_version, "required_modalities": snapshot["required_modalities"]}
+        ),
+        model_versions=[f"{provider['provider_id']}:{provider['model_id']}"],
+        created_at=str(envelope["created_at"]),
+    )
+    ledger = build_decision_ledger(
+        [record], ledger_id=str(envelope["ledger_id"]), **scope,
+        created_at=str(envelope["created_at"]),
+    )
+    return {
+        "schema_version": ORCHESTRATION_SCHEMA_VERSION,
+        "evidence_snapshot": snapshot,
+        "provider_provenance": provenance,
+        "judge_result": judge_result,
+        "release_gate": gate,
+        "decision_ledger": ledger,
+        "a3_consumption": {
+            "release_ready": False,
+            "display_decision": decision,
+            "review_required": decision == "review",
+            "display_provenance_hash": record["record_hash"],
+            "may_recompute_grade": False,
+            "committed_decision_required": True,
+        },
+        "metadata": {
+            "public_safe": True,
+            "raw_evidence_included": False,
+            "raw_provider_payload_included": False,
+            "secrets_included": False,
+            "persistence_status": "not_configured",
+        },
+    }
 
 
 def _decision(
