@@ -358,8 +358,11 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
             "schema_version": "a2.evaluation_trust_policy.v1",
             "allowed_issuers": ["issuer-a"],
             "issuer_tenants": {"issuer-a": ["tenant-a"]},
-            "revoked_key_ids": [],
-            "revoked_proof_hashes": [],
+            "revoked_key_ids": ["other-key", "other-key"],
+            "revoked_proof_hashes": [
+                "sha256:" + "e" * 64,
+                "sha256:" + "e" * 64,
+            ],
             "maximum_lifetime_ms": 1000,
             "maximum_review_age_ms": 1000,
         }
@@ -994,6 +997,7 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
         }
         try:
             initialize_sql_store(connection)
+            provider_gateway = gateway()
 
             def fail(point):
                 if point == "after_provider_outcome_committed":
@@ -1001,7 +1005,7 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
 
             with self.assertRaisesRegex(OSError, "normalized-policy"):
                 execute_release_decision(
-                    request(), gateway=gateway(), key_resolver=lambda _: KEY,
+                    request(), gateway=provider_gateway, key_resolver=lambda _: KEY,
                     now_unix_ms=NOW, persistence_connection=connection,
                     persistence_failure_injector=fail,
                     quality_trust_policy=duplicate_policy,
@@ -1023,6 +1027,7 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
                 stable_hash(normalize_evaluation_trust_policy(duplicate_policy)),
             )
             self.assertTrue(recovered["persistence"]["committed"])
+            self.assertEqual(provider_gateway.adapters["fake"].calls, 1)
             self.assertEqual(_count(connection, "a2_release_decisions"), 1)
             self.assertEqual(_count(connection, "a2_decision_outbox"), 1)
         finally:
@@ -1823,12 +1828,23 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
             with self.assertRaisesRegex(
                 IdempotencyConflictError, "input changed before commit"
             ):
+                policy = {
+                    "schema_version": "a2.evaluation_trust_policy.v1",
+                    "allowed_issuers": ["a2-calibration-service"],
+                    "issuer_tenants": {
+                        "a2-calibration-service": ["tenant-a"],
+                    },
+                    "revoked_key_ids": [],
+                    "revoked_proof_hashes": [proof_hash],
+                    "maximum_lifetime_ms": 86_400_000,
+                    "maximum_review_age_ms": 604_800_000,
+                }
                 reconcile_release_decision(
                     candidate, gateway=provider_gateway,
                     key_resolver=lambda _: KEY, now_unix_ms=NOW,
                     connection=connection, operation_id=operation[0],
                     now="2026-07-12T00:00:01Z",
-                    quality_revoked_proof_hashes=frozenset({proof_hash}),
+                    quality_trust_policy=policy,
                 )
             self.assertEqual(_count(connection, "a2_release_decisions"), 0)
             self.assertEqual(_count(connection, "a2_decision_outbox"), 0)

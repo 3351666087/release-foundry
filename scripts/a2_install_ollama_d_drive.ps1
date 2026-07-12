@@ -14,11 +14,6 @@ if (-not $install.StartsWith('D:\', [System.StringComparison]::OrdinalIgnoreCase
     -not $models.StartsWith('D:\', [System.StringComparison]::OrdinalIgnoreCase)) {
     throw 'Ollama executable and model roots must both remain on D:.'
 }
-$free = (Get-PSDrive -Name D).Free
-if ($free -lt 20GB) {
-    throw 'At least 20 GiB free on D: is required before runtime installation.'
-}
-
 $staging = 'D:\Ashr\downloads'
 $download = if ($DownloadPath) {
     [System.IO.Path]::GetFullPath($DownloadPath)
@@ -36,6 +31,10 @@ if ($DryRun) {
     Write-Output "MODEL_ROOT=$models"
     Write-Output "DOWNLOAD_PATH=$download"
     exit 0
+}
+$free = (Get-PSDrive -Name D).Free
+if ($free -lt 20GB) {
+    throw 'At least 20 GiB free on D: is required before runtime installation.'
 }
 New-Item -ItemType Directory -Force -Path ([System.IO.Path]::GetDirectoryName($download)) | Out-Null
 Invoke-WebRequest -Uri $ArchiveUrl -OutFile $download

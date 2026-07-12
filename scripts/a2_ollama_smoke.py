@@ -6,6 +6,7 @@ import argparse
 import base64
 import hashlib
 import json
+import math
 from pathlib import Path
 
 from services.judge.provider_gateway import OllamaAdapter, ProviderDefinition, ProviderGateway
@@ -19,7 +20,13 @@ def main() -> int:
     parser.add_argument("--base-url", default="http://127.0.0.1:11434")
     parser.add_argument("--image", type=Path)
     parser.add_argument("--timeout-seconds", type=float, default=120.0)
+    parser.add_argument("--model-digest", default="")
+    parser.add_argument("--num-predict", type=int, default=24)
     args = parser.parse_args()
+    if not math.isfinite(args.timeout_seconds) or args.timeout_seconds <= 0:
+        parser.error("--timeout-seconds must be finite and strictly positive")
+    if args.num_predict < 1 or args.num_predict > 256:
+        parser.error("--num-predict must be between 1 and 256")
     parts = [{"modality": "text", "text": "Return a small JSON object with a boolean field named passed."}]
     hashes = []
     if args.image:
@@ -51,12 +58,14 @@ def main() -> int:
         parts=parts,
         idempotency_key=stable_hash({"model": args.model, "hashes": hashes}),
         timeout_seconds=args.timeout_seconds,
+        model_options={"num_predict": args.num_predict, "temperature": 0},
     )
     evidence = build_local_smoke_evidence(
         modality="image" if args.image else "text",
         model_id=args.model,
         provider_result=result,
         content_hashes=hashes,
+        model_digest=args.model_digest,
     )
     print(json.dumps(evidence, indent=2, sort_keys=True))
     return 0 if result["status"] == "completed" else 2

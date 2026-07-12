@@ -266,6 +266,47 @@ class BundleEvaluationTests(unittest.TestCase):
         self.assertFalse(first["reproducibility"]["idempotent_replay"])
         self.assertTrue(second["reproducibility"]["idempotent_replay"])
 
+    def test_cli_equivalent_reordered_policy_replays_without_provider_call(self):
+        first_policy = self.trust_policy()
+        first_policy["allowed_issuers"] = ["unused-issuer", "a2-calibration-service"]
+        first_policy["issuer_tenants"]["unused-issuer"] = ["tenant-z", "tenant-y"]
+        reordered = {
+            **first_policy,
+            "allowed_issuers": list(reversed(first_policy["allowed_issuers"])),
+            "issuer_tenants": {
+                "unused-issuer": ["tenant-y", "tenant-z"],
+                "a2-calibration-service": ["tenant-a"],
+            },
+        }
+        completed, calls = self.run_complete_cli_with_policy(
+            [first_policy, reordered]
+        )
+        self.assertEqual([item.returncode for item in completed], [0, 0])
+        first, second = (json.loads(item.stdout) for item in completed)
+        self.assertEqual(calls(), 1)
+        self.assertEqual(
+            first["reproducibility"]["evaluation_trust_policy_hash"],
+            second["reproducibility"]["evaluation_trust_policy_hash"],
+        )
+        self.assertTrue(second["reproducibility"]["idempotent_replay"])
+
+    def test_cli_changed_revocation_set_conflicts_without_second_provider_call(self):
+        first_policy = self.trust_policy()
+        changed = self.trust_policy()
+        changed["revoked_key_ids"] = ["other-key"]
+        completed, calls = self.run_complete_cli_with_policy([first_policy, changed])
+        self.assertEqual(completed[0].returncode, 0)
+        self.assertNotEqual(completed[1].returncode, 0)
+        self.assertEqual(calls(), 1)
+        first, second = (json.loads(item.stdout) for item in completed)
+        self.assertEqual(second["decision"], "INCOMPLETE")
+        self.assertFalse(second["provider_called"])
+        self.assertFalse(second["reproducibility"]["persisted"])
+        self.assertNotEqual(
+            first["reproducibility"]["evaluation_trust_policy_hash"],
+            second["reproducibility"]["evaluation_trust_policy_hash"],
+        )
+
     def test_cli_invalid_trust_policy_fails_before_provider_invocation(self):
         invalid = self.trust_policy()
         invalid["revoked_key_ids"] = ["contains whitespace"]
@@ -284,6 +325,34 @@ class BundleEvaluationTests(unittest.TestCase):
         completed = self.run_policy_file_cli(None)
         self.assertNotEqual(completed.returncode, 0)
         self.assertIn("trust policy could not be loaded as JSON", completed.stderr)
+        self.assertNotIn("Connection refused", completed.stderr)
+
+    def test_cli_malformed_quality_proof_error_is_sanitized(self):
+        completed = self.run_json_file_cli(
+            input_text=json.dumps({"tenant_id": "tenant-a"}),
+            proof_text='{"secret":"quality-must-not-echo",',
+        )
+        self.assertNotEqual(completed.returncode, 0)
+        self.assertIn("quality proof could not be loaded as JSON", completed.stderr)
+        self.assertNotIn("quality-must-not-echo", completed.stdout + completed.stderr)
+
+    def test_cli_malformed_bundle_error_is_sanitized(self):
+        completed = self.run_json_file_cli(
+            input_text='{"secret":"bundle-must-not-echo",',
+            proof_text=None,
+        )
+        self.assertNotEqual(completed.returncode, 0)
+        self.assertIn("input could not be loaded as JSON", completed.stderr)
+        self.assertNotIn("bundle-must-not-echo", completed.stdout + completed.stderr)
+
+    def test_cli_missing_quality_proof_fails_before_provider(self):
+        completed = self.run_json_file_cli(
+            input_text=json.dumps({"tenant_id": "tenant-a"}),
+            proof_text=None,
+            include_proof_argument=True,
+        )
+        self.assertNotEqual(completed.returncode, 0)
+        self.assertIn("quality proof could not be loaded as JSON", completed.stderr)
         self.assertNotIn("Connection refused", completed.stderr)
 
     def test_cli_missing_bundle_key_fails_without_leaking_provider_secret(self):
@@ -439,9 +508,9 @@ class BundleEvaluationTests(unittest.TestCase):
                 candidate["model_id"] = "test-model"
                 candidate["evaluation_quality_proof"] = signed_quality_proof(candidate)
                 proof = candidate.pop("evaluation_quality_proof")
+                policies = policy if isinstance(policy, list) else [policy] * repetitions
                 for name, value in (
                     ("bundle.json", candidate), ("quality-proof.json", proof),
-                    ("trust-policy.json", policy),
                 ):
                     (root / name).write_text(json.dumps(value), encoding="utf-8")
                 command = [
@@ -462,21 +531,55 @@ class BundleEvaluationTests(unittest.TestCase):
                     "A1_EVIDENCE_HMAC_KEY": KEY.decode(),
                     "A2_TEST_PROVIDER_KEY": "stub-only-secret",
                 })
-                completed = [
-                    subprocess.run(
+                completed = []
+                for current_policy in policies:
+                    (root / "trust-policy.json").write_text(
+                        json.dumps(current_policy), encoding="utf-8"
+                    )
+                    completed.append(subprocess.run(
                         command, cwd=ROOT, env=environment,
                         capture_output=True, text=True, check=False,
-                    )
-                    for _ in range(repetitions)
-                ]
+                    ))
                 return (
-                    completed[0] if repetitions == 1 else completed,
+                    completed[0] if len(completed) == 1 else completed,
                     lambda: Handler.calls,
                 )
         finally:
             server.shutdown()
             server.server_close()
             thread.join(timeout=2)
+
+    def run_json_file_cli(
+        self, *, input_text, proof_text, include_proof_argument=False
+    ):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            input_path = root / "bundle.json"
+            proof_path = root / "quality-proof.json"
+            input_path.write_text(input_text, encoding="utf-8")
+            if proof_text is not None:
+                proof_path.write_text(proof_text, encoding="utf-8")
+            command = [
+                sys.executable, "-B", "scripts/a2_evaluate_bundle.py",
+                "--input", str(input_path),
+                "--database", str(root / "decisions.sqlite"),
+                "--provider", "openai-compatible",
+                "--model", "test-model",
+                "--base-url", "http://127.0.0.1:1",
+                "--credential-env", "A2_TEST_PROVIDER_KEY",
+                "--now-unix-ms", str(NOW),
+            ]
+            if proof_text is not None or include_proof_argument:
+                command.extend(["--quality-proof", str(proof_path)])
+            return subprocess.run(
+                command, cwd=ROOT,
+                env={
+                    **os.environ,
+                    "A1_EVIDENCE_HMAC_KEY": KEY.decode(),
+                    "A2_TEST_PROVIDER_KEY": "stub-only-secret",
+                },
+                capture_output=True, text=True, check=False,
+            )
 
     def run_policy_file_cli(self, policy_text):
         with tempfile.TemporaryDirectory() as directory:
@@ -545,7 +648,11 @@ class BundleEvaluationTests(unittest.TestCase):
             clean_environment = {
                 key: value
                 for key, value in os.environ.items()
-                if key not in {"A1_EVIDENCE_HMAC_KEY", "A2_TEST_PROVIDER_KEY"}
+                if key not in {
+                    "A1_EVIDENCE_HMAC_KEY",
+                    "A2_TEST_PROVIDER_KEY",
+                    "DASHSCOPE_API_KEY",
+                }
             }
             clean_environment.update(environment or {})
             return subprocess.run(command, cwd=Path(__file__).resolve().parents[2], env=clean_environment, capture_output=True, text=True, check=False)
@@ -631,6 +738,19 @@ class BundleEvaluationTests(unittest.TestCase):
                 self.assertIn("must both remain on D", completed.stderr)
 
     @unittest.skipUnless(os.name == "nt", "PowerShell installer is Windows-only")
+    def test_ollama_installer_rejects_non_d_download_path(self):
+        completed = subprocess.run([
+            "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass",
+            "-File", str(ROOT / "scripts/a2_install_ollama_d_drive.ps1"),
+            "-ArchiveUrl", "https://example.invalid/ollama.zip",
+            "-Sha256", "a" * 64,
+            "-DownloadPath", "C:\\Temp\\ollama.zip",
+            "-DryRun",
+        ], cwd=ROOT, capture_output=True, text=True, check=False)
+        self.assertNotEqual(completed.returncode, 0)
+        self.assertIn("archive staging must remain on D", completed.stderr)
+
+    @unittest.skipUnless(os.name == "nt", "PowerShell installer is Windows-only")
     def test_ollama_installer_checksum_mismatch_removes_download(self):
         root = Path("D:/Ashr/a2-checksum-test")
         if root.exists():
@@ -652,6 +772,8 @@ class BundleEvaluationTests(unittest.TestCase):
             self.assertNotEqual(completed.returncode, 0)
             self.assertIn("checksum mismatch", completed.stderr)
             self.assertFalse(download.exists())
+            self.assertTrue(source.exists())
+            self.assertEqual(source.read_bytes(), b"not-an-ollama-archive")
         finally:
             if root.exists():
                 import shutil as test_shutil

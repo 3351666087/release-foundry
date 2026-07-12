@@ -171,6 +171,7 @@ class ProviderGateway:
         idempotency_key: str,
         timeout_seconds: float = 30,
         max_cost_usd: float = 0,
+        model_options: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         request_core = {
             "schema_version": SCHEMA_VERSION,
@@ -249,6 +250,7 @@ class ProviderGateway:
                         "base_url": provider.base_url,
                         "credential_ref": provider.credential_ref,
                         "response_format": "json",
+                        "options": dict(model_options or {}),
                     },
                     {"parts": parts},
                     timeout_seconds,
