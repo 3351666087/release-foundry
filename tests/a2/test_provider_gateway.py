@@ -1,4 +1,5 @@
 import unittest
+from unittest.mock import patch
 
 from services.judge.provider_gateway import (
     OllamaAdapter,
@@ -8,6 +9,7 @@ from services.judge.provider_gateway import (
     StrictFakeReconciliationAdapter,
     default_provider_catalog,
 )
+from services.judge.provider_runtime import ProviderAuthenticationFailed, RetryPolicy
 from services.judge.provider_runtime import validate_semantic_judge_output
 from services.judge.result_persistence import stable_hash
 
@@ -20,6 +22,14 @@ def snapshot(*, tenant="tenant-a", completeness="complete"):
 class TimeoutAdapter:
     def invoke(self, model, payload, timeout_seconds):
         raise TimeoutError("deadline exceeded")
+
+class CapturingAdapter:
+    def __init__(self):
+        self.models = []
+
+    def invoke(self, model, payload, timeout_seconds):
+        self.models.append(model)
+        return {"output_text": '{"passed":true}', "usage": {}}
 
 
 class A2ProviderGatewayTests(unittest.TestCase):
@@ -61,6 +71,74 @@ class A2ProviderGatewayTests(unittest.TestCase):
         self.assertNotIn("grade this", str(self.audits))
         self.assertFalse(first["raw_request_included"])
         self.assertFalse(first["raw_response_included"])
+
+    def test_ollama_empty_public_content_rejects_private_thinking_output(self):
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return False
+
+            def read(self):
+                return (
+                    b'{"message":{"content":"","thinking":"{\\"passed\\":true}"},'
+                    b'"prompt_eval_count":1,"eval_count":1}'
+                )
+
+        with patch("services.judge.provider_gateway.request.urlopen", return_value=Response()):
+            with self.assertRaisesRegex(ValueError, "message content is empty"):
+                OllamaAdapter().invoke(
+                    {
+                        "model_id": "qwen3-vl:4b",
+                        "base_url": "http://127.0.0.1:11434",
+                        "options": {"temperature": 0},
+                    },
+                    {"parts": [{"modality": "text", "text": "return JSON"}]},
+                    10,
+                )
+
+    def test_ollama_public_content_is_used_and_private_thinking_is_ignored(self):
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return False
+
+            def read(self):
+                return (
+                    b'{"message":{"content":"{\\"passed\\":false}",'
+                    b'"thinking":"{\\"passed\\":true}"},'
+                    b'"prompt_eval_count":1,"eval_count":1}'
+                )
+
+        with patch("services.judge.provider_gateway.request.urlopen", return_value=Response()):
+            result = OllamaAdapter().invoke(
+                {
+                    "model_id": "qwen3-vl:4b",
+                    "base_url": "http://127.0.0.1:11434",
+                    "options": {"temperature": 0},
+                },
+                {"parts": [{"modality": "text", "text": "return JSON"}]},
+                10,
+            )
+        self.assertEqual(result["output_text"], '{"passed":false}')
+        self.assertNotIn("thinking", result)
+
+    def test_ollama_rejects_unsupported_model_options_before_network(self):
+        with patch("services.judge.provider_gateway.request.urlopen") as urlopen:
+            with self.assertRaisesRegex(ValueError, "unsupported Ollama model options"):
+                OllamaAdapter().invoke(
+                    {
+                        "model_id": "qwen3-vl:4b",
+                        "base_url": "http://127.0.0.1:11434",
+                        "options": {"credential_ref": "not-allowed"},
+                    },
+                    {"parts": [{"modality": "text", "text": "return JSON"}]},
+                    10,
+                )
+        urlopen.assert_not_called()
 
     def test_incomplete_or_cross_tenant_snapshot_never_calls_provider(self):
         for tenant, evidence in [
@@ -148,6 +226,50 @@ class A2ProviderGatewayTests(unittest.TestCase):
             self.assertFalse(result["release_authority"])
             self.assertEqual(result["attempts"][0]["status"], expected)
 
+    def test_invalid_response_distinguishes_empty_public_content(self):
+        class EmptyPublicAdapter:
+            def invoke(self, model, payload, timeout_seconds):
+                raise ValueError("Ollama response message content is empty")
+
+        gateway = ProviderGateway([self.provider], {"strict_fake": EmptyPublicAdapter()})
+        result = gateway.invoke(
+            tenant_id="tenant-a",
+            snapshot=snapshot(),
+            provider_id="unit-provider",
+            model_id="unit-model",
+            parts=[{"modality": "text", "text": "x"}],
+            idempotency_key="empty-public",
+        )
+        self.assertEqual(result["status"], "invalid_response")
+        self.assertEqual(result["failure_detail"], "empty_public_content")
+
+    def test_authentication_failure_is_terminal_even_with_retry_budget(self):
+        class AuthenticationFailureAdapter:
+            def __init__(self):
+                self.calls = 0
+
+            def invoke(self, model, payload, timeout_seconds):
+                self.calls += 1
+                raise ProviderAuthenticationFailed
+
+        adapter = AuthenticationFailureAdapter()
+        gateway = ProviderGateway(
+            [self.provider],
+            {"strict_fake": adapter},
+            retry_policy=RetryPolicy(max_attempts=3),
+        )
+        result = gateway.invoke(
+            tenant_id="tenant-a",
+            snapshot=snapshot(),
+            provider_id="unit-provider",
+            model_id="unit-model",
+            parts=[{"modality": "text", "text": "x"}],
+            idempotency_key="auth-terminal",
+        )
+        self.assertEqual(result["status"], "authentication_failed")
+        self.assertEqual(adapter.calls, 1)
+        self.assertEqual(len(result["attempts"]), 1)
+
     def test_unknown_protocol_and_capability_selection_are_explicit(self):
         unknown = ProviderDefinition(
             "unknown-provider",
@@ -192,6 +314,87 @@ class A2ProviderGatewayTests(unittest.TestCase):
         self.assertNotEqual(first["payload_hash"], changed_payload["payload_hash"])
         self.assertNotEqual(first["logical_call_id"], changed_model["logical_call_id"])
         self.assertEqual(self.fake.calls, 3)
+
+    def test_model_options_reach_adapter_without_overriding_provider_boundaries(self):
+        adapter = CapturingAdapter()
+        gateway = ProviderGateway([self.provider], {"strict_fake": adapter})
+        result = gateway.invoke(
+            tenant_id="tenant-a",
+            snapshot=snapshot(),
+            provider_id="unit-provider",
+            model_id="unit-model",
+            parts=[{"modality": "text", "text": "x"}],
+            idempotency_key="bounded-options",
+            model_options={
+                "num_predict": 8,
+                "temperature": 0,
+                "base_url": "https://attacker.invalid",
+                "credential_ref": "secret://attacker/key",
+            },
+        )
+        self.assertEqual(result["status"], "completed")
+        model = adapter.models[0]
+        self.assertEqual(model["base_url"], "memory://unit")
+        self.assertEqual(model["credential_ref"], "secret://unit/key")
+        self.assertEqual(model["options"]["num_predict"], 8)
+        self.assertEqual(model["options"]["temperature"], 0)
+        self.assertNotEqual(model["base_url"], model["options"]["base_url"])
+        self.assertNotEqual(model["credential_ref"], model["options"]["credential_ref"])
+
+    def test_model_option_identity_is_order_independent_and_values_are_bounded(self):
+        first = self.gateway.invoke(
+            tenant_id="tenant-a",
+            snapshot=snapshot(),
+            provider_id="unit-provider",
+            model_id="unit-model",
+            parts=[{"modality": "text", "text": "x"}],
+            idempotency_key="ordered-options",
+            model_options={"temperature": 0, "num_predict": 8},
+        )
+        replay = self.gateway.invoke(
+            tenant_id="tenant-a",
+            snapshot=snapshot(),
+            provider_id="unit-provider",
+            model_id="unit-model",
+            parts=[{"modality": "text", "text": "x"}],
+            idempotency_key="ordered-options",
+            model_options={"num_predict": 8, "temperature": 0},
+        )
+        self.assertEqual(first["logical_call_id"], replay["logical_call_id"])
+
+        ollama = ProviderDefinition(
+            "ollama-test", "ollama", "http://127.0.0.1:11434", "",
+            frozenset({"text"}), frozenset({"tenant-a"}),
+        )
+        gateway = ProviderGateway([ollama], {"ollama": self.fake})
+        with self.assertRaisesRegex(ValueError, "invalid ollama model option values"):
+            gateway.invoke(
+                tenant_id="tenant-a",
+                snapshot=snapshot(),
+                provider_id="ollama-test",
+                model_id="qwen",
+                parts=[{"modality": "text", "text": "x"}],
+                idempotency_key="bad-option",
+                model_options={"temperature": 3},
+            )
+
+    def test_credential_generation_is_audited_and_separates_cached_auth_failures(self):
+        marker_a = "hmac-sha256:" + "a" * 64
+        marker_b = "hmac-sha256:" + "b" * 64
+        kwargs = {
+            "tenant_id": "tenant-a",
+            "snapshot": snapshot(),
+            "provider_id": "unit-provider",
+            "model_id": "unit-model",
+            "parts": [{"modality": "text", "text": "x"}],
+            "idempotency_key": "credential-generation",
+        }
+        first = self.gateway.invoke(**kwargs, credential_generation_marker=marker_a)
+        second = self.gateway.invoke(**kwargs, credential_generation_marker=marker_b)
+        self.assertNotEqual(first["logical_call_id"], second["logical_call_id"])
+        self.assertEqual(self.audits[-2]["credential_generation_marker"], marker_a)
+        self.assertEqual(self.audits[-1]["credential_generation_marker"], marker_b)
+        self.assertNotIn("secret://unit/key", str(self.audits[-1]["credential_generation_marker"]))
 
     def test_catalog_supports_local_and_selective_cloud_imports(self):
         catalog = {item.provider_id: item for item in default_provider_catalog()}

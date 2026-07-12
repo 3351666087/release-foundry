@@ -7,7 +7,13 @@ from dataclasses import dataclass
 from typing import Any, Callable, Protocol
 from urllib import request
 
-from .provider_runtime import CircuitBreaker, ProviderRateLimited, ProviderUnavailable, RetryPolicy
+from .provider_runtime import (
+    CircuitBreaker,
+    ProviderAuthenticationFailed,
+    ProviderRateLimited,
+    ProviderUnavailable,
+    RetryPolicy,
+)
 from .result_persistence import stable_hash
 
 
@@ -33,9 +39,36 @@ TERMINAL_FAILURES = frozenset(
         "rate_limited",
         "timeout",
         "invalid_response",
+        "authentication_failed",
         "unsupported",
     }
 )
+MODEL_OPTION_ALLOWLISTS = {
+    "ollama": frozenset({"temperature", "num_predict", "seed", "top_p", "top_k"}),
+    "openai_compatible": frozenset({"temperature", "max_tokens", "seed", "top_p"}),
+}
+
+
+def validate_model_options(protocol: str, options: dict[str, Any]) -> dict[str, Any]:
+    allowed = MODEL_OPTION_ALLOWLISTS.get(protocol)
+    if allowed is None:
+        return dict(options)
+    unsupported = sorted(set(options) - allowed)
+    if unsupported:
+        label = "Ollama" if protocol == "ollama" else protocol
+        raise ValueError(f"unsupported {label} model options: {','.join(unsupported)}")
+    validators = {
+        "temperature": lambda value: isinstance(value, (int, float)) and not isinstance(value, bool) and 0 <= value <= 2,
+        "top_p": lambda value: isinstance(value, (int, float)) and not isinstance(value, bool) and 0 < value <= 1,
+        "top_k": lambda value: isinstance(value, int) and not isinstance(value, bool) and value >= 1,
+        "seed": lambda value: isinstance(value, int) and not isinstance(value, bool),
+        "num_predict": lambda value: isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= 32768,
+        "max_tokens": lambda value: isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= 32768,
+    }
+    invalid = sorted(name for name, value in options.items() if not validators[name](value))
+    if invalid:
+        raise ValueError(f"invalid {protocol} model option values: {','.join(invalid)}")
+    return dict(options)
 
 
 class ProviderAdapter(Protocol):
@@ -101,6 +134,7 @@ class OllamaAdapter:
     """Minimal Ollama /api/chat adapter; credentials are intentionally unsupported."""
 
     def invoke(self, model: dict[str, Any], payload: dict[str, Any], timeout_seconds: float) -> dict[str, Any]:
+        options = validate_model_options("ollama", dict(model.get("options") or {}))
         content = "\n".join(
             str(part.get("text") or "")
             for part in payload.get("parts", [])
@@ -120,15 +154,20 @@ class OllamaAdapter:
                 "messages": [message],
                 "stream": False,
                 "format": model.get("response_format", "json"),
-                "options": model.get("options", {}),
+                "options": options,
             }
         ).encode("utf-8")
         endpoint = str(model["base_url"]).rstrip("/") + "/api/chat"
         call = request.Request(endpoint, data=body, headers={"Content-Type": "application/json"}, method="POST")
         with request.urlopen(call, timeout=timeout_seconds) as response:
             parsed = json.loads(response.read().decode("utf-8"))
+        output_text = str(parsed.get("message", {}).get("content") or "")
+        if not output_text.strip():
+            # A private reasoning channel is not governed Judge output and
+            # must not be promoted when the public assistant content is empty.
+            raise ValueError("Ollama response message content is empty")
         return {
-            "output_text": str(parsed.get("message", {}).get("content") or ""),
+            "output_text": output_text,
             "usage": {
                 "input_tokens": int(parsed.get("prompt_eval_count") or 0),
                 "output_tokens": int(parsed.get("eval_count") or 0),
@@ -172,7 +211,18 @@ class ProviderGateway:
         timeout_seconds: float = 30,
         max_cost_usd: float = 0,
         model_options: dict[str, Any] | None = None,
+        credential_generation_marker: str = "",
     ) -> dict[str, Any]:
+        if credential_generation_marker and not (
+            credential_generation_marker.startswith("hmac-sha256:")
+            and len(credential_generation_marker) == 76
+            and all(char in "0123456789abcdef" for char in credential_generation_marker[12:])
+        ):
+            raise ValueError("credential_generation_marker must be empty or canonical hmac-sha256")
+        normalized_options = validate_model_options(
+            self.providers[provider_id].protocol if provider_id in self.providers else "",
+            dict(model_options or {}),
+        )
         request_core = {
             "schema_version": SCHEMA_VERSION,
             "tenant_id": tenant_id,
@@ -183,6 +233,8 @@ class ProviderGateway:
             "modalities": sorted({str(part.get("modality") or "") for part in parts}),
             "payload_hash": stable_hash(parts),
             "idempotency_key": idempotency_key,
+            "model_options_hash": stable_hash(normalized_options),
+            "credential_generation_marker": credential_generation_marker,
         }
         logical_call_id = stable_hash(request_core)
         if logical_call_id in self._results:
@@ -230,6 +282,7 @@ class ProviderGateway:
             "provider_id": provider_id,
             "model_id": model_id,
             "credential_ref": provider.credential_ref,
+            "credential_generation_marker": credential_generation_marker,
         }
         try:
             self.audit_writer(audit_event)
@@ -250,7 +303,7 @@ class ProviderGateway:
                         "base_url": provider.base_url,
                         "credential_ref": provider.credential_ref,
                         "response_format": "json",
-                        "options": dict(model_options or {}),
+                        "options": normalized_options,
                     },
                     {"parts": parts},
                     timeout_seconds,
@@ -270,17 +323,26 @@ class ProviderGateway:
                 break
             except TimeoutError:
                 status = "timeout"
+            except ProviderAuthenticationFailed:
+                status = "authentication_failed"
             except ProviderRateLimited:
                 status = "rate_limited"
             except ProviderUnavailable:
                 status = "provider_unavailable"
-            except (ValueError, TypeError):
+            except (ValueError, TypeError) as exc:
                 status = "invalid_response"
+                failure_detail = (
+                    "empty_public_content"
+                    if "message content is empty" in str(exc)
+                    else "malformed_or_invalid_output"
+                )
             except Exception:
                 status = "provider_error"
             attempt["status"] = status
             if not self.retry_policy.should_retry(status, attempt_number):
                 result = self._result(request_core, logical_call_id, status, attempts=attempts)
+                if status == "invalid_response":
+                    result["failure_detail"] = failure_detail
                 if breaker is not None:
                     breaker.record(False)
                 break

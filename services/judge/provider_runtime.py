@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import re
 import time
 from dataclasses import dataclass, field
 from typing import Any, Callable, Mapping, Protocol
@@ -18,6 +19,23 @@ PROVENANCE_SCHEMA_VERSION = "a2.provider_provenance_handoff.v1"
 AUTHENTICATED_BUNDLE_SCHEMA_VERSION = "ashr.a1.authenticated_evidence_bundle.v2"
 SCOPE_FIELDS = ("organization_id", "tenant_id", "workspace_id", "project_id", "environment_id")
 RETRYABLE_STATUSES = frozenset({"timeout", "rate_limited", "provider_unavailable"})
+OPENAI_COMPATIBLE_OPTION_ALLOWLIST = frozenset({"temperature", "max_tokens", "seed", "top_p"})
+
+
+def _validate_openai_compatible_options(options: dict[str, Any]) -> dict[str, Any]:
+    unsupported = sorted(set(options) - OPENAI_COMPATIBLE_OPTION_ALLOWLIST)
+    if unsupported:
+        raise ValueError(f"unsupported OpenAI-compatible model options: {','.join(unsupported)}")
+    validators = {
+        "temperature": lambda value: isinstance(value, (int, float)) and not isinstance(value, bool) and 0 <= value <= 2,
+        "top_p": lambda value: isinstance(value, (int, float)) and not isinstance(value, bool) and 0 < value <= 1,
+        "seed": lambda value: isinstance(value, int) and not isinstance(value, bool),
+        "max_tokens": lambda value: isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= 32768,
+    }
+    invalid = sorted(name for name, value in options.items() if not validators[name](value))
+    if invalid:
+        raise ValueError(f"invalid OpenAI-compatible model option values: {','.join(invalid)}")
+    return dict(options)
 
 
 class CredentialResolver(Protocol):
@@ -149,14 +167,15 @@ class OpenAICompatibleAdapter:
 
     def invoke(self, model: dict[str, Any], payload: dict[str, Any], timeout_seconds: float) -> dict[str, Any]:
         key = self.credential_resolver.resolve(str(model.get("credential_ref") or ""))
+        options = _validate_openai_compatible_options(dict(model.get("options") or {}))
         content = [_openai_part(part) for part in payload.get("parts", [])]
-        body = json.dumps(
-            {
-                "model": model["model_id"],
-                "messages": [{"role": "user", "content": content}],
-                "response_format": {"type": "json_object"},
-            }
-        ).encode("utf-8")
+        request_body = {
+            "model": model["model_id"],
+            "messages": [{"role": "user", "content": content}],
+            "response_format": {"type": "json_object"},
+        }
+        request_body.update(options)
+        body = json.dumps(request_body).encode("utf-8")
         endpoint = str(model["base_url"]).rstrip("/") + "/chat/completions"
         call = request.Request(
             endpoint,
@@ -168,6 +187,8 @@ class OpenAICompatibleAdapter:
             with request.urlopen(call, timeout=timeout_seconds) as response:
                 parsed = json.loads(response.read().decode("utf-8"))
         except error.HTTPError as exc:
+            if exc.code in {401, 403}:
+                raise ProviderAuthenticationFailed from exc
             if exc.code == 429:
                 raise ProviderRateLimited from exc
             if exc.code >= 500:
@@ -175,8 +196,11 @@ class OpenAICompatibleAdapter:
             raise
         choice = (parsed.get("choices") or [{}])[0]
         usage = parsed.get("usage") or {}
+        output_text = str(choice.get("message", {}).get("content") or "")
+        if not output_text.strip():
+            raise ValueError("OpenAI-compatible response message content is empty")
         return {
-            "output_text": str(choice.get("message", {}).get("content") or ""),
+            "output_text": output_text,
             "usage": {
                 "input_tokens": int(usage.get("prompt_tokens") or 0),
                 "output_tokens": int(usage.get("completion_tokens") or 0),
@@ -190,6 +214,10 @@ class ProviderRateLimited(RuntimeError):
 
 
 class ProviderUnavailable(RuntimeError):
+    pass
+
+
+class ProviderAuthenticationFailed(RuntimeError):
     pass
 
 
@@ -464,7 +492,31 @@ def build_local_smoke_evidence(
     provider_result: dict[str, Any],
     content_hashes: list[str],
     model_digest: str = "",
+    duration_seconds: float | None = None,
+    credential_rotation_marker: str = "",
 ) -> dict[str, Any]:
+    sha256 = re.compile(r"^sha256:[0-9a-f]{64}$")
+    if model_digest and not sha256.fullmatch(model_digest):
+        raise ValueError("model_digest must be an empty value or canonical sha256:<lowercase-hex>")
+    if any(not isinstance(value, str) or not sha256.fullmatch(value) for value in content_hashes):
+        raise ValueError("content_hashes must contain canonical sha256:<lowercase-hex> values")
+    if credential_rotation_marker and not re.fullmatch(
+        r"hmac-sha256:[0-9a-f]{64}",
+        credential_rotation_marker,
+    ):
+        raise ValueError("credential_rotation_marker must be empty or canonical hmac-sha256")
+    if duration_seconds is None:
+        duration_bucket = "not_recorded"
+    elif duration_seconds < 1:
+        duration_bucket = "under_1s"
+    elif duration_seconds < 10:
+        duration_bucket = "1_to_10s"
+    elif duration_seconds < 60:
+        duration_bucket = "10_to_60s"
+    elif duration_seconds < 300:
+        duration_bucket = "1_to_5m"
+    else:
+        duration_bucket = "over_5m"
     status = str(provider_result.get("status", "blocked"))
     return {
         "schema_version": "a2.local_provider_smoke.v1",
@@ -483,9 +535,11 @@ def build_local_smoke_evidence(
         # A smoke call proves transport/runtime callability only. It never
         # substitutes for golden regression, disagreement analysis, or review.
         "calibration_state": "uncalibrated",
+        "duration_bucket": duration_bucket,
         "logical_call_id": provider_result.get("logical_call_id"),
         "response_hash": provider_result.get("response_hash"),
         "content_hashes": content_hashes,
+        "credential_rotation_marker": credential_rotation_marker,
         "raw_payload_included": False,
         "secret_included": False,
     }

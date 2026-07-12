@@ -4,6 +4,7 @@ import json
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+from urllib import error
 
 import jsonschema
 
@@ -16,6 +17,8 @@ from services.judge.provider_runtime import (
     ModelRecord,
     ModelRegistry,
     OllamaDiscovery,
+    OpenAICompatibleAdapter,
+    ProviderAuthenticationFailed,
     RetryPolicy,
     TenantProviderPolicy,
     build_local_smoke_evidence,
@@ -135,6 +138,131 @@ class ProviderRuntimeTests(unittest.TestCase):
             discovered = OllamaDiscovery().discover("http://local")
             self.assertEqual(discovered[0].modalities, frozenset({"text", "image"}))
             self.assertEqual(discovered[1].modalities, frozenset({"text"}))
+
+    def test_openai_compatible_multimodal_data_url_and_strict_json_output(self):
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return False
+
+            def read(self):
+                return json.dumps(
+                    {
+                        "id": "request-1",
+                        "choices": [{"message": {"content": json.dumps({
+                            "passed": False,
+                            "score": 0.2,
+                            "reason": "visible mismatch",
+                            "failure_classes": ["visual"],
+                            "evidence_refs": ["image-1"],
+                            "abstained": False,
+                        })}}],
+                        "usage": {"prompt_tokens": 4, "completion_tokens": 8},
+                    }
+                ).encode()
+
+        resolver = EnvironmentCredentialResolver({"secret://provider/default": "runtime-only"})
+        adapter = OpenAICompatibleAdapter(resolver)
+        with patch("services.judge.provider_runtime.request.urlopen", return_value=Response()) as urlopen:
+            result = adapter.invoke(
+                {
+                    "credential_ref": "secret://provider/default",
+                    "model_id": "vision",
+                    "base_url": "https://provider.invalid/v1",
+                },
+                {"parts": [
+                    {"modality": "text", "text": "judge"},
+                    {"modality": "image", "data": "data:image/png;base64,AAAA"},
+                ]},
+                10,
+            )
+        sent = json.loads(urlopen.call_args.args[0].data)
+        self.assertEqual(
+            sent["messages"][0]["content"][1]["image_url"]["url"],
+            "data:image/png;base64,AAAA",
+        )
+        validated = validate_semantic_judge_output(result["output_text"])
+        self.assertFalse(validated["passed"])
+
+    def test_openai_compatible_401_and_403_are_terminal_authentication_failures(self):
+        resolver = EnvironmentCredentialResolver({"secret://provider/default": "runtime-only"})
+        adapter = OpenAICompatibleAdapter(resolver)
+        for status in (401, 403):
+            failure = error.HTTPError("https://provider.invalid", status, "denied", {}, None)
+            with patch("services.judge.provider_runtime.request.urlopen", side_effect=failure):
+                with self.assertRaises(ProviderAuthenticationFailed):
+                    adapter.invoke(
+                        {
+                            "credential_ref": "secret://provider/default",
+                            "model_id": "vision",
+                            "base_url": "https://provider.invalid/v1",
+                        },
+                        {"parts": [{"modality": "text", "text": "judge"}]},
+                        10,
+                    )
+
+    def test_openai_compatible_governs_model_options_before_network(self):
+        resolver = EnvironmentCredentialResolver({"secret://provider/default": "runtime-only"})
+        adapter = OpenAICompatibleAdapter(resolver)
+        with patch("services.judge.provider_runtime.request.urlopen") as urlopen:
+            with self.assertRaisesRegex(ValueError, "unsupported OpenAI-compatible model options"):
+                adapter.invoke(
+                    {
+                        "credential_ref": "secret://provider/default",
+                        "model_id": "vision",
+                        "base_url": "https://provider.invalid/v1",
+                        "options": {"credential_ref": "not-an-option"},
+                    },
+                    {"parts": [{"modality": "text", "text": "judge"}]},
+                    10,
+                )
+        urlopen.assert_not_called()
+
+        for options in ({"temperature": 3}, {"top_p": 0}, {"max_tokens": 0}, {"seed": True}):
+            with patch("services.judge.provider_runtime.request.urlopen") as urlopen:
+                with self.assertRaisesRegex(ValueError, "invalid OpenAI-compatible model option values"):
+                    adapter.invoke(
+                        {
+                            "credential_ref": "secret://provider/default",
+                            "model_id": "vision",
+                            "base_url": "https://provider.invalid/v1",
+                            "options": options,
+                        },
+                        {"parts": [{"modality": "text", "text": "judge"}]},
+                        10,
+                    )
+            urlopen.assert_not_called()
+
+    def test_openai_compatible_missing_choices_or_content_is_empty_public_output(self):
+        class Response:
+            def __init__(self, payload):
+                self.payload = payload
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return False
+
+            def read(self):
+                return json.dumps(self.payload).encode()
+
+        resolver = EnvironmentCredentialResolver({"secret://provider/default": "runtime-only"})
+        adapter = OpenAICompatibleAdapter(resolver)
+        for payload in ({}, {"choices": [{}]}, {"choices": [{"message": {"content": ""}}]}):
+            with patch("services.judge.provider_runtime.request.urlopen", return_value=Response(payload)):
+                with self.assertRaisesRegex(ValueError, "message content is empty"):
+                    adapter.invoke(
+                        {
+                            "credential_ref": "secret://provider/default",
+                            "model_id": "vision",
+                            "base_url": "https://provider.invalid/v1",
+                        },
+                        {"parts": [{"modality": "text", "text": "judge"}]},
+                        10,
+                    )
 
     def test_ollama_health_has_explicit_ready_timeout_and_unavailable_states(self):
         discovery = OllamaDiscovery()
@@ -344,12 +472,14 @@ class ProviderRuntimeTests(unittest.TestCase):
                 "response_hash": stable_hash("response"),
             },
             content_hashes=[stable_hash("image")],
+            credential_rotation_marker="hmac-sha256:" + "b" * 64,
         )
         self.assertFalse(evidence["raw_payload_included"])
         self.assertFalse(evidence["secret_included"])
         self.assertEqual(evidence["capability_state"], "callable")
         self.assertEqual(evidence["calibration_state"], "uncalibrated")
         self.assertEqual(evidence["model_digest"], "sha256:" + "a" * 64)
+        self.assertEqual(evidence["credential_rotation_marker"], "hmac-sha256:" + "b" * 64)
         self.assertNotIn("data", evidence)
 
         timed_out = build_local_smoke_evidence(
@@ -366,6 +496,41 @@ class ProviderRuntimeTests(unittest.TestCase):
         self.assertEqual(timed_out["capability_state"], "protocol_reachable")
         self.assertNotEqual(timed_out["capability_state"], "callable")
         self.assertEqual(timed_out["calibration_state"], "uncalibrated")
+
+        invalid = build_local_smoke_evidence(
+            modality="text", model_id="vision", provider_result={"status": "invalid_response"},
+            content_hashes=[],
+        )
+        self.assertEqual(invalid["capability_state"], "protocol_reachable")
+        self.assertEqual(invalid["calibration_state"], "uncalibrated")
+        unavailable = build_local_smoke_evidence(
+            modality="text", model_id="vision", provider_result={"status": "provider_unavailable"},
+            content_hashes=[],
+        )
+        self.assertEqual(unavailable["capability_state"], "unavailable")
+        self.assertEqual(unavailable["calibration_state"], "uncalibrated")
+        for item in (evidence, timed_out, invalid, unavailable):
+            self.assert_schema(item, "local_provider_smoke.schema.json")
+
+    def test_local_smoke_rejects_noncanonical_hashes(self):
+        with self.assertRaises(ValueError):
+            build_local_smoke_evidence(
+                modality="image", model_id="vision", provider_result={"status": "completed"},
+                content_hashes=["SHA256:not-canonical"],
+            )
+        with self.assertRaises(ValueError):
+            build_local_smoke_evidence(
+                modality="text", model_id="vision", provider_result={"status": "completed"},
+                content_hashes=[], model_digest="not-a-digest",
+            )
+        with self.assertRaises(ValueError):
+            build_local_smoke_evidence(
+                modality="text",
+                model_id="vision",
+                provider_result={"status": "completed"},
+                content_hashes=[],
+                credential_rotation_marker="secret-value",
+            )
 
 
 if __name__ == "__main__":

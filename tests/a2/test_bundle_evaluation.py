@@ -290,10 +290,47 @@ class BundleEvaluationTests(unittest.TestCase):
         )
         self.assertTrue(second["reproducibility"]["idempotent_replay"])
 
+    def test_cli_duplicate_revocations_normalize_and_replay_without_provider_call(self):
+        duplicated = self.trust_policy()
+        duplicated["revoked_key_ids"] = ["other-key", "other-key"]
+        duplicated["revoked_proof_hashes"] = [
+            "sha256:" + "e" * 64,
+            "sha256:" + "e" * 64,
+        ]
+        normalized = self.trust_policy()
+        normalized["revoked_key_ids"] = ["other-key"]
+        normalized["revoked_proof_hashes"] = ["sha256:" + "e" * 64]
+        completed, calls = self.run_complete_cli_with_policy([duplicated, normalized])
+        self.assertEqual([item.returncode for item in completed], [0, 0])
+        first, second = (json.loads(item.stdout) for item in completed)
+        self.assertEqual(calls(), 1)
+        self.assertEqual(
+            first["reproducibility"]["evaluation_trust_policy_hash"],
+            second["reproducibility"]["evaluation_trust_policy_hash"],
+        )
+        self.assertTrue(second["reproducibility"]["idempotent_replay"])
+
     def test_cli_changed_revocation_set_conflicts_without_second_provider_call(self):
         first_policy = self.trust_policy()
         changed = self.trust_policy()
         changed["revoked_key_ids"] = ["other-key"]
+        completed, calls = self.run_complete_cli_with_policy([first_policy, changed])
+        self.assertEqual(completed[0].returncode, 0)
+        self.assertNotEqual(completed[1].returncode, 0)
+        self.assertEqual(calls(), 1)
+        first, second = (json.loads(item.stdout) for item in completed)
+        self.assertEqual(second["decision"], "INCOMPLETE")
+        self.assertFalse(second["provider_called"])
+        self.assertFalse(second["reproducibility"]["persisted"])
+        self.assertNotEqual(
+            first["reproducibility"]["evaluation_trust_policy_hash"],
+            second["reproducibility"]["evaluation_trust_policy_hash"],
+        )
+
+    def test_cli_changed_maximum_review_age_conflicts_without_second_provider_call(self):
+        first_policy = self.trust_policy()
+        changed = self.trust_policy()
+        changed["maximum_review_age_ms"] -= 1
         completed, calls = self.run_complete_cli_with_policy([first_policy, changed])
         self.assertEqual(completed[0].returncode, 0)
         self.assertNotEqual(completed[1].returncode, 0)

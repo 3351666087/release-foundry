@@ -1302,6 +1302,70 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
                 )
         finally:
             connection.close()
+
+    def test_recovery_rejects_tampered_normalized_trust_policy_hash(self):
+        connection = sqlite3.connect(":memory:")
+        policy = {
+            "schema_version": "a2.evaluation_trust_policy.v1",
+            "allowed_issuers": [
+                "a2-calibration-service", "a2-calibration-service",
+            ],
+            "issuer_tenants": {
+                "a2-calibration-service": ["tenant-a", "tenant-a"],
+            },
+            "revoked_key_ids": [],
+            "revoked_proof_hashes": [],
+            "maximum_lifetime_ms": 86_400_000,
+            "maximum_review_age_ms": 604_800_000,
+        }
+        try:
+            initialize_sql_store(connection)
+
+            def fail(point):
+                if point == "after_provider_outcome_committed":
+                    raise OSError("stop")
+
+            with self.assertRaises(OSError):
+                execute_release_decision(
+                    request(), gateway=gateway(), key_resolver=lambda _: KEY,
+                    now_unix_ms=NOW, persistence_connection=connection,
+                    persistence_failure_injector=fail,
+                    quality_trust_policy=policy,
+                )
+            operation_id = connection.execute(
+                "SELECT operation_id FROM a2_decision_operations"
+            ).fetchone()[0]
+            envelope = json.loads(connection.execute(
+                "SELECT recovery_envelope_json FROM a2_provider_outcomes"
+            ).fetchone()[0])
+            expected_hash = stable_hash(normalize_evaluation_trust_policy(policy))
+            self.assertEqual(envelope["evaluation_trust_policy_hash"], expected_hash)
+            envelope["evaluation_trust_policy_hash"] = "sha256:" + "f" * 64
+            connection.execute(
+                "UPDATE a2_provider_outcomes SET recovery_envelope_json = ?, "
+                "recovery_envelope_hash = ?",
+                (
+                    json.dumps(envelope, sort_keys=True, separators=(",", ":")),
+                    stable_hash(envelope),
+                ),
+            )
+            connection.commit()
+            with self.assertRaisesRegex(
+                IdempotencyConflictError, "input changed before commit"
+            ):
+                load_decision_recovery_envelope(
+                    connection,
+                    operation_id=operation_id,
+                    scope={field: request()[field] for field in (
+                        "organization_id", "tenant_id", "workspace_id",
+                        "project_id", "environment_id",
+                    )},
+                )
+            self.assertEqual(_count(connection, "a2_release_decisions"), 0)
+            self.assertEqual(_count(connection, "a2_decision_outbox"), 0)
+        finally:
+            connection.close()
+
     def test_interrupted_provider_call_requires_recovery_and_is_not_replayed(self):
         connection = sqlite3.connect(":memory:")
         try:

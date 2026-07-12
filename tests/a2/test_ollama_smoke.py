@@ -5,6 +5,7 @@ import sys
 import threading
 import time
 import unittest
+import tempfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -71,6 +72,7 @@ class OllamaSmokeCliTests(unittest.TestCase):
         self.assertEqual(evidence["capability_state"], "callable")
         self.assertEqual(evidence["calibration_state"], "uncalibrated")
         self.assertEqual(evidence["model_digest"], "sha256:" + "a" * 64)
+        self.assertIn(evidence["duration_bucket"], {"under_1s", "1_to_10s", "10_to_60s", "1_to_5m", "over_5m"})
         self.assertNotIn("output_text", evidence)
         self.assertNotIn("prompt", evidence)
         self.assertFalse(evidence["raw_payload_included"])
@@ -109,6 +111,37 @@ class OllamaSmokeCliTests(unittest.TestCase):
                 )
                 self.assertEqual(completed.returncode, 2)
                 self.assertIn("finite and strictly positive", completed.stderr)
+
+    def test_num_predict_is_strictly_bounded_and_integer(self):
+        for value in ("0", "257", "1.5"):
+            with self.subTest(value=value):
+                completed = subprocess.run(
+                    [sys.executable, "-B", "scripts/a2_ollama_smoke.py", "--model", "unit", "--num-predict", value],
+                    cwd=ROOT, env={**os.environ, "PYTHONPATH": str(ROOT)},
+                    capture_output=True, text=True, check=False,
+                )
+                self.assertEqual(completed.returncode, 2)
+
+    def test_image_suffix_and_size_are_rejected_before_read(self):
+        with tempfile.TemporaryDirectory() as directory:
+            unsupported = Path(directory) / "evidence.gif"
+            unsupported.write_bytes(b"x")
+            completed = subprocess.run(
+                [sys.executable, "-B", "scripts/a2_ollama_smoke.py", "--model", "unit", "--image", str(unsupported)],
+                cwd=ROOT, env={**os.environ, "PYTHONPATH": str(ROOT)},
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(completed.returncode, 2)
+            self.assertIn("must use", completed.stderr)
+            oversized = Path(directory) / "evidence.png"
+            oversized.write_bytes(b"xx")
+            completed = subprocess.run(
+                [sys.executable, "-B", "scripts/a2_ollama_smoke.py", "--model", "unit", "--image", str(oversized), "--max-image-bytes", "1"],
+                cwd=ROOT, env={**os.environ, "PYTHONPATH": str(ROOT)},
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(completed.returncode, 2)
+            self.assertIn("exceeds", completed.stderr)
 
 
 if __name__ == "__main__":
