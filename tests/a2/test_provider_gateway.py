@@ -341,6 +341,61 @@ class A2ProviderGatewayTests(unittest.TestCase):
         self.assertNotEqual(model["base_url"], model["options"]["base_url"])
         self.assertNotEqual(model["credential_ref"], model["options"]["credential_ref"])
 
+    def test_model_option_identity_is_order_independent_and_values_are_bounded(self):
+        first = self.gateway.invoke(
+            tenant_id="tenant-a",
+            snapshot=snapshot(),
+            provider_id="unit-provider",
+            model_id="unit-model",
+            parts=[{"modality": "text", "text": "x"}],
+            idempotency_key="ordered-options",
+            model_options={"temperature": 0, "num_predict": 8},
+        )
+        replay = self.gateway.invoke(
+            tenant_id="tenant-a",
+            snapshot=snapshot(),
+            provider_id="unit-provider",
+            model_id="unit-model",
+            parts=[{"modality": "text", "text": "x"}],
+            idempotency_key="ordered-options",
+            model_options={"num_predict": 8, "temperature": 0},
+        )
+        self.assertEqual(first["logical_call_id"], replay["logical_call_id"])
+
+        ollama = ProviderDefinition(
+            "ollama-test", "ollama", "http://127.0.0.1:11434", "",
+            frozenset({"text"}), frozenset({"tenant-a"}),
+        )
+        gateway = ProviderGateway([ollama], {"ollama": self.fake})
+        with self.assertRaisesRegex(ValueError, "invalid ollama model option values"):
+            gateway.invoke(
+                tenant_id="tenant-a",
+                snapshot=snapshot(),
+                provider_id="ollama-test",
+                model_id="qwen",
+                parts=[{"modality": "text", "text": "x"}],
+                idempotency_key="bad-option",
+                model_options={"temperature": 3},
+            )
+
+    def test_credential_generation_is_audited_and_separates_cached_auth_failures(self):
+        marker_a = "hmac-sha256:" + "a" * 64
+        marker_b = "hmac-sha256:" + "b" * 64
+        kwargs = {
+            "tenant_id": "tenant-a",
+            "snapshot": snapshot(),
+            "provider_id": "unit-provider",
+            "model_id": "unit-model",
+            "parts": [{"modality": "text", "text": "x"}],
+            "idempotency_key": "credential-generation",
+        }
+        first = self.gateway.invoke(**kwargs, credential_generation_marker=marker_a)
+        second = self.gateway.invoke(**kwargs, credential_generation_marker=marker_b)
+        self.assertNotEqual(first["logical_call_id"], second["logical_call_id"])
+        self.assertEqual(self.audits[-2]["credential_generation_marker"], marker_a)
+        self.assertEqual(self.audits[-1]["credential_generation_marker"], marker_b)
+        self.assertNotIn("secret://unit/key", str(self.audits[-1]["credential_generation_marker"]))
+
     def test_catalog_supports_local_and_selective_cloud_imports(self):
         catalog = {item.provider_id: item for item in default_provider_catalog()}
         self.assertIsInstance(OllamaAdapter(), OllamaAdapter)

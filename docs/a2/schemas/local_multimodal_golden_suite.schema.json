@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.io/schemas/a2/local_multimodal_golden_suite.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "case_count", "passed_count", "abstained_count", "pass_rate", "abstention_rate", "minimum_pass_rate", "maximum_abstention_rate", "case_result_hashes", "safety_critical_case_ids", "failed_safety_critical_case_ids", "status", "release_authority", "human_review_required", "blockers", "public_safe"],
+  "properties": {
+    "schema_version": {"const": "a2.local_multimodal_golden_suite.v1"},
+    "case_count": {"type": "integer", "minimum": 1},
+    "passed_count": {"type": "integer", "minimum": 0},
+    "abstained_count": {"type": "integer", "minimum": 0},
+    "pass_rate": {"type": "number", "minimum": 0, "maximum": 1},
+    "abstention_rate": {"type": "number", "minimum": 0, "maximum": 1},
+    "minimum_pass_rate": {"type": "number", "minimum": 0, "maximum": 1},
+    "maximum_abstention_rate": {"type": "number", "minimum": 0, "maximum": 1},
+    "case_result_hashes": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}},
+    "safety_critical_case_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "failed_safety_critical_case_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "status": {"enum": ["passed", "blocked"]},
+    "release_authority": {"const": false},
+    "human_review_required": {"type": "boolean"},
+    "blockers": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+    "public_safe": {"const": true}
+  }
+}

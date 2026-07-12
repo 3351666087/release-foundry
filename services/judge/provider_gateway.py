@@ -49,6 +49,28 @@ MODEL_OPTION_ALLOWLISTS = {
 }
 
 
+def validate_model_options(protocol: str, options: dict[str, Any]) -> dict[str, Any]:
+    allowed = MODEL_OPTION_ALLOWLISTS.get(protocol)
+    if allowed is None:
+        return dict(options)
+    unsupported = sorted(set(options) - allowed)
+    if unsupported:
+        label = "Ollama" if protocol == "ollama" else protocol
+        raise ValueError(f"unsupported {label} model options: {','.join(unsupported)}")
+    validators = {
+        "temperature": lambda value: isinstance(value, (int, float)) and not isinstance(value, bool) and 0 <= value <= 2,
+        "top_p": lambda value: isinstance(value, (int, float)) and not isinstance(value, bool) and 0 < value <= 1,
+        "top_k": lambda value: isinstance(value, int) and not isinstance(value, bool) and value >= 1,
+        "seed": lambda value: isinstance(value, int) and not isinstance(value, bool),
+        "num_predict": lambda value: isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= 32768,
+        "max_tokens": lambda value: isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= 32768,
+    }
+    invalid = sorted(name for name, value in options.items() if not validators[name](value))
+    if invalid:
+        raise ValueError(f"invalid {protocol} model option values: {','.join(invalid)}")
+    return dict(options)
+
+
 class ProviderAdapter(Protocol):
     def invoke(self, model: dict[str, Any], payload: dict[str, Any], timeout_seconds: float) -> dict[str, Any]: ...
 
@@ -112,10 +134,7 @@ class OllamaAdapter:
     """Minimal Ollama /api/chat adapter; credentials are intentionally unsupported."""
 
     def invoke(self, model: dict[str, Any], payload: dict[str, Any], timeout_seconds: float) -> dict[str, Any]:
-        options = dict(model.get("options") or {})
-        unsupported = sorted(set(options) - MODEL_OPTION_ALLOWLISTS["ollama"])
-        if unsupported:
-            raise ValueError(f"unsupported Ollama model options: {','.join(unsupported)}")
+        options = validate_model_options("ollama", dict(model.get("options") or {}))
         content = "\n".join(
             str(part.get("text") or "")
             for part in payload.get("parts", [])
@@ -192,7 +211,18 @@ class ProviderGateway:
         timeout_seconds: float = 30,
         max_cost_usd: float = 0,
         model_options: dict[str, Any] | None = None,
+        credential_generation_marker: str = "",
     ) -> dict[str, Any]:
+        if credential_generation_marker and not (
+            credential_generation_marker.startswith("hmac-sha256:")
+            and len(credential_generation_marker) == 76
+            and all(char in "0123456789abcdef" for char in credential_generation_marker[12:])
+        ):
+            raise ValueError("credential_generation_marker must be empty or canonical hmac-sha256")
+        normalized_options = validate_model_options(
+            self.providers[provider_id].protocol if provider_id in self.providers else "",
+            dict(model_options or {}),
+        )
         request_core = {
             "schema_version": SCHEMA_VERSION,
             "tenant_id": tenant_id,
@@ -203,7 +233,8 @@ class ProviderGateway:
             "modalities": sorted({str(part.get("modality") or "") for part in parts}),
             "payload_hash": stable_hash(parts),
             "idempotency_key": idempotency_key,
-            "model_options_hash": stable_hash(model_options or {}),
+            "model_options_hash": stable_hash(normalized_options),
+            "credential_generation_marker": credential_generation_marker,
         }
         logical_call_id = stable_hash(request_core)
         if logical_call_id in self._results:
@@ -251,6 +282,7 @@ class ProviderGateway:
             "provider_id": provider_id,
             "model_id": model_id,
             "credential_ref": provider.credential_ref,
+            "credential_generation_marker": credential_generation_marker,
         }
         try:
             self.audit_writer(audit_event)
@@ -271,7 +303,7 @@ class ProviderGateway:
                         "base_url": provider.base_url,
                         "credential_ref": provider.credential_ref,
                         "response_format": "json",
-                        "options": dict(model_options or {}),
+                        "options": normalized_options,
                     },
                     {"parts": parts},
                     timeout_seconds,

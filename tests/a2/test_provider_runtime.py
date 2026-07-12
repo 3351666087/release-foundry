@@ -220,6 +220,50 @@ class ProviderRuntimeTests(unittest.TestCase):
                 )
         urlopen.assert_not_called()
 
+        for options in ({"temperature": 3}, {"top_p": 0}, {"max_tokens": 0}, {"seed": True}):
+            with patch("services.judge.provider_runtime.request.urlopen") as urlopen:
+                with self.assertRaisesRegex(ValueError, "invalid OpenAI-compatible model option values"):
+                    adapter.invoke(
+                        {
+                            "credential_ref": "secret://provider/default",
+                            "model_id": "vision",
+                            "base_url": "https://provider.invalid/v1",
+                            "options": options,
+                        },
+                        {"parts": [{"modality": "text", "text": "judge"}]},
+                        10,
+                    )
+            urlopen.assert_not_called()
+
+    def test_openai_compatible_missing_choices_or_content_is_empty_public_output(self):
+        class Response:
+            def __init__(self, payload):
+                self.payload = payload
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return False
+
+            def read(self):
+                return json.dumps(self.payload).encode()
+
+        resolver = EnvironmentCredentialResolver({"secret://provider/default": "runtime-only"})
+        adapter = OpenAICompatibleAdapter(resolver)
+        for payload in ({}, {"choices": [{}]}, {"choices": [{"message": {"content": ""}}]}):
+            with patch("services.judge.provider_runtime.request.urlopen", return_value=Response(payload)):
+                with self.assertRaisesRegex(ValueError, "message content is empty"):
+                    adapter.invoke(
+                        {
+                            "credential_ref": "secret://provider/default",
+                            "model_id": "vision",
+                            "base_url": "https://provider.invalid/v1",
+                        },
+                        {"parts": [{"modality": "text", "text": "judge"}]},
+                        10,
+                    )
+
     def test_ollama_health_has_explicit_ready_timeout_and_unavailable_states(self):
         discovery = OllamaDiscovery()
         with patch.object(discovery, "discover", return_value=[]):

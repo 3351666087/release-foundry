@@ -19,6 +19,23 @@ PROVENANCE_SCHEMA_VERSION = "a2.provider_provenance_handoff.v1"
 AUTHENTICATED_BUNDLE_SCHEMA_VERSION = "ashr.a1.authenticated_evidence_bundle.v2"
 SCOPE_FIELDS = ("organization_id", "tenant_id", "workspace_id", "project_id", "environment_id")
 RETRYABLE_STATUSES = frozenset({"timeout", "rate_limited", "provider_unavailable"})
+OPENAI_COMPATIBLE_OPTION_ALLOWLIST = frozenset({"temperature", "max_tokens", "seed", "top_p"})
+
+
+def _validate_openai_compatible_options(options: dict[str, Any]) -> dict[str, Any]:
+    unsupported = sorted(set(options) - OPENAI_COMPATIBLE_OPTION_ALLOWLIST)
+    if unsupported:
+        raise ValueError(f"unsupported OpenAI-compatible model options: {','.join(unsupported)}")
+    validators = {
+        "temperature": lambda value: isinstance(value, (int, float)) and not isinstance(value, bool) and 0 <= value <= 2,
+        "top_p": lambda value: isinstance(value, (int, float)) and not isinstance(value, bool) and 0 < value <= 1,
+        "seed": lambda value: isinstance(value, int) and not isinstance(value, bool),
+        "max_tokens": lambda value: isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= 32768,
+    }
+    invalid = sorted(name for name, value in options.items() if not validators[name](value))
+    if invalid:
+        raise ValueError(f"invalid OpenAI-compatible model option values: {','.join(invalid)}")
+    return dict(options)
 
 
 class CredentialResolver(Protocol):
@@ -150,11 +167,7 @@ class OpenAICompatibleAdapter:
 
     def invoke(self, model: dict[str, Any], payload: dict[str, Any], timeout_seconds: float) -> dict[str, Any]:
         key = self.credential_resolver.resolve(str(model.get("credential_ref") or ""))
-        options = dict(model.get("options") or {})
-        allowed_options = {"temperature", "max_tokens", "seed", "top_p"}
-        unsupported = sorted(set(options) - allowed_options)
-        if unsupported:
-            raise ValueError(f"unsupported OpenAI-compatible model options: {','.join(unsupported)}")
+        options = _validate_openai_compatible_options(dict(model.get("options") or {}))
         content = [_openai_part(part) for part in payload.get("parts", [])]
         request_body = {
             "model": model["model_id"],
@@ -183,8 +196,11 @@ class OpenAICompatibleAdapter:
             raise
         choice = (parsed.get("choices") or [{}])[0]
         usage = parsed.get("usage") or {}
+        output_text = str(choice.get("message", {}).get("content") or "")
+        if not output_text.strip():
+            raise ValueError("OpenAI-compatible response message content is empty")
         return {
-            "output_text": str(choice.get("message", {}).get("content") or ""),
+            "output_text": output_text,
             "usage": {
                 "input_tokens": int(usage.get("prompt_tokens") or 0),
                 "output_tokens": int(usage.get("completion_tokens") or 0),

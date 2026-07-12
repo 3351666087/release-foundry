@@ -6,8 +6,10 @@ import jsonschema
 
 from services.judge.local_multimodal_calibration import (
     aggregate_local_multimodal_golden_suite,
+    build_multimodal_disagreement_review_packet,
     build_multimodal_disagreement_receipt,
     build_credential_rotation_marker,
+    evaluate_provider_fallback,
     evaluate_local_multimodal_golden,
 )
 
@@ -21,12 +23,26 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
             (ROOT / "fixtures/a2/calibration/local_image_golden_case.json").read_text(encoding="utf-8")
         )
         self.binding = dict(self.golden["binding"])
+        self.local_model = {
+            "provider_id": "ollama-local",
+            "model_id": "qwen3-vl:4b",
+            "model_version": self.binding["model_digest"],
+        }
+        self.cloud_model = {
+            "provider_id": "dashscope",
+            "model_id": "qwen-vl-max",
+            "model_version": "provider-managed",
+        }
 
     def assert_result_schema(self, result):
         schema = json.loads(
             (ROOT / "docs/a2/schemas/local_multimodal_golden_result.schema.json").read_text(encoding="utf-8")
         )
         jsonschema.Draft202012Validator(schema).validate(result)
+
+    def assert_schema(self, name, value):
+        schema = json.loads((ROOT / f"docs/a2/schemas/{name}").read_text(encoding="utf-8"))
+        jsonschema.Draft202012Validator(schema).validate(value)
 
     def test_reviewed_structured_semantics_pass_golden_without_release_authority(self):
         result = evaluate_local_multimodal_golden(
@@ -100,6 +116,7 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
             structured_output=None,
             runtime_binding=self.binding,
         )
+        abstained = dict(abstained, case_id="local-image-text-blue-abstained-v1")
         suite = aggregate_local_multimodal_golden_suite(
             results=[passed, abstained],
             minimum_pass_rate=0.75,
@@ -110,6 +127,50 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
         self.assertIn("minimum_pass_rate_not_met", suite["blockers"])
         self.assertIn("maximum_abstention_rate_exceeded", suite["blockers"])
         self.assertFalse(suite["release_authority"])
+        self.assert_schema("local_multimodal_golden_suite.schema.json", suite)
+
+        passed_suite = aggregate_local_multimodal_golden_suite(
+            results=[passed],
+            minimum_pass_rate=1,
+            maximum_abstention_rate=0,
+        )
+        self.assertEqual(passed_suite["status"], "passed")
+        self.assert_schema("local_multimodal_golden_suite.schema.json", passed_suite)
+
+    def test_suite_rejects_missing_duplicate_identity_and_failed_safety_case(self):
+        passed = evaluate_local_multimodal_golden(
+            golden_case=self.golden,
+            structured_output=dict(self.golden["expected"]),
+            runtime_binding=self.binding,
+        )
+        missing_id = dict(passed, case_id="")
+        with self.assertRaisesRegex(ValueError, "non-empty case ids"):
+            aggregate_local_multimodal_golden_suite(
+                results=[missing_id], minimum_pass_rate=1, maximum_abstention_rate=0
+            )
+        with self.assertRaisesRegex(ValueError, "duplicate case ids"):
+            aggregate_local_multimodal_golden_suite(
+                results=[passed, dict(passed, structured_output_hash="sha256:" + "1" * 64)],
+                minimum_pass_rate=1,
+                maximum_abstention_rate=0,
+            )
+        other = dict(passed, case_id="second-case")
+        with self.assertRaisesRegex(ValueError, "duplicate case result hashes"):
+            aggregate_local_multimodal_golden_suite(
+                results=[passed, dict(passed)],
+                minimum_pass_rate=1,
+                maximum_abstention_rate=0,
+            )
+
+        unsafe = dict(passed, regression_status="blocked", blockers=["golden_mismatch:safety_risk"])
+        suite = aggregate_local_multimodal_golden_suite(
+            results=[unsafe],
+            minimum_pass_rate=0,
+            maximum_abstention_rate=1,
+            safety_critical_case_ids=[passed["case_id"]],
+        )
+        self.assertEqual(suite["status"], "blocked")
+        self.assertIn("safety_critical_case_failed", suite["blockers"])
 
     def test_safety_field_failure_forces_human_review(self):
         unsafe = dict(self.golden["expected"])
@@ -130,6 +191,8 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
         missing = build_multimodal_disagreement_receipt(
             local_result=local_missing,
             cloud_result=cloud_output,
+            local_model_binding=self.local_model,
+            cloud_model_binding=self.cloud_model,
         )
         self.assertEqual(missing["state"], "local_output_missing")
         self.assertFalse(missing["semantic_comparison_performed"])
@@ -137,10 +200,70 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
         auth_failure = build_multimodal_disagreement_receipt(
             local_result={"status": "completed", "structured_output_hash": "sha256:" + "b" * 64},
             cloud_result={"status": "authentication_failed"},
+            local_model_binding=self.local_model,
+            cloud_model_binding=self.cloud_model,
         )
         self.assertEqual(auth_failure["state"], "cloud_unavailable")
         self.assertFalse(auth_failure["semantic_comparison_performed"])
         self.assertNotEqual(auth_failure["state"], "semantic_disagreement")
+        self.assert_schema("multimodal_disagreement_receipt.schema.json", missing)
+        self.assert_schema("multimodal_disagreement_receipt.schema.json", auth_failure)
+
+    def test_every_disagreement_state_is_schema_valid_and_binding_is_required(self):
+        cases = [
+            ({"status": "invalid_response"}, {"status": "completed"}, "local_output_missing"),
+            ({"status": "completed"}, {"status": "provider_unavailable"}, "cloud_unavailable"),
+            ({"status": "completed"}, {"status": "completed"}, "not_comparable"),
+            (
+                {"status": "completed", "structured_output_hash": "sha256:" + "a" * 64},
+                {"status": "completed", "structured_output_hash": "sha256:" + "a" * 64},
+                "agreement",
+            ),
+            (
+                {"status": "completed", "structured_output_hash": "sha256:" + "a" * 64},
+                {"status": "completed", "structured_output_hash": "sha256:" + "b" * 64},
+                "semantic_disagreement",
+            ),
+        ]
+        receipts = []
+        for local, cloud, state in cases:
+            receipt = build_multimodal_disagreement_receipt(
+                local_result=local,
+                cloud_result=cloud,
+                local_model_binding=self.local_model,
+                cloud_model_binding=self.cloud_model,
+            )
+            self.assertEqual(receipt["state"], state)
+            self.assert_schema("multimodal_disagreement_receipt.schema.json", receipt)
+            receipts.append(receipt)
+        missing_binding = build_multimodal_disagreement_receipt(
+            local_result=cases[-1][0],
+            cloud_result=cases[-1][1],
+        )
+        self.assertEqual(missing_binding["state"], "not_comparable")
+        self.assertFalse(missing_binding["semantic_comparison_performed"])
+
+        packet = build_multimodal_disagreement_review_packet(receipts[-1])
+        replay = build_multimodal_disagreement_review_packet(receipts[-1])
+        self.assertEqual(packet, replay)
+        self.assertFalse(packet["release_authority"])
+
+    def test_fallback_never_upgrades_failed_primary_into_release_pass(self):
+        blocked = evaluate_provider_fallback(
+            primary_result={"status": "authentication_failed"},
+            fallback_result={"status": "completed", "structured_output_hash": "sha256:" + "a" * 64},
+            fallback_calibration_state="uncalibrated",
+        )
+        self.assertEqual(blocked["status"], "blocked")
+        self.assertIn("fallback_not_calibrated", blocked["blockers"])
+        self.assertFalse(blocked["release_authority"])
+        review = evaluate_provider_fallback(
+            primary_result={"status": "authentication_failed"},
+            fallback_result={"status": "completed", "structured_output_hash": "sha256:" + "a" * 64},
+            fallback_calibration_state="golden_passed",
+        )
+        self.assertEqual(review["status"], "review_available")
+        self.assertFalse(review["release_authority"])
 
     def test_credential_rotation_marker_is_stable_provider_bound_and_secret_free(self):
         first = build_credential_rotation_marker("credential-a", provider_id="dashscope")
