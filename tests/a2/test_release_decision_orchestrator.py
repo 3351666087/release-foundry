@@ -9,6 +9,9 @@ import zlib
 from pathlib import Path
 from unittest.mock import patch
 
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
 from services.judge.provider_gateway import (
     ProviderDefinition, ProviderGateway, StrictFakeAdapter, StrictFakeReconciliationAdapter,
 )
@@ -103,6 +106,9 @@ def request(bundle=None):
         "provider_id": "unit",
         "model_id": "semantic-1",
         "model_digest": "sha256:" + "b" * 64,
+        "rubric_version": "rubric.v1",
+        "golden_dataset_digest": "sha256:" + "c" * 64,
+        "calibration_thresholds_hash": "sha256:" + "d" * 64,
         "policy_version": "a2.semantic_release_policy.v1",
         "idempotency_key": "decision-1",
         "authenticated_evidence_bundle": bundle or signed_bundle(),
@@ -155,6 +161,9 @@ def signed_quality_proof(candidate, **overrides):
         "prompt_hash": stable_hash(
             candidate.get("judge_prompt") or "Evaluate the authenticated evidence snapshot."
         ),
+        "rubric_version": candidate["rubric_version"],
+        "golden_dataset_digest": candidate["golden_dataset_digest"],
+        "calibration_thresholds_hash": candidate["calibration_thresholds_hash"],
         "policy_version": candidate["policy_version"],
         "calibration": "passed",
         "golden_regression": "passed",
@@ -337,6 +346,95 @@ class ProcessInterruptedAdapter:
 
 
 class ReleaseDecisionOrchestratorTests(unittest.TestCase):
+    def test_ed25519_quality_proof_is_verified(self):
+        candidate = request()
+        private_key = Ed25519PrivateKey.generate()
+        proof = signed_quality_proof(candidate)
+        proof["algorithm"] = "ed25519"
+        proof["key_id"] = "quality-ed25519-key-1"
+        proof.pop("signature")
+        proof["signature"] = private_key.sign(canonical(proof)).hex()
+        candidate["evaluation_quality_proof"] = proof
+        public_key = private_key.public_key().public_bytes(
+            encoding=serialization.Encoding.Raw,
+            format=serialization.PublicFormat.Raw,
+        )
+
+        result = execute_release_decision(
+            candidate,
+            gateway=gateway(),
+            key_resolver=lambda key_id: public_key if key_id == "quality-ed25519-key-1" else KEY,
+            now_unix_ms=NOW,
+            quality_allowed_issuers=frozenset({"a2-calibration-service"}),
+        )
+
+        self.assertEqual(result["a3_consumption"]["display_decision"], "allow")
+        self.assertEqual(result["release_gate"]["evaluation_quality"]["proof_status"], "verified")
+
+    def test_quality_proof_trust_policy_revocations_fail_closed(self):
+        candidate = request()
+        cases = (
+            (
+                {"quality_allowed_issuers": frozenset({"different-issuer"})},
+                "quality_proof_issuer_unauthorized",
+            ),
+            (
+                {"quality_revoked_key_ids": frozenset({"key-1"})},
+                "quality_proof_key_revoked",
+            ),
+            (
+                {"quality_maximum_lifetime_ms": 100},
+                "quality_proof_lifetime_exceeded",
+            ),
+        )
+        for kwargs, blocker in cases:
+            with self.subTest(blocker=blocker):
+                result = execute_release_decision(
+                    candidate,
+                    gateway=gateway(),
+                    key_resolver=lambda _: KEY,
+                    now_unix_ms=NOW,
+                    **kwargs,
+                )
+                self.assertEqual(result["a3_consumption"]["display_decision"], "block")
+                self.assertIn(blocker, result["release_gate"]["blocking_reasons"])
+
+    def test_quality_proof_hash_revocation_fails_closed(self):
+        candidate = request()
+        proof = candidate["evaluation_quality_proof"]
+        signed_fields = {key: proof[key] for key in sorted(set(proof) - {"signature"})}
+        proof_hash = "sha256:" + digest(canonical(signed_fields))
+        result = execute_release_decision(
+            candidate,
+            gateway=gateway(),
+            key_resolver=lambda _: KEY,
+            now_unix_ms=NOW,
+            quality_revoked_proof_hashes=frozenset({proof_hash}),
+        )
+        self.assertEqual(result["a3_consumption"]["display_decision"], "block")
+        self.assertIn("quality_proof_revoked", result["release_gate"]["blocking_reasons"])
+
+    def test_quality_proof_is_bound_to_rubric_golden_data_and_thresholds(self):
+        for field, value in (
+            ("rubric_version", "rubric.v2"),
+            ("golden_dataset_digest", "sha256:" + "e" * 64),
+            ("calibration_thresholds_hash", "sha256:" + "f" * 64),
+        ):
+            with self.subTest(field=field):
+                candidate = request()
+                candidate[field] = value
+                result = execute_release_decision(
+                    candidate,
+                    gateway=gateway(),
+                    key_resolver=lambda _: KEY,
+                    now_unix_ms=NOW,
+                )
+                self.assertEqual(result["a3_consumption"]["display_decision"], "block")
+                self.assertIn(
+                    "quality_proof_binding_mismatch",
+                    result["release_gate"]["blocking_reasons"],
+                )
+
     def test_multimodal_ocr_reaches_decision_with_grounded_private_disclosure(self):
         pipeline, evidence = image_pipeline_and_evidence()
         original = request()

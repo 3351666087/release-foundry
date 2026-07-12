@@ -6,13 +6,14 @@
     "schema_version", "algorithm", "issuer", "key_id",
     "organization_id", "tenant_id", "workspace_id", "project_id", "environment_id",
     "authenticated_bundle_digest", "snapshot_hash", "provider_id", "model_id",
-    "model_digest", "prompt_hash", "policy_version", "calibration",
+    "model_digest", "prompt_hash", "rubric_version", "golden_dataset_digest",
+    "calibration_thresholds_hash", "policy_version", "calibration",
     "golden_regression", "disagreement", "evidence_refs",
     "issued_at_unix_ms", "expires_at_unix_ms", "signature"
   ],
   "properties": {
     "schema_version": { "const": "a2.evaluation_quality_proof.v1" },
-    "algorithm": { "const": "hmac-sha256" },
+    "algorithm": { "enum": ["hmac-sha256", "ed25519"] },
     "issuer": { "type": "string", "minLength": 1 },
     "key_id": { "type": "string", "minLength": 1 },
     "organization_id": { "type": "string", "minLength": 1 },
@@ -26,6 +27,9 @@
     "model_id": { "type": "string", "minLength": 1 },
     "model_digest": { "$ref": "#/$defs/hash" },
     "prompt_hash": { "$ref": "#/$defs/hash" },
+    "rubric_version": { "type": "string", "minLength": 1 },
+    "golden_dataset_digest": { "$ref": "#/$defs/hash" },
+    "calibration_thresholds_hash": { "$ref": "#/$defs/hash" },
     "policy_version": { "type": "string", "minLength": 1 },
     "calibration": { "enum": ["passed", "failed"] },
     "golden_regression": { "enum": ["passed", "failed"] },
@@ -38,7 +42,7 @@
     },
     "issued_at_unix_ms": { "type": "integer", "minimum": 0 },
     "expires_at_unix_ms": { "type": "integer", "minimum": 0 },
-    "signature": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+    "signature": { "type": "string", "pattern": "^([a-f0-9]{64}|[a-f0-9]{128})$" }
   },
   "$defs": {
     "hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },

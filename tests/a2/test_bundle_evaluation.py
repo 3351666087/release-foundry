@@ -4,7 +4,9 @@ import sqlite3
 import subprocess
 import sys
 import tempfile
+import threading
 import unittest
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from unittest.mock import patch
 
@@ -18,7 +20,7 @@ from tests.a2.test_release_decision_orchestrator import (
 )
 from services.judge.provider_gateway import ProviderDefinition, ProviderGateway
 from services.judge.provider_runtime import validate_semantic_judge_output
-from scripts.a2_evaluate_bundle import _validate_ollama_model
+from scripts.a2_evaluate_bundle import _validate_model_storage, _validate_ollama_model
 from services.judge.provider_runtime import ModelRecord
 
 
@@ -200,6 +202,89 @@ class BundleEvaluationTests(unittest.TestCase):
         self.assertIn("Provider credential environment variable is unavailable", completed.stderr)
         self.assertNotIn("bundle-secret-must-not-appear", completed.stdout + completed.stderr)
 
+    def test_cli_exit_codes_pass_block_and_incomplete_through_http_protocol(self):
+        class Handler(BaseHTTPRequestHandler):
+            status = 200
+
+            def do_POST(self):
+                length = int(self.headers.get("Content-Length", "0"))
+                self.rfile.read(length)
+                body = {
+                    "id": "stub-request",
+                    "choices": [{"message": {"content": json.dumps({
+                        "passed": True,
+                        "score": 0.97,
+                        "reason": "stub judge accepted evidence",
+                        "failure_classes": [],
+                        "evidence_refs": ["snapshot"],
+                        "abstained": False,
+                    })}}],
+                    "usage": {"prompt_tokens": 4, "completion_tokens": 3},
+                }
+                encoded = json.dumps(body).encode()
+                self.send_response(self.status)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(encoded)))
+                self.end_headers()
+                self.wfile.write(encoded)
+
+            def log_message(self, *_):
+                return
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            base_url = f"http://127.0.0.1:{server.server_port}/v1"
+            self.assertEqual(self.run_complete_cli(base_url).returncode, 0)
+            Handler.status = 500
+            blocked = self.run_complete_cli(base_url)
+            self.assertEqual(blocked.returncode, 2)
+            self.assertEqual(json.loads(blocked.stdout)["decision"], "BLOCK")
+            Handler.status = 200
+            incomplete = self.run_complete_cli(base_url, tamper_bundle=True)
+            self.assertEqual(incomplete.returncode, 3)
+            self.assertEqual(json.loads(incomplete.stdout)["decision"], "INCOMPLETE")
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=2)
+
+    def run_complete_cli(self, base_url, *, tamper_bundle=False):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            candidate = request()
+            candidate["provider_id"] = "local-judge"
+            candidate["model_id"] = "test-model"
+            candidate["evaluation_quality_proof"] = signed_quality_proof(candidate)
+            if tamper_bundle:
+                candidate["authenticated_evidence_bundle"]["evidence_digest"] = "tampered"
+            proof = candidate.pop("evaluation_quality_proof")
+            input_path = root / "bundle.json"
+            proof_path = root / "quality-proof.json"
+            input_path.write_text(json.dumps(candidate), encoding="utf-8")
+            proof_path.write_text(json.dumps(proof), encoding="utf-8")
+            command = [
+                sys.executable, "-B", "scripts/a2_evaluate_bundle.py",
+                "--input", str(input_path),
+                "--quality-proof", str(proof_path),
+                "--database", str(root / "decisions.sqlite"),
+                "--provider", "openai-compatible",
+                "--provider-id", "local-judge",
+                "--model", "test-model",
+                "--base-url", base_url,
+                "--credential-env", "A2_TEST_PROVIDER_KEY",
+                "--now-unix-ms", str(NOW),
+            ]
+            environment = dict(os.environ)
+            environment.update({
+                "A1_EVIDENCE_HMAC_KEY": KEY.decode(),
+                "A2_TEST_PROVIDER_KEY": "stub-only-secret",
+            })
+            return subprocess.run(
+                command, cwd=ROOT, env=environment, capture_output=True, text=True, check=False
+            )
+
     def run_cli(self, provider, *, extra_arguments=None, environment=None):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -244,6 +329,12 @@ class BundleEvaluationTests(unittest.TestCase):
         with patch("scripts.a2_evaluate_bundle.OllamaDiscovery.discover", side_effect=TimeoutError):
             with self.assertRaisesRegex(SystemExit, "capability discovery is unavailable"):
                 _validate_ollama_model({}, "vision", "http://local")
+
+    def test_model_storage_preflight_rejects_capacity_shortfall(self):
+        with tempfile.TemporaryDirectory() as directory:
+            _validate_model_storage(Path(directory) / "models", 0)
+            with self.assertRaisesRegex(SystemExit, "insufficient free space"):
+                _validate_model_storage(Path(directory), 10 ** 9)
 
     def assert_response_schema(self, result):
         schema = json.loads((ROOT / "docs/a2/schemas/bundle_evaluation.schema.json").read_text(encoding="utf-8"))

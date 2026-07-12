@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import shutil
 import sqlite3
 import sys
 from pathlib import Path
@@ -22,18 +23,26 @@ def main() -> int:
     parser.add_argument("--input", required=True, type=Path)
     parser.add_argument("--output", default="-", type=str)
     parser.add_argument("--database", required=True, type=Path)
-    parser.add_argument("--provider", choices=("ollama", "openai-compatible"), required=True)
+    parser.add_argument("--provider", choices=("ollama", "openai-compatible", "qwen"), required=True)
     parser.add_argument("--provider-id", default="local-judge")
     parser.add_argument("--model", required=True)
-    parser.add_argument("--base-url", required=True)
+    parser.add_argument("--base-url", default="")
     parser.add_argument("--credential-env", default="")
+    parser.add_argument("--quality-proof", type=Path)
     parser.add_argument("--bundle-key-env", default="A1_EVIDENCE_HMAC_KEY")
+    parser.add_argument("--model-storage-path", type=Path)
+    parser.add_argument("--minimum-free-gb", type=float, default=0)
     parser.add_argument("--now-unix-ms", required=True, type=int)
     args = parser.parse_args()
 
     payload = json.loads(args.input.read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise SystemExit("input must be one JSON object")
+    if args.quality_proof:
+        quality_proof = json.loads(args.quality_proof.read_text(encoding="utf-8"))
+        if not isinstance(quality_proof, dict):
+            raise SystemExit("quality proof must be one JSON object")
+        payload["evaluation_quality_proof"] = quality_proof
     payload["provider_id"] = args.provider_id
     payload["model_id"] = args.model
     tenant = str(payload.get("tenant_id") or "")
@@ -41,23 +50,32 @@ def main() -> int:
     credential_ref = ""
     adapters = {"ollama": OllamaAdapter()}
     protocol = "ollama"
-    if args.provider == "openai-compatible":
-        if not args.credential_env:
+    base_url = args.base_url
+    credential_env = args.credential_env
+    if args.provider == "qwen":
+        base_url = base_url or "https://dashscope.aliyuncs.com/compatible-mode/v1"
+        credential_env = credential_env or "DASHSCOPE_API_KEY"
+    if args.provider in {"openai-compatible", "qwen"}:
+        if not credential_env:
             raise SystemExit("--credential-env is required for openai-compatible")
-        secret = os.environ.get(args.credential_env, "")
+        secret = os.environ.get(credential_env, "")
         if not secret:
             raise SystemExit("configured Provider credential environment variable is unavailable")
         credential_ref = f"secret://cli/{args.provider_id}"
         adapters = {"openai_compatible": OpenAICompatibleAdapter(EnvironmentCredentialResolver({credential_ref: secret}))}
         protocol = "openai_compatible"
-    provider = ProviderDefinition(args.provider_id, protocol, args.base_url, credential_ref, modalities, frozenset({tenant}), data_residency="local" if args.provider == "ollama" else "unspecified")
+    if not base_url:
+        raise SystemExit("--base-url is required for this provider")
+    provider = ProviderDefinition(args.provider_id, protocol, base_url, credential_ref, modalities, frozenset({tenant}), data_residency="local" if args.provider == "ollama" else "unspecified")
     gateway = ProviderGateway([provider], adapters, response_validator=validate_semantic_judge_output)
 
     key = os.environ.get(args.bundle_key_env, "")
     if not key:
         raise SystemExit("configured A1 evidence verification key environment variable is unavailable")
     if args.provider == "ollama":
-        _validate_ollama_model(payload, args.model, args.base_url)
+        if args.model_storage_path:
+            _validate_model_storage(args.model_storage_path, args.minimum_free_gb)
+        _validate_ollama_model(payload, args.model, base_url)
     args.database.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(args.database)
     try:
@@ -85,6 +103,19 @@ def _validate_ollama_model(payload: dict[str, object], model_id: str, base_url: 
     missing = sorted(required - record.modalities)
     if missing:
         raise SystemExit("configured Ollama model lacks required modalities: " + ",".join(missing))
+
+
+def _validate_model_storage(path: Path, minimum_free_gb: float) -> None:
+    resolved = path.expanduser().resolve()
+    existing = next((item for item in (resolved, *resolved.parents) if item.exists()), None)
+    if existing is None:
+        raise SystemExit("configured model storage path has no existing parent")
+    free_gb = shutil.disk_usage(existing).free / (1024 ** 3)
+    if free_gb < max(0, minimum_free_gb):
+        raise SystemExit(
+            f"configured model storage has insufficient free space: "
+            f"{free_gb:.2f} GiB available, {minimum_free_gb:.2f} GiB required"
+        )
 
 
 if __name__ == "__main__":

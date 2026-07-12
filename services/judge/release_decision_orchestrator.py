@@ -52,6 +52,10 @@ def execute_release_decision(
     persistence_failure_injector: FailureInjector | None = None,
     worker_id: str = "a2-inline-worker",
     lease_seconds: int = 60,
+    quality_allowed_issuers: frozenset[str] | None = None,
+    quality_revoked_key_ids: frozenset[str] = frozenset(),
+    quality_revoked_proof_hashes: frozenset[str] = frozenset(),
+    quality_maximum_lifetime_ms: int = 86_400_000,
 ) -> dict[str, Any]:
     """Execute one fail-closed semantic release decision from authenticated A1 evidence."""
     scope = _scope(request)
@@ -94,6 +98,10 @@ def execute_release_decision(
         ),
         key_resolver=key_resolver,
         now_unix_ms=now_unix_ms,
+        allowed_issuers=quality_allowed_issuers,
+        revoked_key_ids=quality_revoked_key_ids,
+        revoked_proof_hashes=quality_revoked_proof_hashes,
+        maximum_lifetime_ms=quality_maximum_lifetime_ms,
     )
     request_hash = stable_hash(
         _request_identity(
@@ -232,6 +240,10 @@ def reconcile_release_decision(
     lease_seconds: int = 60,
     next_reconcile_at: str | None = None,
     persistence_failure_injector: FailureInjector | None = None,
+    quality_allowed_issuers: frozenset[str] | None = None,
+    quality_revoked_key_ids: frozenset[str] = frozenset(),
+    quality_revoked_proof_hashes: frozenset[str] = frozenset(),
+    quality_maximum_lifetime_ms: int = 86_400_000,
 ) -> dict[str, Any]:
     """Reconcile an uncertain Provider call without invoking or retrying it."""
     scope = _scope(request)
@@ -300,6 +312,10 @@ def reconcile_release_decision(
         ),
         key_resolver=key_resolver,
         now_unix_ms=now_unix_ms,
+        allowed_issuers=quality_allowed_issuers,
+        revoked_key_ids=quality_revoked_key_ids,
+        revoked_proof_hashes=quality_revoked_proof_hashes,
+        maximum_lifetime_ms=quality_maximum_lifetime_ms,
     )
     citation_validation = _validate_evidence_refs(
         snapshot,
