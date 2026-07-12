@@ -110,6 +110,7 @@ def build_decision_record(
     decision: str,
     release_gate_report: dict[str, Any],
     judge_results: list[dict[str, Any]],
+    provider_provenance: list[dict[str, Any]] | None = None,
     policy_version: str,
     policy_hash: str,
     model_versions: list[str],
@@ -128,6 +129,10 @@ def build_decision_record(
 
     safe_gate = redact_payload(deepcopy(release_gate_report))
     safe_judges = [redact_payload(deepcopy(item)) for item in judge_results]
+    safe_provider_provenance = [
+        _validate_provider_provenance(evidence_snapshot, redact_payload(deepcopy(item)))
+        for item in (provider_provenance or [])
+    ]
     abstain_count = sum(1 for item in safe_judges if str(item.get("outcome")) == "abstain")
     failed_judges = [
         str(item.get("judge_id") or item.get("judge_mode") or "unknown")
@@ -162,6 +167,27 @@ def build_decision_record(
             }
         ),
         "judge_result_hashes": [stable_hash(item) for item in safe_judges],
+        "provider_provenance_hashes": [stable_hash(item) for item in safe_provider_provenance],
+        "provider_summary": {
+            "call_count": len(safe_provider_provenance),
+            "providers": sorted(
+                {
+                    str(item.get("provider_id") or "unknown")
+                    for item in safe_provider_provenance
+                }
+            ),
+            "models": sorted(
+                {
+                    str(item.get("model_id") or "unknown")
+                    for item in safe_provider_provenance
+                }
+            ),
+            "blocked_call_count": sum(
+                1
+                for item in safe_provider_provenance
+                if item.get("status") != "ready" or item.get("evaluation_eligible") is not True
+            ),
+        },
         "judge_summary": {
             "judge_count": len(safe_judges),
             "failed_judges": failed_judges,
@@ -175,9 +201,37 @@ def build_decision_record(
     }
     if decision == "allow" and (hard_blockers or abstain_count):
         raise ValueError("hard blockers or abstentions cannot produce an allow decision")
+    if decision == "allow" and record_core["provider_summary"]["blocked_call_count"]:
+        raise ValueError("blocked provider provenance cannot produce an allow decision")
     record_core["record_id"] = stable_hash(record_core)
     record_core["record_hash"] = stable_hash(record_core)
     return record_core
+
+
+def _validate_provider_provenance(
+    evidence_snapshot: dict[str, Any],
+    provenance: dict[str, Any],
+) -> dict[str, Any]:
+    expected_scope = {
+        field: str(evidence_snapshot.get(field) or "")
+        for field in ("organization_id", "tenant_id", "workspace_id", "project_id", "environment_id")
+    }
+    actual_scope = provenance.get("tenant_scope")
+    if not isinstance(actual_scope, dict) or {
+        field: str(actual_scope.get(field) or "")
+        for field in expected_scope
+    } != expected_scope:
+        raise ValueError("provider provenance five-field scope mismatch")
+    if provenance.get("snapshot_id") != evidence_snapshot.get("snapshot_id"):
+        raise ValueError("provider provenance snapshot id mismatch")
+    if provenance.get("snapshot_hash") != evidence_snapshot.get("snapshot_hash"):
+        raise ValueError("provider provenance snapshot hash mismatch")
+    if provenance.get("release_authority") is not False:
+        raise ValueError("provider provenance cannot claim release authority")
+    required = ("logical_call_id", "provider_id", "model_id")
+    if any(not provenance.get(field) for field in required):
+        raise ValueError("provider provenance identity is incomplete")
+    return provenance
 
 
 def build_decision_ledger(

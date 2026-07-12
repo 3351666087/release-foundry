@@ -80,7 +80,7 @@
     "created_at": "2026-07-11T00:00:00Z",
     "record_count": 1,
     "genesis_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-    "head_hash": "sha256:31c417d9232f2e3b0361f63b8aad305304774d28d0f68ed6e093f1a0bffa1e18",
+    "head_hash": "sha256:eae080babdf91f3dafbe22442e028d0b6f9d4688633e76089f782bdb32783ef5",
     "records": [
       {
         "schema_version": "a2.decision_record.v1",
@@ -117,6 +117,13 @@
           "sha256:0ee7d2cfb1ebc27c38de5788dc08438ff8aabf53d7c4e94d3068fac5eb8720d7",
           "sha256:c48ab672aad4df049b1690d360ce6c804515229ad053cafe3a0744b133fbb592"
         ],
+        "provider_provenance_hashes": [],
+        "provider_summary": {
+          "call_count": 0,
+          "providers": [],
+          "models": [],
+          "blocked_call_count": 0
+        },
         "judge_summary": {
           "judge_count": 5,
           "failed_judges": [],
@@ -129,8 +136,8 @@
         ],
         "previous_record_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
         "public_safe": true,
-        "record_id": "sha256:e19d38b6f189135256ed1afd9ad4f433cc0d5361a0a251adb936e469fa2e9687",
-        "record_hash": "sha256:31c417d9232f2e3b0361f63b8aad305304774d28d0f68ed6e093f1a0bffa1e18"
+        "record_id": "sha256:0f6b4e32c8f834854841a26340db823f9fdcb59b4d35404a8fac355eb2c1acf1",
+        "record_hash": "sha256:eae080babdf91f3dafbe22442e028d0b6f9d4688633e76089f782bdb32783ef5"
       }
     ],
     "metadata": {
@@ -139,7 +146,7 @@
       "chain_verified": true,
       "human_overrides_are_linked_records": true
     },
-    "ledger_hash": "sha256:246213c8dabddf5c05e697c79da45f5a5ca5c62dd331ca22bada44d0000e19f5"
+    "ledger_hash": "sha256:28b7e939bea45daa1594e7369d75756b9e93d5a9b6986dadb1a8eddf08cda970"
   },
   "a3_consumption": {
     "release_ready": false,
@@ -147,7 +154,7 @@
     "may_recompute_grade": false,
     "review_queue_status": "blocked",
     "display_decision": "block",
-    "display_provenance_hash": "sha256:31c417d9232f2e3b0361f63b8aad305304774d28d0f68ed6e093f1a0bffa1e18"
+    "display_provenance_hash": "sha256:eae080babdf91f3dafbe22442e028d0b6f9d4688633e76089f782bdb32783ef5"
   },
   "metadata": {
     "public_safe": true,

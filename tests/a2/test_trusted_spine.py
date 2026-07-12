@@ -4,7 +4,7 @@ import unittest
 from copy import deepcopy
 from pathlib import Path
 
-from services.judge.result_persistence import stable_hash
+from services.judge.result_persistence import redact_payload, stable_hash
 from services.judge.trusted_spine import (
     GENESIS_HASH,
     build_decision_ledger,
@@ -160,6 +160,71 @@ class A2TrustedSpineTests(unittest.TestCase):
                 policy_version="unit",
                 policy_hash=stable_hash({"policy": "unit"}),
                 model_versions=["unit:model"],
+                created_at="2026-07-11T00:00:00Z",
+            )
+
+    def test_decision_record_binds_provider_provenance_and_rejects_cross_scope_or_blocked_allow(self):
+        snapshot = load_json(HANDOFF)["evidence_snapshot"]
+        scope = {
+            field: snapshot[field]
+            for field in ("organization_id", "tenant_id", "workspace_id", "project_id", "environment_id")
+        }
+        provenance = {
+            "schema_version": "a2.provider_provenance_handoff.v1",
+            "status": "ready",
+            "tenant_scope": scope,
+            "snapshot_id": snapshot["snapshot_id"],
+            "snapshot_hash": snapshot["snapshot_hash"],
+            "logical_call_id": stable_hash("provider-call"),
+            "provider_id": "dashscope",
+            "model_id": "qwen-vl",
+            "evaluation_eligible": True,
+            "release_authority": False,
+            "decision_authority": "a2.release_gate.v1",
+            "blockers": [],
+            "raw_payload_included": False,
+            "secret_included": False,
+        }
+        record = build_decision_record(
+            snapshot,
+            decision="block",
+            release_gate_report={"decision": "block"},
+            judge_results=[],
+            provider_provenance=[provenance],
+            policy_version="1",
+            policy_hash=stable_hash("policy"),
+            model_versions=["dashscope:qwen-vl"],
+            created_at="2026-07-11T00:00:00Z",
+        )
+        self.assertEqual(record["provider_summary"]["providers"], ["dashscope"])
+        self.assertEqual(record["provider_summary"]["models"], ["qwen-vl"])
+        self.assertEqual(record["provider_summary"]["blocked_call_count"], 0)
+        self.assertEqual(record["provider_provenance_hashes"], [stable_hash(redact_payload(provenance))])
+
+        with self.assertRaisesRegex(ValueError, "scope mismatch"):
+            build_decision_record(
+                snapshot,
+                decision="block",
+                release_gate_report={"decision": "block"},
+                judge_results=[],
+                provider_provenance=[{**provenance, "tenant_scope": {**scope, "project_id": "other"}}],
+                policy_version="1",
+                policy_hash=stable_hash("policy"),
+                model_versions=["dashscope:qwen-vl"],
+                created_at="2026-07-11T00:00:00Z",
+            )
+
+        blocked = {**provenance, "status": "blocked", "evaluation_eligible": False, "blockers": ["timeout"]}
+        with self.assertRaisesRegex(ValueError, "blocked provider provenance"):
+            build_decision_record(
+                snapshot,
+                decision="allow",
+                release_gate_report={"decision": "pass"},
+                judge_results=[],
+                provider_provenance=[blocked],
+                policy_version="1",
+                policy_hash=stable_hash("policy"),
+                model_versions=["dashscope:qwen-vl"],
                 created_at="2026-07-11T00:00:00Z",
             )
 
