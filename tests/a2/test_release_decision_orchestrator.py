@@ -13,9 +13,11 @@ from services.judge.release_decision_orchestrator import execute_release_decisio
 from services.judge.release_decision_store import (
     IdempotencyConflictError,
     authorize_provider_call,
+    claim_decision_outbox,
     persist_provider_outcome,
     persist_release_decision,
     reserve_decision_operation,
+    settle_decision_outbox,
 )
 from services.judge.result_persistence import stable_hash
 from services.judge.sql_store import initialize_sql_store
@@ -463,6 +465,135 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
                     semantic_output={"passed": True}, completed_at="2026-07-12T00:00:03Z",
                 )
                 self.assertEqual(_count(second_connection, "a2_provider_outcomes"), 1)
+            finally:
+                first_connection.close()
+                second_connection.close()
+
+    def test_outbox_delivery_is_fenced_retryable_and_idempotent(self):
+        connection = sqlite3.connect(":memory:")
+        try:
+            initialize_sql_store(connection)
+            execute_release_decision(
+                request(), gateway=gateway(), key_resolver=lambda _: KEY, now_unix_ms=NOW,
+                persistence_connection=connection,
+            )
+            first = claim_decision_outbox(
+                connection, worker_id="dispatcher-a", now="2026-07-12T00:00:00Z", lease_seconds=1,
+            )
+            self.assertIsNotNone(first)
+            self.assertEqual(first["attempt_count"], 1)
+            takeover = claim_decision_outbox(
+                connection, worker_id="dispatcher-b", now="2026-07-12T00:00:02Z",
+            )
+            self.assertEqual(takeover["lease_generation"], first["lease_generation"] + 1)
+            with self.assertRaisesRegex(ValueError, "stale outbox"):
+                settle_decision_outbox(
+                    connection, event_id=first["event_id"], worker_id="dispatcher-a",
+                    lease_generation=first["lease_generation"], delivered_at="2026-07-12T00:00:03Z",
+                    outcome="delivered",
+                )
+            settle_decision_outbox(
+                connection, event_id=takeover["event_id"], worker_id="dispatcher-b",
+                lease_generation=takeover["lease_generation"], delivered_at="2026-07-12T00:00:03Z",
+                outcome="retry", retry_at="2026-07-12T00:01:00Z", error_class="a3_unavailable",
+            )
+            self.assertIsNone(
+                claim_decision_outbox(connection, worker_id="dispatcher-c", now="2026-07-12T00:00:30Z")
+            )
+            retry = claim_decision_outbox(
+                connection, worker_id="dispatcher-c", now="2026-07-12T00:01:00Z",
+            )
+            settle_decision_outbox(
+                connection, event_id=retry["event_id"], worker_id="dispatcher-c",
+                lease_generation=retry["lease_generation"], delivered_at="2026-07-12T00:01:01Z",
+                outcome="delivered",
+            )
+            self.assertIsNone(
+                claim_decision_outbox(connection, worker_id="dispatcher-d", now="2026-07-12T00:02:00Z")
+            )
+            stored = connection.execute(
+                "SELECT delivery_status, attempt_count, delivered_at FROM a2_decision_outbox"
+            ).fetchone()
+            self.assertEqual(stored, ("delivered", 3, "2026-07-12T00:01:01Z"))
+        finally:
+            connection.close()
+
+    def test_outbox_rejects_invalid_settlement_and_never_reclaims_dead_event(self):
+        connection = sqlite3.connect(":memory:")
+        try:
+            initialize_sql_store(connection)
+            execute_release_decision(
+                request(), gateway=gateway(), key_resolver=lambda _: KEY, now_unix_ms=NOW,
+                persistence_connection=connection,
+            )
+            with self.assertRaisesRegex(ValueError, "lease_seconds must be positive"):
+                claim_decision_outbox(
+                    connection, worker_id="dispatcher-a", now="2026-07-12T00:00:00Z",
+                    lease_seconds=0,
+                )
+            claimed = claim_decision_outbox(
+                connection, worker_id="dispatcher-a", now="2026-07-12T00:00:00Z",
+            )
+            with self.assertRaisesRegex(ValueError, "outbox outcome"):
+                settle_decision_outbox(
+                    connection, event_id=claimed["event_id"], worker_id="dispatcher-a",
+                    lease_generation=claimed["lease_generation"],
+                    delivered_at="2026-07-12T00:00:01Z", outcome="unknown",
+                )
+            with self.assertRaisesRegex(ValueError, "retry_at is required"):
+                settle_decision_outbox(
+                    connection, event_id=claimed["event_id"], worker_id="dispatcher-a",
+                    lease_generation=claimed["lease_generation"],
+                    delivered_at="2026-07-12T00:00:01Z", outcome="retry",
+                )
+            settle_decision_outbox(
+                connection, event_id=claimed["event_id"], worker_id="dispatcher-a",
+                lease_generation=claimed["lease_generation"],
+                delivered_at="2026-07-12T00:00:01Z", outcome="dead",
+                error_class="invalid_a3_contract",
+            )
+            self.assertIsNone(
+                claim_decision_outbox(
+                    connection, worker_id="dispatcher-b", now="2026-07-13T00:00:00Z",
+                )
+            )
+            stored = connection.execute(
+                "SELECT delivery_status, delivered_at, last_error_class "
+                "FROM a2_decision_outbox"
+            ).fetchone()
+            self.assertEqual(stored, ("dead", None, "invalid_a3_contract"))
+        finally:
+            connection.close()
+
+    def test_two_connections_cannot_claim_the_same_outbox_generation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            database_path = Path(directory) / "outbox.sqlite"
+            first_connection = sqlite3.connect(database_path)
+            second_connection = sqlite3.connect(database_path)
+            try:
+                initialize_sql_store(first_connection)
+                execute_release_decision(
+                    request(), gateway=gateway(), key_resolver=lambda _: KEY, now_unix_ms=NOW,
+                    persistence_connection=first_connection,
+                )
+                first = claim_decision_outbox(
+                    first_connection, worker_id="dispatcher-a", now="2026-07-12T00:00:00Z",
+                )
+                self.assertIsNotNone(first)
+                self.assertIsNone(
+                    claim_decision_outbox(
+                        second_connection, worker_id="dispatcher-b", now="2026-07-12T00:00:01Z",
+                    )
+                )
+                stored = second_connection.execute(
+                    "SELECT lease_owner, lease_generation, attempt_count "
+                    "FROM a2_decision_outbox WHERE event_id = ?",
+                    (first["event_id"],),
+                ).fetchone()
+                self.assertEqual(
+                    stored,
+                    ("dispatcher-a", first["lease_generation"], 1),
+                )
             finally:
                 first_connection.close()
                 second_connection.close()

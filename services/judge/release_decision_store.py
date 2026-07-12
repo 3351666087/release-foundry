@@ -417,6 +417,100 @@ def persist_release_decision(
     }
 
 
+def claim_decision_outbox(
+    connection: sqlite3.Connection,
+    *,
+    worker_id: str,
+    now: str,
+    lease_seconds: int = 60,
+) -> dict[str, Any] | None:
+    """Claim one due A3 event with a monotonic delivery fencing generation."""
+    if lease_seconds <= 0:
+        raise ValueError("lease_seconds must be positive")
+    lease_expires_at = (
+        _timestamp(now) + timedelta(seconds=lease_seconds)
+    ).isoformat().replace("+00:00", "Z")
+    try:
+        connection.execute("BEGIN IMMEDIATE")
+        cursor = connection.execute(
+            """
+            SELECT * FROM a2_decision_outbox
+            WHERE (
+              delivery_status IN ('pending', 'retry')
+              OR (delivery_status = 'leased' AND lease_expires_at <= ?)
+            ) AND available_at <= ?
+            ORDER BY created_at, event_id
+            LIMIT 1
+            """,
+            (now, now),
+        )
+        row = _row_dict(cursor)
+        if row is None:
+            connection.commit()
+            return None
+        generation = int(row["lease_generation"]) + 1
+        updated = connection.execute(
+            """
+            UPDATE a2_decision_outbox
+            SET delivery_status = 'leased', lease_owner = ?, lease_generation = ?,
+                lease_expires_at = ?, attempt_count = attempt_count + 1
+            WHERE event_id = ? AND lease_generation = ?
+            """,
+            (worker_id, generation, lease_expires_at, row["event_id"], row["lease_generation"]),
+        )
+        if updated.rowcount != 1:
+            raise ValueError("outbox claim contention")
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+    row.update(
+        lease_owner=worker_id,
+        lease_generation=generation,
+        lease_expires_at=lease_expires_at,
+        attempt_count=int(row["attempt_count"]) + 1,
+        delivery_status="leased",
+    )
+    return row
+
+
+def settle_decision_outbox(
+    connection: sqlite3.Connection,
+    *,
+    event_id: str,
+    worker_id: str,
+    lease_generation: int,
+    delivered_at: str,
+    outcome: str,
+    retry_at: str | None = None,
+    error_class: str | None = None,
+) -> None:
+    """Settle a claimed event without allowing a stale dispatcher to overwrite state."""
+    if outcome not in {"delivered", "retry", "dead"}:
+        raise ValueError("outbox outcome must be delivered, retry, or dead")
+    if outcome == "retry" and not retry_at:
+        raise ValueError("retry_at is required for retry")
+    available_at = retry_at or delivered_at
+    final_delivered_at = delivered_at if outcome == "delivered" else None
+    cursor = connection.execute(
+        """
+        UPDATE a2_decision_outbox
+        SET delivery_status = ?, available_at = ?, delivered_at = ?,
+            last_error_class = ?, lease_owner = NULL, lease_expires_at = NULL
+        WHERE event_id = ? AND delivery_status = 'leased'
+          AND lease_owner = ? AND lease_generation = ?
+        """,
+        (
+            outcome, available_at, final_delivered_at, error_class,
+            event_id, worker_id, lease_generation,
+        ),
+    )
+    if cursor.rowcount != 1:
+        connection.rollback()
+        raise ValueError("stale outbox fencing generation")
+    connection.commit()
+
+
 def _scope(payload: dict[str, Any]) -> dict[str, str]:
     fields = ("organization_id", "tenant_id", "workspace_id", "project_id", "environment_id")
     scope = {field: str(payload.get(field) or "") for field in fields}
