@@ -6838,3 +6838,14 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
 - Downloaded the artifact ZIP to an unrecorded temporary path. Its SHA-256 matched GitHub, all 19 uploaded rc.2 files matched the committed snapshot, and no raw archive/path/token was retained in the public receipt.
 - Extended Gate CLI so the Actions artifact readback is a hashed `readback_record` in the new-run Audit Bundle, with focused tests passing 31/31.
 - Final expected posture remains blocked: Golden Path 7/11, Deployment Acceptance 8/17, A2 Decision Ledger `block`, tenant GitHub App absent, required check absent, and staging/PostgreSQL/RLS/queue/object-storage/recovery proof absent.
+
+## 2026-07-12 - GitHub Readback Product Surface
+
+- Promoted the sealed rc.1/rc.2 GitHub Check, PR comment, required-check, and Actions-artifact receipts from raw bundle-only evidence into source-configured Store and Dashboard API fields.
+- Added a Chinese-first Delivery section with four evidence cards showing provider/authority, IDs, SHA or digest, conclusion, and enforcement state.
+- Preserved the crucial distinction between successful GitHub Actions packet verification and the authoritative A2 Decision Ledger `block`.
+- Marked the operator OAuth comment as calibration rather than a tenant GitHub App, and kept main HTTP 404 as `not enforced` rather than a green plan.
+- Added an HTTPS `github.com` allowlist before rendering Check, comment, or workflow links; no browser token or direct GitHub fetch was introduced.
+- Added Node source assertions and Playwright checks for all four live receipt IDs, authority text, three safe external links, desktop layout, and 390 x 844 layout.
+- Added `docs/a3/a3_github_readback_ui_2026_07_12.md` and dedicated desktop/mobile screenshots.
+- This is a post-seal UI increment. It did not rewrite the signed rc.2 release manifest or its hashed release documentation.

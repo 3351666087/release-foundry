@@ -119,6 +119,13 @@ test("the rc.2 dashboard source exposes passing A1/A2 evidence without inventing
   assert.equal(snapshot.deliveryGoldenPath.status, "blocked_by_a2");
   assert.equal(snapshot.deliveryGoldenPath.production_ready, false);
   assert.equal(snapshot.deliveryGoldenPath.progress.passed, 7);
+  assert.equal(snapshot.githubCheckReadback.readback_confirmed, true);
+  assert.equal(snapshot.githubCheckReadback.observed.app_slug, "github-actions");
+  assert.equal(snapshot.githubPrCommentReadback.observed.comment_id_alias, 4951428174);
+  assert.equal(snapshot.githubActionsArtifactReadback.artifact_id_alias, 8260724828);
+  assert.equal(snapshot.githubActionsArtifactReadback.digest_match, true);
+  assert.equal(snapshot.githubRequiredCheckProof.enforced, false);
+  assert.equal(snapshot.githubRequiredCheckProof.http_status, 404);
 });
 
 test("the rc.2 Gate keeps a passing local quality gate blocked by A2 authority", async () => {

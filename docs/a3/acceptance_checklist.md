@@ -1217,3 +1217,15 @@
 - [x] Read main branch protection and preserve the real `404` / `enforced=false` result instead of claiming a required check.
 - [ ] Obtain an A2 Decision Ledger record tied to `a3-golden-20260712-002`.
 - [ ] Install a tenant GitHub App, enable required branch protection, and attach deployed staging evidence.
+
+## GitHub Readback Product Surface - 2026-07-12
+
+- [x] Load rc.1 and rc.2 Check, comment, required-check, and Actions-artifact receipts through the source configuration.
+- [x] Preserve those receipts as first-class Store snapshot and Dashboard API fields.
+- [x] Render four Chinese-first, bilingual GitHub readback cards on the Delivery route.
+- [x] Distinguish GitHub Actions App, operator OAuth, tenant App, A2 authority, and branch-policy enforcement.
+- [x] Restrict rendered evidence links to HTTPS `github.com` URLs.
+- [x] Show the real main policy result as HTTP 404 and `not enforced`.
+- [x] Keep A2 `block`, Golden Path 7/11, Deployment Acceptance 8/17, and production false unchanged.
+- [x] Add desktop and 390 x 844 readback screenshots with no horizontal overflow.
+- [x] Leave the sealed rc.2 release documentation and manifest unchanged; record this as a post-seal UI increment.

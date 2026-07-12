@@ -7,9 +7,14 @@ import {
   CheckCircle2,
   CircleDashed,
   CloudCog,
+  ExternalLink,
   GitBranch,
+  HardDriveDownload,
+  LockKeyhole,
+  MessageSquareText,
   PackageCheck,
-  ShieldAlert
+  ShieldAlert,
+  Workflow
 } from "lucide-react";
 
 import { array, number, record, string } from "@/lib/api";
@@ -30,6 +35,13 @@ export function DeliveryPage() {
     const authority = record(path.authoritative_release);
     const runFixture = record(model.raw.run_fixture);
     const runMetrics = record(runFixture.aggregate_metrics);
+    const checkReadback = record(model.raw.github_check_readback);
+    const checkObserved = record(checkReadback.observed);
+    const commentReadback = record(model.raw.github_pr_comment_readback);
+    const commentObserved = record(commentReadback.observed);
+    const artifactReadback = record(model.raw.github_actions_artifact_readback);
+    const artifactCalibration = record(artifactReadback.calibration);
+    const requiredCheck = record(model.raw.github_required_check_proof);
     const stages = array(path.stages).map(record);
     const checks = array(acceptance.checks).map(record);
     const blockers = checks.filter((item) => string(item.status) !== "passed");
@@ -110,6 +122,80 @@ export function DeliveryPage() {
           </div>
         </Section>
 
+        <Section
+          title={zh ? "GitHub 真实回读" : "Live GitHub readback"}
+          description={zh
+            ? "区分真实外部回读、操作员身份和生产门禁；成功的 CI 不会覆盖 A2 的发布阻塞"
+            : "Separates live external readback, operator identity, and production enforcement; successful CI does not override the A2 release block"}
+        >
+          <div className="github-readback-grid">
+            <article data-state={checkReadback.readback_confirmed === true ? "confirmed" : "blocked"}>
+              <div className="github-readback-head">
+                <Workflow size={18} />
+                <div><span>CHECK RUN</span><strong>{string(checkObserved.check_name, "A3 golden path release artifact")}</strong></div>
+                <StatusBadge value={checkReadback.readback_confirmed === true ? (zh ? "已回读" : "confirmed") : string(checkReadback.readback_status)} tone={checkReadback.readback_confirmed === true ? "pass" : "fail"} />
+              </div>
+              <dl>
+                <div><dt>{zh ? "提供方" : "Provider"}</dt><dd>{string(checkObserved.app_slug, "unavailable")}</dd></div>
+                <div><dt>{zh ? "结论" : "Conclusion"}</dt><dd>{string(checkObserved.conclusion)}</dd></div>
+                <div><dt>Check ID</dt><dd>{string(checkObserved.check_run_id_alias)}</dd></div>
+                <div><dt>Head SHA</dt><dd><code>{shortHash(checkObserved.head_sha_alias)}</code></dd></div>
+              </dl>
+              <p>{zh ? "GitHub Actions App 的真实 CI 证据；不是 tenant GitHub App，也不是发布批准。" : "Live GitHub Actions App CI evidence; it is neither a tenant GitHub App nor release approval."}</p>
+              <SafeGitHubLink href={checkObserved.html_url} label={zh ? "查看 Check" : "Open Check"} />
+            </article>
+
+            <article data-state={commentReadback.readback_confirmed === true ? "confirmed" : "blocked"}>
+              <div className="github-readback-head">
+                <MessageSquareText size={18} />
+                <div><span>PR COMMENT</span><strong>{zh ? "发布阻塞评论" : "Release-block comment"}</strong></div>
+                <StatusBadge value={commentReadback.readback_confirmed === true ? (zh ? "已回读" : "confirmed") : string(commentReadback.readback_status)} tone={commentReadback.readback_confirmed === true ? "pass" : "fail"} />
+              </div>
+              <dl>
+                <div><dt>{zh ? "身份" : "Authority"}</dt><dd>{string(record(commentReadback.calibration).authority_class)}</dd></div>
+                <div><dt>Comment ID</dt><dd>{string(commentObserved.comment_id_alias)}</dd></div>
+                <div><dt>{zh ? "标记匹配" : "Marker match"}</dt><dd>{commentReadback.marker_match === true ? "yes" : "no"}</dd></div>
+                <div><dt>{zh ? "正文匹配" : "Body match"}</dt><dd>{commentReadback.body_hash_match === true ? "yes" : "no"}</dd></div>
+              </dl>
+              <p>{zh ? "由 operator OAuth 发布并校验候选 SHA；不能代表租户 GitHub App。" : "Published through operator OAuth and bound to the candidate SHA; it does not represent a tenant GitHub App."}</p>
+              <SafeGitHubLink href={commentObserved.html_url} label={zh ? "查看评论" : "Open comment"} />
+            </article>
+
+            <article data-state={artifactReadback.readback_confirmed === true ? "confirmed" : "blocked"}>
+              <div className="github-readback-head">
+                <HardDriveDownload size={18} />
+                <div><span>ACTIONS ARTIFACT</span><strong>{string(artifactReadback.artifact_name, zh ? "未发现制品" : "Artifact unavailable")}</strong></div>
+                <StatusBadge value={artifactReadback.digest_match === true ? (zh ? "哈希匹配" : "digest matched") : string(artifactReadback.readback_status)} tone={artifactReadback.digest_match === true ? "pass" : "fail"} />
+              </div>
+              <dl>
+                <div><dt>Artifact ID</dt><dd>{string(artifactReadback.artifact_id_alias)}</dd></div>
+                <div><dt>{zh ? "上传文件" : "Uploaded files"}</dt><dd>{number(artifactReadback.downloaded_file_count)}</dd></div>
+                <div><dt>{zh ? "大小" : "Size"}</dt><dd>{formatBytes(number(artifactReadback.size_in_bytes))}</dd></div>
+                <div><dt>SHA-256</dt><dd><code>{shortHash(artifactReadback.download_sha256)}</code></dd></div>
+              </dl>
+              <p>{artifactCalibration.custom_tenant_github_app_proven === true
+                ? (zh ? "已证明 tenant GitHub App。" : "Tenant GitHub App is proven.")
+                : (zh ? "ZIP digest 和 19 个上传文件已验证；tenant GitHub App 仍未证明。" : "ZIP digest and 19 uploaded files were verified; tenant GitHub App remains unproven.")}</p>
+              <SafeGitHubLink href={artifactReadback.workflow_url} label={zh ? "查看 Workflow" : "Open workflow"} />
+            </article>
+
+            <article data-state={requiredCheck.enforced === true ? "confirmed" : "blocked"}>
+              <div className="github-readback-head">
+                <LockKeyhole size={18} />
+                <div><span>MAIN POLICY</span><strong>{zh ? "Required Check 强制策略" : "Required-check enforcement"}</strong></div>
+                <StatusBadge value={requiredCheck.enforced === true ? (zh ? "已强制" : "enforced") : (zh ? "未强制" : "not enforced")} tone={requiredCheck.enforced === true ? "pass" : "fail"} />
+              </div>
+              <dl>
+                <div><dt>{zh ? "分支" : "Branch"}</dt><dd>{string(requiredCheck.branch, "main")}</dd></div>
+                <div><dt>HTTP</dt><dd>{number(requiredCheck.http_status)}</dd></div>
+                <div><dt>{zh ? "回读状态" : "Readback"}</dt><dd>{string(requiredCheck.readback_status)}</dd></div>
+                <div><dt>{zh ? "检查数量" : "Checks found"}</dt><dd>{number(requiredCheck.checked_count)}</dd></div>
+              </dl>
+              <p>{zh ? "main 返回 404，branch protection 未启用；A3 没有把计划冒充强制门禁。" : "main returned 404 and branch protection is absent; A3 does not present a plan as enforced policy."}</p>
+            </article>
+          </div>
+        </Section>
+
         <div className="content-grid two-one">
           <Section
             title={zh ? "Deployment Acceptance" : "Deployment acceptance"}
@@ -156,4 +242,29 @@ export function DeliveryPage() {
       </>
     );
   }}</DataBoundary>;
+}
+
+function SafeGitHubLink({ href, label }: { href: unknown; label: string }) {
+  const safeHref = trustedGitHubUrl(href);
+  if (!safeHref) return null;
+  return <a className="github-readback-link" href={safeHref} target="_blank" rel="noreferrer">{label}<ExternalLink size={14} /></a>;
+}
+
+function trustedGitHubUrl(value: unknown) {
+  try {
+    const url = new URL(string(value, ""));
+    return url.protocol === "https:" && url.hostname === "github.com" ? url.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+function shortHash(value: unknown) {
+  const normalized = string(value, "unavailable").replace(/^sha256:/, "");
+  return normalized.length > 18 ? `${normalized.slice(0, 10)}...${normalized.slice(-8)}` : normalized;
+}
+
+function formatBytes(value: number) {
+  if (value < 1024) return `${value} B`;
+  return `${(value / 1024).toFixed(1)} KB`;
 }

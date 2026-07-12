@@ -137,7 +137,11 @@ export const A3_SOURCE_FIXTURES = {
     deploymentAcceptance: "fixtures/a3/golden-path/deployment-acceptance.json",
     releaseArtifactManifest: "fixtures/a3/golden-path/release-artifact-manifest.json",
     releaseArtifactVerification: "fixtures/a3/golden-path/release-artifact-verification.json",
-    deliveryGoldenPath: "fixtures/a3/golden-path/golden-path-status.json"
+    deliveryGoldenPath: "fixtures/a3/golden-path/golden-path-status.json",
+    githubCheckReadback: "fixtures/a3/golden-path/github-check-live-readback.redacted.json",
+    githubPrCommentReadback: "fixtures/a3/golden-path/github-pr-comment-live-readback.redacted.json",
+    githubRequiredCheckProof: "fixtures/a3/golden-path/github-required-check-live-readback.redacted.json",
+    githubActionsArtifactReadback: "fixtures/a3/golden-path/github-actions-artifact-live-readback.redacted.json"
   },
   "a3-golden-path-rc2": {
     label: "A3 Golden Path rc.2 - A1/A2 3 of 3",
@@ -148,7 +152,11 @@ export const A3_SOURCE_FIXTURES = {
     deploymentAcceptance: "fixtures/a3/golden-path/rc2/deployment-acceptance.json",
     releaseArtifactManifest: "fixtures/a3/golden-path/rc2/release-artifact-manifest.json",
     releaseArtifactVerification: "fixtures/a3/golden-path/rc2/release-artifact-verification.json",
-    deliveryGoldenPath: "fixtures/a3/golden-path/rc2/golden-path-status.json"
+    deliveryGoldenPath: "fixtures/a3/golden-path/rc2/golden-path-status.json",
+    githubCheckReadback: "fixtures/a3/golden-path/rc2/github-check-live-readback.redacted.json",
+    githubPrCommentReadback: "fixtures/a3/golden-path/rc2/github-pr-comment-live-readback.redacted.json",
+    githubRequiredCheckProof: "fixtures/a3/golden-path/rc2/github-required-check-live-readback.redacted.json",
+    githubActionsArtifactReadback: "fixtures/a3/golden-path/rc2/github-actions-artifact-live-readback.redacted.json"
   }
 };
 
@@ -333,6 +341,10 @@ export async function loadA3SourceSnapshot(source = "mock", options = {}) {
     releaseArtifactManifest: await readOptionalJson(root, config.releaseArtifactManifest),
     releaseArtifactVerification: await readOptionalJson(root, config.releaseArtifactVerification),
     deliveryGoldenPath: await readOptionalJson(root, config.deliveryGoldenPath),
+    githubCheckReadback: await readOptionalJson(root, config.githubCheckReadback),
+    githubPrCommentReadback: await readOptionalJson(root, config.githubPrCommentReadback),
+    githubRequiredCheckProof: await readOptionalJson(root, config.githubRequiredCheckProof),
+    githubActionsArtifactReadback: await readOptionalJson(root, config.githubActionsArtifactReadback),
     releaseEvidence: await readReleaseEvidenceFixtures(root),
     storage: {
       mode: "fixture_file",
@@ -2280,6 +2292,10 @@ function normalizeSnapshot(snapshot = {}) {
     releaseArtifactManifest: snapshot.releaseArtifactManifest || snapshot.release_artifact_manifest || {},
     releaseArtifactVerification: snapshot.releaseArtifactVerification || snapshot.release_artifact_verification || {},
     deliveryGoldenPath: snapshot.deliveryGoldenPath || snapshot.delivery_golden_path || {},
+    githubCheckReadback: snapshot.githubCheckReadback || snapshot.github_check_readback || {},
+    githubPrCommentReadback: snapshot.githubPrCommentReadback || snapshot.github_pr_comment_readback || {},
+    githubRequiredCheckProof: snapshot.githubRequiredCheckProof || snapshot.github_required_check_proof || {},
+    githubActionsArtifactReadback: snapshot.githubActionsArtifactReadback || snapshot.github_actions_artifact_readback || {},
     summary: buildDashboardSummary(runFixture, gradeFixture),
     case_count: cases.length,
     storage: snapshot.storage || {
@@ -2473,9 +2489,10 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     deploymentProbe: snapshot.deploymentProbe,
     releaseArtifactManifest: snapshot.releaseArtifactManifest,
     releaseArtifactVerification: snapshot.releaseArtifactVerification,
-    githubCheckReadback: releaseEvidenceInput.githubCheckReadback || releaseEvidenceInput.github_check_readback || {},
-    githubPrCommentReadback: releaseEvidenceInput.githubPrCommentReadback || releaseEvidenceInput.github_pr_comment_readback || {},
-    githubRequiredCheckProof: releaseEvidenceInput.githubRequiredCheckProof || releaseEvidenceInput.github_required_check_proof || {},
+    githubCheckReadback: snapshot.githubCheckReadback || releaseEvidenceInput.githubCheckReadback || releaseEvidenceInput.github_check_readback || {},
+    githubPrCommentReadback: snapshot.githubPrCommentReadback || releaseEvidenceInput.githubPrCommentReadback || releaseEvidenceInput.github_pr_comment_readback || {},
+    githubRequiredCheckProof: snapshot.githubRequiredCheckProof || releaseEvidenceInput.githubRequiredCheckProof || releaseEvidenceInput.github_required_check_proof || {},
+    githubActionsArtifactReadback: snapshot.githubActionsArtifactReadback || releaseEvidenceInput.githubActionsArtifactReadback || releaseEvidenceInput.github_actions_artifact_readback || {},
     auditBundleVerification: releaseEvidenceInput.auditBundleVerification || releaseEvidenceInput.audit_bundle_verification || {},
     auditArchiveVerification: releaseEvidenceInput.auditArchiveVerification || releaseEvidenceInput.audit_archive_verification || {},
     releaseVersion: snapshot.releaseArtifactManifest?.release?.version || `candidate-${releaseId}`,
@@ -2532,6 +2549,10 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     release_artifact_manifest: snapshot.releaseArtifactManifest,
     release_artifact_verification: snapshot.releaseArtifactVerification,
     delivery_golden_path: deliveryGoldenPath,
+    github_check_readback: snapshot.githubCheckReadback,
+    github_pr_comment_readback: snapshot.githubPrCommentReadback,
+    github_required_check_proof: snapshot.githubRequiredCheckProof,
+    github_actions_artifact_readback: snapshot.githubActionsArtifactReadback,
     release_evidence_api: {
       schema_version: "a3.release_evidence_api_link.v1",
       release_id: releaseId,
