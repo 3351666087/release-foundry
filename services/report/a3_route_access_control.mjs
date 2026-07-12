@@ -20,6 +20,34 @@ export const A3_ROUTE_ACCESS_MODES = Object.freeze({
   HOSTED_ENFORCED: "hosted_enforced"
 });
 
+const A3_REQUEST_BOUNDARY_DENIALS = Object.freeze({
+  malformed_json: Object.freeze({
+    decision: "denied_malformed_json",
+    httpStatus: 400,
+    error: "invalid_json"
+  }),
+  body_read_timeout: Object.freeze({
+    decision: "denied_body_read_timeout",
+    httpStatus: 408,
+    error: "request_timeout"
+  }),
+  payload_too_large: Object.freeze({
+    decision: "denied_payload_too_large",
+    httpStatus: 413,
+    error: "payload_too_large"
+  }),
+  unsupported_media_type: Object.freeze({
+    decision: "denied_unsupported_media_type",
+    httpStatus: 415,
+    error: "unsupported_media_type"
+  }),
+  invalid_json_shape: Object.freeze({
+    decision: "denied_invalid_json_shape",
+    httpStatus: 422,
+    error: "invalid_json_shape"
+  })
+});
+
 export const A3_REQUIRED_SCOPE_FIELDS = Object.freeze([
   "organization_id",
   "tenant_id",
@@ -316,6 +344,25 @@ export function guardA3RouteAccess(request = {}, options = {}) {
         ? "denied_requires_hosted_enforcement"
         : authorization.decision,
       httpStatus: 403,
+      now,
+      principal,
+      requestedScope: requestedScope.scope,
+      scopeState: {
+        principal: "valid",
+        requested: "valid",
+        matches: true
+      }
+    }, options);
+  }
+
+  const requestBoundaryDenial = A3_REQUEST_BOUNDARY_DENIALS[options.requestBodyState];
+  if (requestBoundaryDenial) {
+    return routeDecision({
+      route,
+      mode,
+      allowed: false,
+      decision: requestBoundaryDenial.decision,
+      httpStatus: requestBoundaryDenial.httpStatus,
       now,
       principal,
       requestedScope: requestedScope.scope,
@@ -707,25 +754,20 @@ function canonicalPrincipalType(principal, role) {
 
 function routeDecision(input, options) {
   const denied = !input.allowed;
-  const sanitizedError = input.httpStatus === 401
-    ? {
-        schema_version: "a3.sanitized_unauthorized.v1",
-        error: "authentication_required"
-      }
-    : {
-        schema_version: "a3.sanitized_forbidden.v1",
-        error: "access_denied"
-      };
+  const sanitizedError = sanitizedRouteError(input.httpStatus, input.decision);
+  const requestTransport = buildRequestTransport(input.route, options);
   const scopeFingerprintValue = input.requestedScope
     ? scopeFingerprint(input.requestedScope)
     : null;
   const auditEvidence = buildAuditEvidence({
     ...input,
+    requestTransport,
     requestId: firstDefined(options.requestId, options.request_id),
     scopeFingerprint: scopeFingerprintValue
   });
   const accessAuditEvent = buildAccessAuditEvent({
     ...input,
+    requestTransport,
     requestFingerprint: auditEvidence.request_fingerprint,
     traceId: firstDefined(options.traceId, options.trace_id),
     scopeFingerprint: scopeFingerprintValue
@@ -754,6 +796,7 @@ function routeDecision(input, options) {
       token_scoped: input.route.token_scoped,
       resource_access_check_required: input.route.resource_access_check_required
     },
+    request_transport: requestTransport,
     principal: input.principal?.valid
       ? {
           trusted: input.principal.trusted,
@@ -780,9 +823,7 @@ function routeDecision(input, options) {
       ? {
           http_status: input.httpStatus,
           body_policy: "sanitized_error_without_private_evidence",
-          customer_message: input.httpStatus === 401
-            ? "Authentication is required."
-            : "The request is not allowed."
+          customer_message: sanitizedCustomerMessage(input.httpStatus)
         }
       : null,
     audit_evidence: auditEvidence,
@@ -797,6 +838,7 @@ function routeDecision(input, options) {
       raw_token_exposed: false,
       raw_cookie_exposed: false,
       raw_api_key_exposed: false,
+      raw_origin_exposed: false,
       raw_path_parameters_exposed: false,
       a2_release_decision_recomputed: false
     }
@@ -812,6 +854,9 @@ function buildAuditEvidence(input) {
     operation_id: input.route.operation_id,
     principal_fingerprint: input.principal?.principal_fingerprint || null,
     scope_fingerprint: input.scopeFingerprint,
+    transport_method: input.requestTransport.transport_method,
+    preflight_for_method: input.requestTransport.preflight_for_method,
+    request_body_state: input.requestTransport.request_body_state,
     occurred_at: input.now
   });
   return {
@@ -826,6 +871,9 @@ function buildAuditEvidence(input) {
     route_pattern: input.route.path_pattern,
     operation_id: input.route.operation_id,
     required_permission: input.route.required_permission,
+    transport_method: input.requestTransport.transport_method,
+    preflight_for_method: input.requestTransport.preflight_for_method,
+    request_body_state: input.requestTransport.request_body_state,
     principal_role: input.principal?.role || null,
     principal_type: input.principal?.principal_type || null,
     principal_fingerprint: input.principal?.principal_fingerprint || null,
@@ -840,7 +888,8 @@ function buildAuditEvidence(input) {
       raw_path_parameters_included: false,
       raw_identity_included: false,
       raw_credentials_included: false,
-      raw_cookies_included: false
+      raw_cookies_included: false,
+      raw_origin_included: false
     }
   };
 }
@@ -870,12 +919,18 @@ function buildAccessAuditEvent(input) {
     operation: input.route.operation_id,
     required_permission: input.route.required_permission,
     principal_role: input.principal?.role || null,
-    scope_fingerprint: input.scopeFingerprint
+    scope_fingerprint: input.scopeFingerprint,
+    transport_method: input.requestTransport.transport_method,
+    preflight_for_method: input.requestTransport.preflight_for_method,
+    request_body_state: input.requestTransport.request_body_state
   }));
   const eventId = digest(JSON.stringify({
     event_type: input.allowed ? "route_access.allowed" : "route_access.denied",
     operation: input.route.operation_id,
     decision: input.decision,
+    transport_method: input.requestTransport.transport_method,
+    preflight_for_method: input.requestTransport.preflight_for_method,
+    request_body_state: input.requestTransport.request_body_state,
     actor_id: actorId,
     request_id: requestId,
     created_at: input.now,
@@ -886,6 +941,10 @@ function buildAccessAuditEvent(input) {
     schema_version: "ashr.event_envelope.v1",
     event_id: `evt_${eventId.slice(0, 24)}`,
     event_type: input.allowed ? "route_access.allowed" : "route_access.denied",
+    decision: input.decision,
+    http_status: input.httpStatus,
+    operation_id: input.route.operation_id,
+    required_permission: input.route.required_permission,
     organization_id: tenantScope.organization_id,
     tenant_id: tenantScope.tenant_id,
     workspace_id: tenantScope.workspace_id,
@@ -903,15 +962,78 @@ function buildAccessAuditEvent(input) {
     payload_inline: false,
     redaction_status: "metadata_only",
     audit_visibility: "metadata_only",
+    transport_method: input.requestTransport.transport_method,
+    preflight_for_method: input.requestTransport.preflight_for_method,
+    request_body_state: input.requestTransport.request_body_state,
     usage_meter: "api_requests",
     safety: {
       raw_payload_embedded: false,
       raw_secret_values_allowed: false,
       raw_cookie_values_allowed: false,
       raw_identity_values_allowed: false,
+      raw_origin_values_allowed: false,
       raw_path_parameters_allowed: false
     }
   };
+}
+
+function sanitizedRouteError(httpStatus, decision) {
+  const boundaryDenial = Object.values(A3_REQUEST_BOUNDARY_DENIALS)
+    .find((item) => item.decision === decision);
+  if (boundaryDenial) {
+    return {
+      schema_version: "a3.sanitized_bad_request.v1",
+      error: boundaryDenial.error
+    };
+  }
+  if (httpStatus === 401) {
+    return {
+      schema_version: "a3.sanitized_unauthorized.v1",
+      error: "authentication_required"
+    };
+  }
+  return {
+    schema_version: "a3.sanitized_forbidden.v1",
+    error: "access_denied"
+  };
+}
+
+function sanitizedCustomerMessage(httpStatus) {
+  if (httpStatus === 400) return "The request body is not valid JSON.";
+  if (httpStatus === 408) return "The request body was not received in time.";
+  if (httpStatus === 413) return "The request body is too large.";
+  if (httpStatus === 415) return "The request media type is not supported.";
+  if (httpStatus === 422) return "The JSON request body must be an object.";
+  if (httpStatus === 401) return "Authentication is required.";
+  return "The request is not allowed.";
+}
+
+function buildRequestTransport(route, options = {}) {
+  const transportMethod = normalizedAuditMethod(options.transportMethod || route.method);
+  const preflightForMethod = transportMethod === "OPTIONS"
+    ? normalizedAuditMethod(options.preflightMethod, null)
+    : null;
+  return {
+    transport_method: transportMethod,
+    route_method: normalizedAuditMethod(route.method),
+    preflight: transportMethod === "OPTIONS",
+    preflight_for_method: preflightForMethod,
+    request_body_state: normalizedRequestBodyState(options.requestBodyState)
+  };
+}
+
+function normalizedRequestBodyState(value) {
+  const state = String(value || "not_read").trim().toLowerCase();
+  return ["not_read", "valid_json", ...Object.keys(A3_REQUEST_BOUNDARY_DENIALS)].includes(state)
+    ? state
+    : "not_read";
+}
+
+function normalizedAuditMethod(value, fallback = "UNKNOWN") {
+  const method = String(value || "").trim().toUpperCase();
+  return ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"].includes(method)
+    ? method
+    : fallback;
 }
 
 function auditSentinelScope(access) {

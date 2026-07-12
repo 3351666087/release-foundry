@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import {
+  createA3ApiHandler,
   resolveA3DirectStartRouteAccessMode,
   startA3ApiServer
 } from "../../services/report/a3_api_server.mjs";
@@ -219,6 +220,286 @@ test("hosted A3 persists a metadata-only denial for an unregistered route", asyn
   assert.ok(event);
   assert.equal(event.event_type, "route_access.denied");
   assert.equal(event.payload_inline, false);
+});
+
+test("hosted protected writes audit malformed JSON and preserve 400/401/403 precedence", async () => {
+  const store = createMemoryA3Store({ storageMode: "memory" });
+  const bodySecret = `sk-${"m".repeat(32)}`;
+  const bearerSecret = `bearer-${"n".repeat(32)}`;
+  const cookieSecret = `cookie-${"p".repeat(32)}`;
+  const privateEmail = `malformed-owner${String.fromCharCode(64)}example.test`;
+  const malformedBody = `{"api_key":"${bodySecret}","email":"${privateEmail}"`;
+
+  await withServer({
+    store,
+    routeAccessMode: "hosted_enforced",
+    resolveTrustedPrincipal: async () => trustedPrincipal({ role: "owner" })
+  }, async (url) => {
+    const response = await fetch(`${url}/api/a3/reports/share?source=body-secret-must-not-be-source`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        authorization: `Bearer ${bearerSecret}`,
+        cookie: `__Host-ashr_session=${cookieSecret}`,
+        "x-request-id": "request-malformed-owner"
+      },
+      body: malformedBody
+    });
+    assert.equal(response.status, 400);
+    assert.deepEqual(await response.json(), {
+      schema_version: "a3.sanitized_bad_request.v1",
+      error: "invalid_json"
+    });
+  });
+
+  await withServer({ store, routeAccessMode: "hosted_enforced" }, async (url) => {
+    const response = await fetch(`${url}/api/a3/reports/share`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: malformedBody
+    });
+    assert.equal(response.status, 401);
+    assert.deepEqual(await response.json(), {
+      schema_version: "a3.sanitized_unauthorized.v1",
+      error: "authentication_required"
+    });
+  });
+
+  await withServer({
+    store,
+    routeAccessMode: "hosted_enforced",
+    resolveTrustedPrincipal: async () => trustedPrincipal({ role: "viewer" })
+  }, async (url) => {
+    const response = await fetch(`${url}/api/a3/reports/share`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: malformedBody
+    });
+    assert.equal(response.status, 403);
+    assert.deepEqual(await response.json(), {
+      schema_version: "a3.sanitized_forbidden.v1",
+      error: "access_denied"
+    });
+  });
+
+  const state = store.exportState();
+  const malformedEvent = state.auditEvents.find((item) => item.decision === "denied_malformed_json");
+  assert.ok(malformedEvent);
+  assert.equal(malformedEvent.http_status, 400);
+  assert.equal(malformedEvent.resource_id, "share_report");
+  assert.equal(malformedEvent.source, "hosted-access");
+  assert.equal(malformedEvent.payload_inline, false);
+  assert.equal(malformedEvent.redaction_status, "metadata_only");
+  assert.equal(malformedEvent.safety.raw_secret_values_allowed, false);
+  assert.equal(state.auditEvents.some((item) => item.http_status === 401), true);
+  assert.equal(state.auditEvents.some((item) => item.http_status === 403), true);
+
+  const serialized = JSON.stringify(state);
+  for (const sensitiveValue of [bodySecret, bearerSecret, cookieSecret, privateEmail, malformedBody, "body-secret-must-not-be-source"]) {
+    assert.equal(serialized.includes(sensitiveValue), false, `${sensitiveValue} must not persist`);
+  }
+});
+
+test("hosted authentication and RBAC denial happen before a protected body is consumed", async () => {
+  for (const testCase of [
+    { name: "missing principal", expectedStatus: 401, expectedError: "authentication_required" },
+    {
+      name: "viewer without share permission",
+      expectedStatus: 403,
+      expectedError: "access_denied",
+      resolveTrustedPrincipal: async () => trustedPrincipal({ role: "viewer" })
+    }
+  ]) {
+    const store = createMemoryA3Store({ storageMode: "memory" });
+    let bodyRead = false;
+    let responseStatus = null;
+    let responseBody = "";
+    const handler = createA3ApiHandler({
+      store,
+      routeAccessMode: "hosted_enforced",
+      ...(testCase.resolveTrustedPrincipal
+        ? { resolveTrustedPrincipal: testCase.resolveTrustedPrincipal }
+        : {})
+    });
+    const request = {
+      method: "POST",
+      url: "/api/a3/reports/share",
+      headers: { "content-type": "application/json" },
+      async *[Symbol.asyncIterator]() {
+        bodyRead = true;
+        throw new Error("protected body must not be consumed before denial");
+      }
+    };
+    const response = {
+      writeHead(status) {
+        responseStatus = status;
+      },
+      end(body) {
+        responseBody = body || "";
+      }
+    };
+
+    await handler(request, response);
+
+    assert.equal(responseStatus, testCase.expectedStatus, testCase.name);
+    assert.equal(JSON.parse(responseBody).error, testCase.expectedError, testCase.name);
+    assert.equal(bodyRead, false, testCase.name);
+    assert.equal(store.exportState().auditEvents.some((item) => item.http_status === testCase.expectedStatus), true);
+    assert.doesNotMatch(JSON.stringify(store.exportState()), /protected body must not be consumed/);
+  }
+});
+
+test("hosted request bodies enforce media type, object shape, and byte limits", async () => {
+  const store = createMemoryA3Store({ storageMode: "memory" });
+  await withServer({
+    store,
+    routeAccessMode: "hosted_enforced",
+    resolveTrustedPrincipal: async () => trustedPrincipal({ role: "owner" })
+  }, async (url) => {
+    const wrongMedia = await fetch(`${url}/api/a3/reports/share`, {
+      method: "POST",
+      headers: { "content-type": "text/plain" },
+      body: "{}"
+    });
+    assert.equal(wrongMedia.status, 415);
+    assert.equal((await wrongMedia.json()).error, "unsupported_media_type");
+
+    for (const invalidShape of ["null", "[]", "42", "\"text\""]) {
+      const response = await fetch(`${url}/api/a3/reports/share`, {
+        method: "POST",
+        headers: { "content-type": "application/json; charset=utf-8" },
+        body: invalidShape
+      });
+      assert.equal(response.status, 422);
+      assert.equal((await response.json()).error, "invalid_json_shape");
+    }
+  });
+
+  await withServer({
+    store,
+    routeAccessMode: "hosted_enforced",
+    maxJsonBodyBytes: 32,
+    resolveTrustedPrincipal: async () => trustedPrincipal({ role: "owner" })
+  }, async (url) => {
+    const response = await fetch(`${url}/api/a3/reports/share`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ title: "x".repeat(64) })
+    });
+    assert.equal(response.status, 413);
+    assert.equal((await response.json()).error, "payload_too_large");
+  });
+
+  const state = store.exportState();
+  assert.equal(state.auditEvents.some((item) => item.request_body_state === "unsupported_media_type"), true);
+  assert.equal(state.auditEvents.filter((item) => item.request_body_state === "invalid_json_shape").length, 4);
+  assert.equal(state.auditEvents.some((item) => item.request_body_state === "payload_too_large"), true);
+  assert.ok(state.auditEvents.every((item) => item.payload_inline === false));
+});
+
+test("hosted request body read deadline returns an audited sanitized 408", async () => {
+  const store = createMemoryA3Store({ storageMode: "memory" });
+  let iteratorClosed = false;
+  let responseStatus = null;
+  let responseBody = "";
+  const handler = createA3ApiHandler({
+    store,
+    routeAccessMode: "hosted_enforced",
+    requestBodyReadTimeoutMs: 10,
+    resolveTrustedPrincipal: async () => trustedPrincipal({ role: "owner" })
+  });
+  const request = {
+    method: "POST",
+    url: "/api/a3/reports/share",
+    headers: { "content-type": "application/json" },
+    [Symbol.asyncIterator]() {
+      return {
+        next: () => new Promise(() => {}),
+        return: async () => {
+          iteratorClosed = true;
+          return { done: true };
+        }
+      };
+    }
+  };
+  const response = {
+    writeHead(status) {
+      responseStatus = status;
+    },
+    end(body) {
+      responseBody = body || "";
+    }
+  };
+
+  await handler(request, response);
+
+  assert.equal(responseStatus, 408);
+  assert.equal(JSON.parse(responseBody).error, "request_timeout");
+  assert.equal(iteratorClosed, true);
+  const event = store.exportState().auditEvents.find((item) => item.request_body_state === "body_read_timeout");
+  assert.ok(event);
+  assert.equal(event.http_status, 408);
+  assert.equal(event.payload_inline, false);
+});
+
+test("protected OPTIONS requests are route-matched, authorized, and audited before 204", async () => {
+  const allowedStore = createMemoryA3Store({ storageMode: "memory" });
+  const privateOrigin = "https://private-console.example.test";
+  await withServer({
+    store: allowedStore,
+    routeAccessMode: "hosted_enforced",
+    resolveTrustedPrincipal: async () => trustedPrincipal({ role: "owner" })
+  }, async (url) => {
+    const response = await fetch(`${url}/api/a3/reports/share`, {
+      method: "OPTIONS",
+      headers: {
+        origin: privateOrigin,
+        "access-control-request-method": "POST"
+      }
+    });
+    assert.equal(response.status, 204);
+    assert.equal(await response.text(), "");
+  });
+
+  const allowedEvent = allowedStore.exportState().auditEvents.find((item) => item.resource_id === "share_report");
+  assert.ok(allowedEvent);
+  assert.equal(allowedEvent.event_type, "route_access.allowed");
+  assert.equal(allowedEvent.transport_method, "OPTIONS");
+  assert.equal(allowedEvent.preflight_for_method, "POST");
+  assert.equal(allowedEvent.payload_inline, false);
+  assert.equal(JSON.stringify(allowedStore.exportState()).includes(privateOrigin), false);
+
+  const deniedStore = createMemoryA3Store({ storageMode: "memory" });
+  await withServer({ store: deniedStore, routeAccessMode: "hosted_enforced" }, async (url) => {
+    const protectedResponse = await fetch(`${url}/api/a3/reports/share`, {
+      method: "OPTIONS",
+      headers: { "access-control-request-method": "POST" }
+    });
+    assert.equal(protectedResponse.status, 401);
+
+    const unregisteredResponse = await fetch(`${url}/api/a3/not-registered`, {
+      method: "OPTIONS",
+      headers: { "access-control-request-method": "POST" }
+    });
+    assert.equal(unregisteredResponse.status, 403);
+
+    const invalidMethodResponse = await fetch(`${url}/api/a3/reports/share`, {
+      method: "OPTIONS",
+      headers: { "access-control-request-method": "TRACE" }
+    });
+    assert.equal(invalidMethodResponse.status, 403);
+
+    const publicHealth = await fetch(`${url}/api/a3/health`, {
+      method: "OPTIONS",
+      headers: { "access-control-request-method": "GET" }
+    });
+    assert.equal(publicHealth.status, 204);
+  });
+
+  const deniedEvents = deniedStore.exportState().auditEvents;
+  assert.equal(deniedEvents.some((item) => item.http_status === 401 && item.transport_method === "OPTIONS"), true);
+  assert.equal(deniedEvents.filter((item) => item.http_status === 403 && item.transport_method === "OPTIONS").length, 2);
+  assert.ok(deniedEvents.every((item) => item.payload_inline === false));
 });
 
 test("public report access ignores attacker-supplied backdated time and uses the server clock", async () => {

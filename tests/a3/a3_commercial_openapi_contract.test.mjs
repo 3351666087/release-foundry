@@ -268,6 +268,96 @@ test("security schemes reject client-declared roles and denial schemas are close
   }
 });
 
+test("OpenAPI documents sanitized malformed JSON and protected OPTIONS behavior", async () => {
+  const spec = await readOpenApi();
+  const boundary = spec["x-request-boundary-contract"];
+  assert.equal(boundary.schema_version, "a3.request_boundary_contract.v1");
+  assert.equal(boundary.malformed_json.authorized_status, 400);
+  assert.equal(boundary.malformed_json.body_read_timeout_status, 408);
+  assert.equal(boundary.malformed_json.payload_too_large_status, 413);
+  assert.equal(boundary.malformed_json.unsupported_media_type_status, 415);
+  assert.equal(boundary.malformed_json.invalid_json_shape_status, 422);
+  assert.equal(boundary.malformed_json.unauthenticated_status, 401);
+  assert.equal(boundary.malformed_json.unauthorized_status, 403);
+  assert.equal(boundary.malformed_json.default_maximum_body_bytes, 1048576);
+  assert.equal(boundary.malformed_json.default_body_read_timeout_ms, 10000);
+  assert.equal(boundary.malformed_json.required_media_type, "application/json");
+  assert.equal(boundary.malformed_json.required_top_level_shape, "object");
+  assert.equal(boundary.malformed_json.raw_body_logging_allowed, false);
+  assert.equal(boundary.malformed_json.metadata_only_denial_audit_required, true);
+  assert.equal(boundary.malformed_json.authorization_audit_unavailable_status, 503);
+  assert.equal(boundary.protected_options.target_route_authorization_required, true);
+  assert.equal(boundary.protected_options.protected_preflight_audited, true);
+  assert.equal(boundary.protected_options.raw_origin_logging_allowed, false);
+  assert.equal(boundary.protected_options.cors_enablement_claimed, false);
+  assert.equal(boundary.authority.identity_and_session, "A1");
+  assert.equal(boundary.authority.release_decision, "A2");
+
+  const operations = collectOperations(spec).filter((operation) => operation["x-rbac"]);
+  const mutations = operations.filter((operation) => !["get", "head"].includes(operation.method));
+  assert.equal(operations.length, 53);
+  assert.ok(mutations.length > 0);
+  for (const operation of operations) {
+    const optionsPolicy = operation["x-protected-options"];
+    assert.equal(optionsPolicy.target_method_header, "Access-Control-Request-Method");
+    assert.equal(optionsPolicy.target_route_authorization_required, true);
+    assert.equal(optionsPolicy.a1_verified_principal_required_for_protected_route, true);
+    assert.equal(optionsPolicy.metadata_only_access_audit_required, true);
+    assert.equal(optionsPolicy.unregistered_or_unsupported_target_fails_closed, true);
+    assert.equal(optionsPolicy.cors_enablement_claimed, false);
+    assert.equal(operation.responses["503"].$ref, "#/components/responses/ServiceUnavailable");
+  }
+  for (const operation of mutations) {
+    assert.equal(operation.responses["400"].$ref, "#/components/responses/BadRequest");
+    assert.equal(operation.responses["408"].$ref, "#/components/responses/RequestTimeout");
+    assert.equal(operation.responses["413"].$ref, "#/components/responses/PayloadTooLarge");
+    assert.equal(operation.responses["415"].$ref, "#/components/responses/UnsupportedMediaType");
+    assert.equal(operation.responses["422"].$ref, "#/components/responses/UnprocessableEntity");
+    assert.equal(operation["x-request-validation"].malformed_json, "sanitized_400_after_authentication_and_authorization");
+    assert.equal(operation["x-request-validation"].body_read_timeout, "sanitized_408_after_authentication_and_authorization");
+    assert.equal(operation["x-request-validation"].maximum_body_bytes_default, 1048576);
+    assert.equal(operation["x-request-validation"].required_media_type, "application/json");
+    assert.equal(operation["x-request-validation"].required_top_level_shape, "object");
+    assert.equal(operation["x-request-validation"].unauthorized_precedence, "401");
+    assert.equal(operation["x-request-validation"].forbidden_precedence, "403");
+    assert.equal(operation["x-request-validation"].raw_body_echoed, false);
+    assert.equal(operation["x-request-validation"].metadata_only_denial_audit_required, true);
+  }
+
+  const badRequestResponse = spec.components.responses.BadRequest;
+  const badRequestSchema = spec.components.schemas.SanitizedBadRequestError;
+  assert.equal(badRequestResponse["x-sanitized"], true);
+  assert.equal(badRequestResponse.headers["Cache-Control"].schema.const, "no-store");
+  assert.equal(
+    badRequestResponse.content["application/json"].schema.$ref,
+    "#/components/schemas/SanitizedBadRequestError"
+  );
+  assert.equal(badRequestSchema.additionalProperties, false);
+  assert.equal(badRequestSchema.properties.schema_version.const, "a3.sanitized_bad_request.v1");
+  assert.deepEqual(badRequestSchema.properties.error.enum, [
+    "invalid_json",
+    "request_timeout",
+    "payload_too_large",
+    "unsupported_media_type",
+    "invalid_json_shape"
+  ]);
+  assert.deepEqual(Object.keys(badRequestSchema.properties).sort(), ["error", "request_id", "schema_version"]);
+
+  const unavailableResponse = spec.components.responses.ServiceUnavailable;
+  const unavailableSchema = spec.components.schemas.SanitizedServiceUnavailableError;
+  assert.equal(unavailableResponse["x-sanitized"], true);
+  assert.equal(unavailableResponse.headers["Cache-Control"].schema.const, "no-store");
+  assert.equal(
+    unavailableResponse.content["application/json"].schema.$ref,
+    "#/components/schemas/SanitizedServiceUnavailableError"
+  );
+  assert.equal(unavailableSchema.additionalProperties, false);
+  assert.deepEqual(unavailableSchema.properties.error.enum, [
+    "authorization_audit_unavailable",
+    "authorization_configuration_invalid"
+  ]);
+});
+
 test("A3 commercial OpenAPI preserves A1/A2 authority and commercial fixture references", async () => {
   const spec = await readOpenApi();
   const fixture = JSON.parse(await readFile(COMMERCIAL_FIXTURE_PATH, "utf8"));

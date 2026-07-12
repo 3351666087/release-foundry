@@ -76,9 +76,53 @@
 - [ ] Persist all five scope columns in authoritative SQL tables and enforce
   them in every repository query.
 - [x] Generate and validate exact runtime-route/OpenAPI parity (`53/53`).
-- [ ] Audit malformed JSON and protected OPTIONS attempts consistently.
+- [x] Audit malformed JSON and protected OPTIONS attempts consistently in the
+  local hosted-reference path; production ingress/CORS/RLS proof remains open.
 - [ ] Prove customer IdP, multi-instance, object custody, GitHub worker,
   deployment, upgrade, rollback, backup, and restore in a customer-like VPC.
+
+## Round 12 Request Boundary - 2026-07-12
+
+- [x] Authenticate and authorize hosted protected mutations before consuming
+  their request body.
+- [x] Preserve sanitized `401/403` precedence for missing identity, permission,
+  or five-level scope.
+- [x] Return fixed metadata-only `400` for authorized malformed JSON.
+- [x] Require `application/json` and return fixed `415` otherwise.
+- [x] Require a top-level JSON object and return fixed `422` for null, arrays,
+  strings, and numbers.
+- [x] Enforce a default 1 MiB streaming body limit with fixed `413`.
+- [x] Enforce a default 10 second body-read deadline with fixed `408`.
+- [x] Persist `request_body_state`, decision, status, canonical operation,
+  transport method, preflight target, and metadata-only five-level scope.
+- [x] Keep raw body, identity, token, cookie, origin, path parameters, and
+  client-selected audit source out of persisted access events.
+- [x] Resolve protected `OPTIONS` against `Access-Control-Request-Method`
+  before returning `204`.
+- [x] Reject missing/unsupported/unregistered protected preflight targets with
+  sanitized audit-backed failures.
+- [x] Keep public health preflight distinct from protected routes.
+- [x] Add closed OpenAPI `400/408/413/415/422` responses and protected OPTIONS
+  metadata to all 53 runtime RBAC operations.
+- [x] Document sanitized fail-closed `503` when authorization configuration or
+  access-audit persistence is unavailable.
+- [x] Keep runtime/OpenAPI parity at `53/53`.
+- [x] Run focused Node request-boundary tests (`44/44`).
+- [x] Run the full A3 Node suite (`397/397`).
+- [x] Run the CI-mainline Webapp/HTTP Playwright spec (`10/10`).
+- [x] Run the full fresh-port Playwright suite with one worker (`35/35`).
+- [x] Pass Webapp TypeScript and Next.js production build (14 pages).
+- [x] Pass A1 TypeScript session lifecycle (`35/35`) and A2 trusted spine
+  (`7/7`) without changing either lane's semantics.
+- [x] Pass commercial and hygiene CL checks with no findings.
+- [x] Record independent Money-Grade findings, remediation, capability levels,
+  and 24 next-round growth points.
+- [ ] Generate the redacted request-boundary evidence from a runtime probe with
+  receipt IDs, hashes, commit SHA, and verifier output.
+- [ ] Prove dual-Origin browser CORS/CSRF behavior behind a production-like
+  ingress and deployed A1 principal verifier.
+- [ ] Move authoritative audit custody to PostgreSQL with five-level columns,
+  forced RLS, transactional outbox, retention, backup, and restore proof.
 
 ## G2.3 Dashboard Skeleton
 

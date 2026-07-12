@@ -1,5 +1,97 @@
 ﻿# A3 Worklog
 
+## 2026-07-12 - Round 12 Request Boundary and Next Golden Path
+
+### Main and A1/A2 calibration
+
+- Fetched `origin` and confirmed the branch contains current `origin/main`
+  `ccf6ce5` with no behind commits.
+- Re-read the unified Release OS strategy, the new A3 Lane goal, A1 identity
+  public surface, and A2 Evidence Snapshot / Decision Ledger handoff.
+- Preserved A1 identity/session/runtime/deploy/GitHub-worker authority and A2
+  evidence/judge/Decision-Ledger/Release-Decision authority.
+- Did not change A1 runtime or A2 judge/decision semantics.
+
+### Request-boundary implementation
+
+- Removed the unconditional pre-authorization `OPTIONS -> 204` path.
+- Protected `OPTIONS` now resolves the allowlisted
+  `Access-Control-Request-Method`, matches the canonical runtime route, and
+  applies A1 principal, five-level tenant scope, and A3 RBAC checks.
+- Unknown or unsupported preflight targets fail closed with sanitized audit
+  evidence; public health remains a distinct public preflight.
+- Hosted protected mutations now authenticate and authorize before consuming
+  the request body. Missing identity remains `401`; missing permission/scope
+  remains `403` without reading the body.
+- Added fixed sanitized request-body outcomes:
+  - malformed JSON -> `400 invalid_json`;
+  - body read timeout -> `408 request_timeout`;
+  - body over the default 1 MiB limit -> `413 payload_too_large`;
+  - media type other than `application/json` -> `415`;
+  - JSON null/array/string/number -> `422 invalid_json_shape`.
+- Access events now persist only allowlisted metadata including decision,
+  status, canonical operation/permission, transport method, preflight target,
+  `request_body_state`, hashes, and trusted/sentinel scope.
+- Fixed access-audit source to `hosted-access`; client query input cannot
+  choose the persisted audit source.
+- Raw body, identity, email, token, cookie, origin, path parameters, parser
+  text, and secret-looking values are never echoed or persisted.
+
+### Contract, test, and evidence
+
+- Extended the runtime/OpenAPI synchronizer and committed commercial OpenAPI
+  with exact `53/53` route parity.
+- Added closed sanitized `400/408/413/415/422/503` responses and per-operation
+  request-validation/protected-OPTIONS metadata.
+- Added hosted HTTP integration coverage for status precedence, no-read auth
+  denial, content type, JSON shape, streaming byte limit, read deadline,
+  preflight authorization, audit persistence, and secret non-persistence.
+- Added the HTTP checks to the existing CI-executed
+  `a3-webapp-product-routes.spec.ts` instead of leaving an unexecuted E2E file.
+- Added a tested redacted behavior matrix and explicitly documented that it is
+  not an automatically captured production receipt.
+- Added `docs/a3/a3_request_boundary_audit_2026_07_12.md`.
+
+### Independent Money-Grade audit
+
+- An independent read-only Growth-Auditor initially returned NO-GO and found
+  accepted `text/plain`, invalid top-level JSON shapes, unbounded body reads,
+  missing body-state audit, non-browser CORS evidence, static evidence, and
+  non-production SQLite custody.
+- The first four local implementation defects were remediated before commit.
+- True dual-Origin browser/ingress proof, generated signed receipts,
+  PostgreSQL/RLS custody, and customer-VPC validation remain open.
+- Added `docs/a3/growth_auditor_money_grade_round12_2026_07_12.md` with 24
+  next-round growth points centered on the user-requested GitHub golden path,
+  deployment acceptance, GitHub App/Check readback, Release Artifact/version,
+  and a new-run Audit Bundle.
+
+### Verification
+
+- Focused request-boundary Node: `44 pass / 0 fail`.
+- Full A3 Node: `397 pass / 0 fail`.
+- CI-mainline Webapp/HTTP Playwright spec: `10 pass / 0 fail`.
+- Full fresh-port Playwright, one worker: `35 pass / 0 fail`.
+- The first parallel full Playwright run was `34/35` because an existing hover
+  assertion missed its transient CSS state; the test passed alone and the
+  deterministic one-worker full rerun passed all 35.
+- Next.js TypeScript and production build: passed, 14 generated pages.
+- A1 TypeScript session lifecycle: `35 pass / 0 fail`.
+- A2 trusted spine: `7 pass / 0 fail`.
+- Commercial CL: passed, 0 blockers and 0 advisories.
+- Hygiene CL: passed, 0 findings.
+
+### Capability boundary
+
+- **Implemented:** local request-boundary state machine, sanitized failures,
+  protected OPTIONS authorization/audit, OpenAPI, integration/E2E, and
+  memory/SQLite-compatible metadata events.
+- **Contract supported:** deployed A1 verifier, production audit sink,
+  origin/CSRF gateway, and tenant GitHub worker authority.
+- **Production validated:** none in this round.
+- Next implementation starts the real GitHub golden-path CLI/page,
+  deployment acceptance, Release Artifact/version, and new-run Audit Bundle.
+
 ## 2026-07-12 - New A3 Lane Goal Alignment And Trusted Resource Isolation
 
 ### Goal and strategy check

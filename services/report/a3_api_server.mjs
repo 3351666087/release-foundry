@@ -25,6 +25,9 @@ import {
 
 const REQUEST_BODY_PROMISE = Symbol("a3.requestBodyPromise");
 const REQUEST_TRUSTED_ACCESS = Symbol("a3.trustedRouteAccess");
+const A3_PREFLIGHT_ROUTE_METHODS = new Set(["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"]);
+const DEFAULT_A3_MAX_JSON_BODY_BYTES = 1024 * 1024;
+const DEFAULT_A3_BODY_READ_TIMEOUT_MS = 10_000;
 const A3_SCOPE_FIELDS = [
   "organization_id",
   "tenant_id",
@@ -32,6 +35,15 @@ const A3_SCOPE_FIELDS = [
   "project_id",
   "environment_id"
 ];
+
+class A3RequestBodyBoundaryError extends Error {
+  constructor(bodyState, message) {
+    super(message);
+    this.name = "A3RequestBodyBoundaryError";
+    this.code = "A3_REQUEST_BODY_BOUNDARY";
+    this.bodyState = bodyState;
+  }
+}
 
 export function createA3ApiHandler(options = {}) {
   const storePromise = Promise.resolve(options.store || createFixtureBackedA3Store({
@@ -44,13 +56,13 @@ export function createA3ApiHandler(options = {}) {
       const store = await storePromise;
       const url = new URL(request.url || "/", "http://127.0.0.1");
 
-      if (request.method === "OPTIONS") {
-        return sendJson(response, 204, {});
-      }
-
       const routeAccess = await enforceRouteAccess(request, url, store, options);
       if (routeAccess?.halt) {
         return sendJson(response, routeAccess.status, routeAccess.body);
+      }
+
+      if (request.method === "OPTIONS") {
+        return sendJson(response, 204, {});
       }
 
       if (request.method === "GET" && url.pathname === "/api/a3/health") {
@@ -775,22 +787,31 @@ function sourceFrom(url) {
 
 async function enforceRouteAccess(request, url, store, options = {}) {
   const mode = configuredRouteAccessMode(options);
-  const route = matchA3RouteAccess({ method: request.method, url: request.url });
-  if (!route.matched && mode !== A3_ROUTE_ACCESS_MODES.HOSTED_ENFORCED) {
+  const transport = resolveRouteAccessTransport(request);
+  const accessRequest = { method: transport.routeMethod, url: request.url };
+  const route = matchA3RouteAccess(accessRequest);
+  if (!route.matched && mode !== A3_ROUTE_ACCESS_MODES.HOSTED_ENFORCED && !transport.preflight) {
     return null;
   }
 
-  const body = route.matched && route.access === "sensitive" && !["GET", "HEAD"].includes(request.method)
-    ? await readJsonBody(request)
-    : {};
+  const readsBody = route.matched
+    && route.access === "sensitive"
+    && !["GET", "HEAD"].includes(transport.routeMethod)
+    && !transport.preflight;
+  let body = {};
+  let requestBodyState = "not_read";
   let principal;
+  const requestId = request.headers["x-request-id"] || request.headers["x-a3-request-id"] || randomUUID();
+  const traceId = request.headers["x-trace-id"] || request.headers["x-a3-trace-id"];
 
-  if (mode === A3_ROUTE_ACCESS_MODES.HOSTED_ENFORCED) {
+  if (mode === A3_ROUTE_ACCESS_MODES.HOSTED_ENFORCED && route.access === "sensitive") {
     const resolver = trustedPrincipalResolver(options);
     try {
       principal = resolver
         ? await resolver(request, {
-            method: request.method,
+            method: transport.routeMethod,
+            transport_method: transport.transportMethod,
+            preflight_for_method: transport.preflightMethod,
             pathname: url.pathname,
             operation: route.operation_id,
             required_permission: route.required_permission
@@ -799,7 +820,49 @@ async function enforceRouteAccess(request, url, store, options = {}) {
     } catch {
       principal = null;
     }
-  } else {
+
+    if (readsBody) {
+      const principalScope = extractScopeAssertions(principal)[0] || {};
+      const preliminaryScope = mergeTrustedRequestedScope(principalScope, url, {});
+      const preliminaryDecision = guardA3RouteAccess({
+        ...accessRequest,
+        body: {},
+        requested_scope: preliminaryScope
+      }, {
+        mode,
+        trustedPrincipal: principal,
+        requestedScope: preliminaryScope,
+        requestId,
+        traceId,
+        requestBodyState: "not_read",
+        transportMethod: transport.transportMethod,
+        preflightMethod: transport.preflightMethod,
+        now: typeof options.now === "function" ? options.now() : options.now
+      });
+      if (!preliminaryDecision.allowed) {
+        if (!await persistHostedAccessDecision(store, preliminaryDecision)) {
+          return hostedAccessAuditUnavailable();
+        }
+        return {
+          halt: true,
+          status: preliminaryDecision.http_status,
+          body: preliminaryDecision.response.body
+        };
+      }
+    }
+  }
+
+  if (readsBody) {
+    try {
+      body = await readJsonBody(request, options);
+      requestBodyState = "valid_json";
+    } catch (error) {
+      if (!(error instanceof A3RequestBodyBoundaryError)) throw error;
+      requestBodyState = error.bodyState;
+    }
+  }
+
+  if (mode === A3_ROUTE_ACCESS_MODES.DEMO_CONTRACT) {
     principal = buildDemoContractPrincipal(request, url, body, options);
   }
 
@@ -807,9 +870,8 @@ async function enforceRouteAccess(request, url, store, options = {}) {
   const requestedScope = mode === A3_ROUTE_ACCESS_MODES.HOSTED_ENFORCED
     ? mergeTrustedRequestedScope(principalScope, url, body)
     : principalScope;
-  const requestId = request.headers["x-request-id"] || request.headers["x-a3-request-id"] || randomUUID();
   const decision = guardA3RouteAccess({
-    method: request.method,
+    method: transport.routeMethod,
     url: request.url,
     body,
     requested_scope: requestedScope
@@ -819,17 +881,15 @@ async function enforceRouteAccess(request, url, store, options = {}) {
     contractPrincipal: mode === A3_ROUTE_ACCESS_MODES.DEMO_CONTRACT ? principal : undefined,
     requestedScope,
     requestId,
-    traceId: request.headers["x-trace-id"] || request.headers["x-a3-trace-id"],
+    traceId,
+    requestBodyState,
+    transportMethod: transport.transportMethod,
+    preflightMethod: transport.preflightMethod,
     now: typeof options.now === "function" ? options.now() : options.now
   });
 
   if (mode === A3_ROUTE_ACCESS_MODES.HOSTED_ENFORCED && route.access !== "public") {
-    if (typeof store.recordAccessDecision !== "function") {
-      return hostedAccessAuditUnavailable();
-    }
-    try {
-      await store.recordAccessDecision(decision, { source: sourceFrom(url) });
-    } catch {
+    if (!await persistHostedAccessDecision(store, decision)) {
       return hostedAccessAuditUnavailable();
     }
   }
@@ -847,7 +907,9 @@ async function enforceRouteAccess(request, url, store, options = {}) {
   }
 
   if (!decision.allowed) {
-    if (mode !== A3_ROUTE_ACCESS_MODES.HOSTED_ENFORCED) {
+    if (mode !== A3_ROUTE_ACCESS_MODES.HOSTED_ENFORCED
+      && !transport.preflight
+      && ["not_read", "valid_json"].includes(requestBodyState)) {
       return null;
     }
     return {
@@ -861,6 +923,39 @@ async function enforceRouteAccess(request, url, store, options = {}) {
     attachTrustedRequestAccess(request, url, body, principal, decision);
   }
   return { halt: false, decision };
+}
+
+async function persistHostedAccessDecision(store, decision) {
+  if (typeof store.recordAccessDecision !== "function") return false;
+  try {
+    await store.recordAccessDecision(decision, { source: "hosted-access" });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function resolveRouteAccessTransport(request) {
+  const transportMethod = String(request.method || "GET").trim().toUpperCase();
+  if (transportMethod !== "OPTIONS") {
+    return {
+      transportMethod,
+      routeMethod: transportMethod,
+      preflight: false,
+      preflightMethod: null
+    };
+  }
+
+  const requestedMethod = String(request.headers["access-control-request-method"] || "")
+    .trim()
+    .toUpperCase();
+  const preflightMethod = A3_PREFLIGHT_ROUTE_METHODS.has(requestedMethod) ? requestedMethod : null;
+  return {
+    transportMethod: "OPTIONS",
+    routeMethod: preflightMethod || "OPTIONS",
+    preflight: true,
+    preflightMethod
+  };
 }
 
 function configuredRouteAccessMode(options = {}) {
@@ -1289,18 +1384,104 @@ function idempotencyKeyFrom(request, body = {}) {
     || body.idempotencyKey;
 }
 
-async function readJsonBody(request) {
+async function readJsonBody(request, options = {}) {
   if (!request[REQUEST_BODY_PROMISE]) {
     request[REQUEST_BODY_PROMISE] = (async () => {
+      const contentType = firstHeaderValue(request.headers["content-type"])
+        .split(";", 1)[0]
+        .trim()
+        .toLowerCase();
+      if (contentType !== "application/json") {
+        throw new A3RequestBodyBoundaryError(
+          "unsupported_media_type",
+          "Request content type must be application/json."
+        );
+      }
+
+      const maxBytes = positiveIntegerOption(
+        options.maxJsonBodyBytes ?? options.requestBodyMaxBytes,
+        DEFAULT_A3_MAX_JSON_BODY_BYTES
+      );
+      const timeoutMs = positiveIntegerOption(
+        options.jsonBodyReadTimeoutMs ?? options.requestBodyReadTimeoutMs,
+        DEFAULT_A3_BODY_READ_TIMEOUT_MS
+      );
+      const declaredLength = Number.parseInt(firstHeaderValue(request.headers["content-length"]), 10);
+      if (Number.isFinite(declaredLength) && declaredLength > maxBytes) {
+        throw new A3RequestBodyBoundaryError("payload_too_large", "Request body exceeds the configured limit.");
+      }
+
       const chunks = [];
-      for await (const chunk of request) {
+      let receivedBytes = 0;
+      const deadline = Date.now() + timeoutMs;
+      const iterator = request[Symbol.asyncIterator]();
+      while (true) {
+        const remainingMs = deadline - Date.now();
+        if (remainingMs <= 0) {
+          closeRequestIterator(iterator);
+          throw new A3RequestBodyBoundaryError("body_read_timeout", "Request body read timed out.");
+        }
+        let next;
+        try {
+          next = await nextRequestChunk(iterator, remainingMs);
+        } catch (error) {
+          if (error instanceof A3RequestBodyBoundaryError) closeRequestIterator(iterator);
+          throw error;
+        }
+        if (next.done) break;
+        const chunk = Buffer.isBuffer(next.value) ? next.value : Buffer.from(next.value);
+        receivedBytes += chunk.byteLength;
+        if (receivedBytes > maxBytes) {
+          closeRequestIterator(iterator);
+          throw new A3RequestBodyBoundaryError("payload_too_large", "Request body exceeds the configured limit.");
+        }
         chunks.push(chunk);
       }
       const text = Buffer.concat(chunks).toString("utf8").trim();
-      return text ? JSON.parse(text) : {};
+      if (!text) return {};
+      let parsed;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        throw new A3RequestBodyBoundaryError("malformed_json", "Request body is not valid JSON.");
+      }
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        throw new A3RequestBodyBoundaryError("invalid_json_shape", "JSON request body must be an object.");
+      }
+      return parsed;
     })();
   }
   return request[REQUEST_BODY_PROMISE];
+}
+
+function firstHeaderValue(value) {
+  return Array.isArray(value) ? String(value[0] || "") : String(value || "");
+}
+
+function positiveIntegerOption(value, fallback) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+async function nextRequestChunk(iterator, timeoutMs) {
+  let timer;
+  try {
+    return await Promise.race([
+      iterator.next(),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(
+          new A3RequestBodyBoundaryError("body_read_timeout", "Request body read timed out.")
+        ), timeoutMs);
+      })
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function closeRequestIterator(iterator) {
+  if (typeof iterator.return !== "function") return;
+  Promise.resolve(iterator.return()).catch(() => {});
 }
 
 function sendJson(response, statusCode, payload) {

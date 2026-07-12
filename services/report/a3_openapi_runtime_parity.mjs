@@ -42,24 +42,45 @@ export function synchronizeA3OpenApiRuntimeParity(spec = {}) {
   next.paths ||= {};
   next.components ||= {};
   next.components.parameters ||= {};
+  next.components.responses ||= {};
+  next.components.schemas ||= {};
   next.components.parameters.ApiKeyId ||= identifierParameter("api_key_id", "A1 API-key handle; never raw key material.");
+  next.components.responses.BadRequest = sanitizedBadRequestResponse();
+  next.components.responses.RequestTimeout = sanitizedRequestBoundaryResponse(
+    "The authenticated and authorized request body was not received within the configured deadline."
+  );
+  next.components.responses.PayloadTooLarge = sanitizedRequestBoundaryResponse(
+    "The authenticated and authorized request body exceeds the configured byte limit."
+  );
+  next.components.responses.UnsupportedMediaType = sanitizedRequestBoundaryResponse(
+    "The authenticated and authorized mutation requires application/json."
+  );
+  next.components.responses.UnprocessableEntity = sanitizedRequestBoundaryResponse(
+    "The JSON body is valid JSON but is not a top-level object."
+  );
+  next.components.responses.ServiceUnavailable = sanitizedServiceUnavailableResponse();
+  next.components.schemas.SanitizedBadRequestError = sanitizedBadRequestSchema();
+  next.components.schemas.SanitizedServiceUnavailableError = sanitizedServiceUnavailableSchema();
+  next["x-request-boundary-contract"] = requestBoundaryContract();
 
   const operationIndex = openApiOperationIndex(next);
   for (const route of A3_SENSITIVE_ROUTE_PATTERNS) {
     const normalizedKey = routeKey(route.method, route.path_pattern);
-    const existingOperation = operationIndex.get(normalizedKey);
-    if (existingOperation) {
-      existingOperation["x-rbac"] ||= {};
-      existingOperation["x-rbac"].operation_id = route.operation_id;
-      existingOperation["x-rbac"].permission = route.required_permission;
-      continue;
+    let operation = operationIndex.get(normalizedKey);
+    if (!operation) {
+      const path = runtimePathToOpenApi(route.path_pattern);
+      const method = route.method.toLowerCase();
+      next.paths[path] ||= {};
+      operation = buildParityOperation(route, path);
+      next.paths[path][method] = operation;
+      operationIndex.set(normalizedKey, operation);
     }
-
-    const path = runtimePathToOpenApi(route.path_pattern);
-    const method = route.method.toLowerCase();
-    next.paths[path] ||= {};
-    next.paths[path][method] = buildParityOperation(route, path);
-    operationIndex.set(normalizedKey, next.paths[path][method]);
+    operation["x-rbac"] ||= {};
+    operation["x-rbac"].operation_id = route.operation_id;
+    operation["x-rbac"].permission = route.required_permission;
+    operation.responses ||= {};
+    operation.responses["503"] = { $ref: "#/components/responses/ServiceUnavailable" };
+    applyRequestBoundaryContract(operation, route);
   }
   return next;
 }
@@ -150,6 +171,157 @@ function buildParityOperation(route, path) {
     };
   }
   return operation;
+}
+
+function applyRequestBoundaryContract(operation, route) {
+  operation["x-protected-options"] = {
+    target_method_header: "Access-Control-Request-Method",
+    target_route_authorization_required: true,
+    a1_verified_principal_required_for_protected_route: true,
+    metadata_only_access_audit_required: true,
+    unregistered_or_unsupported_target_fails_closed: true,
+    cors_enablement_claimed: false
+  };
+  if (!["GET", "HEAD"].includes(route.method)) {
+    operation.responses ||= {};
+    operation.responses["400"] = { $ref: "#/components/responses/BadRequest" };
+    operation.responses["408"] = { $ref: "#/components/responses/RequestTimeout" };
+    operation.responses["413"] = { $ref: "#/components/responses/PayloadTooLarge" };
+    operation.responses["415"] = { $ref: "#/components/responses/UnsupportedMediaType" };
+    operation.responses["422"] = { $ref: "#/components/responses/UnprocessableEntity" };
+    operation["x-request-validation"] = {
+      malformed_json: "sanitized_400_after_authentication_and_authorization",
+      body_read_timeout: "sanitized_408_after_authentication_and_authorization",
+      maximum_body_bytes_default: 1048576,
+      payload_too_large: "sanitized_413_after_authentication_and_authorization",
+      required_media_type: "application/json",
+      unsupported_media_type: "sanitized_415_after_authentication_and_authorization",
+      required_top_level_shape: "object",
+      invalid_json_shape: "sanitized_422_after_authentication_and_authorization",
+      unauthorized_precedence: "401",
+      forbidden_precedence: "403",
+      raw_body_echoed: false,
+      metadata_only_denial_audit_required: true
+    };
+  }
+}
+
+function requestBoundaryContract() {
+  return {
+    schema_version: "a3.request_boundary_contract.v1",
+    malformed_json: {
+      authorized_status: 400,
+      body_read_timeout_status: 408,
+      payload_too_large_status: 413,
+      unsupported_media_type_status: 415,
+      invalid_json_shape_status: 422,
+      unauthenticated_status: 401,
+      unauthorized_status: 403,
+      default_maximum_body_bytes: 1048576,
+      default_body_read_timeout_ms: 10000,
+      required_media_type: "application/json",
+      required_top_level_shape: "object",
+      response_body_policy: "fixed_sanitized_error",
+      raw_body_logging_allowed: false,
+      metadata_only_denial_audit_required: true,
+      authorization_audit_unavailable_status: 503
+    },
+    protected_options: {
+      target_method_header: "Access-Control-Request-Method",
+      target_route_authorization_required: true,
+      protected_preflight_audited: true,
+      unknown_target_status: 403,
+      raw_origin_logging_allowed: false,
+      cors_enablement_claimed: false
+    },
+    authority: {
+      identity_and_session: "A1",
+      route_authorization_and_audit_orchestration: "A3",
+      release_decision: "A2"
+    }
+  };
+}
+
+function sanitizedBadRequestResponse() {
+  return sanitizedRequestBoundaryResponse(
+    "The authenticated and authorized request body is not valid JSON."
+  );
+}
+
+function sanitizedRequestBoundaryResponse(description) {
+  return {
+    description: `${description} The response and audit record never echo the request body or private identity data.`,
+    "x-sanitized": true,
+    headers: {
+      "Cache-Control": {
+        description: "Prevents caching of request validation failures.",
+        schema: { type: "string", const: "no-store" }
+      }
+    },
+    content: {
+      "application/json": {
+        schema: { $ref: "#/components/schemas/SanitizedBadRequestError" }
+      }
+    }
+  };
+}
+
+function sanitizedBadRequestSchema() {
+  return {
+    type: "object",
+    required: ["schema_version", "error"],
+    properties: {
+      schema_version: { type: "string", const: "a3.sanitized_bad_request.v1" },
+      error: {
+        type: "string",
+        enum: [
+          "invalid_json",
+          "request_timeout",
+          "payload_too_large",
+          "unsupported_media_type",
+          "invalid_json_shape"
+        ]
+      },
+      request_id: { type: "string", minLength: 1, maxLength: 128 }
+    },
+    additionalProperties: false,
+    "x-sanitized": true
+  };
+}
+
+function sanitizedServiceUnavailableResponse() {
+  return {
+    description: "Authorization configuration or metadata-only access-audit persistence is unavailable. No protected handler is executed.",
+    "x-sanitized": true,
+    headers: {
+      "Cache-Control": {
+        description: "Prevents caching of authorization-boundary failures.",
+        schema: { type: "string", const: "no-store" }
+      }
+    },
+    content: {
+      "application/json": {
+        schema: { $ref: "#/components/schemas/SanitizedServiceUnavailableError" }
+      }
+    }
+  };
+}
+
+function sanitizedServiceUnavailableSchema() {
+  return {
+    type: "object",
+    required: ["schema_version", "error", "message"],
+    properties: {
+      schema_version: { type: "string", const: "a3.route_access_unavailable.v1" },
+      error: {
+        type: "string",
+        enum: ["authorization_audit_unavailable", "authorization_configuration_invalid"]
+      },
+      message: { type: "string", const: "The authorization service is temporarily unavailable." }
+    },
+    additionalProperties: false,
+    "x-sanitized": true
+  };
 }
 
 function successResponse(path, readOnly) {

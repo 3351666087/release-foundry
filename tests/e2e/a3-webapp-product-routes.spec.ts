@@ -265,6 +265,40 @@ test.describe("A3 Next.js product console", () => {
   });
 });
 
+test("A3 malformed JSON is a fixed 400 and never becomes an internal error", async ({ request }) => {
+  const response = await request.fetch("/api/a3/reports/share?source=mock", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    data: Buffer.from("{\"title\":\"unfinished request\"", "utf8")
+  });
+
+  expect(response.status()).toBe(400);
+  expect(await response.json()).toEqual({
+    schema_version: "a3.sanitized_bad_request.v1",
+    error: "invalid_json"
+  });
+  expect(await response.text()).not.toContain("unfinished request");
+});
+
+test("A3 OPTIONS resolves the requested route instead of bypassing access control", async ({ request }) => {
+  const protectedPreflight = await request.fetch("/api/a3/reports/share", {
+    method: "OPTIONS",
+    headers: { "access-control-request-method": "POST" }
+  });
+  expect(protectedPreflight.status()).toBe(204);
+  expect(await protectedPreflight.text()).toBe("");
+
+  const unsupportedPreflight = await request.fetch("/api/a3/reports/share", {
+    method: "OPTIONS",
+    headers: { "access-control-request-method": "TRACE" }
+  });
+  expect(unsupportedPreflight.status()).toBe(403);
+  expect(await unsupportedPreflight.json()).toEqual({
+    schema_version: "a3.sanitized_forbidden.v1",
+    error: "access_denied"
+  });
+});
+
 function collectConsoleErrors(page: Page) {
   const errors: string[] = [];
   page.on("console", (message) => {

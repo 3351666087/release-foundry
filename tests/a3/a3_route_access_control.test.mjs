@@ -219,6 +219,96 @@ test("trusted hosted principal with matching scope and permission is allowed", (
   assert.deepEqual(principalValidation.tenant_scope.organization_id, SCOPE.organization_id);
 });
 
+test("authorized malformed JSON becomes a sanitized metadata-only 400 denial", () => {
+  const decision = guardA3RouteAccess({
+    method: "POST",
+    url: "/api/a3/reports/share",
+    requested_scope: SCOPE
+  }, {
+    mode: A3_ROUTE_ACCESS_MODES.HOSTED_ENFORCED,
+    trustedPrincipal: trustedPrincipal(),
+    requestedScope: SCOPE,
+    requestBodyState: "malformed_json",
+    transportMethod: "POST",
+    requestId: "request-malformed-json",
+    now: NOW
+  });
+
+  assert.equal(decision.allowed, false);
+  assert.equal(decision.decision, "denied_malformed_json");
+  assert.equal(decision.http_status, 400);
+  assert.deepEqual(decision.response.body, {
+    schema_version: "a3.sanitized_bad_request.v1",
+    error: "invalid_json"
+  });
+  assert.equal(decision.audit_evidence.event_type, "route_access.denied");
+  assert.equal(decision.audit_evidence.redaction_status, "metadata_only");
+  assert.equal(decision.audit_evidence.payload_inline, false);
+  assert.equal(decision.audit_event.event_type, "route_access.denied");
+  assert.equal(decision.audit_event.transport_method, "POST");
+  assert.equal(decision.audit_event.request_body_state, "malformed_json");
+  assert.equal(decision.audit_event.payload_inline, false);
+});
+
+test("protected preflight decisions retain only allowlisted transport metadata", () => {
+  const decision = guardA3RouteAccess({
+    method: "POST",
+    url: "/api/a3/reports/share",
+    requested_scope: SCOPE
+  }, {
+    mode: A3_ROUTE_ACCESS_MODES.HOSTED_ENFORCED,
+    trustedPrincipal: trustedPrincipal(),
+    requestedScope: SCOPE,
+    transportMethod: "OPTIONS",
+    preflightMethod: "POST",
+    now: NOW
+  });
+
+  assert.equal(decision.allowed, true);
+  assert.deepEqual(decision.request_transport, {
+    transport_method: "OPTIONS",
+    route_method: "POST",
+    preflight: true,
+    preflight_for_method: "POST",
+    request_body_state: "not_read"
+  });
+  assert.equal(decision.audit_evidence.transport_method, "OPTIONS");
+  assert.equal(decision.audit_evidence.preflight_for_method, "POST");
+  assert.equal(decision.audit_event.transport_method, "OPTIONS");
+  assert.equal(decision.audit_event.preflight_for_method, "POST");
+  assert.equal(decision.audit_event.safety.raw_origin_values_allowed, false);
+});
+
+test("authorized request-boundary failures map to fixed sanitized statuses", () => {
+  for (const boundaryCase of [
+    ["body_read_timeout", 408, "request_timeout"],
+    ["payload_too_large", 413, "payload_too_large"],
+    ["unsupported_media_type", 415, "unsupported_media_type"],
+    ["invalid_json_shape", 422, "invalid_json_shape"]
+  ]) {
+    const [requestBodyState, expectedStatus, expectedError] = boundaryCase;
+    const decision = guardA3RouteAccess({
+      method: "POST",
+      url: "/api/a3/reports/share",
+      requested_scope: SCOPE
+    }, {
+      mode: A3_ROUTE_ACCESS_MODES.HOSTED_ENFORCED,
+      trustedPrincipal: trustedPrincipal(),
+      requestedScope: SCOPE,
+      requestBodyState,
+      transportMethod: "POST",
+      now: NOW
+    });
+
+    assert.equal(decision.allowed, false);
+    assert.equal(decision.http_status, expectedStatus);
+    assert.equal(decision.response.body.schema_version, "a3.sanitized_bad_request.v1");
+    assert.equal(decision.response.body.error, expectedError);
+    assert.equal(decision.audit_event.request_body_state, requestBodyState);
+    assert.equal(decision.audit_event.payload_inline, false);
+  }
+});
+
 test("demo contract mode simulates RBAC without claiming hosted enforcement", () => {
   const contractPrincipal = {
     role: "reviewer",

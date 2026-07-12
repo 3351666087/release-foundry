@@ -3915,3 +3915,21 @@ Safety boundary:
   as green.
 - No Ashr key, OAuth token, cookie, OTP, email, account data, provider payload,
   or cloud mutation was used in this recalibration.
+
+## 2026-07-12 - Request Boundary Recalibration
+
+- Re-fetched current `main` `ccf6ce5` and re-read current A1 identity plus A2
+  Evidence Snapshot / Decision Ledger contracts before changing A3.
+- Added a provider-neutral protected request boundary; no Ashr API call or key
+  was needed for this security pass.
+- Preserved A1 as principal/session authority and A2 as Release Decision
+  authority while adding sanitized `400/408/413/415/422`, protected OPTIONS
+  authorization, and metadata-only request-body-state audit in A3.
+- Current verification passed: A3 Node `397/397`, Playwright `35/35`, A1
+  TypeScript session lifecycle `35/35`, A2 trusted spine `7/7`, Next.js build,
+  commercial CL, and hygiene CL.
+- No API key, token, cookie, email, signed URL, raw body, or account identity
+  was persisted in docs, fixtures, events, screenshots, or Git state.
+- Detailed evidence:
+  `docs/a3/a3_request_boundary_audit_2026_07_12.md` and
+  `docs/a3/growth_auditor_money_grade_round12_2026_07_12.md`.

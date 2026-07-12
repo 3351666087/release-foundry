@@ -208,6 +208,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -218,7 +221,15 @@
             "A1ServiceAccount": []
           }
         ],
-        "x-access-class": "tenant_sensitive_read"
+        "x-access-class": "tenant_sensitive_read",
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        }
       }
     },
     "/api/a3/auth/context": {
@@ -304,6 +315,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -314,7 +328,15 @@
             "A1ServiceAccount": []
           }
         ],
-        "x-access-class": "tenant_sensitive_read"
+        "x-access-class": "tenant_sensitive_read",
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        }
       }
     },
     "/api/a3/auth/rbac-policy": {
@@ -400,6 +422,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -410,7 +435,15 @@
             "A1ServiceAccount": []
           }
         ],
-        "x-access-class": "tenant_sensitive_read"
+        "x-access-class": "tenant_sensitive_read",
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        }
       }
     },
     "/api/a3/auth/authorize": {
@@ -529,11 +562,29 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "408": {
+            "$ref": "#/components/responses/RequestTimeout"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -544,7 +595,29 @@
             "A1ServiceAccount": []
           }
         ],
-        "x-access-class": "tenant_protected_operation"
+        "x-access-class": "tenant_protected_operation",
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        },
+        "x-request-validation": {
+          "malformed_json": "sanitized_400_after_authentication_and_authorization",
+          "body_read_timeout": "sanitized_408_after_authentication_and_authorization",
+          "maximum_body_bytes_default": 1048576,
+          "payload_too_large": "sanitized_413_after_authentication_and_authorization",
+          "required_media_type": "application/json",
+          "unsupported_media_type": "sanitized_415_after_authentication_and_authorization",
+          "required_top_level_shape": "object",
+          "invalid_json_shape": "sanitized_422_after_authentication_and_authorization",
+          "unauthorized_precedence": "401",
+          "forbidden_precedence": "403",
+          "raw_body_echoed": false,
+          "metadata_only_denial_audit_required": true
+        }
       }
     },
     "/api/a3/dashboard": {
@@ -630,6 +703,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -640,7 +716,15 @@
             "A1ServiceAccount": []
           }
         ],
-        "x-access-class": "tenant_sensitive_read"
+        "x-access-class": "tenant_sensitive_read",
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        }
       }
     },
     "/api/a3/runs": {
@@ -722,6 +806,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -732,7 +819,15 @@
             "A1ServiceAccount": []
           }
         ],
-        "x-access-class": "tenant_sensitive_read"
+        "x-access-class": "tenant_sensitive_read",
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        }
       }
     },
     "/api/a3/runs/{runId}": {
@@ -826,6 +921,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -836,7 +934,15 @@
             "A1ServiceAccount": []
           }
         ],
-        "x-access-class": "tenant_sensitive_read"
+        "x-access-class": "tenant_sensitive_read",
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        }
       }
     },
     "/api/a3/releases/{releaseId}/evidence-summary": {
@@ -935,6 +1041,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -945,7 +1054,15 @@
             "A1ServiceAccount": []
           }
         ],
-        "x-access-class": "tenant_sensitive_read"
+        "x-access-class": "tenant_sensitive_read",
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        }
       }
     },
     "/api/a3/releases/{releaseId}/evidence-health": {
@@ -1040,6 +1157,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -1050,7 +1170,15 @@
             "A1ServiceAccount": []
           }
         ],
-        "x-access-class": "tenant_sensitive_read"
+        "x-access-class": "tenant_sensitive_read",
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        }
       }
     },
     "/api/a3/review/waivers": {
@@ -1132,11 +1260,29 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "408": {
+            "$ref": "#/components/responses/RequestTimeout"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -1147,7 +1293,29 @@
             "A1ServiceAccount": []
           }
         ],
-        "x-access-class": "tenant_protected_operation"
+        "x-access-class": "tenant_protected_operation",
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        },
+        "x-request-validation": {
+          "malformed_json": "sanitized_400_after_authentication_and_authorization",
+          "body_read_timeout": "sanitized_408_after_authentication_and_authorization",
+          "maximum_body_bytes_default": 1048576,
+          "payload_too_large": "sanitized_413_after_authentication_and_authorization",
+          "required_media_type": "application/json",
+          "unsupported_media_type": "sanitized_415_after_authentication_and_authorization",
+          "required_top_level_shape": "object",
+          "invalid_json_shape": "sanitized_422_after_authentication_and_authorization",
+          "unauthorized_precedence": "401",
+          "forbidden_precedence": "403",
+          "raw_body_echoed": false,
+          "metadata_only_denial_audit_required": true
+        }
       }
     },
     "/api/a3/review/approvals": {
@@ -1229,11 +1397,29 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "408": {
+            "$ref": "#/components/responses/RequestTimeout"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -1244,7 +1430,29 @@
             "A1ServiceAccount": []
           }
         ],
-        "x-access-class": "tenant_protected_operation"
+        "x-access-class": "tenant_protected_operation",
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        },
+        "x-request-validation": {
+          "malformed_json": "sanitized_400_after_authentication_and_authorization",
+          "body_read_timeout": "sanitized_408_after_authentication_and_authorization",
+          "maximum_body_bytes_default": 1048576,
+          "payload_too_large": "sanitized_413_after_authentication_and_authorization",
+          "required_media_type": "application/json",
+          "unsupported_media_type": "sanitized_415_after_authentication_and_authorization",
+          "required_top_level_shape": "object",
+          "invalid_json_shape": "sanitized_422_after_authentication_and_authorization",
+          "unauthorized_precedence": "401",
+          "forbidden_precedence": "403",
+          "raw_body_echoed": false,
+          "metadata_only_denial_audit_required": true
+        }
       }
     },
     "/api/a3/review/denials": {
@@ -1326,11 +1534,29 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "408": {
+            "$ref": "#/components/responses/RequestTimeout"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -1341,7 +1567,29 @@
             "A1ServiceAccount": []
           }
         ],
-        "x-access-class": "tenant_protected_operation"
+        "x-access-class": "tenant_protected_operation",
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        },
+        "x-request-validation": {
+          "malformed_json": "sanitized_400_after_authentication_and_authorization",
+          "body_read_timeout": "sanitized_408_after_authentication_and_authorization",
+          "maximum_body_bytes_default": 1048576,
+          "payload_too_large": "sanitized_413_after_authentication_and_authorization",
+          "required_media_type": "application/json",
+          "unsupported_media_type": "sanitized_415_after_authentication_and_authorization",
+          "required_top_level_shape": "object",
+          "invalid_json_shape": "sanitized_422_after_authentication_and_authorization",
+          "unauthorized_precedence": "401",
+          "forbidden_precedence": "403",
+          "raw_body_echoed": false,
+          "metadata_only_denial_audit_required": true
+        }
       }
     },
     "/api/a3/reports": {
@@ -1426,6 +1674,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -1436,7 +1687,15 @@
             "A1ServiceAccount": []
           }
         ],
-        "x-access-class": "tenant_sensitive_read"
+        "x-access-class": "tenant_sensitive_read",
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        }
       }
     },
     "/api/a3/reports/share": {
@@ -1519,11 +1778,29 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "408": {
+            "$ref": "#/components/responses/RequestTimeout"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -1534,7 +1811,29 @@
             "A1ServiceAccount": []
           }
         ],
-        "x-access-class": "tenant_protected_operation"
+        "x-access-class": "tenant_protected_operation",
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        },
+        "x-request-validation": {
+          "malformed_json": "sanitized_400_after_authentication_and_authorization",
+          "body_read_timeout": "sanitized_408_after_authentication_and_authorization",
+          "maximum_body_bytes_default": 1048576,
+          "payload_too_large": "sanitized_413_after_authentication_and_authorization",
+          "required_media_type": "application/json",
+          "unsupported_media_type": "sanitized_415_after_authentication_and_authorization",
+          "required_top_level_shape": "object",
+          "invalid_json_shape": "sanitized_422_after_authentication_and_authorization",
+          "unauthorized_precedence": "401",
+          "forbidden_precedence": "403",
+          "raw_body_echoed": false,
+          "metadata_only_denial_audit_required": true
+        }
       }
     },
     "/api/a3/reports/{reportId}": {
@@ -1627,6 +1926,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -1637,7 +1939,15 @@
             "A1ServiceAccount": []
           }
         ],
-        "x-access-class": "tenant_sensitive_read"
+        "x-access-class": "tenant_sensitive_read",
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        }
       }
     },
     "/api/a3/reports/{reportId}/manifest": {
@@ -1732,6 +2042,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -1742,7 +2055,15 @@
             "A1ServiceAccount": []
           }
         ],
-        "x-access-class": "tenant_sensitive_read"
+        "x-access-class": "tenant_sensitive_read",
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        }
       }
     },
     "/api/a3/reports/{reportId}/revoke": {
@@ -1828,11 +2149,29 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "408": {
+            "$ref": "#/components/responses/RequestTimeout"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -1843,7 +2182,29 @@
             "A1ServiceAccount": []
           }
         ],
-        "x-access-class": "tenant_protected_operation"
+        "x-access-class": "tenant_protected_operation",
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        },
+        "x-request-validation": {
+          "malformed_json": "sanitized_400_after_authentication_and_authorization",
+          "body_read_timeout": "sanitized_408_after_authentication_and_authorization",
+          "maximum_body_bytes_default": 1048576,
+          "payload_too_large": "sanitized_413_after_authentication_and_authorization",
+          "required_media_type": "application/json",
+          "unsupported_media_type": "sanitized_415_after_authentication_and_authorization",
+          "required_top_level_shape": "object",
+          "invalid_json_shape": "sanitized_422_after_authentication_and_authorization",
+          "unauthorized_precedence": "401",
+          "forbidden_precedence": "403",
+          "raw_body_echoed": false,
+          "metadata_only_denial_audit_required": true
+        }
       }
     },
     "/api/a3/admin/console": {
@@ -1929,6 +2290,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -1939,7 +2303,15 @@
             "A1ServiceAccount": []
           }
         ],
-        "x-access-class": "tenant_sensitive_read"
+        "x-access-class": "tenant_sensitive_read",
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        }
       }
     },
     "/api/a3/admin/actions/submit": {
@@ -2019,11 +2391,29 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "408": {
+            "$ref": "#/components/responses/RequestTimeout"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -2034,7 +2424,29 @@
             "A1ServiceAccount": []
           }
         ],
-        "x-access-class": "tenant_protected_operation"
+        "x-access-class": "tenant_protected_operation",
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        },
+        "x-request-validation": {
+          "malformed_json": "sanitized_400_after_authentication_and_authorization",
+          "body_read_timeout": "sanitized_408_after_authentication_and_authorization",
+          "maximum_body_bytes_default": 1048576,
+          "payload_too_large": "sanitized_413_after_authentication_and_authorization",
+          "required_media_type": "application/json",
+          "unsupported_media_type": "sanitized_415_after_authentication_and_authorization",
+          "required_top_level_shape": "object",
+          "invalid_json_shape": "sanitized_422_after_authentication_and_authorization",
+          "unauthorized_precedence": "401",
+          "forbidden_precedence": "403",
+          "raw_body_echoed": false,
+          "metadata_only_denial_audit_required": true
+        }
       }
     },
     "/api/a3/billing/readiness": {
@@ -2119,6 +2531,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -2129,7 +2544,15 @@
             "A1ServiceAccount": []
           }
         ],
-        "x-access-class": "tenant_sensitive_read"
+        "x-access-class": "tenant_sensitive_read",
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        }
       }
     },
     "/api/a3/billing/migration-readiness": {
@@ -2216,6 +2639,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -2226,7 +2652,15 @@
             "A1ServiceAccount": []
           }
         ],
-        "x-access-class": "tenant_sensitive_read"
+        "x-access-class": "tenant_sensitive_read",
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        }
       }
     },
     "/api/a3/usage/ledger": {
@@ -2310,6 +2744,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -2320,7 +2757,15 @@
             "A1ServiceAccount": []
           }
         ],
-        "x-access-class": "tenant_sensitive_read"
+        "x-access-class": "tenant_sensitive_read",
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        }
       }
     },
     "/api/a3/artifacts/registry": {
@@ -2408,6 +2853,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -2418,7 +2866,15 @@
             "A1ServiceAccount": []
           }
         ],
-        "x-access-class": "tenant_sensitive_read"
+        "x-access-class": "tenant_sensitive_read",
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        }
       }
     },
     "/api/a3/enterprise/readiness": {
@@ -2506,6 +2962,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -2516,7 +2975,15 @@
             "A1ServiceAccount": []
           }
         ],
-        "x-access-class": "tenant_sensitive_read"
+        "x-access-class": "tenant_sensitive_read",
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        }
       }
     },
     "/api/a3/health": {
@@ -2638,6 +3105,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -2648,7 +3118,15 @@
             "A1ServiceAccount": []
           }
         ],
-        "x-access-class": "tenant_sensitive_read"
+        "x-access-class": "tenant_sensitive_read",
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        }
       }
     },
     "/api/a3/review/workflow": {
@@ -2733,6 +3211,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -2743,7 +3224,15 @@
             "A1ServiceAccount": []
           }
         ],
-        "x-access-class": "tenant_sensitive_read"
+        "x-access-class": "tenant_sensitive_read",
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        }
       }
     },
     "/api/a3/reports/center": {
@@ -2829,6 +3318,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -2839,7 +3331,15 @@
             "A1ServiceAccount": []
           }
         ],
-        "x-access-class": "tenant_sensitive_read"
+        "x-access-class": "tenant_sensitive_read",
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        }
       }
     },
     "/api/a3/live-workflow/readiness": {
@@ -2924,6 +3424,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -2934,7 +3437,15 @@
             "A1ServiceAccount": []
           }
         ],
-        "x-access-class": "tenant_sensitive_read"
+        "x-access-class": "tenant_sensitive_read",
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        }
       }
     },
     "/api/a3/live-ops/control-plane": {
@@ -3019,6 +3530,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -3029,7 +3543,15 @@
             "A1ServiceAccount": []
           }
         ],
-        "x-access-class": "tenant_sensitive_read"
+        "x-access-class": "tenant_sensitive_read",
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        }
       }
     },
     "/api/a3/notifications/control-plane": {
@@ -3115,6 +3637,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -3125,7 +3650,15 @@
             "A1ServiceAccount": []
           }
         ],
-        "x-access-class": "tenant_sensitive_read"
+        "x-access-class": "tenant_sensitive_read",
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        }
       }
     },
     "/api/a3/product/console": {
@@ -3211,6 +3744,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -3221,7 +3757,15 @@
             "A1ServiceAccount": []
           }
         ],
-        "x-access-class": "tenant_sensitive_read"
+        "x-access-class": "tenant_sensitive_read",
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        }
       }
     },
     "/api/a3/a1-a2/schema-drift": {
@@ -3305,6 +3849,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -3315,7 +3862,15 @@
             "A1ServiceAccount": []
           }
         ],
-        "x-access-class": "tenant_sensitive_read"
+        "x-access-class": "tenant_sensitive_read",
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        }
       }
     },
     "/api/a3/peer-branches/calibration": {
@@ -3398,6 +3953,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -3408,7 +3966,15 @@
             "A1ServiceAccount": []
           }
         ],
-        "x-access-class": "tenant_sensitive_read"
+        "x-access-class": "tenant_sensitive_read",
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        }
       }
     },
     "/api/a3/a1-a2/evidence-spine": {
@@ -3495,6 +4061,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -3505,7 +4074,15 @@
             "A1ServiceAccount": []
           }
         ],
-        "x-access-class": "tenant_sensitive_read"
+        "x-access-class": "tenant_sensitive_read",
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        }
       }
     },
     "/api/a3/events/outbox": {
@@ -3589,6 +4166,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "security": [
@@ -3599,7 +4179,15 @@
             "A1ServiceAccount": []
           }
         ],
-        "x-access-class": "tenant_sensitive_read"
+        "x-access-class": "tenant_sensitive_read",
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        }
       }
     },
     "/r/{shareToken}": {
@@ -3775,6 +4363,9 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
@@ -3783,6 +4374,21 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "408": {
+            "$ref": "#/components/responses/RequestTimeout"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "requestBody": {
@@ -3797,6 +4403,28 @@
               }
             }
           }
+        },
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        },
+        "x-request-validation": {
+          "malformed_json": "sanitized_400_after_authentication_and_authorization",
+          "body_read_timeout": "sanitized_408_after_authentication_and_authorization",
+          "maximum_body_bytes_default": 1048576,
+          "payload_too_large": "sanitized_413_after_authentication_and_authorization",
+          "required_media_type": "application/json",
+          "unsupported_media_type": "sanitized_415_after_authentication_and_authorization",
+          "required_top_level_shape": "object",
+          "invalid_json_shape": "sanitized_422_after_authentication_and_authorization",
+          "unauthorized_precedence": "401",
+          "forbidden_precedence": "403",
+          "raw_body_echoed": false,
+          "metadata_only_denial_audit_required": true
         }
       }
     },
@@ -3895,7 +4523,18 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
+        },
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
         }
       }
     },
@@ -3994,7 +4633,18 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
+        },
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
         }
       }
     },
@@ -4094,7 +4744,18 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
+        },
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
         }
       }
     },
@@ -4194,13 +4855,24 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "parameters": [
           {
             "$ref": "#/components/parameters/ReleaseId"
           }
-        ]
+        ],
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        }
       }
     },
     "/api/a3/releases/{releaseId}/readbacks": {
@@ -4299,13 +4971,24 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "parameters": [
           {
             "$ref": "#/components/parameters/ReleaseId"
           }
-        ]
+        ],
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        }
       },
       "post": {
         "operationId": "a3CaptureReleaseReadback",
@@ -4394,6 +5077,9 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
@@ -4402,6 +5088,21 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "408": {
+            "$ref": "#/components/responses/RequestTimeout"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "parameters": [
@@ -4421,6 +5122,28 @@
               }
             }
           }
+        },
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        },
+        "x-request-validation": {
+          "malformed_json": "sanitized_400_after_authentication_and_authorization",
+          "body_read_timeout": "sanitized_408_after_authentication_and_authorization",
+          "maximum_body_bytes_default": 1048576,
+          "payload_too_large": "sanitized_413_after_authentication_and_authorization",
+          "required_media_type": "application/json",
+          "unsupported_media_type": "sanitized_415_after_authentication_and_authorization",
+          "required_top_level_shape": "object",
+          "invalid_json_shape": "sanitized_422_after_authentication_and_authorization",
+          "unauthorized_precedence": "401",
+          "forbidden_precedence": "403",
+          "raw_body_echoed": false,
+          "metadata_only_denial_audit_required": true
         }
       }
     },
@@ -4519,7 +5242,18 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
+        },
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
         }
       }
     },
@@ -4617,13 +5351,24 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "parameters": [
           {
             "$ref": "#/components/parameters/ReportId"
           }
-        ]
+        ],
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        }
       }
     },
     "/api/a3/import/a1-run-result": {
@@ -4713,6 +5458,9 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
@@ -4721,6 +5469,21 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "408": {
+            "$ref": "#/components/responses/RequestTimeout"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "requestBody": {
@@ -4735,6 +5498,28 @@
               }
             }
           }
+        },
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        },
+        "x-request-validation": {
+          "malformed_json": "sanitized_400_after_authentication_and_authorization",
+          "body_read_timeout": "sanitized_408_after_authentication_and_authorization",
+          "maximum_body_bytes_default": 1048576,
+          "payload_too_large": "sanitized_413_after_authentication_and_authorization",
+          "required_media_type": "application/json",
+          "unsupported_media_type": "sanitized_415_after_authentication_and_authorization",
+          "required_top_level_shape": "object",
+          "invalid_json_shape": "sanitized_422_after_authentication_and_authorization",
+          "unauthorized_precedence": "401",
+          "forbidden_precedence": "403",
+          "raw_body_echoed": false,
+          "metadata_only_denial_audit_required": true
         }
       }
     },
@@ -4825,6 +5610,9 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
@@ -4833,6 +5621,21 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "408": {
+            "$ref": "#/components/responses/RequestTimeout"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "requestBody": {
@@ -4847,6 +5650,28 @@
               }
             }
           }
+        },
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        },
+        "x-request-validation": {
+          "malformed_json": "sanitized_400_after_authentication_and_authorization",
+          "body_read_timeout": "sanitized_408_after_authentication_and_authorization",
+          "maximum_body_bytes_default": 1048576,
+          "payload_too_large": "sanitized_413_after_authentication_and_authorization",
+          "required_media_type": "application/json",
+          "unsupported_media_type": "sanitized_415_after_authentication_and_authorization",
+          "required_top_level_shape": "object",
+          "invalid_json_shape": "sanitized_422_after_authentication_and_authorization",
+          "unauthorized_precedence": "401",
+          "forbidden_precedence": "403",
+          "raw_body_echoed": false,
+          "metadata_only_denial_audit_required": true
         }
       }
     },
@@ -4937,6 +5762,9 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
@@ -4945,6 +5773,21 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "408": {
+            "$ref": "#/components/responses/RequestTimeout"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "parameters": [
@@ -4964,6 +5807,28 @@
               }
             }
           }
+        },
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        },
+        "x-request-validation": {
+          "malformed_json": "sanitized_400_after_authentication_and_authorization",
+          "body_read_timeout": "sanitized_408_after_authentication_and_authorization",
+          "maximum_body_bytes_default": 1048576,
+          "payload_too_large": "sanitized_413_after_authentication_and_authorization",
+          "required_media_type": "application/json",
+          "unsupported_media_type": "sanitized_415_after_authentication_and_authorization",
+          "required_top_level_shape": "object",
+          "invalid_json_shape": "sanitized_422_after_authentication_and_authorization",
+          "unauthorized_precedence": "401",
+          "forbidden_precedence": "403",
+          "raw_body_echoed": false,
+          "metadata_only_denial_audit_required": true
         }
       }
     },
@@ -5054,6 +5919,9 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
@@ -5062,6 +5930,21 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "408": {
+            "$ref": "#/components/responses/RequestTimeout"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "requestBody": {
@@ -5076,6 +5959,28 @@
               }
             }
           }
+        },
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        },
+        "x-request-validation": {
+          "malformed_json": "sanitized_400_after_authentication_and_authorization",
+          "body_read_timeout": "sanitized_408_after_authentication_and_authorization",
+          "maximum_body_bytes_default": 1048576,
+          "payload_too_large": "sanitized_413_after_authentication_and_authorization",
+          "required_media_type": "application/json",
+          "unsupported_media_type": "sanitized_415_after_authentication_and_authorization",
+          "required_top_level_shape": "object",
+          "invalid_json_shape": "sanitized_422_after_authentication_and_authorization",
+          "unauthorized_precedence": "401",
+          "forbidden_precedence": "403",
+          "raw_body_echoed": false,
+          "metadata_only_denial_audit_required": true
         }
       }
     },
@@ -5167,6 +6072,9 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
@@ -5175,6 +6083,21 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "408": {
+            "$ref": "#/components/responses/RequestTimeout"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "requestBody": {
@@ -5189,6 +6112,28 @@
               }
             }
           }
+        },
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        },
+        "x-request-validation": {
+          "malformed_json": "sanitized_400_after_authentication_and_authorization",
+          "body_read_timeout": "sanitized_408_after_authentication_and_authorization",
+          "maximum_body_bytes_default": 1048576,
+          "payload_too_large": "sanitized_413_after_authentication_and_authorization",
+          "required_media_type": "application/json",
+          "unsupported_media_type": "sanitized_415_after_authentication_and_authorization",
+          "required_top_level_shape": "object",
+          "invalid_json_shape": "sanitized_422_after_authentication_and_authorization",
+          "unauthorized_precedence": "401",
+          "forbidden_precedence": "403",
+          "raw_body_echoed": false,
+          "metadata_only_denial_audit_required": true
         }
       }
     },
@@ -5280,6 +6225,9 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
@@ -5288,6 +6236,21 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "408": {
+            "$ref": "#/components/responses/RequestTimeout"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "requestBody": {
@@ -5302,6 +6265,28 @@
               }
             }
           }
+        },
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        },
+        "x-request-validation": {
+          "malformed_json": "sanitized_400_after_authentication_and_authorization",
+          "body_read_timeout": "sanitized_408_after_authentication_and_authorization",
+          "maximum_body_bytes_default": 1048576,
+          "payload_too_large": "sanitized_413_after_authentication_and_authorization",
+          "required_media_type": "application/json",
+          "unsupported_media_type": "sanitized_415_after_authentication_and_authorization",
+          "required_top_level_shape": "object",
+          "invalid_json_shape": "sanitized_422_after_authentication_and_authorization",
+          "unauthorized_precedence": "401",
+          "forbidden_precedence": "403",
+          "raw_body_echoed": false,
+          "metadata_only_denial_audit_required": true
         }
       }
     },
@@ -5392,6 +6377,9 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
@@ -5400,6 +6388,21 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "408": {
+            "$ref": "#/components/responses/RequestTimeout"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "parameters": [
@@ -5419,6 +6422,28 @@
               }
             }
           }
+        },
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        },
+        "x-request-validation": {
+          "malformed_json": "sanitized_400_after_authentication_and_authorization",
+          "body_read_timeout": "sanitized_408_after_authentication_and_authorization",
+          "maximum_body_bytes_default": 1048576,
+          "payload_too_large": "sanitized_413_after_authentication_and_authorization",
+          "required_media_type": "application/json",
+          "unsupported_media_type": "sanitized_415_after_authentication_and_authorization",
+          "required_top_level_shape": "object",
+          "invalid_json_shape": "sanitized_422_after_authentication_and_authorization",
+          "unauthorized_precedence": "401",
+          "forbidden_precedence": "403",
+          "raw_body_echoed": false,
+          "metadata_only_denial_audit_required": true
         }
       }
     },
@@ -5509,6 +6534,9 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
@@ -5517,6 +6545,21 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "408": {
+            "$ref": "#/components/responses/RequestTimeout"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "requestBody": {
@@ -5531,6 +6574,28 @@
               }
             }
           }
+        },
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        },
+        "x-request-validation": {
+          "malformed_json": "sanitized_400_after_authentication_and_authorization",
+          "body_read_timeout": "sanitized_408_after_authentication_and_authorization",
+          "maximum_body_bytes_default": 1048576,
+          "payload_too_large": "sanitized_413_after_authentication_and_authorization",
+          "required_media_type": "application/json",
+          "unsupported_media_type": "sanitized_415_after_authentication_and_authorization",
+          "required_top_level_shape": "object",
+          "invalid_json_shape": "sanitized_422_after_authentication_and_authorization",
+          "unauthorized_precedence": "401",
+          "forbidden_precedence": "403",
+          "raw_body_echoed": false,
+          "metadata_only_denial_audit_required": true
         }
       }
     },
@@ -5621,6 +6686,9 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
@@ -5629,6 +6697,21 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "408": {
+            "$ref": "#/components/responses/RequestTimeout"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         },
         "requestBody": {
@@ -5643,6 +6726,28 @@
               }
             }
           }
+        },
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        },
+        "x-request-validation": {
+          "malformed_json": "sanitized_400_after_authentication_and_authorization",
+          "body_read_timeout": "sanitized_408_after_authentication_and_authorization",
+          "maximum_body_bytes_default": 1048576,
+          "payload_too_large": "sanitized_413_after_authentication_and_authorization",
+          "required_media_type": "application/json",
+          "unsupported_media_type": "sanitized_415_after_authentication_and_authorization",
+          "required_top_level_shape": "object",
+          "invalid_json_shape": "sanitized_422_after_authentication_and_authorization",
+          "unauthorized_precedence": "401",
+          "forbidden_precedence": "403",
+          "raw_body_echoed": false,
+          "metadata_only_denial_audit_required": true
         }
       }
     }
@@ -5778,6 +6883,126 @@
           "application/json": {
             "schema": {
               "$ref": "#/components/schemas/SanitizedForbiddenError"
+            }
+          }
+        }
+      },
+      "BadRequest": {
+        "description": "The authenticated and authorized request body is not valid JSON. The response and audit record never echo the request body or private identity data.",
+        "x-sanitized": true,
+        "headers": {
+          "Cache-Control": {
+            "description": "Prevents caching of request validation failures.",
+            "schema": {
+              "type": "string",
+              "const": "no-store"
+            }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/SanitizedBadRequestError"
+            }
+          }
+        }
+      },
+      "RequestTimeout": {
+        "description": "The authenticated and authorized request body was not received within the configured deadline. The response and audit record never echo the request body or private identity data.",
+        "x-sanitized": true,
+        "headers": {
+          "Cache-Control": {
+            "description": "Prevents caching of request validation failures.",
+            "schema": {
+              "type": "string",
+              "const": "no-store"
+            }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/SanitizedBadRequestError"
+            }
+          }
+        }
+      },
+      "PayloadTooLarge": {
+        "description": "The authenticated and authorized request body exceeds the configured byte limit. The response and audit record never echo the request body or private identity data.",
+        "x-sanitized": true,
+        "headers": {
+          "Cache-Control": {
+            "description": "Prevents caching of request validation failures.",
+            "schema": {
+              "type": "string",
+              "const": "no-store"
+            }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/SanitizedBadRequestError"
+            }
+          }
+        }
+      },
+      "UnsupportedMediaType": {
+        "description": "The authenticated and authorized mutation requires application/json. The response and audit record never echo the request body or private identity data.",
+        "x-sanitized": true,
+        "headers": {
+          "Cache-Control": {
+            "description": "Prevents caching of request validation failures.",
+            "schema": {
+              "type": "string",
+              "const": "no-store"
+            }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/SanitizedBadRequestError"
+            }
+          }
+        }
+      },
+      "UnprocessableEntity": {
+        "description": "The JSON body is valid JSON but is not a top-level object. The response and audit record never echo the request body or private identity data.",
+        "x-sanitized": true,
+        "headers": {
+          "Cache-Control": {
+            "description": "Prevents caching of request validation failures.",
+            "schema": {
+              "type": "string",
+              "const": "no-store"
+            }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/SanitizedBadRequestError"
+            }
+          }
+        }
+      },
+      "ServiceUnavailable": {
+        "description": "Authorization configuration or metadata-only access-audit persistence is unavailable. No protected handler is executed.",
+        "x-sanitized": true,
+        "headers": {
+          "Cache-Control": {
+            "description": "Prevents caching of authorization-boundary failures.",
+            "schema": {
+              "type": "string",
+              "const": "no-store"
+            }
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/SanitizedServiceUnavailableError"
             }
           }
         }
@@ -6965,6 +8190,63 @@
           }
         },
         "additionalProperties": true
+      },
+      "SanitizedBadRequestError": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "error"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.sanitized_bad_request.v1"
+          },
+          "error": {
+            "type": "string",
+            "enum": [
+              "invalid_json",
+              "request_timeout",
+              "payload_too_large",
+              "unsupported_media_type",
+              "invalid_json_shape"
+            ]
+          },
+          "request_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          }
+        },
+        "additionalProperties": false,
+        "x-sanitized": true
+      },
+      "SanitizedServiceUnavailableError": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "error",
+          "message"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.route_access_unavailable.v1"
+          },
+          "error": {
+            "type": "string",
+            "enum": [
+              "authorization_audit_unavailable",
+              "authorization_configuration_invalid"
+            ]
+          },
+          "message": {
+            "type": "string",
+            "const": "The authorization service is temporarily unavailable."
+          }
+        },
+        "additionalProperties": false,
+        "x-sanitized": true
       }
     }
   },
@@ -6991,5 +8273,38 @@
       "share_token": "GET /r/{shareToken} is an opaque, expiring, revocable capability route; it is not session-authenticated public console access."
     },
     "all_other_reads_require_verified_principal": true
+  },
+  "x-request-boundary-contract": {
+    "schema_version": "a3.request_boundary_contract.v1",
+    "malformed_json": {
+      "authorized_status": 400,
+      "body_read_timeout_status": 408,
+      "payload_too_large_status": 413,
+      "unsupported_media_type_status": 415,
+      "invalid_json_shape_status": 422,
+      "unauthenticated_status": 401,
+      "unauthorized_status": 403,
+      "default_maximum_body_bytes": 1048576,
+      "default_body_read_timeout_ms": 10000,
+      "required_media_type": "application/json",
+      "required_top_level_shape": "object",
+      "response_body_policy": "fixed_sanitized_error",
+      "raw_body_logging_allowed": false,
+      "metadata_only_denial_audit_required": true,
+      "authorization_audit_unavailable_status": 503
+    },
+    "protected_options": {
+      "target_method_header": "Access-Control-Request-Method",
+      "target_route_authorization_required": true,
+      "protected_preflight_audited": true,
+      "unknown_target_status": 403,
+      "raw_origin_logging_allowed": false,
+      "cors_enablement_claimed": false
+    },
+    "authority": {
+      "identity_and_session": "A1",
+      "route_authorization_and_audit_orchestration": "A3",
+      "release_decision": "A2"
+    }
   }
 }
