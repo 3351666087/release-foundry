@@ -7,6 +7,7 @@ const dataRoutes = [
   ["runs", "运行与案例"],
   ["review", "人工审核"],
   ["reports", "报告中心"],
+  ["delivery", "交付闭环"],
   ["api-reference", "API 文档与参考"],
   ["team", "团队与权限"],
   ["billing", "用量与计费"],
@@ -100,6 +101,43 @@ test.describe("A3 Next.js product console", () => {
 
     await page.getByPlaceholder("搜索案例、场景或失败分类").fill("hallucinated_tool_result");
     await expect(page.locator(".table-pagination")).toContainText("第 1 / 1 页");
+  });
+
+  test("shows the new-run delivery golden path without overstating production readiness", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto(`${base}/delivery/?source=a3-golden-path`);
+    await expect(page.getByRole("heading", { name: "交付闭环" })).toBeVisible();
+    await expect(page.locator(".source-control select")).toHaveValue("a3-golden-path");
+    await expect(page.locator(".delivery-signal")).toContainText("候选版本保持阻塞");
+    await expect(page.locator(".delivery-stage-list article")).toHaveCount(11);
+    await expect(page.getByText("A2 Decision Ledger authorizes release", { exact: true })).toBeVisible();
+    await expect(page.getByText("Tenant-bound GitHub App installation", { exact: true })).toBeVisible();
+    await expect(page.getByText("Required Check enforced on main", { exact: true })).toBeVisible();
+    const bounds = await page.evaluate(() => ({
+      viewport: document.documentElement.clientWidth,
+      documentScrollWidth: document.documentElement.scrollWidth,
+      routeRight: document.querySelector(".route-content")!.getBoundingClientRect().right
+    }));
+    expect(bounds.documentScrollWidth).toBeLessThanOrEqual(bounds.viewport);
+    expect(bounds.routeRight).toBeLessThanOrEqual(bounds.viewport);
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-delivery-golden-path-desktop.png", fullPage: false });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.reload();
+    await expect(page.getByRole("heading", { name: "交付闭环" })).toBeVisible();
+    await expect(page.locator(".route-content")).toHaveCSS("opacity", "1");
+    const mobileBounds = await page.evaluate(() => ({
+      viewport: document.documentElement.clientWidth,
+      documentScrollWidth: document.documentElement.scrollWidth,
+      bodyScrollWidth: document.body.scrollWidth,
+      signalRight: document.querySelector(".delivery-signal")!.getBoundingClientRect().right,
+      mobileNavDisplay: getComputedStyle(document.querySelector(".mobile-route-nav")!).display
+    }));
+    expect(mobileBounds.documentScrollWidth).toBeLessThanOrEqual(mobileBounds.viewport);
+    expect(mobileBounds.bodyScrollWidth).toBeLessThanOrEqual(mobileBounds.viewport);
+    expect(mobileBounds.signalRight).toBeLessThanOrEqual(mobileBounds.viewport);
+    expect(mobileBounds.mobileNavDisplay).toBe("grid");
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-delivery-golden-path-mobile-390x844.png", fullPage: false });
   });
 
   test("switches Chinese and English without losing the selected evidence source", async ({ page }) => {

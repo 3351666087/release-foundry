@@ -11,6 +11,7 @@ const copy = {
   "nav.case": ["案例详情", "Case detail"],
   "nav.review": ["人工审核", "Review"],
   "nav.reports": ["报告", "Reports"],
+  "nav.delivery": ["交付闭环", "Release delivery"],
   "nav.apiReference": ["API 参考", "API reference"],
   "nav.team": ["团队", "Team"],
   "nav.billing": ["用量与计费", "Usage & billing"],

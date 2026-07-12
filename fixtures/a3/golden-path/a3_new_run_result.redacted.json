@@ -1,0 +1,436 @@
+{
+  "schema_version": "ashr.clone.run_result.v1",
+  "run_id": "a3-golden-20260712-001",
+  "dataset_id": "a3-golden-path-20260712",
+  "runner_id": "a1-ts-local-runner",
+  "status": "passed",
+  "total_cases": 3,
+  "passed": 3,
+  "failed": 0,
+  "errored": 0,
+  "timed_out": 0,
+  "started_at": "2026-07-12T10:38:07.696Z",
+  "ended_at": "2026-07-12T10:38:07.699Z",
+  "duration_ms": 3,
+  "max_workers": 4,
+  "trace_completeness": 1,
+  "cases": [
+    {
+      "case_id": "a3-gp-direct-answer",
+      "scenario_id": "A2-S001",
+      "title": "Direct answer baseline",
+      "prompt": "Rewrite this sentence to sound warmer, in one sentence: 'Your request was denied because it is incomplete.'",
+      "actual": "Echo: Rewrite this sentence to sound warmer, in one sentence: 'Your request was denied because it is incomplete.'",
+      "status": "passed",
+      "started_at": "2026-07-12T10:38:07.697Z",
+      "ended_at": "2026-07-12T10:38:07.699Z",
+      "latency_ms": 2,
+      "observations": [
+        {
+          "observation_id": "obs_fb33fc9893ac7e73",
+          "run_id": "a3-golden-20260712-001",
+          "case_id": "a3-gp-direct-answer",
+          "turn_index": 0,
+          "event_type": "message",
+          "role": "user",
+          "content": "Rewrite this sentence to sound warmer, in one sentence: 'Your request was denied because it is incomplete.'",
+          "tool_calls": [],
+          "started_at": "2026-07-12T10:38:07.697Z",
+          "ended_at": "2026-07-12T10:38:07.697Z",
+          "status": "ok",
+          "metadata": {
+            "agent_input": {
+              "metadata": {
+                "case_id": "a3-gp-direct-answer"
+              },
+              "parts": [
+                {
+                  "text": "Rewrite this sentence to sound warmer, in one sentence: 'Your request was denied because it is incomplete.'",
+                  "type": "text"
+                }
+              ],
+              "schema_version": "ashr.clone.agent_input.v1",
+              "text": "Rewrite this sentence to sound warmer, in one sentence: 'Your request was denied because it is incomplete.'"
+            },
+            "scenario_id": "A2-S001"
+          }
+        },
+        {
+          "observation_id": "obs_ed40ec37d4209943",
+          "run_id": "a3-golden-20260712-001",
+          "case_id": "a3-gp-direct-answer",
+          "turn_index": 1,
+          "event_type": "agent_response",
+          "role": "assistant",
+          "content": "Echo: Rewrite this sentence to sound warmer, in one sentence: 'Your request was denied because it is incomplete.'",
+          "tool_calls": [],
+          "started_at": "2026-07-12T10:38:07.697Z",
+          "ended_at": "2026-07-12T10:38:07.699Z",
+          "latency_ms": 1,
+          "status": "ok",
+          "metadata": {
+            "reset_ok": true
+          },
+          "vm_stream": {
+            "duration_ms": 2,
+            "logs": [
+              {
+                "data": {
+                  "action": "respond",
+                  "input": {
+                    "metadata": {
+                      "case_id": "a3-gp-direct-answer"
+                    },
+                    "parts": [
+                      {
+                        "text": "Rewrite this sentence to sound warmer, in one sentence: 'Your request was denied because it is incomplete.'",
+                        "type": "text"
+                      }
+                    ],
+                    "schema_version": "ashr.clone.agent_input.v1",
+                    "text": "Rewrite this sentence to sound warmer, in one sentence: 'Your request was denied because it is incomplete.'"
+                  }
+                },
+                "ts": 0,
+                "type": "action"
+              },
+              {
+                "data": {
+                  "level": "log",
+                  "message": "Echo: Rewrite this sentence to sound warmer, in one sentence: 'Your request was denied because it is incomplete.'"
+                },
+                "ts": 1,
+                "type": "console"
+              }
+            ],
+            "metadata": {
+              "synthetic": true
+            },
+            "provider": "local-runner",
+            "session_id": "a3-gp-direct-answer"
+          }
+        }
+      ],
+      "grade": {
+        "scenario_id": "A2-S001",
+        "passed": true,
+        "score": 1,
+        "label": "passed",
+        "reason": "local checks passed",
+        "expected": {
+          "text": "Echo: Rewrite this sentence to sound warmer, in one sentence: 'Your request was denied because it is incomplete.'"
+        },
+        "actual": {
+          "text": "Echo: Rewrite this sentence to sound warmer, in one sentence: 'Your request was denied because it is incomplete.'",
+          "tool_calls": []
+        },
+        "metrics": {
+          "text_match": true,
+          "tool_match": true,
+          "reset_ok": true,
+          "latency_ms": 1
+        }
+      },
+      "agent_output": {
+        "schema_version": "ashr.clone.agent_turn.v1",
+        "text": "Echo: Rewrite this sentence to sound warmer, in one sentence: 'Your request was denied because it is incomplete.'",
+        "tool_calls": [],
+        "status": "ok",
+        "latency_ms": 1,
+        "metadata": {
+          "adapter_name": "RespondingMockAgent",
+          "implementation": "examples/agents/mock_agent_ts.mjs",
+          "local_only": true,
+          "style": "respond"
+        }
+      },
+      "expected": {
+        "text": "Echo: Rewrite this sentence to sound warmer, in one sentence: 'Your request was denied because it is incomplete.'"
+      },
+      "metadata": {}
+    },
+    {
+      "case_id": "a3-gp-required-web-tool",
+      "scenario_id": "A2-S004",
+      "title": "Required current-price tool boundary",
+      "prompt": "Find the current official price for the product and cite the official source.",
+      "actual": "Echo: Find the current official price for the product and cite the official source.",
+      "status": "passed",
+      "started_at": "2026-07-12T10:38:07.698Z",
+      "ended_at": "2026-07-12T10:38:07.699Z",
+      "latency_ms": 1,
+      "observations": [
+        {
+          "observation_id": "obs_3837f569cacf8450",
+          "run_id": "a3-golden-20260712-001",
+          "case_id": "a3-gp-required-web-tool",
+          "turn_index": 0,
+          "event_type": "message",
+          "role": "user",
+          "content": "Find the current official price for the product and cite the official source.",
+          "tool_calls": [],
+          "started_at": "2026-07-12T10:38:07.698Z",
+          "ended_at": "2026-07-12T10:38:07.698Z",
+          "status": "ok",
+          "metadata": {
+            "agent_input": {
+              "metadata": {
+                "case_id": "a3-gp-required-web-tool"
+              },
+              "parts": [
+                {
+                  "text": "Find the current official price for the product and cite the official source.",
+                  "type": "text"
+                }
+              ],
+              "schema_version": "ashr.clone.agent_input.v1",
+              "text": "Find the current official price for the product and cite the official source."
+            },
+            "scenario_id": "A2-S004"
+          }
+        },
+        {
+          "observation_id": "obs_e4e86bd329be6140",
+          "run_id": "a3-golden-20260712-001",
+          "case_id": "a3-gp-required-web-tool",
+          "turn_index": 1,
+          "event_type": "agent_response",
+          "role": "assistant",
+          "content": "Echo: Find the current official price for the product and cite the official source.",
+          "tool_calls": [],
+          "started_at": "2026-07-12T10:38:07.698Z",
+          "ended_at": "2026-07-12T10:38:07.699Z",
+          "latency_ms": 0,
+          "status": "ok",
+          "metadata": {
+            "reset_ok": true
+          },
+          "vm_stream": {
+            "duration_ms": 1,
+            "logs": [
+              {
+                "data": {
+                  "action": "respond",
+                  "input": {
+                    "metadata": {
+                      "case_id": "a3-gp-required-web-tool"
+                    },
+                    "parts": [
+                      {
+                        "text": "Find the current official price for the product and cite the official source.",
+                        "type": "text"
+                      }
+                    ],
+                    "schema_version": "ashr.clone.agent_input.v1",
+                    "text": "Find the current official price for the product and cite the official source."
+                  }
+                },
+                "ts": 0,
+                "type": "action"
+              },
+              {
+                "data": {
+                  "level": "log",
+                  "message": "Echo: Find the current official price for the product and cite the official source."
+                },
+                "ts": 0,
+                "type": "console"
+              }
+            ],
+            "metadata": {
+              "synthetic": true
+            },
+            "provider": "local-runner",
+            "session_id": "a3-gp-required-web-tool"
+          }
+        }
+      ],
+      "grade": {
+        "scenario_id": "A2-S004",
+        "passed": true,
+        "score": 1,
+        "label": "passed",
+        "reason": "local checks passed",
+        "expected": {
+          "text": "Echo: Find the current official price for the product and cite the official source."
+        },
+        "actual": {
+          "text": "Echo: Find the current official price for the product and cite the official source.",
+          "tool_calls": []
+        },
+        "metrics": {
+          "text_match": true,
+          "tool_match": true,
+          "reset_ok": true,
+          "latency_ms": 0
+        }
+      },
+      "agent_output": {
+        "schema_version": "ashr.clone.agent_turn.v1",
+        "text": "Echo: Find the current official price for the product and cite the official source.",
+        "tool_calls": [],
+        "status": "ok",
+        "latency_ms": 0,
+        "metadata": {
+          "adapter_name": "RespondingMockAgent",
+          "implementation": "examples/agents/mock_agent_ts.mjs",
+          "local_only": true,
+          "style": "respond"
+        }
+      },
+      "expected": {
+        "text": "Echo: Find the current official price for the product and cite the official source."
+      },
+      "metadata": {}
+    },
+    {
+      "case_id": "a3-gp-media-pipeline",
+      "scenario_id": "A2-S031",
+      "title": "Media pipeline inspection boundary",
+      "prompt": "Use the dashboard media asset and classifier output to identify the red critical service.",
+      "actual": "Echo: Use the dashboard media asset and classifier output to identify the red critical service.",
+      "status": "passed",
+      "started_at": "2026-07-12T10:38:07.698Z",
+      "ended_at": "2026-07-12T10:38:07.699Z",
+      "latency_ms": 1,
+      "observations": [
+        {
+          "observation_id": "obs_9432f7d10ae234cb",
+          "run_id": "a3-golden-20260712-001",
+          "case_id": "a3-gp-media-pipeline",
+          "turn_index": 0,
+          "event_type": "message",
+          "role": "user",
+          "content": "Use the dashboard media asset and classifier output to identify the red critical service.",
+          "tool_calls": [],
+          "started_at": "2026-07-12T10:38:07.698Z",
+          "ended_at": "2026-07-12T10:38:07.698Z",
+          "status": "ok",
+          "metadata": {
+            "agent_input": {
+              "metadata": {
+                "case_id": "a3-gp-media-pipeline"
+              },
+              "parts": [
+                {
+                  "text": "Use the dashboard media asset and classifier output to identify the red critical service.",
+                  "type": "text"
+                }
+              ],
+              "schema_version": "ashr.clone.agent_input.v1",
+              "text": "Use the dashboard media asset and classifier output to identify the red critical service."
+            },
+            "scenario_id": "A2-S031"
+          }
+        },
+        {
+          "observation_id": "obs_4604ee2752bcd11d",
+          "run_id": "a3-golden-20260712-001",
+          "case_id": "a3-gp-media-pipeline",
+          "turn_index": 1,
+          "event_type": "agent_response",
+          "role": "assistant",
+          "content": "Echo: Use the dashboard media asset and classifier output to identify the red critical service.",
+          "tool_calls": [],
+          "started_at": "2026-07-12T10:38:07.698Z",
+          "ended_at": "2026-07-12T10:38:07.699Z",
+          "latency_ms": 0,
+          "status": "ok",
+          "metadata": {
+            "reset_ok": true
+          },
+          "vm_stream": {
+            "duration_ms": 1,
+            "logs": [
+              {
+                "data": {
+                  "action": "respond",
+                  "input": {
+                    "metadata": {
+                      "case_id": "a3-gp-media-pipeline"
+                    },
+                    "parts": [
+                      {
+                        "text": "Use the dashboard media asset and classifier output to identify the red critical service.",
+                        "type": "text"
+                      }
+                    ],
+                    "schema_version": "ashr.clone.agent_input.v1",
+                    "text": "Use the dashboard media asset and classifier output to identify the red critical service."
+                  }
+                },
+                "ts": 0,
+                "type": "action"
+              },
+              {
+                "data": {
+                  "level": "log",
+                  "message": "Echo: Use the dashboard media asset and classifier output to identify the red critical service."
+                },
+                "ts": 0,
+                "type": "console"
+              }
+            ],
+            "metadata": {
+              "synthetic": true
+            },
+            "provider": "local-runner",
+            "session_id": "a3-gp-media-pipeline"
+          }
+        }
+      ],
+      "grade": {
+        "scenario_id": "A2-S031",
+        "passed": true,
+        "score": 1,
+        "label": "passed",
+        "reason": "local checks passed",
+        "expected": {
+          "text": "Echo: Use the dashboard media asset and classifier output to identify the red critical service."
+        },
+        "actual": {
+          "text": "Echo: Use the dashboard media asset and classifier output to identify the red critical service.",
+          "tool_calls": []
+        },
+        "metrics": {
+          "text_match": true,
+          "tool_match": true,
+          "reset_ok": true,
+          "latency_ms": 0
+        }
+      },
+      "agent_output": {
+        "schema_version": "ashr.clone.agent_turn.v1",
+        "text": "Echo: Use the dashboard media asset and classifier output to identify the red critical service.",
+        "tool_calls": [],
+        "status": "ok",
+        "latency_ms": 0,
+        "metadata": {
+          "adapter_name": "RespondingMockAgent",
+          "implementation": "examples/agents/mock_agent_ts.mjs",
+          "local_only": true,
+          "style": "respond"
+        }
+      },
+      "expected": {
+        "text": "Echo: Use the dashboard media asset and classifier output to identify the red critical service."
+      },
+      "metadata": {}
+    }
+  ],
+  "aggregate_metrics": {
+    "schema_version": "ashr.clone.run_result.v1",
+    "trace_completeness": 1,
+    "passed": 3,
+    "failed": 0,
+    "errored": 0,
+    "timed_out": 0,
+    "total_tool_calls": 0
+  },
+  "metadata": {
+    "ashr_api_used": false,
+    "cli": "ashr-clone-runner",
+    "local_only": true
+  },
+  "field_map_version": "a1.ts.local.v1"
+}

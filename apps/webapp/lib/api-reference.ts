@@ -24,7 +24,7 @@ export type ApiEndpoint = {
 };
 
 export const apiReferenceMeta = {
-  schemaVersion: "a3.api_reference.v2",
+  schemaVersion: "a3.api_reference.v3",
   calibratedAt: "2026-07-12",
   mainSha: "ccf6ce5",
   a1Sha: "c784163",
@@ -39,7 +39,8 @@ export const apiReferenceMeta = {
   a2DecisionLedgerSchema: "a2.decision_ledger.v1",
   a2TrustedSpineSchema: "a2.trusted_spine_handoff.v1",
   a2RequiredScope: ["organization_id", "tenant_id", "workspace_id", "project_id", "environment_id"],
-  a2ValidationErrors: true
+  a2ValidationErrors: true,
+  a3ReleaseCandidate: "0.2.0-rc.1"
 } as const;
 
 export const apiGroups = [
@@ -333,16 +334,20 @@ export const apiEndpoints: ApiEndpoint[] = [
       zh: "把 A1 执行证据和 A2 判定组合成 A3 可读的产品视图。",
       en: "Compose A1 execution evidence and A2 decisions into the A3 product view."
     },
-    auth: { zh: "A3 角色头；当前本地只读", en: "A3 role header; currently local read-only" },
+    auth: { zh: "A1 服务端验证身份 + A3 RBAC + 五层租户范围", en: "A1 server-verified principal, A3 RBAC, and five-level tenant scope" },
     status: "implemented",
     source: "docs/a3/openapi/a3_commercial_api.openapi.json",
     response: {
       source: "api-mock",
       summary: { totalRuns: 4, totalCases: 32, passed: 18, failed: 14 },
-      a1_a2_evidence_spine: { a1_authority: "execution facts", a2_authority: "grade and release decision" }
+      a1_a2_evidence_spine: { a1_authority: "execution facts", a2_authority: "grade and release decision" },
+      delivery_golden_path: { status: "blocked_by_a2", production_ready: false },
+      deployment_acceptance: { status: "blocked", production_accepted: false },
+      release_artifact_manifest: { release: { version: "0.2.0-rc.1", production_release: false } }
     },
     notes: [
-      { zh: "这是当前 Next.js Webapp 默认消费的只读 API。", en: "This is the read-only API consumed by the current Next.js webapp." }
+      { zh: "这是当前 Next.js Webapp 默认消费的只读 API。", en: "This is the read-only API consumed by the current Next.js webapp." },
+      { zh: "交付闭环字段只汇总 A1/A2 权威证据；A3 不重算 A2 分数或发布决定。", en: "Delivery fields summarize authoritative A1/A2 evidence; A3 does not recompute A2 scores or release decisions." }
     ]
   },
   {

@@ -6765,3 +6765,25 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
 - Bundle impact: no sealed bundle inputs changed; screenshots remain public-safe development evidence and are not yet registered as signed bundle artifacts.
 - Detailed record: docs/a3/a3_next_product_webapp_2026_07_11.md.
 - CI follow-up: the first Ubuntu route E2E exposed an OS-specific Next export layout. The static server now checks the direct RSC path first and falls back to the Windows nested alias; local route E2E remains green and the fix is covered by the same GitHub job.
+
+## 2026-07-12 - Release Delivery Golden Path and New-run Audit Bundle
+
+- Rechecked `docs/strategy/large-saas-a1-a2-a3-full-plan.md`, current A1 TypeScript Runner, A2 judge service, A2 Trusted Spine, existing GitHub readback, Gate CLI, Audit Bundle, archive, Store, and Next.js contracts.
+- Confirmed the branch contains current known `origin/main` `ccf6ce5`; a fresh `git fetch` hit a transient GitHub 443 timeout, while `gh` confirmed PR #35 and all five existing A3 checks were green.
+- Added `services/report/a3_release_delivery.mjs` with Deployment Acceptance, versioned Release Artifact, verifier, and 11-stage Golden Path contracts.
+- Added `services/report/a3_release_delivery_cli.mjs`; it consumes A1/A2 evidence and writes a blocked packet without converting a block into a pass.
+- Added `services/report/a3_github_observe_cli.mjs`; it performs read-only Check/comment/branch-protection readback and never prints or stores its runtime token.
+- Extended Gate CLI to unwrap `a2.judge_service.run_response.v1`, attach the merged A2 Trusted Spine, block on A2 authority, and hash authority/readback/deployment records into the bundle.
+- Ran A1 TypeScript Runner to create `a3-golden-20260712-001`: 3/3 executed, no errors/timeouts, 100% trace completeness.
+- Ran the existing A2 internal judge service against that exact RunResult: 1/3 pass and 2/3 fail; both failures are `missing_required_tool`, including media scenario `A2-S031`.
+- Generated and verified a run-specific Audit Bundle: 14 artifacts passed, root hash passed, and 7 custody events passed.
+- Generated and verified a signed archive: 15 entries passed, root hash passed, and Ed25519 signature passed; signer remains explicitly self-signed/local.
+- Generated and verified candidate `0.2.0-rc.1`; it remains `production_release=false` and `blocked_by_a2`.
+- Added `/delivery`, the `a3-golden-path` source, Chinese-first delivery status, 11-stage timeline, 16 deployment checks, authority boundary, and artifact facts.
+- Added the `A3 golden path release artifact` CI job to regenerate and upload the blocked candidate packet as a GitHub Actions artifact.
+- Added version notes, implementation guide, and Growth Auditor Round 13 with 30 ranked growth points.
+- Initial focused verification passed: 51 Node contract tests, A3 TypeScript typecheck, A1 TypeScript build, source-load smoke, gate/archive tests, and `git diff --check`.
+- Final local verification before the first GitHub publish passed: full A3 Node `405/405`; A2 `186/186` plus `1050` subtests; Next.js typecheck and production build with 15 pages; route-level Playwright `11/11`; commercial CL with 0 blockers/advisories; hygiene CL with 0 findings; root and Webapp npm audits with 0 vulnerabilities; workflow YAML parse; 16 golden-path JSON files; redacted evidence secret/path scan; and `git diff --check`.
+- The broad A1/A2 Python run reached `1232` passes plus `1050` subtests and the A1 TypeScript SDK reached `573/574`. The remaining local checks require Docker/PostgreSQL, Go, or Cargo, which are not installed in this Windows environment; they are recorded as environment gaps and are not claimed as green A3 evidence.
+- Current true blockers: A2 Decision Ledger says block; no tenant custom GitHub App; no branch protection; no deployed identity/Postgres/queue/object-storage/rollback receipts.
+- Detailed record: `docs/a3/a3_release_delivery_golden_path_2026_07_12.md`.

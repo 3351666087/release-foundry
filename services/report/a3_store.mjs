@@ -57,6 +57,11 @@ import {
   buildReviewWorkflowRecord
 } from "./a3_review_workflow.mjs";
 import { evaluateA2TrustedReleaseAuthority } from "./a3_trusted_release_authority.mjs";
+import {
+  buildDeliveryGoldenPath,
+  buildDeploymentAcceptance,
+  normalizeA2GradeReport
+} from "./a3_release_delivery.mjs";
 
 export const A3_STORE_SCHEMA_VERSION = "a3.store.v1";
 
@@ -122,6 +127,17 @@ export const A3_SOURCE_FIXTURES = {
     mediaSignedUrlCoverage: "fixtures/a3/p3/ashr_signed_media_url_coverage.redacted.json",
     authCheck: "fixtures/a3/p3/ashr_auth_check.redacted.json",
     frontendSummary: "fixtures/a3/p3/ashr_frontend_relogin_top_level_summary.redacted.json"
+  },
+  "a3-golden-path": {
+    label: "A3 Golden Path 20260712",
+    runFixture: "fixtures/a3/golden-path/a3_new_run_result.redacted.json",
+    gradeFixture: "fixtures/a3/golden-path/a2_new_run_judge_response.redacted.json",
+    a2TrustedSpine: "fixtures/a2/results/a2_trusted_spine_handoff.json",
+    deploymentProbe: "fixtures/a3/golden-path/deployment_probe.redacted.json",
+    deploymentAcceptance: "fixtures/a3/golden-path/deployment-acceptance.json",
+    releaseArtifactManifest: "fixtures/a3/golden-path/release-artifact-manifest.json",
+    releaseArtifactVerification: "fixtures/a3/golden-path/release-artifact-verification.json",
+    deliveryGoldenPath: "fixtures/a3/golden-path/golden-path-status.json"
   }
 };
 
@@ -275,7 +291,9 @@ export async function loadA3SourceSnapshot(source = "mock", options = {}) {
     gradeFixture = mapped.gradeFixture;
   } else {
     runFixture = await readJson(root, config.runFixture);
-    gradeFixture = config.gradeFixture ? await readJson(root, config.gradeFixture) : {};
+    gradeFixture = config.gradeFixture
+      ? normalizeA2GradeReport(await readJson(root, config.gradeFixture))
+      : {};
   }
 
   return normalizeSnapshot({
@@ -299,6 +317,11 @@ export async function loadA3SourceSnapshot(source = "mock", options = {}) {
       root,
       config.a2TrustedSpine || "fixtures/a2/results/a2_trusted_spine_handoff.json"
     ),
+    deploymentProbe: await readOptionalJson(root, config.deploymentProbe),
+    deploymentAcceptance: await readOptionalJson(root, config.deploymentAcceptance),
+    releaseArtifactManifest: await readOptionalJson(root, config.releaseArtifactManifest),
+    releaseArtifactVerification: await readOptionalJson(root, config.releaseArtifactVerification),
+    deliveryGoldenPath: await readOptionalJson(root, config.deliveryGoldenPath),
     releaseEvidence: await readReleaseEvidenceFixtures(root),
     storage: {
       mode: "fixture_file",
@@ -2241,6 +2264,11 @@ function normalizeSnapshot(snapshot = {}) {
     a2GradeResults: snapshot.a2GradeResults || snapshot.a2_grade_results || {},
     a2ReleaseGate: snapshot.a2ReleaseGate || snapshot.a2_release_gate || {},
     a2TrustedSpine: snapshot.a2TrustedSpine || snapshot.a2_trusted_spine || {},
+    deploymentProbe: snapshot.deploymentProbe || snapshot.deployment_probe || {},
+    deploymentAcceptance: snapshot.deploymentAcceptance || snapshot.deployment_acceptance || {},
+    releaseArtifactManifest: snapshot.releaseArtifactManifest || snapshot.release_artifact_manifest || {},
+    releaseArtifactVerification: snapshot.releaseArtifactVerification || snapshot.release_artifact_verification || {},
+    deliveryGoldenPath: snapshot.deliveryGoldenPath || snapshot.delivery_golden_path || {},
     summary: buildDashboardSummary(runFixture, gradeFixture),
     case_count: cases.length,
     storage: snapshot.storage || {
@@ -2426,6 +2454,29 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
   }, {
     source: snapshot.source
   });
+  const deliveryInputs = {
+    runFixture: snapshot.runFixture,
+    gradeFixture: snapshot.gradeFixture,
+    trustedReleaseAuthority,
+    a2TrustedSpine: snapshot.a2TrustedSpine,
+    deploymentProbe: snapshot.deploymentProbe,
+    releaseArtifactManifest: snapshot.releaseArtifactManifest,
+    releaseArtifactVerification: snapshot.releaseArtifactVerification,
+    githubCheckReadback: releaseEvidenceInput.githubCheckReadback || releaseEvidenceInput.github_check_readback || {},
+    githubPrCommentReadback: releaseEvidenceInput.githubPrCommentReadback || releaseEvidenceInput.github_pr_comment_readback || {},
+    githubRequiredCheckProof: releaseEvidenceInput.githubRequiredCheckProof || releaseEvidenceInput.github_required_check_proof || {},
+    auditBundleVerification: releaseEvidenceInput.auditBundleVerification || releaseEvidenceInput.audit_bundle_verification || {},
+    auditArchiveVerification: releaseEvidenceInput.auditArchiveVerification || releaseEvidenceInput.audit_archive_verification || {},
+    releaseVersion: snapshot.releaseArtifactManifest?.release?.version || `candidate-${releaseId}`,
+    environment: snapshot.environmentId,
+    generatedAt: "runtime"
+  };
+  const deploymentAcceptance = snapshot.deploymentAcceptance?.schema_version === "a3.deployment_acceptance.v1"
+    ? snapshot.deploymentAcceptance
+    : buildDeploymentAcceptance(deliveryInputs, deliveryInputs);
+  const deliveryGoldenPath = snapshot.deliveryGoldenPath?.schema_version === "a3.delivery_golden_path.v1"
+    ? snapshot.deliveryGoldenPath
+    : buildDeliveryGoldenPath({ ...deliveryInputs, deploymentAcceptance }, deliveryInputs);
   return {
     schema_version: "a3.api_dashboard_payload.v1",
     source: snapshot.source,
@@ -2465,6 +2516,11 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     trusted_release_authority: trustedReleaseAuthority,
     release_decision_provenance: releaseDecisionProvenance,
     a1_a2_evidence_spine: a1A2EvidenceSpine,
+    deployment_probe: snapshot.deploymentProbe,
+    deployment_acceptance: deploymentAcceptance,
+    release_artifact_manifest: snapshot.releaseArtifactManifest,
+    release_artifact_verification: snapshot.releaseArtifactVerification,
+    delivery_golden_path: deliveryGoldenPath,
     release_evidence_api: {
       schema_version: "a3.release_evidence_api_link.v1",
       release_id: releaseId,

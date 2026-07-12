@@ -1,0 +1,111 @@
+{
+  "schema_version": "a3.generated_artifact_manifest.v1",
+  "generated_at": "2026-07-12T12:00:00.000Z",
+  "source": "a3-golden-path",
+  "command_shape": "ashr gate --json",
+  "manifest_file": "fixtures/a3/golden-path/generated-artifact-manifest.json",
+  "manifest_self_hash": "excluded_to_avoid_self_reference",
+  "release": {
+    "run_id": "a3-golden-20260712-001",
+    "decision": "block_release",
+    "decision_label": "Block release",
+    "risk_score": 87,
+    "blocks_merge": true,
+    "github_check_conclusion": "failure",
+    "decision_authority": "A2 Decision Ledger",
+    "a2_upstream_decision": "block",
+    "a2_release_ready": false,
+    "a3_recomputed_a2_decision": false
+  },
+  "redaction_policy": "No API keys, cookies, tokens, emails, or live signed media URLs are allowed in CLI output.",
+  "generated_artifacts": [
+    {
+      "id": "json_report",
+      "path": "fixtures/a3/golden-path/gate-report.json",
+      "content_type": "application/json",
+      "sha256": "5559875e25ae54227126955a9e4d9541c6801b99531879b315361b97e71c115d",
+      "byte_size": 23730,
+      "required": true
+    },
+    {
+      "id": "markdown_report",
+      "path": "fixtures/a3/golden-path/gate-report.md",
+      "content_type": "text/markdown",
+      "sha256": "08cb87a1a90f084d322f14e1b558d041e31d84abd6872c41300fc8c2e18288d0",
+      "byte_size": 2777,
+      "required": true
+    },
+    {
+      "id": "github_check_run",
+      "path": "fixtures/a3/golden-path/github-check.json",
+      "content_type": "application/json",
+      "sha256": "42eb080c27f8a27c7f4c9579719c9586f0d61ba47255cf735db510be975928c0",
+      "byte_size": 2176,
+      "required": true
+    },
+    {
+      "id": "pr_comment_markdown",
+      "path": "fixtures/a3/golden-path/pr-comment.md",
+      "content_type": "text/markdown",
+      "sha256": "6039e5e7972d358e80044b57a993863cfa4461abc4b6372f1728dfca60fb3957",
+      "byte_size": 1503,
+      "required": true
+    },
+    {
+      "id": "a2_trusted_spine",
+      "path": "fixtures/a2/results/a2_trusted_spine_handoff.json",
+      "content_type": "application/json",
+      "sha256": "bfc30d38dea81f68daf18c4a43061c70b310183e130a4677a40a7f932cc86949",
+      "byte_size": 6186,
+      "required": true,
+      "bundle_role": "authority_record",
+      "origin": "a2_authoritative_evidence"
+    },
+    {
+      "id": "github_check_readback",
+      "path": "fixtures/a3/p3/a3_github_check_readback_confirmed.redacted.json",
+      "content_type": "application/json",
+      "sha256": "84d38fe4b5208e8c556799a9ddeb149794c34a7451dcf1451213683c108b4b7e",
+      "byte_size": 1613,
+      "required": true,
+      "bundle_role": "readback_record",
+      "origin": "external_github_live_readback"
+    },
+    {
+      "id": "github_pr_comment_readback",
+      "path": "fixtures/a3/p3/a3_github_pr_comment_readback_confirmed.redacted.json",
+      "content_type": "application/json",
+      "sha256": "2334d0d29cdc314f6871f41371e5aceab69014b305d5efe21501896027a283fd",
+      "byte_size": 1668,
+      "required": true,
+      "bundle_role": "readback_record",
+      "origin": "external_github_live_readback"
+    },
+    {
+      "id": "github_required_check_proof",
+      "path": "fixtures/a3/p3/a3_github_required_check_proof_plan_only.redacted.json",
+      "content_type": "application/json",
+      "sha256": "1d137bfe38ccc9d19f8118675cfc379d8d19b0138e1fc166266baab9f0490339",
+      "byte_size": 1123,
+      "required": true,
+      "bundle_role": "readback_record",
+      "origin": "external_github_live_readback"
+    },
+    {
+      "id": "deployment_probe",
+      "path": "fixtures/a3/golden-path/deployment_probe.redacted.json",
+      "content_type": "application/json",
+      "sha256": "b9798136889a289bd1b02ccaa91022409390fbbccb0ddd692118309744e5c56f",
+      "byte_size": 1836,
+      "required": true,
+      "bundle_role": "deployment_record",
+      "origin": "deployment_acceptance_input"
+    }
+  ],
+  "safety": {
+    "dry_run_compatible": true,
+    "contains_secret_values": false,
+    "local_absolute_paths_allowed": false,
+    "manifest_hashes_itself": false
+  }
+}

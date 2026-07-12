@@ -7,6 +7,7 @@ const expectedRoutes = [
   "api-reference-page.tsx",
   "billing-page.tsx",
   "case-page.tsx",
+  "delivery-page.tsx",
   "login-page.tsx",
   "overview-page.tsx",
   "projects-page.tsx",
@@ -24,7 +25,7 @@ test("A3 webapp exposes the complete product workflow as typed routes", async ()
     readdir(new URL("components/pages/", webappUrl))
   ]);
 
-  for (const route of ["login", "overview", "projects", "runs", "case", "review", "reports", "api-reference", "team", "billing", "trust"]) {
+  for (const route of ["login", "overview", "projects", "runs", "case", "review", "reports", "delivery", "api-reference", "team", "billing", "trust"]) {
     assert.match(routesSource, new RegExp(`id: "${route}"`));
   }
   assert.deepEqual(pageFiles.filter((file) => file.endsWith("-page.tsx")).sort(), expectedRoutes);

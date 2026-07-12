@@ -786,7 +786,7 @@ function expectedCheckRunFields(publishReceipt = {}, options = {}) {
     check_name: options.checkName || requestBody.name || checkRun.name || "Ashr++ Release Gate",
     head_sha_alias: options.headSha || requestBody.head_sha || checkRun.head_sha || null,
     conclusion: options.conclusion || requestBody.conclusion || checkRun.conclusion || null,
-    output_hash: hashCheckOutput(output)
+    output_hash: options.skipOutputHash === true ? null : hashCheckOutput(output)
   };
 }
 
@@ -805,6 +805,9 @@ function sanitizeCheckRunReadback(value = {}) {
     details_url: value.details_url || null,
     output_title: output.title || null,
     output_hash: hashCheckOutput(output),
+    app_id_alias: Number.isInteger(Number(value.app?.id)) ? Number(value.app.id) : null,
+    app_slug: value.app?.slug || null,
+    app_owner_type: value.app?.owner?.type || null,
     started_at: value.started_at || null,
     completed_at: value.completed_at || null
   };

@@ -204,6 +204,97 @@ jobs:
             --strict-exit \
             --json
 
+  a3-release-delivery:
+    name: A3 golden path release artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    needs: plan
+    if: needs.plan.outputs.a3 == 'true' || needs.plan.outputs.evidence == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Build new-run gate and Audit Bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/a3-release-delivery
+          node services/report/a3_gate_cli.mjs \
+            --runs fixtures/a3/golden-path/a3_new_run_result.redacted.json \
+            --grades fixtures/a3/golden-path/a2_new_run_judge_response.redacted.json \
+            --coverage fixtures/a2/results/a2_g3_coverage_report.json \
+            --thresholds fixtures/a3/release_gate_thresholds.json \
+            --a2-trusted-spine fixtures/a2/results/a2_trusted_spine_handoff.json \
+            --github-check-readback fixtures/a3/p3/a3_github_check_readback_confirmed.redacted.json \
+            --github-pr-comment-readback fixtures/a3/p3/a3_github_pr_comment_readback_confirmed.redacted.json \
+            --github-required-check-proof fixtures/a3/p3/a3_github_required_check_proof_plan_only.redacted.json \
+            --deployment-probe fixtures/a3/golden-path/deployment_probe.redacted.json \
+            --release-version 0.2.0-rc.1 \
+            --environment staging \
+            --source a3-golden-path \
+            --generated-at 2026-07-12T12:00:00.000Z \
+            --head-sha "${GITHUB_SHA}" \
+            --details-url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
+            --annotation-path docs/a3/a3_release_delivery_golden_path_2026_07_12.md \
+            --output-json artifacts/a3-release-delivery/gate.json \
+            --output-md artifacts/a3-release-delivery/gate.md \
+            --output-check artifacts/a3-release-delivery/github-check.json \
+            --output-pr-comment artifacts/a3-release-delivery/pr-comment.md \
+            --output-manifest artifacts/a3-release-delivery/generated-artifacts.json \
+            --output-bundle artifacts/a3-release-delivery/audit-bundle-index.json \
+            --no-fail \
+            --json
+          node services/report/a3_gate_cli.mjs \
+            --verify-index artifacts/a3-release-delivery/audit-bundle-index.json \
+            --generated-at 2026-07-12T12:00:01.000Z \
+            --output-json artifacts/a3-release-delivery/audit-bundle-verification.json \
+            --strict-exit \
+            --json
+          node services/report/a3_audit_archive.mjs \
+            --index artifacts/a3-release-delivery/audit-bundle-index.json \
+            --output artifacts/a3-release-delivery/audit-archive-manifest.json \
+            --generated-at 2026-07-12T12:00:02.000Z \
+            --source github-actions \
+            --json
+          node services/report/a3_audit_archive.mjs \
+            --verify artifacts/a3-release-delivery/audit-archive-manifest.json \
+            --output artifacts/a3-release-delivery/audit-archive-verification.json \
+            --generated-at 2026-07-12T12:00:03.000Z \
+            --json
+      - name: Build deployment acceptance and release artifact
+        run: |
+          node services/report/a3_release_delivery_cli.mjs \
+            --runs fixtures/a3/golden-path/a3_new_run_result.redacted.json \
+            --grades fixtures/a3/golden-path/a2_new_run_judge_response.redacted.json \
+            --trusted-spine fixtures/a2/results/a2_trusted_spine_handoff.json \
+            --audit-bundle artifacts/a3-release-delivery/audit-bundle-index.json \
+            --audit-bundle-verification artifacts/a3-release-delivery/audit-bundle-verification.json \
+            --audit-archive artifacts/a3-release-delivery/audit-archive-manifest.json \
+            --audit-archive-verification artifacts/a3-release-delivery/audit-archive-verification.json \
+            --github-check-readback fixtures/a3/p3/a3_github_check_readback_confirmed.redacted.json \
+            --github-pr-comment-readback fixtures/a3/p3/a3_github_pr_comment_readback_confirmed.redacted.json \
+            --github-required-check-proof fixtures/a3/p3/a3_github_required_check_proof_plan_only.redacted.json \
+            --deployment-probe fixtures/a3/golden-path/deployment_probe.redacted.json \
+            --release-version 0.2.0-rc.1 \
+            --environment staging \
+            --git-sha "${GITHUB_SHA}" \
+            --generated-at 2026-07-12T12:00:04.000Z \
+            --verified-at 2026-07-12T12:00:05.000Z \
+            --output-dir artifacts/a3-release-delivery/release \
+            --doc docs/strategy/large-saas-a1-a2-a3-full-plan.md \
+            --doc docs/a3/a3_release_delivery_golden_path_2026_07_12.md \
+            --doc docs/a3/releases/a3-0.2.0-rc.1.md \
+            --no-fail \
+            --json
+      - name: Upload versioned release candidate packet
+        uses: actions/upload-artifact@v4
+        with:
+          name: ashr-a3-0.2.0-rc.1-${{ github.sha }}
+          path: artifacts/a3-release-delivery
+          if-no-files-found: error
+          retention-days: 14
+
   cl-summary:
     name: CL Gate summary
     runs-on: ubuntu-latest
@@ -218,6 +309,7 @@ jobs:
       - go-sdk
       - rust-verifier
       - evidence-gate
+      - a3-release-delivery
     steps:
       - name: Summarize required results
         shell: bash
@@ -231,6 +323,7 @@ jobs:
           echo "go-sdk=${{ needs.go-sdk.result }}"
           echo "rust-verifier=${{ needs.rust-verifier.result }}"
           echo "evidence-gate=${{ needs.evidence-gate.result }}"
+          echo "a3-release-delivery=${{ needs.a3-release-delivery.result }}"
           for result in \
             "${{ needs.plan.result }}" \
             "${{ needs.python-a1-a2.result }}" \
@@ -239,7 +332,8 @@ jobs:
             "${{ needs.typescript-sdk.result }}" \
             "${{ needs.go-sdk.result }}" \
             "${{ needs.rust-verifier.result }}" \
-            "${{ needs.evidence-gate.result }}"; do
+            "${{ needs.evidence-gate.result }}" \
+            "${{ needs.a3-release-delivery.result }}"; do
             if [[ "$result" == "failure" || "$result" == "cancelled" ]]; then
               exit 1
             fi

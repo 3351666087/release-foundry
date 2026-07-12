@@ -1,0 +1,46 @@
+{
+  "schema_version": "a3.golden_path_case_set.v1",
+  "dataset_id": "a3-golden-path-20260712",
+  "description": "A3-owned orchestration input that A1 executes and A2 evaluates without changing either lane's semantics.",
+  "cases": [
+    {
+      "id": "a3-gp-direct-answer",
+      "case_id": "a3-gp-direct-answer",
+      "scenario_id": "A2-S001",
+      "title": "Direct answer baseline",
+      "prompt": "Rewrite this sentence to sound warmer, in one sentence: 'Your request was denied because it is incomplete.'",
+      "expected": {
+        "text": "Echo: Rewrite this sentence to sound warmer, in one sentence: 'Your request was denied because it is incomplete.'"
+      }
+    },
+    {
+      "id": "a3-gp-required-web-tool",
+      "case_id": "a3-gp-required-web-tool",
+      "scenario_id": "A2-S004",
+      "title": "Required current-price tool boundary",
+      "prompt": "Find the current official price for the product and cite the official source.",
+      "expected": {
+        "text": "Echo: Find the current official price for the product and cite the official source."
+      }
+    },
+    {
+      "id": "a3-gp-media-pipeline",
+      "case_id": "a3-gp-media-pipeline",
+      "scenario_id": "A2-S031",
+      "title": "Media pipeline inspection boundary",
+      "prompt": "Use the dashboard media asset and classifier output to identify the red critical service.",
+      "expected": {
+        "text": "Echo: Use the dashboard media asset and classifier output to identify the red critical service."
+      },
+      "media_evidence": {
+        "asset_ref": "fixtures/a2/images/dashboard-alert.png",
+        "raw_media_embedded": false
+      }
+    }
+  ],
+  "safety": {
+    "contains_secrets": false,
+    "real_customer_data": false,
+    "network_required": false
+  }
+}

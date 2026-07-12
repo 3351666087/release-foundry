@@ -1151,3 +1151,34 @@
 - [x] Keep key, token, cookie, OTP, email, and account data out of source, fixtures, docs, and screenshots.
 - [ ] Add initial Google/GitHub login only after A1 publishes an authenticated callback-to-Webapp session flow.
 - [ ] Enable browser verification completion only after A1 publishes mailbox-bound challenge context and registration session handoff.
+
+## Release Delivery Golden Path - 2026-07-12
+
+- [x] Re-read the latest known main strategy and current A1/A2 contracts before editing A3.
+- [x] Generate a fresh A1 TypeScript RunResult instead of reusing run `11926`.
+- [x] Feed the exact new A1 cases through the existing A2 internal judge service.
+- [x] Preserve A2 score, pass/fail, failure class, and Trusted Spine release authority.
+- [x] Prove that A1 execution success can coexist with A2 evaluation failure.
+- [x] Include the media-pipeline scenario `A2-S031` in the new run.
+- [x] Add an A2 judge-service wrapper adapter to Gate CLI without changing A2 semantics.
+- [x] Add the A2 Trusted Spine as an authority record in the run-specific Audit Bundle.
+- [x] Verify the new Audit Bundle root, 14 artifacts, and 7 custody events.
+- [x] Verify the signed archive root, signature, and 15 entries.
+- [x] Add a versioned `a3.release_artifact_manifest.v1` and verifier.
+- [x] Add a 16-check `a3.deployment_acceptance.v1` that fails closed.
+- [x] Add an 11-stage `a3.delivery_golden_path.v1` that does not overstate readiness.
+- [x] Reject contract-only GitHub receipts as live production evidence.
+- [x] Add read-only GitHub Check, PR comment, and required-check observation CLI.
+- [x] Add a Next.js `/delivery` page and `a3-golden-path` data source.
+- [x] Add CI generation and GitHub Actions artifact upload for `0.2.0-rc.1`.
+- [x] Add release notes, implementation docs, and a 30-point growth audit.
+- [x] Pass full A3 Node (`405/405`) and A2 (`186/186`, `1050` subtests) contract suites.
+- [x] Pass Next.js typecheck/build (15 pages) and route-level Playwright (`11/11`).
+- [x] Pass CL, dependency audit, YAML/JSON, secret/path, and diff hygiene checks.
+- [x] Record Docker/PostgreSQL, Go, and Cargo-dependent A1 checks as local environment gaps without changing upstream tests.
+- [ ] Attach a real GitHub Check readback for the new candidate SHA.
+- [ ] Attach a real PR comment readback for the new candidate SHA.
+- [ ] Install and prove a tenant-bound custom GitHub App.
+- [ ] Enable branch protection and prove the required check is enforced.
+- [ ] Attach a deployed staging/VPC acceptance receipt.
+- [ ] Obtain a new A2 `allow` Decision Ledger record before any production release.

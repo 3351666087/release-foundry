@@ -165,7 +165,14 @@ export function normalizeDashboard(payload: JsonRecord): DashboardModel {
   const gradeFixture = record(payload.grade_fixture);
   const gradeResults = array(gradeFixture.grade_results).map(record);
   const gradeByCase = new Map(gradeResults.map((grade) => [string(grade.case_id), grade]));
-  const runs = array(runFixture.runs).map(record);
+  const nestedRunResult = record(runFixture.run_result);
+  const runs = array(runFixture.runs).length
+    ? array(runFixture.runs).map(record)
+    : array(runFixture.cases).length
+      ? [runFixture]
+      : array(nestedRunResult.cases).length
+        ? [nestedRunResult]
+        : [];
 
   const normalizedRuns = runs.map<NormalizedRun>((run) => ({
     runId: string(run.run_id, "run-unknown"),
@@ -182,7 +189,9 @@ export function normalizeDashboard(payload: JsonRecord): DashboardModel {
   const cases = runs.flatMap((run) => array(run.cases).map(record).map<NormalizedCase>((item) => {
     const caseId = string(item.case_id, "case-unknown");
     const grade = gradeByCase.get(caseId) || {};
-    const actual = record(item.actual);
+    const explicitActual = record(item.actual);
+    const agentOutput = record(item.agent_output);
+    const actual = Object.keys(explicitActual).length ? explicitActual : agentOutput;
     const observations = array(item.observations).map(record);
     const traceEvents = array(item.trace_events).map(record);
     const toolCalls = [

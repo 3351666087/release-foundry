@@ -3933,3 +3933,14 @@ Safety boundary:
 - Detailed evidence:
   `docs/a3/a3_request_boundary_audit_2026_07_12.md` and
   `docs/a3/growth_auditor_money_grade_round12_2026_07_12.md`.
+
+## 2026-07-12 - Real GitHub and Release Delivery Preparation
+
+- Added one read-only GitHub observation path and kept direct live token publishing disabled.
+- Created a fresh A1 run and A2 judge result for release-delivery calibration; no Ashr API key or real customer data was used.
+- Built a run-specific Audit Bundle, signed archive, Release Artifact, Deployment Acceptance, and Golden Path packet.
+- Current GitHub facts are explicit: PR #35 CI is green for the previous head, `main` branch protection is absent, and no tenant custom GitHub App installation is proven.
+- The first packet intentionally treats the old confirmed fixtures as contract evidence. A later readback pass will replace them with real `github.com` receipts tied to the candidate commit.
+- Pre-publish local gates passed for all A3/A2 checks that this environment can execute: A3 Node `405/405`, A2 `186/186` plus `1050` subtests, Next.js 15-page production build, Playwright `11/11`, both CL guards, both npm audits, YAML/JSON parsing, redacted evidence scanning, and diff hygiene.
+- A1 compatibility was also exercised broadly (`1232` Python passes and `573` TypeScript SDK passes). Docker/PostgreSQL, Go, and Cargo-dependent tests remain explicitly environment-blocked rather than being weakened, skipped by code changes, or reported as passed.
+- No key, token, cookie, email, installation token, private signing key, or raw GitHub response was persisted.
