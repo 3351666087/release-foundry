@@ -337,6 +337,56 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
         self.assertEqual(repaired["repaired_output"]["safety_risk"], "unknown")
         self.assertEqual(repaired["calibration_state"], "uncalibrated")
         self.assertFalse(repaired["release_authority"])
+        self.assertFalse(repaired["calibration_entry_eligible"])
+        self.assertIn("reviewer_identity_hash_required_for_calibration", repaired["blockers"])
+        self.assert_schema("structured_output_repair.schema.json", blocked)
+        self.assert_schema("structured_output_repair.schema.json", repaired)
+
+        not_required = govern_structured_output_repair(
+            original_output={**original, "safety_risk": "unknown"},
+            required_fields=["contains_text", "primary_color", "safety_risk"],
+        )
+        self.assertEqual(not_required["state"], "not_required")
+        self.assert_schema("structured_output_repair.schema.json", not_required)
+
+    def test_repair_policy_hash_safety_default_and_reviewer_binding_are_governed(self):
+        policy = {
+            "mode": "deterministic_defaults",
+            "allowed_defaults": {"safety_risk": "unknown"},
+        }
+        policy_hash = stable_hash(policy)
+        accepted = govern_structured_output_repair(
+            original_output={"contains_text": True},
+            required_fields=["contains_text", "safety_risk"],
+            repair_policy=policy,
+            expected_repair_policy_hash=policy_hash,
+            reviewer_identity_hash="sha256:" + "9" * 64,
+        )
+        self.assertEqual(accepted["state"], "repaired_for_review")
+        self.assertTrue(accepted["calibration_entry_eligible"])
+        self.assertEqual(accepted["repair_policy_hash"], policy_hash)
+
+        replay_changed = govern_structured_output_repair(
+            original_output={"contains_text": True},
+            required_fields=["contains_text", "safety_risk"],
+            repair_policy=policy,
+            expected_repair_policy_hash="sha256:" + "8" * 64,
+        )
+        self.assertEqual(replay_changed["state"], "blocked")
+        self.assertIn("repair_policy_hash_mismatch", replay_changed["blockers"])
+
+        unsafe = govern_structured_output_repair(
+            original_output={"contains_text": True},
+            required_fields=["contains_text", "safety_risk"],
+            repair_policy={
+                "mode": "deterministic_defaults",
+                "allowed_defaults": {"safety_risk": "none"},
+            },
+        )
+        self.assertEqual(unsafe["state"], "blocked")
+        self.assertIn("unsafe_safety_default_forbidden", unsafe["blockers"])
+        for item in (accepted, replay_changed, unsafe):
+            self.assert_schema("structured_output_repair.schema.json", item)
 
     def test_missing_safety_field_has_explicit_safety_severity(self):
         result = evaluate_local_multimodal_golden(
@@ -356,10 +406,14 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
             prompt_tokens=645,
             completion_tokens=16,
             maximum_latency_seconds=30,
+            startup_class="cold_start",
+            telemetry={"load_duration_seconds": 45.1, "eval_duration_seconds": 5.8},
         )
         self.assertEqual(observation["latency_policy_state"], "incomplete")
         self.assertFalse(observation["evaluation_eligible"])
         self.assertIn("local_judge_latency_exceeded", observation["blockers"])
+        self.assertEqual(observation["cold_start_slo_state"], "incomplete")
+        self.assert_schema("local_model_resource_observation.schema.json", observation)
         within = observe_local_model_resources(
             model_binding=self.llava_model,
             installed_bytes=4733363377,
@@ -367,9 +421,26 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
             prompt_tokens=645,
             completion_tokens=16,
             maximum_latency_seconds=30,
+            startup_class="warm_start",
+            cold_start_slo_state="incomplete",
         )
-        self.assertEqual(within["latency_policy_state"], "within_limit")
-        self.assertTrue(within["evaluation_eligible"])
+        self.assertEqual(within["latency_policy_state"], "incomplete")
+        self.assertFalse(within["evaluation_eligible"])
+        self.assertIn("cold_start_slo_failure_not_concealed", within["blockers"])
+        self.assert_schema("local_model_resource_observation.schema.json", within)
+
+        independent_warm = observe_local_model_resources(
+            model_binding=self.llava_model,
+            installed_bytes=4733363377,
+            wall_time_seconds=5,
+            prompt_tokens=715,
+            completion_tokens=27,
+            maximum_latency_seconds=30,
+            startup_class="warm_start",
+        )
+        self.assertEqual(independent_warm["latency_policy_state"], "within_limit")
+        self.assertTrue(independent_warm["evaluation_eligible"])
+        self.assert_schema("local_model_resource_observation.schema.json", independent_warm)
 
     def test_a1_replay_under_rotated_credentials_preserves_a2_evaluation_identity(self):
         inputs = {
@@ -393,9 +464,13 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
         }
         exact = validate_a3_decision_consumption(
             committed_decision=committed,
-            consumed_decision={"a2_committed_decision_hash": stable_hash(committed)},
+            consumed_decision={
+                "a2_committed_decision_hash": stable_hash(committed),
+                "display_status": "BLOCK",
+            },
         )
         self.assertTrue(exact["consumption_valid"])
+        self.assert_schema("a3_decision_consumption_validation.schema.json", exact)
         recomputed = validate_a3_decision_consumption(
             committed_decision=committed,
             consumed_decision={
@@ -405,6 +480,61 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
         )
         self.assertFalse(recomputed["consumption_valid"])
         self.assertIn("a3_recomputed_release_state_forbidden", recomputed["blockers"])
+        self.assert_schema("a3_decision_consumption_validation.schema.json", recomputed)
+
+    def test_a3_must_display_incomplete_cold_start_decision_without_upgrade(self):
+        committed = {
+            "decision_id": "decision-cold-start-incomplete-1",
+            "status": "INCOMPLETE",
+            "blockers": ["local_judge_latency_exceeded"],
+        }
+        exact = validate_a3_decision_consumption(
+            committed_decision=committed,
+            consumed_decision={
+                "a2_committed_decision_hash": stable_hash(committed),
+                "display_status": "INCOMPLETE",
+            },
+        )
+        upgraded = validate_a3_decision_consumption(
+            committed_decision=committed,
+            consumed_decision={
+                "a2_committed_decision_hash": stable_hash(committed),
+                "display_status": "PASS",
+            },
+        )
+        self.assertTrue(exact["consumption_valid"])
+        self.assertFalse(upgraded["consumption_valid"])
+        self.assertIn("a3_display_status_mismatch", upgraded["blockers"])
+        self.assert_schema("a3_decision_consumption_validation.schema.json", exact)
+        self.assert_schema("a3_decision_consumption_validation.schema.json", upgraded)
+
+    def test_repaired_local_output_disagreeing_with_cloud_requires_review(self):
+        repair = govern_structured_output_repair(
+            original_output={"contains_text": True, "primary_color": "blue"},
+            required_fields=["contains_text", "primary_color", "safety_risk"],
+            repair_policy={
+                "mode": "deterministic_defaults",
+                "allowed_defaults": {"safety_risk": "unknown"},
+            },
+            reviewer_identity_hash="sha256:" + "7" * 64,
+        )
+        receipt = build_multimodal_disagreement_receipt(
+            local_result={
+                "status": "completed",
+                "structured_output_hash": repair["repaired_output_hash"],
+            },
+            cloud_result={
+                "status": "completed",
+                "structured_output_hash": stable_hash(
+                    {"contains_text": True, "primary_color": "blue", "safety_risk": "none"}
+                ),
+            },
+            local_model_binding=self.llava_model,
+            cloud_model_binding=self.cloud_model,
+        )
+        self.assertEqual(receipt["state"], "semantic_disagreement")
+        self.assertTrue(receipt["human_review_required"])
+        self.assertFalse(receipt["release_authority"])
 
     def test_credential_rotation_marker_is_stable_provider_bound_and_secret_free(self):
         first = build_credential_rotation_marker("credential-a", provider_id="dashscope")

@@ -41,6 +41,36 @@
     "completion_tokens": 27
   },
   "observation_status": "schema_valid_but_unreviewed_safety_unknown",
+  "round16_governed_probe": {
+    "prompt_change_requires_new_calibration": true,
+    "prompt_hash": "sha256:56f6c474518e82cfcc28b73ec5225a7057a4e60829c77f668a5a20fc059be73e",
+    "normal_output": {
+      "contains_text": true,
+      "primary_color": "white",
+      "safety_risk": "none"
+    },
+    "normal_output_hash": "sha256:e2dfbdaff73c8c1a55bfcf8817328595d7cd52999b52ca9a19592edec263670e",
+    "three_run_hashes_matched": true,
+    "wall_seconds": [
+      52.344,
+      4.329,
+      4.338
+    ],
+    "load_duration_seconds": [
+      9.415984,
+      0.176444,
+      0.156667
+    ],
+    "eval_duration_seconds": [
+      3.932728,
+      3.873743,
+      3.976158
+    ],
+    "cold_or_evicted_run_incomplete_under_30_seconds": true,
+    "warm_runs_within_30_seconds": true,
+    "calibration_state": "uncalibrated",
+    "release_authority": false
+  },
   "golden_eligible": false,
   "human_review_required": true,
   "public_safe": true

@@ -245,35 +245,65 @@ def govern_structured_output_repair(
     original_output: dict[str, Any],
     required_fields: list[str],
     repair_policy: dict[str, Any] | None = None,
+    expected_repair_policy_hash: str | None = None,
+    reviewer_identity_hash: str | None = None,
 ) -> dict[str, Any]:
     """Record deterministic repair explicitly; never replace the original observation silently."""
     missing = sorted(str(field) for field in required_fields if str(field) not in original_output)
     policy = dict(repair_policy or {})
+    repair_policy_hash = stable_hash(policy) if policy else ""
     allowed_defaults = dict(policy.get("allowed_defaults") or {})
     repair_allowed = policy.get("mode") == "deterministic_defaults" and bool(missing)
-    can_repair = repair_allowed and all(field in allowed_defaults for field in missing)
+    unsafe_safety_defaults = sorted(
+        field
+        for field in missing
+        if field == "safety_risk" and field in allowed_defaults and allowed_defaults[field] != "unknown"
+    )
+    policy_hash_matches = expected_repair_policy_hash in {None, repair_policy_hash}
+    can_repair = (
+        repair_allowed
+        and all(field in allowed_defaults for field in missing)
+        and not unsafe_safety_defaults
+        and policy_hash_matches
+    )
     repaired = dict(original_output)
     if can_repair:
         for field in missing:
             repaired[field] = allowed_defaults[field]
     blockers = []
+    if expected_repair_policy_hash is not None and not policy_hash_matches:
+        blockers.append("repair_policy_hash_mismatch")
+    if unsafe_safety_defaults:
+        blockers.append("unsafe_safety_default_forbidden")
     if missing and not repair_allowed:
         blockers.append("repair_policy_not_configured")
-    elif missing and not can_repair:
+    elif missing and not can_repair and not blockers:
         blockers.append("deterministic_repair_not_available")
+    reviewer_bound = (
+        isinstance(reviewer_identity_hash, str)
+        and reviewer_identity_hash.startswith("sha256:")
+        and len(reviewer_identity_hash) == 71
+    )
+    calibration_entry_eligible = can_repair and reviewer_bound
+    if can_repair and not reviewer_bound:
+        blockers.append("reviewer_identity_hash_required_for_calibration")
     return {
         "schema_version": REPAIR_SCHEMA_VERSION,
         "state": "repaired_for_review" if can_repair else ("blocked" if missing else "not_required"),
+        "repair_policy_hash": repair_policy_hash,
+        "expected_repair_policy_hash": expected_repair_policy_hash or "",
         "original_output_hash": stable_hash(original_output),
         "repaired_output_hash": stable_hash(repaired) if can_repair else "",
         "original_output": dict(original_output),
         "repaired_output": repaired if can_repair else None,
         "missing_required_fields": missing,
         "semantic_observation_modified": can_repair,
+        "reviewer_identity_hash": reviewer_identity_hash or "",
+        "calibration_entry_eligible": calibration_entry_eligible,
         "calibration_state": "uncalibrated",
         "release_authority": False,
         "human_review_required": bool(missing),
-        "blockers": blockers,
+        "blockers": sorted(set(blockers)),
         "public_safe": True,
     }
 
@@ -286,6 +316,9 @@ def observe_local_model_resources(
     prompt_tokens: int,
     completion_tokens: int,
     maximum_latency_seconds: float,
+    startup_class: str = "warm_start",
+    cold_start_slo_state: str | None = None,
+    telemetry: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Create public-safe resource evidence and fail closed on excessive local Judge latency."""
     required = {"provider_id", "model_id", "model_version"}
@@ -296,7 +329,26 @@ def observe_local_model_resources(
         raise ValueError("local resource observation values must be non-negative numbers")
     if maximum_latency_seconds <= 0:
         raise ValueError("maximum latency must be positive")
+    if startup_class not in {"cold_start", "warm_start"}:
+        raise ValueError("startup class must be cold_start or warm_start")
+    if cold_start_slo_state not in {None, "within_limit", "incomplete"}:
+        raise ValueError("cold start SLO state is invalid")
+    telemetry = dict(telemetry or {})
+    allowed_telemetry = {"peak_memory_bytes", "load_duration_seconds", "eval_duration_seconds"}
+    if set(telemetry) - allowed_telemetry:
+        raise ValueError("unsupported local telemetry field")
+    if any(
+        isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0
+        for value in telemetry.values()
+    ):
+        raise ValueError("local telemetry values must be non-negative numbers")
     latency_exceeded = wall_time_seconds > maximum_latency_seconds
+    inherited_cold_failure = startup_class == "warm_start" and cold_start_slo_state == "incomplete"
+    blockers = []
+    if latency_exceeded:
+        blockers.append("local_judge_latency_exceeded")
+    if inherited_cold_failure:
+        blockers.append("cold_start_slo_failure_not_concealed")
     return {
         "schema_version": LOCAL_RESOURCE_SCHEMA_VERSION,
         "model_binding": dict(model_binding),
@@ -305,10 +357,15 @@ def observe_local_model_resources(
         "prompt_tokens": prompt_tokens,
         "completion_tokens": completion_tokens,
         "maximum_latency_seconds": maximum_latency_seconds,
-        "latency_policy_state": "incomplete" if latency_exceeded else "within_limit",
-        "evaluation_eligible": not latency_exceeded,
+        "startup_class": startup_class,
+        "cold_start_slo_state": cold_start_slo_state or (
+            "incomplete" if startup_class == "cold_start" and latency_exceeded else "within_limit"
+        ),
+        "telemetry": telemetry,
+        "latency_policy_state": "incomplete" if latency_exceeded or inherited_cold_failure else "within_limit",
+        "evaluation_eligible": not latency_exceeded and not inherited_cold_failure,
         "release_authority": False,
-        "blockers": ["local_judge_latency_exceeded"] if latency_exceeded else [],
+        "blockers": blockers,
         "public_safe": True,
     }
 
@@ -352,10 +409,16 @@ def validate_a3_decision_consumption(
         blockers.append("a2_committed_decision_hash_mismatch")
     if forbidden:
         blockers.append("a3_recomputed_release_state_forbidden")
+    committed_status = str(committed_decision.get("status") or "")
+    displayed_status = str(consumed_decision.get("display_status") or "")
+    if displayed_status and displayed_status != committed_status:
+        blockers.append("a3_display_status_mismatch")
     return {
         "schema_version": "a2.a3_decision_consumption_validation.v1",
         "committed_decision_hash": committed_hash,
         "consumption_valid": not blockers,
+        "committed_status": committed_status,
+        "displayed_status": displayed_status,
         "release_authority": False,
         "forbidden_fields": forbidden,
         "blockers": blockers,
