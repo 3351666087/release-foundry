@@ -31,6 +31,7 @@ def build_evidence_snapshot(
     created_at: str,
     required_modalities: list[str] | None = None,
     source_schema_version: str = "unknown",
+    artifact_pipeline_records: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Freeze public-safe A1 evidence metadata without storing raw evidence."""
     normalized = redact_payload(deepcopy(run_payload))
@@ -49,6 +50,12 @@ def build_evidence_snapshot(
     source = selected_case or normalized
     tool_calls = _tool_calls(source)
     artifacts = _artifact_descriptors(tool_calls)
+    pipeline_artifacts, pipeline_extractors, pipeline_errors = _artifact_pipeline_evidence(
+        artifact_pipeline_records or [],
+        scope=scope,
+    )
+    artifacts.extend(pipeline_artifacts)
+    validation_errors.extend(pipeline_errors)
     observed_modalities = sorted(
         {
             str(item["modality"])
@@ -89,7 +96,8 @@ def build_evidence_snapshot(
                 "input_hash": stable_hash(normalized),
                 "status": "complete",
             }
-        ],
+        ]
+        + pipeline_extractors,
         "security": {
             "tenant_scoped": True,
             "scope_complete": True,
@@ -102,6 +110,65 @@ def build_evidence_snapshot(
     snapshot_core["snapshot_id"] = stable_hash(snapshot_core)
     snapshot_core["snapshot_hash"] = stable_hash(snapshot_core)
     return snapshot_core
+
+
+def _artifact_pipeline_evidence(
+    records: list[dict[str, Any]],
+    *,
+    scope: dict[str, str],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[str]]:
+    artifacts: list[dict[str, Any]] = []
+    extractors: list[dict[str, Any]] = []
+    errors: list[str] = []
+    for position, record in enumerate(records):
+        prefix = f"artifact_pipeline_{position}"
+        if record.get("schema_version") != "a2.multimodal_artifact_pipeline.v1":
+            errors.append(f"{prefix}_schema_invalid")
+            continue
+        if record.get("tenant_scope") != scope:
+            errors.append(f"{prefix}_scope_mismatch")
+            continue
+        if record.get("pipeline_record_hash") != _pipeline_record_hash(record):
+            errors.append(f"{prefix}_integrity_invalid")
+            continue
+        manifest = record.get("manifest")
+        extraction = record.get("extraction")
+        if not isinstance(manifest, dict) or not isinstance(extraction, dict):
+            errors.append(f"{prefix}_contract_invalid")
+            continue
+        blockers = record.get("blockers")
+        if not isinstance(blockers, list):
+            blockers = ["pipeline_blockers_invalid"]
+        eligible = record.get("evaluation_eligible") is True and not blockers
+        artifacts.append(
+            {
+                "artifact_id": str(manifest.get("artifact_id") or ""),
+                "modality": str(manifest.get("modality") or "file"),
+                "producer_tool": "a2.artifact_pipeline",
+                "reference_hash": str(manifest.get("manifest_id") or ""),
+                "content_hash": str(manifest.get("content_hash") or ""),
+                "content_included": False,
+                "collection_status": "complete" if eligible else "invalid",
+            }
+        )
+        extractors.append(
+            {
+                "extractor_id": str(extraction.get("extractor_id") or ""),
+                "extractor_version": str(extraction.get("extractor_version") or ""),
+                "input_hash": str(extraction.get("input_hash") or ""),
+                "status": str(extraction.get("status") or "invalid"),
+            }
+        )
+        if not eligible:
+            errors.extend(f"{prefix}_{blocker}" for blocker in blockers)
+            if not blockers:
+                errors.append(f"{prefix}_not_evaluation_eligible")
+    return artifacts, extractors, errors
+
+
+def _pipeline_record_hash(record: dict[str, Any]) -> str:
+    core = {key: value for key, value in record.items() if key != "pipeline_record_hash"}
+    return stable_hash(core)
 
 
 def build_decision_record(
