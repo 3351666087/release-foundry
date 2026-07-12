@@ -26,7 +26,7 @@ export type ApiEndpoint = {
 export const apiReferenceMeta = {
   schemaVersion: "a3.api_reference.v2",
   calibratedAt: "2026-07-12",
-  mainSha: "7dd14d7",
+  mainSha: "ccf6ce5",
   a1Sha: "c784163",
   a2Sha: "8cd1d4f",
   a1SourceState: "merged_to_main",

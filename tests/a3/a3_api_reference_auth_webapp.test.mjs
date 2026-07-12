@@ -22,7 +22,7 @@ test("API Reference is a typed route grounded in A1, A2, and A3 contracts", asyn
   assert.match(page, /Search APIs/);
   assert.match(page, /Request example/);
   assert.match(page, /Response example/);
-  assert.match(reference, /mainSha: "7dd14d7"/);
+  assert.match(reference, /mainSha: "ccf6ce5"/);
   assert.match(reference, /a1Sha: "c784163"/);
   assert.match(reference, /a2Sha: "8cd1d4f"/);
   assert.match(reference, /a1SourceState: "merged_to_main"/);
@@ -101,7 +101,8 @@ test("verification email handoff is public-safe and email-client compatible", as
 test("redacted auth snapshot records current peer SHAs and blockers without secrets", async () => {
   const fixture = JSON.parse(await source("fixtures/a3/auth/a1_a2_auth_contract_snapshot.redacted.json"));
   assert.equal(fixture.schema_version, "a3.auth_contract_snapshot.v3");
-  assert.equal(fixture.main.sha, "7dd14d7b154ad86bd3bfedacbf4c3e03796170ce");
+  assert.equal(fixture.main.sha, "ccf6ce57890aaceabcb627c14d2e078674bd50ad");
+  assert.equal(fixture.main.a1_a2_integration_sha, "7dd14d7b154ad86bd3bfedacbf4c3e03796170ce");
   assert.equal(fixture.main.contained_by_a3_branch, true);
   assert.equal(fixture.a1.sha, "c784163588e9e0839fe17c604f3285c42efe3661");
   assert.equal(fixture.a1.pull_request_state, "merged_to_main");

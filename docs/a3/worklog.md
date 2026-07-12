@@ -5,25 +5,33 @@
 ### Goal
 
 Replace stale draft-only product claims after A1 `c784163` and A2 `8cd1d4f`
-entered `main` `7dd14d7`, while keeping initial OAuth login, browser email
-completion, and A2 release readiness fail-closed.
+entered `main` through `7dd14d7`, then replay the repair on current `main`
+`ccf6ce5` while keeping initial OAuth login, browser email completion, and A2
+release readiness fail-closed.
 
 ### Upstream evidence
 
 - Standard `git fetch origin --prune` was retried twice and failed because the
   local network reset or could not connect to `github.com:443`.
-- Authenticated official GitHub API access remained healthy and confirmed
-  `main` `7dd14d7`, its integration parents, and the merged A1/A2 commits.
+- Authenticated official GitHub API access remained healthy and initially
+  confirmed `7dd14d7`, its integration parents, and the merged A1/A2 commits.
 - A binary-safe official GitHub archive of `7dd14d7` was downloaded to a
   temporary directory, validated as ZIP, and used as a full latest-main test
   sandbox. No third-party Git proxy was used.
 - Latest A2 contracts require `organization_id`, `tenant_id`, `workspace_id`,
   `project_id`, and `environment_id`; they expose `scope_complete` and
   `validation_errors` and directly validate A1 RunResult cases.
+- Git HTTPS later recovered. Current `origin/main` is `ccf6ce5`; the A3 repair
+  commits replayed without conflict on that base.
+- The strategy merged at `ccf6ce5` makes Ashr an optional calibration provider
+  and the enterprise Release path provider-neutral. A3 still owns the typed
+  Next.js product surface and consumes internal A1/A2 authority.
+- A2 peer ref `2a87e16` contains newer durable provider-reconciliation work.
+  It remains a read-only watch signal until merged into main.
 
 ### A3 changes
 
-- API Reference now reports main `7dd14d7`, A1 `c784163`, and A2 `8cd1d4f`.
+- API Reference now reports main `ccf6ce5`, A1 `c784163`, and A2 `8cd1d4f`.
 - A1 account linking, challenge start, callback, and browser-session refresh
   are labeled implemented and merged, not draft.
 - Initial Google/GitHub login remains unavailable, and email verification
@@ -40,7 +48,7 @@ completion, and A2 release readiness fail-closed.
 - Focused A3 auth/reference and Webapp contracts: `9 pass / 0 fail` locally
   and `9 pass / 0 fail` on the latest-main sandbox.
 - A3 full Node suite on latest main: `334 pass / 0 fail`.
-- A2 full suite on latest main: `185 pass / 0 fail`, `1042 subtests pass`.
+- A2 full suite on current main: `186 pass / 0 fail`, `1050 subtests pass`.
 - A2 trusted-spine focus: `7 pass / 0 fail`.
 - TypeScript typecheck and Next.js static production build: passed locally and
   on the latest-main sandbox.

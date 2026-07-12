@@ -1014,7 +1014,8 @@
 
 ## Merged-main Identity + Trusted Spine Recalibration - 2026-07-12
 
-- [x] Confirm official GitHub `main` is `7dd14d7` and contains A1 `c784163` plus A2 `8cd1d4f`.
+- [x] Confirm current GitHub `main` is `ccf6ce5` and contains A1 `c784163` plus A2 `8cd1d4f` through integration commit `7dd14d7`.
+- [x] Re-read the unified provider-neutral enterprise Release strategy merged in `ccf6ce5`.
 - [x] Replace A3 API Reference open-draft labels with merged-main implementation state.
 - [x] Keep Google/GitHub initial sign-in unavailable; do not confuse account linking with first login.
 - [x] Keep browser email-verification completion blocked until mailbox-bound challenge context exists.

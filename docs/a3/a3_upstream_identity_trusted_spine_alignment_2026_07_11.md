@@ -4,7 +4,7 @@ Date: 2026-07-11
 
 Final remote sync: 2026-07-12
 
-Status: A3 repair recalibrated against merged `main` `7dd14d7`.
+Status: A3 repair recalibrated and replayed on current `main` `ccf6ce5`.
 
 ## Why this patch exists
 
@@ -21,7 +21,7 @@ product blocker.
 
 | Lane | Ref | Read-only calibration SHA | Authority used by A3 |
 |---|---|---|---|
-| main | `origin/main` | `7dd14d7` | integrated A1/A2/A3 base |
+| main | `origin/main` | `ccf6ce5` | current provider-neutral enterprise Release base |
 | A1 | `main` source commit | `c784163` | identity, browser session, run and delivery facts |
 | A2 | `main` source commit | `8cd1d4f` | evidence snapshot, grade and release-decision authority |
 
@@ -85,6 +85,8 @@ This work stays in the A3 Product Web lane defined by
 `docs/strategy/large-saas-a1-a2-a3-full-plan.md`:
 
 - TypeScript, React, and Next.js remain the product-web mainline.
+- Ashr official API remains an optional calibration provider; this identity
+  and trusted-spine path depends on internal A1/A2 contracts, not Ashr uptime.
 - A1 keeps identity, session, OAuth, delivery, and runner authority.
 - A2 keeps grade, failure taxonomy, release policy, and decision authority.
 - A3 presents typed downstream capability state and fails closed.
@@ -119,13 +121,13 @@ This work stays in the A3 Product Web lane defined by
 ### Merged-main addendum, 2026-07-12
 
 - Latest-main A3 Node suite: `334 pass / 0 fail`.
-- Latest-main A2 suite: `185 pass / 0 fail`, `1042 subtests pass`.
+- Current-main A2 suite: `186 pass / 0 fail`, `1050 subtests pass`.
 - Latest-main trusted-spine focus: `7 pass / 0 fail`.
 - Focused API Reference/Webapp contracts: `9 pass / 0 fail`.
 - TypeScript typecheck and Next.js production static build: passed.
 - Full Playwright suite: `31 pass / 0 fail`, including API-aware Webapp routes
   `6 pass / 0 fail`.
 - Webapp dependency audit: `0 vulnerabilities`.
-- Standard Git HTTPS remained unavailable, so the official GitHub API archive
-  was used only as a temporary test sandbox. A proper branch replay still
-  requires standard fetch before Git publication.
+- Standard Git HTTPS was initially unavailable, so an official GitHub API
+  archive was used as a temporary test sandbox. Git later recovered; the two
+  A3 commits were replayed without conflict on `origin/main` `ccf6ce5`.

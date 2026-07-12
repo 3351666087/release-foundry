@@ -7,10 +7,10 @@ Date: 2026-07-11
 > account, not initial sign-in. A3 now keeps those login buttons disabled. See
 > `docs/a3/a3_upstream_identity_trusted_spine_alignment_2026_07_11.md`.
 >
-> Merged-main update, 2026-07-12: A1 `c784163` and A2 `8cd1d4f` are now in
-> `main` `7dd14d7`. Their implemented route and trusted-spine contracts are
-> authoritative; initial OAuth login and browser email-completion blockers
-> remain unchanged.
+> Merged-main update, 2026-07-12: A1 `c784163` and A2 `8cd1d4f` entered
+> `main` through `7dd14d7`; current `main` is `ccf6ce5`. Their implemented
+> route and trusted-spine contracts are authoritative; initial OAuth login and
+> browser email-completion blockers remain unchanged.
 
 ## Scope
 
@@ -18,6 +18,8 @@ This round adds the developer reference and the first real A3-to-A1 identity
 adapter. It follows `docs/strategy/large-saas-a1-a2-a3-full-plan.md`:
 
 - TypeScript and Next.js remain the A3 product-web mainline.
+- Ashr official API is an optional calibration provider, not a runtime or CI
+  dependency for this A1/A2/A3 product path.
 - A1 owns identity sessions, OAuth exchanges, credentials, SMTP, and execution
   facts.
 - A2 owns score, pass/fail, failure taxonomy, and release decisions.
@@ -31,7 +33,7 @@ the integrated `main` snapshot:
 
 | Lane | Ref | SHA | Use in this round |
 |---|---|---|---|
-| main | `origin/main` | `7dd14d7` | integrated A1/A2/A3 base |
+| main | `origin/main` | `ccf6ce5` | current provider-neutral enterprise Release base |
 | A1 | `main` source commit | `c784163` | OAuth account linking, unified identity, verification, SMTP, route facts |
 | A2 | `main` source commit | `8cd1d4f` | five-level trusted evidence scope and unchanged judge authority |
 

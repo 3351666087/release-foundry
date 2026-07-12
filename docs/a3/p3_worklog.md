@@ -3852,20 +3852,25 @@ Safety boundary:
 
 ## 2026-07-12 - Merged-main Identity And Trusted-Spine Recalibration
 
-- Confirmed through the authenticated official GitHub API that `main`
-  `7dd14d7` contains A1 `c784163` and A2 `8cd1d4f`.
+- Confirmed current `main` `ccf6ce5` contains A1 `c784163` and A2 `8cd1d4f`
+  through integration commit `7dd14d7`.
 - Used an official temporary latest-main archive for compatibility testing
   while standard Git HTTPS remained unavailable; no third-party proxy was
   used.
 - Replaced stale open-draft labels with merged-main implementation state for
   A1 account linking, email challenge start, callback, and session refresh.
+- Re-read the unified strategy merged at `ccf6ce5`: Ashr is now an optional
+  calibration provider, while the internal A1/A2/A3 enterprise Release path
+  must remain provider-neutral and runnable without Ashr.
+- Inspected A2 peer ref `2a87e16` as a non-authoritative watch signal for
+  durable provider reconciliation; it was not consumed before entering main.
 - Preserved honest product blockers: initial Google/GitHub login is still
   unavailable, browser email completion still lacks mailbox-bound challenge
   context, and A2 still reports `release_ready=false` with decision `block`.
 - Upgraded the redacted A3 auth snapshot to v3 and recorded A2's five required
   scope fields, `scope_complete`, `validation_errors`, and direct A1 RunResult
   validation.
-- Latest-main checks passed: A3 Node `334/334`, A2 `185/185` plus `1042`
+- Current-main checks passed: A3 Node `334/334`, A2 `186/186` plus `1050`
   subtests, focused auth/Webapp `9/9`, trusted spine `7/7`, Next.js production
   build, and full Playwright `31/31` including Webapp routes `6/6`.
 - A broad Python run additionally reached `1230` passes before environment-only

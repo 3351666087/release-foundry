@@ -5,7 +5,8 @@
   "contains_secret_values": false,
   "main": {
     "ref": "origin/main",
-    "sha": "7dd14d7b154ad86bd3bfedacbf4c3e03796170ce",
+    "sha": "ccf6ce57890aaceabcb627c14d2e078674bd50ad",
+    "a1_a2_integration_sha": "7dd14d7b154ad86bd3bfedacbf4c3e03796170ce",
     "contained_by_a3_branch": true
   },
   "a1": {
