@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
+import json
 from typing import Any
 
 import pytest
@@ -115,3 +116,117 @@ def test_error_and_nested_fields_remain_redacted_when_secret_is_restored() -> No
     assert response["result"]["nested"]["one_time_secret"] == "[redacted]"
     assert response["result"]["nested"]["authorization"] == "[redacted]"
     assert response["result"]["error"] == "failed with [redacted]"
+
+
+@pytest.mark.parametrize(
+    "response_operation",
+    ["list_api_keys", None, 42, "", False],
+)
+def test_enveloped_reveal_requires_exact_response_operation(response_operation: Any) -> None:
+    def transport(*_: Any, **__: Any) -> Mapping[str, Any]:
+        return {
+            "schema_version": "v1",
+            "operation": response_operation,
+            "result": {
+                "one_time_secret": SECRET,
+                "one_time_secret_displayed": True,
+                "error": f"rejected {SECRET}",
+                "nested": {"one_time_secret": SECRET},
+            },
+            "metadata": {"detail": SECRET},
+        }
+
+    client = SaaSIngestionClient(base_url="http://localhost", http_transport=transport)
+    response = client.create_api_key(
+        "tenant_test",
+        "project_test",
+        key_id="key_test",
+        name="test",
+        scopes=["run:submit"],
+        reveal_secret=True,
+    )
+
+    assert SECRET not in repr(response)
+    assert SECRET not in json.dumps(response, sort_keys=True)
+
+
+def test_enveloped_reveal_with_missing_operation_remains_redacted() -> None:
+    def transport(*_: Any, **__: Any) -> Mapping[str, Any]:
+        return {
+            "schema_version": "v1",
+            "result": {
+                "one_time_secret": SECRET,
+                "one_time_secret_displayed": True,
+                "nested": {"one_time_secret": SECRET},
+            },
+        }
+
+    client = SaaSIngestionClient(base_url="http://localhost", http_transport=transport)
+    response = client.create_api_key(
+        "tenant_test",
+        "project_test",
+        key_id="key_test",
+        name="test",
+        scopes=["run:submit"],
+        reveal_secret=True,
+    )
+
+    assert SECRET not in repr(response)
+    assert SECRET not in json.dumps(response, sort_keys=True)
+
+
+def test_enveloped_reveal_with_correct_operation_restores_only_top_level_secret() -> None:
+    def transport(*_: Any, **__: Any) -> Mapping[str, Any]:
+        return {
+            "schema_version": "v1",
+            "operation": "create_api_key",
+            "result": {
+                "one_time_secret": SECRET,
+                "one_time_secret_displayed": True,
+                "error": f"contains {SECRET}",
+                "nested": {"one_time_secret": SECRET},
+            },
+            "metadata": {"detail": SECRET},
+        }
+
+    client = SaaSIngestionClient(base_url="http://localhost", http_transport=transport)
+    response = client.create_api_key(
+        "tenant_test",
+        "project_test",
+        key_id="key_test",
+        name="test",
+        scopes=["run:submit"],
+        reveal_secret=True,
+    )
+
+    serialized = json.dumps(response, sort_keys=True)
+    assert response["result"]["one_time_secret"] == SECRET
+    assert response["result"]["nested"]["one_time_secret"] == "[redacted]"
+    assert response["result"]["error"] == "contains [redacted]"
+    assert response["metadata"]["detail"] == "[redacted]"
+    assert serialized.count(SECRET) == 1
+
+
+def test_enveloped_reveal_with_correct_operation_and_malformed_result_stays_redacted() -> None:
+    def transport(*_: Any, **__: Any) -> Mapping[str, Any]:
+        return {
+            "schema_version": "v1",
+            "operation": "create_api_key",
+            "result": {
+                "one_time_secret": SECRET,
+                "one_time_secret_displayed": "true",
+            },
+        }
+
+    client = SaaSIngestionClient(base_url="http://localhost", http_transport=transport)
+    response = client.create_api_key(
+        "tenant_test",
+        "project_test",
+        key_id="key_test",
+        name="test",
+        scopes=["run:submit"],
+        reveal_secret=True,
+    )
+
+    assert SECRET not in repr(response)
+    assert SECRET not in json.dumps(response, sort_keys=True)

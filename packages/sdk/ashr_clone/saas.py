@@ -1469,14 +1469,18 @@ def _restore_explicit_one_time_secret(
 ) -> JsonDict:
     if operation != "create_api_key" or not bool(payload.get("reveal_secret")):
         return sanitized
+    is_envelope_like = "schema_version" in response or "operation" in response or "result" in response
     raw_result = response.get("result") if isinstance(response.get("result"), Mapping) else response
     sanitized_result = sanitized.get("result")
     if not isinstance(raw_result, Mapping) or not isinstance(sanitized_result, dict):
         return sanitized
     secret = raw_result.get("one_time_secret")
+    if isinstance(secret, str) and secret:
+        _redact_exact_secret(sanitized, secret)
+    if is_envelope_like and response.get("operation") != "create_api_key":
+        return sanitized
     if raw_result.get("one_time_secret_displayed") is not True or not isinstance(secret, str) or not secret:
         return sanitized
-    _redact_exact_secret(sanitized, secret)
     sanitized_result["one_time_secret"] = secret
     sanitized_result["one_time_secret_displayed"] = True
     return sanitized
