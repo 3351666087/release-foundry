@@ -3831,3 +3831,21 @@ Safety boundary:
   tests plus 1013 subtests, both CL guards, build, audit, and secret scan.
 - No live provider, SMTP, OAuth, email, account, or secret-bearing operation was
   executed.
+
+## 2026-07-11 - A1/A2 Draft Identity And Trusted-Spine Alignment
+
+- Re-fetched `origin/main`, A1, and A2; current main remains `5dbf4ee`, while
+  A1 advanced to `c784163` and A2 advanced to `47c05e5`.
+- Corrected the A3 product claim: Google/GitHub currently support authenticated
+  account linking, not initial OAuth sign-in.
+- Added the A1 browser-session refresh contract and A2 trusted evidence and
+  append-only decision schemas to the product API Reference.
+- Kept the A3 login controls fail-closed and preserved A1 identity/session and
+  A2 grade/release authority.
+- Verified A3 (`334` Node, `31` Playwright), current-main A1/A2 (`562` Python
+  plus `1013` subtests), latest A1 draft Go/TypeScript (`574` TypeScript tests),
+  and latest A2 trusted spine (`11` tests plus `29` subtests).
+- The draft-only A1 Rust verifier was not run because Cargo is unavailable; it
+  is not consumed by this A3 change.
+- No key, token, cookie, OTP, email, account payload, provider request, or cloud
+  mutation entered this calibration.

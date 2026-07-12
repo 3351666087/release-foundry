@@ -61,6 +61,31 @@ export function ApiReferencePage() {
         </div>
       </section>
 
+      <section className={styles.upstreamDelta} aria-label={zh ? "上游契约更新" : "Upstream contract delta"}>
+        <header>
+          <span>UPSTREAM DRAFT DELTA / 2026-07-11</span>
+          <strong>{zh ? "A1 会话链与 A2 判定链已经前进，首次 OAuth 登录仍未完成" : "A1 session and A2 decision chains advanced; initial OAuth sign-in remains incomplete"}</strong>
+        </header>
+        <div>
+          <article>
+            <span>A1 · {apiReferenceMeta.a1Sha}</span>
+            <strong>{zh ? "安全浏览器会话" : "Secure browser session"}</strong>
+            <p>{zh ? "邮箱 login/recovery 可签发双 HttpOnly Cookie，并支持同源轮换、幂等重放和复用检测。Google/GitHub 仍只有账号绑定。" : "Email login/recovery can issue paired HttpOnly cookies with same-origin rotation, idempotent replay, and reuse detection. Google/GitHub remain account-linking only."}</p>
+            <StatusBadge value={zh ? "Draft 已实现" : "Draft implemented"} tone="warn" />
+          </article>
+          <article>
+            <span>A2 · {apiReferenceMeta.a2Sha}</span>
+            <strong>{zh ? "可信证据与决策账本" : "Trusted evidence and decision ledger"}</strong>
+            <p>{zh ? "新增多模态 evidence snapshot 与 append-only decision ledger；A3 只能读取 decision、provenance hash 和 chain 状态。" : "Adds a multimodal evidence snapshot and append-only decision ledger; A3 may only read the decision, provenance hash, and chain state."}</p>
+            <div className={styles.schemaTags}>
+              <code>{apiReferenceMeta.a2EvidenceSnapshotSchema}</code>
+              <code>{apiReferenceMeta.a2DecisionLedgerSchema}</code>
+            </div>
+            <StatusBadge value={zh ? "Draft 已实现" : "Draft implemented"} tone="warn" />
+          </article>
+        </div>
+      </section>
+
       <section className={styles.referenceTool}>
         <header className={styles.toolbar}>
           <label className={styles.searchBox}>

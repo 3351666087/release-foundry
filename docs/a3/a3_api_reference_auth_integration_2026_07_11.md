@@ -2,6 +2,11 @@
 
 Date: 2026-07-11
 
+> Follow-up correction: A1 `c784163` confirms that the current Google and
+> GitHub routes are credential-linking routes for an already authenticated
+> account, not initial sign-in. A3 now keeps those login buttons disabled. See
+> `docs/a3/a3_upstream_identity_trusted_spine_alignment_2026_07_11.md`.
+
 ## Scope
 
 This round adds the developer reference and the first real A3-to-A1 identity
@@ -42,19 +47,21 @@ The Next.js Webapp now has `/api-reference` with:
 - Authentication boundary, source file, source commit, and safety notes.
 - Desktop and mobile layouts.
 
-### Google and GitHub OAuth
+### Google and GitHub account linking
 
-`apps/webapp/lib/auth-api.ts` calls the A1 project-scoped start routes with
-credentials included and no caller-supplied account ID. A3 validates the
-returned authorization URL against the exact official provider host before
-redirecting:
+`apps/webapp/lib/auth-api.ts` exposes an account-linking adapter for the A1
+project-scoped start routes. It uses the existing trusted session and no
+caller-supplied account ID. A3 validates the returned authorization URL
+against the exact official provider host before a future account-settings
+surface may redirect:
 
 - Google: `accounts.google.com`
 - GitHub: `github.com`
 
-The browser never receives provider secrets. The current A1 callback returns a
-JSON connection object, so hosted session creation plus allowlisted redirect
-remains an explicit backend blocker.
+The browser never receives provider secrets. These routes are not wired into
+the login page. The current A1 callback returns a JSON connection object, so
+initial hosted OAuth sign-in, session creation, and an allowlisted redirect
+remain explicit backend blockers.
 
 ### Email registration
 

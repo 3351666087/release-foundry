@@ -1,5 +1,90 @@
 ﻿# A3 Worklog
 
+## 2026-07-11 - Upstream Identity + Trusted Spine Alignment Repair
+
+### Goal and correction
+
+Recalibrate the route-level A3 Webapp after A1 and A2 advanced their draft
+branches. The prior login surface could be read as if A1's Google/GitHub start
+routes supported initial sign-in. Source inspection confirmed that they are
+credential-linking routes for an account that already has a trusted A1
+session, so A3 removed that false login path.
+
+### Upstream calibration
+
+- `git fetch origin --prune` succeeded.
+- This branch contains current `origin/main` `5dbf4ee`.
+- A1 read-only calibration: `origin/codex/a1-local-sdk-runner` at `c784163`.
+- A2 read-only calibration: `origin/dev/g3-a2-calibration` at `47c05e5`.
+- A final 2026-07-12 pre-push fetch advanced A1 from `350fb22` to
+  `c784163`; the delta only repairs Linux TypeScript test dependency copying
+  and leaves the identity/session contract unchanged. Its changed clean-build
+  parity test passed in a detached temporary worktree.
+- Neither draft branch was merged, cherry-picked, or modified.
+- A1 source confirms Secure, HttpOnly, SameSite=Strict access/refresh cookies,
+  same-origin refresh rotation, idempotent replay, and refresh-reuse detection
+  for email `login` / `recovery` sessions.
+- A1 source also confirms that initial Google/GitHub sign-in, registration
+  session handoff, and browser-safe email challenge context remain incomplete.
+- A2 source confirms `a2.evidence_snapshot.v1`,
+  `a2.decision_ledger.v1`, and `a2.trusted_spine_handoff.v1`. A3 remains a
+  display-only consumer and does not recompute grades or rewrite decisions.
+
+### A3 changes
+
+- Added explicit identity capability metadata and renamed the provider adapter
+  to `startOAuthAccountLinking`.
+- Disabled Google and GitHub login buttons even when the public A1 base is
+  configured; the current A1 route is account linking only.
+- Added a typed same-origin browser-session refresh adapter with included
+  credentials and a generated idempotency key. A3 never reads HttpOnly cookie
+  values.
+- Added the refresh route, latest A1/A2 draft SHAs, trusted-spine summary, and
+  exact A2 schema IDs to API Reference.
+- Upgraded the redacted auth fixture to `a3.auth_contract_snapshot.v2`.
+- Added a follow-up to the A1 contract request while preserving its historical
+  `ac960bd` calibration record.
+- Updated desktop/mobile API Reference, login, and email-registration visual
+  evidence.
+
+### Verification
+
+- Next.js TypeScript check and production static build: passed.
+- Focused auth/reference and Webapp contracts: `9 pass / 0 fail`.
+- Full A3 Node suite: `334 pass / 0 fail`.
+- Full Playwright suite, isolated to one worker: `31 pass / 0 fail`.
+- Current-main A1/A2 Python contracts: `562 pass / 5 skip`, `1013 subtests
+  pass`.
+- Latest A1 draft Go module: all four packages passed.
+- Latest A1 draft TypeScript SDK: `574 pass / 0 fail`.
+- Latest A1 draft session HMAC/rotation Python check: `1 pass / 0 fail`.
+- Latest A1 draft TypeScript clean-build parity check: `1 pass / 0 fail`.
+- Latest A2 trusted-spine draft tests: `11 pass / 0 fail`, `29 subtests pass`.
+- Commercial CL: passed with no blockers or advisories.
+- Hygiene CL: passed with no findings.
+- Webapp dependency audit: `0 vulnerabilities`.
+- High-confidence changed-file secret scan: passed.
+- `git diff --check`: passed; only the existing CRLF-to-LF warning remains.
+
+The first default-parallel Playwright run reported one existing visual-system
+test failure while multiple suites shared local resources. That same spec then
+passed `3/3`, and the deterministic full one-worker rerun passed `31/31`.
+
+The A1 draft-only Rust authenticated-bundle verifier was not executed because
+Cargo is not installed. This A3 patch does not consume that Rust surface; the
+gap is recorded instead of being presented as a pass.
+
+### Safety and scope
+
+- `.env.local`, Webapp dependencies/build output, and Playwright transient
+  artifacts remain ignored.
+- No API key, OAuth/SMTP secret, cookie value, token, code, real email, or
+  account payload was read or written.
+- No real OAuth redirect, email delivery, identity mutation, Ashr mutation, or
+  cloud mutation was executed.
+- Every changed source, test, fixture, document, and screenshot is in an A3
+  owned directory.
+
 ## 2026-07-11 - API Reference, OAuth Adapter, And Email Verification UX
 
 ### Goal

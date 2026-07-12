@@ -19,11 +19,10 @@ import {
 
 import {
   AuthApiError,
+  authContractCapabilities,
   completeEmailVerification,
   getAuthRuntimeConfig,
   requestEmailVerification,
-  startOAuth,
-  type OAuthProvider
 } from "@/lib/auth-api";
 import { useI18n } from "@/lib/i18n";
 import { VerificationEmailPreview } from "../email/verification-email-preview";
@@ -46,7 +45,7 @@ export function LoginPage() {
   const [consent, setConsent] = useState(false);
   const [verificationRequested, setVerificationRequested] = useState(false);
   const [verified, setVerified] = useState(false);
-  const [busy, setBusy] = useState<OAuthProvider | "email" | "verify" | null>(null);
+  const [busy, setBusy] = useState<"email" | "verify" | null>(null);
   const [notice, setNotice] = useState<Notice>(null);
 
   useEffect(() => {
@@ -57,18 +56,6 @@ export function LoginPage() {
       setVerificationRequested(true);
     }
   }, []);
-
-  async function handleOAuth(provider: OAuthProvider) {
-    setBusy(provider);
-    setNotice(null);
-    try {
-      const result = await startOAuth(provider);
-      window.location.assign(result.authorize_url);
-    } catch (error) {
-      setNotice({ tone: "error", text: authErrorText(error, zh) });
-      setBusy(null);
-    }
-  }
 
   async function handleVerificationRequest(event: FormEvent) {
     event.preventDefault();
@@ -114,6 +101,7 @@ export function LoginPage() {
   const configLabel = config.configured
     ? (zh ? "A1 身份服务已配置" : "A1 identity service configured")
     : (zh ? "A1 身份服务未连接" : "A1 identity service not connected");
+  const oauthInitialLoginReady = config.configured && authContractCapabilities.oauthInitialLogin;
 
   return (
     <main className={`login-page ${styles.page}`}>
@@ -162,20 +150,20 @@ export function LoginPage() {
           <div className={`auth-roadmap ${styles.runtimeState}`} data-ready={config.configured}>
             {config.configured ? <Check size={15} /> : <ShieldAlert size={15} />}
             <span>{configLabel}</span>
-            <small>A1 ac960bd · {config.configured ? "configured" : config.reason}</small>
+            <small>A1 {authContractCapabilities.sourceSha} · {config.configured ? "configured" : config.reason}</small>
           </div>
 
           {mode === "signin" ? (
             <div className={styles.signInFlow} role="tabpanel">
               <div className={styles.providerGrid}>
-                <button type="button" className={styles.providerButton} disabled={!config.configured || busy !== null} onClick={() => handleOAuth("google")}>
+                <button type="button" className={styles.providerButton} disabled={!oauthInitialLoginReady || busy !== null} title={zh ? "A1 当前只有已登录账号绑定路由" : "A1 currently exposes account linking only"}>
                   <span className={styles.googleMark} aria-hidden="true">G</span>
-                  <span><strong>{zh ? "使用 Google 继续" : "Continue with Google"}</strong><small>OIDC · state + PKCE + nonce</small></span>
+                  <span><strong>{zh ? "Google 登录待接入" : "Google sign-in pending"}</strong><small>{zh ? "现有路由仅用于已登录账号绑定" : "Current route is account linking only"}</small></span>
                   <ArrowRight size={16} />
                 </button>
-                <button type="button" className={styles.providerButton} disabled={!config.configured || busy !== null} onClick={() => handleOAuth("github")}>
+                <button type="button" className={styles.providerButton} disabled={!oauthInitialLoginReady || busy !== null} title={zh ? "A1 当前只有已登录账号绑定路由" : "A1 currently exposes account linking only"}>
                   <GitFork size={19} aria-hidden="true" />
-                  <span><strong>{zh ? "使用 GitHub 继续" : "Continue with GitHub"}</strong><small>OAuth 2.0 · state + PKCE</small></span>
+                  <span><strong>{zh ? "GitHub 登录待接入" : "GitHub sign-in pending"}</strong><small>{zh ? "现有路由仅用于已登录账号绑定" : "Current route is account linking only"}</small></span>
                   <ArrowRight size={16} />
                 </button>
               </div>
@@ -183,8 +171,8 @@ export function LoginPage() {
               <div className={styles.boundaryNote}>
                 <LockKeyhole size={15} />
                 <p>{zh
-                  ? "A3 只发起授权。Provider secret、code 交换、token 保管和统一账号绑定全部由 A1 完成。当前 A1 callback 返回 JSON，正式会话跳转仍是后端待办。"
-                  : "A3 only starts authorization. A1 owns provider secrets, code exchange, token custody, and account binding. The current callback returns JSON; session redirect remains a backend task."}</p>
+                  ? "A1 c784163 已支持邮箱登录后的安全 Cookie 与 Session Refresh，但 Google/GitHub 仍是已登录账号绑定，不是首次登录。Provider secret、code 和 token 始终由 A1 保管。"
+                  : "A1 c784163 supports secure cookies and refresh after email login, but Google/GitHub remain signed-in account linking rather than initial sign-in. A1 retains all provider secrets, codes, and tokens."}</p>
               </div>
 
               <details className={styles.previewEntry}>
@@ -285,6 +273,7 @@ function authErrorText(error: unknown, zh: boolean) {
     tenant_missing: ["当前构建没有配置 A1 tenant_id。", "This build has no A1 tenant_id."],
     identity_service_unreachable: ["无法连接 A1 身份服务；请确认服务已启动并允许 Webapp 来源。", "A1 identity service is unreachable; confirm it is running and allows the webapp origin."],
     identity_service_timeout: ["A1 身份服务响应超时。", "A1 identity service timed out."],
+    identity_session_same_origin_required: ["浏览器会话轮换要求 Webapp 与 A1 API 使用同一个 HTTPS 来源。", "Browser session refresh requires the Webapp and A1 API to use the same HTTPS origin."],
     identity_session_required: ["A1 要求可信身份会话，当前浏览器尚未建立。", "A1 requires a trusted identity session that this browser does not have."],
     google_oauth_unavailable: ["A1 尚未配置 Google OAuth。", "Google OAuth is not configured in A1."],
     github_oauth_unavailable: ["A1 尚未配置 GitHub OAuth。", "GitHub OAuth is not configured in A1."],

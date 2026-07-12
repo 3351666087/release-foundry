@@ -994,3 +994,20 @@
 - [ ] Merge or consume A1 hosted identity only after its open draft PR passes review and enters main.
 - [ ] Close the browser email-verification flow after A1 delivers mailbox-bound challenge context.
 - [ ] Close hosted OAuth login after A1 callback establishes a durable session and performs an exact allowlisted redirect.
+
+## Upstream Identity + Trusted Spine Alignment Patch - 2026-07-11
+
+- [x] Fetch current remote refs and confirm this branch contains `origin/main` `5dbf4ee`.
+- [x] Recalibrate against A1 `c784163` and A2 `47c05e5` without merging either draft branch.
+- [x] Correct Google/GitHub from initial-login wording to authenticated account linking.
+- [x] Keep initial provider login controls disabled instead of presenting a false success path.
+- [x] Add explicit A1 capability metadata and a same-origin typed browser-session refresh adapter.
+- [x] Never read or persist A1 access or refresh cookie values.
+- [x] Add A1 browser-session refresh plus A2 evidence-snapshot/decision-ledger facts to API Reference.
+- [x] Preserve A2 as the only grade and release-decision authority.
+- [x] Upgrade the public-safe auth fixture to `a3.auth_contract_snapshot.v2`.
+- [x] Pass focused A3 auth/reference contract tests (`9 pass / 0 fail`).
+- [x] Pass TypeScript typecheck, Next.js production build, and `git diff --check`.
+- [x] Record fresh desktop/mobile browser screenshots after the correction.
+- [x] Pass full A3, Playwright, A1/A2 peer-contract, CL, dependency, and secret checks.
+- [ ] Consume these identity and trusted-spine contracts as authoritative only after they enter `main`.

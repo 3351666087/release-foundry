@@ -6,7 +6,7 @@ Status: blocking request; A3 does not change A1 implementation in this branch.
 
 ## Observed contract
 
-A3 calibrated against A1 commit `ac960bd` without merging the A1 draft branch.
+A3 initially calibrated against A1 commit `ac960bd` without merging the A1 draft branch.
 The Go runtime currently exposes:
 
 ```text
@@ -88,3 +88,27 @@ allowlisted placeholders and continue to own SMTP configuration and delivery.
 - A3 never fabricates a verified account or authenticated browser session.
 - API Reference labels the incomplete verification endpoint as contract
   blocked and labels the A1 branch as draft.
+
+## Follow-up calibration at A1 `350fb22`
+
+The same identity/session behavior was re-confirmed at A1 `c784163`; the
+intervening commit only repaired Linux TypeScript test dependency copying.
+
+A1 has since added a real browser-session lifecycle on its draft branch:
+
+- Successful email `login` and `recovery` verification can issue
+  `__Host-ashr_session` and `__Host-ashr_refresh` cookies.
+- The cookies are Secure, HttpOnly, and SameSite=Strict.
+- A same-origin HTTPS refresh route rotates both credentials atomically and
+  requires an `Idempotency-Key`.
+- Refresh replay is idempotent and old refresh-credential reuse is detected.
+
+This is meaningful progress, but it does not close this request. Registration
+uses the `binding` purpose, still receives no signed-in session, and the public
+challenge response still omits challenge context. The plaintext SMTP email
+still contains only the code and expiry. Google and GitHub routes also remain
+account linking for an existing session rather than initial OAuth sign-in.
+
+A3 therefore keeps registration completion and initial provider login
+fail-closed. It documents the new session-refresh contract without reading or
+persisting either HttpOnly cookie.

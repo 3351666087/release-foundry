@@ -35,8 +35,8 @@ test.describe("A3 Next.js product console", () => {
 
     await page.goto(`${base}/login/`);
     await expect(page.getByRole("heading", { name: "进入工作区" })).toBeVisible();
-    await expect(page.getByRole("button", { name: /使用 Google 继续/ })).toBeVisible();
-    await expect(page.getByRole("button", { name: /使用 GitHub 继续/ })).toBeVisible();
+    await expect(page.getByRole("button", { name: /Google 登录待接入/ })).toBeDisabled();
+    await expect(page.getByRole("button", { name: /GitHub 登录待接入/ })).toBeDisabled();
     await expect(page.locator(".auth-roadmap")).toContainText("A1 身份服务未连接");
     await page.screenshot({ path: "docs/screenshots/a3-webapp-login-desktop.png", fullPage: false });
 
@@ -110,11 +110,15 @@ test.describe("A3 Next.js product console", () => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto(`${base}/api-reference/`);
     await expect(page.getByRole("heading", { name: "API 文档与参考" })).toBeVisible();
+    await expect(page.getByText(/A1 会话链与 A2 判定链已经前进/)).toBeVisible();
+    await expect(page.getByText("可信证据与决策账本", { exact: true })).toBeVisible();
     await expect(page.getByText("请求邮箱验证码", { exact: true })).toBeVisible();
     await page.getByLabel("搜索 API").fill("missing_required_tool");
     await expect(page.getByRole("heading", { name: "评判单个案例" })).toBeVisible();
     await page.getByLabel("搜索 API").fill("verification");
     await expect(page.getByText("完成邮箱验证", { exact: true })).toBeVisible();
+    await page.getByLabel("搜索 API").fill("browser-sessions/refresh");
+    await expect(page.getByRole("heading", { name: "轮换浏览器会话", level: 2 })).toBeVisible();
     await page.screenshot({ path: "docs/screenshots/a3-webapp-api-reference-desktop.png", fullPage: false });
 
     await page.goto(`${base}/login/`);

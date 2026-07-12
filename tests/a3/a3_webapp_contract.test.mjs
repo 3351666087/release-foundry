@@ -63,7 +63,8 @@ test("A3 webapp keeps auth and commercial writes explicitly fail-closed", async 
 
   assert.match(loginSource, /READ-ONLY DEMO IDENTITY/);
   assert.match(loginSource, /does not create an account/);
-  assert.match(loginSource, /startOAuth/);
+  assert.match(loginSource, /authContractCapabilities/);
+  assert.match(loginSource, /oauthInitialLogin/);
   assert.match(loginSource, /requestEmailVerification/);
   assert.match(loginSource, /contractBlocker/);
   assert.match(reviewSource, /disabled/);
