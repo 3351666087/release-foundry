@@ -360,6 +360,71 @@ CREATE TABLE IF NOT EXISTS a2_decision_outbox (
   UNIQUE(operation_id)
 );
 
+CREATE TABLE IF NOT EXISTS a2_artifact_reference_consumptions (
+  nonce_hash TEXT PRIMARY KEY,
+  reference_id_hash TEXT NOT NULL,
+  authorization_hash TEXT NOT NULL,
+  issuer_hash TEXT NOT NULL,
+  key_id_hash TEXT NOT NULL,
+  issuer_key_target_hash TEXT NOT NULL,
+  audience_hash TEXT NOT NULL,
+  subject_hash TEXT NOT NULL,
+  evaluation_job_id_hash TEXT NOT NULL,
+  purpose TEXT NOT NULL,
+  organization_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL,
+  workspace_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  environment_id TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (
+    status IN ('reserved', 'reading', 'resolved', 'failed_retryable', 'failed_terminal', 'revoked')
+  ),
+  reserved_at TEXT NOT NULL,
+  lease_owner TEXT,
+  lease_expires_at TEXT,
+  fencing_token INTEGER NOT NULL DEFAULT 0 CHECK (fencing_token >= 0),
+  attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
+  completed_at TEXT,
+  failure_class TEXT,
+  receipt_hash TEXT NOT NULL,
+  public_safe INTEGER NOT NULL CHECK (public_safe = 1)
+);
+
+CREATE TABLE IF NOT EXISTS a2_artifact_reference_events (
+  event_id TEXT PRIMARY KEY,
+  nonce_hash TEXT NOT NULL REFERENCES a2_artifact_reference_consumptions(nonce_hash),
+  organization_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL,
+  workspace_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  environment_id TEXT NOT NULL,
+  event_type TEXT NOT NULL,
+  status TEXT NOT NULL,
+  lease_owner_hash TEXT NOT NULL,
+  fencing_token INTEGER NOT NULL CHECK (fencing_token >= 0),
+  occurred_at TEXT NOT NULL,
+  details_hash TEXT NOT NULL,
+  previous_event_hash TEXT NOT NULL,
+  event_hash TEXT NOT NULL,
+  public_safe INTEGER NOT NULL CHECK (public_safe = 1)
+);
+
+CREATE TABLE IF NOT EXISTS a2_artifact_reference_revocations (
+  revocation_id TEXT PRIMARY KEY,
+  revocation_type TEXT NOT NULL CHECK (
+    revocation_type IN ('reference', 'job', 'issuer_key', 'tenant_project')
+  ),
+  target_hash TEXT NOT NULL,
+  organization_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL,
+  workspace_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  environment_id TEXT NOT NULL,
+  reason_code TEXT NOT NULL,
+  revoked_at TEXT NOT NULL,
+  UNIQUE(revocation_type, target_hash, tenant_id, project_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_a2_judge_results_case ON a2_judge_results(case_id);
 CREATE INDEX IF NOT EXISTS idx_a2_judge_results_failure ON a2_judge_results(primary_failure_class);
 CREATE INDEX IF NOT EXISTS idx_a2_calibration_scenario ON a2_calibration_cases(scenario_id);
@@ -378,3 +443,11 @@ CREATE INDEX IF NOT EXISTS idx_a2_decision_outbox_delivery
   ON a2_decision_outbox(delivery_status, available_at);
 CREATE INDEX IF NOT EXISTS idx_a2_review_resolution_outbox_delivery
   ON a2_review_resolution_outbox(delivery_status, available_at);
+CREATE INDEX IF NOT EXISTS idx_a2_artifact_reference_consumptions_scope
+  ON a2_artifact_reference_consumptions(tenant_id, project_id, status, reserved_at);
+CREATE INDEX IF NOT EXISTS idx_a2_artifact_reference_consumptions_lease
+  ON a2_artifact_reference_consumptions(status, lease_expires_at, reserved_at);
+CREATE INDEX IF NOT EXISTS idx_a2_artifact_reference_events_nonce
+  ON a2_artifact_reference_events(nonce_hash, occurred_at, event_id);
+CREATE INDEX IF NOT EXISTS idx_a2_artifact_reference_revocations_target
+  ON a2_artifact_reference_revocations(revocation_type, target_hash, tenant_id, project_id);

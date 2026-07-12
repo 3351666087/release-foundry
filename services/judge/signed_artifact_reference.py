@@ -53,19 +53,46 @@ CREATE TABLE IF NOT EXISTS a2_artifact_reference_consumptions (
   authorization_hash TEXT NOT NULL,
   issuer_hash TEXT NOT NULL,
   key_id_hash TEXT NOT NULL,
+  issuer_key_target_hash TEXT NOT NULL,
   audience_hash TEXT NOT NULL,
   subject_hash TEXT NOT NULL,
   evaluation_job_id_hash TEXT NOT NULL,
+  purpose TEXT NOT NULL,
   organization_id TEXT NOT NULL,
   tenant_id TEXT NOT NULL,
   workspace_id TEXT NOT NULL,
   project_id TEXT NOT NULL,
   environment_id TEXT NOT NULL,
-  status TEXT NOT NULL CHECK (status IN ('reserved', 'consumed', 'failed', 'revoked')),
+  status TEXT NOT NULL CHECK (
+    status IN ('reserved', 'reading', 'resolved', 'failed_retryable', 'failed_terminal', 'revoked')
+  ),
   reserved_at TEXT NOT NULL,
+  lease_owner TEXT,
+  lease_expires_at TEXT,
+  fencing_token INTEGER NOT NULL DEFAULT 0 CHECK (fencing_token >= 0),
+  attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
   completed_at TEXT,
   failure_class TEXT,
   receipt_hash TEXT NOT NULL,
+  public_safe INTEGER NOT NULL CHECK (public_safe = 1)
+);
+
+CREATE TABLE IF NOT EXISTS a2_artifact_reference_events (
+  event_id TEXT PRIMARY KEY,
+  nonce_hash TEXT NOT NULL REFERENCES a2_artifact_reference_consumptions(nonce_hash),
+  organization_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL,
+  workspace_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  environment_id TEXT NOT NULL,
+  event_type TEXT NOT NULL,
+  status TEXT NOT NULL,
+  lease_owner_hash TEXT NOT NULL,
+  fencing_token INTEGER NOT NULL CHECK (fencing_token >= 0),
+  occurred_at TEXT NOT NULL,
+  details_hash TEXT NOT NULL,
+  previous_event_hash TEXT NOT NULL,
+  event_hash TEXT NOT NULL,
   public_safe INTEGER NOT NULL CHECK (public_safe = 1)
 );
 
@@ -87,13 +114,17 @@ CREATE TABLE IF NOT EXISTS a2_artifact_reference_revocations (
 
 CREATE INDEX IF NOT EXISTS idx_a2_artifact_reference_consumptions_scope
   ON a2_artifact_reference_consumptions(tenant_id, project_id, status, reserved_at);
+CREATE INDEX IF NOT EXISTS idx_a2_artifact_reference_consumptions_lease
+  ON a2_artifact_reference_consumptions(status, lease_expires_at, reserved_at);
+CREATE INDEX IF NOT EXISTS idx_a2_artifact_reference_events_nonce
+  ON a2_artifact_reference_events(nonce_hash, occurred_at, event_id);
 CREATE INDEX IF NOT EXISTS idx_a2_artifact_reference_revocations_target
   ON a2_artifact_reference_revocations(revocation_type, target_hash, tenant_id, project_id);
 """
 
 
 class ArtifactAuthorizationLedger:
-    """SQLite reference ledger for atomic single-use and revocation semantics."""
+    """SQLite executable contract for fenced, recoverable authorization consumption."""
 
     def __init__(self, connection: sqlite3.Connection):
         self.connection = connection
@@ -167,11 +198,11 @@ class ArtifactAuthorizationLedger:
                 """
                 INSERT INTO a2_artifact_reference_consumptions (
                   nonce_hash, reference_id_hash, authorization_hash,
-                  issuer_hash, key_id_hash, audience_hash, subject_hash,
-                  evaluation_job_id_hash,
+                  issuer_hash, key_id_hash, issuer_key_target_hash,
+                  audience_hash, subject_hash, evaluation_job_id_hash, purpose,
                   organization_id, tenant_id, workspace_id, project_id, environment_id,
                   status, reserved_at, receipt_hash, public_safe
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'reserved', ?, ?, 1)
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'reserved', ?, ?, 1)
                 """,
                 (
                     nonce_hash,
@@ -179,13 +210,24 @@ class ArtifactAuthorizationLedger:
                     authorization_hash,
                     stable_hash(str(reference["issuer"])),
                     stable_hash(str(reference["key_id"])),
+                    stable_hash(f"{reference['issuer']}:{reference['key_id']}"),
                     stable_hash(str(reference["audience"])),
                     stable_hash(str(reference["subject"])),
                     receipt_core["evaluation_job_id_hash"],
+                    str(reference["purpose"]),
                     *(scope[field] for field in SCOPE_FIELDS),
                     reserved_at,
                     receipt_hash,
                 ),
+            )
+            self._write_event(
+                nonce_hash=nonce_hash,
+                event_type="authorization_reserved",
+                status="reserved",
+                lease_owner="",
+                fencing_token=0,
+                occurred_at=reserved_at,
+                details={"authorization_hash": authorization_hash},
             )
             self.connection.commit()
         except sqlite3.IntegrityError as error:
@@ -199,18 +241,204 @@ class ArtifactAuthorizationLedger:
             raise
         return {**receipt_core, "receipt_hash": receipt_hash}
 
-    def complete(self, nonce: str, *, completed_at: str, status: str, failure_class: str = "") -> str:
-        if status not in {"consumed", "failed"}:
+    def claim(
+        self,
+        nonce: str,
+        *,
+        worker_id: str,
+        claimed_at: str,
+        lease_seconds: int = 60,
+    ) -> dict[str, Any]:
+        if not worker_id:
+            raise ValueError("artifact authorization worker_id is required")
+        if lease_seconds <= 0:
+            raise ValueError("artifact authorization lease_seconds must be positive")
+        nonce_hash = stable_hash(nonce)
+        now = _timestamp(claimed_at)
+        lease_expires_at = (now + timedelta(seconds=lease_seconds)).isoformat().replace("+00:00", "Z")
+        self.connection.execute("BEGIN IMMEDIATE")
+        try:
+            row = self.connection.execute(
+                """
+                SELECT status, lease_expires_at, fencing_token, receipt_hash,
+                       reference_id_hash, evaluation_job_id_hash, issuer_key_target_hash,
+                       tenant_id, project_id
+                FROM a2_artifact_reference_consumptions
+                WHERE nonce_hash = ?
+                """,
+                (nonce_hash,),
+            ).fetchone()
+            if row is None:
+                raise ValueError("artifact authorization is not reserved")
+            (
+                status,
+                current_expiry,
+                current_fence,
+                reservation_receipt_hash,
+                reference_id_hash,
+                evaluation_job_id_hash,
+                issuer_key_target_hash,
+                tenant_id,
+                project_id,
+            ) = row
+            revocations = self.connection.execute(
+                """
+                SELECT revocation_type
+                FROM a2_artifact_reference_revocations
+                WHERE tenant_id = ? AND project_id = ?
+                  AND (
+                    (revocation_type = 'reference' AND target_hash = ?)
+                    OR (revocation_type = 'job' AND target_hash = ?)
+                    OR (revocation_type = 'issuer_key' AND target_hash = ?)
+                    OR (revocation_type = 'tenant_project' AND target_hash = ?)
+                  )
+                ORDER BY revocation_type
+                """,
+                (
+                    tenant_id,
+                    project_id,
+                    reference_id_hash,
+                    evaluation_job_id_hash,
+                    issuer_key_target_hash,
+                    stable_hash(f"{tenant_id}:{project_id}"),
+                ),
+            ).fetchall()
+            if revocations:
+                self.connection.execute(
+                    """
+                    UPDATE a2_artifact_reference_consumptions
+                    SET status = 'revoked', completed_at = ?, failure_class = 'authorization_revoked',
+                        lease_owner = NULL, lease_expires_at = NULL
+                    WHERE nonce_hash = ?
+                    """,
+                    (claimed_at, nonce_hash),
+                )
+                self._write_event(
+                    nonce_hash=nonce_hash,
+                    event_type="authorization_revoked",
+                    status="revoked",
+                    lease_owner="",
+                    fencing_token=int(current_fence),
+                    occurred_at=claimed_at,
+                    details={"revocation_types": [row[0] for row in revocations]},
+                )
+                self.connection.commit()
+                revoked_blockers = [f"authorization_revoked:{item[0]}" for item in revocations]
+            else:
+                revoked_blockers = []
+            if revoked_blockers:
+                raise ArtifactReferenceError(revoked_blockers, {})
+            expired = bool(current_expiry) and _timestamp(str(current_expiry)) <= now
+            if status not in {"reserved", "failed_retryable"} and not (status == "reading" and expired):
+                raise ValueError(f"artifact authorization cannot be claimed from status {status}")
+            fencing_token = int(current_fence) + 1
+            cursor = self.connection.execute(
+                """
+                UPDATE a2_artifact_reference_consumptions
+                SET status = 'reading', lease_owner = ?, lease_expires_at = ?,
+                    fencing_token = ?, attempt_count = attempt_count + 1
+                WHERE nonce_hash = ? AND fencing_token = ?
+                """,
+                (worker_id, lease_expires_at, fencing_token, nonce_hash, current_fence),
+            )
+            if cursor.rowcount != 1:
+                raise ValueError("artifact authorization lease contention")
+            self._write_event(
+                nonce_hash=nonce_hash,
+                event_type="authorization_claimed" if status != "reading" else "authorization_reclaimed",
+                status="reading",
+                lease_owner=worker_id,
+                fencing_token=fencing_token,
+                occurred_at=claimed_at,
+                details={"previous_status": status, "lease_expires_at": lease_expires_at},
+            )
+            self.connection.commit()
+        except ArtifactReferenceError:
+            raise
+        except Exception:
+            self.connection.rollback()
+            raise
+        return {
+            "nonce_hash": nonce_hash,
+            "worker_id": worker_id,
+            "fencing_token": fencing_token,
+            "lease_expires_at": lease_expires_at,
+            "reservation_receipt_hash": reservation_receipt_hash,
+        }
+
+    def heartbeat(
+        self,
+        nonce: str,
+        *,
+        worker_id: str,
+        fencing_token: int,
+        heartbeat_at: str,
+        lease_seconds: int = 60,
+    ) -> str:
+        if lease_seconds <= 0:
+            raise ValueError("artifact authorization lease_seconds must be positive")
+        nonce_hash = stable_hash(nonce)
+        now = _timestamp(heartbeat_at)
+        lease_expires_at = (now + timedelta(seconds=lease_seconds)).isoformat().replace("+00:00", "Z")
+        self.connection.execute("BEGIN IMMEDIATE")
+        try:
+            cursor = self.connection.execute(
+                """
+                UPDATE a2_artifact_reference_consumptions
+                SET lease_expires_at = ?
+                WHERE nonce_hash = ? AND status = 'reading' AND lease_owner = ?
+                  AND fencing_token = ? AND lease_expires_at > ?
+                """,
+                (lease_expires_at, nonce_hash, worker_id, fencing_token, heartbeat_at),
+            )
+            if cursor.rowcount != 1:
+                raise ValueError("artifact authorization heartbeat rejected by lease fence")
+            self._write_event(
+                nonce_hash=nonce_hash,
+                event_type="authorization_heartbeat",
+                status="reading",
+                lease_owner=worker_id,
+                fencing_token=fencing_token,
+                occurred_at=heartbeat_at,
+                details={"lease_expires_at": lease_expires_at},
+            )
+            self.connection.commit()
+        except Exception:
+            self.connection.rollback()
+            raise
+        return lease_expires_at
+
+    def complete(
+        self,
+        nonce: str,
+        *,
+        worker_id: str,
+        fencing_token: int,
+        completed_at: str,
+        status: str,
+        failure_class: str = "",
+    ) -> str:
+        if status not in {"resolved", "failed_retryable", "failed_terminal"}:
             raise ValueError("unsupported artifact authorization completion status")
         nonce_hash = stable_hash(nonce)
         self.connection.execute("BEGIN IMMEDIATE")
         try:
             row = self.connection.execute(
-                "SELECT status, receipt_hash FROM a2_artifact_reference_consumptions WHERE nonce_hash = ?",
+                """
+                SELECT status, receipt_hash, lease_owner, fencing_token, lease_expires_at
+                FROM a2_artifact_reference_consumptions WHERE nonce_hash = ?
+                """,
                 (nonce_hash,),
             ).fetchone()
-            if row is None or row[0] != "reserved":
-                raise ValueError("artifact authorization is not reserved")
+            if (
+                row is None
+                or row[0] != "reading"
+                or row[2] != worker_id
+                or int(row[3]) != fencing_token
+                or not row[4]
+                or _timestamp(str(row[4])) <= _timestamp(completed_at)
+            ):
+                raise ValueError("artifact authorization completion rejected by lease fence")
             completion_hash = stable_hash(
                 {
                     "nonce_hash": nonce_hash,
@@ -223,16 +451,104 @@ class ArtifactAuthorizationLedger:
             self.connection.execute(
                 """
                 UPDATE a2_artifact_reference_consumptions
-                SET status = ?, completed_at = ?, failure_class = ?, receipt_hash = ?
-                WHERE nonce_hash = ? AND status = 'reserved'
+                SET status = ?, completed_at = ?, failure_class = ?, receipt_hash = ?,
+                    lease_owner = NULL, lease_expires_at = NULL
+                WHERE nonce_hash = ? AND status = 'reading' AND lease_owner = ?
+                  AND fencing_token = ?
                 """,
-                (status, completed_at, failure_class or None, completion_hash, nonce_hash),
+                (
+                    status, completed_at, failure_class or None, completion_hash,
+                    nonce_hash, worker_id, fencing_token,
+                ),
+            )
+            if self.connection.execute("SELECT changes()").fetchone()[0] != 1:
+                raise ValueError("artifact authorization completion lost lease fence")
+            self._write_event(
+                nonce_hash=nonce_hash,
+                event_type="authorization_completed",
+                status=status,
+                lease_owner=worker_id,
+                fencing_token=fencing_token,
+                occurred_at=completed_at,
+                details={"failure_class": failure_class, "completion_hash": completion_hash},
             )
             self.connection.commit()
             return completion_hash
         except Exception:
             self.connection.rollback()
             raise
+
+    def inspect(self, nonce: str) -> dict[str, Any] | None:
+        cursor = self.connection.execute(
+            """
+            SELECT nonce_hash, status, lease_owner, lease_expires_at, fencing_token,
+                   attempt_count, completed_at, failure_class, receipt_hash
+            FROM a2_artifact_reference_consumptions WHERE nonce_hash = ?
+            """,
+            (stable_hash(nonce),),
+        )
+        row = cursor.fetchone()
+        if row is None:
+            return None
+        return dict(zip((column[0] for column in cursor.description), row))
+
+    def _write_event(
+        self,
+        *,
+        nonce_hash: str,
+        event_type: str,
+        status: str,
+        lease_owner: str,
+        fencing_token: int,
+        occurred_at: str,
+        details: Mapping[str, Any],
+    ) -> None:
+        previous = self.connection.execute(
+            """
+            SELECT event_hash FROM a2_artifact_reference_events
+            WHERE nonce_hash = ? ORDER BY occurred_at DESC, event_id DESC LIMIT 1
+            """,
+            (nonce_hash,),
+        ).fetchone()
+        previous_event_hash = previous[0] if previous else stable_hash("artifact_authorization_genesis")
+        event_core = {
+            "nonce_hash": nonce_hash,
+            "event_type": event_type,
+            "status": status,
+            "lease_owner_hash": stable_hash(lease_owner),
+            "fencing_token": fencing_token,
+            "occurred_at": occurred_at,
+            "details_hash": stable_hash(details),
+            "previous_event_hash": previous_event_hash,
+        }
+        event_hash = stable_hash(event_core)
+        event_id = stable_hash({"event_hash": event_hash, "event_type": event_type})
+        scope = self.connection.execute(
+            """
+            SELECT organization_id, tenant_id, workspace_id, project_id, environment_id
+            FROM a2_artifact_reference_consumptions WHERE nonce_hash = ?
+            """,
+            (nonce_hash,),
+        ).fetchone()
+        if scope is None:
+            raise ValueError("artifact authorization event scope is unavailable")
+        self.connection.execute(
+            """
+            INSERT INTO a2_artifact_reference_events (
+              event_id, nonce_hash,
+              organization_id, tenant_id, workspace_id, project_id, environment_id,
+              event_type, status, lease_owner_hash,
+              fencing_token, occurred_at, details_hash, previous_event_hash,
+              event_hash, public_safe
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+            """,
+            (
+                event_id, nonce_hash, *scope,
+                event_type, status, event_core["lease_owner_hash"],
+                fencing_token, occurred_at, event_core["details_hash"],
+                previous_event_hash, event_hash,
+            ),
+        )
 
     def _revocation_blockers(
         self,
@@ -321,6 +637,12 @@ def read_signed_artifact(
             _security_resolution(reference, blockers, authorization_hash=authorization_hash),
         ) from None
 
+    worker_id = "a2-artifact-inline-reader"
+    claim = ledger.claim(
+        str(reference["nonce"]),
+        worker_id=worker_id,
+        claimed_at=now,
+    )
     v1 = _v1_compatibility_reference(reference)
     try:
         content, object_resolution = read_authorized_artifact(
@@ -332,11 +654,14 @@ def read_signed_artifact(
             max_bytes=max_bytes,
         )
     except ArtifactReferenceError as error:
+        failure_class = error.blockers[0] if error.blockers else "artifact_read_failed"
         ledger.complete(
             str(reference["nonce"]),
+            worker_id=worker_id,
+            fencing_token=int(claim["fencing_token"]),
             completed_at=now,
-            status="failed",
-            failure_class=error.blockers[0] if error.blockers else "artifact_read_failed",
+            status=_failure_status(error.blockers),
+            failure_class=failure_class,
         )
         raise ArtifactReferenceError(
             error.blockers,
@@ -353,8 +678,10 @@ def read_signed_artifact(
 
     completion_hash = ledger.complete(
         str(reference["nonce"]),
+        worker_id=worker_id,
+        fencing_token=int(claim["fencing_token"]),
         completed_at=now,
-        status="consumed",
+        status="resolved",
     )
     return content, _merge_resolution(
         reference,
@@ -579,6 +906,23 @@ def _parse_time(value: Any, field: str, blockers: list[str]) -> datetime | None:
         blockers.append(f"{field}_timezone_required")
         return None
     return parsed.astimezone(timezone.utc)
+
+
+def _timestamp(value: str) -> datetime:
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    if parsed.tzinfo is None:
+        raise ValueError("artifact authorization timestamps must include timezone")
+    return parsed.astimezone(timezone.utc)
+
+
+def _failure_status(blockers: list[str]) -> str:
+    retryable = {
+        "artifact_not_found",
+        "artifact_read_timeout",
+        "artifact_storage_unavailable",
+        "artifact_reader_unavailable",
+    }
+    return "failed_retryable" if any(blocker in retryable for blocker in blockers) else "failed_terminal"
 
 
 def _scope(value: Any) -> dict[str, str]:

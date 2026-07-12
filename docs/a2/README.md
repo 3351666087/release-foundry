@@ -143,19 +143,25 @@ the public-safe resolution and authorization receipt hashes.
 Capability status:
 
 - Implemented: Ed25519 verification, job and tenant binding, expiry checks,
-  hierarchical revocation, atomic SQLite nonce reservation, immutable object
-  read verification, public-safe Resolution v2, and Trusted Spine enforcement.
+  hierarchical revocation, atomic SQLite authorization state transitions,
+  renewable worker leases, monotonic fencing tokens, expired-lease recovery,
+  retryable/terminal failure states, hash-linked authorization events,
+  immutable object read verification, public-safe Resolution v2, and Trusted
+  Spine enforcement.
 - Contract-supported: pluggable public-key resolver, key validity and
   compromise metadata, reference/job/key/tenant-project revocation, and v1
-  compatibility isolation.
+  compatibility isolation. The PostgreSQL DDL defines equivalent state,
+  revocation, event, indexing, and five-field FORCE RLS contracts.
 - Not production-verified: KMS/JWKS-backed key distribution, cross-language
-  canonical signing vectors, PostgreSQL multi-worker lease/fencing/recovery,
-  and S3/MinIO integration under load and failure injection.
+  canonical signing vectors, a running PostgreSQL adapter with multi-node
+  contention and recovery tests, and S3/MinIO integration under load and
+  failure injection.
 
 The SQLite ledger is a deterministic reference implementation, not a claim of
-distributed exactly-once execution. Production promotion requires a durable
-operation state machine and recovery path before multiple A2 workers can share
-the same authorization ledger.
+distributed exactly-once execution. Its two-connection tests prove local
+transaction and fencing behavior only. Production promotion still requires the
+PostgreSQL execution adapter, migration and rollback drills, real concurrent
+workers, object-store failure injection, and operational metrics.
 
 ## SDK Parity
 

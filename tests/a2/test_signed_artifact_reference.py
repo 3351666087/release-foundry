@@ -2,6 +2,7 @@ import hashlib
 import json
 from pathlib import Path
 import sqlite3
+import tempfile
 import unittest
 
 import jsonschema
@@ -15,6 +16,7 @@ from services.judge.signed_artifact_reference import (
     SIGNED_ARTIFACT_REFERENCE_SCHEMA_VERSION,
     sign_artifact_reference,
 )
+from services.judge.result_persistence import stable_hash
 from services.judge.trusted_spine import build_evidence_snapshot
 
 
@@ -297,6 +299,221 @@ class SignedArtifactReferenceTests(unittest.TestCase):
             self.assertEqual(self.reader.calls, calls_after_first)
         finally:
             fresh_connection.close()
+
+    def test_expired_lease_reclaim_fences_stale_worker(self):
+        reservation = self.ledger.reserve(
+            self.reference,
+            authorization_hash=stable_hash(
+                {key: value for key, value in self.reference.items() if key != "signature"}
+            ),
+            reserved_at="2026-07-12T12:00:00Z",
+        )
+        first = self.ledger.claim(
+            self.reference["nonce"],
+            worker_id="worker-a",
+            claimed_at="2026-07-12T12:00:01Z",
+            lease_seconds=10,
+        )
+        with self.assertRaisesRegex(ValueError, "cannot be claimed"):
+            self.ledger.claim(
+                self.reference["nonce"],
+                worker_id="worker-b",
+                claimed_at="2026-07-12T12:00:05Z",
+            )
+        second = self.ledger.claim(
+            self.reference["nonce"],
+            worker_id="worker-b",
+            claimed_at="2026-07-12T12:00:12Z",
+            lease_seconds=30,
+        )
+        self.assertGreater(second["fencing_token"], first["fencing_token"])
+        with self.assertRaisesRegex(ValueError, "lease fence"):
+            self.ledger.complete(
+                self.reference["nonce"],
+                worker_id="worker-a",
+                fencing_token=first["fencing_token"],
+                completed_at="2026-07-12T12:00:13Z",
+                status="resolved",
+            )
+        completion_hash = self.ledger.complete(
+            self.reference["nonce"],
+            worker_id="worker-b",
+            fencing_token=second["fencing_token"],
+            completed_at="2026-07-12T12:00:14Z",
+            status="resolved",
+        )
+        state = self.ledger.inspect(self.reference["nonce"])
+        self.assertEqual(state["status"], "resolved")
+        self.assertEqual(state["attempt_count"], 2)
+        self.assertEqual(state["receipt_hash"], completion_hash)
+        self.assertEqual(reservation["nonce_hash"], state["nonce_hash"])
+
+    def test_heartbeat_extends_lease_and_retryable_failure_can_recover(self):
+        self.ledger.reserve(
+            self.reference,
+            authorization_hash=stable_hash(
+                {key: value for key, value in self.reference.items() if key != "signature"}
+            ),
+            reserved_at="2026-07-12T12:00:00Z",
+        )
+        first = self.ledger.claim(
+            self.reference["nonce"],
+            worker_id="worker-a",
+            claimed_at="2026-07-12T12:00:01Z",
+            lease_seconds=10,
+        )
+        extended = self.ledger.heartbeat(
+            self.reference["nonce"],
+            worker_id="worker-a",
+            fencing_token=first["fencing_token"],
+            heartbeat_at="2026-07-12T12:00:05Z",
+            lease_seconds=30,
+        )
+        self.assertEqual(extended, "2026-07-12T12:00:35Z")
+        self.ledger.complete(
+            self.reference["nonce"],
+            worker_id="worker-a",
+            fencing_token=first["fencing_token"],
+            completed_at="2026-07-12T12:00:06Z",
+            status="failed_retryable",
+            failure_class="artifact_storage_unavailable",
+        )
+        second = self.ledger.claim(
+            self.reference["nonce"],
+            worker_id="worker-b",
+            claimed_at="2026-07-12T12:00:07Z",
+        )
+        self.assertEqual(second["fencing_token"], first["fencing_token"] + 1)
+        self.ledger.complete(
+            self.reference["nonce"],
+            worker_id="worker-b",
+            fencing_token=second["fencing_token"],
+            completed_at="2026-07-12T12:00:08Z",
+            status="resolved",
+        )
+        events = self.connection.execute(
+            """
+            SELECT event_type, status, fencing_token
+            FROM a2_artifact_reference_events
+            ORDER BY occurred_at, event_id
+            """
+        ).fetchall()
+        self.assertEqual(
+            [event[0] for event in events],
+            [
+                "authorization_reserved",
+                "authorization_claimed",
+                "authorization_heartbeat",
+                "authorization_completed",
+                "authorization_claimed",
+                "authorization_completed",
+            ],
+        )
+        self.assertEqual(events[-1][1], "resolved")
+        self.assertEqual(events[-1][2], second["fencing_token"])
+
+    def test_terminal_failure_cannot_be_reclaimed(self):
+        self.ledger.reserve(
+            self.reference,
+            authorization_hash="sha256:" + "a" * 64,
+            reserved_at="2026-07-12T12:00:00Z",
+        )
+        claim = self.ledger.claim(
+            self.reference["nonce"],
+            worker_id="worker-a",
+            claimed_at="2026-07-12T12:00:01Z",
+        )
+        self.ledger.complete(
+            self.reference["nonce"],
+            worker_id="worker-a",
+            fencing_token=claim["fencing_token"],
+            completed_at="2026-07-12T12:00:02Z",
+            status="failed_terminal",
+            failure_class="artifact_content_hash_mismatch",
+        )
+        with self.assertRaisesRegex(ValueError, "failed_terminal"):
+            self.ledger.claim(
+                self.reference["nonce"],
+                worker_id="worker-b",
+                claimed_at="2026-07-12T12:01:30Z",
+            )
+
+    def test_revocation_after_reservation_blocks_claim_and_records_event(self):
+        self.ledger.reserve(
+            self.reference,
+            authorization_hash="sha256:" + "a" * 64,
+            reserved_at="2026-07-12T12:00:00Z",
+        )
+        self.ledger.revoke(
+            revocation_type="issuer_key",
+            target=f"{self.reference['issuer']}:{self.reference['key_id']}",
+            scope=scope(),
+            reason_code="key_compromised",
+            revoked_at="2026-07-12T12:00:01Z",
+        )
+        with self.assertRaisesRegex(Exception, "authorization_revoked:issuer_key"):
+            self.ledger.claim(
+                self.reference["nonce"],
+                worker_id="worker-a",
+                claimed_at="2026-07-12T12:00:02Z",
+            )
+        state = self.ledger.inspect(self.reference["nonce"])
+        self.assertEqual(state["status"], "revoked")
+        self.assertEqual(state["failure_class"], "authorization_revoked")
+        event = self.connection.execute(
+            """
+            SELECT event_type, status FROM a2_artifact_reference_events
+            ORDER BY occurred_at DESC, event_id DESC LIMIT 1
+            """
+        ).fetchone()
+        self.assertEqual(event, ("authorization_revoked", "revoked"))
+
+    def test_same_nonce_with_different_authorization_is_rejected(self):
+        self.ledger.reserve(
+            self.reference,
+            authorization_hash="sha256:" + "a" * 64,
+            reserved_at="2026-07-12T12:00:00Z",
+        )
+        changed = self._reference(purpose="security-review")
+        with self.assertRaisesRegex(Exception, "authorization_replay_detected"):
+            self.ledger.reserve(
+                changed,
+                authorization_hash="sha256:" + "b" * 64,
+                reserved_at="2026-07-12T12:00:01Z",
+            )
+
+    def test_two_connections_cannot_hold_same_active_lease(self):
+        with tempfile.TemporaryDirectory() as directory:
+            database = str(Path(directory) / "artifact-authorizations.sqlite3")
+            first_connection = sqlite3.connect(database)
+            second_connection = sqlite3.connect(database)
+            try:
+                first_ledger = ArtifactAuthorizationLedger(first_connection)
+                second_ledger = ArtifactAuthorizationLedger(second_connection)
+                first_ledger.reserve(
+                    self.reference,
+                    authorization_hash="sha256:" + "a" * 64,
+                    reserved_at="2026-07-12T12:00:00Z",
+                )
+                first_claim = first_ledger.claim(
+                    self.reference["nonce"],
+                    worker_id="worker-a",
+                    claimed_at="2026-07-12T12:00:01Z",
+                    lease_seconds=30,
+                )
+                with self.assertRaisesRegex(ValueError, "cannot be claimed"):
+                    second_ledger.claim(
+                        self.reference["nonce"],
+                        worker_id="worker-b",
+                        claimed_at="2026-07-12T12:00:02Z",
+                    )
+                state = second_ledger.inspect(self.reference["nonce"])
+                self.assertEqual(state["status"], "reading")
+                self.assertEqual(state["fencing_token"], first_claim["fencing_token"])
+                self.assertEqual(state["attempt_count"], 1)
+            finally:
+                first_connection.close()
+                second_connection.close()
 
 
 if __name__ == "__main__":
