@@ -11,6 +11,9 @@ x-a1-secret-ref-env: &a1-secret-ref-env
 
 x-a1-runtime-env: &a1-runtime-env
   <<: *a1-secret-ref-env
+  ASHR_ENVIRONMENT: development
+  ASHR_IDENTITY_RUNTIME: memory
+  ASHR_IDENTITY_MEMORY_ENABLED: "true"
   ASHR_GO_BACKEND: postgres
   ASHR_POSTGRES_DSN: postgres://ashr@postgres:5432/ashr?sslmode=disable
   ASHR_OBJECT_STORE_ENDPOINT: file:///object-store
@@ -40,9 +43,11 @@ services:
       - a1-postgres-smoke:/var/lib/postgresql/data
 
   api:
-    image: golang:1.22-bookworm
-    working_dir: /workspace/packages/go/ashrclone
-    command: ["sh", "-lc", "go run ./cmd/ashr-api"]
+    image: ashr/a1-go-runtime:local
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.go-runtime
+    command: ["/usr/local/bin/ashr-api"]
     depends_on:
       postgres:
         condition: service_healthy
@@ -53,36 +58,22 @@ services:
     ports:
       - "127.0.0.1:18787:8787"
     volumes:
-      - ../../:/workspace:ro
-      - a1-go-mod-cache:/go/pkg/mod
-      - a1-go-build-cache:/root/.cache/go-build
-    tmpfs:
-      - /tmp
+      - a1-api-runtime:/runtime
     security_opt:
       - no-new-privileges:true
     healthcheck:
-      test:
-        - CMD
-        - go
-        - run
-        - /workspace/services/runner/a1_docker_healthcheck.go
-        - http://127.0.0.1:8787/healthz
+      test: ["CMD", "/usr/local/bin/ashr-healthcheck", "http://127.0.0.1:8787/healthz", "postgres_repository_v0"]
       interval: 10s
       timeout: 5s
       retries: 12
       start_period: 20s
 
   worker:
-    image: golang:1.22-bookworm
-    working_dir: /workspace/packages/go/ashrclone
-    command:
-      - sh
-      - -lc
-      - >-
-        while true; do
-          go test ./... -run TestServiceWorkerQueueLifecycle -count=1;
-          sleep "$${ASHR_WORKER_POLL_INTERVAL_SECONDS}";
-        done
+    image: ashr/a1-go-runtime:local
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.go-runtime
+    command: ["/usr/local/bin/ashr-worker"]
     depends_on:
       api:
         condition: service_healthy
@@ -99,23 +90,16 @@ services:
       ASHR_WORKER_MAX_ATTEMPTS: "3"
       ASHR_WORKER_EVIDENCE_WRITES: object-store
     volumes:
-      - ../../:/workspace:ro
-      - a1-go-mod-cache:/go/pkg/mod
-      - a1-go-build-cache:/root/.cache/go-build
-      - a1-worker-state:/var/lib/ashr/worker
-    tmpfs:
-      - /tmp
+      - a1-worker-state:/runtime/worker
     security_opt:
       - no-new-privileges:true
 
   billing-webhook:
-    image: golang:1.22-bookworm
-    working_dir: /workspace/packages/go/ashrclone
-    command:
-      - sh
-      - -lc
-      - >-
-        go run ./cmd/ashr-api
+    image: ashr/a1-go-runtime:local
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.go-runtime
+    command: ["/usr/local/bin/ashr-api"]
     depends_on:
       postgres:
         condition: service_healthy
@@ -129,11 +113,7 @@ services:
     ports:
       - "127.0.0.1:18788:8788"
     volumes:
-      - ../../:/workspace:ro
-      - a1-go-mod-cache:/go/pkg/mod
-      - a1-go-build-cache:/root/.cache/go-build
-    tmpfs:
-      - /tmp
+      - a1-billing-runtime:/runtime
     security_opt:
       - no-new-privileges:true
 
@@ -145,7 +125,7 @@ services:
 
 volumes:
   a1-postgres-smoke:
-  a1-go-mod-cache:
-  a1-go-build-cache:
+  a1-api-runtime:
+  a1-billing-runtime:
   a1-worker-state:
   a1-object-store:

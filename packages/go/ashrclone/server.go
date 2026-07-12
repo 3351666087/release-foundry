@@ -25,6 +25,7 @@ type HTTPServer struct {
 	identitySessionReceiptTransport    IdentitySessionReceiptTransport
 	oauthProviders                     map[string]*OAuthService
 	githubOAuth                        *GitHubOAuthService
+	providerDispatch                   ProviderDispatchBackend
 	backendName                        string
 	backendReady                       bool
 }
@@ -77,6 +78,7 @@ type HTTPServerOptions struct {
 	IdentitySessionReceiptTransport    IdentitySessionReceiptTransport
 	OAuthProviders                     map[string]*OAuthService
 	GitHubOAuth                        *GitHubOAuthService
+	ProviderDispatch                   ProviderDispatchBackend
 }
 
 func NewHTTPServer(service ControlPlaneBackend) http.Handler {
@@ -113,6 +115,7 @@ func NewHTTPServerWithOptions(service ControlPlaneBackend, options HTTPServerOpt
 		identitySessionReceiptTransport:    options.IdentitySessionReceiptTransport,
 		oauthProviders:                     oauthProviders,
 		githubOAuth:                        options.GitHubOAuth,
+		providerDispatch:                   options.ProviderDispatch,
 		backendName:                        backendName,
 		backendReady:                       options.BackendReady,
 	}
@@ -125,7 +128,7 @@ func NewHTTPHandler(service ControlPlaneBackend) http.Handler {
 func (server *HTTPServer) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	writer.Header().Set("Content-Type", "application/json")
 	if request.Method == http.MethodGet && (request.URL.Path == "/health" || request.URL.Path == "/healthz" || request.URL.Path == "/v1/healthz") {
-		writeJSON(writer, http.StatusOK, JSONMap{"schema_version": ControlPlaneSchemaVersion, "status": "ok", "service": "ashr-go-control-plane", "backend": server.backendName, "backend_ready": server.backendReady, "backend_mode": backendMode(server.backendName), "local_only": server.backendName == "memory_service_v0", "ashr_api_used": false})
+		writeJSON(writer, http.StatusOK, JSONMap{"schema_version": ControlPlaneSchemaVersion, "status": "ok", "service": "ashr-go-control-plane", "backend": server.backendName, "ready": server.backendReady, "backend_ready": server.backendReady, "backend_mode": backendMode(server.backendName), "local_only": server.backendName == "memory_service_v0", "ashr_api_used": false})
 		return
 	}
 	if request.Method == http.MethodGet && (request.URL.Path == "/openapi.json" || request.URL.Path == "/v1/openapi.json") {
@@ -158,6 +161,11 @@ func (server *HTTPServer) ServeHTTP(writer http.ResponseWriter, request *http.Re
 	}
 	if len(parts) >= 3 && parts[0] == "v1" && parts[1] == "accounts" {
 		server.handleUnifiedIdentityAccount(writer, request, parts[2], parts[3:])
+		return
+	}
+	if len(parts) >= 6 && parts[0] == "v1" && parts[1] == "tenants" &&
+		parts[3] == "projects" && parts[5] == "provider-dispatches" {
+		server.handleProviderDispatch(writer, request, parts[2], parts[4], parts[6:])
 		return
 	}
 	if len(parts) == 7 && parts[0] == "v1" && parts[1] == "projects" &&

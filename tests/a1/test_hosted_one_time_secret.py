@@ -40,6 +40,79 @@ def test_explicit_api_key_reveal_preserves_one_time_secret(enveloped: bool) -> N
     assert response["result"]["nested"]["client_secret"] == "[redacted]"
 
 
+def test_go_domain_result_with_schema_version_restores_explicit_one_time_secret() -> None:
+    def transport(*_: Any, **__: Any) -> Mapping[str, Any]:
+        return {
+            "schema_version": "ashr.clone.saas_control_plane.v1",
+            "api_key": {"key_id": "key_test"},
+            "one_time_secret": SECRET,
+            "one_time_secret_displayed": True,
+            "nested": {"one_time_secret": SECRET},
+        }
+
+    client = SaaSIngestionClient(base_url="http://localhost", http_transport=transport)
+    response = client.create_api_key(
+        "tenant_test",
+        "project_test",
+        key_id="key_test",
+        name="test",
+        scopes=["run:submit"],
+        reveal_secret=True,
+    )
+
+    assert response["result"]["one_time_secret"] == SECRET
+    assert response["result"]["one_time_secret_displayed"] is True
+    assert response["result"]["nested"]["one_time_secret"] == "[redacted]"
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        {
+            "schema_version": "ashr.clone.saas_control_plane.v1",
+            "api_key": {"key_id": "wrong_key"},
+            "one_time_secret": SECRET,
+            "one_time_secret_displayed": True,
+        },
+        {
+            "schema_version": "ashr.clone.saas_control_plane.v1",
+            "one_time_secret": SECRET,
+            "one_time_secret_displayed": True,
+        },
+        {
+            "schema_version": "ashr.clone.saas_control_plane.v1",
+            "status": "error",
+            "api_key": {"key_id": "key_test"},
+            "one_time_secret": SECRET,
+            "one_time_secret_displayed": True,
+        },
+        {
+            "schema_version": "ashr.clone.saas_control_plane.v1",
+            "error": {"message": SECRET},
+            "api_key": {"key_id": "key_test"},
+            "one_time_secret": SECRET,
+            "one_time_secret_displayed": True,
+        },
+    ],
+)
+def test_go_domain_result_requires_exact_api_key_success_shape(response: Mapping[str, Any]) -> None:
+    client = SaaSIngestionClient(
+        base_url="http://localhost",
+        http_transport=lambda *_args, **_kwargs: response,
+    )
+    result = client.create_api_key(
+        "tenant_test",
+        "project_test",
+        key_id="key_test",
+        name="test",
+        scopes=["run:submit"],
+        reveal_secret=True,
+    )
+
+    assert SECRET not in repr(result)
+    assert SECRET not in json.dumps(result, sort_keys=True)
+
+
 def test_api_key_secret_stays_redacted_without_explicit_reveal() -> None:
     def transport(*_: Any, **__: Any) -> Mapping[str, Any]:
         return {"one_time_secret": SECRET, "one_time_secret_displayed": True}

@@ -41,6 +41,7 @@ func main() {
 		var payload struct {
 			Status       string `json:"status"`
 			Backend      string `json:"backend"`
+			Ready        bool   `json:"ready"`
 			BackendReady bool   `json:"backend_ready"`
 			LocalOnly    bool   `json:"local_only"`
 		}
@@ -49,12 +50,13 @@ func main() {
 			os.Exit(1)
 		}
 		expectedBackend := strings.TrimSpace(os.Args[2])
-		if payload.Status != "ok" || payload.Backend != expectedBackend || !payload.BackendReady || payload.LocalOnly {
+		if payload.Status != "ok" || payload.Backend != expectedBackend || !payload.Ready || !payload.BackendReady || payload.LocalOnly {
 			fmt.Fprintf(
 				os.Stderr,
-				"healthcheck fail closed: status=%q backend=%q ready=%t local_only=%t\n",
+				"healthcheck fail closed: status=%q backend=%q ready=%t backend_ready=%t local_only=%t\n",
 				payload.Status,
 				payload.Backend,
+				payload.Ready,
 				payload.BackendReady,
 				payload.LocalOnly,
 			)

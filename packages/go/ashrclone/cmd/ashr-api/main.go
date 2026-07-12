@@ -97,6 +97,7 @@ func main() {
 			IdentitySessionReceiptTransport:    identityRuntime.sessionReceiptTransport,
 			OAuthProviders:                     oauthProviders,
 			GitHubOAuth:                        githubOAuth,
+			ProviderDispatch:                   selection.ProviderDispatch,
 		}),
 	}
 	if err := server.ListenAndServe(); err != nil {
