@@ -6795,5 +6795,7 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
 - Resealed the new-run Audit Bundle with live Check/comment/policy receipts: 14/14 artifacts, 7/7 custody events, and root hash passed. The signed archive passed 15/15 entries, root hash, and Ed25519 signature.
 - The final packet reaches Golden Path `7/11` and Deployment Acceptance `8/17`; the Actions artifact readback passes while A2, custom GitHub App, required-check enforcement, and deployed infrastructure remain blocked.
 - Final post-readback verification passed: A3 Node `406/406`, A2 `186/186` plus `1050` subtests, Next.js typecheck/build with 15 pages, Playwright `11/11`, both CL guards, both npm audits, workflow YAML, 20 JSON fixtures, secret/path scan, and `git diff --check`.
+- Replaced CI's recursive current-head regeneration with two-phase custody. The release job now reads the sealed candidate identity, independently verifies the committed bundle, signed archive, and Release Artifact manifest, then uploads that exact packet under its candidate SHA.
+- Added Release CLI `--verify-manifest` mode so CI can fail closed on manifest/artifact hash drift without rebuilding or rewriting the packet. Local workflow emulation passed all three independent verifiers.
 - Current true blockers: A2 Decision Ledger says block; no tenant custom GitHub App; no branch protection; no deployed identity/Postgres/queue/object-storage/rollback receipts.
 - Detailed record: `docs/a3/a3_release_delivery_golden_path_2026_07_12.md`.

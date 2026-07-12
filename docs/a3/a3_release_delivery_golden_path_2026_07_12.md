@@ -170,9 +170,11 @@ The candidate is `0.2.0-rc.1`. It is intentionally marked:
 - `github_release_created=false`
 - `deployment_created=false`
 
-GitHub Actions builds the packet and uploads `ashr-a3-0.2.0-rc.1-<sha>` as a workflow artifact. Creating a Git tag or GitHub Release remains prohibited while A2 and Deployment Acceptance are blocked.
+GitHub Actions independently verifies the sealed packet and uploads `ashr-a3-0.2.0-rc.1-<sha>` as a workflow artifact. It does not regenerate the candidate from the evidence-seal commit, because doing so would overwrite the already-read-back candidate identity. Creating a Git tag or GitHub Release remains prohibited while A2 and Deployment Acceptance are blocked.
 
 For pull-request workflows, `<sha>` is the candidate PR head. The manifest separately records `ci_tested_sha_alias`, which is the temporary GitHub merge commit actually checked by Actions. These identities must not be collapsed into one field.
+
+The delivery uses a two-phase custody model: candidate `ad6113e` produced the live Check, comment, and Actions artifact; the later evidence commit stores their redacted receipts and sealed hashes. CI on the evidence commit verifies and transports that immutable candidate packet instead of pretending the evidence commit is the evaluated agent candidate.
 
 ## 9. Safety invariants
 

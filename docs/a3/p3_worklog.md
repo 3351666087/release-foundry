@@ -3949,4 +3949,5 @@ Safety boundary:
 - Real Check and operator PR-comment readbacks now confirm ID/name/conclusion/head plus marker/body-hash/head respectively. The live branch-policy readback remains missing (HTTP 404), and custom tenant GitHub App proof remains false.
 - Resealed output now reports Golden Path `7/11`, Deployment Acceptance `8/17`, Audit Bundle `14/14`, custody `7/7`, and archive `15/15` while preserving the A2 `block` decision.
 - Final post-readback gates passed: A3 Node `406/406`, A2 `186/186` plus `1050` subtests, Next.js 15-page build, Playwright `11/11`, CL, audits, YAML/JSON, secret/path, and diff checks.
+- CI now verifies and uploads the immutable `ad6113e` candidate packet instead of regenerating it from a later evidence commit; standalone Release Artifact verification is available through `--verify-manifest`.
 - No key, token, cookie, email, installation token, private signing key, or raw GitHub response was persisted.

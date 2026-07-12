@@ -229,6 +229,14 @@ test("release delivery CLI builds a blocked but verifiable packet from A1/A2 evi
     assert.equal(index.production_ready, false);
     assert.equal(index.git_sha_alias, "ad6113e01f5999f99b378e678d4f0a9602e8fdbc");
     assert.equal(index.ci_tested_sha_alias, "e07c5f6e3cb8c44e8d75ea781feeec778bb5ccb8");
+    const verificationOnly = await buildReleaseDeliveryOutputs({
+      verifyManifest: join(output, "release-artifact-manifest.json"),
+      outputVerification: join(output, "release-artifact-verification-only.json"),
+      workspaceRoot: ROOT,
+      verifiedAt: "2026-07-12T12:00:02.000Z"
+    });
+    assert.equal(verificationOnly.mode, "verify_manifest");
+    assert.equal(verificationOnly.releaseArtifactVerification.status, "passed");
   } finally {
     await rm(temp, { recursive: true, force: true });
   }
@@ -242,6 +250,8 @@ test("delivery and GitHub observer argument parsers keep live tokens in environm
     "--git-sha", "candidate123",
     "--ci-tested-sha", "merge456",
     "--github-actions-artifact-readback", "artifact.json",
+    "--verify-manifest", "manifest.json",
+    "--output-verification", "verification.json",
     "--doc", "docs/release.md",
     "--no-fail"
   ]);
@@ -249,6 +259,8 @@ test("delivery and GitHub observer argument parsers keep live tokens in environm
   assert.equal(delivery.gitSha, "candidate123");
   assert.equal(delivery.ciTestedSha, "merge456");
   assert.equal(delivery.githubActionsArtifactReadback, "artifact.json");
+  assert.equal(delivery.verifyManifest, "manifest.json");
+  assert.equal(delivery.outputVerification, "verification.json");
   assert.deepEqual(delivery.documentation, ["docs/release.md"]);
   assert.equal(delivery.noFail, true);
 

@@ -210,92 +210,40 @@ jobs:
     timeout-minutes: 12
     needs: plan
     if: needs.plan.outputs.a3 == 'true' || needs.plan.outputs.evidence == 'true'
-    env:
-      A3_CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-      A3_CI_TESTED_SHA: ${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
-      - name: Build new-run gate and Audit Bundle
+      - name: Read sealed release identity
+        id: release
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p artifacts/a3-release-delivery
+          node -e "const fs=require('node:fs');const v=JSON.parse(fs.readFileSync('fixtures/a3/golden-path/release-delivery-index.json','utf8'));process.stdout.write('candidate_sha='+v.git_sha_alias+'\\nrelease_version='+v.release_version+'\\n')" >> "$GITHUB_OUTPUT"
+      - name: Verify sealed Audit Bundle, archive, and release manifest
+        shell: bash
+        run: |
+          set -euo pipefail
           node services/report/a3_gate_cli.mjs \
-            --runs fixtures/a3/golden-path/a3_new_run_result.redacted.json \
-            --grades fixtures/a3/golden-path/a2_new_run_judge_response.redacted.json \
-            --coverage fixtures/a2/results/a2_g3_coverage_report.json \
-            --thresholds fixtures/a3/release_gate_thresholds.json \
-            --a2-trusted-spine fixtures/a2/results/a2_trusted_spine_handoff.json \
-            --github-check-readback fixtures/a3/p3/a3_github_check_readback_confirmed.redacted.json \
-            --github-pr-comment-readback fixtures/a3/p3/a3_github_pr_comment_readback_confirmed.redacted.json \
-            --github-required-check-proof fixtures/a3/p3/a3_github_required_check_proof_plan_only.redacted.json \
-            --deployment-probe fixtures/a3/golden-path/deployment_probe.redacted.json \
-            --release-version 0.2.0-rc.1 \
-            --environment staging \
-            --source a3-golden-path \
-            --generated-at 2026-07-12T12:00:00.000Z \
-            --head-sha "${A3_CANDIDATE_SHA}" \
-            --details-url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
-            --annotation-path docs/a3/a3_release_delivery_golden_path_2026_07_12.md \
-            --output-json artifacts/a3-release-delivery/gate.json \
-            --output-md artifacts/a3-release-delivery/gate.md \
-            --output-check artifacts/a3-release-delivery/github-check.json \
-            --output-pr-comment artifacts/a3-release-delivery/pr-comment.md \
-            --output-manifest artifacts/a3-release-delivery/generated-artifacts.json \
-            --output-bundle artifacts/a3-release-delivery/audit-bundle-index.json \
-            --no-fail \
-            --json
-          node services/report/a3_gate_cli.mjs \
-            --verify-index artifacts/a3-release-delivery/audit-bundle-index.json \
-            --generated-at 2026-07-12T12:00:01.000Z \
-            --output-json artifacts/a3-release-delivery/audit-bundle-verification.json \
+            --verify-index fixtures/a3/golden-path/audit-bundle-index.json \
+            --generated-at 2026-07-12T11:40:01.000Z \
             --strict-exit \
             --json
           node services/report/a3_audit_archive.mjs \
-            --index artifacts/a3-release-delivery/audit-bundle-index.json \
-            --output artifacts/a3-release-delivery/audit-archive-manifest.json \
-            --generated-at 2026-07-12T12:00:02.000Z \
-            --source github-actions \
+            --verify fixtures/a3/golden-path/audit-archive-manifest.json \
+            --generated-at 2026-07-12T11:40:03.000Z \
             --json
-          node services/report/a3_audit_archive.mjs \
-            --verify artifacts/a3-release-delivery/audit-archive-manifest.json \
-            --output artifacts/a3-release-delivery/audit-archive-verification.json \
-            --generated-at 2026-07-12T12:00:03.000Z \
-            --json
-      - name: Build deployment acceptance and release artifact
-        run: |
           node services/report/a3_release_delivery_cli.mjs \
-            --runs fixtures/a3/golden-path/a3_new_run_result.redacted.json \
-            --grades fixtures/a3/golden-path/a2_new_run_judge_response.redacted.json \
-            --trusted-spine fixtures/a2/results/a2_trusted_spine_handoff.json \
-            --audit-bundle artifacts/a3-release-delivery/audit-bundle-index.json \
-            --audit-bundle-verification artifacts/a3-release-delivery/audit-bundle-verification.json \
-            --audit-archive artifacts/a3-release-delivery/audit-archive-manifest.json \
-            --audit-archive-verification artifacts/a3-release-delivery/audit-archive-verification.json \
-            --github-check-readback fixtures/a3/p3/a3_github_check_readback_confirmed.redacted.json \
-            --github-pr-comment-readback fixtures/a3/p3/a3_github_pr_comment_readback_confirmed.redacted.json \
-            --github-required-check-proof fixtures/a3/p3/a3_github_required_check_proof_plan_only.redacted.json \
-            --deployment-probe fixtures/a3/golden-path/deployment_probe.redacted.json \
-            --release-version 0.2.0-rc.1 \
-            --environment staging \
-            --git-sha "${A3_CANDIDATE_SHA}" \
-            --ci-tested-sha "${A3_CI_TESTED_SHA}" \
-            --generated-at 2026-07-12T12:00:04.000Z \
-            --verified-at 2026-07-12T12:00:05.000Z \
-            --output-dir artifacts/a3-release-delivery/release \
-            --doc docs/strategy/large-saas-a1-a2-a3-full-plan.md \
-            --doc docs/a3/a3_release_delivery_golden_path_2026_07_12.md \
-            --doc docs/a3/releases/a3-0.2.0-rc.1.md \
-            --no-fail \
+            --verify-manifest fixtures/a3/golden-path/release-artifact-manifest.json \
+            --verified-at 2026-07-12T11:40:05.000Z \
+            --strict-exit \
             --json
       - name: Upload versioned release candidate packet
         uses: actions/upload-artifact@v4
         with:
-          name: ashr-a3-0.2.0-rc.1-${{ env.A3_CANDIDATE_SHA }}
-          path: artifacts/a3-release-delivery
+          name: ashr-a3-${{ steps.release.outputs.release_version }}-${{ steps.release.outputs.candidate_sha }}
+          path: fixtures/a3/golden-path
           if-no-files-found: error
           retention-days: 14
 

@@ -1181,6 +1181,7 @@
 - [x] Attach a real GitHub Check readback for candidate `ad6113e`.
 - [x] Publish and read back a real operator PR comment for candidate `ad6113e`.
 - [x] Download and verify the real versioned GitHub Actions artifact receipt.
+- [x] Make CI independently verify and upload the sealed candidate packet instead of regenerating a different head-bound packet.
 - [ ] Install and prove a tenant-bound custom GitHub App.
 - [ ] Enable branch protection and prove the required check is enforced.
 - [ ] Attach a deployed staging/VPC acceptance receipt.

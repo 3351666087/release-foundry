@@ -56,6 +56,8 @@ export function parseReleaseDeliveryArgs(argv = []) {
     else if (item === "--generated-at") options.generatedAt = next();
     else if (item === "--verified-at") options.verifiedAt = next();
     else if (item === "--output-dir") options.outputDir = next();
+    else if (item === "--verify-manifest") options.verifyManifest = next();
+    else if (item === "--output-verification") options.outputVerification = next();
     else if (item === "--doc") options.documentation.push(next());
     else if (item === "--no-fail") options.noFail = true;
     else if (item === "--strict-exit") options.noFail = false;
@@ -68,10 +70,23 @@ export function parseReleaseDeliveryArgs(argv = []) {
 
 export async function buildReleaseDeliveryOutputs(options = {}) {
   if (options.help) return usageReceipt();
+  const workspaceRoot = resolve(options.workspaceRoot || process.cwd());
+  if (options.verifyManifest) {
+    const releaseArtifactManifest = await readJson(options.verifyManifest);
+    const releaseArtifactVerification = await verifyReleaseArtifactManifest(releaseArtifactManifest, {
+      workspaceRoot,
+      verifiedAt: options.verifiedAt || new Date().toISOString()
+    });
+    if (options.outputVerification) await writeJson(resolve(options.outputVerification), releaseArtifactVerification);
+    return {
+      mode: "verify_manifest",
+      releaseArtifactManifest,
+      releaseArtifactVerification
+    };
+  }
   for (const field of ["runs", "grades", "trustedSpine", "auditBundle", "auditBundleVerification", "auditArchive", "auditArchiveVerification", "deploymentProbe", "releaseVersion"]) {
     if (!options[field]) throw new Error(`--${camelToKebab(field)} is required.`);
   }
-  const workspaceRoot = resolve(options.workspaceRoot || process.cwd());
   const generatedAt = options.generatedAt || new Date().toISOString();
   const verifiedAt = options.verifiedAt || generatedAt;
   const runFixture = await readJson(options.runs);
@@ -212,6 +227,22 @@ export async function runReleaseDeliveryCli(argv = process.argv.slice(2), io = {
       (io.stdout || process.stdout).write(`${JSON.stringify(result, null, 2)}\n`);
       return 0;
     }
+    if (result.mode === "verify_manifest") {
+      const summary = {
+        schema_version: "a3.release_artifact_verify_cli_receipt.v1",
+        status: result.releaseArtifactVerification.status,
+        release_version: result.releaseArtifactManifest.release?.version || "unknown-release",
+        git_sha_alias: result.releaseArtifactManifest.release?.git_sha_alias || null,
+        manifest_hash: result.releaseArtifactVerification.manifest_hash || null,
+        safety: {
+          token_included: false,
+          secret_values_allowed: false,
+          raw_artifact_content_included: false
+        }
+      };
+      if (options.json) (io.stdout || process.stdout).write(`${JSON.stringify(summary, null, 2)}\n`);
+      return result.releaseArtifactVerification.status === "passed" ? 0 : 1;
+    }
     const summary = {
       schema_version: "a3.release_delivery_cli_receipt.v1",
       status: result.goldenPath.status,
@@ -246,6 +277,7 @@ function usageReceipt() {
   return {
     schema_version: "a3.release_delivery_cli_usage.v1",
     command: "node services/report/a3_release_delivery_cli.mjs --runs <a1-run.json> --grades <a2-service-response.json> --trusted-spine <a2-trusted-spine.json> --audit-bundle <bundle.json> --audit-bundle-verification <bundle-verification.json> --audit-archive <archive.json> --audit-archive-verification <archive-verification.json> --deployment-probe <probe.json> --github-actions-artifact-readback <artifact.json> --release-version 0.2.0-rc.1 --git-sha <candidate-sha> --ci-tested-sha <tested-sha> --output-dir artifacts/a3-release-delivery --no-fail --json",
+    verify_command: "node services/report/a3_release_delivery_cli.mjs --verify-manifest <release-artifact-manifest.json> --strict-exit --json",
     notes: [
       "The CLI consumes A1/A2 evidence and never recomputes A2 score, pass/fail, or release authority.",
       "Use --no-fail in evidence-producing CI when a blocked release must still upload its audit packet."
