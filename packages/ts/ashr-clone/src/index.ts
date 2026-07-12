@@ -32,6 +32,7 @@ export {
 } from "./oauth.js";
 export * from "./runner.js";
 export * from "./python-parity.js";
+export * from "./provider-adapter.js";
 export * from "./saas.js";
 export * from "./session-lifecycle.js";
 export * from "./stripe-executor.js";

@@ -35,6 +35,7 @@ const runtimeMarkers = {
   evidence: "buildPrivateEvidenceIndex",
   "github-oauth": "GitHubOAuthHttpClient",
   oauth: "buildAuthorizationEnvelope",
+  "provider-adapter": "ModelProviderAdapter",
   "python-parity": "stable_id",
   runner: "AgentAdapter",
   saas: "SaaSIngestionClient",

@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ashr-clone-sdk"
+version = "0.1.0"
+description = "Local-first SDK for the Ashr-compatible A1 execution plane"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Proprietary" }
+authors = [{ name = "Null3351" }]
+dependencies = []
+
+[project.scripts]
+ashr-clone = "ashr_clone.saas_cli:main"
+
+[tool.setuptools]
+packages = ["ashr_clone"]

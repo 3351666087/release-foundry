@@ -2846,3 +2846,63 @@ Date: 2026-07-12
 - Next top three: (1) real Ollama durable SDK-to-A2 evidence acceptance chain,
   (2) production PostgreSQL mutation-ticket issuance/consumption and HTTP store,
   (3) enterprise OIDC/SAML explicit credential binding and conflict controls.
+
+## Round 57: Provider-Neutral Model Runtime
+
+Date: 2026-07-12
+
+Commercial enhancement candidates were scored before implementation:
+
+| Candidate | Demo | Risk reduction | Contract impact | Effort | API evidence |
+|---|---:|---:|---:|---:|---:|
+| Python/TypeScript provider-neutral execution parity | 5 | 5 | 2 | 4 | 5 |
+| Durable idempotent model request journal | 4 | 5 | 3 | 5 | 3 |
+| Real five-modality model matrix | 5 | 4 | 3 | 5 | 5 |
+
+The first candidate had the highest immediate ROI and was selected.
+
+- Added provider-neutral Python and TypeScript execution adapters for local
+  Ollama and OpenAI-compatible providers. Both implementations cover bounded
+  retries, timeouts, safe errors, streaming, tool calls, usage, finish reason,
+  and provider-local text/image/audio/file/video envelopes.
+- Capability discovery separates protocol support from verified model
+  callability. Text defaults to callable; image, audio, file, and video remain
+  discovered until each exact model/request combination succeeds.
+- TypeScript publishes the reusable `./provider-adapter` subpath. The complete
+  TypeScript suite passed `610 passed, 0 failed` after the audit follow-up.
+- Python provider, adapter, runner, and trace focused tests passed
+  `56 passed in 2.33s`.
+- Bounded real calibration used the actual Python and TypeScript SDK adapters
+  against local Ollama `qwen2.5:1.5b`, XJTLU `gpt-5.6-sol`, and Qwen official
+  `qwen-plus`. Non-stream text, streamed text, one tool call, usage, and finish
+  reason passed in both languages for all three endpoints.
+- Ollama truthfully returned a tool call with finish reason `stop`; XJTLU and
+  Qwen returned `tool_calls`. The adapter preserves this provider difference
+  instead of leaking a fabricated shared-contract rule.
+- Public-safe calibration evidence is recorded at
+  `docs/a1/evidence/round57_provider_neutral_runtime_calibration_20260712.md`.
+  No secret value, authorization header, raw provider response, or signed URL
+  was persisted.
+- No A2 judge or A3 dashboard/report business semantics were modified.
+- Full A1 Python validation passed `1265 passed, 2 skipped in 415.52s`.
+- Audit follow-up added runtime validation of terminal capability values in
+  TypeScript, empty-evidence and timezone-aware timestamp checks in both
+  languages, and immutable Python capability maps. Focused Python validation
+  passed `54 passed`; the complete TypeScript suite then passed `610/610`.
+- Hosted one-time API key secret restoration now permits only an explicit
+  `create_api_key` reveal response with a top-level non-empty string and an
+  exact true display marker. Operation mismatch, missing/false markers, empty
+  or non-string values, nested values, and malformed results remain redacted.
+  Exact secret occurrences elsewhere in the response are scrubbed before the
+  single allowed field is restored.
+- The public calibration summary cannot be bound to private source records
+  because no such records were persisted for the completed probes. Hashes,
+  timestamps, and private paths were not fabricated; the evidence document
+  records this gap explicitly.
+- Bus-Auditor received the implementation, real calibration, and verification
+  checkpoint and identified the follow-up items above. Final full-suite and
+  packaging revalidation follows before publication.
+
+Next top three: durable idempotent request journaling across restart; real
+model-by-modality capability probes without false claims; Ollama-to-Go-to-
+PostgreSQL/object-storage acceptance with stable authenticated evidence IDs.

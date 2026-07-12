@@ -77,6 +77,7 @@ test("TS build removes stale dist before compiling source", () => {
     "./evidence",
     "./github-oauth",
     "./oauth",
+    "./provider-adapter",
     "./python-parity",
     "./runner",
     "./saas",
