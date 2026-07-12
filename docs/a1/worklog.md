@@ -2740,3 +2740,72 @@ Round 54 hosted CI repair, 2026-07-12:
   worktree and committed to the A2 branch; it is excluded from this A1 commit.
 - The Bus-Auditor spawn was retried before this repair and again failed with
   `agent thread limit reached`. No audit result is fabricated.
+## Round 55: Production Password And MFA Lifecycle
+
+Date: 2026-07-12
+
+Repository baseline: clean `codex/a1-round54-publish`, tracking
+`origin/codex/a1-local-sdk-runner`; draft PR `#36` remains open. Re-read the
+current `origin/main` strategy and reviewed A2/A3 peer branches read-only.
+
+Commercial enhancement score (5 is highest value; effort is cost):
+
+| Candidate | Demo | Risk reduction | Contract impact | Effort | API evidence |
+|---|---:|---:|---:|---:|---:|
+| PostgreSQL password recovery/change and MFA lifecycle | 5 | 5 | 3 | 4 | 5 |
+| Enterprise OIDC/SAML adapter and explicit linking | 4 | 4 | 4 | 5 | 4 |
+| Full identity RBAC enforcement across API/RLS/workers | 4 | 5 | 5 | 5 | 3 |
+
+Selected the first candidate. Registration and login are already separate
+executable state machines; this round closes the post-registration security
+lifecycle without allowing login to create, infer, bind, or merge an account.
+Domestic email remains the preferred deployable registration credential.
+WeChat/QQ/Alipay remain fail-closed capability entries until qualification and
+configuration exist. A3 receives only safe posture, readiness and action state.
+
+The mandatory Bus-Auditor slot is still unavailable because the existing agent
+thread limit is reached. No audit result is fabricated; retry remains required
+before publication closure.
+
+Round 55 password/MFA executable closure, 2026-07-12:
+
+- Registration and login remain separate state machines. Registration creates
+  a canonical account and verified initial credential; login only authenticates
+  an exact existing credential and cannot create, infer, link, or merge.
+  Domestic email remains the preferred deployable registration route. GitHub,
+  Google, phone, WeChat, QQ, and Alipay remain explicit credentials; matching
+  email is never linking proof, and unqualified domestic providers fail closed.
+- Added migration `018_a1_password_mfa_lifecycle.sql` for scoped, expiring,
+  single-use security receipts, password enrollment/change/recovery, session
+  revocation, TOTP pending/confirmation, recovery-code posture, RLS, and a
+  secret-safe A3 projection. A3 receives no password, TOTP, recovery-code,
+  vault-reference, digest, or receipt material.
+- Real PostgreSQL 16 validation exposed and closed two compatibility hazards:
+  migration 018 now drops the v016 status/posture constraints before admitting
+  `pending`, and the old boolean `a1_set_account_two_factor` signature is
+  preserved but fails closed so it cannot bypass TOTP possession proof.
+- `python -m pytest -q tests/a1/test_password_mfa_lifecycle_migration.py`
+  passed `8 passed in 15.55s`. The fixture loaded every migration from 001
+  through 018 into a temporary PostgreSQL database and proved wrong-purpose
+  receipt non-consumption, replay rejection, password state transitions,
+  recovery-version increment, active-session revocation, TOTP pending/confirm,
+  expired enrollment rejection, secret-safe projection, and 16-client
+  concurrent exactly-once receipt consumption.
+- Final `python -m pytest -q tests/a1` passed `1247 passed, 2 skipped in
+  324.87s`. TypeScript `npm test` passed `599 passed, 0 failed`; Go `go test
+  -count=1 ./...` and `go vet ./...` passed. Python and TypeScript expose equal
+  `get_security_posture`, `mutate_password`, and `mutate_two_factor` methods.
+- `python scripts/cl_guard.py hygiene` returned no findings. An earlier attempt
+  used nonexistent `python scripts/cl_gate.py --mode hygiene`; the corrected
+  repository command is recorded here so the failed invocation is not hidden.
+- The new security routes remain honestly `proposed`: trusted Go mutation-ticket
+  resolution and production HTTP handlers are not connected. SDK mutations send
+  only mutation ticket, step-up receipt, and idempotency identifiers; no private
+  credential material crosses public or A3 JSON.
+- `git fetch` observed a new peer A2 head on `origin/dev/g3-a2-calibration`.
+  It has no A1 contract impact and was not merged or modified. No A2 judge or A3
+  dashboard business file is included in this round.
+- The required Bus-Auditor retry remains blocked by the existing agent-thread
+  limit. No audit output is fabricated. Next top three: connect the trusted Go
+  ticket resolver and activate handlers; add explicit enterprise OIDC/SAML
+  linking; enforce identity RBAC through API, worker, and PostgreSQL RLS.

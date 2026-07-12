@@ -75,6 +75,7 @@ export const A3_IDENTITY_FLOW_OPERATIONS = [
   "provider_status", "register_start", "register_complete", "login_start", "login_complete",
   "link_start", "link_complete", "unlink", "password_set", "password_change",
   "two_factor_enroll", "two_factor_verify", "two_factor_recovery", "two_factor_disable",
+  "security_posture", "password_recover",
 ] as const;
 
 export const A3_IDENTITY_FLOW_STATUSES = [
@@ -541,6 +542,14 @@ export interface VerifyChallengeOptions {
   idempotencyKey: string;
 }
 
+export interface IdentitySecurityMutationOptions {
+  accountId: string;
+  operation: string;
+  mutationTicketId: string;
+  stepUpReceiptId: string;
+  idempotencyKey: string;
+}
+
 export type CreateVerificationChallengeOptions = StartVerificationOptions;
 export type VerifyVerificationChallengeOptions = VerifyChallengeOptions;
 
@@ -813,6 +822,20 @@ export class UnifiedIdentityHttpClient {
   async listMemberships(accountId: string): Promise<IdentityMembership[]> {
     const result = await this.#requestRecord("GET", identityMembershipsRoute(accountId), {});
     return mappingSequence(result, "memberships").map(parseIdentityMembership);
+  }
+
+  getSecurityPosture(accountId: string): Promise<Record<string, unknown>> {
+    return this.#requestRecord("GET", identitySecurityRoute(accountId), {});
+  }
+
+  mutatePassword(options: IdentitySecurityMutationOptions): Promise<Record<string, unknown>> {
+    const operation = requireEnum("password operation", options.operation, ["set", "change", "recover"] as const);
+    return this.#requestRecord("POST", identityPasswordRoute(options.accountId, operation), securityMutationPayload(options));
+  }
+
+  mutateTwoFactor(options: IdentitySecurityMutationOptions): Promise<Record<string, unknown>> {
+    const operation = requireEnum("two factor operation", options.operation, ["enroll", "verify", "recovery", "disable"] as const);
+    return this.#requestRecord("POST", identityTwoFactorRoute(options.accountId, operation), securityMutationPayload(options));
   }
 
   linkCredential(options: LinkCredentialOptions): Promise<IdentityLink> {
@@ -1124,8 +1147,10 @@ export function a3IdentityContractManifest(): A3IdentityContractManifest {
       route("link_start", "POST", "/v1/accounts/{account_id}/identities/{provider}/link/start", "proposed"),
       route("link_complete", "POST", "/v1/accounts/{account_id}/identities/{provider}/link/complete", "proposed"),
       route("unlink", "POST", "/v1/accounts/{account_id}/identities/{credential_id}/unlink", "proposed"),
+      route("security_posture", "GET", "/v1/accounts/{account_id}/security", "proposed"),
       route("password_set", "POST", "/v1/accounts/{account_id}/password/set", "proposed"),
       route("password_change", "POST", "/v1/accounts/{account_id}/password/change", "proposed"),
+      route("password_recover", "POST", "/v1/accounts/{account_id}/password/recover", "proposed"),
       route("two_factor_enroll", "POST", "/v1/accounts/{account_id}/two-factor/enroll", "proposed"),
       route("two_factor_verify", "POST", "/v1/accounts/{account_id}/two-factor/verify", "proposed"),
       route("two_factor_recovery", "POST", "/v1/accounts/{account_id}/two-factor/recovery", "proposed"),
@@ -1923,6 +1948,26 @@ export function identityCredentialsRoute(accountId: string): string {
 
 export function identityMembershipsRoute(accountId: string): string {
   return `${identityAccountRoute(accountId)}/memberships`;
+}
+
+export function identitySecurityRoute(accountId: string): string {
+  return `${identityAccountRoute(accountId)}/security`;
+}
+
+export function identityPasswordRoute(accountId: string, operation: string): string {
+  return `${identityAccountRoute(accountId)}/password/${encodeURIComponent(operation)}`;
+}
+
+export function identityTwoFactorRoute(accountId: string, operation: string): string {
+  return `${identityAccountRoute(accountId)}/two-factor/${encodeURIComponent(operation)}`;
+}
+
+function securityMutationPayload(options: IdentitySecurityMutationOptions): Record<string, unknown> {
+  return {
+    mutation_ticket_id: requireIdentifier("mutation_ticket_id", options.mutationTicketId),
+    step_up_receipt_id: requireIdentifier("step_up_receipt_id", options.stepUpReceiptId),
+    idempotency_key: requireIdentifier("idempotency_key", options.idempotencyKey),
+  };
 }
 
 export function identityLinkRoute(accountId: string, provider: string): string {

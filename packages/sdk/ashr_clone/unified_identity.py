@@ -117,6 +117,8 @@ A3_IDENTITY_FLOW_OPERATIONS = (
     "two_factor_verify",
     "two_factor_recovery",
     "two_factor_disable",
+    "security_posture",
+    "password_recover",
 )
 A3_IDENTITY_FLOW_STATUSES = (
     "pending",
@@ -293,8 +295,10 @@ def a3_identity_contract_manifest() -> dict[str, Any]:
         route("link_start", "POST", "/v1/accounts/{account_id}/identities/{provider}/link/start", "proposed"),
         route("link_complete", "POST", "/v1/accounts/{account_id}/identities/{provider}/link/complete", "proposed"),
         route("unlink", "POST", "/v1/accounts/{account_id}/identities/{credential_id}/unlink", "proposed"),
+        route("security_posture", "GET", "/v1/accounts/{account_id}/security", "proposed"),
         route("password_set", "POST", "/v1/accounts/{account_id}/password/set", "proposed"),
         route("password_change", "POST", "/v1/accounts/{account_id}/password/change", "proposed"),
+        route("password_recover", "POST", "/v1/accounts/{account_id}/password/recover", "proposed"),
         route("two_factor_enroll", "POST", "/v1/accounts/{account_id}/two-factor/enroll", "proposed"),
         route("two_factor_verify", "POST", "/v1/accounts/{account_id}/two-factor/verify", "proposed"),
         route("two_factor_recovery", "POST", "/v1/accounts/{account_id}/two-factor/recovery", "proposed"),
@@ -2114,6 +2118,28 @@ class UnifiedIdentityClient:
             for item in _mapping_sequence("memberships", payload.get("memberships"))
         )
 
+    def get_security_posture(self, account_id: str) -> Mapping[str, Any]:
+        return self._request("GET", identity_security_route(account_id), {})
+
+    def mutate_password(self, account_id: str, operation: str, *, mutation_ticket_id: str,
+                        step_up_receipt_id: str, idempotency_key: str) -> Mapping[str, Any]:
+        normalized = _enum("password operation", operation, ("set", "change", "recover"))
+        return self._request("POST", identity_password_route(account_id, normalized), {
+            "mutation_ticket_id": _identifier("mutation_ticket_id", mutation_ticket_id),
+            "step_up_receipt_id": _identifier("step_up_receipt_id", step_up_receipt_id),
+            "idempotency_key": _identifier("idempotency_key", idempotency_key),
+        })
+
+    def mutate_two_factor(self, account_id: str, operation: str, *, mutation_ticket_id: str,
+                          step_up_receipt_id: str, idempotency_key: str) -> Mapping[str, Any]:
+        normalized = _enum("two factor operation", operation,
+                           ("enroll", "verify", "recovery", "disable"))
+        return self._request("POST", identity_two_factor_route(account_id, normalized), {
+            "mutation_ticket_id": _identifier("mutation_ticket_id", mutation_ticket_id),
+            "step_up_receipt_id": _identifier("step_up_receipt_id", step_up_receipt_id),
+            "idempotency_key": _identifier("idempotency_key", idempotency_key),
+        })
+
     def link_credential(
         self,
         account_id: str,
@@ -2342,6 +2368,18 @@ def identity_credentials_route(account_id: str) -> str:
 
 def identity_memberships_route(account_id: str) -> str:
     return f"{identity_account_route(account_id)}/memberships"
+
+
+def identity_security_route(account_id: str) -> str:
+    return f"{identity_account_route(account_id)}/security"
+
+
+def identity_password_route(account_id: str, operation: str) -> str:
+    return f"{identity_account_route(account_id)}/password/{quote(operation, safe='')}"
+
+
+def identity_two_factor_route(account_id: str, operation: str) -> str:
+    return f"{identity_account_route(account_id)}/two-factor/{quote(operation, safe='')}"
 
 
 def identity_link_route(account_id: str, provider: str) -> str:
