@@ -6,6 +6,11 @@ Date: 2026-07-11
 > GitHub routes are credential-linking routes for an already authenticated
 > account, not initial sign-in. A3 now keeps those login buttons disabled. See
 > `docs/a3/a3_upstream_identity_trusted_spine_alignment_2026_07_11.md`.
+>
+> Merged-main update, 2026-07-12: A1 `c784163` and A2 `8cd1d4f` are now in
+> `main` `7dd14d7`. Their implemented route and trusted-spine contracts are
+> authoritative; initial OAuth login and browser email-completion blockers
+> remain unchanged.
 
 ## Scope
 
@@ -21,16 +26,19 @@ adapter. It follows `docs/strategy/large-saas-a1-a2-a3-full-plan.md`:
 
 ## Upstream calibration
 
-`git fetch origin --prune` succeeded. The A3 branch contains current main
-`5dbf4ee`. The read-only upstream references were:
+The initial pass used read-only peer refs. The current calibration now uses
+the integrated `main` snapshot:
 
 | Lane | Ref | SHA | Use in this round |
 |---|---|---|---|
-| A1 | `origin/codex/a1-local-sdk-runner` | `ac960bd` | OAuth, unified identity, verification, SMTP, route facts |
-| A2 | `origin/dev/g3-a2-calibration` | `58fe876` | identity/security context and unchanged judge authority |
+| main | `origin/main` | `7dd14d7` | integrated A1/A2/A3 base |
+| A1 | `main` source commit | `c784163` | OAuth account linking, unified identity, verification, SMTP, route facts |
+| A2 | `main` source commit | `8cd1d4f` | five-level trusted evidence scope and unchanged judge authority |
 
-A1 remains an open draft PR. No A1 or A2 commit was merged, cherry-picked, or
-modified by A3.
+A3 did not modify A1 or A2 semantics. The API Reference marks merged route
+implementation separately from product readiness: account linking, challenge
+start, and session refresh are implemented; initial provider sign-in and
+browser verification completion remain unavailable or blocked.
 
 ## Product changes
 
@@ -42,7 +50,7 @@ The Next.js Webapp now has `/api-reference` with:
 - Search by method, path, owner, or title.
 - Identity/OAuth, run/evidence, judge/release, and console/report filters.
 - A1/A2/A3 owner labels.
-- Implemented, draft-branch, and contract-blocked state.
+- Implemented, local-draft, and contract-blocked state.
 - Public-safe request and response examples.
 - Authentication boundary, source file, source commit, and safety notes.
 - Desktop and mobile layouts.

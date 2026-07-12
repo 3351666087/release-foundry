@@ -110,7 +110,8 @@ test.describe("A3 Next.js product console", () => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto(`${base}/api-reference/`);
     await expect(page.getByRole("heading", { name: "API 文档与参考" })).toBeVisible();
-    await expect(page.getByText(/A1 会话链与 A2 判定链已经前进/)).toBeVisible();
+    await expect(page.getByText(/A1 身份会话与 A2 可信判定链已进入 main/)).toBeVisible();
+    await expect(page.getByText("organization_id", { exact: true })).toBeVisible();
     await expect(page.getByText("可信证据与决策账本", { exact: true })).toBeVisible();
     await expect(page.getByText("请求邮箱验证码", { exact: true })).toBeVisible();
     await page.getByLabel("搜索 API").fill("missing_required_tool");

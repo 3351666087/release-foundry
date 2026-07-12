@@ -991,7 +991,7 @@
 - [x] Pass current-main A1/A2 Python contracts (`562 pass / 5 skip`, `1013 subtests pass`).
 - [x] Pass commercial CL, hygiene CL, dependency audit, diff check, and high-confidence secret scan.
 - [x] Save desktop API/auth/email and mobile API Reference screenshots.
-- [ ] Merge or consume A1 hosted identity only after its open draft PR passes review and enters main.
+- [x] Consume the implemented A1 account-linking/session/challenge contracts after A1 `c784163` entered `main` `7dd14d7`.
 - [ ] Close the browser email-verification flow after A1 delivers mailbox-bound challenge context.
 - [ ] Close hosted OAuth login after A1 callback establishes a durable session and performs an exact allowlisted redirect.
 
@@ -1010,4 +1010,19 @@
 - [x] Pass TypeScript typecheck, Next.js production build, and `git diff --check`.
 - [x] Record fresh desktop/mobile browser screenshots after the correction.
 - [x] Pass full A3, Playwright, A1/A2 peer-contract, CL, dependency, and secret checks.
-- [ ] Consume these identity and trusted-spine contracts as authoritative only after they enter `main`.
+- [x] Consume these identity and trusted-spine contracts as authoritative after A1 `c784163` and A2 `8cd1d4f` entered `main` `7dd14d7`.
+
+## Merged-main Identity + Trusted Spine Recalibration - 2026-07-12
+
+- [x] Confirm official GitHub `main` is `7dd14d7` and contains A1 `c784163` plus A2 `8cd1d4f`.
+- [x] Replace A3 API Reference open-draft labels with merged-main implementation state.
+- [x] Keep Google/GitHub initial sign-in unavailable; do not confuse account linking with first login.
+- [x] Keep browser email-verification completion blocked until mailbox-bound challenge context exists.
+- [x] Upgrade the public-safe auth snapshot to `a3.auth_contract_snapshot.v3`.
+- [x] Record A2's required `organization_id`, `tenant_id`, `workspace_id`, `project_id`, and `environment_id` scope.
+- [x] Record `scope_complete`, `validation_errors`, direct A1 RunResult validation, and `release_ready=false`.
+- [x] Remove the obsolete `a1_auth_not_in_main` blocker.
+- [x] Preserve A2 as the only score, failure-class, and release-decision authority.
+- [x] Keep key, token, cookie, OTP, email, and account data out of source, fixtures, docs, and screenshots.
+- [ ] Add initial Google/GitHub login only after A1 publishes an authenticated callback-to-Webapp session flow.
+- [ ] Enable browser verification completion only after A1 publishes mailbox-bound challenge context and registration session handoff.

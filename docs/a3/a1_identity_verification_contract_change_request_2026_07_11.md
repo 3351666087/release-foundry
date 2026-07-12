@@ -87,14 +87,15 @@ allowlisted placeholders and continue to own SMTP configuration and delivery.
 - `verify` is enabled only when a valid server-issued challenge context exists.
 - A3 never fabricates a verified account or authenticated browser session.
 - API Reference labels the incomplete verification endpoint as contract
-  blocked and labels the A1 branch as draft.
+  blocked while labeling the supporting challenge/session routes as merged
+  implementations.
 
 ## Follow-up calibration at A1 `350fb22`
 
 The same identity/session behavior was re-confirmed at A1 `c784163`; the
 intervening commit only repaired Linux TypeScript test dependency copying.
 
-A1 has since added a real browser-session lifecycle on its draft branch:
+A1 has since added a real browser-session lifecycle, now merged into `main`:
 
 - Successful email `login` and `recovery` verification can issue
   `__Host-ashr_session` and `__Host-ashr_refresh` cookies.
@@ -112,3 +113,11 @@ account linking for an existing session rather than initial OAuth sign-in.
 A3 therefore keeps registration completion and initial provider login
 fail-closed. It documents the new session-refresh contract without reading or
 persisting either HttpOnly cookie.
+
+## Merged-main status at `7dd14d7`
+
+A1 `c784163` is now part of `main`. This closes the integration-risk blocker
+that previously said A1 auth was draft-only, but it does not close this
+contract request. The public challenge envelope and plaintext SMTP delivery
+still do not give the browser a mailbox-bound challenge context, and binding
+registration still does not create an authenticated browser session.

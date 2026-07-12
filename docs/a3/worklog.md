@@ -1,5 +1,67 @@
 ﻿# A3 Worklog
 
+## 2026-07-12 - Merged-main Identity And Trusted-Spine Recalibration
+
+### Goal
+
+Replace stale draft-only product claims after A1 `c784163` and A2 `8cd1d4f`
+entered `main` `7dd14d7`, while keeping initial OAuth login, browser email
+completion, and A2 release readiness fail-closed.
+
+### Upstream evidence
+
+- Standard `git fetch origin --prune` was retried twice and failed because the
+  local network reset or could not connect to `github.com:443`.
+- Authenticated official GitHub API access remained healthy and confirmed
+  `main` `7dd14d7`, its integration parents, and the merged A1/A2 commits.
+- A binary-safe official GitHub archive of `7dd14d7` was downloaded to a
+  temporary directory, validated as ZIP, and used as a full latest-main test
+  sandbox. No third-party Git proxy was used.
+- Latest A2 contracts require `organization_id`, `tenant_id`, `workspace_id`,
+  `project_id`, and `environment_id`; they expose `scope_complete` and
+  `validation_errors` and directly validate A1 RunResult cases.
+
+### A3 changes
+
+- API Reference now reports main `7dd14d7`, A1 `c784163`, and A2 `8cd1d4f`.
+- A1 account linking, challenge start, callback, and browser-session refresh
+  are labeled implemented and merged, not draft.
+- Initial Google/GitHub login remains unavailable, and email verification
+  completion remains blocked without mailbox-bound challenge context.
+- The upstream panel displays all three A2 trusted-spine schema IDs and the
+  five required scope fields.
+- The public-safe auth fixture is now `a3.auth_contract_snapshot.v3`, includes
+  `scope_complete`, empty `validation_errors`, direct RunResult validation,
+  and `release_ready=false`, and removes `a1_auth_not_in_main`.
+- A3 still does not recompute scores, failure classes, or release decisions.
+
+### Verification
+
+- Focused A3 auth/reference and Webapp contracts: `9 pass / 0 fail` locally
+  and `9 pass / 0 fail` on the latest-main sandbox.
+- A3 full Node suite on latest main: `334 pass / 0 fail`.
+- A2 full suite on latest main: `185 pass / 0 fail`, `1042 subtests pass`.
+- A2 trusted-spine focus: `7 pass / 0 fail`.
+- TypeScript typecheck and Next.js static production build: passed locally and
+  on the latest-main sandbox.
+- Full Playwright suite: `31 pass / 0 fail` with one worker, including Webapp
+  product routes `6/6`; desktop/mobile API Reference screenshots refreshed.
+- Latest-main Webapp dependency install audit: `0 vulnerabilities`.
+- A broad Python attempt reached `1230 pass`, `12 skip`, and `1042` passing
+  subtests. The remaining `26` setup errors require Docker/Postgres; two tests
+  require missing Go/Cargo; one archive-only check requires `.git`. These are
+  recorded environment gaps, not claimed as passes.
+- `git diff --check` passed apart from the existing CRLF normalization warning.
+
+### Safety
+
+- `.env.local` was not read or staged.
+- No key, token, cookie, OTP, real email, account data, provider payload, or
+  signed URL was written to source, fixtures, docs, screenshots, or logs.
+- No OAuth redirect, email delivery, account mutation, Ashr mutation, billing
+  mutation, or cloud mutation was executed.
+- All repository edits remain inside A3-owned directories.
+
 ## 2026-07-11 - Upstream Identity + Trusted Spine Alignment Repair
 
 ### Goal and correction

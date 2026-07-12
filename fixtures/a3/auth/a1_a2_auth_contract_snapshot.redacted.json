@@ -1,18 +1,18 @@
 {
-  "schema_version": "a3.auth_contract_snapshot.v2",
-  "calibrated_at": "2026-07-11",
+  "schema_version": "a3.auth_contract_snapshot.v3",
+  "calibrated_at": "2026-07-12",
   "public_safe": true,
   "contains_secret_values": false,
   "main": {
     "ref": "origin/main",
-    "sha": "5dbf4ee2ab4c0ea8568623899244070dce9f9ce4",
+    "sha": "7dd14d7b154ad86bd3bfedacbf4c3e03796170ce",
     "contained_by_a3_branch": true
   },
   "a1": {
-    "ref": "origin/codex/a1-local-sdk-runner",
+    "ref": "main",
     "sha": "c784163588e9e0839fe17c604f3285c42efe3661",
-    "pull_request_state": "open_draft",
-    "merged_to_main": false,
+    "pull_request_state": "merged_to_main",
+    "merged_to_main": true,
     "authority": [
       "identity session",
       "oauth provider exchange",
@@ -47,11 +47,19 @@
       "oauth_initial_login": "not_implemented",
       "registration_session_handoff": "not_implemented",
       "production_ready": false
+    },
+    "capabilities": {
+      "oauth_account_linking": "implemented",
+      "browser_session_refresh": "implemented",
+      "verification_challenge_start": "implemented",
+      "verification_completion": "blocked_pending_browser_context",
+      "oauth_initial_login": "unavailable"
     }
   },
   "a2": {
-    "ref": "origin/dev/g3-a2-calibration",
-    "sha": "47c05e5a76b0e497bd77c7c7c823074f34f5a8c7",
+    "ref": "main",
+    "sha": "8cd1d4f1cb72e73ae7ead5d3218b4ae963a31a81",
+    "source_state": "merged_to_main",
     "authority": [
       "score",
       "pass_fail",
@@ -68,7 +76,25 @@
       "evidence_completeness": "complete",
       "required_modalities": ["image", "text"],
       "observed_modalities": ["image", "text"],
+      "required_scope_fields": [
+        "organization_id",
+        "tenant_id",
+        "workspace_id",
+        "project_id",
+        "environment_id"
+      ],
+      "scope": {
+        "organization_id": "org_local_demo",
+        "tenant_id": "org_local_demo",
+        "workspace_id": "workspace_local_demo",
+        "project_id": "a2_g3_calibration",
+        "environment_id": "local"
+      },
+      "scope_complete": true,
+      "validation_errors": [],
+      "direct_a1_run_result_validation": true,
       "decision": "block",
+      "release_ready": false,
       "review_queue_status": "blocked",
       "chain_verified": true,
       "public_safe": true,
@@ -95,6 +121,8 @@
       "capability_aware_login_and_signup_ui",
       "oauth_initial_login_fail_closed_correction",
       "a2_trusted_spine_reference_surface",
+      "merged_main_capability_status",
+      "a2_five_level_scope_surface",
       "html_and_text_email_template_handoff"
     ]
   },
@@ -110,12 +138,6 @@
       "severity": "blocking_for_hosted_login",
       "fact": "The current Google and GitHub routes require an existing trusted session and implement credential linking; the callback returns a JSON connection result rather than an initial-login browser session redirect.",
       "a3_behavior": "disable_login_buttons_and_disclose_account_linking_only"
-    },
-    {
-      "id": "a1_auth_not_in_main",
-      "severity": "integration_risk",
-      "fact": "The calibrated A1 auth implementation is still an open draft PR.",
-      "a3_behavior": "consume_contract_without_merging_or_mutating_a1"
     }
   ],
   "safety": {

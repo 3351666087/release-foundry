@@ -24,19 +24,22 @@ export type ApiEndpoint = {
 };
 
 export const apiReferenceMeta = {
-  schemaVersion: "a3.api_reference.v1",
-  calibratedAt: "2026-07-11",
-  mainSha: "5dbf4ee",
+  schemaVersion: "a3.api_reference.v2",
+  calibratedAt: "2026-07-12",
+  mainSha: "7dd14d7",
   a1Sha: "c784163",
-  a2Sha: "47c05e5",
-  a1Branch: "origin/codex/a1-local-sdk-runner",
-  a2Branch: "origin/dev/g3-a2-calibration",
+  a2Sha: "8cd1d4f",
+  a1SourceState: "merged_to_main",
+  a2SourceState: "merged_to_main",
   secretValuesIncluded: false,
-  a1BrowserSession: "draft_implemented",
+  a1BrowserSession: "implemented",
   a1OAuthInitialLogin: "not_implemented",
-  a2TrustedSpine: "draft_implemented",
+  a2TrustedSpine: "implemented",
   a2EvidenceSnapshotSchema: "a2.evidence_snapshot.v1",
-  a2DecisionLedgerSchema: "a2.decision_ledger.v1"
+  a2DecisionLedgerSchema: "a2.decision_ledger.v1",
+  a2TrustedSpineSchema: "a2.trusted_spine_handoff.v1",
+  a2RequiredScope: ["organization_id", "tenant_id", "workspace_id", "project_id", "environment_id"],
+  a2ValidationErrors: true
 } as const;
 
 export const apiGroups = [
@@ -79,7 +82,7 @@ export const apiEndpoints: ApiEndpoint[] = [
       en: "Create a state, PKCE, and nonce protected Google linking transaction for an already signed-in Ashr account."
     },
     auth: { zh: "需要 A1 可信身份会话与租户范围", en: "Requires a trusted A1 identity session and tenant scope" },
-    status: "draft",
+    status: "implemented",
     source: "A1 c784163 / oauth_provider_http.go",
     request: { tenant_id: "tenant_example" },
     response: {
@@ -89,7 +92,7 @@ export const apiEndpoints: ApiEndpoint[] = [
       expires_at: "2026-07-11T12:10:00Z"
     },
     notes: [
-      { zh: "当前在 A1 open draft PR 中，本地完成过 localhost 校准，尚未合并 main。", en: "Implemented and localhost-calibrated on an open A1 draft PR, not merged into main." },
+      { zh: "该账号绑定能力已随 A1 c784163 合并到 main；它仍不等于首次 Google 登录。", en: "This account-linking capability entered main with A1 c784163; it is still not initial Google sign-in." },
       { zh: "这是账号绑定接口，不是首次 Google 登录入口；A3 登录页保持关闭。", en: "This is account linking, not an initial Google sign-in endpoint; A3 keeps it disabled on the login page." },
       { zh: "A3 不接收或保存 client secret、authorization code、token。", en: "A3 never receives or stores client secrets, authorization codes, or tokens." }
     ]
@@ -106,7 +109,7 @@ export const apiEndpoints: ApiEndpoint[] = [
       en: "Create a GitHub credential-linking transaction for an already signed-in Ashr account."
     },
     auth: { zh: "需要 A1 可信身份会话与租户范围", en: "Requires a trusted A1 identity session and tenant scope" },
-    status: "draft",
+    status: "implemented",
     source: "A1 c784163 / oauth_provider_http.go",
     request: { tenant_id: "tenant_example" },
     response: {
@@ -133,7 +136,7 @@ export const apiEndpoints: ApiEndpoint[] = [
       en: "Google or GitHub calls A1, which validates state, exchanges the code, and binds a unified identity credential."
     },
     auth: { zh: "公开回调入口；state/PKCE/nonce 由 A1 校验", en: "Public callback; A1 validates state, PKCE, and nonce" },
-    status: "draft",
+    status: "implemented",
     source: "A1 c784163 / oauth_provider_http.go",
     response: {
       schema_version: "ashr.oauth_connection.v1",
@@ -156,7 +159,7 @@ export const apiEndpoints: ApiEndpoint[] = [
       en: "Request a six-digit email code. The public response stays uniform to prevent account enumeration."
     },
     auth: { zh: "注册用途公开；绑定用途需要可信会话", en: "Public for registration; trusted session required for credential binding" },
-    status: "draft",
+    status: "implemented",
     source: "A1 c784163 / identity_verification_http.go",
     request: {
       channel: "email",
@@ -221,7 +224,7 @@ export const apiEndpoints: ApiEndpoint[] = [
       en: "Atomically rotate access and refresh credentials through HttpOnly cookies and detect reuse of an old refresh credential."
     },
     auth: { zh: "同源 HTTPS、访问/刷新 Cookie、Idempotency-Key", en: "Same-origin HTTPS, access/refresh cookies, and Idempotency-Key" },
-    status: "draft",
+    status: "implemented",
     source: "A1 c784163 / identity_verification_http.go",
     request: {
       "$headers": { "Idempotency-Key": "a3-refresh-example-id" },
@@ -234,7 +237,7 @@ export const apiEndpoints: ApiEndpoint[] = [
     notes: [
       { zh: "A3 只能触发轮换，不能读取 HttpOnly Cookie 或 bearer 内容。", en: "A3 may trigger rotation but cannot read HttpOnly cookies or bearer material." },
       { zh: "A1 要求请求 Origin 与 API Host 完全一致；跨域静态预览不能调用。", en: "A1 requires the request Origin and API Host to match exactly; a cross-origin static preview cannot call this route." },
-      { zh: "该能力仍在 A1 open draft，尚未进入 main。", en: "This capability remains on the open A1 draft and has not entered main." }
+      { zh: "该能力已随 A1 c784163 进入 main；跨域静态预览仍不能执行同源 Cookie 轮换。", en: "This capability entered main with A1 c784163; a cross-origin static preview still cannot rotate same-origin cookies." }
     ]
   },
   {
@@ -290,12 +293,12 @@ export const apiEndpoints: ApiEndpoint[] = [
     },
     auth: { zh: "仅内部服务调用", en: "Internal service only" },
     status: "implemented",
-    source: "A2 47c05e5 / a2_judge_service.openapi.json",
+    source: "A2 8cd1d4f / a2_judge_service.openapi.json",
     request: { case_id: "case_refund_001", scenario_id: "refund_policy_001", expected: {}, actual: {}, trace_events: [] },
     response: { case_id: "case_refund_001", passed: false, score: 0.42, primary_failure_class: "missing_required_tool" },
     notes: [
       { zh: "A2 是评分和发布判定的唯一权威；A3 不重新计算分数。", en: "A2 is the sole authority for grading and release decisions; A3 does not recalculate scores." },
-      { zh: "A2 47c05e5 新增 public-safe evidence snapshot，记录多模态完整度、工具序列、制品哈希和 extractor provenance。", en: "A2 47c05e5 adds a public-safe evidence snapshot covering modality completeness, tool sequence, artifact hashes, and extractor provenance." }
+      { zh: "A2 8cd1d4f 的 public-safe evidence snapshot 会校验 A1 RunResult、五层作用域和 validation_errors。", en: "A2 8cd1d4f validates the A1 RunResult, five-level scope, and validation_errors in its public-safe evidence snapshot." }
     ]
   },
   {
@@ -311,12 +314,12 @@ export const apiEndpoints: ApiEndpoint[] = [
     },
     auth: { zh: "仅内部服务调用", en: "Internal service only" },
     status: "implemented",
-    source: "A2 47c05e5 / a2_judge_service.openapi.json",
+    source: "A2 8cd1d4f / a2_judge_service.openapi.json",
     request: { grade_results: [], policy_id: "default_release_policy" },
     response: { schema_version: "a2.release_gate.v1", decision: "block", risk_score: 88, blockers: [] },
     notes: [
       { zh: "人工批准、拒绝或 waiver 必须保留 A2 原始决定和证据来源。", en: "Human approval, denial, or waiver must preserve the original A2 decision and evidence provenance." },
-      { zh: "A2 47c05e5 新增 append-only decision ledger；A3 只能展示 decision、record hash 和链验证状态，不能改写账本。", en: "A2 47c05e5 adds an append-only decision ledger; A3 may display the decision, record hash, and chain status but may not rewrite it." }
+      { zh: "A2 8cd1d4f 的 append-only decision ledger 绑定完整五层作用域；A3 只能展示 decision、record hash 和链验证状态，不能改写账本。", en: "A2 8cd1d4f binds the full five-level scope into its append-only decision ledger; A3 may display the decision, record hash, and chain status but may not rewrite it." }
     ]
   },
   {

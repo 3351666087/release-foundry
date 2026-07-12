@@ -2,7 +2,7 @@ export type OAuthProvider = "google" | "github";
 
 export const authContractCapabilities = {
   sourceSha: "c784163",
-  sourceState: "open_draft",
+  sourceState: "merged_to_main",
   oauthAccountLinking: true,
   oauthInitialLogin: false,
   emailChallengeRequest: true,

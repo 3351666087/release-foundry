@@ -22,8 +22,13 @@ test("API Reference is a typed route grounded in A1, A2, and A3 contracts", asyn
   assert.match(page, /Search APIs/);
   assert.match(page, /Request example/);
   assert.match(page, /Response example/);
+  assert.match(reference, /mainSha: "7dd14d7"/);
   assert.match(reference, /a1Sha: "c784163"/);
-  assert.match(reference, /a2Sha: "47c05e5"/);
+  assert.match(reference, /a2Sha: "8cd1d4f"/);
+  assert.match(reference, /a1SourceState: "merged_to_main"/);
+  assert.match(reference, /a2SourceState: "merged_to_main"/);
+  assert.match(page, /UPSTREAM MAIN INTEGRATION/);
+  assert.match(page, /a2RequiredScope\.map/);
   assert.match(page, /A1 Capture · A2 Judge · A3 Operate/);
   assert.match(reference, /\/v1\/identity-verification\/challenges/);
   assert.match(reference, /browser-sessions\/refresh/);
@@ -48,6 +53,7 @@ test("A3 auth adapter calls A1 without taking custody of provider secrets", asyn
   assert.match(auth, /browser-sessions\/refresh/);
   assert.match(auth, /identity_session_same_origin_required/);
   assert.match(auth, /oauthInitialLogin: false/);
+  assert.match(auth, /sourceState: "merged_to_main"/);
   assert.match(auth, /emailLoginSessionCookie: true/);
   assert.match(auth, /credentials: "include"/);
   assert.match(auth, /accounts\.google\.com/);
@@ -94,19 +100,38 @@ test("verification email handoff is public-safe and email-client compatible", as
 
 test("redacted auth snapshot records current peer SHAs and blockers without secrets", async () => {
   const fixture = JSON.parse(await source("fixtures/a3/auth/a1_a2_auth_contract_snapshot.redacted.json"));
-  assert.equal(fixture.schema_version, "a3.auth_contract_snapshot.v2");
+  assert.equal(fixture.schema_version, "a3.auth_contract_snapshot.v3");
+  assert.equal(fixture.main.sha, "7dd14d7b154ad86bd3bfedacbf4c3e03796170ce");
   assert.equal(fixture.main.contained_by_a3_branch, true);
   assert.equal(fixture.a1.sha, "c784163588e9e0839fe17c604f3285c42efe3661");
-  assert.equal(fixture.a1.pull_request_state, "open_draft");
+  assert.equal(fixture.a1.pull_request_state, "merged_to_main");
+  assert.equal(fixture.a1.merged_to_main, true);
   assert.equal(fixture.a1.calibration.production_ready, false);
-  assert.equal(fixture.a2.sha, "47c05e5a76b0e497bd77c7c7c823074f34f5a8c7");
+  assert.equal(fixture.a1.capabilities.oauth_account_linking, "implemented");
+  assert.equal(fixture.a1.capabilities.verification_challenge_start, "implemented");
+  assert.equal(fixture.a1.capabilities.verification_completion, "blocked_pending_browser_context");
+  assert.equal(fixture.a1.capabilities.oauth_initial_login, "unavailable");
+  assert.equal(fixture.a2.sha, "8cd1d4f1cb72e73ae7ead5d3218b4ae963a31a81");
+  assert.equal(fixture.a2.source_state, "merged_to_main");
   assert.equal(fixture.a1.calibration.browser_session_lifecycle, "implemented_and_tested");
   assert.equal(fixture.a1.calibration.oauth_initial_login, "not_implemented");
   assert.equal(fixture.a2.trusted_spine.evidence_snapshot_schema, "a2.evidence_snapshot.v1");
   assert.equal(fixture.a2.trusted_spine.decision_ledger_schema, "a2.decision_ledger.v1");
+  assert.deepEqual(fixture.a2.trusted_spine.required_scope_fields, [
+    "organization_id",
+    "tenant_id",
+    "workspace_id",
+    "project_id",
+    "environment_id"
+  ]);
+  assert.equal(fixture.a2.trusted_spine.scope_complete, true);
+  assert.deepEqual(fixture.a2.trusted_spine.validation_errors, []);
+  assert.equal(fixture.a2.trusted_spine.direct_a1_run_result_validation, true);
+  assert.equal(fixture.a2.trusted_spine.release_ready, false);
   assert.equal(fixture.a2.trusted_spine.a3_may_recompute_grade, false);
   assert.equal(fixture.a3.oauth_provider_secrets_owned, false);
-  assert.equal(fixture.known_blockers.length, 3);
+  assert.equal(fixture.known_blockers.length, 2);
+  assert.equal(fixture.known_blockers.some((blocker) => blocker.id === "a1_auth_not_in_main"), false);
   assert.equal(fixture.safety.api_key_read, false);
   assert.equal(fixture.safety.real_email_recorded, false);
   const serialized = JSON.stringify(fixture);
