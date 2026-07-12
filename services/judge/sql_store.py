@@ -262,6 +262,47 @@ CREATE TABLE IF NOT EXISTS a2_release_decision_audit (
   UNIQUE(record_id, event_type)
 );
 
+CREATE TABLE IF NOT EXISTS a2_review_cases (
+  review_id TEXT PRIMARY KEY,
+  record_id TEXT NOT NULL REFERENCES a2_release_decisions(record_id),
+  organization_id TEXT NOT NULL, tenant_id TEXT NOT NULL, workspace_id TEXT NOT NULL,
+  project_id TEXT NOT NULL, environment_id TEXT NOT NULL,
+  machine_decision TEXT NOT NULL CHECK (machine_decision IN ('allow', 'block', 'review')),
+  machine_record_hash TEXT NOT NULL, reason_code TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('open', 'leased', 'completed')),
+  lease_owner_hash TEXT, lease_generation INTEGER NOT NULL DEFAULT 0,
+  lease_expires_at TEXT, final_event_id TEXT, created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL, public_safe INTEGER NOT NULL CHECK (public_safe = 1),
+  UNIQUE(record_id, reason_code)
+);
+
+CREATE TABLE IF NOT EXISTS a2_review_events (
+  event_id TEXT PRIMARY KEY,
+  review_id TEXT NOT NULL REFERENCES a2_review_cases(review_id),
+  record_id TEXT NOT NULL REFERENCES a2_release_decisions(record_id),
+  tenant_id TEXT NOT NULL, project_id TEXT NOT NULL, reviewer_id_hash TEXT NOT NULL,
+  lease_generation INTEGER NOT NULL,
+  outcome TEXT NOT NULL CHECK (outcome IN ('confirm', 'overturn', 'abstain', 'escalate')),
+  reason_code TEXT NOT NULL,
+  superseding_record_id TEXT REFERENCES a2_release_decisions(record_id),
+  event_hash TEXT NOT NULL, created_at TEXT NOT NULL,
+  public_safe INTEGER NOT NULL CHECK (public_safe = 1)
+);
+
+CREATE TABLE IF NOT EXISTS a2_learning_candidates (
+  candidate_id TEXT PRIMARY KEY,
+  review_event_id TEXT NOT NULL REFERENCES a2_review_events(event_id),
+  record_id TEXT NOT NULL REFERENCES a2_release_decisions(record_id),
+  organization_id TEXT NOT NULL, tenant_id TEXT NOT NULL, workspace_id TEXT NOT NULL,
+  project_id TEXT NOT NULL, environment_id TEXT NOT NULL,
+  consent_id_hash TEXT NOT NULL, purpose TEXT NOT NULL, lineage_hash TEXT NOT NULL,
+  residency TEXT NOT NULL, retention_until TEXT NOT NULL, deletion_key_hash TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('eligible', 'promoted', 'revoked', 'deleted')),
+  cross_tenant_allowed INTEGER NOT NULL DEFAULT 0 CHECK (cross_tenant_allowed = 0),
+  created_at TEXT NOT NULL, public_safe INTEGER NOT NULL CHECK (public_safe = 1),
+  UNIQUE(review_event_id, purpose)
+);
+
 CREATE TABLE IF NOT EXISTS a2_decision_outbox (
   event_id TEXT PRIMARY KEY,
   event_type TEXT NOT NULL,
