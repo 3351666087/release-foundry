@@ -281,16 +281,40 @@ CREATE TABLE IF NOT EXISTS a2_review_events (
   event_id TEXT PRIMARY KEY,
   review_id TEXT NOT NULL REFERENCES a2_review_cases(review_id),
   record_id TEXT NOT NULL REFERENCES a2_release_decisions(record_id),
-  tenant_id TEXT NOT NULL, project_id TEXT NOT NULL, reviewer_id_hash TEXT NOT NULL,
+  organization_id TEXT NOT NULL, tenant_id TEXT NOT NULL, workspace_id TEXT NOT NULL,
+  project_id TEXT NOT NULL, environment_id TEXT NOT NULL, reviewer_id_hash TEXT NOT NULL,
   lease_generation INTEGER NOT NULL,
   outcome TEXT NOT NULL CHECK (outcome IN ('confirm', 'overturn', 'abstain', 'escalate')),
   reason_code TEXT NOT NULL,
   superseding_record_id TEXT REFERENCES a2_release_decisions(record_id),
   event_hash TEXT NOT NULL, created_at TEXT NOT NULL,
+  release_authority INTEGER NOT NULL DEFAULT 0 CHECK (release_authority = 0),
   public_safe INTEGER NOT NULL CHECK (public_safe = 1)
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_a2_review_events_reviewer
   ON a2_review_events(review_id, reviewer_id_hash);
+
+CREATE TABLE IF NOT EXISTS a2_review_resolutions (
+  resolution_id TEXT PRIMARY KEY,
+  review_id TEXT NOT NULL UNIQUE REFERENCES a2_review_cases(review_id),
+  record_id TEXT NOT NULL REFERENCES a2_release_decisions(record_id),
+  organization_id TEXT NOT NULL, tenant_id TEXT NOT NULL, workspace_id TEXT NOT NULL,
+  project_id TEXT NOT NULL, environment_id TEXT NOT NULL,
+  resolution_type TEXT NOT NULL CHECK (resolution_type IN ('review_consensus', 'arbitration')),
+  final_outcome TEXT NOT NULL CHECK (final_outcome IN ('confirm', 'overturn')),
+  superseding_record_id TEXT REFERENCES a2_release_decisions(record_id),
+  effective_record_id TEXT NOT NULL REFERENCES a2_release_decisions(record_id),
+  effective_decision TEXT NOT NULL CHECK (effective_decision IN ('allow', 'block', 'review')),
+  release_ready INTEGER NOT NULL CHECK (release_ready IN (0, 1)),
+  machine_record_hash TEXT NOT NULL, superseding_record_hash TEXT,
+  evidence_snapshot_hash TEXT NOT NULL, policy_hash TEXT NOT NULL,
+  approval_count INTEGER NOT NULL CHECK (approval_count > 0),
+  required_approvals INTEGER NOT NULL CHECK (required_approvals IN (1, 2)),
+  arbitrator_id_hash TEXT, resolution_hash TEXT NOT NULL UNIQUE,
+  resolved_at TEXT NOT NULL,
+  release_authority INTEGER NOT NULL DEFAULT 1 CHECK (release_authority = 1),
+  public_safe INTEGER NOT NULL CHECK (public_safe = 1)
+);
 
 CREATE TABLE IF NOT EXISTS a2_learning_candidates (
   candidate_id TEXT PRIMARY KEY,

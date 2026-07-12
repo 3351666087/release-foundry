@@ -1,7 +1,13 @@
 import sqlite3
 import unittest
 
-from services.judge.human_review_store import claim_review_case, open_review_case, submit_review
+from services.judge.human_review_store import (
+    claim_review_case,
+    get_authoritative_review_resolution,
+    open_review_case,
+    resolve_arbitration,
+    submit_review,
+)
 from services.judge.sql_store import initialize_sql_store
 
 
@@ -131,6 +137,24 @@ class HumanReviewStoreTests(unittest.TestCase):
         self.assertEqual(result["disposition_count"], 1)
         self.assertIsNone(result["learning_candidate"])
 
+    def test_confirmed_machine_block_is_authoritative_but_not_release_ready(self):
+        review = self._open()
+        lease = claim_review_case(
+            self.db, review_id=review["review_id"], scope=SCOPE, reviewer_id_hash="reviewer",
+            now="2026-07-12T00:00:00Z",
+        )
+        submit_review(
+            self.db, lease=lease, scope=SCOPE, outcome="confirm", reason_code="agreed",
+            submitted_at="2026-07-12T00:00:10Z",
+        )
+
+        authority = get_authoritative_review_resolution(
+            self.db, review_id=review["review_id"], scope=SCOPE
+        )
+        self.assertTrue(authority["release_authority"])
+        self.assertEqual(authority["effective_decision"], "block")
+        self.assertFalse(authority["release_ready"])
+
     def test_high_risk_review_requires_two_distinct_matching_approvals(self):
         review = open_review_case(
             self.db, scope=SCOPE, record_id="machine", reason_code="high_risk_override",
@@ -171,6 +195,21 @@ class HumanReviewStoreTests(unittest.TestCase):
         )
         self.assertEqual(result["status"], "completed")
         self.assertEqual(result["approval_count"], 2)
+        authority = get_authoritative_review_resolution(
+            self.db, review_id=review["review_id"], scope=SCOPE
+        )
+        self.assertTrue(authority["release_authority"])
+        self.assertEqual(authority["resolution_type"], "review_consensus")
+        self.assertEqual(authority["superseding_record_id"], "human")
+        self.assertEqual(authority["effective_decision"], "allow")
+        self.assertTrue(authority["release_ready"])
+        self.assertEqual(
+            self.db.execute(
+                "SELECT release_authority FROM a2_review_events WHERE review_id = ? LIMIT 1",
+                (review["review_id"],),
+            ).fetchone()[0],
+            0,
+        )
 
     def test_conflicting_high_risk_votes_require_arbitration_and_block_learning(self):
         review = open_review_case(
@@ -232,6 +271,44 @@ class HumanReviewStoreTests(unittest.TestCase):
             claim_review_case(
                 self.db, review_id=review["review_id"], scope=SCOPE,
                 reviewer_id_hash="three", now="2026-07-12T00:05:00Z",
+            )
+
+        self.assertIsNone(
+            get_authoritative_review_resolution(
+                self.db, review_id=review["review_id"], scope=SCOPE
+            )
+        )
+        with self.assertRaisesRegex(ValueError, "role"):
+            resolve_arbitration(
+                self.db, review_id=review["review_id"], scope=SCOPE,
+                arbitrator_id_hash="arb", arbitrator_role="reviewer",
+                final_outcome="confirm", resolved_at="2026-07-12T00:06:00Z",
+            )
+        with self.assertRaisesRegex(ValueError, "independent"):
+            resolve_arbitration(
+                self.db, review_id=review["review_id"], scope=SCOPE,
+                arbitrator_id_hash="one", arbitrator_role="release_arbitrator",
+                final_outcome="confirm", resolved_at="2026-07-12T00:06:00Z",
+            )
+        resolution = resolve_arbitration(
+            self.db, review_id=review["review_id"], scope=SCOPE,
+            arbitrator_id_hash="arb", arbitrator_role="release_arbitrator",
+            final_outcome="overturn", superseding_record_id="human",
+            resolved_at="2026-07-12T00:06:00Z",
+        )
+        self.assertTrue(resolution["release_authority"])
+        self.assertEqual(resolution["resolution_type"], "arbitration")
+        authority = get_authoritative_review_resolution(
+            self.db, review_id=review["review_id"], scope=SCOPE
+        )
+        self.assertEqual(authority["resolution_hash"], resolution["resolution_hash"])
+        self.assertEqual(authority["effective_record_id"], "human")
+        self.assertTrue(authority["release_ready"])
+        with self.assertRaisesRegex(ValueError, "not awaiting arbitration"):
+            resolve_arbitration(
+                self.db, review_id=review["review_id"], scope=SCOPE,
+                arbitrator_id_hash="other-arb", arbitrator_role="release_arbitrator",
+                final_outcome="confirm", resolved_at="2026-07-12T00:07:00Z",
             )
 
 

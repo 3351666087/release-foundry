@@ -155,15 +155,18 @@ def submit_review(
         connection.execute(
             """
             INSERT INTO a2_review_events (
-              event_id, review_id, record_id, tenant_id, project_id, reviewer_id_hash,
+              event_id, review_id, record_id, organization_id, tenant_id, workspace_id,
+              project_id, environment_id, reviewer_id_hash,
               lease_generation, outcome, reason_code, superseding_record_id,
-              event_hash, created_at, public_safe
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+              event_hash, created_at, release_authority, public_safe
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 1)
             """,
             (
-                event_id, row["review_id"], row["record_id"], normalized["tenant_id"],
-                normalized["project_id"], lease["reviewer_id_hash"], lease["lease_generation"],
-                outcome, reason_code, superseding_record_id, event_hash, submitted_at,
+                event_id, row["review_id"], row["record_id"], normalized["organization_id"],
+                normalized["tenant_id"], normalized["workspace_id"], normalized["project_id"],
+                normalized["environment_id"], lease["reviewer_id_hash"],
+                lease["lease_generation"], outcome, reason_code, superseding_record_id,
+                event_hash, submitted_at,
             ),
         )
         resolution = _resolve_review(
@@ -173,6 +176,11 @@ def submit_review(
         candidate = None
         learning_blocked_reason = None
         if resolution["status"] == "completed":
+            _write_resolution(
+                connection, row=row, scope=normalized, resolution_type="review_consensus",
+                final_outcome=outcome, superseding_record_id=superseding_record_id,
+                approval_count=resolution["approval_count"], resolved_at=submitted_at,
+            )
             candidate = _create_learning_candidate(
                 connection, row=row, event_id=event_id, scope=normalized,
                 outcome=outcome, learning=learning, created_at=submitted_at,
@@ -194,6 +202,179 @@ def submit_review(
         "learning_candidate": candidate,
         "learning_blocked_reason": learning_blocked_reason,
     }
+
+
+def resolve_arbitration(
+    connection: sqlite3.Connection,
+    *,
+    review_id: str,
+    scope: dict[str, str],
+    arbitrator_id_hash: str,
+    arbitrator_role: str,
+    final_outcome: str,
+    resolved_at: str,
+    superseding_record_id: str | None = None,
+) -> dict[str, Any]:
+    """Create the sole release-authoritative record for a conflicted review."""
+    if arbitrator_role != "release_arbitrator" or not arbitrator_id_hash:
+        raise ValueError("release_arbitrator role and identity are required")
+    if final_outcome not in {"confirm", "overturn"}:
+        raise ValueError("arbitration must conclusively confirm or overturn")
+    normalized = _scope(scope)
+    connection.execute("BEGIN IMMEDIATE")
+    try:
+        row = _review(connection, review_id, normalized)
+        if row["status"] != "arbitration":
+            raise ValueError("review case is not awaiting arbitration")
+        prior = connection.execute(
+            "SELECT 1 FROM a2_review_events WHERE review_id = ? AND reviewer_id_hash = ?",
+            (review_id, arbitrator_id_hash),
+        ).fetchone()
+        if prior is not None:
+            raise ValueError("arbitrator must be independent from prior reviewers")
+        if final_outcome == "overturn":
+            if not superseding_record_id:
+                raise ValueError("overturn requires a superseding decision reference")
+            replacement = _decision(connection, superseding_record_id, normalized)
+            if replacement["record_id"] == row["record_id"]:
+                raise ValueError("superseding decision must be distinct")
+        elif superseding_record_id is not None:
+            raise ValueError("confirm cannot reference a superseding decision")
+        count = connection.execute(
+            "SELECT COUNT(*) FROM a2_review_events WHERE review_id = ?", (review_id,)
+        ).fetchone()[0]
+        resolution = _write_resolution(
+            connection, row=row, scope=normalized, resolution_type="arbitration",
+            final_outcome=final_outcome, superseding_record_id=superseding_record_id,
+            approval_count=max(1, int(count)), resolved_at=resolved_at,
+            arbitrator_id_hash=arbitrator_id_hash,
+        )
+        connection.execute(
+            """
+            UPDATE a2_review_cases
+            SET status = 'completed', updated_at = ?
+            WHERE review_id = ? AND status = 'arbitration'
+            """,
+            (resolved_at, review_id),
+        )
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+    return resolution
+
+
+def get_authoritative_review_resolution(
+    connection: sqlite3.Connection,
+    *,
+    review_id: str,
+    scope: dict[str, str],
+) -> dict[str, Any] | None:
+    """Return a release-consumable resolution, never an individual review event."""
+    normalized = _scope(scope)
+    review = _review(connection, review_id, normalized)
+    if review["status"] != "completed":
+        return None
+    stored = connection.execute(
+        "SELECT * FROM a2_review_resolutions WHERE review_id = ?", (review_id,)
+    ).fetchone()
+    if stored is None:
+        return None
+    value = dict(stored)
+    if any(value[field] != expected for field, expected in normalized.items()):
+        raise ValueError("review resolution scope mismatch")
+    machine = _decision(connection, value["record_id"], normalized)
+    if machine["record_hash"] != value["machine_record_hash"]:
+        raise ValueError("review resolution machine decision hash mismatch")
+    if machine["snapshot_hash"] != value["evidence_snapshot_hash"]:
+        raise ValueError("review resolution evidence snapshot hash mismatch")
+    if machine["release_gate_hash"] != value["policy_hash"]:
+        raise ValueError("review resolution policy hash mismatch")
+    if value["final_outcome"] == "overturn":
+        replacement = _decision(connection, value["superseding_record_id"], normalized)
+        if replacement["record_hash"] != value["superseding_record_hash"]:
+            raise ValueError("review resolution superseding decision hash mismatch")
+    core = _resolution_core(value)
+    if stable_hash(core) != value["resolution_hash"]:
+        raise ValueError("review resolution integrity mismatch")
+    return {
+        **core,
+        "resolution_id": value["resolution_id"],
+        "resolution_hash": value["resolution_hash"],
+        "release_authority": True,
+    }
+
+
+def _write_resolution(
+    connection: sqlite3.Connection,
+    *,
+    row: dict[str, Any],
+    scope: dict[str, str],
+    resolution_type: str,
+    final_outcome: str,
+    superseding_record_id: str | None,
+    approval_count: int,
+    resolved_at: str,
+    arbitrator_id_hash: str | None = None,
+) -> dict[str, Any]:
+    machine = _decision(connection, row["record_id"], scope)
+    replacement = (
+        _decision(connection, superseding_record_id, scope)
+        if superseding_record_id is not None else None
+    )
+    effective = replacement if final_outcome == "overturn" else machine
+    core = {
+        "review_id": row["review_id"], "record_id": row["record_id"], **scope,
+        "resolution_type": resolution_type, "final_outcome": final_outcome,
+        "superseding_record_id": superseding_record_id,
+        "effective_record_id": effective["record_id"],
+        "effective_decision": effective["decision"],
+        "release_ready": effective["decision"] == "allow",
+        "machine_record_hash": machine["record_hash"],
+        "superseding_record_hash": replacement["record_hash"] if replacement else None,
+        "evidence_snapshot_hash": machine["snapshot_hash"],
+        "policy_hash": machine["release_gate_hash"],
+        "approval_count": approval_count, "required_approvals": int(row["required_approvals"]),
+        "arbitrator_id_hash": arbitrator_id_hash, "resolved_at": resolved_at,
+    }
+    resolution_hash = stable_hash(core)
+    resolution_id = stable_hash({"review_id": row["review_id"], "resolution_hash": resolution_hash})
+    connection.execute(
+        """
+        INSERT INTO a2_review_resolutions (
+          resolution_id, review_id, record_id, organization_id, tenant_id, workspace_id,
+          project_id, environment_id, resolution_type, final_outcome, superseding_record_id,
+          effective_record_id, effective_decision, release_ready, machine_record_hash,
+          superseding_record_hash, evidence_snapshot_hash, policy_hash, approval_count,
+          required_approvals, arbitrator_id_hash, resolution_hash, resolved_at,
+          release_authority, public_safe
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, 1)
+        """,
+        (
+            resolution_id, row["review_id"], row["record_id"], scope["organization_id"],
+            scope["tenant_id"], scope["workspace_id"], scope["project_id"],
+            scope["environment_id"], resolution_type, final_outcome, superseding_record_id,
+            effective["record_id"], effective["decision"], int(effective["decision"] == "allow"),
+            machine["record_hash"], replacement["record_hash"] if replacement else None,
+            machine["snapshot_hash"], machine["release_gate_hash"], approval_count,
+            row["required_approvals"], arbitrator_id_hash, resolution_hash, resolved_at,
+        ),
+    )
+    return {**core, "resolution_id": resolution_id, "resolution_hash": resolution_hash, "release_authority": True}
+
+
+def _resolution_core(value: dict[str, Any]) -> dict[str, Any]:
+    fields = (
+        "review_id", "record_id", "organization_id", "tenant_id", "workspace_id",
+        "project_id", "environment_id", "resolution_type", "final_outcome",
+        "superseding_record_id", "effective_record_id", "effective_decision", "release_ready",
+        "machine_record_hash", "superseding_record_hash",
+        "evidence_snapshot_hash", "policy_hash", "approval_count", "required_approvals",
+        "arbitrator_id_hash", "resolved_at",
+    )
+    core = {field: value[field] for field in fields}
+    core["release_ready"] = bool(core["release_ready"])
+    return core
 
 
 def _resolve_review(
