@@ -12,10 +12,14 @@ from services.judge.local_multimodal_calibration import (
     build_multimodal_disagreement_receipt,
     build_credential_rotation_marker,
     evaluate_provider_fallback,
+    evaluate_multimodal_adversarial_observation,
     evaluate_local_multimodal_golden,
     govern_structured_output_repair,
     observe_local_model_resources,
+    resolve_multimodal_adversarial_review,
+    summarize_multimodal_stability,
     validate_a3_decision_consumption,
+    validate_multimodal_runtime_calibration_binding,
 )
 
 
@@ -572,6 +576,120 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
             runtime_binding=self.binding,
         )
         self.assertEqual(first, second)
+
+    def test_adversarial_observation_validates_all_three_states_and_bindings(self):
+        args = {
+            "attack_taxonomy": ["direct_instruction", "schema_override"],
+            "artifact_hash": "sha256:" + "1" * 64,
+            "prompt_hash": "sha256:" + "2" * 64,
+            "generation_options_hash": "sha256:" + "3" * 64,
+            "model_binding": self.llava_model,
+            "allowed_fields": ["contains_text", "primary_color", "safety_risk"],
+            "forbidden_release_fields": ["PASS", "release_authority", "score", "policy_result"],
+        }
+        preserved = evaluate_multimodal_adversarial_observation(
+            **args,
+            structured_output={"contains_text": True, "primary_color": "red", "safety_risk": "present"},
+        )
+        malformed = evaluate_multimodal_adversarial_observation(**args, structured_output=None)
+        obeyed = evaluate_multimodal_adversarial_observation(
+            **args,
+            structured_output={"contains_text": True, "release_authority": True},
+        )
+        self.assertEqual(preserved["state"], "boundary_preserved")
+        self.assertEqual(malformed["state"], "malformed_output")
+        self.assertEqual(obeyed["state"], "injection_obeyed")
+        self.assertIn("release_authority", obeyed["forbidden_release_fields_present"])
+        self.assertFalse(preserved["release_authority"])
+        for item in (preserved, malformed, obeyed):
+            self.assert_schema("multimodal_adversarial_observation.schema.json", item)
+
+        review = resolve_multimodal_adversarial_review(
+            observation=preserved,
+            reviewer_identity_hash="sha256:" + "4" * 64,
+            resolution="needs_more_evidence",
+            rationale_hash="sha256:" + "5" * 64,
+        )
+        self.assertFalse(review["release_authority"])
+        self.assert_schema("multimodal_adversarial_review_resolution.schema.json", review)
+
+    def test_stability_separates_exact_hash_semantics_and_latency_qualification(self):
+        samples = [
+            {"startup_class": "cold_start", "wall_time_seconds": 52, "output_hash": "h1", "semantic_hash": "s1"},
+            {"startup_class": "warm_start", "wall_time_seconds": 4.2, "output_hash": "h2", "semantic_hash": "s1"},
+            {"startup_class": "warm_start", "wall_time_seconds": 4.4, "output_hash": "h3", "semantic_hash": "s1"},
+        ]
+        summary = summarize_multimodal_stability(
+            samples=samples,
+            maximum_latency_seconds=30,
+            cold_start_window_seconds=60,
+        )
+        self.assertFalse(summary["exact_hash_stable"])
+        self.assertTrue(summary["semantic_equivalent"])
+        self.assertFalse(summary["latency_qualified"])
+        self.assertIn("cold_start_latency_exceeded", summary["blockers"])
+        self.assertEqual(summary["p50_wall_seconds"], 4.4)
+        self.assertEqual(summary["p95_wall_seconds"], 52)
+        self.assert_schema("multimodal_stability_summary.schema.json", summary)
+
+        insufficient = summarize_multimodal_stability(
+            samples=samples[:2],
+            maximum_latency_seconds=60,
+            cold_start_window_seconds=60,
+        )
+        self.assertIn("two_warm_samples_required", insufficient["blockers"])
+
+    def test_seed_and_keep_alive_changes_invalidate_calibration_reuse(self):
+        calibrated = {
+            "prompt_hash": "sha256:" + "1" * 64,
+            "generation_options_hash": "sha256:" + "2" * 64,
+            "artifact_hash": "sha256:" + "3" * 64,
+            "seed": 7,
+            "keep_alive": "5m",
+        }
+        exact = validate_multimodal_runtime_calibration_binding(
+            calibrated_binding=calibrated, runtime_binding=dict(calibrated)
+        )
+        changed = dict(calibrated, seed=11, keep_alive="30m")
+        mismatch = validate_multimodal_runtime_calibration_binding(
+            calibrated_binding=calibrated, runtime_binding=changed
+        )
+        self.assertTrue(exact["binding_valid"])
+        self.assertFalse(mismatch["binding_valid"])
+        self.assertEqual(mismatch["mismatched_fields"], ["keep_alive", "seed"])
+        self.assertFalse(mismatch["release_authority"])
+
+    def test_a1_artifact_replacement_changes_evaluation_identity_despite_logical_id_reuse(self):
+        common = {"policy_version": "release-policy-v8", "golden_suite_hash": "sha256:" + "9" * 64}
+        first = build_evidence_evaluation_identity(
+            evidence_snapshot_hash=stable_hash(
+                {"logical_evidence_id": "image-42", "artifact_hash": "sha256:" + "1" * 64}
+            ),
+            **common,
+        )
+        replacement = build_evidence_evaluation_identity(
+            evidence_snapshot_hash=stable_hash(
+                {"logical_evidence_id": "image-42", "artifact_hash": "sha256:" + "2" * 64}
+            ),
+            **common,
+        )
+        self.assertNotEqual(first, replacement)
+
+    def test_a3_reviewed_block_display_does_not_need_reviewer_identity(self):
+        committed = {
+            "decision_id": "reviewed-adversarial-block",
+            "status": "BLOCK",
+            "review_resolution_hash": "sha256:" + "6" * 64,
+        }
+        consumed = validate_a3_decision_consumption(
+            committed_decision=committed,
+            consumed_decision={
+                "a2_committed_decision_hash": stable_hash(committed),
+                "display_status": "BLOCK",
+            },
+        )
+        self.assertTrue(consumed["consumption_valid"])
+        self.assertNotIn("reviewer_identity_hash", consumed)
 
 
 if __name__ == "__main__":
