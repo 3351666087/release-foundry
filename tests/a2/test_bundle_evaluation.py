@@ -6,12 +6,20 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
+
+import jsonschema
 
 from services.judge.bundle_evaluation import evaluate_a1_bundle
 from services.judge.sql_store import initialize_sql_store
 from tests.a2.test_release_decision_orchestrator import (KEY, NOW, GroundedRecordingAdapter, gateway, image_pipeline_and_evidence, request)
 from services.judge.provider_gateway import ProviderDefinition, ProviderGateway
 from services.judge.provider_runtime import validate_semantic_judge_output
+from scripts.a2_evaluate_bundle import _validate_ollama_model
+from services.judge.provider_runtime import ModelRecord
+
+
+ROOT = Path(__file__).resolve().parents[2]
 
 
 class BundleEvaluationTests(unittest.TestCase):
@@ -30,6 +38,7 @@ class BundleEvaluationTests(unittest.TestCase):
             self.assertTrue(result["release_ready"])
             self.assertTrue(result["reproducibility"]["persisted"])
             self.assertTrue(result["decision_record_hash"].startswith("sha256:"))
+            self.assert_response_schema(result)
         finally:
             connection.close()
 
@@ -42,6 +51,7 @@ class BundleEvaluationTests(unittest.TestCase):
             self.assertTrue(result["provider_called"])
             self.assertIn("provider_error", {item["code"] for item in result["findings"]})
             self.assertEqual(connection.execute("SELECT decision FROM a2_release_decisions").fetchone()[0], "block")
+            self.assert_response_schema(result)
         finally:
             connection.close()
 
@@ -54,6 +64,7 @@ class BundleEvaluationTests(unittest.TestCase):
         self.assertFalse(result["provider_called"])
         self.assertEqual(adapter_gateway.adapters["fake"].calls, 0)
         self.assertEqual(result["findings"][0]["source"], "evidence_verifier")
+        self.assert_response_schema(result)
 
     def test_multimodal_qualified_evidence_reaches_judge_and_passes(self):
         pipeline, evidence = image_pipeline_and_evidence()
@@ -89,6 +100,31 @@ class BundleEvaluationTests(unittest.TestCase):
             self.assertEqual(first["request_fingerprint"], second["request_fingerprint"])
         finally:
             connection.close()
+
+    def test_missing_quality_evidence_blocks_model_pass(self):
+        candidate = request()
+        candidate.pop("evaluation_quality")
+        result = evaluate_a1_bundle(candidate, gateway=gateway(), key_resolver=lambda _: KEY, now_unix_ms=NOW)
+        self.assertEqual(result["decision"], "BLOCK")
+        self.assertTrue(result["provider_called"])
+        codes = {item["code"] for item in result["findings"]}
+        self.assertIn("calibration_not_passed", codes)
+        self.assertIn("golden_regression_not_passed", codes)
+
+    def test_failed_calibration_blocks_model_pass(self):
+        candidate = request()
+        candidate["evaluation_quality"]["calibration"] = "failed"
+        result = evaluate_a1_bundle(candidate, gateway=gateway(), key_resolver=lambda _: KEY, now_unix_ms=NOW)
+        self.assertEqual(result["decision"], "BLOCK")
+        self.assertIn("calibration_not_passed", {item["code"] for item in result["findings"]})
+        self.assertEqual(result["release_gate"]["evaluation_quality"]["calibration"], "failed")
+
+    def test_disagreement_requires_human_review_before_pass(self):
+        candidate = request()
+        candidate["evaluation_quality"]["disagreement"] = "disagree"
+        result = evaluate_a1_bundle(candidate, gateway=gateway(), key_resolver=lambda _: KEY, now_unix_ms=NOW)
+        self.assertEqual(result["decision"], "BLOCK")
+        self.assertIn("disagreement_requires_review", {item["code"] for item in result["findings"]})
 
     def test_cli_missing_bundle_key_fails_without_leaking_provider_secret(self):
         completed = self.run_cli(
@@ -139,6 +175,24 @@ class BundleEvaluationTests(unittest.TestCase):
             }
             clean_environment.update(environment or {})
             return subprocess.run(command, cwd=Path(__file__).resolve().parents[2], env=clean_environment, capture_output=True, text=True, check=False)
+
+    def test_ollama_discovery_requires_configured_model_and_modalities(self):
+        vision = ModelRecord("ollama-local", "vision", "digest", frozenset({"text", "image"}), local=True)
+        with patch("scripts.a2_evaluate_bundle.OllamaDiscovery.discover", return_value=[vision]):
+            _validate_ollama_model({"required_modalities": ["image"]}, "vision", "http://local")
+            with self.assertRaisesRegex(SystemExit, "was not discovered"):
+                _validate_ollama_model({}, "missing", "http://local")
+            with self.assertRaisesRegex(SystemExit, "lacks required modalities: audio"):
+                _validate_ollama_model({"required_modalities": ["audio"]}, "vision", "http://local")
+
+    def test_ollama_discovery_failure_is_fail_closed(self):
+        with patch("scripts.a2_evaluate_bundle.OllamaDiscovery.discover", side_effect=TimeoutError):
+            with self.assertRaisesRegex(SystemExit, "capability discovery is unavailable"):
+                _validate_ollama_model({}, "vision", "http://local")
+
+    def assert_response_schema(self, result):
+        schema = json.loads((ROOT / "docs/a2/schemas/bundle_evaluation.schema.json").read_text(encoding="utf-8"))
+        jsonschema.Draft202012Validator(schema).validate(result)
 
 
 if __name__ == "__main__":

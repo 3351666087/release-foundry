@@ -101,6 +101,12 @@ def request(bundle=None):
         "provider_id": "unit",
         "model_id": "semantic-1",
         "idempotency_key": "decision-1",
+        "evaluation_quality": {
+            "calibration": "passed",
+            "golden_regression": "passed",
+            "disagreement": "agree",
+            "evidence_refs": ["sha256:" + "a" * 64],
+        },
         "authenticated_evidence_bundle": bundle or signed_bundle(),
     }
 
@@ -721,6 +727,50 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
             finally:
                 connection.close()
 
+    def test_recovery_envelope_rejects_invalid_quality_evidence_digest(self):
+        connection = sqlite3.connect(":memory:")
+        try:
+            initialize_sql_store(connection)
+
+            def fail(point):
+                if point == "after_provider_outcome_committed":
+                    raise OSError("stop")
+
+            with self.assertRaises(OSError):
+                execute_release_decision(
+                    request(), gateway=gateway(), key_resolver=lambda _: KEY,
+                    now_unix_ms=NOW, persistence_connection=connection,
+                    persistence_failure_injector=fail,
+                )
+            operation_id = connection.execute(
+                "SELECT operation_id FROM a2_decision_operations"
+            ).fetchone()[0]
+            scope = {
+                "organization_id": "org-a", "tenant_id": "tenant-a",
+                "workspace_id": "workspace-a", "project_id": "project-a",
+                "environment_id": "test",
+            }
+            raw = connection.execute(
+                "SELECT recovery_envelope_json FROM a2_provider_outcomes"
+            ).fetchone()[0]
+            envelope = json.loads(raw)
+            envelope["evaluation_quality"]["evidence_refs"] = ["sha256:not-a-digest"]
+            connection.execute(
+                "UPDATE a2_provider_outcomes SET recovery_envelope_json = ?, "
+                "recovery_envelope_hash = ?",
+                (
+                    json.dumps(envelope, sort_keys=True, separators=(",", ":")),
+                    stable_hash(envelope),
+                ),
+            )
+            connection.commit()
+            with self.assertRaisesRegex(ValueError, "quality evidence refs"):
+                load_decision_recovery_envelope(
+                    connection, operation_id=operation_id, scope=scope,
+
+                )
+        finally:
+            connection.close()
     def test_interrupted_provider_call_requires_recovery_and_is_not_replayed(self):
         connection = sqlite3.connect(":memory:")
         try:

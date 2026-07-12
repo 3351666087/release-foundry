@@ -75,6 +75,7 @@ def evaluate_a1_bundle(
             for code in blockers
         ],
         "judge": judge,
+        "release_gate": gate,
         "evidence_snapshot": {
             "snapshot_id": snapshot.get("snapshot_id", ""),
             "snapshot_hash": snapshot.get("snapshot_hash", ""),

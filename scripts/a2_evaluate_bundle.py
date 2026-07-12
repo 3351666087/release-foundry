@@ -13,7 +13,7 @@ sys.path.insert(0, str(ROOT))
 
 from services.judge.bundle_evaluation import evaluate_a1_bundle
 from services.judge.provider_gateway import OllamaAdapter, ProviderDefinition, ProviderGateway
-from services.judge.provider_runtime import EnvironmentCredentialResolver, OpenAICompatibleAdapter, validate_semantic_judge_output
+from services.judge.provider_runtime import EnvironmentCredentialResolver, OllamaDiscovery, OpenAICompatibleAdapter, validate_semantic_judge_output
 from services.judge.sql_store import initialize_sql_store
 
 
@@ -56,6 +56,8 @@ def main() -> int:
     key = os.environ.get(args.bundle_key_env, "")
     if not key:
         raise SystemExit("configured A1 evidence verification key environment variable is unavailable")
+    if args.provider == "ollama":
+        _validate_ollama_model(payload, args.model, args.base_url)
     args.database.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(args.database)
     try:
@@ -69,6 +71,20 @@ def main() -> int:
     else:
         Path(args.output).write_text(text, encoding="utf-8")
     return {"PASS": 0, "BLOCK": 2, "INCOMPLETE": 3}[result["decision"]]
+
+
+def _validate_ollama_model(payload: dict[str, object], model_id: str, base_url: str) -> None:
+    required = {"text", *(str(item) for item in payload.get("required_modalities", ["text"]))}
+    try:
+        records = OllamaDiscovery().discover(base_url)
+    except Exception as exc:
+        raise SystemExit("Ollama capability discovery is unavailable") from exc
+    record = next((item for item in records if item.model_id == model_id), None)
+    if record is None:
+        raise SystemExit("configured Ollama model was not discovered")
+    missing = sorted(required - record.modalities)
+    if missing:
+        raise SystemExit("configured Ollama model lacks required modalities: " + ",".join(missing))
 
 
 if __name__ == "__main__":

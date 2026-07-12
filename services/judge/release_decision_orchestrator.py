@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import sqlite3
 from typing import Any, Callable
 
@@ -34,6 +35,7 @@ from .derived_evidence import provider_text_parts
 
 
 ORCHESTRATION_SCHEMA_VERSION = "a2.release_decision_orchestration.v1"
+_SHA256_REF = re.compile(r"sha256:[0-9a-f]{64}\Z")
 SCOPE_FIELDS = ("organization_id", "tenant_id", "workspace_id", "project_id", "environment_id")
 RECOVERY_ENVELOPE_SCHEMA_VERSION = "a2.normalized_decision_envelope.v1"
 
@@ -414,6 +416,7 @@ def _request_identity(
         "provider_id": request.get("provider_id"),
         "model_id": request.get("model_id"),
         "policy_version": request.get("policy_version"),
+        "evaluation_quality": _evaluation_quality(request),
         "required_modalities": snapshot.get("required_modalities"),
         "snapshot_hash": snapshot.get("snapshot_hash"),
         "provider_payload_hash": provider_payload_hash,
@@ -580,6 +583,7 @@ def _build_recovery_envelope(
             ),
         },
         "policy_version": str(request.get("policy_version") or "a2.semantic_release_policy.v1"),
+        "evaluation_quality": _evaluation_quality(request),
         "ledger_id": str(request.get("ledger_id") or f"{request['run_id']}:{request['case_id']}"),
         "judge_version": "provider-strict-v1",
         "builder_version": "a2.release-decision-builder.v1",
@@ -621,12 +625,16 @@ def _build_decision_result(envelope: dict[str, Any]) -> dict[str, Any]:
     citation_validation = envelope.get("citation_validation")
     if not isinstance(citation_validation, dict):
         raise ValueError("recovery citation validation is incomplete")
+    quality = envelope.get("evaluation_quality")
+    if not isinstance(quality, dict):
+        raise ValueError("recovery evaluation quality is incomplete")
     decision, blockers = _decision(
         snapshot,
         provider,
         semantic,
         provenance,
         citation_validation,
+        quality,
     )
     gate = {
         "schema_version": "a2.release_gate.v1",
@@ -634,6 +642,7 @@ def _build_decision_result(envelope: dict[str, Any]) -> dict[str, Any]:
         "blocking_reasons": blockers,
         "review_required": decision == "review",
         "provider_status": provider.get("status"),
+        "evaluation_quality": quality,
         "public_safe": True,
     }
     judge_result = _judge_result(semantic, provider)
@@ -646,7 +655,11 @@ def _build_decision_result(envelope: dict[str, Any]) -> dict[str, Any]:
         provider_provenance=[provenance],
         policy_version=policy_version,
         policy_hash=stable_hash(
-            {"policy_version": policy_version, "required_modalities": snapshot["required_modalities"]}
+            {
+                "policy_version": policy_version,
+                "required_modalities": snapshot["required_modalities"],
+                "evaluation_quality": quality,
+            }
         ),
         model_versions=[f"{provider['provider_id']}:{provider['model_id']}"],
         created_at=str(envelope["created_at"]),
@@ -669,6 +682,7 @@ def _build_decision_result(envelope: dict[str, Any]) -> dict[str, Any]:
             "display_provenance_hash": record["record_hash"],
             "may_recompute_grade": False,
             "committed_decision_required": True,
+            "evaluation_quality": quality,
         },
         "metadata": {
             "public_safe": True,
@@ -686,11 +700,13 @@ def _decision(
     semantic_output: dict[str, Any] | None,
     provenance: dict[str, Any],
     citation_validation: dict[str, Any],
+    evaluation_quality: dict[str, Any],
 ) -> tuple[str, list[str]]:
     blockers = list(snapshot.get("validation_errors") or []) + list(snapshot.get("missing_modalities") or [])
     blockers.extend(provider_result.get("blockers") or [])
     blockers.extend(provenance.get("blockers") or [])
     blockers.extend(citation_validation.get("blockers") or [])
+    blockers.extend(evaluation_quality.get("blockers") or [])
     if snapshot.get("completeness") != "complete":
         blockers.append("evidence_not_complete")
     if semantic_output is None:
@@ -703,6 +719,47 @@ def _decision(
     if blockers:
         return ("review" if semantic_output and semantic_output["abstained"] and len(blockers) == 1 else "block"), blockers
     return "allow", []
+
+
+def _evaluation_quality(request: dict[str, Any]) -> dict[str, Any]:
+    source = request.get("evaluation_quality")
+    if not isinstance(source, dict):
+        return {
+            "schema_version": "a2.evaluation_quality.v1",
+            "calibration": "missing",
+            "golden_regression": "missing",
+            "disagreement": "unknown",
+            "human_review_required": True,
+            "evidence_refs": [],
+            "blockers": ["calibration_not_passed", "golden_regression_not_passed", "disagreement_not_evaluated"],
+            "public_safe": True,
+        }
+    calibration = str(source.get("calibration") or "missing")
+    regression = str(source.get("golden_regression") or "missing")
+    disagreement = str(source.get("disagreement") or "unknown")
+    blockers = []
+    if calibration != "passed":
+        blockers.append("calibration_not_passed")
+    if regression != "passed":
+        blockers.append("golden_regression_not_passed")
+    if disagreement not in {"agree", "reviewed"}:
+        blockers.append("disagreement_requires_review" if disagreement == "disagree" else "disagreement_not_evaluated")
+    refs = source.get("evidence_refs")
+    if not isinstance(refs, list) or not refs or any(
+        not isinstance(item, str) or _SHA256_REF.fullmatch(item) is None for item in refs
+    ):
+        blockers.append("evaluation_quality_evidence_missing")
+        refs = []
+    return {
+        "schema_version": "a2.evaluation_quality.v1",
+        "calibration": calibration,
+        "golden_regression": regression,
+        "disagreement": disagreement,
+        "human_review_required": bool(blockers),
+        "evidence_refs": sorted(set(refs)),
+        "blockers": sorted(set(blockers)),
+        "public_safe": True,
+    }
 
 
 def _judge_result(

@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A2BundleEvaluation",
+  "type": "object",
+  "required": [
+    "schema_version", "decision", "release_ready", "evidence_complete",
+    "provider_called", "score", "findings", "request_fingerprint",
+    "reproducibility", "metadata"
+  ],
+  "properties": {
+    "schema_version": { "const": "a2.bundle_evaluation.v1" },
+    "decision": { "enum": ["PASS", "BLOCK", "INCOMPLETE"] },
+    "release_ready": { "type": "boolean" },
+    "evidence_complete": { "type": "boolean" },
+    "provider_called": { "type": "boolean" },
+    "score": { "type": "number", "minimum": 0, "maximum": 1 },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["code", "severity", "source"],
+        "properties": {
+          "code": { "type": "string", "minLength": 1 },
+          "severity": { "const": "blocking" },
+          "source": { "enum": ["evidence_verifier", "provider", "judge", "policy"] }
+        },
+        "additionalProperties": false
+      }
+    },
+    "judge": { "type": "object" },
+    "release_gate": { "type": "object" },
+    "evidence_snapshot": {
+      "type": "object",
+      "required": ["snapshot_id", "snapshot_hash", "completeness", "missing_modalities"],
+      "properties": {
+        "snapshot_id": { "$ref": "#/$defs/hashOrEmpty" },
+        "snapshot_hash": { "$ref": "#/$defs/hashOrEmpty" },
+        "completeness": { "enum": ["complete", "incomplete"] },
+        "missing_modalities": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+      },
+      "additionalProperties": false
+    },
+    "provider_provenance": { "type": "object" },
+    "decision_record_hash": { "$ref": "#/$defs/hashOrEmpty" },
+    "request_fingerprint": { "$ref": "#/$defs/hash" },
+    "reproducibility": {
+      "type": "object",
+      "required": ["input_version", "policy_version", "request_fingerprint", "persisted", "idempotent_replay"],
+      "properties": {
+        "input_version": { "type": "string", "minLength": 1 },
+        "policy_version": { "type": "string", "minLength": 1 },
+        "request_fingerprint": { "$ref": "#/$defs/hash" },
+        "persisted": { "type": "boolean" },
+        "idempotent_replay": { "type": "boolean" },
+        "operation_id": { "type": "string" },
+        "record_id": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["public_safe", "raw_evidence_included", "raw_provider_payload_included", "secrets_included"],
+      "properties": {
+        "public_safe": { "const": true },
+        "raw_evidence_included": { "const": false },
+        "raw_provider_payload_included": { "const": false },
+        "secrets_included": { "const": false }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "hashOrEmpty": { "type": "string", "pattern": "^(sha256:[a-f0-9]{64})?$" }
+  },
+  "allOf": [
+    { "if": { "properties": { "decision": { "const": "PASS" } } }, "then": { "properties": { "release_ready": { "const": true }, "evidence_complete": { "const": true } } } },
+    { "if": { "properties": { "release_ready": { "const": true } } }, "then": { "properties": { "decision": { "const": "PASS" } } } },
+    { "if": { "properties": { "decision": { "const": "INCOMPLETE" } } }, "then": { "properties": { "release_ready": { "const": false } } } }
+  ],
+  "additionalProperties": false
+}

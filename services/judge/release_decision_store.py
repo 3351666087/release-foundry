@@ -21,6 +21,7 @@ FailureInjector = Callable[[str], None]
 _SECRET_OR_LOCATION = re.compile(
     r"(?i)(bearer\s+|api[_-]?key|token=|https?://|file://|[a-z]:\\|/private_refs/)"
 )
+_SHA256_REF = re.compile(r"sha256:[0-9a-f]{64}\Z")
 
 
 def reserve_decision_operation(
@@ -1218,7 +1219,7 @@ def _validate_recovery_envelope(
     supported_top = {
         "schema_version", *scope.keys(), "idempotency_key", "request_hash", "snapshot",
         "provider", "provider_provenance", "semantic_output", "citation_validation",
-        "bundle_verification",
+        "bundle_verification", "evaluation_quality",
         "policy_version", "ledger_id", "judge_version", "builder_version", "created_at",
         "provider_outcome_hash", "public_safe", "recovery_supported",
         "raw_provider_payload_included", "raw_evidence_included",
@@ -1252,6 +1253,34 @@ def _validate_recovery_envelope(
         {"manifest_authenticated", "authenticated_bundle_digest"},
         "bundle verification",
     )
+    quality = _dict(envelope.get("evaluation_quality"), "evaluation quality")
+    _assert_exact_keys(
+        quality,
+        {
+            "schema_version", "calibration", "golden_regression", "disagreement",
+            "human_review_required", "evidence_refs", "blockers", "public_safe",
+        },
+        "evaluation quality",
+    )
+    if quality.get("schema_version") != "a2.evaluation_quality.v1" or quality.get("public_safe") is not True:
+        raise ValueError("evaluation quality contract is invalid")
+    if quality.get("calibration") not in {"passed", "failed", "missing"}:
+        raise ValueError("evaluation quality calibration status is invalid")
+    if quality.get("golden_regression") not in {"passed", "failed", "missing"}:
+        raise ValueError("evaluation quality regression status is invalid")
+    if quality.get("disagreement") not in {"agree", "disagree", "reviewed", "unknown"}:
+        raise ValueError("evaluation quality disagreement status is invalid")
+    if not isinstance(quality.get("human_review_required"), bool):
+        raise ValueError("evaluation quality review state is invalid")
+    if not isinstance(quality.get("evidence_refs"), list) or not all(
+        isinstance(item, str) and _SHA256_REF.fullmatch(item) is not None
+        for item in quality["evidence_refs"]
+    ):
+        raise ValueError("evaluation quality evidence refs are invalid")
+    if not isinstance(quality.get("blockers"), list) or not all(
+        isinstance(item, str) for item in quality["blockers"]
+    ):
+        raise ValueError("evaluation quality blockers are invalid")
     semantic = envelope.get("semantic_output")
     citation_validation = _dict(
         envelope.get("citation_validation"),
