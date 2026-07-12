@@ -117,15 +117,121 @@ class HumanReviewStoreTests(unittest.TestCase):
             self.db, review_id=review["review_id"], scope=SCOPE, reviewer_id_hash="reviewer",
             now="2026-07-12T00:00:00Z",
         )
-        with self.assertRaisesRegex(ValueError, "cannot become learning"):
-            submit_review(
-                self.db, lease=lease, scope=SCOPE, outcome="escalate", reason_code="ambiguous",
-                submitted_at="2026-07-12T00:00:10Z",
-                learning={
-                    "consent_id_hash": "consent", "purpose": "judge_calibration",
-                    "lineage_hash": "lineage", "residency": "cn",
-                    "retention_until": "2027-01-01T00:00:00Z", "deletion_key_hash": "delete",
-                },
+        result = submit_review(
+            self.db, lease=lease, scope=SCOPE, outcome="escalate", reason_code="ambiguous",
+            submitted_at="2026-07-12T00:00:10Z",
+            learning={
+                "consent_id_hash": "consent", "purpose": "judge_calibration",
+                "lineage_hash": "lineage", "residency": "cn",
+                "retention_until": "2027-01-01T00:00:00Z", "deletion_key_hash": "delete",
+            },
+        )
+        self.assertEqual(result["status"], "arbitration")
+        self.assertEqual(result["approval_count"], 0)
+        self.assertEqual(result["disposition_count"], 1)
+        self.assertIsNone(result["learning_candidate"])
+
+    def test_high_risk_review_requires_two_distinct_matching_approvals(self):
+        review = open_review_case(
+            self.db, scope=SCOPE, record_id="machine", reason_code="high_risk_override",
+            required_approvals=2, created_at="2026-07-12T00:00:00Z",
+        )
+        with self.assertRaisesRegex(ValueError, "approval requirement conflicts"):
+            open_review_case(
+                self.db, scope=SCOPE, record_id="machine", reason_code="high_risk_override",
+                required_approvals=1, created_at="2026-07-12T00:00:01Z",
+            )
+        first = claim_review_case(
+            self.db, review_id=review["review_id"], scope=SCOPE, reviewer_id_hash="reviewer-one",
+            now="2026-07-12T00:01:00Z",
+        )
+        first_result = submit_review(
+            self.db, lease=first, scope=SCOPE, outcome="overturn", reason_code="false_positive",
+            superseding_record_id="human", submitted_at="2026-07-12T00:02:00Z",
+        )
+        self.assertEqual(first_result["status"], "open")
+        self.assertIsNone(first_result["learning_candidate"])
+        with self.assertRaisesRegex(ValueError, "already submitted"):
+            claim_review_case(
+                self.db, review_id=review["review_id"], scope=SCOPE,
+                reviewer_id_hash="reviewer-one", now="2026-07-12T00:03:00Z",
+            )
+        second = claim_review_case(
+            self.db, review_id=review["review_id"], scope=SCOPE, reviewer_id_hash="reviewer-two",
+            now="2026-07-12T00:03:00Z",
+        )
+        result = submit_review(
+            self.db, lease=second, scope=SCOPE, outcome="overturn", reason_code="false_positive",
+            superseding_record_id="human", submitted_at="2026-07-12T00:04:00Z",
+            learning={
+                "consent_id_hash": "consent", "purpose": "judge_calibration",
+                "lineage_hash": "lineage", "residency": "cn",
+                "retention_until": "2027-01-01T00:00:00Z", "deletion_key_hash": "delete",
+            },
+        )
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual(result["approval_count"], 2)
+
+    def test_conflicting_high_risk_votes_require_arbitration_and_block_learning(self):
+        review = open_review_case(
+            self.db, scope=SCOPE, record_id="machine", reason_code="high_risk_conflict",
+            required_approvals=2, created_at="2026-07-12T00:00:00Z",
+        )
+        first = claim_review_case(
+            self.db, review_id=review["review_id"], scope=SCOPE, reviewer_id_hash="one",
+            now="2026-07-12T00:01:00Z",
+        )
+        submit_review(
+            self.db, lease=first, scope=SCOPE, outcome="confirm", reason_code="agree",
+            submitted_at="2026-07-12T00:02:00Z",
+        )
+        second = claim_review_case(
+            self.db, review_id=review["review_id"], scope=SCOPE, reviewer_id_hash="two",
+            now="2026-07-12T00:03:00Z",
+        )
+        result = submit_review(
+            self.db, lease=second, scope=SCOPE, outcome="overturn", reason_code="disagree",
+            superseding_record_id="human", submitted_at="2026-07-12T00:04:00Z",
+            learning={
+                "consent_id_hash": "consent", "purpose": "judge_calibration",
+                "lineage_hash": "lineage", "residency": "cn",
+                "retention_until": "2027-01-01T00:00:00Z", "deletion_key_hash": "delete",
+            },
+        )
+        self.assertEqual(result["status"], "arbitration")
+        self.assertEqual(
+            result["learning_blocked_reason"],
+            "review_not_completed_or_conflict_requires_arbitration",
+        )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT status FROM a2_review_cases WHERE review_id = ?", (review["review_id"],)
+            ).fetchone()[0],
+            "arbitration",
+        )
+        self.assertEqual(
+            self.db.execute(
+                "SELECT COUNT(*) FROM a2_review_events WHERE review_id = ?", (review["review_id"],)
+            ).fetchone()[0],
+            2,
+        )
+        self.assertEqual(
+            self.db.execute(
+                """
+                SELECT COUNT(*)
+                FROM a2_learning_candidates AS candidate
+                JOIN a2_review_events AS event
+                  ON event.event_id = candidate.review_event_id
+                WHERE event.review_id = ?
+                """,
+                (review["review_id"],),
+            ).fetchone()[0],
+            0,
+        )
+        with self.assertRaisesRegex(ValueError, "review case is arbitration"):
+            claim_review_case(
+                self.db, review_id=review["review_id"], scope=SCOPE,
+                reviewer_id_hash="three", now="2026-07-12T00:05:00Z",
             )
 
 

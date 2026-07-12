@@ -269,7 +269,8 @@ CREATE TABLE IF NOT EXISTS a2_review_cases (
   project_id TEXT NOT NULL, environment_id TEXT NOT NULL,
   machine_decision TEXT NOT NULL CHECK (machine_decision IN ('allow', 'block', 'review')),
   machine_record_hash TEXT NOT NULL, reason_code TEXT NOT NULL,
-  status TEXT NOT NULL CHECK (status IN ('open', 'leased', 'completed')),
+  status TEXT NOT NULL CHECK (status IN ('open', 'leased', 'arbitration', 'completed')),
+  required_approvals INTEGER NOT NULL DEFAULT 1 CHECK (required_approvals IN (1, 2)),
   lease_owner_hash TEXT, lease_generation INTEGER NOT NULL DEFAULT 0,
   lease_expires_at TEXT, final_event_id TEXT, created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL, public_safe INTEGER NOT NULL CHECK (public_safe = 1),
@@ -288,6 +289,8 @@ CREATE TABLE IF NOT EXISTS a2_review_events (
   event_hash TEXT NOT NULL, created_at TEXT NOT NULL,
   public_safe INTEGER NOT NULL CHECK (public_safe = 1)
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_a2_review_events_reviewer
+  ON a2_review_events(review_id, reviewer_id_hash);
 
 CREATE TABLE IF NOT EXISTS a2_learning_candidates (
   candidate_id TEXT PRIMARY KEY,

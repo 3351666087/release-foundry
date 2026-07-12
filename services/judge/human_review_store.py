@@ -20,8 +20,11 @@ def open_review_case(
     record_id: str,
     reason_code: str,
     created_at: str,
+    required_approvals: int = 1,
 ) -> dict[str, Any]:
     """Open one idempotent review case without copying private evidence."""
+    if required_approvals not in {1, 2}:
+        raise ValueError("required approvals must be one or two")
     normalized = _scope(scope)
     decision = _decision(connection, record_id, normalized)
     review_id = stable_hash({"record_id": record_id, "scope": normalized, "reason_code": reason_code})
@@ -30,17 +33,26 @@ def open_review_case(
         INSERT OR IGNORE INTO a2_review_cases (
           review_id, record_id, organization_id, tenant_id, workspace_id, project_id,
           environment_id, machine_decision, machine_record_hash, reason_code, status,
-          lease_generation, created_at, updated_at, public_safe
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', 0, ?, ?, 1)
+          required_approvals, lease_generation, created_at, updated_at, public_safe
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?, 0, ?, ?, 1)
         """,
         (
             review_id, record_id, normalized["organization_id"], normalized["tenant_id"],
             normalized["workspace_id"], normalized["project_id"], normalized["environment_id"],
-            decision["decision"], decision["record_hash"], reason_code, created_at, created_at,
+            decision["decision"], decision["record_hash"], reason_code, required_approvals,
+            created_at, created_at,
         ),
     )
     connection.commit()
-    return {"review_id": review_id, "status": "open", "machine_decision": decision["decision"]}
+    row = _review(connection, review_id, normalized)
+    if int(row["required_approvals"]) != required_approvals:
+        raise ValueError("review case approval requirement conflicts with existing case")
+    return {
+        "review_id": review_id,
+        "status": row["status"],
+        "machine_decision": decision["decision"],
+        "required_approvals": row["required_approvals"],
+    }
 
 
 def claim_review_case(
@@ -62,10 +74,16 @@ def claim_review_case(
     try:
         row = _review(connection, review_id, normalized)
         active = row["lease_expires_at"] and _timestamp(row["lease_expires_at"]) > current
-        if row["status"] == "completed":
-            raise ValueError("review case already completed")
+        if row["status"] in {"completed", "arbitration"}:
+            raise ValueError(f"review case is {row['status']}")
         if active:
             raise ValueError("review case lease contention")
+        prior_vote = connection.execute(
+            "SELECT 1 FROM a2_review_events WHERE review_id = ? AND reviewer_id_hash = ?",
+            (review_id, reviewer_id_hash),
+        ).fetchone()
+        if prior_vote is not None:
+            raise ValueError("reviewer has already submitted a disposition")
         generation = int(row["lease_generation"]) + 1
         cursor = connection.execute(
             """
@@ -148,19 +166,19 @@ def submit_review(
                 outcome, reason_code, superseding_record_id, event_hash, submitted_at,
             ),
         )
-        connection.execute(
-            """
-            UPDATE a2_review_cases
-            SET status = 'completed', lease_owner_hash = NULL, lease_expires_at = NULL,
-                final_event_id = ?, updated_at = ?
-            WHERE review_id = ? AND lease_generation = ?
-            """,
-            (event_id, submitted_at, row["review_id"], lease["lease_generation"]),
+        resolution = _resolve_review(
+            connection, row=row, event_id=event_id, outcome=outcome,
+            superseding_record_id=superseding_record_id, submitted_at=submitted_at,
         )
-        candidate = _create_learning_candidate(
-            connection, row=row, event_id=event_id, scope=normalized,
-            outcome=outcome, learning=learning, created_at=submitted_at,
-        )
+        candidate = None
+        learning_blocked_reason = None
+        if resolution["status"] == "completed":
+            candidate = _create_learning_candidate(
+                connection, row=row, event_id=event_id, scope=normalized,
+                outcome=outcome, learning=learning, created_at=submitted_at,
+            )
+        elif learning is not None:
+            learning_blocked_reason = "review_not_completed_or_conflict_requires_arbitration"
         connection.commit()
     except Exception:
         connection.rollback()
@@ -170,7 +188,61 @@ def submit_review(
         "event_id": event_id,
         "outcome": outcome,
         "superseding_record_id": superseding_record_id,
+        "status": resolution["status"],
+        "approval_count": resolution["approval_count"],
+        "disposition_count": resolution["disposition_count"],
         "learning_candidate": candidate,
+        "learning_blocked_reason": learning_blocked_reason,
+    }
+
+
+def _resolve_review(
+    connection: sqlite3.Connection,
+    *,
+    row: dict[str, Any],
+    event_id: str,
+    outcome: str,
+    superseding_record_id: str | None,
+    submitted_at: str,
+) -> dict[str, Any]:
+    events = [
+        dict(item)
+        for item in connection.execute(
+            """
+            SELECT outcome, superseding_record_id
+            FROM a2_review_events
+            WHERE review_id = ?
+            ORDER BY created_at, event_id
+            """,
+            (row["review_id"],),
+        ).fetchall()
+    ]
+    disposition_count = len(events)
+    qualifying_events = [item for item in events if item["outcome"] in {"confirm", "overturn"}]
+    approval_count = len(qualifying_events)
+    required = int(row["required_approvals"])
+    status = "open"
+    final_event_id = None
+    if disposition_count >= required:
+        signatures = {(item["outcome"], item["superseding_record_id"]) for item in events}
+        if approval_count == required and len(signatures) == 1:
+            status = "completed"
+            final_event_id = event_id
+        else:
+            status = "arbitration"
+    connection.execute(
+        """
+        UPDATE a2_review_cases
+        SET status = ?, lease_owner_hash = NULL, lease_expires_at = NULL,
+            final_event_id = ?, updated_at = ?
+        WHERE review_id = ? AND lease_generation = ?
+        """,
+        (status, final_event_id, submitted_at, row["review_id"], row["lease_generation"]),
+    )
+    return {
+        "status": status,
+        "approval_count": approval_count,
+        "disposition_count": disposition_count,
     }
 
 
