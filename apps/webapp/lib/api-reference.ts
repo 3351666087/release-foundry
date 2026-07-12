@@ -343,7 +343,7 @@ export const apiEndpoints: ApiEndpoint[] = [
       a1_a2_evidence_spine: { a1_authority: "execution facts", a2_authority: "grade and release decision" },
       delivery_golden_path: { status: "blocked_by_a2", production_ready: false },
       deployment_acceptance: { status: "blocked", production_accepted: false },
-      release_artifact_manifest: { release: { version: "0.2.0-rc.1", production_release: false } }
+      release_artifact_manifest: { release: { version: "0.2.0-rc.1", git_sha_alias: "candidate-head-sha", ci_tested_sha_alias: "tested-merge-sha", production_release: false } }
     },
     notes: [
       { zh: "这是当前 Next.js Webapp 默认消费的只读 API。", en: "This is the read-only API consumed by the current Next.js webapp." },

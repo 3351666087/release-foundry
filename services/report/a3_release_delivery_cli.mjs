@@ -51,6 +51,7 @@ export function parseReleaseDeliveryArgs(argv = []) {
     else if (item === "--environment") options.environment = next();
     else if (item === "--channel") options.channel = next();
     else if (item === "--git-sha") options.gitSha = next();
+    else if (item === "--ci-tested-sha") options.ciTestedSha = next();
     else if (item === "--generated-at") options.generatedAt = next();
     else if (item === "--verified-at") options.verifiedAt = next();
     else if (item === "--output-dir") options.outputDir = next();
@@ -117,6 +118,7 @@ export async function buildReleaseDeliveryOutputs(options = {}) {
     environment: options.environment,
     channel: options.channel,
     gitSha: options.gitSha,
+    ciTestedSha: options.ciTestedSha,
     generatedAt
   });
   const outputDir = resolve(options.outputDir);
@@ -149,6 +151,7 @@ export async function buildReleaseDeliveryOutputs(options = {}) {
     releaseVersion: options.releaseVersion,
     environment: options.environment,
     gitSha: options.gitSha,
+    ciTestedSha: options.ciTestedSha,
     generatedAt
   };
   const deploymentAcceptance = buildDeploymentAcceptance(common, common);
@@ -164,6 +167,7 @@ export async function buildReleaseDeliveryOutputs(options = {}) {
     generated_at: generatedAt,
     release_version: options.releaseVersion,
     git_sha_alias: options.gitSha || null,
+    ci_tested_sha_alias: options.ciTestedSha || options.gitSha || null,
     status: goldenPath.status,
     production_ready: goldenPath.production_ready,
     files: {
@@ -210,6 +214,8 @@ export async function runReleaseDeliveryCli(argv = process.argv.slice(2), io = {
       production_ready: result.goldenPath.production_ready,
       deployment_accepted: result.deploymentAcceptance.production_accepted,
       release_version: result.index.release_version,
+      git_sha_alias: result.index.git_sha_alias,
+      ci_tested_sha_alias: result.index.ci_tested_sha_alias,
       run_ids: result.index.authority.a1_run_ids,
       output_dir: portableOutputDir(result.outputDir),
       safety: {
@@ -235,7 +241,7 @@ export async function runReleaseDeliveryCli(argv = process.argv.slice(2), io = {
 function usageReceipt() {
   return {
     schema_version: "a3.release_delivery_cli_usage.v1",
-    command: "node services/report/a3_release_delivery_cli.mjs --runs <a1-run.json> --grades <a2-service-response.json> --trusted-spine <a2-trusted-spine.json> --audit-bundle <bundle.json> --audit-bundle-verification <bundle-verification.json> --audit-archive <archive.json> --audit-archive-verification <archive-verification.json> --deployment-probe <probe.json> --release-version 0.2.0-rc.1 --output-dir artifacts/a3-release-delivery --no-fail --json",
+    command: "node services/report/a3_release_delivery_cli.mjs --runs <a1-run.json> --grades <a2-service-response.json> --trusted-spine <a2-trusted-spine.json> --audit-bundle <bundle.json> --audit-bundle-verification <bundle-verification.json> --audit-archive <archive.json> --audit-archive-verification <archive-verification.json> --deployment-probe <probe.json> --release-version 0.2.0-rc.1 --git-sha <candidate-sha> --ci-tested-sha <tested-sha> --output-dir artifacts/a3-release-delivery --no-fail --json",
     notes: [
       "The CLI consumes A1/A2 evidence and never recomputes A2 score, pass/fail, or release authority.",
       "Use --no-fail in evidence-producing CI when a blocked release must still upload its audit packet."

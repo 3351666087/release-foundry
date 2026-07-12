@@ -210,6 +210,9 @@ jobs:
     timeout-minutes: 12
     needs: plan
     if: needs.plan.outputs.a3 == 'true' || needs.plan.outputs.evidence == 'true'
+    env:
+      A3_CANDIDATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      A3_CI_TESTED_SHA: ${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -234,7 +237,7 @@ jobs:
             --environment staging \
             --source a3-golden-path \
             --generated-at 2026-07-12T12:00:00.000Z \
-            --head-sha "${GITHUB_SHA}" \
+            --head-sha "${A3_CANDIDATE_SHA}" \
             --details-url "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
             --annotation-path docs/a3/a3_release_delivery_golden_path_2026_07_12.md \
             --output-json artifacts/a3-release-delivery/gate.json \
@@ -278,7 +281,8 @@ jobs:
             --deployment-probe fixtures/a3/golden-path/deployment_probe.redacted.json \
             --release-version 0.2.0-rc.1 \
             --environment staging \
-            --git-sha "${GITHUB_SHA}" \
+            --git-sha "${A3_CANDIDATE_SHA}" \
+            --ci-tested-sha "${A3_CI_TESTED_SHA}" \
             --generated-at 2026-07-12T12:00:04.000Z \
             --verified-at 2026-07-12T12:00:05.000Z \
             --output-dir artifacts/a3-release-delivery/release \
@@ -290,7 +294,7 @@ jobs:
       - name: Upload versioned release candidate packet
         uses: actions/upload-artifact@v4
         with:
-          name: ashr-a3-0.2.0-rc.1-${{ github.sha }}
+          name: ashr-a3-0.2.0-rc.1-${{ env.A3_CANDIDATE_SHA }}
           path: artifacts/a3-release-delivery
           if-no-files-found: error
           retention-days: 14

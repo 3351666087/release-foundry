@@ -116,6 +116,7 @@ test("release artifact manifest hashes files and its verifier detects tampering"
       workspaceRoot: ROOT,
       releaseVersion: "0.2.0-rc.1",
       gitSha: "abc123",
+      ciTestedSha: "merge456",
       generatedAt: "2026-07-12T12:00:00.000Z"
     });
     const passed = await verifyReleaseArtifactManifest(manifest, {
@@ -207,6 +208,7 @@ test("release delivery CLI builds a blocked but verifiable packet from A1/A2 evi
       deploymentProbe: join(ROOT, "fixtures/a3/golden-path/deployment_probe.redacted.json"),
       releaseVersion: "0.2.0-rc.1",
       gitSha: "abc123",
+      ciTestedSha: "merge456",
       generatedAt: "2026-07-12T12:00:00.000Z",
       verifiedAt: "2026-07-12T12:00:01.000Z",
       outputDir: output,
@@ -214,11 +216,16 @@ test("release delivery CLI builds a blocked but verifiable packet from A1/A2 evi
       documentation: ["docs/strategy/large-saas-a1-a2-a3-full-plan.md"]
     });
     assert.equal(result.releaseArtifactVerification.status, "passed");
+    assert.equal(result.releaseArtifactManifest.release.git_sha_alias, "abc123");
+    assert.equal(result.releaseArtifactManifest.release.ci_tested_sha_alias, "merge456");
+    assert.equal(result.deploymentAcceptance.release_identity.ci_tested_sha_alias, "merge456");
     assert.equal(result.deploymentAcceptance.status, "blocked");
     assert.equal(result.goldenPath.status, "blocked_by_a2");
     assert.equal(result.goldenPath.safety.a2_decision_recomputed, false);
     const index = JSON.parse(await readFile(join(output, "release-delivery-index.json"), "utf8"));
     assert.equal(index.production_ready, false);
+    assert.equal(index.git_sha_alias, "abc123");
+    assert.equal(index.ci_tested_sha_alias, "merge456");
   } finally {
     await rm(temp, { recursive: true, force: true });
   }
@@ -229,10 +236,14 @@ test("delivery and GitHub observer argument parsers keep live tokens in environm
     "--runs", "run.json",
     "--grades", "grades.json",
     "--release-version", "0.2.0-rc.1",
+    "--git-sha", "candidate123",
+    "--ci-tested-sha", "merge456",
     "--doc", "docs/release.md",
     "--no-fail"
   ]);
   assert.equal(delivery.releaseVersion, "0.2.0-rc.1");
+  assert.equal(delivery.gitSha, "candidate123");
+  assert.equal(delivery.ciTestedSha, "merge456");
   assert.deepEqual(delivery.documentation, ["docs/release.md"]);
   assert.equal(delivery.noFail, true);
 

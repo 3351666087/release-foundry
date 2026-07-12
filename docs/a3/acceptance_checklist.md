@@ -1176,6 +1176,8 @@
 - [x] Pass Next.js typecheck/build (15 pages) and route-level Playwright (`11/11`).
 - [x] Pass CL, dependency audit, YAML/JSON, secret/path, and diff hygiene checks.
 - [x] Record Docker/PostgreSQL, Go, and Cargo-dependent A1 checks as local environment gaps without changing upstream tests.
+- [x] Produce and download a real GitHub Actions release-candidate artifact for commit `01f8707`.
+- [x] Separate candidate-head SHA from the CI-tested pull-request merge SHA.
 - [ ] Attach a real GitHub Check readback for the new candidate SHA.
 - [ ] Attach a real PR comment readback for the new candidate SHA.
 - [ ] Install and prove a tenant-bound custom GitHub App.

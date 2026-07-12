@@ -170,6 +170,8 @@ The candidate is `0.2.0-rc.1`. It is intentionally marked:
 
 GitHub Actions builds the packet and uploads `ashr-a3-0.2.0-rc.1-<sha>` as a workflow artifact. Creating a Git tag or GitHub Release remains prohibited while A2 and Deployment Acceptance are blocked.
 
+For pull-request workflows, `<sha>` is the candidate PR head. The manifest separately records `ci_tested_sha_alias`, which is the temporary GitHub merge commit actually checked by Actions. These identities must not be collapsed into one field.
+
 ## 9. Safety invariants
 
 - A1 owns run, trace, tool-call, identity, and runtime evidence.

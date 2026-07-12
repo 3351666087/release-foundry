@@ -175,6 +175,7 @@ export function buildDeploymentAcceptance(input = {}, options = {}) {
     release_version: options.releaseVersion || input.releaseVersion || "unknown-release",
     environment: options.environment || input.environment || text(probe.environment, "unknown"),
     git_sha_alias: options.gitSha || input.gitSha || text(probe.git_sha_alias, null),
+    ci_tested_sha_alias: options.ciTestedSha || input.ciTestedSha || options.gitSha || input.gitSha || text(probe.git_sha_alias, null),
     run_ids: run.run_ids
   };
   const acceptanceId = `dpa_${sha256(stableJson({ identity, checks })).slice(0, 20)}`;
@@ -231,6 +232,7 @@ export function buildReleaseArtifactManifest(input = {}, options = {}) {
       channel: options.channel || input.channel || "release-candidate",
       environment: options.environment || input.environment || "staging",
       git_sha_alias: options.gitSha || input.gitSha || null,
+      ci_tested_sha_alias: options.ciTestedSha || input.ciTestedSha || options.gitSha || input.gitSha || null,
       run_ids: run.run_ids,
       candidate_only: authority.allowed !== true,
       production_release: false

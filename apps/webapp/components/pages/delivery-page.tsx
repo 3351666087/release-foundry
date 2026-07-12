@@ -126,7 +126,8 @@ export function DeliveryPage() {
         >
           <div className="release-artifact-band">
             <div><span>{zh ? "版本" : "Version"}</span><strong>{string(release.version, "not sealed")}</strong></div>
-            <div><span>Git SHA</span><strong>{string(release.git_sha_alias, "not bound")}</strong></div>
+            <div><span>{zh ? "候选 SHA" : "Candidate SHA"}</span><strong>{string(release.git_sha_alias, "not bound")}</strong></div>
+            <div><span>{zh ? "CI 测试 SHA" : "CI tested SHA"}</span><strong>{string(release.ci_tested_sha_alias, "not bound")}</strong></div>
             <div><span>{zh ? "制品数" : "Artifacts"}</span><strong>{number(record(artifact.artifact_set).artifact_count)}</strong></div>
             <div><span>{zh ? "生产发布" : "Production"}</span><strong>{release.production_release === true ? "yes" : "no"}</strong></div>
           </div>
