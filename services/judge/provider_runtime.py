@@ -442,6 +442,7 @@ def build_provider_provenance_handoff(
         "logical_call_id": provider_result.get("logical_call_id"),
         "provider_id": provider_result.get("provider_id"),
         "model_id": provider_result.get("model_id"),
+        "attempt_count": len(provider_result.get("attempts") or []),
         "evaluation_eligible": ready,
         "release_authority": False,
         "decision_authority": "a2.release_gate.v1",

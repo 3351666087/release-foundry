@@ -35,7 +35,8 @@
     "decision_authority": { "const": "a2.release_gate.v1" },
     "blockers": { "type": "array", "items": { "type": "string" } },
     "raw_payload_included": { "const": false },
-    "secret_included": { "const": false }
+    "secret_included": { "const": false },
+    "attempt_count": { "type": "integer", "minimum": 0 }
   },
   "$defs": {
     "hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
