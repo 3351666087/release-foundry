@@ -151,9 +151,9 @@ test.describe("A3 Next.js product console", () => {
 
     await expect(page.getByRole("heading", { name: "交付闭环" })).toBeVisible();
     await expect(page.locator(".source-control select")).toHaveValue("a3-golden-path-rc2");
-    await expect(page.locator(".metric-strip")).toContainText("5/11");
+    await expect(page.locator(".metric-strip")).toContainText("7/11");
     await expect(page.locator(".metric-strip")).toContainText("0.2.0-rc.2");
-    await expect(page.locator('.delivery-stage-list article[data-status="passed"]')).toHaveCount(5);
+    await expect(page.locator('.delivery-stage-list article[data-status="passed"]')).toHaveCount(7);
     const newRunEvidence = page.locator("section").filter({ has: page.getByRole("heading", { name: "新 Run 证据" }) });
     await expect(newRunEvidence).toContainText("A1 执行");
     await expect(newRunEvidence).toContainText("A2 案例评分");

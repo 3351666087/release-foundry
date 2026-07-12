@@ -1,7 +1,7 @@
 {
   "schema_version": "a3.gate_cli.v1",
-  "generated_at": "2026-07-12T12:34:20.000Z",
-  "source": "a3-golden-path-rc2",
+  "generated_at": "2026-07-12T14:02:00.000Z",
+  "source": "github-live-readback-rc2",
   "command_shape": "ashr gate --json",
   "summary": {
     "totalRuns": 1,
@@ -185,7 +185,7 @@
     "available": true,
     "release_version": "0.2.0-rc.2",
     "environment": "staging",
-    "owner": "Release owner",
+    "owner": "A3 release owner",
     "github_check": {
       "name": "Ashr++ Release Gate",
       "status": "completed",
@@ -466,7 +466,7 @@
     "head_sha": "c8420813ed6cb94535bd108b30bd97663b906bdb",
     "status": "completed",
     "conclusion": "failure",
-    "details_url": "https://github.com/3351666087/ashr-codex-factory/pull/35",
+    "details_url": "https://github.com/3351666087/ashr-codex-factory/actions/runs/29195142625",
     "output": {
       "title": "A2 blocked: a3-golden-20260712-002",
       "summary": "Local case-quality gate: Approve release. Authoritative A2 decision: block; release_ready=false.\n\nAuthoritative A2 status: blocked; reason: a2_decision_blocks_release.",

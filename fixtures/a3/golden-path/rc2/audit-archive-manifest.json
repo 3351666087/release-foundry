@@ -1,8 +1,8 @@
 {
   "schema_version": "a3.audit_archive_manifest.v1",
-  "generated_at": "2026-07-12T12:34:22.000Z",
-  "source": "a3-golden-path-rc2",
-  "archive_id": "a3-archive-a3-bundle-0-2-0-rc-2-a3-golden-20260712-002-18f99a8916-81a48fb6a113",
+  "generated_at": "2026-07-12T14:02:02.000Z",
+  "source": "github-live-readback-rc2",
+  "archive_id": "a3-archive-a3-bundle-0-2-0-rc-2-a3-golden-20260712-002-cc22b9f0dd-f0bf4b2a8145",
   "archive_format": {
     "format": "portable-directory-or-zip-manifest",
     "zip_compatible": true,
@@ -12,14 +12,14 @@
   },
   "archive_file": null,
   "bundle": {
-    "bundle_id": "a3-bundle-0-2-0-rc-2-a3-golden-20260712-002-18f99a89169e",
-    "bundle_root_hash": "81a48fb6a113c9b898ed5f3b3074c89cc805df66a4c3aba0fa6e0965d18f1544",
+    "bundle_id": "a3-bundle-0-2-0-rc-2-a3-golden-20260712-002-cc22b9f0ddf7",
+    "bundle_root_hash": "f0bf4b2a8145cb91090da7597abab71a1d7c3e853d665a68a44c8e3694d3e923",
     "bundle_index_file": "fixtures/a3/golden-path/rc2/audit-bundle-index.json",
     "release": {
       "run_id": "a3-golden-20260712-002",
       "release_version": "0.2.0-rc.2",
       "environment": "staging",
-      "owner": "Release owner",
+      "owner": "A3 release owner",
       "decision": "block_release",
       "decision_label": "Block release",
       "risk_score": 0,
@@ -38,7 +38,7 @@
         "a2_release_authority"
       ]
     },
-    "artifact_count": 12
+    "artifact_count": 16
   },
   "immutable_policy": {
     "overwrite_allowed": false,
@@ -67,8 +67,8 @@
       "archive_role": "bundle_index",
       "content_type": "application/json",
       "required": true,
-      "sha256": "ede8ae7dd798e45052de648ade15a508f5a416dc398d6c3ccbf32b3231aade3b",
-      "byte_size": 11876,
+      "sha256": "0a9addfca419c7631574e355bcbc34a0fbedab6cf4473eeda64348b717e0fa1b",
+      "byte_size": 14901,
       "created_by": "ashr gate audit bundle index",
       "redaction_status": "redacted_or_safe_for_audit",
       "workspace_relative": true
@@ -79,8 +79,8 @@
       "archive_role": "custody_record",
       "content_type": "application/json",
       "required": false,
-      "sha256": "3e896a76db5bfdd3d5ac693fc88eedc5f21a29fd9634ff0448543713013a7a30",
-      "byte_size": 2879,
+      "sha256": "948da42b2b4b688c49985c14a272168c55b512457f0c5e796d0171cfb18fd075",
+      "byte_size": 4528,
       "created_by": "ashr gate generated artifact manifest",
       "redaction_status": "redacted_or_safe_for_audit",
       "workspace_relative": true
@@ -104,8 +104,8 @@
       "archive_role": "generated_output",
       "content_type": "application/json",
       "required": true,
-      "sha256": "76729624405d06736b6d7c81382950fa4108454280c835ea7d15f08b5f99295a",
-      "byte_size": 1006,
+      "sha256": "5d634bb71f8d6086fe12e76260fd9ec48d2015238bb2e4d3e273dfe92fde6f7e",
+      "byte_size": 1023,
       "created_by": "ashr gate output writer",
       "redaction_status": "redacted_or_safe_for_audit",
       "workspace_relative": true
@@ -116,8 +116,8 @@
       "archive_role": "generated_output",
       "content_type": "application/json",
       "required": true,
-      "sha256": "f2414836a64e3243146d17b2288233ee0c9c2c221f9f9c526b48ca66838d0ef0",
-      "byte_size": 21155,
+      "sha256": "c1f1a0b27794052e7148590dc390af97f912e6d0f6c00fe9035810e078871b9d",
+      "byte_size": 21181,
       "created_by": "ashr gate output writer",
       "redaction_status": "redacted_or_safe_for_audit",
       "workspace_relative": true
@@ -128,8 +128,8 @@
       "archive_role": "generated_output",
       "content_type": "text/markdown",
       "required": true,
-      "sha256": "6734f4dcebc54d3087b6b01edee78c2fba6c96a8651c744fa5adbbc673df9f93",
-      "byte_size": 2125,
+      "sha256": "dc8dcaff221f041e271f6ff6c586707d301871051501b6da15ecbbb52f8de4d4",
+      "byte_size": 2131,
       "created_by": "ashr gate output writer",
       "redaction_status": "redacted_or_safe_for_audit",
       "workspace_relative": true
@@ -143,6 +143,58 @@
       "sha256": "27070c2ebc5bdae31e11d77f933a14041d0a87c34aa3c3548c1b045a5895ffe4",
       "byte_size": 878,
       "created_by": "ashr gate output writer",
+      "redaction_status": "redacted_or_safe_for_audit",
+      "workspace_relative": true
+    },
+    {
+      "id": "github_actions_artifact_readback",
+      "path": "fixtures/a3/golden-path/rc2/github-actions-artifact-live-readback.redacted.json",
+      "archive_role": "readback_record",
+      "content_type": "application/json",
+      "required": true,
+      "sha256": "f7bc47de59366ef85eca0fafc8c14ed75a4a1457e243a4f444e654ff682d05ec",
+      "byte_size": 1857,
+      "created_by": "A3 GitHub live readback observer",
+      "origin": "external_github_live_readback",
+      "redaction_status": "redacted_or_safe_for_audit",
+      "workspace_relative": true
+    },
+    {
+      "id": "github_check_readback",
+      "path": "fixtures/a3/golden-path/rc2/github-check-live-readback.redacted.json",
+      "archive_role": "readback_record",
+      "content_type": "application/json",
+      "required": true,
+      "sha256": "ed3b76fca5df23c97d673837bc12f82320e4a3652dd35bc06334c489c6e38ebb",
+      "byte_size": 2150,
+      "created_by": "A3 GitHub live readback observer",
+      "origin": "external_github_live_readback",
+      "redaction_status": "redacted_or_safe_for_audit",
+      "workspace_relative": true
+    },
+    {
+      "id": "github_pr_comment_readback",
+      "path": "fixtures/a3/golden-path/rc2/github-pr-comment-live-readback.redacted.json",
+      "archive_role": "readback_record",
+      "content_type": "application/json",
+      "required": true,
+      "sha256": "628f1741ad394288fbfed3e83f39b592d151b63991a6049cd58bea5edcde7e79",
+      "byte_size": 2115,
+      "created_by": "A3 GitHub live readback observer",
+      "origin": "external_github_live_readback",
+      "redaction_status": "redacted_or_safe_for_audit",
+      "workspace_relative": true
+    },
+    {
+      "id": "github_required_check_proof",
+      "path": "fixtures/a3/golden-path/rc2/github-required-check-live-readback.redacted.json",
+      "archive_role": "readback_record",
+      "content_type": "application/json",
+      "required": true,
+      "sha256": "cc7fdf29705b625a12bcf193133876ca12103d4c816f04e26550342e71bb1bdc",
+      "byte_size": 1458,
+      "created_by": "A3 GitHub live readback observer",
+      "origin": "external_github_live_readback",
       "redaction_status": "redacted_or_safe_for_audit",
       "workspace_relative": true
     },
@@ -207,18 +259,18 @@
     "raw_private_key_stored": false,
     "dry_run_compatible": true
   },
-  "archive_root_hash": "eb17e2d9933d7baf6cc8eb361fbdad2f87489705dde8d41c3648ee3c3bf8bfc9",
+  "archive_root_hash": "844177e9c927a69a6854d0020f19a7c3eb1ba9dd15aacf40e512b37f44f594ac",
   "signature": {
     "schema_version": "a3.audit_archive_signature.v1",
     "signature_status": "signed",
     "algorithm": "ed25519",
     "signed_payload": "canonical_archive_manifest_with_archive_root_hash",
-    "signed_payload_sha256": "9e9d8a7f95bdfe354bf37b814d5dba03b13808ebddb0441beca111836e185bb6",
+    "signed_payload_sha256": "8da87614e2d14e2b657e2f3879fb92ba2e92944f3557e1f9215e70b4309daa4a",
     "signer": {
       "signer_type": "local-a3-gate-cli",
       "identity_binding": "self_signed_local_key_not_sso_bound",
-      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAnJVXXN7+08GMtgcQJLYhYpaGTVIa8VoKW4Mxrn/jVpM=\n-----END PUBLIC KEY-----\n"
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEASO3wFLmrkP1Zf+wwNvBR4Rm4We18qjq5rtyqwMmdWPk=\n-----END PUBLIC KEY-----\n"
     },
-    "signature_base64": "1ovqPkMhakoEB5iIEndP7zY2y7UWb+dZow8i9e1kHLHekGoT8xm9Q97jhkTiBvZCFm8w/Py+xSdNCjRgvBSnDA=="
+    "signature_base64": "Vt2ci6CWgjuncsprswWfk5hgZzR64S1/TXwz7SfQyPT7LHEP4ZSYeP6GdAiA/DB5GUKDPVOAArjbQgRvENZ1CQ=="
   }
 }

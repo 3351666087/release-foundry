@@ -3,7 +3,7 @@
   "head_sha": "c8420813ed6cb94535bd108b30bd97663b906bdb",
   "status": "completed",
   "conclusion": "failure",
-  "details_url": "https://github.com/3351666087/ashr-codex-factory/pull/35",
+  "details_url": "https://github.com/3351666087/ashr-codex-factory/actions/runs/29195142625",
   "output": {
     "title": "A2 blocked: a3-golden-20260712-002",
     "summary": "Local case-quality gate: Approve release. Authoritative A2 decision: block; release_ready=false.\n\nAuthoritative A2 status: blocked; reason: a2_decision_blocks_release.",

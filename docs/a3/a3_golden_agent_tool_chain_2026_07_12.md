@@ -95,6 +95,10 @@ Release manifest 会对 `--doc` 指定的文档计算 SHA-256。文档内容变�
 
 候选提交已由 GitHub Actions run `29193799075` 验证。候选 head 是 `c8420813ed6cb94535bd108b30bd97663b906bdb`，实际 checkout/测试的 PR merge commit 是 `746ecbe959a9c8781e8e1fc7d2520a50fd92785b`；两个 SHA 在 manifest 中分开保存。该次 workflow 仍上传历史 rc.1 目录，因此不能作为 rc.2 artifact readback。
 
+rc.2 证据提交随后由 GitHub Actions run `29195142625` 验证并上传 rc.2 目录。Check `86656698704`、PR 评论 `4951428174` 和 artifact `8260724828` 均完成只读回查。下载 ZIP 的 SHA-256 与 GitHub digest `056b434d467feb52f8eb371f251fac1d83a014e4c3044b644db64f75e6b2f935` 一致，19 个上传文件与提交快照无内容差异。
+
+这仍不是完整 GitHub App 闭环：Check 的 App 是 GitHub Actions，评论由 operator OAuth 发布；main required-check API 返回 `404`，租户自建 GitHub App 与强制 branch protection 尚未证明。
+
 ## 7. 安全与生产边界
 
 - 不调用真实客户 API，不产生费用；
@@ -103,4 +107,5 @@ Release manifest 会对 `--doc` 指定的文档计算 SHA-256。文档内容变�
 - 工具只读，不写业务数据；
 - fixture 不是生产部署证据；
 - 本地自签名 archive 不是 KMS/SSO 身份证明；
+- GitHub Actions App 不是 tenant-bound custom GitHub App；
 - 在真实 A2 allow、租户 GitHub App、branch protection 和部署验收完成前，不创建生产 tag 或 GitHub Release。

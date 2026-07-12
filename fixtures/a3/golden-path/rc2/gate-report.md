@@ -1,7 +1,7 @@
 # Ashr++ Gate CLI Report
 
 - Command shape: ashr gate --json
-- Source: a3-golden-path-rc2
+- Source: github-live-readback-rc2
 - Run: a3-golden-20260712-002
 - Decision: Block release
 - Risk score: 0

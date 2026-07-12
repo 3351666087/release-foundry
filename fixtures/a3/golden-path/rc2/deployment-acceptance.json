@@ -1,7 +1,7 @@
 {
   "schema_version": "a3.deployment_acceptance.v1",
-  "acceptance_id": "dpa_322467883edbb5031ca2",
-  "generated_at": "2026-07-12T12:34:24.000Z",
+  "acceptance_id": "dpa_b3ce00f9ea8dfa6be9b8",
+  "generated_at": "2026-07-12T14:02:04.000Z",
   "status": "blocked",
   "production_accepted": false,
   "release_identity": {
@@ -15,9 +15,9 @@
   },
   "summary": {
     "total_checks": 17,
-    "passed": 5,
+    "passed": 8,
     "blocked": 1,
-    "not_proven": 11,
+    "not_proven": 8,
     "failed": 0
   },
   "checks": [
@@ -178,40 +178,40 @@
       "label": "GitHub Check live readback",
       "owner": "A3",
       "required": true,
-      "status": "not_proven",
-      "evidence_class": "not_proven",
-      "evidence_ref": null,
-      "blocked_reason": "GitHub Check live readback status is missing.",
+      "status": "passed",
+      "evidence_class": "live_readback",
+      "evidence_ref": "ghcrb_8d7528dacef727ee",
+      "blocked_reason": null,
       "details": {},
-      "production_proof": false
+      "production_proof": true
     },
     {
       "id": "github_pr_comment_readback",
       "label": "PR comment live readback",
       "owner": "A3",
       "required": true,
-      "status": "not_proven",
-      "evidence_class": "not_proven",
-      "evidence_ref": null,
-      "blocked_reason": "PR comment live readback status is missing.",
+      "status": "passed",
+      "evidence_class": "live_readback",
+      "evidence_ref": "ghprb_4ee73acc63725ab7",
+      "blocked_reason": null,
       "details": {},
-      "production_proof": false
+      "production_proof": true
     },
     {
       "id": "github_actions_artifact_readback",
       "label": "GitHub Actions artifact live readback",
       "owner": "A3",
       "required": true,
-      "status": "not_proven",
-      "evidence_class": "not_proven",
-      "evidence_ref": null,
-      "blocked_reason": "A versioned GitHub Actions artifact has not been downloaded and read back for this candidate.",
+      "status": "passed",
+      "evidence_class": "live_readback",
+      "evidence_ref": 8260724828,
+      "blocked_reason": null,
       "details": {
-        "artifact_name": null,
-        "digest": null,
-        "expired": null
+        "artifact_name": "ashr-a3-0.2.0-rc.2-c8420813ed6cb94535bd108b30bd97663b906bdb",
+        "digest": "sha256:056b434d467feb52f8eb371f251fac1d83a014e4c3044b644db64f75e6b2f935",
+        "expired": false
       },
-      "production_proof": false
+      "production_proof": true
     },
     {
       "id": "required_check_enforcement",
@@ -220,8 +220,8 @@
       "required": true,
       "status": "not_proven",
       "evidence_class": "not_proven",
-      "evidence_ref": null,
-      "blocked_reason": "Required-check enforcement has not been read back from GitHub.",
+      "evidence_ref": "ghrcp_a4ecb62318d7fa47",
+      "blocked_reason": "main has no branch protection or the required check is absent.",
       "details": {},
       "production_proof": false
     },
@@ -232,7 +232,7 @@
       "required": true,
       "status": "passed",
       "evidence_class": "local_verification",
-      "evidence_ref": "a3-bundle-0-2-0-rc-2-a3-golden-20260712-002-18f99a89169e",
+      "evidence_ref": "a3-bundle-0-2-0-rc-2-a3-golden-20260712-002-cc22b9f0ddf7",
       "blocked_reason": null,
       "details": {},
       "production_proof": false
@@ -244,7 +244,7 @@
       "required": true,
       "status": "passed",
       "evidence_class": "local_verification",
-      "evidence_ref": "a3-archive-a3-bundle-0-2-0-rc-2-a3-golden-20260712-002-18f99a8916-81a48fb6a113",
+      "evidence_ref": "a3-archive-a3-bundle-0-2-0-rc-2-a3-golden-20260712-002-cc22b9f0dd-f0bf4b2a8145",
       "blocked_reason": null,
       "details": {},
       "production_proof": false
@@ -256,7 +256,7 @@
       "required": true,
       "status": "passed",
       "evidence_class": "local_verification",
-      "evidence_ref": "fb1c227eeb6657b08df3ede088ff673e6cf21f695293b35099e3dc7967c8ab6f",
+      "evidence_ref": "8f84c5e3d4f064ae5d042b0f8ef72f2a3fb4d7ae06eb0a7d4dea01dc113d5a2f",
       "blocked_reason": null,
       "details": {},
       "production_proof": false
@@ -271,9 +271,6 @@
     "deployment_health",
     "upgrade_rollback",
     "github_app_installation",
-    "github_check_readback",
-    "github_pr_comment_readback",
-    "github_actions_artifact_readback",
     "required_check_enforcement"
   ],
   "next_actions": [

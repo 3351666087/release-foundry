@@ -1,7 +1,7 @@
 {
   "schema_version": "a3.generated_artifact_manifest.v1",
-  "generated_at": "2026-07-12T12:34:20.000Z",
-  "source": "a3-golden-path-rc2",
+  "generated_at": "2026-07-12T14:02:00.000Z",
+  "source": "github-live-readback-rc2",
   "command_shape": "ashr gate --json",
   "manifest_file": "fixtures/a3/golden-path/rc2/generated-artifact-manifest.json",
   "manifest_self_hash": "excluded_to_avoid_self_reference",
@@ -23,24 +23,24 @@
       "id": "json_report",
       "path": "fixtures/a3/golden-path/rc2/gate-report.json",
       "content_type": "application/json",
-      "sha256": "f2414836a64e3243146d17b2288233ee0c9c2c221f9f9c526b48ca66838d0ef0",
-      "byte_size": 21155,
+      "sha256": "c1f1a0b27794052e7148590dc390af97f912e6d0f6c00fe9035810e078871b9d",
+      "byte_size": 21181,
       "required": true
     },
     {
       "id": "markdown_report",
       "path": "fixtures/a3/golden-path/rc2/gate-report.md",
       "content_type": "text/markdown",
-      "sha256": "6734f4dcebc54d3087b6b01edee78c2fba6c96a8651c744fa5adbbc673df9f93",
-      "byte_size": 2125,
+      "sha256": "dc8dcaff221f041e271f6ff6c586707d301871051501b6da15ecbbb52f8de4d4",
+      "byte_size": 2131,
       "required": true
     },
     {
       "id": "github_check_run",
       "path": "fixtures/a3/golden-path/rc2/github-check.json",
       "content_type": "application/json",
-      "sha256": "76729624405d06736b6d7c81382950fa4108454280c835ea7d15f08b5f99295a",
-      "byte_size": 1006,
+      "sha256": "5d634bb71f8d6086fe12e76260fd9ec48d2015238bb2e4d3e273dfe92fde6f7e",
+      "byte_size": 1023,
       "required": true
     },
     {
@@ -60,6 +60,46 @@
       "required": true,
       "bundle_role": "authority_record",
       "origin": "a2_authoritative_evidence"
+    },
+    {
+      "id": "github_check_readback",
+      "path": "fixtures/a3/golden-path/rc2/github-check-live-readback.redacted.json",
+      "content_type": "application/json",
+      "sha256": "ed3b76fca5df23c97d673837bc12f82320e4a3652dd35bc06334c489c6e38ebb",
+      "byte_size": 2150,
+      "required": true,
+      "bundle_role": "readback_record",
+      "origin": "external_github_live_readback"
+    },
+    {
+      "id": "github_pr_comment_readback",
+      "path": "fixtures/a3/golden-path/rc2/github-pr-comment-live-readback.redacted.json",
+      "content_type": "application/json",
+      "sha256": "628f1741ad394288fbfed3e83f39b592d151b63991a6049cd58bea5edcde7e79",
+      "byte_size": 2115,
+      "required": true,
+      "bundle_role": "readback_record",
+      "origin": "external_github_live_readback"
+    },
+    {
+      "id": "github_required_check_proof",
+      "path": "fixtures/a3/golden-path/rc2/github-required-check-live-readback.redacted.json",
+      "content_type": "application/json",
+      "sha256": "cc7fdf29705b625a12bcf193133876ca12103d4c816f04e26550342e71bb1bdc",
+      "byte_size": 1458,
+      "required": true,
+      "bundle_role": "readback_record",
+      "origin": "external_github_live_readback"
+    },
+    {
+      "id": "github_actions_artifact_readback",
+      "path": "fixtures/a3/golden-path/rc2/github-actions-artifact-live-readback.redacted.json",
+      "content_type": "application/json",
+      "sha256": "f7bc47de59366ef85eca0fafc8c14ed75a4a1457e243a4f444e654ff682d05ec",
+      "byte_size": 1857,
+      "required": true,
+      "bundle_role": "readback_record",
+      "origin": "external_github_live_readback"
     },
     {
       "id": "deployment_probe",

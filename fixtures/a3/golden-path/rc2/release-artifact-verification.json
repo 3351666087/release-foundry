@@ -3,12 +3,12 @@
   "status": "passed",
   "process_exit_code": 0,
   "release_version": "0.2.0-rc.2",
-  "manifest_hash": "fb1c227eeb6657b08df3ede088ff673e6cf21f695293b35099e3dc7967c8ab6f",
+  "manifest_hash": "8f84c5e3d4f064ae5d042b0f8ef72f2a3fb4d7ae06eb0a7d4dea01dc113d5a2f",
   "manifest_hash_passed": true,
   "artifact_set_hash_passed": true,
   "artifacts": {
-    "total": 12,
-    "passed": 12,
+    "total": 16,
+    "passed": 16,
     "failed": 0,
     "results": [
       {
@@ -19,8 +19,8 @@
         "required": true,
         "content_type": "application/json",
         "schema_version": "a3.audit_bundle_index.v1",
-        "sha256": "ede8ae7dd798e45052de648ade15a508f5a416dc398d6c3ccbf32b3231aade3b",
-        "byte_size": 11876,
+        "sha256": "0a9addfca419c7631574e355bcbc34a0fbedab6cf4473eeda64348b717e0fa1b",
+        "byte_size": 14901,
         "status": "passed",
         "message": "Artifact hash and byte size match."
       },
@@ -34,6 +34,32 @@
         "schema_version": "a3.deployment_probe.v1",
         "sha256": "c17abc359c46974fc5d8d2e12b5c5e8219a72f07c6400575e59c8413d35f6199",
         "byte_size": 1945,
+        "status": "passed",
+        "message": "Artifact hash and byte size match."
+      },
+      {
+        "id": "github_check_readback",
+        "path": "fixtures/a3/golden-path/rc2/github-check-live-readback.redacted.json",
+        "role": "github_readback",
+        "source_lane": "A3",
+        "required": true,
+        "content_type": "application/json",
+        "schema_version": "a3.github_check_readback_receipt.v1",
+        "sha256": "ed3b76fca5df23c97d673837bc12f82320e4a3652dd35bc06334c489c6e38ebb",
+        "byte_size": 2150,
+        "status": "passed",
+        "message": "Artifact hash and byte size match."
+      },
+      {
+        "id": "github_pr_comment_readback",
+        "path": "fixtures/a3/golden-path/rc2/github-pr-comment-live-readback.redacted.json",
+        "role": "github_readback",
+        "source_lane": "A3",
+        "required": true,
+        "content_type": "application/json",
+        "schema_version": "a3.github_pr_comment_readback_receipt.v1",
+        "sha256": "628f1741ad394288fbfed3e83f39b592d151b63991a6049cd58bea5edcde7e79",
+        "byte_size": 2115,
         "status": "passed",
         "message": "Artifact hash and byte size match."
       },
@@ -64,6 +90,19 @@
         "message": "Artifact hash and byte size match."
       },
       {
+        "id": "github_actions_artifact_readback",
+        "path": "fixtures/a3/golden-path/rc2/github-actions-artifact-live-readback.redacted.json",
+        "role": "release_distribution_readback",
+        "source_lane": "A3",
+        "required": true,
+        "content_type": "application/json",
+        "schema_version": "a3.github_actions_artifact_readback.v1",
+        "sha256": "f7bc47de59366ef85eca0fafc8c14ed75a4a1457e243a4f444e654ff682d05ec",
+        "byte_size": 1857,
+        "status": "passed",
+        "message": "Artifact hash and byte size match."
+      },
+      {
         "id": "release_document_01",
         "path": "docs/strategy/large-saas-a1-a2-a3-full-plan.md",
         "role": "release_documentation",
@@ -84,8 +123,8 @@
         "required": true,
         "content_type": "text/markdown",
         "schema_version": null,
-        "sha256": "f98cf376cd43f7c8da5e58d25c120a9b7b736ae261db00b58005820be1b5dc26",
-        "byte_size": 4896,
+        "sha256": "e908cf5e7960061c3ac331a9af5b741ea860bc72b5af52030b1bd05ac1f68f83",
+        "byte_size": 5529,
         "status": "passed",
         "message": "Artifact hash and byte size match."
       },
@@ -97,8 +136,8 @@
         "required": true,
         "content_type": "text/markdown",
         "schema_version": null,
-        "sha256": "b9591c545b46dd7c8b9f1da3ce6980cf507458d7775b106c4ab3fc11af55cef5",
-        "byte_size": 2592,
+        "sha256": "177748f15c2b2c4f8b5a3004f95df3199ae2d9bae8bdc41aef645aa18b30a5c9",
+        "byte_size": 3256,
         "status": "passed",
         "message": "Artifact hash and byte size match."
       },
@@ -110,8 +149,21 @@
         "required": true,
         "content_type": "text/markdown",
         "schema_version": null,
-        "sha256": "583c92cd28108c20ae1527f7bbb17a107738d83a52c413464fec532173d09a74",
-        "byte_size": 4864,
+        "sha256": "7aa965728f06cfb9e4b9dea2262774f1fb3301e9d2215284d4a5a2d03002dbd2",
+        "byte_size": 4991,
+        "status": "passed",
+        "message": "Artifact hash and byte size match."
+      },
+      {
+        "id": "github_required_check_proof",
+        "path": "fixtures/a3/golden-path/rc2/github-required-check-live-readback.redacted.json",
+        "role": "repository_policy",
+        "source_lane": "A3",
+        "required": true,
+        "content_type": "application/json",
+        "schema_version": "a3.github_required_check_proof.v1",
+        "sha256": "cc7fdf29705b625a12bcf193133876ca12103d4c816f04e26550342e71bb1bdc",
+        "byte_size": 1458,
         "status": "passed",
         "message": "Artifact hash and byte size match."
       },
@@ -136,8 +188,8 @@
         "required": true,
         "content_type": "application/json",
         "schema_version": "a3.audit_archive_manifest.v1",
-        "sha256": "1d6e045be43609d5c12f453a050f3661b1e14f7ce808574c34413de5ca69c867",
-        "byte_size": 8856,
+        "sha256": "946017eada4ae3ba82b4547e5d23fe1a9e7ada9831d60aec52b11539dc8bc0f6",
+        "byte_size": 11096,
         "status": "passed",
         "message": "Artifact hash and byte size match."
       },
@@ -149,8 +201,8 @@
         "required": true,
         "content_type": "application/json",
         "schema_version": "a3.audit_archive_verification.v1",
-        "sha256": "10399537781a80d53602b1ab5c0d120d48cbf5518b78f794303d7a56f1fd374b",
-        "byte_size": 7684,
+        "sha256": "1bbd07c8b7c470b27822f435917c38e13a6d0fc5d8f3ef9225432aecbd845b10",
+        "byte_size": 10003,
         "status": "passed",
         "message": "Artifact hash and byte size match."
       },
@@ -162,15 +214,15 @@
         "required": true,
         "content_type": "application/json",
         "schema_version": "a3.audit_bundle_verification.v1",
-        "sha256": "01b9015974f7175475c2625fe6dc6a274093f16f1a2f094d72339578bf8ae851",
-        "byte_size": 9249,
+        "sha256": "35800e174f12dfc0cf4e4e602dfd16ce58532c34180a790693b6005996cd68a4",
+        "byte_size": 11957,
         "status": "passed",
         "message": "Artifact hash and byte size match."
       }
     ]
   },
   "findings": [],
-  "verified_at": "2026-07-12T13:08:03.000Z",
+  "verified_at": "2026-07-12T14:02:06.000Z",
   "safety": {
     "raw_artifact_content_included": false,
     "raw_secret_values_allowed": false,

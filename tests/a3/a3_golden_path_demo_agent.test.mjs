@@ -118,7 +118,7 @@ test("the rc.2 dashboard source exposes passing A1/A2 evidence without inventing
   assert.equal(snapshot.releaseArtifactManifest.release.ci_tested_sha_alias, "746ecbe959a9c8781e8e1fc7d2520a50fd92785b");
   assert.equal(snapshot.deliveryGoldenPath.status, "blocked_by_a2");
   assert.equal(snapshot.deliveryGoldenPath.production_ready, false);
-  assert.equal(snapshot.deliveryGoldenPath.progress.passed, 5);
+  assert.equal(snapshot.deliveryGoldenPath.progress.passed, 7);
 });
 
 test("the rc.2 Gate keeps a passing local quality gate blocked by A2 authority", async () => {

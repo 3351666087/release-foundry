@@ -245,16 +245,16 @@ jobs:
           set -euo pipefail
           node services/report/a3_gate_cli.mjs \
             --verify-index fixtures/a3/golden-path/rc2/audit-bundle-index.json \
-            --generated-at 2026-07-12T12:34:21.000Z \
+            --generated-at 2026-07-12T14:02:01.000Z \
             --strict-exit \
             --json
           node services/report/a3_audit_archive.mjs \
             --verify fixtures/a3/golden-path/rc2/audit-archive-manifest.json \
-            --generated-at 2026-07-12T12:34:23.000Z \
+            --generated-at 2026-07-12T14:02:03.000Z \
             --json
           node services/report/a3_release_delivery_cli.mjs \
             --verify-manifest fixtures/a3/golden-path/rc2/release-artifact-manifest.json \
-            --verified-at 2026-07-12T13:08:04.000Z \
+            --verified-at 2026-07-12T14:02:06.000Z \
             --strict-exit \
             --json
       - name: Upload versioned release candidate packet

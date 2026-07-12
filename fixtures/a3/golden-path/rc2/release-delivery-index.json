@@ -1,6 +1,6 @@
 {
   "schema_version": "a3.release_delivery_index.v1",
-  "generated_at": "2026-07-12T12:34:24.000Z",
+  "generated_at": "2026-07-12T14:02:04.000Z",
   "release_version": "0.2.0-rc.2",
   "git_sha_alias": "c8420813ed6cb94535bd108b30bd97663b906bdb",
   "ci_tested_sha_alias": "746ecbe959a9c8781e8e1fc7d2520a50fd92785b",

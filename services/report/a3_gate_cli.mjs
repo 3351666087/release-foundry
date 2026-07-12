@@ -955,6 +955,9 @@ function parseArgs(argv = []) {
     } else if (arg === "--github-required-check-proof") {
       options.githubRequiredCheckProof = next;
       index += 1;
+    } else if (arg === "--github-actions-artifact-readback") {
+      options.githubActionsArtifactReadback = next;
+      index += 1;
     } else if (arg === "--deployment-probe") {
       options.deploymentProbe = next;
       index += 1;
@@ -998,7 +1001,7 @@ function parseArgs(argv = []) {
 }
 
 function helpText() {
-  return `Usage: node services/report/a3_gate_cli.mjs --runs fixtures/a3/mock_run_results.json --grades fixtures/a3/mock_grade_results.json --coverage fixtures/a2/results/a2_g3_coverage_report.json --thresholds fixtures/a3/release_gate_thresholds.json --json [--a2-trusted-spine path] [--waiver path] [--approval path] [--generated-at ISO] [--strict-exit|--no-fail] [--output-json path] [--output-md path] [--output-check path] [--output-pr-comment path] [--output-manifest path] [--output-bundle path] [--github-check-publish-receipt path] [--github-pr-comment-publish-receipt path] [--github-required-check-plan path] [--github-check-readback path] [--github-pr-comment-readback path] [--github-required-check-proof path] [--deployment-probe path]\n       node services/report/a3_gate_cli.mjs --verify-index fixtures/a3/p3/a3_audit_bundle_index_blocked_exception.redacted.json --json [--output-json path] [--output-md path] [--strict-exit|--no-fail]\n`;
+  return `Usage: node services/report/a3_gate_cli.mjs --runs fixtures/a3/mock_run_results.json --grades fixtures/a3/mock_grade_results.json --coverage fixtures/a2/results/a2_g3_coverage_report.json --thresholds fixtures/a3/release_gate_thresholds.json --json [--a2-trusted-spine path] [--waiver path] [--approval path] [--generated-at ISO] [--strict-exit|--no-fail] [--output-json path] [--output-md path] [--output-check path] [--output-pr-comment path] [--output-manifest path] [--output-bundle path] [--github-check-publish-receipt path] [--github-pr-comment-publish-receipt path] [--github-required-check-plan path] [--github-check-readback path] [--github-pr-comment-readback path] [--github-required-check-proof path] [--github-actions-artifact-readback path] [--deployment-probe path]\n       node services/report/a3_gate_cli.mjs --verify-index fixtures/a3/p3/a3_audit_bundle_index_blocked_exception.redacted.json --json [--output-json path] [--output-md path] [--strict-exit|--no-fail]\n`;
 }
 
 async function loadJsonRequired(path, label) {
@@ -1187,6 +1190,12 @@ async function readExternalEvidenceArtifacts(options = {}, workspaceRoot) {
     externalEvidenceArtifactInput(
       "github_required_check_proof",
       options.githubRequiredCheckProof,
+      workspaceRoot,
+      { origin: "external_github_live_readback", bundleRole: "readback_record" }
+    ),
+    externalEvidenceArtifactInput(
+      "github_actions_artifact_readback",
+      options.githubActionsArtifactReadback,
       workspaceRoot,
       { origin: "external_github_live_readback", bundleRole: "readback_record" }
     ),

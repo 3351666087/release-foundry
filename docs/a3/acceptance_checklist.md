@@ -1211,6 +1211,9 @@
 - [x] Use A1 aggregate Tool Call count instead of double-counting normalized calls.
 - [x] Add desktop and 390 x 844 Playwright evidence without overflow.
 - [x] Capture final-frame screenshots with animations disabled.
-- [ ] Push candidate/evidence commits and attach rc.2 GitHub Check, comment, and Actions artifact readbacks.
+- [x] Push the rc.2 evidence commit and attach live GitHub Actions Check, operator PR comment, and Actions artifact readbacks.
+- [x] Download the rc.2 Actions artifact and prove its ZIP digest and all 19 uploaded file hashes match GitHub and the committed snapshot.
+- [x] Record that the Check is owned by the GitHub Actions App and the comment by operator OAuth; neither proves a tenant custom GitHub App.
+- [x] Read main branch protection and preserve the real `404` / `enforced=false` result instead of claiming a required check.
 - [ ] Obtain an A2 Decision Ledger record tied to `a3-golden-20260712-002`.
 - [ ] Install a tenant GitHub App, enable required branch protection, and attach deployed staging evidence.

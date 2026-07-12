@@ -17,8 +17,8 @@
 | # | 增长点 | 优先级 | 当前证据 | 下一步证明 |
 |---:|---|---|---|---|
 | 1 | 新 A2 allow Decision Ledger | blocker | 案例 3/3，但旧 ledger block | A2 为 run `002` 生成并持久化 allow 记录 |
-| 2 | rc.2 GitHub CI readback | high | candidate run `29193799075` 已通过并绑定 merge SHA；rc.2 packet Check 尚未发布 | evidence commit 后回读 rc.2 Check |
-| 3 | rc.2 Actions artifact readback | blocker | 本地制品 | 下载 artifact，验证 digest 和内部 manifest |
+| 2 | rc.2 GitHub CI readback | high | run `29195142625`、Check `86656698704` 已确认成功 | 将 Check 提升为 tenant App + enforced required check |
+| 3 | rc.2 Actions artifact readback | blocker | artifact `8260724828` 的 ZIP digest 和 19 个文件已验证 | immutable retention、签名 provenance 和客户存储回读 |
 | 4 | 租户 GitHub App | blocker | 未安装 | installation/repo/permission receipt |
 | 5 | main required check | blocker | branch protection 未启用 | 严格 readback 证明 check 被强制要求 |
 | 6 | 真实 staging health | blocker | deployment probe not_proven | version/health/dependency readback |
@@ -41,7 +41,7 @@
 | 23 | large-run virtualization | medium | 3 cases | 10k case pagination/virtualization/performance receipt |
 | 24 | report signer download UX | medium | 页面只读 | authenticated download、expiry、revoke、audit |
 | 25 | release comparison UI | medium | source 下拉可切 rc.1/rc.2 | 显式 old-vs-new diff 和 regression explanation |
-| 26 | CI provenance UI | medium | `not bound` 文本 | 展示 candidate SHA、merge SHA、workflow URL、artifact digest |
+| 26 | CI provenance UI | medium | 页面已展示 candidate/CI SHA；receipt 已有 workflow URL 和 artifact digest | 在页面增加完整 readback drilldown |
 | 27 | deployment probe collector | high | 手工 not_proven JSON | A1 API collector + signed receipt + retry state |
 | 28 | support bundle | medium | 本地 evidence packet | 自动脱敏、加密、下载控制、customer support workflow |
 
@@ -51,4 +51,4 @@
 - 契约能力：GitHub App、PostgreSQL、queue、object storage、deployment 等仍只有字段和 fail-closed 检查。
 - 生产验证：本轮没有新增生产部署证明。
 - 商业价值：最强新增价值是“修复前后可解释、A2 不被绕过、Decision Ledger 独立”的 Release Review 故事。
-- 下一轮主线：先完成 rc.2 packet GitHub 回读；网络条件允许后再处理 GitHub App/branch protection；同时等待 A2 主分支提供 run `002` 对应的权威 Decision Ledger。
+- 下一轮主线：GitHub packet 回读已完成；接下来必须由 maintainer 配置 tenant GitHub App 与 branch protection，同时等待 A2 为 run `002` 提供权威 Decision Ledger，并补真实 staging/PostgreSQL/RLS 证据。

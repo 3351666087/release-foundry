@@ -6826,3 +6826,15 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
 - Detailed record: `docs/a3/a3_golden_agent_tool_chain_2026_07_12.md`.
 - Release notes: `docs/a3/releases/a3-0.2.0-rc.2.md`.
 - Growth audit: `docs/a3/growth_auditor_money_grade_round14_2026_07_12.md`.
+
+## 2026-07-12 - rc.2 GitHub Readback and Distribution Closure
+
+- Published evidence commit `984bafa` to Draft PR #35 without force push. Git smart-HTTP was unavailable, so a one-time Git Data API fallback uploaded exact Git blobs, verified the tree hash, and fast-forwarded the branch; the temporary script was deleted.
+- GitHub Actions run `29195142625` passed Plan/Hygiene, A3 Node, pinned evidence, rc.1 + rc.2 bundle/archive/manifest verification, Next.js/Playwright, and CL summary. Unchanged-language jobs were correctly skipped by the selective plan.
+- Read back GitHub Actions Check `86656698704`: completed/success, exact name and head `984bafa`, app slug `github-actions`. This is real CI evidence but not a tenant custom GitHub App.
+- Published operator OAuth PR block comment `4951428174`. Marker, body SHA-256, candidate `c842081`, and the explicit A2 Decision Ledger `block` all matched on readback.
+- Read main required status checks and received HTTP `404`; the receipt preserves `enforced=false`. No branch-protection mutation was attempted.
+- Read back Actions artifact `8260724828`, name `ashr-a3-0.2.0-rc.2-c8420813ed6cb94535bd108b30bd97663b906bdb`, size 35,497 bytes, and GitHub digest `sha256:056b434d467feb52f8eb371f251fac1d83a014e4c3044b644db64f75e6b2f935`.
+- Downloaded the artifact ZIP to an unrecorded temporary path. Its SHA-256 matched GitHub, all 19 uploaded rc.2 files matched the committed snapshot, and no raw archive/path/token was retained in the public receipt.
+- Extended Gate CLI so the Actions artifact readback is a hashed `readback_record` in the new-run Audit Bundle, with focused tests passing 31/31.
+- Final expected posture remains blocked: Golden Path 7/11, Deployment Acceptance 8/17, A2 Decision Ledger `block`, tenant GitHub App absent, required check absent, and staging/PostgreSQL/RLS/queue/object-storage/recovery proof absent.
