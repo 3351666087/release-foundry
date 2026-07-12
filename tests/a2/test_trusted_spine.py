@@ -65,6 +65,16 @@ class A2TrustedSpineTests(unittest.TestCase):
         self.assert_schema("trusted_spine_candidate.schema.json", candidate)
         self.assert_schema("trusted_spine_candidate_validation.schema.json", result)
 
+    def test_round24_candidate_binds_exact_implementation_sha(self):
+        bundle = load_json(ROOT / "fixtures/a2/results/a2_round24_trusted_spine_candidate.json")
+        candidate = bundle["candidate"]
+        self.assertEqual(candidate["a2_sha"], "bedbdd9dccf44f1066da2bfa4dde4147a789cdc5")
+        self.assertEqual(bundle["validation"]["status"], "accepted")
+        self.assertFalse(bundle["authoritative"])
+        self.assert_schema("trusted_spine_candidate.schema.json", candidate)
+        self.assert_schema("trusted_spine_candidate_validation.schema.json", bundle["validation"])
+
+
     def test_handoff_fixture_matches_builder(self):
         actual = build_trusted_spine_handoff(
             load_json(RUN_FIXTURE),
