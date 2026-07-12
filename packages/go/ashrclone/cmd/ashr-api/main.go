@@ -90,6 +90,7 @@ func main() {
 			PaymentReconciliation:              selection.PaymentReconciliation,
 			PaymentDomain:                      selection.PaymentDomain,
 			UnifiedIdentity:                    identityRuntime.unifiedIdentity,
+			UnifiedIdentityStore:               identityRuntime.postgres,
 			IdentityLifecycle:                  identityRuntime.identityLifecycle,
 			IdentitySessions:                   identitySessions,
 			IdentityVerification:               identityRuntime.verification,

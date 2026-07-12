@@ -25,6 +25,7 @@ type IdentityHTTPSessionResolver interface {
 var (
 	ErrIdentitySessionRefreshInvalid = errors.New("identity session refresh is unavailable")
 	ErrIdentitySessionRefreshReused  = errors.New("identity session refresh credential was reused")
+	ErrIdentityStoreUnavailable      = errors.New("identity store unavailable")
 )
 
 type IdentityHTTPSessionRefresher interface {
@@ -93,7 +94,7 @@ func (server *HTTPServer) handleUnifiedIdentityAccount(writer http.ResponseWrite
 	}
 	identity := server.unifiedIdentityHTTPStore()
 	if identity == nil {
-		writeError(writer, http.StatusNotFound, "not_found", "route not found")
+		writeIdentityHTTPError(writer, ErrIdentityStoreUnavailable)
 		return
 	}
 
@@ -152,27 +153,13 @@ func (server *HTTPServer) handleUnifiedIdentityAccount(writer http.ResponseWrite
 }
 
 func (server *HTTPServer) unifiedIdentityHTTPStore() UnifiedIdentityHTTPStore {
-	if identity, ok := server.service.(UnifiedIdentityHTTPStore); ok && identity != nil {
-		return identity
-	}
-	if server.identityVerification != nil && server.identityVerification.identity != nil {
-		return identityVerificationHTTPStoreAdapter{store: server.identityVerification.identity}
+	if server.unifiedIdentityStore != nil {
+		return server.unifiedIdentityStore
 	}
 	if server.unifiedIdentity != nil {
 		return unifiedIdentityHTTPServiceAdapter{service: server.unifiedIdentity}
 	}
 	return nil
-}
-
-type identityVerificationHTTPStoreAdapter struct {
-	store IdentityVerificationIdentityStore
-}
-
-func (adapter identityVerificationHTTPStoreAdapter) GetIdentityAccount(
-	ctx context.Context,
-	accountID string,
-) (IdentityAccountDTO, error) {
-	return adapter.store.GetAccount(ctx, accountID)
 }
 
 type unifiedIdentityHTTPServiceAdapter struct {
@@ -328,6 +315,8 @@ func writeIdentityHTTPResult(writer http.ResponseWriter, result publicIdentityAc
 func writeIdentityHTTPError(writer http.ResponseWriter, err error) {
 	var domainError IdentityDomainError
 	switch {
+	case errors.Is(err, ErrIdentityStoreUnavailable):
+		writeError(writer, http.StatusServiceUnavailable, "identity_store_unavailable", "identity store is unavailable")
 	case errors.Is(err, ErrIdentityAccountNotFound):
 		writeError(writer, http.StatusNotFound, "identity_account_not_found", "identity account not found")
 	case errors.As(err, &domainError):

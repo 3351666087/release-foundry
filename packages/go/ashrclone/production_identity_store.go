@@ -8,6 +8,8 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -110,6 +112,9 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
    AND to_regprocedure(
      'public.a1_redrive_identity_delivery_outbox(uuid,uuid,uuid,bigint,text,text,text,timestamp with time zone)'
    ) IS NOT NULL
+   AND to_regprocedure(
+     'public.a1_project_identity_lifecycle_account(uuid)'
+   ) IS NOT NULL
 `
 
 type ProductionIdentityStore struct {
@@ -165,6 +170,71 @@ type IdentitySessionKeyringReadiness struct {
 	LegacyVersion string                         `json:"legacy_version"`
 	Ready         bool                           `json:"ready"`
 	PreviousKeys  []IdentitySessionKeyRetirement `json:"previous_keys"`
+}
+
+// GetIdentityAccount projects the canonical PostgreSQL identity account.
+// Authentication and URL ownership checks happen at the HTTP boundary; this
+// method never falls back to process-local identity state.
+func (store *ProductionIdentityStore) GetIdentityAccount(
+	ctx context.Context,
+	accountID string,
+) (IdentityAccountDTO, error) {
+	if store == nil || store.db == nil {
+		return IdentityAccountDTO{}, ErrIdentityStoreUnavailable
+	}
+	accountID = strings.TrimSpace(accountID)
+	if !validPostgresIdentityVerificationUUID(accountID) {
+		return IdentityAccountDTO{}, ErrIdentityAccountNotFound
+	}
+	queryCtx, cancel := context.WithTimeout(ctx, store.sqlTimeout)
+	defer cancel()
+	tx, err := store.db.BeginTx(queryCtx, &sql.TxOptions{
+		Isolation: sql.LevelReadCommitted,
+		ReadOnly:  true,
+	})
+	if err != nil {
+		return IdentityAccountDTO{}, fmt.Errorf("begin identity account projection: %w", err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+	if _, err = tx.ExecContext(queryCtx, `
+SELECT set_config('statement_timeout', $1, true),
+       set_config('lock_timeout', $2, true)
+`, fmt.Sprintf("%dms", store.statementTimeout.Milliseconds()),
+		fmt.Sprintf("%dms", store.lockTimeout.Milliseconds())); err != nil {
+		return IdentityAccountDTO{}, fmt.Errorf("configure identity account projection: %w", err)
+	}
+	var raw sql.NullString
+	if err = tx.QueryRowContext(queryCtx, `
+SELECT a1_project_identity_lifecycle_account($1::uuid)
+`, accountID).Scan(&raw); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return IdentityAccountDTO{}, ErrIdentityAccountNotFound
+		}
+		return IdentityAccountDTO{}, fmt.Errorf("project identity account: %w", err)
+	}
+	if !raw.Valid || strings.TrimSpace(raw.String) == "" {
+		return IdentityAccountDTO{}, ErrIdentityAccountNotFound
+	}
+	var projection identityLifecycleAccountProjection
+	if err = json.Unmarshal([]byte(raw.String), &projection); err != nil {
+		return IdentityAccountDTO{}, fmt.Errorf("decode identity account projection: %w", err)
+	}
+	account := projection.toDTO()
+	if strings.TrimSpace(account.AccountID) == "" {
+		return IdentityAccountDTO{}, ErrIdentityAccountNotFound
+	}
+	if err = tx.Commit(); err != nil {
+		return IdentityAccountDTO{}, fmt.Errorf("commit identity account projection: %w", err)
+	}
+	committed = true
+	account.CredentialCount = len(account.Credentials)
+	account.MembershipCount = len(account.Memberships)
+	return account, nil
 }
 
 type identitySessionTokenMaterial struct {
@@ -644,7 +714,7 @@ func (store *ProductionIdentityStore) Ready(ctx context.Context) error {
 		return fmt.Errorf("verify production identity schema: %w", err)
 	}
 	if !ready {
-		return fmt.Errorf("production identity PostgreSQL schema is incomplete; migrations 007-015 are required")
+		return fmt.Errorf("production identity PostgreSQL schema is incomplete; migration 017 identity lifecycle account projection capability is required")
 	}
 	return nil
 }
@@ -1067,6 +1137,7 @@ func (store *ProductionIdentityStore) ResolveGitHubOAuthSession(
 }
 
 var (
+	_ UnifiedIdentityHTTPStore     = (*ProductionIdentityStore)(nil)
 	_ IdentityHTTPSessionResolver  = (*ProductionIdentityStore)(nil)
 	_ IdentityHTTPSessionRefresher = (*ProductionIdentityStore)(nil)
 	_ OAuthSessionResolver         = (*ProductionIdentityStore)(nil)

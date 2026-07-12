@@ -16,6 +16,7 @@ type HTTPServer struct {
 	paymentReconciliation              *PaymentReconciliationService
 	paymentDomain                      *PaymentDomainService
 	unifiedIdentity                    *UnifiedIdentityService
+	unifiedIdentityStore               UnifiedIdentityHTTPStore
 	identityLifecycle                  *IdentityLifecycleService
 	identitySessions                   IdentityHTTPSessionResolver
 	identitySecurityTickets            IdentitySecurityTicketResolver
@@ -69,6 +70,7 @@ type HTTPServerOptions struct {
 	PaymentReconciliation              *PaymentReconciliationService
 	PaymentDomain                      *PaymentDomainService
 	UnifiedIdentity                    *UnifiedIdentityService
+	UnifiedIdentityStore               UnifiedIdentityHTTPStore
 	IdentityLifecycle                  *IdentityLifecycleService
 	IdentitySessions                   IdentityHTTPSessionResolver
 	IdentitySecurityTickets            IdentitySecurityTicketResolver
@@ -106,6 +108,7 @@ func NewHTTPServerWithOptions(service ControlPlaneBackend, options HTTPServerOpt
 		paymentReconciliation:              options.PaymentReconciliation,
 		paymentDomain:                      options.PaymentDomain,
 		unifiedIdentity:                    options.UnifiedIdentity,
+		unifiedIdentityStore:               options.UnifiedIdentityStore,
 		identityLifecycle:                  options.IdentityLifecycle,
 		identitySessions:                   options.IdentitySessions,
 		identitySecurityTickets:            options.IdentitySecurityTickets,

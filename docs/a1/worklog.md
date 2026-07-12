@@ -3128,3 +3128,58 @@ object-store acceptance for trace/artifact evidence.
 
 Next: publish the generated artifact, require the new SHA's CL Gate summary
 to pass, and return the result to Bus-Auditor for final GO/NO-GO.
+
+## Round 61: PostgreSQL-Only Canonical Identity Authority
+
+Date: 2026-07-12
+
+Commercial enhancement candidates:
+
+| Candidate | Demo | Risk reduction | Contract impact | Effort | API evidence |
+|---|---:|---:|---:|---:|---:|
+| PostgreSQL-only canonical identity reads | 4 | 5 | 2 | 3 | 2 |
+| Go browser-session lifecycle parity | 4 | 4 | 3 | 4 | 2 |
+| Hash-bound provider execution receipts | 5 | 5 | 3 | 4 | 5 |
+
+- Completed the bounded PostgreSQL authority slice already in progress.
+- Production Go runtime now injects `ProductionIdentityStore` explicitly and
+  does not construct the process-memory unified identity service.
+- Canonical account projection is read through migration 017 in a read-only
+  `READ COMMITTED` transaction with local timeouts, strict decode, and
+  commit-before-return.
+- Invalid UUID, begin, timeout, projection, NULL/malformed JSON, and commit
+  failures are covered. There is no implicit backend discovery or memory
+  fallback.
+- Missing authority returns stable `503 identity_store_unavailable`.
+- Production readiness requires migration 017 account projection.
+- Go tests and vet passed. TypeScript build, 634 tests, and package dry-run
+  passed. TS/Python parity, CL hygiene, CL commercial, and diff checks passed.
+- The first full Python attempt collected 1366 tests and reached roughly 39%
+  without failure before Docker CLI calls hung. Docker Desktop was restarted;
+  its backend reported the daemon ready, while the earlier `docker` resolution
+  remained a hanging shim. Prepending
+  `C:\Program Files\Docker\Docker\resources\bin` returned server `29.6.1`.
+- The authoritative rerun of `python -m pytest tests/a1 tests/integration`
+  completed: `1326 passed, 40 skipped in 107.51s`. This included the real Go
+  server to Python SDK integration path.
+- Evidence:
+  `docs/a1/evidence/round61_postgres_identity_authority.md`.
+- Peer state: `origin/dev/g3-a2-calibration` advanced to `6b62f978`; no peer
+  file was merged or modified.
+- Security deferrals: keep split password/MFA stores fail closed until a single
+  transactional SQL operation can atomically consume tickets, mutate
+  credentials, revoke sessions, enforce idempotency, and audit.
+
+Required next-round top three:
+
+1. Hash-bound provider records for XJTLU `gpt-5.6-sol`, Qwen official
+   `qwen-plus`, and local Ollama with `endpoint_sha256`, `evidence_sha256`,
+   invocation timestamp, and response binding.
+2. Successful target-endpoint calibration for image/audio/file/video; accepted
+   requests ending in `request_status=failed` remain `discovered`.
+3. One authoritative A1 release receipt binding latest A1 SHA, provider
+   records, PostgreSQL/RLS, concurrent claim/lease/fencing, and restart
+   persistence evidence.
+
+No secret, private prompt, raw private response, or credential-bearing endpoint
+may enter public evidence.
