@@ -57,7 +57,7 @@
         "required": true,
         "content_type": "application/json",
         "schema_version": "a3.audit_bundle_index.v1",
-        "sha256": "7563a89d3c74c61cf9d5572659c4205aa660d0ca92e8c877db16f59bc518bb66",
+        "sha256": "75275cdc70f5aafd03ef2944290c9a98fa11043d57913535abce01610cd5f246",
         "byte_size": 14272
       },
       {
@@ -101,8 +101,8 @@
         "required": true,
         "content_type": "application/json",
         "schema_version": "a2.internal_service_response.v1",
-        "sha256": "8cbcb2bb8a6d16c906d374868738cc8df30bfa22b405e209e66c8229c940dc54",
-        "byte_size": 79960
+        "sha256": "c2b056989c7155009f0136ba75997de7dfbdfb92daa71bdc4d483474ec3417cf",
+        "byte_size": 77870
       },
       {
         "id": "a2_trusted_spine",
@@ -156,7 +156,7 @@
         "required": true,
         "content_type": "application/json",
         "schema_version": "a3.audit_archive_manifest.v1",
-        "sha256": "093c2b9aa072c9b2e1e322c1c4cac3ec5c37d81f0bc01cf3cf5ac979d1a24bf8",
+        "sha256": "33c0d9d2c04c5bc04d2329e996dd74f79cb5e124cc298b36d03a2fee86594e55",
         "byte_size": 10496
       },
       {
@@ -167,7 +167,7 @@
         "required": true,
         "content_type": "application/json",
         "schema_version": "a3.audit_archive_verification.v1",
-        "sha256": "c8eaf4b68048c8dd806d3e2fb31f5b6819e26f73a156be327adfcf8e3fe7d111",
+        "sha256": "c496d9c6a11c031639eccbff5708e1677e43d875e66a84f6e99a554aa16e432d",
         "byte_size": 9363
       },
       {
@@ -178,7 +178,7 @@
         "required": true,
         "content_type": "application/json",
         "schema_version": "a3.audit_bundle_verification.v1",
-        "sha256": "f1c04e3864f55959207b628dca3e71ade918a54e00305c39f1fb7e6206d6cc2d",
+        "sha256": "66ead7216b9bf3d31e38ffb749d760dbab098cba0cbf85884ab6050f3a7c5eaf",
         "byte_size": 11326
       }
     ]
@@ -202,6 +202,6 @@
     "private_key_included": false,
     "fixture_claimed_as_production": false
   },
-  "artifact_set_hash": "bd7b4622070426be252580ba5e6f3296e2a54d7e54b74a54195f41a239a1208b",
-  "manifest_hash": "50726985cfe27d04ff95c01b67c0b998bf00e2757f11afc3836fd3381678bf18"
+  "artifact_set_hash": "b06494a49c88f1c60fc8063fdeab3de79b7f53ddba812913d363acf420564536",
+  "manifest_hash": "8d4aa688a3cbf8c5cde1b706c1c6f8b3f4ade8fe9c3ed27fe8f1b077bb8ffcd7"
 }

@@ -2,7 +2,7 @@
   "schema_version": "a3.audit_archive_manifest.v1",
   "generated_at": "2026-07-12T11:40:02.000Z",
   "source": "github-live-readback",
-  "archive_id": "a3-archive-a3-bundle-0-2-0-rc-1-a3-golden-20260712-001-560a41530d-2b10147fbed2",
+  "archive_id": "a3-archive-a3-bundle-0-2-0-rc-1-a3-golden-20260712-001-560a41530d-96e64c7ac4c0",
   "archive_format": {
     "format": "portable-directory-or-zip-manifest",
     "zip_compatible": true,
@@ -13,7 +13,7 @@
   "archive_file": null,
   "bundle": {
     "bundle_id": "a3-bundle-0-2-0-rc-1-a3-golden-20260712-001-560a41530dd4",
-    "bundle_root_hash": "2b10147fbed236707dc1941cfc70da3bb478b53eb0daf299eb464d479143ae6a",
+    "bundle_root_hash": "96e64c7ac4c042cd415ca9a54bec50a6e29ecf0b6b7e0aefb5583df9935c6957",
     "bundle_index_file": "fixtures/a3/golden-path/audit-bundle-index.json",
     "release": {
       "run_id": "a3-golden-20260712-001",
@@ -68,7 +68,7 @@
       "archive_role": "bundle_index",
       "content_type": "application/json",
       "required": true,
-      "sha256": "7563a89d3c74c61cf9d5572659c4205aa660d0ca92e8c877db16f59bc518bb66",
+      "sha256": "75275cdc70f5aafd03ef2944290c9a98fa11043d57913535abce01610cd5f246",
       "byte_size": 14272,
       "created_by": "ashr gate audit bundle index",
       "redaction_status": "redacted_or_safe_for_audit",
@@ -80,7 +80,7 @@
       "archive_role": "custody_record",
       "content_type": "application/json",
       "required": false,
-      "sha256": "b699ff2d91cf55d3b889d5bce0bcb9c69c24bf36004317b125739d9046049483",
+      "sha256": "8b0b7eb007e0eff49a14ed3d6f15caf9458e3f75269a0810b8e4b70b88b558d7",
       "byte_size": 4063,
       "created_by": "ashr gate generated artifact manifest",
       "redaction_status": "redacted_or_safe_for_audit",
@@ -117,7 +117,7 @@
       "archive_role": "generated_output",
       "content_type": "application/json",
       "required": true,
-      "sha256": "5137703491bdd8c01d1f336c7313aa249dc7633ec0c7668430dc43fb4e92947c",
+      "sha256": "3dbe02f346e2f0238ff2b31cadcf6900c1e94b8b57f32089267d2677a2bcccbf",
       "byte_size": 23747,
       "created_by": "ashr gate output writer",
       "redaction_status": "redacted_or_safe_for_audit",
@@ -129,7 +129,7 @@
       "archive_role": "generated_output",
       "content_type": "text/markdown",
       "required": true,
-      "sha256": "08cb87a1a90f084d322f14e1b558d041e31d84abd6872c41300fc8c2e18288d0",
+      "sha256": "b63b26b32e69547e38811e820b6c850e2200f4982db29c88a8371977cb581b28",
       "byte_size": 2777,
       "created_by": "ashr gate output writer",
       "redaction_status": "redacted_or_safe_for_audit",
@@ -204,8 +204,8 @@
       "archive_role": "source_input",
       "content_type": "application/json",
       "required": true,
-      "sha256": "8cbcb2bb8a6d16c906d374868738cc8df30bfa22b405e209e66c8229c940dc54",
-      "byte_size": 79960,
+      "sha256": "c2b056989c7155009f0136ba75997de7dfbdfb92daa71bdc4d483474ec3417cf",
+      "byte_size": 77870,
       "created_by": "ashr gate input manifest",
       "redaction_status": "redacted_or_safe_for_audit",
       "workspace_relative": true
@@ -247,18 +247,18 @@
     "raw_private_key_stored": false,
     "dry_run_compatible": true
   },
-  "archive_root_hash": "28556cf6b182f8fe9901543fee06b3b76cb90c89e9c3e3d7a7ebb913aa0f7c9f",
+  "archive_root_hash": "d7743959b0f84da68fb03b927958bc6e58250cacbef1f581105599b19bd8fd7c",
   "signature": {
     "schema_version": "a3.audit_archive_signature.v1",
     "signature_status": "signed",
     "algorithm": "ed25519",
     "signed_payload": "canonical_archive_manifest_with_archive_root_hash",
-    "signed_payload_sha256": "96e67367f12bc66bc9d83a7c8419d6114c6020173957391e7591369c0fe3954a",
+    "signed_payload_sha256": "fe71b3dd8acb96d66be7d29faa6dc9cf494e305d52e583aac1b2b146a031273d",
     "signer": {
       "signer_type": "local-a3-gate-cli",
       "identity_binding": "self_signed_local_key_not_sso_bound",
-      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAp5IDMan3apm4i21vmNcCd3faC1xb6jazeihjc41PNvw=\n-----END PUBLIC KEY-----\n"
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAXLLTazJGWmvGNp/iGlNvq6O2iIvQMmFpcGLbf2UbTuI=\n-----END PUBLIC KEY-----\n"
     },
-    "signature_base64": "7A0Xj01XjXwybHXutGKqpxqTkYYeJDPtus8mlOX1OI3FGoyeByljgnTBJjM736QQAjp/I7KU20EKxp9dVsF9BA=="
+    "signature_base64": "dS5nHQ+bVEPgHqaGvxUQasmrjKV6L+7o+9AGYY6j75CU7wHK2jrxxL/gAAuK464gA+quFdXql3CwqK2GiPnRCQ=="
   }
 }

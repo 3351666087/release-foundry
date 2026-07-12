@@ -507,8 +507,8 @@
         "path": "fixtures/a3/golden-path/a2_new_run_judge_response.redacted.json",
         "required": true,
         "content_type": "application/json",
-        "sha256": "8cbcb2bb8a6d16c906d374868738cc8df30bfa22b405e209e66c8229c940dc54",
-        "byte_size": 79960
+        "sha256": "c2b056989c7155009f0136ba75997de7dfbdfb92daa71bdc4d483474ec3417cf",
+        "byte_size": 77870
       },
       {
         "id": "coverage",

@@ -23,7 +23,7 @@
       "id": "json_report",
       "path": "fixtures/a3/golden-path/gate-report.json",
       "content_type": "application/json",
-      "sha256": "5137703491bdd8c01d1f336c7313aa249dc7633ec0c7668430dc43fb4e92947c",
+      "sha256": "3dbe02f346e2f0238ff2b31cadcf6900c1e94b8b57f32089267d2677a2bcccbf",
       "byte_size": 23747,
       "required": true
     },
@@ -31,7 +31,7 @@
       "id": "markdown_report",
       "path": "fixtures/a3/golden-path/gate-report.md",
       "content_type": "text/markdown",
-      "sha256": "08cb87a1a90f084d322f14e1b558d041e31d84abd6872c41300fc8c2e18288d0",
+      "sha256": "b63b26b32e69547e38811e820b6c850e2200f4982db29c88a8371977cb581b28",
       "byte_size": 2777,
       "required": true
     },
