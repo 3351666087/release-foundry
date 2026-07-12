@@ -2560,3 +2560,159 @@ Next commercial A1 growth points from the first audit:
 22. Require changed quota evidence before another controlled mutation.
 23. Produce SBOM and provenance artifacts.
 24. Bind validation attestation to the published commit.
+
+## Round 54: Multi-Instance Session Safety, Trusted Ingestion, And Deployability
+
+Date: 2026-07-11
+
+Round status at start: active. Round 53 is published at `c7841635`; hosted CL
+Gate run `29155743153` is fully green, including Linux Python, Go, TypeScript,
+Rust, plan/hygiene, and summary jobs. The long-running commercial A1 goal
+remains active.
+
+Start-of-round repository and peer calibration:
+
+- Repository: `3351666087/ashr-codex-factory`; local branch
+  `codex/a1-local-sdk-runner-clean`; publication ref
+  `origin/codex/a1-local-sdk-runner`; draft PR `#31` is `CLEAN`.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`,
+  `git status -sb`, `gh repo view`, and `gh pr list --state all` completed.
+- `origin/main` is `5dbf4ee2`; the A1 publication branch is 15 commits ahead.
+- A2 advanced from `97141b4b` to `47c05e5a`. The reviewed peer impact is an
+  A2-owned trusted evidence snapshot and append-only decision-ledger spine.
+  A1 must supply tenant/project/run/case/scenario facts and public-safe hashes,
+  while A2 remains authoritative for evaluation semantics and release decisions.
+- A3 advanced from `f33144cf` to `2250254b`. The reviewed peer impact is a
+  unified identity entry flow and API-reference contract request. A1 must make
+  browser verification completable using a server-owned, non-secret context;
+  no A3 file will be modified or staged by this round.
+- Five peer-owned `fixtures/a2/results/*.json` files contain CRLF-only working
+  tree noise. They remain unstaged and are excluded from every A1 manifest.
+- Official-product fallback is fixed as in-app Browser, then Chrome, then the
+  static frontend mirror at
+  `C:\Users\33516\Desktop\Ashr_frontend_mirror_20260707_125507.zip`.
+  Controller failure is evidence, not permission to guess official behavior.
+
+Round 54 executable growth points and ownership:
+
+1. Enforce minimum previous-session-key retention against live token lifetime.
+2. Reject duplicate, active-key, and unsafe legacy key-version configurations.
+3. Expose public-safe session-key retirement readiness and bounded metrics.
+4. Add refresh SQL statement, transaction, and row-lock deadlines.
+5. Prove identical-retry and conflicting-reuse behavior across independent DB clients.
+6. Define a Go-to-Rust authenticated streaming verifier process contract.
+7. Stream artifact bytes without loading the evidence bundle into memory.
+8. Bind verifier input to tenant/project/run, manifest hash, mutation anchor, and size caps.
+9. Fail closed on verifier timeout, malformed output, symlink/path escape, and digest mismatch.
+10. Add Python browser-session login, refresh, logout, and revoke-all client surfaces.
+11. Add executable TypeScript parity for the same browser-session surfaces.
+12. Preserve exact replacement cookie expiry and Max-Age under custom configured caps.
+13. Generate a browser-session OpenAPI security contract with stable error envelopes.
+14. Add Python/TypeScript/Go route and capability drift gates.
+15. Add production Kubernetes resources for API, worker, delivery, migration, and verifier.
+16. Add network policies, pod security, disruption budgets, and topology spreading.
+17. Add Terraform/Kubernetes configuration validation and immutable image inputs.
+18. Add multi-instance Postgres/worker failover and readiness smoke coverage.
+19. Add SBOM/provenance generation plus published-commit binding.
+20. Add an A1 trusted evidence producer for A2 `a2.evidence_snapshot.v1` inputs.
+21. Preserve equal text/image/audio/file/video modality handling in that producer.
+22. Add A3 identity-contract compatibility fixtures without importing A3 business logic.
+23. Run official read-only calibration and gate mutations on changed quota evidence.
+24. Produce a redacted, auditable Round 54 command/test/evidence ledger.
+
+Parallel assignment:
+
+- Worker-Session owns points 1-5 in Go/PostgreSQL session runtime and tests.
+- Worker-Verifier owns points 6-9 in Rust/Go ingestion and security tests.
+- Worker-SDK owns points 10-14 in Python/TypeScript/OpenAPI parity and tests.
+- Worker-Infra owns points 15-19 in deploy/runtime infrastructure and validation.
+- Worker-Integration owns points 20-24 in A1 contract adapters, compatibility tests,
+  and public-safe evidence, without changing A2 judge or A3 dashboard semantics.
+- Growth-Auditor performs an initial money-grade boundary audit and a mandatory
+  post-integration re-audit; it does not own ordinary product implementation.
+
+Round 54 identity lifecycle closure, 2026-07-12:
+
+- Re-read `origin/main:docs/strategy/large-saas-a1-a2-a3-full-plan.md`.
+  The implementation remains aligned with its `user`/`identity` separation,
+  explicit reauthentication for linking, provider-subject uniqueness, complete
+  audit, and fail-closed domestic-provider requirements.
+- Fixed two over-broad static assertions in
+  `tests/a1/test_identity_lifecycle_receipt_postgres_migration.py`. The test
+  now rejects raw email parameters/columns without rejecting safe
+  `invalid_verified_email_material` error text, and recognizes that exact
+  login may read the canonical principal while remaining write-free.
+- Focused Python identity contract command from repository root passed:
+  `29 passed in 0.34s`.
+- One intermediate Python invocation was run from
+  `packages/go/ashrclone` and therefore found no `tests/a1` path. This was a
+  command working-directory error, not a product failure; the corrected root
+  invocation passed.
+- PostgreSQL integration command passed every subtest in 12.173 seconds:
+  24-way exactly-once registration, unknown-login non-creation, duplicate
+  registration rejection, scope mismatch without consumption, rollback and
+  bounded retry, exact credential login, OAuth-first password absence, safe
+  A3 projection, receipt key rotation, and ciphertext/nonce/scope/key-version
+  tamper rejection.
+- Official Google and GitHub documentation was used to calibrate separate
+  registration, authentication, OAuth consent, explicit account linking,
+  verified email establishment, optional password enrollment, recovery, and
+  recommended 2FA/passkeys. Ashr clone remains intentionally stricter:
+  matching email never auto-links or auto-merges accounts.
+- A3 receives only safe account, credential, membership, security-posture, and
+  provider-readiness projections. Email material, provider subjects, secrets,
+  receipt material, encrypted proofs, and provider tokens remain private.
+- WeChat, QQ, Alipay, and phone remain first-class capability entries. Without
+  required business qualification or provider configuration they fail closed
+  with an explicit readiness reason rather than pretending to be usable.
+- Five A2-owned fixture changes remain peer-owned, read-only, and excluded from
+  the A1 staging manifest.
+- Mandatory Bus-Auditor spawn was retried after implementation and tests but
+  failed with `agent thread limit reached`. No review result is fabricated.
+  The next available agent slot must be used for the post-integration audit.
+
+Round 54 final identity-lifecycle and parity closure, 2026-07-12:
+
+- Registration and login remain separate executable state machines.
+  Registration creates one canonical account plus one verified initial
+  credential. Login authenticates only an exact credential already attached
+  to that account and cannot create, infer, bind, merge, or mutate identity
+  ownership.
+- Domestic email registration is the preferred currently deployable entry
+  route. OAuth-first registration may copy only provider-verified email,
+  creates no password, and requires a later explicit password-enrollment
+  action. Optional 2FA remains recommended in the public security posture.
+- Matching email is never account-linking proof. GitHub, Google, email, phone,
+  and future WeChat, QQ, and Alipay credentials bind only through an
+  authenticated, recent-reauthenticated, explicit linking flow. Domestic
+  providers remain represented in capability contracts but fail closed while
+  business qualification or provider configuration is unavailable.
+- The A3 projection exposes only canonical account state, credential kinds,
+  membership, security posture, and provider readiness. It excludes raw or
+  digested email, provider subjects, secret references and fingerprints,
+  verification receipt material, encrypted proof material, and provider
+  tokens.
+- `python tests/a1/ts_python_parity_matrix.py --write` regenerated the parity
+  matrix. The focused gap and Linux clean-build gates passed `2 passed`.
+  Three Python-compatible acronym exports were completed in TypeScript:
+  `IdentityLifecycleHTTPClient`, `IdentityLifecycleHTTPError`, and
+  `IdentityLifecycleHTTPResponse`.
+- Full A1 Python validation passed `1240 passed, 2 skipped in 300.53s`.
+  TypeScript package validation and a clean rebuild passed `598/598`.
+- `go test -count=1 ./...` passed all Go packages and `go vet ./...` passed.
+  `cargo test` passed all Rust verifier unit, authenticated-envelope,
+  authenticated-evidence-bundle, and streaming-object tests.
+- PostgreSQL identity-lifecycle integration passed in 9.83 seconds, including
+  24-way exactly-once registration, unknown-login non-creation, duplicate
+  registration rejection, scope mismatch without receipt consumption,
+  rollback and bounded transaction retry, exact credential login,
+  OAuth-first password absence, safe A3 projection, key rotation, and
+  ciphertext/nonce/scope/key-version tamper rejection.
+- Two earlier parity follow-up commands failed only because they were launched
+  from `packages/ts/ashr-clone` with repository-root-relative test paths.
+  Corrected root commands passed and no product defect remained.
+- Five peer-owned A2 fixture changes remain excluded from the A1 staging
+  manifest. No A3-owned file was modified or staged.
+- The mandatory post-integration Bus-Auditor spawn was attempted again and
+  still failed with `agent thread limit reached`. This environmental limit is
+  recorded without fabricating an audit result.

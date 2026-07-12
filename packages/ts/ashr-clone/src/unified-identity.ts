@@ -1,4 +1,5 @@
 export const UNIFIED_IDENTITY_SCHEMA_VERSION = "ashr.clone.unified_identity.v1" as const;
+export const A3_IDENTITY_CONTRACT_SCHEMA_VERSION = "ashr.clone.a3_identity.v1" as const;
 
 export const UNIFIED_IDENTITY_PROVIDERS = [
   "github",
@@ -69,6 +70,83 @@ export const UNIFIED_IDENTITY_ERROR_CODES = [
   "identity_verification_resend_too_soon",
   "identity_store_failed",
 ] as const;
+
+export const A3_IDENTITY_FLOW_OPERATIONS = [
+  "provider_status", "register_start", "register_complete", "login_start", "login_complete",
+  "link_start", "link_complete", "unlink", "password_set", "password_change",
+  "two_factor_enroll", "two_factor_verify", "two_factor_recovery", "two_factor_disable",
+] as const;
+
+export const A3_IDENTITY_FLOW_STATUSES = [
+  "pending", "verification_required", "authenticated", "completed", "conflict",
+  "merge_required", "unavailable", "failed",
+] as const;
+
+export const A3_IDENTITY_ROUTE_LIFECYCLES = [
+  "active", "proposed", "non_routable", "unavailable",
+] as const;
+
+export type A3IdentityRouteLifecycle = typeof A3_IDENTITY_ROUTE_LIFECYCLES[number];
+
+export const A3_IDENTITY_CODE_CAPABILITIES = [
+  "route_and_handler_implemented",
+  "contract_only",
+  "not_implemented",
+] as const;
+
+export const A3_IDENTITY_DEPLOYMENT_READINESS = [
+  "ready",
+  "runtime_configuration_required",
+  "business_qualification_required",
+  "unavailable",
+] as const;
+
+export const A3_IDENTITY_DEPLOYMENT_STATUS_SOURCES = [
+  "runtime_configuration",
+  "business_qualification",
+  "service_capability",
+] as const;
+
+export type A3IdentityCodeCapability = typeof A3_IDENTITY_CODE_CAPABILITIES[number];
+export type A3IdentityDeploymentReadiness = typeof A3_IDENTITY_DEPLOYMENT_READINESS[number];
+export type A3IdentityDeploymentStatusSource =
+  typeof A3_IDENTITY_DEPLOYMENT_STATUS_SOURCES[number];
+
+export interface A3IdentityProviderCapability {
+  provider: UnifiedIdentityProvider;
+  registration: "available" | "runtime_configuration_required" | "unavailable";
+  login: "available" | "runtime_configuration_required" | "unavailable";
+  linking: "available" | "proposed" | "unavailable";
+  preferred_registration: boolean;
+  requires_business_qualification: boolean;
+  code_capability: A3IdentityCodeCapability;
+  deployment_readiness: A3IdentityDeploymentReadiness;
+  deployment_status_source: A3IdentityDeploymentStatusSource;
+  reason_code: "provider_not_configured" | "business_qualification_required"
+    | "phone_verification_unavailable" | null;
+}
+
+export interface A3IdentityRouteCapability {
+  operation: typeof A3_IDENTITY_FLOW_OPERATIONS[number];
+  method: "GET" | "POST";
+  path: string;
+  lifecycle: A3IdentityRouteLifecycle;
+  client_callable: boolean;
+}
+
+export interface A3IdentityContractManifest {
+  schema_version: typeof A3_IDENTITY_CONTRACT_SCHEMA_VERSION;
+  canonical_subject: "account";
+  preferred_registration_provider: "email";
+  operations: readonly typeof A3_IDENTITY_FLOW_OPERATIONS[number][];
+  flow_statuses: readonly typeof A3_IDENTITY_FLOW_STATUSES[number][];
+  routes: readonly A3IdentityRouteCapability[];
+  providers: readonly A3IdentityProviderCapability[];
+  registration: Readonly<Record<string, unknown>>;
+  login: Readonly<Record<string, unknown>>;
+  account_mutations: Readonly<Record<string, boolean>>;
+  a3_response_envelope: Readonly<Record<string, unknown>>;
+}
 
 export const IDENTITY_VERIFICATION_PROVIDERS = ["email", "phone"] as const;
 
@@ -174,6 +252,11 @@ export interface UnifiedAccount {
   merged_into_account_id: string | null;
   credentials: IdentityCredential[];
   memberships: IdentityMembership[];
+  security_posture: {
+    primary_email: { present: boolean; verified: boolean; source: UnifiedIdentityProvider | null };
+    password: { status: "absent" | "set"; settable: boolean };
+    two_factor: { status: "disabled" | "enabled"; optional: boolean; recommended: boolean };
+  };
 }
 
 export interface IdentityLink {
@@ -995,6 +1078,830 @@ export function unifiedIdentityContractManifest(): Record<string, unknown> {
   };
 }
 
+export function a3IdentityContractManifest(): A3IdentityContractManifest {
+  const route = (
+    operation: typeof A3_IDENTITY_FLOW_OPERATIONS[number],
+    method: "GET" | "POST",
+    path: string,
+    lifecycle: A3IdentityRouteLifecycle,
+  ): A3IdentityRouteCapability => ({
+    operation, method, path, lifecycle, client_callable: lifecycle === "active",
+  });
+  const provider = (
+    name: UnifiedIdentityProvider,
+    availability: A3IdentityProviderCapability["registration"],
+    linking: "proposed" | "unavailable",
+    preferredRegistration: boolean,
+    requiresBusinessQualification: boolean,
+    codeCapability: A3IdentityCodeCapability,
+    deploymentReadiness: A3IdentityDeploymentReadiness,
+    deploymentStatusSource: A3IdentityDeploymentStatusSource,
+    reasonCode: A3IdentityProviderCapability["reason_code"],
+  ): A3IdentityProviderCapability => ({
+    provider: name,
+    registration: availability,
+    login: availability,
+    linking,
+    preferred_registration: preferredRegistration,
+    requires_business_qualification: requiresBusinessQualification,
+    code_capability: codeCapability,
+    deployment_readiness: deploymentReadiness,
+    deployment_status_source: deploymentStatusSource,
+    reason_code: reasonCode,
+  });
+  return {
+    schema_version: A3_IDENTITY_CONTRACT_SCHEMA_VERSION,
+    canonical_subject: "account",
+    preferred_registration_provider: "email",
+    operations: [...A3_IDENTITY_FLOW_OPERATIONS],
+    flow_statuses: [...A3_IDENTITY_FLOW_STATUSES],
+    routes: [
+      route("provider_status", "GET", "/v1/identity/providers", "active"),
+      route("register_start", "POST", "/v1/identity/registration/start", "active"),
+      route("register_complete", "POST", "/v1/identity/registration/complete", "active"),
+      route("login_start", "POST", "/v1/identity/login/start", "active"),
+      route("login_complete", "POST", "/v1/identity/login/complete", "active"),
+      route("link_start", "POST", "/v1/accounts/{account_id}/identities/{provider}/link/start", "proposed"),
+      route("link_complete", "POST", "/v1/accounts/{account_id}/identities/{provider}/link/complete", "proposed"),
+      route("unlink", "POST", "/v1/accounts/{account_id}/identities/{credential_id}/unlink", "proposed"),
+      route("password_set", "POST", "/v1/accounts/{account_id}/password/set", "proposed"),
+      route("password_change", "POST", "/v1/accounts/{account_id}/password/change", "proposed"),
+      route("two_factor_enroll", "POST", "/v1/accounts/{account_id}/two-factor/enroll", "proposed"),
+      route("two_factor_verify", "POST", "/v1/accounts/{account_id}/two-factor/verify", "proposed"),
+      route("two_factor_recovery", "POST", "/v1/accounts/{account_id}/two-factor/recovery", "proposed"),
+      route("two_factor_disable", "POST", "/v1/accounts/{account_id}/two-factor/disable", "proposed"),
+    ],
+    providers: [
+      provider(
+        "email", "available", "proposed", true, false,
+        "route_and_handler_implemented", "ready", "service_capability", null,
+      ),
+      provider(
+        "github", "runtime_configuration_required", "proposed", false, false,
+        "route_and_handler_implemented", "runtime_configuration_required",
+        "runtime_configuration", "provider_not_configured",
+      ),
+      provider(
+        "google", "runtime_configuration_required", "proposed", false, false,
+        "route_and_handler_implemented", "runtime_configuration_required",
+        "runtime_configuration", "provider_not_configured",
+      ),
+      provider(
+        "wechat", "unavailable", "unavailable", false, true,
+        "contract_only", "business_qualification_required",
+        "business_qualification", "business_qualification_required",
+      ),
+      provider(
+        "qq", "unavailable", "unavailable", false, true,
+        "contract_only", "business_qualification_required",
+        "business_qualification", "business_qualification_required",
+      ),
+      provider(
+        "alipay", "unavailable", "unavailable", false, true,
+        "contract_only", "business_qualification_required",
+        "business_qualification", "business_qualification_required",
+      ),
+      provider(
+        "phone", "unavailable", "unavailable", false, false,
+        "contract_only", "unavailable",
+        "service_capability", "phone_verification_unavailable",
+      ),
+    ],
+    registration: {
+      may_create_account: true,
+      verified_provider_proof_required: true,
+      oauth_verified_email_may_initialize_canonical_email: true,
+      oauth_first_password_status: "absent",
+    },
+    login: {
+      may_create_account: false,
+      may_merge_accounts: false,
+      may_link_credentials: false,
+      existing_verified_credential_required: true,
+      unknown_identity_status: "failed",
+      verified_email_conflict_status: "merge_required",
+      public_failure_code: "authentication_failed",
+      public_failure_http_status: 401,
+      account_enumeration_safe: true,
+      unknown_and_invalid_secret_share_public_failure: true,
+      unknown_identity_next_action: null,
+    },
+    account_mutations: {
+      link_requires_authenticated_account: true,
+      link_requires_recent_step_up: true,
+      link_requires_csrf: true,
+      unlink_requires_recent_step_up: true,
+      unlink_requires_csrf: true,
+      last_login_method_unlink_forbidden: true,
+      password_set_requires_recent_step_up: true,
+      password_change_requires_recent_step_up: true,
+      password_mutation_requires_csrf: true,
+      two_factor_mutation_requires_recent_step_up: true,
+      two_factor_mutation_requires_csrf: true,
+      two_factor_optional: true,
+      two_factor_recommended: true,
+    },
+    a3_response_envelope: {
+      required: ["schema_version", "operation", "status", "provider", "account"],
+      account_nullable_before_completion: true,
+      conflict_code_field: "conflict.code",
+      next_action_field: "next_action",
+      raw_identity_values_present: false,
+      secret_values_present: false,
+    },
+  };
+}
+
+export function parseA3IdentityProviderCapability(
+  value: unknown,
+): A3IdentityProviderCapability {
+  if (!isRecord(value)) {
+    throw new UnifiedIdentityContractError("identity provider capability must be an object");
+  }
+  const provider = normalizeUnifiedIdentityProvider(String(value.provider ?? ""));
+  const registration = requireEnum(
+    "registration",
+    value.registration,
+    ["available", "runtime_configuration_required", "unavailable"] as const,
+  );
+  const login = requireEnum(
+    "login",
+    value.login,
+    ["available", "runtime_configuration_required", "unavailable"] as const,
+  );
+  const linking = requireEnum(
+    "linking",
+    value.linking,
+    ["available", "proposed", "unavailable"] as const,
+  );
+  const codeCapability = requireEnum(
+    "code_capability",
+    value.code_capability,
+    A3_IDENTITY_CODE_CAPABILITIES,
+  );
+  const deploymentReadiness = requireEnum(
+    "deployment_readiness",
+    value.deployment_readiness,
+    A3_IDENTITY_DEPLOYMENT_READINESS,
+  );
+  const deploymentStatusSource = requireEnum(
+    "deployment_status_source",
+    value.deployment_status_source,
+    A3_IDENTITY_DEPLOYMENT_STATUS_SOURCES,
+  );
+  const reasonCode = value.reason_code == null
+    ? null
+    : requireEnum(
+      "reason_code",
+      value.reason_code,
+      [
+        "provider_not_configured",
+        "business_qualification_required",
+        "phone_verification_unavailable",
+      ] as const,
+    );
+  if (registration !== login) {
+    throw new UnifiedIdentityContractError(
+      "identity provider registration and login deployment status must match",
+    );
+  }
+  if (
+    deploymentReadiness === "runtime_configuration_required"
+    && (
+      deploymentStatusSource !== "runtime_configuration"
+      || reasonCode !== "provider_not_configured"
+      || registration !== "runtime_configuration_required"
+    )
+  ) {
+    throw new UnifiedIdentityContractError(
+      "runtime-configured identity provider capability is inconsistent",
+    );
+  }
+  if (
+    deploymentReadiness === "business_qualification_required"
+    && (
+      deploymentStatusSource !== "business_qualification"
+      || reasonCode !== "business_qualification_required"
+      || registration !== "unavailable"
+    )
+  ) {
+    throw new UnifiedIdentityContractError(
+      "business-qualified identity provider capability is inconsistent",
+    );
+  }
+  if (deploymentReadiness === "ready" && registration !== "available") {
+    throw new UnifiedIdentityContractError(
+      "ready identity provider capability must be available",
+    );
+  }
+  return {
+    provider,
+    registration,
+    login,
+    linking,
+    preferred_registration: requireBoolean(
+      "preferred_registration",
+      value.preferred_registration,
+    ),
+    requires_business_qualification: requireBoolean(
+      "requires_business_qualification",
+      value.requires_business_qualification,
+    ),
+    code_capability: codeCapability,
+    deployment_readiness: deploymentReadiness,
+    deployment_status_source: deploymentStatusSource,
+    reason_code: reasonCode,
+  };
+}
+
+export function a3IdentityProviderStatusRoute(): string {
+  return "/v1/identity/providers";
+}
+
+export function a3IdentityRegistrationStartRoute(): string {
+  return "/v1/identity/registration/start";
+}
+
+export function a3IdentityRegistrationCompleteRoute(): string {
+  return "/v1/identity/registration/complete";
+}
+
+export function a3IdentityLoginStartRoute(): string {
+  return "/v1/identity/login/start";
+}
+
+export function a3IdentityLoginCompleteRoute(): string {
+  return "/v1/identity/login/complete";
+}
+
+export const a3_identity_contract_manifest = a3IdentityContractManifest;
+export const a3_identity_provider_status_route = a3IdentityProviderStatusRoute;
+export const a3_identity_registration_start_route = a3IdentityRegistrationStartRoute;
+export const a3_identity_registration_complete_route = a3IdentityRegistrationCompleteRoute;
+export const a3_identity_login_start_route = a3IdentityLoginStartRoute;
+export const a3_identity_login_complete_route = a3IdentityLoginCompleteRoute;
+
+export interface IdentityRegistrationStartRequest {
+  provider: UnifiedIdentityProvider;
+  tenant_id: string;
+  project_id: string;
+}
+
+export interface IdentityRegistrationCompleteRequest {
+  proof_receipt_id: string;
+  tenant_id: string;
+  project_id: string;
+}
+
+export interface IdentityLoginStartRequest {
+  provider: UnifiedIdentityProvider;
+  tenant_id: string;
+  project_id: string;
+}
+
+export interface IdentityLoginCompleteRequest {
+  proof_receipt_id: string;
+  tenant_id: string;
+  project_id: string;
+}
+
+export interface IdentityLifecycleSecurity {
+  server_verified_proof_required: boolean;
+  recent_reauthentication_required: boolean;
+  csrf_required: boolean;
+  account_enumeration_safe: boolean;
+}
+
+export interface IdentityLifecycleAccount {
+  account_id: string;
+  password_status: "absent" | "set";
+  two_factor_status: "disabled" | "pending" | "enabled" | "recovery_required";
+  two_factor_optional: boolean;
+  two_factor_recommended: boolean;
+}
+
+export interface IdentityLifecyclePublicError {
+  code: string;
+  http_status: number;
+  anti_enumeration: boolean;
+  retryable: boolean;
+  public_safe: true;
+}
+
+export interface IdentityLifecycleEnvelope {
+  schema_version: typeof A3_IDENTITY_CONTRACT_SCHEMA_VERSION;
+  operation: typeof A3_IDENTITY_FLOW_OPERATIONS[number];
+  status: typeof A3_IDENTITY_FLOW_STATUSES[number];
+  provider: UnifiedIdentityProvider;
+  account: IdentityLifecycleAccount | null;
+  next_action:
+    | "verify_email"
+    | "complete_provider"
+    | "reauthenticate"
+    | "enroll_two_factor"
+    | "resolve_conflict"
+    | "contact_support"
+    | "none";
+  security: IdentityLifecycleSecurity;
+  receipt_id: string | null;
+  expires_at: string | null;
+  authenticated_at: string | null;
+  error: IdentityLifecyclePublicError | null;
+}
+
+export interface IdentityProviderCapability {
+  provider: UnifiedIdentityProvider;
+  preferred: boolean;
+  enabled: boolean;
+  code_capability: "implemented" | "adapter_only" | "contract_only";
+  deployment_readiness: "ready" | "configuration_required" | "blocked";
+  deployment_status_source: "runtime_configuration" | "business_qualification";
+  environment: string;
+  qualification_status: "not_required" | "required" | "approved" | "unavailable";
+  requires_business_qualification: boolean;
+  registration_status: "available" | "unavailable";
+  login_status: "available" | "unavailable";
+  linking_status: "available" | "proposed" | "unavailable";
+  reason_code:
+    | "provider_not_configured"
+    | "business_qualification_required"
+    | "phone_verification_unavailable"
+    | null;
+}
+
+export interface IdentityProviderCapabilities {
+  schema_version: string;
+  providers: readonly IdentityProviderCapability[];
+}
+
+export interface IdentityLifecycleHttpClientOptions {
+  baseUrl: string;
+  fetch?: UnifiedIdentityFetch;
+  headers?: Record<string, string>;
+  timeoutMs?: number;
+  maxRetries?: number;
+  retryBackoffMs?: number;
+  sleep?: (delayMs: number) => Promise<void>;
+}
+
+export class IdentityLifecycleHttpError extends Error {
+  readonly code: string;
+  readonly httpStatus: number;
+  readonly retryable: boolean;
+  readonly antiEnumeration: boolean;
+  readonly publicSafe = true;
+  readonly error: IdentityLifecyclePublicError;
+
+  constructor(error: IdentityLifecyclePublicError) {
+    super(error.code);
+    this.name = "IdentityLifecycleHttpError";
+    this.error = error;
+    this.code = error.code;
+    this.httpStatus = error.http_status;
+    this.retryable = error.retryable;
+    this.antiEnumeration = error.anti_enumeration;
+  }
+}
+
+export class IdentityLifecycleTransportError extends Error {
+  readonly code = "identity_lifecycle_transport_unavailable";
+  readonly retryable: boolean;
+  readonly publicSafe = true;
+
+  constructor(retryable: boolean) {
+    super("identity lifecycle transport unavailable");
+    this.name = "IdentityLifecycleTransportError";
+    this.retryable = retryable;
+  }
+}
+
+export class IdentityLifecycleHTTPResponse {
+  readonly status: number;
+  readonly payload: Record<string, unknown>;
+
+  constructor(status: number, payload: Record<string, unknown>) {
+    if (!Number.isInteger(status) || status < 100 || status > 599) {
+      throw new UnifiedIdentityContractError("identity lifecycle HTTP status is invalid");
+    }
+    assertPublicUnifiedIdentityPayload(payload);
+    this.status = status;
+    this.payload = { ...payload };
+  }
+}
+
+function rejectCallerAssertedVerification(value: Record<string, unknown>): void {
+  for (const key of Object.keys(value)) {
+    const normalized = key.toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (["verified", "isverified", "verificationstatus"].includes(normalized)) {
+      throw new UnifiedIdentityContractError(
+        "public identity flow DTO cannot assert verification state",
+      );
+    }
+  }
+}
+
+function identityFlowScope(value: Record<string, unknown>): {
+  tenant_id: string;
+  project_id: string;
+} {
+  rejectCallerAssertedVerification(value);
+  return {
+    tenant_id: requireIdentifier("tenant_id", value.tenant_id),
+    project_id: requireIdentifier("project_id", value.project_id),
+  };
+}
+
+export function parseIdentityRegistrationStartRequest(
+  value: Record<string, unknown>,
+): IdentityRegistrationStartRequest {
+  return {
+    provider: normalizeUnifiedIdentityProvider(String(value.provider ?? "")),
+    ...identityFlowScope(value),
+  };
+}
+
+export function parseIdentityRegistrationCompleteRequest(
+  value: Record<string, unknown>,
+): IdentityRegistrationCompleteRequest {
+  return {
+    proof_receipt_id: requireIdentifier("proof_receipt_id", value.proof_receipt_id),
+    ...identityFlowScope(value),
+  };
+}
+
+export function parseIdentityLoginStartRequest(
+  value: Record<string, unknown>,
+): IdentityLoginStartRequest {
+  return {
+    provider: normalizeUnifiedIdentityProvider(String(value.provider ?? "")),
+    ...identityFlowScope(value),
+  };
+}
+
+export function parseIdentityLoginCompleteRequest(
+  value: Record<string, unknown>,
+): IdentityLoginCompleteRequest {
+  return {
+    proof_receipt_id: requireIdentifier("proof_receipt_id", value.proof_receipt_id),
+    ...identityFlowScope(value),
+  };
+}
+
+export function parseIdentityLifecycleSecurity(value: unknown): IdentityLifecycleSecurity {
+  if (!isRecord(value)) {
+    throw new UnifiedIdentityContractError("identity lifecycle security must be an object");
+  }
+  return {
+    server_verified_proof_required: requireBoolean(
+      "server_verified_proof_required",
+      value.server_verified_proof_required,
+    ),
+    recent_reauthentication_required: requireBoolean(
+      "recent_reauthentication_required",
+      value.recent_reauthentication_required,
+    ),
+    csrf_required: requireBoolean("csrf_required", value.csrf_required),
+    account_enumeration_safe: requireBoolean(
+      "account_enumeration_safe",
+      value.account_enumeration_safe,
+    ),
+  };
+}
+
+export function parseIdentityLifecycleAccount(value: unknown): IdentityLifecycleAccount {
+  if (!isRecord(value) || !isRecord(value.two_factor)) {
+    throw new UnifiedIdentityContractError("identity lifecycle account must be an object");
+  }
+  return {
+    account_id: requireIdentifier("account_id", value.account_id),
+    password_status: requireEnum(
+      "password_status",
+      value.password_status,
+      ["absent", "set"] as const,
+    ),
+    two_factor_status: requireEnum(
+      "two_factor.status",
+      value.two_factor.status,
+      ["disabled", "pending", "enabled", "recovery_required"] as const,
+    ),
+    two_factor_optional: requireBoolean("two_factor.optional", value.two_factor.optional),
+    two_factor_recommended: requireBoolean(
+      "two_factor.recommended",
+      value.two_factor.recommended,
+    ),
+  };
+}
+
+export function parseIdentityLifecyclePublicError(
+  value: unknown,
+): IdentityLifecyclePublicError {
+  if (!isRecord(value)) {
+    throw new UnifiedIdentityContractError("identity lifecycle error must be an object");
+  }
+  const publicSafe = requireBoolean("error.public_safe", value.public_safe);
+  if (!publicSafe) {
+    throw new UnifiedIdentityContractError("identity error is not public-safe");
+  }
+  const httpStatus = requireNonNegativeInteger("error.http_status", value.http_status);
+  if (httpStatus < 400 || httpStatus > 599) {
+    throw new UnifiedIdentityContractError("identity error HTTP status is invalid");
+  }
+  return {
+    code: requireIdentifier("error.code", value.code),
+    http_status: httpStatus,
+    anti_enumeration: requireBoolean("error.anti_enumeration", value.anti_enumeration),
+    retryable: requireBoolean("error.retryable", value.retryable),
+    public_safe: true,
+  };
+}
+
+export function parseIdentityLifecycleEnvelope(value: unknown): IdentityLifecycleEnvelope {
+  assertPublicUnifiedIdentityPayload(value);
+  if (!isRecord(value)) {
+    throw new UnifiedIdentityContractError("identity lifecycle response must be an object");
+  }
+  if (value.schema_version !== A3_IDENTITY_CONTRACT_SCHEMA_VERSION) {
+    throw new UnifiedIdentityContractError("unsupported identity lifecycle schema version");
+  }
+  return {
+    schema_version: A3_IDENTITY_CONTRACT_SCHEMA_VERSION,
+    operation: requireEnum("operation", value.operation, A3_IDENTITY_FLOW_OPERATIONS),
+    status: requireEnum("status", value.status, A3_IDENTITY_FLOW_STATUSES),
+    provider: normalizeUnifiedIdentityProvider(String(value.provider ?? "")),
+    account: value.account == null ? null : parseIdentityLifecycleAccount(value.account),
+    next_action: requireEnum(
+      "next_action",
+      value.next_action,
+      [
+        "verify_email",
+        "complete_provider",
+        "reauthenticate",
+        "enroll_two_factor",
+        "resolve_conflict",
+        "contact_support",
+        "none",
+      ] as const,
+    ),
+    security: parseIdentityLifecycleSecurity(value.security),
+    receipt_id: optionalIdentifier("receipt_id", value.receipt_id),
+    expires_at: optionalTimestamp("expires_at", value.expires_at),
+    authenticated_at: optionalTimestamp("authenticated_at", value.authenticated_at),
+    error: value.error == null ? null : parseIdentityLifecyclePublicError(value.error),
+  };
+}
+
+export function parseIdentityProviderCapability(value: unknown): IdentityProviderCapability {
+  assertPublicUnifiedIdentityPayload(value);
+  if (!isRecord(value)) {
+    throw new UnifiedIdentityContractError("identity provider capability must be an object");
+  }
+  const reason = value.reason_code == null
+    ? null
+    : requireEnum(
+      "reason_code",
+      value.reason_code,
+      [
+        "provider_not_configured",
+        "business_qualification_required",
+        "phone_verification_unavailable",
+      ] as const,
+    );
+  return {
+    provider: normalizeUnifiedIdentityProvider(String(value.provider ?? "")),
+    preferred: requireBoolean("preferred", value.preferred),
+    enabled: requireBoolean("enabled", value.enabled),
+    code_capability: requireEnum(
+      "code_capability",
+      value.code_capability,
+      ["implemented", "adapter_only", "contract_only"] as const,
+    ),
+    deployment_readiness: requireEnum(
+      "deployment_readiness",
+      value.deployment_readiness,
+      ["ready", "configuration_required", "blocked"] as const,
+    ),
+    deployment_status_source: requireEnum(
+      "deployment_status_source",
+      value.deployment_status_source,
+      ["runtime_configuration", "business_qualification"] as const,
+    ),
+    environment: requireIdentifier("environment", value.environment),
+    qualification_status: requireEnum(
+      "qualification_status",
+      value.qualification_status,
+      ["not_required", "required", "approved", "unavailable"] as const,
+    ),
+    requires_business_qualification: requireBoolean(
+      "requires_business_qualification",
+      value.requires_business_qualification,
+    ),
+    registration_status: requireEnum(
+      "registration_status",
+      value.registration_status,
+      ["available", "unavailable"] as const,
+    ),
+    login_status: requireEnum(
+      "login_status",
+      value.login_status,
+      ["available", "unavailable"] as const,
+    ),
+    linking_status: requireEnum(
+      "linking_status",
+      value.linking_status,
+      ["available", "proposed", "unavailable"] as const,
+    ),
+    reason_code: reason,
+  };
+}
+
+export function parseIdentityProviderCapabilities(value: unknown): IdentityProviderCapabilities {
+  assertPublicUnifiedIdentityPayload(value);
+  if (!isRecord(value)) {
+    throw new UnifiedIdentityContractError("identity provider capabilities must be an object");
+  }
+  return {
+    schema_version: requireIdentifier("schema_version", value.schema_version),
+    providers: mappingSequence(value, "providers").map(parseIdentityProviderCapability),
+  };
+}
+
+export class IdentityLifecycleHttpClient {
+  static readonly RETRYABLE_STATUS_CODES = new Set([429, 502, 503, 504]);
+
+  readonly baseUrl: string;
+  readonly #fetch: UnifiedIdentityFetch;
+  readonly #headers: Record<string, string>;
+  readonly #timeoutMs: number;
+  readonly #maxRetries: number;
+  readonly #retryBackoffMs: number;
+  readonly #sleep: (delayMs: number) => Promise<void>;
+
+  constructor(options: IdentityLifecycleHttpClientOptions) {
+    const baseUrl = String(options.baseUrl ?? "").trim().replace(/\/+$/u, "");
+    let parsed: URL;
+    try {
+      parsed = new URL(baseUrl);
+    } catch {
+      throw new UnifiedIdentityContractError("base_url must be HTTP or HTTPS");
+    }
+    if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password) {
+      throw new UnifiedIdentityContractError("base_url must be HTTP or HTTPS");
+    }
+    this.baseUrl = baseUrl;
+    this.#fetch = options.fetch ?? fetch;
+    this.#headers = validateHeaders(options.headers ?? {});
+    this.#timeoutMs = validateTimeout(options.timeoutMs ?? 10_000);
+    this.#maxRetries = requireBoundedNonNegativeInteger(
+      "max_retries",
+      options.maxRetries ?? 2,
+      10,
+    );
+    this.#retryBackoffMs = requireBoundedNonNegativeInteger(
+      "retry_backoff_ms",
+      options.retryBackoffMs ?? 100,
+      60_000,
+    );
+    this.#sleep = options.sleep ?? ((delayMs) => new Promise((resolve) => {
+      setTimeout(resolve, delayMs);
+    }));
+  }
+
+  async providerCapabilities(): Promise<IdentityProviderCapabilities> {
+    const response = await this.#request("GET", a3IdentityProviderStatusRoute(), {}, true);
+    if (response.status !== 200) {
+      throw new IdentityLifecycleTransportError(false);
+    }
+    return parseIdentityProviderCapabilities(response.payload);
+  }
+
+  registrationStart(
+    request: IdentityRegistrationStartRequest,
+  ): Promise<IdentityLifecycleEnvelope> {
+    const parsed = parseIdentityRegistrationStartRequest({ ...request });
+    return this.#lifecycleRequest(
+      a3IdentityRegistrationStartRoute(),
+      {
+        provider: parsed.provider,
+        tenant_id: parsed.tenant_id,
+        project_id: parsed.project_id,
+      },
+      "register_start",
+    );
+  }
+
+  registrationComplete(
+    request: IdentityRegistrationCompleteRequest,
+  ): Promise<IdentityLifecycleEnvelope> {
+    const parsed = parseIdentityRegistrationCompleteRequest({ ...request });
+    return this.#lifecycleRequest(
+      a3IdentityRegistrationCompleteRoute(),
+      {
+        receipt_id: parsed.proof_receipt_id,
+        tenant_id: parsed.tenant_id,
+        project_id: parsed.project_id,
+      },
+      "register_complete",
+    );
+  }
+
+  loginStart(request: IdentityLoginStartRequest): Promise<IdentityLifecycleEnvelope> {
+    const parsed = parseIdentityLoginStartRequest({ ...request });
+    return this.#lifecycleRequest(
+      a3IdentityLoginStartRoute(),
+      {
+        provider: parsed.provider,
+        tenant_id: parsed.tenant_id,
+        project_id: parsed.project_id,
+      },
+      "login_start",
+    );
+  }
+
+  loginComplete(request: IdentityLoginCompleteRequest): Promise<IdentityLifecycleEnvelope> {
+    const parsed = parseIdentityLoginCompleteRequest({ ...request });
+    return this.#lifecycleRequest(
+      a3IdentityLoginCompleteRoute(),
+      {
+        receipt_id: parsed.proof_receipt_id,
+        tenant_id: parsed.tenant_id,
+        project_id: parsed.project_id,
+      },
+      "login_complete",
+    );
+  }
+
+  async #lifecycleRequest(
+    path: string,
+    payload: Record<string, unknown>,
+    expectedOperation: IdentityLifecycleEnvelope["operation"],
+  ): Promise<IdentityLifecycleEnvelope> {
+    const response = await this.#request("POST", path, payload, false);
+    const envelope = parseIdentityLifecycleEnvelope(response.payload);
+    if (envelope.operation !== expectedOperation) {
+      throw new UnifiedIdentityContractError("identity lifecycle response operation mismatch");
+    }
+    if (envelope.error !== null) {
+      throw new IdentityLifecycleHttpError(envelope.error);
+    }
+    if (response.status < 200 || response.status >= 300) {
+      throw new IdentityLifecycleTransportError(false);
+    }
+    return envelope;
+  }
+
+  async #request(
+    method: "GET" | "POST",
+    path: string,
+    payload: Record<string, unknown>,
+    retrySafe: boolean,
+  ): Promise<{ status: number; payload: Record<string, unknown> }> {
+    assertPublicUnifiedIdentityPayload(payload);
+    const attempts = retrySafe ? this.#maxRetries + 1 : 1;
+    for (let attempt = 0; attempt < attempts; attempt += 1) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), this.#timeoutMs);
+      try {
+        const response = await this.#fetch(`${this.baseUrl}${path}`, {
+          method,
+          headers: {
+            accept: "application/json",
+            ...(method === "POST" ? { "content-type": "application/json" } : {}),
+            ...this.#headers,
+          },
+          ...(method === "POST" ? { body: JSON.stringify(payload) } : {}),
+          signal: controller.signal,
+        });
+        const decoded = await parseCliSafeIdentityJson(response);
+        if (
+          retrySafe
+          && IdentityLifecycleHttpClient.RETRYABLE_STATUS_CODES.has(response.status)
+          && attempt + 1 < attempts
+        ) {
+          await this.#sleep(this.#retryBackoffMs * (2 ** attempt));
+          continue;
+        }
+        return { status: response.status, payload: decoded };
+      } catch (error) {
+        if (error instanceof UnifiedIdentityContractError) {
+          throw error;
+        }
+        if (attempt + 1 >= attempts) {
+          throw new IdentityLifecycleTransportError(retrySafe);
+        }
+        await this.#sleep(this.#retryBackoffMs * (2 ** attempt));
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+    throw new IdentityLifecycleTransportError(retrySafe);
+  }
+}
+
+// Preserve idiomatic TypeScript names while matching the Python SDK's public
+// acronym casing for source-compatible cross-language quickstarts.
+export const IdentityLifecycleHTTPClient = IdentityLifecycleHttpClient;
+export const IdentityLifecycleHTTPError = IdentityLifecycleHttpError;
+
 export function normalizeUnifiedIdentityProvider(value: string): UnifiedIdentityProvider {
   const provider = String(value ?? "").trim().toLowerCase();
   if (!(UNIFIED_IDENTITY_PROVIDERS as readonly string[]).includes(provider)) {
@@ -1122,6 +2029,32 @@ export function parseUnifiedAccount(value: unknown): UnifiedAccount {
     merged_into_account_id: optionalIdentifier("merged_into_account_id", value.merged_into_account_id),
     credentials,
     memberships,
+    security_posture: parseIdentitySecurityPosture(value.security_posture),
+  };
+}
+
+function parseIdentitySecurityPosture(value: unknown): UnifiedAccount["security_posture"] {
+  const posture = isRecord(value) ? value : {};
+  const primaryEmail = isRecord(posture.primary_email) ? posture.primary_email : {};
+  const password = isRecord(posture.password) ? posture.password : {};
+  const twoFactor = isRecord(posture.two_factor) ? posture.two_factor : {};
+  return {
+    primary_email: {
+      present: requireBoolean("primary_email.present", primaryEmail.present ?? false),
+      verified: requireBoolean("primary_email.verified", primaryEmail.verified ?? false),
+      source: primaryEmail.source == null
+        ? null
+        : normalizeUnifiedIdentityProvider(String(primaryEmail.source)),
+    },
+    password: {
+      status: requireEnum("password status", password.status ?? "absent", ["absent", "set"] as const),
+      settable: requireBoolean("password.settable", password.settable ?? true),
+    },
+    two_factor: {
+      status: requireEnum("two factor status", twoFactor.status ?? "disabled", ["disabled", "enabled"] as const),
+      optional: requireBoolean("two_factor.optional", twoFactor.optional ?? true),
+      recommended: requireBoolean("two_factor.recommended", twoFactor.recommended ?? true),
+    },
   };
 }
 
@@ -1536,7 +2469,12 @@ function visitPublicPayload(value: unknown, path: string[]): void {
     const stableErrorCode = normalized === "code"
       && path.length === 1
       && path[0] === "error";
-    const contextuallySafeKey = safeErrorDestination || stableErrorCode;
+    const safeSecurityPostureKey = normalized === "password"
+      && path.length > 0
+      && path[path.length - 1] === "security_posture";
+    const contextuallySafeKey = safeErrorDestination
+      || stableErrorCode
+      || safeSecurityPostureKey;
     if (
       !contextuallySafeKey
       && (

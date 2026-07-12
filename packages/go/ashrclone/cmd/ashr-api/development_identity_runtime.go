@@ -19,7 +19,15 @@ func newDevelopmentIdentityRuntime(
 	if err != nil {
 		return identityRuntime{}, fmt.Errorf("configure development identity memory: %w", err)
 	}
-	runtime := identityRuntime{mode: mode, unifiedIdentity: identity}
+	lifecycle, err := ashrclone.NewIdentityLifecycleService(identity, ashrclone.IdentityLifecycleOptions{
+		GitHubEnabled: envTrue(lookup, "ASHR_GITHUB_OAUTH_ENABLED"),
+		GoogleEnabled: envTrue(lookup, "ASHR_GOOGLE_OAUTH_ENABLED"),
+		Environment:   environment,
+	})
+	if err != nil {
+		return identityRuntime{}, fmt.Errorf("configure development identity lifecycle: %w", err)
+	}
+	runtime := identityRuntime{mode: mode, unifiedIdentity: identity, identityLifecycle: lifecycle}
 	if !envTrue(lookup, "ASHR_IDENTITY_VERIFICATION_ENABLED") {
 		return runtime, nil
 	}

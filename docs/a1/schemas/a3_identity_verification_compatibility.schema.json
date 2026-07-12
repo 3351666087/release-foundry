@@ -1,0 +1,150 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.clone.local/schemas/a1/a3_identity_verification_compatibility.schema.json",
+  "title": "A1 Compatibility Snapshot For A3 Identity Verification",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "calibrated_at",
+    "latest_change_request",
+    "a1_baseline",
+    "authority_boundary",
+    "route_compatibility",
+    "capabilities",
+    "disposition",
+    "safety"
+  ],
+  "properties": {
+    "schema_version": { "const": "ashr.clone.a1_a3_identity_verification_compatibility.v1" },
+    "calibrated_at": { "type": "string", "format": "date-time" },
+    "latest_change_request": {
+      "type": "object",
+      "required": ["ref", "commit_sha", "document_path", "document_blob_sha", "a3_code_imported"],
+      "properties": {
+        "ref": { "const": "origin/codex/a3-commercial-growth-round4" },
+        "commit_sha": { "$ref": "#/$defs/gitSha" },
+        "document_path": { "const": "docs/a3/a1_identity_verification_contract_change_request_2026_07_11.md" },
+        "document_blob_sha": { "$ref": "#/$defs/gitSha" },
+        "a3_code_imported": { "const": false }
+      },
+      "additionalProperties": false
+    },
+    "a1_baseline": {
+      "type": "object",
+      "required": ["ref", "commit_sha", "source_blobs"],
+      "properties": {
+        "ref": { "const": "origin/codex/a1-local-sdk-runner" },
+        "commit_sha": { "$ref": "#/$defs/gitSha" },
+        "source_blobs": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": { "$ref": "#/$defs/gitSha" }
+        }
+      },
+      "additionalProperties": false
+    },
+    "authority_boundary": {
+      "type": "object",
+      "required": ["a1", "a3", "judge_semantics_changed", "dashboard_business_changed"],
+      "properties": {
+        "a1": { "const": "identity backend, session transport, verification delivery, route facts" },
+        "a3": { "const": "capability-aware product UI and public API reference" },
+        "judge_semantics_changed": { "const": false },
+        "dashboard_business_changed": { "const": false }
+      },
+      "additionalProperties": false
+    },
+    "route_compatibility": {
+      "type": "array",
+      "minItems": 3,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "required": ["method", "path", "implemented_dispatch", "public_manifest_advertised", "source"],
+        "properties": {
+          "method": { "enum": ["GET", "POST"] },
+          "path": { "type": "string", "pattern": "^/" },
+          "implemented_dispatch": { "const": true },
+          "public_manifest_advertised": { "type": "boolean" },
+          "source": { "type": "string", "pattern": "^packages/go/ashrclone/" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "status", "request_requirement", "current_fact", "source_evidence"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,95}$" },
+          "status": { "enum": ["supported", "partial", "blocked"] },
+          "request_requirement": { "type": "string", "minLength": 1 },
+          "current_fact": { "type": "string", "minLength": 1 },
+          "source_evidence": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": { "type": "string", "pattern": "^(packages/go/ashrclone/|tests/a1/)" }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "disposition": {
+      "type": "object",
+      "required": [
+        "change_request_resolved",
+        "newly_supported_since_request",
+        "blocking_capability_ids",
+        "a3_should_fail_closed",
+        "unsupported_routes_claimed"
+      ],
+      "properties": {
+        "change_request_resolved": { "const": false },
+        "newly_supported_since_request": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string" }
+        },
+        "blocking_capability_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string" }
+        },
+        "a3_should_fail_closed": { "const": true },
+        "unsupported_routes_claimed": { "const": false }
+      },
+      "additionalProperties": false
+    },
+    "safety": {
+      "type": "object",
+      "required": [
+        "public_safe",
+        "secret_values_included",
+        "raw_identifiers_included",
+        "tokens_or_codes_included",
+        "a3_runtime_imported",
+        "a2_judge_imported"
+      ],
+      "properties": {
+        "public_safe": { "const": true },
+        "secret_values_included": { "const": false },
+        "raw_identifiers_included": { "const": false },
+        "tokens_or_codes_included": { "const": false },
+        "a3_runtime_imported": { "const": false },
+        "a2_judge_imported": { "const": false }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "gitSha": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{40}$"
+    }
+  },
+  "additionalProperties": false
+}

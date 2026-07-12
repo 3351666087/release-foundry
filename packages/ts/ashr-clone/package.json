@@ -32,6 +32,10 @@
       "types": "./dist/billing.d.ts",
       "import": "./dist/billing.js"
     },
+    "./browser-session": {
+      "types": "./dist/browser-session.d.ts",
+      "import": "./dist/browser-session.js"
+    },
     "./calibrate": {
       "types": "./dist/calibrate.d.ts",
       "import": "./dist/calibrate.js"
@@ -106,6 +110,7 @@
     }
   },
   "bin": {
+    "ashr-clone-browser-session": "./dist/browser-session-cli.js",
     "ashr-clone-account-readiness": "./dist/account-readiness-cli.js",
     "ashr-clone-account-connections": "./dist/account-connections-cli.js",
     "ashr-clone-api-probe": "./dist/probe.js",

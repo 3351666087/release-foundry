@@ -3,14 +3,19 @@ from __future__ import annotations
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import json
 import re
+import time
 from threading import RLock
 from typing import Any, Callable, Mapping, Protocol, Sequence, TypeVar
+from urllib.error import HTTPError, URLError
 from urllib.parse import quote
+from urllib.request import Request, urlopen
 
 from .api_client import redact_text
 
 UNIFIED_IDENTITY_SCHEMA_VERSION = "ashr.clone.unified_identity.v1"
+A3_IDENTITY_CONTRACT_SCHEMA_VERSION = "ashr.clone.a3_identity.v1"
 UNIFIED_IDENTITY_PROVIDERS = (
     "github",
     "google",
@@ -96,6 +101,38 @@ UNIFIED_IDENTITY_ERROR_CODES = (
     "identity_verification_rate_limited",
     "identity_verification_resend_too_soon",
     "identity_store_failed",
+)
+A3_IDENTITY_FLOW_OPERATIONS = (
+    "provider_status",
+    "register_start",
+    "register_complete",
+    "login_start",
+    "login_complete",
+    "link_start",
+    "link_complete",
+    "unlink",
+    "password_set",
+    "password_change",
+    "two_factor_enroll",
+    "two_factor_verify",
+    "two_factor_recovery",
+    "two_factor_disable",
+)
+A3_IDENTITY_FLOW_STATUSES = (
+    "pending",
+    "verification_required",
+    "authenticated",
+    "completed",
+    "conflict",
+    "merge_required",
+    "unavailable",
+    "failed",
+)
+A3_IDENTITY_ROUTE_LIFECYCLES = (
+    "active",
+    "proposed",
+    "non_routable",
+    "unavailable",
 )
 
 _FORBIDDEN_PUBLIC_KEYS = {
@@ -223,6 +260,750 @@ def unified_identity_contract_manifest() -> dict[str, Any]:
     }
 
 
+def a3_identity_contract_manifest() -> dict[str, Any]:
+    """Stable dashboard-facing identity flow contract.
+
+    This describes orchestration semantics only. Provider secrets, raw identity
+    values, password material, OTPs, and browser session tokens remain transport
+    owned and must not enter A3 payloads.
+    """
+
+    def route(
+        operation: str,
+        method: str,
+        path: str,
+        lifecycle: str,
+    ) -> dict[str, Any]:
+        if lifecycle not in A3_IDENTITY_ROUTE_LIFECYCLES:
+            raise AssertionError("invalid A3 identity route lifecycle")
+        return {
+            "operation": operation,
+            "method": method,
+            "path": path,
+            "lifecycle": lifecycle,
+            "client_callable": lifecycle == "active",
+        }
+
+    routes = [
+        route("provider_status", "GET", "/v1/identity/providers", "active"),
+        route("register_start", "POST", "/v1/identity/registration/start", "active"),
+        route("register_complete", "POST", "/v1/identity/registration/complete", "active"),
+        route("login_start", "POST", "/v1/identity/login/start", "active"),
+        route("login_complete", "POST", "/v1/identity/login/complete", "active"),
+        route("link_start", "POST", "/v1/accounts/{account_id}/identities/{provider}/link/start", "proposed"),
+        route("link_complete", "POST", "/v1/accounts/{account_id}/identities/{provider}/link/complete", "proposed"),
+        route("unlink", "POST", "/v1/accounts/{account_id}/identities/{credential_id}/unlink", "proposed"),
+        route("password_set", "POST", "/v1/accounts/{account_id}/password/set", "proposed"),
+        route("password_change", "POST", "/v1/accounts/{account_id}/password/change", "proposed"),
+        route("two_factor_enroll", "POST", "/v1/accounts/{account_id}/two-factor/enroll", "proposed"),
+        route("two_factor_verify", "POST", "/v1/accounts/{account_id}/two-factor/verify", "proposed"),
+        route("two_factor_recovery", "POST", "/v1/accounts/{account_id}/two-factor/recovery", "proposed"),
+        route("two_factor_disable", "POST", "/v1/accounts/{account_id}/two-factor/disable", "proposed"),
+    ]
+    providers = [
+        {
+            "provider": "email",
+            "registration": "available",
+            "login": "available",
+            "linking": "proposed",
+            "preferred_registration": True,
+            "requires_business_qualification": False,
+        },
+        {
+            "provider": "github",
+            "registration": "available",
+            "login": "available",
+            "linking": "proposed",
+            "preferred_registration": False,
+            "requires_business_qualification": False,
+        },
+        {
+            "provider": "google",
+            "registration": "available",
+            "login": "available",
+            "linking": "proposed",
+            "preferred_registration": False,
+            "requires_business_qualification": False,
+        },
+        *[
+            {
+                "provider": provider,
+                "registration": "unavailable",
+                "login": "unavailable",
+                "linking": "unavailable",
+                "preferred_registration": False,
+                "requires_business_qualification": True,
+            }
+            for provider in ("wechat", "qq", "alipay")
+        ],
+        {
+            "provider": "phone",
+            "registration": "unavailable",
+            "login": "unavailable",
+            "linking": "unavailable",
+            "preferred_registration": False,
+            "requires_business_qualification": False,
+        },
+    ]
+    return {
+        "schema_version": A3_IDENTITY_CONTRACT_SCHEMA_VERSION,
+        "canonical_subject": "account",
+        "preferred_registration_provider": "email",
+        "operations": list(A3_IDENTITY_FLOW_OPERATIONS),
+        "flow_statuses": list(A3_IDENTITY_FLOW_STATUSES),
+        "routes": routes,
+        "providers": providers,
+        "registration": {
+            "may_create_account": True,
+            "verified_provider_proof_required": True,
+            "oauth_verified_email_may_initialize_canonical_email": True,
+            "oauth_first_password_status": "absent",
+        },
+        "login": {
+            "may_create_account": False,
+            "may_merge_accounts": False,
+            "may_link_credentials": False,
+            "existing_verified_credential_required": True,
+            "unknown_identity_status": "failed",
+            "verified_email_conflict_status": "merge_required",
+            "public_failure_code": "authentication_failed",
+            "public_failure_http_status": 401,
+            "account_enumeration_safe": True,
+            "unknown_and_invalid_secret_share_public_failure": True,
+            "unknown_identity_next_action": None,
+        },
+        "account_mutations": {
+            "link_requires_authenticated_account": True,
+            "link_requires_recent_step_up": True,
+            "link_requires_csrf": True,
+            "unlink_requires_recent_step_up": True,
+            "unlink_requires_csrf": True,
+            "last_login_method_unlink_forbidden": True,
+            "password_set_requires_recent_step_up": True,
+            "password_change_requires_recent_step_up": True,
+            "password_mutation_requires_csrf": True,
+            "two_factor_mutation_requires_recent_step_up": True,
+            "two_factor_mutation_requires_csrf": True,
+            "two_factor_optional": True,
+            "two_factor_recommended": True,
+        },
+        "a3_response_envelope": {
+            "required": ["schema_version", "operation", "status", "provider", "account"],
+            "account_nullable_before_completion": True,
+            "conflict_code_field": "conflict.code",
+            "next_action_field": "next_action",
+            "raw_identity_values_present": False,
+            "secret_values_present": False,
+        },
+    }
+
+
+def a3_identity_provider_status_route() -> str:
+    return "/v1/identity/providers"
+
+
+def a3_identity_registration_start_route() -> str:
+    return "/v1/identity/registration/start"
+
+
+def a3_identity_registration_complete_route() -> str:
+    return "/v1/identity/registration/complete"
+
+
+def a3_identity_login_start_route() -> str:
+    return "/v1/identity/login/start"
+
+
+def a3_identity_login_complete_route() -> str:
+    return "/v1/identity/login/complete"
+
+
+def _reject_caller_asserted_verification(payload: Mapping[str, Any]) -> None:
+    if any(
+        "".join(character for character in str(key).lower() if character.isalnum())
+        in {"verified", "isverified", "verificationstatus"}
+        for key in payload
+    ):
+        raise UnifiedIdentityContractError(
+            "public identity flow DTO cannot assert verification state"
+        )
+
+
+@dataclass(frozen=True)
+class IdentityRegistrationStartRequest:
+    provider: str
+    tenant_id: str
+    project_id: str
+
+    @classmethod
+    def from_public_request(
+        cls, payload: Mapping[str, Any]
+    ) -> "IdentityRegistrationStartRequest":
+        _reject_caller_asserted_verification(payload)
+        return cls(
+            provider=normalize_identity_provider(str(payload.get("provider") or "")),
+            tenant_id=_identifier("tenant_id", payload.get("tenant_id")),
+            project_id=_identifier("project_id", payload.get("project_id")),
+        )
+
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "provider": self.provider,
+            "tenant_id": self.tenant_id,
+            "project_id": self.project_id,
+        }
+
+
+@dataclass(frozen=True)
+class IdentityRegistrationCompleteRequest:
+    proof_receipt_id: str
+    tenant_id: str
+    project_id: str
+
+    @classmethod
+    def from_public_request(
+        cls, payload: Mapping[str, Any]
+    ) -> "IdentityRegistrationCompleteRequest":
+        _reject_caller_asserted_verification(payload)
+        return cls(
+            proof_receipt_id=_identifier(
+                "proof_receipt_id", payload.get("proof_receipt_id")
+            ),
+            tenant_id=_identifier("tenant_id", payload.get("tenant_id")),
+            project_id=_identifier("project_id", payload.get("project_id")),
+        )
+
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "proof_receipt_id": self.proof_receipt_id,
+            "tenant_id": self.tenant_id,
+            "project_id": self.project_id,
+        }
+
+
+@dataclass(frozen=True)
+class IdentityLoginStartRequest:
+    provider: str
+    tenant_id: str
+    project_id: str
+
+    @classmethod
+    def from_public_request(
+        cls, payload: Mapping[str, Any]
+    ) -> "IdentityLoginStartRequest":
+        _reject_caller_asserted_verification(payload)
+        return cls(
+            provider=normalize_identity_provider(str(payload.get("provider") or "")),
+            tenant_id=_identifier("tenant_id", payload.get("tenant_id")),
+            project_id=_identifier("project_id", payload.get("project_id")),
+        )
+
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "provider": self.provider,
+            "tenant_id": self.tenant_id,
+            "project_id": self.project_id,
+        }
+
+
+@dataclass(frozen=True)
+class IdentityLoginCompleteRequest:
+    proof_receipt_id: str
+    tenant_id: str
+    project_id: str
+
+    @classmethod
+    def from_public_request(
+        cls, payload: Mapping[str, Any]
+    ) -> "IdentityLoginCompleteRequest":
+        _reject_caller_asserted_verification(payload)
+        return cls(
+            proof_receipt_id=_identifier(
+                "proof_receipt_id", payload.get("proof_receipt_id")
+            ),
+            tenant_id=_identifier("tenant_id", payload.get("tenant_id")),
+            project_id=_identifier("project_id", payload.get("project_id")),
+        )
+
+    def to_dict(self) -> dict[str, str]:
+        return {
+            "proof_receipt_id": self.proof_receipt_id,
+            "tenant_id": self.tenant_id,
+            "project_id": self.project_id,
+        }
+
+
+@dataclass(frozen=True)
+class IdentityLifecycleSecurity:
+    server_verified_proof_required: bool
+    recent_reauthentication_required: bool
+    csrf_required: bool
+    account_enumeration_safe: bool
+
+    @classmethod
+    def from_public_response(
+        cls, payload: Mapping[str, Any]
+    ) -> "IdentityLifecycleSecurity":
+        return cls(
+            server_verified_proof_required=_boolean(
+                "server_verified_proof_required",
+                payload.get("server_verified_proof_required"),
+            ),
+            recent_reauthentication_required=_boolean(
+                "recent_reauthentication_required",
+                payload.get("recent_reauthentication_required"),
+            ),
+            csrf_required=_boolean("csrf_required", payload.get("csrf_required")),
+            account_enumeration_safe=_boolean(
+                "account_enumeration_safe",
+                payload.get("account_enumeration_safe"),
+            ),
+        )
+
+
+@dataclass(frozen=True)
+class IdentityLifecycleAccount:
+    account_id: str
+    password_status: str
+    two_factor_status: str
+    two_factor_optional: bool
+    two_factor_recommended: bool
+
+    @classmethod
+    def from_public_response(
+        cls, payload: Mapping[str, Any]
+    ) -> "IdentityLifecycleAccount":
+        two_factor = _required_mapping("two_factor", payload.get("two_factor"))
+        return cls(
+            account_id=_identifier("account_id", payload.get("account_id")),
+            password_status=_enum(
+                "password_status", payload.get("password_status"), ("absent", "set")
+            ),
+            two_factor_status=_enum(
+                "two_factor.status",
+                two_factor.get("status"),
+                ("disabled", "pending", "enabled", "recovery_required"),
+            ),
+            two_factor_optional=_boolean(
+                "two_factor.optional", two_factor.get("optional")
+            ),
+            two_factor_recommended=_boolean(
+                "two_factor.recommended", two_factor.get("recommended")
+            ),
+        )
+
+
+@dataclass(frozen=True)
+class IdentityLifecyclePublicError:
+    code: str
+    http_status: int
+    anti_enumeration: bool
+    retryable: bool
+    public_safe: bool
+
+    @classmethod
+    def from_public_response(
+        cls, payload: Mapping[str, Any]
+    ) -> "IdentityLifecyclePublicError":
+        public_safe = _boolean("error.public_safe", payload.get("public_safe"))
+        if not public_safe:
+            raise UnifiedIdentityContractError("identity error is not public-safe")
+        status = _non_negative_int("error.http_status", payload.get("http_status"))
+        if status < 400 or status > 599:
+            raise UnifiedIdentityContractError("identity error HTTP status is invalid")
+        return cls(
+            code=_identifier("error.code", payload.get("code")),
+            http_status=status,
+            anti_enumeration=_boolean(
+                "error.anti_enumeration", payload.get("anti_enumeration")
+            ),
+            retryable=_boolean("error.retryable", payload.get("retryable")),
+            public_safe=public_safe,
+        )
+
+
+@dataclass(frozen=True)
+class IdentityLifecycleEnvelope:
+    schema_version: str
+    operation: str
+    status: str
+    provider: str
+    account: IdentityLifecycleAccount | None
+    next_action: str
+    security: IdentityLifecycleSecurity
+    receipt_id: str | None = None
+    expires_at: str | None = None
+    authenticated_at: str | None = None
+    error: IdentityLifecyclePublicError | None = None
+
+    @classmethod
+    def from_public_response(
+        cls, payload: Mapping[str, Any]
+    ) -> "IdentityLifecycleEnvelope":
+        _assert_public_safe(payload)
+        schema_version = str(payload.get("schema_version") or "")
+        if schema_version != A3_IDENTITY_CONTRACT_SCHEMA_VERSION:
+            raise UnifiedIdentityContractError(
+                "unsupported identity lifecycle schema version"
+            )
+        account_value = payload.get("account")
+        error_value = payload.get("error")
+        receipt_value = payload.get("receipt_id")
+        expires_value = payload.get("expires_at")
+        authenticated_value = payload.get("authenticated_at")
+        return cls(
+            schema_version=schema_version,
+            operation=_enum(
+                "operation", payload.get("operation"), A3_IDENTITY_FLOW_OPERATIONS
+            ),
+            status=_enum("status", payload.get("status"), A3_IDENTITY_FLOW_STATUSES),
+            provider=normalize_identity_provider(str(payload.get("provider") or "")),
+            account=(
+                IdentityLifecycleAccount.from_public_response(account_value)
+                if isinstance(account_value, Mapping)
+                else None
+            ),
+            next_action=_enum(
+                "next_action",
+                payload.get("next_action"),
+                (
+                    "verify_email",
+                    "complete_provider",
+                    "reauthenticate",
+                    "enroll_two_factor",
+                    "resolve_conflict",
+                    "contact_support",
+                    "none",
+                ),
+            ),
+            security=IdentityLifecycleSecurity.from_public_response(
+                _required_mapping("security", payload.get("security"))
+            ),
+            receipt_id=(
+                _identifier("receipt_id", receipt_value) if receipt_value else None
+            ),
+            expires_at=(
+                _timestamp("expires_at", expires_value) if expires_value else None
+            ),
+            authenticated_at=(
+                _timestamp("authenticated_at", authenticated_value)
+                if authenticated_value
+                else None
+            ),
+            error=(
+                IdentityLifecyclePublicError.from_public_response(error_value)
+                if isinstance(error_value, Mapping)
+                else None
+            ),
+        )
+
+
+@dataclass(frozen=True)
+class IdentityProviderCapability:
+    provider: str
+    preferred: bool
+    enabled: bool
+    code_capability: str
+    deployment_readiness: str
+    deployment_status_source: str
+    environment: str
+    qualification_status: str
+    requires_business_qualification: bool
+    registration_status: str
+    login_status: str
+    linking_status: str
+    reason_code: str | None = None
+
+    @classmethod
+    def from_public_response(
+        cls, payload: Mapping[str, Any]
+    ) -> "IdentityProviderCapability":
+        _assert_public_safe(payload)
+        reason_value = payload.get("reason_code")
+        return cls(
+            provider=normalize_identity_provider(str(payload.get("provider") or "")),
+            preferred=_boolean("preferred", payload.get("preferred")),
+            enabled=_boolean("enabled", payload.get("enabled")),
+            code_capability=_enum(
+                "code_capability",
+                payload.get("code_capability"),
+                ("implemented", "adapter_only", "contract_only"),
+            ),
+            deployment_readiness=_enum(
+                "deployment_readiness",
+                payload.get("deployment_readiness"),
+                ("ready", "configuration_required", "blocked"),
+            ),
+            deployment_status_source=_enum(
+                "deployment_status_source",
+                payload.get("deployment_status_source"),
+                ("runtime_configuration", "business_qualification"),
+            ),
+            environment=_identifier("environment", payload.get("environment")),
+            qualification_status=_enum(
+                "qualification_status",
+                payload.get("qualification_status"),
+                ("not_required", "required", "approved", "unavailable"),
+            ),
+            requires_business_qualification=_boolean(
+                "requires_business_qualification",
+                payload.get("requires_business_qualification"),
+            ),
+            registration_status=_enum(
+                "registration_status",
+                payload.get("registration_status"),
+                ("available", "unavailable"),
+            ),
+            login_status=_enum(
+                "login_status",
+                payload.get("login_status"),
+                ("available", "unavailable"),
+            ),
+            linking_status=_enum(
+                "linking_status",
+                payload.get("linking_status"),
+                ("available", "proposed", "unavailable"),
+            ),
+            reason_code=(
+                _enum(
+                    "reason_code",
+                    reason_value,
+                    (
+                        "provider_not_configured",
+                        "business_qualification_required",
+                        "phone_verification_unavailable",
+                    ),
+                )
+                if reason_value
+                else None
+            ),
+        )
+
+
+@dataclass(frozen=True)
+class IdentityProviderCapabilities:
+    schema_version: str
+    providers: tuple[IdentityProviderCapability, ...]
+
+    @classmethod
+    def from_public_response(
+        cls, payload: Mapping[str, Any]
+    ) -> "IdentityProviderCapabilities":
+        _assert_public_safe(payload)
+        schema_version = _identifier("schema_version", payload.get("schema_version"))
+        return cls(
+            schema_version=schema_version,
+            providers=tuple(
+                IdentityProviderCapability.from_public_response(item)
+                for item in _mapping_sequence("providers", payload.get("providers"))
+            ),
+        )
+
+
+class IdentityLifecycleHTTPError(RuntimeError):
+    """Structured public-safe lifecycle failure without raw response leakage."""
+
+    def __init__(self, error: IdentityLifecyclePublicError) -> None:
+        super().__init__(error.code)
+        self.error = error
+        self.code = error.code
+        self.http_status = error.http_status
+        self.retryable = error.retryable
+        self.anti_enumeration = error.anti_enumeration
+        self.public_safe = error.public_safe
+
+
+class IdentityLifecycleTransportError(RuntimeError):
+    def __init__(self, *, retryable: bool) -> None:
+        super().__init__("identity lifecycle transport unavailable")
+        self.code = "identity_lifecycle_transport_unavailable"
+        self.retryable = retryable
+        self.public_safe = True
+
+
+@dataclass(frozen=True)
+class IdentityLifecycleHTTPResponse:
+    status: int
+    payload: Mapping[str, Any]
+
+
+IdentityLifecycleTransport = Callable[
+    [str, str, Mapping[str, Any], float], IdentityLifecycleHTTPResponse
+]
+
+
+class IdentityLifecycleHTTPClient:
+    """Registration/login HTTP client with conservative retry semantics."""
+
+    _RETRYABLE_STATUS_CODES = frozenset({429, 502, 503, 504})
+
+    def __init__(
+        self,
+        base_url: str,
+        *,
+        transport: IdentityLifecycleTransport | None = None,
+        timeout_seconds: float = 10.0,
+        max_retries: int = 2,
+        retry_backoff_seconds: float = 0.1,
+        sleep: Callable[[float], None] = time.sleep,
+    ) -> None:
+        normalized = str(base_url or "").strip().rstrip("/")
+        if not normalized.startswith(("http://", "https://")):
+            raise UnifiedIdentityContractError("base_url must be HTTP or HTTPS")
+        if timeout_seconds <= 0:
+            raise UnifiedIdentityContractError("timeout_seconds must be positive")
+        if max_retries < 0:
+            raise UnifiedIdentityContractError("max_retries must be non-negative")
+        if retry_backoff_seconds < 0:
+            raise UnifiedIdentityContractError(
+                "retry_backoff_seconds must be non-negative"
+            )
+        self.base_url = normalized
+        self._transport = transport or _default_identity_lifecycle_transport
+        self.timeout_seconds = float(timeout_seconds)
+        self.max_retries = int(max_retries)
+        self.retry_backoff_seconds = float(retry_backoff_seconds)
+        self._sleep = sleep
+
+    def provider_capabilities(self) -> IdentityProviderCapabilities:
+        response = self._request(
+            "GET", a3_identity_provider_status_route(), {}, retry_safe=True
+        )
+        if response.status != 200:
+            raise IdentityLifecycleTransportError(retryable=False)
+        return IdentityProviderCapabilities.from_public_response(response.payload)
+
+    def registration_start(
+        self, request: IdentityRegistrationStartRequest
+    ) -> IdentityLifecycleEnvelope:
+        return self._lifecycle_request(
+            a3_identity_registration_start_route(),
+            request.to_dict(),
+            expected_operation="register_start",
+            retry_safe=False,
+        )
+
+    def registration_complete(
+        self, request: IdentityRegistrationCompleteRequest
+    ) -> IdentityLifecycleEnvelope:
+        payload = request.to_dict()
+        payload["receipt_id"] = payload.pop("proof_receipt_id")
+        return self._lifecycle_request(
+            a3_identity_registration_complete_route(),
+            payload,
+            expected_operation="register_complete",
+            retry_safe=False,
+        )
+
+    def login_start(
+        self, request: IdentityLoginStartRequest
+    ) -> IdentityLifecycleEnvelope:
+        return self._lifecycle_request(
+            a3_identity_login_start_route(),
+            request.to_dict(),
+            expected_operation="login_start",
+            retry_safe=False,
+        )
+
+    def login_complete(
+        self, request: IdentityLoginCompleteRequest
+    ) -> IdentityLifecycleEnvelope:
+        payload = request.to_dict()
+        payload["receipt_id"] = payload.pop("proof_receipt_id")
+        return self._lifecycle_request(
+            a3_identity_login_complete_route(),
+            payload,
+            expected_operation="login_complete",
+            retry_safe=False,
+        )
+
+    def _lifecycle_request(
+        self,
+        path: str,
+        payload: Mapping[str, Any],
+        *,
+        expected_operation: str,
+        retry_safe: bool,
+    ) -> IdentityLifecycleEnvelope:
+        response = self._request("POST", path, payload, retry_safe=retry_safe)
+        envelope = IdentityLifecycleEnvelope.from_public_response(response.payload)
+        if envelope.operation != expected_operation:
+            raise UnifiedIdentityContractError(
+                "identity lifecycle response operation mismatch"
+            )
+        if envelope.error is not None:
+            raise IdentityLifecycleHTTPError(envelope.error)
+        if response.status < 200 or response.status >= 300:
+            raise IdentityLifecycleTransportError(retryable=False)
+        return envelope
+
+    def _request(
+        self,
+        method: str,
+        path: str,
+        payload: Mapping[str, Any],
+        *,
+        retry_safe: bool,
+    ) -> IdentityLifecycleHTTPResponse:
+        _assert_public_safe(payload)
+        attempts = self.max_retries + 1 if retry_safe else 1
+        for attempt in range(attempts):
+            try:
+                response = self._transport(
+                    method,
+                    f"{self.base_url}{path}",
+                    dict(payload),
+                    self.timeout_seconds,
+                )
+            except (TimeoutError, OSError, URLError):
+                if attempt + 1 >= attempts:
+                    raise IdentityLifecycleTransportError(
+                        retryable=retry_safe
+                    ) from None
+                self._sleep(self.retry_backoff_seconds * (2**attempt))
+                continue
+            if not isinstance(response, IdentityLifecycleHTTPResponse):
+                raise UnifiedIdentityContractError(
+                    "identity lifecycle transport returned an invalid response"
+                )
+            if (
+                retry_safe
+                and response.status in self._RETRYABLE_STATUS_CODES
+                and attempt + 1 < attempts
+            ):
+                self._sleep(self.retry_backoff_seconds * (2**attempt))
+                continue
+            return response
+        raise AssertionError("identity lifecycle retry loop exhausted")
+
+
+def _default_identity_lifecycle_transport(
+    method: str, url: str, payload: Mapping[str, Any], timeout_seconds: float
+) -> IdentityLifecycleHTTPResponse:
+    data = None
+    headers = {"Accept": "application/json"}
+    if method != "GET":
+        data = json.dumps(dict(payload), separators=(",", ":")).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+    request = Request(url, data=data, headers=headers, method=method)
+    try:
+        with urlopen(request, timeout=timeout_seconds) as response:
+            body = response.read()
+            status = int(response.status)
+    except HTTPError as exc:
+        body = exc.read()
+        status = int(exc.code)
+    try:
+        decoded = json.loads(body.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise IdentityLifecycleTransportError(retryable=status >= 500) from exc
+    if not isinstance(decoded, Mapping):
+        raise UnifiedIdentityContractError(
+            "identity lifecycle response must be a JSON object"
+        )
+    return IdentityLifecycleHTTPResponse(status=status, payload=decoded)
+
+
 @dataclass(frozen=True)
 class IdentityCredential:
     credential_id: str
@@ -326,6 +1107,7 @@ class UnifiedAccount:
     merged_into_account_id: str | None = None
     credentials: tuple[IdentityCredential, ...] = ()
     memberships: tuple[IdentityMembership, ...] = ()
+    security_posture: Mapping[str, Any] | None = None
 
     @classmethod
     def from_public_response(cls, payload: Mapping[str, Any]) -> "UnifiedAccount":
@@ -357,6 +1139,7 @@ class UnifiedAccount:
             ),
             credentials=credentials,
             memberships=memberships,
+            security_posture=_security_posture(payload.get("security_posture")),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -370,7 +1153,34 @@ class UnifiedAccount:
             "merged_into_account_id": self.merged_into_account_id,
             "credentials": [item.to_dict() for item in self.credentials],
             "memberships": [item.to_dict() for item in self.memberships],
+            "security_posture": dict(self.security_posture or _security_posture(None)),
         }
+
+
+def _security_posture(value: Any) -> dict[str, Any]:
+    payload = value if isinstance(value, Mapping) else {}
+    email = payload.get("primary_email") if isinstance(payload.get("primary_email"), Mapping) else {}
+    password = payload.get("password") if isinstance(payload.get("password"), Mapping) else {}
+    two_factor = payload.get("two_factor") if isinstance(payload.get("two_factor"), Mapping) else {}
+    source = None
+    if email.get("source") is not None:
+        source = normalize_identity_provider(str(email["source"]))
+    return {
+        "primary_email": {
+            "present": _boolean("primary_email.present", email.get("present", False)),
+            "verified": _boolean("primary_email.verified", email.get("verified", False)),
+            "source": source,
+        },
+        "password": {
+            "status": _enum("password status", password.get("status", "absent"), ("absent", "set")),
+            "settable": _boolean("password.settable", password.get("settable", True)),
+        },
+        "two_factor": {
+            "status": _enum("two factor status", two_factor.get("status", "disabled"), ("disabled", "enabled")),
+            "optional": _boolean("two_factor.optional", two_factor.get("optional", True)),
+            "recommended": _boolean("two_factor.recommended", two_factor.get("recommended", True)),
+        },
+    }
 
 
 @dataclass(frozen=True)
@@ -1612,7 +2422,16 @@ def _assert_public_safe(payload: Mapping[str, Any]) -> None:
                     and _is_safe_error_destination(item)
                 )
                 stable_error_code = normalized == "code" and path == ("error",)
-                if not (safe_error_destination or stable_error_code) and (
+                safe_security_posture_key = (
+                    normalized == "password"
+                    and bool(path)
+                    and path[-1] == "security_posture"
+                )
+                if not (
+                    safe_error_destination
+                    or stable_error_code
+                    or safe_security_posture_key
+                ) and (
                     normalized in _FORBIDDEN_PUBLIC_KEYS
                     or normalized.endswith(_FORBIDDEN_KEY_SUFFIXES)
                     or canonical in _FORBIDDEN_CANONICAL_KEYS
@@ -1753,6 +2572,12 @@ def _mapping_sequence(name: str, value: Any) -> tuple[Mapping[str, Any], ...]:
     if any(not isinstance(item, Mapping) for item in value):
         raise UnifiedIdentityContractError(f"{name} entries must be objects")
     return tuple(value)
+
+
+def _required_mapping(name: str, value: Any) -> Mapping[str, Any]:
+    if not isinstance(value, Mapping):
+        raise UnifiedIdentityContractError(f"{name} must be an object")
+    return value
 
 
 def _scalar_sequence(name: str, value: Any) -> tuple[Any, ...]:

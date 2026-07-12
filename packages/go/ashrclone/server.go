@@ -16,6 +16,7 @@ type HTTPServer struct {
 	paymentReconciliation              *PaymentReconciliationService
 	paymentDomain                      *PaymentDomainService
 	unifiedIdentity                    *UnifiedIdentityService
+	identityLifecycle                  *IdentityLifecycleService
 	identitySessions                   IdentityHTTPSessionResolver
 	identityVerification               *IdentityVerificationService
 	identityVerificationResponsePolicy *IdentityVerificationResponsePolicy
@@ -65,6 +66,7 @@ type HTTPServerOptions struct {
 	PaymentReconciliation              *PaymentReconciliationService
 	PaymentDomain                      *PaymentDomainService
 	UnifiedIdentity                    *UnifiedIdentityService
+	IdentityLifecycle                  *IdentityLifecycleService
 	IdentitySessions                   IdentityHTTPSessionResolver
 	IdentityVerification               *IdentityVerificationService
 	IdentityVerificationResponsePolicy *IdentityVerificationResponsePolicy
@@ -98,6 +100,7 @@ func NewHTTPServerWithOptions(service ControlPlaneBackend, options HTTPServerOpt
 		paymentReconciliation:              options.PaymentReconciliation,
 		paymentDomain:                      options.PaymentDomain,
 		unifiedIdentity:                    options.UnifiedIdentity,
+		identityLifecycle:                  options.IdentityLifecycle,
 		identitySessions:                   options.IdentitySessions,
 		identityVerification:               options.IdentityVerification,
 		identityVerificationResponsePolicy: options.IdentityVerificationResponsePolicy,
@@ -139,6 +142,10 @@ func (server *HTTPServer) ServeHTTP(writer http.ResponseWriter, request *http.Re
 		}
 	}
 	parts := pathParts(request.URL.Path)
+	if len(parts) >= 2 && parts[0] == "v1" && parts[1] == "identity" {
+		server.handleIdentityLifecycle(writer, request, parts[2:])
+		return
+	}
 	if len(parts) == 3 && parts[0] == "v1" && parts[1] == "identity-verification" {
 		server.handleIdentityVerification(writer, request, parts[2])
 		return
@@ -946,6 +953,11 @@ func GoRouteManifestEntries() []RouteManifestEntry {
 		goPublicRoute("GET", "/v1/healthz", "health", "system"),
 		goPublicRoute("GET", "/openapi.json", "openapi", "system"),
 		goPublicRoute("GET", "/v1/openapi.json", "openapi", "system"),
+		goPublicRoute("GET", "/v1/identity/providers", "identity.providers.list", "identity"),
+		goPublicRoute("POST", "/v1/identity/registration/start", "identity.registration.start", "identity"),
+		goPublicRoute("POST", "/v1/identity/registration/complete", "identity.registration.complete", "identity"),
+		goPublicRoute("POST", "/v1/identity/login/start", "identity.login.start", "identity"),
+		goPublicRoute("POST", "/v1/identity/login/complete", "identity.login.complete", "identity"),
 		goScopedRoute("GET", "/v1/accounts/{account_id}", "identity.account.get", "identity"),
 		goScopedRoute("GET", "/v1/accounts/{account_id}/credentials", "identity.credentials.list", "identity"),
 		goScopedRoute("GET", "/v1/accounts/{account_id}/memberships", "identity.memberships.list", "identity"),

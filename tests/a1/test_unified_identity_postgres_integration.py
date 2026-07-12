@@ -68,6 +68,34 @@ def _rows(result: subprocess.CompletedProcess[str]) -> list[str]:
     ]
 
 
+def _wait_for_postgres(timeout_seconds: float = 30.0) -> None:
+    deadline = time.monotonic() + timeout_seconds
+    last_error = ""
+    while time.monotonic() < deadline:
+        ready = _docker(
+            "exec",
+            CONTAINER,
+            "pg_isready",
+            "-U",
+            "postgres",
+            "-d",
+            "postgres",
+            check=False,
+        )
+        if ready.returncode == 0:
+            probe = _psql("postgres", "SELECT 1;", check=False)
+            if probe.returncode == 0 and _rows(probe) == ["1"]:
+                return
+            last_error = probe.stderr.strip() or probe.stdout.strip()
+        else:
+            last_error = ready.stderr.strip() or ready.stdout.strip()
+        time.sleep(0.25)
+    pytest.fail(
+        f"PostgreSQL container {CONTAINER!r} did not become SQL-ready within "
+        f"{timeout_seconds:.0f}s: {last_error}"
+    )
+
+
 @pytest.fixture
 def identity_database() -> str:
     available = _docker(
@@ -77,6 +105,8 @@ def identity_database() -> str:
         pytest.skip(
             f"disposable PostgreSQL container {CONTAINER!r} is not running"
         )
+
+    _wait_for_postgres()
 
     role = _psql(
         "postgres",

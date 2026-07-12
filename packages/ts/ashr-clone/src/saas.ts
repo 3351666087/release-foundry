@@ -122,6 +122,10 @@ export const HOSTED_ROUTE_SCOPE_REQUIREMENTS: Record<string, string[]> = {
 };
 
 export const UNSUPPORTED_GO_ROUTE_GAPS: Record<string, { reason: string; replacement_route?: string; consumer_action: string }> = {
+  "GET /v1/identity/providers": {
+    reason: "Go exposes the A3-facing identity provider deployment capability surface; the hosted SaaS client does not yet own identity lifecycle transport.",
+    consumer_action: "consume through the unified identity SDK until the generated hosted client adopts the typed provider capability DTO",
+  },
   "GET /health": {
     reason: "Go exposes a root health alias; the hosted TS client uses scoped SaaS/OpenAPI helpers instead of consuming this alias.",
     replacement_route: "GET /healthz",
@@ -157,6 +161,22 @@ export const UNSUPPORTED_GO_ROUTE_GAPS: Record<string, { reason: string; replace
     reason: "Go keeps a root bootstrap alias; hosted clients consume the versioned bootstrap route.",
     replacement_route: "POST /v1/bootstrap",
     consumer_action: "keep unsupported until root bootstrap aliases are part of generated SDK contracts",
+  },
+  "POST /v1/identity/login/complete": {
+    reason: "Go owns receipt-backed login completion; the hosted SaaS client intentionally cannot create, merge, or link accounts during login.",
+    consumer_action: "consume through the unified identity SDK after obtaining a server-issued proof receipt",
+  },
+  "POST /v1/identity/login/start": {
+    reason: "Go owns login proof issuance for existing credentials; the hosted SaaS client does not accept caller-asserted verification.",
+    consumer_action: "consume through the unified identity SDK and preserve strict registration/login separation",
+  },
+  "POST /v1/identity/registration/complete": {
+    reason: "Go owns receipt-backed account creation; the hosted SaaS client does not yet expose identity registration transport.",
+    consumer_action: "consume through the unified identity SDK after obtaining a server-issued proof receipt",
+  },
+  "POST /v1/identity/registration/start": {
+    reason: "Go owns registration proof issuance; the hosted SaaS client does not accept caller-asserted verification.",
+    consumer_action: "consume through the unified identity SDK and preserve strict registration/login separation",
   },
   "POST /v1/projects/{project_id}/accounts/{account_id}/browser-sessions/refresh": {
     reason: "Go owns the same-origin HttpOnly cookie refresh boundary; the hosted JSON client intentionally accepts neither raw refresh cookies nor digest payloads for this browser-only route.",

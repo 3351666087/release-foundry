@@ -54,6 +54,31 @@ BEGIN
   SELECT session_row.*
     INTO current_session
     FROM identity_sessions AS session_row
+   WHERE session_row.refresh_digest = p_refresh_digest;
+  IF NOT FOUND
+     OR current_session.project_id <> p_project_id
+     OR current_session.principal_id <> p_principal_id
+     OR current_session.organization_id IS NULL
+     OR current_session.refresh_expires_at IS NULL THEN
+    RAISE EXCEPTION 'identity refresh is unavailable'
+      USING ERRCODE = '42501';
+  END IF;
+
+  -- Match the core rotation lock order. A concurrent retry that waits here
+  -- receives a fresh statement snapshot before re-reading the session row,
+  -- so it can deterministically replay the committed lifecycle operation.
+  PERFORM 1
+    FROM identity_principals AS principal
+   WHERE principal.id = current_session.principal_id
+   FOR UPDATE;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'identity refresh is unavailable'
+      USING ERRCODE = '42501';
+  END IF;
+
+  SELECT session_row.*
+    INTO current_session
+    FROM identity_sessions AS session_row
    WHERE session_row.refresh_digest = p_refresh_digest
    FOR UPDATE;
   IF NOT FOUND

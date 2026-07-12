@@ -1,0 +1,7 @@
+{{- include "ashr.validate" . -}}
+---
+apiVersion: v1
+kind: List
+metadata:
+  name: {{ include "ashr.fullname" . }}-validated-inputs
+items: []

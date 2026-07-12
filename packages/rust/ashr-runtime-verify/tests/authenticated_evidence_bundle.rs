@@ -60,6 +60,7 @@ fn authenticates_manifest_scope_window_and_evidence() {
     let mut policy = VerificationPolicy::at(NOW_UNIX_MS);
     policy.expected_tenant_digest = Some(bundle.tenant_digest.clone());
     policy.expected_project_digest = Some(bundle.project_digest.clone());
+    policy.expected_bundle_id_digest = Some(bundle.bundle_id_digest.clone());
 
     let verified = bundle.verify(&verifier(), &policy).unwrap();
 
@@ -105,6 +106,13 @@ fn rejects_digest_tamper_before_signature_and_wrong_scope() {
     assert_eq!(
         bundle.verify(&verifier(), &wrong_scope).unwrap_err(),
         VerifyError::ScopeMismatch("tenant_digest")
+    );
+
+    let mut wrong_run = VerificationPolicy::at(NOW_UNIX_MS);
+    wrong_run.expected_bundle_id_digest = Some(digest("other run"));
+    assert_eq!(
+        bundle.verify(&verifier(), &wrong_run).unwrap_err(),
+        VerifyError::ScopeMismatch("bundle_id_digest")
     );
 }
 

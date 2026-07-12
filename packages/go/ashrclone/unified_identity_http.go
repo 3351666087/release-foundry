@@ -235,6 +235,7 @@ type publicIdentityAccountView struct {
 	Memberships     []publicIdentityMembershipView `json:"memberships"`
 	CredentialCount int                            `json:"credential_count"`
 	MembershipCount int                            `json:"membership_count"`
+	SecurityPosture IdentitySecurityPostureDTO     `json:"security_posture"`
 	CreatedAt       time.Time                      `json:"created_at"`
 	UpdatedAt       time.Time                      `json:"updated_at"`
 }
@@ -272,6 +273,7 @@ func publicIdentityAccount(account IdentityAccountDTO) publicIdentityAccountView
 		Memberships:     publicIdentityMemberships(account.Memberships),
 		CredentialCount: account.CredentialCount,
 		MembershipCount: account.MembershipCount,
+		SecurityPosture: account.SecurityPosture,
 		CreatedAt:       account.CreatedAt,
 		UpdatedAt:       account.UpdatedAt,
 	}

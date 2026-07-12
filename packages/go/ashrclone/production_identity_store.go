@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -24,10 +25,13 @@ const (
 )
 
 const (
-	defaultIdentitySessionKeyVersion = "v1"
-	identitySessionBearerPrefix      = "ashr_session"
-	identityRefreshBearerPrefix      = "ashr_refresh"
-	identitySessionNonceBytes        = 32
+	defaultIdentitySessionKeyVersion  = "v1"
+	identitySessionBearerPrefix       = "ashr_session"
+	identityRefreshBearerPrefix       = "ashr_refresh"
+	identitySessionNonceBytes         = 32
+	defaultIdentitySessionSQLTimeout  = 5 * time.Second
+	defaultIdentitySessionLockTimeout = 2 * time.Second
+	maxIdentitySessionSQLTimeout      = 30 * time.Second
 )
 
 const productionIdentityReadinessQuery = `
@@ -44,6 +48,8 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
    AND to_regclass('public.identity_verification_audit_events') IS NOT NULL
    AND to_regclass('public.identity_session_lifecycle_operations') IS NOT NULL
    AND to_regclass('public.identity_verification_delivery_redrive_audit') IS NOT NULL
+   AND to_regclass('public.identity_lifecycle_receipts') IS NOT NULL
+   AND to_regclass('public.identity_lifecycle_receipt_audit') IS NOT NULL
    AND to_regprocedure(
      'public.a1_complete_oauth_identity_callback(uuid,uuid,uuid,text,text,text,text,text,text,text,text,text,text,text,jsonb)'
    ) IS NOT NULL
@@ -107,24 +113,58 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
 `
 
 type ProductionIdentityStore struct {
-	db            *sql.DB
-	sessionTokens *identitySessionTokenCodec
-	now           func() time.Time
+	db               *sql.DB
+	sessionTokens    *identitySessionTokenCodec
+	now              func() time.Time
+	sqlTimeout       time.Duration
+	statementTimeout time.Duration
+	lockTimeout      time.Duration
+	lifecycleKeys    *identityLifecycleKeyring
 }
 
 type IdentitySessionHMACKey struct {
+	Version  string
+	Key      []byte
+	RetireAt time.Time
+}
+
+type ProductionIdentityStoreOptions struct {
+	DB                           *sql.DB
+	SessionKey                   []byte
+	SessionKeyVersion            string
+	PreviousSessionKeys          []IdentitySessionHMACKey
+	LegacySessionKeyVersion      string
+	Random                       io.Reader
+	Now                          func() time.Time
+	RequirePreviousKeyRetention  bool
+	RefreshTokenLifetime         time.Duration
+	PreviousKeyRetentionMargin   time.Duration
+	SQLTimeout                   time.Duration
+	StatementTimeout             time.Duration
+	LockTimeout                  time.Duration
+	LifecycleReceiptKey          []byte
+	LifecycleReceiptKeyVersion   string
+	PreviousLifecycleReceiptKeys []IdentityLifecycleEncryptionKey
+}
+
+type IdentityLifecycleEncryptionKey struct {
 	Version string
 	Key     []byte
 }
 
-type ProductionIdentityStoreOptions struct {
-	DB                      *sql.DB
-	SessionKey              []byte
-	SessionKeyVersion       string
-	PreviousSessionKeys     []IdentitySessionHMACKey
-	LegacySessionKeyVersion string
-	Random                  io.Reader
-	Now                     func() time.Time
+type IdentitySessionKeyRetirement struct {
+	Version          string    `json:"version"`
+	RetireAt         time.Time `json:"retire_at"`
+	RequiredUntil    time.Time `json:"required_until"`
+	RetentionReady   bool      `json:"retention_ready"`
+	RemainingSeconds int64     `json:"remaining_seconds"`
+}
+
+type IdentitySessionKeyringReadiness struct {
+	ActiveVersion string                         `json:"active_version"`
+	LegacyVersion string                         `json:"legacy_version"`
+	Ready         bool                           `json:"ready"`
+	PreviousKeys  []IdentitySessionKeyRetirement `json:"previous_keys"`
 }
 
 type identitySessionTokenMaterial struct {
@@ -139,6 +179,8 @@ type identitySessionTokenCodec struct {
 	legacyVersion string
 	keys          map[string][]byte
 	random        io.Reader
+	retireAt      map[string]time.Time
+	requiredUntil time.Time
 }
 
 func newIdentitySessionTokenCodec(options ProductionIdentityStoreOptions) (*identitySessionTokenCodec, error) {
@@ -155,6 +197,23 @@ func newIdentitySessionTokenCodec(options ProductionIdentityStoreOptions) (*iden
 	keys := map[string][]byte{
 		activeVersion: append([]byte(nil), options.SessionKey...),
 	}
+	retireAt := make(map[string]time.Time, len(options.PreviousSessionKeys))
+	now := time.Now
+	if options.Now != nil {
+		now = options.Now
+	}
+	refreshLifetime := options.RefreshTokenLifetime
+	if refreshLifetime == 0 {
+		refreshLifetime = defaultIdentityRefreshSessionTTL
+	}
+	if refreshLifetime < time.Minute || refreshLifetime > 366*24*time.Hour {
+		return nil, fmt.Errorf("production identity refresh token lifetime is invalid")
+	}
+	retentionMargin := options.PreviousKeyRetentionMargin
+	if retentionMargin < 0 || retentionMargin > 30*24*time.Hour {
+		return nil, fmt.Errorf("production identity previous session key retention margin is invalid")
+	}
+	requiredUntil := now().UTC().Add(refreshLifetime + retentionMargin)
 	keepKeys := false
 	defer func() {
 		if !keepKeys {
@@ -172,7 +231,16 @@ func newIdentitySessionTokenCodec(options ProductionIdentityStoreOptions) (*iden
 		if _, duplicate := keys[version]; duplicate {
 			return nil, fmt.Errorf("production identity session key version %q is duplicated", version)
 		}
+		if options.RequirePreviousKeyRetention {
+			if previous.RetireAt.IsZero() {
+				return nil, fmt.Errorf("production identity previous session key version %q is missing retirement metadata", version)
+			}
+			if previous.RetireAt.UTC().Before(requiredUntil) {
+				return nil, fmt.Errorf("production identity previous session key version %q retires before live refresh tokens expire", version)
+			}
+		}
 		keys[version] = append([]byte(nil), previous.Key...)
+		retireAt[version] = previous.RetireAt.UTC()
 	}
 	legacyVersion := strings.TrimSpace(options.LegacySessionKeyVersion)
 	if legacyVersion == "" {
@@ -180,6 +248,10 @@ func newIdentitySessionTokenCodec(options ProductionIdentityStoreOptions) (*iden
 	}
 	if _, ok := keys[legacyVersion]; !ok {
 		return nil, fmt.Errorf("production identity legacy session key version is not configured")
+	}
+	if options.RequirePreviousKeyRetention && legacyVersion != activeVersion &&
+		retireAt[legacyVersion].Before(requiredUntil) {
+		return nil, fmt.Errorf("production identity legacy session key version is not safely retained")
 	}
 	random := options.Random
 	if random == nil {
@@ -191,7 +263,35 @@ func newIdentitySessionTokenCodec(options ProductionIdentityStoreOptions) (*iden
 		legacyVersion: legacyVersion,
 		keys:          keys,
 		random:        random,
+		retireAt:      retireAt,
+		requiredUntil: requiredUntil,
 	}, nil
+}
+
+func (codec *identitySessionTokenCodec) readiness(now time.Time) IdentitySessionKeyringReadiness {
+	codec.mu.RLock()
+	defer codec.mu.RUnlock()
+	result := IdentitySessionKeyringReadiness{
+		ActiveVersion: codec.activeVersion,
+		LegacyVersion: codec.legacyVersion,
+		Ready:         true,
+		PreviousKeys:  make([]IdentitySessionKeyRetirement, 0, len(codec.retireAt)),
+	}
+	for version, retireAt := range codec.retireAt {
+		remaining := retireAt.Sub(now.UTC())
+		ready := retireAt.IsZero() || !retireAt.Before(codec.requiredUntil)
+		if !ready {
+			result.Ready = false
+		}
+		result.PreviousKeys = append(result.PreviousKeys, IdentitySessionKeyRetirement{
+			Version: version, RetireAt: retireAt, RequiredUntil: codec.requiredUntil,
+			RetentionReady: ready, RemainingSeconds: max(0, int64(remaining/time.Second)),
+		})
+	}
+	sort.Slice(result.PreviousKeys, func(i, j int) bool {
+		return result.PreviousKeys[i].Version < result.PreviousKeys[j].Version
+	})
+	return result
 }
 
 func (codec *identitySessionTokenCodec) issue() (identitySessionTokenMaterial, error) {
@@ -426,11 +526,78 @@ func NewProductionIdentityStore(options ProductionIdentityStoreOptions) (*Produc
 	if now == nil {
 		now = time.Now
 	}
+	sqlTimeout, err := validatedIdentitySessionTimeout(
+		options.SQLTimeout, defaultIdentitySessionSQLTimeout, "SQL operation",
+	)
+	if err != nil {
+		sessionTokens.close()
+		return nil, err
+	}
+	statementTimeout, err := validatedIdentitySessionTimeout(
+		options.StatementTimeout, sqlTimeout, "SQL statement",
+	)
+	if err != nil {
+		sessionTokens.close()
+		return nil, err
+	}
+	lockTimeout, err := validatedIdentitySessionTimeout(
+		options.LockTimeout, defaultIdentitySessionLockTimeout, "SQL lock",
+	)
+	if err != nil || statementTimeout > sqlTimeout || lockTimeout > statementTimeout {
+		sessionTokens.close()
+		if err != nil {
+			return nil, err
+		}
+		return nil, fmt.Errorf("production identity SQL timeouts must satisfy lock <= statement <= operation")
+	}
+	lifecycleKeys, err := newIdentityLifecycleKeyring(
+		options.LifecycleReceiptKeyVersion,
+		options.LifecycleReceiptKey,
+		options.PreviousLifecycleReceiptKeys,
+	)
+	if err != nil {
+		sessionTokens.close()
+		return nil, err
+	}
 	return &ProductionIdentityStore{
-		db:            options.DB,
-		sessionTokens: sessionTokens,
-		now:           now,
+		db:               options.DB,
+		sessionTokens:    sessionTokens,
+		now:              now,
+		sqlTimeout:       sqlTimeout,
+		statementTimeout: statementTimeout,
+		lockTimeout:      lockTimeout,
+		lifecycleKeys:    lifecycleKeys,
 	}, nil
+}
+
+func (store *ProductionIdentityStore) NewIdentityLifecycleReceiptStore() (IdentityLifecycleReceiptStore, error) {
+	if store == nil || store.db == nil {
+		return nil, fmt.Errorf("production identity store is unavailable")
+	}
+	if store.lifecycleKeys == nil {
+		return nil, fmt.Errorf("production identity lifecycle receipt key must be at least 32 bytes")
+	}
+	return &postgresIdentityLifecycleReceiptStore{
+		db: store.db, keys: store.lifecycleKeys.clone(),
+		sqlTimeout: store.sqlTimeout, statementTimeout: store.statementTimeout, lockTimeout: store.lockTimeout,
+	}, nil
+}
+
+func validatedIdentitySessionTimeout(value, fallback time.Duration, name string) (time.Duration, error) {
+	if value == 0 {
+		value = fallback
+	}
+	if value < time.Millisecond || value > maxIdentitySessionSQLTimeout {
+		return 0, fmt.Errorf("production identity %s timeout must be between 1ms and 30s", name)
+	}
+	return value, nil
+}
+
+func (store *ProductionIdentityStore) SessionKeyringReadiness() IdentitySessionKeyringReadiness {
+	if store == nil || store.sessionTokens == nil || store.now == nil {
+		return IdentitySessionKeyringReadiness{}
+	}
+	return store.sessionTokens.readiness(store.now())
 }
 
 func OpenProductionIdentityStore(dsn string, sessionKey []byte) (*ProductionIdentityStore, error) {
@@ -455,6 +622,9 @@ func (store *ProductionIdentityStore) Close() error {
 		return nil
 	}
 	store.sessionTokens.close()
+	if store.lifecycleKeys != nil {
+		store.lifecycleKeys.close()
+	}
 	if store.db == nil {
 		return nil
 	}
@@ -659,7 +829,28 @@ func (store *ProductionIdentityStore) RefreshIdentityHTTPSession(
 	var outcomeCode string
 	var affectedCount int
 	var accessExpiresAt, refreshExpiresAt time.Time
-	err = store.db.QueryRowContext(ctx, `
+	operationCtx, cancel := context.WithTimeout(ctx, store.sqlTimeout)
+	defer cancel()
+	tx, err := store.db.BeginTx(operationCtx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
+	if err != nil {
+		clearBearers()
+		return IdentitySessionIssuanceReceipt{}, ErrIdentitySessionRefreshInvalid
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+	if _, err = tx.ExecContext(operationCtx, `
+SELECT set_config('statement_timeout', $1, true),
+       set_config('lock_timeout', $2, true)
+`, fmt.Sprintf("%dms", store.statementTimeout.Milliseconds()),
+		fmt.Sprintf("%dms", store.lockTimeout.Milliseconds())); err != nil {
+		clearBearers()
+		return IdentitySessionIssuanceReceipt{}, ErrIdentitySessionRefreshInvalid
+	}
+	err = tx.QueryRowContext(operationCtx, `
 SELECT session_id::text,
        organization_id::text,
        project_id::text,
@@ -711,6 +902,11 @@ SELECT session_id::text,
 		clearBearers()
 		return IdentitySessionIssuanceReceipt{}, ErrIdentitySessionRefreshInvalid
 	}
+	if err := tx.Commit(); err != nil {
+		clearBearers()
+		return IdentitySessionIssuanceReceipt{}, ErrIdentitySessionRefreshInvalid
+	}
+	committed = true
 	receipt := newIdentitySessionIssuanceReceiptWithRefresh(
 		sessionID.String,
 		accessToken.keyVersion,

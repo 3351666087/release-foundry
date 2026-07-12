@@ -10,6 +10,8 @@ const packageJson = JSON.parse(readFileSync(new URL("../package.json", import.me
 const privateCommandModules = new Set([
   "account-connections-cli",
   "account-readiness-cli",
+  "browser-session-cli",
+  "browser-session-openapi.generated",
   "cloud-cli",
   "dataset-adapter-cli",
   "github-oauth-cli",
@@ -22,6 +24,7 @@ const runtimeMarkers = {
   "account-readiness": "build_receipt_template",
   "api-client": "AshrApiClient",
   billing: "BillingLedger",
+  "browser-session": "BrowserSessionClient",
   calibrate: "runCalibration",
   "capability-matrix": "buildCapabilityMatrix",
   "china-payments": "buildCnyTradePlan",

@@ -1,0 +1,201 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "ashr.fullname" . }}-default-deny
+  labels:
+    {{- include "ashr.commonLabels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "ashr.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  policyTypes:
+    - Ingress
+    - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "ashr.fullname" . }}-dns-egress
+  labels:
+    {{- include "ashr.commonLabels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "ashr.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.dns.namespaceSelector | nindent 14 }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.dns.podSelector | nindent 14 }}
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "ashr.componentName" (dict "root" . "component" "api") }}-ingress
+  labels:
+    {{- include "ashr.commonLabels" . | nindent 4 }}
+    app.kubernetes.io/component: api
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "ashr.selectorLabels" (dict "root" . "component" "api") | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.apiIngress.namespaceSelector | nindent 14 }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.apiIngress.podSelector | nindent 14 }}
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ include "ashr.name" . }}
+              app.kubernetes.io/instance: {{ .Release.Name }}
+      ports:
+        - port: http
+          protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "ashr.componentName" (dict "root" . "component" "identity-delivery") }}-health-ingress
+  labels:
+    {{- include "ashr.commonLabels" . | nindent 4 }}
+    app.kubernetes.io/component: identity-delivery
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "ashr.selectorLabels" (dict "root" . "component" "identity-delivery") | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.monitoringIngress.namespaceSelector | nindent 14 }}
+          podSelector:
+            matchLabels:
+              {{- toYaml .Values.networkPolicy.monitoringIngress.podSelector | nindent 14 }}
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: {{ include "ashr.name" . }}
+              app.kubernetes.io/instance: {{ .Release.Name }}
+      ports:
+        - port: health
+          protocol: TCP
+{{- $root := . }}
+{{- range $component := list "api" "queue-worker" }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "ashr.componentName" (dict "root" $root "component" $component) }}-runtime-egress
+  labels:
+    {{- include "ashr.commonLabels" $root | nindent 4 }}
+    app.kubernetes.io/component: {{ $component }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "ashr.selectorLabels" (dict "root" $root "component" $component) | nindent 6 }}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        {{- range $cidr := $root.Values.networkPolicy.egress.postgres.cidrs }}
+        - ipBlock:
+            cidr: {{ $cidr }}
+        {{- end }}
+      ports:
+        - port: {{ $root.Values.networkPolicy.egress.postgres.port }}
+          protocol: TCP
+    - to:
+        {{- range $cidr := $root.Values.networkPolicy.egress.queue.cidrs }}
+        - ipBlock:
+            cidr: {{ $cidr }}
+        {{- end }}
+      ports:
+        - port: {{ $root.Values.networkPolicy.egress.queue.port }}
+          protocol: TCP
+    - to:
+        {{- range $cidr := $root.Values.networkPolicy.egress.objectStorage.cidrs }}
+        - ipBlock:
+            cidr: {{ $cidr }}
+        {{- end }}
+      ports:
+        - port: {{ $root.Values.networkPolicy.egress.objectStorage.port }}
+          protocol: TCP
+    {{- if eq $component "api" }}
+    - to:
+        {{- range $cidr := $root.Values.networkPolicy.egress.identityProviders.cidrs }}
+        - ipBlock:
+            cidr: {{ $cidr }}
+        {{- end }}
+      ports:
+        - port: {{ $root.Values.networkPolicy.egress.identityProviders.port }}
+          protocol: TCP
+    {{- end }}
+{{- end }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "ashr.componentName" (dict "root" . "component" "identity-delivery") }}-runtime-egress
+  labels:
+    {{- include "ashr.commonLabels" . | nindent 4 }}
+    app.kubernetes.io/component: identity-delivery
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "ashr.selectorLabels" (dict "root" . "component" "identity-delivery") | nindent 6 }}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        {{- range $cidr := .Values.networkPolicy.egress.postgres.cidrs }}
+        - ipBlock:
+            cidr: {{ $cidr }}
+        {{- end }}
+      ports:
+        - port: {{ .Values.networkPolicy.egress.postgres.port }}
+          protocol: TCP
+    - to:
+        {{- range $cidr := .Values.networkPolicy.egress.identityProviders.cidrs }}
+        - ipBlock:
+            cidr: {{ $cidr }}
+        {{- end }}
+      ports:
+        - port: {{ .Values.networkPolicy.egress.identityProviders.port }}
+          protocol: TCP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "ashr.componentName" (dict "root" . "component" "migration") }}-postgres-egress
+  labels:
+    {{- include "ashr.commonLabels" . | nindent 4 }}
+    app.kubernetes.io/component: migration
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "ashr.selectorLabels" (dict "root" . "component" "migration") | nindent 6 }}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        {{- range $cidr := .Values.networkPolicy.egress.postgres.cidrs }}
+        - ipBlock:
+            cidr: {{ $cidr }}
+        {{- end }}
+      ports:
+        - port: {{ .Values.networkPolicy.egress.postgres.port }}
+          protocol: TCP
+{{- end }}

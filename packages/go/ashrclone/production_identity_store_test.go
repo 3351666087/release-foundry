@@ -13,6 +13,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
 )
@@ -45,6 +46,178 @@ func TestProductionIdentityStoreRequiresDBAndStrongSessionKey(t *testing.T) {
 		DB: db, SessionKey: key, SessionKeyVersion: "v2", LegacySessionKeyVersion: "v1",
 	}); err == nil {
 		t.Fatal("expected missing legacy key version to fail")
+	}
+}
+
+func TestProductionIdentityLifecycleReceiptStoreRequiresDedicatedKey(t *testing.T) {
+	db, _, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	store, err := NewProductionIdentityStore(ProductionIdentityStoreOptions{
+		DB: db, SessionKey: bytes.Repeat([]byte{0x11}, 32),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.NewIdentityLifecycleReceiptStore(); err == nil {
+		t.Fatal("expected missing lifecycle receipt key to fail closed")
+	}
+	store.lifecycleKeys, err = newIdentityLifecycleKeyring(
+		"v1", bytes.Repeat([]byte{0x22}, 32), nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	receiptStore, err := store.NewIdentityLifecycleReceiptStore()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !receiptStore.ProductionDurable() {
+		t.Fatal("postgres lifecycle receipt store must identify as production durable")
+	}
+}
+
+func TestPostgresLifecycleReceiptIssueUsesDigestAndEncryptedProof(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	keys, err := newIdentityLifecycleKeyring("v1", bytes.Repeat([]byte{0x42}, 32), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer keys.close()
+	store := &postgresIdentityLifecycleReceiptStore{
+		db: db, keys: keys,
+		sqlTimeout: time.Second, statementTimeout: time.Second, lockTimeout: 500 * time.Millisecond,
+	}
+	dto := IdentityProofReceiptDTO{
+		ReceiptID: "ipr_raw-secret", Operation: IdentityOperationRegistration,
+		Provider: IdentityProviderLocal, TenantID: "tenant-a", ProjectID: "project-a",
+		ExpiresAt: time.Now().UTC().Add(time.Minute),
+	}
+	mock.ExpectExec("SELECT a1_issue_identity_lifecycle_receipt").
+		WithArgs(
+			store.receiptDigest(dto.ReceiptID), dto.Operation, dto.Provider,
+			dto.TenantID, dto.ProjectID, sqlmock.AnyArg(), "v1", sqlmock.AnyArg(), dto.ExpiresAt,
+		).
+		WillReturnResult(sqlmock.NewResult(1, 1))
+	if err := store.Issue(context.Background(), dto, TrustedIdentityProof{
+		Operation: dto.Operation, Provider: dto.Provider, Kind: IdentityCredentialEmail,
+		Identifier: "owner@example.cn", TenantID: dto.TenantID, ProjectID: dto.ProjectID,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(store.receiptDigest(dto.ReceiptID), dto.ReceiptID) {
+		t.Fatal("receipt digest exposed raw receipt")
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPostgresLifecycleReceiptConditionalConsumeHasOneWinnerShape(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	keys, err := newIdentityLifecycleKeyring("v1", bytes.Repeat([]byte{0x43}, 32), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer keys.close()
+	store := &postgresIdentityLifecycleReceiptStore{
+		db: db, keys: keys,
+		sqlTimeout: time.Second, statementTimeout: 900 * time.Millisecond, lockTimeout: 300 * time.Millisecond,
+	}
+	request := CompleteIdentityLifecycleRequest{
+		ReceiptID: "ipr_once", Provider: IdentityProviderLocal,
+		TenantID: "tenant-a", ProjectID: "project-a",
+	}
+	now := time.Now().UTC()
+	mock.ExpectBegin()
+	mock.ExpectExec("SELECT set_config").WithArgs("900ms", "300ms").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery("SELECT receipt_digest, operation, provider, tenant_scope, project_scope, expires_at").
+		WithArgs(sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"receipt_digest", "operation", "provider", "tenant_scope", "project_scope", "expires_at",
+			"consumed_at", "proof_nonce", "proof_key_version", "proof_ciphertext",
+		}).AddRow(
+			store.receiptDigest(request.ReceiptID), IdentityOperationRegistration,
+			request.Provider, request.TenantID, request.ProjectID,
+			now.Add(time.Minute), now, []byte("nonce-123456"), "v1", bytes.Repeat([]byte{0x44}, 32),
+		))
+	mock.ExpectRollback()
+	_, err = store.Consume(context.Background(), request, IdentityOperationRegistration, now)
+	if !errors.Is(err, ErrIdentityProofReceiptConsumed) {
+		t.Fatalf("conditional loser returned %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestProductionIdentityStoreEnforcesPreviousKeyRetentionAndTimeoutOrdering(t *testing.T) {
+	db, _, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	now := time.Date(2026, 7, 12, 0, 0, 0, 0, time.UTC)
+	activeKey := bytes.Repeat([]byte{0x31}, 32)
+	previousKey := bytes.Repeat([]byte{0x32}, 32)
+	base := ProductionIdentityStoreOptions{
+		DB: db, SessionKey: activeKey, SessionKeyVersion: "v2",
+		PreviousSessionKeys: []IdentitySessionHMACKey{{
+			Version: "v1", Key: previousKey,
+			RetireAt: now.Add(defaultIdentityRefreshSessionTTL + 24*time.Hour),
+		}},
+		LegacySessionKeyVersion:     "v1",
+		RequirePreviousKeyRetention: true,
+		PreviousKeyRetentionMargin:  24 * time.Hour,
+		Now:                         func() time.Time { return now },
+		SQLTimeout:                  8 * time.Second,
+		StatementTimeout:            5 * time.Second,
+		LockTimeout:                 time.Second,
+	}
+	store, err := NewProductionIdentityStore(base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	readiness := store.SessionKeyringReadiness()
+	if !readiness.Ready || readiness.ActiveVersion != "v2" ||
+		readiness.LegacyVersion != "v1" || len(readiness.PreviousKeys) != 1 ||
+		!readiness.PreviousKeys[0].RetentionReady ||
+		readiness.PreviousKeys[0].RemainingSeconds <= 0 {
+		t.Fatalf("unexpected public-safe keyring readiness: %#v", readiness)
+	}
+	store.sessionTokens.close()
+
+	unsafe := base
+	unsafe.PreviousSessionKeys = []IdentitySessionHMACKey{{
+		Version: "v1", Key: previousKey,
+		RetireAt: now.Add(defaultIdentityRefreshSessionTTL),
+	}}
+	if _, err := NewProductionIdentityStore(unsafe); err == nil ||
+		!strings.Contains(err.Error(), "retires before live refresh tokens expire") {
+		t.Fatalf("unsafe previous-key retirement accepted: %v", err)
+	}
+	unsafe = base
+	unsafe.PreviousSessionKeys = []IdentitySessionHMACKey{{Version: "v1", Key: previousKey}}
+	if _, err := NewProductionIdentityStore(unsafe); err == nil ||
+		!strings.Contains(err.Error(), "missing retirement metadata") {
+		t.Fatalf("missing previous-key retirement accepted: %v", err)
+	}
+	unsafe = base
+	unsafe.LockTimeout = 6 * time.Second
+	if _, err := NewProductionIdentityStore(unsafe); err == nil ||
+		!strings.Contains(err.Error(), "lock <= statement <= operation") {
+		t.Fatalf("unsafe timeout ordering accepted: %v", err)
 	}
 }
 

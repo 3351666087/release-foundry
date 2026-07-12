@@ -108,6 +108,10 @@ UNSUPPORTED_GO_ROUTE_GAPS: dict[str, dict[str, str]] = {
         "reason": "Go exposes the canonical localhost Google account-connection callback; the hosted Python route client does not execute browser redirects.",
         "consumer_action": "keep explicit until the shared generated OpenAPI client models provider callbacks without exposing authorization codes",
     },
+    "GET /v1/identity/providers": {
+        "reason": "Go exposes deployment-aware registration, login, and linking readiness through the dedicated identity lifecycle contract; the generic hosted SaaS route client does not model identity-provider discovery.",
+        "consumer_action": "consume through the dedicated Python/TypeScript identity contracts and keep deployment readiness distinct from static code capability",
+    },
     "GET /v1/projects/{project_id}/oauth/github/start": {
         "reason": "Go exposes a browser redirect alias; hosted SDKs use the provider-neutral JSON POST start contract.",
         "replacement_route": "POST /v1/projects/{project_id}/oauth/{provider}/start",
@@ -127,6 +131,22 @@ UNSUPPORTED_GO_ROUTE_GAPS: dict[str, dict[str, str]] = {
         "reason": "Go keeps a root bootstrap alias; hosted clients consume the versioned bootstrap route.",
         "replacement_route": "POST /v1/bootstrap",
         "consumer_action": "keep unsupported until root bootstrap aliases are part of generated SDK contracts",
+    },
+    "POST /v1/identity/login/complete": {
+        "reason": "Go authenticates an existing credential through the dedicated identity lifecycle contract; generic hosted SaaS operations intentionally cannot create, merge, or link accounts during login.",
+        "consumer_action": "consume through the dedicated Python/TypeScript identity contract and preserve the public anti-enumeration error envelope",
+    },
+    "POST /v1/identity/login/start": {
+        "reason": "Go starts authentication for an existing credential through the dedicated identity lifecycle contract; it is intentionally separate from registration.",
+        "consumer_action": "consume through the dedicated Python/TypeScript identity contract and never infer registration from a login response",
+    },
+    "POST /v1/identity/registration/complete": {
+        "reason": "Go creates a canonical account and initial credential through the dedicated identity lifecycle contract; the generic hosted SaaS route client does not own account registration.",
+        "consumer_action": "consume through the dedicated Python/TypeScript identity contract and keep account creation unavailable to login operations",
+    },
+    "POST /v1/identity/registration/start": {
+        "reason": "Go starts explicit account registration through the dedicated identity lifecycle contract; it is intentionally separate from login.",
+        "consumer_action": "consume through the dedicated Python/TypeScript identity contract and prefer the domestic email registration capability when enabled",
     },
     "POST /v1/projects/{project_id}/accounts/{account_id}/browser-sessions/refresh": {
         "reason": "Go owns the same-origin HttpOnly cookie refresh boundary; the hosted JSON client intentionally accepts neither raw refresh cookies nor digest payloads for this browser-only route.",

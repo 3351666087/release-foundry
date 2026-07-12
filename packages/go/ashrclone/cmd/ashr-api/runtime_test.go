@@ -358,22 +358,30 @@ func TestProductionIdentityDeliveryVaultRejectsUnsafeInputsWithoutEcho(t *testin
 
 func TestProductionIdentityVerificationRequiresVaultBeforeDatabaseAccess(t *testing.T) {
 	const (
-		dsnSecret = "postgres://runtime-db-secret@database-must-not-be-contacted.invalid/ashr"
-		keySecret = "production-session-secret-that-must-not-leak"
+		dsnSecret       = "postgres://runtime-db-secret@database-must-not-be-contacted.invalid/ashr"
+		keySecret       = "production-session-secret-that-must-not-leak"
+		lifecycleSecret = "production-lifecycle-secret-that-must-not-leak"
 	)
 	_, err := newIdentityRuntimeFromEnv(context.Background(), lookup(map[string]string{
-		"ASHR_POSTGRES_DSN":                         dsnSecret,
-		"ASHR_IDENTITY_SESSION_HMAC_ACTIVE_VERSION": "v1",
-		"ASHR_IDENTITY_SESSION_HMAC_KEY":            keySecret,
-		"ASHR_IDENTITY_SESSION_HMAC_LEGACY_VERSION": "v1",
-		"ASHR_IDENTITY_VERIFICATION_ENABLED":        "true",
-		"ASHR_IDENTITY_VERIFICATION_HMAC_KEY":       "production-verification-secret-must-not-leak",
+		"ASHR_POSTGRES_DSN":                              dsnSecret,
+		"ASHR_IDENTITY_SESSION_HMAC_ACTIVE_VERSION":      "v1",
+		"ASHR_IDENTITY_SESSION_HMAC_KEY":                 keySecret,
+		"ASHR_IDENTITY_SESSION_HMAC_LEGACY_VERSION":      "v1",
+		"ASHR_IDENTITY_LIFECYCLE_RECEIPT_ACTIVE_VERSION": "v1",
+		"ASHR_IDENTITY_LIFECYCLE_RECEIPT_KEY":            lifecycleSecret,
+		"ASHR_IDENTITY_VERIFICATION_ENABLED":             "true",
+		"ASHR_IDENTITY_VERIFICATION_HMAC_KEY":            "production-verification-secret-must-not-leak",
 	}))
 	if err == nil || !strings.Contains(err.Error(), "ASHR_IDENTITY_DELIVERY_VAULT_SEAL_URL") ||
 		!strings.Contains(err.Error(), "all-or-none") {
 		t.Fatalf("production verification did not fail closed on its vault dependency: %v", err)
 	}
-	for _, secret := range []string{dsnSecret, keySecret, "production-verification-secret-must-not-leak"} {
+	for _, secret := range []string{
+		dsnSecret,
+		keySecret,
+		lifecycleSecret,
+		"production-verification-secret-must-not-leak",
+	} {
 		if strings.Contains(err.Error(), secret) {
 			t.Fatalf("production startup error leaked a secret: %v", err)
 		}
@@ -412,7 +420,7 @@ func TestIdentitySessionHMACRuntimeConfigSupportsRotationAndExplicitLegacy(t *te
 		"ASHR_IDENTITY_SESSION_HMAC_KEY":            activeKey,
 		"ASHR_IDENTITY_SESSION_HMAC_LEGACY_VERSION": "v1",
 		"ASHR_IDENTITY_SESSION_HMAC_PREVIOUS_KEYS_JSON": fmt.Sprintf(
-			`[{"version":"v2","key":%q},{"version":"v1","key":%q}]`,
+			`[{"version":"v2","key":%q,"retire_at":"2027-09-01T00:00:00Z"},{"version":"v1","key":%q,"retire_at":"2027-09-01T00:00:00Z"}]`,
 			previousV2,
 			previousV1,
 		),
@@ -436,6 +444,165 @@ func TestIdentitySessionHMACRuntimeConfigSupportsRotationAndExplicitLegacy(t *te
 	}
 }
 
+func TestIdentityLifecycleKeyRuntimeConfigSupportsRotationAndClearsKeys(t *testing.T) {
+	activeKey := strings.Repeat("L", 40)
+	previousV2 := strings.Repeat("M", 40)
+	previousV1 := strings.Repeat("N", 40)
+	config, err := identityLifecycleKeyRuntimeConfigFromEnv(lookup(map[string]string{
+		"ASHR_IDENTITY_LIFECYCLE_RECEIPT_ACTIVE_VERSION": "v3",
+		"ASHR_IDENTITY_LIFECYCLE_RECEIPT_KEY":            activeKey,
+		"ASHR_IDENTITY_LIFECYCLE_RECEIPT_PREVIOUS_KEYS_JSON": fmt.Sprintf(
+			`[{"version":"v2","key":%q},{"version":"v1","key":%q}]`,
+			previousV2,
+			previousV1,
+		),
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.activeVersion != "v3" || string(config.activeKey) != activeKey ||
+		len(config.previousKeys) != 2 ||
+		config.previousKeys[0].Version != "v2" || string(config.previousKeys[0].Key) != previousV2 ||
+		config.previousKeys[1].Version != "v1" || string(config.previousKeys[1].Key) != previousV1 {
+		t.Fatalf("unexpected lifecycle keyring config: active=%q previous=%d", config.activeVersion, len(config.previousKeys))
+	}
+	activeBytes := config.activeKey
+	previousV2Bytes := config.previousKeys[0].Key
+	previousV1Bytes := config.previousKeys[1].Key
+	config.clear()
+	for _, key := range [][]byte{activeBytes, previousV2Bytes, previousV1Bytes} {
+		for _, value := range key {
+			if value != 0 {
+				t.Fatal("cleared lifecycle keyring retained key bytes")
+			}
+		}
+	}
+	if config.activeKey != nil || config.previousKeys != nil || config.activeVersion != "" {
+		t.Fatalf("cleared lifecycle keyring retained metadata: %#v", config)
+	}
+}
+
+func TestIdentityLifecycleKeyRuntimeConfigRejectsUnsafeInputsWithoutEchoingKeys(t *testing.T) {
+	activeSecret := "active-lifecycle-secret-that-must-not-leak-1234"
+	previousSecret := "previous-lifecycle-secret-that-must-not-leak"
+	base := map[string]string{
+		"ASHR_IDENTITY_LIFECYCLE_RECEIPT_ACTIVE_VERSION": "v2",
+		"ASHR_IDENTITY_LIFECYCLE_RECEIPT_KEY":            activeSecret,
+		"ASHR_IDENTITY_LIFECYCLE_RECEIPT_PREVIOUS_KEYS_JSON": fmt.Sprintf(
+			`[{"version":"v1","key":%q}]`,
+			previousSecret,
+		),
+	}
+	tests := []struct {
+		name   string
+		mutate func(map[string]string)
+	}{
+		{name: "missing active version", mutate: func(values map[string]string) {
+			delete(values, "ASHR_IDENTITY_LIFECYCLE_RECEIPT_ACTIVE_VERSION")
+		}},
+		{name: "missing active key", mutate: func(values map[string]string) {
+			delete(values, "ASHR_IDENTITY_LIFECYCLE_RECEIPT_KEY")
+		}},
+		{name: "invalid active version", mutate: func(values map[string]string) {
+			values["ASHR_IDENTITY_LIFECYCLE_RECEIPT_ACTIVE_VERSION"] = "../private-version"
+		}},
+		{name: "short active key", mutate: func(values map[string]string) {
+			values["ASHR_IDENTITY_LIFECYCLE_RECEIPT_KEY"] = "short-active-lifecycle-secret"
+		}},
+		{name: "duplicate active version", mutate: func(values map[string]string) {
+			values["ASHR_IDENTITY_LIFECYCLE_RECEIPT_PREVIOUS_KEYS_JSON"] = fmt.Sprintf(
+				`[{"version":"v2","key":%q}]`,
+				previousSecret,
+			)
+		}},
+		{name: "duplicate previous version", mutate: func(values map[string]string) {
+			values["ASHR_IDENTITY_LIFECYCLE_RECEIPT_PREVIOUS_KEYS_JSON"] = fmt.Sprintf(
+				`[{"version":"v1","key":%q},{"version":"v1","key":%q}]`,
+				previousSecret,
+				strings.Repeat("O", 40),
+			)
+		}},
+		{name: "short previous key", mutate: func(values map[string]string) {
+			values["ASHR_IDENTITY_LIFECYCLE_RECEIPT_PREVIOUS_KEYS_JSON"] =
+				`[{"version":"v1","key":"short-previous-lifecycle"}]`
+		}},
+		{name: "invalid previous version", mutate: func(values map[string]string) {
+			values["ASHR_IDENTITY_LIFECYCLE_RECEIPT_PREVIOUS_KEYS_JSON"] = fmt.Sprintf(
+				`[{"version":"bad/version","key":%q}]`,
+				previousSecret,
+			)
+		}},
+		{name: "unknown JSON field", mutate: func(values map[string]string) {
+			values["ASHR_IDENTITY_LIFECYCLE_RECEIPT_PREVIOUS_KEYS_JSON"] = fmt.Sprintf(
+				`[{"version":"v1","key":%q,"secret_ref":"unknown-field-private-value"}]`,
+				previousSecret,
+			)
+		}},
+		{name: "trailing JSON", mutate: func(values map[string]string) {
+			values["ASHR_IDENTITY_LIFECYCLE_RECEIPT_PREVIOUS_KEYS_JSON"] = fmt.Sprintf(
+				`[{"version":"v1","key":%q}] {"private":"trailing-private-value"}`,
+				previousSecret,
+			)
+		}},
+		{name: "non array JSON", mutate: func(values map[string]string) {
+			values["ASHR_IDENTITY_LIFECYCLE_RECEIPT_PREVIOUS_KEYS_JSON"] =
+				`{"version":"v1","key":"non-array-private-value"}`
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			values := cloneStrings(base)
+			test.mutate(values)
+			_, err := identityLifecycleKeyRuntimeConfigFromEnv(lookup(values))
+			if err == nil {
+				t.Fatal("unsafe lifecycle keyring configuration was accepted")
+			}
+			for _, secret := range []string{
+				activeSecret,
+				previousSecret,
+				"short-active-lifecycle-secret",
+				"short-previous-lifecycle",
+				"unknown-field-private-value",
+				"trailing-private-value",
+				"non-array-private-value",
+			} {
+				if strings.Contains(err.Error(), secret) {
+					t.Fatalf("lifecycle keyring error leaked secret material: %v", err)
+				}
+			}
+		})
+	}
+}
+
+func TestProductionIdentityLifecycleKeyringFailsBeforeDatabaseAccess(t *testing.T) {
+	const dsnSecret = "postgres://lifecycle-db-secret@database-must-not-be-contacted.invalid/ashr"
+	base := map[string]string{
+		"ASHR_POSTGRES_DSN":                         dsnSecret,
+		"ASHR_IDENTITY_SESSION_HMAC_ACTIVE_VERSION": "v1",
+		"ASHR_IDENTITY_SESSION_HMAC_KEY":            strings.Repeat("S", 40),
+		"ASHR_IDENTITY_SESSION_HMAC_LEGACY_VERSION": "v1",
+	}
+	for _, missing := range []string{
+		"ASHR_IDENTITY_LIFECYCLE_RECEIPT_ACTIVE_VERSION",
+		"ASHR_IDENTITY_LIFECYCLE_RECEIPT_KEY",
+	} {
+		values := cloneStrings(base)
+		if missing != "ASHR_IDENTITY_LIFECYCLE_RECEIPT_ACTIVE_VERSION" {
+			values["ASHR_IDENTITY_LIFECYCLE_RECEIPT_ACTIVE_VERSION"] = "v1"
+		}
+		if missing != "ASHR_IDENTITY_LIFECYCLE_RECEIPT_KEY" {
+			values["ASHR_IDENTITY_LIFECYCLE_RECEIPT_KEY"] = strings.Repeat("L", 40)
+		}
+		_, err := newIdentityRuntimeFromEnv(context.Background(), lookup(values))
+		if err == nil || !strings.Contains(err.Error(), missing) {
+			t.Fatalf("missing %s did not fail before database access: %v", missing, err)
+		}
+		if strings.Contains(err.Error(), dsnSecret) {
+			t.Fatalf("lifecycle keyring error leaked the database configuration: %v", err)
+		}
+	}
+}
+
 func TestIdentitySessionHMACRuntimeConfigRejectsUnsafeInputsWithoutEchoingKeys(t *testing.T) {
 	activeSecret := "active-secret-value-that-must-not-leak-123456"
 	previousSecret := "previous-secret-value-that-must-not-leak-1234"
@@ -444,7 +611,7 @@ func TestIdentitySessionHMACRuntimeConfigRejectsUnsafeInputsWithoutEchoingKeys(t
 		"ASHR_IDENTITY_SESSION_HMAC_KEY":            activeSecret,
 		"ASHR_IDENTITY_SESSION_HMAC_LEGACY_VERSION": "v1",
 		"ASHR_IDENTITY_SESSION_HMAC_PREVIOUS_KEYS_JSON": fmt.Sprintf(
-			`[{"version":"v1","key":%q}]`,
+			`[{"version":"v1","key":%q,"retire_at":"2027-09-01T00:00:00Z"}]`,
 			previousSecret,
 		),
 	}
@@ -457,23 +624,35 @@ func TestIdentitySessionHMACRuntimeConfigRejectsUnsafeInputsWithoutEchoingKeys(t
 		}},
 		{name: "duplicate active version", mutate: func(values map[string]string) {
 			values["ASHR_IDENTITY_SESSION_HMAC_PREVIOUS_KEYS_JSON"] = fmt.Sprintf(
-				`[{"version":"v2","key":%q}]`,
+				`[{"version":"v2","key":%q,"retire_at":"2027-09-01T00:00:00Z"}]`,
 				previousSecret,
 			)
 		}},
 		{name: "short previous key", mutate: func(values map[string]string) {
 			values["ASHR_IDENTITY_SESSION_HMAC_PREVIOUS_KEYS_JSON"] =
-				`[{"version":"v1","key":"short-previous-secret"}]`
+				`[{"version":"v1","key":"short-previous-secret","retire_at":"2027-09-01T00:00:00Z"}]`
 		}},
 		{name: "unknown JSON field", mutate: func(values map[string]string) {
 			values["ASHR_IDENTITY_SESSION_HMAC_PREVIOUS_KEYS_JSON"] = fmt.Sprintf(
-				`[{"version":"v1","key":%q,"raw_secret":%q}]`,
+				`[{"version":"v1","key":%q,"retire_at":"2027-09-01T00:00:00Z","raw_secret":%q}]`,
 				previousSecret,
 				"unknown-field-secret-value",
 			)
 		}},
 		{name: "legacy version missing", mutate: func(values map[string]string) {
 			values["ASHR_IDENTITY_SESSION_HMAC_LEGACY_VERSION"] = "v0"
+		}},
+		{name: "retirement metadata missing", mutate: func(values map[string]string) {
+			values["ASHR_IDENTITY_SESSION_HMAC_PREVIOUS_KEYS_JSON"] = fmt.Sprintf(
+				`[{"version":"v1","key":%q}]`,
+				previousSecret,
+			)
+		}},
+		{name: "retirement metadata invalid", mutate: func(values map[string]string) {
+			values["ASHR_IDENTITY_SESSION_HMAC_PREVIOUS_KEYS_JSON"] = fmt.Sprintf(
+				`[{"version":"v1","key":%q,"retire_at":"not-a-timestamp"}]`,
+				previousSecret,
+			)
 		}},
 	}
 	for _, test := range tests {
