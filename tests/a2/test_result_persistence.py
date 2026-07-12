@@ -5,6 +5,7 @@ from pathlib import Path
 
 from services.judge.result_persistence import build_result_persistence_manifest, build_result_record, stable_hash
 from services.judge.ocr_contract import run_optional_ocr_adapter
+from services.judge.local_multimodal_calibration import validate_prompt_lineage
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -43,6 +44,29 @@ def load_json(path: Path) -> dict:
 
 
 class A2ResultPersistenceTests(unittest.TestCase):
+    def test_prompt_supersession_persists_as_hash_only_audit_record(self):
+        current = "sha256:" + "a" * 64
+        previous = "sha256:" + "b" * 64
+        observation = validate_prompt_lineage(
+            current_prompt_hash=current,
+            supersedes_prompt_hash=previous,
+            known_lineage={},
+            maximum_lineage_depth=8,
+        )
+        record = build_result_record(
+            observation,
+            org_id="org-a2",
+            project_id="project-a2",
+            run_id="run-prompt-supersession",
+            kind="prompt_supersession",
+            judge_version="a2-prompt-lineage-v1",
+        )
+        self.assertTrue(observation["lineage_valid"])
+        self.assertEqual(record["record_type"], "prompt_supersession")
+        self.assertTrue(HASH_RE.fullmatch(record["output_hash"]))
+        self.assertNotIn(current, json.dumps(record))
+        self.assertNotIn(previous, json.dumps(record))
+
     def test_ocr_failure_observation_persists_as_hash_only_audit_record(self):
         observation = run_optional_ocr_adapter(
             image_path="missing.png",

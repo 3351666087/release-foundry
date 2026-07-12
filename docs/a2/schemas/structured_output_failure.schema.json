@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.local/schemas/a2/structured_output_failure.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "state", "provider_status", "raw_response_hash", "raw_response_bytes", "parsed_output_hash", "missing_required_fields", "schema_errors", "qualification_state", "release_authority", "human_review_required", "blockers", "public_safe"],
+  "properties": {
+    "schema_version": {"const": "a2.structured_output_failure.v1"},
+    "state": {"enum": ["valid", "empty_response", "invalid_json", "wrong_top_level_type", "missing_required_fields", "schema_violation", "provider_failure"]},
+    "provider_status": {"type": "string", "minLength": 1},
+    "raw_response_hash": {"$ref": "#/$defs/hash"},
+    "raw_response_bytes": {"type": "integer", "minimum": 0},
+    "parsed_output_hash": {"$ref": "#/$defs/optionalHash"},
+    "missing_required_fields": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "schema_errors": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "qualification_state": {"enum": ["blocked", "observation_only"]},
+    "release_authority": {"const": false},
+    "human_review_required": {"type": "boolean"},
+    "blockers": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "public_safe": {"const": true}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "optionalHash": {"type": "string", "pattern": "^(|sha256:[a-f0-9]{64})$"}
+  }
+}

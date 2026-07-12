@@ -3,7 +3,7 @@
   "$id": "https://ashr.local/schemas/a2/structured_output_repair.schema.json",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "state", "repair_policy_hash", "expected_repair_policy_hash", "original_output_hash", "repaired_output_hash", "original_output", "repaired_output", "missing_required_fields", "semantic_observation_modified", "reviewer_identity_hash", "calibration_entry_eligible", "calibration_state", "release_authority", "human_review_required", "blockers", "public_safe"],
+  "required": ["schema_version", "state", "repair_policy_hash", "expected_repair_policy_hash", "original_output_hash", "repaired_output_hash", "original_output", "repaired_output", "missing_required_fields", "repair_count_before", "repair_count_after", "maximum_repair_count", "semantic_observation_modified", "reviewer_identity_hash", "calibration_entry_eligible", "calibration_state", "release_authority", "human_review_required", "blockers", "public_safe"],
   "properties": {
     "schema_version": {"const": "a2.structured_output_repair.v1"},
     "state": {"enum": ["blocked", "not_required", "repaired_for_review"]},
@@ -14,6 +14,9 @@
     "original_output": {"type": "object"},
     "repaired_output": {"anyOf": [{"type": "object"}, {"type": "null"}]},
     "missing_required_fields": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "repair_count_before": {"type": "integer", "minimum": 0},
+    "repair_count_after": {"type": "integer", "minimum": 0},
+    "maximum_repair_count": {"type": "integer", "minimum": 0},
     "semantic_observation_modified": {"type": "boolean"},
     "reviewer_identity_hash": {"$ref": "#/$defs/optionalHash"},
     "calibration_entry_eligible": {"type": "boolean"},

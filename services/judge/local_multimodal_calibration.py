@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import json
 import math
 import re
 from typing import Any
@@ -19,6 +20,7 @@ DISAGREEMENT_SCHEMA_VERSION = "a2.multimodal_disagreement_receipt.v1"
 DISAGREEMENT_REVIEW_SCHEMA_VERSION = "a2.multimodal_disagreement_review.v1"
 FALLBACK_SCHEMA_VERSION = "a2.provider_fallback_evaluation.v1"
 REPAIR_SCHEMA_VERSION = "a2.structured_output_repair.v1"
+STRUCTURED_OUTPUT_FAILURE_SCHEMA_VERSION = "a2.structured_output_failure.v1"
 LOCAL_RESOURCE_SCHEMA_VERSION = "a2.local_model_resource_observation.v1"
 ADVERSARIAL_SCHEMA_VERSION = "a2.multimodal_adversarial_observation.v1"
 STABILITY_SCHEMA_VERSION = "a2.multimodal_stability_summary.v1"
@@ -262,12 +264,17 @@ def govern_structured_output_repair(
     repair_policy: dict[str, Any] | None = None,
     expected_repair_policy_hash: str | None = None,
     reviewer_identity_hash: str | None = None,
+    repair_count: int = 0,
 ) -> dict[str, Any]:
     """Record deterministic repair explicitly; never replace the original observation silently."""
     missing = sorted(str(field) for field in required_fields if str(field) not in original_output)
     policy = dict(repair_policy or {})
     repair_policy_hash = stable_hash(policy) if policy else ""
     allowed_defaults = dict(policy.get("allowed_defaults") or {})
+    maximum_repair_count = int(policy.get("maximum_repair_count", 1))
+    if repair_count < 0 or maximum_repair_count < 0:
+        raise ValueError("repair counts must be non-negative")
+    repair_count_within_policy = repair_count < maximum_repair_count
     repair_allowed = policy.get("mode") == "deterministic_defaults" and bool(missing)
     unsafe_safety_defaults = sorted(
         field
@@ -280,6 +287,7 @@ def govern_structured_output_repair(
         and all(field in allowed_defaults for field in missing)
         and not unsafe_safety_defaults
         and policy_hash_matches
+        and repair_count_within_policy
     )
     repaired = dict(original_output)
     if can_repair:
@@ -290,6 +298,8 @@ def govern_structured_output_repair(
         blockers.append("repair_policy_hash_mismatch")
     if unsafe_safety_defaults:
         blockers.append("unsafe_safety_default_forbidden")
+    if missing and not repair_count_within_policy:
+        blockers.append("maximum_structured_output_repair_count_reached")
     if missing and not repair_allowed:
         blockers.append("repair_policy_not_configured")
     elif missing and not can_repair and not blockers:
@@ -312,6 +322,9 @@ def govern_structured_output_repair(
         "original_output": dict(original_output),
         "repaired_output": repaired if can_repair else None,
         "missing_required_fields": missing,
+        "repair_count_before": repair_count,
+        "repair_count_after": repair_count + 1 if can_repair else repair_count,
+        "maximum_repair_count": maximum_repair_count,
         "semantic_observation_modified": can_repair,
         "reviewer_identity_hash": reviewer_identity_hash or "",
         "calibration_entry_eligible": calibration_entry_eligible,
@@ -319,6 +332,61 @@ def govern_structured_output_repair(
         "release_authority": False,
         "human_review_required": bool(missing),
         "blockers": sorted(set(blockers)),
+        "public_safe": True,
+    }
+
+
+def classify_structured_output_failure(
+    *,
+    raw_response: str | bytes,
+    parsed_output: Any | None,
+    provider_status: str,
+    required_fields: list[str] | None = None,
+    schema_errors: list[str] | None = None,
+) -> dict[str, Any]:
+    """Classify provider-independent structured output; every failure is non-authoritative."""
+    raw_bytes = raw_response if isinstance(raw_response, bytes) else raw_response.encode("utf-8")
+    raw_text = raw_bytes.decode("utf-8", errors="replace")
+    required = sorted(set(str(field) for field in (required_fields or [])))
+    errors = sorted(set(str(error) for error in (schema_errors or [])))
+    parsed = parsed_output
+    state = "valid"
+    blockers: list[str] = []
+    if provider_status != "completed":
+        state = "provider_failure"
+    elif not raw_text.strip():
+        state = "empty_response"
+    elif parsed is None:
+        try:
+            parsed = json.loads(raw_text)
+        except (json.JSONDecodeError, TypeError):
+            state = "invalid_json"
+    if state == "valid" and not isinstance(parsed, dict):
+        state = "wrong_top_level_type"
+    missing = (
+        sorted(field for field in required if field not in parsed)
+        if state == "valid" and isinstance(parsed, dict)
+        else []
+    )
+    if state == "valid" and missing:
+        state = "missing_required_fields"
+    if state == "valid" and errors:
+        state = "schema_violation"
+    if state != "valid":
+        blockers.append(f"structured_output_{state}")
+    return {
+        "schema_version": STRUCTURED_OUTPUT_FAILURE_SCHEMA_VERSION,
+        "state": state,
+        "provider_status": provider_status,
+        "raw_response_hash": stable_hash({"bytes_hex": raw_bytes.hex()}),
+        "raw_response_bytes": len(raw_bytes),
+        "parsed_output_hash": stable_hash(parsed) if parsed is not None else "",
+        "missing_required_fields": missing,
+        "schema_errors": errors,
+        "qualification_state": "observation_only" if state == "valid" else "blocked",
+        "release_authority": False,
+        "human_review_required": state != "valid",
+        "blockers": blockers,
         "public_safe": True,
     }
 
@@ -417,7 +485,14 @@ def validate_a3_decision_consumption(
     supplied_hash = str(consumed_decision.get("a2_committed_decision_hash") or "")
     forbidden = sorted(
         set(consumed_decision)
-        & {"recomputed_status", "recomputed_score", "recomputed_policy_result", "release_authority"}
+        & {
+            "recomputed_status",
+            "recomputed_score",
+            "recomputed_policy_result",
+            "recomputed_specificity",
+            "specificity",
+            "release_authority",
+        }
     )
     blockers = []
     if supplied_hash != committed_hash:
@@ -949,13 +1024,21 @@ def validate_prompt_lineage(
     current_prompt_hash: str,
     supersedes_prompt_hash: str,
     known_lineage: dict[str, str],
+    maximum_lineage_depth: int = 32,
 ) -> dict[str, Any]:
+    if maximum_lineage_depth < 1:
+        raise ValueError("maximum_lineage_depth must be positive")
     blockers: list[str] = []
     if supersedes_prompt_hash == current_prompt_hash:
         blockers.append("prompt_cannot_supersede_itself")
     seen = {current_prompt_hash}
     cursor = supersedes_prompt_hash
+    lineage_depth = 0
     while cursor:
+        lineage_depth += 1
+        if lineage_depth > maximum_lineage_depth:
+            blockers.append("prompt_lineage_depth_exceeded")
+            break
         if cursor in seen:
             blockers.append("prompt_lineage_cycle")
             break
@@ -965,6 +1048,8 @@ def validate_prompt_lineage(
         "lineage_valid": not blockers,
         "current_prompt_hash": current_prompt_hash,
         "supersedes_prompt_hash": supersedes_prompt_hash,
+        "lineage_depth": lineage_depth,
+        "maximum_lineage_depth": maximum_lineage_depth,
         "release_authority": False,
         "blockers": blockers,
         "public_safe": True,

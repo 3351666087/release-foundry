@@ -24,6 +24,7 @@ from services.judge.local_multimodal_calibration import (
     compare_ocr_with_fixture_text,
     compare_prompt_bindings,
     canonicalize_prompt_template,
+    classify_structured_output_failure,
     validate_prompt_lineage,
     evaluate_prompt_binding_promotion,
     run_optional_ocr_adapter,
@@ -1060,6 +1061,96 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
         self.assertFalse(fixture["release_authority"])
         self.assert_schema("multimodal_round19_ocr_control.schema.json", fixture)
 
+    def test_structured_output_failure_taxonomy_hashes_raw_bytes_and_fails_closed(self):
+        cases = [
+            ("", None, "completed", "empty_response"),
+            ("not-json", None, "completed", "invalid_json"),
+            ("[]", [], "completed", "wrong_top_level_type"),
+            ('{"risk":true}', {"risk": True}, "completed", "missing_required_fields"),
+            ('{"risk":true,"findings":[]}', {"risk": True, "findings": []}, "completed", "schema_violation"),
+            ("", None, "failed", "provider_failure"),
+        ]
+        for raw, parsed, provider_status, expected in cases:
+            with self.subTest(expected=expected):
+                result = classify_structured_output_failure(
+                    raw_response=raw,
+                    parsed_output=parsed,
+                    provider_status=provider_status,
+                    required_fields=["risk", "findings"],
+                    schema_errors=["risk must be a string"] if expected == "schema_violation" else [],
+                )
+                self.assertEqual(result["state"], expected)
+                self.assertEqual(result["qualification_state"], "blocked")
+                self.assertFalse(result["release_authority"])
+                self.assert_schema("structured_output_failure.schema.json", result)
+
+    def test_repair_count_lineage_depth_and_a3_specificity_recomputation_are_blocked(self):
+        policy = {
+            "mode": "deterministic_defaults",
+            "allowed_defaults": {"safety_risk": "unknown"},
+            "maximum_repair_count": 1,
+        }
+        exhausted = govern_structured_output_repair(
+            original_output={},
+            required_fields=["safety_risk"],
+            repair_policy=policy,
+            repair_count=1,
+        )
+        self.assertEqual(exhausted["state"], "blocked")
+        self.assertIn("maximum_structured_output_repair_count_reached", exhausted["blockers"])
+        self.assert_schema("structured_output_repair.schema.json", exhausted)
+
+        hashes = ["sha256:" + str(index) * 64 for index in range(1, 5)]
+        lineage = validate_prompt_lineage(
+            current_prompt_hash=hashes[0],
+            supersedes_prompt_hash=hashes[1],
+            known_lineage={hashes[1]: hashes[2], hashes[2]: hashes[3]},
+            maximum_lineage_depth=2,
+        )
+        self.assertIn("prompt_lineage_depth_exceeded", lineage["blockers"])
+        self.assert_schema("prompt_lineage_validation.schema.json", lineage)
+
+        committed = {"status": "BLOCK", "specificity": 0.0}
+        consumed = {
+            "a2_committed_decision_hash": stable_hash(committed),
+            "display_status": "BLOCK",
+            "specificity": 1.0,
+        }
+        validation = validate_a3_decision_consumption(
+            committed_decision=committed,
+            consumed_decision=consumed,
+        )
+        self.assertFalse(validation["consumption_valid"])
+        self.assertIn("a3_recomputed_release_state_forbidden", validation["blockers"])
+
+    def test_ocr_token_order_is_canonical_and_text_replay_changes_binding(self):
+        tokens = [
+            {"text": "SAFE", "box": [0, 0, 2, 2], "confidence": 0.9},
+            {"text": "REPORT", "box": [3, 0, 7, 2], "confidence": 0.8},
+        ]
+        first = run_optional_ocr_adapter(
+            image_path="fixture.png",
+            adapter_id="test",
+            adapter_version_hash="sha256:" + "a" * 64,
+            adapter=lambda _: {"text": "SAFE REPORT", "tokens": tokens},
+        )
+        reordered = run_optional_ocr_adapter(
+            image_path="fixture.png",
+            adapter_id="test",
+            adapter_version_hash="sha256:" + "a" * 64,
+            adapter=lambda _: {"text": "SAFE REPORT", "tokens": list(reversed(tokens))},
+        )
+        replayed = run_optional_ocr_adapter(
+            image_path="fixture.png",
+            adapter_id="test",
+            adapter_version_hash="sha256:" + "a" * 64,
+            adapter=lambda _: {"text": "ATTACK REPORT", "tokens": tokens},
+        )
+        self.assertEqual(first["token_boxes_hash"], reordered["token_boxes_hash"])
+        self.assertEqual(first["ocr_binding_hash"], reordered["ocr_binding_hash"])
+        self.assertNotEqual(first["ocr_binding_hash"], replayed["ocr_binding_hash"])
+        self.assertGreaterEqual(first["process_rss_peak_bytes"] or 0, first["process_rss_before_bytes"] or 0)
+
     def test_round20_real_controls_block_high_recall_zero_specificity_prompt(self):
         fixture = json.loads(
             (ROOT / "fixtures/a2/calibration/llava_7b_round20_specificity_controls.json").read_text(
@@ -1133,6 +1224,33 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
         self.assertTrue(all(item["response"] == "" for item in fixture["controls"].values()))
         self.assertTrue(all(item["wall_seconds"] < 30 for item in fixture["controls"].values()))
         self.assertEqual(fixture["qualification_state"], "blocked")
+        self.assertFalse(fixture["release_authority"])
+        self.assert_schema("multimodal_round21_qwen_controls.schema.json", fixture)
+
+    def test_round22_qwen_plain_mode_recovers_json_but_latency_still_blocks(self):
+        fixture = json.loads(
+            (ROOT / "fixtures/a2/calibration/qwen3_vl_4b_round22_output_mode_observations.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        json_mode = [item for item in fixture["observations"] if item["mode"] == "think_false_json"]
+        plain_mode = [item for item in fixture["observations"] if item["mode"] == "think_false_plain"]
+        self.assertTrue(all(item["parse_state"] == "empty_response" for item in json_mode))
+        self.assertTrue(all(item["parse_state"] == "valid_json" for item in plain_mode))
+        self.assertTrue(all(item["wall_seconds"] > 30 for item in fixture["observations"]))
+        self.assertEqual(fixture["comparison"]["plain_safe_control_specificity"], 1.0)
+        self.assertEqual(fixture["qualification_state"], "blocked")
+        self.assert_schema("multimodal_round22_qwen_output_modes.schema.json", fixture)
+
+    def test_superseded_block_consumption_fixture_keeps_a2_decision_authoritative(self):
+        fixture = json.loads(
+            (ROOT / "fixtures/a2/results/a2_round22_superseded_block_consumption.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(fixture["a2_decision"]["status"], "BLOCK")
+        self.assertEqual(fixture["a3_consumption"]["display_status"], "BLOCK")
+        self.assertFalse(fixture["a3_consumption"]["specificity_recomputation_allowed"])
         self.assertFalse(fixture["release_authority"])
 
 
