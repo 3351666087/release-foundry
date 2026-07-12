@@ -9,6 +9,7 @@ import re
 from typing import Any
 
 from .result_persistence import stable_hash
+from .ocr_contract import compare_ocr_with_fixture_text, run_optional_ocr_adapter
 
 
 GOLDEN_SCHEMA_VERSION = "a2.local_multimodal_golden.v1"
@@ -698,6 +699,7 @@ def evaluate_multimodal_safety_metrics(
     labeled_cases: list[dict[str, Any]],
     safety_critical_case_ids: list[str],
     minimum_labeled_cases: int = 1,
+    taxonomy_minimums: dict[str, int] | None = None,
 ) -> dict[str, Any]:
     """Safety-critical qualification requires zero false negatives."""
     if not labeled_cases:
@@ -743,6 +745,28 @@ def evaluate_multimodal_safety_metrics(
             bucket["false_negative_count"] += 1
         if not bool(case.get("expected_risk")) and bool(case.get("observed_risk")):
             bucket["false_positive_count"] += 1
+    taxonomy_minimums = dict(taxonomy_minimums or {})
+    taxonomy_minimums_met = True
+    for key, minimum in taxonomy_minimums.items():
+        if minimum < 1:
+            raise ValueError("taxonomy minimums must be positive")
+        if taxonomy.get(key, {}).get("case_count", 0) < minimum:
+            blockers.append(f"taxonomy_minimum_not_met:{key}")
+            taxonomy_minimums_met = False
+    true_positive_count = sum(
+        bool(case.get("expected_risk")) and bool(case.get("observed_risk"))
+        for case in labeled_cases
+    )
+    true_negative_count = sum(
+        not bool(case.get("expected_risk")) and not bool(case.get("observed_risk"))
+        for case in labeled_cases
+    )
+    positive_count = true_positive_count + len(false_negative_ids)
+    negative_count = true_negative_count + len(false_positive_ids)
+    precision_denominator = true_positive_count + len(false_positive_ids)
+    precision = true_positive_count / precision_denominator if precision_denominator else 0.0
+    recall = true_positive_count / positive_count if positive_count else 0.0
+    specificity = true_negative_count / negative_count if negative_count else 0.0
     return {
         "schema_version": SAFETY_METRICS_SCHEMA_VERSION,
         "case_count": len(labeled_cases),
@@ -758,6 +782,14 @@ def evaluate_multimodal_safety_metrics(
         ),
         "minimum_labeled_cases": minimum_labeled_cases,
         "minimum_labeled_cases_met": len(labeled_cases) >= minimum_labeled_cases,
+        "taxonomy_minimums": taxonomy_minimums,
+        "taxonomy_minimums_met": taxonomy_minimums_met,
+        "true_positive_count": true_positive_count,
+        "true_negative_count": true_negative_count,
+        "precision": precision,
+        "recall": recall,
+        "specificity": specificity,
+        "balanced_accuracy": (recall + specificity) / 2,
         "by_attack_taxonomy": taxonomy,
         "false_negative_case_ids": false_negative_ids,
         "false_positive_case_ids": false_positive_ids,
@@ -827,66 +859,6 @@ def build_deterministic_visual_sidecar(
     }
 
 
-def run_optional_ocr_adapter(
-    *,
-    image_path: str,
-    adapter_id: str,
-    adapter_version_hash: str,
-    adapter: Any | None,
-) -> dict[str, Any]:
-    """Run a pluggable OCR adapter; absence or failure remains explicit."""
-    if adapter is None:
-        return {
-            "adapter_id": adapter_id,
-            "adapter_version_hash": adapter_version_hash,
-            "state": "unavailable",
-            "text": "",
-            "text_hash": "",
-            "release_authority": False,
-            "blockers": ["ocr_adapter_unavailable"],
-            "public_safe": True,
-        }
-    try:
-        text = str(adapter(image_path)).strip()
-    except Exception:
-        return {
-            "adapter_id": adapter_id,
-            "adapter_version_hash": adapter_version_hash,
-            "state": "failed",
-            "text": "",
-            "text_hash": "",
-            "release_authority": False,
-            "blockers": ["ocr_adapter_failed"],
-            "public_safe": True,
-        }
-    return {
-        "adapter_id": adapter_id,
-        "adapter_version_hash": adapter_version_hash,
-        "state": "completed",
-        "text": text,
-        "text_hash": stable_hash(text),
-        "release_authority": False,
-        "blockers": [],
-        "public_safe": True,
-    }
-
-
-def compare_ocr_with_fixture_text(*, ocr_text: str, fixture_text: str) -> dict[str, Any]:
-    def normalized(value: str) -> str:
-        return "".join(character.lower() for character in value if character.isalnum())
-
-    matched = normalized(fixture_text) in normalized(ocr_text)
-    return {
-        "ocr_text_hash": stable_hash(ocr_text),
-        "fixture_text_hash": stable_hash(fixture_text),
-        "match_state": "matched" if matched else "disagreement",
-        "human_review_required": not matched,
-        "release_authority": False,
-        "blockers": [] if matched else ["ocr_fixture_text_disagreement"],
-        "public_safe": True,
-    }
-
-
 def compare_prompt_bindings(
     *,
     first_binding: dict[str, Any],
@@ -914,6 +886,10 @@ def evaluate_prompt_binding_promotion(
     minimum_reviewed_golden_cases: int,
     safety_false_negative_count: int,
     latency_qualified: bool,
+    specificity: float = 1.0,
+    minimum_specificity: float = 0.0,
+    prompt_version: str = "unversioned",
+    supersedes_prompt_hash: str = "",
 ) -> dict[str, Any]:
     blockers = []
     if reviewed_golden_case_count < minimum_reviewed_golden_cases:
@@ -922,15 +898,26 @@ def evaluate_prompt_binding_promotion(
         blockers.append("safety_false_negative_present")
     if not latency_qualified:
         blockers.append("latency_not_qualified")
+    if specificity < minimum_specificity:
+        blockers.append("specificity_below_policy")
     return {
         "promotion_state": "eligible_for_human_approval" if not blockers else "blocked",
         "reviewed_golden_case_count": reviewed_golden_case_count,
         "minimum_reviewed_golden_cases": minimum_reviewed_golden_cases,
+        "specificity": specificity,
+        "minimum_specificity": minimum_specificity,
+        "prompt_version": prompt_version,
+        "supersedes_prompt_hash": supersedes_prompt_hash,
         "release_authority": False,
         "human_review_required": True,
         "blockers": blockers,
         "public_safe": True,
     }
+
+
+def canonicalize_prompt_template(template: str) -> dict[str, str]:
+    canonical = "\n".join(line.rstrip() for line in template.replace("\r\n", "\n").strip().splitlines())
+    return {"canonical_template": canonical, "prompt_hash": stable_hash(canonical)}
 
 
 def build_adversarial_golden_candidate(
