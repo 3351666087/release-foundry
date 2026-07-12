@@ -89,16 +89,25 @@ class A2ProviderGatewayTests(unittest.TestCase):
             parts=[{"modality": "image", "data": "base64"}],
             idempotency_key="image-no-hash",
         )
-        unsupported = self.gateway.invoke(
+        hash_only = self.gateway.invoke(
             tenant_id="tenant-a",
             snapshot=snapshot(),
             provider_id="unit-provider",
-            model_id="audio",
-            parts=[{"modality": "audio", "content_hash": stable_hash("audio")}],
-            idempotency_key="audio",
+            model_id="vision",
+            parts=[{"modality": "image", "content_hash": stable_hash("image")}],
+            idempotency_key="image-hash-only",
+        )
+        empty_text = self.gateway.invoke(
+            tenant_id="tenant-a",
+            snapshot=snapshot(),
+            provider_id="unit-provider",
+            model_id="unit-model",
+            parts=[{"modality": "text", "text": "   "}],
+            idempotency_key="empty-text",
         )
         self.assertEqual(missing_hash["status"], "blocked")
-        self.assertEqual(unsupported["status"], "unsupported")
+        self.assertEqual(hash_only["status"], "blocked")
+        self.assertEqual(empty_text["status"], "blocked")
         self.assertEqual(self.fake.calls, 0)
 
     def test_audit_failure_blocks_before_external_call(self):

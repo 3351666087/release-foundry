@@ -2,14 +2,18 @@ import hashlib
 import hmac
 import json
 import sqlite3
+import struct
 import tempfile
 import unittest
+import zlib
 from pathlib import Path
 from unittest.mock import patch
 
 from services.judge.provider_gateway import (
     ProviderDefinition, ProviderGateway, StrictFakeAdapter, StrictFakeReconciliationAdapter,
 )
+from services.judge.artifact_pipeline import process_artifact
+from services.judge.derived_evidence import build_ocr_derived_evidence
 from services.judge.provider_runtime import AUTHENTICATED_BUNDLE_SCHEMA_VERSION, validate_semantic_judge_output
 from services.judge.release_decision_orchestrator import (
     execute_release_decision,
@@ -125,6 +129,125 @@ def gateway(response=None, *, failure="", audit_writer=None):
     )
 
 
+class ProductionScanner:
+    scanner_id = "clamav"
+    scanner_version = "1.2.3"
+
+    def scan(self, content, media_type):
+        return {
+            "status": "clean",
+            "engine": self.scanner_id,
+            "engine_version": self.scanner_version,
+            "production_qualified": True,
+            "signature_set": "20260712",
+        }
+
+
+class GroundedRecordingAdapter:
+    def __init__(self):
+        self.calls = 0
+        self.payloads = []
+
+    def invoke(self, model, payload, timeout_seconds):
+        self.calls += 1
+        self.payloads.append(payload)
+        citation = payload["parts"][1]["citation_ids"][0]
+        return {
+            "output_text": json.dumps(
+                {
+                    "passed": True,
+                    "score": 0.99,
+                    "reason": "OCR evidence is grounded",
+                    "failure_classes": [],
+                    "evidence_refs": [citation],
+                    "abstained": False,
+                }
+            ),
+            "usage": {"input_tokens": 20, "output_tokens": 10},
+        }
+
+
+def image_pipeline_and_evidence(*, production_qualified=True, disclosure=True):
+    def chunk(kind, data):
+        return (
+            struct.pack(">I", len(data))
+            + kind
+            + data
+            + struct.pack(">I", zlib.crc32(kind + data))
+        )
+
+    ihdr = struct.pack(">IIBBBBB", 2, 3, 8, 2, 0, 0, 0)
+    raw = b"\x00" + (b"\x00\x00\x00" * 2)
+    content = (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", ihdr)
+        + chunk(b"IDAT", zlib.compress(raw * 3))
+        + chunk(b"IEND", b"")
+    )
+    pipeline = process_artifact(
+        {
+            "tenant_scope": {
+                "organization_id": "org-a",
+                "tenant_id": "tenant-a",
+                "workspace_id": "workspace-a",
+                "project_id": "project-a",
+                "environment_id": "test",
+            },
+            "artifact_id": "artifact-1",
+            "filename": "release.png",
+            "media_type": "image/png",
+            "content_hash": "sha256:" + hashlib.sha256(content).hexdigest(),
+            "source_ref": "object://private/artifact-1",
+        },
+        content,
+        scanner=ProductionScanner(),
+        require_production_scanner=True,
+    )
+    if not pipeline["evaluation_eligible"] or pipeline["blockers"]:
+        raise AssertionError(f"invalid multimodal test pipeline: {pipeline['blockers']}")
+    evidence = build_ocr_derived_evidence(
+        tenant_scope=pipeline["tenant_scope"],
+        artifact_id="artifact-1",
+        content_hash=pipeline["manifest"]["content_hash"],
+        media_type="image/png",
+        width=2,
+        height=3,
+        blocks=[
+            {
+                "text": "RELEASE BLOCKED",
+                "confidence": 0.99,
+                "polygon": [[0, 0], [2, 0], [2, 2], [0, 2]],
+            }
+        ],
+        extractor={
+            "extractor_id": "rapidocr",
+            "extractor_version": "3.9.1",
+            "runtime_id": "onnxruntime-cpu",
+            "runtime_version": "1.23.2",
+            "model_id": "pp-ocrv6-small",
+            "model_hash": stable_hash("model"),
+            "config_hash": stable_hash("config"),
+            "dictionary_hash": stable_hash("dictionary"),
+            "production_qualified": production_qualified,
+        },
+        extractor_qualification={
+            "extractor_id": "rapidocr",
+            "extractor_version": "3.9.1",
+            "runtime_id": "onnxruntime-cpu",
+            "runtime_version": "1.23.2",
+            "model_id": "pp-ocrv6-small",
+            "model_hash": stable_hash("model"),
+            "config_hash": stable_hash("config"),
+            "dictionary_hash": stable_hash("dictionary"),
+            "production_qualified": production_qualified,
+        },
+        provider_disclosure_allowed=disclosure,
+        prompt_injection_status="passed",
+        redaction_status="passed",
+    )
+    return pipeline, evidence
+
+
 def reconciliation_gateway(status="remote_pending"):
     provider = ProviderDefinition(
         "unit", "fake", "local", "", frozenset({"text"}), frozenset({"tenant-a"}),
@@ -155,6 +278,150 @@ class ProcessInterruptedAdapter:
 
 
 class ReleaseDecisionOrchestratorTests(unittest.TestCase):
+    def test_multimodal_ocr_reaches_decision_with_grounded_private_disclosure(self):
+        pipeline, evidence = image_pipeline_and_evidence()
+        original = request()
+        original.update(
+            {
+                "required_modalities": ["text", "image"],
+                "artifact_pipeline_records": [pipeline],
+                "derived_evidence_records": [evidence],
+            }
+        )
+        adapter = GroundedRecordingAdapter()
+        provider = ProviderDefinition(
+            "unit", "recording", "local", "", frozenset({"text"}),
+            frozenset({"tenant-a"}), data_residency="local",
+        )
+        result = execute_release_decision(
+            original,
+            gateway=ProviderGateway(
+                [provider],
+                {"recording": adapter},
+                response_validator=validate_semantic_judge_output,
+            ),
+            key_resolver=lambda _: KEY,
+            now_unix_ms=NOW,
+        )
+
+        self.assertEqual(result["evidence_snapshot"]["completeness"], "complete")
+        self.assertEqual(result["evidence_snapshot"]["artifact_modalities"], ["image"])
+        self.assertEqual(result["evidence_snapshot"]["observed_modalities"], ["image", "text"])
+        self.assertEqual(result["a3_consumption"]["display_decision"], "allow")
+        self.assertEqual(adapter.calls, 1)
+        self.assertEqual(adapter.payloads[0]["parts"][1]["text"], "RELEASE BLOCKED")
+        serialized = json.dumps(result, sort_keys=True)
+        self.assertNotIn("RELEASE BLOCKED", serialized)
+        self.assertNotIn('"text":', json.dumps(result["evidence_snapshot"]["derived_evidence"]))
+
+    def test_nonproduction_ocr_blocks_before_provider_call(self):
+        pipeline, evidence = image_pipeline_and_evidence(production_qualified=False)
+        original = request()
+        original.update(
+            {
+                "required_modalities": ["text", "image"],
+                "artifact_pipeline_records": [pipeline],
+                "derived_evidence_records": [evidence],
+            }
+        )
+        provider_gateway = gateway()
+        result = execute_release_decision(
+            original,
+            gateway=provider_gateway,
+            key_resolver=lambda _: KEY,
+            now_unix_ms=NOW,
+        )
+        self.assertEqual(result["a3_consumption"]["display_decision"], "block")
+        self.assertEqual(provider_gateway.adapters["fake"].calls, 0)
+        self.assertIn(
+            "derived_evidence_0_ocr_runtime_not_production_qualified",
+            result["release_gate"]["blocking_reasons"],
+        )
+
+    def test_ungrounded_provider_citation_cannot_allow_release(self):
+        response = {
+            "output_text": json.dumps(
+                {
+                    "passed": True,
+                    "score": 1,
+                    "reason": "unsupported assertion",
+                    "failure_classes": [],
+                    "evidence_refs": [stable_hash("invented-evidence")],
+                    "abstained": False,
+                }
+            ),
+            "usage": {},
+        }
+        result = execute_release_decision(
+            request(),
+            gateway=gateway(response),
+            key_resolver=lambda _: KEY,
+            now_unix_ms=NOW,
+        )
+        self.assertEqual(result["a3_consumption"]["display_decision"], "block")
+        self.assertIn(
+            "semantic_evidence_ref_ungrounded",
+            result["release_gate"]["blocking_reasons"],
+        )
+
+    def test_multimodal_snapshot_only_citation_cannot_allow_release(self):
+        pipeline, evidence = image_pipeline_and_evidence()
+        original = request()
+        original.update(
+            {
+                "required_modalities": ["text", "image"],
+                "artifact_pipeline_records": [pipeline],
+                "derived_evidence_records": [evidence],
+            }
+        )
+        result = execute_release_decision(
+            original,
+            gateway=gateway(),
+            key_resolver=lambda _: KEY,
+            now_unix_ms=NOW,
+        )
+        self.assertEqual(result["a3_consumption"]["display_decision"], "block")
+        self.assertIn(
+            "semantic_derived_evidence_ref_missing",
+            result["release_gate"]["blocking_reasons"],
+        )
+
+    def test_undisclosed_multimodal_evidence_cannot_be_cited(self):
+        pipeline, evidence = image_pipeline_and_evidence(disclosure=False)
+        citation = evidence["blocks"][0]["citation_id"]
+        response = {
+            "output_text": json.dumps(
+                {
+                    "passed": True,
+                    "score": 1,
+                    "reason": "claims unseen OCR",
+                    "failure_classes": [],
+                    "evidence_refs": [citation],
+                    "abstained": False,
+                }
+            ),
+            "usage": {},
+        }
+        original = request()
+        original.update(
+            {
+                "required_modalities": ["text", "image"],
+                "artifact_pipeline_records": [pipeline],
+                "derived_evidence_records": [evidence],
+            }
+        )
+        result = execute_release_decision(
+            original,
+            gateway=gateway(response),
+            key_resolver=lambda _: KEY,
+            now_unix_ms=NOW,
+        )
+        self.assertEqual(result["a3_consumption"]["display_decision"], "block")
+        self.assertIn(
+            "semantic_evidence_ref_ungrounded",
+            result["release_gate"]["blocking_reasons"],
+        )
+
     def test_authenticated_normal_path_produces_allow_ledger_and_a3_handoff(self):
         original_request = request()
         original_json = json.dumps(original_request, sort_keys=True)
@@ -403,6 +670,60 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
                 )
         finally:
             connection.close()
+
+    def test_recovery_envelope_rejects_inconsistent_citation_states(self):
+        for status, blockers, semantic_present, message in (
+            ("grounded", ["unexpected"], True, "grounded recovery citations"),
+            ("invalid", [], True, "invalid recovery citations"),
+            ("not_available", [], True, "inconsistent with semantic output"),
+            ("grounded", [], False, "absent semantic output"),
+        ):
+            connection = sqlite3.connect(":memory:")
+            try:
+                initialize_sql_store(connection)
+
+                def fail(point):
+                    if point == "after_provider_outcome_committed":
+                        raise OSError("stop")
+
+                with self.assertRaises(OSError):
+                    execute_release_decision(
+                        request(), gateway=gateway(), key_resolver=lambda _: KEY,
+                        now_unix_ms=NOW, persistence_connection=connection,
+                        persistence_failure_injector=fail,
+                    )
+                operation_id = connection.execute(
+                    "SELECT operation_id FROM a2_decision_operations"
+                ).fetchone()[0]
+                scope = {
+                    "organization_id": "org-a", "tenant_id": "tenant-a",
+                    "workspace_id": "workspace-a", "project_id": "project-a",
+                    "environment_id": "test",
+                }
+                raw = connection.execute(
+                    "SELECT recovery_envelope_json FROM a2_provider_outcomes"
+                ).fetchone()[0]
+                envelope = json.loads(raw)
+                envelope["citation_validation"]["status"] = status
+                envelope["citation_validation"]["blockers"] = blockers
+                if not semantic_present:
+                    envelope["semantic_output"] = None
+                    envelope["citation_validation"]["reference_hashes"] = []
+                connection.execute(
+                    "UPDATE a2_provider_outcomes SET recovery_envelope_json = ?, "
+                    "recovery_envelope_hash = ?",
+                    (
+                        json.dumps(envelope, sort_keys=True, separators=(",", ":")),
+                        stable_hash(envelope),
+                    ),
+                )
+                connection.commit()
+                with self.assertRaisesRegex(ValueError, message):
+                    load_decision_recovery_envelope(
+                        connection, operation_id=operation_id, scope=scope,
+                    )
+            finally:
+                connection.close()
 
     def test_interrupted_provider_call_requires_recovery_and_is_not_replayed(self):
         connection = sqlite3.connect(":memory:")

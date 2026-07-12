@@ -5,6 +5,7 @@ from __future__ import annotations
 from copy import deepcopy
 from typing import Any
 
+from .derived_evidence import public_derived_evidence
 from .result_persistence import redact_payload, stable_hash
 
 
@@ -32,6 +33,7 @@ def build_evidence_snapshot(
     required_modalities: list[str] | None = None,
     source_schema_version: str = "unknown",
     artifact_pipeline_records: list[dict[str, Any]] | None = None,
+    derived_evidence_records: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """Freeze public-safe A1 evidence metadata without storing raw evidence."""
     normalized = redact_payload(deepcopy(run_payload))
@@ -56,14 +58,20 @@ def build_evidence_snapshot(
     )
     artifacts.extend(pipeline_artifacts)
     validation_errors.extend(pipeline_errors)
-    observed_modalities = sorted(
+    artifact_modalities = sorted(
         {
             str(item["modality"])
             for item in artifacts
             if item.get("modality")
         }
-        | ({"text"} if _final_text(source) else set())
     )
+    derived_evidence, semantic_modalities, derived_errors = _derived_evidence(
+        derived_evidence_records or [],
+        artifacts=artifacts,
+        scope=scope,
+    )
+    validation_errors.extend(derived_errors)
+    observed_modalities = sorted(semantic_modalities | ({"text"} if _final_text(source) else set()))
     required = sorted(set(required_modalities or ["text"]))
     missing = sorted(set(required) - set(observed_modalities))
     trace_completeness = normalized.get("trace_completeness")
@@ -82,6 +90,7 @@ def build_evidence_snapshot(
         "source_schema_version": source_schema_version,
         "source_payload_hash": stable_hash(normalized),
         "required_modalities": required,
+        "artifact_modalities": artifact_modalities,
         "observed_modalities": observed_modalities,
         "completeness": completeness,
         "validation_errors": sorted(set(validation_errors)),
@@ -89,6 +98,7 @@ def build_evidence_snapshot(
         "tool_call_count": len(tool_calls),
         "tool_sequence": [str(call.get("tool") or call.get("name") or "") for call in tool_calls],
         "artifacts": artifacts,
+        "derived_evidence": derived_evidence,
         "extractor_provenance": [
             {
                 "extractor_id": "a2.public_safe_run_normalizer",
@@ -110,6 +120,50 @@ def build_evidence_snapshot(
     snapshot_core["snapshot_id"] = stable_hash(snapshot_core)
     snapshot_core["snapshot_hash"] = stable_hash(snapshot_core)
     return snapshot_core
+
+
+def _derived_evidence(
+    records: list[dict[str, Any]],
+    *,
+    artifacts: list[dict[str, Any]],
+    scope: dict[str, str],
+) -> tuple[list[dict[str, Any]], set[str], list[str]]:
+    public_records: list[dict[str, Any]] = []
+    semantic_modalities: set[str] = set()
+    errors: list[str] = []
+    artifact_bindings = {
+        (str(item.get("artifact_id") or ""), str(item.get("content_hash") or ""))
+        for item in artifacts
+    }
+    for position, record in enumerate(records):
+        prefix = f"derived_evidence_{position}"
+        try:
+            public = public_derived_evidence(record)
+        except (KeyError, TypeError, ValueError):
+            errors.append(f"{prefix}_integrity_invalid")
+            continue
+        if public.get("tenant_scope") != scope:
+            errors.append(f"{prefix}_scope_mismatch")
+            continue
+        binding = (
+            str(public.get("artifact_id") or ""),
+            str(public.get("content_hash") or ""),
+        )
+        if binding not in artifact_bindings:
+            errors.append(f"{prefix}_artifact_binding_invalid")
+            continue
+        public_records.append(public)
+        if public.get("production_eligible") is not True:
+            errors.extend(
+                f"{prefix}_{blocker}"
+                for blocker in public.get("blockers", [])
+            )
+            if not public.get("blockers"):
+                errors.append(f"{prefix}_not_production_eligible")
+            continue
+        if public.get("derivation_type") == "ocr":
+            semantic_modalities.add("image")
+    return public_records, semantic_modalities, errors
 
 
 def _artifact_pipeline_evidence(

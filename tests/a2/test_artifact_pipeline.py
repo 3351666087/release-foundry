@@ -16,6 +16,7 @@ from services.judge.artifact_pipeline import (
     process_artifact_reference,
 )
 from services.judge.extractor_runtime import SubprocessExtractorRuntime
+from services.judge.derived_evidence import build_ocr_derived_evidence
 from services.judge.artifact_reference import (
     ARTIFACT_REFERENCE_SCHEMA_VERSION,
     InMemoryVersionedObjectReader,
@@ -349,14 +350,73 @@ class ArtifactPipelineTests(unittest.TestCase):
             required_modalities=["text", "image"],
             artifact_pipeline_records=[valid_pipeline],
         )
-        self.assertEqual(snapshot["completeness"], "complete")
-        self.assertIn("image", snapshot["observed_modalities"])
+        self.assertEqual(snapshot["completeness"], "evidence_missing")
+        self.assertIn("image", snapshot["artifact_modalities"])
+        self.assertNotIn("image", snapshot["observed_modalities"])
+        self.assertEqual(snapshot["missing_modalities"], ["image"])
         self.assertEqual(snapshot["artifacts"][-1]["reference_hash"], valid_pipeline["manifest"]["manifest_id"])
         self.assertEqual(snapshot["artifacts"][-1]["reference_resolution_hash"], "")
         self.assertEqual(
             snapshot["extractor_provenance"][-1]["extractor_id"],
             valid_pipeline["extraction"]["extractor_id"],
         )
+        derived = build_ocr_derived_evidence(
+            tenant_scope=scope(),
+            artifact_id=valid_pipeline["manifest"]["artifact_id"],
+            content_hash=valid_pipeline["manifest"]["content_hash"],
+            media_type="image/png",
+            width=2,
+            height=3,
+            blocks=[
+                {
+                    "text": "RELEASE BLOCKED",
+                    "confidence": 0.99,
+                    "polygon": [[0, 0], [2, 0], [2, 1], [0, 1]],
+                }
+            ],
+        extractor={
+                "extractor_id": "rapidocr",
+                "extractor_version": "3.9.1",
+                "runtime_id": "onnxruntime-cpu",
+                "runtime_version": "1.23.2",
+                "model_id": "pp-ocrv6-small",
+                "model_hash": digest(b"model"),
+                "config_hash": digest(b"config"),
+                "dictionary_hash": digest(b"dictionary"),
+            "production_qualified": True,
+        },
+        extractor_qualification={
+            "extractor_id": "rapidocr",
+            "extractor_version": "3.9.1",
+            "runtime_id": "onnxruntime-cpu",
+            "runtime_version": "1.23.2",
+            "model_id": "pp-ocrv6-small",
+            "model_hash": digest(b"model"),
+            "config_hash": digest(b"config"),
+            "dictionary_hash": digest(b"dictionary"),
+            "production_qualified": True,
+        },
+            prompt_injection_status="passed",
+            redaction_status="passed",
+        )
+        semantic_snapshot = build_evidence_snapshot(
+            {"run_id": "run-1", "final_response": "done"},
+            organization_id="org-a",
+            tenant_id="tenant-a",
+            workspace_id="workspace-a",
+            project_id="project-a",
+            environment_id="test",
+            run_id="run-1",
+            case_id="case-1",
+            scenario_id="scenario-1",
+            created_at="2026-07-12T00:00:00Z",
+            required_modalities=["text", "image"],
+            artifact_pipeline_records=[valid_pipeline],
+            derived_evidence_records=[derived],
+        )
+        self.assertEqual(semantic_snapshot["completeness"], "complete")
+        self.assertIn("image", semantic_snapshot["observed_modalities"])
+        self.assertNotIn("RELEASE BLOCKED", json.dumps(semantic_snapshot))
 
         invalid_pipeline = process_artifact(
             submission(content, "image/png", "sample.png"),

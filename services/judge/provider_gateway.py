@@ -371,8 +371,16 @@ class ProviderGateway:
         requested = {str(part.get("modality") or "") for part in parts}
         if not requested or not requested <= MODALITIES or not requested <= provider.allowed_modalities:
             return "unsupported"
-        if any("data" in part and part.get("modality") != "text" and not part.get("content_hash") for part in parts):
-            return "blocked"
+        for part in parts:
+            modality = str(part.get("modality") or "")
+            if modality == "text":
+                if not isinstance(part.get("text"), str) or not part["text"].strip():
+                    return "blocked"
+                continue
+            if not isinstance(part.get("data"), str) or not part["data"]:
+                return "blocked"
+            if not part.get("content_hash"):
+                return "blocked"
         if max_cost_usd < 0:
             return "budget_blocked"
         return ""

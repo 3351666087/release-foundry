@@ -30,6 +30,7 @@ from .trusted_spine import (
     build_decision_record,
     build_evidence_snapshot,
 )
+from .derived_evidence import provider_text_parts
 
 
 ORCHESTRATION_SCHEMA_VERSION = "a2.release_decision_orchestration.v1"
@@ -70,9 +71,18 @@ def execute_release_decision(
             or request.get("source_schema_version")
             or "unknown"
         ),
+        artifact_pipeline_records=_record_list(request, "artifact_pipeline_records"),
+        derived_evidence_records=_record_list(request, "derived_evidence_records"),
     )
-    request_hash = stable_hash(_request_identity(request, snapshot))
-    parts = _provider_parts(snapshot, request.get("judge_prompt"))
+    parts, disclosed_citations = _provider_parts(
+        snapshot,
+        request.get("judge_prompt"),
+        _record_list(request, "derived_evidence_records"),
+    )
+    provider_payload_hash = stable_hash(parts)
+    request_hash = stable_hash(
+        _request_identity(request, snapshot, provider_payload_hash=provider_payload_hash)
+    )
     provider_request_core = {
         "schema_version": "a2.provider_gateway.v1",
         "tenant_id": scope["tenant_id"],
@@ -81,7 +91,7 @@ def execute_release_decision(
         "provider_id": str(request["provider_id"]),
         "model_id": str(request["model_id"]),
         "modalities": sorted({str(part.get("modality") or "") for part in parts}),
-        "payload_hash": stable_hash(parts),
+        "payload_hash": provider_payload_hash,
         "idempotency_key": str(request["idempotency_key"]),
     }
     operation = None
@@ -139,13 +149,20 @@ def execute_release_decision(
             )
         raise
     semantic_output = _semantic_output(provider_result)
+    citation_validation = _validate_evidence_refs(
+        snapshot,
+        semantic_output,
+        disclosed_citations=disclosed_citations,
+    )
     recovery_envelope = _build_recovery_envelope(
         request=request,
         scope=scope,
         snapshot=snapshot,
         provider_result=provider_result,
         semantic_output=semantic_output,
+        citation_validation=citation_validation,
         bundle_verification=bundle_verification,
+        provider_payload_hash=provider_payload_hash,
     )
     if persistence_connection is not None and operation is not None and lease is not None:
         persist_provider_outcome(
@@ -209,6 +226,8 @@ def reconcile_release_decision(
             run_payload.get("aggregate_metrics", {}).get("schema_version")
             or request.get("source_schema_version") or "unknown"
         ),
+        artifact_pipeline_records=_record_list(request, "artifact_pipeline_records"),
+        derived_evidence_records=_record_list(request, "derived_evidence_records"),
     )
     lease = claim_provider_reconciliation(
         connection, operation_id=operation_id, scope=scope, worker_id=worker_id,
@@ -244,9 +263,21 @@ def reconcile_release_decision(
         "raw_response_included": False,
         "secret_included": False,
     }
+    parts, disclosed_citations = _provider_parts(
+        snapshot,
+        request.get("judge_prompt"),
+        _record_list(request, "derived_evidence_records"),
+    )
+    provider_payload_hash = stable_hash(parts)
+    citation_validation = _validate_evidence_refs(
+        snapshot,
+        semantic_output,
+        disclosed_citations=disclosed_citations,
+    )
     envelope = _build_recovery_envelope(
         request=request, scope=scope, snapshot=snapshot, provider_result=provider_result,
-        semantic_output=semantic_output, bundle_verification=bundle_verification,
+        semantic_output=semantic_output, citation_validation=citation_validation,
+        bundle_verification=bundle_verification, provider_payload_hash=provider_payload_hash,
     )
     persist_reconciled_provider_outcome(
         connection, operation_id=operation_id, scope=scope, lease=lease,
@@ -369,7 +400,12 @@ def _replayed_operation(operation: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _request_identity(request: dict[str, Any], snapshot: dict[str, Any]) -> dict[str, Any]:
+def _request_identity(
+    request: dict[str, Any],
+    snapshot: dict[str, Any],
+    *,
+    provider_payload_hash: str = "",
+) -> dict[str, Any]:
     return {
         "scope": _scope(request),
         "run_id": request.get("run_id"),
@@ -380,6 +416,7 @@ def _request_identity(request: dict[str, Any], snapshot: dict[str, Any]) -> dict
         "policy_version": request.get("policy_version"),
         "required_modalities": snapshot.get("required_modalities"),
         "snapshot_hash": snapshot.get("snapshot_hash"),
+        "provider_payload_hash": provider_payload_hash,
     }
 
 
@@ -388,6 +425,13 @@ def _scope(request: dict[str, Any]) -> dict[str, str]:
     if not all(scope.values()):
         raise ValueError("complete five-field tenant scope is required")
     return scope
+
+
+def _record_list(request: dict[str, Any], field: str) -> list[dict[str, Any]]:
+    value = request.get(field, [])
+    if not isinstance(value, list) or any(not isinstance(item, dict) for item in value):
+        raise ValueError(f"{field} must be a list of records")
+    return value
 
 
 def _authenticated_run(
@@ -414,17 +458,20 @@ def _authenticated_run(
     return evidence[0], verification
 
 
-def _provider_parts(snapshot: dict[str, Any], judge_prompt: Any) -> list[dict[str, Any]]:
+def _provider_parts(
+    snapshot: dict[str, Any],
+    judge_prompt: Any,
+    derived_evidence_records: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], set[str]]:
     parts = [{"modality": "text", "text": str(judge_prompt or "Evaluate the authenticated evidence snapshot.")}]
-    for artifact in snapshot.get("artifacts", []):
-        parts.append(
-            {
-                "modality": artifact["modality"],
-                "content_hash": artifact["content_hash"],
-                "reference_hash": artifact["reference_hash"],
-            }
-        )
-    return parts
+    derived_parts = provider_text_parts(derived_evidence_records)
+    parts.extend(derived_parts)
+    disclosed = {
+        str(citation)
+        for part in derived_parts
+        for citation in part.get("citation_ids") or []
+    }
+    return parts, disclosed
 
 
 def _semantic_output(provider_result: dict[str, Any]) -> dict[str, Any] | None:
@@ -436,6 +483,45 @@ def _semantic_output(provider_result: dict[str, Any]) -> dict[str, Any] | None:
         return None
 
 
+def _validate_evidence_refs(
+    snapshot: dict[str, Any],
+    semantic_output: dict[str, Any] | None,
+    *,
+    disclosed_citations: set[str],
+) -> dict[str, Any]:
+    """Ground Provider citations in evidence actually disclosed to that Provider."""
+    if semantic_output is None:
+        return {
+            "status": "not_available",
+            "reference_hashes": [],
+            "blockers": [],
+            "public_safe": True,
+        }
+    snapshot_id = str(snapshot.get("snapshot_id") or "")
+    requires_derived = "image" in set(snapshot.get("required_modalities") or [])
+    allowed = set(disclosed_citations)
+    if not requires_derived:
+        allowed.add(snapshot_id)
+    normalized: list[str] = []
+    blockers: list[str] = []
+    for reference in semantic_output.get("evidence_refs") or []:
+        candidate = snapshot_id if reference == "snapshot" else str(reference)
+        normalized.append(candidate)
+        if candidate not in allowed:
+            blockers.append("semantic_evidence_ref_ungrounded")
+    if not normalized:
+        blockers.append("semantic_evidence_refs_missing")
+    if requires_derived and not any(item in disclosed_citations for item in normalized):
+        blockers.append("semantic_derived_evidence_ref_missing")
+    semantic_output["evidence_refs"] = normalized
+    return {
+        "status": "grounded" if not blockers else "invalid",
+        "reference_hashes": [stable_hash(item) for item in normalized],
+        "blockers": sorted(set(blockers)),
+        "public_safe": True,
+    }
+
+
 def _build_recovery_envelope(
     *,
     request: dict[str, Any],
@@ -443,7 +529,9 @@ def _build_recovery_envelope(
     snapshot: dict[str, Any],
     provider_result: dict[str, Any],
     semantic_output: dict[str, Any] | None,
+    citation_validation: dict[str, Any],
     bundle_verification: dict[str, Any],
+    provider_payload_hash: str,
 ) -> dict[str, Any]:
     provenance = build_provider_provenance_handoff(
         tenant_scope=scope,
@@ -465,7 +553,13 @@ def _build_recovery_envelope(
         "schema_version": RECOVERY_ENVELOPE_SCHEMA_VERSION,
         **scope,
         "idempotency_key": str(request["idempotency_key"]),
-        "request_hash": stable_hash(_request_identity(request, snapshot)),
+        "request_hash": stable_hash(
+            _request_identity(
+                request,
+                snapshot,
+                provider_payload_hash=provider_payload_hash,
+            )
+        ),
         "snapshot": snapshot,
         "provider": {
             "provider_id": str(provider_result.get("provider_id") or request["provider_id"]),
@@ -478,6 +572,7 @@ def _build_recovery_envelope(
         },
         "provider_provenance": provenance,
         "semantic_output": safe_semantic,
+        "citation_validation": citation_validation,
         "bundle_verification": {
             "manifest_authenticated": bundle_verification.get("manifest_authenticated") is True,
             "authenticated_bundle_digest": str(
@@ -523,7 +618,16 @@ def _build_decision_result(envelope: dict[str, Any]) -> dict[str, Any]:
         raise ValueError("recovery provenance scope mismatch")
     if provenance.get("snapshot_hash") != snapshot.get("snapshot_hash"):
         raise ValueError("recovery provenance snapshot mismatch")
-    decision, blockers = _decision(snapshot, provider, semantic, provenance)
+    citation_validation = envelope.get("citation_validation")
+    if not isinstance(citation_validation, dict):
+        raise ValueError("recovery citation validation is incomplete")
+    decision, blockers = _decision(
+        snapshot,
+        provider,
+        semantic,
+        provenance,
+        citation_validation,
+    )
     gate = {
         "schema_version": "a2.release_gate.v1",
         "decision": "pass" if decision == "allow" else "warn" if decision == "review" else "block",
@@ -581,10 +685,12 @@ def _decision(
     provider_result: dict[str, Any],
     semantic_output: dict[str, Any] | None,
     provenance: dict[str, Any],
+    citation_validation: dict[str, Any],
 ) -> tuple[str, list[str]]:
     blockers = list(snapshot.get("validation_errors") or []) + list(snapshot.get("missing_modalities") or [])
     blockers.extend(provider_result.get("blockers") or [])
     blockers.extend(provenance.get("blockers") or [])
+    blockers.extend(citation_validation.get("blockers") or [])
     if snapshot.get("completeness") != "complete":
         blockers.append("evidence_not_complete")
     if semantic_output is None:

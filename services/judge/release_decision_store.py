@@ -1217,7 +1217,8 @@ def _validate_recovery_envelope(
         return
     supported_top = {
         "schema_version", *scope.keys(), "idempotency_key", "request_hash", "snapshot",
-        "provider", "provider_provenance", "semantic_output", "bundle_verification",
+        "provider", "provider_provenance", "semantic_output", "citation_validation",
+        "bundle_verification",
         "policy_version", "ledger_id", "judge_version", "builder_version", "created_at",
         "provider_outcome_hash", "public_safe", "recovery_supported",
         "raw_provider_payload_included", "raw_evidence_included",
@@ -1252,6 +1253,38 @@ def _validate_recovery_envelope(
         "bundle verification",
     )
     semantic = envelope.get("semantic_output")
+    citation_validation = _dict(
+        envelope.get("citation_validation"),
+        "recovery citation validation",
+    )
+    _assert_exact_keys(
+        citation_validation,
+        {"status", "reference_hashes", "blockers", "public_safe"},
+        "recovery citation validation",
+    )
+    if citation_validation.get("status") not in {"not_available", "grounded", "invalid"}:
+        raise ValueError("recovery citation validation status is invalid")
+    if citation_validation.get("public_safe") is not True:
+        raise ValueError("recovery citation validation public_safe must be true")
+    reference_hashes = citation_validation.get("reference_hashes")
+    blockers = citation_validation.get("blockers")
+    if not isinstance(reference_hashes, list) or not all(
+        isinstance(item, str) and item.startswith("sha256:")
+        for item in reference_hashes
+    ):
+        raise ValueError("recovery citation reference hashes are invalid")
+    if not isinstance(blockers, list) or not all(isinstance(item, str) for item in blockers):
+        raise ValueError("recovery citation blockers are invalid")
+    status = citation_validation["status"]
+    if semantic is None:
+        if status != "not_available" or reference_hashes or blockers:
+            raise ValueError("recovery citation state is inconsistent with absent semantic output")
+    elif status == "not_available":
+        raise ValueError("recovery citation state is inconsistent with semantic output")
+    elif status == "grounded" and blockers:
+        raise ValueError("grounded recovery citations cannot contain blockers")
+    elif status == "invalid" and not blockers:
+        raise ValueError("invalid recovery citations require blockers")
     if semantic is not None:
         semantic = _dict(semantic, "recovery semantic output")
         _assert_exact_keys(
@@ -1264,6 +1297,8 @@ def _validate_recovery_envelope(
             raise ValueError("recovery semantic score must be numeric")
         if not math.isfinite(float(score)) or not 0 <= float(score) <= 1:
             raise ValueError("recovery semantic score must be finite and between 0 and 1")
+        if semantic.get("evidence_ref_hashes") != reference_hashes:
+            raise ValueError("recovery semantic citation hashes do not match validation")
     _scan_public_safe_value(envelope)
 
 
