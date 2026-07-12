@@ -20,9 +20,11 @@ from services.judge.release_decision_store import (
     IdempotencyConflictError,
     authorize_provider_call,
     claim_decision_recovery,
+    claim_due_provider_reconciliation,
     claim_provider_reconciliation,
     claim_decision_outbox,
     load_decision_recovery_envelope,
+    mark_operation_recovery_required,
     persist_provider_outcome,
     persist_provider_reconciliation_observation,
     persist_release_decision,
@@ -126,7 +128,7 @@ def gateway(response=None, *, failure="", audit_writer=None):
 def reconciliation_gateway(status="remote_pending"):
     provider = ProviderDefinition(
         "unit", "fake", "local", "", frozenset({"text"}), frozenset({"tenant-a"}),
-        data_residency="local", reconciliation_mode="query",
+        data_residency="local", reconciliation_mode="provider_status_lookup",
     )
     response = {"status": status}
     if status == "remote_completed":
@@ -686,6 +688,7 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
         provider_gateway = ProviderGateway(
             [ProviderDefinition(
                 "unit", "fake", "local", "", frozenset({"text"}), frozenset({"tenant-a"}),
+                reconciliation_mode="provider_status_lookup",
             )],
             {"fake": ProcessInterruptedAdapter()},
             response_validator=validate_semantic_judge_output,
@@ -714,6 +717,7 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
         interrupted = ProviderGateway(
             [ProviderDefinition(
                 "unit", "fake", "local", "", frozenset({"text"}), frozenset({"tenant-a"}),
+                reconciliation_mode="provider_status_lookup",
             )],
             {"fake": ProcessInterruptedAdapter()},
             response_validator=validate_semantic_judge_output,
@@ -756,6 +760,7 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
         interrupted = ProviderGateway(
             [ProviderDefinition(
                 "unit", "fake", "local", "", frozenset({"text"}), frozenset({"tenant-a"}),
+                reconciliation_mode="provider_status_lookup",
             )],
             {"fake": ProcessInterruptedAdapter()},
             response_validator=validate_semantic_judge_output,
@@ -787,6 +792,17 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
                     "payload_hash": connection.execute(
                         "SELECT provider_payload_hash FROM a2_decision_operations"
                     ).fetchone()[0],
+                    "idempotency_key_hash": connection.execute(
+                        "SELECT provider_idempotency_key_hash FROM a2_decision_operations"
+                    ).fetchone()[0],
+                    "provider_endpoint_hash": connection.execute(
+                        "SELECT provider_endpoint_hash FROM a2_decision_operations"
+                    ).fetchone()[0],
+                    "scope": {field: request()[field] for field in (
+                        "organization_id", "tenant_id", "workspace_id",
+                        "project_id", "environment_id",
+                    )},
+                    "operation_id": operation[0],
                     "provider_generation": operation[2],
                 }
             )
@@ -821,6 +837,8 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
                 connection, scope=scope, idempotency_key="reconcile-case",
                 request_hash="sha256:request", snapshot_id="snapshot",
                 snapshot_hash="sha256:snapshot", provider_id="unit", model_id="semantic-1",
+                reconciliation_mode="provider_status_lookup",
+                provider_endpoint_hash="sha256:endpoint",
                 created_at="2026-07-12T00:00:00Z",
             )
             lease = authorize_provider_call(
@@ -846,6 +864,7 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
                 **{key: fresh[key] for key in (
                     "operation_id", "provider_call_id", "provider_id", "model_id",
                     "logical_call_id", "snapshot_hash", "payload_hash", "idempotency_key_hash",
+                    "provider_endpoint_hash",
                 )},
                 "status": "remote_pending", "retry_authorized": False, "public_safe": True,
             }
@@ -860,6 +879,71 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
                 lease=fresh, observation=observation, observed_at="2026-07-12T00:00:04Z",
             )
             self.assertEqual(_count(connection, "a2_provider_reconciliation_observations"), 1)
+        finally:
+            connection.close()
+
+    def test_due_reconciliation_scheduler_respects_order_mode_and_leases(self):
+        scope = {field: request()[field] for field in (
+            "organization_id", "tenant_id", "workspace_id", "project_id", "environment_id"
+        )}
+        connection = sqlite3.connect(":memory:")
+
+        def recovery_operation(key, created_at, *, supported=True, next_at=None):
+            operation = reserve_decision_operation(
+                connection, scope=scope, idempotency_key=key,
+                request_hash=f"sha256:{key}", snapshot_id=f"snapshot-{key}",
+                snapshot_hash=f"sha256:snapshot-{key}", provider_id="unit",
+                model_id="semantic-1", created_at=created_at,
+                reconciliation_mode=(
+                    "provider_status_lookup" if supported else "unsupported"
+                ),
+                provider_endpoint_hash=("sha256:endpoint" if supported else ""),
+            )
+            lease = authorize_provider_call(
+                connection, operation_id=operation["operation_id"], scope=scope,
+                created_at=created_at, worker_id=f"provider-{key}", lease_seconds=1,
+                logical_call_id=f"sha256:logical-{key}", payload_hash=f"sha256:payload-{key}",
+                idempotency_key_hash=f"sha256:key-{key}",
+            )
+            mark_operation_recovery_required(
+                connection, operation_id=operation["operation_id"], scope=scope,
+                created_at=created_at, lease=lease,
+            )
+            if next_at is not None:
+                connection.execute(
+                    """UPDATE a2_decision_operations
+                       SET reconciliation_next_at = ? WHERE operation_id = ?""",
+                    (next_at, operation["operation_id"]),
+                )
+                connection.commit()
+            return operation["operation_id"]
+
+        try:
+            initialize_sql_store(connection)
+            oldest = recovery_operation("oldest", "2026-07-12T00:00:00Z")
+            recovery_operation(
+                "future", "2026-07-12T00:00:01Z",
+                next_at="2026-07-12T00:10:00Z",
+            )
+            recovery_operation("unsupported", "2026-07-11T23:59:00Z", supported=False)
+
+            first = claim_due_provider_reconciliation(
+                connection, worker_id="worker-a", now="2026-07-12T00:01:00Z",
+                lease_seconds=60,
+            )
+            self.assertEqual(first["operation_id"], oldest)
+            self.assertIsNone(claim_due_provider_reconciliation(
+                connection, worker_id="worker-b", now="2026-07-12T00:01:30Z",
+            ))
+
+            reclaimed = claim_due_provider_reconciliation(
+                connection, worker_id="worker-b", now="2026-07-12T00:02:01Z",
+            )
+            self.assertEqual(reclaimed["operation_id"], oldest)
+            self.assertGreater(
+                reclaimed["reconciliation_generation"],
+                first["reconciliation_generation"],
+            )
         finally:
             connection.close()
 

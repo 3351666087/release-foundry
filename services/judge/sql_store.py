@@ -145,6 +145,10 @@ CREATE TABLE IF NOT EXISTS a2_decision_operations (
   snapshot_hash TEXT NOT NULL,
   provider_id TEXT NOT NULL,
   model_id TEXT NOT NULL,
+  reconciliation_mode TEXT NOT NULL DEFAULT 'unsupported' CHECK (
+    reconciliation_mode IN ('unsupported', 'provider_status_lookup')
+  ),
+  provider_endpoint_hash TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL CHECK (
     status IN ('reserved', 'provider_running', 'provider_completed', 'committed', 'recovery_required')
   ),
@@ -297,6 +301,11 @@ CREATE INDEX IF NOT EXISTS idx_a2_release_decisions_scope
   ON a2_release_decisions(tenant_id, project_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_a2_decision_operations_status
   ON a2_decision_operations(tenant_id, project_id, status, updated_at);
+CREATE INDEX IF NOT EXISTS idx_a2_decision_operations_reconciliation_due
+  ON a2_decision_operations(
+    status, reconciliation_mode, reconciliation_next_at,
+    reconciliation_lease_expires_at, created_at
+  );
 CREATE INDEX IF NOT EXISTS idx_a2_decision_outbox_delivery
   ON a2_decision_outbox(delivery_status, available_at);
 """

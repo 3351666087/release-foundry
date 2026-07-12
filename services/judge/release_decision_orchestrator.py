@@ -97,6 +97,12 @@ def execute_release_decision(
             provider_id=str(request["provider_id"]),
             model_id=str(request["model_id"]),
             created_at=str(request["created_at"]),
+            reconciliation_mode=gateway.providers[str(request["provider_id"])].reconciliation_mode,
+            provider_endpoint_hash=stable_hash({
+                "provider_id": request["provider_id"],
+                "protocol": gateway.providers[str(request["provider_id"])].protocol,
+                "base_url": gateway.providers[str(request["provider_id"])].base_url,
+            }),
         )
         if operation["replay"]:
             return _replayed_operation(operation)
@@ -213,6 +219,7 @@ def reconcile_release_decision(
         logical_call_id=lease["logical_call_id"], provider_id=lease["provider_id"],
         model_id=lease["model_id"], snapshot_hash=lease["snapshot_hash"],
         payload_hash=lease["payload_hash"], idempotency_key_hash=lease["idempotency_key_hash"],
+        provider_endpoint_hash=lease["provider_endpoint_hash"],
         provider_generation=lease["fencing_token"],
         timeout_seconds=float(request.get("timeout_seconds", 30)),
     )

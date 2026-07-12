@@ -34,10 +34,16 @@ def reserve_decision_operation(
     provider_id: str,
     model_id: str,
     created_at: str,
+    reconciliation_mode: str = "unsupported",
+    provider_endpoint_hash: str = "",
 ) -> dict[str, Any]:
     """Reserve an idempotent operation before any external provider call."""
     if not idempotency_key:
         raise ValueError("idempotency key is required")
+    if reconciliation_mode not in {"unsupported", "provider_status_lookup"}:
+        raise ValueError("unsupported Provider reconciliation mode")
+    if reconciliation_mode == "provider_status_lookup" and not provider_endpoint_hash:
+        raise ValueError("provider_status_lookup requires a Provider endpoint hash")
     normalized_scope = _scope(scope)
     operation_core = {
         **normalized_scope,
@@ -61,14 +67,16 @@ def reserve_decision_operation(
             INSERT INTO a2_decision_operations (
               operation_id, idempotency_key, organization_id, tenant_id, workspace_id,
               project_id, environment_id, request_hash, snapshot_id, snapshot_hash,
-              provider_id, model_id, status, created_at, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'reserved', ?, ?)
+              provider_id, model_id, reconciliation_mode, provider_endpoint_hash,
+              status, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'reserved', ?, ?)
             """,
             (
                 operation_id, idempotency_key, normalized_scope["organization_id"],
                 normalized_scope["tenant_id"], normalized_scope["workspace_id"],
                 normalized_scope["project_id"], normalized_scope["environment_id"],
                 request_hash, snapshot_id, snapshot_hash, provider_id, model_id,
+                reconciliation_mode, provider_endpoint_hash,
                 created_at, created_at,
             ),
         )
@@ -172,6 +180,10 @@ def claim_provider_reconciliation(
             raise ValueError("decision operation scope mismatch")
         if row["status"] != "recovery_required":
             raise ValueError(f"provider reconciliation cannot claim status {row['status']}")
+        if row["reconciliation_mode"] != "provider_status_lookup":
+            raise ValueError("provider reconciliation is unsupported")
+        if row.get("reconciliation_next_at") and _timestamp(row["reconciliation_next_at"]) > now_value:
+            raise ValueError("provider reconciliation is not due")
         active = (
             bool(row.get("reconciliation_owner"))
             and bool(row.get("reconciliation_lease_expires_at"))
@@ -218,7 +230,57 @@ def claim_provider_reconciliation(
         "snapshot_hash": row["snapshot_hash"],
         "payload_hash": row["provider_payload_hash"],
         "idempotency_key_hash": row["provider_idempotency_key_hash"],
+        "provider_endpoint_hash": row["provider_endpoint_hash"],
     }
+
+
+def claim_due_provider_reconciliation(
+    connection: sqlite3.Connection,
+    *,
+    worker_id: str,
+    now: str,
+    lease_seconds: int = 60,
+) -> dict[str, Any] | None:
+    """Claim the oldest due reconciliation job across tenant scopes."""
+    _timestamp(now)
+    row = connection.execute(
+        """
+        SELECT operation_id, organization_id, tenant_id, workspace_id, project_id, environment_id
+        FROM a2_decision_operations
+        WHERE status = 'recovery_required'
+          AND reconciliation_mode = 'provider_status_lookup'
+          AND provider_call_id IS NOT NULL
+          AND logical_call_id IS NOT NULL
+          AND provider_payload_hash IS NOT NULL
+          AND provider_idempotency_key_hash IS NOT NULL
+          AND provider_endpoint_hash <> ''
+          AND (reconciliation_next_at IS NULL OR reconciliation_next_at <= ?)
+          AND (
+            reconciliation_owner IS NULL
+            OR reconciliation_lease_expires_at IS NULL
+            OR reconciliation_lease_expires_at <= ?
+          )
+        ORDER BY COALESCE(reconciliation_next_at, created_at), created_at, operation_id
+        LIMIT 1
+        """,
+        (now, now),
+    ).fetchone()
+    if row is None:
+        return None
+    operation_id, *scope_values = row
+    scope = dict(zip(
+        ("organization_id", "tenant_id", "workspace_id", "project_id", "environment_id"),
+        scope_values,
+    ))
+    try:
+        return claim_provider_reconciliation(
+            connection, operation_id=operation_id, scope=scope, worker_id=worker_id,
+            now=now, lease_seconds=lease_seconds,
+        )
+    except ValueError as exc:
+        if "contention" in str(exc) or "not due" in str(exc):
+            return None
+        raise
 
 
 def persist_provider_reconciliation_observation(
@@ -1084,6 +1146,7 @@ def _reconciliation_record(
         "snapshot_hash": lease["snapshot_hash"],
         "payload_hash": lease["payload_hash"],
         "idempotency_key_hash": lease["idempotency_key_hash"],
+        "provider_endpoint_hash": lease["provider_endpoint_hash"],
     }
     for field, expected in identity.items():
         if observation.get(field) != expected and field not in {"provider_fencing_token", "reconciliation_generation"}:

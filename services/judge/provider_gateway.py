@@ -13,6 +13,7 @@ from .result_persistence import stable_hash
 
 SCHEMA_VERSION = "a2.provider_gateway.v1"
 RECONCILIATION_SCHEMA_VERSION = "a2.provider_reconciliation.v1"
+RECONCILIATION_MODES = frozenset({"unsupported", "provider_status_lookup"})
 MODALITIES = frozenset({"text", "image", "audio", "file", "video"})
 RECONCILIATION_STATUSES = frozenset(
     {
@@ -52,6 +53,10 @@ class ProviderDefinition:
     enabled: bool = True
     data_residency: str = "unspecified"
     reconciliation_mode: str = "unsupported"
+
+    def __post_init__(self) -> None:
+        if self.reconciliation_mode not in RECONCILIATION_MODES:
+            raise ValueError("unsupported Provider reconciliation mode")
 
 
 class StrictFakeAdapter:
@@ -302,6 +307,7 @@ class ProviderGateway:
         snapshot_hash: str,
         payload_hash: str,
         idempotency_key_hash: str,
+        provider_endpoint_hash: str,
         provider_generation: int,
         timeout_seconds: float = 30,
     ) -> dict[str, Any]:
@@ -317,6 +323,7 @@ class ProviderGateway:
             "snapshot_hash": snapshot_hash,
             "payload_hash": payload_hash,
             "idempotency_key_hash": idempotency_key_hash,
+            "provider_endpoint_hash": provider_endpoint_hash,
             "provider_generation": provider_generation,
         }
         blocker = self._reconciliation_preflight(request_core)
@@ -324,7 +331,7 @@ class ProviderGateway:
             return self._reconciliation_result(request_core, blocker)
         provider = self.providers.get(provider_id)
         adapter = self.adapters.get(provider.protocol) if provider else None
-        if provider is None or provider.reconciliation_mode == "unsupported":
+        if provider is None or provider.reconciliation_mode != "provider_status_lookup":
             return self._reconciliation_result(request_core, "reconciliation_unsupported")
         reconcile = getattr(adapter, "reconcile", None)
         if not callable(reconcile):
@@ -387,7 +394,7 @@ class ProviderGateway:
             return "reconciliation_unsupported"
         required_strings = (
             "operation_id", "provider_call_id", "logical_call_id", "model_id",
-            "snapshot_hash", "payload_hash", "idempotency_key_hash",
+            "snapshot_hash", "payload_hash", "idempotency_key_hash", "provider_endpoint_hash",
         )
         if any(not isinstance(request_core.get(field), str) or not request_core[field] for field in required_strings):
             return "remote_unknown"
@@ -403,7 +410,8 @@ class ProviderGateway:
     ) -> dict[str, Any]:
         if not isinstance(response, dict) or set(response) - {
             "status", "provider_call_id", "logical_call_id", "provider_id", "model_id",
-            "snapshot_hash", "payload_hash", "provider_generation", "output",
+            "snapshot_hash", "payload_hash", "idempotency_key_hash",
+            "provider_endpoint_hash", "scope", "operation_id", "provider_generation", "output",
         }:
             return self._reconciliation_result(request_core, "remote_unknown")
         status = response.get("status")
@@ -413,7 +421,8 @@ class ProviderGateway:
             return self._reconciliation_result(request_core, str(status))
         bindings = (
             "provider_call_id", "logical_call_id", "provider_id", "model_id",
-            "snapshot_hash", "payload_hash", "provider_generation",
+            "snapshot_hash", "payload_hash", "idempotency_key_hash",
+            "provider_endpoint_hash", "scope", "operation_id", "provider_generation",
         )
         if any(response.get(field) != request_core.get(field) for field in bindings):
             return self._reconciliation_result(request_core, "remote_unknown")

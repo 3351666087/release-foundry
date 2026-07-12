@@ -208,6 +208,7 @@ class A2ProviderGatewayTests(unittest.TestCase):
             "snapshot_hash": stable_hash("snapshot"),
             "payload_hash": stable_hash("payload"),
             "idempotency_key_hash": stable_hash("idempotency"),
+            "provider_endpoint_hash": stable_hash("provider-endpoint"),
             "provider_generation": 1,
         }
         unsupported = self.gateway.reconcile(**base)
@@ -242,13 +243,15 @@ class A2ProviderGatewayTests(unittest.TestCase):
             "snapshot_hash": stable_hash("snapshot"),
             "payload_hash": stable_hash("payload"),
             "idempotency_key_hash": stable_hash("idempotency"),
+            "provider_endpoint_hash": stable_hash("provider-endpoint"),
             "provider_generation": 1,
         }
         completed = {
             "status": "remote_completed",
             **{key: base[key] for key in (
                 "provider_call_id", "logical_call_id", "provider_id", "model_id",
-                "snapshot_hash", "payload_hash", "provider_generation",
+                "snapshot_hash", "payload_hash", "idempotency_key_hash",
+                "provider_endpoint_hash", "scope", "operation_id", "provider_generation",
             )},
             "output": {
                 "output_text": (
@@ -270,13 +273,22 @@ class A2ProviderGatewayTests(unittest.TestCase):
         self.assertIn("normalized_output", verified)
         self.assertNotIn("output_text", str(verified))
 
-        adapter.reconciliation_response = {**completed, "snapshot_hash": stable_hash("wrong")}
-        rejected = ProviderGateway(
-            [self.provider], {"strict_fake": adapter},
-            response_validator=validate_semantic_judge_output,
-        ).reconcile(**base)
-        self.assertEqual(rejected["status"], "remote_unknown")
-        self.assertFalse(rejected["evaluation_eligible"])
+        mismatches = {
+            "snapshot_hash": stable_hash("wrong"),
+            "idempotency_key_hash": stable_hash("wrong-key"),
+            "provider_endpoint_hash": stable_hash("wrong-endpoint"),
+            "operation_id": stable_hash("wrong-operation"),
+            "scope": {**base["scope"], "project_id": "other-project"},
+        }
+        for field, value in mismatches.items():
+            with self.subTest(field=field):
+                adapter.reconciliation_response = {**completed, field: value}
+                rejected = ProviderGateway(
+                    [self.provider], {"strict_fake": adapter},
+                    response_validator=validate_semantic_judge_output,
+                ).reconcile(**base)
+                self.assertEqual(rejected["status"], "remote_unknown")
+                self.assertFalse(rejected["evaluation_eligible"])
 
 
 if __name__ == "__main__":
