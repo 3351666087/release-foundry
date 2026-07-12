@@ -1,0 +1,548 @@
+[
+  {
+    "capabilities": [],
+    "completed_at": "2026-07-12T17:03:19Z",
+    "endpoint_sha256": "b9adec96e9911ff2c455f978b026cf396a5eddd8aeef6a7bf5abf41f09cad44c",
+    "evidence_sha256": "a3ec64b2260d1508b3c5680d226d4d70c9649273857c3bc119caf939605fe310",
+    "git_sha": "5dd6a898a6771eaf67bf39246f256b579b4d2211",
+    "invoked_at": "2026-07-12T17:03:11Z",
+    "model": "gpt-5.6-sol",
+    "previous_receipt_sha256": "",
+    "provider": "xjtlu",
+    "receipt_id": "provider_receipt_c17933fedcb9241355e7",
+    "receipt_sha256": "581b4320ce7d416577279710b7e49c3a8f6c23fadca4f41ad15e9c34f161d86c",
+    "release_candidate": "round62-5dd6a898a677",
+    "request_binding_sha256": "02d41a5eb815bb07cb3da2077feea98690b1e016d1a8bd808180665fefb3e4b5",
+    "request_id_sha256": "",
+    "response_binding_sha256": "3b6e4810859011217ead6733d70ca07816d183f673838558bb22a0ec253165af",
+    "safe_response_shape": {
+      "choice_count": 0,
+      "error_type": "http",
+      "http_status": 502,
+      "top_level_keys": [
+        "error"
+      ],
+      "usage_present": false
+    },
+    "schema_version": "ashr.a1.provider_execution_receipt.v1",
+    "status": "failed"
+  },
+  {
+    "capabilities": [
+      "text",
+      "usage"
+    ],
+    "completed_at": "2026-07-12T17:03:19Z",
+    "endpoint_sha256": "5891aed827c4e67b2d7c0c73ea819327ce3f2b6ef72213cd79669486a26b1ead",
+    "evidence_sha256": "cb9a66cc2316db20f218f198d922620abdd8cb2aba6235b69f9b25d915310831",
+    "git_sha": "5dd6a898a6771eaf67bf39246f256b579b4d2211",
+    "invoked_at": "2026-07-12T17:03:19Z",
+    "model": "qwen-plus",
+    "previous_receipt_sha256": "581b4320ce7d416577279710b7e49c3a8f6c23fadca4f41ad15e9c34f161d86c",
+    "provider": "qwen",
+    "receipt_id": "provider_receipt_85f9868baf717d76a2d0",
+    "receipt_sha256": "96a752b9252eda39cb64af9c6b50333b1e20f59d1e322a1245343a81a67e0f62",
+    "release_candidate": "round62-5dd6a898a677",
+    "request_binding_sha256": "b961f8e917b4ad02c1badf275384ca99f6175889eff0f838fa645ad87eef537a",
+    "request_id_sha256": "8ae412afa94568c0362688e1288efbfd565aa4febbbdaec0782c1b992dca632c",
+    "response_binding_sha256": "b8c72a1eb4aa03cd143b41b4c98a992cab708fcf74142446a6871eeab533547f",
+    "safe_response_shape": {
+      "choice_count": 1,
+      "error_type": "",
+      "http_status": 200,
+      "top_level_keys": [
+        "choices",
+        "created",
+        "id",
+        "model",
+        "object",
+        "usage"
+      ],
+      "usage_present": true
+    },
+    "schema_version": "ashr.a1.provider_execution_receipt.v1",
+    "status": "succeeded"
+  },
+  {
+    "capabilities": [],
+    "completed_at": "2026-07-12T17:03:20Z",
+    "endpoint_sha256": "5891aed827c4e67b2d7c0c73ea819327ce3f2b6ef72213cd79669486a26b1ead",
+    "evidence_sha256": "e49a730b58a041a9c0aef1e8cde59e807a931282e76224f44da1eb99d862d354",
+    "git_sha": "5dd6a898a6771eaf67bf39246f256b579b4d2211",
+    "invoked_at": "2026-07-12T17:03:20Z",
+    "model": "qwen-vl-max",
+    "previous_receipt_sha256": "96a752b9252eda39cb64af9c6b50333b1e20f59d1e322a1245343a81a67e0f62",
+    "provider": "qwen",
+    "receipt_id": "provider_receipt_3f58a611ab509bfdc41a",
+    "receipt_sha256": "2954fe59df17aed4ebe9838de3da9f53d7b3c16a5a9c81ab865edd9d8bd57b6e",
+    "release_candidate": "round62-5dd6a898a677",
+    "request_binding_sha256": "f02377a828c92b516a5fdc57be776c3ee128d2eacf6b2098097dcafe83d07a8e",
+    "request_id_sha256": "66a1002ed75be1a23ad91f02a8834eaaadb5f6f15f932a9f7b2bfec9ba8c99fc",
+    "response_binding_sha256": "05d3f1732e0dc8be1b5b0d8d2513e5f04a3f9961ffcc44375de4e416a4a6e700",
+    "safe_response_shape": {
+      "choice_count": 0,
+      "error_type": "http",
+      "http_status": 400,
+      "top_level_keys": [
+        "error",
+        "id",
+        "request_id"
+      ],
+      "usage_present": false
+    },
+    "schema_version": "ashr.a1.provider_execution_receipt.v1",
+    "status": "failed"
+  },
+  {
+    "capabilities": [],
+    "completed_at": "2026-07-12T17:03:20Z",
+    "endpoint_sha256": "5891aed827c4e67b2d7c0c73ea819327ce3f2b6ef72213cd79669486a26b1ead",
+    "evidence_sha256": "5a54e4bc45aed34b611365f403610ee1617a4a2d834dc627fe2bc8a2b0f33956",
+    "git_sha": "5dd6a898a6771eaf67bf39246f256b579b4d2211",
+    "invoked_at": "2026-07-12T17:03:20Z",
+    "model": "qwen-audio-turbo",
+    "previous_receipt_sha256": "2954fe59df17aed4ebe9838de3da9f53d7b3c16a5a9c81ab865edd9d8bd57b6e",
+    "provider": "qwen",
+    "receipt_id": "provider_receipt_8cff9cf5a872d2c92c55",
+    "receipt_sha256": "ed6a12583fcb151b0a02300a5eade8f282baf00802767f2307b12b9d98a4df31",
+    "release_candidate": "round62-5dd6a898a677",
+    "request_binding_sha256": "a7374dbe85b1e6d54aeba9d1299c368a7b9ad580f2764f77e74d91d2be7199e8",
+    "request_id_sha256": "",
+    "response_binding_sha256": "85517c72daa21f0b3fdee0284e7ac7988ec6cb409bfe1fd432fe7e1865576574",
+    "safe_response_shape": {
+      "choice_count": 0,
+      "error_type": "http",
+      "http_status": 404,
+      "top_level_keys": [
+        "error",
+        "request_id"
+      ],
+      "usage_present": false
+    },
+    "schema_version": "ashr.a1.provider_execution_receipt.v1",
+    "status": "failed"
+  },
+  {
+    "capabilities": [],
+    "completed_at": "2026-07-12T17:03:20Z",
+    "endpoint_sha256": "5891aed827c4e67b2d7c0c73ea819327ce3f2b6ef72213cd79669486a26b1ead",
+    "evidence_sha256": "5eeb721584e0c00738068150d6e229f3bd55df1eb113151d33a40f99ec02a52d",
+    "git_sha": "5dd6a898a6771eaf67bf39246f256b579b4d2211",
+    "invoked_at": "2026-07-12T17:03:20Z",
+    "model": "qwen-long",
+    "previous_receipt_sha256": "ed6a12583fcb151b0a02300a5eade8f282baf00802767f2307b12b9d98a4df31",
+    "provider": "qwen",
+    "receipt_id": "provider_receipt_e751a0ef1b0be76ca910",
+    "receipt_sha256": "d0d95ee270ef512da9dae38c2603f64edaf9b14f578ad4a8213fa866e710a908",
+    "release_candidate": "round62-5dd6a898a677",
+    "request_binding_sha256": "fe63b552af00ecbd5bd70193160bcac91cc274183fc8bed4f87d70660fa26b40",
+    "request_id_sha256": "",
+    "response_binding_sha256": "8cf27a802d34a89cea93a9baaddf3810256d40ff4d74afb2e4ec1836d7289acb",
+    "safe_response_shape": {
+      "choice_count": 0,
+      "error_type": "http",
+      "http_status": 400,
+      "top_level_keys": [
+        "error",
+        "request_id"
+      ],
+      "usage_present": false
+    },
+    "schema_version": "ashr.a1.provider_execution_receipt.v1",
+    "status": "failed"
+  },
+  {
+    "capabilities": [],
+    "completed_at": "2026-07-12T17:03:21Z",
+    "endpoint_sha256": "5891aed827c4e67b2d7c0c73ea819327ce3f2b6ef72213cd79669486a26b1ead",
+    "evidence_sha256": "71f524362abd1ae602891396b065f959371303331eb29113d6b612da65806be0",
+    "git_sha": "5dd6a898a6771eaf67bf39246f256b579b4d2211",
+    "invoked_at": "2026-07-12T17:03:20Z",
+    "model": "qwen-vl-max",
+    "previous_receipt_sha256": "d0d95ee270ef512da9dae38c2603f64edaf9b14f578ad4a8213fa866e710a908",
+    "provider": "qwen",
+    "receipt_id": "provider_receipt_a66384eda1ee2755a777",
+    "receipt_sha256": "8bd15d0f365200529a019d4a169cff5f9e48f07151b7017c6b389aad3a552878",
+    "release_candidate": "round62-5dd6a898a677",
+    "request_binding_sha256": "4957d35a3d3c216b281a86332a0b868a2aa2f7a96282448baa8ea61adf55f4af",
+    "request_id_sha256": "0d8d9614b8b9ffba6d7f439a44ae07c260cc76ae1c087937e3a3feb04ce06d99",
+    "response_binding_sha256": "45e4723bbbc38d180d33e7e389267e089f16a3bd09a73f77cb5844a5d1795780",
+    "safe_response_shape": {
+      "choice_count": 0,
+      "error_type": "http",
+      "http_status": 400,
+      "top_level_keys": [
+        "error",
+        "id",
+        "request_id"
+      ],
+      "usage_present": false
+    },
+    "schema_version": "ashr.a1.provider_execution_receipt.v1",
+    "status": "failed"
+  },
+  {
+    "capabilities": [
+      "image",
+      "usage"
+    ],
+    "completed_at": "2026-07-12T17:08:45Z",
+    "endpoint_sha256": "57ea92c0436d5e76e879dbc39a2e41a14abeba344dff778483dd97a24a41b2d8",
+    "evidence_sha256": "eea825b2a816109c51c13da5302fb6ba851103dcfa8317bec0b33034d96f177d",
+    "git_sha": "5dd6a898a6771eaf67bf39246f256b579b4d2211",
+    "invoked_at": "2026-07-12T17:08:44Z",
+    "model": "qwen-vl-max",
+    "previous_receipt_sha256": "8bd15d0f365200529a019d4a169cff5f9e48f07151b7017c6b389aad3a552878",
+    "provider": "qwen",
+    "receipt_id": "provider_receipt_8476dc83c73658848dd7",
+    "receipt_sha256": "3e5bc6a80d7ac119a6960ca2181291754b159b8038e2ea2a6b913ccd5ec151bc",
+    "release_candidate": "round62-5dd6a898a677",
+    "request_binding_sha256": "4ce21320515c203e27c0cd826bbd79caec9d392a5e8665697f81423ac4ddff8e",
+    "request_id_sha256": "11bba5987378a87dcd2e5b0f67bd84245b61b14ad816e8ef3c3273b64e6c6334",
+    "response_binding_sha256": "2af5aad93efe43da15b8723f61c5569cd139bb1a92f7b2d1cd24167f5b6f70e6",
+    "safe_response_shape": {
+      "choice_count": 1,
+      "error_type": "",
+      "http_status": 200,
+      "output_present": false,
+      "top_level_keys": [
+        "choices",
+        "created",
+        "id",
+        "model",
+        "object",
+        "system_fingerprint",
+        "usage"
+      ],
+      "usage_present": true
+    },
+    "schema_version": "ashr.a1.provider_execution_receipt.v1",
+    "status": "succeeded"
+  },
+  {
+    "capabilities": [],
+    "completed_at": "2026-07-12T17:08:46Z",
+    "endpoint_sha256": "57ea92c0436d5e76e879dbc39a2e41a14abeba344dff778483dd97a24a41b2d8",
+    "evidence_sha256": "7ab8d4bf24d2556de9022b6a85a5d9ca32b927ca73474c8a697f7fae0b757872",
+    "git_sha": "5dd6a898a6771eaf67bf39246f256b579b4d2211",
+    "invoked_at": "2026-07-12T17:08:45Z",
+    "model": "qwen-vl-max",
+    "previous_receipt_sha256": "3e5bc6a80d7ac119a6960ca2181291754b159b8038e2ea2a6b913ccd5ec151bc",
+    "provider": "qwen",
+    "receipt_id": "provider_receipt_e72086fee1ccedca4acc",
+    "receipt_sha256": "b3520cf0807d1d46c577896db93ccf12ee9739ed45ca55f4a814f52f04cfbcc0",
+    "release_candidate": "round62-5dd6a898a677",
+    "request_binding_sha256": "6cbf000b8bbe4e4a06d4c4f617646611fac4ed2d921f5dbd7a35da42c8828410",
+    "request_id_sha256": "603b4c1cf1916ec959e3f69d7dd867c52c3c63bc15173bc52c5101c01c0c81c3",
+    "response_binding_sha256": "97d00152aa3594ce99e669ce2c6bc5366bb0febbcfcdb0b093a805f90c661b2f",
+    "safe_response_shape": {
+      "choice_count": 0,
+      "error_type": "http",
+      "http_status": 400,
+      "output_present": false,
+      "top_level_keys": [
+        "error",
+        "id",
+        "request_id"
+      ],
+      "usage_present": false
+    },
+    "schema_version": "ashr.a1.provider_execution_receipt.v1",
+    "status": "failed"
+  },
+  {
+    "capabilities": [],
+    "completed_at": "2026-07-12T17:08:46Z",
+    "endpoint_sha256": "b2f282b98ead51139dc3c390f3e4c3256386b88cb8fe3c6c726535831f47c6b7",
+    "evidence_sha256": "e003e278204172df36a92d1ea79d5c5d34d6fefb79a1bd4fa4df82396928f23b",
+    "git_sha": "5dd6a898a6771eaf67bf39246f256b579b4d2211",
+    "invoked_at": "2026-07-12T17:08:46Z",
+    "model": "qwen-audio-turbo",
+    "previous_receipt_sha256": "b3520cf0807d1d46c577896db93ccf12ee9739ed45ca55f4a814f52f04cfbcc0",
+    "provider": "qwen",
+    "receipt_id": "provider_receipt_431107fe6e388ba91568",
+    "receipt_sha256": "321371d27baa72062b4844f3e8ea71d24b9fa10f8518331f13026016cb369bdf",
+    "release_candidate": "round62-5dd6a898a677",
+    "request_binding_sha256": "1b59e6299ef98e67e5be017b2d94660642248ab042eb57537a361dfb34cdcdc4",
+    "request_id_sha256": "8690709af6b5c0690cbe736de214e3514829477f532a3cc6f5b852e8d993b18d",
+    "response_binding_sha256": "2cccaa757886769cefcddf5a6edc2e8c4949d740e3ae665a8f42fa73be6952c1",
+    "safe_response_shape": {
+      "choice_count": 0,
+      "error_type": "http",
+      "http_status": 403,
+      "output_present": false,
+      "top_level_keys": [
+        "code",
+        "message",
+        "request_id"
+      ],
+      "usage_present": false
+    },
+    "schema_version": "ashr.a1.provider_execution_receipt.v1",
+    "status": "failed"
+  },
+  {
+    "capabilities": [
+      "file",
+      "usage"
+    ],
+    "completed_at": "2026-07-12T17:08:47Z",
+    "endpoint_sha256": "57ea92c0436d5e76e879dbc39a2e41a14abeba344dff778483dd97a24a41b2d8",
+    "evidence_sha256": "bed1512ccedf6db8558863875dfdc48c3a619e0ca99b096d2fc74fc2bb16d6db",
+    "git_sha": "5dd6a898a6771eaf67bf39246f256b579b4d2211",
+    "invoked_at": "2026-07-12T17:08:46Z",
+    "model": "qwen-plus",
+    "previous_receipt_sha256": "321371d27baa72062b4844f3e8ea71d24b9fa10f8518331f13026016cb369bdf",
+    "provider": "qwen",
+    "receipt_id": "provider_receipt_7eda9d3a42327af0b687",
+    "receipt_sha256": "5feb7f013668d871ac0deae14e04280657dbec1530508dc050aee892dc1032e1",
+    "release_candidate": "round62-5dd6a898a677",
+    "request_binding_sha256": "3496d41d57e2d5bf0bd228435586ea3612a7c6a3c430aaa2cc418bab02cfcfae",
+    "request_id_sha256": "07b988e9343ab4fcf08f8393a9354b5cf72ffbf56ffb41d5a57b1bde18aa8b8b",
+    "response_binding_sha256": "056b524d3987526258258b750ad238cf01e7ea26198b45f0e938b274fd784441",
+    "safe_response_shape": {
+      "choice_count": 1,
+      "error_type": "",
+      "http_status": 200,
+      "output_present": false,
+      "top_level_keys": [
+        "choices",
+        "created",
+        "id",
+        "model",
+        "object",
+        "usage"
+      ],
+      "usage_present": true
+    },
+    "schema_version": "ashr.a1.provider_execution_receipt.v1",
+    "status": "succeeded"
+  },
+  {
+    "capabilities": [],
+    "completed_at": "2026-07-12T17:08:55Z",
+    "endpoint_sha256": "cc4947b903a0b6d288179911e0ec3bc3605643c5343f5a7b3d8f90815bb4d766",
+    "evidence_sha256": "89d7b2cebb486ba365994c18f5decc334288d76d5bbde621ad33b5d72a920223",
+    "git_sha": "5dd6a898a6771eaf67bf39246f256b579b4d2211",
+    "invoked_at": "2026-07-12T17:08:47Z",
+    "model": "gpt-5.6-sol",
+    "previous_receipt_sha256": "5feb7f013668d871ac0deae14e04280657dbec1530508dc050aee892dc1032e1",
+    "provider": "xjtlu",
+    "receipt_id": "provider_receipt_6a1bac74a599a889a7fa",
+    "receipt_sha256": "5236331c76ca60629354c3479f44f7209c0f9cb993c1beb635a204f8845ab40f",
+    "release_candidate": "round62-5dd6a898a677",
+    "request_binding_sha256": "fccd1d924f0d8463e208889c92d20214098cb08c10a79f47a1fe8271911d0b0d",
+    "request_id_sha256": "",
+    "response_binding_sha256": "3b6e4810859011217ead6733d70ca07816d183f673838558bb22a0ec253165af",
+    "safe_response_shape": {
+      "choice_count": 0,
+      "error_type": "http",
+      "http_status": 502,
+      "output_present": false,
+      "top_level_keys": [
+        "error"
+      ],
+      "usage_present": false
+    },
+    "schema_version": "ashr.a1.provider_execution_receipt.v1",
+    "status": "failed"
+  },
+  {
+    "capabilities": [
+      "text",
+      "usage"
+    ],
+    "completed_at": "2026-07-12T17:09:57Z",
+    "endpoint_sha256": "32ac826c7f5e901e1a7d2d7e054fe6388df4b62ca7c8e7e6f7de9ec987ca5e7a",
+    "evidence_sha256": "823e57a669a769ab486a9076a19caf2b250b81fe41d68084cecea36b9797f921",
+    "git_sha": "5dd6a898a6771eaf67bf39246f256b579b4d2211",
+    "invoked_at": "2026-07-12T17:09:12Z",
+    "model": "qwen2.5:1.5b",
+    "previous_receipt_sha256": "5236331c76ca60629354c3479f44f7209c0f9cb993c1beb635a204f8845ab40f",
+    "provider": "ollama",
+    "receipt_id": "provider_receipt_24f61840479ccf7522ad",
+    "receipt_sha256": "23caf27a5006d2f049219a697dd8c00836601bb741e14fcf765c6b7661c97cdf",
+    "release_candidate": "round62-5dd6a898a677",
+    "request_binding_sha256": "c8d3e7189b92f0ad2f3a180dd4ee3c32959fa0dce59345debee94ff5e457bc07",
+    "request_id_sha256": "",
+    "response_binding_sha256": "a34fc1477dc33bde89a2fc119d1946bf894969d96e10fad09334a3c222f4052c",
+    "safe_response_shape": {
+      "done": true,
+      "http_status": 200,
+      "top_level_keys": [
+        "created_at",
+        "done",
+        "done_reason",
+        "eval_count",
+        "eval_duration",
+        "load_duration",
+        "message",
+        "model",
+        "prompt_eval_count",
+        "prompt_eval_duration",
+        "total_duration"
+      ],
+      "usage_present": true
+    },
+    "schema_version": "ashr.a1.provider_execution_receipt.v1",
+    "status": "succeeded"
+  },
+  {
+    "capabilities": [
+      "usage",
+      "video"
+    ],
+    "completed_at": "2026-07-12T17:17:38Z",
+    "endpoint_sha256": "57ea92c0436d5e76e879dbc39a2e41a14abeba344dff778483dd97a24a41b2d8",
+    "evidence_sha256": "5d3d328de238dfc13ba6ee5f75c29b4adf85db2573402957db0bfa482af36efb",
+    "git_sha": "5dd6a898a6771eaf67bf39246f256b579b4d2211",
+    "invoked_at": "2026-07-12T17:17:23Z",
+    "model": "qwen3.7-plus",
+    "previous_receipt_sha256": "23caf27a5006d2f049219a697dd8c00836601bb741e14fcf765c6b7661c97cdf",
+    "provider": "qwen",
+    "receipt_id": "provider_receipt_47ad1b96de5ac7d8d502",
+    "receipt_sha256": "a3c98b3db56dbdedb8a0828049e78003a42c3a85535a10809fb1ee89a984e698",
+    "release_candidate": "round62-5dd6a898a677",
+    "request_binding_sha256": "ccd43d5b97c1a2197a67195076c3717b559750a95b8b680f6fd85ac0441c825d",
+    "request_id_sha256": "5353921c8d29c5bf6174c41cd5ec0f120e943fe44d7d100caefcda87ba7ba767",
+    "response_binding_sha256": "dce41e07cf96ea1102ba3a45a32aced046da4e0f642e071043947528a02aa50f",
+    "safe_response_shape": {
+      "choice_count": 1,
+      "data_count": 0,
+      "error_type": "",
+      "http_status": 200,
+      "top_level_keys": [
+        "choices",
+        "created",
+        "id",
+        "model",
+        "object",
+        "usage"
+      ],
+      "usage_present": true
+    },
+    "schema_version": "ashr.a1.provider_execution_receipt.v1",
+    "status": "succeeded"
+  },
+  {
+    "capabilities": [],
+    "completed_at": "2026-07-12T17:17:46Z",
+    "endpoint_sha256": "cc4947b903a0b6d288179911e0ec3bc3605643c5343f5a7b3d8f90815bb4d766",
+    "evidence_sha256": "e77231519100211576fbbb5a512c7ea89b5ab64564459bad0d11b50c98471c5b",
+    "git_sha": "5dd6a898a6771eaf67bf39246f256b579b4d2211",
+    "invoked_at": "2026-07-12T17:17:38Z",
+    "model": "gpt-5.6-sol",
+    "previous_receipt_sha256": "a3c98b3db56dbdedb8a0828049e78003a42c3a85535a10809fb1ee89a984e698",
+    "provider": "xjtlu",
+    "receipt_id": "provider_receipt_406d6376093da5d0b826",
+    "receipt_sha256": "cc6083633ae3b4a17c2e0dbc043021f16b595d4ee6aa3f7049c77484c069b535",
+    "release_candidate": "round62-5dd6a898a677",
+    "request_binding_sha256": "a53aa83d17e9cc228e31d3e0597b0dc5f2b4861a15f2e7c110503cbf8713df14",
+    "request_id_sha256": "",
+    "response_binding_sha256": "3b6e4810859011217ead6733d70ca07816d183f673838558bb22a0ec253165af",
+    "safe_response_shape": {
+      "choice_count": 0,
+      "data_count": 0,
+      "error_type": "http",
+      "http_status": 502,
+      "top_level_keys": [
+        "error"
+      ],
+      "usage_present": false
+    },
+    "schema_version": "ashr.a1.provider_execution_receipt.v1",
+    "status": "failed"
+  },
+  {
+    "capabilities": [],
+    "completed_at": "2026-07-12T17:17:53Z",
+    "endpoint_sha256": "7fceae867aea3144307b6b589b1a9bf0e5fc8fd5fdf3986a2e3e8d3189451eba",
+    "evidence_sha256": "61c1b8fd413d22dd434b21a5e7c448656287889f3bbf45b5dc91fefaebc7a7ce",
+    "git_sha": "5dd6a898a6771eaf67bf39246f256b579b4d2211",
+    "invoked_at": "2026-07-12T17:17:46Z",
+    "model": "gpt-image-2",
+    "previous_receipt_sha256": "cc6083633ae3b4a17c2e0dbc043021f16b595d4ee6aa3f7049c77484c069b535",
+    "provider": "xjtlu",
+    "receipt_id": "provider_receipt_c5e5d912c122845a9eba",
+    "receipt_sha256": "3294d00e8a001422bbfa8ac842a9a51360584b8b85cf9ab2923bc5de37ae22a9",
+    "release_candidate": "round62-5dd6a898a677",
+    "request_binding_sha256": "dc262bd7af00475194d534fea60864184af68f12731233164e1c489a25356e64",
+    "request_id_sha256": "",
+    "response_binding_sha256": "3b6e4810859011217ead6733d70ca07816d183f673838558bb22a0ec253165af",
+    "safe_response_shape": {
+      "choice_count": 0,
+      "data_count": 0,
+      "error_type": "http",
+      "http_status": 502,
+      "top_level_keys": [
+        "error"
+      ],
+      "usage_present": false
+    },
+    "schema_version": "ashr.a1.provider_execution_receipt.v1",
+    "status": "failed"
+  },
+  {
+    "capabilities": [
+      "text",
+      "usage"
+    ],
+    "completed_at": "2026-07-12T17:15:39Z",
+    "endpoint_sha256": "cc4947b903a0b6d288179911e0ec3bc3605643c5343f5a7b3d8f90815bb4d766",
+    "evidence_sha256": "1f26e87124ebdebfe6c2caffd6e2ce457a4a9317f25c29e79cfc3448fcd7fa75",
+    "git_sha": "5dd6a898a6771eaf67bf39246f256b579b4d2211",
+    "invoked_at": "2026-07-12T17:15:37Z",
+    "model": "gpt-5.6-sol",
+    "previous_receipt_sha256": "3294d00e8a001422bbfa8ac842a9a51360584b8b85cf9ab2923bc5de37ae22a9",
+    "provider": "xjtlu",
+    "receipt_id": "provider_receipt_85b5578ca65ffb510128",
+    "receipt_sha256": "b2e4ff7cd994fae1082b6fa0bfd0e77c0b3493c8ec25f0f8f515b3d5af2badcb",
+    "release_candidate": "round62-matrix-bound",
+    "request_binding_sha256": "584e410663b194f3a8eb86ce7914264bee429ba7dacd8885db24929e8e4256d6",
+    "request_id_sha256": "19af599fd5a12efedc79b0a1044bedd748f0755a16822aafd6bc1eb6434d604c",
+    "response_binding_sha256": "b35d30e01fd309c07b5a99a2658c8c05ef9d2e11aa6379dac89b99ecb70eccc0",
+    "safe_response_shape": {
+      "choice_count": 1,
+      "http_status": 200,
+      "timing_source": "evidence_file_mtime_minus_elapsed_ms",
+      "top_level_keys": [
+        "choices",
+        "created",
+        "id",
+        "model",
+        "object",
+        "usage"
+      ],
+      "usage_present": true
+    },
+    "schema_version": "ashr.a1.provider_execution_receipt.v1",
+    "status": "succeeded"
+  },
+  {
+    "capabilities": [
+      "audio"
+    ],
+    "completed_at": "2026-07-12T17:25:52Z",
+    "endpoint_sha256": "f4cf20bbc2318731d0369f694c70218b365435c03062c0450122cdf2451903ba",
+    "evidence_sha256": "24963f720fd0ff71d72b1cdb55d5f0470e8cec2f4b774af2964f7f56e9165afd",
+    "git_sha": "5dd6a898a6771eaf67bf39246f256b579b4d2211",
+    "invoked_at": "2026-07-12T17:25:45Z",
+    "model": "tiny",
+    "previous_receipt_sha256": "b2e4ff7cd994fae1082b6fa0bfd0e77c0b3493c8ec25f0f8f515b3d5af2badcb",
+    "provider": "openai-whisper-local",
+    "receipt_id": "provider_receipt_b5a22d98fa063833227d",
+    "receipt_sha256": "477973850dd3a41abb053f0b8b424de489c6cce86bd77e328aca28b43c17c988",
+    "release_candidate": "round62-five-modality",
+    "request_binding_sha256": "49e911a21f14e433dbeb6ce436ad311da361d69ced6d67df786d7376c0dfe4f8",
+    "request_id_sha256": "",
+    "response_binding_sha256": "185af8a7d1c50d56af53a0fff4fb3b90a1ff62e2177a03f1371bb2762f3295bb",
+    "safe_response_shape": {
+      "elapsed_ms": 6994,
+      "runtime": "local_cpu",
+      "segment_count": 1,
+      "text_present": true
+    },
+    "schema_version": "ashr.a1.provider_execution_receipt.v1",
+    "status": "succeeded"
+  }
+]

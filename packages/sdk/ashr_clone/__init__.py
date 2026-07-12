@@ -1,3 +1,13 @@
+from .provider_evidence import (
+    ProviderExecutionReceipt,
+    ProviderReceiptStore,
+    build_release_receipt,
+    canonical_json as canonical_provider_evidence_json,
+    create_provider_receipt,
+    verify_provider_receipt,
+    verify_release_receipt,
+)
+
 """Local Ashr clone SDK surface for A1 runner work."""
 
 from .api_client import (
@@ -549,6 +559,13 @@ __all__ = [
     "ModelToolCall",
     "ModelUsage",
     "ProviderNeutralModelAdapter",
+    "ProviderExecutionReceipt",
+    "ProviderReceiptStore",
+    "build_release_receipt",
+    "canonical_provider_evidence_json",
+    "create_provider_receipt",
+    "verify_provider_receipt",
+    "verify_release_receipt",
     "DATASET_ADAPTER_VERSION",
     "DATASET_SOURCE_ADAPTER_VERSION",
     "api_record_to_cases",

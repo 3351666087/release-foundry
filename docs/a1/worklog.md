@@ -3183,3 +3183,22 @@ Required next-round top three:
 
 No secret, private prompt, raw private response, or credential-bearing endpoint
 may enter public evidence.
+
+## Round 62: Hash-Bound Provider And Release Receipts
+
+Date: 2026-07-13
+
+Baseline: clean `5dd6a898`; canonical publication remains `origin/codex/a1-local-sdk-runner`. Peer A2 advanced to `53e79b5e`; no peer files were merged or modified. Ollama HTTP was unavailable at round start. `apply_patch` was denied by the worktree ACL, so controlled PowerShell writes are used and verified by Git diff.
+
+Commercial candidates (1-5): provider receipt chain 5/5/3/4/5; successful five-modality calibration 5/4/3/5/5; unified release receipt 5/5/2/3/5. All three are required as one trusted release chain. Real probes remain dry-run -> small batch -> bounded batch. Failed terminal media calls remain failed/discovered, never callable.
+### Round 62 implementation and calibration closure
+
+- Added Python, TypeScript, and Go chained provider receipts and a unified release receipt with canonical UTF-8 JSON, atomic stores, hash bindings, and failed-call capability suppression.
+- Successful real execution now covers text/image/audio/file/video. Audio uses local open-source Whisper `tiny`; provider identity is explicit and is not represented as official Qwen success.
+- XJTLU is confirmed callable by successful `gpt-5.6-sol` evidence and a five-model 200 matrix. Intermittent 502 and failed `gpt-image-2` routes remain accurately recorded.
+- Public fixtures contain 17 chained receipts and no raw endpoint, prompt, response, request ID, key, or private evidence.
+- Focused Python `12/12`, TypeScript `639/639`, Go tests/vet, and stable package dry-run (117 files) passed.
+- Peer A2 advanced to `42dfff82`; no peer file was merged or modified.
+- Evidence: `docs/a1/evidence/round62_provider_release_receipts.md`.- Final authoritative verification: Python A1/integration `1338 passed, 40 skipped in 93.29s`; TypeScript `639/639`; Go module tests and vet passed; TS/Python generated parity passed with zero Python-only exports; CL hygiene and commercial guards passed; public secret scan and owned-directory audit passed.
+- Bus-Auditor follow-up capability was unavailable in this resumed tool surface: no subagent creation/message tool was exposed for the three listed agents. The main agent therefore executed the required goal, contract, owned-directory, peer-change, evidence, secret, toolchain, and release-gate audit locally and records this limitation rather than inventing a subagent result.
+- Bus-equivalent decision: GO for commit/push, contingent on the new GitHub CL Gate becoming green. Next top three: provider-specific successful official audio calibration; XJTLU image-route protocol discovery; PostgreSQL-backed durable provider receipt ingestion and A3 retrieval API.

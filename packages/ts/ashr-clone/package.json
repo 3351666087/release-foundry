@@ -88,6 +88,10 @@
       "types": "./dist/provider-dispatch.d.ts",
       "import": "./dist/provider-dispatch.js"
     },
+    "./provider-evidence": {
+      "types": "./dist/provider-evidence.d.ts",
+      "import": "./dist/provider-evidence.js"
+    },
     "./provider-request-journal": {
       "types": "./dist/provider-request-journal.d.ts",
       "import": "./dist/provider-request-journal.js"
