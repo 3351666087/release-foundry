@@ -413,6 +413,48 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
                 self.assertEqual(result["a3_consumption"]["display_decision"], decision)
                 if blocker:
                     self.assertIn(blocker, result["release_gate"]["blocking_reasons"])
+
+    def test_boolean_review_timestamp_is_not_accepted_as_an_integer(self):
+        candidate = request()
+        candidate["evaluation_quality_proof"] = signed_quality_proof(
+            candidate,
+            disagreement="reviewed",
+            reviewer_identity_digest="sha256:" + "e" * 64,
+            reviewed_at_unix_ms=True,
+        )
+        result = execute_release_decision(
+            candidate, gateway=gateway(), key_resolver=lambda _: KEY,
+            now_unix_ms=NOW,
+        )
+        self.assertEqual(result["a3_consumption"]["display_decision"], "block")
+        self.assertIn(
+            "disagreement_review_receipt_invalid",
+            result["release_gate"]["blocking_reasons"],
+        )
+
+    def test_revoked_key_identifier_boundaries(self):
+        base = {
+            "schema_version": "a2.evaluation_trust_policy.v1",
+            "allowed_issuers": [],
+            "issuer_tenants": {},
+            "revoked_key_ids": [],
+            "revoked_proof_hashes": [],
+            "maximum_lifetime_ms": 1000,
+            "maximum_review_age_ms": 1000,
+        }
+        for key_id in ("a", "a" * 128):
+            with self.subTest(length=len(key_id)):
+                candidate = {**base, "revoked_key_ids": [key_id]}
+                self.assertEqual(
+                    normalize_evaluation_trust_policy(candidate)["revoked_key_ids"],
+                    [key_id],
+                )
+        for key_id in ("a" * 129, "-leading"):
+            with self.subTest(key_id=key_id[:12]):
+                with self.assertRaisesRegex(ValueError, "key ids"):
+                    normalize_evaluation_trust_policy(
+                        {**base, "revoked_key_ids": [key_id]}
+                    )
     def test_issuer_tenant_authorization_fails_closed(self):
         result = execute_release_decision(
             request(), gateway=gateway(), key_resolver=lambda _: KEY, now_unix_ms=NOW,
@@ -934,6 +976,57 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
         finally:
             crashed.close()
             normal.close()
+
+    def test_provider_completed_recovery_preserves_normalized_duplicate_policy(self):
+        connection = sqlite3.connect(":memory:")
+        duplicate_policy = {
+            "schema_version": "a2.evaluation_trust_policy.v1",
+            "allowed_issuers": [
+                "a2-calibration-service", "a2-calibration-service",
+            ],
+            "issuer_tenants": {
+                "a2-calibration-service": ["tenant-a", "tenant-a"],
+            },
+            "revoked_key_ids": [],
+            "revoked_proof_hashes": [],
+            "maximum_lifetime_ms": 86_400_000,
+            "maximum_review_age_ms": 604_800_000,
+        }
+        try:
+            initialize_sql_store(connection)
+
+            def fail(point):
+                if point == "after_provider_outcome_committed":
+                    raise OSError("normalized-policy recovery boundary")
+
+            with self.assertRaisesRegex(OSError, "normalized-policy"):
+                execute_release_decision(
+                    request(), gateway=gateway(), key_resolver=lambda _: KEY,
+                    now_unix_ms=NOW, persistence_connection=connection,
+                    persistence_failure_injector=fail,
+                    quality_trust_policy=duplicate_policy,
+                )
+            operation_id = connection.execute(
+                "SELECT operation_id FROM a2_decision_operations"
+            ).fetchone()[0]
+            recovered = recover_release_decision(
+                connection,
+                operation_id=operation_id,
+                scope={key: request()[key] for key in (
+                    "organization_id", "tenant_id", "workspace_id",
+                    "project_id", "environment_id",
+                )},
+                now="2026-07-12T00:00:01Z",
+            )
+            self.assertEqual(
+                recovered["metadata"]["evaluation_trust_policy_hash"],
+                stable_hash(normalize_evaluation_trust_policy(duplicate_policy)),
+            )
+            self.assertTrue(recovered["persistence"]["committed"])
+            self.assertEqual(_count(connection, "a2_release_decisions"), 1)
+            self.assertEqual(_count(connection, "a2_decision_outbox"), 1)
+        finally:
+            connection.close()
 
     def test_recovery_envelope_tamper_and_active_lease_fail_closed(self):
         connection = sqlite3.connect(":memory:")
@@ -1674,6 +1767,68 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
                     now_unix_ms=NOW, connection=connection, operation_id=operation[0],
                     now="2026-07-12T00:00:01Z",
                     quality_revoked_key_ids=frozenset({"quality-key-1"}),
+                )
+            self.assertEqual(_count(connection, "a2_release_decisions"), 0)
+            self.assertEqual(_count(connection, "a2_decision_outbox"), 0)
+        finally:
+            connection.close()
+
+    def test_reconciled_remote_completion_honors_proof_hash_revocation(self):
+        connection = sqlite3.connect(":memory:")
+        candidate = request()
+        proof_hash = stable_hash({
+            key: candidate["evaluation_quality_proof"][key]
+            for key in sorted(candidate["evaluation_quality_proof"])
+            if key != "signature"
+        })
+        interrupted = ProviderGateway(
+            [ProviderDefinition(
+                "unit", "fake", "local", "", frozenset({"text"}),
+                frozenset({"tenant-a"}),
+                reconciliation_mode="provider_status_lookup",
+            )],
+            {"fake": ProcessInterruptedAdapter()},
+            response_validator=validate_semantic_judge_output,
+        )
+        try:
+            initialize_sql_store(connection)
+            with self.assertRaises(KeyboardInterrupt):
+                execute_release_decision(
+                    candidate, gateway=interrupted, key_resolver=lambda _: KEY,
+                    now_unix_ms=NOW, persistence_connection=connection,
+                )
+            operation = connection.execute(
+                """SELECT operation_id, provider_call_id, fencing_token, logical_call_id,
+                          snapshot_hash, provider_payload_hash,
+                          provider_idempotency_key_hash, provider_endpoint_hash
+                   FROM a2_decision_operations"""
+            ).fetchone()
+            provider_gateway = reconciliation_gateway("remote_completed")
+            provider_gateway.adapters["fake"].reconciliation_response.update({
+                "provider_call_id": operation[1],
+                "logical_call_id": operation[3],
+                "provider_id": "unit",
+                "model_id": "semantic-1",
+                "snapshot_hash": operation[4],
+                "payload_hash": operation[5],
+                "idempotency_key_hash": operation[6],
+                "provider_endpoint_hash": operation[7],
+                "scope": {field: candidate[field] for field in (
+                    "organization_id", "tenant_id", "workspace_id",
+                    "project_id", "environment_id",
+                )},
+                "operation_id": operation[0],
+                "provider_generation": operation[2],
+            })
+            with self.assertRaisesRegex(
+                IdempotencyConflictError, "input changed before commit"
+            ):
+                reconcile_release_decision(
+                    candidate, gateway=provider_gateway,
+                    key_resolver=lambda _: KEY, now_unix_ms=NOW,
+                    connection=connection, operation_id=operation[0],
+                    now="2026-07-12T00:00:01Z",
+                    quality_revoked_proof_hashes=frozenset({proof_hash}),
                 )
             self.assertEqual(_count(connection, "a2_release_decisions"), 0)
             self.assertEqual(_count(connection, "a2_decision_outbox"), 0)

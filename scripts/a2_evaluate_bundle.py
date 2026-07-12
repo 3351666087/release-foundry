@@ -19,6 +19,16 @@ from services.judge.provider_runtime import EnvironmentCredentialResolver, Ollam
 from services.judge.sql_store import initialize_sql_store
 
 
+def _read_json_object(path: Path, label: str) -> dict[str, object]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+        raise SystemExit(f"{label} could not be loaded as JSON") from exc
+    if not isinstance(value, dict):
+        raise SystemExit(f"{label} must be one JSON object")
+    return value
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="A1 bundle -> A2 Judge -> PASS/BLOCK/INCOMPLETE")
     parser.add_argument("--input", required=True, type=Path)
@@ -37,18 +47,14 @@ def main() -> int:
     parser.add_argument("--now-unix-ms", required=True, type=int)
     args = parser.parse_args()
 
-    payload = json.loads(args.input.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict):
-        raise SystemExit("input must be one JSON object")
+    payload = _read_json_object(args.input, "input")
     if args.quality_proof:
-        quality_proof = json.loads(args.quality_proof.read_text(encoding="utf-8"))
-        if not isinstance(quality_proof, dict):
-            raise SystemExit("quality proof must be one JSON object")
+        quality_proof = _read_json_object(args.quality_proof, "quality proof")
         payload["evaluation_quality_proof"] = quality_proof
     trust_policy = None
     if args.trust_policy:
         trust_policy = normalize_evaluation_trust_policy(
-            json.loads(args.trust_policy.read_text(encoding="utf-8"))
+            _read_json_object(args.trust_policy, "trust policy")
         )
     payload["provider_id"] = args.provider_id
     payload["model_id"] = args.model

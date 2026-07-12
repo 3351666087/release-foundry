@@ -3,6 +3,7 @@ param(
     [Parameter(Mandatory = $true)][ValidatePattern('^[0-9a-fA-F]{64}$')][string]$Sha256,
     [string]$InstallRoot = 'D:\Ashr\ollama',
     [string]$ModelRoot = 'D:\Ashr\ollama-models',
+    [string]$DownloadPath = '',
     [switch]$DryRun
 )
 
@@ -18,7 +19,15 @@ if ($free -lt 20GB) {
     throw 'At least 20 GiB free on D: is required before runtime installation.'
 }
 
-$download = Join-Path $env:TEMP 'a2-ollama-download.zip'
+$staging = 'D:\Ashr\downloads'
+$download = if ($DownloadPath) {
+    [System.IO.Path]::GetFullPath($DownloadPath)
+} else {
+    Join-Path $staging 'a2-ollama-download.zip'
+}
+if (-not $download.StartsWith('D:\', [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw 'Ollama archive staging must remain on D:.'
+}
 if ($DryRun) {
     Write-Output 'DRY_RUN=true'
     Write-Output "ARCHIVE_URL=$ArchiveUrl"
@@ -28,6 +37,7 @@ if ($DryRun) {
     Write-Output "DOWNLOAD_PATH=$download"
     exit 0
 }
+New-Item -ItemType Directory -Force -Path ([System.IO.Path]::GetDirectoryName($download)) | Out-Null
 Invoke-WebRequest -Uri $ArchiveUrl -OutFile $download
 $actual = (Get-FileHash -Algorithm SHA256 -LiteralPath $download).Hash
 if ($actual -ne $Sha256.ToUpperInvariant()) {

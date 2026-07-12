@@ -113,7 +113,11 @@ def verify_evaluation_quality_proof(
     reviewer_digest = proof.get("reviewer_identity_digest")
     reviewed_at = proof.get("reviewed_at_unix_ms")
     if proof["disagreement"] == "reviewed":
-        if _SHA256_REF.fullmatch(str(reviewer_digest or "")) is None or not isinstance(reviewed_at, int):
+        if (
+            _SHA256_REF.fullmatch(str(reviewer_digest or "")) is None
+            or isinstance(reviewed_at, bool)
+            or not isinstance(reviewed_at, int)
+        ):
             return _blocked("disagreement_review_receipt_invalid")
         if reviewed_at > now_unix_ms or now_unix_ms - reviewed_at > maximum_review_age_ms:
             return _blocked("disagreement_review_receipt_stale")

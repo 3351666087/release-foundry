@@ -18,6 +18,7 @@ def main() -> int:
     parser.add_argument("--model", required=True)
     parser.add_argument("--base-url", default="http://127.0.0.1:11434")
     parser.add_argument("--image", type=Path)
+    parser.add_argument("--timeout-seconds", type=float, default=120.0)
     args = parser.parse_args()
     parts = [{"modality": "text", "text": "Return a small JSON object with a boolean field named passed."}]
     hashes = []
@@ -49,6 +50,7 @@ def main() -> int:
         model_id=args.model,
         parts=parts,
         idempotency_key=stable_hash({"model": args.model, "hashes": hashes}),
+        timeout_seconds=args.timeout_seconds,
     )
     evidence = build_local_smoke_evidence(
         modality="image" if args.image else "text",

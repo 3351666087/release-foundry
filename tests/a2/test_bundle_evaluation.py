@@ -79,6 +79,10 @@ class BundleEvaluationTests(unittest.TestCase):
         self.assertEqual(adapter_gateway.adapters["fake"].calls, 0)
         self.assertEqual(result["findings"][0]["source"], "evidence_verifier")
         self.assert_response_schema(result)
+        self.assertRegex(
+            result["reproducibility"]["evaluation_trust_policy_hash"],
+            r"^sha256:[0-9a-f]{64}$",
+        )
 
     def test_multimodal_qualified_evidence_reaches_judge_and_passes(self):
         pipeline, evidence = image_pipeline_and_evidence()
@@ -241,6 +245,27 @@ class BundleEvaluationTests(unittest.TestCase):
             evaluation_trust_policy_hash(self.trust_policy()),
         )
 
+    def test_cli_same_policy_replays_record_and_hash_without_provider_call(self):
+        completed, calls = self.run_complete_cli_with_policy(
+            self.trust_policy(), repetitions=2
+        )
+        self.assertEqual([item.returncode for item in completed], [0, 0])
+        first, second = (json.loads(item.stdout) for item in completed)
+        expected_hash = evaluation_trust_policy_hash(self.trust_policy())
+        self.assertEqual(calls(), 1)
+        self.assertEqual(
+            first["reproducibility"]["evaluation_trust_policy_hash"], expected_hash
+        )
+        self.assertEqual(
+            second["reproducibility"]["evaluation_trust_policy_hash"], expected_hash
+        )
+        self.assertEqual(
+            first["reproducibility"]["record_id"],
+            second["reproducibility"]["record_id"],
+        )
+        self.assertFalse(first["reproducibility"]["idempotent_replay"])
+        self.assertTrue(second["reproducibility"]["idempotent_replay"])
+
     def test_cli_invalid_trust_policy_fails_before_provider_invocation(self):
         invalid = self.trust_policy()
         invalid["revoked_key_ids"] = ["contains whitespace"]
@@ -248,6 +273,18 @@ class BundleEvaluationTests(unittest.TestCase):
         self.assertNotEqual(completed.returncode, 0)
         self.assertEqual(calls(), 0)
         self.assertIn("revoked key ids are invalid", completed.stderr)
+
+    def test_cli_malformed_trust_policy_error_is_sanitized(self):
+        completed = self.run_policy_file_cli('{"secret":"must-not-echo",')
+        self.assertNotEqual(completed.returncode, 0)
+        self.assertIn("trust policy could not be loaded as JSON", completed.stderr)
+        self.assertNotIn("must-not-echo", completed.stdout + completed.stderr)
+
+    def test_cli_missing_trust_policy_fails_before_provider(self):
+        completed = self.run_policy_file_cli(None)
+        self.assertNotEqual(completed.returncode, 0)
+        self.assertIn("trust policy could not be loaded as JSON", completed.stderr)
+        self.assertNotIn("Connection refused", completed.stderr)
 
     def test_cli_missing_bundle_key_fails_without_leaking_provider_secret(self):
         completed = self.run_cli(
@@ -365,7 +402,7 @@ class BundleEvaluationTests(unittest.TestCase):
                 command, cwd=ROOT, env=environment, capture_output=True, text=True, check=False
             )
 
-    def run_complete_cli_with_policy(self, policy):
+    def run_complete_cli_with_policy(self, policy, *, repetitions=1):
         class Handler(BaseHTTPRequestHandler):
             calls = 0
 
@@ -425,15 +462,50 @@ class BundleEvaluationTests(unittest.TestCase):
                     "A1_EVIDENCE_HMAC_KEY": KEY.decode(),
                     "A2_TEST_PROVIDER_KEY": "stub-only-secret",
                 })
-                completed = subprocess.run(
-                    command, cwd=ROOT, env=environment,
-                    capture_output=True, text=True, check=False,
+                completed = [
+                    subprocess.run(
+                        command, cwd=ROOT, env=environment,
+                        capture_output=True, text=True, check=False,
+                    )
+                    for _ in range(repetitions)
+                ]
+                return (
+                    completed[0] if repetitions == 1 else completed,
+                    lambda: Handler.calls,
                 )
-                return completed, lambda: Handler.calls
         finally:
             server.shutdown()
             server.server_close()
             thread.join(timeout=2)
+
+    def run_policy_file_cli(self, policy_text):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            input_path = root / "bundle.json"
+            policy_path = root / "trust-policy.json"
+            input_path.write_text(json.dumps({"tenant_id": "tenant-a"}), encoding="utf-8")
+            if policy_text is not None:
+                policy_path.write_text(policy_text, encoding="utf-8")
+            command = [
+                sys.executable, "-B", "scripts/a2_evaluate_bundle.py",
+                "--input", str(input_path),
+                "--trust-policy", str(policy_path),
+                "--database", str(root / "decisions.sqlite"),
+                "--provider", "openai-compatible",
+                "--model", "test-model",
+                "--base-url", "http://127.0.0.1:1",
+                "--credential-env", "A2_TEST_PROVIDER_KEY",
+                "--now-unix-ms", str(NOW),
+            ]
+            environment = dict(os.environ)
+            environment.update({
+                "A1_EVIDENCE_HMAC_KEY": KEY.decode(),
+                "A2_TEST_PROVIDER_KEY": "stub-only-secret",
+            })
+            return subprocess.run(
+                command, cwd=ROOT, env=environment,
+                capture_output=True, text=True, check=False,
+            )
 
     @staticmethod
     def trust_policy():
@@ -518,6 +590,72 @@ class BundleEvaluationTests(unittest.TestCase):
         self.assertLess(dry_run_index, write_index)
         self.assertLess(dry_run_index, environment_index)
         self.assertIn("[switch]$DryRun", text)
+
+    @unittest.skipUnless(os.name == "nt", "PowerShell installer is Windows-only")
+    def test_ollama_installer_dry_run_does_not_create_target_directories(self):
+        root = Path("D:/Ashr/a2-installer-dry-run-test")
+        install = root / "runtime"
+        models = root / "models"
+        if root.exists():
+            self.skipTest("reserved dry-run test root already exists")
+        completed = subprocess.run([
+            "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass",
+            "-File", str(ROOT / "scripts/a2_install_ollama_d_drive.ps1"),
+            "-ArchiveUrl", "https://example.invalid/ollama.zip",
+            "-Sha256", "a" * 64,
+            "-InstallRoot", str(install),
+            "-ModelRoot", str(models),
+            "-DryRun",
+        ], cwd=ROOT, capture_output=True, text=True, check=False)
+        self.assertEqual(completed.returncode, 0, completed.stderr)
+        self.assertFalse(root.exists())
+
+    @unittest.skipUnless(os.name == "nt", "PowerShell installer is Windows-only")
+    def test_ollama_installer_rejects_non_d_roots(self):
+        cases = (
+            ("C:\\Ashr\\ollama", "D:\\Ashr\\models"),
+            ("D:\\Ashr\\ollama", "C:\\Ashr\\models"),
+        )
+        for install, models in cases:
+            with self.subTest(install=install, models=models):
+                completed = subprocess.run([
+                    "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass",
+                    "-File", str(ROOT / "scripts/a2_install_ollama_d_drive.ps1"),
+                    "-ArchiveUrl", "https://example.invalid/ollama.zip",
+                    "-Sha256", "a" * 64,
+                    "-InstallRoot", install,
+                    "-ModelRoot", models,
+                    "-DryRun",
+                ], cwd=ROOT, capture_output=True, text=True, check=False)
+                self.assertNotEqual(completed.returncode, 0)
+                self.assertIn("must both remain on D", completed.stderr)
+
+    @unittest.skipUnless(os.name == "nt", "PowerShell installer is Windows-only")
+    def test_ollama_installer_checksum_mismatch_removes_download(self):
+        root = Path("D:/Ashr/a2-checksum-test")
+        if root.exists():
+            self.skipTest("reserved checksum test root already exists")
+        try:
+            root.mkdir(parents=True)
+            source = root / "source.zip"
+            download = root / "download.zip"
+            source.write_bytes(b"not-an-ollama-archive")
+            completed = subprocess.run([
+                "powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass",
+                "-File", str(ROOT / "scripts/a2_install_ollama_d_drive.ps1"),
+                "-ArchiveUrl", source.as_uri(),
+                "-Sha256", "a" * 64,
+                "-InstallRoot", "D:\\Ashr\\a2-checksum-test\\runtime",
+                "-ModelRoot", "D:\\Ashr\\a2-checksum-test\\models",
+                "-DownloadPath", str(download),
+            ], cwd=ROOT, capture_output=True, text=True, check=False)
+            self.assertNotEqual(completed.returncode, 0)
+            self.assertIn("checksum mismatch", completed.stderr)
+            self.assertFalse(download.exists())
+        finally:
+            if root.exists():
+                import shutil as test_shutil
+                test_shutil.rmtree(root)
 
     def assert_response_schema(self, result):
         schema = json.loads((ROOT / "docs/a2/schemas/bundle_evaluation.schema.json").read_text(encoding="utf-8"))
