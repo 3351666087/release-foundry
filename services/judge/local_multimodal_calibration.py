@@ -27,6 +27,8 @@ STABILITY_SCHEMA_VERSION = "a2.multimodal_stability_summary.v1"
 ADVERSARIAL_REVIEW_SCHEMA_VERSION = "a2.multimodal_adversarial_review_resolution.v1"
 ADVERSARIAL_GOLDEN_SCHEMA_VERSION = "a2.multimodal_adversarial_golden_case.v1"
 SAFETY_METRICS_SCHEMA_VERSION = "a2.multimodal_safety_metrics.v1"
+RUNTIME_POLICY_SCHEMA_VERSION = "a2.multimodal_runtime_policy.v1"
+OCR_VISION_DISAGREEMENT_SCHEMA_VERSION = "a2.ocr_vision_disagreement.v1"
 DETERMINISTIC_SIDECAR_SCHEMA_VERSION = "a2.deterministic_visual_sidecar.v2"
 _SHA256_REF = re.compile(r"^sha256:[a-f0-9]{64}$")
 
@@ -402,6 +404,8 @@ def observe_local_model_resources(
     startup_class: str = "warm_start",
     cold_start_slo_state: str | None = None,
     telemetry: dict[str, Any] | None = None,
+    maximum_completion_tokens: int | None = None,
+    thinking_tokens: int | None = None,
 ) -> dict[str, Any]:
     """Create public-safe resource evidence and fail closed on excessive local Judge latency."""
     required = {"provider_id", "model_id", "model_version"}
@@ -432,7 +436,17 @@ def observe_local_model_resources(
         blockers.append("local_judge_latency_exceeded")
     if inherited_cold_failure:
         blockers.append("cold_start_slo_failure_not_concealed")
-    return {
+    if maximum_completion_tokens is not None:
+        if isinstance(maximum_completion_tokens, bool) or maximum_completion_tokens < 1:
+            raise ValueError("maximum completion tokens must be positive")
+        if completion_tokens > maximum_completion_tokens:
+            blockers.append("local_judge_completion_token_limit_exceeded")
+    if thinking_tokens is not None and (
+        isinstance(thinking_tokens, bool) or not isinstance(thinking_tokens, int) or thinking_tokens < 0
+    ):
+        raise ValueError("thinking tokens must be a non-negative integer")
+    evaluation_eligible = not blockers
+    result = {
         "schema_version": LOCAL_RESOURCE_SCHEMA_VERSION,
         "model_binding": dict(model_binding),
         "installed_bytes": installed_bytes,
@@ -446,11 +460,102 @@ def observe_local_model_resources(
         ),
         "telemetry": telemetry,
         "latency_policy_state": "incomplete" if latency_exceeded or inherited_cold_failure else "within_limit",
-        "evaluation_eligible": not latency_exceeded and not inherited_cold_failure,
+        "evaluation_eligible": evaluation_eligible,
         "release_authority": False,
         "blockers": blockers,
         "public_safe": True,
     }
+    if maximum_completion_tokens is not None:
+        result["maximum_completion_tokens"] = maximum_completion_tokens
+    if thinking_tokens is not None:
+        result["thinking_tokens"] = thinking_tokens
+    return result
+
+
+def summarize_multimodal_runtime_policy(
+    *,
+    observations: list[dict[str, Any]],
+    maximum_latency_seconds: float,
+    maximum_completion_tokens: int,
+) -> dict[str, Any]:
+    """Summarize latency independently of HTTP success and enforce token ceilings."""
+    if not observations:
+        raise ValueError("runtime policy requires observations")
+    if maximum_latency_seconds <= 0 or maximum_completion_tokens < 1:
+        raise ValueError("runtime policy limits must be positive")
+    latencies = sorted(float(item["wall_time_seconds"]) for item in observations)
+    if any(not math.isfinite(value) or value < 0 for value in latencies):
+        raise ValueError("latencies must be finite non-negative numbers")
+    token_counts = [int(item.get("completion_tokens", 0)) for item in observations]
+    if any(value < 0 for value in token_counts):
+        raise ValueError("completion tokens must be non-negative")
+
+    def percentile(fraction: float) -> float:
+        index = math.ceil(fraction * len(latencies)) - 1
+        return latencies[max(0, index)]
+
+    blockers = []
+    if any(value > maximum_latency_seconds for value in latencies):
+        blockers.append("multimodal_runtime_latency_exceeded")
+    if any(value > maximum_completion_tokens for value in token_counts):
+        blockers.append("multimodal_runtime_token_limit_exceeded")
+    return {
+        "schema_version": RUNTIME_POLICY_SCHEMA_VERSION,
+        "observation_count": len(observations),
+        "latency_seconds": {
+            "minimum": latencies[0],
+            "p50": percentile(0.50),
+            "p95": percentile(0.95),
+            "maximum": latencies[-1],
+        },
+        "maximum_latency_seconds": maximum_latency_seconds,
+        "maximum_completion_tokens": maximum_completion_tokens,
+        "maximum_observed_completion_tokens": max(token_counts),
+        "thinking_metadata_observed": any(item.get("thinking_tokens") is not None for item in observations),
+        "qualification_state": "blocked" if blockers else "review_available",
+        "release_authority": False,
+        "blockers": blockers,
+        "public_safe": True,
+    }
+
+
+def build_ocr_vision_text_disagreement(
+    *,
+    ocr_observation: dict[str, Any],
+    vision_output: dict[str, Any],
+    artifact_hash: str,
+) -> dict[str, Any]:
+    """Bind OCR text presence to model text claims; disagreement always requires review."""
+    _require_optional_sha256_ref(artifact_hash, field_name="artifact_hash")
+    if not artifact_hash:
+        raise ValueError("artifact_hash is required")
+    ocr_has_text = bool(str(ocr_observation.get("text") or "").strip())
+    vision_has_text = vision_output.get("contains_text")
+    if not isinstance(vision_has_text, bool):
+        raise ValueError("vision contains_text must be boolean")
+    disagrees = ocr_has_text != vision_has_text
+    reason = (
+        "vision_hallucinated_text"
+        if vision_has_text and not ocr_has_text
+        else "vision_missed_ocr_text"
+        if ocr_has_text and not vision_has_text
+        else "text_presence_agreement"
+    )
+    core = {
+        "schema_version": OCR_VISION_DISAGREEMENT_SCHEMA_VERSION,
+        "artifact_hash": artifact_hash,
+        "ocr_observation_hash": stable_hash(ocr_observation),
+        "vision_output_hash": stable_hash(vision_output),
+        "ocr_contains_text": ocr_has_text,
+        "vision_contains_text": vision_has_text,
+        "state": "disagreement" if disagrees else "agreement",
+        "reason_code": reason,
+        "release_authority": False,
+        "human_review_required": disagrees,
+        "blockers": ["ocr_vision_text_disagreement"] if disagrees else [],
+        "public_safe": True,
+    }
+    return {**core, "review_packet_hash": stable_hash(core) if disagrees else ""}
 
 
 def build_evidence_evaluation_identity(

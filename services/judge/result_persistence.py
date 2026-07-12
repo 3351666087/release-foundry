@@ -764,6 +764,8 @@ def _release_unblock_checklist_record(
         "source_release_gate": checklist.get("source_release_gate"),
         "review_workflow": checklist.get("review_workflow", {}),
     }
+
+
     input_payload = {
         "release_gate_decision": checklist.get("release_gate_decision"),
         "release_gate_exit_code": checklist.get("release_gate_exit_code"),
@@ -806,6 +808,37 @@ def _release_unblock_checklist_record(
         },
     )
 
+
+def build_structured_output_failure_record(
+    failure_receipt: dict[str, Any],
+    *,
+    org_id: str,
+    project_id: str,
+    run_id: str,
+    case_id: str,
+    created_at: str,
+) -> dict[str, Any]:
+    """Persist only hashes and classification for malformed/provider-failed model output."""
+    state = str(failure_receipt.get("state") or "")
+    if state in {"", "valid"}:
+        raise ValueError("failure persistence requires a failed structured-output receipt")
+    public_payload = {
+        "state": state,
+        "provider_status": str(failure_receipt.get("provider_status") or ""),
+        "raw_response_hash": str(failure_receipt.get("raw_response_hash") or ""),
+        "parsed_output_hash": str(failure_receipt.get("parsed_output_hash") or ""),
+        "blockers": list(failure_receipt.get("blockers") or []),
+    }
+    return build_result_record(
+        public_payload,
+        org_id=org_id,
+        project_id=project_id,
+        run_id=run_id,
+        case_id=case_id,
+        kind="structured_output_failure",
+        input_payload={"failure_receipt_hash": stable_hash(failure_receipt)},
+        created_at=created_at,
+    )
 
 def _judge_policy_payload(scenario: dict[str, Any], judge_id: str, judge_version: str) -> dict[str, Any]:
     return {

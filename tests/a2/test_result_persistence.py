@@ -3,7 +3,12 @@ import re
 import unittest
 from pathlib import Path
 
-from services.judge.result_persistence import build_result_persistence_manifest, build_result_record, stable_hash
+from services.judge.result_persistence import (
+    build_result_persistence_manifest,
+    build_result_record,
+    build_structured_output_failure_record,
+    stable_hash,
+)
 from services.judge.ocr_contract import run_optional_ocr_adapter
 from services.judge.local_multimodal_calibration import validate_prompt_lineage
 
@@ -44,6 +49,25 @@ def load_json(path: Path) -> dict:
 
 
 class A2ResultPersistenceTests(unittest.TestCase):
+    def test_structured_output_failure_record_is_hash_only(self):
+        receipt = {
+            "state": "invalid_json",
+            "provider_status": "completed",
+            "raw_response_hash": "sha256:" + "a" * 64,
+            "parsed_output_hash": "",
+            "blockers": ["structured_output_invalid_json"],
+            "raw_secret": "must-not-persist",
+        }
+        record = build_structured_output_failure_record(
+            receipt,
+            org_id="org",
+            project_id="project",
+            run_id="run",
+            case_id="case",
+            created_at="2026-07-13T00:00:00Z",
+        )
+        self.assertEqual(record["record_type"], "structured_output_failure")
+        self.assertNotIn("must-not-persist", json.dumps(record))
     def test_prompt_supersession_persists_as_hash_only_audit_record(self):
         current = "sha256:" + "a" * 64
         previous = "sha256:" + "b" * 64

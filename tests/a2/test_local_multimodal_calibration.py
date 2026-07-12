@@ -12,6 +12,7 @@ from services.judge.local_multimodal_calibration import (
     build_evidence_evaluation_identity,
     build_multimodal_disagreement_review_packet,
     build_multimodal_disagreement_receipt,
+    build_ocr_vision_text_disagreement,
     build_credential_rotation_marker,
     evaluate_provider_fallback,
     evaluate_multimodal_adversarial_observation,
@@ -29,6 +30,7 @@ from services.judge.local_multimodal_calibration import (
     evaluate_prompt_binding_promotion,
     run_optional_ocr_adapter,
     summarize_multimodal_stability,
+    summarize_multimodal_runtime_policy,
     validate_a3_decision_consumption,
     validate_multimodal_runtime_calibration_binding,
     validate_requested_allow_ledger,
@@ -75,6 +77,39 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
     def assert_schema(self, name, value):
         schema = json.loads((ROOT / f"docs/a2/schemas/{name}").read_text(encoding="utf-8"))
         jsonschema.Draft202012Validator(schema).validate(value)
+
+    def test_runtime_policy_blocks_latency_and_token_overage(self):
+        result = summarize_multimodal_runtime_policy(
+            observations=[
+                {"wall_time_seconds": 40.0, "completion_tokens": 20, "thinking_tokens": None},
+                {"wall_time_seconds": 58.0, "completion_tokens": 130, "thinking_tokens": 30},
+                {"wall_time_seconds": 45.0, "completion_tokens": 12},
+            ],
+            maximum_latency_seconds=30.0,
+            maximum_completion_tokens=128,
+        )
+        self.assertEqual(result["latency_seconds"]["p50"], 45.0)
+        self.assertEqual(result["latency_seconds"]["p95"], 58.0)
+        self.assertEqual(result["qualification_state"], "blocked")
+        self.assertTrue(result["thinking_metadata_observed"])
+
+    def test_ocr_vision_hallucinated_text_requires_review(self):
+        result = build_ocr_vision_text_disagreement(
+            ocr_observation={"state": "completed", "text": "", "text_hash": stable_hash("")},
+            vision_output={"contains_text": True, "safety_risk": "high"},
+            artifact_hash="sha256:" + "a" * 64,
+        )
+        self.assertEqual(result["reason_code"], "vision_hallucinated_text")
+        self.assertTrue(result["human_review_required"])
+
+    def test_ocr_rejects_non_finite_confidence(self):
+        with self.assertRaisesRegex(ValueError, "finite"):
+            run_optional_ocr_adapter(
+                image_path="unused.png",
+                adapter_id="test",
+                adapter_version_hash="sha256:" + "b" * 64,
+                adapter=lambda _: {"text": "x", "tokens": [{"text": "x", "confidence": float("nan")}]},
+            )
 
     def test_reviewed_structured_semantics_pass_golden_without_release_authority(self):
         result = evaluate_local_multimodal_golden(

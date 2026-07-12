@@ -13,6 +13,8 @@ from services.judge.trusted_spine import (
     build_decision_record,
     build_evidence_snapshot,
     build_trusted_spine_handoff,
+    build_trusted_spine_candidate_manifest,
+    validate_trusted_spine_candidate,
 )
 
 
@@ -38,6 +40,22 @@ def load_json(path: Path) -> dict:
 
 
 class A2TrustedSpineTests(unittest.TestCase):
+    def test_candidate_rejects_stale_a2_and_decision_binding(self):
+        candidate = build_trusted_spine_candidate_manifest(
+            a1_sha="1" * 40,
+            a2_sha="2" * 40,
+            a3_sha="3" * 40,
+            decision_hash="sha256:" + "4" * 64,
+            grades_hash="sha256:" + "5" * 64,
+            created_at="2026-07-13T00:00:00Z",
+        )
+        result = validate_trusted_spine_candidate(
+            candidate,
+            expected_a2_sha="6" * 40,
+            expected_decision_hash="sha256:" + "7" * 64,
+        )
+        self.assertEqual(result["status"], "rejected")
+        self.assertIn("trusted_spine_candidate_a2_sha_stale", result["blockers"])
     def test_handoff_fixture_matches_builder(self):
         actual = build_trusted_spine_handoff(
             load_json(RUN_FIXTURE),

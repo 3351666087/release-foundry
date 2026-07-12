@@ -5,6 +5,7 @@ from __future__ import annotations
 import time
 import re
 import threading
+import math
 from typing import Any
 
 from .result_persistence import stable_hash
@@ -13,6 +14,11 @@ _SHA256_REF = re.compile(r"^sha256:[a-f0-9]{64}$")
 
 
 def _canonical_tokens(tokens: list[Any]) -> list[dict[str, Any]]:
+    for token in tokens:
+        if isinstance(token, dict) and token.get("confidence") is not None:
+            confidence = float(token["confidence"])
+            if not math.isfinite(confidence):
+                raise ValueError("OCR confidence must be finite")
     sanitized = [
         {
             "text_hash": stable_hash(str(token.get("text") or "")),
@@ -48,10 +54,11 @@ def run_optional_ocr_adapter(
         process = None
         rss_before = None
     peak_samples: list[int] = [rss_before] if rss_before is not None else []
+    sampling_interval_ms = 10
     stop_sampling = threading.Event()
 
     def sample_rss() -> None:
-        while not stop_sampling.wait(0.01):
+        while not stop_sampling.wait(sampling_interval_ms / 1000):
             try:
                 if process is not None:
                     peak_samples.append(process.memory_info().rss)
@@ -88,6 +95,8 @@ def run_optional_ocr_adapter(
             "process_rss_delta_bytes": 0 if rss_before is not None else None,
             "process_rss_peak_bytes": rss_before,
             "process_rss_peak_delta_bytes": 0 if rss_before is not None else None,
+            "process_rss_peak_sample_count": len(peak_samples),
+            "process_rss_sampling_interval_ms": sampling_interval_ms,
             "blockers": ["ocr_adapter_unavailable"],
         }
     try:
@@ -149,8 +158,12 @@ def run_optional_ocr_adapter(
                 if rss_peak is not None and rss_before is not None
                 else None
             ),
+            "process_rss_peak_sample_count": len(peak_samples),
+            "process_rss_sampling_interval_ms": sampling_interval_ms,
             "blockers": blockers,
         }
+    except ValueError:
+        raise
     except Exception:
         return {
             **base,
@@ -168,6 +181,8 @@ def run_optional_ocr_adapter(
             "process_rss_delta_bytes": None,
             "process_rss_peak_bytes": max(peak_samples) if peak_samples else None,
             "process_rss_peak_delta_bytes": None,
+            "process_rss_peak_sample_count": len(peak_samples),
+            "process_rss_sampling_interval_ms": sampling_interval_ms,
             "blockers": ["ocr_adapter_failed"],
         }
     finally:
