@@ -10,6 +10,11 @@ import struct
 import wave
 from typing import Any, Protocol
 
+from .artifact_reference import (
+    ArtifactReferenceError,
+    VersionedObjectReader,
+    read_authorized_artifact,
+)
 from .result_persistence import stable_hash
 
 
@@ -148,6 +153,58 @@ def process_artifact(
         "release_authority": False,
     }
     return {**pipeline_core, "pipeline_record_hash": stable_hash(pipeline_core)}
+
+
+def process_artifact_reference(
+    reference: dict[str, Any],
+    *,
+    reader: VersionedObjectReader,
+    expected_scope: dict[str, str],
+    expected_purpose: str,
+    now: str,
+    scanner: ArtifactScanner | None,
+    limits: ArtifactLimits | None = None,
+    require_production_scanner: bool = False,
+) -> dict[str, Any]:
+    """Resolve an authorized immutable object and then run the artifact pipeline."""
+    limits = limits or ArtifactLimits()
+    try:
+        content, resolution = read_authorized_artifact(
+            reference,
+            reader=reader,
+            expected_scope=expected_scope,
+            expected_purpose=expected_purpose,
+            now=now,
+            max_bytes=limits.max_artifact_bytes,
+        )
+    except ArtifactReferenceError as error:
+        return _blocked_reference_pipeline(reference, error.resolution, error.blockers)
+
+    submission = {
+        "tenant_scope": dict(expected_scope),
+        "artifact_id": str(reference.get("artifact_id") or ""),
+        "filename": _filename_for_media_type(
+            str(reference.get("artifact_id") or "artifact"),
+            str(reference.get("media_type") or ""),
+        ),
+        "media_type": str(reference.get("media_type") or ""),
+        "content_hash": str(reference.get("content_hash") or ""),
+        "source_ref": str(reference.get("reference_id") or ""),
+    }
+    pipeline = process_artifact(
+        submission,
+        content,
+        scanner=scanner,
+        limits=limits,
+        require_production_scanner=require_production_scanner,
+    )
+    core = {
+        key: value
+        for key, value in pipeline.items()
+        if key != "pipeline_record_hash"
+    }
+    core["artifact_reference_resolution"] = resolution
+    return {**core, "pipeline_record_hash": stable_hash(core)}
 
 
 def sniff_media_type(content: bytes, filename: str = "") -> str:
@@ -412,3 +469,72 @@ def _safe_filename(filename: str) -> str:
     if normalized in {"", ".", ".."} or "\x00" in normalized:
         return ""
     return normalized
+
+
+def _filename_for_media_type(artifact_id: str, media_type: str) -> str:
+    suffixes = {
+        "text/plain": ".txt",
+        "text/markdown": ".md",
+        "application/json": ".json",
+        "application/pdf": ".pdf",
+        "image/png": ".png",
+        "image/jpeg": ".jpg",
+        "audio/wav": ".wav",
+        "video/mp4": ".mp4",
+    }
+    safe_id = re.sub(r"[^A-Za-z0-9_.-]", "_", artifact_id) or "artifact"
+    return safe_id + suffixes.get(media_type, ".bin")
+
+
+def _blocked_reference_pipeline(
+    reference: dict[str, Any],
+    resolution: dict[str, Any],
+    blockers: list[str],
+) -> dict[str, Any]:
+    scope_source = reference.get("tenant_scope")
+    scope = {
+        field: str(scope_source.get(field) or "")
+        if isinstance(scope_source, dict)
+        else ""
+        for field in SCOPE_FIELDS
+    }
+    content_hash = str(reference.get("content_hash") or "")
+    media_type = str(reference.get("media_type") or "")
+    artifact_id = str(reference.get("artifact_id") or "")
+    blockers = sorted(set(blockers))
+    manifest_core = {
+        "schema_version": MANIFEST_SCHEMA_VERSION,
+        "tenant_scope": scope,
+        "artifact_id": artifact_id,
+        "filename_hash": stable_hash(""),
+        "claimed_media_type": media_type,
+        "detected_media_type": "",
+        "modality": SUPPORTED_MEDIA_TYPES.get(media_type, "file"),
+        "content_hash": content_hash,
+        "size_bytes": 0,
+        "source_ref_hash": stable_hash(str(reference.get("reference_id") or "")),
+        "ingestion_status": "blocked",
+        "blockers": blockers,
+        "security_scan": {
+            "status": "unavailable",
+            "engine": "",
+            "engine_version": "",
+            "production_qualified": False,
+            "signature_set": "",
+        },
+        "raw_content_included": False,
+    }
+    manifest = {**manifest_core, "manifest_id": stable_hash(manifest_core)}
+    extraction = _blocked_extraction(content_hash, media_type, blockers)
+    core = {
+        "schema_version": PIPELINE_SCHEMA_VERSION,
+        "tenant_scope": scope,
+        "manifest": manifest,
+        "extraction": extraction,
+        "artifact_reference_resolution": resolution,
+        "evaluation_eligible": False,
+        "blockers": blockers,
+        "raw_content_included": False,
+        "release_authority": False,
+    }
+    return {**core, "pipeline_record_hash": stable_hash(core)}

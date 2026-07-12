@@ -59,6 +59,7 @@
           "modality",
           "producer_tool",
           "reference_hash",
+          "reference_resolution_hash",
           "content_hash",
           "content_included",
           "collection_status"
@@ -68,6 +69,9 @@
           "modality": { "enum": ["text", "image", "audio", "file", "video"] },
           "producer_tool": { "type": "string" },
           "reference_hash": { "$ref": "#/$defs/hash" },
+          "reference_resolution_hash": {
+            "oneOf": [{ "const": "" }, { "$ref": "#/$defs/hash" }]
+          },
           "content_hash": { "$ref": "#/$defs/hash" },
           "content_included": { "const": false },
           "collection_status": {

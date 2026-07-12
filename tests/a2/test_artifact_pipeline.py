@@ -9,7 +9,18 @@ import zlib
 
 import jsonschema
 
-from services.judge.artifact_pipeline import ArtifactLimits, SignatureScanner, process_artifact
+from services.judge.artifact_pipeline import (
+    ArtifactLimits,
+    SignatureScanner,
+    process_artifact,
+    process_artifact_reference,
+)
+from services.judge.artifact_reference import (
+    ARTIFACT_REFERENCE_SCHEMA_VERSION,
+    InMemoryVersionedObjectReader,
+    ObjectRead,
+    authorization_binding_hash,
+)
 from services.judge.trusted_spine import build_decision_record, build_evidence_snapshot
 
 
@@ -39,6 +50,45 @@ def submission(content, media_type, filename):
         "content_hash": digest(content),
         "source_ref": "object://private/artifact-1",
     }
+
+
+def artifact_reference(content, media_type="image/png"):
+    result = {
+        "schema_version": ARTIFACT_REFERENCE_SCHEMA_VERSION,
+        "reference_id": "ref-1",
+        "tenant_scope": scope(),
+        "artifact_id": "artifact-1",
+        "storage_provider": "a1-object-store",
+        "container_ref": "tenant-container-1",
+        "object_ref": "opaque-object-1",
+        "object_version": "version-0001",
+        "content_hash": digest(content),
+        "size_bytes": len(content),
+        "media_type": media_type,
+        "purpose": "release-evaluation",
+        "issued_at": "2026-07-12T00:00:00Z",
+        "expires_at": "2026-07-13T00:00:00Z",
+    }
+    result["authorization_binding_hash"] = authorization_binding_hash(result)
+    return result
+
+
+def versioned_reader(reference, content, *, media_type=None, version=None):
+    key = (
+        reference["storage_provider"],
+        reference["container_ref"],
+        reference["object_ref"],
+        reference["object_version"],
+    )
+    return InMemoryVersionedObjectReader(
+        {
+            key: ObjectRead(
+                content=content,
+                object_version=version or reference["object_version"],
+                media_type=media_type or reference["media_type"],
+            )
+        }
+    )
 
 
 def png(width=2, height=3):
@@ -224,6 +274,7 @@ class ArtifactPipelineTests(unittest.TestCase):
         self.assertEqual(snapshot["completeness"], "complete")
         self.assertIn("image", snapshot["observed_modalities"])
         self.assertEqual(snapshot["artifacts"][-1]["reference_hash"], valid_pipeline["manifest"]["manifest_id"])
+        self.assertEqual(snapshot["artifacts"][-1]["reference_resolution_hash"], "")
         self.assertEqual(
             snapshot["extractor_provenance"][-1]["extractor_id"],
             valid_pipeline["extraction"]["extractor_id"],
@@ -261,6 +312,172 @@ class ArtifactPipelineTests(unittest.TestCase):
                 model_versions=["local:test"],
                 created_at="2026-07-12T00:00:01Z",
             )
+
+    def test_authorized_versioned_reference_reaches_pipeline_without_exposing_object_identity(self):
+        content = png()
+        reference = artifact_reference(content)
+        result = process_artifact_reference(
+            reference,
+            reader=versioned_reader(reference, content),
+            expected_scope=scope(),
+            expected_purpose="release-evaluation",
+            now="2026-07-12T12:00:00Z",
+            scanner=ProductionScanner(),
+            require_production_scanner=True,
+        )
+        self.validate(result)
+        resolution_schema = json.loads(
+            (ROOT / "docs/a2/schemas/artifact_reference_resolution.schema.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        jsonschema.Draft202012Validator(resolution_schema).validate(
+            result["artifact_reference_resolution"]
+        )
+        self.assertTrue(result["evaluation_eligible"])
+        self.assertEqual(result["artifact_reference_resolution"]["status"], "verified")
+        serialized = json.dumps(result, sort_keys=True)
+        self.assertNotIn(reference["container_ref"], serialized)
+        self.assertNotIn(reference["object_ref"], serialized)
+        self.assertNotIn(reference["object_version"], serialized)
+
+        snapshot = build_evidence_snapshot(
+            {"run_id": "run-ref-1", "final_response": "done"},
+            organization_id="org-a",
+            tenant_id="tenant-a",
+            workspace_id="workspace-a",
+            project_id="project-a",
+            environment_id="test",
+            run_id="run-ref-1",
+            case_id="case-ref-1",
+            scenario_id="scenario-ref-1",
+            created_at="2026-07-12T12:00:01Z",
+            required_modalities=["text", "image"],
+            artifact_pipeline_records=[result],
+        )
+        self.assertEqual(
+            snapshot["artifacts"][-1]["reference_resolution_hash"],
+            result["artifact_reference_resolution"]["resolution_hash"],
+        )
+
+    def test_scope_purpose_expiry_and_mutable_version_block_before_object_read(self):
+        content = png()
+        cases = []
+
+        cross_tenant = artifact_reference(content)
+        cross_tenant["tenant_scope"]["tenant_id"] = "tenant-b"
+        cross_tenant["authorization_binding_hash"] = authorization_binding_hash(cross_tenant)
+        cases.append((cross_tenant, "tenant_scope_mismatch", "2026-07-12T12:00:00Z"))
+
+        wrong_purpose = artifact_reference(content)
+        wrong_purpose["purpose"] = "model-training"
+        wrong_purpose["authorization_binding_hash"] = authorization_binding_hash(wrong_purpose)
+        cases.append((wrong_purpose, "purpose_mismatch", "2026-07-12T12:00:00Z"))
+
+        expired = artifact_reference(content)
+        cases.append((expired, "reference_expired", "2026-07-13T00:00:00Z"))
+
+        mutable = artifact_reference(content)
+        mutable["object_version"] = "latest"
+        mutable["authorization_binding_hash"] = authorization_binding_hash(mutable)
+        cases.append((mutable, "mutable_object_version_forbidden", "2026-07-12T12:00:00Z"))
+
+        for reference, blocker, now in cases:
+            with self.subTest(blocker=blocker):
+                result = process_artifact_reference(
+                    reference,
+                    reader=versioned_reader(reference, content),
+                    expected_scope=scope(),
+                    expected_purpose="release-evaluation",
+                    now=now,
+                    scanner=ProductionScanner(),
+                )
+                self.validate(result)
+                self.assertFalse(result["evaluation_eligible"])
+                self.assertIn(blocker, result["blockers"])
+                self.assertFalse(result["artifact_reference_resolution"]["read_performed"])
+                self.assertEqual(result["extraction"]["status"], "blocked")
+
+    def test_incomplete_expected_scope_blocks_before_read(self):
+        content = png()
+        reference = artifact_reference(content)
+        incomplete_scope = scope()
+        incomplete_scope["environment_id"] = ""
+        result = process_artifact_reference(
+            reference,
+            reader=versioned_reader(reference, content),
+            expected_scope=incomplete_scope,
+            expected_purpose="release-evaluation",
+            now="2026-07-12T12:00:00Z",
+            scanner=ProductionScanner(),
+        )
+        self.assertIn("expected_scope_incomplete", result["blockers"])
+        self.assertFalse(result["artifact_reference_resolution"]["read_performed"])
+
+    def test_object_replacement_short_read_media_and_version_mismatch_fail_closed(self):
+        content = png()
+        reference = artifact_reference(content)
+        cases = [
+            (
+                versioned_reader(reference, png(width=4, height=4)),
+                "object_content_hash_mismatch",
+            ),
+            (
+                versioned_reader(reference, content[:-1]),
+                "object_size_mismatch",
+            ),
+            (
+                versioned_reader(reference, content, media_type="image/jpeg"),
+                "object_media_type_mismatch",
+            ),
+            (
+                versioned_reader(reference, content, version="version-0002"),
+                "object_version_mismatch",
+            ),
+        ]
+        for reader, blocker in cases:
+            with self.subTest(blocker=blocker):
+                result = process_artifact_reference(
+                    reference,
+                    reader=reader,
+                    expected_scope=scope(),
+                    expected_purpose="release-evaluation",
+                    now="2026-07-12T12:00:00Z",
+                    scanner=ProductionScanner(),
+                )
+                self.validate(result)
+                self.assertFalse(result["evaluation_eligible"])
+                self.assertIn(blocker, result["blockers"])
+                self.assertTrue(result["artifact_reference_resolution"]["read_performed"])
+                self.assertEqual(result["extraction"]["status"], "blocked")
+
+    def test_reference_binding_tamper_and_bounded_read_fail_closed(self):
+        content = png()
+        tampered = artifact_reference(content)
+        tampered["media_type"] = "image/jpeg"
+        result = process_artifact_reference(
+            tampered,
+            reader=versioned_reader(tampered, content),
+            expected_scope=scope(),
+            expected_purpose="release-evaluation",
+            now="2026-07-12T12:00:00Z",
+            scanner=ProductionScanner(),
+        )
+        self.assertIn("authorization_binding_mismatch", result["blockers"])
+        self.assertFalse(result["artifact_reference_resolution"]["read_performed"])
+
+        oversized = artifact_reference(content)
+        result = process_artifact_reference(
+            oversized,
+            reader=versioned_reader(oversized, content),
+            expected_scope=scope(),
+            expected_purpose="release-evaluation",
+            now="2026-07-12T12:00:00Z",
+            scanner=ProductionScanner(),
+            limits=ArtifactLimits(max_artifact_bytes=len(content) - 1),
+        )
+        self.assertEqual(result["blockers"], ["artifact_size_exceeded"])
+        self.assertFalse(result["artifact_reference_resolution"]["read_performed"])
 
 
 if __name__ == "__main__":

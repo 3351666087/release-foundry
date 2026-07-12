@@ -131,6 +131,23 @@ def _artifact_pipeline_evidence(
         if record.get("pipeline_record_hash") != _pipeline_record_hash(record):
             errors.append(f"{prefix}_integrity_invalid")
             continue
+        resolution = record.get("artifact_reference_resolution")
+        if resolution is not None:
+            if not isinstance(resolution, dict):
+                errors.append(f"{prefix}_reference_resolution_contract_invalid")
+                continue
+            resolution_core = {
+                key: value for key, value in resolution.items() if key != "resolution_hash"
+            }
+            if (
+                resolution.get("schema_version")
+                != "a2.artifact_reference_resolution.v1"
+                or resolution.get("tenant_scope") != scope
+                or resolution.get("status") != "verified"
+                or resolution.get("resolution_hash") != stable_hash(resolution_core)
+            ):
+                errors.append(f"{prefix}_reference_resolution_integrity_invalid")
+                continue
         manifest = record.get("manifest")
         extraction = record.get("extraction")
         if not isinstance(manifest, dict) or not isinstance(extraction, dict):
@@ -146,6 +163,10 @@ def _artifact_pipeline_evidence(
                 "modality": str(manifest.get("modality") or "file"),
                 "producer_tool": "a2.artifact_pipeline",
                 "reference_hash": str(manifest.get("manifest_id") or ""),
+                "reference_resolution_hash": str(
+                    (record.get("artifact_reference_resolution") or {}).get("resolution_hash")
+                    or ""
+                ),
                 "content_hash": str(manifest.get("content_hash") or ""),
                 "content_included": False,
                 "collection_status": "complete" if eligible else "invalid",
@@ -507,6 +528,7 @@ def _artifact_descriptors(tool_calls: list[dict[str, Any]]) -> list[dict[str, An
                 "modality": modality,
                 "producer_tool": tool,
                 "reference_hash": stable_hash(safe_ref),
+                "reference_resolution_hash": "",
                 "content_hash": stable_hash(output),
                 "content_included": False,
                 "collection_status": "complete",

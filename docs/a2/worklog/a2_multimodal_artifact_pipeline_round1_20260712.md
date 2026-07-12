@@ -31,6 +31,13 @@ release readiness from upload success or recompute A2 eligibility.
 - Public-safe output containing hashes and metadata, never raw artifact bytes or
   private source references.
 - Binding of accepted artifact and extractor provenance into Evidence Snapshot.
+- Versioned `ArtifactReference v1` and public-safe resolution contracts.
+- Provider allowlisting, purpose/expiry checks and authorization binding hashes.
+- Rejection of naked URLs, mutable version labels and incomplete expected scope.
+- Bounded, version-pinned object reader interface with readback verification of
+  returned version, size, SHA-256 and media type.
+- Resolution integrity and five-field scope verification at the Trusted Spine
+  boundary before Evidence Snapshot consumption.
 - Evidence Snapshot invalidation on extraction, integrity, scope or scanner
   blockers.
 - Existing Decision Ledger prohibition against `allow` when the Evidence
@@ -39,7 +46,9 @@ release readiness from upload success or recompute A2 eligibility.
 ### Contract-supported
 
 - Production malware scanner adapters.
-- A1 object-storage ingestion through the Artifact submission boundary.
+- An A1 issuer/adapter that converts authorized A1 storage records into
+  `ArtifactReference v1`.
+- Production S3-compatible, Azure Blob and GCS version-pinned reader adapters.
 - Provider and model evaluation after artifact extraction.
 - A3 display of extraction provenance through the existing Evidence and
   Decision contracts.
@@ -55,6 +64,9 @@ release readiness from upload success or recompute A2 eligibility.
 - Production malware engine integration.
 - Real customer object-storage retrieval, durable extraction workers and
   production load behavior.
+- Cryptographic issuer signatures, key rotation, nonce consumption and
+  authorization revocation.
+- Conditional network reads and real MinIO/S3 TOCTOU verification.
 
 The current image, audio, file and video implementation is a validated artifact
 integrity and structural metadata layer. It must not be marketed as production
@@ -76,6 +88,9 @@ The public failure set includes:
 - production scanner requirement not met;
 - extractor rejection or unavailable extractor;
 - pipeline record integrity or scope mismatch.
+- unsupported provider, wrong purpose, expired authorization or mutable version;
+- returned object version, size, hash or media-type mismatch;
+- tampered ArtifactReference authorization binding or resolution hash.
 
 ## Verification evidence
 
@@ -86,12 +101,27 @@ The public failure set includes:
 - A valid image enters Evidence Snapshot as complete.
 - A blocked image produces an invalid Evidence Snapshot.
 - An invalid Evidence Snapshot cannot produce an `allow` Decision.
+- Cross-tenant, wrong-purpose, expired and mutable references are rejected before
+  the object reader is called.
+- Object replacement, short reads, media drift and returned-version drift are
+  rejected after readback verification.
+- All 240 A2 tests and 112 selected A3 consumption tests pass.
+
+## A1 alignment finding
+
+A1 already provides scoped object keys, hashes, sizes, canonical manifest
+digests and readback verification. Those are reusable integrity primitives, but
+they do not yet prove an immutable version or principal authorization. A2's
+reference contract is therefore an evaluation authorization envelope, not a
+replacement for A1 storage manifests. The next shared boundary should issue this
+envelope from an authenticated A1 control-plane decision without exposing raw
+object URIs, signed URLs or credentials to A2 or A3.
 
 ## Next growth queue
 
-1. Define immutable `ArtifactReference v1` with object version and encryption metadata.
-2. Implement an A1 object-storage reader bound to the complete five-field scope.
-3. Reject naked URLs and unversioned object references.
+1. Add an A1 issuer/adapter for the implemented `ArtifactReference v1`.
+2. Sign references with HMAC or Ed25519 and support key rotation.
+3. Add audience, job identity, nonce and durable consumption/revocation state.
 4. Add durable ingestion and extraction job state machines.
 5. Add leases, retries, fencing and dead-letter handling for extraction workers.
 6. Integrate a production malware scanner and quarantine store.
@@ -119,6 +149,9 @@ The public failure set includes:
 28. Complete one video case through keyframes, timeline Judge and replay.
 29. Deliver extraction-resolution events through the existing durable outbox.
 30. Run production load, malformed corpus and cross-tenant authorization tests.
+31. Implement conditional version reads with bounded streaming for MinIO/S3.
+32. Record provider request ID, returned version/ETag and custody timestamps.
+33. Add replacement, delete-and-recreate, replay and concurrent TOCTOU tests.
 
 ## Commercial assessment
 
