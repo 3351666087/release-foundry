@@ -141,12 +141,23 @@ def _artifact_pipeline_evidence(
             }
             if (
                 resolution.get("schema_version")
-                != "a2.artifact_reference_resolution.v1"
+                not in {
+                    "a2.artifact_reference_resolution.v1",
+                    "a2.artifact_reference_resolution.v2",
+                }
                 or resolution.get("tenant_scope") != scope
                 or resolution.get("status") != "verified"
                 or resolution.get("resolution_hash") != stable_hash(resolution_core)
             ):
                 errors.append(f"{prefix}_reference_resolution_integrity_invalid")
+                continue
+            if resolution.get("schema_version") == "a2.artifact_reference_resolution.v2" and (
+                resolution.get("signature_verified") is not True
+                or resolution.get("revocation_checked") is not True
+                or resolution.get("consumption_status") != "consumed"
+                or not resolution.get("authorization_receipt_hash")
+            ):
+                errors.append(f"{prefix}_reference_authorization_invalid")
                 continue
         manifest = record.get("manifest")
         extraction = record.get("extraction")

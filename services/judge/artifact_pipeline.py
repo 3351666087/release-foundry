@@ -15,6 +15,12 @@ from .artifact_reference import (
     VersionedObjectReader,
     read_authorized_artifact,
 )
+from .signed_artifact_reference import (
+    ArtifactAuthorizationLedger,
+    KeyResolver,
+    SIGNED_ARTIFACT_REFERENCE_SCHEMA_VERSION,
+    read_signed_artifact,
+)
 from .result_persistence import stable_hash
 
 
@@ -165,18 +171,45 @@ def process_artifact_reference(
     scanner: ArtifactScanner | None,
     limits: ArtifactLimits | None = None,
     require_production_scanner: bool = False,
+    key_resolver: KeyResolver | None = None,
+    authorization_ledger: ArtifactAuthorizationLedger | None = None,
+    expected_issuer: str = "",
+    expected_audience: str = "",
+    expected_subject: str = "",
+    expected_evaluation_job_id: str = "",
 ) -> dict[str, Any]:
     """Resolve an authorized immutable object and then run the artifact pipeline."""
     limits = limits or ArtifactLimits()
     try:
-        content, resolution = read_authorized_artifact(
-            reference,
-            reader=reader,
-            expected_scope=expected_scope,
-            expected_purpose=expected_purpose,
-            now=now,
-            max_bytes=limits.max_artifact_bytes,
-        )
+        if reference.get("schema_version") == SIGNED_ARTIFACT_REFERENCE_SCHEMA_VERSION:
+            if key_resolver is None or authorization_ledger is None:
+                raise ArtifactReferenceError(
+                    ["signed_authorization_runtime_missing"],
+                    {},
+                )
+            content, resolution = read_signed_artifact(
+                reference,
+                reader=reader,
+                key_resolver=key_resolver,
+                ledger=authorization_ledger,
+                expected_scope=expected_scope,
+                expected_purpose=expected_purpose,
+                expected_issuer=expected_issuer,
+                expected_audience=expected_audience,
+                expected_subject=expected_subject,
+                expected_evaluation_job_id=expected_evaluation_job_id,
+                now=now,
+                max_bytes=limits.max_artifact_bytes,
+            )
+        else:
+            content, resolution = read_authorized_artifact(
+                reference,
+                reader=reader,
+                expected_scope=expected_scope,
+                expected_purpose=expected_purpose,
+                now=now,
+                max_bytes=limits.max_artifact_bytes,
+            )
     except ArtifactReferenceError as error:
         return _blocked_reference_pipeline(reference, error.resolution, error.blockers)
 

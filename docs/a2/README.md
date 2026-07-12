@@ -55,6 +55,8 @@ repository's single strategy source:
 - Project-aware scenario selection: `services/judge/scenario_selection.py`
 - Public-safe result persistence manifest: `services/judge/result_persistence.py`
 - Trusted Evidence Snapshot and append-only Decision Ledger: `services/judge/trusted_spine.py`
+- Ed25519-signed, job-bound ArtifactReference v2 with public-safe resolution:
+  `services/judge/signed_artifact_reference.py`
 - A3 public-safe trusted-spine handoff: `fixtures/a2/results/a2_trusted_spine_handoff.json`
 - SaaS scenario selection report: `fixtures/a2/results/a2_scenario_selection_report.json`
 - SaaS result persistence manifest: `fixtures/a2/results/a2_result_persistence_manifest.json`
@@ -128,6 +130,32 @@ Config and schemas:
 - `docs/a2/schemas/decision_ledger.schema.json`
 
 This layer supports SaaS direction without taking ownership of tenant auth, queues, storage credentials, billing, or dashboard UI.
+
+## Signed Artifact Authorization
+
+ArtifactReference v2 establishes a fail-closed handoff for immutable image,
+audio, file, and video evidence. A1 or another trusted control plane signs the
+reference; A2 verifies issuer, audience, subject, evaluation job, five-field
+tenant scope, purpose, validity window, immutable object identity, and
+single-use nonce before evidence can enter a Release Decision. A3 receives only
+the public-safe resolution and authorization receipt hashes.
+
+Capability status:
+
+- Implemented: Ed25519 verification, job and tenant binding, expiry checks,
+  hierarchical revocation, atomic SQLite nonce reservation, immutable object
+  read verification, public-safe Resolution v2, and Trusted Spine enforcement.
+- Contract-supported: pluggable public-key resolver, key validity and
+  compromise metadata, reference/job/key/tenant-project revocation, and v1
+  compatibility isolation.
+- Not production-verified: KMS/JWKS-backed key distribution, cross-language
+  canonical signing vectors, PostgreSQL multi-worker lease/fencing/recovery,
+  and S3/MinIO integration under load and failure injection.
+
+The SQLite ledger is a deterministic reference implementation, not a claim of
+distributed exactly-once execution. Production promotion requires a durable
+operation state machine and recovery path before multiple A2 workers can share
+the same authorization ledger.
 
 ## SDK Parity
 
