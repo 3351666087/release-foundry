@@ -14,6 +14,7 @@ from services.judge.provider_gateway import (
 )
 from services.judge.artifact_pipeline import process_artifact
 from services.judge.derived_evidence import build_ocr_derived_evidence
+from services.judge.evaluation_quality_proof import EVALUATION_QUALITY_PROOF_SCHEMA_VERSION
 from tests.a2.test_derived_evidence import qualification
 from services.judge.provider_runtime import AUTHENTICATED_BUNDLE_SCHEMA_VERSION, validate_semantic_judge_output
 from services.judge.release_decision_orchestrator import (
@@ -38,6 +39,7 @@ from services.judge.release_decision_store import (
 )
 from services.judge.result_persistence import stable_hash
 from services.judge.sql_store import initialize_sql_store
+from services.judge.trusted_spine import build_evidence_snapshot
 
 
 NOW = 1_750_000_000_000
@@ -87,7 +89,7 @@ def signed_bundle(evidence=None):
 
 
 def request(bundle=None):
-    return {
+    candidate = {
         "organization_id": "org-a",
         "tenant_id": "tenant-a",
         "workspace_id": "workspace-a",
@@ -100,15 +102,70 @@ def request(bundle=None):
         "required_modalities": ["text"],
         "provider_id": "unit",
         "model_id": "semantic-1",
+        "model_digest": "sha256:" + "b" * 64,
+        "policy_version": "a2.semantic_release_policy.v1",
         "idempotency_key": "decision-1",
-        "evaluation_quality": {
-            "calibration": "passed",
-            "golden_regression": "passed",
-            "disagreement": "agree",
-            "evidence_refs": ["sha256:" + "a" * 64],
-        },
         "authenticated_evidence_bundle": bundle or signed_bundle(),
     }
+    candidate["evaluation_quality_proof"] = signed_quality_proof(candidate)
+    return candidate
+
+
+def signed_quality_proof(candidate, **overrides):
+    bundle = candidate["authenticated_evidence_bundle"]
+    signing = {
+        key: bundle[key]
+        for key in (
+            "schema_version", "algorithm", "key_id", "bundle_id_digest", "tenant_digest",
+            "project_digest", "evidence_digest", "issued_at_unix_ms", "expires_at_unix_ms",
+        )
+    }
+    run_payload = bundle["evidence"][0]
+    snapshot = build_evidence_snapshot(
+        run_payload,
+        organization_id=candidate["organization_id"],
+        tenant_id=candidate["tenant_id"],
+        workspace_id=candidate["workspace_id"],
+        project_id=candidate["project_id"],
+        environment_id=candidate["environment_id"],
+        run_id=candidate["run_id"],
+        case_id=candidate["case_id"],
+        scenario_id=candidate["scenario_id"],
+        created_at=candidate["created_at"],
+        required_modalities=candidate.get("required_modalities", ["text"]),
+        source_schema_version=run_payload["aggregate_metrics"]["schema_version"],
+        artifact_pipeline_records=candidate.get("artifact_pipeline_records", []),
+        derived_evidence_records=candidate.get("derived_evidence_records", []),
+    )
+    proof = {
+        "schema_version": EVALUATION_QUALITY_PROOF_SCHEMA_VERSION,
+        "algorithm": "hmac-sha256",
+        "issuer": "a2-calibration-service",
+        "key_id": "key-1",
+        "organization_id": candidate["organization_id"],
+        "tenant_id": candidate["tenant_id"],
+        "workspace_id": candidate["workspace_id"],
+        "project_id": candidate["project_id"],
+        "environment_id": candidate["environment_id"],
+        "authenticated_bundle_digest": digest(canonical(signing)),
+        "snapshot_hash": snapshot["snapshot_hash"],
+        "provider_id": candidate["provider_id"],
+        "model_id": candidate["model_id"],
+        "model_digest": candidate["model_digest"],
+        "prompt_hash": stable_hash(
+            candidate.get("judge_prompt") or "Evaluate the authenticated evidence snapshot."
+        ),
+        "policy_version": candidate["policy_version"],
+        "calibration": "passed",
+        "golden_regression": "passed",
+        "disagreement": "agree",
+        "evidence_refs": ["sha256:" + "a" * 64],
+        "issued_at_unix_ms": NOW - 1000,
+        "expires_at_unix_ms": NOW + 1000,
+    }
+    proof.update(overrides)
+    proof["signature"] = hmac.new(KEY, canonical(proof), hashlib.sha256).hexdigest()
+    return proof
 
 
 def gateway(response=None, *, failure="", audit_writer=None):
@@ -290,6 +347,7 @@ class ReleaseDecisionOrchestratorTests(unittest.TestCase):
                 "derived_evidence_records": [evidence],
             }
         )
+        original["evaluation_quality_proof"] = signed_quality_proof(original)
         adapter = GroundedRecordingAdapter()
         provider = ProviderDefinition(
             "unit", "recording", "local", "", frozenset({"text"}),

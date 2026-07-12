@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
-import re
 import sqlite3
 from typing import Any, Callable
 
+from .evaluation_quality_proof import (
+    quality_proof_bindings,
+    verify_evaluation_quality_proof,
+)
 from .provider_gateway import ProviderGateway
 from .provider_runtime import (
     build_provider_provenance_handoff,
@@ -35,7 +38,6 @@ from .derived_evidence import provider_text_parts
 
 
 ORCHESTRATION_SCHEMA_VERSION = "a2.release_decision_orchestration.v1"
-_SHA256_REF = re.compile(r"sha256:[0-9a-f]{64}\Z")
 SCOPE_FIELDS = ("organization_id", "tenant_id", "workspace_id", "project_id", "environment_id")
 RECOVERY_ENVELOPE_SCHEMA_VERSION = "a2.normalized_decision_envelope.v1"
 
@@ -82,8 +84,24 @@ def execute_release_decision(
         _record_list(request, "derived_evidence_records"),
     )
     provider_payload_hash = stable_hash(parts)
+    evaluation_quality = verify_evaluation_quality_proof(
+        request.get("evaluation_quality_proof"),
+        expected_bindings=quality_proof_bindings(
+            request,
+            authenticated_bundle_digest=str(bundle_verification["authenticated_bundle_digest"]),
+            snapshot_hash=str(snapshot["snapshot_hash"]),
+            prompt_hash=stable_hash(str(request.get("judge_prompt") or "Evaluate the authenticated evidence snapshot.")),
+        ),
+        key_resolver=key_resolver,
+        now_unix_ms=now_unix_ms,
+    )
     request_hash = stable_hash(
-        _request_identity(request, snapshot, provider_payload_hash=provider_payload_hash)
+        _request_identity(
+            request,
+            snapshot,
+            provider_payload_hash=provider_payload_hash,
+            evaluation_quality=evaluation_quality,
+        )
     )
     provider_request_core = {
         "schema_version": "a2.provider_gateway.v1",
@@ -165,6 +183,7 @@ def execute_release_decision(
         citation_validation=citation_validation,
         bundle_verification=bundle_verification,
         provider_payload_hash=provider_payload_hash,
+        evaluation_quality=evaluation_quality,
     )
     if persistence_connection is not None and operation is not None and lease is not None:
         persist_provider_outcome(
@@ -271,6 +290,17 @@ def reconcile_release_decision(
         _record_list(request, "derived_evidence_records"),
     )
     provider_payload_hash = stable_hash(parts)
+    evaluation_quality = verify_evaluation_quality_proof(
+        request.get("evaluation_quality_proof"),
+        expected_bindings=quality_proof_bindings(
+            request,
+            authenticated_bundle_digest=str(bundle_verification["authenticated_bundle_digest"]),
+            snapshot_hash=str(snapshot["snapshot_hash"]),
+            prompt_hash=stable_hash(str(request.get("judge_prompt") or "Evaluate the authenticated evidence snapshot.")),
+        ),
+        key_resolver=key_resolver,
+        now_unix_ms=now_unix_ms,
+    )
     citation_validation = _validate_evidence_refs(
         snapshot,
         semantic_output,
@@ -280,6 +310,7 @@ def reconcile_release_decision(
         request=request, scope=scope, snapshot=snapshot, provider_result=provider_result,
         semantic_output=semantic_output, citation_validation=citation_validation,
         bundle_verification=bundle_verification, provider_payload_hash=provider_payload_hash,
+        evaluation_quality=evaluation_quality,
     )
     persist_reconciled_provider_outcome(
         connection, operation_id=operation_id, scope=scope, lease=lease,
@@ -407,6 +438,7 @@ def _request_identity(
     snapshot: dict[str, Any],
     *,
     provider_payload_hash: str = "",
+    evaluation_quality: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     return {
         "scope": _scope(request),
@@ -416,7 +448,7 @@ def _request_identity(
         "provider_id": request.get("provider_id"),
         "model_id": request.get("model_id"),
         "policy_version": request.get("policy_version"),
-        "evaluation_quality": _evaluation_quality(request),
+        "evaluation_quality": evaluation_quality,
         "required_modalities": snapshot.get("required_modalities"),
         "snapshot_hash": snapshot.get("snapshot_hash"),
         "provider_payload_hash": provider_payload_hash,
@@ -535,6 +567,7 @@ def _build_recovery_envelope(
     citation_validation: dict[str, Any],
     bundle_verification: dict[str, Any],
     provider_payload_hash: str,
+    evaluation_quality: dict[str, Any],
 ) -> dict[str, Any]:
     provenance = build_provider_provenance_handoff(
         tenant_scope=scope,
@@ -561,6 +594,7 @@ def _build_recovery_envelope(
                 request,
                 snapshot,
                 provider_payload_hash=provider_payload_hash,
+                evaluation_quality=evaluation_quality,
             )
         ),
         "snapshot": snapshot,
@@ -583,7 +617,7 @@ def _build_recovery_envelope(
             ),
         },
         "policy_version": str(request.get("policy_version") or "a2.semantic_release_policy.v1"),
-        "evaluation_quality": _evaluation_quality(request),
+        "evaluation_quality": evaluation_quality,
         "ledger_id": str(request.get("ledger_id") or f"{request['run_id']}:{request['case_id']}"),
         "judge_version": "provider-strict-v1",
         "builder_version": "a2.release-decision-builder.v1",
@@ -719,47 +753,6 @@ def _decision(
     if blockers:
         return ("review" if semantic_output and semantic_output["abstained"] and len(blockers) == 1 else "block"), blockers
     return "allow", []
-
-
-def _evaluation_quality(request: dict[str, Any]) -> dict[str, Any]:
-    source = request.get("evaluation_quality")
-    if not isinstance(source, dict):
-        return {
-            "schema_version": "a2.evaluation_quality.v1",
-            "calibration": "missing",
-            "golden_regression": "missing",
-            "disagreement": "unknown",
-            "human_review_required": True,
-            "evidence_refs": [],
-            "blockers": ["calibration_not_passed", "golden_regression_not_passed", "disagreement_not_evaluated"],
-            "public_safe": True,
-        }
-    calibration = str(source.get("calibration") or "missing")
-    regression = str(source.get("golden_regression") or "missing")
-    disagreement = str(source.get("disagreement") or "unknown")
-    blockers = []
-    if calibration != "passed":
-        blockers.append("calibration_not_passed")
-    if regression != "passed":
-        blockers.append("golden_regression_not_passed")
-    if disagreement not in {"agree", "reviewed"}:
-        blockers.append("disagreement_requires_review" if disagreement == "disagree" else "disagreement_not_evaluated")
-    refs = source.get("evidence_refs")
-    if not isinstance(refs, list) or not refs or any(
-        not isinstance(item, str) or _SHA256_REF.fullmatch(item) is None for item in refs
-    ):
-        blockers.append("evaluation_quality_evidence_missing")
-        refs = []
-    return {
-        "schema_version": "a2.evaluation_quality.v1",
-        "calibration": calibration,
-        "golden_regression": regression,
-        "disagreement": disagreement,
-        "human_review_required": bool(blockers),
-        "evidence_refs": sorted(set(refs)),
-        "blockers": sorted(set(blockers)),
-        "public_safe": True,
-    }
 
 
 def _judge_result(

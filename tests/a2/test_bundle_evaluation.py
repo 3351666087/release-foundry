@@ -12,7 +12,10 @@ import jsonschema
 
 from services.judge.bundle_evaluation import evaluate_a1_bundle
 from services.judge.sql_store import initialize_sql_store
-from tests.a2.test_release_decision_orchestrator import (KEY, NOW, GroundedRecordingAdapter, gateway, image_pipeline_and_evidence, request)
+from tests.a2.test_release_decision_orchestrator import (
+    KEY, NOW, GroundedRecordingAdapter, gateway, image_pipeline_and_evidence, request,
+    signed_quality_proof,
+)
 from services.judge.provider_gateway import ProviderDefinition, ProviderGateway
 from services.judge.provider_runtime import validate_semantic_judge_output
 from scripts.a2_evaluate_bundle import _validate_ollama_model
@@ -70,6 +73,7 @@ class BundleEvaluationTests(unittest.TestCase):
         pipeline, evidence = image_pipeline_and_evidence()
         candidate = request()
         candidate.update({"required_modalities": ["text", "image"], "artifact_pipeline_records": [pipeline], "derived_evidence_records": [evidence]})
+        candidate["evaluation_quality_proof"] = signed_quality_proof(candidate)
         adapter = GroundedRecordingAdapter()
         provider = ProviderDefinition("unit", "recording", "local", "", frozenset({"text"}), frozenset({"tenant-a"}), data_residency="local")
         result = evaluate_a1_bundle(candidate, gateway=ProviderGateway([provider], {"recording": adapter}, response_validator=validate_semantic_judge_output), key_resolver=lambda _: KEY, now_unix_ms=NOW)
@@ -103,17 +107,18 @@ class BundleEvaluationTests(unittest.TestCase):
 
     def test_missing_quality_evidence_blocks_model_pass(self):
         candidate = request()
-        candidate.pop("evaluation_quality")
+        candidate.pop("evaluation_quality_proof")
         result = evaluate_a1_bundle(candidate, gateway=gateway(), key_resolver=lambda _: KEY, now_unix_ms=NOW)
         self.assertEqual(result["decision"], "BLOCK")
         self.assertTrue(result["provider_called"])
         codes = {item["code"] for item in result["findings"]}
-        self.assertIn("calibration_not_passed", codes)
-        self.assertIn("golden_regression_not_passed", codes)
+        self.assertIn("quality_proof_missing", codes)
 
     def test_failed_calibration_blocks_model_pass(self):
         candidate = request()
-        candidate["evaluation_quality"]["calibration"] = "failed"
+        candidate["evaluation_quality_proof"] = signed_quality_proof(
+            candidate, calibration="failed"
+        )
         result = evaluate_a1_bundle(candidate, gateway=gateway(), key_resolver=lambda _: KEY, now_unix_ms=NOW)
         self.assertEqual(result["decision"], "BLOCK")
         self.assertIn("calibration_not_passed", {item["code"] for item in result["findings"]})
@@ -121,10 +126,60 @@ class BundleEvaluationTests(unittest.TestCase):
 
     def test_disagreement_requires_human_review_before_pass(self):
         candidate = request()
-        candidate["evaluation_quality"]["disagreement"] = "disagree"
+        candidate["evaluation_quality_proof"] = signed_quality_proof(
+            candidate, disagreement="disagree"
+        )
         result = evaluate_a1_bundle(candidate, gateway=gateway(), key_resolver=lambda _: KEY, now_unix_ms=NOW)
         self.assertEqual(result["decision"], "BLOCK")
         self.assertIn("disagreement_requires_review", {item["code"] for item in result["findings"]})
+
+    def test_quality_proof_cannot_be_replayed_across_model_or_policy(self):
+        for field, value in (
+            ("model_id", "semantic-2"),
+            ("policy_version", "a2.semantic_release_policy.v2"),
+        ):
+            candidate = request()
+            candidate[field] = value
+            result = evaluate_a1_bundle(
+                candidate, gateway=gateway(), key_resolver=lambda _: KEY, now_unix_ms=NOW
+            )
+            self.assertEqual(result["decision"], "BLOCK")
+            self.assertIn(
+                "quality_proof_binding_mismatch",
+                {item["code"] for item in result["findings"]},
+            )
+
+    def test_quality_proof_tamper_and_expiry_fail_closed(self):
+        tampered = request()
+        tampered["evaluation_quality_proof"]["calibration"] = "failed"
+        result = evaluate_a1_bundle(
+            tampered, gateway=gateway(), key_resolver=lambda _: KEY, now_unix_ms=NOW
+        )
+        self.assertEqual(result["decision"], "BLOCK")
+        self.assertIn(
+            "quality_proof_signature_mismatch",
+            {item["code"] for item in result["findings"]},
+        )
+
+        expired = request()
+        expired["evaluation_quality_proof"] = signed_quality_proof(
+            expired, issued_at_unix_ms=NOW - 2000, expires_at_unix_ms=NOW - 1
+        )
+        result = evaluate_a1_bundle(
+            expired, gateway=gateway(), key_resolver=lambda _: KEY, now_unix_ms=NOW
+        )
+        self.assertEqual(result["decision"], "BLOCK")
+        self.assertIn(
+            "quality_proof_outside_validity_window",
+            {item["code"] for item in result["findings"]},
+        )
+
+    def test_quality_proof_schema_accepts_signed_fixture(self):
+        candidate = request()
+        schema = json.loads(
+            (ROOT / "docs/a2/schemas/evaluation_quality_proof.schema.json").read_text()
+        )
+        jsonschema.validate(candidate["evaluation_quality_proof"], schema)
 
     def test_cli_missing_bundle_key_fails_without_leaking_provider_secret(self):
         completed = self.run_cli(

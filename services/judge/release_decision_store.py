@@ -1257,13 +1257,22 @@ def _validate_recovery_envelope(
     _assert_exact_keys(
         quality,
         {
-            "schema_version", "calibration", "golden_regression", "disagreement",
-            "human_review_required", "evidence_refs", "blockers", "public_safe",
+            "schema_version", "proof_status", "issuer", "key_id_hash", "proof_hash",
+            "calibration", "golden_regression", "disagreement", "human_review_required",
+            "evidence_refs", "blockers", "public_safe",
         },
         "evaluation quality",
     )
-    if quality.get("schema_version") != "a2.evaluation_quality.v1" or quality.get("public_safe") is not True:
+    if quality.get("schema_version") != "a2.evaluation_quality.v2" or quality.get("public_safe") is not True:
         raise ValueError("evaluation quality contract is invalid")
+    if quality.get("proof_status") not in {"verified", "invalid"}:
+        raise ValueError("evaluation quality proof status is invalid")
+    if not isinstance(quality.get("issuer"), str):
+        raise ValueError("evaluation quality issuer is invalid")
+    for field in ("key_id_hash", "proof_hash"):
+        value = quality.get(field)
+        if not isinstance(value, str) or (value and _SHA256_REF.fullmatch(value) is None):
+            raise ValueError(f"evaluation quality {field} is invalid")
     if quality.get("calibration") not in {"passed", "failed", "missing"}:
         raise ValueError("evaluation quality calibration status is invalid")
     if quality.get("golden_regression") not in {"passed", "failed", "missing"}:
