@@ -16,6 +16,7 @@ from .release_decision_store import (
     FailureInjector,
     authorize_provider_call,
     mark_operation_recovery_required,
+    persist_provider_outcome,
     persist_release_decision,
     reserve_decision_operation,
 )
@@ -38,6 +39,8 @@ def execute_release_decision(
     now_unix_ms: int,
     persistence_connection: sqlite3.Connection | None = None,
     persistence_failure_injector: FailureInjector | None = None,
+    worker_id: str = "a2-inline-worker",
+    lease_seconds: int = 60,
 ) -> dict[str, Any]:
     """Execute one fail-closed semantic release decision from authenticated A1 evidence."""
     scope = _scope(request)
@@ -64,6 +67,7 @@ def execute_release_decision(
     )
     request_hash = stable_hash(_request_identity(request, snapshot))
     operation = None
+    lease = None
     if persistence_connection is not None:
         operation = reserve_decision_operation(
             persistence_connection,
@@ -78,11 +82,13 @@ def execute_release_decision(
         )
         if operation["replay"]:
             return _replayed_operation(operation)
-        authorize_provider_call(
+        lease = authorize_provider_call(
             persistence_connection,
             operation_id=str(operation["operation_id"]),
             scope=scope,
             created_at=str(request["created_at"]),
+            worker_id=worker_id,
+            lease_seconds=lease_seconds,
         )
     parts = _provider_parts(snapshot, request.get("judge_prompt"))
     try:
@@ -103,9 +109,21 @@ def execute_release_decision(
                 operation_id=str(operation["operation_id"]),
                 scope=scope,
                 created_at=str(request["created_at"]),
+                lease=lease,
             )
         raise
     semantic_output = _semantic_output(provider_result)
+    if persistence_connection is not None and operation is not None and lease is not None:
+        persist_provider_outcome(
+            persistence_connection,
+            operation_id=str(operation["operation_id"]),
+            scope=scope,
+            lease=lease,
+            provider_result=provider_result,
+            semantic_output=semantic_output,
+            completed_at=str(request["created_at"]),
+            failure_injector=persistence_failure_injector,
+        )
     provenance = build_provider_provenance_handoff(
         tenant_scope=scope,
         snapshot=snapshot,
@@ -171,6 +189,7 @@ def execute_release_decision(
             idempotency_key=str(request["idempotency_key"]),
             request_hash=request_hash,
             operation_id=str(operation["operation_id"]) if operation else None,
+            lease=lease,
             failure_injector=persistence_failure_injector,
         )
         result["persistence"] = persistence
@@ -212,7 +231,7 @@ def _replayed_operation(operation: dict[str, Any]) -> dict[str, Any]:
                 "secrets_included": False,
             },
         }
-    replay_status = "in_progress" if status in {"reserved", "evaluating"} else "recovery_required"
+    replay_status = "in_progress" if status in {"reserved", "provider_running", "provider_completed"} else "recovery_required"
     return {
         "schema_version": ORCHESTRATION_SCHEMA_VERSION,
         "persistence": {

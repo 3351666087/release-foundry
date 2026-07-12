@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+from datetime import datetime, timedelta, timezone
 from typing import Any, Callable
 
 from .result_persistence import stable_hash
@@ -87,28 +88,128 @@ def authorize_provider_call(
     operation_id: str,
     scope: dict[str, str],
     created_at: str,
-) -> None:
-    """Durably authorize one provider call before handing control to the gateway."""
+    worker_id: str = "a2-inline-worker",
+    lease_seconds: int = 60,
+) -> dict[str, Any]:
+    """Acquire fenced execution authority before handing control to the provider."""
     normalized_scope = _scope(scope)
+    now = _timestamp(created_at)
+    lease_expires_at = (now + timedelta(seconds=lease_seconds)).isoformat().replace("+00:00", "Z")
     try:
         connection.execute("BEGIN IMMEDIATE")
         row = _operation_by_id(connection, operation_id)
         if row is None or any(row[field] != value for field, value in normalized_scope.items()):
             raise ValueError("decision operation scope mismatch")
-        if row["status"] != "reserved":
-            raise ValueError(f"decision operation cannot evaluate from status {row['status']}")
-        connection.execute(
-            "UPDATE a2_decision_operations SET status = 'evaluating', updated_at = ? WHERE operation_id = ?",
-            (created_at, operation_id),
+        expired = bool(row.get("lease_expires_at")) and _timestamp(row["lease_expires_at"]) <= now
+        if row["status"] != "reserved" and not (
+            row["status"] in {"provider_running", "recovery_required"} and expired
+        ):
+            raise ValueError(f"decision operation cannot acquire lease from status {row['status']}")
+        fencing_token = int(row["fencing_token"]) + 1
+        provider_call_id = stable_hash(
+            {"operation_id": operation_id, "fencing_token": fencing_token, "attempt": int(row["attempt_count"]) + 1}
         )
+        cursor = connection.execute(
+            """
+            UPDATE a2_decision_operations
+            SET status = 'provider_running', lease_owner = ?, lease_expires_at = ?,
+                fencing_token = ?, attempt_count = attempt_count + 1,
+                provider_call_id = ?, updated_at = ?
+            WHERE operation_id = ? AND fencing_token = ?
+            """,
+            (
+                worker_id, lease_expires_at, fencing_token, provider_call_id,
+                created_at, operation_id, row["fencing_token"],
+            ),
+        )
+        if cursor.rowcount != 1:
+            raise ValueError("decision operation lease contention")
         _write_operation_audit(
             connection, operation_id, normalized_scope, "provider_call_authorized", created_at,
-            {"request_hash": row["request_hash"], "snapshot_hash": row["snapshot_hash"]},
+            {"provider_call_id": provider_call_id, "fencing_token": fencing_token},
         )
         connection.commit()
     except Exception:
         connection.rollback()
         raise
+    return {
+        "operation_id": operation_id,
+        "worker_id": worker_id,
+        "fencing_token": fencing_token,
+        "provider_call_id": provider_call_id,
+        "lease_expires_at": lease_expires_at,
+    }
+
+
+def persist_provider_outcome(
+    connection: sqlite3.Connection,
+    *,
+    operation_id: str,
+    scope: dict[str, str],
+    lease: dict[str, Any],
+    provider_result: dict[str, Any],
+    semantic_output: dict[str, Any],
+    completed_at: str,
+    failure_injector: FailureInjector | None = None,
+) -> dict[str, str]:
+    """Persist a hash-only Provider outcome under the current fencing token."""
+    normalized_scope = _scope(scope)
+    outcome = {
+        "provider_call_id": lease["provider_call_id"],
+        "operation_id": operation_id,
+        "fencing_token": lease["fencing_token"],
+        "provider_id": provider_result.get("provider_id"),
+        "model_id": provider_result.get("model_id"),
+        "normalized_status": provider_result.get("status"),
+        "response_hash": stable_hash(provider_result),
+        "semantic_output_hash": stable_hash(semantic_output),
+        "usage_hash": stable_hash(provider_result.get("usage") or {}),
+    }
+    outcome_hash = stable_hash(outcome)
+    injector = failure_injector or (lambda _: None)
+    try:
+        connection.execute("BEGIN IMMEDIATE")
+        row = _operation_by_id(connection, operation_id)
+        _assert_fence(row, normalized_scope, lease, "provider_running")
+        connection.execute(
+            """
+            INSERT INTO a2_provider_outcomes (
+              provider_call_id, operation_id, organization_id, tenant_id, workspace_id,
+              project_id, environment_id, fencing_token, provider_id, model_id,
+              normalized_status, response_hash, semantic_output_hash, usage_hash,
+              outcome_hash, completed_at, public_safe
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+            """,
+            (
+                lease["provider_call_id"], operation_id, normalized_scope["organization_id"],
+                normalized_scope["tenant_id"], normalized_scope["workspace_id"],
+                normalized_scope["project_id"], normalized_scope["environment_id"],
+                lease["fencing_token"], str(provider_result.get("provider_id") or ""),
+                str(provider_result.get("model_id") or ""), str(provider_result.get("status") or "unknown"),
+                outcome["response_hash"], outcome["semantic_output_hash"], outcome["usage_hash"],
+                outcome_hash, completed_at,
+            ),
+        )
+        injector("after_provider_outcome")
+        cursor = connection.execute(
+            """
+            UPDATE a2_decision_operations
+            SET status = 'provider_completed', provider_outcome_hash = ?, updated_at = ?
+            WHERE operation_id = ? AND lease_owner = ? AND fencing_token = ?
+            """,
+            (outcome_hash, completed_at, operation_id, lease["worker_id"], lease["fencing_token"]),
+        )
+        if cursor.rowcount != 1:
+            raise ValueError("stale fencing token")
+        _write_operation_audit(
+            connection, operation_id, normalized_scope, "provider_outcome_persisted", completed_at,
+            {"provider_call_id": lease["provider_call_id"], "outcome_hash": outcome_hash},
+        )
+        connection.commit()
+    except Exception:
+        connection.rollback()
+        raise
+    return {"provider_call_id": str(lease["provider_call_id"]), "outcome_hash": outcome_hash}
 
 
 def mark_operation_recovery_required(
@@ -117,6 +218,7 @@ def mark_operation_recovery_required(
     operation_id: str,
     scope: dict[str, str],
     created_at: str,
+    lease: dict[str, Any] | None = None,
 ) -> None:
     """Mark an uncertain external-call window for explicit recovery."""
     normalized_scope = _scope(scope)
@@ -128,9 +230,12 @@ def mark_operation_recovery_required(
         if row["status"] == "committed":
             connection.commit()
             return
+        if lease is not None:
+            _assert_fence(row, normalized_scope, lease, "provider_running")
         connection.execute(
-            "UPDATE a2_decision_operations SET status = 'recovery_required', updated_at = ? WHERE operation_id = ?",
-            (created_at, operation_id),
+            """UPDATE a2_decision_operations SET status = 'recovery_required',
+               lease_expires_at = ?, updated_at = ? WHERE operation_id = ?""",
+            (created_at, created_at, operation_id),
         )
         _write_operation_audit(
             connection, operation_id, normalized_scope, "recovery_required", created_at,
@@ -149,6 +254,7 @@ def persist_release_decision(
     idempotency_key: str,
     request_hash: str,
     operation_id: str | None = None,
+    lease: dict[str, Any] | None = None,
     failure_injector: FailureInjector | None = None,
 ) -> dict[str, Any]:
     """Atomically commit one decision and its mandatory audit event."""
@@ -201,8 +307,11 @@ def persist_release_decision(
                 raise ValueError("decision operation scope mismatch")
             if operation["request_hash"] != request_hash or operation["snapshot_hash"] != snapshot["snapshot_hash"]:
                 raise IdempotencyConflictError("decision operation input changed before commit")
-            if operation["status"] != "evaluating":
+            if operation["status"] != "provider_completed":
                 raise ValueError(f"decision operation cannot commit from status {operation['status']}")
+            if lease is None:
+                raise ValueError("decision operation lease is required")
+            _assert_fence(operation, scope, lease, "provider_completed")
         connection.execute(
             """
             INSERT INTO a2_release_decisions (
@@ -245,18 +354,56 @@ def persist_release_decision(
         )
         injector("after_audit")
         if operation_id is not None:
-            connection.execute(
+            cursor = connection.execute(
                 """
                 UPDATE a2_decision_operations
-                SET status = 'committed', record_id = ?, record_hash = ?, decision = ?, updated_at = ?
-                WHERE operation_id = ?
+                SET status = 'committed', record_id = ?, record_hash = ?, decision = ?,
+                    lease_owner = NULL, lease_expires_at = NULL, updated_at = ?
+                WHERE operation_id = ? AND lease_owner = ? AND fencing_token = ?
                 """,
-                (record["record_id"], record["record_hash"], record["decision"], record["created_at"], operation_id),
+                (
+                    record["record_id"], record["record_hash"], record["decision"], record["created_at"],
+                    operation_id, lease["worker_id"], lease["fencing_token"],
+                ),
             )
+            if cursor.rowcount != 1:
+                raise ValueError("stale fencing token")
             _write_operation_audit(
                 connection, operation_id, scope, "decision_committed", record["created_at"],
                 {"record_hash": record["record_hash"], "ledger_hash": ledger["ledger_hash"]},
             )
+            outbox_payload = {
+                **scope,
+                "operation_id": operation_id,
+                "record_id": record["record_id"],
+                "record_hash": record["record_hash"],
+                "ledger_id": ledger["ledger_id"],
+                "ledger_hash": ledger["ledger_hash"],
+                "provider_outcome_hash": operation["provider_outcome_hash"],
+                "decision": record["decision"],
+                "review_required": bool(record.get("review_required")),
+                "release_ready": record["decision"] == "allow",
+            }
+            event_id = stable_hash({"event_type": "a2.release_decision.committed.v1", **outbox_payload})
+            connection.execute(
+                """
+                INSERT INTO a2_decision_outbox (
+                  event_id, event_type, operation_id, record_id, organization_id, tenant_id,
+                  workspace_id, project_id, environment_id, schema_version, payload_hash,
+                  record_hash, ledger_hash, provider_outcome_hash, delivery_status,
+                  available_at, created_at, public_safe
+                ) VALUES (?, 'a2.release_decision.committed.v1', ?, ?, ?, ?, ?, ?, ?,
+                          'ashr.event_envelope.v1', ?, ?, ?, ?, 'pending', ?, ?, 1)
+                """,
+                (
+                    event_id, operation_id, record["record_id"], scope["organization_id"],
+                    scope["tenant_id"], scope["workspace_id"], scope["project_id"],
+                    scope["environment_id"], stable_hash(outbox_payload), record["record_hash"],
+                    ledger["ledger_hash"], operation["provider_outcome_hash"],
+                    record["created_at"], record["created_at"],
+                ),
+            )
+            injector("after_outbox")
         connection.commit()
     except Exception:
         connection.rollback()
@@ -375,3 +522,21 @@ def _committed_summary(row: dict[str, Any], *, idempotent_replay: bool) -> dict[
         "record_hash": row["record_hash"],
         "decision": row["decision"],
     }
+
+
+def _assert_fence(
+    row: dict[str, Any] | None,
+    scope: dict[str, str],
+    lease: dict[str, Any],
+    expected_status: str,
+) -> None:
+    if row is None or any(row[field] != value for field, value in scope.items()):
+        raise ValueError("decision operation scope mismatch")
+    if row["status"] != expected_status:
+        raise ValueError(f"decision operation expected {expected_status}, got {row['status']}")
+    if row["lease_owner"] != lease["worker_id"] or int(row["fencing_token"]) != int(lease["fencing_token"]):
+        raise ValueError("stale fencing token")
+
+
+def _timestamp(value: str) -> datetime:
+    return datetime.fromisoformat(str(value).replace("Z", "+00:00")).astimezone(timezone.utc)

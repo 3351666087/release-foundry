@@ -146,8 +146,14 @@ CREATE TABLE IF NOT EXISTS a2_decision_operations (
   provider_id TEXT NOT NULL,
   model_id TEXT NOT NULL,
   status TEXT NOT NULL CHECK (
-    status IN ('reserved', 'evaluating', 'committed', 'recovery_required')
+    status IN ('reserved', 'provider_running', 'provider_completed', 'committed', 'recovery_required')
   ),
+  lease_owner TEXT,
+  lease_expires_at TEXT,
+  fencing_token INTEGER NOT NULL DEFAULT 0 CHECK (fencing_token >= 0),
+  attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
+  provider_call_id TEXT,
+  provider_outcome_hash TEXT,
   record_id TEXT,
   record_hash TEXT,
   decision TEXT CHECK (decision IS NULL OR decision IN ('allow', 'block', 'review')),
@@ -166,8 +172,28 @@ CREATE TABLE IF NOT EXISTS a2_decision_operation_audit (
   project_id TEXT NOT NULL,
   event_type TEXT NOT NULL,
   event_hash TEXT NOT NULL,
-  created_at TEXT NOT NULL,
-  UNIQUE(operation_id, event_type)
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS a2_provider_outcomes (
+  provider_call_id TEXT PRIMARY KEY,
+  operation_id TEXT NOT NULL REFERENCES a2_decision_operations(operation_id) ON DELETE CASCADE,
+  organization_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL,
+  workspace_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  environment_id TEXT NOT NULL,
+  fencing_token INTEGER NOT NULL CHECK (fencing_token > 0),
+  provider_id TEXT NOT NULL,
+  model_id TEXT NOT NULL,
+  normalized_status TEXT NOT NULL,
+  response_hash TEXT NOT NULL,
+  semantic_output_hash TEXT NOT NULL,
+  usage_hash TEXT NOT NULL,
+  outcome_hash TEXT NOT NULL,
+  completed_at TEXT NOT NULL,
+  public_safe INTEGER NOT NULL CHECK (public_safe = 1),
+  UNIQUE(operation_id, fencing_token)
 );
 
 CREATE TABLE IF NOT EXISTS a2_release_decision_audit (
@@ -181,6 +207,36 @@ CREATE TABLE IF NOT EXISTS a2_release_decision_audit (
   UNIQUE(record_id, event_type)
 );
 
+CREATE TABLE IF NOT EXISTS a2_decision_outbox (
+  event_id TEXT PRIMARY KEY,
+  event_type TEXT NOT NULL,
+  operation_id TEXT NOT NULL REFERENCES a2_decision_operations(operation_id),
+  record_id TEXT NOT NULL REFERENCES a2_release_decisions(record_id),
+  organization_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL,
+  workspace_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  environment_id TEXT NOT NULL,
+  schema_version TEXT NOT NULL,
+  payload_hash TEXT NOT NULL,
+  record_hash TEXT NOT NULL,
+  ledger_hash TEXT NOT NULL,
+  provider_outcome_hash TEXT NOT NULL,
+  delivery_status TEXT NOT NULL CHECK (
+    delivery_status IN ('pending', 'leased', 'retry', 'delivered', 'dead')
+  ),
+  attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
+  lease_owner TEXT,
+  lease_generation INTEGER NOT NULL DEFAULT 0 CHECK (lease_generation >= 0),
+  lease_expires_at TEXT,
+  available_at TEXT NOT NULL,
+  created_at TEXT NOT NULL,
+  delivered_at TEXT,
+  last_error_class TEXT,
+  public_safe INTEGER NOT NULL CHECK (public_safe = 1),
+  UNIQUE(operation_id)
+);
+
 CREATE INDEX IF NOT EXISTS idx_a2_judge_results_case ON a2_judge_results(case_id);
 CREATE INDEX IF NOT EXISTS idx_a2_judge_results_failure ON a2_judge_results(primary_failure_class);
 CREATE INDEX IF NOT EXISTS idx_a2_calibration_scenario ON a2_calibration_cases(scenario_id);
@@ -190,6 +246,8 @@ CREATE INDEX IF NOT EXISTS idx_a2_release_decisions_scope
   ON a2_release_decisions(tenant_id, project_id, created_at);
 CREATE INDEX IF NOT EXISTS idx_a2_decision_operations_status
   ON a2_decision_operations(tenant_id, project_id, status, updated_at);
+CREATE INDEX IF NOT EXISTS idx_a2_decision_outbox_delivery
+  ON a2_decision_outbox(delivery_status, available_at);
 """
 
 
