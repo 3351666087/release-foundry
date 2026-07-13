@@ -93,7 +93,7 @@
   "production_gaps": [
     {
       "id": "postgres_rls_tenant_isolation",
-      "reason": "No PostgreSQL server or psql client is available in this workspace.",
+      "reason": "A local PostgreSQL qualification cannot prove the target customer environment.",
       "required_evidence": "Two-tenant PostgreSQL/RLS negative test receipt from the target environment.",
       "status": "not_run"
     },
@@ -132,9 +132,11 @@
   },
   "evidence_integrity": {
     "algorithm": "sha256",
-    "probe_payload_sha256": "sha256:18139c89a0894dd3077250b705e0f653ac364851ac7e8017b3e4a91554ec039e",
+    "probe_payload_sha256": "sha256:b4a1a858d411686d09d12556da41307f4d1451b2d8581faf805e9cbc520532b9",
     "source_schema_version": "a3.a1_self_host_sandbox_probe.v1",
-    "validated": true
+    "validated": true,
+    "postgres_qualification_sha256": "sha256:772cee17d6eae1c7d33173c5d01ed5517cfeef41e640c1691f71880832d7bd4d",
+    "combined_payload_sha256": "sha256:c03681105218c5b2d04c0f868757f375b55cc7c7234c6b0cee848972083257a5"
   },
   "safety": {
     "absolute_local_path_included": false,
@@ -150,5 +152,64 @@
     "production_verified": false,
     "deployment_acceptance_mutated": false,
     "a2_decision_recomputed": false
+  },
+  "postgres_qualification": {
+    "schema_version": "a3.postgres_rls_qualification.v1",
+    "qualification_id": "a3-postgres-rls-20260713",
+    "observed_at": "2026-07-13T10:00:00.000Z",
+    "source": "a3_postgres_rls_probe",
+    "target_class": "local_ephemeral_postgres",
+    "status": "postgres_rls_verified",
+    "evidence_level": "sandbox_verified",
+    "database": {
+      "engine": "postgresql",
+      "server_version": "17.9",
+      "server_version_num": 170009,
+      "migration_id": "019_to_020_self_host_sandbox_rls",
+      "migration_ids": [
+        "019_self_host_sandbox_calibrations",
+        "020_self_host_sandbox_scope_hardening"
+      ],
+      "migration_sha256": "sha256:79c9394b376e7823671be6f02a4a82faf4a91f3f497ec415f8947094a2aa1e64",
+      "migration_apply_count": 2,
+      "migration_statement_count": 2,
+      "rls_enabled": true,
+      "rls_forced": true,
+      "policy_count": 1,
+      "runtime_role_nosuperuser": true,
+      "runtime_role_nobypassrls": true
+    },
+    "tenant_isolation": {
+      "scope_levels": [
+        "organization_id",
+        "tenant_id",
+        "workspace_id",
+        "project_id",
+        "environment_id"
+      ],
+      "same_scope_read_count": 1,
+      "cross_scope_read_count": 0,
+      "visible_total_for_scope_a": 1,
+      "missing_scope_read_count": 0,
+      "same_scope_write_allowed": true,
+      "cross_scope_write_denied": true
+    },
+    "authority_boundary": {
+      "production_verified": false,
+      "target_customer_environment_verified": false,
+      "deployment_acceptance_mutated": false,
+      "release_ready_mutated": false,
+      "a2_decision_recomputed": false,
+      "a2_release_decision_authority": "A2"
+    },
+    "safety": {
+      "credentials_included": false,
+      "dsn_included": false,
+      "host_included": false,
+      "raw_sql_output_included": false,
+      "child_process_shell_used": false,
+      "child_environment_allowlisted": true,
+      "cleanup_completed": true
+    }
   }
 }

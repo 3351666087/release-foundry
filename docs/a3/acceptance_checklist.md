@@ -1355,3 +1355,35 @@
 - [x] Reverify rc.2 bundle `15/15`, custody `7/7`, archive `16/16`, and Release manifest hash without rewriting sealed inputs.
 - [ ] Run PostgreSQL/RLS, container identity, VPC policy, and upgrade/rollback in a target environment.
 - [ ] Obtain a same-candidate A2 Trusted Spine before rebuilding production acceptance.
+
+## Live Local PostgreSQL RLS Qualification - 2026-07-13
+
+- [x] Locate and use a real PostgreSQL 17.9 engine without modifying the user's existing database authentication.
+- [x] Start an isolated loopback-only PostgreSQL test instance and keep it separate from the installed service data.
+- [x] Keep published migration 019 unchanged and add migration 020 for the five-level composite key, scope digest, and RLS upgrade.
+- [x] Enable and force PostgreSQL RLS on `self_host_sandbox_calibrations`.
+- [x] Require exact organization, tenant, workspace, project, and environment settings in `USING` and `WITH CHECK`.
+- [x] Keep SQLite free of PostgreSQL-only policy syntax and label it as a reference store.
+- [x] Apply the migration 019-to-020 chain twice against PostgreSQL and prove idempotency.
+- [x] Use a `NOSUPERUSER NOBYPASSRLS` runtime role for isolation checks.
+- [x] Prove same-scope read returns one row and same-scope write succeeds.
+- [x] Prove cross-scope read returns zero rows and cross-scope write is rejected by RLS.
+- [x] Prove missing-scope read returns zero rows.
+- [x] Remove all probe rows and the temporary role, then independently verify cleanup.
+- [x] Add a no-shell, timeout-bound, output-limited `psql` probe.
+- [x] Reject CLI password/DSN arguments and accept passwords only through environment variables.
+- [x] Save a credential-free `a3.postgres_rls_qualification.v1` fixture.
+- [x] Attach the qualification to the existing self-host Store/API/SQLite payload.
+- [x] Extend OpenAPI and API Reference without adding an unprotected route.
+- [x] Add a Chinese-first PostgreSQL qualification module to the Delivery page.
+- [x] Keep `production_verified=false`, target-customer verification false, Deployment Acceptance `8/17`, and A2 authority unchanged.
+- [x] Add desktop/mobile browser assertions and a focused mobile database screenshot.
+- [x] Add Growth Auditor Round 19 with at least 20 executable next steps.
+- [x] Pass A3 Node `463` runnable tests with one explicit target-PostgreSQL opt-in skip.
+- [x] Pass current-main A2 `186/186` plus `1050` subtests and A3 Python `2/2` outside the restricted temp boundary.
+- [x] Pass Next.js typecheck/build with 15 static pages and full Playwright `40/40`.
+- [x] Pass OpenAPI runtime parity `58/58`, both CL guards, both production npm audits, export safety, and diff hygiene.
+- [x] Reverify sealed rc.2 Bundle `15/15`, custody `7/7`, archive `16/16`, and Release Artifact without rewriting inputs.
+- [x] Re-fetch `main`/A1/A2 and inspect A2 `b778e11` additive multimodal receipts without treating `qualified_for_review` as PASS or release authority.
+- [ ] Run the same probe through an A1-authenticated service identity in authorized staging/VPC PostgreSQL.
+- [ ] Prove connection-pool scope reset, migration rollback, backup, PITR, and restore in the target environment.

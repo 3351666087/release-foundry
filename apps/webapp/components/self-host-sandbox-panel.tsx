@@ -105,6 +105,7 @@ function SandboxEvidence({
   const authority = record(payload.authority_boundary);
   const integrity = record(payload.evidence_integrity);
   const access = record(payload.access_contract);
+  const postgres = record(payload.postgres_qualification);
   const checks = array(payload.checks).map(record);
   const gaps = array(payload.production_gaps).map(record);
   const passed = number(summary.passed);
@@ -143,6 +144,8 @@ function SandboxEvidence({
         </div>
         <StatusBadge value={zh ? "生产验证 0" : "production proof 0"} tone="fail" />
       </div>
+
+      {Object.keys(postgres).length > 0 && <PostgresQualification payload={postgres} zh={zh} />}
 
       <div className="sandbox-check-grid" aria-label={zh ? "A1 沙箱检查" : "A1 sandbox checks"}>
         {checks.map((check) => {
@@ -188,6 +191,42 @@ function SandboxEvidence({
           safety: payload.safety
         }, null, 2)}</pre>
       </EvidenceDetails>
+    </div>
+  );
+}
+
+function PostgresQualification({ payload, zh }: { payload: JsonRecord; zh: boolean }) {
+  const database = record(payload.database);
+  const isolation = record(payload.tenant_isolation);
+  const authority = record(payload.authority_boundary);
+  return (
+    <div className="sandbox-postgres-qualification" data-postgres-state={string(payload.status)}>
+      <header>
+        <div className="sandbox-postgres-title">
+          <span className="sandbox-postgres-mark"><DatabaseZap size={22} /></span>
+          <div>
+            <small>{zh ? "真实本地数据面回执" : "REAL LOCAL DATA-PLANE RECEIPT"}</small>
+            <strong>{zh ? "PostgreSQL 五层租户隔离已验证" : "PostgreSQL five-level isolation verified"}</strong>
+            <p>{zh
+              ? "migration 019→020 链在 PostgreSQL 17 上重复执行，并由非超级用户、不可绕过 RLS 的角色完成正反向检查。"
+              : "The migration 019-to-020 chain ran twice on PostgreSQL 17 and was tested with a non-superuser, non-bypass RLS role."}</p>
+          </div>
+        </div>
+        <StatusBadge value={string(payload.status)} tone="pass" />
+      </header>
+      <div className="sandbox-postgres-metrics">
+        <article><span>{zh ? "数据库" : "Database"}</span><strong>PostgreSQL {string(database.server_version)}</strong><small>{string(payload.target_class)}</small></article>
+        <article><span>{zh ? "迁移" : "Migration"}</span><strong>{string(database.migration_id)}</strong><small>{zh ? `幂等执行 ${number(database.migration_apply_count)} 次` : `applied ${number(database.migration_apply_count)} times`}</small></article>
+        <article><span>{zh ? "RLS 策略" : "RLS policy"}</span><strong>{database.rls_enabled === true && database.rls_forced === true ? "ENABLED + FORCED" : "INCOMPLETE"}</strong><small>{number(database.policy_count)} policy</small></article>
+        <article><span>{zh ? "跨租户负向测试" : "Cross-tenant negative"}</span><strong>{isolation.cross_scope_write_denied === true ? (zh ? "写入已拒绝" : "write denied") : (zh ? "未证明" : "unproven")}</strong><small>{zh ? `读取 ${number(isolation.cross_scope_read_count)} 行 · 无 scope ${number(isolation.missing_scope_read_count)} 行` : `read ${number(isolation.cross_scope_read_count)} rows · no scope ${number(isolation.missing_scope_read_count)} rows`}</small></article>
+      </div>
+      <footer>
+        <ShieldAlert size={17} />
+        <span>{zh
+          ? "这证明本机 PostgreSQL/RLS 行为，不证明客户 VPC、备份恢复或生产身份；部署验收仍为 8/17。"
+          : "This proves local PostgreSQL/RLS behavior, not customer VPC, backup/restore, or production identity; deployment acceptance remains 8/17."}</span>
+        <StatusBadge value={authority.production_verified === true ? "production" : "sandbox only"} tone="warn" />
+      </footer>
     </div>
   );
 }

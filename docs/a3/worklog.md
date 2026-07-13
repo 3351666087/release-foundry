@@ -6964,3 +6964,23 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
 - CL hygiene passed with no findings; Commercial CL passed with 0 blockers and 0 advisories; root and Webapp production npm audits both reported 0 vulnerabilities.
 - Sealed rc.2 revalidation passed Audit Bundle `15/15`, custody `7/7`, signed archive `16/16`, and Release Artifact manifest hash `8f84c5e3d4f064ae5d042b0f8ef72f2a3fb4d7ae06eb0a7d4dea01dc113d5a2f` without rewriting any sealed input.
 - Git HTTPS fetch remained unavailable, but authenticated GitHub API readback confirmed `main=ccf6ce5`, PR #35 remote head `19476d4`, A1 Draft `2307231`, and A2 development `d31aaab`; this branch is 0 commits behind current main.
+
+## 2026-07-13 - Live Local PostgreSQL RLS Qualification
+
+- Re-read the enterprise Release strategy, current main, A1/A2 peer refs, Deployment Acceptance gaps, and Growth Auditor Round 18 before selecting the next task.
+- Found a real local PostgreSQL 17.9 service and client binaries. The installed service required unknown SCRAM credentials, so no authentication file, password, or existing database was modified.
+- Started an isolated loopback-only PostgreSQL test instance in ignored workspace runtime storage and kept it separate from the user's installed database data.
+- Kept published migration `019_self_host_sandbox_calibrations` unchanged and added `020_self_host_sandbox_scope_hardening` with a five-level composite primary key upgrade, scope-first digest uniqueness, `ENABLE ROW LEVEL SECURITY`, `FORCE ROW LEVEL SECURITY`, and exact five-setting `USING`/`WITH CHECK` policy.
+- Added `a3_postgres_rls_probe.mjs` and CLI with no shell, allowlisted environment, timeout/output limits, no password/DSN CLI arguments, safe error classes, and mandatory cleanup.
+- Applied the migration 019-to-020 chain twice on PostgreSQL 17.9 and proved same-scope read/write, cross-scope zero-row read, RLS-denied write, missing-scope zero-row read, forced policy state, and a non-superuser/non-bypass runtime role.
+- Generated `fixtures/a3/p3/a3_postgres_rls_qualification_20260713.redacted.json` and attached it to the existing self-host calibration fixture.
+- Independently queried the database after the probe: remaining probe rows were `0` and the temporary probe role did not exist.
+- Added Store/API/SQLite payload integration, OpenAPI schema, API Reference v8, Chinese-first Delivery UI, focused tests, E2E assertions, and desktop/mobile evidence.
+- Added the implementation record and Growth Auditor Round 19 with 24 executable next steps.
+- Preserved Golden Path `7/11`, Deployment Acceptance `8/17`, current authority `integrity_invalid`, current A2 decision `unknown`, historical A2 `block`, production receipts `0`, and production ready `false`.
+- No existing PostgreSQL authentication, database, Ashr key, LLM key, token, cookie, email, DSN, host, username, raw SQL output, or local path was written to public evidence.
+- Final A3 Node regression passed `463` runnable tests with one explicit target-PostgreSQL live opt-in skip; current-main A2 passed `186/186` plus `1050` subtests; A3 Python passed `2/2` outside the restricted temporary-directory boundary.
+- Next.js typecheck and production build passed with 15 static pages; full Playwright passed `40/40`, including desktop/mobile PostgreSQL qualification rendering.
+- OpenAPI runtime parity remained `58/58`; Commercial CL passed with 0 blockers/advisories, hygiene CL had no findings, and root/Webapp production npm audits found 0 vulnerabilities.
+- Sealed rc.2 revalidation passed Bundle `15/15`, custody `7/7`, signed archive `16/16`, and Release Artifact manifest hash `8f84c5e3d4f064ae5d042b0f8ef72f2a3fb4d7ae06eb0a7d4dea01dc113d5a2f` without rewriting sealed inputs.
+- Final synchronization kept authoritative `origin/main` at `ccf6ce5` and A1 Draft at `2307231`. A2 development advanced to `b778e11`; its additive multimodal runtime and composite-agent receipt schemas were inspected as non-main compatibility evidence, with `qualified_for_review` kept distinct from PASS and A2 release authority.

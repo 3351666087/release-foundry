@@ -113,6 +113,11 @@ test("self-host sandbox UI consumes A1 evidence without presenting it as product
   assert.match(sandboxSource, /不会改变部署验收/);
   assert.match(sandboxSource, /不会重算 A2 裁决/);
   assert.match(sandboxSource, /production_gaps/);
+  assert.match(sandboxSource, /postgres_qualification/);
+  assert.match(sandboxSource, /PostgreSQL 五层租户隔离已验证/);
+  assert.match(sandboxSource, /target_class/);
+  assert.match(sandboxSource, /cross_scope_write_denied/);
+  assert.match(sandboxSource, /仍为 8\/17/);
   assert.match(sandboxSource, /deployment:read/);
   assert.doesNotMatch(sandboxSource, /\/internal\/a3\/deployment|x-a3-role|ASHR_API_KEY/);
 });

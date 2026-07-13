@@ -3,7 +3,10 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { runA1SelfHostSandboxProbe } from "./a3_self_host_sandbox.mjs";
+import {
+  attachPostgresRlsQualificationFromFile,
+  runA1SelfHostSandboxProbe
+} from "./a3_self_host_sandbox.mjs";
 
 export function parseSelfHostSandboxArgs(argv = []) {
   const options = {};
@@ -11,6 +14,7 @@ export function parseSelfHostSandboxArgs(argv = []) {
     const item = argv[index];
     const next = () => argv[++index];
     if (item === "--output") options.output = next();
+    else if (item === "--postgres-qualification") options.postgresQualification = next();
     else if (item === "--observed-at") options.observedAt = next();
     else if (item === "--python") options.pythonCommand = next();
     else if (item === "--timeout-ms") options.timeoutMs = Number(next());
@@ -28,10 +32,13 @@ export async function runSelfHostSandboxCli(argv = process.argv.slice(2), io = {
       (io.stdout || process.stdout).write(`${JSON.stringify(usage(), null, 2)}\n`);
       return 0;
     }
-    const calibration = await runA1SelfHostSandboxProbe({
+    let calibration = await runA1SelfHostSandboxProbe({
       ...options,
       repoRoot: io.repoRoot || process.cwd()
     });
+    if (options.postgresQualification) {
+      calibration = await attachPostgresRlsQualificationFromFile(calibration, options.postgresQualification);
+    }
     if (options.output) {
       const output = resolve(options.output);
       await mkdir(dirname(output), { recursive: true });
@@ -60,7 +67,7 @@ export async function runSelfHostSandboxCli(argv = process.argv.slice(2), io = {
 function usage() {
   return {
     schema_version: "a3.self_host_sandbox_cli_usage.v1",
-    command: "node services/report/a3_self_host_sandbox_cli.mjs --output fixtures/a3/p3/a3_self_host_sandbox_calibration_20260713.redacted.json --observed-at 2026-07-13T08:00:00.000Z",
+    command: "node services/report/a3_self_host_sandbox_cli.mjs --postgres-qualification fixtures/a3/p3/a3_postgres_rls_qualification_20260713.redacted.json --output fixtures/a3/p3/a3_self_host_sandbox_calibration_20260713.redacted.json --observed-at 2026-07-13T08:00:00.000Z",
     behavior: "Runs local A1 health, worker, lease-recovery, and object-integrity checks.",
     boundary: "sandbox_verified never means production_verified and never changes A2 or deployment acceptance."
   };

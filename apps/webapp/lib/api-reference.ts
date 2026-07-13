@@ -24,7 +24,7 @@ export type ApiEndpoint = {
 };
 
 export const apiReferenceMeta = {
-  schemaVersion: "a3.api_reference.v7",
+  schemaVersion: "a3.api_reference.v8",
   calibratedAt: "2026-07-13",
   mainSha: "ccf6ce5",
   a1Sha: "c784163",
@@ -410,10 +410,33 @@ export const apiEndpoints: ApiEndpoint[] = [
         { id: "container_image_identity", status: "not_run" },
         { id: "vpc_network_policy", status: "not_run" },
         { id: "upgrade_rollback_recovery", status: "not_run" }
-      ]
+      ],
+      postgres_qualification: {
+        schema_version: "a3.postgres_rls_qualification.v1",
+        status: "postgres_rls_verified",
+        target_class: "local_ephemeral_postgres",
+        database: {
+          engine: "postgresql",
+          migration_id: "019_to_020_self_host_sandbox_rls",
+          migration_ids: ["019_self_host_sandbox_calibrations", "020_self_host_sandbox_scope_hardening"],
+          migration_apply_count: 2,
+          migration_statement_count: 2,
+          rls_enabled: true,
+          rls_forced: true
+        },
+        tenant_isolation: {
+          same_scope_read_count: 1,
+          cross_scope_read_count: 0,
+          missing_scope_read_count: 0,
+          same_scope_write_allowed: true,
+          cross_scope_write_denied: true
+        },
+        authority_boundary: { production_verified: false, target_customer_environment_verified: false }
+      }
     },
     notes: [
       { zh: "这是实际执行的本地 A1 行为证据，但不是客户环境或生产部署证明。", en: "This is executed local A1 behavior evidence, not customer-environment or production deployment proof." },
+      { zh: "PostgreSQL 17.9 已真实执行 migration 019→020 链两次并通过五层 RLS 正反向测试，但仍属于本机资格验证。", en: "PostgreSQL 17.9 applied the migration 019-to-020 chain twice and passed five-level RLS allow/deny checks, but remains a local qualification." },
       { zh: "沙箱 4/4 不会把 Deployment Acceptance 从 8/17 提高，也不能生成 Release Ready。", en: "Sandbox 4/4 does not raise Deployment Acceptance beyond 8/17 or create Release Ready." },
       { zh: "A2 仍是评分、失败分类和 Release Decision 的唯一权威。", en: "A2 remains the sole authority for scores, failure classes, and Release Decision." }
     ]

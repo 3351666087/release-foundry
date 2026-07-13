@@ -71,6 +71,9 @@ The self-host sandbox calibration route is different from a deployment receipt. 
 real local A1 behavior and stores a validated calibration in
 `self_host_sandbox_calibrations`, but its authority fields remain fixed to false for
 production verification, Deployment Acceptance mutation, and A2 decision recomputation.
+The immutable migration 019 plus new migration 020 now execute on PostgreSQL 17.9 with five-level forced RLS. The protected
+sandbox-calibration response includes a sanitized `a3.postgres_rls_qualification.v1`
+receipt, while target-customer-environment verification remains false.
 
 ## API Contract
 

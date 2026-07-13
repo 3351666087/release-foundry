@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 
 import {
   A3SelfHostSandboxError,
@@ -46,6 +47,32 @@ test("A3 invokes the real A1 local sandbox probe through a constrained child pro
   assert.equal(calibration.safety.child_process_environment_allowlisted, true);
   assert.match(calibration.evidence_integrity.probe_payload_sha256, /^sha256:[a-f0-9]{64}$/);
   assert.deepEqual(findSelfHostSandboxLeaks(calibration), []);
+});
+
+test("committed self-host fixture attaches the sanitized live PostgreSQL RLS qualification", async () => {
+  const calibration = await loadSelfHostSandboxCalibration(fileURLToPath(new URL(
+    "../../fixtures/a3/p3/a3_self_host_sandbox_calibration_20260713.redacted.json",
+    import.meta.url
+  )));
+  assert.equal(calibration.postgres_qualification.schema_version, "a3.postgres_rls_qualification.v1");
+  assert.equal(calibration.postgres_qualification.database.server_version, "17.9");
+  assert.equal(calibration.postgres_qualification.database.migration_apply_count, 2);
+  assert.equal(calibration.postgres_qualification.database.rls_enabled, true);
+  assert.equal(calibration.postgres_qualification.database.rls_forced, true);
+  assert.equal(calibration.postgres_qualification.tenant_isolation.cross_scope_read_count, 0);
+  assert.equal(calibration.postgres_qualification.tenant_isolation.cross_scope_write_denied, true);
+  assert.equal(calibration.postgres_qualification.authority_boundary.production_verified, false);
+  assert.equal(calibration.postgres_qualification.authority_boundary.target_customer_environment_verified, false);
+  assert.match(calibration.evidence_integrity.postgres_qualification_sha256, /^sha256:[a-f0-9]{64}$/);
+  assert.match(calibration.evidence_integrity.combined_payload_sha256, /^sha256:[a-f0-9]{64}$/);
+
+  const tamperedQualification = structuredClone(calibration);
+  tamperedQualification.postgres_qualification.database.server_version = "17.8";
+  assert.throws(() => validateSelfHostSandboxCalibration(tamperedQualification), A3SelfHostSandboxError);
+
+  const tamperedCombinedDigest = structuredClone(calibration);
+  tamperedCombinedDigest.evidence_integrity.combined_payload_sha256 = `sha256:${"0".repeat(64)}`;
+  assert.throws(() => validateSelfHostSandboxCalibration(tamperedCombinedDigest), A3SelfHostSandboxError);
 });
 
 test("A3 sandbox validators reject production overclaims and sensitive material", async () => {

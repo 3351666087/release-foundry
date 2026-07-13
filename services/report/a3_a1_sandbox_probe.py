@@ -311,7 +311,7 @@ def _production_gaps() -> list[dict[str, str]]:
         {
             "id": "postgres_rls_tenant_isolation",
             "status": "not_run",
-            "reason": "No PostgreSQL server or psql client is available in this workspace.",
+            "reason": "A local PostgreSQL qualification cannot prove the target customer environment.",
             "required_evidence": "Two-tenant PostgreSQL/RLS negative test receipt from the target environment.",
         },
         {

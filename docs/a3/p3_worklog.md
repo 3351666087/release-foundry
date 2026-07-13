@@ -3976,3 +3976,15 @@ Safety boundary:
 - Final local regression passed A3 Node `458/458`, current-main A2 `186/186` plus `1050` subtests, Next.js typecheck/build with 15 static pages, and Playwright `40/40`.
 - Both CL guards passed, both production npm audits found 0 vulnerabilities, and the sealed rc.2 bundle/archive/Release Artifact reverified without mutation.
 - Remote CI status is tracked in `docs/a3/worklog.md` after publish.
+
+## 2026-07-13 - Live Local PostgreSQL RLS Qualification
+
+- Kept published migration 019 stable, added migration 020, and ran the 019-to-020 chain twice on an isolated PostgreSQL 17.9 instance.
+- Added five-level `ENABLE + FORCE RLS` with same-scope allow, cross-scope read zero, cross-scope write denial, and missing-scope zero-row checks.
+- Used and removed a temporary `NOSUPERUSER NOBYPASSRLS` role; an independent readback confirmed zero probe rows and no remaining role.
+- Added a sanitized qualification fixture, Store/API/OpenAPI/API Reference integration, and a Chinese-first Delivery UI module.
+- Kept target-customer verification, production verification, Deployment Acceptance mutation, Release Ready, and A2 recomputation false.
+- Detailed evidence: `docs/a3/a3_postgres_rls_qualification_2026_07_13.md` and Growth Auditor Round 19.
+- Final local regression passed A3 Node `463` runnable tests plus one explicit live opt-in skip, A2 `186/186` plus `1050` subtests, A3 Python `2/2`, Next.js 15-page build, and Playwright `40/40`.
+- OpenAPI parity remained `58/58`; both CL guards, both production npm audits, export safety, and all sealed rc.2 verifiers passed.
+- Final synchronization kept authoritative `main=ccf6ce5`, A1 development at `2307231`, and A2 development at `b778e11`. A2 added multimodal and composite-agent receipts without changing GradeResult, Decision Ledger, or Trusted Spine; non-main `qualified_for_review` was not mapped to PASS or release authority.

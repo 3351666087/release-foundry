@@ -19,8 +19,9 @@ A3 now starts a constrained Python child process and executes four real A1 behav
 3. recover a job after its worker lease expires;
 4. write an object, read it back, then tamper with it and confirm that the checksum fails.
 
-All four checks pass. This proves useful local behavior, but it does not prove a customer
-VPC, PostgreSQL RLS, a signed container, production networking, or upgrade/rollback.
+All four A1 checks pass. A linked PostgreSQL 17.9 qualification also proves the migration 019-to-020 chain
+and five-level RLS locally. This still does not prove a customer VPC, signed container,
+production networking, backup/restore, or upgrade/rollback.
 
 ## 2. What Is Actually Proven
 
@@ -47,7 +48,7 @@ The following checks remain `not_run`:
 
 | Production gap | Why | Required next evidence |
 |---|---|---|
-| PostgreSQL/RLS isolation | no PostgreSQL server or `psql` is available here | same-tenant allow and cross-tenant deny receipt |
+| PostgreSQL/RLS isolation | local PostgreSQL passed; target customer environment is not verified | deployed same-tenant allow and cross-tenant deny receipt |
 | Container image identity | Docker and Podman are unavailable | signed image digest and runtime readback |
 | VPC network policy | a local process cannot represent customer networking | ingress/egress and workload-identity receipt |
 | Upgrade/rollback/recovery | no authorized production-like install exists | upgrade, forced failure, rollback, recovery receipt |
@@ -74,6 +75,7 @@ A3 CLI
   -> A1 health / worker / storage code
   -> JSON schema + secret/path scan
   -> SHA-256-bound redacted calibration
+  -> live PostgreSQL 17.9 migration/RLS qualification
   -> Store / SQLite migration 019
   -> deployment:read API
   -> Next.js Delivery operations UI
@@ -126,6 +128,9 @@ The Delivery page has Chinese-first and English views for:
 - denied `deployment:read`;
 - safe retry.
 
+It also shows PostgreSQL version, migration 019-to-020 idempotency, forced RLS, same-tenant allow,
+cross-tenant denial, missing-scope zero rows, and an explicit local-only boundary.
+
 The primary message is:
 
 ```text
@@ -136,6 +141,7 @@ Screenshots:
 
 - `docs/screenshots/a3-self-host-sandbox-calibration-desktop-20260713.png`
 - `docs/screenshots/a3-self-host-sandbox-calibration-mobile-390x844-20260713.png`
+- `docs/screenshots/a3-postgres-rls-qualification-mobile-390x844-20260713.png`
 
 ## 7. Security Boundaries
 

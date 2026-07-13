@@ -8,7 +8,7 @@ export function buildA3SqlMigrationPlan(options = {}) {
     dialect,
     status: "contract_ready",
     migration_count: statements.length,
-    tenancy_columns: ["organization_id", "tenant_id", "workspace_id", "project_id"],
+    tenancy_columns: ["organization_id", "tenant_id", "workspace_id", "project_id", "environment_id"],
     guardrails: [
     "Every tenant-owned row must include organization_id, tenant_id, workspace_id, and project_id where the table participates in hosted SaaS scope.",
       "Team, RBAC, API key, and trust-center tables store metadata only until hosted auth is available.",
@@ -23,7 +23,7 @@ export function buildA3SqlMigrationPlan(options = {}) {
       "Release evidence readback capture must be idempotent, tenant-scoped, audit-linked, and hash-only before it can influence PR gates.",
       "Billing migration readiness rows must be tenant-scoped, read-only A3 projections of A1 ledger/migration evidence; A3 must never store provider secrets, card data, or raw provider payloads.",
       "Notification channel and delivery rows must be tenant-scoped, metadata-only, and must store connector secrets as encrypted references or hashes owned by A1 hosted workers.",
-      "Self-host sandbox calibration rows store validated A1 local behavior metadata only and must keep production_verified, deployment_acceptance_mutated, and a2_decision_recomputed false.",
+      "Self-host sandbox calibration rows store validated A1 local behavior metadata only, enforce five-level PostgreSQL RLS, and must keep production_verified, deployment_acceptance_mutated, and a2_decision_recomputed false.",
       "Secret values are never stored; API keys and idempotency keys are hashed.",
       "Postgres is the recommended production target; MySQL and SQLite dialects are contract targets for student/self-host deployments."
     ],
@@ -698,8 +698,45 @@ CREATE TABLE IF NOT EXISTS self_host_sandbox_calibrations (
   created_at ${types.timestamp} NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_self_host_sandbox_scope ON self_host_sandbox_calibrations(organization_id, tenant_id, workspace_id, project_id, environment_id, observed_at);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_self_host_sandbox_digest ON self_host_sandbox_calibrations(project_id, probe_payload_sha256);`)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_self_host_sandbox_digest ON self_host_sandbox_calibrations(project_id, probe_payload_sha256);`),
+    statement("020_self_host_sandbox_scope_hardening", ["self_host_sandbox_calibrations"], selfHostSandboxScopeHardening(dialect))
   ];
+}
+
+function selfHostSandboxScopeHardening(dialect) {
+  if (dialect === "sqlite") {
+    return `
+DROP INDEX IF EXISTS idx_self_host_sandbox_digest;
+CREATE UNIQUE INDEX idx_self_host_sandbox_digest ON self_host_sandbox_calibrations(organization_id, tenant_id, workspace_id, project_id, environment_id, probe_payload_sha256);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_self_host_sandbox_scope_identity ON self_host_sandbox_calibrations(organization_id, tenant_id, workspace_id, project_id, environment_id, id);`;
+  }
+  if (dialect === "mysql") {
+    return `
+CREATE UNIQUE INDEX IF NOT EXISTS idx_self_host_sandbox_scope_identity ON self_host_sandbox_calibrations(organization_id, tenant_id, workspace_id, project_id, environment_id, id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_self_host_sandbox_scope_digest_v2 ON self_host_sandbox_calibrations(organization_id, tenant_id, workspace_id, project_id, environment_id, probe_payload_sha256);`;
+  }
+  const scopePredicate = [
+    ["organization_id", "app.a3_organization_id"],
+    ["tenant_id", "app.a3_tenant_id"],
+    ["workspace_id", "app.a3_workspace_id"],
+    ["project_id", "app.a3_project_id"],
+    ["environment_id", "app.a3_environment_id"]
+  ].map(([column, setting]) => `${column} = NULLIF(current_setting('${setting}', TRUE), '')`).join("\n    AND ");
+  return `
+ALTER TABLE self_host_sandbox_calibrations DROP CONSTRAINT IF EXISTS self_host_sandbox_calibrations_pkey;
+ALTER TABLE self_host_sandbox_calibrations ADD CONSTRAINT self_host_sandbox_calibrations_pkey PRIMARY KEY (organization_id, tenant_id, workspace_id, project_id, environment_id, id);
+DROP INDEX IF EXISTS idx_self_host_sandbox_digest;
+CREATE UNIQUE INDEX idx_self_host_sandbox_digest ON self_host_sandbox_calibrations(organization_id, tenant_id, workspace_id, project_id, environment_id, probe_payload_sha256);
+ALTER TABLE self_host_sandbox_calibrations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE self_host_sandbox_calibrations FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS self_host_sandbox_scope_isolation ON self_host_sandbox_calibrations;
+CREATE POLICY self_host_sandbox_scope_isolation ON self_host_sandbox_calibrations
+  USING (
+    ${scopePredicate}
+  )
+  WITH CHECK (
+    ${scopePredicate}
+  );`;
 }
 
 function dialectTypes(dialect) {

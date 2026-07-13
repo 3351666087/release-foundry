@@ -10901,6 +10901,9 @@
               "$ref": "#/components/schemas/SelfHostSandboxGap"
             }
           },
+          "postgres_qualification": {
+            "$ref": "#/components/schemas/PostgresRlsQualification"
+          },
           "authority_boundary": {
             "type": "object",
             "required": [
@@ -10959,6 +10962,14 @@
                 "type": "string",
                 "pattern": "^sha256:[a-f0-9]{64}$"
               },
+              "postgres_qualification_sha256": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              },
+              "combined_payload_sha256": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              },
               "source_schema_version": {
                 "type": "string",
                 "const": "a3.a1_self_host_sandbox_probe.v1"
@@ -11008,6 +11019,274 @@
         },
         "additionalProperties": false,
         "description": "Tenant-scoped local A1 behavior evidence. It never changes production acceptance or A2 authority."
+      },
+      "PostgresRlsQualification": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "qualification_id",
+          "observed_at",
+          "source",
+          "target_class",
+          "status",
+          "evidence_level",
+          "database",
+          "tenant_isolation",
+          "authority_boundary",
+          "safety"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.postgres_rls_qualification.v1"
+          },
+          "qualification_id": {
+            "type": "string"
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "source": {
+            "type": "string",
+            "const": "a3_postgres_rls_probe"
+          },
+          "target_class": {
+            "type": "string",
+            "enum": [
+              "local_ephemeral_postgres",
+              "staging_postgres",
+              "customer_vpc_postgres"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "const": "postgres_rls_verified"
+          },
+          "evidence_level": {
+            "type": "string",
+            "const": "sandbox_verified"
+          },
+          "database": {
+            "type": "object",
+            "required": [
+              "engine",
+              "server_version",
+              "server_version_num",
+              "migration_id",
+              "migration_ids",
+              "migration_sha256",
+              "migration_apply_count",
+              "migration_statement_count",
+              "rls_enabled",
+              "rls_forced",
+              "policy_count",
+              "runtime_role_nosuperuser",
+              "runtime_role_nobypassrls"
+            ],
+            "properties": {
+              "engine": {
+                "type": "string",
+                "const": "postgresql"
+              },
+              "server_version": {
+                "type": "string"
+              },
+              "server_version_num": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "migration_id": {
+                "type": "string",
+                "const": "019_to_020_self_host_sandbox_rls"
+              },
+              "migration_ids": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 2,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "019_self_host_sandbox_calibrations",
+                    "020_self_host_sandbox_scope_hardening"
+                  ]
+                }
+              },
+              "migration_sha256": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              },
+              "migration_apply_count": {
+                "type": "integer",
+                "const": 2
+              },
+              "migration_statement_count": {
+                "type": "integer",
+                "const": 2
+              },
+              "rls_enabled": {
+                "type": "boolean",
+                "const": true
+              },
+              "rls_forced": {
+                "type": "boolean",
+                "const": true
+              },
+              "policy_count": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "runtime_role_nosuperuser": {
+                "type": "boolean",
+                "const": true
+              },
+              "runtime_role_nobypassrls": {
+                "type": "boolean",
+                "const": true
+              }
+            },
+            "additionalProperties": false
+          },
+          "tenant_isolation": {
+            "type": "object",
+            "required": [
+              "scope_levels",
+              "same_scope_read_count",
+              "cross_scope_read_count",
+              "visible_total_for_scope_a",
+              "missing_scope_read_count",
+              "same_scope_write_allowed",
+              "cross_scope_write_denied"
+            ],
+            "properties": {
+              "scope_levels": {
+                "type": "array",
+                "minItems": 5,
+                "maxItems": 5,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "organization_id",
+                    "tenant_id",
+                    "workspace_id",
+                    "project_id",
+                    "environment_id"
+                  ]
+                }
+              },
+              "same_scope_read_count": {
+                "type": "integer",
+                "const": 1
+              },
+              "cross_scope_read_count": {
+                "type": "integer",
+                "const": 0
+              },
+              "visible_total_for_scope_a": {
+                "type": "integer",
+                "const": 1
+              },
+              "missing_scope_read_count": {
+                "type": "integer",
+                "const": 0
+              },
+              "same_scope_write_allowed": {
+                "type": "boolean",
+                "const": true
+              },
+              "cross_scope_write_denied": {
+                "type": "boolean",
+                "const": true
+              }
+            },
+            "additionalProperties": false
+          },
+          "authority_boundary": {
+            "type": "object",
+            "required": [
+              "production_verified",
+              "target_customer_environment_verified",
+              "deployment_acceptance_mutated",
+              "release_ready_mutated",
+              "a2_decision_recomputed",
+              "a2_release_decision_authority"
+            ],
+            "properties": {
+              "production_verified": {
+                "type": "boolean",
+                "const": false
+              },
+              "target_customer_environment_verified": {
+                "type": "boolean",
+                "const": false
+              },
+              "deployment_acceptance_mutated": {
+                "type": "boolean",
+                "const": false
+              },
+              "release_ready_mutated": {
+                "type": "boolean",
+                "const": false
+              },
+              "a2_decision_recomputed": {
+                "type": "boolean",
+                "const": false
+              },
+              "a2_release_decision_authority": {
+                "type": "string",
+                "const": "A2"
+              }
+            },
+            "additionalProperties": false
+          },
+          "safety": {
+            "type": "object",
+            "required": [
+              "credentials_included",
+              "dsn_included",
+              "host_included",
+              "raw_sql_output_included",
+              "child_process_shell_used",
+              "child_environment_allowlisted",
+              "cleanup_completed"
+            ],
+            "properties": {
+              "credentials_included": {
+                "type": "boolean",
+                "const": false
+              },
+              "dsn_included": {
+                "type": "boolean",
+                "const": false
+              },
+              "host_included": {
+                "type": "boolean",
+                "const": false
+              },
+              "raw_sql_output_included": {
+                "type": "boolean",
+                "const": false
+              },
+              "child_process_shell_used": {
+                "type": "boolean",
+                "const": false
+              },
+              "child_environment_allowlisted": {
+                "type": "boolean",
+                "const": true
+              },
+              "cleanup_completed": {
+                "type": "boolean",
+                "const": true
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false,
+        "description": "Live PostgreSQL RLS behavior receipt. Local/staging evidence is not customer-VPC production proof."
       }
     }
   },

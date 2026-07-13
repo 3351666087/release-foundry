@@ -149,6 +149,18 @@ test("self-host sandbox OpenAPI keeps local evidence separate from production ac
   assert.equal(schema.properties.authority_boundary.properties.deployment_acceptance_mutated.const, false);
   assert.equal(schema.properties.authority_boundary.properties.a2_decision_recomputed.const, false);
   assert.equal(schema.properties.access_contract.properties.required_permission.const, "deployment:read");
+  assert.equal(schema.properties.evidence_integrity.properties.postgres_qualification_sha256.pattern, "^sha256:[a-f0-9]{64}$");
+  assert.equal(schema.properties.evidence_integrity.properties.combined_payload_sha256.pattern, "^sha256:[a-f0-9]{64}$");
+  assert.equal(schema.properties.postgres_qualification.$ref, "#/components/schemas/PostgresRlsQualification");
+  const postgres = spec.components.schemas.PostgresRlsQualification;
+  assert.equal(postgres.properties.database.properties.migration_id.const, "019_to_020_self_host_sandbox_rls");
+  assert.equal(postgres.properties.database.properties.migration_statement_count.const, 2);
+  assert.equal(postgres.properties.database.properties.rls_enabled.const, true);
+  assert.equal(postgres.properties.database.properties.rls_forced.const, true);
+  assert.equal(postgres.properties.tenant_isolation.properties.cross_scope_read_count.const, 0);
+  assert.equal(postgres.properties.tenant_isolation.properties.cross_scope_write_denied.const, true);
+  assert.equal(postgres.properties.authority_boundary.properties.production_verified.const, false);
+  assert.equal(postgres.properties.authority_boundary.properties.target_customer_environment_verified.const, false);
 });
 
 test("every non-public A3 read explicitly requires a verified A1 principal, RBAC, scope, and sanitized denials", async () => {

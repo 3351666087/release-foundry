@@ -28,6 +28,10 @@ test("A3 store exposes tenant-scoped A1 sandbox evidence without changing deploy
   assert.equal(calibration.status, "sandbox_verified");
   assert.equal(calibration.summary.passed, 4);
   assert.equal(calibration.summary.production_gap_count, 5);
+  assert.equal(calibration.postgres_qualification.status, "postgres_rls_verified");
+  assert.equal(calibration.postgres_qualification.database.rls_forced, true);
+  assert.equal(calibration.postgres_qualification.tenant_isolation.cross_scope_write_denied, true);
+  assert.equal(calibration.postgres_qualification.authority_boundary.production_verified, false);
   assert.equal(calibration.authority_boundary.production_verified, false);
   assert.equal(calibration.authority_boundary.deployment_acceptance_mutated, false);
   assert.equal(calibration.authority_boundary.a2_decision_recomputed, false);
@@ -57,6 +61,9 @@ test("hosted A3 sandbox API requires deployment:read, audits access, and rejects
     assert.equal(payload.access_contract.tenant_scope_enforced, true);
     assert.equal(payload.access_contract.hosted_read_audited, true);
     assert.equal(payload.safety.production_verified, false);
+    assert.equal(payload.postgres_qualification.database.migration_id, "019_to_020_self_host_sandbox_rls");
+    assert.equal(payload.postgres_qualification.tenant_isolation.missing_scope_read_count, 0);
+    assert.equal(payload.postgres_qualification.authority_boundary.target_customer_environment_verified, false);
     assert.doesNotMatch(JSON.stringify(payload), /Bearer|github_pat_|ghp_|\bsk-|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}|[A-Za-z]:\\/i);
 
     const crossScope = await fetch(`${url}/api/a3/deployment/sandbox-calibration?source=${source}&project_id=project-other`);
@@ -104,6 +111,8 @@ test("SQLite persists the validated sandbox calibration as a distinct non-produc
     inspection = store.inspectSqliteState();
     assert.equal(restored.status, "sandbox_verified");
     assert.equal(restored.authority_boundary.production_verified, false);
+    assert.equal(restored.postgres_qualification.status, "postgres_rls_verified");
+    assert.equal(restored.postgres_qualification.safety.cleanup_completed, true);
     assert.equal(inspection.operational_tables.self_host_sandbox_calibrations, 1);
   } finally {
     store?.close();

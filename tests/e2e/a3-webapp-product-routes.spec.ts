@@ -280,6 +280,13 @@ test.describe("A3 Next.js product console", () => {
     await expect(section.locator(".sandbox-production-boundary")).toContainText("这不是生产部署证明");
     await expect(section.locator(".sandbox-production-boundary")).toContainText("部署验收 8/17");
     await expect(section.locator(".sandbox-production-boundary")).toContainText("生产验证 0");
+    await expect(section.locator('.sandbox-postgres-qualification[data-postgres-state="postgres_rls_verified"]')).toBeVisible();
+    await expect(section.locator(".sandbox-postgres-qualification")).toContainText("PostgreSQL 五层租户隔离已验证");
+    await expect(section.locator(".sandbox-postgres-qualification")).toContainText("PostgreSQL 17.9");
+    await expect(section.locator(".sandbox-postgres-qualification")).toContainText("019_to_020_self_host_sandbox_rls");
+    await expect(section.locator(".sandbox-postgres-qualification")).toContainText("ENABLED + FORCED");
+    await expect(section.locator(".sandbox-postgres-qualification")).toContainText("写入已拒绝");
+    await expect(section.locator(".sandbox-postgres-qualification")).toContainText("部署验收仍为 8/17");
     await expect(section.locator(".sandbox-check-grid article")).toHaveCount(4);
     await expect(section.locator(".sandbox-check-grid article[data-status='passed']")).toHaveCount(4);
     await expect(section.locator("tbody tr")).toHaveCount(5);
@@ -328,7 +335,12 @@ test.describe("A3 Next.js product console", () => {
     expect(mobile.panelRight).toBeLessThanOrEqual(mobile.viewport);
     expect(mobile.panelOverflow).toBe(false);
     expect(mobile.cardColumns).toBe(1);
+    await expect(mobileSection.locator(".sandbox-postgres-metrics article")).toHaveCount(4);
     await page.screenshot({ path: "docs/screenshots/a3-self-host-sandbox-calibration-mobile-390x844-20260713.png", fullPage: false, animations: "disabled" });
+    await mobileSection.locator(".sandbox-postgres-qualification").evaluate((node) => {
+      window.scrollTo(0, node.getBoundingClientRect().top + window.scrollY - 64);
+    });
+    await page.screenshot({ path: "docs/screenshots/a3-postgres-rls-qualification-mobile-390x844-20260713.png", fullPage: false, animations: "disabled" });
   });
 
   test("self-host sandbox panel handles partial, denied, empty, failed, and retry states", async ({ page }) => {

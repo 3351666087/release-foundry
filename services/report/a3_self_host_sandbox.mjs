@@ -3,6 +3,11 @@ import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
+import {
+  loadPostgresRlsQualification,
+  validatePostgresRlsQualification
+} from "./a3_postgres_rls_probe.mjs";
+
 export const A3_SELF_HOST_SANDBOX_SCHEMA_VERSION = "a3.self_host_sandbox_calibration.v1";
 export const A3_A1_SANDBOX_PROBE_SCHEMA_VERSION = "a3.a1_self_host_sandbox_probe.v1";
 
@@ -113,6 +118,30 @@ export function buildSelfHostSandboxCalibration(probe = {}) {
   };
 }
 
+export function attachPostgresRlsQualification(calibration, qualification) {
+  const validatedCalibration = validateSelfHostSandboxCalibration(calibration);
+  const validatedQualification = validatePostgresRlsQualification(qualification);
+  const postgresQualificationSha256 = `sha256:${sha256(stableJson(validatedQualification))}`;
+  const combinedPayloadSha256 = `sha256:${sha256(stableJson({
+    calibration_id: validatedCalibration.calibration_id,
+    probe_payload_sha256: validatedCalibration.evidence_integrity.probe_payload_sha256,
+    postgres_qualification: validatedQualification
+  }))}`;
+  return validateSelfHostSandboxCalibration({
+    ...validatedCalibration,
+    postgres_qualification: validatedQualification,
+    evidence_integrity: {
+      ...validatedCalibration.evidence_integrity,
+      postgres_qualification_sha256: postgresQualificationSha256,
+      combined_payload_sha256: combinedPayloadSha256
+    }
+  });
+}
+
+export async function attachPostgresRlsQualificationFromFile(calibration, path) {
+  return attachPostgresRlsQualification(calibration, await loadPostgresRlsQualification(path));
+}
+
 export function validateA1SelfHostSandboxProbe(probe = {}) {
   const errors = [];
   if (!isRecord(probe)) errors.push("probe must be an object");
@@ -191,6 +220,25 @@ export function validateSelfHostSandboxCalibration(calibration = {}) {
   if (calibration.authority_boundary?.deployment_acceptance_mutated !== false) errors.push("deployment acceptance must remain unchanged");
   if (calibration.authority_boundary?.a2_decision_recomputed !== false) errors.push("A2 decision must not be recomputed");
   if (calibration.safety?.production_verified !== false) errors.push("safety.production_verified must remain false");
+  if (calibration.postgres_qualification !== undefined) {
+    try {
+      validatePostgresRlsQualification(calibration.postgres_qualification);
+    } catch {
+      errors.push("postgres_qualification is invalid");
+    }
+    const expectedPostgresSha256 = `sha256:${sha256(stableJson(calibration.postgres_qualification))}`;
+    if (calibration.evidence_integrity?.postgres_qualification_sha256 !== expectedPostgresSha256) {
+      errors.push("postgres qualification digest does not match the attached evidence");
+    }
+    const expectedCombinedSha256 = `sha256:${sha256(stableJson({
+      calibration_id: calibration.calibration_id,
+      probe_payload_sha256: calibration.evidence_integrity?.probe_payload_sha256,
+      postgres_qualification: calibration.postgres_qualification
+    }))}`;
+    if (calibration.evidence_integrity?.combined_payload_sha256 !== expectedCombinedSha256) {
+      errors.push("combined calibration digest does not match the attached evidence");
+    }
+  }
   const leaks = findSelfHostSandboxLeaks(calibration);
   if (leaks.length) errors.push(...leaks.map((item) => `${item.kind} at ${item.path}`));
   if (errors.length) {
