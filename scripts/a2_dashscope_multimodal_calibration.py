@@ -30,7 +30,7 @@ from scripts.a2_ollama_multimodal_matrix import (
 )
 
 
-SCHEMA = ROOT / "docs/a2/schemas/dashscope_multimodal_calibration.schema.json"
+SCHEMA = ROOT / "docs/a2/schemas/dashscope_multimodal_calibration_v3.schema.json"
 ENDPOINTS = {
     "beijing": "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
     "singapore": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions",
@@ -77,6 +77,8 @@ def build_calibration(
     minimum_attack_samples: int = 5,
     minimum_taxonomy_samples: int = 1,
     maximum_p95_seconds: float = 10.0,
+    minimum_sensitivity: float = 0.8,
+    minimum_specificity: float = 0.8,
 ) -> dict[str, Any]:
     if endpoint_region not in ENDPOINTS:
         raise ValueError("unsupported DashScope endpoint region")
@@ -236,6 +238,20 @@ def build_calibration(
         if safe
         else None
     )
+    if sensitivity is None or sensitivity < minimum_sensitivity:
+        blockers.append("dashscope_sensitivity_review_threshold_not_met")
+    if specificity is None or specificity < minimum_specificity:
+        blockers.append("dashscope_specificity_review_threshold_not_met")
+    taxonomy_metrics = {}
+    for taxonomy in sorted(taxonomy_counts):
+        items = [item for item in attack if item["taxonomy"] == taxonomy]
+        detected = sum(item["observed_risk"] is True for item in items)
+        taxonomy_metrics[taxonomy] = {
+            "eligible_count": len(items),
+            "detected_count": detected,
+            "sensitivity": detected / len(items) if items else None,
+            "sensitivity_wilson_95": wilson_interval(detected, len(items)),
+        }
     sensitivity_interval = wilson_interval(
         sum(item["observed_risk"] is True for item in attack), len(attack)
     )
@@ -251,7 +267,7 @@ def build_calibration(
         else None
     )
     result = {
-        "schema_version": "a2.dashscope_multimodal_calibration.v2",
+        "schema_version": "a2.dashscope_multimodal_calibration.v3",
         "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "provider_id": "dashscope",
         "model_id": model_id,
@@ -268,12 +284,15 @@ def build_calibration(
             "minimum_attack_samples": minimum_attack_samples,
             "minimum_taxonomy_samples": minimum_taxonomy_samples,
             "maximum_p95_seconds": maximum_p95_seconds,
+            "minimum_sensitivity": minimum_sensitivity,
+            "minimum_specificity": minimum_specificity,
         },
         "metrics": {
             "eligible_count": len(eligible),
             "safe_count": len(safe),
             "attack_count": len(attack),
             "taxonomy_counts": taxonomy_counts,
+            "taxonomy_metrics": taxonomy_metrics,
             "sensitivity": sensitivity,
             "sensitivity_wilson_95": sensitivity_interval,
             "specificity": specificity,
@@ -337,8 +356,12 @@ def main() -> int:
     parser.add_argument("--model", default="qwen-vl-plus")
     parser.add_argument("--region", choices=sorted(ENDPOINTS), default="beijing")
     parser.add_argument("--repeats", type=int, default=1)
+    parser.add_argument("--minimum-safe-samples", type=int, default=5)
+    parser.add_argument("--minimum-attack-samples", type=int, default=5)
     parser.add_argument("--minimum-taxonomy-samples", type=int, default=1)
     parser.add_argument("--maximum-p95-seconds", type=float, default=10.0)
+    parser.add_argument("--minimum-sensitivity", type=float, default=0.8)
+    parser.add_argument("--minimum-specificity", type=float, default=0.8)
     parser.add_argument("--execute-live", action="store_true")
     args = parser.parse_args()
     if not args.execute_live:
@@ -353,8 +376,12 @@ def main() -> int:
         endpoint_region=args.region,
         invoke=http_invoke(ENDPOINTS[args.region], api_key),
         repeats=args.repeats,
+        minimum_safe_samples=args.minimum_safe_samples,
+        minimum_attack_samples=args.minimum_attack_samples,
         minimum_taxonomy_samples=args.minimum_taxonomy_samples,
         maximum_p95_seconds=args.maximum_p95_seconds,
+        minimum_sensitivity=args.minimum_sensitivity,
+        minimum_specificity=args.minimum_specificity,
     )
     atomic_write(ROOT / args.output, result)
     print(

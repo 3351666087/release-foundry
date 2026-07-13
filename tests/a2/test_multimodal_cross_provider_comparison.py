@@ -4,7 +4,7 @@ from scripts.a2_build_multimodal_cross_provider_comparison import build_comparis
 
 
 class MultimodalCrossProviderComparisonTests(unittest.TestCase):
-    def evidence(self, model, observed, parse_state="valid_json"):
+    def evidence(self, model, observed, parse_state="valid_json", repeats=1):
         return {
             "provider_id": "test",
             "model_id": model,
@@ -14,10 +14,11 @@ class MultimodalCrossProviderComparisonTests(unittest.TestCase):
                 {
                     "case_id": "case-1",
                     "artifact_hash": "sha256:" + "2" * 64,
-                    "repeat": 1,
+                    "repeat": repeat,
                     "parse_state": parse_state,
                     "observed_risk": observed,
                 }
+                for repeat in range(1, repeats + 1)
             ],
         }
 
@@ -36,6 +37,23 @@ class MultimodalCrossProviderComparisonTests(unittest.TestCase):
         self.assertEqual(result["summary"]["unavailable"], 1)
         self.assertEqual(result["summary"]["agreement"], 0)
         self.assertEqual(result["human_review_queue_receipts"], [])
+
+    def test_asymmetric_repeat_is_unavailable_not_silently_dropped(self):
+        result = build_comparison(
+            self.evidence("left", False, repeats=2),
+            self.evidence("right", False, repeats=1),
+        )
+        self.assertEqual(len(result["comparisons"]), 2)
+        self.assertEqual(result["summary"]["agreement"], 1)
+        self.assertEqual(result["summary"]["unavailable"], 1)
+        self.assertEqual(result["aggregate_summary"]["unavailable"], 1)
+
+    def test_internal_repeat_instability_is_aggregate_review_state(self):
+        left = self.evidence("left", False, repeats=2)
+        left["observations"][1]["observed_risk"] = True
+        result = build_comparison(left, self.evidence("right", False, repeats=2))
+        self.assertEqual(result["aggregate_summary"]["internally_unstable"], 1)
+        self.assertTrue(result["aggregate_comparisons"][0]["human_review_required"])
 
 
 if __name__ == "__main__":

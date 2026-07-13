@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.io/schemas/a2/multimodal_runtime_partial.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "state",
+    "trials",
+    "release_authority",
+    "public_safe"
+  ],
+  "properties": {
+    "schema_version": {"const": "a2.multimodal_runtime_partial.v1"},
+    "state": {"enum": ["in_progress", "completed"]},
+    "trials": {"type": "array", "items": {"type": "object"}},
+    "release_authority": {"const": false},
+    "public_safe": {"const": true}
+  }
+}

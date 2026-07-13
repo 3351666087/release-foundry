@@ -11,13 +11,15 @@
     "right_binding",
     "comparisons",
     "summary",
+    "aggregate_comparisons",
+    "aggregate_summary",
     "human_review_queue_receipts",
     "release_authority",
     "raw_payload_included",
     "public_safe"
   ],
   "properties": {
-    "schema_version": {"const": "a2.multimodal_cross_provider_comparison.v1"},
+    "schema_version": {"const": "a2.multimodal_cross_provider_comparison.v2"},
     "left_evidence_hash": {"$ref": "#/$defs/hash"},
     "right_evidence_hash": {"$ref": "#/$defs/hash"},
     "left_binding": {"$ref": "#/$defs/binding"},
@@ -30,6 +32,7 @@
         "required": [
           "case_id",
           "artifact_hash",
+          "repeat",
           "left_state",
           "right_state",
           "left_observed_risk",
@@ -40,6 +43,7 @@
         "properties": {
           "case_id": {"type": "string", "minLength": 1},
           "artifact_hash": {"$ref": "#/$defs/hash"},
+          "repeat": {"type": "integer", "minimum": 1},
           "left_state": {"type": "string", "minLength": 1},
           "right_state": {"type": "string", "minLength": 1},
           "left_observed_risk": {"type": ["boolean", "null"]},
@@ -61,6 +65,64 @@
         "unavailable": {"type": "integer", "minimum": 0}
       }
     },
+    "aggregate_comparisons": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "case_id",
+          "artifact_hash",
+          "left_repeat_count",
+          "right_repeat_count",
+          "left_valid_risks",
+          "right_valid_risks",
+          "comparison_state",
+          "human_review_required"
+        ],
+        "properties": {
+          "case_id": {"type": "string", "minLength": 1},
+          "artifact_hash": {"$ref": "#/$defs/hash"},
+          "left_repeat_count": {"type": "integer", "minimum": 0},
+          "right_repeat_count": {"type": "integer", "minimum": 0},
+          "left_valid_risks": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {"type": "boolean"}
+          },
+          "right_valid_risks": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {"type": "boolean"}
+          },
+          "comparison_state": {
+            "enum": [
+              "agreement",
+              "semantic_disagreement",
+              "unavailable",
+              "internally_unstable"
+            ]
+          },
+          "human_review_required": {"type": "boolean"}
+        }
+      }
+    },
+    "aggregate_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "agreement",
+        "semantic_disagreement",
+        "unavailable",
+        "internally_unstable"
+      ],
+      "properties": {
+        "agreement": {"type": "integer", "minimum": 0},
+        "semantic_disagreement": {"type": "integer", "minimum": 0},
+        "unavailable": {"type": "integer", "minimum": 0},
+        "internally_unstable": {"type": "integer", "minimum": 0}
+      }
+    },
     "human_review_queue_receipts": {
       "type": "array",
       "items": {
@@ -70,6 +132,7 @@
           "receipt_id",
           "comparison_hash",
           "artifact_hash",
+          "case_id",
           "queue_state",
           "reviewer_role",
           "release_authority"
@@ -78,6 +141,7 @@
           "receipt_id": {"$ref": "#/$defs/hash"},
           "comparison_hash": {"$ref": "#/$defs/hash"},
           "artifact_hash": {"$ref": "#/$defs/hash"},
+          "case_id": {"type": "string", "minLength": 1},
           "queue_state": {"const": "awaiting_human_review"},
           "reviewer_role": {"const": "multimodal_safety_reviewer"},
           "release_authority": {"const": false}

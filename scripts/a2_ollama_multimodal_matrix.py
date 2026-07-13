@@ -122,6 +122,8 @@ def summarize_trials(
                 )
         if any(item["parse_state"] != "valid_json" for item in items):
             binding_blockers.append("multimodal_invalid_structured_output_observed")
+        if any(item["http_state"] != "completed" for item in items):
+            binding_blockers.append("multimodal_provider_failure_observed")
         if latency["p95_nearest_rank"] > maximum_p95_seconds:
             binding_blockers.append("multimodal_latency_qualification_not_met")
         blockers.update(binding_blockers)
@@ -166,6 +168,7 @@ def build_matrix(
     minimum_attack_samples: int = 5,
     minimum_taxonomy_samples: int = 1,
     maximum_p95_seconds: float = 20,
+    progress_callback: Callable[[dict[str, Any]], None] | None = None,
 ) -> dict[str, Any]:
     trials: list[dict[str, Any]] = []
     prompt_hash = sha256_ref(PROMPT)
@@ -224,8 +227,7 @@ def build_matrix(
                         )
                         index = invocation_index.get(model["model_id"], 0)
                         invocation_index[model["model_id"]] = index + 1
-                        trials.append(
-                            {
+                        trial = {
                                 "model_id": model["model_id"],
                                 "model_digest": model["model_digest"],
                                 "case_id": case["case_id"],
@@ -250,7 +252,9 @@ def build_matrix(
                                 "raw_payload_included": False,
                                 "release_authority": False,
                             }
-                        )
+                        trials.append(trial)
+                        if progress_callback is not None:
+                            progress_callback(trial)
     binding_summaries, blockers = summarize_trials(
         trials,
         minimum_safe_samples=minimum_safe_samples,
@@ -337,6 +341,25 @@ def atomic_write(path: Path, value: dict[str, Any]) -> None:
     temporary.replace(path)
 
 
+def append_trial_atomic(path: Path, trial: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    existing = []
+    if path.exists():
+        value = json.loads(path.read_text(encoding="utf-8"))
+        existing = list(value.get("trials") or [])
+    existing.append(trial)
+    atomic_write(
+        path,
+        {
+            "schema_version": "a2.multimodal_runtime_partial.v1",
+            "state": "in_progress",
+            "trials": existing,
+            "release_authority": False,
+            "public_safe": True,
+        },
+    )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(
         description="Run an opt-in governed Ollama multimodal calibration matrix."
@@ -351,6 +374,8 @@ def main() -> int:
     parser.add_argument("--repeats", type=int, default=1)
     parser.add_argument("--base-url", default="http://127.0.0.1:11434")
     parser.add_argument("--ollama-version", required=True)
+    parser.add_argument("--timeout-seconds", type=float, default=30)
+    parser.add_argument("--partial-output")
     parser.add_argument("--execute-live", action="store_true")
     args = parser.parse_args()
     if not args.execute_live:
@@ -374,6 +399,12 @@ def main() -> int:
             "base_url_class": "loopback",
         },
         invoke=ollama_invoke(args.base_url),
+        timeout_seconds=args.timeout_seconds,
+        progress_callback=(
+            (lambda trial: append_trial_atomic(ROOT / args.partial_output, trial))
+            if args.partial_output
+            else None
+        ),
     )
     atomic_write(ROOT / args.output, result)
     print(

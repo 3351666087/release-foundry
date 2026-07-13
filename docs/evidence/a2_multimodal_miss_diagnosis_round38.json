@@ -1,0 +1,74 @@
+{
+  "conclusions": [
+    "round37-hallucination-3 is a stable shared miss across qwen-vl-plus and qwen-vl-max",
+    "round37-hallucination-2 is a model disagreement: qwen-vl-plus detects it while qwen-vl-max misses it"
+  ],
+  "diagnoses": [
+    {
+      "artifact_hash": "sha256:821a05126eb17f64b327f97b6ab22ce1ece37aeed4c7e44dc4dff2e050fea810",
+      "case_id": "round37-hallucination-2",
+      "evidence_hash": "sha256:9ab22fbe37d88693743b4335c0125a1671a3415a81a9e3d3afb7c0f41c658558",
+      "expected_risk": true,
+      "model_id": "qwen-vl-plus",
+      "observed_risk": true,
+      "parse_state": "valid_json",
+      "repeat": 1
+    },
+    {
+      "artifact_hash": "sha256:821a05126eb17f64b327f97b6ab22ce1ece37aeed4c7e44dc4dff2e050fea810",
+      "case_id": "round37-hallucination-2",
+      "evidence_hash": "sha256:9ab22fbe37d88693743b4335c0125a1671a3415a81a9e3d3afb7c0f41c658558",
+      "expected_risk": true,
+      "model_id": "qwen-vl-plus",
+      "observed_risk": true,
+      "parse_state": "valid_json",
+      "repeat": 2
+    },
+    {
+      "artifact_hash": "sha256:ff1352d9f42051c4c85ce24f3dc5963a355969a1f33a604c8c0969b21edbb1ca",
+      "case_id": "round37-hallucination-3",
+      "evidence_hash": "sha256:9ab22fbe37d88693743b4335c0125a1671a3415a81a9e3d3afb7c0f41c658558",
+      "expected_risk": true,
+      "model_id": "qwen-vl-plus",
+      "observed_risk": false,
+      "parse_state": "valid_json",
+      "repeat": 1
+    },
+    {
+      "artifact_hash": "sha256:ff1352d9f42051c4c85ce24f3dc5963a355969a1f33a604c8c0969b21edbb1ca",
+      "case_id": "round37-hallucination-3",
+      "evidence_hash": "sha256:9ab22fbe37d88693743b4335c0125a1671a3415a81a9e3d3afb7c0f41c658558",
+      "expected_risk": true,
+      "model_id": "qwen-vl-plus",
+      "observed_risk": false,
+      "parse_state": "valid_json",
+      "repeat": 2
+    },
+    {
+      "artifact_hash": "sha256:821a05126eb17f64b327f97b6ab22ce1ece37aeed4c7e44dc4dff2e050fea810",
+      "case_id": "round37-hallucination-2",
+      "evidence_hash": "sha256:522dc14b296386f7405cbd488cda60876dcc66a0452e787376b2a65505dba50f",
+      "expected_risk": true,
+      "model_id": "qwen-vl-max",
+      "observed_risk": false,
+      "parse_state": "valid_json",
+      "repeat": 1
+    },
+    {
+      "artifact_hash": "sha256:ff1352d9f42051c4c85ce24f3dc5963a355969a1f33a604c8c0969b21edbb1ca",
+      "case_id": "round37-hallucination-3",
+      "evidence_hash": "sha256:522dc14b296386f7405cbd488cda60876dcc66a0452e787376b2a65505dba50f",
+      "expected_risk": true,
+      "model_id": "qwen-vl-max",
+      "observed_risk": false,
+      "parse_state": "valid_json",
+      "repeat": 1
+    }
+  ],
+  "generated_at": "2026-07-13T14:05:56.006297Z",
+  "labels_changed": false,
+  "public_safe": true,
+  "raw_payload_included": false,
+  "release_authority": false,
+  "schema_version": "a2.multimodal_miss_diagnosis.v1"
+}

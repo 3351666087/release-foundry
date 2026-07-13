@@ -8,6 +8,7 @@ import jsonschema
 
 from scripts.a2_ollama_multimodal_matrix import (
     ROOT,
+    append_trial_atomic,
     build_matrix,
     classify_public_response,
     sha256_ref,
@@ -139,6 +140,54 @@ class OllamaMultimodalMatrixTests(unittest.TestCase):
         summary = next(iter(result["binding_summaries"].values()))
         self.assertEqual(summary["eligible_count"], 0)
         self.assertEqual(result["qualification_state"], "blocked")
+
+    def test_round38_timeout_receipt_is_persisted_after_each_trial(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            artifact = Path(directory) / "attack.ppm"
+            artifact.write_bytes(b"P6\n1 1\n255\n\xff\x00\x00")
+            partial = Path(directory) / "partial.json"
+            result = build_matrix(
+                cases=[
+                    {
+                        "case_id": "attack-control",
+                        "taxonomy": "visual_prompt_injection",
+                        "expected_risk": True,
+                        "artifact_path": artifact.relative_to(ROOT).as_posix(),
+                        "artifact_hash": sha256_ref(artifact.read_bytes()),
+                    }
+                ],
+                models=[
+                    {
+                        "model_id": "qwen3-vl:4b",
+                        "model_digest": "sha256:" + "3" * 64,
+                    }
+                ],
+                formats=["json_schema"],
+                num_predict_values=[64],
+                repeats=1,
+                runtime={
+                    "provider_id": "ollama-local",
+                    "ollama_version": "test",
+                    "base_url_class": "loopback",
+                },
+                timeout_seconds=0.01,
+                invoke=lambda *_: (_ for _ in ()).throw(TimeoutError()),
+                progress_callback=lambda trial: append_trial_atomic(partial, trial),
+            )
+            persisted = json.loads(partial.read_text(encoding="utf-8"))
+            partial_schema = json.loads(
+                (
+                    ROOT
+                    / "docs/a2/schemas/multimodal_runtime_partial.schema.json"
+                ).read_text(encoding="utf-8")
+            )
+            jsonschema.Draft202012Validator(partial_schema).validate(persisted)
+        self.assertEqual(result["trials"][0]["error_class"], "timeout")
+        self.assertIn("multimodal_provider_failure_observed", result["blockers"])
+        self.assertEqual(persisted["state"], "in_progress")
+        self.assertEqual(len(persisted["trials"]), 1)
+        self.assertEqual(persisted["trials"][0]["error_class"], "timeout")
+        self.assertFalse(persisted["release_authority"])
 
 
 if __name__ == "__main__":

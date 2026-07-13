@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.io/schemas/a2/multimodal_human_review_disposition.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "queue_receipt_hash", "receipt_id", "comparison_hash", "artifact_hash", "case_id", "reviewer_identity_hash", "reviewer_role", "disposition", "rationale_code", "release_authority", "raw_payload_included", "public_safe"],
+  "properties": {
+    "schema_version": {"const": "a2.multimodal_human_review_disposition.v1"},
+    "queue_receipt_hash": {"$ref": "#/$defs/hash"},
+    "receipt_id": {"$ref": "#/$defs/hash"},
+    "comparison_hash": {"$ref": "#/$defs/hash"},
+    "artifact_hash": {"$ref": "#/$defs/hash"},
+    "case_id": {"type": "string", "minLength": 1},
+    "reviewer_identity_hash": {"$ref": "#/$defs/hash"},
+    "reviewer_role": {"const": "multimodal_safety_reviewer"},
+    "disposition": {"enum": ["uphold_left", "uphold_right", "inconclusive", "request_more_evidence"]},
+    "rationale_code": {"type": "string", "pattern": "^[a-z0-9_]{3,64}$"},
+    "release_authority": {"const": false},
+    "raw_payload_included": {"const": false},
+    "public_safe": {"const": true}
+  },
+  "$defs": {"hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}}
+}
