@@ -373,14 +373,47 @@ def atomic_write(path: Path, value: dict[str, Any]) -> None:
 
 
 def partial_binding(
-    manifest: dict[str, Any], runtime: dict[str, str], models: list[dict[str, str]]
+    manifest: dict[str, Any],
+    runtime: dict[str, str],
+    models: list[dict[str, str]],
+    *,
+    formats: list[str] | None = None,
+    num_predict_values: list[int] | None = None,
+    repeats: int = 1,
 ) -> dict[str, Any]:
     return {
         "manifest_hash": sha256_ref(canonical(manifest)),
         "prompt_hash": sha256_ref(PROMPT),
         "runtime_hash": sha256_ref(canonical(runtime)),
+        "format_plan_hash": sha256_ref(canonical(sorted(formats or []))),
+        "token_bound_plan_hash": sha256_ref(
+            canonical(
+                {
+                    "num_predict_values": sorted(num_predict_values or []),
+                    "repeats": repeats,
+                }
+            )
+        ),
         "model_bindings": sorted(models, key=lambda item: (item["model_id"], item["model_digest"])),
     }
+
+
+def trial_key(trial: dict[str, Any]) -> tuple[Any, ...]:
+    return (
+        trial["model_id"],
+        trial["model_digest"],
+        trial["format_mode"],
+        trial["num_predict"],
+        trial["case_id"],
+        trial["artifact_hash"],
+        trial["repeat"],
+    )
+
+
+def validate_unique_trials(trials: list[dict[str, Any]]) -> None:
+    keys = [trial_key(trial) for trial in trials]
+    if len(keys) != len(set(keys)):
+        raise ValueError("partial journal contains duplicate trial keys")
 
 
 def append_trial_atomic(
@@ -421,10 +454,21 @@ def load_partial(path: Path, binding: dict[str, Any]) -> list[dict[str, Any]]:
     jsonschema.Draft202012Validator(schema).validate(value)
     if value["binding"] != binding:
         raise ValueError("partial journal binding mismatch")
-    return list(value["trials"])
+    trials = list(value["trials"])
+    validate_unique_trials(trials)
+    return trials
 
 
-def complete_partial(path: Path, binding: dict[str, Any], trials: list[dict[str, Any]]) -> None:
+def complete_partial(
+    path: Path,
+    binding: dict[str, Any],
+    trials: list[dict[str, Any]],
+    *,
+    crash_before_completion: bool = False,
+) -> None:
+    validate_unique_trials(trials)
+    if crash_before_completion:
+        raise RuntimeError("injected crash before partial completion")
     atomic_write(
         path,
         {
@@ -470,7 +514,14 @@ def main() -> int:
         "ollama_version": args.ollama_version,
         "base_url_class": "loopback",
     }
-    binding = partial_binding(manifest, runtime, models)
+    binding = partial_binding(
+        manifest,
+        runtime,
+        models,
+        formats=args.format,
+        num_predict_values=args.num_predict,
+        repeats=args.repeats,
+    )
     partial_path = ROOT / args.partial_output if args.partial_output else None
     initial_trials = load_partial(partial_path, binding) if partial_path else []
     result = build_matrix(

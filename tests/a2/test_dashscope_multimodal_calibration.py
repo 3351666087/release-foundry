@@ -15,6 +15,7 @@ from scripts.a2_dashscope_multimodal_calibration import (
     ProviderRateLimited,
     ProviderServerFailure,
     cloud_transport,
+    validate_attempt_receipts,
 )
 from scripts.a2_generate_round37_multimodal_controls import generate
 from scripts.a2_generate_round38_multimodal_controls import generate as generate_round38
@@ -71,8 +72,14 @@ class DashScopeMultimodalCalibrationTests(unittest.TestCase):
         )
         self.assertEqual(observation["parse_state"], "valid_json")
         self.assertEqual(result["metrics"]["eligible_count"], 1)
+        self.assertEqual(result["metrics"]["retry_recovery_count"], 1)
+        self.assertEqual(result["metrics"]["retry_recovery_rate"], 1.0)
         self.assertIn(
             "dashscope_invalid_structured_output_observed", result["blockers"]
+        )
+        self.assertIn(
+            "dashscope_recovered_invalid_structured_output_observed",
+            result["blockers"],
         )
 
     def test_round39_run_budget_exhaustion_is_fail_closed_without_invocation(self):
@@ -159,6 +166,64 @@ class DashScopeMultimodalCalibrationTests(unittest.TestCase):
             "dashscope_taxonomy_sensitivity_review_threshold_not_met:attack",
             result["blockers"],
         )
+
+    def test_round40_taxonomy_policy_absent_from_attack_manifest_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "absent from attack manifest"):
+            build_calibration(
+                cases=[],
+                model_id="qwen-vl-plus",
+                endpoint_region="beijing",
+                invoke=lambda *_: {},
+                minimum_taxonomy_sensitivity={"invented": 0.8},
+            )
+
+    def test_round40_attempt_receipt_numbers_must_be_contiguous_and_unique(self):
+        valid = [
+            {"attempt": 1},
+            {"attempt": 2},
+        ]
+        validate_attempt_receipts(valid)
+        for invalid in (
+            [{"attempt": 1}, {"attempt": 1}],
+            [{"attempt": 1}, {"attempt": 3}],
+            [{"attempt": 2}],
+        ):
+            with self.subTest(invalid=invalid):
+                with self.assertRaisesRegex(ValueError, "contiguous and unique"):
+                    validate_attempt_receipts(invalid)
+
+    def test_round40_run_budget_exhaustion_between_retry_attempts_is_fail_closed(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            artifact = Path(directory) / "attack.png"
+            Image.new("RGB", (1, 1), (200, 20, 20)).save(artifact)
+            case = {
+                "case_id": "retry-budget",
+                "taxonomy": "visual_prompt_injection",
+                "expected_risk": True,
+                "artifact_path": artifact.relative_to(ROOT).as_posix(),
+                "artifact_hash": sha256_ref(artifact.read_bytes()),
+            }
+            with patch(
+                "scripts.a2_dashscope_multimodal_calibration.time.monotonic",
+                side_effect=[0.0, 0.1, 0.2, 0.3, 0.4, 2.0, 2.1, 2.2],
+            ):
+                result = build_calibration(
+                    cases=[case],
+                    model_id="qwen-vl-plus",
+                    endpoint_region="beijing",
+                    invoke=lambda *_: {
+                        "model": "qwen-vl-plus",
+                        "choices": [{"message": {"content": "not-json"}}],
+                    },
+                    invalid_response_retries=1,
+                    maximum_run_seconds=1.0,
+                    minimum_safe_samples=1,
+                    minimum_attack_samples=1,
+                )
+        attempts = result["observations"][0]["attempt_receipts"]
+        self.assertEqual([item["attempt"] for item in attempts], [1, 2])
+        self.assertEqual(attempts[1]["error_class"], "run_budget_exhausted")
+        self.assertEqual(result["qualification_state"], "blocked")
     def test_round36_ppm_is_transcoded_for_cloud_transport_and_contract_requested(self):
         captured = {}
         source_ppm = b""

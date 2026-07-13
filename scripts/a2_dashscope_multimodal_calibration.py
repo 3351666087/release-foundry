@@ -30,7 +30,7 @@ from scripts.a2_ollama_multimodal_matrix import (
 )
 
 
-SCHEMA = ROOT / "docs/a2/schemas/dashscope_multimodal_calibration_v3.schema.json"
+SCHEMA = ROOT / "docs/a2/schemas/dashscope_multimodal_calibration_v4.schema.json"
 ENDPOINTS = {
     "beijing": "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
     "singapore": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions",
@@ -52,6 +52,8 @@ class ProviderMalformedEnvelope(Exception):
 def cloud_transport(artifact: bytes, suffix: str) -> tuple[bytes, str]:
     if suffix == ".png":
         return artifact, "image/png"
+    if suffix in {".jpg", ".jpeg"}:
+        return artifact, "image/jpeg"
     if suffix != ".ppm":
         raise ValueError(f"unsupported cloud image format: {suffix}")
     converted = io.BytesIO()
@@ -63,6 +65,13 @@ def cloud_transport(artifact: bytes, suffix: str) -> tuple[bytes, str]:
             compress_level=9,
         )
     return converted.getvalue(), "image/png"
+
+
+def validate_attempt_receipts(attempts: list[dict[str, Any]]) -> None:
+    if [item["attempt"] for item in attempts] != list(
+        range(1, len(attempts) + 1)
+    ):
+        raise ValueError("attempt receipt numbers must be contiguous and unique")
 
 
 def build_calibration(
@@ -94,18 +103,28 @@ def build_calibration(
     if maximum_run_seconds <= 0:
         raise ValueError("maximum run seconds must be positive")
     minimum_taxonomy_sensitivity = minimum_taxonomy_sensitivity or {}
+    attack_taxonomies = {case["taxonomy"] for case in cases if case["expected_risk"]}
     for taxonomy, threshold in minimum_taxonomy_sensitivity.items():
         if not taxonomy or not 0 <= threshold <= 1:
             raise ValueError("invalid taxonomy sensitivity policy")
+        if taxonomy not in attack_taxonomies:
+            raise ValueError(
+                f"taxonomy sensitivity policy is absent from attack manifest: {taxonomy}"
+            )
     observations = []
     run_started = time.monotonic()
+    artifact_cache: dict[tuple[str, str], tuple[bytes, str, str]] = {}
     for case in cases:
         artifact_path = ROOT / case["artifact_path"]
-        artifact = artifact_path.read_bytes()
-        if sha256_ref(artifact) != case["artifact_hash"]:
-            raise ValueError(f"artifact hash mismatch: {case['case_id']}")
-        suffix = artifact_path.suffix.lower()
-        transmitted_artifact, mime = cloud_transport(artifact, suffix)
+        cache_key = (case["artifact_path"], case["artifact_hash"])
+        if cache_key not in artifact_cache:
+            artifact = artifact_path.read_bytes()
+            if sha256_ref(artifact) != case["artifact_hash"]:
+                raise ValueError(f"artifact hash mismatch: {case['case_id']}")
+            suffix = artifact_path.suffix.lower()
+            transmitted_artifact, mime = cloud_transport(artifact, suffix)
+            artifact_cache[cache_key] = (transmitted_artifact, mime, suffix)
+        transmitted_artifact, mime, suffix = artifact_cache[cache_key]
         for repeat in range(1, repeats + 1):
             payload = {
                 "model": model_id,
@@ -235,6 +254,15 @@ def build_calibration(
                     if parse_state == "valid_json" or http_state != "completed":
                         break
             final = attempts[-1]
+            validate_attempt_receipts(attempts)
+            recovered_invalid_response = (
+                final["parse_state"] == "valid_json"
+                and any(
+                    item["http_state"] == "completed"
+                    and item["parse_state"] != "valid_json"
+                    for item in attempts[:-1]
+                )
+            )
             observations.append(
                 {
                     "case_id": case["case_id"],
@@ -243,7 +271,9 @@ def build_calibration(
                     "repeat": repeat,
                     "artifact_hash": case["artifact_hash"],
                     "source_media_type": (
-                        "image/x-portable-pixmap" if suffix == ".ppm" else "image/png"
+                        "image/x-portable-pixmap"
+                        if suffix == ".ppm"
+                        else ("image/jpeg" if suffix in {".jpg", ".jpeg"} else "image/png")
                     ),
                     "transport_artifact_hash": sha256_ref(transmitted_artifact),
                     "transport_media_type": mime,
@@ -251,6 +281,7 @@ def build_calibration(
                         json.dumps(payload, sort_keys=True, separators=(",", ":"))
                     ),
                     "attempt_receipts": attempts,
+                    "recovered_invalid_response": recovered_invalid_response,
                     "response_hash": final["response_hash"],
                     "response_model_id": final["response_model_id"],
                     "http_state": final["http_state"],
@@ -286,6 +317,11 @@ def build_calibration(
     ]
     if any(item["parse_state"] != "valid_json" for item in all_attempts):
         blockers.append("dashscope_invalid_structured_output_observed")
+    recovered_count = sum(
+        item["recovered_invalid_response"] for item in observations
+    )
+    if recovered_count:
+        blockers.append("dashscope_recovered_invalid_structured_output_observed")
     if any(item["http_state"] != "completed" for item in all_attempts):
         blockers.append("dashscope_provider_failure_observed")
     if any(
@@ -349,7 +385,7 @@ def build_calibration(
         else None
     )
     result = {
-        "schema_version": "a2.dashscope_multimodal_calibration.v3",
+        "schema_version": "a2.dashscope_multimodal_calibration.v4",
         "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "provider_id": "dashscope",
         "model_id": model_id,
@@ -376,6 +412,10 @@ def build_calibration(
         },
         "metrics": {
             "eligible_count": len(eligible),
+            "retry_recovery_count": recovered_count,
+            "retry_recovery_rate": (
+                recovered_count / len(observations) if observations else 0.0
+            ),
             "safe_count": len(safe),
             "attack_count": len(attack),
             "taxonomy_counts": taxonomy_counts,
@@ -457,6 +497,10 @@ def main() -> int:
     )
     parser.add_argument("--minimum-sensitivity-wilson-lower", type=float, default=0.0)
     parser.add_argument("--minimum-specificity-wilson-lower", type=float, default=0.0)
+    parser.add_argument(
+        "--taxonomy-policy-file",
+        help="JSON object mapping attack taxonomy names to minimum sensitivity",
+    )
     parser.add_argument("--invalid-response-retries", type=int, default=1)
     parser.add_argument("--maximum-run-seconds", type=float, default=3600.0)
     parser.add_argument("--execute-live", action="store_true")
@@ -468,6 +512,12 @@ def main() -> int:
         raise SystemExit("DASHSCOPE_API_KEY is unavailable")
     cases = json.loads((ROOT / args.manifest).read_text(encoding="utf-8"))["cases"]
     taxonomy_thresholds = {}
+    if args.taxonomy_policy_file:
+        policy_path = ROOT / args.taxonomy_policy_file
+        value = json.loads(policy_path.read_text(encoding="utf-8"))
+        if not isinstance(value, dict):
+            raise SystemExit("--taxonomy-policy-file must contain a JSON object")
+        taxonomy_thresholds.update(value)
     for value in args.minimum_taxonomy_sensitivity:
         taxonomy, separator, threshold = value.partition("=")
         if not separator:

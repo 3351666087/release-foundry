@@ -1,0 +1,9 @@
+{
+  "comparison_artifact_hash": "sha256:dd7be1f11d04bb85432e80ca481c8327fe5de60fde794ecb4511b13631088484",
+  "errors": [],
+  "public_safe": true,
+  "receipt_count": 4,
+  "release_authority": false,
+  "schema_version": "a2.multimodal_comparison_receipt_verification.v1",
+  "verification_state": "verified"
+}

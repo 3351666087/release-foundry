@@ -16,11 +16,20 @@
     "binding": {
       "type": ["object", "null"],
       "additionalProperties": false,
-      "required": ["manifest_hash", "prompt_hash", "runtime_hash", "model_bindings"],
+       "required": [
+         "manifest_hash",
+         "prompt_hash",
+         "runtime_hash",
+         "format_plan_hash",
+         "token_bound_plan_hash",
+         "model_bindings"
+       ],
       "properties": {
         "manifest_hash": {"$ref": "#/$defs/hash"},
         "prompt_hash": {"$ref": "#/$defs/hash"},
-        "runtime_hash": {"$ref": "#/$defs/hash"},
+         "runtime_hash": {"$ref": "#/$defs/hash"},
+         "format_plan_hash": {"$ref": "#/$defs/hash"},
+         "token_bound_plan_hash": {"$ref": "#/$defs/hash"},
         "model_bindings": {
           "type": "array",
           "items": {

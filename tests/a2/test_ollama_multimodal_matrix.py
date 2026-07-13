@@ -9,6 +9,7 @@ import jsonschema
 from scripts.a2_ollama_multimodal_matrix import (
     ROOT,
     append_trial_atomic,
+    atomic_write,
     build_matrix,
     classify_public_response,
     complete_partial,
@@ -44,7 +45,13 @@ class OllamaMultimodalMatrixTests(unittest.TestCase):
                 "ollama_version": "test",
                 "base_url_class": "loopback",
             }
-            binding = partial_binding(manifest, runtime, models)
+            binding = partial_binding(
+                manifest,
+                runtime,
+                models,
+                formats=["json_schema"],
+                num_predict_values=[64],
+            )
             partial = Path(directory) / "partial.json"
             calls = []
 
@@ -94,6 +101,8 @@ class OllamaMultimodalMatrixTests(unittest.TestCase):
                 "manifest_hash": "sha256:" + "1" * 64,
                 "prompt_hash": "sha256:" + "2" * 64,
                 "runtime_hash": "sha256:" + "3" * 64,
+                "format_plan_hash": "sha256:" + "6" * 64,
+                "token_bound_plan_hash": "sha256:" + "7" * 64,
                 "model_bindings": [
                     {"model_id": "model", "model_digest": "sha256:" + "4" * 64}
                 ],
@@ -275,6 +284,69 @@ class OllamaMultimodalMatrixTests(unittest.TestCase):
         self.assertEqual(len(persisted["trials"]), 1)
         self.assertEqual(persisted["trials"][0]["error_class"], "timeout")
         self.assertFalse(persisted["release_authority"])
+
+    def test_round40_partial_duplicate_key_is_rejected(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            path = Path(directory) / "partial.json"
+            binding = {
+                "manifest_hash": "sha256:" + "1" * 64,
+                "prompt_hash": "sha256:" + "2" * 64,
+                "runtime_hash": "sha256:" + "3" * 64,
+                "format_plan_hash": "sha256:" + "4" * 64,
+                "token_bound_plan_hash": "sha256:" + "5" * 64,
+                "model_bindings": [
+                    {"model_id": "model", "model_digest": "sha256:" + "6" * 64}
+                ],
+            }
+            trial = {
+                "model_id": "model",
+                "model_digest": "sha256:" + "6" * 64,
+                "format_mode": "json",
+                "num_predict": 64,
+                "case_id": "case",
+                "artifact_hash": "sha256:" + "7" * 64,
+                "repeat": 1,
+            }
+            atomic_write(
+                path,
+                {
+                    "schema_version": "a2.multimodal_runtime_partial.v1",
+                    "state": "in_progress",
+                    "binding": binding,
+                    "trials": [trial, dict(trial)],
+                    "release_authority": False,
+                    "public_safe": True,
+                },
+            )
+            with self.assertRaisesRegex(ValueError, "duplicate trial keys"):
+                load_partial(path, binding)
+
+    def test_round40_crash_before_partial_completion_preserves_in_progress(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            path = Path(directory) / "partial.json"
+            binding = {
+                "manifest_hash": "sha256:" + "1" * 64,
+                "prompt_hash": "sha256:" + "2" * 64,
+                "runtime_hash": "sha256:" + "3" * 64,
+                "format_plan_hash": "sha256:" + "4" * 64,
+                "token_bound_plan_hash": "sha256:" + "5" * 64,
+                "model_bindings": [],
+            }
+            atomic_write(
+                path,
+                {
+                    "schema_version": "a2.multimodal_runtime_partial.v1",
+                    "state": "in_progress",
+                    "binding": binding,
+                    "trials": [],
+                    "release_authority": False,
+                    "public_safe": True,
+                },
+            )
+            with self.assertRaisesRegex(RuntimeError, "injected crash"):
+                complete_partial(path, binding, [], crash_before_completion=True)
+            persisted = json.loads(path.read_text(encoding="utf-8"))
+        self.assertEqual(persisted["state"], "in_progress")
 
 
 if __name__ == "__main__":

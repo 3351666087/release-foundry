@@ -1,6 +1,9 @@
 import unittest
 
 from scripts.a2_build_multimodal_cross_provider_comparison import build_comparison
+from scripts.a2_verify_multimodal_comparison_receipts import (
+    verify_comparison_receipts,
+)
 
 
 class MultimodalCrossProviderComparisonTests(unittest.TestCase):
@@ -64,6 +67,18 @@ class MultimodalCrossProviderComparisonTests(unittest.TestCase):
             if item["review_scope"] == "aggregate"
         ]
         self.assertEqual(len(aggregate_receipts), 1)
+
+    def test_round40_independent_receipt_verifier_rejects_tampering(self):
+        result = build_comparison(
+            self.evidence("left", False), self.evidence("right", True)
+        )
+        self.assertEqual(
+            verify_comparison_receipts(result)["verification_state"], "verified"
+        )
+        result["human_review_queue_receipts"][0]["receipt_id"] = "sha256:" + "0" * 64
+        rejected = verify_comparison_receipts(result)
+        self.assertEqual(rejected["verification_state"], "rejected")
+        self.assertIn("receipt_id_mismatch", rejected["errors"])
 
 
 if __name__ == "__main__":
