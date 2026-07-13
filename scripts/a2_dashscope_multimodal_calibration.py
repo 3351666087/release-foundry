@@ -10,7 +10,6 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
-from urllib import error, request
 
 import jsonschema
 from PIL import Image
@@ -28,25 +27,25 @@ from scripts.a2_ollama_multimodal_matrix import (
     sha256_ref,
     wilson_interval,
 )
+from services.judge.multimodal_provider import (
+    MultimodalProviderDefinition,
+    OpenAICompatibleMultimodalAdapter,
+    ProviderMalformedEnvelope,
+    ProviderRateLimited,
+    ProviderServerFailure,
+    ProviderTransportFailure,
+    default_multimodal_provider_registry,
+)
+from services.judge.provider_runtime import EnvironmentCredentialResolver
 
 
-SCHEMA = ROOT / "docs/a2/schemas/dashscope_multimodal_calibration_v4.schema.json"
+SCHEMA = ROOT / "docs/a2/schemas/dashscope_multimodal_calibration_v5.schema.json"
+POLICY_SCHEMA = ROOT / "docs/a2/schemas/dashscope_multimodal_policy.schema.json"
+PROVIDER_IDS = {"beijing": "dashscope", "singapore": "dashscope-international"}
 ENDPOINTS = {
-    "beijing": "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
-    "singapore": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions",
+    region: default_multimodal_provider_registry().require(provider_id).endpoint
+    for region, provider_id in PROVIDER_IDS.items()
 }
-
-
-class ProviderRateLimited(Exception):
-    pass
-
-
-class ProviderServerFailure(Exception):
-    pass
-
-
-class ProviderMalformedEnvelope(Exception):
-    pass
 
 
 def cloud_transport(artifact: bytes, suffix: str) -> tuple[bytes, str]:
@@ -89,10 +88,12 @@ def build_calibration(
     minimum_sensitivity: float = 0.8,
     minimum_specificity: float = 0.8,
     minimum_taxonomy_sensitivity: dict[str, float] | None = None,
+    minimum_taxonomy_wilson_lower: dict[str, float] | None = None,
     minimum_sensitivity_wilson_lower: float = 0.0,
     minimum_specificity_wilson_lower: float = 0.0,
     invalid_response_retries: int = 0,
     maximum_run_seconds: float = 3600.0,
+    policy_hash: str | None = None,
 ) -> dict[str, Any]:
     if endpoint_region not in ENDPOINTS:
         raise ValueError("unsupported DashScope endpoint region")
@@ -103,8 +104,12 @@ def build_calibration(
     if maximum_run_seconds <= 0:
         raise ValueError("maximum run seconds must be positive")
     minimum_taxonomy_sensitivity = minimum_taxonomy_sensitivity or {}
+    minimum_taxonomy_wilson_lower = minimum_taxonomy_wilson_lower or {}
     attack_taxonomies = {case["taxonomy"] for case in cases if case["expected_risk"]}
-    for taxonomy, threshold in minimum_taxonomy_sensitivity.items():
+    for taxonomy, threshold in {
+        **minimum_taxonomy_sensitivity,
+        **minimum_taxonomy_wilson_lower,
+    }.items():
         if not taxonomy or not 0 <= threshold <= 1:
             raise ValueError("invalid taxonomy sensitivity policy")
         if taxonomy not in attack_taxonomies:
@@ -113,6 +118,25 @@ def build_calibration(
             )
     observations = []
     run_started = time.monotonic()
+    manifest_core = {"cases": cases}
+    manifest_hash = sha256_ref(
+        json.dumps(manifest_core, sort_keys=True, separators=(",", ":"))
+    )
+    ordered_case_plan_hash = sha256_ref(
+        json.dumps(
+            [
+                {
+                    "case_id": case["case_id"],
+                    "artifact_hash": case["artifact_hash"],
+                    "repeat": repeat,
+                }
+                for case in cases
+                for repeat in range(1, repeats + 1)
+            ],
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    )
     artifact_cache: dict[tuple[str, str], tuple[bytes, str, str]] = {}
     for case in cases:
         artifact_path = ROOT / case["artifact_path"]
@@ -291,6 +315,7 @@ def build_calibration(
                     "wall_seconds": round(
                         sum(item["wall_seconds"] for item in attempts), 3
                     ),
+                    "final_attempt_wall_seconds": final["wall_seconds"],
                     "error_class": final["error_class"],
                     "raw_payload_included": False,
                     "release_authority": False,
@@ -366,6 +391,13 @@ def build_calibration(
         metric = taxonomy_metrics.get(taxonomy)
         if metric is None or metric["sensitivity"] is None or metric["sensitivity"] < threshold:
             blockers.append(f"dashscope_taxonomy_sensitivity_review_threshold_not_met:{taxonomy}")
+    for taxonomy, threshold in sorted(minimum_taxonomy_wilson_lower.items()):
+        metric = taxonomy_metrics.get(taxonomy)
+        interval = metric["sensitivity_wilson_95"] if metric else None
+        if interval is None or interval[0] < threshold:
+            blockers.append(
+                f"dashscope_taxonomy_wilson_lower_threshold_not_met:{taxonomy}"
+            )
     if (
         sensitivity_interval is None
         or sensitivity_interval[0] < minimum_sensitivity_wilson_lower
@@ -385,13 +417,28 @@ def build_calibration(
         else None
     )
     result = {
-        "schema_version": "a2.dashscope_multimodal_calibration.v4",
+        "schema_version": "a2.dashscope_multimodal_calibration.v5",
         "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "provider_id": "dashscope",
         "model_id": model_id,
         "endpoint_region": endpoint_region,
         "endpoint_class": "openai_compatible_chat_completions",
         "credential_source": "environment:DASHSCOPE_API_KEY",
+        "provider_capability_hash": default_multimodal_provider_registry()
+        .require(PROVIDER_IDS[endpoint_region])
+        .capability_hash,
+        "manifest_hash": manifest_hash,
+        "ordered_case_plan_hash": ordered_case_plan_hash,
+        "policy_hash": policy_hash or sha256_ref(
+            json.dumps(
+                {
+                    "minimum_taxonomy_sensitivity": minimum_taxonomy_sensitivity,
+                    "minimum_taxonomy_wilson_lower": minimum_taxonomy_wilson_lower,
+                },
+                sort_keys=True,
+                separators=(",", ":"),
+            )
+        ),
         "prompt_hash": sha256_ref(PROMPT),
         "output_schema_hash": sha256_ref(
             json.dumps(OUTPUT_SCHEMA, sort_keys=True, separators=(",", ":"))
@@ -405,6 +452,7 @@ def build_calibration(
             "minimum_sensitivity": minimum_sensitivity,
             "minimum_specificity": minimum_specificity,
             "minimum_taxonomy_sensitivity": minimum_taxonomy_sensitivity,
+            "minimum_taxonomy_wilson_lower": minimum_taxonomy_wilson_lower,
             "minimum_sensitivity_wilson_lower": minimum_sensitivity_wilson_lower,
             "minimum_specificity_wilson_lower": minimum_specificity_wilson_lower,
             "invalid_response_retries": invalid_response_retries,
@@ -431,6 +479,9 @@ def build_calibration(
             ),
             "balanced_accuracy_interval_95": balanced_interval,
             "latency_seconds": latency,
+            "final_attempt_latency_seconds": _latency_summary(
+                [item["final_attempt_wall_seconds"] for item in observations]
+            ),
         },
         "qualification_state": "blocked" if blockers else "qualified_for_review",
         "blockers": blockers,
@@ -444,34 +495,34 @@ def build_calibration(
     return result
 
 
-def http_invoke(endpoint: str, api_key: str) -> Callable[[dict[str, Any], float], dict[str, Any]]:
+def provider_invoke(
+    provider: MultimodalProviderDefinition,
+    api_key: str,
+) -> Callable[[dict[str, Any], float], dict[str, Any]]:
+    adapter = OpenAICompatibleMultimodalAdapter(
+        EnvironmentCredentialResolver({provider.credential_ref: api_key})
+    )
+
     def invoke(payload: dict[str, Any], timeout_seconds: float) -> dict[str, Any]:
-        req = request.Request(
-            endpoint,
-            data=json.dumps(payload, separators=(",", ":")).encode("utf-8"),
-            headers={
-                "Authorization": f"Bearer {api_key}",
-                "Content-Type": "application/json",
-            },
-            method="POST",
-        )
-        try:
-            with request.urlopen(req, timeout=timeout_seconds) as response:
-                return json.loads(response.read().decode("utf-8"))
-        except error.HTTPError as exc:
-            if exc.code in {401, 403}:
-                raise PermissionError from exc
-            if exc.code == 429:
-                raise ProviderRateLimited from exc
-            if exc.code >= 500:
-                raise ProviderServerFailure from exc
-            raise ValueError from exc
-        except error.URLError as exc:
-            if isinstance(exc.reason, TimeoutError):
-                raise TimeoutError from exc
-            raise
+        return adapter.invoke(provider, payload, timeout_seconds)
 
     return invoke
+
+
+def http_invoke(endpoint: str, api_key: str) -> Callable[[dict[str, Any], float], dict[str, Any]]:
+    """Compatibility wrapper retained for callers while transport is provider-neutral."""
+    provider = MultimodalProviderDefinition(
+        provider_id="openai-compatible",
+        protocol="openai_compatible",
+        endpoint=endpoint,
+        credential_ref="secret://openai-compatible/api-key",
+        credential_source="environment:CALLER_SUPPLIED",
+        image_mime_types=frozenset({"image/png", "image/jpeg"}),
+        structured_output=True,
+        retry_classes=frozenset({"parse", "transport"}),
+        token_bound=32768,
+    )
+    return provider_invoke(provider, api_key)
 
 
 def main() -> int:
@@ -499,7 +550,7 @@ def main() -> int:
     parser.add_argument("--minimum-specificity-wilson-lower", type=float, default=0.0)
     parser.add_argument(
         "--taxonomy-policy-file",
-        help="JSON object mapping attack taxonomy names to minimum sensitivity",
+        help="Schema-validated versioned taxonomy policy JSON",
     )
     parser.add_argument("--invalid-response-retries", type=int, default=1)
     parser.add_argument("--maximum-run-seconds", type=float, default=3600.0)
@@ -512,22 +563,30 @@ def main() -> int:
         raise SystemExit("DASHSCOPE_API_KEY is unavailable")
     cases = json.loads((ROOT / args.manifest).read_text(encoding="utf-8"))["cases"]
     taxonomy_thresholds = {}
+    taxonomy_wilson_thresholds = {}
+    policy_hash = None
     if args.taxonomy_policy_file:
         policy_path = ROOT / args.taxonomy_policy_file
         value = json.loads(policy_path.read_text(encoding="utf-8"))
-        if not isinstance(value, dict):
-            raise SystemExit("--taxonomy-policy-file must contain a JSON object")
-        taxonomy_thresholds.update(value)
+        schema = json.loads(POLICY_SCHEMA.read_text(encoding="utf-8"))
+        jsonschema.Draft202012Validator(schema).validate(value)
+        taxonomy_thresholds.update(value["minimum_taxonomy_sensitivity"])
+        taxonomy_wilson_thresholds.update(value["minimum_taxonomy_wilson_lower"])
+        policy_hash = sha256_ref(
+            json.dumps(value, sort_keys=True, separators=(",", ":"))
+        )
     for value in args.minimum_taxonomy_sensitivity:
         taxonomy, separator, threshold = value.partition("=")
         if not separator:
             raise SystemExit("--minimum-taxonomy-sensitivity must use taxonomy=threshold")
         taxonomy_thresholds[taxonomy] = float(threshold)
+    registry = default_multimodal_provider_registry()
+    provider = registry.require(PROVIDER_IDS[args.region])
     result = build_calibration(
         cases=cases,
         model_id=args.model,
         endpoint_region=args.region,
-        invoke=http_invoke(ENDPOINTS[args.region], api_key),
+        invoke=provider_invoke(provider, api_key),
         repeats=args.repeats,
         minimum_safe_samples=args.minimum_safe_samples,
         minimum_attack_samples=args.minimum_attack_samples,
@@ -536,10 +595,12 @@ def main() -> int:
         minimum_sensitivity=args.minimum_sensitivity,
         minimum_specificity=args.minimum_specificity,
         minimum_taxonomy_sensitivity=taxonomy_thresholds,
+        minimum_taxonomy_wilson_lower=taxonomy_wilson_thresholds,
         minimum_sensitivity_wilson_lower=args.minimum_sensitivity_wilson_lower,
         minimum_specificity_wilson_lower=args.minimum_specificity_wilson_lower,
         invalid_response_retries=args.invalid_response_retries,
         maximum_run_seconds=args.maximum_run_seconds,
+        policy_hash=policy_hash,
     )
     atomic_write(ROOT / args.output, result)
     print(

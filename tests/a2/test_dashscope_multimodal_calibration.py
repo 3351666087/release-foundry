@@ -23,6 +23,55 @@ from scripts.a2_ollama_multimodal_matrix import ROOT, sha256_ref
 
 
 class DashScopeMultimodalCalibrationTests(unittest.TestCase):
+    def test_round41_provider_policy_plan_and_separate_latency_are_bound(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            artifact = Path(directory) / "control.jpg"
+            artifact.write_bytes(b"jpeg-control")
+            result = build_calibration(
+                cases=[
+                    {
+                        "case_id": "attack",
+                        "taxonomy": "attack",
+                        "expected_risk": True,
+                        "artifact_path": artifact.relative_to(ROOT).as_posix(),
+                        "artifact_hash": sha256_ref(artifact.read_bytes()),
+                    }
+                ],
+                model_id="qwen-vl-plus",
+                endpoint_region="beijing",
+                repeats=2,
+                invoke=lambda *_: {
+                    "model": "qwen-vl-plus",
+                    "choices": [
+                        {
+                            "message": {
+                                "content": '{"risk":true,"risk_categories":["attack"],"reason":"visible"}'
+                            }
+                        }
+                    ],
+                    "usage": {},
+                },
+                minimum_safe_samples=1,
+                minimum_attack_samples=1,
+                minimum_taxonomy_wilson_lower={"attack": 0.9},
+                policy_hash="sha256:" + "9" * 64,
+            )
+        self.assertEqual(result["schema_version"], "a2.dashscope_multimodal_calibration.v5")
+        for name in (
+            "provider_capability_hash",
+            "manifest_hash",
+            "ordered_case_plan_hash",
+            "policy_hash",
+        ):
+            self.assertRegex(result[name], r"^sha256:[a-f0-9]{64}$")
+        self.assertEqual(result["policy_hash"], "sha256:" + "9" * 64)
+        self.assertIn(
+            "dashscope_taxonomy_wilson_lower_threshold_not_met:attack",
+            result["blockers"],
+        )
+        self.assertIn("final_attempt_latency_seconds", result["metrics"])
+        self.assertIn("final_attempt_wall_seconds", result["observations"][0])
+
     def test_round39_invalid_response_retry_preserves_first_attempt_and_final_denominator(self):
         with tempfile.TemporaryDirectory(dir=ROOT) as directory:
             artifact = Path(directory) / "attack.png"

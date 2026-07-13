@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -10,6 +11,7 @@ import jsonschema
 from scripts.a2_build_multimodal_cross_provider_comparison import ROOT, stable_hash
 
 SCHEMA = ROOT / "docs/a2/schemas/multimodal_human_review_disposition.schema.json"
+REAL_REVIEW_SCHEMA = ROOT / "docs/a2/schemas/multimodal_real_review_receipt.schema.json"
 
 
 def build_disposition(
@@ -37,6 +39,61 @@ def build_disposition(
         "public_safe": True,
     }
     jsonschema.Draft202012Validator(json.loads(SCHEMA.read_text(encoding="utf-8"))).validate(result)
+    return result
+
+
+def build_real_review_receipt(
+    receipt: dict[str, Any],
+    *,
+    comparison_artifact_hash: str,
+    reviewer_identity_hash: str,
+    disposition: str,
+    rationale_code: str,
+    predecessor_receipt_hash: str = "",
+    prior_receipts: list[dict[str, Any]] | None = None,
+    reviewed_at: str | None = None,
+) -> dict[str, Any]:
+    if receipt.get("comparison_artifact_hash") != comparison_artifact_hash:
+        raise ValueError("receipt comparison artifact hash mismatch")
+    prior_receipts = prior_receipts or []
+    if any(
+        item.get("queue_receipt_hash") == stable_hash(receipt)
+        and item.get("disposition") == disposition
+        for item in prior_receipts
+    ):
+        raise ValueError("duplicate review disposition")
+    if predecessor_receipt_hash:
+        if not prior_receipts or stable_hash(prior_receipts[-1]) != predecessor_receipt_hash:
+            raise ValueError("review predecessor receipt mismatch")
+    elif prior_receipts:
+        raise ValueError("review predecessor receipt is required")
+    completed_at = reviewed_at or datetime.now(timezone.utc).isoformat().replace(
+        "+00:00", "Z"
+    )
+    core = {
+        "queue_receipt_hash": stable_hash(receipt),
+        "comparison_artifact_hash": comparison_artifact_hash,
+        "comparison_hash": receipt["comparison_hash"],
+        "artifact_hash": receipt["artifact_hash"],
+        "case_id": receipt["case_id"],
+        "reviewer_identity_hash": reviewer_identity_hash,
+        "reviewer_identity_class": "human_reviewer",
+        "predecessor_receipt_hash": predecessor_receipt_hash,
+        "review_sequence": len(prior_receipts) + 1,
+        "review_completed_at": completed_at,
+        "disposition": disposition,
+        "rationale_code": rationale_code,
+    }
+    result = {
+        "schema_version": "a2.multimodal_real_review_receipt.v1",
+        "receipt_id": stable_hash(core),
+        **core,
+        "release_authority": False,
+        "public_safe": True,
+    }
+    jsonschema.Draft202012Validator(
+        json.loads(REAL_REVIEW_SCHEMA.read_text(encoding="utf-8"))
+    ).validate(result)
     return result
 
 

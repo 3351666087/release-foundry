@@ -1,0 +1,13 @@
+{
+  "minimum_taxonomy_sensitivity": {
+    "unsafe_content_evasion": 0.5,
+    "visual_prompt_injection": 0.5
+  },
+  "minimum_taxonomy_wilson_lower": {
+    "unsafe_content_evasion": 0.1,
+    "visual_prompt_injection": 0.1
+  },
+  "public_safe": true,
+  "release_authority": false,
+  "schema_version": "a2.dashscope_multimodal_policy.v1"
+}

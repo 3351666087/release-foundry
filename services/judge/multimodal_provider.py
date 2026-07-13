@@ -1,0 +1,298 @@
+"""Provider-neutral multimodal invocation and conformance receipts for A2."""
+
+from __future__ import annotations
+
+import json
+import time
+from dataclasses import dataclass
+from typing import Any, Callable, Mapping, Protocol
+from urllib import error, request
+
+from .result_persistence import stable_hash
+
+
+CONFORMANCE_SCHEMA_VERSION = "a2.provider_conformance_receipt.v1"
+SUPPORTED_IMAGE_MIME_TYPES = frozenset({"image/png", "image/jpeg"})
+RETRY_CLASSES = frozenset({"parse", "transport"})
+
+
+@dataclass(frozen=True)
+class ParseRetryPolicy:
+    max_retries: int = 0
+
+    def should_retry(self, parse_state: str, retries_used: int) -> bool:
+        return (
+            retries_used < self.max_retries
+            and parse_state
+            in {"empty_response", "nonempty_invalid_json", "invalid_semantics"}
+        )
+
+
+@dataclass(frozen=True)
+class TransportRetryPolicy:
+    max_retries: int = 0
+
+    def should_retry(self, error_class: str, retries_used: int) -> bool:
+        return (
+            retries_used < self.max_retries
+            and error_class
+            in {"timeout", "rate_limited", "provider_server_failure", "transport_failure"}
+        )
+
+
+class CredentialResolver(Protocol):
+    def resolve(self, credential_ref: str) -> str: ...
+
+
+@dataclass(frozen=True)
+class MultimodalProviderDefinition:
+    provider_id: str
+    protocol: str
+    endpoint: str
+    credential_ref: str
+    credential_source: str
+    image_mime_types: frozenset[str]
+    structured_output: bool
+    retry_classes: frozenset[str]
+    token_bound: int
+    local: bool = False
+
+    def __post_init__(self) -> None:
+        if self.protocol not in {"openai_compatible", "offline_deterministic", "ollama"}:
+            raise ValueError("unsupported multimodal provider protocol")
+        if not self.image_mime_types <= SUPPORTED_IMAGE_MIME_TYPES:
+            raise ValueError("unsupported provider image MIME type")
+        if not self.retry_classes <= RETRY_CLASSES:
+            raise ValueError("unsupported provider retry class")
+        if self.token_bound < 1:
+            raise ValueError("provider token bound must be positive")
+
+    @property
+    def capability_hash(self) -> str:
+        return stable_hash(
+            {
+                "provider_id": self.provider_id,
+                "protocol": self.protocol,
+                "image_mime_types": sorted(self.image_mime_types),
+                "structured_output": self.structured_output,
+                "retry_classes": sorted(self.retry_classes),
+                "token_bound": self.token_bound,
+                "local": self.local,
+            }
+        )
+
+
+class MultimodalProviderRegistry:
+    def __init__(self, providers: list[MultimodalProviderDefinition]) -> None:
+        self._providers = {item.provider_id: item for item in providers}
+
+    def require(self, provider_id: str) -> MultimodalProviderDefinition:
+        try:
+            return self._providers[provider_id]
+        except KeyError as exc:
+            raise ValueError(f"unknown multimodal provider: {provider_id}") from exc
+
+    def discover(self, provider_id: str) -> dict[str, Any]:
+        provider = self.require(provider_id)
+        return {
+            "provider_id": provider.provider_id,
+            "protocol": provider.protocol,
+            "image_mime_types": sorted(provider.image_mime_types),
+            "structured_output": provider.structured_output,
+            "retry_classes": sorted(provider.retry_classes),
+            "token_bound": provider.token_bound,
+            "local": provider.local,
+            "capability_hash": provider.capability_hash,
+        }
+
+
+class OpenAICompatibleMultimodalAdapter:
+    """Generic OpenAI-compatible chat-completions transport."""
+
+    def __init__(self, credential_resolver: CredentialResolver) -> None:
+        self.credential_resolver = credential_resolver
+
+    def invoke(
+        self,
+        provider: MultimodalProviderDefinition,
+        payload: dict[str, Any],
+        timeout_seconds: float,
+    ) -> dict[str, Any]:
+        key = self.credential_resolver.resolve(provider.credential_ref)
+        call = request.Request(
+            provider.endpoint,
+            data=json.dumps(payload, separators=(",", ":")).encode("utf-8"),
+            headers={
+                "Authorization": f"Bearer {key}",
+                "Content-Type": "application/json",
+            },
+            method="POST",
+        )
+        try:
+            with request.urlopen(call, timeout=timeout_seconds) as response:
+                value = json.loads(response.read().decode("utf-8"))
+        except error.HTTPError as exc:
+            if exc.code in {401, 403}:
+                raise PermissionError from exc
+            if exc.code == 429:
+                raise ProviderRateLimited from exc
+            if exc.code >= 500:
+                raise ProviderServerFailure from exc
+            raise ValueError("provider rejected request") from exc
+        except error.URLError as exc:
+            if isinstance(exc.reason, TimeoutError):
+                raise TimeoutError from exc
+            raise ProviderTransportFailure from exc
+        if not isinstance(value, dict):
+            raise ProviderMalformedEnvelope
+        return value
+
+
+class OfflineDeterministicMultimodalAdapter:
+    """Scripted deterministic adapter for valid and failure conformance tests."""
+
+    def __init__(self, states: list[str]) -> None:
+        self.states = list(states)
+        self.calls = 0
+
+    def invoke(
+        self,
+        provider: MultimodalProviderDefinition,
+        payload: dict[str, Any],
+        timeout_seconds: float,
+    ) -> dict[str, Any]:
+        del provider, payload, timeout_seconds
+        state = self.states[self.calls] if self.calls < len(self.states) else "valid"
+        self.calls += 1
+        if state == "valid":
+            return {
+                "model": "offline-deterministic-v1",
+                "choices": [{"message": {"content": '{"risk":false,"risk_categories":[],"reason":"offline"}'}}],
+                "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+            }
+        if state == "invalid":
+            return {
+                "model": "offline-deterministic-v1",
+                "choices": [{"message": {"content": "not-json"}}],
+                "usage": {},
+            }
+        if state == "timeout":
+            raise TimeoutError
+        if state == "rate_limit":
+            raise ProviderRateLimited
+        raise ValueError("unsupported offline deterministic state")
+
+
+class ProviderRateLimited(Exception):
+    pass
+
+
+class ProviderServerFailure(Exception):
+    pass
+
+
+class ProviderTransportFailure(Exception):
+    pass
+
+
+class ProviderMalformedEnvelope(Exception):
+    pass
+
+
+def default_multimodal_provider_registry() -> MultimodalProviderRegistry:
+    return MultimodalProviderRegistry(
+        [
+            MultimodalProviderDefinition(
+                provider_id="dashscope",
+                protocol="openai_compatible",
+                endpoint="https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
+                credential_ref="secret://dashscope/api-key",
+                credential_source="environment:DASHSCOPE_API_KEY",
+                image_mime_types=SUPPORTED_IMAGE_MIME_TYPES,
+                structured_output=True,
+                retry_classes=RETRY_CLASSES,
+                token_bound=32768,
+            ),
+            MultimodalProviderDefinition(
+                provider_id="dashscope-international",
+                protocol="openai_compatible",
+                endpoint="https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions",
+                credential_ref="secret://dashscope/api-key",
+                credential_source="environment:DASHSCOPE_API_KEY",
+                image_mime_types=SUPPORTED_IMAGE_MIME_TYPES,
+                structured_output=True,
+                retry_classes=RETRY_CLASSES,
+                token_bound=32768,
+            ),
+            MultimodalProviderDefinition(
+                provider_id="offline-deterministic",
+                protocol="offline_deterministic",
+                endpoint="memory://a2/offline-deterministic",
+                credential_ref="",
+                credential_source="none",
+                image_mime_types=SUPPORTED_IMAGE_MIME_TYPES,
+                structured_output=True,
+                retry_classes=RETRY_CLASSES,
+                token_bound=4096,
+                local=True,
+            ),
+            MultimodalProviderDefinition(
+                provider_id="ollama-local",
+                protocol="ollama",
+                endpoint="http://127.0.0.1:11434/api/chat",
+                credential_ref="",
+                credential_source="none",
+                image_mime_types=SUPPORTED_IMAGE_MIME_TYPES,
+                structured_output=True,
+                retry_classes=frozenset({"parse", "transport"}),
+                token_bound=32768,
+                local=True,
+            ),
+        ]
+    )
+
+
+def build_provider_conformance_receipt(
+    *,
+    provider: MultimodalProviderDefinition,
+    adapter_class: str,
+    checks: Mapping[str, bool],
+    observed_states: list[str],
+    generated_at: str,
+) -> dict[str, Any]:
+    normalized_checks = {key: bool(value) for key, value in sorted(checks.items())}
+    blockers = sorted(key for key, passed in normalized_checks.items() if not passed)
+    core = {
+        "provider_id": provider.provider_id,
+        "protocol": provider.protocol,
+        "adapter_class": adapter_class,
+        "capability_hash": provider.capability_hash,
+        "checks": normalized_checks,
+        "observed_states": sorted(set(observed_states)),
+    }
+    return {
+        "schema_version": CONFORMANCE_SCHEMA_VERSION,
+        "generated_at": generated_at,
+        **core,
+        "receipt_id": stable_hash(core),
+        "qualification_state": "conformant" if not blockers else "blocked",
+        "blockers": blockers,
+        "raw_payload_included": False,
+        "secret_included": False,
+        "release_authority": False,
+        "public_safe": True,
+    }
+
+
+def measure_invocation(
+    invoke: Callable[[], dict[str, Any]],
+) -> tuple[dict[str, Any] | None, float, str]:
+    started = time.monotonic()
+    try:
+        return invoke(), round(time.monotonic() - started, 6), "completed"
+    except TimeoutError:
+        return None, round(time.monotonic() - started, 6), "timeout"
+    except ProviderRateLimited:
+        return None, round(time.monotonic() - started, 6), "rate_limited"
+    except Exception:
+        return None, round(time.monotonic() - started, 6), "provider_failure"

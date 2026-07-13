@@ -66,6 +66,10 @@ class ModelRecord:
     lifecycle: str = "active"
     context_window: int = 0
     local: bool = False
+    image_mime_types: frozenset[str] = frozenset()
+    structured_output: bool = False
+    retry_classes: frozenset[str] = frozenset()
+    token_bound: int = 0
 
     @property
     def record_id(self) -> str:
@@ -120,6 +124,10 @@ class ModelRegistry:
                 "lifecycle": item.lifecycle,
                 "context_window": item.context_window,
                 "local": item.local,
+                "image_mime_types": sorted(item.image_mime_types),
+                "structured_output": item.structured_output,
+                "retry_classes": sorted(item.retry_classes),
+                "token_bound": item.token_bound,
             }
             for item in self.select(include_preview=True)
         ]

@@ -6,14 +6,23 @@ import sys
 from pathlib import Path
 from typing import Any
 
+import jsonschema
+
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from scripts.a2_build_multimodal_cross_provider_comparison import stable_hash
 
+SCHEMA = (
+    ROOT
+    / "docs/a2/schemas/multimodal_comparison_receipt_verification.schema.json"
+)
 
-def verify_comparison_receipts(comparison: dict[str, Any]) -> dict[str, Any]:
+
+def verify_comparison_receipts(
+    comparison: dict[str, Any], *, comparison_path: str = "memory://comparison"
+) -> dict[str, Any]:
     expected_artifact_hash = stable_hash(
         {
             "left_evidence_hash": comparison["left_evidence_hash"],
@@ -72,15 +81,22 @@ def verify_comparison_receipts(comparison: dict[str, Any]) -> dict[str, Any]:
             errors.append("receipt_source_binding_mismatch")
     if seen != set(expected_receipts):
         errors.append("missing_review_receipt")
-    return {
+    result = {
         "schema_version": "a2.multimodal_comparison_receipt_verification.v1",
+        "comparison_path": comparison_path,
         "comparison_artifact_hash": expected_artifact_hash,
-        "receipt_count": len(comparison["human_review_queue_receipts"]),
+        "expected_receipt_count": len(expected_receipts),
+        "verified_receipt_count": len(seen & set(expected_receipts)),
         "verification_state": "verified" if not errors else "rejected",
         "errors": sorted(set(errors)),
         "release_authority": False,
+        "raw_payload_included": False,
         "public_safe": True,
     }
+    jsonschema.Draft202012Validator(
+        json.loads(SCHEMA.read_text(encoding="utf-8"))
+    ).validate(result)
+    return result
 
 
 def main() -> int:
@@ -89,7 +105,7 @@ def main() -> int:
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
     comparison = json.loads((ROOT / args.comparison).read_text(encoding="utf-8"))
-    result = verify_comparison_receipts(comparison)
+    result = verify_comparison_receipts(comparison, comparison_path=args.comparison)
     (ROOT / args.output).write_text(
         json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
