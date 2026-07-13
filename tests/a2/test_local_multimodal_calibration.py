@@ -7,6 +7,7 @@ from services.judge.result_persistence import stable_hash
 
 from services.judge.local_multimodal_calibration import (
     aggregate_local_multimodal_golden_suite,
+    apply_taxonomy_policy,
     build_adversarial_golden_candidate,
     build_deterministic_visual_sidecar,
     build_evidence_evaluation_identity,
@@ -38,6 +39,7 @@ from services.judge.local_multimodal_calibration import (
     validate_multimodal_runtime_calibration_binding,
     validate_requested_allow_ledger,
     validate_mutation_artifact_binding,
+    validate_runtime_binding,
 )
 from services.judge.ocr_contract import build_offline_ocr_closure
 
@@ -1408,6 +1410,7 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
         summary = summarize_runtime_recoveries(
             recovery_latency_seconds=[1, 2, 3, 4, 100],
             maximum_p95_seconds=10,
+            health_response_hashes=["sha256:" + str(index) * 64 for index in range(1, 6)],
         )
         self.assertIn("runtime_recovery_p95_exceeded", summary["blockers"])
 
@@ -1447,6 +1450,66 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
         )
         self.assertIn("mutation_artifact_mime_mismatch", result["blockers"])
         self.assertIn("mutation_artifact_size_mismatch", result["blockers"])
+
+    def test_round29_cancellation_receipt_and_recovery_schemas(self):
+        fixture = json.loads(
+            (ROOT / "fixtures/a2/calibration/provider_cancellation_acknowledged_round29.json").read_text()
+        )
+        observed = evaluate_cancellation_acknowledgement(
+            acknowledgement_state=fixture["acknowledgement_state"],
+            provider_endpoint_hash=fixture["provider_endpoint_hash"],
+            runtime_version_hash=fixture["runtime_version_hash"],
+            provider_receipt_hash=fixture["provider_receipt_hash"],
+        )
+        observed["schema_version"] = fixture["schema_version"]
+        self.assert_schema("provider_cancellation_acknowledgement.schema.json", observed)
+        missing = evaluate_cancellation_acknowledgement(
+            acknowledgement_state="acknowledged",
+            provider_endpoint_hash="sha256:" + "1" * 64,
+            runtime_version_hash="sha256:" + "2" * 64,
+        )
+        self.assertFalse(missing["request_cancellation_proven"])
+        self.assertIn("provider_cancellation_receipt_missing", missing["blockers"])
+        recovery = summarize_runtime_recoveries(
+            recovery_latency_seconds=[1, 2, 3],
+            maximum_p95_seconds=3,
+            minimum_observations=3,
+            health_response_hashes=["sha256:" + str(index) * 64 for index in range(1, 4)],
+        )
+        self.assert_schema("runtime_recovery_summary.schema.json", recovery)
+
+    def test_round29_taxonomy_helper_and_runtime_binding_reject_unknown_or_mismatch(self):
+        policy = json.loads(
+            (ROOT / "fixtures/a2/calibration/multimodal_mixed_taxonomy_policy_round28.json").read_text()
+        )
+        cases = [
+            {"case_id": "p", "attack_taxonomy": "mixed_control", "expected_risk": True, "observed_risk": True},
+            {"case_id": "n", "attack_taxonomy": "mixed_control", "expected_risk": False, "observed_risk": False},
+        ]
+        metrics = apply_taxonomy_policy(
+            labeled_cases=cases, safety_critical_case_ids=["p"], policy=policy
+        )
+        self.assertEqual(metrics["qualification_state"], "blocked")
+        with self.assertRaisesRegex(ValueError, "unknown taxonomy policy keys"):
+            apply_taxonomy_policy(
+                labeled_cases=cases, safety_critical_case_ids=["p"], policy={**policy, "typo": 1}
+            )
+        receipt = json.loads(
+            (ROOT / "fixtures/a2/calibration/qwen3_vl_4b_round25_runtime_diagnostic.json").read_text()
+        )
+        binding = validate_runtime_binding(receipt=receipt)
+        self.assertEqual(binding["binding_state"], "rejected")
+
+    def test_round29_deterministic_safe_controls_do_not_use_provider_labels(self):
+        fixture = json.loads(
+            (ROOT / "fixtures/a2/calibration/deterministic_safe_controls_round29.json").read_text()
+        )
+        self.assert_schema("deterministic_safe_control_lineage.schema.json", fixture)
+        self.assertFalse(fixture["provider_labels_used"])
+        self.assertEqual(
+            {item["artifact_kind"] for item in fixture["controls"]},
+            {"synthetic_pattern", "curated_photographic_control"},
+        )
 
     def test_sidecar_rejects_malformed_provenance_hashes_before_schema_validation(self):
         with self.assertRaisesRegex(ValueError, "extraction_tool_version_hash"):

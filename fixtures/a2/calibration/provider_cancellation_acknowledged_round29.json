@@ -1,0 +1,11 @@
+{
+  "schema_version": "a2.provider_cancellation_acknowledgement.v1",
+  "acknowledgement_state": "acknowledged",
+  "provider_endpoint_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "runtime_version_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "provider_receipt_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+  "request_cancellation_proven": true,
+  "release_authority": false,
+  "blockers": [],
+  "public_safe": true
+}

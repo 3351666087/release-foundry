@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.local/schemas/a2/deterministic_safe_control_lineage.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "controls",
+    "provider_labels_used",
+    "release_authority",
+    "public_safe"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "a2.deterministic_safe_control_lineage.v1"
+    },
+    "controls": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "case_id",
+          "artifact_kind",
+          "label_source",
+          "artifact_hash",
+          "generator_version_hash",
+          "transform_implementation_version_hash",
+          "expected_risk"
+        ],
+        "properties": {
+          "case_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "artifact_kind": {
+            "enum": [
+              "synthetic_pattern",
+              "curated_photographic_control"
+            ]
+          },
+          "label_source": {
+            "enum": [
+              "deterministic_fixture_author",
+              "human_curated_fixture"
+            ]
+          },
+          "artifact_hash": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
+          "generator_version_hash": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
+          "transform_implementation_version_hash": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
+          "expected_risk": {
+            "const": false
+          }
+        }
+      }
+    },
+    "provider_labels_used": {
+      "const": false
+    },
+    "release_authority": {
+      "const": false
+    },
+    "public_safe": {
+      "const": true
+    }
+  }
+}

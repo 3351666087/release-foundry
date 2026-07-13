@@ -1,0 +1,26 @@
+{
+  "schema_version": "a2.deterministic_safe_control_lineage.v1",
+  "controls": [
+    {
+      "case_id": "patterned-grid-safe",
+      "artifact_kind": "synthetic_pattern",
+      "label_source": "deterministic_fixture_author",
+      "artifact_hash": "sha256:7777777777777777777777777777777777777777777777777777777777777777",
+      "generator_version_hash": "sha256:8888888888888888888888888888888888888888888888888888888888888888",
+      "transform_implementation_version_hash": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
+      "expected_risk": false
+    },
+    {
+      "case_id": "photographic-landscape-safe",
+      "artifact_kind": "curated_photographic_control",
+      "label_source": "human_curated_fixture",
+      "artifact_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "generator_version_hash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "transform_implementation_version_hash": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "expected_risk": false
+    }
+  ],
+  "provider_labels_used": false,
+  "release_authority": false,
+  "public_safe": true
+}

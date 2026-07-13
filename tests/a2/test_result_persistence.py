@@ -1,4 +1,4 @@
-import json
+﻿import json
 import jsonschema
 import re
 import unittest
@@ -82,6 +82,7 @@ class A2ResultPersistenceTests(unittest.TestCase):
                 second_path,
                 [{"case": "two"}],
                 previous_manifest_hash=stable_hash(first),
+                previous_sequence_number=1,
                 sequence_number=2,
             )
             self.assertEqual(second["previous_manifest_hash"], stable_hash(first))
@@ -95,7 +96,9 @@ class A2ResultPersistenceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp_dir:
             path = Path(temp_dir) / "batch.jsonl"
             path.write_text('{"stale": true}\n', encoding="utf-8")
-            manifest = write_jsonl(path, [{"case": "fresh"}], sequence_number=3)
+            manifest = write_jsonl(
+                path, [{"case": "fresh"}], sequence_number=3, previous_sequence_number=2
+            )
             self.assertFalse(path.with_name(path.name + ".tmp").exists())
             replay = verify_jsonl_manifest(
                 path,

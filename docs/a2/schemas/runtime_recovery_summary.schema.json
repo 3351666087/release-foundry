@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.local/schemas/a2/runtime_recovery_summary.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "observation_count",
+    "minimum_observations",
+    "p50_recovery_latency_seconds",
+    "p95_recovery_latency_seconds",
+    "maximum_recovery_latency_seconds",
+    "maximum_p95_recovery_latency_seconds",
+    "health_response_hashes",
+    "qualification_state",
+    "release_authority",
+    "blockers",
+    "public_safe"
+  ],
+  "properties": {
+    "observation_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "minimum_observations": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "p50_recovery_latency_seconds": {
+      "type": "number",
+      "minimum": 0
+    },
+    "p95_recovery_latency_seconds": {
+      "type": "number",
+      "minimum": 0
+    },
+    "maximum_recovery_latency_seconds": {
+      "type": "number",
+      "minimum": 0
+    },
+    "maximum_p95_recovery_latency_seconds": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "health_response_hashes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^sha256:[a-f0-9]{64}$"
+      }
+    },
+    "qualification_state": {
+      "enum": [
+        "blocked",
+        "review_available"
+      ]
+    },
+    "release_authority": {
+      "const": false
+    },
+    "blockers": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "public_safe": {
+      "const": true
+    }
+  }
+}

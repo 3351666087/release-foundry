@@ -1316,6 +1316,7 @@ def evaluate_cancellation_acknowledgement(
     acknowledgement_state: str,
     provider_endpoint_hash: str,
     runtime_version_hash: str,
+    provider_receipt_hash: str = "",
 ) -> dict[str, Any]:
     """Classify provider cancellation evidence without inventing acknowledgement."""
     allowed = {"acknowledged", "rejected", "unavailable"}
@@ -1327,16 +1328,20 @@ def evaluate_cancellation_acknowledgement(
     ):
         if _SHA256_REF.fullmatch(value) is None:
             raise ValueError(f"{name} must be a sha256 reference")
+    _require_optional_sha256_ref(provider_receipt_hash, field_name="provider_receipt_hash")
     blockers = {
         "acknowledged": [],
         "rejected": ["provider_cancellation_rejected"],
         "unavailable": ["provider_cancellation_acknowledgement_unavailable"],
     }[acknowledgement_state]
+    if acknowledgement_state == "acknowledged" and not provider_receipt_hash:
+        blockers.append("provider_cancellation_receipt_missing")
     return {
         "acknowledgement_state": acknowledgement_state,
         "provider_endpoint_hash": provider_endpoint_hash,
         "runtime_version_hash": runtime_version_hash,
-        "request_cancellation_proven": acknowledgement_state == "acknowledged",
+        "provider_receipt_hash": provider_receipt_hash,
+        "request_cancellation_proven": acknowledgement_state == "acknowledged" and not blockers,
         "release_authority": False,
         "blockers": blockers,
         "public_safe": True,
@@ -1344,22 +1349,78 @@ def evaluate_cancellation_acknowledgement(
 
 
 def summarize_runtime_recoveries(
-    *, recovery_latency_seconds: list[float], maximum_p95_seconds: float
+    *,
+    recovery_latency_seconds: list[float],
+    maximum_p95_seconds: float,
+    minimum_observations: int = 1,
+    health_response_hashes: list[str] | None = None,
 ) -> dict[str, Any]:
     if not recovery_latency_seconds or any(value < 0 for value in recovery_latency_seconds):
         raise ValueError("recovery latencies must be non-empty and non-negative")
     if maximum_p95_seconds <= 0:
         raise ValueError("maximum p95 recovery latency must be positive")
+    if minimum_observations < 1:
+        raise ValueError("minimum observations must be positive")
+    health_response_hashes = list(health_response_hashes or [])
+    for value in health_response_hashes:
+        if _SHA256_REF.fullmatch(value) is None:
+            raise ValueError("health response hashes must be sha256 references")
     ordered = sorted(recovery_latency_seconds)
+    p50 = ordered[max(0, math.ceil(len(ordered) * 0.50) - 1)]
     p95 = ordered[max(0, math.ceil(len(ordered) * 0.95) - 1)]
     blockers = [] if p95 <= maximum_p95_seconds else ["runtime_recovery_p95_exceeded"]
+    if len(ordered) < minimum_observations:
+        blockers.append("runtime_recovery_minimum_observations_not_met")
+    if len(health_response_hashes) != len(ordered):
+        blockers.append("runtime_recovery_health_hash_coverage_not_met")
     return {
         "observation_count": len(ordered),
+        "minimum_observations": minimum_observations,
+        "p50_recovery_latency_seconds": p50,
         "p95_recovery_latency_seconds": p95,
+        "maximum_recovery_latency_seconds": ordered[-1],
+        "health_response_hashes": health_response_hashes,
         "maximum_p95_recovery_latency_seconds": maximum_p95_seconds,
         "qualification_state": "review_available" if not blockers else "blocked",
         "release_authority": False,
         "blockers": blockers,
+        "public_safe": True,
+    }
+
+
+def apply_taxonomy_policy(
+    *, labeled_cases: list[dict[str, Any]], safety_critical_case_ids: list[str], policy: dict[str, Any]
+) -> dict[str, Any]:
+    allowed = {
+        "schema_version", "minimum_positive_denominators", "minimum_negative_denominators",
+        "minimum_recall_wilson_lower", "minimum_specificity_wilson_lower",
+        "release_authority", "public_safe",
+    }
+    unknown = sorted(set(policy) - allowed)
+    if unknown:
+        raise ValueError(f"unknown taxonomy policy keys: {unknown}")
+    return evaluate_multimodal_safety_metrics(
+        labeled_cases=labeled_cases,
+        safety_critical_case_ids=safety_critical_case_ids,
+        taxonomy_minimum_positive_denominators=policy.get("minimum_positive_denominators"),
+        taxonomy_minimum_negative_denominators=policy.get("minimum_negative_denominators"),
+        taxonomy_minimum_recall_wilson_lower=policy.get("minimum_recall_wilson_lower"),
+        taxonomy_minimum_specificity_wilson_lower=policy.get("minimum_specificity_wilson_lower"),
+    )
+
+
+def validate_runtime_binding(*, receipt: dict[str, Any]) -> dict[str, Any]:
+    fields = {
+        key: receipt.get(key)
+        for key in ("provider_id", "model_id", "model_version", "request_hash", "runtime_environment_hash")
+    }
+    observed = stable_hash(fields)
+    matched = hmac.compare_digest(observed, str(receipt.get("runtime_binding_hash") or ""))
+    return {
+        "computed_runtime_binding_hash": observed,
+        "binding_state": "matched" if matched else "rejected",
+        "release_authority": False,
+        "blockers": [] if matched else ["runtime_binding_hash_mismatch"],
         "public_safe": True,
     }
 

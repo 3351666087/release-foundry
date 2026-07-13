@@ -1,0 +1,43 @@
+{
+  "schema_version": "a2.known_cache_inventory.v1",
+  "entries": [
+    {
+      "path": "C:\\Users\\Kaylee\\AppData\\Local\\pip\\Cache",
+      "exists": true,
+      "scope": "known_cache_directory",
+      "size_bytes": null,
+      "measurement_state": "not_recursively_measured"
+    },
+    {
+      "path": "C:\\Users\\Kaylee\\.cache\\huggingface",
+      "exists": false,
+      "scope": "known_cache_directory",
+      "size_bytes": null,
+      "measurement_state": "not_recursively_measured"
+    },
+    {
+      "path": "D:\\Ashr\\cache\\pip",
+      "exists": false,
+      "scope": "known_cache_directory",
+      "size_bytes": null,
+      "measurement_state": "not_recursively_measured"
+    },
+    {
+      "path": "D:\\Ashr\\cache\\huggingface",
+      "exists": false,
+      "scope": "known_cache_directory",
+      "size_bytes": null,
+      "measurement_state": "not_recursively_measured"
+    },
+    {
+      "path": "D:\\Ashr\\cache\\ollama-models",
+      "exists": false,
+      "scope": "known_cache_directory",
+      "size_bytes": null,
+      "measurement_state": "not_recursively_measured"
+    }
+  ],
+  "credentials_scanned": false,
+  "files_modified": false,
+  "public_safe": true
+}

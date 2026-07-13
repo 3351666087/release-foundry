@@ -11,6 +11,10 @@
     "record_hashes",
     "previous_manifest_hash",
     "sequence_number",
+    "previous_sequence_number",
+    "writer_version",
+    "created_at",
+    "directory_fsync_state",
     "chain_hash",
     "public_safe"
   ],
@@ -51,6 +55,25 @@
     "sequence_number": {
       "type": "integer",
       "minimum": 1
+    },
+    "previous_sequence_number": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "writer_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "directory_fsync_state": {
+      "enum": [
+        "completed",
+        "not_exposed",
+        "failed"
+      ]
     }
   }
 }
