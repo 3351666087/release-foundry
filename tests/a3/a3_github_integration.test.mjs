@@ -10,12 +10,14 @@ import {
   buildGitHubActionWorkflowExample,
   buildGitHubCheckRunRequest,
   buildGitHubCheckReadbackReceipt,
+  buildGitHubRepositoryInstallationReadback,
   buildPrCommentUpsertPlan,
   buildPrCommentReadbackReceipt,
   buildRequiredCheckProof,
   publishGitHubCheckRun,
   publishPrCommentUpsert,
   readGitHubCheckRun,
+  readGitHubRepositoryInstallation,
   readPrCommentReadback,
   readRequiredCheckProof
 } from "../../services/report/a3_github_integration.mjs";
@@ -887,4 +889,134 @@ test("A3 live-shaped required-check proof distinguishes permission denied from e
   assert.equal(proof.enforced, false);
   assert.equal(proof.plan_only_must_not_claim_enforcement, true);
   assert.doesNotMatch(JSON.stringify(proof), /rt_secret|Authorization|Bearer/);
+});
+
+test("A3 GitHub App installation readback confirms repository binding and sanitizes identity", () => {
+  const readback = buildGitHubRepositoryInstallationReadback({
+    repo: "acme/refund-agent",
+    expectedAppSlug: "ashr-enterprise",
+    expectedAppId: 12345,
+    expectedInstallationAlias: "7001",
+    installation: {
+      id: 7001,
+      app_id: 12345,
+      app_slug: "ashr-enterprise",
+      target_type: "Organization",
+      repository_selection: "selected",
+      permissions: {
+        checks: "write",
+        contents: "read",
+        unsafe: "Bearer rt_secret"
+      },
+      events: ["pull_request", "check_run", "invalid event!"],
+      suspended_at: null,
+      created_at: "2026-07-13T00:00:00Z",
+      updated_at: "2026-07-13T00:01:00Z",
+      account: {
+        login: "private-owner",
+        email: "reviewer@example.com"
+      },
+      access_tokens_url: "https://api.github.com/app/installations/7001/access_tokens"
+    },
+    httpStatus: 200,
+    githubRequestId: "install:readback:1",
+    checkedAt: "2026-07-13T00:02:00Z"
+  });
+
+  assert.equal(readback.schema_version, "a3.github_repository_installation_readback.v1");
+  assert.equal(readback.readback_status, "readback_confirmed");
+  assert.equal(readback.repository_bound, true);
+  assert.equal(readback.identity_matches, true);
+  assert.deepEqual(readback.observed.permissions, { checks: "write", contents: "read" });
+  assert.deepEqual(readback.observed.events, ["check_run", "pull_request"]);
+  assert.equal(readback.safety.account_login_stored, false);
+  assert.equal(readback.safety.raw_installation_token_stored, false);
+  assert.doesNotMatch(JSON.stringify(readback), /rt_secret|private-owner|reviewer@example\.com|access_tokens_url/);
+});
+
+test("A3 live GitHub App installation readback preserves permission and missing states", async () => {
+  const statuses = [
+    { httpStatus: 403, expectedStatus: "permission_denied" },
+    { httpStatus: 404, expectedStatus: "missing" }
+  ];
+
+  for (const item of statuses) {
+    const readback = await readGitHubRepositoryInstallation({
+      repo: "acme/refund-agent",
+      expectedAppSlug: "ashr-enterprise",
+      dryRun: false,
+      token: "rt_secret",
+      fetchImpl: async () => new Response(JSON.stringify({
+        message: `Bearer rt_secret unavailable for reviewer@example.com`
+      }), { status: item.httpStatus })
+    });
+
+    assert.equal(readback.readback_status, item.expectedStatus);
+    assert.equal(readback.repository_bound, false);
+    assert.equal(readback.identity_matches, false);
+    assert.equal(readback.sanitized_error_class, item.expectedStatus);
+    assert.doesNotMatch(JSON.stringify(readback), /rt_secret|reviewer@example\.com|Authorization|Bearer/);
+  }
+});
+
+test("A3 live GitHub read paths reject untrusted API origins before transport", async () => {
+  let fetchCalls = 0;
+  const fetchImpl = async () => {
+    fetchCalls += 1;
+    throw new Error("transport must not run");
+  };
+  const checkReceipt = {
+    posted: true,
+    dry_run: false,
+    request: {
+      repo: { owner: "acme", repo: "refund-agent" },
+      body: { name: "Ashr++ Release Gate", head_sha: "abc123", conclusion: "success" }
+    },
+    check_run: { id: 9001 }
+  };
+  const commentReceipt = {
+    posted: true,
+    dry_run: false,
+    plan: {
+      repo: { owner: "acme", repo: "refund-agent" },
+      pull_number: 17,
+      marker: "<!-- ashr-plus-plus:release-gate:abc123 -->",
+      request: { body: { body: "release gate" } }
+    }
+  };
+  const requiredCheckPlan = buildBranchProtectionRequiredCheckPlan({
+    repo: "acme/refund-agent",
+    branch: "main"
+  });
+  requiredCheckPlan.inspect_current.url = "https://attacker.example/repos/acme/refund-agent/branches/main/protection/required_status_checks";
+
+  await assert.rejects(readGitHubCheckRun(checkReceipt, {
+    repo: "acme/refund-agent",
+    dryRun: false,
+    token: "rt_secret",
+    apiBaseUrl: "https://attacker.example",
+    fetchImpl
+  }), /server-approved HTTPS API origin/);
+  await assert.rejects(readPrCommentReadback(commentReceipt, {
+    repo: "acme/refund-agent",
+    pullNumber: 17,
+    dryRun: false,
+    token: "rt_secret",
+    apiBaseUrl: "https://attacker.example",
+    fetchImpl
+  }), /server-approved HTTPS API origin/);
+  await assert.rejects(readRequiredCheckProof(requiredCheckPlan, {
+    dryRun: false,
+    token: "rt_secret",
+    fetchImpl
+  }), /server-approved HTTPS API origin/);
+  await assert.rejects(readGitHubRepositoryInstallation({
+    repo: "acme/refund-agent",
+    dryRun: false,
+    token: "rt_secret",
+    apiBaseUrl: "http://api.github.com",
+    fetchImpl
+  }), /server-approved HTTPS API origin/);
+
+  assert.equal(fetchCalls, 0);
 });

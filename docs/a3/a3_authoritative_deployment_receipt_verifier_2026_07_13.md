@@ -167,3 +167,17 @@ Production verified receipts: 0
    和新的 run-specific Audit Bundle。
 
 封存的 rc.2 bundle、archive、manifest 和 authority 结论没有被修改。
+
+## 10. Post-seal GitHub resolver 校准
+
+本轮之后，九类 blocker 中的 GitHub 两类已经接到真实只读 provider readback：
+
+- `github_app_installation`：读取 repository installation 与 Check App identity，并
+  要求 A1 tenant-installation binding receipt；
+- `required_check_enforcement`：读取 main required status checks，并要求
+  failing-merge denial 与 maintainer policy receipt。
+
+2026-07-13 对 PR #35 head `8d82fd4` 的真实校准得到：Check 为
+`github-actions`，repository installation 回读 HTTP 401，main required-check 回读
+HTTP 404。resolver 因此保持可信拒绝，不增加生产验证计数。详细记录见
+`docs/a3/a3_github_deployment_resolver_calibration_2026_07_13.md`。

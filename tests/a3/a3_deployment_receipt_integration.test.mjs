@@ -6,6 +6,10 @@ import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 
 import { A3_DEPLOYMENT_RECEIPT_AUTHORITATIVE_READBACK_SCHEMA_VERSION } from "../../services/report/a3_deployment_receipt_workflow.mjs";
+import {
+  captureA3GitHubDeploymentEvidence,
+  createA3GitHubDeploymentReceiptResolver
+} from "../../services/report/a3_github_deployment_receipt_resolver.mjs";
 import { startA3ApiServer } from "../../services/report/a3_api_server.mjs";
 import { A3_RBAC_ROLES } from "../../services/report/a3_auth_rbac_boundary.mjs";
 import { createSqliteA3Store } from "../../services/report/a3_sqlite_store.mjs";
@@ -356,6 +360,102 @@ test("authoritative verification API is service-account-only and never consumes 
     assert.equal(resolverCalls, 1);
   } finally {
     await new Promise((resolve) => demoServer.server.close(resolve));
+  }
+});
+
+test("server GitHub resolver persists a real provider rejection through the internal verify route", async () => {
+  const store = await createFixtureBackedA3Store({ sources: [source] });
+  const dashboard = await store.getDashboardSnapshot(source);
+  const expected = dashboard.deployment_handoff.candidate_binding.expected;
+  const fetchImpl = async (url) => {
+    if (url.endsWith("/installation")) {
+      return new Response(JSON.stringify({ message: "Not Found for owner@example.com" }), { status: 404 });
+    }
+    if (url.includes("/check-runs/")) {
+      return new Response(JSON.stringify({
+        id: 9001,
+        name: "A3 golden path release artifact",
+        status: "completed",
+        conclusion: "success",
+        head_sha: expected.candidate_sha_alias,
+        app: { id: 15368, slug: "github-actions", owner: { type: "Organization", login: "private-owner" } }
+      }), { status: 200 });
+    }
+    throw new Error(`Unexpected GitHub URL: ${url}`);
+  };
+  const resolverOptions = {
+    repo: "acme/refund-agent",
+    branch: "main",
+    checkName: "A3 golden path release artifact",
+    checkRunId: 9001,
+    headSha: expected.candidate_sha_alias,
+    expectedAppSlug: "ashr-enterprise",
+    expectedTenantScope: scope,
+    expectedCandidateId: expected.candidate_sha_alias,
+    expectedRunId: expected.run_id,
+    token: "rt_secret",
+    fetchImpl,
+    checkedAt: "2026-07-13T08:00:00.000Z",
+    verifiedAt: "2026-07-13T08:00:01.000Z"
+  };
+  const evidence = await captureA3GitHubDeploymentEvidence("github_app_installation", resolverOptions);
+  const submitted = await store.submitDeploymentReceipt({
+    blocker_id: "github_app_installation",
+    candidate_id: expected.candidate_sha_alias,
+    run_id: expected.run_id,
+    evidence_ref: "receipt:github-app:calibration-001",
+    evidence_sha256: evidence.evidence_sha256,
+    evidence_kind: "github_app_installation_receipt",
+    verifier_class: "github_api_readback",
+    captured_at: "2026-07-13T08:00:00.000Z",
+    selectors: {
+      installation_alias: "not-observed",
+      app_slug: "ashr-enterprise"
+    }
+  }, {
+    source,
+    idempotencyKey: "github-provider-rejection-submit"
+  });
+  const acknowledged = await store.reviewDeploymentReceipt(submitted.receipt_id, {
+    action: "acknowledge",
+    reason_code: "metadata_complete",
+    expected_version: 1
+  }, {
+    source,
+    idempotencyKey: "github-provider-rejection-review"
+  });
+  const resolver = createA3GitHubDeploymentReceiptResolver(resolverOptions);
+  const { server, url } = await startA3ApiServer({
+    store,
+    routeAccessMode: "hosted_enforced",
+    resolveTrustedPrincipal: async () => trustedPrincipal("service_account"),
+    resolveAuthoritativeDeploymentReceipt: resolver
+  });
+
+  try {
+    const response = await fetch(`${url}/internal/a3/deployment/receipts/${submitted.receipt_id}/verify?source=${source}`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "idempotency-key": "github-provider-rejection-verify" },
+      body: JSON.stringify({ source, expected_version: acknowledged.version })
+    });
+    assert.equal(response.status, 200);
+    const readback = await response.json();
+    assert.equal(readback.verification_status, "rejected");
+    assert.equal(readback.reason_code, "policy_not_satisfied");
+    assert.equal(readback.production_verified, false);
+    assert.equal(readback.claims.tenant_installation_bound, false);
+    assert.equal(readback.claims.repository_bound, false);
+    assert.equal(readback.claims.check_identity_verified, false);
+
+    const after = await store.getDashboardSnapshot(source);
+    assert.equal(after.deployment_receipt_inbox.authoritative_readback_count, 1);
+    assert.equal(after.deployment_receipt_inbox.production_verified_count, 0);
+    assert.equal(after.deployment_acceptance.summary.passed, 8);
+    assert.equal(after.deployment_acceptance_projection.summary.projected_passed, 8);
+    assert.equal(after.event_outbox.event_type_counts["deployment.receipt_authoritatively_rejected"], 1);
+    assert.doesNotMatch(JSON.stringify(after.deployment_receipt_inbox), /rt_secret|private-owner|owner@example\.com|Authorization|Bearer/);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
   }
 });
 

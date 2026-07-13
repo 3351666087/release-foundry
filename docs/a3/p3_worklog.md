@@ -3952,3 +3952,17 @@ Safety boundary:
 - CI now verifies and uploads the immutable `ad6113e` candidate packet instead of regenerating it from a later evidence commit; standalone Release Artifact verification is available through `--verify-manifest`.
 - The first Linux sealed-packet verification correctly caught a Windows CRLF versus Git LF byte mismatch in the generated A2 grade fixture. The fixture was normalized to the existing repository LF policy and the full hash/signature chain was resealed; no verifier rule was weakened.
 - No key, token, cookie, email, installation token, private signing key, or raw GitHub response was persisted.
+
+## 2026-07-13 - Live GitHub Deployment Resolver Calibration
+
+- Extended the read-only GitHub observer with repository installation identity readback.
+- Added server-fixed GitHub resolver implementations for `github_app_installation` and `required_check_enforcement`.
+- Required A1 tenant-installation binding for GitHub App proof and separate hash-valid failing-merge plus maintainer receipts for required-check proof.
+- Read PR #35 head Check `86746616300`: HTTP 200, exact head/name/conclusion, App slug `github-actions`.
+- Read repository installation: HTTP 401 permission denied. This does not prove absence; it proves the current OAuth identity cannot establish repository binding.
+- Read main required status checks: HTTP 404 and `enforced=false`.
+- Saved three sanitized provider fixtures and one post-seal calibration summary under `fixtures/a3/p3`.
+- Proved through the internal HTTP verify route that provider mismatch becomes a persisted trusted rejection while Deployment Acceptance remains `8/17` and production verified receipts remain `0`.
+- No GitHub mutation, merge attempt, branch-protection update, token output, A2 recomputation, or sealed rc.2 rewrite occurred.
+- Final verification passed A3 Node `449/449`, merged-main A2 `186/186` plus `1050` subtests, Next.js typecheck/build with 15 static pages, the full Playwright command plus an isolated `1/1` visual retry, both CL guards, both production npm audits, pinned evidence, and all sealed rc.2 verifiers.
+- Post-verification fetch kept main at `ccf6ce5` and A1 Draft at `2307231`; A2 development moved to `d31aaab`. Its new multimodal/provider/persistence schemas remain non-authoritative calibration and explicitly do not supply the same-candidate Trusted Spine A3 needs.

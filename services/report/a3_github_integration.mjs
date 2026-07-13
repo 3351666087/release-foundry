@@ -309,6 +309,78 @@ export function buildRequiredCheckProof(plan = {}, options = {}) {
   };
 }
 
+export function buildGitHubRepositoryInstallationReadback(options = {}) {
+  const repo = normalizeRepo(options.repo);
+  if (!repo.owner || !repo.repo) {
+    throw new Error("repo must be in owner/name form for GitHub App installation readback.");
+  }
+  const observed = sanitizeRepositoryInstallation(options.installation || {});
+  const expected = {
+    repo: `${repo.owner}/${repo.repo}`,
+    app_slug: options.expectedAppSlug || null,
+    app_id_alias: numberOrNull(options.expectedAppId),
+    installation_id_alias: normalizeIdentifierAlias(options.expectedInstallationAlias)
+  };
+  const matches = {
+    app_slug: expected.app_slug
+      ? Boolean(observed.app_slug) && expected.app_slug === observed.app_slug
+      : null,
+    app_id: expected.app_id_alias
+      ? Boolean(observed.app_id_alias) && expected.app_id_alias === observed.app_id_alias
+      : null,
+    installation_id: expected.installation_id_alias
+      ? Boolean(observed.installation_id_alias) && expected.installation_id_alias === observed.installation_id_alias
+      : null
+  };
+  const httpStatus = numberOrNull(options.httpStatus);
+  let readbackStatus = options.readbackStatus || "generated";
+  if (!options.readbackStatus) {
+    if (httpStatus === 401 || httpStatus === 403) readbackStatus = "permission_denied";
+    else if (httpStatus === 404) readbackStatus = "missing";
+    else if (httpStatus && httpStatus >= 400) readbackStatus = "failed";
+    else if (observed.installation_id_alias) readbackStatus = "readback_confirmed";
+    else if (httpStatus && httpStatus >= 200 && httpStatus < 400) readbackStatus = "missing";
+  }
+  const comparedIdentityFields = Object.values(matches).filter((value) => value !== null);
+  const identityMatches = comparedIdentityFields.length > 0
+    && comparedIdentityFields.every((value) => value === true);
+  const repositoryBound = readbackStatus === "readback_confirmed"
+    && Boolean(observed.installation_id_alias)
+    && observed.suspended === false;
+  const payloadForHash = {
+    expected,
+    observed,
+    matches,
+    readback_status: readbackStatus,
+    repository_bound: repositoryBound,
+    http_status: httpStatus
+  };
+  return {
+    schema_version: "a3.github_repository_installation_readback.v1",
+    provider: "github",
+    resource_kind: "github_app_installation",
+    readback_id: `ghirb_${sha256(stableJson(payloadForHash)).slice(0, 16)}`,
+    readback_status: readbackStatus,
+    readback_confirmed: readbackStatus === "readback_confirmed",
+    repository_bound: repositoryBound,
+    identity_matches: identityMatches,
+    http_status: httpStatus,
+    github_request_id: sanitizeGitHubRequestId(options.githubRequestId),
+    expected,
+    observed,
+    matches,
+    sanitized_error_class: errorClassForReadback(readbackStatus, options.errorMessage),
+    payload_hash: sha256(stableJson(payloadForHash)),
+    checked_at: options.checkedAt || null,
+    safety: {
+      ...readbackSafety(options),
+      account_login_stored: false,
+      raw_installation_token_stored: false,
+      repository_target_server_fixed: true
+    }
+  };
+}
+
 export async function readGitHubCheckRun(publishReceipt = {}, options = {}) {
   if (options.dryRun !== false) {
     return buildGitHubCheckReadbackReceipt(publishReceipt, {
@@ -332,7 +404,9 @@ export async function readGitHubCheckRun(publishReceipt = {}, options = {}) {
   if (typeof fetchImpl !== "function") {
     throw new Error("fetch implementation is required for GitHub check readback.");
   }
-  const response = await githubFetch(fetchImpl, `${apiBaseUrl(options)}/repos/${repo.owner}/${repo.repo}/check-runs/${checkRunId}`, {
+  const url = `${apiBaseUrl(options)}/repos/${repo.owner}/${repo.repo}/check-runs/${checkRunId}`;
+  assertTrustedLiveGitHubUrl(url, options);
+  const response = await githubFetch(fetchImpl, url, {
     method: "GET",
     token,
     githubApiVersion: options.githubApiVersion
@@ -371,6 +445,7 @@ export async function readPrCommentReadback(publishReceipt = {}, options = {}) {
     throw new Error("fetch implementation is required for GitHub PR comment readback.");
   }
   const url = plan.find_existing?.url || `${apiBaseUrl(options)}/repos/${repo.owner}/${repo.repo}/issues/${pullNumber}/comments`;
+  assertTrustedLiveGitHubUrl(url, options);
   const response = await githubFetch(fetchImpl, url, {
     method: "GET",
     token,
@@ -406,6 +481,7 @@ export async function readRequiredCheckProof(plan = {}, options = {}) {
     throw new Error("fetch implementation is required for required-check readback.");
   }
   const url = plan.inspect_current?.url || `${apiBaseUrl(options)}/repos/${repo.owner}/${repo.repo}/branches/${encodeURIComponent(branch)}/protection/required_status_checks`;
+  assertTrustedLiveGitHubUrl(url, options);
   const response = await githubFetch(fetchImpl, url, {
     method: "GET",
     token,
@@ -418,6 +494,42 @@ export async function readRequiredCheckProof(plan = {}, options = {}) {
     httpStatus: response.status,
     githubRequestId: response.requestId,
     branchProtection: response.ok ? response.json : null,
+    errorMessage: response.json?.message || response.statusText
+  });
+}
+
+export async function readGitHubRepositoryInstallation(options = {}) {
+  if (options.dryRun !== false) {
+    return buildGitHubRepositoryInstallationReadback({
+      ...options,
+      readbackStatus: "generated"
+    });
+  }
+  const repo = normalizeRepo(options.repo);
+  if (!repo.owner || !repo.repo) {
+    throw new Error("repo must be in owner/name form for GitHub App installation readback.");
+  }
+  const token = runtimeToken(options);
+  if (!token) {
+    throw new Error("GitHub token is required when dryRun is false.");
+  }
+  const fetchImpl = options.fetchImpl || globalThis.fetch;
+  if (typeof fetchImpl !== "function") {
+    throw new Error("fetch implementation is required for GitHub App installation readback.");
+  }
+  const url = `${apiBaseUrl(options)}/repos/${repo.owner}/${repo.repo}/installation`;
+  assertTrustedLiveGitHubUrl(url, options);
+  const response = await githubFetch(fetchImpl, url, {
+    method: "GET",
+    token,
+    githubApiVersion: options.githubApiVersion
+  });
+  return buildGitHubRepositoryInstallationReadback({
+    ...options,
+    repo: `${repo.owner}/${repo.repo}`,
+    httpStatus: response.status,
+    githubRequestId: response.requestId,
+    installation: response.ok ? response.json : null,
     errorMessage: response.json?.message || response.statusText
   });
 }
@@ -754,6 +866,32 @@ function sanitizeCheckRunResponse(value = {}) {
   };
 }
 
+function sanitizeRepositoryInstallation(value = {}) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+  const permissions = value.permissions && typeof value.permissions === "object" && !Array.isArray(value.permissions)
+    ? Object.fromEntries(Object.entries(value.permissions)
+        .filter(([key, permission]) => /^[a-z0-9_]{1,80}$/i.test(key) && ["read", "write", "admin", "none"].includes(String(permission)))
+        .sort(([left], [right]) => left.localeCompare(right)))
+    : {};
+  return {
+    installation_id_alias: normalizeIdentifierAlias(value.id),
+    app_id_alias: numberOrNull(value.app_id),
+    app_slug: value.app_slug || null,
+    target_type: value.target_type || value.target?.type || null,
+    repository_selection: value.repository_selection || null,
+    permissions,
+    events: Array.isArray(value.events)
+      ? value.events.map(String).filter((item) => /^[a-z0-9_]{1,80}$/i.test(item)).sort()
+      : [],
+    suspended: Boolean(value.suspended_at),
+    suspended_at: value.suspended_at || null,
+    created_at: value.created_at || null,
+    updated_at: value.updated_at || null
+  };
+}
+
 function sanitizeCommentResponse(value = {}) {
   if (!value || typeof value !== "object") {
     return null;
@@ -908,6 +1046,12 @@ function sanitizeRequiredCheckMatch(value = {}) {
     context: value.context || value.name || value.check_name || null,
     app_id: value.app_id ?? null
   };
+}
+
+function normalizeIdentifierAlias(value) {
+  if (value === undefined || value === null || value === "") return null;
+  const normalized = String(value);
+  return /^[A-Za-z0-9._:-]{1,160}$/.test(normalized) ? normalized : null;
 }
 
 function hasReleasePlan(plan = {}) {

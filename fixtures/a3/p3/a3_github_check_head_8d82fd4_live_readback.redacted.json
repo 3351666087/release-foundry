@@ -1,0 +1,65 @@
+{
+  "schema_version": "a3.github_check_readback_receipt.v1",
+  "provider": "github",
+  "resource_kind": "check_run",
+  "readback_id": "ghcrb_f48ef725a71d8a42",
+  "readback_status": "readback_confirmed",
+  "readback_confirmed": true,
+  "posted": true,
+  "stale": false,
+  "missing": false,
+  "deleted": false,
+  "http_status": 200,
+  "github_request_id": "C71E:28BEC9:1268C0B:1321479:6A548739",
+  "expected": {
+    "repo": "3351666087/ashr-codex-factory",
+    "check_run_id_alias": 86746616300,
+    "check_name": "A3 golden path release artifact",
+    "head_sha_alias": "8d82fd4f1a23032f796a6a2149f51732ef3abe7e",
+    "conclusion": "success",
+    "output_hash": null
+  },
+  "observed": {
+    "check_run_id_alias": 86746616300,
+    "check_name": "A3 golden path release artifact",
+    "status": "completed",
+    "conclusion": "success",
+    "head_sha_alias": "8d82fd4f1a23032f796a6a2149f51732ef3abe7e",
+    "html_url": "https://github.com/3351666087/ashr-codex-factory/actions/runs/29228168075/job/86746616300",
+    "details_url": "https://github.com/3351666087/ashr-codex-factory/actions/runs/29228168075/job/86746616300",
+    "output_title": null,
+    "output_hash": null,
+    "app_id_alias": 15368,
+    "app_slug": "github-actions",
+    "app_owner_type": "Organization",
+    "started_at": "2026-07-13T06:10:17Z",
+    "completed_at": "2026-07-13T06:10:27Z"
+  },
+  "matches": {
+    "check_run_id": true,
+    "name": true,
+    "head_sha": true,
+    "conclusion": true,
+    "output_hash": null
+  },
+  "sanitized_error_class": null,
+  "payload_hash": "f48ef725a71d8a42d84e076cf2b50cb22a157f29a7cef6d748edc19e5f4cc653",
+  "checked_at": "2026-07-13T06:35:36.176Z",
+  "safety": {
+    "token_included": false,
+    "token_source": "provided_runtime_option",
+    "response_body_sanitized": true,
+    "raw_body_stored": false,
+    "secret_values_allowed": false,
+    "live_mutation_performed": false
+  },
+  "calibration": {
+    "live_readback": true,
+    "authority_class": "github_actions_app",
+    "expected_head_sha_alias": "8d82fd4f1a23032f796a6a2149f51732ef3abe7e",
+    "expected_app_slug": null,
+    "tenant_binding_receipt_present": false,
+    "custom_tenant_github_app_proven": false,
+    "observed_via_read_only_api": true
+  }
+}

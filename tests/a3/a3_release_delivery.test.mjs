@@ -305,9 +305,17 @@ test("delivery and GitHub observer argument parsers keep live tokens in environm
   const observe = parseGitHubObserveArgs([
     "--repo", "acme/repo",
     "--check-run-id", "123",
+    "--expected-app-slug", "ashr-enterprise",
+    "--expected-app-id", "12345",
+    "--expected-installation-alias", "installation-001",
+    "--output-installation", "installation.json",
     "--token-env", "TENANT_GITHUB_TOKEN"
   ]);
   assert.equal(observe.checkRunId, 123);
+  assert.equal(observe.expectedAppSlug, "ashr-enterprise");
+  assert.equal(observe.expectedAppId, 12345);
+  assert.equal(observe.expectedInstallationAlias, "installation-001");
+  assert.equal(observe.outputInstallation, "installation.json");
   assert.equal(observe.tokenEnvName, "TENANT_GITHUB_TOKEN");
   assert.equal(Object.hasOwn(observe, "token"), false);
 });

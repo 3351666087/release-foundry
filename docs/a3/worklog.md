@@ -6924,3 +6924,20 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
 - Reverified sealed rc.2 Audit Bundle `15/15` plus `7/7` custody events, signed archive `16/16` with valid Ed25519 signature, and Release Artifact manifest hash `8f84c5e3d4f064ae5d042b0f8ef72f2a3fb4d7ae06eb0a7d4dea01dc113d5a2f`.
 - Refreshed GitHub references successfully. `origin/main` remains `ccf6ce5` and is an ancestor of this branch; A1 Draft remains `2307231`; A2 development moved to `19e6880` but was inspected only as non-main calibration evidence and was not promoted into current authority.
 - The sealed rc.2 bundle, signed archive, Release Artifact manifest, and hashed release inputs were not rewritten.
+
+## 2026-07-13 - GitHub App And Required-check Resolver Closure
+
+- Added a sanitized repository installation readback and protected every live GitHub read path with a server-approved HTTPS origin check.
+- Added `a3_github_deployment_receipt_resolver.mjs` for the GitHub App and required-check Deployment Handoff blockers.
+- Bound resolver output to server-fixed repo/branch/check/App/candidate/Run/five-level scope and canonical evidence SHA-256.
+- A GitHub App can pass only with provider installation readback, matching Check App identity, and a hash-valid A1 tenant binding receipt.
+- Required-check enforcement can pass only with branch-policy readback, a hash-valid failing-merge denial, and a hash-valid maintainer approval receipt.
+- Real read-only calibration of PR #35 head `8d82fd4` confirmed Check `86746616300` is successful but owned by `github-actions`; installation readback returned HTTP 401; main required-check returned HTTP 404.
+- Those facts remain rejected/not proven. Golden Path stays `7/11`, Deployment Acceptance stays `8/17`, current authority stays `integrity_invalid`, current A2 decision stays `unknown`, historical decision stays `block`, and production verified receipt count stays `0`.
+- Focused resolver, integration, observer, Store, API, and release tests passed before the final regression run.
+- No token, cookie, email, account login, raw response, local path, or secret was persisted; no GitHub mutation or sealed rc.2 rewrite occurred.
+- Final A3 Node regression passed `449/449`; merged-main A2 passed `186/186` plus `1050` subtests.
+- Next.js TypeScript and production build passed with 15 static pages. The full 38-test Playwright command completed successfully; its one retried visual case then passed independently `1/1`.
+- CL hygiene passed with no findings; Commercial CL passed with 0 blockers and 0 advisories; root and Webapp production npm audits reported 0 vulnerabilities.
+- Pinned evidence passed `11/11`; sealed rc.2 bundle passed `15/15` plus custody `7/7`; archive passed `16/16` with valid Ed25519 signature; release manifest hash remained `8f84c5e3d4f064ae5d042b0f8ef72f2a3fb4d7ae06eb0a7d4dea01dc113d5a2f`.
+- Final fetch kept authoritative `origin/main` at `ccf6ce5` and A1 Draft at `2307231`. A2 development advanced to `d31aaab`; its multimodal runtime, provider receipt, JSONL, and PostgreSQL qualification additions were inspected as non-main calibration only. That branch still defers a same-candidate Trusted Spine, so A3 did not merge it or change current authority.

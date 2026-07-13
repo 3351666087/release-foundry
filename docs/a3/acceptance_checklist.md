@@ -1318,5 +1318,11 @@
 - [x] Pass Next.js typecheck/build with 15 static pages and Playwright `38/38` plus the strengthened focused E2E `1/1`.
 - [x] Pass CL hygiene, Commercial CL, both production npm audits, and `git diff --check`.
 - [x] Reverify rc.2 bundle `15/15`, custody `7/7`, archive `16/16`, Ed25519 signature, and Release manifest without rewriting sealed inputs.
+- [x] Connect the GitHub App and required-check resolver classes to live read-only GitHub API state.
+- [x] Preserve installation HTTP 401, main policy HTTP 404, and `github-actions` identity as trusted rejection evidence.
+- [x] Prove the internal HTTP verify route persists the rejected readback without changing `8/17` or production receipt count `0`.
+- [x] Pass final A3 `449/449`, A2 `186/186` plus `1050` subtests, Next.js build, Playwright, CL, audits, and sealed rc.2 verification.
 - [ ] Connect all nine resolver classes to real external services and collect real receipts.
+- [ ] Obtain an A1 tenant-installation binding receipt and a Check published by the tenant custom GitHub App.
+- [ ] Obtain maintainer-approved main policy and failing-merge denial receipts.
 - [ ] Rebuild and reseal Deployment Acceptance only after same-candidate A1/A2/A3 evidence exists.

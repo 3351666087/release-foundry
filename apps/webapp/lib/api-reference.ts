@@ -494,12 +494,16 @@ export const apiEndpoints: ApiEndpoint[] = [
       schema_version: "a3.deployment_receipt_authoritative_readback.v1",
       readback_id: "dprv_example",
       receipt_id: "dpr_example",
-      verification_status: "verified",
-      production_verified: true,
-      binding_validation: { all_passed: true },
+      blocker_id: "github_app_installation",
+      verification_status: "rejected",
+      reason_code: "policy_not_satisfied",
+      production_verified: false,
+      claims: { tenant_installation_bound: false, repository_bound: false, check_identity_verified: false },
+      binding_validation: { all_passed: true, required_claims: false },
       safety: { trusted_server_resolver: true, client_supplied_verification_result_used: false }
     },
     notes: [
+      { zh: "GitHub App 与 required-check resolver 已接入只读真实回读；401、404、github-actions 身份或外部权威回执缺失都会形成可信 rejected，而不是伪造通过。", en: "GitHub App and required-check resolvers now use live read-only provider state; 401, 404, github-actions identity, or missing authority receipts produce a trusted rejection." },
       { zh: "该 readback 只进入只读 Acceptance projection；仍需重建并重新封存正式 Deployment Acceptance。", en: "The readback enters a read-only acceptance projection; the formal Deployment Acceptance must still be rebuilt and resealed." }
     ]
   },
