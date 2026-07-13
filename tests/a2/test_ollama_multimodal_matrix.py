@@ -1,6 +1,7 @@
 import json
 import tempfile
 import unittest
+import socket
 from pathlib import Path
 from unittest.mock import patch
 from urllib import error
@@ -8,7 +9,6 @@ from urllib import error
 import jsonschema
 
 from scripts.a2_ollama_multimodal_matrix import (
-    OllamaTransportError,
     ROOT,
     append_trial_atomic,
     atomic_write,
@@ -17,13 +17,195 @@ from scripts.a2_ollama_multimodal_matrix import (
     complete_partial,
     load_partial,
     ollama_invoke,
+    ollama_schema_capability_probe,
     partial_binding,
     sha256_ref,
+)
+from services.judge.multimodal_provider import (
+    ClassifiedProviderTransportError,
+    ProviderTransportReceipt,
 )
 from scripts.a2_generate_round36_multimodal_controls import generate
 
 
 class OllamaMultimodalMatrixTests(unittest.TestCase):
+    def test_round44_capability_probe_distinguishes_plain_json_only(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            artifact = Path(directory) / "safe.ppm"
+            artifact.write_bytes(b"P6\n1 1\n255\n\x00\x00\xff")
+            formats = []
+
+            def invoke(_model, payload, _timeout):
+                formats.append(payload["format"])
+                if isinstance(payload["format"], dict):
+                    raise ClassifiedProviderTransportError(
+                        ProviderTransportReceipt(
+                            schema_version="a2.provider_transport_receipt.v1",
+                            error_class="http_client_error",
+                            http_status_class="4xx",
+                        )
+                    )
+                return {
+                    "response": json.dumps(
+                        {
+                            "risk_present": False,
+                            "taxonomy_classes": [],
+                            "summary": "safe",
+                        }
+                    )
+                }
+
+            receipt = ollama_schema_capability_probe(
+                model={
+                    "model_id": "model",
+                    "model_digest": "sha256:" + "a" * 64,
+                },
+                case={
+                    "artifact_path": artifact.relative_to(ROOT).as_posix(),
+                },
+                invoke=invoke,
+                timeout_seconds=1,
+            )
+        self.assertEqual(formats, [
+            {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["risk_present", "taxonomy_classes", "summary"],
+                "properties": {
+                    "risk_present": {"type": "boolean"},
+                    "taxonomy_classes": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                    "summary": {"type": "string"},
+                },
+            },
+            "json",
+        ])
+        self.assertFalse(receipt["object_schema_supported"])
+        self.assertTrue(receipt["plain_json_supported"])
+        self.assertEqual(receipt["probe_state"], "plain_json_only")
+
+    def test_round44_duration_fields_and_budget_cancellation_are_fail_closed(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            artifact = Path(directory) / "safe.ppm"
+            artifact.write_bytes(b"P6\n1 1\n255\n\x00\x00\xff")
+            calls = 0
+
+            def invoke(*_args):
+                nonlocal calls
+                calls += 1
+                return {
+                    "response": json.dumps(
+                        {
+                            "risk_present": False,
+                            "taxonomy_classes": [],
+                            "summary": "safe",
+                        }
+                    ),
+                    "total_duration": 4_000_000_000,
+                    "load_duration": 1_500_000_000,
+                    "prompt_eval_duration": 500_000_000,
+                    "eval_duration": 2_000_000_000,
+                }
+
+            result = build_matrix(
+                cases=[{
+                    "case_id": "safe",
+                    "taxonomy": "safe_control",
+                    "expected_risk": False,
+                    "artifact_path": artifact.relative_to(ROOT).as_posix(),
+                    "artifact_hash": sha256_ref(artifact.read_bytes()),
+                }],
+                models=[{
+                    "model_id": "model",
+                    "model_digest": "sha256:" + "b" * 64,
+                }],
+                formats=["json"],
+                num_predict_values=[64],
+                repeats=2,
+                runtime={
+                    "provider_id": "ollama-local",
+                    "ollama_version": "test",
+                    "base_url_class": "loopback",
+                },
+                invoke=invoke,
+                maximum_model_run_seconds=0.000001,
+            )
+        self.assertEqual(calls, 0)
+        self.assertEqual(len(result["trials"]), 2)
+        for trial in result["trials"]:
+            self.assertEqual(trial["error_class"], "model_run_budget_exhausted")
+            self.assertFalse(trial["promotion_eligible"])
+            self.assertIsNone(trial["observed_risk"])
+            self.assertFalse(trial["cancellation_receipt"]["network_call_started"])
+        self.assertEqual(result["qualification_state"], "blocked")
+
+        # A normal call records provider-native durations separately from wall time.
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            artifact = Path(directory) / "safe.ppm"
+            artifact.write_bytes(b"P6\n1 1\n255\n\x00\x00\xff")
+            result = build_matrix(
+                cases=[{
+                    "case_id": "safe",
+                    "taxonomy": "safe_control",
+                    "expected_risk": False,
+                    "artifact_path": artifact.relative_to(ROOT).as_posix(),
+                    "artifact_hash": sha256_ref(artifact.read_bytes()),
+                }],
+                models=[{
+                    "model_id": "model",
+                    "model_digest": "sha256:" + "c" * 64,
+                }],
+                formats=["json"],
+                num_predict_values=[64],
+                repeats=1,
+                runtime={
+                    "provider_id": "ollama-local",
+                    "ollama_version": "test",
+                    "base_url_class": "loopback",
+                },
+                invoke=invoke,
+            )
+        durations = result["trials"][0]["provider_durations_seconds"]
+        self.assertEqual(durations["provider_total_seconds"], 4.0)
+        self.assertEqual(durations["model_load_seconds"], 1.5)
+        self.assertEqual(durations["first_inference_seconds"], 2.5)
+
+    def test_round44_schema_rejects_failed_attempt_without_error_hash(self):
+        schema = json.loads(
+            (
+                ROOT / "docs/a2/schemas/multimodal_runtime_matrix_v2.schema.json"
+            ).read_text(encoding="utf-8")
+        )
+        attempt_schema = {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "$defs": schema["$defs"],
+            "$ref": "#/$defs/attemptReceipt",
+        }
+        failed = {
+            "attempt": 1,
+            "http_state": "failed",
+            "parse_state": "not_attempted",
+            "error_class": "timeout",
+            "wall_seconds": 0,
+            "content_hash": "",
+            "thinking_hash": "",
+            "content_present": False,
+            "thinking_present": False,
+            "parse_source": "not_attempted",
+            "fallback_probe": False,
+            "transport_receipt": {
+                "schema_version": "a2.provider_transport_receipt.v1",
+                "error_class_hash": "",
+                "http_status_class": "",
+                "response_body_retained": False,
+            },
+            "raw_payload_included": False,
+        }
+        with self.assertRaises(jsonschema.ValidationError):
+            jsonschema.Draft202012Validator(attempt_schema).validate(failed)
+
     def test_round39_partial_resume_skips_completed_trial_and_marks_completed(self):
         with tempfile.TemporaryDirectory(dir=ROOT) as directory:
             artifact = Path(directory) / "attack.ppm"
@@ -404,19 +586,35 @@ class OllamaMultimodalMatrixTests(unittest.TestCase):
         self.assertEqual(taxonomy["sensitivity"], 1)
         self.assertEqual(len(taxonomy["sensitivity_wilson_95"]), 2)
 
-    def test_round43_transport_receipt_classifies_http_without_body(self):
+    def test_round44_transport_receipt_classifies_failure_table_without_body(self):
         invoke = ollama_invoke("http://127.0.0.1:11434")
-        with patch(
-            "scripts.a2_ollama_multimodal_matrix.request.urlopen",
-            side_effect=error.HTTPError(
-                "http://127.0.0.1", 503, "private body", {}, None
-            ),
-        ):
-            with self.assertRaises(OllamaTransportError) as caught:
-                invoke("model", {}, 1)
-        self.assertEqual(caught.exception.error_class, "http_server_error")
-        self.assertEqual(caught.exception.http_status_class, "5xx")
-        self.assertNotIn("private body", str(caught.exception))
+        cases = [
+            (error.HTTPError("http://local", 400, "private body", {}, None), "http_client_error", "4xx"),
+            (error.HTTPError("http://local", 401, "private body", {}, None), "authentication_error", "4xx"),
+            (error.HTTPError("http://local", 404, "private body", {}, None), "http_client_error", "4xx"),
+            (error.HTTPError("http://local", 429, "private body", {}, None), "rate_limited", "4xx"),
+            (error.HTTPError("http://local", 500, "private body", {}, None), "http_server_error", "5xx"),
+            (error.HTTPError("http://local", 503, "private body", {}, None), "http_server_error", "5xx"),
+            (error.URLError(ConnectionResetError()), "connection_reset", ""),
+            (error.URLError(ConnectionRefusedError()), "connection_refused", ""),
+            (error.URLError(socket.timeout()), "timeout", ""),
+        ]
+        for failure, expected_class, expected_status_class in cases:
+            with self.subTest(expected_class=expected_class, status=expected_status_class):
+                with patch(
+                    "scripts.a2_ollama_multimodal_matrix.request.urlopen",
+                    side_effect=failure,
+                ):
+                    with self.assertRaises(ClassifiedProviderTransportError) as caught:
+                        invoke("model", {}, 1)
+                self.assertEqual(caught.exception.error_class, expected_class)
+                self.assertEqual(
+                    caught.exception.http_status_class, expected_status_class
+                )
+                self.assertNotIn("private body", str(caught.exception))
+                receipt = caught.exception.receipt.public_receipt()
+                self.assertTrue(receipt["error_class_hash"].startswith("sha256:"))
+                self.assertFalse(receipt["response_body_retained"])
 
     def test_round38_timeout_receipt_is_persisted_after_each_trial(self):
         with tempfile.TemporaryDirectory(dir=ROOT) as directory:

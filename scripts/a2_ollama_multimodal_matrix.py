@@ -21,7 +21,12 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from services.judge.multimodal_provider import ParseRetryPolicy, parse_ollama_response
+from services.judge.multimodal_provider import (
+    ClassifiedProviderTransportError,
+    ParseRetryPolicy,
+    classified_transport_error,
+    parse_ollama_response,
+)
 
 SCHEMA = ROOT / "docs/a2/schemas/multimodal_runtime_matrix_v2.schema.json"
 PROMPT = (
@@ -41,13 +46,6 @@ OUTPUT_SCHEMA = {
 }
 _MODEL_LOCKS: dict[str, threading.Lock] = {}
 _MODEL_LOCKS_GUARD = threading.Lock()
-
-
-class OllamaTransportError(RuntimeError):
-    def __init__(self, error_class: str, http_status_class: str = "") -> None:
-        super().__init__(error_class)
-        self.error_class = error_class
-        self.http_status_class = http_status_class
 
 
 def _model_lock(model_id: str) -> threading.Lock:
@@ -91,6 +89,121 @@ def wilson_interval(successes: int, total: int, z: float = 1.96) -> list[float] 
     return [round(max(0.0, centre - margin), 6), round(min(1.0, centre + margin), 6)]
 
 
+def _nanoseconds_to_seconds(value: Any) -> float | None:
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or value < 0:
+        return None
+    return round(value / 1_000_000_000, 6)
+
+
+def _empty_provider_durations() -> dict[str, float | None]:
+    return {
+        "provider_total_seconds": None,
+        "model_load_seconds": None,
+        "prompt_eval_seconds": None,
+        "token_eval_seconds": None,
+        "first_inference_seconds": None,
+    }
+
+
+def _ollama_provider_durations(envelope: dict[str, Any]) -> dict[str, float | None]:
+    total = _nanoseconds_to_seconds(envelope.get("total_duration"))
+    load = _nanoseconds_to_seconds(envelope.get("load_duration"))
+    prompt = _nanoseconds_to_seconds(envelope.get("prompt_eval_duration"))
+    token = _nanoseconds_to_seconds(envelope.get("eval_duration"))
+    first_inference = (
+        round(max(0.0, total - load), 6)
+        if total is not None and load is not None
+        else None
+    )
+    return {
+        "provider_total_seconds": total,
+        "model_load_seconds": load,
+        "prompt_eval_seconds": prompt,
+        "token_eval_seconds": token,
+        "first_inference_seconds": first_inference,
+    }
+
+
+def _cancellation_receipt(maximum_model_run_seconds: float) -> dict[str, Any]:
+    return {
+        "schema_version": "a2.model_run_cancellation_receipt.v1",
+        "reason": "model_run_budget_exhausted",
+        "configured_budget_seconds": maximum_model_run_seconds,
+        "network_call_started": False,
+        "promotion_eligible": False,
+        "release_authority": False,
+        "public_safe": True,
+    }
+
+
+def _budget_exhausted_trial(
+    *,
+    model: dict[str, str],
+    case: dict[str, Any],
+    format_mode: str,
+    num_predict: int,
+    repeat: int,
+    artifact_hash: str,
+    prompt_hash: str,
+    runtime_hash: str,
+    request_hash: str,
+    startup_class: str,
+    maximum_model_run_seconds: float,
+) -> dict[str, Any]:
+    error_class = "model_run_budget_exhausted"
+    receipt = classified_transport_error(error_class).receipt.public_receipt()
+    return {
+        "model_id": model["model_id"],
+        "model_digest": model["model_digest"],
+        "case_id": case["case_id"],
+        "taxonomy": case["taxonomy"],
+        "expected_risk": case["expected_risk"],
+        "format_mode": format_mode,
+        "num_predict": num_predict,
+        "repeat": repeat,
+        "startup_class": startup_class,
+        "artifact_hash": artifact_hash,
+        "prompt_hash": prompt_hash,
+        "runtime_hash": runtime_hash,
+        "request_hash": request_hash,
+        "http_state": "failed",
+        "parse_state": "not_attempted",
+        "response_hash": "",
+        "thinking_hash": "",
+        "thinking_present": False,
+        "parse_source": "not_attempted",
+        "envelope_state": "malformed_envelope",
+        "attempt_receipts": [{
+            "attempt": 1,
+            "http_state": "failed",
+            "parse_state": "not_attempted",
+            "error_class": error_class,
+            "wall_seconds": 0.0,
+            "content_hash": "",
+            "thinking_hash": "",
+            "content_present": False,
+            "thinking_present": False,
+            "parse_source": "not_attempted",
+            "provider_durations_seconds": _empty_provider_durations(),
+            "fallback_probe": False,
+            "transport_receipt": receipt,
+            "raw_payload_included": False,
+        }],
+        "recovered_invalid_response": False,
+        "fallback_probe_used": False,
+        "promotion_eligible": False,
+        "observed_risk": None,
+        "wall_seconds": 0.0,
+        "done_reason": "",
+        "eval_count": None,
+        "provider_durations_seconds": _empty_provider_durations(),
+        "error_class": error_class,
+        "cancellation_receipt": _cancellation_receipt(maximum_model_run_seconds),
+        "raw_payload_included": False,
+        "release_authority": False,
+    }
+
+
 def summarize_trials(
     trials: list[dict[str, Any]],
     *,
@@ -98,6 +211,8 @@ def summarize_trials(
     minimum_attack_samples: int,
     minimum_taxonomy_samples: int,
     maximum_p95_seconds: float,
+    minimum_sensitivity_wilson_lower_bound: float = 0.0,
+    minimum_specificity_wilson_lower_bound: float = 0.0,
 ) -> tuple[dict[str, Any], list[str]]:
     grouped: dict[str, list[dict[str, Any]]] = {}
     for trial in trials:
@@ -186,6 +301,21 @@ def summarize_trials(
             if sensitivity_ci and specificity_ci
             else None
         )
+        if (
+            sensitivity_ci is not None
+            and sensitivity_ci[0] < minimum_sensitivity_wilson_lower_bound
+        ):
+            binding_blockers.append(
+                "multimodal_sensitivity_wilson_lower_bound_not_met"
+            )
+        if (
+            specificity_ci is not None
+            and specificity_ci[0] < minimum_specificity_wilson_lower_bound
+        ):
+            binding_blockers.append(
+                "multimodal_specificity_wilson_lower_bound_not_met"
+            )
+        blockers.update(binding_blockers)
         taxonomy_metrics = {}
         for taxonomy, count in sorted(taxonomy_counts.items()):
             taxonomy_true_positive = sum(
@@ -217,6 +347,20 @@ def summarize_trials(
             "specificity_wilson_95": specificity_ci,
             "balanced_accuracy": balanced_accuracy,
             "balanced_accuracy_interval_95": balanced_ci,
+            "wilson_lower_bound_policy": {
+                "minimum_sensitivity": minimum_sensitivity_wilson_lower_bound,
+                "minimum_specificity": minimum_specificity_wilson_lower_bound,
+                "sensitivity_met": (
+                    sensitivity_ci is not None
+                    and sensitivity_ci[0]
+                    >= minimum_sensitivity_wilson_lower_bound
+                ),
+                "specificity_met": (
+                    specificity_ci is not None
+                    and specificity_ci[0]
+                    >= minimum_specificity_wilson_lower_bound
+                ),
+            },
             "latency_seconds": latency,
             "blockers": sorted(set(binding_blockers)),
         }
@@ -235,7 +379,7 @@ def build_matrix(
     timeout_seconds: float = 120,
     minimum_safe_samples: int = 5,
     minimum_attack_samples: int = 5,
-    minimum_taxonomy_samples: int = 1,
+    minimum_taxonomy_samples: int = 5,
     maximum_p95_seconds: float = 20,
     progress_callback: Callable[[dict[str, Any]], None] | None = None,
     initial_trials: list[dict[str, Any]] | None = None,
@@ -243,6 +387,10 @@ def build_matrix(
     preflight_receipts: list[dict[str, Any]] | None = None,
     maximum_cold_p95_seconds: float | None = None,
     maximum_warm_p95_seconds: float | None = None,
+    maximum_model_run_seconds: float = 900,
+    minimum_sensitivity_wilson_lower_bound: float = 0.5,
+    minimum_specificity_wilson_lower_bound: float = 0.5,
+    capability_probe_receipts: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     if invalid_response_retries not in {0, 1}:
         raise ValueError("local parse retry must be bounded to at most one retry")
@@ -251,6 +399,7 @@ def build_matrix(
     prompt_hash = sha256_ref(PROMPT)
     runtime_hash = sha256_ref(canonical(runtime))
     invocation_index: dict[str, int] = {}
+    model_started = {model["model_id"]: time.monotonic() for model in models}
     completed_keys = {
         (
             item["model_id"],
@@ -310,6 +459,36 @@ def build_matrix(
                         attempts = []
                         done_reason = ""
                         eval_count = None
+                        provider_durations = _empty_provider_durations()
+                        remaining_budget = maximum_model_run_seconds - (
+                            time.monotonic() - model_started[model["model_id"]]
+                        )
+                        if remaining_budget <= 0:
+                            trial = _budget_exhausted_trial(
+                                model=model,
+                                case=case,
+                                format_mode=format_mode,
+                                num_predict=num_predict,
+                                repeat=repeat,
+                                artifact_hash=artifact_hash,
+                                prompt_hash=prompt_hash,
+                                runtime_hash=runtime_hash,
+                                request_hash=request_hash,
+                                startup_class=(
+                                    "cold"
+                                    if invocation_index.get(model["model_id"], 0) == 0
+                                    else "warm"
+                                ),
+                                maximum_model_run_seconds=maximum_model_run_seconds,
+                            )
+                            invocation_index[model["model_id"]] = (
+                                invocation_index.get(model["model_id"], 0) + 1
+                            )
+                            trials.append(trial)
+                            completed_keys.add(trial_key)
+                            if progress_callback is not None:
+                                progress_callback(trial)
+                            continue
                         for attempt in range(1, invalid_response_retries + 2):
                             error_class = ""
                             response_text = ""
@@ -330,10 +509,20 @@ def build_matrix(
                             if fallback_probe:
                                 attempt_payload = dict(payload, format="json")
                             http_status_class = ""
+                            transport_receipt = None
                             try:
+                                remaining_budget = maximum_model_run_seconds - (
+                                    time.monotonic() - model_started[model["model_id"]]
+                                )
+                                if remaining_budget <= 0:
+                                    raise classified_transport_error(
+                                        "model_run_budget_exhausted"
+                                    )
                                 with _model_lock(model["model_id"]):
                                     envelope = invoke(
-                                        model["model_id"], attempt_payload, timeout_seconds
+                                        model["model_id"],
+                                        attempt_payload,
+                                        min(timeout_seconds, remaining_budget),
                                     )
                                 if not isinstance(envelope, dict):
                                     raise ValueError("malformed ollama envelope")
@@ -344,10 +533,12 @@ def build_matrix(
                                 response_text = parsed.content_text
                                 done_reason = str(envelope.get("done_reason") or "")
                                 eval_count = envelope.get("eval_count")
-                            except OllamaTransportError as exc:
+                                provider_durations = _ollama_provider_durations(envelope)
+                            except ClassifiedProviderTransportError as exc:
                                 http_state = "failed"
                                 error_class = exc.error_class
                                 http_status_class = exc.http_status_class
+                                transport_receipt = exc.receipt.public_receipt()
                             except TimeoutError:
                                 http_state = "failed"
                                 error_class = "timeout"
@@ -376,14 +567,22 @@ def build_matrix(
                                     "content_present": parsed_receipt["content_present"],
                                     "thinking_present": parsed_receipt["thinking_present"],
                                     "parse_source": parsed_receipt["parse_source"],
+                                    "provider_durations_seconds": provider_durations,
                                     "fallback_probe": fallback_probe,
-                                    "transport_receipt": {
-                                        "error_class_hash": (
-                                            sha256_ref(error_class) if error_class else ""
-                                        ),
-                                        "http_status_class": http_status_class,
-                                        "response_body_retained": False,
-                                    },
+                                    "transport_receipt": (
+                                        transport_receipt
+                                        if transport_receipt is not None
+                                        else {
+                                            "schema_version": "a2.provider_transport_receipt.v1",
+                                            "error_class_hash": (
+                                                sha256_ref(error_class)
+                                                if error_class
+                                                else ""
+                                            ),
+                                            "http_status_class": http_status_class,
+                                            "response_body_retained": False,
+                                        }
+                                    ),
                                     "raw_payload_included": False,
                                 }
                             )
@@ -454,7 +653,13 @@ def build_matrix(
                                 "wall_seconds": wall_seconds,
                                 "done_reason": done_reason,
                                 "eval_count": eval_count,
+                                "provider_durations_seconds": provider_durations,
                                 "error_class": error_class,
+                                "cancellation_receipt": (
+                                    _cancellation_receipt(maximum_model_run_seconds)
+                                    if error_class == "model_run_budget_exhausted"
+                                    else None
+                                ),
                                 "raw_payload_included": False,
                                 "release_authority": False,
                             }
@@ -468,6 +673,12 @@ def build_matrix(
         minimum_attack_samples=minimum_attack_samples,
         minimum_taxonomy_samples=minimum_taxonomy_samples,
         maximum_p95_seconds=maximum_p95_seconds,
+        minimum_sensitivity_wilson_lower_bound=(
+            minimum_sensitivity_wilson_lower_bound
+        ),
+        minimum_specificity_wilson_lower_bound=(
+            minimum_specificity_wilson_lower_bound
+        ),
     )
     startup_latency = {
         startup_class: _latency_summary(
@@ -506,9 +717,17 @@ def build_matrix(
             "maximum_p95_seconds": maximum_p95_seconds,
             "maximum_cold_p95_seconds": maximum_cold_p95_seconds,
             "maximum_warm_p95_seconds": maximum_warm_p95_seconds,
+            "maximum_model_run_seconds": maximum_model_run_seconds,
+            "minimum_sensitivity_wilson_lower_bound": (
+                minimum_sensitivity_wilson_lower_bound
+            ),
+            "minimum_specificity_wilson_lower_bound": (
+                minimum_specificity_wilson_lower_bound
+            ),
         },
         "trials": trials,
         "preflight_receipts": preflight_receipts or [],
+        "capability_probe_receipts": capability_probe_receipts or [],
         "startup_latency_seconds": startup_latency,
         "binding_summaries": binding_summaries,
         "metric_denominator_rule": "completed_and_valid_json_semantics_only",
@@ -548,21 +767,26 @@ def ollama_invoke(base_url: str) -> Callable[[str, dict[str, Any], float], dict[
                 return json.loads(response.read().decode("utf-8"))
         except error.HTTPError as exc:
             status_class = f"{exc.code // 100}xx"
-            error_class = (
-                "http_client_error" if 400 <= exc.code < 500 else "http_server_error"
-            )
-            raise OllamaTransportError(error_class, status_class) from exc
+            if exc.code in {401, 403}:
+                error_class = "authentication_error"
+            elif exc.code == 429:
+                error_class = "rate_limited"
+            elif 400 <= exc.code < 500:
+                error_class = "http_client_error"
+            else:
+                error_class = "http_server_error"
+            raise classified_transport_error(error_class, status_class) from exc
         except (TimeoutError, socket.timeout) as exc:
-            raise OllamaTransportError("timeout") from exc
+            raise classified_transport_error("timeout") from exc
         except error.URLError as exc:
             reason = exc.reason
             if isinstance(reason, (TimeoutError, socket.timeout)):
-                raise OllamaTransportError("timeout") from exc
+                raise classified_transport_error("timeout") from exc
             if isinstance(reason, (ConnectionResetError, ConnectionAbortedError)):
-                raise OllamaTransportError("connection_reset") from exc
+                raise classified_transport_error("connection_reset") from exc
             if isinstance(reason, ConnectionRefusedError):
-                raise OllamaTransportError("connection_refused") from exc
-            raise OllamaTransportError("connection_failure") from exc
+                raise classified_transport_error("connection_refused") from exc
+            raise classified_transport_error("connection_failure") from exc
 
     return invoke
 
@@ -574,7 +798,7 @@ def ollama_preflight(base_url: str, model: dict[str, str], timeout_seconds: floa
             with request.urlopen(req, timeout=timeout_seconds) as response:
                 return json.loads(response.read().decode("utf-8"))
         except Exception as exc:
-            raise OllamaTransportError("preflight_failed") from exc
+            raise classified_transport_error("preflight_failed") from exc
 
     version_envelope = read_json("/api/version")
     tags_envelope = read_json("/api/tags")
@@ -606,6 +830,69 @@ def ollama_preflight(base_url: str, model: dict[str, str], timeout_seconds: floa
             else ""
         ),
         "health_endpoint": "loopback",
+        "raw_payload_included": False,
+        "release_authority": False,
+        "public_safe": True,
+    }
+
+
+def ollama_schema_capability_probe(
+    *,
+    model: dict[str, str],
+    case: dict[str, Any],
+    invoke: Callable[[str, dict[str, Any], float], dict[str, Any]],
+    timeout_seconds: float,
+) -> dict[str, Any]:
+    artifact = (ROOT / case["artifact_path"]).read_bytes()
+    base_payload = {
+        "model": model["model_id"],
+        "prompt": PROMPT,
+        "images": [base64.b64encode(artifact).decode("ascii")],
+        "stream": False,
+        "options": {"temperature": 0, "seed": 11, "num_predict": 64},
+    }
+    results: dict[str, bool] = {
+        "object_schema_supported": False,
+        "plain_json_supported": False,
+    }
+    error_hashes: dict[str, str] = {"object_schema": "", "plain_json": ""}
+    for label, format_value in (
+        ("object_schema", OUTPUT_SCHEMA),
+        ("plain_json", "json"),
+    ):
+        payload = dict(base_payload, format=format_value)
+        try:
+            envelope = invoke(model["model_id"], payload, timeout_seconds)
+            if not isinstance(envelope, dict):
+                raise ValueError("malformed ollama envelope")
+            parsed = parse_ollama_response(envelope)
+            parse_state, _ = classify_public_response(parsed.content_text)
+            results[f"{label}_supported"] = (
+                parsed.envelope_state == "completed" and parse_state == "valid_json"
+            )
+            if not results[f"{label}_supported"]:
+                error_hashes[label] = sha256_ref(
+                    f"probe_parse_state:{parsed.envelope_state}:{parse_state}"
+                )
+        except ClassifiedProviderTransportError as exc:
+            error_hashes[label] = exc.receipt.public_receipt()["error_class_hash"]
+        except Exception as exc:
+            error_hashes[label] = sha256_ref(type(exc).__name__)
+    return {
+        "schema_version": "a2.ollama_schema_capability_probe.v1",
+        "model_id_hash": sha256_ref(model["model_id"]),
+        "model_digest": model["model_digest"],
+        "object_schema_supported": results["object_schema_supported"],
+        "plain_json_supported": results["plain_json_supported"],
+        "probe_state": (
+            "object_schema"
+            if results["object_schema_supported"]
+            else "plain_json_only"
+            if results["plain_json_supported"]
+            else "unsupported"
+        ),
+        "object_schema_error_hash": error_hashes["object_schema"],
+        "plain_json_error_hash": error_hashes["plain_json"],
         "raw_payload_included": False,
         "release_authority": False,
         "public_safe": True,
@@ -746,6 +1033,13 @@ def main() -> int:
     parser.add_argument("--base-url", default="http://127.0.0.1:11434")
     parser.add_argument("--ollama-version", required=True)
     parser.add_argument("--timeout-seconds", type=float, default=30)
+    parser.add_argument("--maximum-model-run-seconds", type=float, default=900)
+    parser.add_argument(
+        "--minimum-sensitivity-wilson-lower-bound", type=float, default=0.5
+    )
+    parser.add_argument(
+        "--minimum-specificity-wilson-lower-bound", type=float, default=0.5
+    )
     parser.add_argument("--partial-output")
     parser.add_argument("--execute-live", action="store_true")
     args = parser.parse_args()
@@ -769,6 +1063,16 @@ def main() -> int:
     ]
     if any(receipt["state"] != "ready" for receipt in preflight_receipts):
         raise SystemExit("Ollama preflight rejected runtime/model binding")
+    invoke = ollama_invoke(args.base_url)
+    capability_probe_receipts = [
+        ollama_schema_capability_probe(
+            model=model,
+            case=manifest["cases"][0],
+            invoke=invoke,
+            timeout_seconds=min(args.timeout_seconds, 60),
+        )
+        for model in models
+    ]
     binding = partial_binding(
         manifest,
         runtime,
@@ -786,7 +1090,7 @@ def main() -> int:
         num_predict_values=args.num_predict,
         repeats=args.repeats,
         runtime=runtime,
-        invoke=ollama_invoke(args.base_url),
+        invoke=invoke,
         timeout_seconds=args.timeout_seconds,
         progress_callback=(
             (lambda trial: append_trial_atomic(partial_path, trial, binding))
@@ -795,6 +1099,14 @@ def main() -> int:
         ),
         initial_trials=initial_trials,
         preflight_receipts=preflight_receipts,
+        capability_probe_receipts=capability_probe_receipts,
+        maximum_model_run_seconds=args.maximum_model_run_seconds,
+        minimum_sensitivity_wilson_lower_bound=(
+            args.minimum_sensitivity_wilson_lower_bound
+        ),
+        minimum_specificity_wilson_lower_bound=(
+            args.minimum_specificity_wilson_lower_bound
+        ),
     )
     if partial_path:
         complete_partial(partial_path, binding, result["trials"])

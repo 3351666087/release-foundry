@@ -543,7 +543,7 @@ def main() -> int:
     parser.add_argument("--repeats", type=int, default=1)
     parser.add_argument("--minimum-safe-samples", type=int, default=5)
     parser.add_argument("--minimum-attack-samples", type=int, default=5)
-    parser.add_argument("--minimum-taxonomy-samples", type=int, default=1)
+    parser.add_argument("--minimum-taxonomy-samples", type=int, default=5)
     parser.add_argument("--maximum-p95-seconds", type=float, default=10.0)
     parser.add_argument("--minimum-sensitivity", type=float, default=0.8)
     parser.add_argument("--minimum-specificity", type=float, default=0.8)

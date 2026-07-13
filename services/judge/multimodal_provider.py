@@ -15,6 +15,63 @@ CONFORMANCE_SCHEMA_VERSION = "a2.provider_conformance_receipt.v1"
 SUPPORTED_IMAGE_MIME_TYPES = frozenset({"image/png", "image/jpeg"})
 RETRY_CLASSES = frozenset({"parse", "transport"})
 PARSED_RESPONSE_SCHEMA_VERSION = "a2.parsed_multimodal_response.v1"
+TRANSPORT_RECEIPT_SCHEMA_VERSION = "a2.provider_transport_receipt.v1"
+
+
+@dataclass(frozen=True)
+class ProviderTransportReceipt:
+    """Public-safe provider transport classification without response bodies."""
+
+    schema_version: str
+    error_class: str
+    http_status_class: str = ""
+    response_body_retained: bool = False
+
+    def __post_init__(self) -> None:
+        if self.schema_version != TRANSPORT_RECEIPT_SCHEMA_VERSION:
+            raise ValueError("unsupported provider transport receipt version")
+        if not self.error_class:
+            raise ValueError("provider transport error class must not be empty")
+        if self.http_status_class not in {"", "4xx", "5xx"}:
+            raise ValueError("unsupported provider HTTP status class")
+        if self.response_body_retained:
+            raise ValueError("provider response body must not be retained")
+
+    def public_receipt(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "error_class_hash": stable_hash(self.error_class),
+            "http_status_class": self.http_status_class,
+            "response_body_retained": False,
+        }
+
+
+class ClassifiedProviderTransportError(RuntimeError):
+    """Provider-neutral fail-closed exception carrying only a safe receipt."""
+
+    def __init__(self, receipt: ProviderTransportReceipt) -> None:
+        super().__init__(receipt.error_class)
+        self.receipt = receipt
+
+    @property
+    def error_class(self) -> str:
+        return self.receipt.error_class
+
+    @property
+    def http_status_class(self) -> str:
+        return self.receipt.http_status_class
+
+
+def classified_transport_error(
+    error_class: str, http_status_class: str = ""
+) -> ClassifiedProviderTransportError:
+    return ClassifiedProviderTransportError(
+        ProviderTransportReceipt(
+            schema_version=TRANSPORT_RECEIPT_SCHEMA_VERSION,
+            error_class=error_class,
+            http_status_class=http_status_class,
+        )
+    )
 
 
 @dataclass(frozen=True)
