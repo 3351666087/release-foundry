@@ -22,6 +22,7 @@ from services.judge.provider_runtime import (
     RetryPolicy,
     TenantProviderPolicy,
     build_local_smoke_evidence,
+    build_composite_agent_capability_contract,
     build_provider_provenance_handoff,
     validate_semantic_judge_output,
     verify_authenticated_evidence_bundle,
@@ -106,6 +107,48 @@ class FlakyAdapter:
 
 
 class ProviderRuntimeTests(unittest.TestCase):
+    def test_round34_composite_agent_image_generation_is_delegation_bound(self):
+        contract = build_composite_agent_capability_contract(
+            agent_model={
+                "provider_id": "internal-agent",
+                "model_id": "gpt-5.6-sol",
+                "model_version": "observed-version",
+            },
+            delegated_models=[
+                {
+                    "provider_id": "internal-image",
+                    "model_id": "image-2",
+                    "model_version": "observed-version",
+                    "role": "image_generator",
+                    "capabilities": ["image_generation", "image_text_rendering"],
+                }
+            ],
+            capabilities=[
+                "text_reasoning",
+                "image_generation",
+                "image_text_rendering",
+            ],
+        )
+        self.assertEqual(contract["qualification_state"], "declared")
+        self.assertTrue(
+            contract["evaluation_requirements"]["text_rendering_requires_ocr_comparison"]
+        )
+        self.assertFalse(
+            contract["evaluation_requirements"]["self_evaluation_has_release_authority"]
+        )
+        self.assert_schema(contract, "composite_agent_capability_contract.schema.json")
+        missing = build_composite_agent_capability_contract(
+            agent_model={
+                "provider_id": "internal-agent",
+                "model_id": "gpt-5.6-sol",
+                "model_version": "observed-version",
+            },
+            delegated_models=[],
+            capabilities=["image_generation"],
+        )
+        self.assertIn("composite_agent_image_generator_missing", missing["blockers"])
+        self.assert_schema(missing, "composite_agent_capability_contract.schema.json")
+
     @staticmethod
     def assert_schema(instance, schema_name):
         schema_path = Path(__file__).parents[2] / "docs" / "a2" / "schemas" / schema_name

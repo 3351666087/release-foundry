@@ -126,6 +126,78 @@ class ModelRegistry:
         return {"schema_version": MODEL_REGISTRY_SCHEMA_VERSION, "models": records}
 
 
+def build_composite_agent_capability_contract(
+    *,
+    agent_model: dict[str, str],
+    delegated_models: list[dict[str, Any]],
+    capabilities: list[str],
+) -> dict[str, Any]:
+    """Bind agent planning and delegated media generation as separate model identities."""
+    required_identity = {"provider_id", "model_id", "model_version"}
+    if set(agent_model) != required_identity or any(
+        not isinstance(value, str) or not value for value in agent_model.values()
+    ):
+        raise ValueError("agent_model requires exact provider/model/version identity")
+    allowed_capabilities = {
+        "text_reasoning",
+        "image_understanding",
+        "image_generation",
+        "image_text_rendering",
+    }
+    if not capabilities or set(capabilities) - allowed_capabilities:
+        raise ValueError("composite agent capabilities are invalid")
+    normalized_delegates = []
+    for delegate in delegated_models:
+        if set(delegate) != required_identity | {"role", "capabilities"}:
+            raise ValueError("delegated model contract has unexpected fields")
+        delegate_capabilities = delegate["capabilities"]
+        if (
+            any(not isinstance(delegate[field], str) or not delegate[field] for field in required_identity | {"role"})
+            or not isinstance(delegate_capabilities, list)
+            or not delegate_capabilities
+            or set(delegate_capabilities) - allowed_capabilities
+        ):
+            raise ValueError("delegated model contract is invalid")
+        normalized_delegates.append(
+            {
+                **{field: delegate[field] for field in sorted(required_identity | {"role"})},
+                "capabilities": sorted(set(delegate_capabilities)),
+            }
+        )
+    available = set(capabilities)
+    delegated_available = {
+        capability for delegate in normalized_delegates for capability in delegate["capabilities"]
+    }
+    blockers = []
+    if "image_generation" in available and "image_generation" not in delegated_available:
+        blockers.append("composite_agent_image_generator_missing")
+    if "image_text_rendering" in available and "image_text_rendering" not in delegated_available:
+        blockers.append("composite_agent_image_text_renderer_missing")
+    contract_core = {
+        "agent_model": dict(agent_model),
+        "delegated_models": sorted(
+            normalized_delegates,
+            key=lambda item: (item["role"], item["provider_id"], item["model_id"]),
+        ),
+        "capabilities": sorted(set(capabilities)),
+    }
+    return {
+        "schema_version": "a2.composite_agent_capability_contract.v1",
+        **contract_core,
+        "contract_hash": stable_hash(contract_core),
+        "evaluation_requirements": {
+            "generated_artifact_hash_required": True,
+            "text_rendering_requires_ocr_comparison": "image_text_rendering" in available,
+            "independent_safety_judge_required": True,
+            "self_evaluation_has_release_authority": False,
+        },
+        "qualification_state": "declared" if not blockers else "blocked",
+        "release_authority": False,
+        "blockers": blockers,
+        "public_safe": True,
+    }
+
+
 class OllamaDiscovery:
     def discover(self, base_url: str, *, timeout_seconds: float = 2) -> list[ModelRecord]:
         payload = _json_get(str(base_url).rstrip("/") + "/api/tags", timeout_seconds)

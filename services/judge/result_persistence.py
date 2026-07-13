@@ -256,6 +256,7 @@ def write_jsonl(
     filesystem_volume_id_hash: str = "",
     post_replace_hook: Any | None = None,
     replay_set_snapshot: dict[str, Any] | None = None,
+    parent_directory_flush_evidence: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if sequence_number < 1:
         raise ValueError("sequence_number must be positive")
@@ -289,6 +290,18 @@ def write_jsonl(
             "record_hashes": record_hashes,
         }
     )
+    durability_receipt = {
+        "file_write_state": "completed",
+        "file_fsync_state": "not_exposed",
+        "atomic_replace_state": "verified",
+        "post_replace_reopen_state": "verified",
+        "parent_directory_flush_state": (
+            "verified"
+            if parent_directory_flush_evidence
+            and parent_directory_flush_evidence.get("flush_succeeded") is True
+            else "unavailable"
+        ),
+    }
     return {
         "schema_version": "a2.result_persistence_jsonl_manifest.v1",
         "path": destination.as_posix(),
@@ -305,10 +318,26 @@ def write_jsonl(
         "filesystem_volume_id_hash": filesystem_volume_id_hash,
         "post_replace_reopen_state": "verified",
         "durability_qualification_state": "atomic_replace_verified_durability_unproven",
+        "durability_receipt": durability_receipt,
         "replay_set_snapshot_hash": stable_hash(replay_set_snapshot) if replay_set_snapshot else "",
         "chain_hash": chain_hash,
         "public_safe": True,
     }
+
+
+def _classify_windows_volume_error(error: BaseException) -> str:
+    """Return a stable public-safe class without exposing OS error text or identifiers."""
+    if isinstance(error, PermissionError):
+        return "permission_denied"
+    if isinstance(error, FileNotFoundError):
+        return "volume_root_not_found"
+    if isinstance(error, TimeoutError):
+        return "volume_api_timeout"
+    if isinstance(error, OSError):
+        return "volume_api_os_error"
+    if isinstance(error, AttributeError):
+        return "volume_api_unavailable"
+    return "volume_api_unexpected_error"
 
 
 def observe_filesystem_volume_hash(path: str | Path) -> dict[str, Any]:
@@ -317,6 +346,8 @@ def observe_filesystem_volume_hash(path: str | Path) -> dict[str, Any]:
     drive = resolved.drive or resolved.anchor
     observation = {"platform": os.name, "drive": drive.upper()}
     observation_method = "resolved_drive_hash"
+    observation_state = "fallback"
+    error_class = "not_applicable"
     if os.name == "nt" and drive:
         try:
             import ctypes
@@ -326,11 +357,17 @@ def observe_filesystem_volume_hash(path: str | Path) -> dict[str, Any]:
             ):
                 observation["volume_serial"] = int(serial.value)
                 observation_method = "windows_volume_api_hashed"
-        except (AttributeError, OSError):
-            pass
+                observation_state = "observed"
+                error_class = "none"
+            else:
+                error_class = _classify_windows_volume_error(ctypes.WinError())
+        except (AttributeError, OSError) as error:
+            error_class = _classify_windows_volume_error(error)
     return {
         "filesystem_volume_id_hash": stable_hash(observation),
         "observation_method": observation_method,
+        "observation_state": observation_state,
+        "error_class": error_class,
         "raw_identifier_exposed": False,
         "public_safe": True,
     }

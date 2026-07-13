@@ -17,6 +17,7 @@
     "health_response_schema_validity",
     "health_response_schema_versions",
     "accepted_health_schema_versions",
+    "health_compatibility_policy_hash",
     "qualification_state",
     "release_authority",
     "blockers",
@@ -118,6 +119,10 @@
         "minLength": 1
       },
       "uniqueItems": true
+    },
+    "health_compatibility_policy_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
     }
   }
 }

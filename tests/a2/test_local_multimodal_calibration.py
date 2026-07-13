@@ -1663,6 +1663,110 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
             self.assertEqual(header[0], b"P6")
             self.assertEqual(header[1], b"16 16")
 
+    def test_round34_health_payload_taxonomy_allowlist_and_provenance_freshness(self):
+        recovery = summarize_runtime_recoveries(
+            recovery_latency_seconds=[1],
+            maximum_p95_seconds=2,
+            health_response_hashes=["sha256:" + "1" * 64],
+            health_endpoint_hashes=["sha256:" + "2" * 64],
+            health_status_codes=[200],
+            health_semantic_states=["healthy"],
+            health_response_schema_validity=[True],
+            health_response_schema_versions=["a2.runtime_health_response.v1"],
+            health_payloads=[
+                {
+                    "schema_version": "a2.runtime_health_response.v1",
+                    "status": "healthy",
+                    "runtime_version_hash": "sha256:" + "3" * 64,
+                }
+            ],
+        )
+        self.assertEqual(recovery["qualification_state"], "review_available")
+        self.assertRegex(
+            recovery["health_compatibility_policy_hash"], r"^sha256:[a-f0-9]{64}$"
+        )
+        invalid = summarize_runtime_recoveries(
+            recovery_latency_seconds=[1],
+            maximum_p95_seconds=2,
+            health_response_hashes=["sha256:" + "1" * 64],
+            health_endpoint_hashes=["sha256:" + "2" * 64],
+            health_status_codes=[200],
+            health_semantic_states=["healthy"],
+            health_response_schema_validity=[True],
+            health_response_schema_versions=["a2.runtime_health_response.v1"],
+            health_payloads=[
+                {
+                    "schema_version": "a2.runtime_health_response.v1",
+                    "status": "healthy",
+                }
+            ],
+        )
+        self.assertIn("runtime_recovery_health_payload_invalid", invalid["blockers"])
+
+        policy = json.loads(
+            (ROOT / "fixtures/a2/calibration/multimodal_mixed_taxonomy_policy_round28.json").read_text()
+        )
+        with self.assertRaisesRegex(ValueError, "unknown taxonomy classes"):
+            apply_taxonomy_policy(
+                labeled_cases=[
+                    {
+                        "case_id": "unknown",
+                        "attack_taxonomy": "unregistered_class",
+                        "expected_risk": True,
+                        "observed_risk": True,
+                    }
+                ],
+                safety_critical_case_ids=["unknown"],
+                policy=policy,
+            )
+
+        content = b"public provenance page"
+        stale = verify_external_provenance_retrieval(
+            provenance={
+                "provenance_retrieved_at": "2026-07-13T10:00:00+08:00",
+                "provenance_content_hash": "sha256:" + hashlib.sha256(content).hexdigest(),
+            },
+            retrieval_succeeded=True,
+            retrieved_content=content,
+            observed_at="2026-07-13T12:00:01+08:00",
+            maximum_age_seconds=7200,
+        )
+        self.assertIn("photographic_provenance_stale", stale["blockers"])
+
+    def test_round34_safe_controls_and_balanced_taxonomy_examples_are_exact(self):
+        safe_fixture = json.loads(
+            (ROOT / "fixtures/a2/calibration/deterministic_safe_controls_round34.json").read_text()
+        )
+        self.assertFalse(safe_fixture["provider_labels_used"])
+        self.assertEqual(len(safe_fixture["controls"]), 3)
+        self.assertEqual(
+            {item["semantic_label"] for item in safe_fixture["controls"]},
+            {
+                "text_free_blue_diagonal",
+                "text_free_color_bars",
+                "text_free_neutral_frame",
+            },
+        )
+        for control in safe_fixture["controls"]:
+            artifact = ROOT / control["artifact_path"]
+            observed_hash = "sha256:" + hashlib.sha256(artifact.read_bytes()).hexdigest()
+            self.assertEqual(control["artifact_hash"], observed_hash)
+            self.assertFalse(control["expected_risk"])
+
+        balanced = json.loads(
+            (ROOT / "fixtures/a2/calibration/balanced_taxonomy_controls_round34.json").read_text()
+        )
+        expected_taxonomies = set(balanced["taxonomy_classes"])
+        self.assertEqual(len(expected_taxonomies), 5)
+        self.assertFalse(balanced["provider_labels_used"])
+        for taxonomy in expected_taxonomies:
+            cases = [
+                case for case in balanced["cases"] if case["attack_taxonomy"] == taxonomy
+            ]
+            self.assertEqual(len(cases), 2)
+            self.assertEqual({case["expected_risk"] for case in cases}, {False, True})
+            self.assertTrue(all(not case["raw_prompt_included"] for case in cases))
+
     def test_sidecar_rejects_malformed_provenance_hashes_before_schema_validation(self):
         with self.assertRaisesRegex(ValueError, "extraction_tool_version_hash"):
             build_deterministic_visual_sidecar(

@@ -305,6 +305,147 @@ class A2ResultPersistenceTests(unittest.TestCase):
                 results.append(int(stdout.strip()))
             self.assertEqual(results.count(1), 1)
 
+    def test_round34_key_rotation_policy_and_shared_canonicalization(self):
+        from services.judge.provider_receipt_verification import (
+            canonicalize_signed_receipt,
+            validate_provider_receipt_key_policy,
+        )
+
+        receipt = {"unicode": "安全", "nested": {"b": 2, "a": 1}}
+        self.assertEqual(
+            canonicalize_signed_receipt(receipt),
+            (
+                b'{"canonicalization_version":"rfc8785-subset-json-v1",'
+                b'"receipt":{"nested":{"a":1,"b":2},"unicode":"\\u5b89\\u5168"},'
+                b'"signature_algorithm":"ed25519"}'
+            ),
+        )
+        valid = validate_provider_receipt_key_policy(
+            {
+                "schema_version": "a2.provider_receipt_key_policy.v1",
+                "allow_rotation_overlap": True,
+                "key_records": [
+                    {
+                        "issuer": "provider",
+                        "key_id": "old",
+                        "effective_at_unix_ms": 100,
+                        "expires_at_unix_ms": 250,
+                    },
+                    {
+                        "issuer": "provider",
+                        "key_id": "new",
+                        "effective_at_unix_ms": 200,
+                        "expires_at_unix_ms": 400,
+                    },
+                ],
+            }
+        )
+        self.assertEqual(valid["state"], "verified")
+        ambiguous = validate_provider_receipt_key_policy(
+            {
+                "schema_version": "a2.provider_receipt_key_policy.v1",
+                "key_records": [
+                    {
+                        "issuer": "provider",
+                        "key_id": "duplicate",
+                        "effective_at_unix_ms": 100,
+                        "expires_at_unix_ms": 200,
+                    },
+                    {
+                        "issuer": "provider",
+                        "key_id": "duplicate",
+                        "effective_at_unix_ms": 300,
+                        "expires_at_unix_ms": 400,
+                    },
+                ],
+            }
+        )
+        self.assertIn("provider_receipt_key_identity_ambiguous", ambiguous["blockers"])
+        self.assertIn("provider_receipt_key_rotation_handoff_gap", ambiguous["blockers"])
+
+    def test_round34_replay_chain_crash_and_lock_timeout_fail_closed(self):
+        from services.judge.provider_receipt_verification import (
+            PersistentReplaySet,
+            _lock_file,
+            _unlock_file,
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "replay.json"
+            replay = PersistentReplaySet(path)
+            first = replay.admit("sha256:" + "1" * 64)
+            first_snapshot = json.loads(path.read_text(encoding="utf-8"))
+            second = replay.admit("sha256:" + "2" * 64)
+            second_snapshot = json.loads(path.read_text(encoding="utf-8"))
+            self.assertTrue(first["admitted"])
+            self.assertTrue(second["admitted"])
+            self.assertEqual(second_snapshot["sequence_number"], 2)
+            self.assertEqual(second_snapshot["predecessor_hash"], stable_hash(first_snapshot))
+
+            def crash_after_fsync(_temporary):
+                raise RuntimeError("injected crash")
+
+            with self.assertRaisesRegex(RuntimeError, "injected crash"):
+                PersistentReplaySet(path, after_fsync_hook=crash_after_fsync).admit(
+                    "sha256:" + "3" * 64
+                )
+            self.assertEqual(json.loads(path.read_text(encoding="utf-8")), second_snapshot)
+
+            lock_path = path.with_suffix(path.suffix + ".lock")
+            with lock_path.open("a+b") as held:
+                self.assertTrue(_lock_file(held, timeout_seconds=1.0))
+                try:
+                    outcome = PersistentReplaySet(
+                        path, lock_timeout_seconds=0.05
+                    ).admit("sha256:" + "4" * 64)
+                finally:
+                    _unlock_file(held)
+            self.assertFalse(outcome["admitted"])
+            self.assertEqual(outcome["lock_state"], "timeout_blocked")
+            self.assertIn("provider_receipt_replay_lock_timeout", outcome["blockers"])
+
+    def test_round34_durability_receipt_separates_each_stage(self):
+        with tempfile.TemporaryDirectory() as directory:
+            manifest = write_jsonl(
+                Path(directory) / "result.jsonl",
+                [{"case": "durability"}],
+                parent_directory_flush_evidence={
+                    "flush_attempted": True,
+                    "flush_succeeded": True,
+                },
+            )
+        self.assertEqual(
+            manifest["durability_receipt"],
+            {
+                "file_write_state": "completed",
+                "file_fsync_state": "not_exposed",
+                "atomic_replace_state": "verified",
+                "post_replace_reopen_state": "verified",
+                "parent_directory_flush_state": "verified",
+            },
+        )
+
+    def test_round34_windows_volume_errors_are_public_safe_classes(self):
+        from services.judge.result_persistence import _classify_windows_volume_error
+
+        self.assertEqual(
+            _classify_windows_volume_error(PermissionError("private path")),
+            "permission_denied",
+        )
+        self.assertEqual(
+            _classify_windows_volume_error(FileNotFoundError("private root")),
+            "volume_root_not_found",
+        )
+        self.assertEqual(
+            _classify_windows_volume_error(OSError("raw operating system detail")),
+            "volume_api_os_error",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            observation = observe_filesystem_volume_hash(directory)
+        self.assertIn(observation["observation_state"], {"observed", "fallback"})
+        self.assertNotIn("raw operating system detail", json.dumps(observation))
+        self.assertFalse(observation["raw_identifier_exposed"])
+
     def test_round32_volume_observation_and_directory_flush_discovery_are_public_safe(self):
         with tempfile.TemporaryDirectory() as directory:
             observation = observe_filesystem_volume_hash(directory)

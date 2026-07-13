@@ -1411,6 +1411,8 @@ def summarize_runtime_recoveries(
     health_response_schema_validity: list[bool] | None = None,
     health_response_schema_versions: list[str] | None = None,
     accepted_health_schema_versions: set[str] | None = None,
+    health_payloads: list[dict[str, Any]] | None = None,
+    health_compatibility_policy: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if not recovery_latency_seconds or any(value < 0 for value in recovery_latency_seconds):
         raise ValueError("recovery latencies must be non-empty and non-negative")
@@ -1427,6 +1429,13 @@ def summarize_runtime_recoveries(
     accepted_health_schema_versions = set(
         accepted_health_schema_versions or {"a2.runtime_health_response.v1"}
     )
+    payload_validation_requested = health_payloads is not None or health_compatibility_policy is not None
+    health_payloads = list(health_payloads or [])
+    health_compatibility_policy = health_compatibility_policy or {
+        "schema_version": "a2.runtime_health_compatibility_policy.v1",
+        "accepted_versions": sorted(accepted_health_schema_versions),
+        "required_fields": ["schema_version", "status", "runtime_version_hash"],
+    }
     for value in health_response_hashes:
         if _SHA256_REF.fullmatch(value) is None:
             raise ValueError("health response hashes must be sha256 references")
@@ -1458,6 +1467,33 @@ def summarize_runtime_recoveries(
         blockers.append("runtime_recovery_health_schema_version_coverage_not_met")
     elif any(value not in accepted_health_schema_versions for value in health_response_schema_versions):
         blockers.append("runtime_recovery_health_schema_version_unsupported")
+    if payload_validation_requested and len(health_payloads) != len(ordered):
+        blockers.append("runtime_recovery_health_payload_coverage_not_met")
+    elif payload_validation_requested:
+        required_fields = health_compatibility_policy.get("required_fields")
+        accepted_versions = health_compatibility_policy.get("accepted_versions")
+        if (
+            health_compatibility_policy.get("schema_version")
+            != "a2.runtime_health_compatibility_policy.v1"
+            or not isinstance(required_fields, list)
+            or not required_fields
+            or not isinstance(accepted_versions, list)
+            or set(accepted_versions) != accepted_health_schema_versions
+        ):
+            blockers.append("runtime_recovery_health_compatibility_policy_invalid")
+        else:
+            for payload, expected_version, expected_state in zip(
+                health_payloads, health_response_schema_versions, health_semantic_states
+            ):
+                if (
+                    not isinstance(payload, dict)
+                    or any(field not in payload for field in required_fields)
+                    or payload.get("schema_version") != expected_version
+                    or payload.get("status") != expected_state
+                    or _SHA256_REF.fullmatch(str(payload.get("runtime_version_hash") or "")) is None
+                ):
+                    blockers.append("runtime_recovery_health_payload_invalid")
+                    break
     return {
         "observation_count": len(ordered),
         "minimum_observations": minimum_observations,
@@ -1471,6 +1507,7 @@ def summarize_runtime_recoveries(
         "health_response_schema_validity": health_response_schema_validity,
         "health_response_schema_versions": health_response_schema_versions,
         "accepted_health_schema_versions": sorted(accepted_health_schema_versions),
+        "health_compatibility_policy_hash": stable_hash(health_compatibility_policy),
         "maximum_p95_recovery_latency_seconds": maximum_p95_seconds,
         "qualification_state": "review_available" if not blockers else "blocked",
         "release_authority": False,
@@ -1485,6 +1522,7 @@ def apply_taxonomy_policy(
     allowed = {
         "schema_version", "minimum_positive_denominators", "minimum_negative_denominators",
         "minimum_recall_wilson_lower", "minimum_specificity_wilson_lower",
+        "allowed_taxonomy_classes",
         "release_authority", "public_safe",
     }
     unknown = sorted(set(policy) - allowed)
@@ -1492,6 +1530,16 @@ def apply_taxonomy_policy(
         raise ValueError(f"unknown taxonomy policy keys: {unknown}")
     if policy.get("schema_version") != "a2.multimodal_taxonomy_policy.v1":
         raise ValueError("unsupported taxonomy policy schema version")
+    allowed_taxonomy_classes = policy.get("allowed_taxonomy_classes")
+    if allowed_taxonomy_classes is None:
+        allowed_taxonomy_classes = sorted(
+            set(policy.get("minimum_positive_denominators", {}))
+            | set(policy.get("minimum_negative_denominators", {}))
+        )
+    if not isinstance(allowed_taxonomy_classes, list) or not allowed_taxonomy_classes or any(
+        not isinstance(value, str) or not value for value in allowed_taxonomy_classes
+    ):
+        raise ValueError("allowed_taxonomy_classes must be a non-empty string list")
     for key in ("minimum_positive_denominators", "minimum_negative_denominators"):
         if not isinstance(policy.get(key), dict) or any(
             not isinstance(value, int) or isinstance(value, bool) for value in policy[key].values()
@@ -1509,6 +1557,12 @@ def apply_taxonomy_policy(
             raise ValueError(f"{key} thresholds must be finite")
         if any(not 0 <= float(value) <= 1 for value in policy[key].values()):
             raise ValueError(f"{key} thresholds must be between zero and one")
+    observed_taxonomies = {
+        str(case.get("attack_taxonomy") or "") for case in labeled_cases
+    }
+    unknown_taxonomies = sorted(observed_taxonomies - set(allowed_taxonomy_classes))
+    if unknown_taxonomies:
+        raise ValueError(f"unknown taxonomy classes: {unknown_taxonomies}")
     policy_hash = stable_hash(policy)
     result = evaluate_multimodal_safety_metrics(
         labeled_cases=labeled_cases,
@@ -1547,6 +1601,8 @@ def verify_external_provenance_retrieval(
     provenance: dict[str, Any],
     retrieval_succeeded: bool,
     retrieved_content: bytes | None,
+    observed_at: str | None = None,
+    maximum_age_seconds: float | None = None,
 ) -> dict[str, Any]:
     blockers: list[str] = []
     expected_hash = str(provenance.get("provenance_content_hash") or "")
@@ -1559,6 +1615,21 @@ def verify_external_provenance_retrieval(
             blockers.append("photographic_provenance_content_digest_mismatch")
     if not provenance.get("provenance_retrieved_at"):
         blockers.append("photographic_provenance_retrieval_timestamp_missing")
+    elif observed_at is not None and maximum_age_seconds is not None:
+        if maximum_age_seconds <= 0:
+            raise ValueError("maximum_age_seconds must be positive")
+        try:
+            retrieved_at = datetime.fromisoformat(
+                str(provenance["provenance_retrieved_at"]).replace("Z", "+00:00")
+            )
+            observed = datetime.fromisoformat(str(observed_at).replace("Z", "+00:00"))
+            age_seconds = (observed - retrieved_at).total_seconds()
+            if age_seconds < 0:
+                blockers.append("photographic_provenance_retrieval_from_future")
+            elif age_seconds > maximum_age_seconds:
+                blockers.append("photographic_provenance_stale")
+        except (TypeError, ValueError):
+            blockers.append("photographic_provenance_retrieval_timestamp_invalid")
     return {
         "provenance_content_hash": expected_hash,
         "observed_content_hash": observed_hash,

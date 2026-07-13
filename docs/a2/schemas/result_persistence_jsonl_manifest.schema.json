@@ -21,7 +21,8 @@
     "filesystem_volume_id_hash",
     "post_replace_reopen_state",
     "durability_qualification_state",
-    "replay_set_snapshot_hash"
+    "replay_set_snapshot_hash",
+    "durability_receipt"
   ],
   "properties": {
     "schema_version": {
@@ -101,6 +102,24 @@
     "replay_set_snapshot_hash": {
       "type": "string",
       "pattern": "^(|sha256:[a-f0-9]{64})$"
+    },
+    "durability_receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "file_write_state",
+        "file_fsync_state",
+        "atomic_replace_state",
+        "post_replace_reopen_state",
+        "parent_directory_flush_state"
+      ],
+      "properties": {
+        "file_write_state": {"const": "completed"},
+        "file_fsync_state": {"enum": ["verified", "not_exposed"]},
+        "atomic_replace_state": {"const": "verified"},
+        "post_replace_reopen_state": {"const": "verified"},
+        "parent_directory_flush_state": {"enum": ["verified", "unavailable"]}
+      }
     }
   }
 }

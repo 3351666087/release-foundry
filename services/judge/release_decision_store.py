@@ -24,6 +24,29 @@ _SECRET_OR_LOCATION = re.compile(
 _SHA256_REF = re.compile(r"sha256:[0-9a-f]{64}\Z")
 
 
+def migrate_legacy_taxonomy_policy_identity(
+    envelope: dict[str, Any],
+    *,
+    governed_taxonomy_policy: dict[str, Any],
+) -> dict[str, Any]:
+    """Explicitly bind a legacy empty taxonomy identity; never infer one during recovery."""
+    if "taxonomy_policy_hash" in envelope and envelope.get("taxonomy_policy_hash"):
+        raise ValueError("recovery envelope already has a taxonomy policy identity")
+    if governed_taxonomy_policy.get("schema_version") != "a2.multimodal_taxonomy_policy.v1":
+        raise ValueError("governed taxonomy policy schema is unsupported")
+    migrated = dict(envelope)
+    migrated["taxonomy_policy_hash"] = stable_hash(governed_taxonomy_policy)
+    return {
+        "schema_version": "a2.taxonomy_policy_identity_migration.v1",
+        "migration_state": "bound",
+        "source_envelope_hash": stable_hash(envelope),
+        "governed_taxonomy_policy_hash": migrated["taxonomy_policy_hash"],
+        "migrated_envelope": migrated,
+        "release_authority": False,
+        "public_safe": True,
+    }
+
+
 def reserve_decision_operation(
     connection: sqlite3.Connection,
     *,

@@ -353,6 +353,30 @@ class ProcessInterruptedAdapter:
 
 
 class ReleaseDecisionOrchestratorTests(unittest.TestCase):
+    def test_round34_legacy_taxonomy_identity_requires_explicit_governed_migration(self):
+        from services.judge.release_decision_store import (
+            migrate_legacy_taxonomy_policy_identity,
+        )
+
+        envelope = {"schema_version": "a2.normalized_decision_envelope.v1"}
+        policy = {
+            "schema_version": "a2.multimodal_taxonomy_policy.v1",
+            "allowed_taxonomy_classes": ["visual_prompt_injection"],
+        }
+        migration = migrate_legacy_taxonomy_policy_identity(
+            envelope, governed_taxonomy_policy=policy
+        )
+        self.assertEqual(migration["migration_state"], "bound")
+        self.assertEqual(
+            migration["migrated_envelope"]["taxonomy_policy_hash"],
+            stable_hash(policy),
+        )
+        with self.assertRaisesRegex(ValueError, "already has"):
+            migrate_legacy_taxonomy_policy_identity(
+                migration["migrated_envelope"],
+                governed_taxonomy_policy=policy,
+            )
+
     def test_round33_taxonomy_policy_hash_change_conflicts_and_legacy_recovery_fails_closed(self):
         connection = sqlite3.connect(":memory:")
         try:
