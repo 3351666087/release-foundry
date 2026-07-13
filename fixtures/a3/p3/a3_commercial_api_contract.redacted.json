@@ -12,20 +12,20 @@
   },
   "purpose": "Map commercial /v1 SaaS endpoints to current A3 product surfaces without claiming A1/A2 backend ownership.",
   "summary": {
-    "endpoint_count": 37,
-    "implemented_or_read_only_count": 24,
+    "endpoint_count": 38,
+    "implemented_or_read_only_count": 25,
     "plan_only_count": 10,
     "blocked_by_auth_count": 3,
     "by_status": {
       "blocked_until_A1_auth_RBAC": 3,
-      "implemented_local_a3": 13,
+      "implemented_local_a3": 14,
       "plan_only_until_backend": 10,
       "read_only_local_a3": 11
     },
     "by_owner_lane": {
       "A1": 13,
       "A1/A2": 4,
-      "A1/A2/A3": 3,
+      "A1/A2/A3": 4,
       "A1/A3": 9,
       "A2/A3": 4,
       "A3": 4
@@ -36,7 +36,7 @@
       "audit_export": 2,
       "notification_control_plane": 3,
       "product_console": 9,
-      "release_gate": 4,
+      "release_gate": 5,
       "report_center": 3,
       "review_workflow": 4,
       "usage_billing": 5
@@ -879,6 +879,45 @@
       "secret_values_allowed": false
     },
     {
+      "route": "POST /internal/v1/releases/{release_id}/deployment-receipts/{receipt_id}/verify",
+      "owner_lane": "A1/A2/A3",
+      "a3_surface": "release_gate",
+      "local_a3_route": "POST /internal/a3/deployment/receipts/:receiptId/verify",
+      "method": "POST",
+      "status_hint": "implemented",
+      "rbac": "deployment:verify service_account_only",
+      "db_tables": [
+        "deployment_receipts",
+        "deployment_receipt_readbacks",
+        "idempotency_keys",
+        "audit_events",
+        "event_outbox"
+      ],
+      "events": [
+        "deployment.receipt_authoritatively_verified",
+        "deployment.receipt_authoritatively_rejected"
+      ],
+      "artifacts": [
+        "deployment_receipt_authoritative_readback",
+        "deployment_acceptance_projection"
+      ],
+      "usage_meters": [
+        "api_requests",
+        "deployment_receipt_authoritative_verifications"
+      ],
+      "a1_a2_dependencies": [
+        "A1 trusted service-account principal",
+        "server-only authoritative resolver",
+        "A2 same-candidate decision authority",
+        "A3 hash-chain and acceptance projection"
+      ],
+      "notes": "Trigger-only internal route. Client-supplied verification status, claims, evidence, authority, and attestation are rejected.",
+      "order": 25,
+      "a3_status": "implemented_local_a3",
+      "contract_risk": "low_read_or_ingest_contract",
+      "secret_values_allowed": false
+    },
+    {
       "route": "GET /v1/evidence-bundles/{bundle_id}",
       "owner_lane": "A1/A3",
       "a3_surface": "audit_export",
@@ -908,7 +947,7 @@
         "A3 audit export UI"
       ],
       "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
-      "order": 25,
+      "order": 26,
       "a3_status": "read_only_local_a3",
       "contract_risk": "low_read_or_ingest_contract",
       "secret_values_allowed": false
@@ -944,7 +983,7 @@
         "A3 audit export UI"
       ],
       "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
-      "order": 26,
+      "order": 27,
       "a3_status": "read_only_local_a3",
       "contract_risk": "low_read_or_ingest_contract",
       "secret_values_allowed": false
@@ -976,7 +1015,7 @@
         "A1/A2 source evidence"
       ],
       "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
-      "order": 27,
+      "order": 28,
       "a3_status": "implemented_local_a3",
       "contract_risk": "low_read_or_ingest_contract",
       "secret_values_allowed": false
@@ -1011,7 +1050,7 @@
         "A1/A2 source evidence"
       ],
       "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
-      "order": 28,
+      "order": 29,
       "a3_status": "implemented_local_a3",
       "contract_risk": "low_read_or_ingest_contract",
       "secret_values_allowed": false
@@ -1046,7 +1085,7 @@
         "A1/A2 source evidence"
       ],
       "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
-      "order": 29,
+      "order": 30,
       "a3_status": "implemented_local_a3",
       "contract_risk": "low_read_or_ingest_contract",
       "secret_values_allowed": false
@@ -1081,7 +1120,7 @@
         "A3 usage UI"
       ],
       "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
-      "order": 30,
+      "order": 31,
       "a3_status": "read_only_local_a3",
       "contract_risk": "low_read_or_ingest_contract",
       "secret_values_allowed": false
@@ -1117,7 +1156,7 @@
         "A3 billing UI"
       ],
       "notes": "Maps future commercial billing migration readiness to A1 ledger/migration summaries; A3 remains read-only and cannot mutate billing provider state.",
-      "order": 31,
+      "order": 32,
       "a3_status": "read_only_local_a3",
       "contract_risk": "low_read_or_ingest_contract",
       "secret_values_allowed": false
@@ -1150,7 +1189,7 @@
         "A3 billing UI"
       ],
       "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
-      "order": 32,
+      "order": 33,
       "a3_status": "read_only_local_a3",
       "contract_risk": "low_read_or_ingest_contract",
       "secret_values_allowed": false
@@ -1183,7 +1222,7 @@
         "A3 billing UI"
       ],
       "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
-      "order": 33,
+      "order": 34,
       "a3_status": "blocked_until_A1_auth_RBAC",
       "contract_risk": "high_payment_mutation",
       "secret_values_allowed": false
@@ -1216,7 +1255,7 @@
         "A3 billing UI"
       ],
       "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
-      "order": 34,
+      "order": 35,
       "a3_status": "blocked_until_A1_auth_RBAC",
       "contract_risk": "high_payment_mutation",
       "secret_values_allowed": false
@@ -1249,7 +1288,7 @@
         "A3 notification UI"
       ],
       "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
-      "order": 35,
+      "order": 36,
       "a3_status": "read_only_local_a3",
       "contract_risk": "low_read_or_ingest_contract",
       "secret_values_allowed": false
@@ -1285,7 +1324,7 @@
         "A3 notification control plane"
       ],
       "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
-      "order": 36,
+      "order": 37,
       "a3_status": "plan_only_until_backend",
       "contract_risk": "low_read_or_ingest_contract",
       "secret_values_allowed": false
@@ -1326,7 +1365,7 @@
         "A3 report/review workflow"
       ],
       "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
-      "order": 37,
+      "order": 38,
       "a3_status": "plan_only_until_backend",
       "contract_risk": "medium_release_governance",
       "secret_values_allowed": false
@@ -1447,6 +1486,7 @@
         "artifact_bytes_uploaded",
         "billing_readiness_reads",
         "case_count",
+        "deployment_receipt_authoritative_verifications",
         "deployment_receipt_reviews",
         "deployment_receipt_submissions",
         "judge_invocations",
@@ -1486,6 +1526,8 @@
         "dataset.read",
         "denial.recorded",
         "deployment.receipt_acknowledged",
+        "deployment.receipt_authoritatively_rejected",
+        "deployment.receipt_authoritatively_verified",
         "deployment.receipt_rejected",
         "deployment.receipt_submitted",
         "deployment.receipt_superseded",
@@ -1539,5 +1581,5 @@
     "documentation": "docs/a3/p3_commercial_api_contract_2026_07_09.md",
     "api_route": "GET /api/a3/commercial-api/contract"
   },
-  "contract_hash": "eace0c21a64df83d29e14b9eda05ea68268010d48b459ca808c58ca5c48d438b"
+  "contract_hash": "19c3de5b6c0ec76bc13c55e460504c9fde036b0046d37e8a1dc72fcf48559167"
 }

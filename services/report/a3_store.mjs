@@ -68,8 +68,11 @@ import {
 } from "./a3_release_comparison.mjs";
 import { buildA3DeploymentHandoff } from "./a3_deployment_handoff.mjs";
 import {
+  buildA3DeploymentAcceptanceProjection,
+  buildA3DeploymentReceiptAuthoritativeReadback,
   buildA3DeploymentReceiptInbox,
   buildA3DeploymentReceiptSubmission,
+  isTrustedA3DeploymentReceiptAuthoritativeReadback,
   reviewA3DeploymentReceipt
 } from "./a3_deployment_receipt_workflow.mjs";
 
@@ -209,6 +212,7 @@ export const A3_DB_CONTRACT = {
     "release_evidence_readbacks",
     "github_publish_receipts",
     "deployment_receipts",
+    "deployment_receipt_readbacks",
     "notification_channels",
     "notification_subscriptions",
     "notification_templates",
@@ -235,6 +239,7 @@ export const A3_DB_CONTRACT = {
     "GET /api/a3/deployment/receipts",
     "POST /api/a3/deployment/receipts",
     "POST /api/a3/deployment/receipts/:receiptId/review",
+    "POST /internal/a3/deployment/receipts/:receiptId/verify",
     "GET /api/a3/release-decision/provenance",
     "POST /api/a3/ui-actions/preflight",
     "GET /api/a3/runs",
@@ -396,6 +401,7 @@ export function createMemoryA3Store(seed = {}) {
   const releaseEvidenceReadbacks = [];
   const githubPublishReceipts = [];
   const deploymentReceipts = [];
+  const deploymentReceiptReadbacks = [];
 
   for (const [source, snapshot] of Object.entries(seed.sources || {})) {
     snapshots.set(source, normalizeSnapshot({ source, ...snapshot }));
@@ -438,6 +444,11 @@ export function createMemoryA3Store(seed = {}) {
   for (const receipt of seed.deploymentReceipts || []) {
     deploymentReceipts.push(sanitizeDeploymentReceiptRecord(receipt));
   }
+  for (const readback of seed.deploymentReceiptReadbacks || []) {
+    if (isTrustedA3DeploymentReceiptAuthoritativeReadback(readback)) {
+      deploymentReceiptReadbacks.push(structuredClone(readback));
+    }
+  }
 
   return {
     schema_version: A3_STORE_SCHEMA_VERSION,
@@ -460,6 +471,7 @@ export function createMemoryA3Store(seed = {}) {
       const scopedReleaseEvidenceReadbacks = filterTenantScopedRecords(releaseEvidenceReadbacks, snapshot, requestOptions);
       const scopedGitHubPublishReceipts = filterTenantScopedRecords(githubPublishReceipts, snapshot, requestOptions);
       const scopedDeploymentReceipts = filterTenantScopedRecords(deploymentReceipts, snapshot, requestOptions);
+      const scopedDeploymentReceiptReadbacks = filterTenantScopedRecords(deploymentReceiptReadbacks, snapshot, requestOptions);
       const importReceipts = apiImportReceiptsFromLedger(idempotencyReceipts);
       const scopedImportReceipts = filterTenantScopedRecords(importReceipts, snapshot, requestOptions);
       return buildDashboardPayload(snapshot, this.storage_mode, {
@@ -472,6 +484,7 @@ export function createMemoryA3Store(seed = {}) {
         releaseEvidenceReadbacks: scopedReleaseEvidenceReadbacks,
         githubPublishReceipts: scopedGitHubPublishReceipts,
         deploymentReceipts: scopedDeploymentReceipts,
+        deploymentReceiptReadbacks: scopedDeploymentReceiptReadbacks,
         actor: requestOptions.actor,
         auth: requestOptions.auth,
         importReceipts: scopedImportReceipts,
@@ -483,6 +496,7 @@ export function createMemoryA3Store(seed = {}) {
           releaseEvidenceReadbacks,
           githubPublishReceipts,
           deploymentReceipts,
+          deploymentReceiptReadbacks,
           importReceipts
         }, snapshot, requestOptions)
       });
@@ -1349,6 +1363,152 @@ export function createMemoryA3Store(seed = {}) {
         receipt
       );
       return receipt;
+    },
+
+    async verifyDeploymentReceiptAuthoritatively(receiptId, resolver, options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source, options);
+      requireIdempotencyKey(options, "deployment_receipt_authoritative_verify", snapshot.source);
+      if (options.trustedResolver !== true || options.principalKind !== "service_account" || typeof resolver !== "function") {
+        throw new A3StoreValidationError("Authoritative verification requires a trusted server resolver and service account.", [
+          { field: "resolver", issue: "trusted_server_resolver_required" },
+          { field: "principal_kind", issue: "service_account_required" }
+        ], {
+          requestType: "deployment_receipt_authoritative_verify",
+          source: snapshot.source,
+          statusCode: 403,
+          error: "trusted_deployment_verifier_required"
+        });
+      }
+      const index = deploymentReceipts.findIndex((item) => (
+        item.receipt_id === receiptId && strictTenantRecordMatches(item, snapshot)
+      ));
+      if (index < 0) return null;
+
+      const current = deploymentReceipts[index];
+      const expectedVersion = Number(options.expectedVersion ?? options.expected_version);
+      const requestHash = sha256(stableJson({
+        receipt_id: receiptId,
+        expected_version: expectedVersion,
+        source: snapshot.source,
+        tenant_scope: current.tenant_scope,
+        resolver_id_alias: options.resolverIdAlias || options.resolver_id_alias || "unknown"
+      }));
+      const idempotencySource = scopedIdempotencySource(snapshot.source, options, snapshot);
+      const replay = getIdempotentReplay(
+        idempotencyReceipts,
+        "deployment_receipt_authoritative_verify",
+        idempotencySource,
+        options.idempotencyKey,
+        requestHash
+      );
+      if (replay) return replay;
+      if (!Number.isInteger(expectedVersion) || expectedVersion < 1 || expectedVersion !== Number(current.version)) {
+        throw new A3StoreValidationError("Deployment receipt authoritative verification has a stale version.", [
+          { field: "expected_version", issue: "version_conflict" }
+        ], {
+          requestType: "deployment_receipt_authoritative_verify",
+          source: snapshot.source,
+          statusCode: 409,
+          error: "version_conflict"
+        });
+      }
+      if (current.status !== "acknowledged") {
+        throw new A3StoreValidationError("Deployment receipt must be acknowledged before authoritative verification.", [
+          { field: "receipt.status", issue: "acknowledged_receipt_required" }
+        ], {
+          requestType: "deployment_receipt_authoritative_verify",
+          source: snapshot.source
+        });
+      }
+
+      const previous = deploymentReceiptReadbacks
+        .filter((item) => item.receipt_id === receiptId && strictTenantRecordMatches(item, snapshot))
+        .sort((left, right) => Number(right.sequence || 0) - Number(left.sequence || 0))[0] || null;
+      let resolverOutput;
+      try {
+        resolverOutput = await resolver({
+          receipt: structuredClone(current),
+          previous_readback: previous ? structuredClone(previous) : null,
+          source: snapshot.source,
+          tenant_scope: structuredClone(current.tenant_scope)
+        });
+      } catch {
+        throw new A3StoreValidationError("The authoritative deployment verifier did not return a usable readback.", [
+          { field: "resolver", issue: "resolver_failed" }
+        ], {
+          requestType: "deployment_receipt_authoritative_verify",
+          source: snapshot.source,
+          statusCode: 502,
+          error: "authoritative_verifier_failed"
+        });
+      }
+      const built = buildA3DeploymentReceiptAuthoritativeReadback(current, resolverOutput, {
+        trusted_resolver: true,
+        principal_kind: "service_account",
+        resolver_id_alias: options.resolverIdAlias || options.resolver_id_alias,
+        expected_version: expectedVersion,
+        previous_readback: previous
+      });
+      if (!built.valid) {
+        throw new A3StoreValidationError("The authoritative deployment verifier returned an invalid readback.", built.errors, {
+          requestType: "deployment_receipt_authoritative_verify",
+          source: snapshot.source,
+          statusCode: 502,
+          error: "authoritative_verifier_invalid"
+        });
+      }
+
+      const existing = deploymentReceiptReadbacks.find((item) => (
+        item.readback_id === built.record.readback_id && strictTenantRecordMatches(item, snapshot)
+      ));
+      if (existing) {
+        const duplicate = attachIdempotencyReceipt({ ...existing, duplicate_content: true }, options.idempotencyKey);
+        duplicate.idempotency.status = "duplicate_content";
+        duplicate.idempotency.duplicate = true;
+        rememberIdempotentReceipt(
+          idempotencyReceipts,
+          "deployment_receipt_authoritative_verify",
+          idempotencySource,
+          options.idempotencyKey,
+          requestHash,
+          duplicate
+        );
+        return duplicate;
+      }
+
+      const storedReadback = structuredClone(built.record);
+      deploymentReceiptReadbacks.push(storedReadback);
+      const auditEvent = deploymentReceiptReadbackAuditEvent(storedReadback, auditEvents.length);
+      auditEvents.push(auditEvent);
+      const outboxRow = recordEventOutbox(eventOutbox, {
+        source: snapshot.source,
+        eventType: storedReadback.production_verified
+          ? "deployment.receipt_authoritatively_verified"
+          : "deployment.receipt_authoritatively_rejected",
+        resourceType: "deployment_receipt_readback",
+        resourceId: storedReadback.readback_id,
+        tenantScope: storedReadback.tenant_scope,
+        actorHash: options.actorHash || options.actor_hash || storedReadback.resolver_id_alias,
+        createdAt: storedReadback.verified_at,
+        payload: deploymentReceiptReadbackEventPayload(storedReadback),
+        usageMeter: { meter: "deployment_receipt_authoritative_verifications", quantity: 1 }
+      });
+      const result = attachIdempotencyReceipt(
+        attachEventEnvelopeReceipt({
+          ...storedReadback,
+          audit_event_id: auditEvent.event_id
+        }, outboxRow),
+        options.idempotencyKey
+      );
+      rememberIdempotentReceipt(
+        idempotencyReceipts,
+        "deployment_receipt_authoritative_verify",
+        idempotencySource,
+        options.idempotencyKey,
+        requestHash,
+        result
+      );
+      return result;
     },
 
     async authorizeLiveRelease(options = {}) {
@@ -2260,7 +2420,8 @@ export function createMemoryA3Store(seed = {}) {
         reviewWorkflowRecords,
         releaseEvidenceReadbacks,
         githubPublishReceipts,
-        deploymentReceipts
+        deploymentReceipts,
+        deploymentReceiptReadbacks
       };
     }
   };
@@ -2455,6 +2616,11 @@ export async function createFileBackedA3Store(options = {}) {
     },
     async reviewDeploymentReceipt(receiptId, review, options = {}) {
       const result = await store.reviewDeploymentReceipt(receiptId, review, options);
+      await persist();
+      return result;
+    },
+    async verifyDeploymentReceiptAuthoritatively(receiptId, resolver, options = {}) {
+      const result = await store.verifyDeploymentReceiptAuthoritatively(receiptId, resolver, options);
       await persist();
       return result;
     },
@@ -2742,7 +2908,12 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
   const deploymentReceiptInbox = buildA3DeploymentReceiptInbox(
     options.deploymentReceipts || [],
     deploymentHandoff,
-    receiptContext
+    receiptContext,
+    options.deploymentReceiptReadbacks || []
+  );
+  const deploymentAcceptanceProjection = buildA3DeploymentAcceptanceProjection(
+    deploymentAcceptance,
+    deploymentReceiptInbox
   );
   return {
     schema_version: "a3.api_dashboard_payload.v1",
@@ -2785,6 +2956,7 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     a1_a2_evidence_spine: a1A2EvidenceSpine,
     deployment_probe: snapshot.deploymentProbe,
     deployment_acceptance: deploymentAcceptance,
+    deployment_acceptance_projection: deploymentAcceptanceProjection,
     deployment_handoff: deploymentHandoff,
     deployment_receipt_inbox: deploymentReceiptInbox,
     release_artifact_manifest: snapshot.releaseArtifactManifest,
@@ -3353,6 +3525,43 @@ function deploymentReceiptEventPayload(record = {}, phase = "submitted") {
     evidence_sha256: record.evidence_sha256,
     production_verified: false,
     deployment_acceptance_changed: false,
+    a2_release_ready_changed: false,
+    raw_evidence_embedded: false
+  };
+}
+
+function deploymentReceiptReadbackAuditEvent(readback = {}, index = 0) {
+  return {
+    event_id: `dprv_evt_${sha256(`${readback.readback_id}:${readback.sequence}:${index}`).slice(0, 16)}`,
+    source: readback.source,
+    ...readback.tenant_scope,
+    event_type: readback.production_verified
+      ? "deployment_receipt_authoritatively_verified"
+      : "deployment_receipt_authoritatively_rejected",
+    subject_id: readback.readback_id,
+    actor_hash: readback.resolver_id_alias,
+    payload: deploymentReceiptReadbackEventPayload(readback),
+    created_at: readback.verified_at,
+    redacted: true
+  };
+}
+
+function deploymentReceiptReadbackEventPayload(readback = {}) {
+  return {
+    schema_version: "a3.deployment_receipt_readback_event_payload.v1",
+    readback_id: readback.readback_id,
+    receipt_id: readback.receipt_id,
+    blocker_id: readback.blocker_id,
+    candidate_id: readback.candidate_id,
+    run_id: readback.run_id,
+    verification_status: readback.verification_status,
+    reason_code: readback.reason_code,
+    sequence: readback.sequence,
+    evidence_sha256: readback.evidence_sha256,
+    attestation_sha256: readback.attestation_sha256,
+    readback_hash: readback.readback_hash,
+    production_verified: readback.production_verified === true,
+    source_acceptance_mutated: false,
     a2_release_ready_changed: false,
     raw_evidence_embedded: false
   };

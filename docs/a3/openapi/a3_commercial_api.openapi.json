@@ -7215,6 +7215,199 @@
           "metadata_only_denial_audit_required": true
         }
       }
+    },
+    "/internal/a3/deployment/receipts/{receiptId}/verify": {
+      "post": {
+        "operationId": "a3VerifyDeploymentReceipt",
+        "summary": "Invoke the server-only authoritative deployment receipt verifier.",
+        "tags": [
+          "Operations"
+        ],
+        "x-schema-version": "a3.deployment_receipt_authoritative_readback.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
+          ],
+          "source": "server_verified_a1_principal",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true,
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "contract_only_fail_closed",
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true,
+          "service_account_only": true,
+          "hosted_enforcement_required": true
+        },
+        "x-rbac": {
+          "operation_id": "verify_deployment_receipt",
+          "permission": "deployment:verify",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger; A3 only emits a metering intent."
+        },
+        "x-audit": {
+          "events": [
+            "deployment.receipt_authoritatively_verified",
+            "deployment.receipt_authoritatively_rejected"
+          ],
+          "payload_policy": "ids_hashes_claims_and_attestation_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "verified principal",
+            "tenant scope",
+            "usage and audit execution"
+          ],
+          "a2": [
+            "GradeResult and release decision authority remain unchanged"
+          ],
+          "a3_rule": "A3 orchestrates product workflow and must not reinterpret A1 runtime facts or A2 decision semantics."
+        },
+        "security": [
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "internal_service_account_write",
+        "responses": {
+          "200": {
+            "description": "Immutable authoritative readback produced by the trusted server resolver.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeploymentReceiptAuthoritativeReadback"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "408": {
+            "$ref": "#/components/responses/RequestTimeout"
+          },
+          "409": {
+            "description": "Receipt version or idempotency conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeploymentReceiptConflict"
+                }
+              }
+            }
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "502": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "parameters": [
+          {
+            "name": "receiptId",
+            "in": "path",
+            "required": true,
+            "description": "receiptId path identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "description": "Opaque caller-generated retry key. The raw value is never persisted.",
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 160
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "x-secret-policy": "raw_secret_values_forbidden",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeploymentReceiptVerificationRequest"
+              }
+            }
+          }
+        },
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        },
+        "x-request-validation": {
+          "malformed_json": "sanitized_400_after_authentication_and_authorization",
+          "body_read_timeout": "sanitized_408_after_authentication_and_authorization",
+          "maximum_body_bytes_default": 1048576,
+          "payload_too_large": "sanitized_413_after_authentication_and_authorization",
+          "required_media_type": "application/json",
+          "unsupported_media_type": "sanitized_415_after_authentication_and_authorization",
+          "required_top_level_shape": "object",
+          "invalid_json_shape": "sanitized_422_after_authentication_and_authorization",
+          "unauthorized_precedence": "401",
+          "forbidden_precedence": "403",
+          "raw_body_echoed": false,
+          "metadata_only_denial_audit_required": true
+        },
+        "x-browser-callable": false,
+        "x-verifier-boundary": {
+          "client_supplied_verification_result_used": false,
+          "trusted_resolver_required": true,
+          "receipt_candidate_run_scope_hash_binding_required": true,
+          "blocker_specific_claims_required": true,
+          "raw_evidence_forbidden": true
+        }
+      }
     }
   },
   "components": {
@@ -7593,7 +7786,8 @@
           "aggregate_scope_status",
           "trusted_release_authority",
           "deployment_handoff",
-          "deployment_receipt_inbox"
+          "deployment_receipt_inbox",
+          "deployment_acceptance_projection"
         ],
         "properties": {
           "schema_version": {
@@ -7628,6 +7822,9 @@
           },
           "deployment_receipt_inbox": {
             "$ref": "#/components/schemas/DeploymentReceiptInbox"
+          },
+          "deployment_acceptance_projection": {
+            "$ref": "#/components/schemas/DeploymentAcceptanceProjection"
           }
         },
         "additionalProperties": true
@@ -9603,14 +9800,46 @@
                 "type": "string"
               },
               "production_verified": {
-                "type": "boolean",
-                "const": false
+                "type": "boolean"
               },
               "authoritative_readback_id": {
-                "type": "null"
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "verified_at": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "format": "date-time"
+              },
+              "verifier_authority": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "attestation_sha256": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "pattern": "^sha256:[a-f0-9]{64}$"
               }
             },
             "additionalProperties": false
+          },
+          "production_verification": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DeploymentReceiptAuthoritativeReadback"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "acceptance_effect": {
             "type": "object",
@@ -9681,7 +9910,7 @@
           }
         },
         "additionalProperties": true,
-        "description": "Sanitized receipt metadata. Submission or acknowledgement never counts as production verification."
+        "description": "Sanitized receipt metadata. Submission or acknowledgement never counts as production verification; only a hash-valid server readback can populate authority_validation."
       },
       "DeploymentReceiptInboxSlot": {
         "type": "object",
@@ -9742,14 +9971,20 @@
             ]
           },
           "production_verified": {
-            "type": "boolean",
-            "const": false
+            "type": "boolean"
+          },
+          "authoritative_readback_id": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "deployment_check_status": {
             "type": "string",
             "enum": [
               "blocked",
-              "not_proven"
+              "not_proven",
+              "production_verified"
             ]
           }
         },
@@ -9767,9 +10002,11 @@
           "blocker_slot_count",
           "missing_slot_count",
           "submitted_or_acknowledged_count",
+          "authoritative_readback_count",
           "production_verified_count",
           "slots",
           "receipts",
+          "authoritative_readbacks",
           "workflow",
           "safety"
         ],
@@ -9798,7 +10035,22 @@
             "type": "integer",
             "minimum": 0
           },
+          "authoritative_readback_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "excluded_authoritative_readback_count": {
+            "type": "integer",
+            "minimum": 0
+          },
           "status_counts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "readback_status_counts": {
             "type": "object",
             "additionalProperties": {
               "type": "integer",
@@ -9819,7 +10071,7 @@
           },
           "production_verified_count": {
             "type": "integer",
-            "const": 0
+            "minimum": 0
           },
           "slots": {
             "type": "array",
@@ -9833,6 +10085,12 @@
               "$ref": "#/components/schemas/DeploymentReceipt"
             }
           },
+          "authoritative_readbacks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeploymentReceiptAuthoritativeReadback"
+            }
+          },
           "workflow": {
             "type": "object",
             "additionalProperties": true
@@ -9843,6 +10101,8 @@
               "a2_decision_recomputed",
               "deployment_acceptance_mutated",
               "submitted_receipt_treated_as_production_proof",
+              "reviewer_acknowledgement_treated_as_production_proof",
+              "only_trusted_server_readbacks_can_produce_verification",
               "raw_evidence_embedded",
               "secret_values_allowed",
               "signed_urls_allowed"
@@ -9859,6 +10119,14 @@
               "submitted_receipt_treated_as_production_proof": {
                 "type": "boolean",
                 "const": false
+              },
+              "reviewer_acknowledgement_treated_as_production_proof": {
+                "type": "boolean",
+                "const": false
+              },
+              "only_trusted_server_readbacks_can_produce_verification": {
+                "type": "boolean",
+                "const": true
               },
               "raw_evidence_embedded": {
                 "type": "boolean",
@@ -10012,6 +10280,336 @@
           }
         },
         "additionalProperties": true
+      },
+      "DeploymentReceiptAuthoritativeReadback": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "readback_id",
+          "readback_hash",
+          "external_readback_id_alias",
+          "receipt_id",
+          "blocker_id",
+          "candidate_id",
+          "run_id",
+          "tenant_scope",
+          "evidence_sha256",
+          "verifier_class",
+          "verifier_authority",
+          "verification_status",
+          "reason_code",
+          "verified_at",
+          "attestation_sha256",
+          "required_claims",
+          "claims",
+          "resolver_id_alias",
+          "sequence",
+          "previous_readback_hash",
+          "binding_validation",
+          "production_verified",
+          "safety"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.deployment_receipt_authoritative_readback.v1"
+          },
+          "readback_id": {
+            "type": "string"
+          },
+          "readback_hash": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
+          "external_readback_id_alias": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "receipt_id": {
+            "type": "string"
+          },
+          "blocker_id": {
+            "type": "string"
+          },
+          "candidate_id": {
+            "type": "string"
+          },
+          "run_id": {
+            "type": "string"
+          },
+          "tenant_scope": {
+            "$ref": "#/components/schemas/TenantScope"
+          },
+          "evidence_sha256": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
+          "verifier_class": {
+            "type": "string"
+          },
+          "verifier_authority": {
+            "type": "string"
+          },
+          "verification_status": {
+            "type": "string",
+            "enum": [
+              "verified",
+              "rejected"
+            ]
+          },
+          "reason_code": {
+            "type": "string"
+          },
+          "verified_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "attestation_sha256": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
+          "required_claims": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "minItems": 2,
+            "uniqueItems": true
+          },
+          "claims": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          },
+          "resolver_id_alias": {
+            "type": "string"
+          },
+          "sequence": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "previous_readback_hash": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
+          "binding_validation": {
+            "type": "object",
+            "required": [
+              "receipt_id",
+              "blocker_id",
+              "candidate_id",
+              "run_id",
+              "tenant_scope",
+              "evidence_sha256",
+              "verifier_class",
+              "verifier_authority",
+              "required_claims",
+              "all_passed"
+            ],
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          },
+          "production_verified": {
+            "type": "boolean"
+          },
+          "safety": {
+            "type": "object",
+            "required": [
+              "trusted_server_resolver",
+              "service_account_principal_required",
+              "client_supplied_verification_result_used",
+              "raw_evidence_embedded",
+              "raw_secret_values_allowed",
+              "a2_decision_recomputed",
+              "source_acceptance_mutated"
+            ],
+            "properties": {
+              "trusted_server_resolver": {
+                "type": "boolean",
+                "const": true
+              },
+              "service_account_principal_required": {
+                "type": "boolean",
+                "const": true
+              },
+              "client_supplied_verification_result_used": {
+                "type": "boolean",
+                "const": false
+              },
+              "raw_evidence_embedded": {
+                "type": "boolean",
+                "const": false
+              },
+              "raw_secret_values_allowed": {
+                "type": "boolean",
+                "const": false
+              },
+              "a2_decision_recomputed": {
+                "type": "boolean",
+                "const": false
+              },
+              "source_acceptance_mutated": {
+                "type": "boolean",
+                "const": false
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": true,
+        "description": "Immutable, hash-chained readback produced by a server-only trusted verifier resolver."
+      },
+      "DeploymentAcceptanceProjection": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "source_acceptance_id",
+          "source_acceptance_status",
+          "source_passed",
+          "status",
+          "production_accepted",
+          "projected_production_accepted",
+          "requires_acceptance_rebuild",
+          "summary",
+          "changed_check_ids",
+          "blocking_check_ids",
+          "checks",
+          "safety"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.deployment_acceptance_projection.v1"
+          },
+          "source_acceptance_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "source_acceptance_status": {
+            "type": "string"
+          },
+          "source_passed": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "blocked",
+              "ready_for_rebuild"
+            ]
+          },
+          "production_accepted": {
+            "type": "boolean",
+            "const": false
+          },
+          "projected_production_accepted": {
+            "type": "boolean"
+          },
+          "requires_acceptance_rebuild": {
+            "type": "boolean"
+          },
+          "summary": {
+            "type": "object",
+            "required": [
+              "total_checks",
+              "projected_passed",
+              "projected_blocked_or_not_proven",
+              "authoritative_receipt_check_count"
+            ],
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "changed_check_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true
+          },
+          "blocking_check_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "uniqueItems": true
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "safety": {
+            "type": "object",
+            "required": [
+              "source_acceptance_mutated",
+              "a2_decision_recomputed",
+              "a2_release_ready_recomputed",
+              "projection_claimed_as_sealed_acceptance",
+              "release_artifact_rebuild_required",
+              "raw_evidence_embedded"
+            ],
+            "properties": {
+              "source_acceptance_mutated": {
+                "type": "boolean",
+                "const": false
+              },
+              "a2_decision_recomputed": {
+                "type": "boolean",
+                "const": false
+              },
+              "a2_release_ready_recomputed": {
+                "type": "boolean",
+                "const": false
+              },
+              "projection_claimed_as_sealed_acceptance": {
+                "type": "boolean",
+                "const": false
+              },
+              "release_artifact_rebuild_required": {
+                "type": "boolean"
+              },
+              "raw_evidence_embedded": {
+                "type": "boolean",
+                "const": false
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false,
+        "description": "Read-only projection of hash-valid readbacks onto the source acceptance. A new sealed acceptance artifact is still required."
+      },
+      "DeploymentReceiptVerificationRequest": {
+        "type": "object",
+        "required": [
+          "source",
+          "expected_version"
+        ],
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "expected_version": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "additionalProperties": false,
+        "description": "Trigger only. Verification status, claims, evidence, authority, and attestation are supplied by the configured server resolver, never by this request."
       }
     }
   },

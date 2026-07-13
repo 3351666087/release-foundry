@@ -35,6 +35,16 @@ const A3_SCOPE_FIELDS = [
   "project_id",
   "environment_id"
 ];
+const A3_DEPLOYMENT_VERIFICATION_REQUEST_FIELDS = new Set([
+  "source",
+  "expected_version",
+  "expectedVersion",
+  "request_id",
+  "requestId",
+  "trace_id",
+  "traceId",
+  ...A3_SCOPE_FIELDS
+]);
 
 class A3RequestBodyBoundaryError extends Error {
   constructor(bodyState, message) {
@@ -351,6 +361,36 @@ export function createA3ApiHandler(options = {}) {
         return receipt
           ? sendJson(response, 200, receipt)
           : sendJson(response, 404, notFound("deployment_receipt", deploymentReceiptReviewMatch[1]));
+      }
+
+      const deploymentReceiptVerifyMatch = url.pathname.match(/^\/internal\/a3\/deployment\/receipts\/([^/]+)\/verify$/);
+      if (request.method === "POST" && deploymentReceiptVerifyMatch) {
+        const body = await readJsonBody(request);
+        const guard = trustedDeploymentReceiptVerifierGuard(request, body, options);
+        if (!guard.allowed) {
+          return sendJson(response, guard.status, guard.body);
+        }
+        const receiptId = decodeURIComponent(deploymentReceiptVerifyMatch[1]);
+        const receipt = await store.verifyDeploymentReceiptAuthoritatively(
+          receiptId,
+          async (resolverInput) => guard.resolver({
+            ...resolverInput,
+            operation: "verify_deployment_receipt",
+            requested_at: serverNow(options)
+          }),
+          scopedStoreOptions(url, {
+            source: body.source || sourceFrom(url),
+            expectedVersion: body.expected_version ?? body.expectedVersion,
+            actorHash: guard.resolverIdAlias,
+            resolverIdAlias: guard.resolverIdAlias,
+            principalKind: "service_account",
+            trustedResolver: true,
+            idempotencyKey: idempotencyKeyFrom(request, body)
+          })
+        );
+        return receipt
+          ? sendJson(response, 200, receipt)
+          : sendJson(response, 404, notFound("deployment_receipt", receiptId));
       }
 
       if (request.method === "GET" && url.pathname === "/api/a3/release-decision/provenance") {
@@ -1395,6 +1435,72 @@ function trustedReleaseAuthorizationResolver(options = {}) {
   if (typeof options.resolveTrustedReleaseAuthorization === "function") return options.resolveTrustedReleaseAuthorization;
   if (typeof options.trustedReleaseAuthorizationResolver === "function") return options.trustedReleaseAuthorizationResolver;
   return null;
+}
+
+function trustedDeploymentReceiptVerifierResolver(options = {}) {
+  if (typeof options.resolveAuthoritativeDeploymentReceipt === "function") return options.resolveAuthoritativeDeploymentReceipt;
+  if (typeof options.deploymentReceiptVerifierResolver === "function") return options.deploymentReceiptVerifierResolver;
+  return null;
+}
+
+function trustedDeploymentReceiptVerifierGuard(request, body = {}, options = {}) {
+  const trustedAccess = request[REQUEST_TRUSTED_ACCESS];
+  const authContext = trustedAccess?.authContext || {};
+  const unexpectedFields = Object.keys(body || {}).filter((field) => !A3_DEPLOYMENT_VERIFICATION_REQUEST_FIELDS.has(field));
+  if (unexpectedFields.length) {
+    return {
+      allowed: false,
+      status: 400,
+      body: deploymentReceiptVerifierDenied(
+        "client_verification_result_forbidden",
+        "Authoritative verification results must come from the configured server resolver."
+      )
+    };
+  }
+  const serviceAccount = trustedAccess?.productionEnforced === true
+    && authContext.auth_state === "service_account"
+    && trustedAccess.accessDecision?.principal?.principal_type === "service_account";
+  if (!serviceAccount) {
+    return {
+      allowed: false,
+      status: 403,
+      body: deploymentReceiptVerifierDenied(
+        "trusted_deployment_verifier_required",
+        "This internal operation requires a server-verified A1 service account."
+      )
+    };
+  }
+  const resolver = trustedDeploymentReceiptVerifierResolver(options);
+  if (!resolver) {
+    return {
+      allowed: false,
+      status: 503,
+      body: deploymentReceiptVerifierDenied(
+        "authoritative_verifier_unavailable",
+        "The authoritative deployment receipt verifier is unavailable."
+      )
+    };
+  }
+  return {
+    allowed: true,
+    resolver,
+    resolverIdAlias: authContext.actor_hash
+  };
+}
+
+function deploymentReceiptVerifierDenied(error, message) {
+  return {
+    schema_version: "a3.deployment_receipt_verifier_denied.v1",
+    error,
+    message,
+    safety: {
+      client_verification_result_used: false,
+      raw_request_body_echoed: false,
+      raw_resolver_error_exposed: false,
+      production_verified: false,
+      a2_decision_recomputed: false
+    }
+  };
 }
 
 function trustedGitHubTargetResolver(options = {}) {

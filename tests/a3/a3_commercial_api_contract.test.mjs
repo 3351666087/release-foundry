@@ -46,6 +46,7 @@ test("A3 commercial API contract maps SaaS /v1 routes to product surfaces", asyn
     "POST /v1/release-gates/{release_gate_id}/denials",
     "POST /v1/releases/{release_id}/deployment-receipts",
     "POST /v1/releases/{release_id}/deployment-receipts/{receipt_id}/reviews",
+    "POST /internal/v1/releases/{release_id}/deployment-receipts/{receipt_id}/verify",
     "POST /v1/reports/{report_id}/share",
     "GET /v1/usage",
     "GET /v1/billing/migration-readiness",
@@ -137,6 +138,11 @@ test("A3 API exposes commercial API contract and DB migration coverage", async (
     assert.equal(payload.endpoint_matrix.some((endpoint) => endpoint.local_a3_route === "GET /api/a3/billing/readiness"), true);
     assert.equal(payload.endpoint_matrix.some((endpoint) => endpoint.local_a3_route === "GET /api/a3/deployment/receipts"), true);
     assert.equal(payload.endpoint_matrix.some((endpoint) => endpoint.local_a3_route === "POST /api/a3/deployment/receipts/:receiptId/review"), true);
+    assert.equal(payload.endpoint_matrix.some((endpoint) => (
+      endpoint.local_a3_route === "POST /internal/a3/deployment/receipts/:receiptId/verify"
+      && endpoint.rbac === "deployment:verify service_account_only"
+      && endpoint.db_tables.includes("deployment_receipt_readbacks")
+    )), true);
     assert.equal(payload.event_envelope_contract.required_fields.includes("payload_hash"), true);
     assert.equal(payload.event_envelope_contract.required_fields.includes("tenant_id"), true);
     assert.equal(payload.event_envelope_contract.durable_outbox_table, "event_outbox");
@@ -151,4 +157,5 @@ test("A3 API exposes commercial API contract and DB migration coverage", async (
   assert.equal(migrations.statements.some((statement) => statement.tables.includes("commercial_api_contracts")), true);
   assert.equal(migrations.statements.some((statement) => statement.tables.includes("billing_migration_readiness")), true);
   assert.equal(migrations.statements.some((statement) => statement.tables.includes("deployment_receipts")), true);
+  assert.equal(migrations.statements.some((statement) => statement.tables.includes("deployment_receipt_readbacks")), true);
 });

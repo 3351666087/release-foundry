@@ -1291,5 +1291,32 @@
 - [x] Save and inspect desktop and 390 x 844 screenshots without document overflow.
 - [x] Pass final A3 Node `429/429`, current-main A2 `186/186` plus `1050` subtests, Next.js typecheck/build, Playwright `38/38`, both CL guards, and both npm production audits.
 - [x] Reverify the sealed rc.2 bundle, signed archive, and Release Artifact without changing their inputs.
-- [ ] Add server-only authoritative verifier readback before any receipt can become production verified.
+- [x] Add server-only authoritative verifier readback before any receipt can become production verified.
 - [ ] Obtain the nine real external receipts; the inbox itself does not close those blockers.
+
+## Authoritative Deployment Receipt Verifier - 2026-07-13
+
+- [x] Add `a3.deployment_receipt_authoritative_readback.v1` and `a3.deployment_acceptance_projection.v1`.
+- [x] Restrict verification to A1-verified hosted `service_account` principals with `deployment:verify`.
+- [x] Reject demo/header-forged service accounts and every client-supplied verification result field.
+- [x] Invoke the injected resolver only after auth, tenant scope, receipt state, version, and idempotency checks.
+- [x] Bind readbacks to receipt, blocker, candidate, A1 run, five-level scope, evidence SHA-256, verifier class, and authority.
+- [x] Require every blocker-specific claim to be present, boolean, and true for `verified` status.
+- [x] Persist trusted rejections without promoting production state.
+- [x] Store immutable sequence and previous-readback hashes in migration `018_deployment_receipt_readbacks`.
+- [x] Prove idempotent replay does not invoke the resolver twice.
+- [x] Emit sanitized audit, event-outbox, and usage-meter records.
+- [x] Restore authoritative readbacks through SQLite restart.
+- [x] Keep source Deployment Acceptance unchanged and expose only a rebuild-required projection.
+- [x] Keep A2 score, pass/fail, failure class, Decision Ledger, and Release Ready unchanged.
+- [x] Add OpenAPI/API Reference/commercial contract coverage with runtime parity `57/57`.
+- [x] Display server readback and source-vs-projected acceptance in the Delivery page.
+- [x] Prove the browser UI exposes no internal verifier call or verification button.
+- [x] Keep the default rc.2 source at `8/17 -> 8/17` with zero real production readbacks.
+- [x] Leave sealed rc.2 bundle, archive, manifest, and authority records unchanged.
+- [x] Pass A3 Node `436/436` and current-main A2 `186/186` plus `1050` subtests.
+- [x] Pass Next.js typecheck/build with 15 static pages and Playwright `38/38` plus the strengthened focused E2E `1/1`.
+- [x] Pass CL hygiene, Commercial CL, both production npm audits, and `git diff --check`.
+- [x] Reverify rc.2 bundle `15/15`, custody `7/7`, archive `16/16`, Ed25519 signature, and Release manifest without rewriting sealed inputs.
+- [ ] Connect all nine resolver classes to real external services and collect real receipts.
+- [ ] Rebuild and reseal Deployment Acceptance only after same-candidate A1/A2/A3 evidence exists.

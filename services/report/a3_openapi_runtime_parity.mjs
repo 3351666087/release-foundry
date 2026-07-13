@@ -119,10 +119,11 @@ export function normalizeContractPath(path = "") {
 function synchronizeDeliveryHandoffSchemas(schemas) {
   const dashboard = schemas.DashboardSnapshot;
   if (dashboard) {
-    dashboard.required = unique([...(dashboard.required || []), "deployment_handoff", "deployment_receipt_inbox"]);
+    dashboard.required = unique([...(dashboard.required || []), "deployment_handoff", "deployment_receipt_inbox", "deployment_acceptance_projection"]);
     dashboard.properties ||= {};
     dashboard.properties.deployment_handoff = { $ref: "#/components/schemas/DeploymentHandoff" };
     dashboard.properties.deployment_receipt_inbox = { $ref: "#/components/schemas/DeploymentReceiptInbox" };
+    dashboard.properties.deployment_acceptance_projection = { $ref: "#/components/schemas/DeploymentAcceptanceProjection" };
   }
 
   const comparison = schemas.ReleaseComparison;
@@ -151,10 +152,13 @@ function synchronizeDeliveryHandoffSchemas(schemas) {
   schemas.CandidateBindingHandoff = candidateBindingHandoffSchema();
   schemas.DeploymentHandoff = deploymentHandoffSchema();
   schemas.DeploymentReceipt = deploymentReceiptSchema();
+  schemas.DeploymentReceiptAuthoritativeReadback = deploymentReceiptAuthoritativeReadbackSchema();
   schemas.DeploymentReceiptInboxSlot = deploymentReceiptInboxSlotSchema();
   schemas.DeploymentReceiptInbox = deploymentReceiptInboxSchema();
+  schemas.DeploymentAcceptanceProjection = deploymentAcceptanceProjectionSchema();
   schemas.DeploymentReceiptSubmission = deploymentReceiptSubmissionSchema();
   schemas.DeploymentReceiptReview = deploymentReceiptReviewSchema();
+  schemas.DeploymentReceiptVerificationRequest = deploymentReceiptVerificationRequestSchema();
   schemas.DeploymentReceiptConflict = deploymentReceiptConflictSchema();
 }
 
@@ -352,10 +356,16 @@ function deploymentReceiptSchema() {
         required: ["status", "production_verified", "authoritative_readback_id"],
         properties: {
           status: { type: "string" },
-          production_verified: { type: "boolean", const: false },
-          authoritative_readback_id: { type: "null" }
+          production_verified: { type: "boolean" },
+          authoritative_readback_id: { type: ["string", "null"] },
+          verified_at: { type: ["string", "null"], format: "date-time" },
+          verifier_authority: { type: ["string", "null"] },
+          attestation_sha256: { type: ["string", "null"], pattern: "^sha256:[a-f0-9]{64}$" }
         },
         additionalProperties: false
+      },
+      production_verification: {
+        oneOf: [{ $ref: "#/components/schemas/DeploymentReceiptAuthoritativeReadback" }, { type: "null" }]
       },
       acceptance_effect: {
         type: "object",
@@ -386,7 +396,66 @@ function deploymentReceiptSchema() {
       }
     },
     additionalProperties: true,
-    description: "Sanitized receipt metadata. Submission or acknowledgement never counts as production verification."
+    description: "Sanitized receipt metadata. Submission or acknowledgement never counts as production verification; only a hash-valid server readback can populate authority_validation."
+  };
+}
+
+function deploymentReceiptAuthoritativeReadbackSchema() {
+  return {
+    type: "object",
+    required: [
+      "schema_version", "readback_id", "readback_hash", "external_readback_id_alias", "receipt_id",
+      "blocker_id", "candidate_id", "run_id", "tenant_scope", "evidence_sha256", "verifier_class",
+      "verifier_authority", "verification_status", "reason_code", "verified_at", "attestation_sha256",
+      "required_claims", "claims", "resolver_id_alias", "sequence", "previous_readback_hash",
+      "binding_validation", "production_verified", "safety"
+    ],
+    properties: {
+      schema_version: { type: "string", const: "a3.deployment_receipt_authoritative_readback.v1" },
+      readback_id: { type: "string" },
+      readback_hash: { type: "string", pattern: "^sha256:[a-f0-9]{64}$" },
+      external_readback_id_alias: { type: "string" },
+      source: { type: "string" },
+      receipt_id: { type: "string" },
+      blocker_id: { type: "string" },
+      candidate_id: { type: "string" },
+      run_id: { type: "string" },
+      tenant_scope: { $ref: "#/components/schemas/TenantScope" },
+      evidence_sha256: { type: "string", pattern: "^sha256:[a-f0-9]{64}$" },
+      verifier_class: { type: "string" },
+      verifier_authority: { type: "string" },
+      verification_status: { type: "string", enum: ["verified", "rejected"] },
+      reason_code: { type: "string" },
+      verified_at: { type: "string", format: "date-time" },
+      attestation_sha256: { type: "string", pattern: "^sha256:[a-f0-9]{64}$" },
+      required_claims: { type: "array", items: { type: "string" }, minItems: 2, uniqueItems: true },
+      claims: { type: "object", additionalProperties: { type: "boolean" } },
+      resolver_id_alias: { type: "string" },
+      sequence: { type: "integer", minimum: 1 },
+      previous_readback_hash: { type: ["string", "null"], pattern: "^sha256:[a-f0-9]{64}$" },
+      binding_validation: {
+        type: "object",
+        required: ["receipt_id", "blocker_id", "candidate_id", "run_id", "tenant_scope", "evidence_sha256", "verifier_class", "verifier_authority", "required_claims", "all_passed"],
+        additionalProperties: { type: "boolean" }
+      },
+      production_verified: { type: "boolean" },
+      safety: {
+        type: "object",
+        required: ["trusted_server_resolver", "service_account_principal_required", "client_supplied_verification_result_used", "raw_evidence_embedded", "raw_secret_values_allowed", "a2_decision_recomputed", "source_acceptance_mutated"],
+        properties: {
+          trusted_server_resolver: { type: "boolean", const: true },
+          service_account_principal_required: { type: "boolean", const: true },
+          client_supplied_verification_result_used: { type: "boolean", const: false },
+          raw_evidence_embedded: { type: "boolean", const: false },
+          raw_secret_values_allowed: { type: "boolean", const: false },
+          a2_decision_recomputed: { type: "boolean", const: false },
+          source_acceptance_mutated: { type: "boolean", const: false }
+        },
+        additionalProperties: false
+      }
+    },
+    additionalProperties: true,
+    description: "Immutable, hash-chained readback produced by a server-only trusted verifier resolver."
   };
 }
 
@@ -407,8 +476,9 @@ function deploymentReceiptInboxSlotSchema() {
       receipt_count: { type: "integer", minimum: 0 },
       latest_receipt: { oneOf: [{ $ref: "#/components/schemas/DeploymentReceipt" }, { type: "null" }] },
       intake_status: { type: "string", enum: ["missing", "submitted", "acknowledged", "rejected", "superseded"] },
-      production_verified: { type: "boolean", const: false },
-      deployment_check_status: { type: "string", enum: ["blocked", "not_proven"] }
+      production_verified: { type: "boolean" },
+      authoritative_readback_id: { type: ["string", "null"] },
+      deployment_check_status: { type: "string", enum: ["blocked", "not_proven", "production_verified"] }
     },
     additionalProperties: false
   };
@@ -420,7 +490,8 @@ function deploymentReceiptInboxSchema() {
     required: [
       "schema_version", "source", "tenant_scope", "candidate_id", "run_id", "receipt_count",
       "blocker_slot_count", "missing_slot_count", "submitted_or_acknowledged_count",
-      "production_verified_count", "slots", "receipts", "workflow", "safety"
+      "authoritative_readback_count", "production_verified_count", "slots", "receipts",
+      "authoritative_readbacks", "workflow", "safety"
     ],
     properties: {
       schema_version: { type: "string", const: "a3.deployment_receipt_inbox.v1" },
@@ -430,24 +501,31 @@ function deploymentReceiptInboxSchema() {
       run_id: { type: "string" },
       receipt_count: { type: "integer", minimum: 0 },
       excluded_candidate_receipt_count: { type: "integer", minimum: 0 },
+      authoritative_readback_count: { type: "integer", minimum: 0 },
+      excluded_authoritative_readback_count: { type: "integer", minimum: 0 },
       status_counts: { type: "object", additionalProperties: { type: "integer", minimum: 0 } },
+      readback_status_counts: { type: "object", additionalProperties: { type: "integer", minimum: 0 } },
       blocker_slot_count: { type: "integer", minimum: 0 },
       missing_slot_count: { type: "integer", minimum: 0 },
       submitted_or_acknowledged_count: { type: "integer", minimum: 0 },
-      production_verified_count: { type: "integer", const: 0 },
+      production_verified_count: { type: "integer", minimum: 0 },
       slots: { type: "array", items: { $ref: "#/components/schemas/DeploymentReceiptInboxSlot" } },
       receipts: { type: "array", items: { $ref: "#/components/schemas/DeploymentReceipt" } },
+      authoritative_readbacks: { type: "array", items: { $ref: "#/components/schemas/DeploymentReceiptAuthoritativeReadback" } },
       workflow: { type: "object", additionalProperties: true },
       safety: {
         type: "object",
         required: [
           "a2_decision_recomputed", "deployment_acceptance_mutated", "submitted_receipt_treated_as_production_proof",
+          "reviewer_acknowledgement_treated_as_production_proof", "only_trusted_server_readbacks_can_produce_verification",
           "raw_evidence_embedded", "secret_values_allowed", "signed_urls_allowed"
         ],
         properties: {
           a2_decision_recomputed: { type: "boolean", const: false },
           deployment_acceptance_mutated: { type: "boolean", const: false },
           submitted_receipt_treated_as_production_proof: { type: "boolean", const: false },
+          reviewer_acknowledgement_treated_as_production_proof: { type: "boolean", const: false },
+          only_trusted_server_readbacks_can_produce_verification: { type: "boolean", const: true },
           raw_evidence_embedded: { type: "boolean", const: false },
           secret_values_allowed: { type: "boolean", const: false },
           signed_urls_allowed: { type: "boolean", const: false }
@@ -456,6 +534,50 @@ function deploymentReceiptInboxSchema() {
       }
     },
     additionalProperties: false
+  };
+}
+
+function deploymentAcceptanceProjectionSchema() {
+  return {
+    type: "object",
+    required: [
+      "schema_version", "source_acceptance_id", "source_acceptance_status", "source_passed",
+      "status", "production_accepted", "projected_production_accepted", "requires_acceptance_rebuild",
+      "summary", "changed_check_ids", "blocking_check_ids", "checks", "safety"
+    ],
+    properties: {
+      schema_version: { type: "string", const: "a3.deployment_acceptance_projection.v1" },
+      source_acceptance_id: { type: ["string", "null"] },
+      source_acceptance_status: { type: "string" },
+      source_passed: { type: "integer", minimum: 0 },
+      status: { type: "string", enum: ["blocked", "ready_for_rebuild"] },
+      production_accepted: { type: "boolean", const: false },
+      projected_production_accepted: { type: "boolean" },
+      requires_acceptance_rebuild: { type: "boolean" },
+      summary: {
+        type: "object",
+        required: ["total_checks", "projected_passed", "projected_blocked_or_not_proven", "authoritative_receipt_check_count"],
+        additionalProperties: { type: "integer", minimum: 0 }
+      },
+      changed_check_ids: { type: "array", items: { type: "string" }, uniqueItems: true },
+      blocking_check_ids: { type: "array", items: { type: "string" }, uniqueItems: true },
+      checks: { type: "array", items: { type: "object", additionalProperties: true } },
+      safety: {
+        type: "object",
+        required: ["source_acceptance_mutated", "a2_decision_recomputed", "a2_release_ready_recomputed", "projection_claimed_as_sealed_acceptance", "release_artifact_rebuild_required", "raw_evidence_embedded"],
+        properties: {
+          source_acceptance_mutated: { type: "boolean", const: false },
+          a2_decision_recomputed: { type: "boolean", const: false },
+          a2_release_ready_recomputed: { type: "boolean", const: false },
+          projection_claimed_as_sealed_acceptance: { type: "boolean", const: false },
+          release_artifact_rebuild_required: { type: "boolean" },
+          raw_evidence_embedded: { type: "boolean", const: false }
+        },
+        additionalProperties: false
+      }
+    },
+    additionalProperties: false,
+    description: "Read-only projection of hash-valid readbacks onto the source acceptance. A new sealed acceptance artifact is still required."
   };
 }
 
@@ -507,6 +629,19 @@ function deploymentReceiptReviewSchema() {
   };
 }
 
+function deploymentReceiptVerificationRequestSchema() {
+  return {
+    type: "object",
+    required: ["source", "expected_version"],
+    properties: {
+      source: { type: "string" },
+      expected_version: { type: "integer", minimum: 1 }
+    },
+    additionalProperties: false,
+    description: "Trigger only. Verification status, claims, evidence, authority, and attestation are supplied by the configured server resolver, never by this request."
+  };
+}
+
 function deploymentReceiptConflictSchema() {
   return {
     type: "object",
@@ -525,6 +660,7 @@ function synchronizeDeploymentReceiptOperations(spec) {
   const read = spec.paths?.["/api/a3/deployment/receipts"]?.get;
   const submit = spec.paths?.["/api/a3/deployment/receipts"]?.post;
   const review = spec.paths?.["/api/a3/deployment/receipts/{receiptId}/review"]?.post;
+  const verify = spec.paths?.["/internal/a3/deployment/receipts/{receiptId}/verify"]?.post;
   if (read) {
     read.summary = "Read the candidate-bound deployment receipt inbox.";
     read["x-schema-version"] = "a3.deployment_receipt_inbox.v1";
@@ -549,6 +685,33 @@ function synchronizeDeploymentReceiptOperations(spec) {
     review.responses["200"] = typedJsonResponse("Review recorded without changing deployment or A2 authority.", "DeploymentReceipt");
     review.responses["409"] = typedJsonResponse("Receipt version or idempotency conflict.", "DeploymentReceiptConflict");
     review["x-audit"] = { events: ["deployment.receipt_acknowledged", "deployment.receipt_rejected", "deployment.receipt_superseded"], payload_policy: "ids_hashes_refs_status_counts_only" };
+  }
+  if (verify) {
+    verify.summary = "Invoke the server-only authoritative deployment receipt verifier.";
+    verify["x-schema-version"] = "a3.deployment_receipt_authoritative_readback.v1";
+    verify["x-browser-callable"] = false;
+    verify["x-auth"] = {
+      ...structuredClone(AUTH_CONTRACT),
+      accepted_principal_kinds: ["service_account"],
+      service_account_only: true,
+      hosted_enforcement_required: true
+    };
+    verify["x-access-class"] = "internal_service_account_write";
+    verify.security = [{ A1ServiceAccount: [] }];
+    verify.parameters = withIdempotencyHeader(verify.parameters);
+    verify.requestBody = typedJsonRequest("DeploymentReceiptVerificationRequest");
+    delete verify.responses["202"];
+    verify.responses["200"] = typedJsonResponse("Immutable authoritative readback produced by the trusted server resolver.", "DeploymentReceiptAuthoritativeReadback");
+    verify.responses["409"] = typedJsonResponse("Receipt version or idempotency conflict.", "DeploymentReceiptConflict");
+    verify.responses["502"] = { $ref: "#/components/responses/ServiceUnavailable" };
+    verify["x-audit"] = { events: ["deployment.receipt_authoritatively_verified", "deployment.receipt_authoritatively_rejected"], payload_policy: "ids_hashes_claims_and_attestation_only" };
+    verify["x-verifier-boundary"] = {
+      client_supplied_verification_result_used: false,
+      trusted_resolver_required: true,
+      receipt_candidate_run_scope_hash_binding_required: true,
+      blocker_specific_claims_required: true,
+      raw_evidence_forbidden: true
+    };
   }
 }
 

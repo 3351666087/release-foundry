@@ -278,6 +278,12 @@ test.describe("A3 Next.js product console", () => {
     await expect(section.locator("tbody tr")).toHaveCount(9);
     await expect(section).toContainText("生产已验证");
     await expect(section.locator('.receipt-inbox-summary [data-state="not-authoritative"]')).toContainText("0");
+    const projection = section.getByTestId("deployment-acceptance-projection");
+    await expect(projection).toContainText("原始正式验收");
+    await expect(projection).toContainText("只读投影");
+    await expect(projection.locator(".receipt-projection-metrics > div").nth(0)).toContainText("8/17");
+    await expect(projection.locator(".receipt-projection-metrics > div").nth(1)).toContainText("8/17");
+    await expect(section.getByRole("button", { name: /权威验证|生产验证/ })).toHaveCount(0);
 
     await section.getByLabel("阻塞项").selectOption("deployment_health");
     await section.getByLabel("证据引用").fill(`receipt:deployment-health:e2e-${Date.now()}`);
@@ -329,6 +335,7 @@ test.describe("A3 Next.js product console", () => {
     const refreshedRow = refreshed.locator("tbody tr").filter({ hasText: "deployment_health" });
     await expect(refreshedRow).toHaveAttribute("data-intake-status", "acknowledged");
     await expect(refreshed.locator('.receipt-inbox-summary [data-state="not-authoritative"]')).toContainText("0");
+    await expect(refreshedRow).toContainText("等待服务器回读");
     await expect(page.locator(".metric-strip")).toContainText("8/17");
     await refreshed.scrollIntoViewIfNeeded();
     await page.screenshot({ path: "docs/screenshots/a3-webapp-deployment-receipt-inbox-desktop.png", fullPage: false, animations: "disabled" });

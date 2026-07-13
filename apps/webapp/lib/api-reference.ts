@@ -1,4 +1,4 @@
-export type ApiOwner = "A1" | "A2" | "A3";
+export type ApiOwner = "A1" | "A2" | "A3" | "A1/A2/A3";
 export type ApiMethod = "GET" | "POST" | "DELETE";
 export type ApiStatus = "implemented" | "draft" | "blocked";
 
@@ -24,7 +24,7 @@ export type ApiEndpoint = {
 };
 
 export const apiReferenceMeta = {
-  schemaVersion: "a3.api_reference.v5",
+  schemaVersion: "a3.api_reference.v6",
   calibratedAt: "2026-07-13",
   mainSha: "ccf6ce5",
   a1Sha: "c784163",
@@ -358,6 +358,14 @@ export const apiEndpoints: ApiEndpoint[] = [
         receipt_count: 0,
         production_verified_count: 0
       },
+      deployment_acceptance_projection: {
+        schema_version: "a3.deployment_acceptance_projection.v1",
+        source_passed: 8,
+        status: "blocked",
+        production_accepted: false,
+        projected_production_accepted: false,
+        requires_acceptance_rebuild: false
+      },
       release_artifact_manifest: { release: { version: "0.2.0-rc.2", git_sha_alias: "candidate-head-sha", ci_tested_sha_alias: "tested-merge-sha", production_release: false } },
       release_comparison: {
         schema_version: "a3.release_comparison.v1",
@@ -465,6 +473,34 @@ export const apiEndpoints: ApiEndpoint[] = [
     },
     notes: [
       { zh: "版本冲突返回 HTTP 409；acknowledged 仍不会改写 A2 Release Ready。", en: "Version conflicts return HTTP 409; acknowledged still cannot change A2 Release Ready." }
+    ]
+  },
+  {
+    id: "a3-deployment-receipt-authoritative-verify",
+    group: "console",
+    owner: "A1/A2/A3",
+    method: "POST",
+    path: "/internal/a3/deployment/receipts/{receipt_id}/verify",
+    title: { zh: "服务器权威验证部署回执", en: "Authoritatively verify a deployment receipt" },
+    description: {
+      zh: "仅允许 A1 验证过的 service account 触发。验证状态、证明项和 attestation 必须来自服务器 resolver，客户端不能提交。",
+      en: "Only an A1-verified service account may trigger this route. Status, claims, and attestation come from the server resolver, never the client."
+    },
+    auth: { zh: "A1 service account + deployment:verify + Idempotency-Key", en: "A1 service account, deployment:verify, and Idempotency-Key" },
+    status: "implemented",
+    source: "services/report/a3_deployment_receipt_workflow.mjs",
+    request: { source: "candidate-source", expected_version: 2 },
+    response: {
+      schema_version: "a3.deployment_receipt_authoritative_readback.v1",
+      readback_id: "dprv_example",
+      receipt_id: "dpr_example",
+      verification_status: "verified",
+      production_verified: true,
+      binding_validation: { all_passed: true },
+      safety: { trusted_server_resolver: true, client_supplied_verification_result_used: false }
+    },
+    notes: [
+      { zh: "该 readback 只进入只读 Acceptance projection；仍需重建并重新封存正式 Deployment Acceptance。", en: "The readback enters a read-only acceptance projection; the formal Deployment Acceptance must still be rebuilt and resealed." }
     ]
   },
   {

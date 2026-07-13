@@ -120,6 +120,12 @@ export async function createSqliteA3Store(options = {}) {
       return result;
     },
 
+    async verifyDeploymentReceiptAuthoritatively(receiptId, resolver, options = {}) {
+      const result = await store.verifyDeploymentReceiptAuthoritatively(receiptId, resolver, options);
+      await persist();
+      return result;
+    },
+
     async publishGitHubCheckRun(options = {}) {
       const result = await store.publishGitHubCheckRun(options);
       await persist();
@@ -181,6 +187,7 @@ export function inspectSqliteA3Store(db) {
       event_outbox: countRows(db, "event_outbox"),
       github_publish_receipts: countRows(db, "github_publish_receipts"),
       deployment_receipts: countRows(db, "deployment_receipts"),
+      deployment_receipt_readbacks: countRows(db, "deployment_receipt_readbacks"),
       usage_ledger: countRows(db, "usage_ledger")
     },
     safety: {
@@ -239,6 +246,7 @@ async function persistSqliteState(db, store) {
     persistEventOutbox(db, state, updatedAt);
     persistGitHubPublishReceipts(db, state, updatedAt);
     persistDeploymentReceipts(db, state, updatedAt);
+    persistDeploymentReceiptReadbacks(db, state, updatedAt);
     await persistUsageLedger(db, store, state, updatedAt);
     db.exec("COMMIT");
   } catch (error) {
@@ -263,6 +271,7 @@ function clearOperationalRows(db) {
     "audit_events",
     "event_outbox",
     "github_publish_receipts",
+    "deployment_receipt_readbacks",
     "deployment_receipts",
     "artifact_lifecycle_events",
     "artifact_registry_entries",
@@ -753,6 +762,44 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       JSON.stringify(receipt),
       receipt.submitted_at || updatedAt,
       receipt.reviewed_at || null
+    );
+  }
+}
+
+function persistDeploymentReceiptReadbacks(db, state, updatedAt) {
+  for (const readback of state.deploymentReceiptReadbacks || []) {
+    db.prepare(`
+INSERT INTO deployment_receipt_readbacks (
+  id, receipt_id, organization_id, tenant_id, workspace_id, project_id,
+  environment_id, source, blocker_id, candidate_id, run_id,
+  verification_status, production_verified, verifier_class, verifier_authority,
+  evidence_sha256, attestation_sha256, sequence, previous_readback_hash,
+  readback_hash, payload, created_at
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`).run(
+      readback.readback_id,
+      readback.receipt_id,
+      readback.organization_id || "org-local",
+      readback.tenant_id || "tenant-local",
+      readback.workspace_id || "workspace-local",
+      readback.project_id || "project-local",
+      readback.environment_id || "staging",
+      readback.source || "unknown",
+      readback.blocker_id || "unknown",
+      readback.candidate_id || "unknown",
+      readback.run_id || "unknown",
+      readback.verification_status || "rejected",
+      readback.production_verified === true ? 1 : 0,
+      readback.verifier_class || "unknown",
+      readback.verifier_authority || "unknown",
+      readback.evidence_sha256,
+      readback.attestation_sha256,
+      Number(readback.sequence || 1),
+      readback.previous_readback_hash || null,
+      readback.readback_hash,
+      JSON.stringify(readback),
+      readback.verified_at || updatedAt
     );
   }
 }

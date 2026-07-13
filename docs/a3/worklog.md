@@ -6902,3 +6902,25 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
 - Reverified the sealed rc.2 Audit Bundle `15/15` with `7/7` custody events, signed archive `16/16`, and Release Artifact manifest hash `8f84c5e3d4f064ae5d042b0f8ef72f2a3fb4d7ae06eb0a7d4dea01dc113d5a2f` without rewriting any sealed input.
 - The broader Python command reached `1239` passes and `5` skips plus `1050` subtests. Its remaining `2` failures and `26` setup errors require Go, Cargo, and Docker/PostgreSQL, which are unavailable in this Windows environment; no A1 source was changed and these are not reported as passing evidence.
 - Retried `git fetch origin --prune` successfully. Authoritative `origin/main` remains `ccf6ce5`, this branch is not behind main, and PR #35 remains open, clean, and Draft; A1 PR #36 and the newer A2 development branch were not promoted into main authority.
+
+## 2026-07-13 - Server-only Authoritative Deployment Receipt Verification
+
+- Re-read the enterprise Release strategy, current-main authority boundaries, Deployment Handoff, receipt inbox, A1 identity/RBAC contracts, and A2 Trusted Spine rules before editing.
+- Added `a3.deployment_receipt_authoritative_readback.v1` with strict receipt/blocker/candidate/run/five-level-scope/evidence-hash/verifier/authority binding.
+- Added blocker-specific required claims; a resolver cannot return `verified` when any required claim is missing, non-boolean, or false.
+- Added `POST /internal/a3/deployment/receipts/:receiptId/verify`, restricted to A1-verified hosted service accounts with `deployment:verify` and an injected server resolver.
+- Rejected browser/demo-forged service accounts and all client-supplied verification status, claims, evidence, authority, or attestation fields.
+- Kept resolver execution inside the idempotency boundary; duplicate replay returns the first result without calling the resolver again.
+- Added immutable readback sequence/hash chaining, trusted rejection persistence, audit events, event outbox, and the `deployment_receipt_authoritative_verifications` usage meter.
+- Added migration `018_deployment_receipt_readbacks` and Memory/JSON/SQLite persistence with restart coverage.
+- Added `a3.deployment_acceptance_projection.v1`; a synthetic trusted readback can project `8/17 -> 9/17` while the source acceptance remains `8/17`, but no projection is treated as sealed acceptance.
+- Updated Dashboard, OpenAPI, API Reference, DB/commercial contracts, and runtime parity from `56/56` to `57/57`.
+- Updated the Chinese-first Delivery inbox to separate intake, reviewer state, server authority, source acceptance, and projection. The browser has no authoritative verify action.
+- Preserved the default factual posture: Golden Path `7/11`, source/projection `8/17`, current authority `integrity_invalid`, current A2 decision `unknown`, historical sealed decision `block`, and real production-verified receipt count `0`.
+- Added the design record `docs/a3/a3_authoritative_deployment_receipt_verifier_2026_07_13.md` and Growth Auditor Round 17.
+- Focused verification passed `42/42` Node tests and Webapp TypeScript typecheck.
+- Final regression passed A3 Node `436/436`, current-main A2 `186/186` plus `1050` subtests, Next.js typecheck/build with 15 static pages, and Playwright `38/38`; the strengthened receipt projection/no-browser-verifier E2E also passed independently `1/1`.
+- CL hygiene passed with no findings; Commercial CL passed with 0 blockers and 0 advisories; root and Webapp production npm audits reported 0 vulnerabilities; `git diff --check` passed.
+- Reverified sealed rc.2 Audit Bundle `15/15` plus `7/7` custody events, signed archive `16/16` with valid Ed25519 signature, and Release Artifact manifest hash `8f84c5e3d4f064ae5d042b0f8ef72f2a3fb4d7ae06eb0a7d4dea01dc113d5a2f`.
+- Refreshed GitHub references successfully. `origin/main` remains `ccf6ce5` and is an ancestor of this branch; A1 Draft remains `2307231`; A2 development moved to `19e6880` but was inspected only as non-main calibration evidence and was not promoted into current authority.
+- The sealed rc.2 bundle, signed archive, Release Artifact manifest, and hashed release inputs were not rewritten.

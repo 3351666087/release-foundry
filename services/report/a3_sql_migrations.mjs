@@ -647,7 +647,36 @@ CREATE TABLE IF NOT EXISTS deployment_receipts (
   reviewed_at ${types.timestamp}
 );
 CREATE INDEX IF NOT EXISTS idx_deployment_receipts_scope ON deployment_receipts(organization_id, tenant_id, workspace_id, project_id, environment_id, source, candidate_id, run_id, blocker_id, status);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_deployment_receipts_payload ON deployment_receipts(project_id, candidate_id, blocker_id, payload_hash);`)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_deployment_receipts_payload ON deployment_receipts(project_id, candidate_id, blocker_id, payload_hash);`),
+    statement("018_deployment_receipt_readbacks", ["deployment_receipt_readbacks"], `
+CREATE TABLE IF NOT EXISTS deployment_receipt_readbacks (
+  id TEXT PRIMARY KEY,
+  receipt_id TEXT NOT NULL,
+  organization_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL,
+  workspace_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  environment_id TEXT NOT NULL,
+  source TEXT NOT NULL,
+  blocker_id TEXT NOT NULL,
+  candidate_id TEXT NOT NULL,
+  run_id TEXT NOT NULL,
+  verification_status TEXT NOT NULL,
+  production_verified BOOLEAN NOT NULL DEFAULT FALSE,
+  verifier_class TEXT NOT NULL,
+  verifier_authority TEXT NOT NULL,
+  evidence_sha256 TEXT NOT NULL,
+  attestation_sha256 TEXT NOT NULL,
+  sequence INTEGER NOT NULL,
+  previous_readback_hash TEXT,
+  readback_hash TEXT NOT NULL,
+  payload ${types.json} NOT NULL,
+  created_at ${types.timestamp} NOT NULL,
+  FOREIGN KEY(receipt_id) REFERENCES deployment_receipts(id)
+);
+CREATE INDEX IF NOT EXISTS idx_deployment_receipt_readbacks_scope ON deployment_receipt_readbacks(organization_id, tenant_id, workspace_id, project_id, environment_id, source, candidate_id, run_id, blocker_id, verification_status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_deployment_receipt_readbacks_chain ON deployment_receipt_readbacks(receipt_id, sequence);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_deployment_receipt_readbacks_hash ON deployment_receipt_readbacks(receipt_id, readback_hash);`)
   ];
 }
 

@@ -90,6 +90,7 @@ export const A3_RBAC_ROLES = {
     "release:review",
     "deployment:read",
     "deployment:submit",
+    "deployment:verify",
     "notifications:deliver"
   ],
   viewer: [
@@ -295,6 +296,14 @@ export const A3_AUTHZ_OPERATION_POLICIES = [
     resourceType: "deployment_receipt",
     a1: ["external verifier readback remains authoritative"],
     a2: ["acknowledgement never changes A2 Release Ready"]
+  }),
+  operation("verify_deployment_receipt", "POST /internal/a3/deployment/receipts/:receiptId/verify", "deployment:verify", "local_write", {
+    event: "deployment.receipt_authoritatively_verified",
+    resourceType: "deployment_receipt_readback",
+    a1: ["trusted service-account identity and authoritative deployment verifier resolver"],
+    a2: ["A2 same-candidate authority claims are consumed without recomputation"],
+    serviceAccountOnly: true,
+    requiresHostedAuth: true
   }),
   operation("submit_admin_action", "POST /api/a3/admin/actions/submit", "admin:plan", "plan_only", {
     event: "admin.action_requested",

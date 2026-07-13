@@ -79,6 +79,22 @@ test("A3 webapp keeps auth and commercial writes explicitly fail-closed", async 
   assert.doesNotMatch([loginSource, reviewSource, reportsSource, billingSource, teamSource].join("\n"), /ASHR_API_KEY|sk-[A-Za-z0-9]/);
 });
 
+test("deployment receipt UI displays authoritative readbacks without exposing the internal verifier", async () => {
+  const [deliverySource, inboxSource] = await Promise.all([
+    readFile(new URL("components/pages/delivery-page.tsx", webappUrl), "utf8"),
+    readFile(new URL("components/deployment-receipt-inbox.tsx", webappUrl), "utf8")
+  ]);
+
+  assert.match(deliverySource, /deployment_acceptance_projection/);
+  assert.match(deliverySource, /projection=\{deploymentAcceptanceProjection\}/);
+  assert.match(inboxSource, /authoritative_readbacks/);
+  assert.match(inboxSource, /production_verification/);
+  assert.match(inboxSource, /SERVER-ONLY READBACK/);
+  assert.match(inboxSource, /There is no browser verification control/);
+  assert.doesNotMatch(inboxSource, /\/internal\/a3\/deployment\/receipts/);
+  assert.doesNotMatch(inboxSource, /postDeploymentReceiptVerification|verifyDeploymentReceipt/);
+});
+
 test("A3 webapp visual source enforces the Signal-Form safety constraints", async () => {
   const [css, runsSource, ignoreSource, packageSource] = await Promise.all([
     readFile(new URL("app/globals.css", webappUrl), "utf8"),

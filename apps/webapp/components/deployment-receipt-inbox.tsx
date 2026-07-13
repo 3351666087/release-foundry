@@ -20,12 +20,14 @@ import { DataTable, StatusBadge } from "./ui";
 type ActionKind = "idle" | "loading" | "acknowledged" | "rejected" | "conflict" | "denied" | "failed";
 type ActionState = { kind: ActionKind; message: string };
 
-export function DeploymentReceiptInbox({ inbox }: { inbox: JsonRecord }) {
+export function DeploymentReceiptInbox({ inbox, projection = {} }: { inbox: JsonRecord; projection?: JsonRecord }) {
   const { language } = useI18n();
   const { source, reload } = useDashboard();
   const zh = language === "zh-CN";
   const slots = useMemo(() => array(inbox.slots).map(record), [inbox.slots]);
   const receipts = useMemo(() => array(inbox.receipts).map(record), [inbox.receipts]);
+  const readbacks = useMemo(() => array(inbox.authoritative_readbacks).map(record), [inbox.authoritative_readbacks]);
+  const projectionSummary = record(projection.summary);
   const [blockerId, setBlockerId] = useState(() => string(slots[0]?.blocker_id, ""));
   const [evidenceRef, setEvidenceRef] = useState("");
   const [evidenceHash, setEvidenceHash] = useState("");
@@ -35,6 +37,11 @@ export function DeploymentReceiptInbox({ inbox }: { inbox: JsonRecord }) {
   const selectedSlot = slots.find((slot) => string(slot.blocker_id) === blockerId) || slots[0] || {};
   const candidateId = string(inbox.candidate_id, "unknown");
   const runId = string(inbox.run_id, "unknown");
+  const verifiedCount = number(inbox.production_verified_count);
+  const sourcePassed = number(projection.source_passed);
+  const totalChecks = number(projectionSummary.total_checks);
+  const projectedPassed = number(projectionSummary.projected_passed);
+  const requiresRebuild = projection.requires_acceptance_rebuild === true;
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -109,7 +116,7 @@ export function DeploymentReceiptInbox({ inbox }: { inbox: JsonRecord }) {
         <div><Inbox size={22} /><span>{zh ? "回执总数" : "Receipts"}</span><strong>{number(inbox.receipt_count)}</strong></div>
         <div><FileCheck2 size={22} /><span>{zh ? "已提交或确认" : "Submitted / acknowledged"}</span><strong>{number(inbox.submitted_or_acknowledged_count)}</strong></div>
         <div><RefreshCw size={22} /><span>{zh ? "仍缺槽位" : "Missing slots"}</span><strong>{number(inbox.missing_slot_count)}</strong></div>
-        <div data-state="not-authoritative"><ShieldCheck size={22} /><span>{zh ? "生产已验证" : "Production verified"}</span><strong>{number(inbox.production_verified_count)}</strong></div>
+        <div data-state={verifiedCount > 0 ? "authoritative" : "not-authoritative"}><ShieldCheck size={22} /><span>{zh ? "生产已验证" : "Production verified"}</span><strong>{verifiedCount}</strong></div>
       </div>
 
       <div className="receipt-safety-boundary" role="status">
@@ -117,9 +124,29 @@ export function DeploymentReceiptInbox({ inbox }: { inbox: JsonRecord }) {
         <div>
           <strong>{zh ? "回执收件箱不是生产批准器" : "The receipt inbox is not a production approver"}</strong>
           <span>{zh
-            ? "提交或确认只表示元数据已收集；17 项部署验收、A2 Release Ready 和 production_verified 均保持不变。"
-            : "Submit or acknowledge means metadata was collected; deployment acceptance, A2 Release Ready, and production_verified remain unchanged."}</span>
+            ? "提交或确认只表示元数据已收集。只有服务器权威 resolver 的只读回读可标记单项验证；原始部署验收和 A2 Release Ready 不会被网页改写。"
+            : "Submit or acknowledge only records metadata. Only a server-authoritative resolver readback can verify a check; the source acceptance and A2 Release Ready cannot be rewritten by this page."}</span>
         </div>
+      </div>
+
+      <div className="receipt-authority-projection" data-state={requiresRebuild ? "changed" : "unchanged"} data-testid="deployment-acceptance-projection">
+        <header>
+          <div>
+            <ShieldCheck size={19} />
+            <span>SERVER-ONLY READBACK</span>
+            <strong>{zh ? "权威验证与验收投影" : "Authoritative verification and acceptance projection"}</strong>
+          </div>
+          <StatusBadge value={string(projection.status, "blocked")} tone={projection.projected_production_accepted === true ? "pass" : "warn"} />
+        </header>
+        <div className="receipt-projection-metrics">
+          <div><span>{zh ? "原始正式验收" : "Source acceptance"}</span><strong>{sourcePassed}/{totalChecks}</strong><small>{zh ? "保持不变" : "unchanged"}</small></div>
+          <div><span>{zh ? "只读投影" : "Read-only projection"}</span><strong>{projectedPassed}/{totalChecks}</strong><small>{zh ? "不能当作封存验收" : "not sealed acceptance"}</small></div>
+          <div><span>{zh ? "权威回读" : "Authoritative readbacks"}</span><strong>{readbacks.length}</strong><small>{zh ? "哈希校验通过" : "hash-valid only"}</small></div>
+          <div><span>{zh ? "需要重建验收" : "Acceptance rebuild"}</span><strong>{requiresRebuild ? (zh ? "是" : "Yes") : (zh ? "否" : "No")}</strong><small>{zh ? "需后端重新封存" : "server reseal required"}</small></div>
+        </div>
+        <p>{zh
+          ? "浏览器没有权威验证按钮。内部验证接口只接受 A1 验证过的 service account，并由服务器 resolver 读取真实证据。"
+          : "There is no browser verification control. The internal verifier accepts only an A1-verified service account and reads evidence through a server resolver."}</p>
       </div>
 
       <form className="deployment-receipt-form" onSubmit={submit}>
@@ -168,14 +195,23 @@ export function DeploymentReceiptInbox({ inbox }: { inbox: JsonRecord }) {
         </div>
       )}
 
-      <DataTable headers={[zh ? "回执槽位" : "Receipt slot", zh ? "收件状态" : "Intake", zh ? "最新回执" : "Latest receipt", zh ? "复核" : "Review"]} label={zh ? "部署回执收件箱" : "Deployment receipt inbox"}>
+      <DataTable headers={[zh ? "回执槽位" : "Receipt slot", zh ? "收件状态" : "Intake", zh ? "权威验证" : "Authority", zh ? "最新回执" : "Latest receipt", zh ? "复核" : "Review"]} label={zh ? "部署回执收件箱" : "Deployment receipt inbox"}>
         {slots.map((slot) => {
           const latest = record(slot.latest_receipt);
+          const authority = record(latest.authority_validation);
+          const verification = record(latest.production_verification);
           const status = string(slot.intake_status, "missing");
+          const authorityStatus = latest.receipt_id ? string(authority.status, "awaiting_authoritative_readback") : "not_requested";
           const canReview = status === "submitted";
           return <tr key={string(slot.blocker_id)} data-intake-status={status}>
             <td><strong>{string(slot.label)}</strong><small><code>{string(slot.blocker_id)}</code> · {string(slot.owner)}</small></td>
             <td><StatusBadge value={status} tone={status === "acknowledged" ? "info" : status === "missing" ? "fail" : status === "rejected" ? "fail" : "warn"} /></td>
+            <td className="receipt-authority-cell">
+              <StatusBadge value={authorityStatus} tone={authority.production_verified === true ? "pass" : authorityStatus === "authoritative_rejected" ? "fail" : authorityStatus === "not_requested" ? "neutral" : "warn"} />
+              {authority.authoritative_readback_id
+                ? <small><code>{shortId(authority.authoritative_readback_id)}</code> · {string(verification.reason_code)}</small>
+                : <small>{zh ? "等待服务器回读" : "Awaiting server readback"}</small>}
+            </td>
             <td>{latest.receipt_id
               ? <><strong>{string(latest.receipt_id)}</strong><small>v{number(latest.version)} · {shortId(latest.evidence_sha256)}</small></>
               : <span className="receipt-missing">{zh ? "尚未提交" : "Not submitted"}</span>}</td>
@@ -192,7 +228,9 @@ export function DeploymentReceiptInbox({ inbox }: { inbox: JsonRecord }) {
           </tr>;
         })}
       </DataTable>
-      {receipts.length > 0 && <p className="receipt-inbox-footnote">{zh ? "所有记录仅包含经过净化的元数据与哈希。" : "All records contain sanitized metadata and hashes only."}</p>}
+      {receipts.length > 0 && <p className="receipt-inbox-footnote">{zh
+        ? `所有记录仅包含经过净化的元数据与哈希；当前有 ${readbacks.length} 条服务器权威回读。`
+        : `All records contain sanitized metadata and hashes only; ${readbacks.length} server-authoritative readback(s) are attached.`}</p>}
     </div>
   );
 }

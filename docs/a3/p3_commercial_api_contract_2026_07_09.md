@@ -24,7 +24,7 @@ until A1 hosted auth/RBAC/payment backends exist.
 
 ANCHOR: ENDPOINT_COVERAGE
 
-The contract currently maps 30 commercial endpoints, including:
+The contract currently maps 38 commercial endpoints, including:
 
 - `GET /v1/me`
 - `GET /v1/organizations`
@@ -38,6 +38,9 @@ The contract currently maps 30 commercial endpoints, including:
 - `POST /v1/release-gates/{release_gate_id}/waivers`
 - `POST /v1/release-gates/{release_gate_id}/approvals`
 - `POST /v1/release-gates/{release_gate_id}/denials`
+- `POST /v1/releases/{release_id}/deployment-receipts`
+- `POST /v1/releases/{release_id}/deployment-receipts/{receipt_id}/reviews`
+- `POST /internal/v1/releases/{release_id}/deployment-receipts/{receipt_id}/verify`
 - `GET /v1/evidence-bundles/{bundle_id}`
 - `GET /v1/reports`
 - `POST /v1/reports/{report_id}/share`
@@ -58,6 +61,10 @@ Each endpoint records:
 - usage meters
 - A1/A2 dependencies
 - implementation status
+
+The internal deployment-receipt verifier is service-account-only. Client payloads cannot
+supply verification status, claims, evidence, authority, or attestation; those values come
+from the configured server resolver and are stored as immutable hash-chained readbacks.
 
 ## API Contract
 

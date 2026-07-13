@@ -496,6 +496,16 @@ const COMMERCIAL_ENDPOINTS = [
     usage: ["api_requests", "deployment_receipt_reviews"],
     dependencies: ["A1 authoritative verifier readback", "A2 Release Ready remains immutable", "A3 optimistic concurrency"]
   }),
+  endpoint("POST /internal/v1/releases/{release_id}/deployment-receipts/{receipt_id}/verify", "A1/A2/A3", "release_gate", "POST /internal/a3/deployment/receipts/:receiptId/verify", {
+    status: "implemented",
+    rbac: "deployment:verify service_account_only",
+    db: ["deployment_receipts", "deployment_receipt_readbacks", "idempotency_keys", "audit_events", "event_outbox"],
+    events: ["deployment.receipt_authoritatively_verified", "deployment.receipt_authoritatively_rejected"],
+    artifacts: ["deployment_receipt_authoritative_readback", "deployment_acceptance_projection"],
+    usage: ["api_requests", "deployment_receipt_authoritative_verifications"],
+    dependencies: ["A1 trusted service-account principal", "server-only authoritative resolver", "A2 same-candidate decision authority", "A3 hash-chain and acceptance projection"],
+    notes: "Trigger-only internal route. Client-supplied verification status, claims, evidence, authority, and attestation are rejected."
+  }),
   endpoint("GET /v1/evidence-bundles/{bundle_id}", "A1/A3", "audit_export", "GET /api/a3/artifacts/registry", {
     status: "read_only",
     rbac: "auditor",

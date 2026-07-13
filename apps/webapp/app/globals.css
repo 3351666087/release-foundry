@@ -1908,10 +1908,12 @@ pre {
 .receipt-inbox-summary > div:nth-child(2) { border-top-color: var(--moss); }
 .receipt-inbox-summary > div:nth-child(3) { border-top-color: var(--sulfur); }
 .receipt-inbox-summary > div[data-state="not-authoritative"] { background: #fffaf7; border-top-color: var(--danger); }
+.receipt-inbox-summary > div[data-state="authoritative"] { background: var(--moss-soft); border-top-color: var(--moss); }
 .receipt-inbox-summary svg { grid-row: 1 / 3; color: var(--cobalt); }
 .receipt-inbox-summary > div:nth-child(2) svg { color: var(--moss); }
 .receipt-inbox-summary > div:nth-child(3) svg { color: #8c7412; }
 .receipt-inbox-summary > div[data-state="not-authoritative"] svg { color: var(--danger); }
+.receipt-inbox-summary > div[data-state="authoritative"] svg { color: var(--moss); }
 .receipt-inbox-summary span { color: var(--muted); font-size: 8px; line-height: 1.4; }
 .receipt-inbox-summary strong { font-family: var(--font-display); font-size: 30px; line-height: 1; }
 
@@ -1931,6 +1933,35 @@ pre {
 .receipt-safety-boundary > div { display: grid; gap: 3px; }
 .receipt-safety-boundary strong { font-size: 11px; }
 .receipt-safety-boundary span { color: var(--ink-soft); font-size: 9px; line-height: 1.6; }
+
+.receipt-authority-projection {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-left: 4px solid var(--moss);
+}
+
+.receipt-authority-projection[data-state="unchanged"] { border-left-color: var(--sulfur); }
+.receipt-authority-projection > header { display: flex; align-items: start; justify-content: space-between; gap: 14px; }
+.receipt-authority-projection > header > div { display: grid; min-width: 0; grid-template-columns: 24px minmax(0, 1fr); gap: 3px 8px; }
+.receipt-authority-projection > header svg { grid-row: 1 / 3; color: var(--moss); }
+.receipt-authority-projection > header span { color: var(--muted); font-family: var(--font-mono); font-size: 8px; }
+.receipt-authority-projection > header strong { font-family: var(--font-display); font-size: 17px; }
+.receipt-authority-projection > p { color: var(--ink-soft); font-size: 9px; line-height: 1.6; }
+
+.receipt-projection-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+}
+
+.receipt-projection-metrics > div { display: grid; min-width: 0; gap: 4px; padding: 11px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.receipt-projection-metrics span,
+.receipt-projection-metrics small { color: var(--muted); font-size: 8px; }
+.receipt-projection-metrics strong { font-family: var(--font-display); font-size: 19px; }
 
 .deployment-receipt-form {
   display: grid;
@@ -2026,7 +2057,10 @@ pre {
 
 .deployment-receipt-section .table-scroll { margin-top: 0; }
 .deployment-receipt-section td:first-child { min-width: 210px; }
-.deployment-receipt-section td:nth-child(3) { min-width: 190px; }
+.deployment-receipt-section td:nth-child(3),
+.deployment-receipt-section td:nth-child(4) { min-width: 190px; }
+.receipt-authority-cell { display: grid; gap: 6px; }
+.receipt-authority-cell small { color: var(--muted); font-size: 8px; }
 .receipt-missing,
 .receipt-review-locked { color: var(--muted); font-size: 9px; }
 
@@ -2628,9 +2662,11 @@ pre {
   .receipt-inbox-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .receipt-inbox-summary > div { min-height: 100px; padding: 13px; }
   .receipt-form-grid,
-  .receipt-form-binding { grid-template-columns: minmax(0, 1fr); }
+  .receipt-form-binding,
+  .receipt-projection-metrics { grid-template-columns: minmax(0, 1fr); }
   .deployment-receipt-form { padding: 15px; }
   .deployment-receipt-form > header { align-items: flex-start; flex-direction: column; }
+  .receipt-authority-projection > header { align-items: flex-start; flex-direction: column; }
   .receipt-submit { width: 100%; }
   .delivery-stage-list article { grid-template-columns: 28px 20px minmax(0, 1fr); }
   .delivery-stage-list article > .status-badge { grid-column: 3; justify-self: start; }

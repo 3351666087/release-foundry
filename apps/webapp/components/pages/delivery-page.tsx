@@ -62,6 +62,7 @@ export function DeliveryPage() {
     const runtimeValidation = record(comparison.runtime_authority_validation);
     const handoff = record(model.raw.deployment_handoff);
     const deploymentReceiptInbox = record(model.raw.deployment_receipt_inbox);
+    const deploymentAcceptanceProjection = record(model.raw.deployment_acceptance_projection);
     const handoffSummary = record(handoff.summary);
     const candidateBinding = record(handoff.candidate_binding);
     const expectedBinding = record(candidateBinding.expected);
@@ -327,10 +328,10 @@ export function DeliveryPage() {
             className="deployment-receipt-section"
             title={zh ? "部署回执收件箱" : "Deployment receipt inbox"}
             description={zh
-              ? "按候选版本和 Run 收集 9 类缺失回执，记录提交与复核状态，但不自动修改部署验收或 A2 裁决。"
-              : "Collects nine missing receipt classes for one candidate and run without automatically changing deployment acceptance or A2 authority."}
+              ? "按候选版本和 Run 收集 9 类回执，并分别展示收件状态、服务器权威回读、原始验收和只读投影；A2 裁决保持不变。"
+              : "Collects nine receipt classes for one candidate and run, separating intake, server readback, source acceptance, and read-only projection while preserving A2 authority."}
           >
-            <DeploymentReceiptInbox inbox={deploymentReceiptInbox} />
+            <DeploymentReceiptInbox inbox={deploymentReceiptInbox} projection={deploymentAcceptanceProjection} />
           </Section>
         )}
 

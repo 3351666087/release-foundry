@@ -5,7 +5,9 @@ import { join } from "node:path";
 import test from "node:test";
 import { DatabaseSync } from "node:sqlite";
 
+import { A3_DEPLOYMENT_RECEIPT_AUTHORITATIVE_READBACK_SCHEMA_VERSION } from "../../services/report/a3_deployment_receipt_workflow.mjs";
 import { startA3ApiServer } from "../../services/report/a3_api_server.mjs";
+import { A3_RBAC_ROLES } from "../../services/report/a3_auth_rbac_boundary.mjs";
 import { createSqliteA3Store } from "../../services/report/a3_sqlite_store.mjs";
 import {
   A3StoreValidationError,
@@ -106,6 +108,84 @@ test("A3 store persists receipt metadata and reviews without promoting deploymen
   assert.equal(store.exportState().deploymentReceipts.length, 1);
 });
 
+test("A3 store invokes a trusted resolver once and projects a hash-valid readback", async () => {
+  const store = await createFixtureBackedA3Store({ sources: [source] });
+  const dashboard = await store.getDashboardSnapshot(source);
+  const submitted = await store.submitDeploymentReceipt(receiptInput(dashboard), {
+    source,
+    idempotencyKey: "authoritative-store-submit"
+  });
+  const acknowledged = await store.reviewDeploymentReceipt(submitted.receipt_id, {
+    action: "acknowledge",
+    reason_code: "metadata_complete",
+    expected_version: 1
+  }, {
+    source,
+    idempotencyKey: "authoritative-store-review"
+  });
+  let resolverCalls = 0;
+  const resolver = async ({ receipt }) => {
+    resolverCalls += 1;
+    return authoritativeReadback(receipt);
+  };
+  const options = {
+    source,
+    trustedResolver: true,
+    principalKind: "service_account",
+    resolverIdAlias: "svc-deployment-verifier-store",
+    actorHash: "svc_deployment_verifier_hash",
+    expectedVersion: acknowledged.version,
+    idempotencyKey: "authoritative-store-verify"
+  };
+  const verified = await store.verifyDeploymentReceiptAuthoritatively(acknowledged.receipt_id, resolver, options);
+  assert.equal(verified.production_verified, true);
+  assert.equal(verified.verification_status, "verified");
+  assert.equal(verified.idempotency.status, "recorded");
+  assert.equal(resolverCalls, 1);
+
+  const replay = await store.verifyDeploymentReceiptAuthoritatively(acknowledged.receipt_id, resolver, options);
+  assert.equal(replay.idempotency.status, "duplicate_replay");
+  assert.equal(resolverCalls, 1);
+
+  const after = await store.getDashboardSnapshot(source);
+  assert.equal(after.deployment_receipt_inbox.production_verified_count, 1);
+  assert.equal(after.deployment_receipt_inbox.authoritative_readback_count, 1);
+  assert.equal(after.deployment_acceptance.summary.passed, 8);
+  assert.equal(after.deployment_acceptance_projection.summary.projected_passed, 9);
+  assert.equal(after.deployment_acceptance_projection.production_accepted, false);
+  assert.deepEqual(after.deployment_acceptance_projection.changed_check_ids, ["deployment_health"]);
+  assert.equal(store.exportState().deploymentReceipts[0].version, 2);
+  assert.equal(store.exportState().deploymentReceiptReadbacks.length, 1);
+  assert.equal(after.event_outbox.event_type_counts["deployment.receipt_authoritatively_verified"], 1);
+
+  await assert.rejects(
+    () => store.verifyDeploymentReceiptAuthoritatively(acknowledged.receipt_id, async ({ receipt }) => ({
+      ...authoritativeReadback(receipt),
+      candidate_id: "wrong-candidate"
+    }), {
+      ...options,
+      idempotencyKey: "authoritative-store-invalid"
+    }),
+    (error) => error instanceof A3StoreValidationError
+      && error.statusCode === 502
+      && error.error === "authoritative_verifier_invalid"
+  );
+  assert.equal(store.exportState().deploymentReceiptReadbacks.length, 1);
+
+  await assert.rejects(
+    () => store.verifyDeploymentReceiptAuthoritatively(acknowledged.receipt_id, resolver, {
+      ...options,
+      trustedResolver: false,
+      principalKind: "user",
+      idempotencyKey: "authoritative-store-untrusted"
+    }),
+    (error) => error instanceof A3StoreValidationError
+      && error.statusCode === 403
+      && error.error === "trusted_deployment_verifier_required"
+  );
+  assert.equal(resolverCalls, 1);
+});
+
 test("A3 deployment receipt API enforces submit/review permissions and optimistic concurrency", async () => {
   const store = await createFixtureBackedA3Store({ sources: [source] });
   const dashboard = await store.getDashboardSnapshot(source);
@@ -180,6 +260,105 @@ test("A3 deployment receipt API enforces submit/review permissions and optimisti
   }
 });
 
+test("authoritative verification API is service-account-only and never consumes client verification output", async () => {
+  const store = await createFixtureBackedA3Store({ sources: [source] });
+  const dashboard = await store.getDashboardSnapshot(source);
+  const submitted = await store.submitDeploymentReceipt(receiptInput(dashboard), {
+    source,
+    idempotencyKey: "internal-api-submit"
+  });
+  const acknowledged = await store.reviewDeploymentReceipt(submitted.receipt_id, {
+    action: "acknowledge",
+    reason_code: "metadata_complete",
+    expected_version: 1
+  }, {
+    source,
+    idempotencyKey: "internal-api-review"
+  });
+  let resolverCalls = 0;
+  const resolver = async ({ receipt }) => {
+    resolverCalls += 1;
+    return authoritativeReadback(receipt, { external_readback_id_alias: "internal-api-readback" });
+  };
+
+  const { server, url } = await startA3ApiServer({
+    store,
+    routeAccessMode: "hosted_enforced",
+    resolveTrustedPrincipal: async () => trustedPrincipal("service_account"),
+    resolveAuthoritativeDeploymentReceipt: resolver
+  });
+  try {
+    const response = await fetch(`${url}/internal/a3/deployment/receipts/${submitted.receipt_id}/verify?source=${source}`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "idempotency-key": "internal-api-verify" },
+      body: JSON.stringify({ source, expected_version: acknowledged.version })
+    });
+    assert.equal(response.status, 200);
+    const verified = await response.json();
+    assert.equal(verified.production_verified, true);
+    assert.equal(verified.safety.client_supplied_verification_result_used, false);
+    assert.equal(resolverCalls, 1);
+
+    const injected = await fetch(`${url}/internal/a3/deployment/receipts/${submitted.receipt_id}/verify?source=${source}`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "idempotency-key": "internal-api-injected" },
+      body: JSON.stringify({
+        source,
+        expected_version: acknowledged.version,
+        production_verified: true,
+        readback: { verification_status: "verified" }
+      })
+    });
+    assert.equal(injected.status, 400);
+    const injectedPayload = await injected.json();
+    assert.equal(injectedPayload.error, "client_verification_result_forbidden");
+    assert.equal(injectedPayload.safety.client_verification_result_used, false);
+    assert.equal(resolverCalls, 1);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+
+  const deniedServer = await startA3ApiServer({
+    store,
+    routeAccessMode: "hosted_enforced",
+    resolveTrustedPrincipal: async () => trustedPrincipal("owner"),
+    resolveAuthoritativeDeploymentReceipt: resolver
+  });
+  try {
+    const denied = await fetch(`${deniedServer.url}/internal/a3/deployment/receipts/${submitted.receipt_id}/verify?source=${source}`, {
+      method: "POST",
+      headers: { "content-type": "application/json", "idempotency-key": "internal-api-owner-denied" },
+      body: JSON.stringify({ source, expected_version: acknowledged.version })
+    });
+    assert.equal(denied.status, 403);
+    assert.equal(resolverCalls, 1);
+  } finally {
+    await new Promise((resolve) => deniedServer.server.close(resolve));
+  }
+
+  const demoServer = await startA3ApiServer({
+    store,
+    routeAccessMode: "demo_contract",
+    resolveAuthoritativeDeploymentReceipt: resolver
+  });
+  try {
+    const forged = await fetch(`${demoServer.url}/internal/a3/deployment/receipts/${submitted.receipt_id}/verify?source=${source}`, {
+      method: "POST",
+      headers: {
+        ...demoHeaders("service_account"),
+        "x-a3-service-account": "true",
+        "idempotency-key": "internal-api-demo-forged"
+      },
+      body: JSON.stringify({ source, ...scope, expected_version: acknowledged.version })
+    });
+    assert.equal(forged.status, 403);
+    assert.equal((await forged.json()).error, "trusted_deployment_verifier_required");
+    assert.equal(resolverCalls, 1);
+  } finally {
+    await new Promise((resolve) => demoServer.server.close(resolve));
+  }
+});
+
 test("A3 SQLite store restores deployment receipt review state after restart", async () => {
   const dir = await mkdtemp(join(tmpdir(), "a3-deployment-receipts-"));
   const dbPath = join(dir, "a3.sqlite");
@@ -202,9 +381,18 @@ test("A3 SQLite store restores deployment receipt review state after restart", a
       source,
       idempotencyKey: "sqlite-deployment-review"
     });
+    await store.verifyDeploymentReceiptAuthoritatively(submitted.receipt_id, async ({ receipt }) => authoritativeReadback(receipt), {
+      source,
+      trustedResolver: true,
+      principalKind: "service_account",
+      resolverIdAlias: "svc-deployment-verifier-sqlite",
+      expectedVersion: 2,
+      idempotencyKey: "sqlite-deployment-authoritative-verify"
+    });
 
     const inspection = store.inspectSqliteState();
     assert.equal(inspection.operational_tables.deployment_receipts, 1);
+    assert.equal(inspection.operational_tables.deployment_receipt_readbacks, 1);
     const db = new DatabaseSync(dbPath, { readOnly: true });
     try {
       const row = db.prepare("SELECT status, version, production_verified, evidence_sha256 FROM deployment_receipts LIMIT 1").get();
@@ -222,8 +410,10 @@ test("A3 SQLite store restores deployment receipt review state after restart", a
     assert.equal(restored.receipt_count, 1);
     assert.equal(restored.receipts[0].status, "acknowledged");
     assert.equal(restored.receipts[0].version, 2);
-    assert.equal(restored.production_verified_count, 0);
+    assert.equal(restored.production_verified_count, 1);
+    assert.equal(restored.authoritative_readback_count, 1);
     assert.equal((await store.getDashboardSnapshot(source)).deployment_acceptance.summary.passed, 8);
+    assert.equal((await store.getDashboardSnapshot(source)).deployment_acceptance_projection.summary.projected_passed, 9);
   } finally {
     store?.close?.();
     await rm(dir, { recursive: true, force: true });
@@ -249,6 +439,32 @@ function receiptInput(dashboard) {
   };
 }
 
+function authoritativeReadback(receipt, overrides = {}) {
+  return {
+    schema_version: A3_DEPLOYMENT_RECEIPT_AUTHORITATIVE_READBACK_SCHEMA_VERSION,
+    external_readback_id_alias: "deploy-readback-integration-001",
+    receipt_id: receipt.receipt_id,
+    blocker_id: receipt.blocker_id,
+    candidate_id: receipt.candidate_id,
+    run_id: receipt.run_id,
+    tenant_scope: receipt.tenant_scope,
+    evidence_sha256: receipt.evidence_sha256,
+    verifier_class: receipt.verifier_class,
+    verifier_authority: "a1_a3_deployment_verifier",
+    verification_status: "verified",
+    reason_code: "all_bindings_verified",
+    verified_at: "2026-07-13T07:00:00.000Z",
+    attestation_sha256: `sha256:${"d".repeat(64)}`,
+    claims: {
+      image_config_migration_verified: true,
+      health_verified: true,
+      network_policy_verified: true,
+      tenant_isolation_verified: true
+    },
+    ...overrides
+  };
+}
+
 function demoHeaders(role) {
   return {
     "content-type": "application/json",
@@ -258,6 +474,19 @@ function demoHeaders(role) {
     "x-a3-workspace-id": scope.workspace_id,
     "x-a3-project-id": scope.project_id,
     "x-a3-environment-id": scope.environment_id
+  };
+}
+
+function trustedPrincipal(role) {
+  return {
+    trusted: true,
+    authenticated: true,
+    role,
+    actor_hash: `actor_${role}_0123456789abcdef`,
+    session: { state: "active" },
+    permissions: [...A3_RBAC_ROLES[role]],
+    expires_at: "2099-01-01T00:00:00.000Z",
+    tenant_scope: scope
   };
 }
 

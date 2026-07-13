@@ -1,5 +1,10 @@
 # A3 Deployment Receipt Inbox
 
+> Follow-up on 2026-07-13: the server-only authoritative readback boundary is now
+> implemented. This file remains the historical receipt-intake increment record; see
+> `docs/a3/a3_authoritative_deployment_receipt_verifier_2026_07_13.md` for the current
+> verifier, hash-chain, and acceptance-projection contract.
+
 - Date: 2026-07-13
 - Route: `/delivery/?source=a3-golden-path-rc2`
 - Runtime contracts: `a3.deployment_receipt.v1`, `a3.deployment_receipt_inbox.v1`
