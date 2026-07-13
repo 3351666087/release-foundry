@@ -116,6 +116,11 @@
           "request_hash": {
             "$ref": "#/$defs/hash"
           },
+          "attempt_receipts": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"$ref": "#/$defs/attemptReceipt"}
+          },
           "response_hash": {
             "$ref": "#/$defs/optionalHash"
           },
@@ -214,6 +219,32 @@
           "type": "number",
           "minimum": 0,
           "maximum": 1
+        },
+        "minimum_taxonomy_sensitivity": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "minimum_sensitivity_wilson_lower": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "minimum_specificity_wilson_lower": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "invalid_response_retries": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maximum_run_seconds": {
+          "type": "number",
+          "exclusiveMinimum": 0
         }
       }
     },
@@ -402,6 +433,48 @@
           "type": "number",
           "minimum": 0
         }
+      }
+    },
+    "attemptReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attempt",
+        "http_state",
+        "parse_state",
+        "response_hash",
+        "response_model_id",
+        "observed_risk",
+        "usage",
+        "wall_seconds",
+        "error_class"
+      ],
+      "properties": {
+        "attempt": {"type": "integer", "minimum": 1},
+        "http_state": {"enum": ["completed", "failed"]},
+        "parse_state": {
+          "enum": [
+            "not_attempted",
+            "empty_response",
+            "nonempty_invalid_json",
+            "invalid_semantics",
+            "valid_json"
+          ]
+        },
+        "response_hash": {"$ref": "#/$defs/optionalHash"},
+        "response_model_id": {"type": "string"},
+        "observed_risk": {"type": ["boolean", "null"]},
+        "usage": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "prompt_tokens": {"type": "integer", "minimum": 0},
+            "completion_tokens": {"type": "integer", "minimum": 0},
+            "total_tokens": {"type": "integer", "minimum": 0}
+          }
+        },
+        "wall_seconds": {"type": "number", "minimum": 0},
+        "error_class": {"type": "string"}
       }
     }
   }

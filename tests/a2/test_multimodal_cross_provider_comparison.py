@@ -28,6 +28,10 @@ class MultimodalCrossProviderComparisonTests(unittest.TestCase):
         self.assertEqual(len(result["human_review_queue_receipts"]), 1)
         self.assertFalse(result["release_authority"])
         self.assertFalse(result["human_review_queue_receipts"][0]["release_authority"])
+        self.assertEqual(
+            result["human_review_queue_receipts"][0]["comparison_artifact_hash"],
+            result["comparison_artifact_hash"],
+        )
 
     def test_provider_invalid_output_is_unavailable_not_agreement(self):
         result = build_comparison(
@@ -54,6 +58,12 @@ class MultimodalCrossProviderComparisonTests(unittest.TestCase):
         result = build_comparison(left, self.evidence("right", False, repeats=2))
         self.assertEqual(result["aggregate_summary"]["internally_unstable"], 1)
         self.assertTrue(result["aggregate_comparisons"][0]["human_review_required"])
+        aggregate_receipts = [
+            item
+            for item in result["human_review_queue_receipts"]
+            if item["review_scope"] == "aggregate"
+        ]
+        self.assertEqual(len(aggregate_receipts), 1)
 
 
 if __name__ == "__main__":

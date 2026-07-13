@@ -13,16 +13,22 @@ SCHEMA = ROOT / "docs/a2/schemas/multimodal_human_review_disposition.schema.json
 
 
 def build_disposition(
-    receipt: dict[str, Any], *, reviewer_identity_hash: str, disposition: str, rationale_code: str
+    receipt: dict[str, Any], *, comparison_artifact_hash: str,
+    reviewer_identity_hash: str, disposition: str, rationale_code: str,
+    reviewer_identity_class: str = "human_reviewer"
 ) -> dict[str, Any]:
+    if receipt.get("comparison_artifact_hash") != comparison_artifact_hash:
+        raise ValueError("receipt comparison artifact hash mismatch")
     result = {
         "schema_version": "a2.multimodal_human_review_disposition.v1",
         "queue_receipt_hash": stable_hash(receipt),
         "receipt_id": receipt["receipt_id"],
         "comparison_hash": receipt["comparison_hash"],
+        "comparison_artifact_hash": comparison_artifact_hash,
         "artifact_hash": receipt["artifact_hash"],
         "case_id": receipt["case_id"],
         "reviewer_identity_hash": reviewer_identity_hash,
+        "reviewer_identity_class": reviewer_identity_class,
         "reviewer_role": "multimodal_safety_reviewer",
         "disposition": disposition,
         "rationale_code": rationale_code,
@@ -47,7 +53,13 @@ def main() -> int:
     receipt = next((item for item in comparison["human_review_queue_receipts"] if item["receipt_id"] == args.receipt_id), None)
     if receipt is None:
         raise SystemExit("receipt id is not bound to the supplied comparison")
-    result = build_disposition(receipt, reviewer_identity_hash=args.reviewer_identity_hash, disposition=args.disposition, rationale_code=args.rationale_code)
+    result = build_disposition(
+        receipt,
+        comparison_artifact_hash=comparison["comparison_artifact_hash"],
+        reviewer_identity_hash=args.reviewer_identity_hash,
+        disposition=args.disposition,
+        rationale_code=args.rationale_code,
+    )
     (ROOT / args.output).write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     print(f"wrote {args.output}: disposition={args.disposition}")
     return 0

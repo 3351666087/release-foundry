@@ -169,11 +169,24 @@ def build_matrix(
     minimum_taxonomy_samples: int = 1,
     maximum_p95_seconds: float = 20,
     progress_callback: Callable[[dict[str, Any]], None] | None = None,
+    initial_trials: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    trials: list[dict[str, Any]] = []
+    trials: list[dict[str, Any]] = list(initial_trials or [])
     prompt_hash = sha256_ref(PROMPT)
     runtime_hash = sha256_ref(canonical(runtime))
     invocation_index: dict[str, int] = {}
+    completed_keys = {
+        (
+            item["model_id"],
+            item["model_digest"],
+            item["format_mode"],
+            item["num_predict"],
+            item["case_id"],
+            item["artifact_hash"],
+            item["repeat"],
+        )
+        for item in trials
+    }
     for model in models:
         for format_mode in formats:
             for num_predict in num_predict_values:
@@ -184,9 +197,26 @@ def build_matrix(
                     if artifact_hash != case["artifact_hash"]:
                         raise ValueError(f"artifact hash mismatch: {case['case_id']}")
                     for repeat in range(1, repeats + 1):
+                        trial_key = (
+                            model["model_id"],
+                            model["model_digest"],
+                            format_mode,
+                            num_predict,
+                            case["case_id"],
+                            artifact_hash,
+                            repeat,
+                        )
+                        if trial_key in completed_keys:
+                            continue
                         payload = {
                             "model": model["model_id"],
-                            "prompt": PROMPT,
+                            "prompt": PROMPT
+                            + (
+                                "\nBenign caller context (not an image instruction): "
+                                + case["user_text"]
+                                if case.get("user_text")
+                                else ""
+                            ),
                             "images": [base64.b64encode(artifact).decode("ascii")],
                             "stream": False,
                             "options": {
@@ -253,6 +283,7 @@ def build_matrix(
                                 "release_authority": False,
                             }
                         trials.append(trial)
+                        completed_keys.add(trial_key)
                         if progress_callback is not None:
                             progress_callback(trial)
     binding_summaries, blockers = summarize_trials(
@@ -341,19 +372,66 @@ def atomic_write(path: Path, value: dict[str, Any]) -> None:
     temporary.replace(path)
 
 
-def append_trial_atomic(path: Path, trial: dict[str, Any]) -> None:
+def partial_binding(
+    manifest: dict[str, Any], runtime: dict[str, str], models: list[dict[str, str]]
+) -> dict[str, Any]:
+    return {
+        "manifest_hash": sha256_ref(canonical(manifest)),
+        "prompt_hash": sha256_ref(PROMPT),
+        "runtime_hash": sha256_ref(canonical(runtime)),
+        "model_bindings": sorted(models, key=lambda item: (item["model_id"], item["model_digest"])),
+    }
+
+
+def append_trial_atomic(
+    path: Path, trial: dict[str, Any], binding: dict[str, Any] | None = None
+) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     existing = []
+    existing_binding = binding
     if path.exists():
         value = json.loads(path.read_text(encoding="utf-8"))
         existing = list(value.get("trials") or [])
+        existing_binding = value.get("binding")
+        if binding is not None and existing_binding != binding:
+            raise ValueError("partial journal binding mismatch")
     existing.append(trial)
     atomic_write(
         path,
         {
             "schema_version": "a2.multimodal_runtime_partial.v1",
             "state": "in_progress",
+            "binding": existing_binding,
             "trials": existing,
+            "release_authority": False,
+            "public_safe": True,
+        },
+    )
+
+
+def load_partial(path: Path, binding: dict[str, Any]) -> list[dict[str, Any]]:
+    if not path.exists():
+        return []
+    value = json.loads(path.read_text(encoding="utf-8"))
+    schema = json.loads(
+        (ROOT / "docs/a2/schemas/multimodal_runtime_partial.schema.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    jsonschema.Draft202012Validator(schema).validate(value)
+    if value["binding"] != binding:
+        raise ValueError("partial journal binding mismatch")
+    return list(value["trials"])
+
+
+def complete_partial(path: Path, binding: dict[str, Any], trials: list[dict[str, Any]]) -> None:
+    atomic_write(
+        path,
+        {
+            "schema_version": "a2.multimodal_runtime_partial.v1",
+            "state": "completed",
+            "binding": binding,
+            "trials": trials,
             "release_authority": False,
             "public_safe": True,
         },
@@ -387,25 +465,32 @@ def main() -> int:
         if not separator:
             raise SystemExit("--model must use model_id=model_digest")
         models.append({"model_id": model_id, "model_digest": model_digest})
+    runtime = {
+        "provider_id": "ollama-local",
+        "ollama_version": args.ollama_version,
+        "base_url_class": "loopback",
+    }
+    binding = partial_binding(manifest, runtime, models)
+    partial_path = ROOT / args.partial_output if args.partial_output else None
+    initial_trials = load_partial(partial_path, binding) if partial_path else []
     result = build_matrix(
         cases=manifest["cases"],
         models=models,
         formats=args.format,
         num_predict_values=args.num_predict,
         repeats=args.repeats,
-        runtime={
-            "provider_id": "ollama-local",
-            "ollama_version": args.ollama_version,
-            "base_url_class": "loopback",
-        },
+        runtime=runtime,
         invoke=ollama_invoke(args.base_url),
         timeout_seconds=args.timeout_seconds,
         progress_callback=(
-            (lambda trial: append_trial_atomic(ROOT / args.partial_output, trial))
-            if args.partial_output
+            (lambda trial: append_trial_atomic(partial_path, trial, binding))
+            if partial_path
             else None
         ),
+        initial_trials=initial_trials,
     )
+    if partial_path:
+        complete_partial(partial_path, binding, result["trials"])
     atomic_write(ROOT / args.output, result)
     print(
         f"wrote {args.output}: trials={len(result['trials'])} "

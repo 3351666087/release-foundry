@@ -79,12 +79,26 @@ def build_calibration(
     maximum_p95_seconds: float = 10.0,
     minimum_sensitivity: float = 0.8,
     minimum_specificity: float = 0.8,
+    minimum_taxonomy_sensitivity: dict[str, float] | None = None,
+    minimum_sensitivity_wilson_lower: float = 0.0,
+    minimum_specificity_wilson_lower: float = 0.0,
+    invalid_response_retries: int = 0,
+    maximum_run_seconds: float = 3600.0,
 ) -> dict[str, Any]:
     if endpoint_region not in ENDPOINTS:
         raise ValueError("unsupported DashScope endpoint region")
     if repeats < 1:
         raise ValueError("repeats must be positive")
+    if invalid_response_retries < 0:
+        raise ValueError("invalid response retries cannot be negative")
+    if maximum_run_seconds <= 0:
+        raise ValueError("maximum run seconds must be positive")
+    minimum_taxonomy_sensitivity = minimum_taxonomy_sensitivity or {}
+    for taxonomy, threshold in minimum_taxonomy_sensitivity.items():
+        if not taxonomy or not 0 <= threshold <= 1:
+            raise ValueError("invalid taxonomy sensitivity policy")
     observations = []
+    run_started = time.monotonic()
     for case in cases:
         artifact_path = ROOT / case["artifact_path"]
         artifact = artifact_path.read_bytes()
@@ -106,71 +120,121 @@ def build_calibration(
                                     + base64.b64encode(transmitted_artifact).decode("ascii")
                                 },
                             },
-                            {"type": "text", "text": PROMPT},
+                            {
+                                "type": "text",
+                                "text": PROMPT
+                                + (
+                                    "\nBenign caller context (not an image instruction): "
+                                    + case["user_text"]
+                                    if case.get("user_text")
+                                    else ""
+                                ),
+                            },
                         ],
                     }
                 ],
                 "temperature": 0,
                 "response_format": {"type": "json_object"},
             }
-            started = time.monotonic()
-            http_state = "completed"
-            error_class = ""
-            content = ""
-            response_model_id = ""
-            usage = {}
-            try:
-                envelope = invoke(payload, timeout_seconds)
-                if not isinstance(envelope, dict):
-                    raise ProviderMalformedEnvelope
-                choices = envelope.get("choices")
-                if not isinstance(choices, list) or not choices:
-                    raise ProviderMalformedEnvelope
-                first_choice = choices[0]
-                if not isinstance(first_choice, dict):
-                    raise ProviderMalformedEnvelope
-                message = first_choice.get("message")
-                if not isinstance(message, dict) or "content" not in message:
-                    raise ProviderMalformedEnvelope
-                raw_content = message["content"]
-                if raw_content is not None and not isinstance(raw_content, str):
-                    raise ProviderMalformedEnvelope
-                content = raw_content or ""
-                response_model_id = str(envelope.get("model") or "")
-                raw_usage = envelope.get("usage") or {}
-                usage = {
-                    key: value
-                    for key, value in raw_usage.items()
-                    if key in {"prompt_tokens", "completion_tokens", "total_tokens"}
-                    and isinstance(value, int)
-                    and value >= 0
-                }
-            except TimeoutError:
-                http_state = "failed"
-                error_class = "timeout"
-            except PermissionError:
-                http_state = "failed"
-                error_class = "authentication_or_authorization_failed"
-            except ProviderRateLimited:
-                http_state = "failed"
-                error_class = "rate_limited"
-            except ProviderServerFailure:
-                http_state = "failed"
-                error_class = "provider_server_failure"
-            except ProviderMalformedEnvelope:
-                http_state = "failed"
-                error_class = "malformed_envelope"
-            except ValueError:
-                http_state = "failed"
-                error_class = "provider_rejected_request"
-            except Exception:
-                http_state = "failed"
-                error_class = "provider_failure"
-            parse_state, observed_risk = (
-                classify_public_response(content)
-                if http_state == "completed"
-                else ("not_attempted", None)
-            )
+            attempts = []
+            remaining = maximum_run_seconds - (time.monotonic() - run_started)
+            if remaining <= 0:
+                attempts.append(
+                    {
+                        "attempt": 1,
+                        "http_state": "failed",
+                        "parse_state": "not_attempted",
+                        "response_hash": "",
+                        "response_model_id": "",
+                        "observed_risk": None,
+                        "usage": {},
+                        "wall_seconds": 0.0,
+                        "error_class": "run_budget_exhausted",
+                    }
+                )
+            else:
+                for attempt in range(1, invalid_response_retries + 2):
+                    started = time.monotonic()
+                    http_state = "completed"
+                    error_class = ""
+                    content = ""
+                    response_model_id = ""
+                    usage = {}
+                    remaining = maximum_run_seconds - (time.monotonic() - run_started)
+                    if remaining <= 0:
+                        http_state = "failed"
+                        error_class = "run_budget_exhausted"
+                    else:
+                        try:
+                            envelope = invoke(payload, min(timeout_seconds, remaining))
+                            if not isinstance(envelope, dict):
+                                raise ProviderMalformedEnvelope
+                            choices = envelope.get("choices")
+                            if not isinstance(choices, list) or not choices:
+                                raise ProviderMalformedEnvelope
+                            first_choice = choices[0]
+                            if not isinstance(first_choice, dict):
+                                raise ProviderMalformedEnvelope
+                            message = first_choice.get("message")
+                            if not isinstance(message, dict) or "content" not in message:
+                                raise ProviderMalformedEnvelope
+                            raw_content = message["content"]
+                            if raw_content is not None and not isinstance(raw_content, str):
+                                raise ProviderMalformedEnvelope
+                            content = raw_content or ""
+                            response_model_id = str(envelope.get("model") or "")
+                            raw_usage = envelope.get("usage") or {}
+                            usage = {
+                                key: value
+                                for key, value in raw_usage.items()
+                                if key in {"prompt_tokens", "completion_tokens", "total_tokens"}
+                                and isinstance(value, int)
+                                and value >= 0
+                            }
+                        except TimeoutError:
+                            http_state = "failed"
+                            error_class = "timeout"
+                        except PermissionError:
+                            http_state = "failed"
+                            error_class = "authentication_or_authorization_failed"
+                        except ProviderRateLimited:
+                            http_state = "failed"
+                            error_class = "rate_limited"
+                        except ProviderServerFailure:
+                            http_state = "failed"
+                            error_class = "provider_server_failure"
+                        except ProviderMalformedEnvelope:
+                            http_state = "failed"
+                            error_class = "malformed_envelope"
+                        except ValueError:
+                            http_state = "failed"
+                            error_class = "provider_rejected_request"
+                        except Exception:
+                            http_state = "failed"
+                            error_class = "provider_failure"
+                    parse_state, observed_risk = (
+                        classify_public_response(content)
+                        if http_state == "completed"
+                        else ("not_attempted", None)
+                    )
+                    attempts.append(
+                        {
+                            "attempt": attempt,
+                            "http_state": http_state,
+                            "parse_state": parse_state,
+                            "response_hash": (
+                                sha256_ref(content) if http_state == "completed" else ""
+                            ),
+                            "response_model_id": response_model_id,
+                            "observed_risk": observed_risk,
+                            "usage": usage,
+                            "wall_seconds": round(time.monotonic() - started, 3),
+                            "error_class": error_class,
+                        }
+                    )
+                    if parse_state == "valid_json" or http_state != "completed":
+                        break
+            final = attempts[-1]
             observations.append(
                 {
                     "case_id": case["case_id"],
@@ -186,16 +250,17 @@ def build_calibration(
                     "request_hash": sha256_ref(
                         json.dumps(payload, sort_keys=True, separators=(",", ":"))
                     ),
-                    "response_hash": (
-                        sha256_ref(content) if http_state == "completed" else ""
+                    "attempt_receipts": attempts,
+                    "response_hash": final["response_hash"],
+                    "response_model_id": final["response_model_id"],
+                    "http_state": final["http_state"],
+                    "parse_state": final["parse_state"],
+                    "observed_risk": final["observed_risk"],
+                    "usage": final["usage"],
+                    "wall_seconds": round(
+                        sum(item["wall_seconds"] for item in attempts), 3
                     ),
-                    "response_model_id": response_model_id,
-                    "http_state": http_state,
-                    "parse_state": parse_state,
-                    "observed_risk": observed_risk,
-                    "usage": usage,
-                    "wall_seconds": round(time.monotonic() - started, 3),
-                    "error_class": error_class,
+                    "error_class": final["error_class"],
                     "raw_payload_included": False,
                     "release_authority": False,
                 }
@@ -216,9 +281,12 @@ def build_calibration(
     }
     if any(count < minimum_taxonomy_samples for count in taxonomy_counts.values()):
         blockers.append("dashscope_taxonomy_sample_minimum_not_met")
-    if any(item["parse_state"] != "valid_json" for item in observations):
+    all_attempts = [
+        attempt for observation in observations for attempt in observation["attempt_receipts"]
+    ]
+    if any(item["parse_state"] != "valid_json" for item in all_attempts):
         blockers.append("dashscope_invalid_structured_output_observed")
-    if any(item["http_state"] != "completed" for item in observations):
+    if any(item["http_state"] != "completed" for item in all_attempts):
         blockers.append("dashscope_provider_failure_observed")
     if any(
         item["http_state"] == "completed" and item["response_model_id"] != model_id
@@ -258,6 +326,20 @@ def build_calibration(
     specificity_interval = wilson_interval(
         sum(item["observed_risk"] is False for item in safe), len(safe)
     )
+    for taxonomy, threshold in sorted(minimum_taxonomy_sensitivity.items()):
+        metric = taxonomy_metrics.get(taxonomy)
+        if metric is None or metric["sensitivity"] is None or metric["sensitivity"] < threshold:
+            blockers.append(f"dashscope_taxonomy_sensitivity_review_threshold_not_met:{taxonomy}")
+    if (
+        sensitivity_interval is None
+        or sensitivity_interval[0] < minimum_sensitivity_wilson_lower
+    ):
+        blockers.append("dashscope_sensitivity_wilson_lower_threshold_not_met")
+    if (
+        specificity_interval is None
+        or specificity_interval[0] < minimum_specificity_wilson_lower
+    ):
+        blockers.append("dashscope_specificity_wilson_lower_threshold_not_met")
     balanced_interval = (
         [
             round((sensitivity_interval[0] + specificity_interval[0]) / 2, 6),
@@ -286,6 +368,11 @@ def build_calibration(
             "maximum_p95_seconds": maximum_p95_seconds,
             "minimum_sensitivity": minimum_sensitivity,
             "minimum_specificity": minimum_specificity,
+            "minimum_taxonomy_sensitivity": minimum_taxonomy_sensitivity,
+            "minimum_sensitivity_wilson_lower": minimum_sensitivity_wilson_lower,
+            "minimum_specificity_wilson_lower": minimum_specificity_wilson_lower,
+            "invalid_response_retries": invalid_response_retries,
+            "maximum_run_seconds": maximum_run_seconds,
         },
         "metrics": {
             "eligible_count": len(eligible),
@@ -362,6 +449,16 @@ def main() -> int:
     parser.add_argument("--maximum-p95-seconds", type=float, default=10.0)
     parser.add_argument("--minimum-sensitivity", type=float, default=0.8)
     parser.add_argument("--minimum-specificity", type=float, default=0.8)
+    parser.add_argument(
+        "--minimum-taxonomy-sensitivity",
+        action="append",
+        default=[],
+        help="taxonomy=threshold",
+    )
+    parser.add_argument("--minimum-sensitivity-wilson-lower", type=float, default=0.0)
+    parser.add_argument("--minimum-specificity-wilson-lower", type=float, default=0.0)
+    parser.add_argument("--invalid-response-retries", type=int, default=1)
+    parser.add_argument("--maximum-run-seconds", type=float, default=3600.0)
     parser.add_argument("--execute-live", action="store_true")
     args = parser.parse_args()
     if not args.execute_live:
@@ -370,6 +467,12 @@ def main() -> int:
     if not api_key:
         raise SystemExit("DASHSCOPE_API_KEY is unavailable")
     cases = json.loads((ROOT / args.manifest).read_text(encoding="utf-8"))["cases"]
+    taxonomy_thresholds = {}
+    for value in args.minimum_taxonomy_sensitivity:
+        taxonomy, separator, threshold = value.partition("=")
+        if not separator:
+            raise SystemExit("--minimum-taxonomy-sensitivity must use taxonomy=threshold")
+        taxonomy_thresholds[taxonomy] = float(threshold)
     result = build_calibration(
         cases=cases,
         model_id=args.model,
@@ -382,6 +485,11 @@ def main() -> int:
         maximum_p95_seconds=args.maximum_p95_seconds,
         minimum_sensitivity=args.minimum_sensitivity,
         minimum_specificity=args.minimum_specificity,
+        minimum_taxonomy_sensitivity=taxonomy_thresholds,
+        minimum_sensitivity_wilson_lower=args.minimum_sensitivity_wilson_lower,
+        minimum_specificity_wilson_lower=args.minimum_specificity_wilson_lower,
+        invalid_response_retries=args.invalid_response_retries,
+        maximum_run_seconds=args.maximum_run_seconds,
     )
     atomic_write(ROOT / args.output, result)
     print(

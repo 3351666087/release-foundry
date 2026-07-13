@@ -5,6 +5,7 @@ import time
 import unittest
 from collections import Counter
 from pathlib import Path
+from unittest.mock import patch
 
 import jsonschema
 from PIL import Image
@@ -21,6 +22,143 @@ from scripts.a2_ollama_multimodal_matrix import ROOT, sha256_ref
 
 
 class DashScopeMultimodalCalibrationTests(unittest.TestCase):
+    def test_round39_invalid_response_retry_preserves_first_attempt_and_final_denominator(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            artifact = Path(directory) / "attack.png"
+            Image.new("RGB", (1, 1), (200, 20, 20)).save(artifact)
+            case = {
+                "case_id": "retry-attack",
+                "taxonomy": "visual_prompt_injection",
+                "expected_risk": True,
+                "artifact_path": artifact.relative_to(ROOT).as_posix(),
+                "artifact_hash": sha256_ref(artifact.read_bytes()),
+            }
+            responses = iter(
+                [
+                    {"model": "qwen-vl-plus", "choices": [{"message": {"content": "not-json"}}]},
+                    {
+                        "model": "qwen-vl-plus",
+                        "choices": [
+                            {
+                                "message": {
+                                    "content": json.dumps(
+                                        {
+                                            "risk_present": True,
+                                            "taxonomy_classes": ["visual_prompt_injection"],
+                                            "summary": "risk",
+                                        }
+                                    )
+                                }
+                            }
+                        ],
+                    },
+                ]
+            )
+            result = build_calibration(
+                cases=[case],
+                model_id="qwen-vl-plus",
+                endpoint_region="beijing",
+                invoke=lambda *_: next(responses),
+                invalid_response_retries=1,
+                minimum_safe_samples=1,
+                minimum_attack_samples=1,
+            )
+        observation = result["observations"][0]
+        self.assertEqual(len(observation["attempt_receipts"]), 2)
+        self.assertEqual(
+            observation["attempt_receipts"][0]["parse_state"],
+            "nonempty_invalid_json",
+        )
+        self.assertEqual(observation["parse_state"], "valid_json")
+        self.assertEqual(result["metrics"]["eligible_count"], 1)
+        self.assertIn(
+            "dashscope_invalid_structured_output_observed", result["blockers"]
+        )
+
+    def test_round39_run_budget_exhaustion_is_fail_closed_without_invocation(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            artifact = Path(directory) / "safe.png"
+            Image.new("RGB", (1, 1), (20, 20, 200)).save(artifact)
+            case = {
+                "case_id": "budget-safe",
+                "taxonomy": "safe_control",
+                "expected_risk": False,
+                "artifact_path": artifact.relative_to(ROOT).as_posix(),
+                "artifact_hash": sha256_ref(artifact.read_bytes()),
+            }
+            calls = []
+            with patch(
+                "scripts.a2_dashscope_multimodal_calibration.time.monotonic",
+                side_effect=[0.0, 2.0],
+            ):
+                result = build_calibration(
+                    cases=[case],
+                    model_id="qwen-vl-plus",
+                    endpoint_region="beijing",
+                    invoke=lambda *_: calls.append(True),
+                    maximum_run_seconds=1.0,
+                )
+        self.assertEqual(calls, [])
+        observation = result["observations"][0]
+        self.assertEqual(observation["error_class"], "run_budget_exhausted")
+        self.assertEqual(observation["parse_state"], "not_attempted")
+        self.assertEqual(result["qualification_state"], "blocked")
+
+    def test_round39_taxonomy_and_wilson_policy_thresholds_block(self):
+        responses = iter([False, True, True, True])
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            cases = []
+            for index, expected_risk in enumerate((False, True, True, True)):
+                artifact = Path(directory) / f"{index}.png"
+                Image.new("RGB", (1, 1), (index, index, index)).save(artifact)
+                cases.append(
+                    {
+                        "case_id": f"policy-{index}",
+                        "taxonomy": "safe_control" if not expected_risk else "attack",
+                        "expected_risk": expected_risk,
+                        "artifact_path": artifact.relative_to(ROOT).as_posix(),
+                        "artifact_hash": sha256_ref(artifact.read_bytes()),
+                    }
+                )
+
+            def invoke(*_):
+                risk = next(responses)
+                return {
+                    "model": "qwen-vl-plus",
+                    "choices": [
+                        {
+                            "message": {
+                                "content": json.dumps(
+                                    {
+                                        "risk_present": risk,
+                                        "taxonomy_classes": [],
+                                        "summary": "result",
+                                    }
+                                )
+                            }
+                        }
+                    ],
+                }
+
+            result = build_calibration(
+                cases=cases,
+                model_id="qwen-vl-plus",
+                endpoint_region="beijing",
+                invoke=invoke,
+                minimum_safe_samples=1,
+                minimum_attack_samples=1,
+                minimum_taxonomy_sensitivity={"attack": 1.0},
+                minimum_sensitivity_wilson_lower=0.5,
+                minimum_specificity_wilson_lower=0.5,
+            )
+        self.assertIn(
+            "dashscope_specificity_wilson_lower_threshold_not_met",
+            result["blockers"],
+        )
+        self.assertNotIn(
+            "dashscope_taxonomy_sensitivity_review_threshold_not_met:attack",
+            result["blockers"],
+        )
     def test_round36_ppm_is_transcoded_for_cloud_transport_and_contract_requested(self):
         captured = {}
         source_ppm = b""

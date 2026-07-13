@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.io/schemas/a2/multimodal_cross_provider_comparison_v3.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "comparison_artifact_hash", "left_evidence_hash", "right_evidence_hash", "left_binding", "right_binding", "comparisons", "summary", "aggregate_comparisons", "aggregate_summary", "human_review_queue_receipts", "release_authority", "raw_payload_included", "public_safe"],
+  "properties": {
+    "schema_version": {"const": "a2.multimodal_cross_provider_comparison.v3"},
+    "comparison_artifact_hash": {"$ref": "#/$defs/hash"},
+    "left_evidence_hash": {"$ref": "#/$defs/hash"},
+    "right_evidence_hash": {"$ref": "#/$defs/hash"},
+    "left_binding": {"$ref": "#/$defs/binding"},
+    "right_binding": {"$ref": "#/$defs/binding"},
+    "comparisons": {"type": "array", "items": {"$ref": "#/$defs/repeatComparison"}},
+    "summary": {"$ref": "#/$defs/repeatSummary"},
+    "aggregate_comparisons": {"type": "array", "items": {"$ref": "#/$defs/aggregateComparison"}},
+    "aggregate_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["agreement", "semantic_disagreement", "unavailable", "internally_unstable"],
+      "properties": {
+        "agreement": {"type": "integer", "minimum": 0},
+        "semantic_disagreement": {"type": "integer", "minimum": 0},
+        "unavailable": {"type": "integer", "minimum": 0},
+        "internally_unstable": {"type": "integer", "minimum": 0}
+      }
+    },
+    "human_review_queue_receipts": {"type": "array", "items": {"$ref": "#/$defs/receipt"}},
+    "release_authority": {"const": false},
+    "raw_payload_included": {"const": false},
+    "public_safe": {"const": true}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider_id", "model_id", "model_version", "prompt_hash"],
+      "properties": {
+        "provider_id": {"type": "string", "minLength": 1},
+        "model_id": {"type": "string", "minLength": 1},
+        "model_version": {"type": "string", "minLength": 1},
+        "prompt_hash": {"$ref": "#/$defs/hash"}
+      }
+    },
+    "repeatComparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["case_id", "artifact_hash", "repeat", "left_state", "right_state", "left_observed_risk", "right_observed_risk", "comparison_state", "human_review_required"],
+      "properties": {
+        "case_id": {"type": "string", "minLength": 1},
+        "artifact_hash": {"$ref": "#/$defs/hash"},
+        "repeat": {"type": "integer", "minimum": 1},
+        "left_state": {"type": "string", "minLength": 1},
+        "right_state": {"type": "string", "minLength": 1},
+        "left_observed_risk": {"type": ["boolean", "null"]},
+        "right_observed_risk": {"type": ["boolean", "null"]},
+        "comparison_state": {"enum": ["agreement", "semantic_disagreement", "unavailable"]},
+        "human_review_required": {"type": "boolean"}
+      }
+    },
+    "repeatSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["agreement", "semantic_disagreement", "unavailable"],
+      "properties": {
+        "agreement": {"type": "integer", "minimum": 0},
+        "semantic_disagreement": {"type": "integer", "minimum": 0},
+        "unavailable": {"type": "integer", "minimum": 0}
+      }
+    },
+    "aggregateComparison": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["case_id", "artifact_hash", "left_repeat_count", "right_repeat_count", "left_valid_risks", "right_valid_risks", "comparison_state", "human_review_required"],
+      "properties": {
+        "case_id": {"type": "string", "minLength": 1},
+        "artifact_hash": {"$ref": "#/$defs/hash"},
+        "left_repeat_count": {"type": "integer", "minimum": 0},
+        "right_repeat_count": {"type": "integer", "minimum": 0},
+        "left_valid_risks": {"type": "array", "uniqueItems": true, "items": {"type": "boolean"}},
+        "right_valid_risks": {"type": "array", "uniqueItems": true, "items": {"type": "boolean"}},
+        "comparison_state": {"enum": ["agreement", "semantic_disagreement", "unavailable", "internally_unstable"]},
+        "human_review_required": {"type": "boolean"}
+      }
+    },
+    "receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["receipt_id", "comparison_artifact_hash", "comparison_hash", "artifact_hash", "case_id", "review_scope", "queue_state", "reviewer_role", "release_authority"],
+      "properties": {
+        "receipt_id": {"$ref": "#/$defs/hash"},
+        "comparison_artifact_hash": {"$ref": "#/$defs/hash"},
+        "comparison_hash": {"$ref": "#/$defs/hash"},
+        "artifact_hash": {"$ref": "#/$defs/hash"},
+        "case_id": {"type": "string", "minLength": 1},
+        "review_scope": {"enum": ["repeat", "aggregate"]},
+        "queue_state": {"const": "awaiting_human_review"},
+        "reviewer_role": {"const": "multimodal_safety_reviewer"},
+        "release_authority": {"const": false}
+      }
+    }
+  }
+}

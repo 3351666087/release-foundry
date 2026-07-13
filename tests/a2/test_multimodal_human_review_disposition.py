@@ -10,6 +10,7 @@ class MultimodalHumanReviewDispositionTests(unittest.TestCase):
     def receipt(self):
         return {
             "receipt_id": "sha256:" + "1" * 64,
+            "comparison_artifact_hash": "sha256:" + "5" * 64,
             "comparison_hash": "sha256:" + "2" * 64,
             "artifact_hash": "sha256:" + "3" * 64,
             "case_id": "case-1",
@@ -21,6 +22,7 @@ class MultimodalHumanReviewDispositionTests(unittest.TestCase):
     def test_disposition_binds_receipt_and_hashed_reviewer_without_authority(self):
         result = build_disposition(
             self.receipt(),
+            comparison_artifact_hash="sha256:" + "5" * 64,
             reviewer_identity_hash="sha256:" + "4" * 64,
             disposition="request_more_evidence",
             rationale_code="insufficient_visual_evidence",
@@ -33,8 +35,19 @@ class MultimodalHumanReviewDispositionTests(unittest.TestCase):
         with self.assertRaises(jsonschema.ValidationError):
             build_disposition(
                 self.receipt(),
+                comparison_artifact_hash="sha256:" + "5" * 64,
                 reviewer_identity_hash="reviewer@example.com",
                 disposition="inconclusive",
+                rationale_code="model_disagreement",
+            )
+
+    def test_mismatched_comparison_artifact_hash_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "artifact hash mismatch"):
+            build_disposition(
+                self.receipt(),
+                comparison_artifact_hash="sha256:" + "6" * 64,
+                reviewer_identity_hash="sha256:" + "4" * 64,
+                disposition="request_more_evidence",
                 rationale_code="model_disagreement",
             )
 

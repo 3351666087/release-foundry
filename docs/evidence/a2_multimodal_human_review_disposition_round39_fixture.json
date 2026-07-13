@@ -1,0 +1,17 @@
+{
+  "artifact_hash": "sha256:e26d9b49540133848d09bd6634c3cc545d4cfd54a9d52f68e2a719575709bf0f",
+  "case_id": "round38-cross-modal-conflict-10",
+  "comparison_artifact_hash": "sha256:b0b50ea9512577c5712853aff8b5ace018197a2dc3b70aabd756568b5e284c4d",
+  "comparison_hash": "sha256:b421f4f1e14beb25283e04763e0583b2bd48c573d15e6779df1446b9d0e02499",
+  "disposition": "request_more_evidence",
+  "public_safe": true,
+  "queue_receipt_hash": "sha256:7ef1b18c3f5f9f9c03e37cd891c1cd66b9b982ff1cf0741e2f80be58132974e1",
+  "rationale_code": "model_disagreement",
+  "raw_payload_included": false,
+  "receipt_id": "sha256:101c680c2c0b2a072efaec1497f530ccfae4d2a592809bdc00c36a0683efc65a",
+  "release_authority": false,
+  "reviewer_identity_class": "test_review_fixture",
+  "reviewer_identity_hash": "sha256:7777777777777777777777777777777777777777777777777777777777777777",
+  "reviewer_role": "multimodal_safety_reviewer",
+  "schema_version": "a2.multimodal_human_review_disposition.v1"
+}

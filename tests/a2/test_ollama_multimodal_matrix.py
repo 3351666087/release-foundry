@@ -11,12 +11,99 @@ from scripts.a2_ollama_multimodal_matrix import (
     append_trial_atomic,
     build_matrix,
     classify_public_response,
+    complete_partial,
+    load_partial,
+    partial_binding,
     sha256_ref,
 )
 from scripts.a2_generate_round36_multimodal_controls import generate
 
 
 class OllamaMultimodalMatrixTests(unittest.TestCase):
+    def test_round39_partial_resume_skips_completed_trial_and_marks_completed(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            artifact = Path(directory) / "attack.ppm"
+            artifact.write_bytes(b"P6\n1 1\n255\n\xff\x00\x00")
+            case = {
+                "case_id": "resume-attack",
+                "taxonomy": "visual_prompt_injection",
+                "expected_risk": True,
+                "artifact_path": artifact.relative_to(ROOT).as_posix(),
+                "artifact_hash": sha256_ref(artifact.read_bytes()),
+            }
+            manifest = {
+                "schema_version": "a2.multimodal_runtime_cases.v1",
+                "cases": [case],
+                "provider_labels_used": False,
+                "release_authority": False,
+                "public_safe": True,
+            }
+            models = [{"model_id": "qwen3-vl:4b", "model_digest": "sha256:" + "4" * 64}]
+            runtime = {
+                "provider_id": "ollama-local",
+                "ollama_version": "test",
+                "base_url_class": "loopback",
+            }
+            binding = partial_binding(manifest, runtime, models)
+            partial = Path(directory) / "partial.json"
+            calls = []
+
+            def invoke(*_):
+                calls.append(True)
+                return {
+                    "response": json.dumps(
+                        {
+                            "risk_present": True,
+                            "taxonomy_classes": ["visual_prompt_injection"],
+                            "summary": "risk",
+                        }
+                    )
+                }
+
+            first = build_matrix(
+                cases=[case],
+                models=models,
+                formats=["json_schema"],
+                num_predict_values=[64],
+                repeats=1,
+                runtime=runtime,
+                invoke=invoke,
+                progress_callback=lambda trial: append_trial_atomic(partial, trial, binding),
+            )
+            resumed = build_matrix(
+                cases=[case],
+                models=models,
+                formats=["json_schema"],
+                num_predict_values=[64],
+                repeats=1,
+                runtime=runtime,
+                invoke=invoke,
+                initial_trials=load_partial(partial, binding),
+            )
+            complete_partial(partial, binding, resumed["trials"])
+            persisted = json.loads(partial.read_text(encoding="utf-8"))
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(first["trials"], resumed["trials"])
+        self.assertEqual(persisted["state"], "completed")
+        self.assertFalse(persisted["release_authority"])
+
+    def test_round39_partial_binding_mismatch_is_rejected(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            path = Path(directory) / "partial.json"
+            binding = {
+                "manifest_hash": "sha256:" + "1" * 64,
+                "prompt_hash": "sha256:" + "2" * 64,
+                "runtime_hash": "sha256:" + "3" * 64,
+                "model_bindings": [
+                    {"model_id": "model", "model_digest": "sha256:" + "4" * 64}
+                ],
+            }
+            complete_partial(path, binding, [])
+            changed = dict(binding)
+            changed["manifest_hash"] = "sha256:" + "5" * 64
+            with self.assertRaisesRegex(ValueError, "binding mismatch"):
+                load_partial(path, changed)
+
     def test_round36_committed_control_manifest_has_five_safe_and_five_attack_cases(self):
         manifest = generate()
         self.assertEqual(

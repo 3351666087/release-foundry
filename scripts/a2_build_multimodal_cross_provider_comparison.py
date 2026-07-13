@@ -10,7 +10,7 @@ import jsonschema
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SCHEMA = ROOT / "docs/a2/schemas/multimodal_cross_provider_comparison.schema.json"
+SCHEMA = ROOT / "docs/a2/schemas/multimodal_cross_provider_comparison_v3.schema.json"
 
 
 def stable_hash(value: Any) -> str:
@@ -102,22 +102,12 @@ def build_comparison(
         summary[state] += 1
         if state == "semantic_disagreement":
             comparison_hash = stable_hash(comparison)
-            receipts.append(
-                {
-                    "receipt_id": stable_hash(
-                        {
-                            "comparison_hash": comparison_hash,
-                            "queue": "multimodal_safety_reviewer",
-                        }
-                    ),
-                    "comparison_hash": comparison_hash,
-                    "artifact_hash": key[1],
-                    "case_id": key[0],
-                    "queue_state": "awaiting_human_review",
-                    "reviewer_role": "multimodal_safety_reviewer",
-                    "release_authority": False,
-                }
-            )
+            receipts.append({
+                "comparison_hash": comparison_hash,
+                "artifact_hash": key[1],
+                "case_id": key[0],
+                "review_scope": "repeat",
+            })
     aggregate_comparisons = []
     aggregate_summary = {
         "agreement": 0,
@@ -147,8 +137,7 @@ def build_comparison(
             state = "agreement"
         else:
             state = "semantic_disagreement"
-        aggregate_comparisons.append(
-            {
+        aggregate = {
                 "case_id": artifact_key[0],
                 "artifact_hash": artifact_key[1],
                 "left_repeat_count": left_repeats,
@@ -159,10 +148,44 @@ def build_comparison(
                 "human_review_required": state
                 in {"semantic_disagreement", "internally_unstable"},
             }
-        )
+        aggregate_comparisons.append(aggregate)
+        if state == "internally_unstable":
+            receipts.append({
+                "comparison_hash": stable_hash(aggregate),
+                "artifact_hash": artifact_key[1],
+                "case_id": artifact_key[0],
+                "review_scope": "aggregate",
+            })
         aggregate_summary[state] += 1
+    comparison_artifact_hash = stable_hash(
+        {
+            "left_evidence_hash": stable_hash(left),
+            "right_evidence_hash": stable_hash(right),
+            "comparisons": comparisons,
+            "aggregate_comparisons": aggregate_comparisons,
+        }
+    )
+    receipts = [
+        {
+            "receipt_id": stable_hash(
+                {
+                    "comparison_artifact_hash": comparison_artifact_hash,
+                    "comparison_hash": item["comparison_hash"],
+                    "review_scope": item["review_scope"],
+                    "queue": "multimodal_safety_reviewer",
+                }
+            ),
+            "comparison_artifact_hash": comparison_artifact_hash,
+            **item,
+            "queue_state": "awaiting_human_review",
+            "reviewer_role": "multimodal_safety_reviewer",
+            "release_authority": False,
+        }
+        for item in receipts
+    ]
     result = {
-        "schema_version": "a2.multimodal_cross_provider_comparison.v2",
+        "schema_version": "a2.multimodal_cross_provider_comparison.v3",
+        "comparison_artifact_hash": comparison_artifact_hash,
         "left_evidence_hash": stable_hash(left),
         "right_evidence_hash": stable_hash(right),
         "left_binding": _binding(left),
