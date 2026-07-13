@@ -108,6 +108,18 @@ export async function createSqliteA3Store(options = {}) {
       return result;
     },
 
+    async submitDeploymentReceipt(input, options = {}) {
+      const result = await store.submitDeploymentReceipt(input, options);
+      await persist();
+      return result;
+    },
+
+    async reviewDeploymentReceipt(receiptId, review, options = {}) {
+      const result = await store.reviewDeploymentReceipt(receiptId, review, options);
+      await persist();
+      return result;
+    },
+
     async publishGitHubCheckRun(options = {}) {
       const result = await store.publishGitHubCheckRun(options);
       await persist();
@@ -168,6 +180,7 @@ export function inspectSqliteA3Store(db) {
       audit_events: countRows(db, "audit_events"),
       event_outbox: countRows(db, "event_outbox"),
       github_publish_receipts: countRows(db, "github_publish_receipts"),
+      deployment_receipts: countRows(db, "deployment_receipts"),
       usage_ledger: countRows(db, "usage_ledger")
     },
     safety: {
@@ -225,6 +238,7 @@ async function persistSqliteState(db, store) {
     persistAuditEvents(db, state, updatedAt);
     persistEventOutbox(db, state, updatedAt);
     persistGitHubPublishReceipts(db, state, updatedAt);
+    persistDeploymentReceipts(db, state, updatedAt);
     await persistUsageLedger(db, store, state, updatedAt);
     db.exec("COMMIT");
   } catch (error) {
@@ -249,6 +263,7 @@ function clearOperationalRows(db) {
     "audit_events",
     "event_outbox",
     "github_publish_receipts",
+    "deployment_receipts",
     "artifact_lifecycle_events",
     "artifact_registry_entries",
     "release_evidence_readbacks",
@@ -702,6 +717,42 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       receipt.payload_hash || sha256(JSON.stringify(receipt)),
       JSON.stringify(receipt),
       receipt.published_at || updatedAt
+    );
+  }
+}
+
+function persistDeploymentReceipts(db, state, updatedAt) {
+  for (const receipt of state.deploymentReceipts || []) {
+    db.prepare(`
+INSERT INTO deployment_receipts (
+  id, organization_id, tenant_id, workspace_id, project_id, environment_id,
+  source, blocker_id, candidate_id, run_id, status, version, evidence_kind,
+  verifier_class, evidence_ref, evidence_sha256, production_verified,
+  payload_hash, payload, created_at, reviewed_at
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`).run(
+      receipt.receipt_id,
+      receipt.organization_id || "org-local",
+      receipt.tenant_id || "tenant-local",
+      receipt.workspace_id || "workspace-local",
+      receipt.project_id || "project-local",
+      receipt.environment_id || "staging",
+      receipt.source || "unknown",
+      receipt.blocker_id || "unknown",
+      receipt.candidate_id || "unknown",
+      receipt.run_id || "unknown",
+      receipt.status || "submitted",
+      Number(receipt.version || 1),
+      receipt.evidence_kind || "unknown",
+      receipt.verifier_class || "unknown",
+      receipt.evidence_ref || "[REDACTED_UNSAFE_REF]",
+      receipt.evidence_sha256 || `sha256:${sha256(JSON.stringify(receipt))}`,
+      0,
+      receipt.metadata_validation?.payload_hash || sha256(JSON.stringify(receipt)),
+      JSON.stringify(receipt),
+      receipt.submitted_at || updatedAt,
+      receipt.reviewed_at || null
     );
   }
 }

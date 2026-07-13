@@ -26,6 +26,7 @@ import {
 import { array, number, record, string } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { DataBoundary, DataTable, EvidenceDetails, MetricStrip, PageHeader, Section, StatusBadge } from "../ui";
+import { DeploymentReceiptInbox } from "../deployment-receipt-inbox";
 
 export function DeliveryPage() {
   const { language } = useI18n();
@@ -60,6 +61,7 @@ export function DeliveryPage() {
     const comparisonAuthority = record(comparison.authority_boundary);
     const runtimeValidation = record(comparison.runtime_authority_validation);
     const handoff = record(model.raw.deployment_handoff);
+    const deploymentReceiptInbox = record(model.raw.deployment_receipt_inbox);
     const handoffSummary = record(handoff.summary);
     const candidateBinding = record(handoff.candidate_binding);
     const expectedBinding = record(candidateBinding.expected);
@@ -84,6 +86,7 @@ export function DeliveryPage() {
     const bindingValid = candidateBinding.same_candidate_bound === true;
     const hasReleaseComparison = comparison.schema_version === "a3.release_comparison.v1";
     const hasDeploymentHandoff = handoff.schema_version === "a3.deployment_handoff.v1";
+    const hasDeploymentReceiptInbox = deploymentReceiptInbox.schema_version === "a3.deployment_receipt_inbox.v1";
 
     return (
       <>
@@ -316,6 +319,18 @@ export function DeliveryPage() {
             <EvidenceDetails summary={zh ? "查看部署交接原始契约" : "View raw deployment handoff contract"}>
               <pre>{JSON.stringify(handoff, null, 2)}</pre>
             </EvidenceDetails>
+          </Section>
+        )}
+
+        {hasDeploymentReceiptInbox && (
+          <Section
+            className="deployment-receipt-section"
+            title={zh ? "部署回执收件箱" : "Deployment receipt inbox"}
+            description={zh
+              ? "按候选版本和 Run 收集 9 类缺失回执，记录提交与复核状态，但不自动修改部署验收或 A2 裁决。"
+              : "Collects nine missing receipt classes for one candidate and run without automatically changing deployment acceptance or A2 authority."}
+          >
+            <DeploymentReceiptInbox inbox={deploymentReceiptInbox} />
           </Section>
         )}
 

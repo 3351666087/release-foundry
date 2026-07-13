@@ -58,6 +58,7 @@ const REQUIRED_SENSITIVE_READ_SURFACES = {
     "/api/a3/reports/{reportId}/manifest"
   ],
   review: ["/api/a3/review/workflow"],
+  deployment_receipts: ["/api/a3/deployment/receipts"],
   admin: ["/api/a3/admin/console", "/api/a3/auth/context", "/api/a3/auth/rbac-policy"],
   usage_and_billing: [
     "/api/a3/usage/ledger",
@@ -88,7 +89,7 @@ test("A3 commercial OpenAPI v2 covers the required tenant-sensitive read surface
   assert.equal(spec.openapi, "3.1.0");
   assert.equal(spec["x-schema-version"], "a3.openapi.commercial_api.v2");
   assert.equal(spec.info.title, "Ashr++ A3 Commercial Product Console API");
-  assert.equal(spec.info.version, "2026.07.12");
+  assert.equal(spec.info.version, "2026.07.13");
   assert.ok(spec["x-contract-source"].includes("services/report/a3_commercial_api_contract.mjs"));
   assert.ok(spec["x-contract-source"].includes("docs/a3/a3_trusted_read_access_contract_2026_07_12.md"));
 
@@ -117,8 +118,8 @@ test("every runtime RBAC route has an OpenAPI operation with the same permission
   ]));
 
   assert.equal(parity.complete, true);
-  assert.equal(parity.runtime_operation_count, 53);
-  assert.equal(parity.documented_runtime_operation_count, 53);
+  assert.equal(parity.runtime_operation_count, 56);
+  assert.equal(parity.documented_runtime_operation_count, 56);
   assert.deepEqual(parity.missing, []);
   for (const route of A3_SENSITIVE_ROUTE_PATTERNS) {
     const key = `${route.method} ${normalizeContractPath(route.path_pattern)}`;
@@ -295,7 +296,7 @@ test("OpenAPI documents sanitized malformed JSON and protected OPTIONS behavior"
 
   const operations = collectOperations(spec).filter((operation) => operation["x-rbac"]);
   const mutations = operations.filter((operation) => !["get", "head"].includes(operation.method));
-  assert.equal(operations.length, 53);
+  assert.equal(operations.length, 56);
   assert.ok(mutations.length > 0);
   for (const operation of operations) {
     const optionsPolicy = operation["x-protected-options"];
@@ -416,9 +417,15 @@ test("dashboard contract exposes a fail-closed partial aggregate state", async (
   assert.equal(dashboard.properties.aggregate_scope_status.$ref, "#/components/schemas/AggregateScopeStatus");
   assert.equal(dashboard.properties.trusted_release_authority.$ref, "#/components/schemas/TrustedReleaseAuthority");
   assert.equal(dashboard.properties.deployment_handoff.$ref, "#/components/schemas/DeploymentHandoff");
+  assert.equal(dashboard.properties.deployment_receipt_inbox.$ref, "#/components/schemas/DeploymentReceiptInbox");
   assert.equal(spec.components.schemas.DeploymentHandoff.properties.schema_version.const, "a3.deployment_handoff.v1");
   assert.equal(spec.components.schemas.DeploymentHandoff.properties.safety.properties.a2_decision_recomputed.const, false);
   assert.equal(spec.components.schemas.CandidateBindingHandoff.properties.schema_version.const, "a3.candidate_binding_handoff.v1");
+  assert.equal(spec.components.schemas.DeploymentReceipt.properties.schema_version.const, "a3.deployment_receipt.v1");
+  assert.equal(spec.components.schemas.DeploymentReceipt.properties.authority_validation.properties.production_verified.const, false);
+  assert.equal(spec.components.schemas.DeploymentReceipt.properties.acceptance_effect.properties.changes_release_ready.const, false);
+  assert.equal(spec.components.schemas.DeploymentReceiptInbox.properties.schema_version.const, "a3.deployment_receipt_inbox.v1");
+  assert.equal(spec.components.schemas.DeploymentReceiptInbox.properties.production_verified_count.const, 0);
   assert.equal(spec.components.schemas.ReleaseComparisonRuntimeAuthority.properties.schema_version.const, "a3.release_comparison_runtime_authority.v1");
   assert.equal(aggregate.additionalProperties, false);
   assert.deepEqual(aggregate.properties.status.enum, ["complete", "partial"]);
@@ -431,6 +438,23 @@ test("dashboard contract exposes a fail-closed partial aggregate state", async (
   assert.equal(authority.properties.safety.properties.a3_score_recomputed.const, false);
   assert.equal(authority.properties.safety.properties.a3_release_ready_recomputed.const, false);
   assert.equal(authority.properties.safety.properties.client_chain_verified_flag_trusted_without_recalculation.const, false);
+});
+
+test("deployment receipt OpenAPI requires idempotency and documents non-authoritative review", async () => {
+  const spec = await readOpenApi();
+  const collection = spec.paths["/api/a3/deployment/receipts"];
+  const review = spec.paths["/api/a3/deployment/receipts/{receiptId}/review"].post;
+
+  assert.equal(collection.get["x-rbac"].permission, "deployment:read");
+  assert.equal(collection.get.responses["200"].content["application/json"].schema.$ref, "#/components/schemas/DeploymentReceiptInbox");
+  assert.equal(collection.post["x-rbac"].permission, "deployment:submit");
+  assert.equal(collection.post.requestBody.content["application/json"].schema.$ref, "#/components/schemas/DeploymentReceiptSubmission");
+  assert.equal(collection.post.responses["201"].content["application/json"].schema.$ref, "#/components/schemas/DeploymentReceipt");
+  assert.equal(collection.post.parameters.some((item) => item.name === "Idempotency-Key" && item.required === true), true);
+  assert.equal(review["x-rbac"].permission, "deployment:review");
+  assert.equal(review.requestBody.content["application/json"].schema.$ref, "#/components/schemas/DeploymentReceiptReview");
+  assert.equal(review.responses["409"].content["application/json"].schema.$ref, "#/components/schemas/DeploymentReceiptConflict");
+  assert.equal(review.responses["200"].description.includes("without changing deployment or A2 authority"), true);
 });
 
 test("A3 commercial OpenAPI artifact is redacted and safe to publish", async () => {

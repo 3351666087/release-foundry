@@ -3,13 +3,13 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Ashr++ A3 Commercial Product Console API",
-    "version": "2026.07.12",
+    "version": "2026.07.13",
     "summary": "Machine-readable A3 hosted security contract for tenant-sensitive product-console reads and commercial workflows.",
     "description": "A3 owns hosted product enforcement and product workflow surfaces. Protected operations consume a server-verified A1 browser-session or service-account principal with a complete five-level tenant scope. This artifact is a contract, not proof that A1 hosted login or every A3 route is production-complete. A2 remains the sole judge, scoring, policy, and release-decision authority."
   },
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
   "x-schema-version": "a3.openapi.commercial_api.v2",
-  "x-contract-id": "a3_commercial_api_openapi_2026_07_12",
+  "x-contract-id": "a3_commercial_api_openapi_2026_07_13",
   "x-contract-source": [
     "docs/strategy/large-saas-a1-a2-a3-full-plan.md",
     "docs/a3/a3_trusted_read_access_contract_2026_07_12.md",
@@ -6750,6 +6750,471 @@
           "metadata_only_denial_audit_required": true
         }
       }
+    },
+    "/api/a3/deployment/receipts": {
+      "get": {
+        "operationId": "a3ReadDeploymentReceipts",
+        "summary": "Read the candidate-bound deployment receipt inbox.",
+        "tags": [
+          "Operations"
+        ],
+        "x-schema-version": "a3.deployment_receipt_inbox.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
+          ],
+          "source": "server_verified_a1_principal",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true,
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "contract_only_fail_closed",
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
+        },
+        "x-rbac": {
+          "operation_id": "read_deployment_receipts",
+          "permission": "deployment:read",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger; A3 only emits a metering intent."
+        },
+        "x-audit": {
+          "events": [
+            "read_deployment_receipts.requested"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "verified principal",
+            "tenant scope",
+            "usage and audit execution"
+          ],
+          "a2": [
+            "GradeResult and release decision authority remain unchanged"
+          ],
+          "a3_rule": "A3 orchestrates product workflow and must not reinterpret A1 runtime facts or A2 decision semantics."
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_read",
+        "responses": {
+          "200": {
+            "description": "Sanitized candidate-bound receipt inbox.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeploymentReceiptInbox"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        }
+      },
+      "post": {
+        "operationId": "a3SubmitDeploymentReceipt",
+        "summary": "Submit sanitized deployment receipt metadata.",
+        "tags": [
+          "Operations"
+        ],
+        "x-schema-version": "a3.deployment_receipt.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
+          ],
+          "source": "server_verified_a1_principal",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true,
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "contract_only_fail_closed",
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
+        },
+        "x-rbac": {
+          "operation_id": "submit_deployment_receipt",
+          "permission": "deployment:submit",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger; A3 only emits a metering intent."
+        },
+        "x-audit": {
+          "events": [
+            "deployment.receipt_submitted"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "verified principal",
+            "tenant scope",
+            "usage and audit execution"
+          ],
+          "a2": [
+            "GradeResult and release decision authority remain unchanged"
+          ],
+          "a3_rule": "A3 orchestrates product workflow and must not reinterpret A1 runtime facts or A2 decision semantics."
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_write",
+        "responses": {
+          "201": {
+            "description": "Receipt metadata accepted without production promotion.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeploymentReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "408": {
+            "$ref": "#/components/responses/RequestTimeout"
+          },
+          "409": {
+            "description": "Idempotency conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeploymentReceiptConflict"
+                }
+              }
+            }
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "x-secret-policy": "raw_secret_values_forbidden",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeploymentReceiptSubmission"
+              }
+            }
+          }
+        },
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        },
+        "x-request-validation": {
+          "malformed_json": "sanitized_400_after_authentication_and_authorization",
+          "body_read_timeout": "sanitized_408_after_authentication_and_authorization",
+          "maximum_body_bytes_default": 1048576,
+          "payload_too_large": "sanitized_413_after_authentication_and_authorization",
+          "required_media_type": "application/json",
+          "unsupported_media_type": "sanitized_415_after_authentication_and_authorization",
+          "required_top_level_shape": "object",
+          "invalid_json_shape": "sanitized_422_after_authentication_and_authorization",
+          "unauthorized_precedence": "401",
+          "forbidden_precedence": "403",
+          "raw_body_echoed": false,
+          "metadata_only_denial_audit_required": true
+        },
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "description": "Opaque caller-generated retry key. The raw value is never persisted.",
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 160
+            }
+          }
+        ]
+      }
+    },
+    "/api/a3/deployment/receipts/{receiptId}/review": {
+      "post": {
+        "operationId": "a3ReviewDeploymentReceipt",
+        "summary": "Acknowledge, reject, or supersede receipt metadata with optimistic concurrency.",
+        "tags": [
+          "Release Gate",
+          "Review"
+        ],
+        "x-schema-version": "a3.deployment_receipt.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
+          ],
+          "source": "server_verified_a1_principal",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true,
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "contract_only_fail_closed",
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
+        },
+        "x-rbac": {
+          "operation_id": "review_deployment_receipt",
+          "permission": "deployment:review",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger; A3 only emits a metering intent."
+        },
+        "x-audit": {
+          "events": [
+            "deployment.receipt_acknowledged",
+            "deployment.receipt_rejected",
+            "deployment.receipt_superseded"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "verified principal",
+            "tenant scope",
+            "usage and audit execution"
+          ],
+          "a2": [
+            "GradeResult and release decision authority remain unchanged"
+          ],
+          "a3_rule": "A3 orchestrates product workflow and must not reinterpret A1 runtime facts or A2 decision semantics."
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_write",
+        "responses": {
+          "200": {
+            "description": "Review recorded without changing deployment or A2 authority.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeploymentReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "408": {
+            "$ref": "#/components/responses/RequestTimeout"
+          },
+          "409": {
+            "description": "Receipt version or idempotency conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeploymentReceiptConflict"
+                }
+              }
+            }
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "parameters": [
+          {
+            "name": "receiptId",
+            "in": "path",
+            "required": true,
+            "description": "receiptId path identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "description": "Opaque caller-generated retry key. The raw value is never persisted.",
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 160
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "x-secret-policy": "raw_secret_values_forbidden",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeploymentReceiptReview"
+              }
+            }
+          }
+        },
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        },
+        "x-request-validation": {
+          "malformed_json": "sanitized_400_after_authentication_and_authorization",
+          "body_read_timeout": "sanitized_408_after_authentication_and_authorization",
+          "maximum_body_bytes_default": 1048576,
+          "payload_too_large": "sanitized_413_after_authentication_and_authorization",
+          "required_media_type": "application/json",
+          "unsupported_media_type": "sanitized_415_after_authentication_and_authorization",
+          "required_top_level_shape": "object",
+          "invalid_json_shape": "sanitized_422_after_authentication_and_authorization",
+          "unauthorized_precedence": "401",
+          "forbidden_precedence": "403",
+          "raw_body_echoed": false,
+          "metadata_only_denial_audit_required": true
+        }
+      }
     }
   },
   "components": {
@@ -7127,7 +7592,8 @@
           "runs",
           "aggregate_scope_status",
           "trusted_release_authority",
-          "deployment_handoff"
+          "deployment_handoff",
+          "deployment_receipt_inbox"
         ],
         "properties": {
           "schema_version": {
@@ -7159,6 +7625,9 @@
           },
           "deployment_handoff": {
             "$ref": "#/components/schemas/DeploymentHandoff"
+          },
+          "deployment_receipt_inbox": {
+            "$ref": "#/components/schemas/DeploymentReceiptInbox"
           }
         },
         "additionalProperties": true
@@ -9004,6 +9473,545 @@
           }
         },
         "additionalProperties": false
+      },
+      "DeploymentReceipt": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "receipt_id",
+          "source",
+          "tenant_scope",
+          "blocker_id",
+          "candidate_id",
+          "run_id",
+          "evidence_ref",
+          "evidence_sha256",
+          "evidence_kind",
+          "verifier_class",
+          "status",
+          "version",
+          "authority_validation",
+          "acceptance_effect",
+          "safety"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.deployment_receipt.v1"
+          },
+          "receipt_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "source": {
+            "type": "string"
+          },
+          "tenant_scope": {
+            "$ref": "#/components/schemas/TenantScope"
+          },
+          "blocker_id": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "candidate_id": {
+            "type": "string"
+          },
+          "run_id": {
+            "type": "string"
+          },
+          "evidence_ref": {
+            "type": "string",
+            "description": "Opaque metadata reference only; URLs and local absolute paths are forbidden."
+          },
+          "evidence_sha256": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
+          "evidence_kind": {
+            "type": "string"
+          },
+          "verifier_class": {
+            "type": "string"
+          },
+          "captured_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "selectors": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "submitted",
+              "acknowledged",
+              "rejected",
+              "superseded"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "submitted_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "submitted_by_hash": {
+            "type": "string"
+          },
+          "reviewed_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "reviewed_by_hash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "review_reason_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "authority_validation": {
+            "type": "object",
+            "required": [
+              "status",
+              "production_verified",
+              "authoritative_readback_id"
+            ],
+            "properties": {
+              "status": {
+                "type": "string"
+              },
+              "production_verified": {
+                "type": "boolean",
+                "const": false
+              },
+              "authoritative_readback_id": {
+                "type": "null"
+              }
+            },
+            "additionalProperties": false
+          },
+          "acceptance_effect": {
+            "type": "object",
+            "required": [
+              "changes_deployment_acceptance",
+              "changes_release_ready",
+              "reason"
+            ],
+            "properties": {
+              "changes_deployment_acceptance": {
+                "type": "boolean",
+                "const": false
+              },
+              "changes_release_ready": {
+                "type": "boolean",
+                "const": false
+              },
+              "reason": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          },
+          "history": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          },
+          "safety": {
+            "type": "object",
+            "required": [
+              "raw_evidence_embedded",
+              "raw_secret_values_allowed",
+              "raw_signed_urls_allowed",
+              "production_verified_by_submission",
+              "a2_decision_recomputed",
+              "deployment_acceptance_mutated"
+            ],
+            "properties": {
+              "raw_evidence_embedded": {
+                "type": "boolean",
+                "const": false
+              },
+              "raw_secret_values_allowed": {
+                "type": "boolean",
+                "const": false
+              },
+              "raw_signed_urls_allowed": {
+                "type": "boolean",
+                "const": false
+              },
+              "production_verified_by_submission": {
+                "type": "boolean",
+                "const": false
+              },
+              "a2_decision_recomputed": {
+                "type": "boolean",
+                "const": false
+              },
+              "deployment_acceptance_mutated": {
+                "type": "boolean",
+                "const": false
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": true,
+        "description": "Sanitized receipt metadata. Submission or acknowledgement never counts as production verification."
+      },
+      "DeploymentReceiptInboxSlot": {
+        "type": "object",
+        "required": [
+          "blocker_id",
+          "label",
+          "owner",
+          "required_receipt",
+          "evidence_kind",
+          "verifier_class",
+          "receipt_count",
+          "latest_receipt",
+          "intake_status",
+          "production_verified",
+          "deployment_check_status"
+        ],
+        "properties": {
+          "blocker_id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "required_receipt": {
+            "type": "string"
+          },
+          "evidence_kind": {
+            "type": "string"
+          },
+          "verifier_class": {
+            "type": "string"
+          },
+          "receipt_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "latest_receipt": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/DeploymentReceipt"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "intake_status": {
+            "type": "string",
+            "enum": [
+              "missing",
+              "submitted",
+              "acknowledged",
+              "rejected",
+              "superseded"
+            ]
+          },
+          "production_verified": {
+            "type": "boolean",
+            "const": false
+          },
+          "deployment_check_status": {
+            "type": "string",
+            "enum": [
+              "blocked",
+              "not_proven"
+            ]
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeploymentReceiptInbox": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "source",
+          "tenant_scope",
+          "candidate_id",
+          "run_id",
+          "receipt_count",
+          "blocker_slot_count",
+          "missing_slot_count",
+          "submitted_or_acknowledged_count",
+          "production_verified_count",
+          "slots",
+          "receipts",
+          "workflow",
+          "safety"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.deployment_receipt_inbox.v1"
+          },
+          "source": {
+            "type": "string"
+          },
+          "tenant_scope": {
+            "$ref": "#/components/schemas/TenantScope"
+          },
+          "candidate_id": {
+            "type": "string"
+          },
+          "run_id": {
+            "type": "string"
+          },
+          "receipt_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "excluded_candidate_receipt_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "status_counts": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "blocker_slot_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "missing_slot_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "submitted_or_acknowledged_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "production_verified_count": {
+            "type": "integer",
+            "const": 0
+          },
+          "slots": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeploymentReceiptInboxSlot"
+            }
+          },
+          "receipts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeploymentReceipt"
+            }
+          },
+          "workflow": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "safety": {
+            "type": "object",
+            "required": [
+              "a2_decision_recomputed",
+              "deployment_acceptance_mutated",
+              "submitted_receipt_treated_as_production_proof",
+              "raw_evidence_embedded",
+              "secret_values_allowed",
+              "signed_urls_allowed"
+            ],
+            "properties": {
+              "a2_decision_recomputed": {
+                "type": "boolean",
+                "const": false
+              },
+              "deployment_acceptance_mutated": {
+                "type": "boolean",
+                "const": false
+              },
+              "submitted_receipt_treated_as_production_proof": {
+                "type": "boolean",
+                "const": false
+              },
+              "raw_evidence_embedded": {
+                "type": "boolean",
+                "const": false
+              },
+              "secret_values_allowed": {
+                "type": "boolean",
+                "const": false
+              },
+              "signed_urls_allowed": {
+                "type": "boolean",
+                "const": false
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeploymentReceiptSubmission": {
+        "type": "object",
+        "required": [
+          "source",
+          "receipt"
+        ],
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "receipt": {
+            "type": "object",
+            "required": [
+              "blocker_id",
+              "candidate_id",
+              "run_id",
+              "evidence_ref",
+              "evidence_sha256",
+              "evidence_kind",
+              "verifier_class",
+              "captured_at"
+            ],
+            "properties": {
+              "blocker_id": {
+                "type": "string"
+              },
+              "candidate_id": {
+                "type": "string"
+              },
+              "run_id": {
+                "type": "string"
+              },
+              "evidence_ref": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]*$"
+              },
+              "evidence_sha256": {
+                "type": "string",
+                "pattern": "^(?:sha256:)?[a-fA-F0-9]{64}$"
+              },
+              "evidence_kind": {
+                "type": "string"
+              },
+              "verifier_class": {
+                "type": "string"
+              },
+              "captured_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "selectors": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "maxProperties": 12
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeploymentReceiptReview": {
+        "type": "object",
+        "required": [
+          "source",
+          "review"
+        ],
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "review": {
+            "type": "object",
+            "required": [
+              "action",
+              "reason_code",
+              "expected_version"
+            ],
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "acknowledge",
+                  "reject",
+                  "supersede"
+                ]
+              },
+              "reason_code": {
+                "type": "string"
+              },
+              "expected_version": {
+                "type": "integer",
+                "minimum": 1
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeploymentReceiptConflict": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "error",
+          "request_type",
+          "details"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.api_validation_error.v1"
+          },
+          "error": {
+            "type": "string",
+            "enum": [
+              "version_conflict",
+              "idempotency_conflict"
+            ]
+          },
+          "request_type": {
+            "type": "string"
+          },
+          "details": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": true
+            }
+          }
+        },
+        "additionalProperties": true
       }
     }
   },

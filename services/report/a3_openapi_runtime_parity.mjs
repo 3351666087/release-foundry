@@ -83,6 +83,7 @@ export function synchronizeA3OpenApiRuntimeParity(spec = {}) {
     operation.responses["503"] = { $ref: "#/components/responses/ServiceUnavailable" };
     applyRequestBoundaryContract(operation, route);
   }
+  synchronizeDeploymentReceiptOperations(next);
   return next;
 }
 
@@ -118,9 +119,10 @@ export function normalizeContractPath(path = "") {
 function synchronizeDeliveryHandoffSchemas(schemas) {
   const dashboard = schemas.DashboardSnapshot;
   if (dashboard) {
-    dashboard.required = unique([...(dashboard.required || []), "deployment_handoff"]);
+    dashboard.required = unique([...(dashboard.required || []), "deployment_handoff", "deployment_receipt_inbox"]);
     dashboard.properties ||= {};
     dashboard.properties.deployment_handoff = { $ref: "#/components/schemas/DeploymentHandoff" };
+    dashboard.properties.deployment_receipt_inbox = { $ref: "#/components/schemas/DeploymentReceiptInbox" };
   }
 
   const comparison = schemas.ReleaseComparison;
@@ -148,6 +150,12 @@ function synchronizeDeliveryHandoffSchemas(schemas) {
   schemas.DeploymentHandoffCheck = deploymentHandoffCheckSchema();
   schemas.CandidateBindingHandoff = candidateBindingHandoffSchema();
   schemas.DeploymentHandoff = deploymentHandoffSchema();
+  schemas.DeploymentReceipt = deploymentReceiptSchema();
+  schemas.DeploymentReceiptInboxSlot = deploymentReceiptInboxSlotSchema();
+  schemas.DeploymentReceiptInbox = deploymentReceiptInboxSchema();
+  schemas.DeploymentReceiptSubmission = deploymentReceiptSubmissionSchema();
+  schemas.DeploymentReceiptReview = deploymentReceiptReviewSchema();
+  schemas.DeploymentReceiptConflict = deploymentReceiptConflictSchema();
 }
 
 function releaseComparisonRuntimeAuthoritySchema() {
@@ -307,6 +315,267 @@ function deploymentHandoffSchema() {
     },
     additionalProperties: false
   };
+}
+
+function deploymentReceiptSchema() {
+  return {
+    type: "object",
+    required: [
+      "schema_version", "receipt_id", "source", "tenant_scope", "blocker_id", "candidate_id", "run_id",
+      "evidence_ref", "evidence_sha256", "evidence_kind", "verifier_class", "status", "version",
+      "authority_validation", "acceptance_effect", "safety"
+    ],
+    properties: {
+      schema_version: { type: "string", const: "a3.deployment_receipt.v1" },
+      receipt_id: { type: "string", minLength: 1, maxLength: 160 },
+      source: { type: "string" },
+      tenant_scope: { $ref: "#/components/schemas/TenantScope" },
+      blocker_id: { type: "string" },
+      owner: { type: "string" },
+      candidate_id: { type: "string" },
+      run_id: { type: "string" },
+      evidence_ref: { type: "string", description: "Opaque metadata reference only; URLs and local absolute paths are forbidden." },
+      evidence_sha256: { type: "string", pattern: "^sha256:[a-f0-9]{64}$" },
+      evidence_kind: { type: "string" },
+      verifier_class: { type: "string" },
+      captured_at: { type: ["string", "null"], format: "date-time" },
+      selectors: { type: "object", additionalProperties: { type: "string" } },
+      status: { type: "string", enum: ["submitted", "acknowledged", "rejected", "superseded"] },
+      version: { type: "integer", minimum: 1 },
+      submitted_at: { type: ["string", "null"], format: "date-time" },
+      submitted_by_hash: { type: "string" },
+      reviewed_at: { type: ["string", "null"], format: "date-time" },
+      reviewed_by_hash: { type: ["string", "null"] },
+      review_reason_code: { type: ["string", "null"] },
+      authority_validation: {
+        type: "object",
+        required: ["status", "production_verified", "authoritative_readback_id"],
+        properties: {
+          status: { type: "string" },
+          production_verified: { type: "boolean", const: false },
+          authoritative_readback_id: { type: "null" }
+        },
+        additionalProperties: false
+      },
+      acceptance_effect: {
+        type: "object",
+        required: ["changes_deployment_acceptance", "changes_release_ready", "reason"],
+        properties: {
+          changes_deployment_acceptance: { type: "boolean", const: false },
+          changes_release_ready: { type: "boolean", const: false },
+          reason: { type: "string" }
+        },
+        additionalProperties: false
+      },
+      history: { type: "array", items: { type: "object", additionalProperties: true } },
+      safety: {
+        type: "object",
+        required: [
+          "raw_evidence_embedded", "raw_secret_values_allowed", "raw_signed_urls_allowed",
+          "production_verified_by_submission", "a2_decision_recomputed", "deployment_acceptance_mutated"
+        ],
+        properties: {
+          raw_evidence_embedded: { type: "boolean", const: false },
+          raw_secret_values_allowed: { type: "boolean", const: false },
+          raw_signed_urls_allowed: { type: "boolean", const: false },
+          production_verified_by_submission: { type: "boolean", const: false },
+          a2_decision_recomputed: { type: "boolean", const: false },
+          deployment_acceptance_mutated: { type: "boolean", const: false }
+        },
+        additionalProperties: false
+      }
+    },
+    additionalProperties: true,
+    description: "Sanitized receipt metadata. Submission or acknowledgement never counts as production verification."
+  };
+}
+
+function deploymentReceiptInboxSlotSchema() {
+  return {
+    type: "object",
+    required: [
+      "blocker_id", "label", "owner", "required_receipt", "evidence_kind", "verifier_class",
+      "receipt_count", "latest_receipt", "intake_status", "production_verified", "deployment_check_status"
+    ],
+    properties: {
+      blocker_id: { type: "string" },
+      label: { type: "string" },
+      owner: { type: "string" },
+      required_receipt: { type: "string" },
+      evidence_kind: { type: "string" },
+      verifier_class: { type: "string" },
+      receipt_count: { type: "integer", minimum: 0 },
+      latest_receipt: { oneOf: [{ $ref: "#/components/schemas/DeploymentReceipt" }, { type: "null" }] },
+      intake_status: { type: "string", enum: ["missing", "submitted", "acknowledged", "rejected", "superseded"] },
+      production_verified: { type: "boolean", const: false },
+      deployment_check_status: { type: "string", enum: ["blocked", "not_proven"] }
+    },
+    additionalProperties: false
+  };
+}
+
+function deploymentReceiptInboxSchema() {
+  return {
+    type: "object",
+    required: [
+      "schema_version", "source", "tenant_scope", "candidate_id", "run_id", "receipt_count",
+      "blocker_slot_count", "missing_slot_count", "submitted_or_acknowledged_count",
+      "production_verified_count", "slots", "receipts", "workflow", "safety"
+    ],
+    properties: {
+      schema_version: { type: "string", const: "a3.deployment_receipt_inbox.v1" },
+      source: { type: "string" },
+      tenant_scope: { $ref: "#/components/schemas/TenantScope" },
+      candidate_id: { type: "string" },
+      run_id: { type: "string" },
+      receipt_count: { type: "integer", minimum: 0 },
+      excluded_candidate_receipt_count: { type: "integer", minimum: 0 },
+      status_counts: { type: "object", additionalProperties: { type: "integer", minimum: 0 } },
+      blocker_slot_count: { type: "integer", minimum: 0 },
+      missing_slot_count: { type: "integer", minimum: 0 },
+      submitted_or_acknowledged_count: { type: "integer", minimum: 0 },
+      production_verified_count: { type: "integer", const: 0 },
+      slots: { type: "array", items: { $ref: "#/components/schemas/DeploymentReceiptInboxSlot" } },
+      receipts: { type: "array", items: { $ref: "#/components/schemas/DeploymentReceipt" } },
+      workflow: { type: "object", additionalProperties: true },
+      safety: {
+        type: "object",
+        required: [
+          "a2_decision_recomputed", "deployment_acceptance_mutated", "submitted_receipt_treated_as_production_proof",
+          "raw_evidence_embedded", "secret_values_allowed", "signed_urls_allowed"
+        ],
+        properties: {
+          a2_decision_recomputed: { type: "boolean", const: false },
+          deployment_acceptance_mutated: { type: "boolean", const: false },
+          submitted_receipt_treated_as_production_proof: { type: "boolean", const: false },
+          raw_evidence_embedded: { type: "boolean", const: false },
+          secret_values_allowed: { type: "boolean", const: false },
+          signed_urls_allowed: { type: "boolean", const: false }
+        },
+        additionalProperties: false
+      }
+    },
+    additionalProperties: false
+  };
+}
+
+function deploymentReceiptSubmissionSchema() {
+  return {
+    type: "object",
+    required: ["source", "receipt"],
+    properties: {
+      source: { type: "string" },
+      receipt: {
+        type: "object",
+        required: [
+          "blocker_id", "candidate_id", "run_id", "evidence_ref", "evidence_sha256",
+          "evidence_kind", "verifier_class", "captured_at"
+        ],
+        properties: {
+          blocker_id: { type: "string" }, candidate_id: { type: "string" }, run_id: { type: "string" },
+          evidence_ref: { type: "string", pattern: "^[A-Za-z0-9][A-Za-z0-9._:/-]*$" },
+          evidence_sha256: { type: "string", pattern: "^(?:sha256:)?[a-fA-F0-9]{64}$" },
+          evidence_kind: { type: "string" }, verifier_class: { type: "string" },
+          captured_at: { type: "string", format: "date-time" },
+          selectors: { type: "object", additionalProperties: { type: "string" }, maxProperties: 12 }
+        },
+        additionalProperties: false
+      }
+    },
+    additionalProperties: false
+  };
+}
+
+function deploymentReceiptReviewSchema() {
+  return {
+    type: "object",
+    required: ["source", "review"],
+    properties: {
+      source: { type: "string" },
+      review: {
+        type: "object",
+        required: ["action", "reason_code", "expected_version"],
+        properties: {
+          action: { type: "string", enum: ["acknowledge", "reject", "supersede"] },
+          reason_code: { type: "string" },
+          expected_version: { type: "integer", minimum: 1 }
+        },
+        additionalProperties: false
+      }
+    },
+    additionalProperties: false
+  };
+}
+
+function deploymentReceiptConflictSchema() {
+  return {
+    type: "object",
+    required: ["schema_version", "error", "request_type", "details"],
+    properties: {
+      schema_version: { type: "string", const: "a3.api_validation_error.v1" },
+      error: { type: "string", enum: ["version_conflict", "idempotency_conflict"] },
+      request_type: { type: "string" },
+      details: { type: "array", items: { type: "object", additionalProperties: true } }
+    },
+    additionalProperties: true
+  };
+}
+
+function synchronizeDeploymentReceiptOperations(spec) {
+  const read = spec.paths?.["/api/a3/deployment/receipts"]?.get;
+  const submit = spec.paths?.["/api/a3/deployment/receipts"]?.post;
+  const review = spec.paths?.["/api/a3/deployment/receipts/{receiptId}/review"]?.post;
+  if (read) {
+    read.summary = "Read the candidate-bound deployment receipt inbox.";
+    read["x-schema-version"] = "a3.deployment_receipt_inbox.v1";
+    read.responses["200"] = typedJsonResponse("Sanitized candidate-bound receipt inbox.", "DeploymentReceiptInbox");
+  }
+  if (submit) {
+    submit.summary = "Submit sanitized deployment receipt metadata.";
+    submit["x-schema-version"] = "a3.deployment_receipt.v1";
+    submit.parameters = withIdempotencyHeader(submit.parameters);
+    submit.requestBody = typedJsonRequest("DeploymentReceiptSubmission");
+    delete submit.responses["202"];
+    submit.responses["201"] = typedJsonResponse("Receipt metadata accepted without production promotion.", "DeploymentReceipt");
+    submit.responses["409"] = typedJsonResponse("Idempotency conflict.", "DeploymentReceiptConflict");
+    submit["x-audit"] = { events: ["deployment.receipt_submitted"], payload_policy: "ids_hashes_refs_status_counts_only" };
+  }
+  if (review) {
+    review.summary = "Acknowledge, reject, or supersede receipt metadata with optimistic concurrency.";
+    review["x-schema-version"] = "a3.deployment_receipt.v1";
+    review.parameters = withIdempotencyHeader(review.parameters);
+    review.requestBody = typedJsonRequest("DeploymentReceiptReview");
+    delete review.responses["202"];
+    review.responses["200"] = typedJsonResponse("Review recorded without changing deployment or A2 authority.", "DeploymentReceipt");
+    review.responses["409"] = typedJsonResponse("Receipt version or idempotency conflict.", "DeploymentReceiptConflict");
+    review["x-audit"] = { events: ["deployment.receipt_acknowledged", "deployment.receipt_rejected", "deployment.receipt_superseded"], payload_policy: "ids_hashes_refs_status_counts_only" };
+  }
+}
+
+function typedJsonRequest(schemaName) {
+  return {
+    required: true,
+    "x-secret-policy": "raw_secret_values_forbidden",
+    content: { "application/json": { schema: { $ref: `#/components/schemas/${schemaName}` } } }
+  };
+}
+
+function typedJsonResponse(description, schemaName) {
+  return {
+    description,
+    content: { "application/json": { schema: { $ref: `#/components/schemas/${schemaName}` } } }
+  };
+}
+
+function withIdempotencyHeader(parameters = []) {
+  const filtered = (Array.isArray(parameters) ? parameters : []).filter((item) => item?.name !== "Idempotency-Key");
+  return [...filtered, {
+    name: "Idempotency-Key",
+    in: "header",
+    required: true,
+    description: "Opaque caller-generated retry key. The raw value is never persisted.",
+    schema: { type: "string", minLength: 8, maxLength: 160 }
+  }];
 }
 
 function unique(values) {

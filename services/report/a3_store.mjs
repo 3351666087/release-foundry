@@ -67,6 +67,11 @@ import {
   buildA3ReleaseComparison
 } from "./a3_release_comparison.mjs";
 import { buildA3DeploymentHandoff } from "./a3_deployment_handoff.mjs";
+import {
+  buildA3DeploymentReceiptInbox,
+  buildA3DeploymentReceiptSubmission,
+  reviewA3DeploymentReceipt
+} from "./a3_deployment_receipt_workflow.mjs";
 
 export const A3_STORE_SCHEMA_VERSION = "a3.store.v1";
 
@@ -203,6 +208,7 @@ export const A3_DB_CONTRACT = {
     "release_evidence_diffs",
     "release_evidence_readbacks",
     "github_publish_receipts",
+    "deployment_receipts",
     "notification_channels",
     "notification_subscriptions",
     "notification_templates",
@@ -226,6 +232,9 @@ export const A3_DB_CONTRACT = {
     "GET /api/a3/auth/rbac-policy",
     "POST /api/a3/auth/authorize",
     "GET /api/a3/dashboard",
+    "GET /api/a3/deployment/receipts",
+    "POST /api/a3/deployment/receipts",
+    "POST /api/a3/deployment/receipts/:receiptId/review",
     "GET /api/a3/release-decision/provenance",
     "POST /api/a3/ui-actions/preflight",
     "GET /api/a3/runs",
@@ -386,6 +395,7 @@ export function createMemoryA3Store(seed = {}) {
   const reviewWorkflowRecords = [];
   const releaseEvidenceReadbacks = [];
   const githubPublishReceipts = [];
+  const deploymentReceipts = [];
 
   for (const [source, snapshot] of Object.entries(seed.sources || {})) {
     snapshots.set(source, normalizeSnapshot({ source, ...snapshot }));
@@ -425,6 +435,9 @@ export function createMemoryA3Store(seed = {}) {
   for (const receipt of seed.githubPublishReceipts || []) {
     githubPublishReceipts.push(sanitizeGitHubPublishReceipt(receipt));
   }
+  for (const receipt of seed.deploymentReceipts || []) {
+    deploymentReceipts.push(sanitizeDeploymentReceiptRecord(receipt));
+  }
 
   return {
     schema_version: A3_STORE_SCHEMA_VERSION,
@@ -446,6 +459,7 @@ export function createMemoryA3Store(seed = {}) {
       const scopedReviewWorkflowRecords = filterTenantScopedRecords(reviewWorkflowRecords, snapshot, requestOptions);
       const scopedReleaseEvidenceReadbacks = filterTenantScopedRecords(releaseEvidenceReadbacks, snapshot, requestOptions);
       const scopedGitHubPublishReceipts = filterTenantScopedRecords(githubPublishReceipts, snapshot, requestOptions);
+      const scopedDeploymentReceipts = filterTenantScopedRecords(deploymentReceipts, snapshot, requestOptions);
       const importReceipts = apiImportReceiptsFromLedger(idempotencyReceipts);
       const scopedImportReceipts = filterTenantScopedRecords(importReceipts, snapshot, requestOptions);
       return buildDashboardPayload(snapshot, this.storage_mode, {
@@ -457,6 +471,7 @@ export function createMemoryA3Store(seed = {}) {
         reviewWorkflowRecords: scopedReviewWorkflowRecords,
         releaseEvidenceReadbacks: scopedReleaseEvidenceReadbacks,
         githubPublishReceipts: scopedGitHubPublishReceipts,
+        deploymentReceipts: scopedDeploymentReceipts,
         actor: requestOptions.actor,
         auth: requestOptions.auth,
         importReceipts: scopedImportReceipts,
@@ -467,6 +482,7 @@ export function createMemoryA3Store(seed = {}) {
           reviewWorkflowRecords,
           releaseEvidenceReadbacks,
           githubPublishReceipts,
+          deploymentReceipts,
           importReceipts
         }, snapshot, requestOptions)
       });
@@ -1165,6 +1181,174 @@ export function createMemoryA3Store(seed = {}) {
         projectId: options.projectId || snapshot.projectId,
         durableStorageReady: true
       });
+    },
+
+    async listDeploymentReceipts(options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source, options);
+      const dashboard = await this.getDashboardSnapshot(snapshot.source, options);
+      return dashboard.deployment_receipt_inbox;
+    },
+
+    async submitDeploymentReceipt(input = {}, options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source, options);
+      requireIdempotencyKey(options, "deployment_receipt_submit", snapshot.source);
+      const dashboard = await this.getDashboardSnapshot(snapshot.source, options);
+      const context = deploymentReceiptContext(snapshot, dashboard, options);
+      const openBlockers = new Set((dashboard.deployment_handoff?.blocking_items || []).map((item) => item.id));
+      if (!openBlockers.has(input.blocker_id || input.blockerId)) {
+        throw new A3StoreValidationError("Deployment receipt does not match a current blocker.", [
+          { field: "blocker_id", issue: "blocker_not_currently_open" }
+        ], {
+          requestType: "deployment_receipt_submit",
+          source: snapshot.source
+        });
+      }
+      const built = buildA3DeploymentReceiptSubmission(input, context);
+      if (!built.valid) {
+        throw new A3StoreValidationError("Deployment receipt failed metadata validation.", built.errors, {
+          requestType: "deployment_receipt_submit",
+          source: snapshot.source
+        });
+      }
+      const idempotencySource = scopedIdempotencySource(snapshot.source, options, snapshot);
+      const replay = getIdempotentReplay(
+        idempotencyReceipts,
+        "deployment_receipt_submit",
+        idempotencySource,
+        options.idempotencyKey,
+        built.fingerprint
+      );
+      if (replay) return replay;
+
+      const existing = deploymentReceipts.find((item) => (
+        item.receipt_id === built.record.receipt_id && strictTenantRecordMatches(item, snapshot)
+      ));
+      if (existing) {
+        const duplicate = attachIdempotencyReceipt({
+          ...existing,
+          duplicate_content: true
+        }, options.idempotencyKey);
+        duplicate.idempotency.status = "duplicate_content";
+        duplicate.idempotency.duplicate = true;
+        rememberIdempotentReceipt(
+          idempotencyReceipts,
+          "deployment_receipt_submit",
+          idempotencySource,
+          options.idempotencyKey,
+          built.fingerprint,
+          duplicate
+        );
+        return duplicate;
+      }
+
+      const auditEvent = deploymentReceiptAuditEvent(built.record, "submitted", auditEvents.length);
+      const storedRecord = sanitizeDeploymentReceiptRecord({
+        ...built.record,
+        audit_event_id: auditEvent.event_id
+      });
+      deploymentReceipts.push(storedRecord);
+      auditEvents.push(auditEvent);
+      const outboxRow = recordEventOutbox(eventOutbox, {
+        source: snapshot.source,
+        eventType: "deployment.receipt_submitted",
+        resourceType: "deployment_receipt",
+        resourceId: storedRecord.receipt_id,
+        tenantScope: storedRecord.tenant_scope,
+        actorHash: storedRecord.submitted_by_hash,
+        createdAt: storedRecord.submitted_at,
+        payload: deploymentReceiptEventPayload(storedRecord, "submitted"),
+        usageMeter: { meter: "deployment_receipt_submissions", quantity: 1 }
+      });
+      const receipt = attachIdempotencyReceipt(
+        attachEventEnvelopeReceipt(storedRecord, outboxRow),
+        options.idempotencyKey
+      );
+      rememberIdempotentReceipt(
+        idempotencyReceipts,
+        "deployment_receipt_submit",
+        idempotencySource,
+        options.idempotencyKey,
+        built.fingerprint,
+        receipt
+      );
+      return receipt;
+    },
+
+    async reviewDeploymentReceipt(receiptId, review = {}, options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source, options);
+      requireIdempotencyKey(options, "deployment_receipt_review", snapshot.source);
+      const index = deploymentReceipts.findIndex((item) => (
+        item.receipt_id === receiptId && strictTenantRecordMatches(item, snapshot)
+      ));
+      if (index < 0) return null;
+
+      const current = deploymentReceipts[index];
+      const payloadHash = sha256(stableJson({
+        receipt_id: receiptId,
+        action: review.action,
+        reason_code: review.reason_code || review.reasonCode,
+        expected_version: review.expected_version ?? review.expectedVersion,
+        source: snapshot.source,
+        tenant_scope: current.tenant_scope
+      }));
+      const idempotencySource = scopedIdempotencySource(snapshot.source, options, snapshot);
+      const replay = getIdempotentReplay(
+        idempotencyReceipts,
+        "deployment_receipt_review",
+        idempotencySource,
+        options.idempotencyKey,
+        payloadHash
+      );
+      if (replay) return replay;
+
+      const reviewed = reviewA3DeploymentReceipt(current, review, {
+        actor_hash: options.actor
+          ? sha256(String(options.actor)).slice(0, 16)
+          : options.actorHash || "actor_[REDACTED_HASH]",
+        reviewed_at: options.reviewedAt
+      });
+      if (!reviewed.valid) {
+        const versionConflict = reviewed.errors.some((item) => item.issue === "version_conflict");
+        throw new A3StoreValidationError("Deployment receipt review failed validation.", reviewed.errors, {
+          requestType: "deployment_receipt_review",
+          source: snapshot.source,
+          statusCode: versionConflict ? 409 : 400,
+          error: versionConflict ? "version_conflict" : "validation_error"
+        });
+      }
+
+      const auditEvent = deploymentReceiptAuditEvent(reviewed.record, "reviewed", auditEvents.length);
+      const storedRecord = sanitizeDeploymentReceiptRecord({
+        ...reviewed.record,
+        audit_event_id: current.audit_event_id,
+        latest_audit_event_id: auditEvent.event_id
+      });
+      deploymentReceipts[index] = storedRecord;
+      auditEvents.push(auditEvent);
+      const outboxRow = recordEventOutbox(eventOutbox, {
+        source: snapshot.source,
+        eventType: `deployment.receipt_${storedRecord.status}`,
+        resourceType: "deployment_receipt",
+        resourceId: storedRecord.receipt_id,
+        tenantScope: storedRecord.tenant_scope,
+        actorHash: storedRecord.reviewed_by_hash,
+        createdAt: storedRecord.reviewed_at,
+        payload: deploymentReceiptEventPayload(storedRecord, "reviewed"),
+        usageMeter: { meter: "deployment_receipt_reviews", quantity: 1 }
+      });
+      const receipt = attachIdempotencyReceipt(
+        attachEventEnvelopeReceipt(storedRecord, outboxRow),
+        options.idempotencyKey
+      );
+      rememberIdempotentReceipt(
+        idempotencyReceipts,
+        "deployment_receipt_review",
+        idempotencySource,
+        options.idempotencyKey,
+        payloadHash,
+        receipt
+      );
+      return receipt;
     },
 
     async authorizeLiveRelease(options = {}) {
@@ -2075,7 +2259,8 @@ export function createMemoryA3Store(seed = {}) {
         adminActionRequests,
         reviewWorkflowRecords,
         releaseEvidenceReadbacks,
-        githubPublishReceipts
+        githubPublishReceipts,
+        deploymentReceipts
       };
     }
   };
@@ -2260,6 +2445,16 @@ export async function createFileBackedA3Store(options = {}) {
     },
     async submitReleaseEvidenceReadback(releaseId, readback, options = {}) {
       const result = await store.submitReleaseEvidenceReadback(releaseId, readback, options);
+      await persist();
+      return result;
+    },
+    async submitDeploymentReceipt(input, options = {}) {
+      const result = await store.submitDeploymentReceipt(input, options);
+      await persist();
+      return result;
+    },
+    async reviewDeploymentReceipt(receiptId, review, options = {}) {
+      const result = await store.reviewDeploymentReceipt(receiptId, review, options);
       await persist();
       return result;
     },
@@ -2540,6 +2735,15 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     source: snapshot.source,
     tenantScope: snapshot.tenant_scope
   });
+  const receiptContext = deploymentReceiptContext(snapshot, {
+    deployment_handoff: deploymentHandoff,
+    release_artifact_manifest: snapshot.releaseArtifactManifest
+  });
+  const deploymentReceiptInbox = buildA3DeploymentReceiptInbox(
+    options.deploymentReceipts || [],
+    deploymentHandoff,
+    receiptContext
+  );
   return {
     schema_version: "a3.api_dashboard_payload.v1",
     source: snapshot.source,
@@ -2582,6 +2786,7 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     deployment_probe: snapshot.deploymentProbe,
     deployment_acceptance: deploymentAcceptance,
     deployment_handoff: deploymentHandoff,
+    deployment_receipt_inbox: deploymentReceiptInbox,
     release_artifact_manifest: snapshot.releaseArtifactManifest,
     release_artifact_verification: snapshot.releaseArtifactVerification,
     delivery_golden_path: deliveryGoldenPath,
@@ -3020,6 +3225,137 @@ function filterReleaseEvidenceReadbacks(readbacks = [], options = {}) {
     && (item.organization_id || "org-local") === organizationId
     && (item.project_id || "project-local") === projectId
   ));
+}
+
+function deploymentReceiptContext(snapshot = {}, dashboard = {}, options = {}) {
+  const handoff = dashboard.deployment_handoff || {};
+  const expected = handoff.candidate_binding?.expected || {};
+  const release = dashboard.release_artifact_manifest?.release || snapshot.releaseArtifactManifest?.release || {};
+  const run = extractRunRecords(snapshot.runFixture)[0] || {};
+  return {
+    source: snapshot.source || "unknown",
+    expected_candidate_id: expected.candidate_sha_alias || release.git_sha_alias || snapshot.source || "unknown",
+    expected_run_id: expected.run_id || run.run_id || "unknown",
+    tenant_scope: eventTenantScopeFromRecord({}, snapshot),
+    actor_hash: options.actor
+      ? sha256(String(options.actor)).slice(0, 16)
+      : options.actorHash || "actor_[REDACTED_HASH]",
+    submitted_at: options.submittedAt || options.submitted_at
+  };
+}
+
+function requireIdempotencyKey(options = {}, requestType, source) {
+  if (typeof options.idempotencyKey === "string" && options.idempotencyKey.trim()) return;
+  throw new A3StoreValidationError("Deployment receipt mutation requires an Idempotency-Key.", [
+    { field: "Idempotency-Key", issue: "required" }
+  ], {
+    requestType,
+    source
+  });
+}
+
+function sanitizeDeploymentReceiptRecord(record = {}) {
+  const scope = eventTenantScopeFromRecord(record, {});
+  const evidenceRef = typeof record.evidence_ref === "string"
+    && !/^(?:https?|file):/i.test(record.evidence_ref)
+    && !/[?#@\\]/.test(record.evidence_ref)
+      ? record.evidence_ref.slice(0, 240)
+      : "[REDACTED_UNSAFE_REF]";
+  const evidenceSha256 = /^sha256:[a-f0-9]{64}$/i.test(String(record.evidence_sha256 || ""))
+    ? String(record.evidence_sha256).toLowerCase()
+    : null;
+  return {
+    schema_version: "a3.deployment_receipt.v1",
+    receipt_id: safeIdentifier(record.receipt_id, "dpr"),
+    source: normalizeSourceKey(record.source || "unknown"),
+    tenant_scope: scope,
+    ...scope,
+    blocker_id: safeIdentifier(record.blocker_id, "blocker"),
+    owner: String(record.owner || "Unassigned"),
+    candidate_id: safeIdentifier(record.candidate_id, "candidate"),
+    run_id: safeIdentifier(record.run_id, "run"),
+    evidence_ref: evidenceRef,
+    evidence_sha256: evidenceSha256,
+    evidence_kind: safeIdentifier(record.evidence_kind, "evidence"),
+    verifier_class: safeIdentifier(record.verifier_class, "verifier"),
+    captured_at: record.captured_at || null,
+    selectors: redactPotentialSecret(record.selectors || {}),
+    status: String(record.status || "submitted"),
+    version: Number.isInteger(Number(record.version)) ? Number(record.version) : 1,
+    submitted_at: record.submitted_at || null,
+    submitted_by_hash: safeActorId(record.submitted_by_hash),
+    reviewed_at: record.reviewed_at || null,
+    reviewed_by_hash: record.reviewed_by_hash ? safeActorId(record.reviewed_by_hash) : null,
+    review_reason_code: record.review_reason_code || null,
+    audit_event_id: record.audit_event_id ? safeIdentifier(record.audit_event_id, "event") : null,
+    latest_audit_event_id: record.latest_audit_event_id ? safeIdentifier(record.latest_audit_event_id, "event") : null,
+    metadata_validation: {
+      status: record.metadata_validation?.status || "passed",
+      schema_version: "a3.deployment_receipt.v1",
+      payload_hash: String(record.metadata_validation?.payload_hash || "")
+    },
+    authority_validation: {
+      status: record.authority_validation?.status || "pending_external_verifier",
+      production_verified: false,
+      authoritative_readback_id: null
+    },
+    acceptance_effect: {
+      changes_deployment_acceptance: false,
+      changes_release_ready: false,
+      reason: String(record.acceptance_effect?.reason || "submission_is_not_authoritative_readback")
+    },
+    history: (Array.isArray(record.history) ? record.history : []).map((item, index) => ({
+      sequence: Number(item.sequence || index + 1),
+      action: String(item.action || "unknown"),
+      status: String(item.status || "unknown"),
+      actor_hash: safeActorId(item.actor_hash),
+      reason_code: String(item.reason_code || "unknown"),
+      created_at: item.created_at || null
+    })),
+    safety: {
+      raw_evidence_embedded: false,
+      raw_secret_values_allowed: false,
+      raw_signed_urls_allowed: false,
+      production_verified_by_submission: false,
+      a2_decision_recomputed: false,
+      deployment_acceptance_mutated: false
+    }
+  };
+}
+
+function deploymentReceiptAuditEvent(record = {}, phase = "submitted", index = 0) {
+  const createdAt = phase === "reviewed" ? record.reviewed_at : record.submitted_at;
+  return {
+    event_id: `dpr_evt_${sha256(`${record.receipt_id}:${record.version}:${phase}:${index}`).slice(0, 16)}`,
+    source: record.source,
+    ...record.tenant_scope,
+    event_type: phase === "reviewed" ? "deployment_receipt_reviewed" : "deployment_receipt_submitted",
+    subject_id: record.receipt_id,
+    actor_hash: phase === "reviewed" ? record.reviewed_by_hash : record.submitted_by_hash,
+    payload: deploymentReceiptEventPayload(record, phase),
+    created_at: createdAt,
+    redacted: true
+  };
+}
+
+function deploymentReceiptEventPayload(record = {}, phase = "submitted") {
+  return {
+    schema_version: "a3.deployment_receipt_event_payload.v1",
+    receipt_id: record.receipt_id,
+    blocker_id: record.blocker_id,
+    candidate_id: record.candidate_id,
+    run_id: record.run_id,
+    phase,
+    status: record.status,
+    version: record.version,
+    evidence_kind: record.evidence_kind,
+    verifier_class: record.verifier_class,
+    evidence_sha256: record.evidence_sha256,
+    production_verified: false,
+    deployment_acceptance_changed: false,
+    a2_release_ready_changed: false,
+    raw_evidence_embedded: false
+  };
 }
 
 function recordEventOutbox(eventOutbox, input = {}) {

@@ -302,6 +302,57 @@ export function createA3ApiHandler(options = {}) {
         return sendJson(response, 200, await store.getDashboardSnapshot(sourceFrom(url), security));
       }
 
+      if (request.method === "GET" && url.pathname === "/api/a3/deployment/receipts") {
+        return sendJson(response, 200, await store.listDeploymentReceipts(scopedStoreOptions(url, {
+          source: sourceFrom(url),
+          organizationId: url.searchParams.get("organization_id") || undefined,
+          projectId: url.searchParams.get("project_id") || undefined
+        })));
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/a3/deployment/receipts") {
+        const body = await readJsonBody(request);
+        const authz = authorizeRequest(request, url, "submit_deployment_receipt", body);
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
+        const receipt = await store.submitDeploymentReceipt(body.receipt || body, scopedStoreOptions(url, {
+          source: body.source || sourceFrom(url),
+          organizationId: body.organization_id,
+          projectId: body.project_id,
+          actor: body.actor,
+          actorHash: body.actor_hash,
+          submittedAt: body.submitted_at || body.submittedAt,
+          idempotencyKey: idempotencyKeyFrom(request, body)
+        }));
+        return sendJson(response, 201, receipt);
+      }
+
+      const deploymentReceiptReviewMatch = url.pathname.match(/^\/api\/a3\/deployment\/receipts\/([^/]+)\/review$/);
+      if (request.method === "POST" && deploymentReceiptReviewMatch) {
+        const body = await readJsonBody(request);
+        const authz = authorizeRequest(request, url, "review_deployment_receipt", body);
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
+        const receipt = await store.reviewDeploymentReceipt(
+          decodeURIComponent(deploymentReceiptReviewMatch[1]),
+          body.review || body,
+          scopedStoreOptions(url, {
+            source: body.source || sourceFrom(url),
+            organizationId: body.organization_id,
+            projectId: body.project_id,
+            actor: body.actor,
+            actorHash: body.actor_hash,
+            reviewedAt: body.reviewed_at || body.reviewedAt,
+            idempotencyKey: idempotencyKeyFrom(request, body)
+          })
+        );
+        return receipt
+          ? sendJson(response, 200, receipt)
+          : sendJson(response, 404, notFound("deployment_receipt", deploymentReceiptReviewMatch[1]));
+      }
+
       if (request.method === "GET" && url.pathname === "/api/a3/release-decision/provenance") {
         const security = dashboardSecurityContext(request, url, options);
         const dashboard = await store.getDashboardSnapshot(sourceFrom(url), security);

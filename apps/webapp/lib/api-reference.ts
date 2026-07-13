@@ -24,8 +24,8 @@ export type ApiEndpoint = {
 };
 
 export const apiReferenceMeta = {
-  schemaVersion: "a3.api_reference.v4",
-  calibratedAt: "2026-07-12",
+  schemaVersion: "a3.api_reference.v5",
+  calibratedAt: "2026-07-13",
   mainSha: "ccf6ce5",
   a1Sha: "c784163",
   a2Sha: "8cd1d4f",
@@ -350,6 +350,14 @@ export const apiEndpoints: ApiEndpoint[] = [
         summary: { passed: 8, total_checks: 17, owner_group_count: 5, candidate_binding_status: "integrity_invalid" },
         candidate_binding: { expected: { run_id: "a3-golden-20260712-002" }, observed_a2: { evidence_run_id: "a2_trusted_spine_demo" } }
       },
+      deployment_receipt_inbox: {
+        schema_version: "a3.deployment_receipt_inbox.v1",
+        candidate_id: "candidate-head-sha",
+        run_id: "a3-golden-20260712-002",
+        blocker_slot_count: 9,
+        receipt_count: 0,
+        production_verified_count: 0
+      },
       release_artifact_manifest: { release: { version: "0.2.0-rc.2", git_sha_alias: "candidate-head-sha", ci_tested_sha_alias: "tested-merge-sha", production_release: false } },
       release_comparison: {
         schema_version: "a3.release_comparison.v1",
@@ -363,6 +371,100 @@ export const apiEndpoints: ApiEndpoint[] = [
       { zh: "这是当前 Next.js Webapp 默认消费的只读 API。", en: "This is the read-only API consumed by the current Next.js webapp." },
       { zh: "当前运行时校验与历史封存结论分开返回；A3 不重算 A2 分数、pass/fail、failure class 或发布决定。", en: "Current runtime validation is separate from sealed historical decisions; A3 does not recompute A2 scores, pass/fail, failure class, or release decisions." },
       { zh: "deployment_handoff 把 17 项验收拆给 A1、A2、A1/A3、A3 和仓库管理员，并说明每个阻塞项需要什么真实回执。", en: "deployment_handoff assigns 17 checks to A1, A2, A1/A3, A3, and the repository maintainer, with a required receipt for every blocker." }
+    ]
+  },
+  {
+    id: "a3-deployment-receipt-list",
+    group: "console",
+    owner: "A3",
+    method: "GET",
+    path: "/api/a3/deployment/receipts",
+    title: { zh: "读取部署回执收件箱", en: "Read deployment receipt inbox" },
+    description: {
+      zh: "按同一 candidate、Run 和五层租户作用域列出 9 类部署阻塞回执槽位。",
+      en: "List nine deployment blocker receipt slots for one candidate, run, and five-level tenant scope."
+    },
+    auth: { zh: "A1 可信身份 + deployment:read", en: "Trusted A1 principal with deployment:read" },
+    status: "implemented",
+    source: "services/report/a3_deployment_receipt_workflow.mjs",
+    response: {
+      schema_version: "a3.deployment_receipt_inbox.v1",
+      candidate_id: "candidate-head-sha",
+      run_id: "run-example",
+      blocker_slot_count: 9,
+      missing_slot_count: 9,
+      production_verified_count: 0
+    },
+    notes: [
+      { zh: "收件状态不修改 Deployment Acceptance，也不重算 A2 裁决。", en: "Intake state does not mutate Deployment Acceptance or recompute A2 authority." }
+    ]
+  },
+  {
+    id: "a3-deployment-receipt-submit",
+    group: "console",
+    owner: "A3",
+    method: "POST",
+    path: "/api/a3/deployment/receipts",
+    title: { zh: "提交部署回执元数据", en: "Submit deployment receipt metadata" },
+    description: {
+      zh: "提交证据引用、SHA-256、证据类型和采集时间；原始文件、secret 和 signed URL 会被拒绝。",
+      en: "Submit an evidence reference, SHA-256, evidence kind, and capture time; raw files, secrets, and signed URLs are rejected."
+    },
+    auth: { zh: "A1 可信身份 + deployment:submit + Idempotency-Key", en: "Trusted A1 principal, deployment:submit, and Idempotency-Key" },
+    status: "implemented",
+    source: "services/report/a3_store.mjs",
+    request: {
+      source: "candidate-source",
+      receipt: {
+        blocker_id: "deployment_health",
+        candidate_id: "candidate-head-sha",
+        run_id: "run-example",
+        evidence_ref: "receipt:deployment-health:example",
+        evidence_sha256: "sha256:[REDACTED_HASH]",
+        evidence_kind: "deployment_health_receipt",
+        verifier_class: "deployment_probe",
+        captured_at: "2026-07-13T06:00:00.000Z"
+      }
+    },
+    response: {
+      schema_version: "a3.deployment_receipt.v1",
+      receipt_id: "dpr_example",
+      status: "submitted",
+      version: 1,
+      authority_validation: { production_verified: false },
+      acceptance_effect: { changes_deployment_acceptance: false, changes_release_ready: false }
+    },
+    notes: [
+      { zh: "submitted 只代表元数据通过本地校验，不是生产证明。", en: "submitted means metadata passed local validation; it is not production proof." }
+    ]
+  },
+  {
+    id: "a3-deployment-receipt-review",
+    group: "console",
+    owner: "A3",
+    method: "POST",
+    path: "/api/a3/deployment/receipts/{receipt_id}/review",
+    title: { zh: "复核部署回执元数据", en: "Review deployment receipt metadata" },
+    description: {
+      zh: "审核者确认、拒绝或替换回执，并用 expected_version 防止并发覆盖。",
+      en: "A reviewer acknowledges, rejects, or supersedes a receipt with expected_version concurrency control."
+    },
+    auth: { zh: "A1 可信身份 + deployment:review + Idempotency-Key", en: "Trusted A1 principal, deployment:review, and Idempotency-Key" },
+    status: "implemented",
+    source: "services/report/a3_deployment_receipt_workflow.mjs",
+    request: {
+      source: "candidate-source",
+      review: { action: "acknowledge", reason_code: "metadata_complete", expected_version: 1 }
+    },
+    response: {
+      schema_version: "a3.deployment_receipt.v1",
+      receipt_id: "dpr_example",
+      status: "acknowledged",
+      version: 2,
+      authority_validation: { status: "awaiting_authoritative_readback", production_verified: false }
+    },
+    notes: [
+      { zh: "版本冲突返回 HTTP 409；acknowledged 仍不会改写 A2 Release Ready。", en: "Version conflicts return HTTP 409; acknowledged still cannot change A2 Release Ready." }
     ]
   },
   {

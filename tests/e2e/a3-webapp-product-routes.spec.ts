@@ -270,6 +270,83 @@ test.describe("A3 Next.js product console", () => {
     await page.screenshot({ path: "docs/screenshots/a3-webapp-delivery-golden-path-rc2-mobile-390x844.png", fullPage: false, animations: "disabled" });
   });
 
+  test("submits and reviews deployment receipt metadata without promoting delivery", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto(`${base}/delivery/?source=a3-golden-path-rc2`);
+    const section = page.locator("section.deployment-receipt-section");
+    await expect(section.getByRole("heading", { name: "部署回执收件箱" })).toBeVisible();
+    await expect(section.locator("tbody tr")).toHaveCount(9);
+    await expect(section).toContainText("生产已验证");
+    await expect(section.locator('.receipt-inbox-summary [data-state="not-authoritative"]')).toContainText("0");
+
+    await section.getByLabel("阻塞项").selectOption("deployment_health");
+    await section.getByLabel("证据引用").fill(`receipt:deployment-health:e2e-${Date.now()}`);
+    await section.getByLabel("SHA-256").fill("c".repeat(64));
+    await section.getByLabel("采集时间").fill("2026-07-13T14:30");
+    await section.getByRole("button", { name: "提交元数据" }).click();
+    await expect(section.locator('.receipt-action-state[data-state="acknowledged"]')).toContainText("已进入待复核队列");
+
+    const deploymentRow = section.locator("tbody tr").filter({ hasText: "deployment_health" });
+    await expect(deploymentRow).toHaveAttribute("data-intake-status", "submitted", { timeout: 10_000 });
+    const inboxResponse = await page.request.get("/api/a3/deployment/receipts?source=a3-golden-path-rc2", {
+      headers: receiptApiHeaders("auditor")
+    });
+    expect(inboxResponse.ok()).toBe(true);
+    const inbox = await inboxResponse.json();
+    const receipt = inbox.slots.find((item: { blocker_id: string }) => item.blocker_id === "deployment_health").latest_receipt;
+
+    await page.route(/\/api\/a3\/deployment\/receipts\/[^/]+\/review/, async (route) => {
+      await route.fulfill({
+        status: 409,
+        contentType: "application/json",
+        body: JSON.stringify({ schema_version: "a3.api_validation_error.v1", error: "version_conflict", details: [] })
+      });
+    });
+    await deploymentRow.getByRole("button", { name: `确认 ${receipt.receipt_id}` }).click();
+    await expect(section.locator('.receipt-action-state[data-state="conflict"]')).toContainText("请刷新后重试");
+    await page.unroute(/\/api\/a3\/deployment\/receipts\/[^/]+\/review/);
+
+    await deploymentRow.getByRole("button", { name: `确认 ${receipt.receipt_id}` }).click();
+    await expect(section.locator('.receipt-action-state[data-state="denied"]')).toContainText("没有执行此操作的权限");
+
+    const reviewResponse = await page.request.post(`/api/a3/deployment/receipts/${receipt.receipt_id}/review?source=a3-golden-path-rc2`, {
+      headers: { ...receiptApiHeaders("reviewer"), "idempotency-key": `e2e-review-${Date.now()}` },
+      data: {
+        source: "a3-golden-path-rc2",
+        organization_id: "org-local",
+        tenant_id: "tenant-local",
+        workspace_id: "workspace-local",
+        project_id: "project-local",
+        environment_id: "staging",
+        review: { action: "acknowledge", reason_code: "metadata_complete", expected_version: receipt.version }
+      }
+    });
+    expect(reviewResponse.status()).toBe(200);
+    expect((await reviewResponse.json()).authority_validation.production_verified).toBe(false);
+
+    await page.reload();
+    const refreshed = page.locator("section.deployment-receipt-section");
+    const refreshedRow = refreshed.locator("tbody tr").filter({ hasText: "deployment_health" });
+    await expect(refreshedRow).toHaveAttribute("data-intake-status", "acknowledged");
+    await expect(refreshed.locator('.receipt-inbox-summary [data-state="not-authoritative"]')).toContainText("0");
+    await expect(page.locator(".metric-strip")).toContainText("8/17");
+    await refreshed.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-deployment-receipt-inbox-desktop.png", fullPage: false, animations: "disabled" });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.reload();
+    const mobileSection = page.locator("section.deployment-receipt-section");
+    await mobileSection.scrollIntoViewIfNeeded();
+    const bounds = await page.evaluate(() => ({
+      viewport: document.documentElement.clientWidth,
+      documentScrollWidth: document.documentElement.scrollWidth,
+      sectionRight: document.querySelector(".deployment-receipt-section")!.getBoundingClientRect().right
+    }));
+    expect(bounds.documentScrollWidth).toBeLessThanOrEqual(bounds.viewport);
+    expect(bounds.sectionRight).toBeLessThanOrEqual(bounds.viewport);
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-deployment-receipt-inbox-mobile-390x844.png", fullPage: false, animations: "disabled" });
+  });
+
   test("switches Chinese and English without losing the selected evidence source", async ({ page }) => {
     await page.goto(`${base}/overview/?source=api-mock`);
     await expect(page.getByRole("heading", { name: "发布总览" })).toBeVisible();
@@ -481,4 +558,16 @@ function collectConsoleErrors(page: Page) {
     }
   });
   return errors;
+}
+
+function receiptApiHeaders(role: string) {
+  return {
+    "content-type": "application/json",
+    "x-a3-role": role,
+    "x-a3-organization-id": "org-local",
+    "x-a3-tenant-id": "tenant-local",
+    "x-a3-workspace-id": "workspace-local",
+    "x-a3-project-id": "project-local",
+    "x-a3-environment-id": "staging"
+  };
 }

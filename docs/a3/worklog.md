@@ -6883,3 +6883,22 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
 - Final validation passed A3 Node `421/421`, current-main A2 `186/186` plus `1050` subtests, Next.js typecheck and 15-page production export, Playwright `37/37`, CL hygiene with 0 findings, Commercial CL with 0 blockers/advisories, and rc.2 bundle/archive/manifest verification.
 - The broader Python run reached `1239` passes plus `1050` subtests, but this Windows environment has no Docker, Go, or Cargo. Therefore 26 live PostgreSQL tests were environment errors and 2 A1 toolchain-presence contracts failed; these are not presented as green A3 evidence and no A1 source was changed.
 - A final `git fetch origin --prune` attempt failed on GitHub port 443 after 21 seconds. The branch remains based on the last successfully observed authoritative `origin/main` `ccf6ce5`; publication must recheck remote state when GitHub connectivity returns.
+
+## 2026-07-13 - Deployment Receipt Inbox
+
+- Converted the nine static Deployment Handoff blockers into `a3.deployment_receipt_inbox.v1` without changing their blocked/not-proven states.
+- Added typed receipt submission and review with candidate/run binding, five-level tenant scope, allowlisted selectors, SHA-256 validation, secret/signed-URL/path rejection, optimistic concurrency, and mandatory idempotency.
+- Added Store, RBAC, HTTP, audit-event, event-outbox, JSON-file, and SQLite persistence wiring.
+- Added migration `017_deployment_receipts`; restart coverage preserves acknowledgement and version while `production_verified` remains false.
+- Added `GET/POST /api/a3/deployment/receipts` and `POST /api/a3/deployment/receipts/:receiptId/review` with `deployment:read`, `deployment:submit`, and `deployment:review` permissions.
+- Added OpenAPI schemas, 56/56 runtime route parity, API Reference examples, and commercial API mapping.
+- Added a Chinese-first Delivery inbox with metadata submission, receipt slots, reviewer actions, and loading/success/rejected/conflict/denied/failed states.
+- Browser E2E submitted metadata, observed a simulated 409, proved developer review denial, completed reviewer acknowledgement, and confirmed Deployment Acceptance stayed 8/17.
+- Saved desktop and 390 x 844 screenshots and visually checked wrapping, local table scrolling, and document-level overflow.
+- Kept current authority `integrity_invalid`, current A2 decision `unknown`, historical decision `block`, and production verification count 0.
+- Detailed record: `docs/a3/a3_deployment_receipt_inbox_2026_07_13.md`.
+- Growth audit: `docs/a3/growth_auditor_money_grade_round16_2026_07_13.md`.
+- Final validation passed A3 Node `429/429`, current-main A2 `186/186` plus `1050` subtests, Next.js typecheck and 15-page production export, Playwright `38/38`, CL hygiene with 0 findings, Commercial CL with 0 blockers/advisories, and both npm production audits with 0 vulnerabilities.
+- Reverified the sealed rc.2 Audit Bundle `15/15` with `7/7` custody events, signed archive `16/16`, and Release Artifact manifest hash `8f84c5e3d4f064ae5d042b0f8ef72f2a3fb4d7ae06eb0a7d4dea01dc113d5a2f` without rewriting any sealed input.
+- The broader Python command reached `1239` passes and `5` skips plus `1050` subtests. Its remaining `2` failures and `26` setup errors require Go, Cargo, and Docker/PostgreSQL, which are unavailable in this Windows environment; no A1 source was changed and these are not reported as passing evidence.
+- Retried `git fetch origin --prune` successfully. Authoritative `origin/main` remains `ccf6ce5`, this branch is not behind main, and PR #35 remains open, clean, and Draft; A1 PR #36 and the newer A2 development branch were not promoted into main authority.

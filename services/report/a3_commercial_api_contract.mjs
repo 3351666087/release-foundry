@@ -469,6 +469,33 @@ const COMMERCIAL_ENDPOINTS = [
     usage: ["api_requests"],
     dependencies: ["A2 release policy", "A3 reviewer workflow"]
   }),
+  endpoint("GET /v1/releases/{release_id}/deployment-receipts", "A1/A2/A3", "release_gate", "GET /api/a3/deployment/receipts", {
+    status: "read_only",
+    rbac: "deployment:read",
+    db: ["deployment_receipts", "audit_events", "event_outbox"],
+    events: ["deployment.receipts_read"],
+    artifacts: ["deployment_receipt_inbox"],
+    usage: ["api_requests"],
+    dependencies: ["A1 deployment receipts", "A2 same-candidate Trusted Spine", "A3 deployment handoff"]
+  }),
+  endpoint("POST /v1/releases/{release_id}/deployment-receipts", "A1/A3", "release_gate", "POST /api/a3/deployment/receipts", {
+    status: "implemented",
+    rbac: "deployment:submit",
+    db: ["deployment_receipts", "idempotency_keys", "audit_events", "event_outbox"],
+    events: ["deployment.receipt_submitted"],
+    artifacts: ["deployment_receipt_metadata"],
+    usage: ["api_requests", "deployment_receipt_submissions"],
+    dependencies: ["A1 external verifier receipt", "A2 candidate and run selectors", "A3 metadata redaction boundary"]
+  }),
+  endpoint("POST /v1/releases/{release_id}/deployment-receipts/{receipt_id}/reviews", "A3", "review_workflow", "POST /api/a3/deployment/receipts/:receiptId/review", {
+    status: "implemented",
+    rbac: "deployment:review",
+    db: ["deployment_receipts", "idempotency_keys", "audit_events", "event_outbox"],
+    events: ["deployment.receipt_acknowledged", "deployment.receipt_rejected", "deployment.receipt_superseded"],
+    artifacts: ["deployment_receipt_review"],
+    usage: ["api_requests", "deployment_receipt_reviews"],
+    dependencies: ["A1 authoritative verifier readback", "A2 Release Ready remains immutable", "A3 optimistic concurrency"]
+  }),
   endpoint("GET /v1/evidence-bundles/{bundle_id}", "A1/A3", "audit_export", "GET /api/a3/artifacts/registry", {
     status: "read_only",
     rbac: "auditor",

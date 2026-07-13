@@ -1268,3 +1268,28 @@
 - [ ] Obtain a new A2 Trusted Spine for `a3-golden-20260712-002` and the exact five-level scope.
 - [ ] Rebuild a single-candidate Release Artifact after A2 supplies that authoritative record.
 - [ ] Attach tenant GitHub App, main required-check, staging/VPC, PostgreSQL/RLS, queue, object-storage, and rollback receipts.
+
+## Deployment Receipt Inbox - 2026-07-13
+
+- [x] Add `a3.deployment_receipt.v1` and `a3.deployment_receipt_inbox.v1`.
+- [x] Bind submissions to the current blocker, candidate, A1 run, source, and five-level tenant scope.
+- [x] Reject secrets, tokens, cookies, emails, signed URLs, local paths, unsafe refs, invalid hashes, and unknown selectors.
+- [x] Require `Idempotency-Key` for submit and review mutations.
+- [x] Require `expected_version` and return HTTP 409 for stale reviewer writes.
+- [x] Support acknowledge, reject, and supersede metadata states.
+- [x] Keep `submitted` and `acknowledged` non-authoritative.
+- [x] Keep Deployment Acceptance at 8/17 and `production_verified_count=0`.
+- [x] Keep current A2 authority `integrity_invalid` / `unknown` and historical sealed `block` separate.
+- [x] Emit metadata-only audit and event-outbox records for every successful mutation.
+- [x] Persist receipt state through SQLite restart with a dedicated migration/table.
+- [x] Add separate read, submit, and review RBAC permissions.
+- [x] Add three protected HTTP routes and browser-safe same-origin calls.
+- [x] Add OpenAPI, API Reference, DB contract, and commercial contract coverage.
+- [x] Add Chinese-first and English UI with all expected operation states.
+- [x] Pass focused workflow, Store, API, concurrency, security, and SQLite tests.
+- [x] Pass a browser submit/conflict/denied/reviewer-acknowledge workflow.
+- [x] Save and inspect desktop and 390 x 844 screenshots without document overflow.
+- [x] Pass final A3 Node `429/429`, current-main A2 `186/186` plus `1050` subtests, Next.js typecheck/build, Playwright `38/38`, both CL guards, and both npm production audits.
+- [x] Reverify the sealed rc.2 bundle, signed archive, and Release Artifact without changing their inputs.
+- [ ] Add server-only authoritative verifier readback before any receipt can become production verified.
+- [ ] Obtain the nine real external receipts; the inbox itself does not close those blockers.

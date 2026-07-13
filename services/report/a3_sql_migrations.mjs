@@ -621,6 +621,33 @@ CREATE TABLE IF NOT EXISTS github_publish_receipts (
 );
 CREATE INDEX IF NOT EXISTS idx_github_publish_receipts_scope ON github_publish_receipts(organization_id, tenant_id, workspace_id, project_id, environment_id, source, created_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_github_publish_receipts_payload ON github_publish_receipts(project_id, resource_kind, payload_hash);`)
+    ,
+    statement("017_deployment_receipts", ["deployment_receipts"], `
+CREATE TABLE IF NOT EXISTS deployment_receipts (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL,
+  workspace_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  environment_id TEXT NOT NULL,
+  source TEXT NOT NULL,
+  blocker_id TEXT NOT NULL,
+  candidate_id TEXT NOT NULL,
+  run_id TEXT NOT NULL,
+  status TEXT NOT NULL,
+  version INTEGER NOT NULL,
+  evidence_kind TEXT NOT NULL,
+  verifier_class TEXT NOT NULL,
+  evidence_ref TEXT NOT NULL,
+  evidence_sha256 TEXT NOT NULL,
+  production_verified BOOLEAN NOT NULL DEFAULT FALSE,
+  payload_hash TEXT NOT NULL,
+  payload ${types.json} NOT NULL,
+  created_at ${types.timestamp} NOT NULL,
+  reviewed_at ${types.timestamp}
+);
+CREATE INDEX IF NOT EXISTS idx_deployment_receipts_scope ON deployment_receipts(organization_id, tenant_id, workspace_id, project_id, environment_id, source, candidate_id, run_id, blocker_id, status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_deployment_receipts_payload ON deployment_receipts(project_id, candidate_id, blocker_id, payload_hash);`)
   ];
 }
 

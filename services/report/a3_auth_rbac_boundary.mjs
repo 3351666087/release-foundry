@@ -13,6 +13,9 @@ export const A3_RBAC_ROLES = {
     "reports:revoke",
     "release:review",
     "release:approve",
+    "deployment:read",
+    "deployment:submit",
+    "deployment:review",
     "admin:plan",
     "team:manage",
     "api_keys:manage",
@@ -32,6 +35,9 @@ export const A3_RBAC_ROLES = {
     "reports:share",
     "reports:revoke",
     "release:review",
+    "deployment:read",
+    "deployment:submit",
+    "deployment:review",
     "admin:plan",
     "team:manage",
     "api_keys:manage",
@@ -46,7 +52,9 @@ export const A3_RBAC_ROLES = {
     "project:read",
     "project:ingest",
     "reports:create",
-    "usage:read"
+    "usage:read",
+    "deployment:read",
+    "deployment:submit"
   ],
   reviewer: [
     "project:read",
@@ -54,6 +62,8 @@ export const A3_RBAC_ROLES = {
     "reports:share",
     "release:review",
     "release:approve",
+    "deployment:read",
+    "deployment:review",
     "trust:read",
     "audit:read",
     "notifications:read"
@@ -64,6 +74,7 @@ export const A3_RBAC_ROLES = {
     "trust:read",
     "audit:read",
     "usage:read",
+    "deployment:read",
     "notifications:read"
   ],
   billing_admin: [
@@ -77,6 +88,8 @@ export const A3_RBAC_ROLES = {
     "project:ingest",
     "reports:create",
     "release:review",
+    "deployment:read",
+    "deployment:submit",
     "notifications:deliver"
   ],
   viewer: [
@@ -184,6 +197,12 @@ export const A3_AUTHZ_OPERATION_POLICIES = [
     resourceType: "review_workflow",
     a2: ["A2 ReleaseGate and policy evaluation are authoritative"]
   }),
+  operation("read_deployment_receipts", "GET /api/a3/deployment/receipts", "deployment:read", "read_only", {
+    event: "deployment.receipts_read",
+    resourceType: "deployment_receipt_inbox",
+    a1: ["deployment, identity, queue, storage, and GitHub worker receipts"],
+    a2: ["same-candidate Trusted Spine and immutable Decision Ledger selectors"]
+  }),
   operation("list_runs", "GET /api/a3/runs", "project:read", "read_only", {
     event: "run.listed",
     resourceType: "run"
@@ -264,6 +283,18 @@ export const A3_AUTHZ_OPERATION_POLICIES = [
     event: "denial.recorded",
     resourceType: "review_denial",
     a2: ["ReleaseGate", "policy evaluation"]
+  }),
+  operation("submit_deployment_receipt", "POST /api/a3/deployment/receipts", "deployment:submit", "local_write", {
+    event: "deployment.receipt_submitted",
+    resourceType: "deployment_receipt",
+    a1: ["sanitized deployment receipt metadata and evidence hashes"],
+    a2: ["same-candidate authority selectors; A3 never recomputes A2"]
+  }),
+  operation("review_deployment_receipt", "POST /api/a3/deployment/receipts/:receiptId/review", "deployment:review", "local_write", {
+    event: "deployment.receipt_reviewed",
+    resourceType: "deployment_receipt",
+    a1: ["external verifier readback remains authoritative"],
+    a2: ["acknowledgement never changes A2 Release Ready"]
   }),
   operation("submit_admin_action", "POST /api/a3/admin/actions/submit", "admin:plan", "plan_only", {
     event: "admin.action_requested",
