@@ -10,7 +10,15 @@
     "maximum_completion_tokens",
     "maximum_observed_completion_tokens",
     "timeout_count",
+    "provider_timeout_rate",
+    "maximum_provider_timeout_rate",
     "completed_count",
+    "completed_semantic_count",
+    "empty_response_count",
+    "valid_semantic_output_rate",
+    "minimum_valid_semantic_output_rate",
+    "queue_telemetry",
+    "cancellation_receipt_hashes",
     "completion_tokens_per_second",
     "startup_latency_seconds",
     "thinking_metadata_observed",
@@ -99,6 +107,48 @@
     "completed_count": {
       "type": "integer",
       "minimum": 0
+    },
+    "completed_semantic_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "empty_response_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "provider_timeout_rate": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "maximum_provider_timeout_rate": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "valid_semantic_output_rate": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "minimum_valid_semantic_output_rate": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "queue_telemetry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "maximum_depth"],
+      "properties": {
+        "state": {"enum": ["observed", "not_exposed"]},
+        "maximum_depth": {"type": ["integer", "null"], "minimum": 0}
+      }
+    },
+    "cancellation_receipt_hashes": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+      "uniqueItems": true
     },
     "completion_tokens_per_second": {
       "type": "object",

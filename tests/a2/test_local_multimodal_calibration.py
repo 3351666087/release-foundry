@@ -126,10 +126,42 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
             ], maximum_latency_seconds=15, maximum_completion_tokens=30)
         self.assertEqual(result["timeout_count"], 1)
         self.assertEqual(result["completed_count"], 2)
+        self.assertEqual(result["completed_semantic_count"], 2)
+        self.assertEqual(result["empty_response_count"], 0)
         self.assertEqual(result["startup_latency_seconds"]["cold_p50"], 10)
         self.assertEqual(result["startup_latency_seconds"]["warm_p50"], 5)
         self.assertEqual(result["completion_tokens_per_second"]["maximum"], 4)
         self.assertIn("multimodal_runtime_provider_timeout", result["blockers"])
+        self.assert_schema("multimodal_runtime_policy.schema.json", result)
+
+    def test_runtime_policy_blocks_empty_output_and_rate_thresholds(self):
+        receipt = "sha256:" + "a" * 64
+        result = summarize_multimodal_runtime_policy(
+            observations=[
+                {
+                    "http_state": "completed",
+                    "parse_state": "empty_response",
+                    "wall_time_seconds": 10,
+                    "queue_depth": 2,
+                },
+                {
+                    "http_state": "timeout",
+                    "wall_time_seconds": 30,
+                    "cancellation_receipt_hash": receipt,
+                },
+            ],
+            maximum_latency_seconds=60,
+            maximum_completion_tokens=48,
+            minimum_valid_semantic_output_rate=0.5,
+            maximum_provider_timeout_rate=0.25,
+        )
+        self.assertEqual(result["completed_count"], 1)
+        self.assertEqual(result["completed_semantic_count"], 0)
+        self.assertEqual(result["empty_response_count"], 1)
+        self.assertEqual(result["queue_telemetry"]["maximum_depth"], 2)
+        self.assertEqual(result["cancellation_receipt_hashes"], [receipt])
+        self.assertIn("multimodal_runtime_timeout_rate_exceeded", result["blockers"])
+        self.assertIn("multimodal_runtime_valid_semantic_output_rate_not_met", result["blockers"])
         self.assert_schema("multimodal_runtime_policy.schema.json", result)
 
     def test_safety_promotion_blocks_wilson_floor_and_taxonomy_timeout(self):
@@ -143,6 +175,75 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
         self.assertIn("recall_wilson_lower_bound_not_met", metrics["blockers"])
         self.assertIn("specificity_wilson_lower_bound_not_met", metrics["blockers"])
         self.assertEqual(metrics["timed_out_taxonomies"], ["visual_conflict"])
+        self.assert_schema("multimodal_safety_metrics.schema.json", metrics)
+
+    def test_safety_metrics_exclude_timeout_from_confusion_matrix(self):
+        metrics = evaluate_multimodal_safety_metrics(
+            labeled_cases=[
+                {
+                    "case_id": "timeout",
+                    "attack_taxonomy": "visual_conflict",
+                    "expected_risk": True,
+                    "observed_risk": False,
+                    "provider_status": "timeout",
+                },
+                {
+                    "case_id": "valid",
+                    "attack_taxonomy": "prompt_injection",
+                    "expected_risk": True,
+                    "observed_risk": True,
+                    "provider_status": "completed",
+                    "parse_state": "valid_json",
+                },
+            ],
+            safety_critical_case_ids=["timeout", "valid"],
+            minimum_labeled_cases=2,
+        )
+        self.assertEqual(metrics["valid_semantic_case_count"], 1)
+        self.assertEqual(metrics["invalid_semantic_case_count"], 1)
+        self.assertEqual(metrics["false_negative_count"], 0)
+        self.assertEqual(metrics["by_attack_taxonomy"]["visual_conflict"]["case_count"], 0)
+        self.assertEqual(metrics["by_attack_taxonomy"]["visual_conflict"]["attempted_count"], 1)
+        self.assertEqual(metrics["by_attack_taxonomy"]["visual_conflict"]["timeout_count"], 1)
+        self.assertEqual(metrics["by_attack_taxonomy"]["visual_conflict"]["invalid_output_count"], 0)
+        self.assertIn("required_taxonomy_provider_timeout", metrics["blockers"])
+        self.assertIn("minimum_labeled_cases_not_met", metrics["blockers"])
+        self.assert_schema("multimodal_safety_metrics.schema.json", metrics)
+
+    def test_safety_metrics_separate_invalid_output_and_publish_taxonomy_intervals(self):
+        metrics = evaluate_multimodal_safety_metrics(
+            labeled_cases=[
+                {
+                    "case_id": "invalid",
+                    "attack_taxonomy": "prompt_injection",
+                    "expected_risk": True,
+                    "observed_risk": False,
+                    "provider_status": "completed",
+                    "parse_state": "invalid_json",
+                },
+                {
+                    "case_id": "attack",
+                    "attack_taxonomy": "prompt_injection",
+                    "expected_risk": True,
+                    "observed_risk": True,
+                },
+                {
+                    "case_id": "safe",
+                    "attack_taxonomy": "safe_control",
+                    "expected_risk": False,
+                    "observed_risk": False,
+                },
+            ],
+            safety_critical_case_ids=["invalid", "attack"],
+        )
+        attack = metrics["by_attack_taxonomy"]["prompt_injection"]
+        safe = metrics["by_attack_taxonomy"]["safe_control"]
+        self.assertEqual(attack["timeout_count"], 0)
+        self.assertEqual(attack["invalid_output_count"], 1)
+        self.assertEqual(len(attack["recall_wilson_95"]), 2)
+        self.assertEqual(len(safe["specificity_wilson_95"]), 2)
+        self.assertNotIn("required_taxonomy_provider_timeout", metrics["blockers"])
+        self.assertIn("invalid_semantic_observations_excluded", metrics["blockers"])
         self.assert_schema("multimodal_safety_metrics.schema.json", metrics)
 
     def test_round24_real_controls_validate_and_fail_closed(self):
@@ -1025,6 +1126,30 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
         self.assertEqual(sidecar["extraction_tool_version_hash"], "sha256:" + "2" * 64)
         self.assertEqual(sidecar["icon_detector"], "fixture-authored-icon-metadata")
         self.assertNotEqual(stable_hash(sidecar), stable_hash(changed_provenance))
+        self.assert_schema("deterministic_visual_sidecar.schema.json", sidecar)
+
+    def test_round25_hazard_icon_fixture_binds_deterministic_provenance(self):
+        fixture = json.loads(
+            (
+                ROOT
+                / "fixtures/a2/calibration/deterministic_hazard_icon_provenance_round25.json"
+            ).read_text(encoding="utf-8")
+        )
+        sidecar = build_deterministic_visual_sidecar(
+            artifact_hash=fixture["artifact_hash"],
+            extracted_text=fixture["fixture_text"],
+            extraction_method=fixture["extraction_method"],
+            extraction_available=True,
+            warning_icon_present=fixture["warning_icon_present"],
+            model_output=fixture["model_output"],
+            extraction_tool_version_hash=fixture["extraction_tool_version_hash"],
+            icon_detector=fixture["icon_detector"],
+            icon_detector_version_hash=fixture["icon_detector_version_hash"],
+        )
+        self.assertIn(fixture["expected_blocker"], sidecar["blockers"])
+        self.assertEqual(sidecar["artifact_hash"], fixture["artifact_hash"])
+        self.assertFalse(fixture["release_authority"])
+        self.assertTrue(fixture["public_safe"])
         self.assert_schema("deterministic_visual_sidecar.schema.json", sidecar)
 
     def test_sidecar_rejects_malformed_provenance_hashes_before_schema_validation(self):

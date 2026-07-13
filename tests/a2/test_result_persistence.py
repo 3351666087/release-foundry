@@ -7,6 +7,7 @@ from services.judge.result_persistence import (
     build_result_persistence_manifest,
     build_result_record,
     build_ocr_vision_disagreement_record,
+    build_multimodal_runtime_record,
     build_structured_output_failure_record,
     stable_hash,
 )
@@ -50,6 +51,42 @@ def load_json(path: Path) -> dict:
 
 
 class A2ResultPersistenceTests(unittest.TestCase):
+    def test_multimodal_runtime_timeout_receipts_persist_hash_only(self):
+        receipt = "sha256:" + "9" * 64
+        record = build_multimodal_runtime_record(
+            {
+                "schema_version": "a2.multimodal_runtime_policy.v1",
+                "observation_count": 2,
+                "maximum_latency_seconds": 30,
+                "maximum_completion_tokens": 48,
+                "maximum_provider_timeout_rate": 0.1,
+                "minimum_valid_semantic_output_rate": 0.9,
+                "timeout_count": 1,
+                "provider_timeout_rate": 0.5,
+                "completed_count": 1,
+                "completed_semantic_count": 0,
+                "empty_response_count": 1,
+                "valid_semantic_output_rate": 0,
+                "qualification_state": "blocked",
+                "blockers": ["multimodal_runtime_provider_timeout"],
+                "queue_telemetry": {"state": "not_exposed", "maximum_depth": None},
+                "cancellation_receipt_hashes": [receipt],
+                "public_safe": True,
+                "raw_response": "must-not-persist",
+            },
+            org_id="org",
+            project_id="project",
+            run_id="run",
+            case_id="case",
+            judge_version="a2-runtime-v1",
+            created_at="2026-07-13T00:00:00Z",
+        )
+        text = json.dumps(record)
+        self.assertEqual(record["record_type"], "multimodal_runtime")
+        self.assertNotIn("must-not-persist", text)
+        self.assertNotIn(receipt, text)
+        self.assertTrue(HASH_RE.fullmatch(record["output_hash"]))
+
     def test_ocr_vision_disagreement_record_is_hash_only(self):
         disagreement = {"state": "disagreement", "artifact_hash": "sha256:" + "1" * 64, "ocr_observation_hash": "sha256:" + "2" * 64, "vision_output_hash": "sha256:" + "3" * 64, "reason_code": "vision_hallucinated_text", "review_packet_hash": "sha256:" + "4" * 64, "blockers": ["ocr_vision_text_disagreement"], "raw_text": "do not persist"}
         record = build_ocr_vision_disagreement_record(disagreement, org_id="org", project_id="project", run_id="run", case_id="case", created_at="2026-07-13T00:00:00Z")

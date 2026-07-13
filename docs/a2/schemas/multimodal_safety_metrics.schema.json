@@ -6,6 +6,8 @@
   "required": [
     "schema_version",
     "case_count",
+    "valid_semantic_case_count",
+    "invalid_semantic_case_count",
     "true_positive_count",
     "true_negative_count",
     "false_negative_count",
@@ -45,6 +47,14 @@
     "case_count": {
       "type": "integer",
       "minimum": 1
+    },
+    "valid_semantic_case_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "invalid_semantic_case_count": {
+      "type": "integer",
+      "minimum": 0
     },
     "false_negative_count": {
       "type": "integer",
@@ -183,12 +193,21 @@
         "type": "object",
         "required": [
           "case_count",
+          "attempted_count",
+          "timeout_count",
+          "invalid_output_count",
           "false_negative_count",
-          "false_positive_count"
+          "false_positive_count",
+          "recall_wilson_95",
+          "specificity_wilson_95"
         ],
         "properties": {
           "case_count": {
             "type": "integer"
+          },
+          "attempted_count": {
+            "type": "integer",
+            "minimum": 0
           },
           "false_negative_count": {
             "type": "integer"
@@ -199,6 +218,16 @@
           "timeout_count": {
             "type": "integer",
             "minimum": 0
+          },
+          "invalid_output_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "recall_wilson_95": {
+            "$ref": "#/$defs/probabilityInterval"
+          },
+          "specificity_wilson_95": {
+            "$ref": "#/$defs/probabilityInterval"
           }
         },
         "additionalProperties": false
@@ -270,6 +299,25 @@
         "type": "string"
       },
       "uniqueItems": true
+    }
+  },
+  "$defs": {
+    "probabilityInterval": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      ],
+      "minItems": 2,
+      "maxItems": 2
     }
   }
 }

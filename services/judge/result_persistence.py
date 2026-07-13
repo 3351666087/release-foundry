@@ -875,6 +875,66 @@ def build_ocr_vision_disagreement_record(
         created_at=created_at,
     )
 
+
+def build_multimodal_runtime_record(
+    runtime_summary: dict[str, Any],
+    *,
+    org_id: str,
+    project_id: str,
+    run_id: str,
+    case_id: str,
+    judge_version: str,
+    created_at: str | None = None,
+) -> dict[str, Any]:
+    """Persist runtime governance without raw responses or cancellation details."""
+    safe_payload = {
+        key: runtime_summary.get(key)
+        for key in (
+            "schema_version",
+            "observation_count",
+            "timeout_count",
+            "provider_timeout_rate",
+            "completed_count",
+            "completed_semantic_count",
+            "empty_response_count",
+            "valid_semantic_output_rate",
+            "qualification_state",
+            "blockers",
+            "queue_telemetry",
+            "cancellation_receipt_hashes",
+            "public_safe",
+        )
+        if key in runtime_summary
+    }
+    return build_result_record(
+        safe_payload,
+        org_id=org_id,
+        project_id=project_id,
+        run_id=run_id,
+        case_id=case_id,
+        kind="multimodal_runtime",
+        judge_version=judge_version,
+        policy_hash=stable_hash(
+            {
+                "maximum_latency_seconds": runtime_summary.get("maximum_latency_seconds"),
+                "maximum_completion_tokens": runtime_summary.get("maximum_completion_tokens"),
+                "maximum_provider_timeout_rate": runtime_summary.get(
+                    "maximum_provider_timeout_rate"
+                ),
+                "minimum_valid_semantic_output_rate": runtime_summary.get(
+                    "minimum_valid_semantic_output_rate"
+                ),
+            }
+        ),
+        input_payload={
+            "observation_count": runtime_summary.get("observation_count"),
+            "cancellation_receipt_hashes": runtime_summary.get(
+                "cancellation_receipt_hashes", []
+            ),
+        },
+        created_at=created_at,
+    )
+
 def _judge_policy_payload(scenario: dict[str, Any], judge_id: str, judge_version: str) -> dict[str, Any]:
     return {
         "judge_id": judge_id,
