@@ -1,6 +1,6 @@
-# A2 Round 43 — multimodal transport qualification
+﻿# A2 Round 43 鈥?multimodal transport qualification
 
-Date: 2026-07-14  
+Date: 2026-07-14
 Branch: `dev/g3-a2-calibration`
 
 ## Scope and reviewed refs
@@ -86,3 +86,4 @@ The auditor confirms all 20 Round 43 tasks have code, tests, real public-safe ev
 18. Execute real PostgreSQL proof if a temporary DSN becomes available; otherwise refresh the exact blocker and offline substitute.
 19. Recheck exact A1/A2/A3 candidate binding and generate no Trusted Spine unless every ID/SHA matches.
 20. Re-fetch refs and run exactly two micro simulations, two macro simulations, one growth audit, full tests, generated fixtures, both CL gates, explicit commit/push, SHA equality, and clean-tree verification.
+
