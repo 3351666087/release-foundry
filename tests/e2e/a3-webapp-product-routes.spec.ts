@@ -160,6 +160,17 @@ test.describe("A3 Next.js product console", () => {
     await expect(newRunEvidence).toContainText("3/3");
     await expect(newRunEvidence).toContainText("4");
     await expect(newRunEvidence).toContainText("block");
+    const releaseComparison = page.locator("section").filter({ has: page.getByRole("heading", { name: "版本对比：rc.1 → rc.2" }) });
+    await expect(releaseComparison).toContainText("案例质量已修复，发布授权仍未通过");
+    await expect(releaseComparison).toContainText("1/3");
+    await expect(releaseComparison).toContainText("3/3");
+    await expect(releaseComparison).toContainText("missing_required_tool");
+    await expect(releaseComparison).toContainText("0");
+    await expect(releaseComparison).toContainText("4");
+    await expect(releaseComparison).toContainText("block");
+    await expect(releaseComparison).toContainText("质量提升不等于发布批准");
+    await releaseComparison.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-release-comparison-rc1-rc2-desktop.png", fullPage: false, animations: "disabled" });
     await expect(page.getByText("A2 Decision Ledger authorizes release", { exact: true })).toBeVisible();
     const githubReadback = page.locator("section").filter({ has: page.getByRole("heading", { name: "GitHub 真实回读" }) });
     await expect(githubReadback).toContainText("github-actions");
@@ -182,6 +193,8 @@ test.describe("A3 Next.js product console", () => {
     const englishReadback = page.locator("section").filter({ has: page.getByRole("heading", { name: "Live GitHub readback" }) });
     await expect(englishReadback).toContainText("not enforced");
     await expect(englishReadback).toContainText("release approval");
+    await expect(page.getByRole("heading", { name: "Release comparison: rc.1 → rc.2" })).toBeVisible();
+    await expect(page.getByText("Case quality repaired; release authority unchanged")).toBeVisible();
     await page.getByRole("button", { name: "中", exact: true }).click();
     await expect(page.getByRole("heading", { name: "GitHub 真实回读" })).toBeVisible();
     const releaseArtifact = page.locator("section").filter({ has: page.getByRole("heading", { name: "版本化 Release Artifact" }) });
@@ -194,6 +207,13 @@ test.describe("A3 Next.js product console", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.reload();
     await expect(page.getByRole("heading", { name: "交付闭环" })).toBeVisible();
+    const mobileReleaseComparison = page.locator("section").filter({ has: page.getByRole("heading", { name: "版本对比：rc.1 → rc.2" }) });
+    await expect(mobileReleaseComparison).toBeVisible();
+    await mobileReleaseComparison.evaluate((node) => {
+      document.documentElement.style.scrollBehavior = "auto";
+      window.scrollTo(0, node.getBoundingClientRect().top + window.scrollY - 64);
+    });
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-release-comparison-rc1-rc2-mobile-390x844.png", fullPage: false, animations: "disabled" });
     const mobileGithubReadback = page.locator("section").filter({ has: page.getByRole("heading", { name: "GitHub 真实回读" }) });
     await mobileGithubReadback.evaluate((node) => {
       document.documentElement.style.scrollBehavior = "auto";

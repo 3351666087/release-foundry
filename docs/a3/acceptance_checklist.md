@@ -1229,3 +1229,20 @@
 - [x] Keep A2 `block`, Golden Path 7/11, Deployment Acceptance 8/17, and production false unchanged.
 - [x] Add desktop and 390 x 844 readback screenshots with no horizontal overflow.
 - [x] Leave the sealed rc.2 release documentation and manifest unchanged; record this as a post-seal UI increment.
+
+## rc.1 vs rc.2 Release Comparison - 2026-07-12
+
+- [x] Compare the exact rc.1 and rc.2 A1/A2 evidence instead of relying on release-note prose.
+- [x] Show that A1 execution remained 3/3 while A2 evaluation improved from 1/3 to 3/3.
+- [x] Show Tool Calls `0 -> 4` and `missing_required_tool` `2 -> 0`.
+- [x] Show Release Artifact entries `12 -> 16`.
+- [x] Keep Golden Path `7/11` and Deployment Acceptance `8/17` unchanged.
+- [x] Keep A2 Decision Ledger `block`, `release_ready=false`, and production false unchanged.
+- [x] Expose `a3.release_comparison.v1` through Store, Dashboard API, API Reference, and OpenAPI.
+- [x] Record that A3 did not recompute A1 execution, A2 score, pass/fail, failure class, or release decision.
+- [x] Add Chinese-first and English UI with clear visual hierarchy and raw evidence access.
+- [x] Pass focused Node, TypeScript, production build, OpenAPI, and Playwright checks.
+- [x] Pass final A3 Node `419/419`, current-main A2 `186/186` plus `1050` subtests, and full Playwright `37/37`.
+- [x] Pass both CL guards and reverify the sealed rc.2 manifest without changing it.
+- [x] Save desktop and 390 x 844 screenshots with no horizontal overflow.
+- [x] Do not rewrite any sealed rc.2 manifest input.

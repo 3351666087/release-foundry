@@ -343,11 +343,17 @@ export const apiEndpoints: ApiEndpoint[] = [
       a1_a2_evidence_spine: { a1_authority: "execution facts", a2_authority: "grade and release decision" },
       delivery_golden_path: { status: "blocked_by_a2", production_ready: false },
       deployment_acceptance: { status: "blocked", production_accepted: false },
-      release_artifact_manifest: { release: { version: "0.2.0-rc.1", git_sha_alias: "candidate-head-sha", ci_tested_sha_alias: "tested-merge-sha", production_release: false } }
+      release_artifact_manifest: { release: { version: "0.2.0-rc.2", git_sha_alias: "candidate-head-sha", ci_tested_sha_alias: "tested-merge-sha", production_release: false } },
+      release_comparison: {
+        schema_version: "a3.release_comparison.v1",
+        baseline: { version: "0.2.0-rc.1", a2_evaluation: { passed: 1, total_cases: 3 } },
+        candidate: { version: "0.2.0-rc.2", a2_evaluation: { passed: 3, total_cases: 3 } },
+        authority_boundary: { baseline_decision: "block", candidate_decision: "block", candidate_release_ready: false }
+      }
     },
     notes: [
       { zh: "这是当前 Next.js Webapp 默认消费的只读 API。", en: "This is the read-only API consumed by the current Next.js webapp." },
-      { zh: "交付闭环字段只汇总 A1/A2 权威证据；A3 不重算 A2 分数或发布决定。", en: "Delivery fields summarize authoritative A1/A2 evidence; A3 does not recompute A2 scores or release decisions." }
+      { zh: "交付闭环和版本对比字段只汇总 A1/A2 权威证据；A3 不重算 A2 分数或发布决定。", en: "Delivery and release-comparison fields summarize authoritative A1/A2 evidence; A3 does not recompute A2 scores or release decisions." }
     ]
   },
   {

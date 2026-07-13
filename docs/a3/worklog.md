@@ -6849,3 +6849,18 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
 - Added Node source assertions and Playwright checks for all four live receipt IDs, authority text, three safe external links, desktop layout, and 390 x 844 layout.
 - Added `docs/a3/a3_github_readback_ui_2026_07_12.md` and dedicated desktop/mobile screenshots.
 - This is a post-seal UI increment. It did not rewrite the signed rc.2 release manifest or its hashed release documentation.
+
+## 2026-07-12 - rc.1 vs rc.2 Release Comparison
+
+- Re-read the rc.1 and rc.2 A1 RunResults, unchanged-A2 judge responses, Golden Path status, Deployment Acceptance, Release Artifact manifests, and merged-main Trusted Spine before editing.
+- Added `a3.release_comparison.v1` as an A3 display contract generated from the two source snapshots.
+- Preserved the exact distinction that A1 executed 3/3 in both runs while A2 grades improved from 1/3 to 3/3.
+- Exposed A1 Tool Calls `0 -> 4`, A2 `missing_required_tool` `2 -> 0`, and Release Artifact entries `12 -> 16`.
+- Preserved Golden Path `7/11`, Deployment Acceptance `8/17`, A2 decision `block`, and `release_ready=false` as unchanged facts.
+- Added Store/API wiring and an OpenAPI `ReleaseComparison` schema with explicit no-recomputation safety fields.
+- Added a Chinese-first, bilingual comparison section to `/delivery`, including a prominent `BLOCK -> BLOCK` authority explanation and raw-contract disclosure.
+- Added focused Node, API/OpenAPI, and Playwright assertions plus desktop and 390 x 844 visual evidence.
+- Final verification passed A3 Node `419/419`, current-main A2 `186/186` plus `1050` subtests, Next.js 15-page typecheck/build, Playwright `37/37`, both CL guards, sealed rc.2 manifest verification, and `git diff --check`.
+- Re-fetched `origin`; main remained `ccf6ce5`. A1 `2307231` and A2 `8eb57a4` peer updates were inspected as drafts and were not promoted into main authority.
+- Kept the sealed rc.2 manifest and its hashed strategy, Golden Agent record, release note, and Round 14 audit unchanged.
+- Detailed record: `docs/a3/a3_release_comparison_ui_2026_07_12.md`.

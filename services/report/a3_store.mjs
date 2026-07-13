@@ -62,6 +62,7 @@ import {
   buildDeploymentAcceptance,
   normalizeA2GradeReport
 } from "./a3_release_delivery.mjs";
+import { buildA3ReleaseComparison } from "./a3_release_comparison.mjs";
 
 export const A3_STORE_SCHEMA_VERSION = "a3.store.v1";
 
@@ -145,6 +146,7 @@ export const A3_SOURCE_FIXTURES = {
   },
   "a3-golden-path-rc2": {
     label: "A3 Golden Path rc.2 - A1/A2 3 of 3",
+    comparisonBaselineSource: "a3-golden-path",
     runFixture: "fixtures/a3/golden-path/rc2/a3_new_run_result.redacted.json",
     gradeFixture: "fixtures/a3/golden-path/rc2/a2_new_run_judge_response.redacted.json",
     a2TrustedSpine: "fixtures/a2/results/a2_trusted_spine_handoff.json",
@@ -315,7 +317,7 @@ export async function loadA3SourceSnapshot(source = "mock", options = {}) {
       : {};
   }
 
-  return normalizeSnapshot({
+  let snapshot = normalizeSnapshot({
     source: sourceKey,
     source_label: config.label,
     runFixture,
@@ -354,6 +356,19 @@ export async function loadA3SourceSnapshot(source = "mock", options = {}) {
       )
     }
   });
+
+  if (config.comparisonBaselineSource && options.includeReleaseComparison !== false) {
+    const baseline = await loadA3SourceSnapshot(config.comparisonBaselineSource, {
+      ...options,
+      includeReleaseComparison: false
+    });
+    snapshot = normalizeSnapshot({
+      ...snapshot,
+      releaseComparison: buildA3ReleaseComparison(baseline, snapshot)
+    });
+  }
+
+  return snapshot;
 }
 
 export function createMemoryA3Store(seed = {}) {
@@ -2296,6 +2311,7 @@ function normalizeSnapshot(snapshot = {}) {
     githubPrCommentReadback: snapshot.githubPrCommentReadback || snapshot.github_pr_comment_readback || {},
     githubRequiredCheckProof: snapshot.githubRequiredCheckProof || snapshot.github_required_check_proof || {},
     githubActionsArtifactReadback: snapshot.githubActionsArtifactReadback || snapshot.github_actions_artifact_readback || {},
+    releaseComparison: snapshot.releaseComparison || snapshot.release_comparison || {},
     summary: buildDashboardSummary(runFixture, gradeFixture),
     case_count: cases.length,
     storage: snapshot.storage || {
@@ -2553,6 +2569,7 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     github_pr_comment_readback: snapshot.githubPrCommentReadback,
     github_required_check_proof: snapshot.githubRequiredCheckProof,
     github_actions_artifact_readback: snapshot.githubActionsArtifactReadback,
+    release_comparison: snapshot.releaseComparison,
     release_evidence_api: {
       schema_version: "a3.release_evidence_api_link.v1",
       release_id: releaseId,

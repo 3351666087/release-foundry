@@ -1550,6 +1550,161 @@ pre {
 .delivery-progress i { display: block; height: 100%; background: var(--ember); }
 .delivery-signal.ready .delivery-progress i { background: var(--success); }
 
+.release-comparison-section {
+  padding-top: 6px;
+}
+
+.release-comparison-hero {
+  display: grid;
+  min-height: 238px;
+  grid-template-columns: minmax(0, 1fr) 280px;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--ink);
+  border-top: 5px solid var(--cobalt);
+}
+
+.release-comparison-copy {
+  display: grid;
+  align-content: center;
+  gap: 12px;
+  padding: 30px 34px;
+}
+
+.release-comparison-copy > span {
+  color: var(--cobalt);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.release-comparison-copy h3 {
+  max-width: 700px;
+  font-family: var(--font-display);
+  font-size: 32px;
+  line-height: 1.08;
+}
+
+.release-comparison-copy p {
+  max-width: 720px;
+  color: var(--ink-soft);
+  font-size: 11px;
+  line-height: 1.75;
+}
+
+.release-comparison-verdict {
+  display: grid;
+  align-content: center;
+  gap: 9px;
+  padding: 28px;
+  color: #fff;
+  background: #20272c;
+  border-left: 1px solid var(--ink);
+}
+
+.release-comparison-verdict > svg { color: #ff9d88; }
+.release-comparison-verdict > span { color: #cbd0d3; font-family: var(--font-mono); font-size: 8px; }
+
+.release-comparison-verdict > strong {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  color: #ffb8a8;
+  font-family: var(--font-display);
+  font-size: 28px;
+  text-transform: uppercase;
+}
+
+.release-comparison-verdict > small { color: #cbd0d3; font-size: 9px; line-height: 1.55; }
+
+.release-comparison-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  margin-top: 12px;
+  background: var(--line-strong);
+  border: 1px solid var(--line-strong);
+  gap: 1px;
+}
+
+.release-comparison-metrics article {
+  display: grid;
+  min-height: 194px;
+  align-content: start;
+  gap: 12px;
+  padding: 18px;
+  background: var(--surface);
+  border-top: 3px solid var(--cobalt);
+}
+
+.release-comparison-metrics article[data-tone="resolved"] { border-top-color: var(--moss); }
+.release-comparison-metrics article[data-tone="tools"] { border-top-color: var(--sulfur); }
+.release-comparison-metrics article[data-tone="evidence"] { border-top-color: var(--ember); }
+
+.release-comparison-metrics header {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.release-comparison-metrics header span {
+  display: grid;
+  width: 28px;
+  height: 22px;
+  place-items: center;
+  color: #fff;
+  background: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 8px;
+  font-weight: 800;
+}
+
+.release-comparison-metrics header strong { min-width: 0; overflow-wrap: anywhere; font-size: 9px; }
+
+.release-comparison-metrics article > div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.release-comparison-metrics article > div svg { flex: 0 0 auto; color: var(--muted); }
+.release-comparison-metrics b { font-family: var(--font-display); font-size: 29px; line-height: 1; }
+.release-comparison-metrics p { color: var(--moss); font-size: 10px; font-weight: 800; }
+.release-comparison-metrics small { color: var(--muted); font-size: 8px; line-height: 1.55; }
+
+.release-comparison-boundary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 42px minmax(0, 1fr);
+  align-items: stretch;
+  margin: 12px 0 16px;
+  border: 1px solid var(--line-strong);
+}
+
+.release-comparison-boundary > div {
+  display: grid;
+  min-height: 120px;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-content: center;
+  gap: 3px 10px;
+  padding: 18px 20px;
+}
+
+.release-comparison-boundary > div[data-state="improved"] { background: var(--moss-soft); }
+.release-comparison-boundary > div[data-state="blocked"] { background: var(--ember-soft); }
+.release-comparison-boundary > div > svg { grid-row: 1 / 4; color: var(--moss); }
+.release-comparison-boundary > div[data-state="blocked"] > svg { color: var(--danger); }
+.release-comparison-boundary span { color: var(--muted); font-family: var(--font-mono); font-size: 8px; }
+.release-comparison-boundary strong { font-family: var(--font-display); font-size: 19px; }
+.release-comparison-boundary small { color: var(--ink-soft); font-size: 8px; }
+
+.release-comparison-boundary-arrow {
+  align-self: center;
+  justify-self: center;
+  color: var(--muted);
+}
+
 .delivery-stage-list {
   display: grid;
   border-top: 1px solid var(--line-strong);
@@ -2017,6 +2172,9 @@ pre {
   .review-decision, .trust-posture, .payment-priority, .report-spotlight { grid-template-columns: minmax(0, 1fr); }
   .delivery-signal { grid-template-columns: minmax(0, 1fr); }
   .delivery-progress { border-top: 1px solid #4b5358; border-left: 0; }
+  .release-comparison-hero { grid-template-columns: minmax(0, 1fr); }
+  .release-comparison-verdict { border-top: 1px solid var(--ink); border-left: 0; }
+  .release-comparison-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .release-artifact-band { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .github-readback-grid { grid-template-columns: minmax(0, 1fr); }
   .review-actions, .report-spotlight-actions { min-width: 0; grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -2093,6 +2251,13 @@ pre {
   .delivery-signal h2 { font-size: 28px; }
   .delivery-progress { padding: 22px 20px; }
   .delivery-progress strong { font-size: 44px; }
+  .release-comparison-copy { padding: 24px 20px; }
+  .release-comparison-copy h3 { font-size: 27px; }
+  .release-comparison-verdict { padding: 22px 20px; }
+  .release-comparison-metrics { grid-template-columns: minmax(0, 1fr); }
+  .release-comparison-metrics article { min-height: 158px; }
+  .release-comparison-boundary { grid-template-columns: minmax(0, 1fr); }
+  .release-comparison-boundary-arrow { transform: rotate(90deg); }
   .delivery-stage-list article { grid-template-columns: 28px 20px minmax(0, 1fr); }
   .delivery-stage-list article > .status-badge { grid-column: 3; justify-self: start; }
   .delivery-stage-list p { grid-column: 3; }

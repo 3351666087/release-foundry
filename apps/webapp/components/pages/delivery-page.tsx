@@ -14,6 +14,8 @@ import {
   MessageSquareText,
   PackageCheck,
   ShieldAlert,
+  TrendingUp,
+  Wrench,
   Workflow
 } from "lucide-react";
 
@@ -42,11 +44,24 @@ export function DeliveryPage() {
     const artifactReadback = record(model.raw.github_actions_artifact_readback);
     const artifactCalibration = record(artifactReadback.calibration);
     const requiredCheck = record(model.raw.github_required_check_proof);
+    const comparison = record(model.raw.release_comparison);
+    const comparisonBaseline = record(comparison.baseline);
+    const comparisonCandidate = record(comparison.candidate);
+    const baselineA1 = record(comparisonBaseline.a1_execution);
+    const candidateA1 = record(comparisonCandidate.a1_execution);
+    const baselineA2 = record(comparisonBaseline.a2_evaluation);
+    const candidateA2 = record(comparisonCandidate.a2_evaluation);
+    const comparisonQuality = record(comparison.quality);
+    const comparisonAuthority = record(comparison.authority_boundary);
+    const resolvedToolFailure = array(comparison.resolved_failure_classes)
+      .map(record)
+      .find((item) => string(item.failure_class, "") === "missing_required_tool");
     const stages = array(path.stages).map(record);
     const checks = array(acceptance.checks).map(record);
     const blockers = checks.filter((item) => string(item.status) !== "passed");
     const toolCallCount = number(runMetrics.total_tool_calls);
     const productionReady = path.production_ready === true;
+    const hasReleaseComparison = comparison.schema_version === "a3.release_comparison.v1";
 
     return (
       <>
@@ -101,6 +116,79 @@ export function DeliveryPage() {
             <div><span>{zh ? "Decision Ledger" : "Decision ledger"}</span><strong>{string(authority.upstream_decision, "unknown")}</strong></div>
           </div>
         </Section>
+
+        {hasReleaseComparison && (
+          <Section
+            className="release-comparison-section"
+            title={zh ? "版本对比：rc.1 → rc.2" : "Release comparison: rc.1 → rc.2"}
+            description={zh
+              ? "同一套 A1/A2 权威字段说明修复前后发生了什么，以及为什么测试全过仍不能发布"
+              : "The same authoritative A1/A2 fields show what changed and why passing tests still do not authorize release"}
+          >
+            <div className="release-comparison-hero">
+              <div className="release-comparison-copy">
+                <span>{zh ? "本轮最重要的变化" : "MOST IMPORTANT CHANGE"}</span>
+                <h3>{zh ? "案例质量已修复，发布授权仍未通过" : "Case quality repaired; release authority unchanged"}</h3>
+                <p>{zh
+                  ? "rc.2 补齐了真实工具链，A2 评分从 1/3 提升到 3/3；但 A2 Decision Ledger 仍是 block，所以 A3 必须继续显示不可发布。"
+                  : "rc.2 adds the required tool chain and moves A2 case grades from 1/3 to 3/3. The A2 Decision Ledger still says block, so A3 must keep release disabled."}</p>
+              </div>
+              <div className="release-comparison-verdict" data-state={string(comparisonAuthority.candidate_decision)}>
+                <ShieldAlert size={23} aria-hidden="true" />
+                <span>{zh ? "A2 发布授权" : "A2 RELEASE AUTHORITY"}</span>
+                <strong>{string(comparisonAuthority.baseline_decision)} <ArrowRight size={18} aria-hidden="true" /> {string(comparisonAuthority.candidate_decision)}</strong>
+                <small>{zh ? "质量提升不等于发布批准" : "Quality improvement is not release approval"}</small>
+              </div>
+            </div>
+
+            <div className="release-comparison-metrics" aria-label={zh ? "rc.1 与 rc.2 指标对比" : "rc.1 and rc.2 metric comparison"}>
+              <article data-tone="quality">
+                <header><span>A2</span><strong>{zh ? "评分通过" : "Cases passed"}</strong></header>
+                <div><b>{number(baselineA2.passed)}/{number(baselineA2.total_cases)}</b><ArrowRight size={17} /><b>{number(candidateA2.passed)}/{number(candidateA2.total_cases)}</b></div>
+                <p>+{number(comparisonQuality.a2_passed_case_delta)} {zh ? "例" : "cases"}</p>
+                <small>{zh ? `通过率提升 ${number(comparisonQuality.a2_pass_rate_point_delta)} 个百分点` : `Pass rate +${number(comparisonQuality.a2_pass_rate_point_delta)} points`}</small>
+              </article>
+              <article data-tone="resolved">
+                <header><span>A2</span><strong>missing_required_tool</strong></header>
+                <div><b>{number(resolvedToolFailure?.before)}</b><ArrowRight size={17} /><b>{number(resolvedToolFailure?.after)}</b></div>
+                <p>-{number(resolvedToolFailure?.resolved)} {zh ? "例失败" : "failures"}</p>
+                <small>{zh ? "失败分类由 A2 原样提供" : "Failure classes are copied from A2"}</small>
+              </article>
+              <article data-tone="tools">
+                <header><span>A1</span><strong>{zh ? "工具调用" : "Tool calls"}</strong></header>
+                <div><b>{number(baselineA1.tool_call_count)}</b><ArrowRight size={17} /><b>{number(candidateA1.tool_call_count)}</b></div>
+                <p>+{number(comparisonQuality.tool_call_delta)} {zh ? "次调用" : "calls"}</p>
+                <small>{zh ? "web.search + 媒体工具链" : "web.search + media tool chain"}</small>
+              </article>
+              <article data-tone="evidence">
+                <header><span>A3</span><strong>{zh ? "发布制品" : "Release artifacts"}</strong></header>
+                <div><b>{number(comparisonBaseline.artifact_count)}</b><ArrowRight size={17} /><b>{number(comparisonCandidate.artifact_count)}</b></div>
+                <p>+{number(comparisonCandidate.artifact_count) - number(comparisonBaseline.artifact_count)} {zh ? "份证据" : "artifacts"}</p>
+                <small>{zh ? "版本化、哈希绑定、可回读" : "Versioned, hash-bound, readable"}</small>
+              </article>
+            </div>
+
+            <div className="release-comparison-boundary">
+              <div data-state="improved">
+                <TrendingUp size={20} aria-hidden="true" />
+                <span>{zh ? "质量层" : "QUALITY LAYER"}</span>
+                <strong>{zh ? "已经改善" : "Improved"}</strong>
+                <small>{zh ? "A1 工具事实 + A2 案例评分" : "A1 tool facts + A2 case grades"}</small>
+              </div>
+              <ArrowRight className="release-comparison-boundary-arrow" size={22} aria-hidden="true" />
+              <div data-state="blocked">
+                <Wrench size={20} aria-hidden="true" />
+                <span>{zh ? "交付层" : "DELIVERY LAYER"}</span>
+                <strong>{zh ? "仍需外部闭环" : "Still needs closure"}</strong>
+                <small>{zh ? "A2 allow、部署、GitHub App 与分支门禁" : "A2 allow, deployment, GitHub App, branch policy"}</small>
+              </div>
+            </div>
+
+            <EvidenceDetails summary={zh ? "查看版本对比原始契约" : "View raw comparison contract"}>
+              <pre>{JSON.stringify(comparison, null, 2)}</pre>
+            </EvidenceDetails>
+          </Section>
+        )}
 
         <Section
           title={zh ? "Golden Path 阶段" : "Golden path stages"}

@@ -7152,9 +7152,152 @@
           },
           "trusted_release_authority": {
             "$ref": "#/components/schemas/TrustedReleaseAuthority"
+          },
+          "release_comparison": {
+            "$ref": "#/components/schemas/ReleaseComparison"
           }
         },
         "additionalProperties": true
+      },
+      "ReleaseComparison": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "comparison_id",
+          "baseline",
+          "candidate",
+          "changes",
+          "quality",
+          "authority_boundary",
+          "provenance",
+          "safety"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.release_comparison.v1"
+          },
+          "comparison_id": {
+            "type": "string"
+          },
+          "baseline": {
+            "type": "object",
+            "description": "Display summary copied from the baseline A1, A2, delivery, deployment, and artifact evidence.",
+            "additionalProperties": true
+          },
+          "candidate": {
+            "type": "object",
+            "description": "Display summary copied from the candidate A1, A2, delivery, deployment, and artifact evidence.",
+            "additionalProperties": true
+          },
+          "changes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "before",
+                "after",
+                "delta",
+                "unit",
+                "authority",
+                "direction"
+              ],
+              "properties": {
+                "id": { "type": "string" },
+                "before": { "type": "number" },
+                "after": { "type": "number" },
+                "delta": { "type": "number" },
+                "unit": { "type": "string" },
+                "authority": { "type": "string" },
+                "direction": {
+                  "type": "string",
+                  "enum": ["improved", "regressed", "unchanged", "evidence_added"]
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "resolved_failure_classes": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["failure_class", "before", "after", "resolved"],
+              "properties": {
+                "failure_class": { "type": "string" },
+                "before": { "type": "integer", "minimum": 0 },
+                "after": { "type": "integer", "minimum": 0 },
+                "resolved": { "type": "integer", "minimum": 0 }
+              },
+              "additionalProperties": false
+            }
+          },
+          "quality": {
+            "type": "object",
+            "required": ["improved", "a2_passed_case_delta", "a2_pass_rate_point_delta", "tool_call_delta", "summary_code"],
+            "properties": {
+              "improved": { "type": "boolean" },
+              "a2_passed_case_delta": { "type": "number" },
+              "a2_pass_rate_point_delta": { "type": "number" },
+              "tool_call_delta": { "type": "number" },
+              "summary_code": { "type": "string" }
+            },
+            "additionalProperties": false
+          },
+          "authority_boundary": {
+            "type": "object",
+            "required": [
+              "owner",
+              "decision_changed",
+              "baseline_decision",
+              "candidate_decision",
+              "baseline_release_ready",
+              "candidate_release_ready",
+              "production_ready",
+              "delivery_progress_changed",
+              "explanation_code"
+            ],
+            "properties": {
+              "owner": { "type": "string", "const": "A2 Decision Ledger" },
+              "decision_changed": { "type": "boolean" },
+              "baseline_decision": { "type": "string" },
+              "candidate_decision": { "type": "string" },
+              "baseline_release_ready": { "type": "boolean" },
+              "candidate_release_ready": { "type": "boolean" },
+              "production_ready": { "type": "boolean" },
+              "delivery_progress_changed": { "type": "boolean" },
+              "explanation_code": { "type": "string" }
+            },
+            "additionalProperties": false
+          },
+          "provenance": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "safety": {
+            "type": "object",
+            "required": [
+              "a1_execution_recomputed",
+              "a2_scores_recomputed",
+              "a2_pass_fail_recomputed",
+              "a2_failure_class_recomputed",
+              "a2_release_decision_recomputed",
+              "production_readiness_overstated",
+              "secret_values_allowed"
+            ],
+            "properties": {
+              "a1_execution_recomputed": { "type": "boolean", "const": false },
+              "a2_scores_recomputed": { "type": "boolean", "const": false },
+              "a2_pass_fail_recomputed": { "type": "boolean", "const": false },
+              "a2_failure_class_recomputed": { "type": "boolean", "const": false },
+              "a2_release_decision_recomputed": { "type": "boolean", "const": false },
+              "production_readiness_overstated": { "type": "boolean", "const": false },
+              "secret_values_allowed": { "type": "boolean", "const": false }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
       },
       "AggregateScopeStatus": {
         "type": "object",
