@@ -24,6 +24,7 @@ if str(ROOT) not in sys.path:
 from services.judge.multimodal_provider import (
     ClassifiedProviderTransportError,
     ParseRetryPolicy,
+    ProviderResponseDurationReceipt,
     classified_transport_error,
     parse_ollama_response,
 )
@@ -124,12 +125,27 @@ def _ollama_provider_durations(envelope: dict[str, Any]) -> dict[str, float | No
     }
 
 
-def _cancellation_receipt(maximum_model_run_seconds: float) -> dict[str, Any]:
+def _duration_receipt(
+    wall_seconds: float, provider_seconds: float | None = None
+) -> dict[str, Any]:
+    return ProviderResponseDurationReceipt(
+        wall_seconds=wall_seconds,
+        provider_seconds=provider_seconds,
+        provider_source="ollama.total_duration" if provider_seconds is not None else "",
+    ).public_receipt()
+
+
+def _cancellation_receipt(
+    configured_budget_seconds: float,
+    *,
+    reason: str = "model_run_budget_exhausted",
+    network_call_started: bool = False,
+) -> dict[str, Any]:
     return {
         "schema_version": "a2.model_run_cancellation_receipt.v1",
-        "reason": "model_run_budget_exhausted",
-        "configured_budget_seconds": maximum_model_run_seconds,
-        "network_call_started": False,
+        "reason": reason,
+        "configured_budget_seconds": configured_budget_seconds,
+        "network_call_started": network_call_started,
         "promotion_eligible": False,
         "release_authority": False,
         "public_safe": True,
@@ -185,6 +201,7 @@ def _budget_exhausted_trial(
             "thinking_present": False,
             "parse_source": "not_attempted",
             "provider_durations_seconds": _empty_provider_durations(),
+            "duration_receipt": _duration_receipt(0.0),
             "fallback_probe": False,
             "transport_receipt": receipt,
             "raw_payload_included": False,
@@ -197,6 +214,7 @@ def _budget_exhausted_trial(
         "done_reason": "",
         "eval_count": None,
         "provider_durations_seconds": _empty_provider_durations(),
+        "duration_receipt": _duration_receipt(0.0),
         "error_class": error_class,
         "cancellation_receipt": _cancellation_receipt(maximum_model_run_seconds),
         "raw_payload_included": False,
@@ -391,15 +409,26 @@ def build_matrix(
     minimum_sensitivity_wilson_lower_bound: float = 0.5,
     minimum_specificity_wilson_lower_bound: float = 0.5,
     capability_probe_receipts: list[dict[str, Any]] | None = None,
+    maximum_local_attempts: int = 2,
+    maximum_case_wall_seconds: float = 120,
+    diagnostic_unsupported_native_schema: bool = False,
 ) -> dict[str, Any]:
     if invalid_response_retries not in {0, 1}:
         raise ValueError("local parse retry must be bounded to at most one retry")
+    if maximum_local_attempts not in {1, 2}:
+        raise ValueError("maximum local attempts must be one or two")
+    if maximum_case_wall_seconds <= 0:
+        raise ValueError("maximum case wall seconds must be positive")
     parse_retry_policy = ParseRetryPolicy(max_retries=invalid_response_retries)
     trials: list[dict[str, Any]] = list(initial_trials or [])
     prompt_hash = sha256_ref(PROMPT)
     runtime_hash = sha256_ref(canonical(runtime))
     invocation_index: dict[str, int] = {}
     model_started = {model["model_id"]: time.monotonic() for model in models}
+    capability_by_model_hash = {
+        receipt["model_id_hash"]: receipt
+        for receipt in (capability_probe_receipts or [])
+    }
     completed_keys = {
         (
             item["model_id"],
@@ -460,6 +489,90 @@ def build_matrix(
                         done_reason = ""
                         eval_count = None
                         provider_durations = _empty_provider_durations()
+                        capability = capability_by_model_hash.get(
+                            sha256_ref(model["model_id"])
+                        )
+                        if (
+                            format_mode == "json_schema"
+                            and capability is not None
+                            and not capability["object_schema_supported"]
+                            and not diagnostic_unsupported_native_schema
+                        ):
+                            error_class = "capability_unsupported"
+                            receipt = classified_transport_error(
+                                error_class
+                            ).receipt.public_receipt()
+                            attempt_receipt = {
+                                "attempt": 1,
+                                "http_state": "failed",
+                                "parse_state": "not_attempted",
+                                "error_class": error_class,
+                                "wall_seconds": 0.0,
+                                "content_hash": "",
+                                "thinking_hash": "",
+                                "content_present": False,
+                                "thinking_present": False,
+                                "parse_source": "not_attempted",
+                                "provider_durations_seconds": _empty_provider_durations(),
+                                "duration_receipt": _duration_receipt(0.0),
+                                "fallback_probe": False,
+                                "transport_receipt": receipt,
+                                "raw_payload_included": False,
+                            }
+                            index = invocation_index.get(model["model_id"], 0)
+                            invocation_index[model["model_id"]] = index + 1
+                            trial = {
+                                "model_id": model["model_id"],
+                                "model_digest": model["model_digest"],
+                                "case_id": case["case_id"],
+                                "taxonomy": case["taxonomy"],
+                                "expected_risk": case["expected_risk"],
+                                "format_mode": format_mode,
+                                "num_predict": num_predict,
+                                "repeat": repeat,
+                                "startup_class": "cold" if index == 0 else "warm",
+                                "artifact_hash": artifact_hash,
+                                "prompt_hash": prompt_hash,
+                                "runtime_hash": runtime_hash,
+                                "request_hash": request_hash,
+                                "http_state": "failed",
+                                "parse_state": "not_attempted",
+                                "response_hash": "",
+                                "thinking_hash": "",
+                                "thinking_present": False,
+                                "parse_source": "not_attempted",
+                                "envelope_state": "malformed_envelope",
+                                "attempt_receipts": [attempt_receipt],
+                                "recovered_invalid_response": False,
+                                "fallback_probe_used": False,
+                                "promotion_eligible": False,
+                                "observed_risk": None,
+                                "wall_seconds": 0.0,
+                                "done_reason": "",
+                                "eval_count": None,
+                                "provider_durations_seconds": _empty_provider_durations(),
+                                "duration_receipt": _duration_receipt(0.0),
+                                "error_class": error_class,
+                                "cancellation_receipt": None,
+                                "capability_skip_receipt": {
+                                    "schema_version": "a2.capability_skip_receipt.v1",
+                                    "reason": "native_schema_unsupported",
+                                    "network_call_started": False,
+                                    "capability_probe_hash": sha256_ref(
+                                        canonical(capability)
+                                    ),
+                                    "promotion_eligible": False,
+                                    "release_authority": False,
+                                    "public_safe": True,
+                                },
+                                "raw_payload_included": False,
+                                "release_authority": False,
+                            }
+                            trials.append(trial)
+                            completed_keys.add(trial_key)
+                            if progress_callback is not None:
+                                progress_callback(trial)
+                            continue
                         remaining_budget = maximum_model_run_seconds - (
                             time.monotonic() - model_started[model["model_id"]]
                         )
@@ -489,7 +602,9 @@ def build_matrix(
                             if progress_callback is not None:
                                 progress_callback(trial)
                             continue
-                        for attempt in range(1, invalid_response_retries + 2):
+                        for attempt in range(
+                            1, min(invalid_response_retries + 1, maximum_local_attempts) + 1
+                        ):
                             error_class = ""
                             response_text = ""
                             http_state = "completed"
@@ -514,6 +629,13 @@ def build_matrix(
                                 remaining_budget = maximum_model_run_seconds - (
                                     time.monotonic() - model_started[model["model_id"]]
                                 )
+                                remaining_case_budget = maximum_case_wall_seconds - (
+                                    time.monotonic() - started
+                                )
+                                if remaining_case_budget <= 0:
+                                    raise classified_transport_error(
+                                        "case_wall_budget_exhausted"
+                                    )
                                 if remaining_budget <= 0:
                                     raise classified_transport_error(
                                         "model_run_budget_exhausted"
@@ -522,7 +644,11 @@ def build_matrix(
                                     envelope = invoke(
                                         model["model_id"],
                                         attempt_payload,
-                                        min(timeout_seconds, remaining_budget),
+                                        min(
+                                            timeout_seconds,
+                                            remaining_budget,
+                                            remaining_case_budget,
+                                        ),
                                     )
                                 if not isinstance(envelope, dict):
                                     raise ValueError("malformed ollama envelope")
@@ -568,6 +694,10 @@ def build_matrix(
                                     "thinking_present": parsed_receipt["thinking_present"],
                                     "parse_source": parsed_receipt["parse_source"],
                                     "provider_durations_seconds": provider_durations,
+                                    "duration_receipt": _duration_receipt(
+                                        round(time.monotonic() - attempt_started, 3),
+                                        provider_durations["provider_total_seconds"],
+                                    ),
                                     "fallback_probe": fallback_probe,
                                     "transport_receipt": (
                                         transport_receipt
@@ -654,12 +784,27 @@ def build_matrix(
                                 "done_reason": done_reason,
                                 "eval_count": eval_count,
                                 "provider_durations_seconds": provider_durations,
+                                "duration_receipt": _duration_receipt(
+                                    wall_seconds,
+                                    provider_durations["provider_total_seconds"],
+                                ),
                                 "error_class": error_class,
                                 "cancellation_receipt": (
-                                    _cancellation_receipt(maximum_model_run_seconds)
-                                    if error_class == "model_run_budget_exhausted"
+                                    _cancellation_receipt(
+                                        maximum_model_run_seconds
+                                        if error_class == "model_run_budget_exhausted"
+                                        else maximum_case_wall_seconds,
+                                        reason=error_class,
+                                        network_call_started=bool(attempts),
+                                    )
+                                    if error_class
+                                    in {
+                                        "model_run_budget_exhausted",
+                                        "case_wall_budget_exhausted",
+                                    }
                                     else None
                                 ),
+                                "capability_skip_receipt": None,
                                 "raw_payload_included": False,
                                 "release_authority": False,
                             }
@@ -718,6 +863,8 @@ def build_matrix(
             "maximum_cold_p95_seconds": maximum_cold_p95_seconds,
             "maximum_warm_p95_seconds": maximum_warm_p95_seconds,
             "maximum_model_run_seconds": maximum_model_run_seconds,
+            "maximum_local_attempts": maximum_local_attempts,
+            "maximum_case_wall_seconds": maximum_case_wall_seconds,
             "minimum_sensitivity_wilson_lower_bound": (
                 minimum_sensitivity_wilson_lower_bound
             ),
@@ -842,7 +989,14 @@ def ollama_schema_capability_probe(
     case: dict[str, Any],
     invoke: Callable[[str, dict[str, Any], float], dict[str, Any]],
     timeout_seconds: float,
+    runtime: dict[str, str] | None = None,
+    maximum_probe_seconds: float | None = None,
 ) -> dict[str, Any]:
+    if timeout_seconds <= 0:
+        raise ValueError("capability probe timeout must be positive")
+    probe_budget = maximum_probe_seconds or (timeout_seconds * 2)
+    if probe_budget <= 0:
+        raise ValueError("capability probe budget must be positive")
     artifact = (ROOT / case["artifact_path"]).read_bytes()
     base_payload = {
         "model": model["model_id"],
@@ -856,13 +1010,24 @@ def ollama_schema_capability_probe(
         "plain_json_supported": False,
     }
     error_hashes: dict[str, str] = {"object_schema": "", "plain_json": ""}
+    attempt_receipts: list[dict[str, Any]] = []
+    probe_started = time.monotonic()
     for label, format_value in (
         ("object_schema", OUTPUT_SCHEMA),
         ("plain_json", "json"),
     ):
         payload = dict(base_payload, format=format_value)
+        attempt_started = time.monotonic()
+        network_call_started = False
+        state = "failed"
+        remaining_budget = probe_budget - (time.monotonic() - probe_started)
         try:
-            envelope = invoke(model["model_id"], payload, timeout_seconds)
+            if remaining_budget <= 0:
+                raise classified_transport_error("capability_probe_budget_exhausted")
+            network_call_started = True
+            envelope = invoke(
+                model["model_id"], payload, min(timeout_seconds, remaining_budget)
+            )
             if not isinstance(envelope, dict):
                 raise ValueError("malformed ollama envelope")
             parsed = parse_ollama_response(envelope)
@@ -870,6 +1035,7 @@ def ollama_schema_capability_probe(
             results[f"{label}_supported"] = (
                 parsed.envelope_state == "completed" and parse_state == "valid_json"
             )
+            state = "supported" if results[f"{label}_supported"] else "unsupported"
             if not results[f"{label}_supported"]:
                 error_hashes[label] = sha256_ref(
                     f"probe_parse_state:{parsed.envelope_state}:{parse_state}"
@@ -878,6 +1044,19 @@ def ollama_schema_capability_probe(
             error_hashes[label] = exc.receipt.public_receipt()["error_class_hash"]
         except Exception as exc:
             error_hashes[label] = sha256_ref(type(exc).__name__)
+        attempt_receipts.append(
+            {
+                "format_mode": label,
+                "state": state,
+                "wall_seconds": round(time.monotonic() - attempt_started, 6),
+                "configured_timeout_seconds": timeout_seconds,
+                "remaining_budget_at_start_seconds": round(
+                    max(0.0, remaining_budget), 6
+                ),
+                "network_call_started": network_call_started,
+                "error_hash": error_hashes[label],
+            }
+        )
     return {
         "schema_version": "a2.ollama_schema_capability_probe.v1",
         "model_id_hash": sha256_ref(model["model_id"]),
@@ -893,6 +1072,14 @@ def ollama_schema_capability_probe(
         ),
         "object_schema_error_hash": error_hashes["object_schema"],
         "plain_json_error_hash": error_hashes["plain_json"],
+        "runtime_version_hash": sha256_ref(
+            canonical(runtime or {"runtime": "unspecified"})
+        ),
+        "prompt_hash": sha256_ref(PROMPT),
+        "output_schema_hash": sha256_ref(canonical(OUTPUT_SCHEMA)),
+        "configured_probe_budget_seconds": probe_budget,
+        "wall_seconds": round(time.monotonic() - probe_started, 6),
+        "attempt_receipts": attempt_receipts,
         "raw_payload_included": False,
         "release_authority": False,
         "public_safe": True,
@@ -1034,6 +1221,12 @@ def main() -> int:
     parser.add_argument("--ollama-version", required=True)
     parser.add_argument("--timeout-seconds", type=float, default=30)
     parser.add_argument("--maximum-model-run-seconds", type=float, default=900)
+    parser.add_argument("--maximum-capability-probe-seconds", type=float, default=120)
+    parser.add_argument("--maximum-case-wall-seconds", type=float, default=120)
+    parser.add_argument("--maximum-local-attempts", type=int, choices=[1, 2], default=2)
+    parser.add_argument(
+        "--diagnostic-unsupported-native-schema", action="store_true"
+    )
     parser.add_argument(
         "--minimum-sensitivity-wilson-lower-bound", type=float, default=0.5
     )
@@ -1069,7 +1262,11 @@ def main() -> int:
             model=model,
             case=manifest["cases"][0],
             invoke=invoke,
-            timeout_seconds=min(args.timeout_seconds, 60),
+            timeout_seconds=min(
+                args.timeout_seconds, args.maximum_capability_probe_seconds
+            ),
+            runtime=runtime,
+            maximum_probe_seconds=args.maximum_capability_probe_seconds,
         )
         for model in models
     ]
@@ -1101,6 +1298,11 @@ def main() -> int:
         preflight_receipts=preflight_receipts,
         capability_probe_receipts=capability_probe_receipts,
         maximum_model_run_seconds=args.maximum_model_run_seconds,
+        maximum_case_wall_seconds=args.maximum_case_wall_seconds,
+        maximum_local_attempts=args.maximum_local_attempts,
+        diagnostic_unsupported_native_schema=(
+            args.diagnostic_unsupported_native_schema
+        ),
         minimum_sensitivity_wilson_lower_bound=(
             args.minimum_sensitivity_wilson_lower_bound
         ),

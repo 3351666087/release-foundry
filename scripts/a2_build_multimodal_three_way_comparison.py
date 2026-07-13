@@ -105,15 +105,24 @@ def build_three_way_comparison(
         "partial_journal_hashes": partial_hashes,
         "comparisons": comparisons,
     })
-    receipts = [
-        {
-            "receipt_id": stable_hash({
-                "comparison_artifact_hash": comparison_artifact_hash,
-                "comparison_hash": stable_hash(comparison),
-                "queue": "multimodal_safety_reviewer",
-            }),
+    receipts_by_id = {}
+    for comparison in pending_receipts:
+        comparison_hash = stable_hash({
+            "case_id": comparison["case_id"],
+            "artifact_hash": comparison["artifact_hash"],
+            "repeat": comparison["repeat"],
+            "provider_states": comparison["provider_states"],
+            "comparison_state": comparison["comparison_state"],
+            "eligibility_rule": "at_least_two_eligible_and_semantically_disagree",
+        })
+        receipt_id = stable_hash({
+            "comparison_hash": comparison_hash,
+            "queue": "multimodal_safety_reviewer",
+        })
+        receipts_by_id[receipt_id] = {
+            "receipt_id": receipt_id,
             "comparison_artifact_hash": comparison_artifact_hash,
-            "comparison_hash": stable_hash(comparison),
+            "comparison_hash": comparison_hash,
             "artifact_hash": comparison["artifact_hash"],
             "case_id": comparison["case_id"],
             "repeat": comparison["repeat"],
@@ -122,8 +131,11 @@ def build_three_way_comparison(
             "reviewer_role": "multimodal_safety_reviewer",
             "release_authority": False,
         }
-        for comparison in pending_receipts
-    ]
+    receipts = [receipts_by_id[key] for key in sorted(receipts_by_id)]
+    if sum(summary.values()) != len(comparisons):
+        raise ValueError("three-way comparison summary conservation failed")
+    if len(receipts) != summary["semantic_disagreement"]:
+        raise ValueError("three-way disagreement receipt conservation failed")
     result = {
         "schema_version": "a2.multimodal_three_way_comparison.v1",
         "comparison_artifact_hash": comparison_artifact_hash,

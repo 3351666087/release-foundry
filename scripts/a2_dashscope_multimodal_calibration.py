@@ -28,8 +28,10 @@ from scripts.a2_ollama_multimodal_matrix import (
     wilson_interval,
 )
 from services.judge.multimodal_provider import (
+    ClassifiedProviderTransportError,
     MultimodalProviderDefinition,
     OpenAICompatibleMultimodalAdapter,
+    ProviderResponseDurationReceipt,
     ProviderMalformedEnvelope,
     ProviderRateLimited,
     ProviderServerFailure,
@@ -47,6 +49,12 @@ ENDPOINTS = {
     region: default_multimodal_provider_registry().require(provider_id).endpoint
     for region, provider_id in PROVIDER_IDS.items()
 }
+
+
+def _duration_receipt(wall_seconds: float) -> dict[str, Any]:
+    return ProviderResponseDurationReceipt(
+        wall_seconds=wall_seconds
+    ).public_receipt()
 
 
 def cloud_transport(artifact: bytes, suffix: str) -> tuple[bytes, str]:
@@ -196,7 +204,9 @@ def build_calibration(
                         "observed_risk": None,
                         "usage": {},
                         "wall_seconds": 0.0,
+                        "duration_receipt": _duration_receipt(0.0),
                         "error_class": "run_budget_exhausted",
+                        "transport_receipt": None,
                     }
                 )
             else:
@@ -210,6 +220,7 @@ def build_calibration(
                     parse_source = "not_attempted"
                     response_model_id = ""
                     usage = {}
+                    transport_receipt = None
                     remaining = maximum_run_seconds - (time.monotonic() - run_started)
                     if remaining <= 0:
                         http_state = "failed"
@@ -235,6 +246,10 @@ def build_calibration(
                                 and isinstance(value, int)
                                 and value >= 0
                             }
+                        except ClassifiedProviderTransportError as exc:
+                            http_state = "failed"
+                            error_class = exc.error_class
+                            transport_receipt = exc.receipt.public_receipt()
                         except TimeoutError:
                             http_state = "failed"
                             error_class = "timeout"
@@ -261,6 +276,7 @@ def build_calibration(
                         if http_state == "completed"
                         else ("not_attempted", None)
                     )
+                    attempt_wall_seconds = round(time.monotonic() - started, 3)
                     attempts.append(
                         {
                             "attempt": attempt,
@@ -275,8 +291,10 @@ def build_calibration(
                             "parse_source": parse_source,
                             "observed_risk": observed_risk,
                             "usage": usage,
-                            "wall_seconds": round(time.monotonic() - started, 3),
+                            "wall_seconds": attempt_wall_seconds,
+                            "duration_receipt": _duration_receipt(attempt_wall_seconds),
                             "error_class": error_class,
+                            "transport_receipt": transport_receipt,
                         }
                     )
                     if parse_state == "valid_json" or http_state != "completed":
@@ -320,6 +338,9 @@ def build_calibration(
                         sum(item["wall_seconds"] for item in attempts), 3
                     ),
                     "final_attempt_wall_seconds": final["wall_seconds"],
+                    "duration_receipt": _duration_receipt(
+                        round(sum(item["wall_seconds"] for item in attempts), 3)
+                    ),
                     "error_class": final["error_class"],
                     "raw_payload_included": False,
                     "release_authority": False,

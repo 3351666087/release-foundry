@@ -54,6 +54,24 @@ class ThreeWayComparisonTests(unittest.TestCase):
         self.assertEqual(result["summary"]["unavailable"], 1)
         self.assertEqual(result["human_review_queue_receipts"], [])
 
+    def test_round45_receipt_identity_is_stable_across_unrelated_evidence_changes(self):
+        providers = {
+            "qwen": evidence(False),
+            "llava": evidence(True),
+            "dashscope": evidence(False),
+        }
+        first = build_three_way_comparison(providers)
+        providers["qwen"]["unrelated_metadata"] = {"generated_at": "later"}
+        second = build_three_way_comparison(providers)
+        self.assertNotEqual(
+            first["comparison_artifact_hash"], second["comparison_artifact_hash"]
+        )
+        self.assertEqual(
+            first["human_review_queue_receipts"][0]["receipt_id"],
+            second["human_review_queue_receipts"][0]["receipt_id"],
+        )
+        self.assertEqual(sum(second["summary"].values()), len(second["comparisons"]))
+
 
 if __name__ == "__main__":
     unittest.main()

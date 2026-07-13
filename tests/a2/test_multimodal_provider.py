@@ -1,6 +1,8 @@
 import json
+import socket
 import unittest
 from unittest.mock import patch
+from urllib import error
 
 import jsonschema
 
@@ -8,6 +10,8 @@ from services.judge.multimodal_provider import (
     OfflineDeterministicMultimodalAdapter,
     OpenAICompatibleMultimodalAdapter,
     ParseRetryPolicy,
+    ClassifiedProviderTransportError,
+    ProviderResponseDurationReceipt,
     ProviderRateLimited,
     TransportRetryPolicy,
     build_provider_conformance_receipt,
@@ -72,6 +76,50 @@ class MultimodalProviderTests(unittest.TestCase):
         )
         self.assertEqual(sent["response_format"], {"type": "json_object"})
         self.assertEqual(result["model"], "qwen-vl-plus")
+
+    def test_openai_compatible_adapter_emits_provider_neutral_transport_receipts(self):
+        registry = default_multimodal_provider_registry()
+        provider = registry.require("dashscope")
+        adapter = OpenAICompatibleMultimodalAdapter(
+            EnvironmentCredentialResolver({provider.credential_ref: "unit-key"})
+        )
+        cases = [
+            (error.HTTPError(provider.endpoint, 401, "secret", {}, None), "authentication_error", "4xx"),
+            (error.HTTPError(provider.endpoint, 429, "secret", {}, None), "rate_limited", "4xx"),
+            (error.HTTPError(provider.endpoint, 503, "secret", {}, None), "http_server_error", "5xx"),
+            (error.URLError(socket.timeout()), "timeout", ""),
+            (error.URLError(ConnectionResetError()), "connection_reset", ""),
+            (error.URLError(ConnectionRefusedError()), "connection_refused", ""),
+        ]
+        for failure, expected_class, expected_status in cases:
+            with self.subTest(expected_class=expected_class), patch(
+                "services.judge.multimodal_provider.request.urlopen",
+                side_effect=failure,
+            ):
+                with self.assertRaises(ClassifiedProviderTransportError) as observed:
+                    adapter.invoke(provider, {}, 1)
+            receipt = observed.exception.receipt.public_receipt()
+            self.assertEqual(observed.exception.error_class, expected_class)
+            self.assertEqual(receipt["http_status_class"], expected_status)
+            self.assertFalse(receipt["response_body_retained"])
+            self.assertNotIn("secret", str(receipt))
+
+    def test_shared_response_duration_receipt_prefers_provider_native_duration(self):
+        native = ProviderResponseDurationReceipt(
+            wall_seconds=1.25,
+            provider_seconds=0.75,
+            provider_source="ollama.total_duration",
+        ).public_receipt()
+        wall = ProviderResponseDurationReceipt(wall_seconds=1.25).public_receipt()
+        self.assertEqual(native["effective_source"], "provider_native")
+        self.assertEqual(native["effective_seconds"], 0.75)
+        self.assertEqual(wall["effective_source"], "wall_clock")
+        self.assertEqual(wall["effective_seconds"], 1.25)
+        with self.assertRaisesRegex(ValueError, "present together"):
+            ProviderResponseDurationReceipt(
+                wall_seconds=1,
+                provider_source="ollama.total_duration",
+            )
 
     def test_offline_adapter_has_explicit_valid_invalid_timeout_rate_limit(self):
         adapter = OfflineDeterministicMultimodalAdapter(

@@ -85,6 +85,135 @@ class OllamaMultimodalMatrixTests(unittest.TestCase):
         self.assertFalse(receipt["object_schema_supported"])
         self.assertTrue(receipt["plain_json_supported"])
         self.assertEqual(receipt["probe_state"], "plain_json_only")
+        self.assertEqual(len(receipt["attempt_receipts"]), 2)
+        self.assertTrue(receipt["runtime_version_hash"].startswith("sha256:"))
+        self.assertTrue(receipt["prompt_hash"].startswith("sha256:"))
+        self.assertTrue(receipt["output_schema_hash"].startswith("sha256:"))
+
+    def test_round45_unsupported_native_schema_skips_without_network_call(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            artifact = Path(directory) / "safe.ppm"
+            artifact.write_bytes(b"P6\n1 1\n255\n\x00\x00\xff")
+            calls = 0
+
+            def invoke(*_args):
+                nonlocal calls
+                calls += 1
+                raise AssertionError("unsupported native schema must be skipped")
+
+            model = {
+                "model_id": "model",
+                "model_digest": "sha256:" + "a" * 64,
+            }
+            result = build_matrix(
+                cases=[{
+                    "case_id": "safe",
+                    "taxonomy": "safe_control",
+                    "expected_risk": False,
+                    "artifact_path": artifact.relative_to(ROOT).as_posix(),
+                    "artifact_hash": sha256_ref(artifact.read_bytes()),
+                }],
+                models=[model],
+                formats=["json_schema"],
+                num_predict_values=[64],
+                repeats=1,
+                runtime={
+                    "provider_id": "ollama-local",
+                    "ollama_version": "test",
+                    "base_url_class": "loopback",
+                },
+                invoke=invoke,
+                capability_probe_receipts=[{
+                    "schema_version": "a2.ollama_schema_capability_probe.v1",
+                    "model_id_hash": sha256_ref(model["model_id"]),
+                    "model_digest": model["model_digest"],
+                    "object_schema_supported": False,
+                    "plain_json_supported": False,
+                    "probe_state": "unsupported",
+                    "object_schema_error_hash": "sha256:" + "c" * 64,
+                    "plain_json_error_hash": "sha256:" + "d" * 64,
+                    "runtime_version_hash": "sha256:" + "e" * 64,
+                    "prompt_hash": "sha256:" + "f" * 64,
+                    "output_schema_hash": "sha256:" + "1" * 64,
+                    "configured_probe_budget_seconds": 1,
+                    "wall_seconds": 0,
+                    "attempt_receipts": [{
+                        "format_mode": "object_schema",
+                        "state": "failed",
+                        "wall_seconds": 0,
+                        "configured_timeout_seconds": 1,
+                        "remaining_budget_at_start_seconds": 1,
+                        "network_call_started": False,
+                        "error_hash": "sha256:" + "c" * 64,
+                    }],
+                    "raw_payload_included": False,
+                    "release_authority": False,
+                    "public_safe": True,
+                }],
+            )
+        self.assertEqual(calls, 0)
+        trial = result["trials"][0]
+        self.assertEqual(trial["error_class"], "capability_unsupported")
+        self.assertFalse(trial["promotion_eligible"])
+        self.assertFalse(
+            trial["capability_skip_receipt"]["network_call_started"]
+        )
+        self.assertIsNone(trial["cancellation_receipt"])
+
+    def test_round45_cancellation_receipt_cannot_coexist_with_completed_trial(self):
+        schema = json.loads(
+            (
+                ROOT / "docs/a2/schemas/multimodal_runtime_matrix_v2.schema.json"
+            ).read_text(encoding="utf-8")
+        )
+        trial_schema = {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "$defs": schema["$defs"],
+            "$ref": "#/$defs/trial",
+        }
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            artifact = Path(directory) / "safe.ppm"
+            artifact.write_bytes(b"P6\n1 1\n255\n\x00\x00\xff")
+            result = build_matrix(
+                cases=[{
+                    "case_id": "safe",
+                    "taxonomy": "safe_control",
+                    "expected_risk": False,
+                    "artifact_path": artifact.relative_to(ROOT).as_posix(),
+                    "artifact_hash": sha256_ref(artifact.read_bytes()),
+                }],
+                models=[{
+                    "model_id": "model",
+                    "model_digest": "sha256:" + "b" * 64,
+                }],
+                formats=["json"],
+                num_predict_values=[64],
+                repeats=1,
+                runtime={
+                    "provider_id": "ollama-local",
+                    "ollama_version": "test",
+                    "base_url_class": "loopback",
+                },
+                invoke=lambda *_: {
+                    "response": json.dumps({
+                        "risk_present": False,
+                        "taxonomy_classes": [],
+                        "summary": "safe",
+                    })
+                },
+            )
+        invalid = dict(result["trials"][0])
+        invalid["cancellation_receipt"] = {
+            "schema_version": "a2.model_run_cancellation_receipt.v1",
+            "reason": "model_run_budget_exhausted",
+            "configured_budget_seconds": 1,
+            "network_call_started": False,
+            "promotion_eligible": False,
+            "release_authority": False,
+            "public_safe": True,
+        }
+        with self.assertRaises(jsonschema.ValidationError):
+            jsonschema.Draft202012Validator(trial_schema).validate(invalid)
 
     def test_round44_duration_fields_and_budget_cancellation_are_fail_closed(self):
         with tempfile.TemporaryDirectory(dir=ROOT) as directory:

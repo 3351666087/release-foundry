@@ -49,6 +49,8 @@
         "maximum_cold_p95_seconds": {"type": "number", "exclusiveMinimum": 0},
         "maximum_warm_p95_seconds": {"type": "number", "exclusiveMinimum": 0},
         "maximum_model_run_seconds": {"type": "number", "exclusiveMinimum": 0},
+        "maximum_case_wall_seconds": {"type": "number", "exclusiveMinimum": 0},
+        "maximum_local_attempts": {"type": "integer", "minimum": 1, "maximum": 2},
         "minimum_sensitivity_wilson_lower_bound": {
           "type": "number", "minimum": 0, "maximum": 1
         },
@@ -152,9 +154,13 @@
         "done_reason": {"type": "string"},
         "eval_count": {"type": ["integer", "null"], "minimum": 0},
         "provider_durations_seconds": {"$ref": "#/$defs/providerDurations"},
+        "duration_receipt": {"$ref": "#/$defs/durationReceipt"},
         "error_class": {"type": "string"},
         "cancellation_receipt": {
           "anyOf": [{"type": "null"}, {"$ref": "#/$defs/cancellationReceipt"}]
+        },
+        "capability_skip_receipt": {
+          "anyOf": [{"type": "null"}, {"$ref": "#/$defs/capabilitySkipReceipt"}]
         },
         "raw_payload_included": {"const": false},
         "release_authority": {"const": false}
@@ -163,6 +169,46 @@
         {
           "if": {"properties": {"fallback_probe_used": {"const": true}}, "required": ["fallback_probe_used"]},
           "then": {"properties": {"promotion_eligible": {"const": false}}, "required": ["promotion_eligible"]}
+        },
+        {
+          "if": {
+            "properties": {"cancellation_receipt": {"type": "object"}},
+            "required": ["cancellation_receipt"]
+          },
+          "then": {
+            "properties": {
+              "http_state": {"const": "failed"},
+              "parse_state": {"const": "not_attempted"},
+              "promotion_eligible": {"const": false},
+              "observed_risk": {"const": null},
+              "error_class": {
+                "enum": [
+                  "model_run_budget_exhausted", "case_wall_budget_exhausted"
+                ]
+              }
+            },
+            "required": [
+              "http_state", "parse_state", "promotion_eligible",
+              "observed_risk", "error_class"
+            ]
+          }
+        },
+        {
+          "if": {
+            "anyOf": [
+              {
+                "properties": {"http_state": {"const": "completed"}},
+                "required": ["http_state"]
+              },
+              {
+                "properties": {"promotion_eligible": {"const": true}},
+                "required": ["promotion_eligible"]
+              }
+            ]
+          },
+          "then": {
+            "properties": {"cancellation_receipt": {"const": null}}
+          }
         }
       ]
     },
@@ -191,6 +237,7 @@
         "thinking_present": {"type": "boolean"},
         "parse_source": {"type": "string"},
         "provider_durations_seconds": {"$ref": "#/$defs/providerDurations"},
+        "duration_receipt": {"$ref": "#/$defs/durationReceipt"},
         "fallback_probe": {"type": "boolean"},
         "transport_receipt": {
           "type": "object",
@@ -290,9 +337,67 @@
       ],
       "properties": {
         "schema_version": {"const": "a2.model_run_cancellation_receipt.v1"},
-        "reason": {"const": "model_run_budget_exhausted"},
+        "reason": {
+          "enum": ["model_run_budget_exhausted", "case_wall_budget_exhausted"]
+        },
         "configured_budget_seconds": {"type": "number", "exclusiveMinimum": 0},
+        "network_call_started": {"type": "boolean"},
+        "promotion_eligible": {"const": false},
+        "release_authority": {"const": false},
+        "public_safe": {"const": true}
+      }
+    },
+    "durationReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version", "wall_seconds", "provider_seconds", "provider_source",
+        "effective_seconds", "effective_source", "release_authority", "public_safe"
+      ],
+      "properties": {
+        "schema_version": {"const": "a2.provider_response_duration_receipt.v1"},
+        "wall_seconds": {"type": "number", "minimum": 0},
+        "provider_seconds": {"type": ["number", "null"], "minimum": 0},
+        "provider_source": {"type": "string"},
+        "effective_seconds": {"type": "number", "minimum": 0},
+        "effective_source": {"enum": ["provider_native", "wall_clock"]},
+        "release_authority": {"const": false},
+        "public_safe": {"const": true}
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {"provider_seconds": {"type": "null"}},
+            "required": ["provider_seconds"]
+          },
+          "then": {
+            "properties": {
+              "provider_source": {"const": ""},
+              "effective_source": {"const": "wall_clock"}
+            }
+          },
+          "else": {
+            "properties": {
+              "provider_source": {"minLength": 1},
+              "effective_source": {"const": "provider_native"}
+            }
+          }
+        }
+      ]
+    },
+    "capabilitySkipReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version", "reason", "network_call_started",
+        "capability_probe_hash", "promotion_eligible", "release_authority",
+        "public_safe"
+      ],
+      "properties": {
+        "schema_version": {"const": "a2.capability_skip_receipt.v1"},
+        "reason": {"const": "native_schema_unsupported"},
         "network_call_started": {"const": false},
+        "capability_probe_hash": {"$ref": "#/$defs/hash"},
         "promotion_eligible": {"const": false},
         "release_authority": {"const": false},
         "public_safe": {"const": true}
@@ -316,6 +421,40 @@
         "probe_state": {"enum": ["object_schema", "plain_json_only", "unsupported"]},
         "object_schema_error_hash": {"$ref": "#/$defs/optionalHash"},
         "plain_json_error_hash": {"$ref": "#/$defs/optionalHash"},
+        "runtime_version_hash": {"$ref": "#/$defs/hash"},
+        "prompt_hash": {"$ref": "#/$defs/hash"},
+        "output_schema_hash": {"$ref": "#/$defs/hash"},
+        "configured_probe_budget_seconds": {
+          "type": "number", "exclusiveMinimum": 0
+        },
+        "wall_seconds": {"type": "number", "minimum": 0},
+        "attempt_receipts": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "format_mode", "state", "wall_seconds",
+              "configured_timeout_seconds", "remaining_budget_at_start_seconds",
+              "network_call_started", "error_hash"
+            ],
+            "properties": {
+              "format_mode": {"enum": ["object_schema", "plain_json"]},
+              "state": {"enum": ["supported", "unsupported", "failed"]},
+              "wall_seconds": {"type": "number", "minimum": 0},
+              "configured_timeout_seconds": {
+                "type": "number", "exclusiveMinimum": 0
+              },
+              "remaining_budget_at_start_seconds": {
+                "type": "number", "minimum": 0
+              },
+              "network_call_started": {"type": "boolean"},
+              "error_hash": {"$ref": "#/$defs/optionalHash"}
+            }
+          }
+        },
         "raw_payload_included": {"const": false},
         "release_authority": {"const": false},
         "public_safe": {"const": true}

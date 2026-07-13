@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import socket
 import time
 from dataclasses import asdict, dataclass
 from typing import Any, Callable, Mapping, Protocol
@@ -16,6 +17,7 @@ SUPPORTED_IMAGE_MIME_TYPES = frozenset({"image/png", "image/jpeg"})
 RETRY_CLASSES = frozenset({"parse", "transport"})
 PARSED_RESPONSE_SCHEMA_VERSION = "a2.parsed_multimodal_response.v1"
 TRANSPORT_RECEIPT_SCHEMA_VERSION = "a2.provider_transport_receipt.v1"
+RESPONSE_DURATION_RECEIPT_SCHEMA_VERSION = "a2.provider_response_duration_receipt.v1"
 
 
 @dataclass(frozen=True)
@@ -72,6 +74,51 @@ def classified_transport_error(
             http_status_class=http_status_class,
         )
     )
+
+
+@dataclass(frozen=True)
+class ProviderResponseDurationReceipt:
+    """Public-safe duration projection with explicit measurement provenance."""
+
+    wall_seconds: float
+    provider_seconds: float | None = None
+    provider_source: str = ""
+    schema_version: str = RESPONSE_DURATION_RECEIPT_SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        if self.schema_version != RESPONSE_DURATION_RECEIPT_SCHEMA_VERSION:
+            raise ValueError("unsupported provider response duration receipt version")
+        if self.wall_seconds < 0:
+            raise ValueError("wall duration cannot be negative")
+        if self.provider_seconds is not None and self.provider_seconds < 0:
+            raise ValueError("provider duration cannot be negative")
+        if (self.provider_seconds is None) != (self.provider_source == ""):
+            raise ValueError("provider duration and source must be present together")
+
+    def public_receipt(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "wall_seconds": round(self.wall_seconds, 6),
+            "provider_seconds": (
+                round(self.provider_seconds, 6)
+                if self.provider_seconds is not None
+                else None
+            ),
+            "provider_source": self.provider_source,
+            "effective_seconds": round(
+                self.provider_seconds
+                if self.provider_seconds is not None
+                else self.wall_seconds,
+                6,
+            ),
+            "effective_source": (
+                "provider_native"
+                if self.provider_seconds is not None
+                else "wall_clock"
+            ),
+            "release_authority": False,
+            "public_safe": True,
+        }
 
 
 @dataclass(frozen=True)
@@ -287,17 +334,27 @@ class OpenAICompatibleMultimodalAdapter:
             with request.urlopen(call, timeout=timeout_seconds) as response:
                 value = json.loads(response.read().decode("utf-8"))
         except error.HTTPError as exc:
+            status_class = f"{exc.code // 100}xx"
             if exc.code in {401, 403}:
-                raise PermissionError from exc
-            if exc.code == 429:
-                raise ProviderRateLimited from exc
-            if exc.code >= 500:
-                raise ProviderServerFailure from exc
-            raise ValueError("provider rejected request") from exc
+                error_class = "authentication_error"
+            elif exc.code == 429:
+                error_class = "rate_limited"
+            elif 400 <= exc.code < 500:
+                error_class = "http_client_error"
+            else:
+                error_class = "http_server_error"
+            raise classified_transport_error(error_class, status_class) from exc
+        except (TimeoutError, socket.timeout) as exc:
+            raise classified_transport_error("timeout") from exc
         except error.URLError as exc:
-            if isinstance(exc.reason, TimeoutError):
-                raise TimeoutError from exc
-            raise ProviderTransportFailure from exc
+            reason = exc.reason
+            if isinstance(reason, (TimeoutError, socket.timeout)):
+                raise classified_transport_error("timeout") from exc
+            if isinstance(reason, (ConnectionResetError, ConnectionAbortedError)):
+                raise classified_transport_error("connection_reset") from exc
+            if isinstance(reason, ConnectionRefusedError):
+                raise classified_transport_error("connection_refused") from exc
+            raise classified_transport_error("connection_failure") from exc
         if not isinstance(value, dict):
             raise ProviderMalformedEnvelope
         return value

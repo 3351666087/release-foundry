@@ -198,6 +198,9 @@
           "final_attempt_wall_seconds": {
             "type": "number",
             "minimum": 0
+          },
+          "duration_receipt": {
+            "$ref": "#/$defs/durationReceipt"
           }
         }
       }
@@ -567,8 +570,91 @@
           "type": "number",
           "minimum": 0
         },
+        "duration_receipt": {
+          "$ref": "#/$defs/durationReceipt"
+        },
         "error_class": {
           "type": "string"
+        },
+        "transport_receipt": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "$ref": "#/$defs/transportReceipt"
+            }
+          ]
+        }
+      }
+    },
+    "transportReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "error_class_hash",
+        "http_status_class",
+        "response_body_retained"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "a2.provider_transport_receipt.v1"
+        },
+        "error_class_hash": {
+          "$ref": "#/$defs/hash"
+        },
+        "http_status_class": {
+          "enum": [
+            "",
+            "4xx",
+            "5xx"
+          ]
+        },
+        "response_body_retained": {
+          "const": false
+        }
+      }
+    },
+    "durationReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "wall_seconds",
+        "provider_seconds",
+        "provider_source",
+        "effective_seconds",
+        "effective_source",
+        "release_authority",
+        "public_safe"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "a2.provider_response_duration_receipt.v1"
+        },
+        "wall_seconds": {
+          "type": "number",
+          "minimum": 0
+        },
+        "provider_seconds": {
+          "type": "null"
+        },
+        "provider_source": {
+          "const": ""
+        },
+        "effective_seconds": {
+          "type": "number",
+          "minimum": 0
+        },
+        "effective_source": {
+          "const": "wall_clock"
+        },
+        "release_authority": {
+          "const": false
+        },
+        "public_safe": {
+          "const": true
         }
       }
     }
