@@ -5,10 +5,13 @@
       "case_id": "patterned-grid-safe",
       "artifact_kind": "synthetic_pattern",
       "label_source": "deterministic_fixture_author",
-      "artifact_hash": "sha256:7777777777777777777777777777777777777777777777777777777777777777",
+      "artifact_hash": "sha256:31f0b2a420a60a7869fcf72a36c48b8793a4045470b3f34cd12f017c48a59ad4",
       "generator_version_hash": "sha256:8888888888888888888888888888888888888888888888888888888888888888",
       "transform_implementation_version_hash": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
-      "expected_risk": false
+      "expected_risk": false,
+      "mime_type": "image/x-portable-pixmap",
+      "width": 16,
+      "height": 16
     },
     {
       "case_id": "photographic-landscape-safe",
@@ -17,7 +20,12 @@
       "artifact_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "generator_version_hash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
       "transform_implementation_version_hash": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
-      "expected_risk": false
+      "expected_risk": false,
+      "mime_type": "image/jpeg",
+      "width": 640,
+      "height": 480,
+      "license_id": "CC0-1.0",
+      "external_provenance_only": true
     }
   ],
   "provider_labels_used": false,

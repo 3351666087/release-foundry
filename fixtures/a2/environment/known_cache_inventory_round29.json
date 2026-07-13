@@ -5,36 +5,41 @@
       "path": "C:\\Users\\Kaylee\\AppData\\Local\\pip\\Cache",
       "exists": true,
       "scope": "known_cache_directory",
-      "size_bytes": null,
-      "measurement_state": "not_recursively_measured"
+      "size_bytes": 1073107109,
+      "measurement_state": "measured_approved_cache_only",
+      "file_count": 1727
     },
     {
       "path": "C:\\Users\\Kaylee\\.cache\\huggingface",
       "exists": false,
       "scope": "known_cache_directory",
       "size_bytes": null,
-      "measurement_state": "not_recursively_measured"
+      "measurement_state": "not_recursively_measured",
+      "file_count": 0
     },
     {
       "path": "D:\\Ashr\\cache\\pip",
       "exists": false,
       "scope": "known_cache_directory",
       "size_bytes": null,
-      "measurement_state": "not_recursively_measured"
+      "measurement_state": "not_recursively_measured",
+      "file_count": 0
     },
     {
       "path": "D:\\Ashr\\cache\\huggingface",
       "exists": false,
       "scope": "known_cache_directory",
       "size_bytes": null,
-      "measurement_state": "not_recursively_measured"
+      "measurement_state": "not_recursively_measured",
+      "file_count": 0
     },
     {
       "path": "D:\\Ashr\\cache\\ollama-models",
       "exists": false,
       "scope": "known_cache_directory",
       "size_bytes": null,
-      "measurement_state": "not_recursively_measured"
+      "measurement_state": "not_recursively_measured",
+      "file_count": 0
     }
   ],
   "credentials_scanned": false,

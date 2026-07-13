@@ -10,6 +10,11 @@
     "runtime_version_hash",
     "provider_receipt_hash",
     "request_cancellation_proven",
+    "receipt_issuer",
+    "signature_algorithm",
+    "issued_at",
+    "observed_at",
+    "maximum_age_seconds",
     "release_authority",
     "blockers",
     "public_safe"
@@ -52,6 +57,22 @@
     },
     "public_safe": {
       "const": true
+    },
+    "receipt_issuer": {
+      "type": "string"
+    },
+    "signature_algorithm": {
+      "type": "string"
+    },
+    "issued_at": {
+      "type": "string"
+    },
+    "observed_at": {
+      "type": "string"
+    },
+    "maximum_age_seconds": {
+      "type": "number",
+      "exclusiveMinimum": 0
     }
   }
 }

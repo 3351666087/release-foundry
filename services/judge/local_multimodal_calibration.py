@@ -7,7 +7,7 @@ import hmac
 import json
 import math
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from .result_persistence import stable_hash
@@ -1317,6 +1317,12 @@ def evaluate_cancellation_acknowledgement(
     provider_endpoint_hash: str,
     runtime_version_hash: str,
     provider_receipt_hash: str = "",
+    receipt_issuer: str = "",
+    signature_algorithm: str = "",
+    issued_at: str = "",
+    observed_at: str = "",
+    maximum_age_seconds: float = 300,
+    previously_seen_receipt_hashes: list[str] | None = None,
 ) -> dict[str, Any]:
     """Classify provider cancellation evidence without inventing acknowledgement."""
     allowed = {"acknowledged", "rejected", "unavailable"}
@@ -1336,11 +1342,31 @@ def evaluate_cancellation_acknowledgement(
     }[acknowledgement_state]
     if acknowledgement_state == "acknowledged" and not provider_receipt_hash:
         blockers.append("provider_cancellation_receipt_missing")
+    if acknowledgement_state == "acknowledged" and (not receipt_issuer or not signature_algorithm):
+        blockers.append("provider_cancellation_receipt_identity_missing")
+    if provider_receipt_hash and provider_receipt_hash in set(previously_seen_receipt_hashes or []):
+        blockers.append("provider_cancellation_receipt_replayed")
+    if issued_at or observed_at:
+        try:
+            issued = datetime.fromisoformat(issued_at)
+            observed = datetime.fromisoformat(observed_at)
+            if issued.tzinfo is None or observed.tzinfo is None:
+                raise ValueError
+            age = (observed - issued).total_seconds()
+            if age < 0 or age > maximum_age_seconds:
+                blockers.append("provider_cancellation_receipt_stale")
+        except (TypeError, ValueError):
+            blockers.append("provider_cancellation_receipt_time_invalid")
     return {
         "acknowledgement_state": acknowledgement_state,
         "provider_endpoint_hash": provider_endpoint_hash,
         "runtime_version_hash": runtime_version_hash,
         "provider_receipt_hash": provider_receipt_hash,
+        "receipt_issuer": receipt_issuer,
+        "signature_algorithm": signature_algorithm,
+        "issued_at": issued_at,
+        "observed_at": observed_at,
+        "maximum_age_seconds": maximum_age_seconds,
         "request_cancellation_proven": acknowledgement_state == "acknowledged" and not blockers,
         "release_authority": False,
         "blockers": blockers,
@@ -1354,6 +1380,8 @@ def summarize_runtime_recoveries(
     maximum_p95_seconds: float,
     minimum_observations: int = 1,
     health_response_hashes: list[str] | None = None,
+    health_endpoint_hashes: list[str] | None = None,
+    health_status_codes: list[int] | None = None,
 ) -> dict[str, Any]:
     if not recovery_latency_seconds or any(value < 0 for value in recovery_latency_seconds):
         raise ValueError("recovery latencies must be non-empty and non-negative")
@@ -1362,9 +1390,14 @@ def summarize_runtime_recoveries(
     if minimum_observations < 1:
         raise ValueError("minimum observations must be positive")
     health_response_hashes = list(health_response_hashes or [])
+    health_endpoint_hashes = list(health_endpoint_hashes or [])
+    health_status_codes = list(health_status_codes or [])
     for value in health_response_hashes:
         if _SHA256_REF.fullmatch(value) is None:
             raise ValueError("health response hashes must be sha256 references")
+    for value in health_endpoint_hashes:
+        if _SHA256_REF.fullmatch(value) is None:
+            raise ValueError("health endpoint hashes must be sha256 references")
     ordered = sorted(recovery_latency_seconds)
     p50 = ordered[max(0, math.ceil(len(ordered) * 0.50) - 1)]
     p95 = ordered[max(0, math.ceil(len(ordered) * 0.95) - 1)]
@@ -1373,6 +1406,8 @@ def summarize_runtime_recoveries(
         blockers.append("runtime_recovery_minimum_observations_not_met")
     if len(health_response_hashes) != len(ordered):
         blockers.append("runtime_recovery_health_hash_coverage_not_met")
+    if len(health_endpoint_hashes) != len(ordered) or len(health_status_codes) != len(ordered):
+        blockers.append("runtime_recovery_health_binding_coverage_not_met")
     return {
         "observation_count": len(ordered),
         "minimum_observations": minimum_observations,
@@ -1380,6 +1415,8 @@ def summarize_runtime_recoveries(
         "p95_recovery_latency_seconds": p95,
         "maximum_recovery_latency_seconds": ordered[-1],
         "health_response_hashes": health_response_hashes,
+        "health_endpoint_hashes": health_endpoint_hashes,
+        "health_status_codes": health_status_codes,
         "maximum_p95_recovery_latency_seconds": maximum_p95_seconds,
         "qualification_state": "review_available" if not blockers else "blocked",
         "release_authority": False,
@@ -1399,6 +1436,19 @@ def apply_taxonomy_policy(
     unknown = sorted(set(policy) - allowed)
     if unknown:
         raise ValueError(f"unknown taxonomy policy keys: {unknown}")
+    if policy.get("schema_version") != "a2.multimodal_taxonomy_policy.v1":
+        raise ValueError("unsupported taxonomy policy schema version")
+    for key in ("minimum_positive_denominators", "minimum_negative_denominators"):
+        if not isinstance(policy.get(key), dict) or any(
+            not isinstance(value, int) or isinstance(value, bool) for value in policy[key].values()
+        ):
+            raise ValueError(f"{key} must contain integer thresholds")
+    for key in ("minimum_recall_wilson_lower", "minimum_specificity_wilson_lower"):
+        if not isinstance(policy.get(key), dict) or any(
+            not isinstance(value, (int, float)) or isinstance(value, bool)
+            for value in policy[key].values()
+        ):
+            raise ValueError(f"{key} must contain numeric thresholds")
     return evaluate_multimodal_safety_metrics(
         labeled_cases=labeled_cases,
         safety_critical_case_ids=safety_critical_case_ids,

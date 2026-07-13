@@ -7,5 +7,10 @@
   "request_cancellation_proven": true,
   "release_authority": false,
   "blockers": [],
-  "public_safe": true
+  "public_safe": true,
+  "receipt_issuer": "ollama-local-test-adapter",
+  "signature_algorithm": "sha256-bound-observation",
+  "issued_at": "2026-07-13T10:00:00+08:00",
+  "observed_at": "2026-07-13T10:00:01+08:00",
+  "maximum_age_seconds": 300
 }

@@ -15,6 +15,7 @@
     "writer_version",
     "created_at",
     "directory_fsync_state",
+    "writer_build_hash",
     "chain_hash",
     "public_safe"
   ],
@@ -74,6 +75,10 @@
         "not_exposed",
         "failed"
       ]
+    },
+    "writer_build_hash": {
+      "type": "string",
+      "pattern": "^(|sha256:[a-f0-9]{64})$"
     }
   }
 }

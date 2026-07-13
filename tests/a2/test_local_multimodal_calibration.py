@@ -1460,6 +1460,11 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
             provider_endpoint_hash=fixture["provider_endpoint_hash"],
             runtime_version_hash=fixture["runtime_version_hash"],
             provider_receipt_hash=fixture["provider_receipt_hash"],
+            receipt_issuer=fixture["receipt_issuer"],
+            signature_algorithm=fixture["signature_algorithm"],
+            issued_at=fixture["issued_at"],
+            observed_at=fixture["observed_at"],
+            maximum_age_seconds=fixture["maximum_age_seconds"],
         )
         observed["schema_version"] = fixture["schema_version"]
         self.assert_schema("provider_cancellation_acknowledgement.schema.json", observed)
@@ -1475,6 +1480,8 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
             maximum_p95_seconds=3,
             minimum_observations=3,
             health_response_hashes=["sha256:" + str(index) * 64 for index in range(1, 4)],
+            health_endpoint_hashes=["sha256:" + str(index + 3) * 64 for index in range(1, 4)],
+            health_status_codes=[200, 200, 200],
         )
         self.assert_schema("runtime_recovery_summary.schema.json", recovery)
 
@@ -1498,7 +1505,7 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
             (ROOT / "fixtures/a2/calibration/qwen3_vl_4b_round25_runtime_diagnostic.json").read_text()
         )
         binding = validate_runtime_binding(receipt=receipt)
-        self.assertEqual(binding["binding_state"], "rejected")
+        self.assertEqual(binding["binding_state"], "matched")
 
     def test_round29_deterministic_safe_controls_do_not_use_provider_labels(self):
         fixture = json.loads(
@@ -1510,6 +1517,34 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
             {item["artifact_kind"] for item in fixture["controls"]},
             {"synthetic_pattern", "curated_photographic_control"},
         )
+        patterned = fixture["controls"][0]
+        artifact = ROOT / "fixtures/a2/calibration/patterned_safe_control_round30.ppm"
+        self.assertEqual("sha256:" + __import__("hashlib").sha256(artifact.read_bytes()).hexdigest(), patterned["artifact_hash"])
+
+    def test_round30_receipt_replay_staleness_and_policy_type_validation(self):
+        replay = evaluate_cancellation_acknowledgement(
+            acknowledgement_state="acknowledged",
+            provider_endpoint_hash="sha256:" + "1" * 64,
+            runtime_version_hash="sha256:" + "2" * 64,
+            provider_receipt_hash="sha256:" + "3" * 64,
+            receipt_issuer="provider",
+            signature_algorithm="ed25519",
+            issued_at="2026-07-13T10:00:00+08:00",
+            observed_at="2026-07-13T10:10:00+08:00",
+            maximum_age_seconds=60,
+            previously_seen_receipt_hashes=["sha256:" + "3" * 64],
+        )
+        self.assertIn("provider_cancellation_receipt_replayed", replay["blockers"])
+        self.assertIn("provider_cancellation_receipt_stale", replay["blockers"])
+        policy = json.loads(
+            (ROOT / "fixtures/a2/calibration/multimodal_mixed_taxonomy_policy_round28.json").read_text()
+        )
+        with self.assertRaisesRegex(ValueError, "integer thresholds"):
+            apply_taxonomy_policy(
+                labeled_cases=[{"case_id": "x", "expected_risk": True, "observed_risk": True}],
+                safety_critical_case_ids=["x"],
+                policy={**policy, "minimum_positive_denominators": {"x": True}},
+            )
 
     def test_sidecar_rejects_malformed_provenance_hashes_before_schema_validation(self):
         with self.assertRaisesRegex(ValueError, "extraction_tool_version_hash"):

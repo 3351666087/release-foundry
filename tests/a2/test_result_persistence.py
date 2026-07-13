@@ -13,6 +13,7 @@ from services.judge.result_persistence import (
     build_structured_output_failure_record,
     stable_hash,
     verify_jsonl_manifest,
+    verify_jsonl_manifest_predecessor,
     write_jsonl,
 )
 from services.judge.ocr_contract import run_optional_ocr_adapter
@@ -72,6 +73,37 @@ class A2ResultPersistenceTests(unittest.TestCase):
             self.assertIn("jsonl_file_hash_mismatch", tampered["blockers"])
             self.assertIn("jsonl_record_hash_mismatch", tampered["blockers"])
             self.assertIn("jsonl_chain_hash_mismatch", tampered["blockers"])
+
+    def test_round30_predecessor_and_failed_replace_preserve_old_bytes(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            first_path = Path(temp_dir) / "first.jsonl"
+            second_path = Path(temp_dir) / "second.jsonl"
+            first = write_jsonl(first_path, [{"case": "one"}])
+            second = write_jsonl(
+                second_path,
+                [{"case": "two"}],
+                sequence_number=2,
+                previous_sequence_number=1,
+                previous_manifest_hash=stable_hash(first),
+                writer_build_hash="sha256:" + "1" * 64,
+            )
+            self.assertEqual(
+                verify_jsonl_manifest_predecessor(
+                    manifest=second, previous_manifest=first
+                )["state"],
+                "verified",
+            )
+            old = b'{"old": true}\n'
+            target = Path(temp_dir) / "atomic.jsonl"
+            target.write_bytes(old)
+            with self.assertRaisesRegex(OSError, "injected"):
+                write_jsonl(
+                    target,
+                    [{"new": True}],
+                    replace_function=lambda *_: (_ for _ in ()).throw(OSError("injected")),
+                )
+            self.assertEqual(target.read_bytes(), old)
+            self.assertFalse(target.with_name(target.name + ".tmp").exists())
 
     def test_jsonl_manifest_chains_batches_and_blocks_truncated_line(self):
         with tempfile.TemporaryDirectory() as directory:

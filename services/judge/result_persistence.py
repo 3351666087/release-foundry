@@ -249,7 +249,9 @@ def write_jsonl(
     sequence_number: int = 1,
     previous_sequence_number: int = 0,
     writer_version: str = "a2.result_persistence.v1",
+    writer_build_hash: str = "",
     created_at: str | None = None,
+    replace_function: Any | None = None,
 ) -> dict[str, Any]:
     if sequence_number < 1:
         raise ValueError("sequence_number must be positive")
@@ -260,7 +262,11 @@ def write_jsonl(
     text = "".join(json.dumps(record, sort_keys=True) + "\n" for record in records)
     temporary = destination.with_name(destination.name + ".tmp")
     temporary.write_text(text, encoding="utf-8")
-    temporary.replace(destination)
+    try:
+        (replace_function or Path.replace)(temporary, destination)
+    except Exception:
+        temporary.unlink(missing_ok=True)
+        raise
     record_hashes = [stable_hash(record) for record in records]
     chain_hash = stable_hash(
         {
@@ -281,9 +287,32 @@ def write_jsonl(
         "sequence_number": sequence_number,
         "previous_sequence_number": previous_sequence_number,
         "writer_version": writer_version,
+        "writer_build_hash": writer_build_hash,
         "created_at": created_at or datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
         "directory_fsync_state": "not_exposed",
         "chain_hash": chain_hash,
+        "public_safe": True,
+    }
+
+
+def verify_jsonl_manifest_predecessor(
+    *, manifest: dict[str, Any], previous_manifest: dict[str, Any] | None
+) -> dict[str, Any]:
+    blockers: list[str] = []
+    if manifest.get("sequence_number") == 1:
+        if previous_manifest is not None or manifest.get("previous_manifest_hash"):
+            blockers.append("jsonl_unexpected_predecessor")
+    elif previous_manifest is None:
+        blockers.append("jsonl_predecessor_missing")
+    else:
+        if manifest.get("previous_sequence_number") != previous_manifest.get("sequence_number"):
+            blockers.append("jsonl_predecessor_sequence_mismatch")
+        if manifest.get("previous_manifest_hash") != stable_hash(previous_manifest):
+            blockers.append("jsonl_predecessor_hash_mismatch")
+    return {
+        "state": "verified" if not blockers else "blocked",
+        "release_authority": False,
+        "blockers": blockers,
         "public_safe": True,
     }
 
