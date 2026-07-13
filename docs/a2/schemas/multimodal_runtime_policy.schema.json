@@ -25,7 +25,13 @@
     "qualification_state",
     "release_authority",
     "blockers",
-    "public_safe"
+    "public_safe",
+    "failure_counts",
+    "empty_response_rate",
+    "maximum_empty_response_rate",
+    "invalid_structured_output_count",
+    "invalid_structured_output_rate",
+    "maximum_invalid_structured_output_rate"
   ],
   "properties": {
     "schema_version": {
@@ -139,15 +145,32 @@
     "queue_telemetry": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["state", "maximum_depth"],
+      "required": [
+        "state",
+        "maximum_depth"
+      ],
       "properties": {
-        "state": {"enum": ["observed", "not_exposed"]},
-        "maximum_depth": {"type": ["integer", "null"], "minimum": 0}
+        "state": {
+          "enum": [
+            "observed",
+            "not_exposed"
+          ]
+        },
+        "maximum_depth": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        }
       }
     },
     "cancellation_receipt_hashes": {
       "type": "array",
-      "items": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+      "items": {
+        "type": "string",
+        "pattern": "^sha256:[0-9a-f]{64}$"
+      },
       "uniqueItems": true
     },
     "completion_tokens_per_second": {
@@ -207,6 +230,53 @@
           "minimum": 0
         }
       }
+    },
+    "failure_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider_timeout",
+        "client_cancelled",
+        "transport_failure"
+      ],
+      "properties": {
+        "provider_timeout": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "client_cancelled": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "transport_failure": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "empty_response_rate": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "maximum_empty_response_rate": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "invalid_structured_output_rate": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "maximum_invalid_structured_output_rate": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "invalid_structured_output_count": {
+      "type": "integer",
+      "minimum": 0
     }
   }
 }

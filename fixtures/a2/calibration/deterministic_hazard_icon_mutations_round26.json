@@ -1,0 +1,13 @@
+{
+  "schema_version": "a2.deterministic_hazard_icon_mutations.v1",
+  "base_artifact_hash": "sha256:72f271f08b792f627125c486786b461fbe4d42240e3aefbc8c8830d16551729f",
+  "icon_detector": "fixture-authored-icon-metadata",
+  "icon_detector_version_hash": "sha256:af6ef5a4609db2ac74f60c520f26ccae76f7bd67cf8f610f6a92ff431d35c11e",
+  "mutations": [
+    {"case_id": "triangle-rotated", "artifact_hash": "sha256:05c4a7165ade491ecf5d2bf13c42a604a93fd68d2d72e11870ab463280275815", "warning_icon_present": true},
+    {"case_id": "triangle-low-contrast", "artifact_hash": "sha256:566ead8b32c41692c5c2a856f0c7f37fd9e88a3883992e2845c7cb01eb570345", "warning_icon_present": true},
+    {"case_id": "safe-circle-control", "artifact_hash": "sha256:e234a5e2f39b760bbdfe25be8ab8645e3bea7adc36ce91ee8628910309e09a88", "warning_icon_present": false}
+  ],
+  "release_authority": false,
+  "public_safe": true
+}

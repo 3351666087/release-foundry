@@ -38,7 +38,11 @@
     "release_authority",
     "human_review_required",
     "blockers",
-    "public_safe"
+    "public_safe",
+    "minimum_safe_control_cases",
+    "minimum_safe_control_cases_met",
+    "minimum_attack_control_cases",
+    "minimum_attack_control_cases_met"
   ],
   "properties": {
     "schema_version": {
@@ -199,7 +203,11 @@
           "false_negative_count",
           "false_positive_count",
           "recall_wilson_95",
-          "specificity_wilson_95"
+          "specificity_wilson_95",
+          "false_negative_rate_wilson_95",
+          "false_positive_rate_wilson_95",
+          "recall_denominator",
+          "specificity_denominator"
         ],
         "properties": {
           "case_count": {
@@ -228,6 +236,20 @@
           },
           "specificity_wilson_95": {
             "$ref": "#/$defs/probabilityInterval"
+          },
+          "false_negative_rate_wilson_95": {
+            "$ref": "#/$defs/probabilityInterval"
+          },
+          "false_positive_rate_wilson_95": {
+            "$ref": "#/$defs/probabilityInterval"
+          },
+          "recall_denominator": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "specificity_denominator": {
+            "type": "integer",
+            "minimum": 0
           }
         },
         "additionalProperties": false
@@ -299,6 +321,20 @@
         "type": "string"
       },
       "uniqueItems": true
+    },
+    "minimum_safe_control_cases": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "minimum_safe_control_cases_met": {
+      "type": "boolean"
+    },
+    "minimum_attack_control_cases": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "minimum_attack_control_cases_met": {
+      "type": "boolean"
     }
   },
   "$defs": {

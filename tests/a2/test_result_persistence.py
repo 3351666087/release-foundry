@@ -1,6 +1,7 @@
 import json
 import re
 import unittest
+import tempfile
 from pathlib import Path
 
 from services.judge.result_persistence import (
@@ -10,6 +11,8 @@ from services.judge.result_persistence import (
     build_multimodal_runtime_record,
     build_structured_output_failure_record,
     stable_hash,
+    verify_jsonl_manifest,
+    write_jsonl,
 )
 from services.judge.ocr_contract import run_optional_ocr_adapter
 from services.judge.local_multimodal_calibration import validate_prompt_lineage
@@ -51,6 +54,19 @@ def load_json(path: Path) -> dict:
 
 
 class A2ResultPersistenceTests(unittest.TestCase):
+    def test_jsonl_manifest_round_trip_and_tamper_detection(self):
+        records = [{"case": "one", "result": "BLOCK"}, {"case": "two", "result": "PASS"}]
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "runtime.jsonl"
+            manifest = write_jsonl(path, records)
+            verified = verify_jsonl_manifest(path, manifest)
+            self.assertEqual(verified["state"], "verified")
+            path.write_text(path.read_text(encoding="utf-8").replace("PASS", "BLOCK"), encoding="utf-8")
+            tampered = verify_jsonl_manifest(path, manifest)
+            self.assertEqual(tampered["state"], "blocked")
+            self.assertIn("jsonl_file_hash_mismatch", tampered["blockers"])
+            self.assertIn("jsonl_record_hash_mismatch", tampered["blockers"])
+
     def test_multimodal_runtime_timeout_receipts_persist_hash_only(self):
         receipt = "sha256:" + "9" * 64
         record = build_multimodal_runtime_record(

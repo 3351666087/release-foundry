@@ -256,6 +256,40 @@ def write_jsonl(path: str | Path, records: list[dict[str, Any]]) -> dict[str, An
     }
 
 
+def verify_jsonl_manifest(path: str | Path, manifest: dict[str, Any]) -> dict[str, Any]:
+    """Verify exact JSONL bytes and ordered record hashes without trusting the file."""
+    source = Path(path)
+    if not source.is_file():
+        return {
+            "state": "blocked",
+            "blockers": ["jsonl_file_missing"],
+            "public_safe": True,
+        }
+    text = source.read_text(encoding="utf-8")
+    blockers: list[str] = []
+    observed_file_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    if observed_file_hash != manifest.get("file_sha256"):
+        blockers.append("jsonl_file_hash_mismatch")
+    try:
+        records = [json.loads(line) for line in text.splitlines() if line.strip()]
+    except json.JSONDecodeError:
+        records = []
+        blockers.append("jsonl_parse_failure")
+    if len(records) != manifest.get("record_count"):
+        blockers.append("jsonl_record_count_mismatch")
+    observed_record_hashes = [stable_hash(record) for record in records]
+    if observed_record_hashes != manifest.get("record_hashes"):
+        blockers.append("jsonl_record_hash_mismatch")
+    return {
+        "state": "verified" if not blockers else "blocked",
+        "record_count": len(records),
+        "file_sha256": observed_file_hash,
+        "record_hashes": observed_record_hashes,
+        "blockers": blockers,
+        "public_safe": True,
+    }
+
+
 def redact_payload(value: Any) -> Any:
     if isinstance(value, dict):
         redacted = {}
@@ -893,10 +927,14 @@ def build_multimodal_runtime_record(
             "schema_version",
             "observation_count",
             "timeout_count",
+            "failure_counts",
             "provider_timeout_rate",
             "completed_count",
             "completed_semantic_count",
             "empty_response_count",
+            "empty_response_rate",
+            "invalid_structured_output_count",
+            "invalid_structured_output_rate",
             "valid_semantic_output_rate",
             "qualification_state",
             "blockers",
@@ -923,6 +961,12 @@ def build_multimodal_runtime_record(
                 ),
                 "minimum_valid_semantic_output_rate": runtime_summary.get(
                     "minimum_valid_semantic_output_rate"
+                ),
+                "maximum_empty_response_rate": runtime_summary.get(
+                    "maximum_empty_response_rate"
+                ),
+                "maximum_invalid_structured_output_rate": runtime_summary.get(
+                    "maximum_invalid_structured_output_rate"
                 ),
             }
         ),

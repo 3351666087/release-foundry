@@ -1,0 +1,20 @@
+{
+  "schema_version": "a2.multimodal_runtime_diagnostic_receipt.v1",
+  "provider_id": "ollama-local",
+  "model_id": "qwen3-vl:4b",
+  "model_version": "sha256:1343d82ebee3c97c8f26587cb4b97f5e1c44be90dd12cad920b1f79d900f50ad",
+  "request_hash": "sha256:9180b44c914693f8b5633e7bb17e8de0286a68dbf04d543d25498a5cf13ebfc0",
+  "request_started_at": "2026-07-13T08:25:45+08:00",
+  "client_terminated_at": "2026-07-13T08:43:02+08:00",
+  "server_recovered_at": "2026-07-13T09:04:00+08:00",
+  "termination_state": "client_process_killed",
+  "post_termination_health_state": "healthy",
+  "semantic_output_observed": false,
+  "release_authority": false,
+  "blockers": [
+    "multimodal_runtime_client_cancelled",
+    "multimodal_runtime_latency_exceeded",
+    "multimodal_runtime_valid_semantic_output_rate_not_met"
+  ],
+  "public_safe": true
+}
