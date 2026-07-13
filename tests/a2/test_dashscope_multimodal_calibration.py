@@ -10,7 +10,7 @@ from unittest.mock import patch
 import jsonschema
 from PIL import Image
 
-from scripts.a2_dashscope_multimodal_calibration import build_calibration
+from scripts.a2_dashscope_multimodal_calibration import build_calibration, main
 from scripts.a2_dashscope_multimodal_calibration import (
     ProviderRateLimited,
     ProviderServerFailure,
@@ -23,6 +23,132 @@ from scripts.a2_ollama_multimodal_matrix import ROOT, sha256_ref
 
 
 class DashScopeMultimodalCalibrationTests(unittest.TestCase):
+    def test_round42_resume_policy_mismatch_stops_before_provider_invocation(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            base = Path(directory)
+            artifact = base / "control.png"
+            Image.new("RGB", (1, 1), (20, 20, 200)).save(artifact)
+            manifest = base / "manifest.json"
+            manifest.write_text(
+                json.dumps(
+                    {
+                        "cases": [
+                            {
+                                "case_id": "safe",
+                                "taxonomy": "safe_control",
+                                "expected_risk": False,
+                                "artifact_path": artifact.relative_to(ROOT).as_posix(),
+                                "artifact_hash": sha256_ref(artifact.read_bytes()),
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            resume = base / "resume.json"
+            resume.write_text(
+                json.dumps(
+                    {
+                        "policy_hash": "sha256:" + "0" * 64,
+                        "ordered_case_plan_hash": "sha256:" + "1" * 64,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            argv = [
+                "a2_dashscope_multimodal_calibration.py",
+                "--manifest",
+                manifest.relative_to(ROOT).as_posix(),
+                "--output",
+                (base / "result.json").relative_to(ROOT).as_posix(),
+                "--resume-from",
+                resume.relative_to(ROOT).as_posix(),
+                "--execute-live",
+            ]
+            with (
+                patch("sys.argv", argv),
+                patch.dict("os.environ", {"DASHSCOPE_API_KEY": "test-only"}, clear=True),
+                patch(
+                    "scripts.a2_dashscope_multimodal_calibration.provider_invoke"
+                ) as provider,
+                patch(
+                    "scripts.a2_dashscope_multimodal_calibration.build_calibration"
+                ) as calibration,
+            ):
+                with self.assertRaisesRegex(SystemExit, "resume policy hash mismatch"):
+                    main()
+        provider.assert_not_called()
+        calibration.assert_not_called()
+
+    def test_round42_resume_plan_mismatch_stops_before_provider_invocation(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            base = Path(directory)
+            artifact = base / "control.png"
+            Image.new("RGB", (1, 1), (20, 20, 200)).save(artifact)
+            manifest = base / "manifest.json"
+            manifest.write_text(
+                json.dumps(
+                    {
+                        "cases": [
+                            {
+                                "case_id": "safe",
+                                "taxonomy": "safe_control",
+                                "expected_risk": False,
+                                "artifact_path": artifact.relative_to(ROOT).as_posix(),
+                                "artifact_hash": sha256_ref(artifact.read_bytes()),
+                            }
+                        ]
+                    }
+                ),
+                encoding="utf-8",
+            )
+            expected_policy_hash = sha256_ref(
+                json.dumps(
+                    {
+                        "minimum_taxonomy_sensitivity": {},
+                        "minimum_taxonomy_wilson_lower": {},
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+            )
+            resume = base / "resume.json"
+            resume.write_text(
+                json.dumps(
+                    {
+                        "policy_hash": expected_policy_hash,
+                        "ordered_case_plan_hash": "sha256:" + "1" * 64,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            argv = [
+                "a2_dashscope_multimodal_calibration.py",
+                "--manifest",
+                manifest.relative_to(ROOT).as_posix(),
+                "--output",
+                (base / "result.json").relative_to(ROOT).as_posix(),
+                "--resume-from",
+                resume.relative_to(ROOT).as_posix(),
+                "--execute-live",
+            ]
+            with (
+                patch("sys.argv", argv),
+                patch.dict("os.environ", {"DASHSCOPE_API_KEY": "test-only"}, clear=True),
+                patch(
+                    "scripts.a2_dashscope_multimodal_calibration.provider_invoke"
+                ) as provider,
+                patch(
+                    "scripts.a2_dashscope_multimodal_calibration.build_calibration"
+                ) as calibration,
+            ):
+                with self.assertRaisesRegex(
+                    SystemExit, "resume ordered case plan hash mismatch"
+                ):
+                    main()
+        provider.assert_not_called()
+        calibration.assert_not_called()
+
     def test_round41_provider_policy_plan_and_separate_latency_are_bound(self):
         with tempfile.TemporaryDirectory(dir=ROOT) as directory:
             artifact = Path(directory) / "control.jpg"

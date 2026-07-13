@@ -237,6 +237,50 @@ class OllamaMultimodalMatrixTests(unittest.TestCase):
         self.assertEqual(summary["eligible_count"], 0)
         self.assertEqual(result["qualification_state"], "blocked")
 
+    def test_round42_thinking_only_response_retries_once_and_stays_ineligible(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            artifact = Path(directory) / "safe.ppm"
+            artifact.write_bytes(b"P6\n1 1\n255\n\x00\x00\xff")
+            calls = []
+
+            def invoke(*_):
+                calls.append(True)
+                return {"response": "", "thinking": '{"risk_present":false}'}
+
+            result = build_matrix(
+                cases=[
+                    {
+                        "case_id": "thinking-only",
+                        "taxonomy": "safe_control",
+                        "expected_risk": False,
+                        "artifact_path": artifact.relative_to(ROOT).as_posix(),
+                        "artifact_hash": sha256_ref(artifact.read_bytes()),
+                    }
+                ],
+                models=[
+                    {
+                        "model_id": "qwen3-vl:4b",
+                        "model_digest": "sha256:" + "8" * 64,
+                    }
+                ],
+                formats=["json_schema"],
+                num_predict_values=[64],
+                repeats=1,
+                runtime={
+                    "provider_id": "ollama-local",
+                    "ollama_version": "test",
+                    "base_url_class": "loopback",
+                },
+                invoke=invoke,
+                invalid_response_retries=1,
+            )
+        trial = result["trials"][0]
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(trial["parse_state"], "empty_response")
+        self.assertTrue(trial["thinking_present"])
+        self.assertEqual(len(trial["attempt_receipts"]), 2)
+        self.assertIsNone(trial["observed_risk"])
+
     def test_round38_timeout_receipt_is_persisted_after_each_trial(self):
         with tempfile.TemporaryDirectory(dir=ROOT) as directory:
             artifact = Path(directory) / "attack.ppm"

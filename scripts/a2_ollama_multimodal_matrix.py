@@ -6,6 +6,7 @@ import hashlib
 import json
 import math
 import statistics
+import sys
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -14,8 +15,12 @@ from urllib import error, request
 
 import jsonschema
 
-
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from services.judge.multimodal_provider import ParseRetryPolicy, parse_ollama_response
+
 SCHEMA = ROOT / "docs/a2/schemas/multimodal_runtime_matrix_v2.schema.json"
 PROMPT = (
     "Independently inspect the image for governed evaluation risks. Return only one JSON "
@@ -170,7 +175,11 @@ def build_matrix(
     maximum_p95_seconds: float = 20,
     progress_callback: Callable[[dict[str, Any]], None] | None = None,
     initial_trials: list[dict[str, Any]] | None = None,
+    invalid_response_retries: int = 1,
 ) -> dict[str, Any]:
+    if invalid_response_retries not in {0, 1}:
+        raise ValueError("local parse retry must be bounded to at most one retry")
+    parse_retry_policy = ParseRetryPolicy(max_retries=invalid_response_retries)
     trials: list[dict[str, Any]] = list(initial_trials or [])
     prompt_hash = sha256_ref(PROMPT)
     runtime_hash = sha256_ref(canonical(runtime))
@@ -231,30 +240,85 @@ def build_matrix(
                             payload["format"] = OUTPUT_SCHEMA
                         request_hash = sha256_ref(canonical(payload))
                         started = time.monotonic()
-                        error_class = ""
-                        response_text = ""
-                        response_hash = ""
-                        http_state = "completed"
+                        attempts = []
                         done_reason = ""
                         eval_count = None
-                        try:
-                            envelope = invoke(model["model_id"], payload, timeout_seconds)
-                            response_text = str(envelope.get("response") or "")
-                            response_hash = sha256_ref(response_text)
-                            done_reason = str(envelope.get("done_reason") or "")
-                            eval_count = envelope.get("eval_count")
-                        except TimeoutError:
-                            http_state = "failed"
-                            error_class = "timeout"
-                        except Exception:
-                            http_state = "failed"
-                            error_class = "provider_failure"
-                        wall_seconds = round(time.monotonic() - started, 3)
-                        parse_state, observed_risk = (
-                            classify_public_response(response_text)
-                            if http_state == "completed"
-                            else ("not_attempted", None)
+                        for attempt in range(1, invalid_response_retries + 2):
+                            error_class = ""
+                            response_text = ""
+                            http_state = "completed"
+                            parsed_receipt = {
+                                "schema_version": "a2.parsed_multimodal_response.v1",
+                                "parse_source": "not_attempted",
+                                "envelope_state": "malformed_envelope",
+                                "content_hash": "",
+                                "thinking_hash": "",
+                                "content_present": False,
+                                "thinking_present": False,
+                                "raw_payload_included": False,
+                            }
+                            attempt_started = time.monotonic()
+                            try:
+                                envelope = invoke(model["model_id"], payload, timeout_seconds)
+                                if not isinstance(envelope, dict):
+                                    raise ValueError("malformed ollama envelope")
+                                parsed = parse_ollama_response(envelope)
+                                parsed_receipt = parsed.public_receipt()
+                                if parsed.envelope_state != "completed":
+                                    raise ValueError("malformed ollama envelope")
+                                response_text = parsed.content_text
+                                done_reason = str(envelope.get("done_reason") or "")
+                                eval_count = envelope.get("eval_count")
+                            except TimeoutError:
+                                http_state = "failed"
+                                error_class = "timeout"
+                            except ValueError:
+                                http_state = "failed"
+                                error_class = "malformed_envelope"
+                            except Exception:
+                                http_state = "failed"
+                                error_class = "provider_failure"
+                            parse_state, observed_risk = (
+                                classify_public_response(response_text)
+                                if http_state == "completed"
+                                else ("not_attempted", None)
+                            )
+                            attempts.append(
+                                {
+                                    "attempt": attempt,
+                                    "http_state": http_state,
+                                    "parse_state": parse_state,
+                                    "error_class": error_class,
+                                    "wall_seconds": round(
+                                        time.monotonic() - attempt_started, 3
+                                    ),
+                                    "content_hash": parsed_receipt["content_hash"],
+                                    "thinking_hash": parsed_receipt["thinking_hash"],
+                                    "content_present": parsed_receipt["content_present"],
+                                    "thinking_present": parsed_receipt["thinking_present"],
+                                    "parse_source": parsed_receipt["parse_source"],
+                                    "raw_payload_included": False,
+                                }
+                            )
+                            if (
+                                http_state != "completed"
+                                or parse_state == "valid_json"
+                                or not parse_retry_policy.should_retry(
+                                    parse_state, attempt - 1
+                                )
+                            ):
+                                break
+                        final_attempt = attempts[-1]
+                        http_state = final_attempt["http_state"]
+                        parse_state = final_attempt["parse_state"]
+                        error_class = final_attempt["error_class"]
+                        response_hash = final_attempt["content_hash"]
+                        observed_risk = (
+                            classify_public_response(response_text)[1]
+                            if parse_state == "valid_json"
+                            else None
                         )
+                        wall_seconds = round(time.monotonic() - started, 3)
                         index = invocation_index.get(model["model_id"], 0)
                         invocation_index[model["model_id"]] = index + 1
                         trial = {
@@ -274,6 +338,22 @@ def build_matrix(
                                 "http_state": http_state,
                                 "parse_state": parse_state,
                                 "response_hash": response_hash,
+                                "thinking_hash": final_attempt["thinking_hash"],
+                                "thinking_present": final_attempt["thinking_present"],
+                                "parse_source": final_attempt["parse_source"],
+                                "envelope_state": (
+                                    "completed"
+                                    if http_state == "completed"
+                                    else "malformed_envelope"
+                                ),
+                                "attempt_receipts": attempts,
+                                "recovered_invalid_response": (
+                                    parse_state == "valid_json"
+                                    and any(
+                                        item["parse_state"] != "valid_json"
+                                        for item in attempts[:-1]
+                                    )
+                                ),
                                 "observed_risk": observed_risk,
                                 "wall_seconds": wall_seconds,
                                 "done_reason": done_reason,

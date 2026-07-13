@@ -35,6 +35,7 @@ from services.judge.multimodal_provider import (
     ProviderServerFailure,
     ProviderTransportFailure,
     default_multimodal_provider_registry,
+    parse_openai_compatible_response,
 )
 from services.judge.provider_runtime import EnvironmentCredentialResolver
 
@@ -189,6 +190,9 @@ def build_calibration(
                         "parse_state": "not_attempted",
                         "response_hash": "",
                         "response_model_id": "",
+                        "thinking_hash": "",
+                        "thinking_present": False,
+                        "parse_source": "not_attempted",
                         "observed_risk": None,
                         "usage": {},
                         "wall_seconds": 0.0,
@@ -201,6 +205,9 @@ def build_calibration(
                     http_state = "completed"
                     error_class = ""
                     content = ""
+                    thinking_hash = ""
+                    thinking_present = False
+                    parse_source = "not_attempted"
                     response_model_id = ""
                     usage = {}
                     remaining = maximum_run_seconds - (time.monotonic() - run_started)
@@ -212,19 +219,13 @@ def build_calibration(
                             envelope = invoke(payload, min(timeout_seconds, remaining))
                             if not isinstance(envelope, dict):
                                 raise ProviderMalformedEnvelope
-                            choices = envelope.get("choices")
-                            if not isinstance(choices, list) or not choices:
+                            parsed = parse_openai_compatible_response(envelope)
+                            if parsed.envelope_state != "completed":
                                 raise ProviderMalformedEnvelope
-                            first_choice = choices[0]
-                            if not isinstance(first_choice, dict):
-                                raise ProviderMalformedEnvelope
-                            message = first_choice.get("message")
-                            if not isinstance(message, dict) or "content" not in message:
-                                raise ProviderMalformedEnvelope
-                            raw_content = message["content"]
-                            if raw_content is not None and not isinstance(raw_content, str):
-                                raise ProviderMalformedEnvelope
-                            content = raw_content or ""
+                            content = parsed.content_text
+                            thinking_hash = parsed.thinking_hash
+                            thinking_present = bool(parsed.thinking_text)
+                            parse_source = parsed.parse_source
                             response_model_id = str(envelope.get("model") or "")
                             raw_usage = envelope.get("usage") or {}
                             usage = {
@@ -269,6 +270,9 @@ def build_calibration(
                                 sha256_ref(content) if http_state == "completed" else ""
                             ),
                             "response_model_id": response_model_id,
+                            "thinking_hash": thinking_hash,
+                            "thinking_present": thinking_present,
+                            "parse_source": parse_source,
                             "observed_risk": observed_risk,
                             "usage": usage,
                             "wall_seconds": round(time.monotonic() - started, 3),
@@ -554,6 +558,10 @@ def main() -> int:
     )
     parser.add_argument("--invalid-response-retries", type=int, default=1)
     parser.add_argument("--maximum-run-seconds", type=float, default=3600.0)
+    parser.add_argument(
+        "--resume-from",
+        help="Existing v5 result whose policy and ordered case plan must match",
+    )
     parser.add_argument("--execute-live", action="store_true")
     args = parser.parse_args()
     if not args.execute_live:
@@ -582,6 +590,37 @@ def main() -> int:
         taxonomy_thresholds[taxonomy] = float(threshold)
     registry = default_multimodal_provider_registry()
     provider = registry.require(PROVIDER_IDS[args.region])
+    expected_policy_hash = policy_hash or sha256_ref(
+        json.dumps(
+            {
+                "minimum_taxonomy_sensitivity": taxonomy_thresholds,
+                "minimum_taxonomy_wilson_lower": taxonomy_wilson_thresholds,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    )
+    expected_plan_hash = sha256_ref(
+        json.dumps(
+            [
+                {
+                    "case_id": case["case_id"],
+                    "artifact_hash": case["artifact_hash"],
+                    "repeat": repeat,
+                }
+                for case in cases
+                for repeat in range(1, args.repeats + 1)
+            ],
+            sort_keys=True,
+            separators=(",", ":"),
+        )
+    )
+    if args.resume_from:
+        resumed = json.loads((ROOT / args.resume_from).read_text(encoding="utf-8"))
+        if resumed.get("policy_hash") != expected_policy_hash:
+            raise SystemExit("resume policy hash mismatch")
+        if resumed.get("ordered_case_plan_hash") != expected_plan_hash:
+            raise SystemExit("resume ordered case plan hash mismatch")
     result = build_calibration(
         cases=cases,
         model_id=args.model,
@@ -600,7 +639,7 @@ def main() -> int:
         minimum_specificity_wilson_lower=args.minimum_specificity_wilson_lower,
         invalid_response_retries=args.invalid_response_retries,
         maximum_run_seconds=args.maximum_run_seconds,
-        policy_hash=policy_hash,
+        policy_hash=expected_policy_hash,
     )
     atomic_write(ROOT / args.output, result)
     print(

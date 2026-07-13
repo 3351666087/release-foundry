@@ -1,0 +1,12 @@
+{
+  "comparison_artifact_hash": "sha256:b8e32aef8d2dd8dd01dbe28bd563b10669d75641ecb384c4a116ff711b8c797c",
+  "comparison_path": "docs/evidence/a2_multimodal_local_comparison_round42.json",
+  "errors": [],
+  "expected_receipt_count": 0,
+  "public_safe": true,
+  "raw_payload_included": false,
+  "release_authority": false,
+  "schema_version": "a2.multimodal_comparison_receipt_verification.v1",
+  "verification_state": "verified",
+  "verified_receipt_count": 0
+}

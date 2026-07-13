@@ -12,6 +12,8 @@ from services.judge.multimodal_provider import (
     TransportRetryPolicy,
     build_provider_conformance_receipt,
     default_multimodal_provider_registry,
+    parse_ollama_response,
+    parse_openai_compatible_response,
 )
 from services.judge.provider_runtime import EnvironmentCredentialResolver
 from scripts.a2_ollama_multimodal_matrix import ROOT
@@ -113,10 +115,62 @@ class MultimodalProviderTests(unittest.TestCase):
                 },
                 observed_states=["valid", "timeout"],
                 generated_at="2026-07-14T00:00:00Z",
+                source_evidence_hashes=["sha256:" + "1" * 64],
             )
             jsonschema.Draft202012Validator(schema).validate(receipt)
             self.assertFalse(receipt["release_authority"])
             self.assertFalse(receipt["secret_included"])
+
+    def test_shared_parser_separates_content_and_thinking(self):
+        local = parse_ollama_response(
+            {"response": "", "thinking": "private reasoning", "done": True}
+        )
+        cloud = parse_openai_compatible_response(
+            {
+                "choices": [
+                    {
+                        "message": {
+                            "content": '{"risk_present":false}',
+                            "reasoning_content": "private reasoning",
+                        }
+                    }
+                ]
+            }
+        )
+        self.assertFalse(local.public_receipt()["content_present"])
+        self.assertTrue(local.public_receipt()["thinking_present"])
+        self.assertNotIn("private reasoning", str(local.public_receipt()))
+        self.assertTrue(cloud.public_receipt()["content_present"])
+        self.assertTrue(cloud.public_receipt()["thinking_present"])
+
+    def test_conformance_receipt_requires_valid_predecessor_sequence(self):
+        provider = default_multimodal_provider_registry().require("ollama-local")
+        first = build_provider_conformance_receipt(
+            provider=provider,
+            adapter_class="unit",
+            checks={"fail_closed": True},
+            observed_states=["valid"],
+            generated_at="2026-07-14T00:00:00Z",
+        )
+        second = build_provider_conformance_receipt(
+            provider=provider,
+            adapter_class="unit",
+            checks={"fail_closed": True},
+            observed_states=["valid"],
+            generated_at="2026-07-14T00:01:00Z",
+            predecessor_receipt_id=first["receipt_id"],
+            sequence=2,
+        )
+        self.assertEqual(second["predecessor_receipt_id"], first["receipt_id"])
+        with self.assertRaisesRegex(ValueError, "requires a predecessor"):
+            build_provider_conformance_receipt(
+                provider=provider,
+                adapter_class="unit",
+                checks={"fail_closed": True},
+                observed_states=["valid"],
+                generated_at="2026-07-14T00:02:00Z",
+                sequence=2,
+            )
 
 
 if __name__ == "__main__":

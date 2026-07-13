@@ -61,6 +61,27 @@
         "minLength": 1
       }
     },
+    "source_evidence_hashes": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/hash"
+      }
+    },
+    "predecessor_receipt_id": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/hash"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 1
+    },
     "receipt_id": {
       "$ref": "#/$defs/hash"
     },

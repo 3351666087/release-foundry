@@ -530,6 +530,15 @@
         "response_model_id": {
           "type": "string"
         },
+        "thinking_hash": {
+          "$ref": "#/$defs/optionalHash"
+        },
+        "thinking_present": {
+          "type": "boolean"
+        },
+        "parse_source": {
+          "type": "string"
+        },
         "observed_risk": {
           "type": [
             "boolean",

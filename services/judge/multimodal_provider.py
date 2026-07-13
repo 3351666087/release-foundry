@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 import time
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Any, Callable, Mapping, Protocol
 from urllib import error, request
 
@@ -14,6 +14,7 @@ from .result_persistence import stable_hash
 CONFORMANCE_SCHEMA_VERSION = "a2.provider_conformance_receipt.v1"
 SUPPORTED_IMAGE_MIME_TYPES = frozenset({"image/png", "image/jpeg"})
 RETRY_CLASSES = frozenset({"parse", "transport"})
+PARSED_RESPONSE_SCHEMA_VERSION = "a2.parsed_multimodal_response.v1"
 
 
 @dataclass(frozen=True)
@@ -42,6 +43,103 @@ class TransportRetryPolicy:
 
 class CredentialResolver(Protocol):
     def resolve(self, credential_ref: str) -> str: ...
+
+
+@dataclass(frozen=True)
+class ParsedMultimodalResponse:
+    """Public-safe response projection; generated reasoning is never a verdict."""
+
+    schema_version: str
+    content_text: str
+    thinking_text: str
+    parse_source: str
+    envelope_state: str
+    content_hash: str
+    thinking_hash: str
+    raw_payload_included: bool = False
+
+    def __post_init__(self) -> None:
+        if self.schema_version != PARSED_RESPONSE_SCHEMA_VERSION:
+            raise ValueError("unsupported parsed multimodal response version")
+        if self.envelope_state not in {"completed", "malformed_envelope"}:
+            raise ValueError("unsupported multimodal envelope state")
+        if self.raw_payload_included:
+            raise ValueError("raw provider payload must not be included")
+
+    def public_receipt(self) -> dict[str, Any]:
+        value = asdict(self)
+        value.pop("content_text")
+        value.pop("thinking_text")
+        value["content_present"] = bool(self.content_text)
+        value["thinking_present"] = bool(self.thinking_text)
+        return value
+
+
+def _hashed_text(value: Any) -> tuple[str, str]:
+    text = value if isinstance(value, str) else ""
+    return text, stable_hash(text)
+
+
+def _malformed_parsed_response(source: str) -> ParsedMultimodalResponse:
+    empty_hash = stable_hash("")
+    return ParsedMultimodalResponse(
+        schema_version=PARSED_RESPONSE_SCHEMA_VERSION,
+        content_text="",
+        thinking_text="",
+        parse_source=source,
+        envelope_state="malformed_envelope",
+        content_hash=empty_hash,
+        thinking_hash=empty_hash,
+    )
+
+
+def parse_openai_compatible_response(
+    envelope: Mapping[str, Any],
+) -> ParsedMultimodalResponse:
+    try:
+        message = envelope["choices"][0]["message"]
+        if not isinstance(message, Mapping):
+            raise TypeError
+    except (KeyError, IndexError, TypeError):
+        return _malformed_parsed_response("choices[0].message")
+    content, content_hash = _hashed_text(message.get("content"))
+    thinking, thinking_hash = _hashed_text(
+        message.get("reasoning_content") or message.get("thinking")
+    )
+    return ParsedMultimodalResponse(
+        schema_version=PARSED_RESPONSE_SCHEMA_VERSION,
+        content_text=content,
+        thinking_text=thinking,
+        parse_source="choices[0].message",
+        envelope_state="completed",
+        content_hash=content_hash,
+        thinking_hash=thinking_hash,
+    )
+
+
+def parse_ollama_response(envelope: Mapping[str, Any]) -> ParsedMultimodalResponse:
+    message = envelope.get("message")
+    if isinstance(message, Mapping):
+        content_value = message.get("content")
+        thinking_value = message.get("thinking")
+        source = "message"
+    elif "response" in envelope or "thinking" in envelope:
+        content_value = envelope.get("response")
+        thinking_value = envelope.get("thinking")
+        source = "generate"
+    else:
+        return _malformed_parsed_response("ollama")
+    content, content_hash = _hashed_text(content_value)
+    thinking, thinking_hash = _hashed_text(thinking_value)
+    return ParsedMultimodalResponse(
+        schema_version=PARSED_RESPONSE_SCHEMA_VERSION,
+        content_text=content,
+        thinking_text=thinking,
+        parse_source=source,
+        envelope_state="completed",
+        content_hash=content_hash,
+        thinking_hash=thinking_hash,
+    )
 
 
 @dataclass(frozen=True)
@@ -259,9 +357,19 @@ def build_provider_conformance_receipt(
     checks: Mapping[str, bool],
     observed_states: list[str],
     generated_at: str,
+    source_evidence_hashes: list[str] | None = None,
+    predecessor_receipt_id: str | None = None,
+    sequence: int = 1,
 ) -> dict[str, Any]:
+    if sequence < 1:
+        raise ValueError("provider conformance sequence must be positive")
+    if sequence == 1 and predecessor_receipt_id is not None:
+        raise ValueError("first provider conformance receipt cannot have a predecessor")
+    if sequence > 1 and predecessor_receipt_id is None:
+        raise ValueError("later provider conformance receipt requires a predecessor")
     normalized_checks = {key: bool(value) for key, value in sorted(checks.items())}
     blockers = sorted(key for key, passed in normalized_checks.items() if not passed)
+    source_hashes = sorted(set(source_evidence_hashes or []))
     core = {
         "provider_id": provider.provider_id,
         "protocol": provider.protocol,
@@ -269,6 +377,9 @@ def build_provider_conformance_receipt(
         "capability_hash": provider.capability_hash,
         "checks": normalized_checks,
         "observed_states": sorted(set(observed_states)),
+        "source_evidence_hashes": source_hashes,
+        "predecessor_receipt_id": predecessor_receipt_id,
+        "sequence": sequence,
     }
     return {
         "schema_version": CONFORMANCE_SCHEMA_VERSION,
