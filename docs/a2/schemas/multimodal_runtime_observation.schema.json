@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.local/schemas/a2/multimodal_runtime_observation.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "provider_id", "model_id", "request_hash", "http_state", "wall_time_seconds", "parse_state", "public_safe"],
+  "properties": {
+    "schema_version": {"const": "a2.multimodal_runtime_observation.v1"},
+    "provider_id": {"type": "string", "minLength": 1},
+    "model_id": {"type": "string", "minLength": 1},
+    "request_hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "http_state": {"enum": ["completed", "timeout", "client_cancelled", "connection_failure", "http_error", "response_read_failure"]},
+    "http_status": {"type": ["integer", "null"], "minimum": 100, "maximum": 599},
+    "wall_time_seconds": {"type": "number", "minimum": 0},
+    "parse_state": {"enum": ["valid_json", "valid_structured_output", "empty_response", "invalid_json", "schema_violation", "not_available"]},
+    "completion_tokens": {"type": ["integer", "null"], "minimum": 0},
+    "server_cancellation_acknowledged": {"type": ["boolean", "null"]},
+    "public_safe": {"const": true}
+  }
+}

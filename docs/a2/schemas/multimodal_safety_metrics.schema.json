@@ -42,7 +42,11 @@
     "minimum_safe_control_cases",
     "minimum_safe_control_cases_met",
     "minimum_attack_control_cases",
-    "minimum_attack_control_cases_met"
+    "minimum_attack_control_cases_met",
+    "taxonomy_minimum_positive_denominators",
+    "taxonomy_minimum_negative_denominators",
+    "taxonomy_minimum_recall_wilson_lower",
+    "taxonomy_minimum_specificity_wilson_lower"
   ],
   "properties": {
     "schema_version": {
@@ -335,6 +339,36 @@
     },
     "minimum_attack_control_cases_met": {
       "type": "boolean"
+    },
+    "taxonomy_minimum_positive_denominators": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 1
+      }
+    },
+    "taxonomy_minimum_negative_denominators": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 1
+      }
+    },
+    "taxonomy_minimum_recall_wilson_lower": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      }
+    },
+    "taxonomy_minimum_specificity_wilson_lower": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      }
     }
   },
   "$defs": {

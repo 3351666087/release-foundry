@@ -237,7 +237,10 @@
       "required": [
         "provider_timeout",
         "client_cancelled",
-        "transport_failure"
+        "transport_failure",
+        "connection_failure",
+        "http_error",
+        "response_read_failure"
       ],
       "properties": {
         "provider_timeout": {
@@ -249,6 +252,18 @@
           "minimum": 0
         },
         "transport_failure": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "connection_failure": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "http_error": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "response_read_failure": {
           "type": "integer",
           "minimum": 0
         }

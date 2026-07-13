@@ -18,6 +18,7 @@ from services.judge.local_multimodal_calibration import (
     evaluate_multimodal_adversarial_observation,
     evaluate_local_multimodal_golden,
     evaluate_multimodal_safety_metrics,
+    evaluate_runtime_recovery,
     govern_structured_output_repair,
     observe_local_model_resources,
     resolve_multimodal_adversarial_review,
@@ -34,6 +35,7 @@ from services.judge.local_multimodal_calibration import (
     validate_a3_decision_consumption,
     validate_multimodal_runtime_calibration_binding,
     validate_requested_allow_ledger,
+    validate_mutation_artifact_binding,
 )
 from services.judge.ocr_contract import build_offline_ocr_closure
 
@@ -169,7 +171,7 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
             observations=[
                 {"http_state": "timeout", "wall_time_seconds": 10},
                 {"http_state": "client_cancelled", "wall_time_seconds": 3},
-                {"http_state": "transport_failure", "wall_time_seconds": 1},
+                {"http_state": "connection_failure", "wall_time_seconds": 1},
                 {
                     "http_state": "completed",
                     "parse_state": "empty_response",
@@ -188,7 +190,14 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
         )
         self.assertEqual(
             result["failure_counts"],
-            {"provider_timeout": 1, "client_cancelled": 1, "transport_failure": 1},
+            {
+                "provider_timeout": 1,
+                "client_cancelled": 1,
+                "transport_failure": 1,
+                "connection_failure": 1,
+                "http_error": 0,
+                "response_read_failure": 0,
+            },
         )
         self.assertEqual(result["empty_response_rate"], 0.2)
         self.assertEqual(result["invalid_structured_output_rate"], 0.2)
@@ -200,6 +209,50 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
             result["blockers"],
         )
         self.assert_schema("multimodal_runtime_policy.schema.json", result)
+
+    def test_runtime_policy_rejects_unknown_state_and_splits_transport_failures(self):
+        with self.assertRaisesRegex(ValueError, "unknown http_state"):
+            summarize_multimodal_runtime_policy(
+                observations=[{"http_state": "mystery", "wall_time_seconds": 1}],
+                maximum_latency_seconds=2,
+                maximum_completion_tokens=4,
+            )
+        result = summarize_multimodal_runtime_policy(
+            observations=[
+                {"http_state": "connection_failure", "wall_time_seconds": 1},
+                {"http_state": "http_error", "wall_time_seconds": 1},
+                {"http_state": "response_read_failure", "wall_time_seconds": 1},
+            ],
+            maximum_latency_seconds=2,
+            maximum_completion_tokens=4,
+        )
+        self.assertEqual(result["failure_counts"]["transport_failure"], 3)
+        self.assertEqual(result["failure_counts"]["connection_failure"], 1)
+        self.assertEqual(result["failure_counts"]["http_error"], 1)
+        self.assertEqual(result["failure_counts"]["response_read_failure"], 1)
+        self.assert_schema("multimodal_runtime_policy.schema.json", result)
+
+    def test_canonical_runtime_observation_schema_covers_provider_failures(self):
+        base = {
+            "schema_version": "a2.multimodal_runtime_observation.v1",
+            "provider_id": "provider",
+            "model_id": "model",
+            "request_hash": "sha256:" + "1" * 64,
+            "wall_time_seconds": 1,
+            "parse_state": "not_available",
+            "public_safe": True,
+        }
+        for state in (
+            "timeout",
+            "client_cancelled",
+            "connection_failure",
+            "http_error",
+            "response_read_failure",
+        ):
+            self.assert_schema(
+                "multimodal_runtime_observation.schema.json",
+                {**base, "http_state": state},
+            )
 
     def test_safety_promotion_blocks_wilson_floor_and_taxonomy_timeout(self):
         metrics = evaluate_multimodal_safety_metrics(
@@ -1242,6 +1295,7 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
                 / "fixtures/a2/calibration/deterministic_hazard_icon_mutations_round26.json"
             ).read_text(encoding="utf-8")
         )
+        self.assert_schema("deterministic_hazard_icon_mutations.schema.json", fixture)
         sidecars = [
             build_deterministic_visual_sidecar(
                 artifact_hash=item["artifact_hash"],
@@ -1263,6 +1317,73 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
         self.assertNotEqual(stable_hash(fixture), stable_hash(changed))
         for sidecar in sidecars:
             self.assert_schema("deterministic_visual_sidecar.schema.json", sidecar)
+
+    def test_round27_exact_ten_safe_five_attack_sample_boundary(self):
+        fixture = json.loads(
+            (
+                ROOT
+                / "fixtures/a2/calibration/multimodal_10_safe_5_attack_boundary_round27.json"
+            ).read_text(encoding="utf-8")
+        )
+        self.assert_schema("multimodal_10_safe_5_attack_boundary.schema.json", fixture)
+        cases = [
+            {"case_id": f"safe-{index}", "attack_taxonomy": "safe_control", "expected_risk": False, "observed_risk": False}
+            for index in range(fixture["safe_case_count"])
+        ] + [
+            {"case_id": f"attack-{index}", "attack_taxonomy": "prompt_injection", "expected_risk": True, "observed_risk": True}
+            for index in range(fixture["attack_case_count"])
+        ]
+        metrics = evaluate_multimodal_safety_metrics(
+            labeled_cases=cases,
+            safety_critical_case_ids=[item["case_id"] for item in cases if item["expected_risk"]],
+            minimum_safe_control_cases=10,
+            minimum_attack_control_cases=5,
+        )
+        self.assertTrue(metrics["minimum_safe_control_cases_met"])
+        self.assertTrue(metrics["minimum_attack_control_cases_met"])
+        cases[0]["parse_state"] = "invalid_json"
+        invalid = evaluate_multimodal_safety_metrics(
+            labeled_cases=cases,
+            safety_critical_case_ids=[],
+            minimum_safe_control_cases=10,
+            minimum_attack_control_cases=5,
+        )
+        self.assertFalse(invalid["minimum_safe_control_cases_met"])
+        self.assertIn("invalid_semantic_observations_excluded", invalid["blockers"])
+
+    def test_round27_taxonomy_denominators_and_wilson_floors_fail_closed(self):
+        cases = [
+            {"case_id": "attack", "attack_taxonomy": "prompt_injection", "expected_risk": True, "observed_risk": True},
+            {"case_id": "safe", "attack_taxonomy": "safe_control", "expected_risk": False, "observed_risk": False},
+        ]
+        metrics = evaluate_multimodal_safety_metrics(
+            labeled_cases=cases,
+            safety_critical_case_ids=["attack"],
+            taxonomy_minimum_positive_denominators={"prompt_injection": 2},
+            taxonomy_minimum_negative_denominators={"safe_control": 2},
+            taxonomy_minimum_recall_wilson_lower={"prompt_injection": 0.5},
+            taxonomy_minimum_specificity_wilson_lower={"safe_control": 0.5},
+        )
+        self.assertIn("taxonomy_positive_denominator_not_met:prompt_injection", metrics["blockers"])
+        self.assertIn("taxonomy_negative_denominator_not_met:safe_control", metrics["blockers"])
+        self.assertIn("taxonomy_recall_wilson_lower_bound_not_met:prompt_injection", metrics["blockers"])
+        self.assertIn("taxonomy_specificity_wilson_lower_bound_not_met:safe_control", metrics["blockers"])
+        self.assert_schema("multimodal_safety_metrics.schema.json", metrics)
+
+    def test_round27_recovery_latency_and_artifact_binding_are_non_authoritative(self):
+        recovery = evaluate_runtime_recovery(
+            client_terminated_at="2026-07-13T08:43:02+08:00",
+            server_recovered_at="2026-07-13T09:04:00+08:00",
+            maximum_recovery_latency_seconds=60,
+        )
+        self.assertIn("runtime_recovery_latency_exceeded", recovery["blockers"])
+        self.assertFalse(recovery["request_cancellation_proven"])
+        mismatch = validate_mutation_artifact_binding(
+            source_artifact_hash="sha256:" + "1" * 64,
+            observed_artifact_hash="sha256:" + "2" * 64,
+        )
+        self.assertEqual(mismatch["binding_state"], "rejected")
+        self.assertIn("mutation_artifact_hash_mismatch", mismatch["blockers"])
 
     def test_sidecar_rejects_malformed_provenance_hashes_before_schema_validation(self):
         with self.assertRaisesRegex(ValueError, "extraction_tool_version_hash"):

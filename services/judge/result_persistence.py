@@ -241,17 +241,32 @@ def build_result_record(
     }
 
 
-def write_jsonl(path: str | Path, records: list[dict[str, Any]]) -> dict[str, Any]:
+def write_jsonl(
+    path: str | Path,
+    records: list[dict[str, Any]],
+    *,
+    previous_manifest_hash: str = "",
+) -> dict[str, Any]:
     destination = Path(path)
     destination.parent.mkdir(parents=True, exist_ok=True)
     text = "".join(json.dumps(record, sort_keys=True) + "\n" for record in records)
     destination.write_text(text, encoding="utf-8")
+    record_hashes = [stable_hash(record) for record in records]
+    chain_hash = stable_hash(
+        {
+            "previous_manifest_hash": previous_manifest_hash,
+            "file_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+            "record_hashes": record_hashes,
+        }
+    )
     return {
         "schema_version": "a2.result_persistence_jsonl_manifest.v1",
         "path": destination.as_posix(),
         "record_count": len(records),
         "file_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
-        "record_hashes": [stable_hash(record) for record in records],
+        "record_hashes": record_hashes,
+        "previous_manifest_hash": previous_manifest_hash,
+        "chain_hash": chain_hash,
         "public_safe": True,
     }
 
@@ -280,11 +295,21 @@ def verify_jsonl_manifest(path: str | Path, manifest: dict[str, Any]) -> dict[st
     observed_record_hashes = [stable_hash(record) for record in records]
     if observed_record_hashes != manifest.get("record_hashes"):
         blockers.append("jsonl_record_hash_mismatch")
+    expected_chain_hash = stable_hash(
+        {
+            "previous_manifest_hash": manifest.get("previous_manifest_hash", ""),
+            "file_sha256": observed_file_hash,
+            "record_hashes": observed_record_hashes,
+        }
+    )
+    if expected_chain_hash != manifest.get("chain_hash"):
+        blockers.append("jsonl_chain_hash_mismatch")
     return {
         "state": "verified" if not blockers else "blocked",
         "record_count": len(records),
         "file_sha256": observed_file_hash,
         "record_hashes": observed_record_hashes,
+        "chain_hash": expected_chain_hash,
         "blockers": blockers,
         "public_safe": True,
     }

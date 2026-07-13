@@ -1,4 +1,5 @@
 import json
+import jsonschema
 import re
 import unittest
 import tempfile
@@ -59,6 +60,10 @@ class A2ResultPersistenceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "runtime.jsonl"
             manifest = write_jsonl(path, records)
+            jsonschema.validate(
+                manifest,
+                load_json(ROOT / "docs/a2/schemas/result_persistence_jsonl_manifest.schema.json"),
+            )
             verified = verify_jsonl_manifest(path, manifest)
             self.assertEqual(verified["state"], "verified")
             path.write_text(path.read_text(encoding="utf-8").replace("PASS", "BLOCK"), encoding="utf-8")
@@ -66,6 +71,24 @@ class A2ResultPersistenceTests(unittest.TestCase):
             self.assertEqual(tampered["state"], "blocked")
             self.assertIn("jsonl_file_hash_mismatch", tampered["blockers"])
             self.assertIn("jsonl_record_hash_mismatch", tampered["blockers"])
+            self.assertIn("jsonl_chain_hash_mismatch", tampered["blockers"])
+
+    def test_jsonl_manifest_chains_batches_and_blocks_truncated_line(self):
+        with tempfile.TemporaryDirectory() as directory:
+            first_path = Path(directory) / "first.jsonl"
+            second_path = Path(directory) / "second.jsonl"
+            first = write_jsonl(first_path, [{"case": "one"}])
+            second = write_jsonl(
+                second_path,
+                [{"case": "two"}],
+                previous_manifest_hash=stable_hash(first),
+            )
+            self.assertEqual(second["previous_manifest_hash"], stable_hash(first))
+            self.assertEqual(verify_jsonl_manifest(second_path, second)["state"], "verified")
+            second_path.write_text('{"case":"two"}\n{"case":', encoding="utf-8")
+            truncated = verify_jsonl_manifest(second_path, second)
+            self.assertEqual(truncated["state"], "blocked")
+            self.assertIn("jsonl_parse_failure", truncated["blockers"])
 
     def test_multimodal_runtime_timeout_receipts_persist_hash_only(self):
         receipt = "sha256:" + "9" * 64

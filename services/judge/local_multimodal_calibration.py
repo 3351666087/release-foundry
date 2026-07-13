@@ -7,6 +7,7 @@ import hmac
 import json
 import math
 import re
+from datetime import datetime
 from typing import Any
 
 from .result_persistence import stable_hash
@@ -499,6 +500,24 @@ def summarize_multimodal_runtime_policy(
     ):
         if not 0 <= value <= 1:
             raise ValueError(f"{name} must be within zero and one")
+    allowed_http_states = {
+        "completed",
+        "timeout",
+        "failed",
+        "client_cancelled",
+        "connection_failure",
+        "http_error",
+        "response_read_failure",
+    }
+    unknown_states = sorted(
+        {
+            str(item.get("http_state", "completed"))
+            for item in observations
+            if item.get("http_state", "completed") not in allowed_http_states
+        }
+    )
+    if unknown_states:
+        raise ValueError(f"unknown http_state values: {', '.join(unknown_states)}")
     latencies = sorted(float(item["wall_time_seconds"]) for item in observations)
     if any(not math.isfinite(value) or value < 0 for value in latencies):
         raise ValueError("latencies must be finite non-negative numbers")
@@ -534,8 +553,17 @@ def summarize_multimodal_runtime_policy(
         ),
         "transport_failure": sum(
             item.get("http_state")
-            not in {"completed", "timeout", "failed", "client_cancelled"}
+            in {"connection_failure", "http_error", "response_read_failure"}
             for item in observations
+        ),
+        "connection_failure": sum(
+            item.get("http_state") == "connection_failure" for item in observations
+        ),
+        "http_error": sum(
+            item.get("http_state") == "http_error" for item in observations
+        ),
+        "response_read_failure": sum(
+            item.get("http_state") == "response_read_failure" for item in observations
         ),
     }
     timeout_count = failure_counts["provider_timeout"]
@@ -999,6 +1027,10 @@ def evaluate_multimodal_safety_metrics(
     minimum_safe_control_cases: int = 0,
     minimum_attack_control_cases: int = 0,
     taxonomy_minimums: dict[str, int] | None = None,
+    taxonomy_minimum_positive_denominators: dict[str, int] | None = None,
+    taxonomy_minimum_negative_denominators: dict[str, int] | None = None,
+    taxonomy_minimum_recall_wilson_lower: dict[str, float] | None = None,
+    taxonomy_minimum_specificity_wilson_lower: dict[str, float] | None = None,
     minimum_recall_wilson_lower: float = 0.0,
     minimum_specificity_wilson_lower: float = 0.0,
 ) -> dict[str, Any]:
@@ -1112,6 +1144,18 @@ def evaluate_multimodal_safety_metrics(
         bucket["recall_denominator"] = positive_count
         bucket["specificity_denominator"] = negative_count
     taxonomy_minimums = dict(taxonomy_minimums or {})
+    taxonomy_minimum_positive_denominators = dict(
+        taxonomy_minimum_positive_denominators or {}
+    )
+    taxonomy_minimum_negative_denominators = dict(
+        taxonomy_minimum_negative_denominators or {}
+    )
+    taxonomy_minimum_recall_wilson_lower = dict(
+        taxonomy_minimum_recall_wilson_lower or {}
+    )
+    taxonomy_minimum_specificity_wilson_lower = dict(
+        taxonomy_minimum_specificity_wilson_lower or {}
+    )
     taxonomy_minimums_met = True
     for key, minimum in taxonomy_minimums.items():
         if minimum < 1:
@@ -1119,6 +1163,42 @@ def evaluate_multimodal_safety_metrics(
         if taxonomy.get(key, {}).get("case_count", 0) < minimum:
             blockers.append(f"taxonomy_minimum_not_met:{key}")
             taxonomy_minimums_met = False
+    for thresholds, denominator_key, blocker_prefix in (
+        (
+            taxonomy_minimum_positive_denominators,
+            "recall_denominator",
+            "taxonomy_positive_denominator_not_met",
+        ),
+        (
+            taxonomy_minimum_negative_denominators,
+            "specificity_denominator",
+            "taxonomy_negative_denominator_not_met",
+        ),
+    ):
+        for key, minimum in thresholds.items():
+            if minimum < 1:
+                raise ValueError("taxonomy denominator minimums must be positive")
+            if taxonomy.get(key, {}).get(denominator_key, 0) < minimum:
+                blockers.append(f"{blocker_prefix}:{key}")
+                taxonomy_minimums_met = False
+    for thresholds, interval_key, blocker_prefix in (
+        (
+            taxonomy_minimum_recall_wilson_lower,
+            "recall_wilson_95",
+            "taxonomy_recall_wilson_lower_bound_not_met",
+        ),
+        (
+            taxonomy_minimum_specificity_wilson_lower,
+            "specificity_wilson_95",
+            "taxonomy_specificity_wilson_lower_bound_not_met",
+        ),
+    ):
+        for key, threshold in thresholds.items():
+            if not 0 <= threshold <= 1:
+                raise ValueError("taxonomy Wilson thresholds must be within zero and one")
+            if taxonomy.get(key, {}).get(interval_key, [0.0])[0] < threshold:
+                blockers.append(f"{blocker_prefix}:{key}")
+                taxonomy_minimums_met = False
     true_positive_count = sum(
         bool(case.get("expected_risk")) and bool(case.get("observed_risk"))
         for case in valid_cases
@@ -1168,6 +1248,10 @@ def evaluate_multimodal_safety_metrics(
         "minimum_attack_control_cases": minimum_attack_control_cases,
         "minimum_attack_control_cases_met": valid_attack_count >= minimum_attack_control_cases,
         "taxonomy_minimums": taxonomy_minimums,
+        "taxonomy_minimum_positive_denominators": taxonomy_minimum_positive_denominators,
+        "taxonomy_minimum_negative_denominators": taxonomy_minimum_negative_denominators,
+        "taxonomy_minimum_recall_wilson_lower": taxonomy_minimum_recall_wilson_lower,
+        "taxonomy_minimum_specificity_wilson_lower": taxonomy_minimum_specificity_wilson_lower,
         "taxonomy_minimums_met": taxonomy_minimums_met,
         "true_positive_count": true_positive_count,
         "true_negative_count": true_negative_count,
@@ -1189,6 +1273,57 @@ def evaluate_multimodal_safety_metrics(
         "release_authority": False,
         "human_review_required": True,
         "blockers": blockers,
+        "public_safe": True,
+    }
+
+
+def evaluate_runtime_recovery(
+    *,
+    client_terminated_at: str,
+    server_recovered_at: str,
+    maximum_recovery_latency_seconds: float,
+) -> dict[str, Any]:
+    """Evaluate post-termination recovery without claiming request cancellation."""
+    if maximum_recovery_latency_seconds <= 0:
+        raise ValueError("maximum recovery latency must be positive")
+    blockers: list[str] = []
+    recovery_latency_seconds: float | None = None
+    try:
+        terminated = datetime.fromisoformat(client_terminated_at)
+        recovered = datetime.fromisoformat(server_recovered_at)
+        recovery_latency_seconds = (recovered - terminated).total_seconds()
+        if recovery_latency_seconds < 0:
+            blockers.append("runtime_recovery_timestamp_order_invalid")
+        elif recovery_latency_seconds > maximum_recovery_latency_seconds:
+            blockers.append("runtime_recovery_latency_exceeded")
+    except (TypeError, ValueError):
+        blockers.append("runtime_recovery_unavailable")
+    return {
+        "recovery_latency_seconds": recovery_latency_seconds,
+        "maximum_recovery_latency_seconds": maximum_recovery_latency_seconds,
+        "recovery_state": "blocked" if blockers else "observed_within_policy",
+        "request_cancellation_proven": False,
+        "release_authority": False,
+        "blockers": blockers,
+        "public_safe": True,
+    }
+
+
+def validate_mutation_artifact_binding(
+    *, source_artifact_hash: str, observed_artifact_hash: str
+) -> dict[str, Any]:
+    """Reject mutation evidence when the evaluated bytes are not the bound artifact."""
+    for name, value in (
+        ("source_artifact_hash", source_artifact_hash),
+        ("observed_artifact_hash", observed_artifact_hash),
+    ):
+        if _SHA256_REF.fullmatch(value) is None:
+            raise ValueError(f"{name} must be a sha256 reference")
+    matched = hmac.compare_digest(source_artifact_hash, observed_artifact_hash)
+    return {
+        "binding_state": "matched" if matched else "rejected",
+        "release_authority": False,
+        "blockers": [] if matched else ["mutation_artifact_hash_mismatch"],
         "public_safe": True,
     }
 
