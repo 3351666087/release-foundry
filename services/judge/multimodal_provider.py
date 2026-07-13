@@ -18,6 +18,8 @@ RETRY_CLASSES = frozenset({"parse", "transport"})
 PARSED_RESPONSE_SCHEMA_VERSION = "a2.parsed_multimodal_response.v1"
 TRANSPORT_RECEIPT_SCHEMA_VERSION = "a2.provider_transport_receipt.v1"
 RESPONSE_DURATION_RECEIPT_SCHEMA_VERSION = "a2.provider_response_duration_receipt.v1"
+REQUEST_COUNT_RECEIPT_SCHEMA_VERSION = "a2.provider_request_count_receipt.v1"
+USAGE_COST_RECEIPT_SCHEMA_VERSION = "a2.provider_usage_cost_receipt.v1"
 
 
 @dataclass(frozen=True)
@@ -116,6 +118,110 @@ class ProviderResponseDurationReceipt:
                 if self.provider_seconds is not None
                 else "wall_clock"
             ),
+            "release_authority": False,
+            "public_safe": True,
+        }
+
+
+@dataclass(frozen=True)
+class ProviderRequestCountReceipt:
+    """Provider-neutral, public-safe accounting for attempted network requests."""
+
+    attempted: int
+    completed: int
+    failed: int
+    maximum_allowed: int
+    schema_version: str = REQUEST_COUNT_RECEIPT_SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        if self.schema_version != REQUEST_COUNT_RECEIPT_SCHEMA_VERSION:
+            raise ValueError("unsupported provider request count receipt version")
+        if min(self.attempted, self.completed, self.failed) < 0:
+            raise ValueError("request counts cannot be negative")
+        if self.maximum_allowed < 1:
+            raise ValueError("maximum request count must be positive")
+        if self.completed + self.failed != self.attempted:
+            raise ValueError("completed plus failed requests must equal attempted")
+        if self.attempted > self.maximum_allowed:
+            raise ValueError("attempted requests exceed the configured maximum")
+
+    def public_receipt(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "attempted": self.attempted,
+            "completed": self.completed,
+            "failed": self.failed,
+            "maximum_allowed": self.maximum_allowed,
+            "budget_exhausted": self.attempted >= self.maximum_allowed,
+            "release_authority": False,
+            "public_safe": True,
+        }
+
+
+@dataclass(frozen=True)
+class ProviderUsageCostReceipt:
+    """Bounded token/cost projection without retaining provider payloads."""
+
+    prompt_tokens: int
+    completion_tokens: int
+    input_usd_per_million_tokens: float | None
+    output_usd_per_million_tokens: float | None
+    maximum_estimated_cost_usd: float
+    schema_version: str = USAGE_COST_RECEIPT_SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        if self.schema_version != USAGE_COST_RECEIPT_SCHEMA_VERSION:
+            raise ValueError("unsupported provider usage cost receipt version")
+        if min(self.prompt_tokens, self.completion_tokens) < 0:
+            raise ValueError("usage tokens cannot be negative")
+        configured_rates = (
+            self.input_usd_per_million_tokens,
+            self.output_usd_per_million_tokens,
+        )
+        if any(value is not None and value < 0 for value in configured_rates):
+            raise ValueError("cost values cannot be negative")
+        if self.maximum_estimated_cost_usd < 0:
+            raise ValueError("cost values cannot be negative")
+
+    @property
+    def pricing_configured(self) -> bool:
+        return (
+            self.input_usd_per_million_tokens is not None
+            and self.output_usd_per_million_tokens is not None
+        )
+
+    @property
+    def estimated_cost_usd(self) -> float | None:
+        if not self.pricing_configured:
+            return None
+        assert self.input_usd_per_million_tokens is not None
+        assert self.output_usd_per_million_tokens is not None
+        return (
+            self.prompt_tokens * self.input_usd_per_million_tokens
+            + self.completion_tokens * self.output_usd_per_million_tokens
+        ) / 1_000_000
+
+    def public_receipt(self) -> dict[str, Any]:
+        projected = self.estimated_cost_usd
+        estimated = round(projected, 8) if projected is not None else None
+        return {
+            "schema_version": self.schema_version,
+            "prompt_tokens": self.prompt_tokens,
+            "completion_tokens": self.completion_tokens,
+            "total_tokens": self.prompt_tokens + self.completion_tokens,
+            "pricing_state": (
+                "configured" if self.pricing_configured else "unavailable"
+            ),
+            "input_usd_per_million_tokens": self.input_usd_per_million_tokens,
+            "output_usd_per_million_tokens": self.output_usd_per_million_tokens,
+            "estimated_cost_usd": estimated,
+            "maximum_estimated_cost_usd": self.maximum_estimated_cost_usd,
+            "within_cost_budget": (
+                estimated <= self.maximum_estimated_cost_usd
+                if estimated is not None
+                else False
+            ),
+            "raw_payload_included": False,
             "release_authority": False,
             "public_safe": True,
         }

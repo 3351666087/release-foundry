@@ -15,11 +15,13 @@ from scripts.a2_ollama_multimodal_matrix import (
     build_matrix,
     classify_public_response,
     complete_partial,
+    load_capability_cache,
     load_partial,
     ollama_invoke,
     ollama_schema_capability_probe,
     partial_binding,
     sha256_ref,
+    write_capability_cache,
 )
 from services.judge.multimodal_provider import (
     ClassifiedProviderTransportError,
@@ -29,6 +31,77 @@ from scripts.a2_generate_round36_multimodal_controls import generate
 
 
 class OllamaMultimodalMatrixTests(unittest.TestCase):
+    def test_round46_probe_worker_deadline_and_capability_layers(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            artifact = Path(directory) / "safe.ppm"
+            artifact.write_bytes(b"P6\n1 1\n255\n\x00\x00\xff")
+            receipt = ollama_schema_capability_probe(
+                model={
+                    "model_id": "slow",
+                    "model_digest": "sha256:" + "a" * 64,
+                },
+                case={"artifact_path": artifact.relative_to(ROOT).as_posix()},
+                invoke=lambda *_: __import__("time").sleep(0.2),
+                timeout_seconds=0.01,
+                maximum_probe_seconds=0.02,
+                runtime={"ollama_version": "test"},
+            )
+        self.assertEqual(
+            receipt["attempt_receipts"][0]["timeout_enforcement"],
+            "worker_detached_after_deadline",
+        )
+        self.assertFalse(
+            receipt["capability_layers"]["object_schema"]["transport_supported"]
+        )
+
+    def test_round46_capability_cache_rejects_digest_runtime_and_expiry_drift(self):
+        model = {"model_id": "m", "model_digest": "sha256:" + "b" * 64}
+        runtime = {"ollama_version": "one"}
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            path = Path(directory) / "cache.json"
+            write_capability_cache(
+                path,
+                model=model,
+                runtime=runtime,
+                receipt={"probe_state": "unsupported"},
+                created_at_epoch_seconds=100,
+            )
+            self.assertIsNotNone(
+                load_capability_cache(
+                    path,
+                    model=model,
+                    runtime=runtime,
+                    maximum_age_seconds=20,
+                    now_epoch_seconds=110,
+                )
+            )
+            self.assertIsNone(
+                load_capability_cache(
+                    path,
+                    model={**model, "model_digest": "sha256:" + "c" * 64},
+                    runtime=runtime,
+                    maximum_age_seconds=20,
+                    now_epoch_seconds=110,
+                )
+            )
+            self.assertIsNone(
+                load_capability_cache(
+                    path,
+                    model=model,
+                    runtime={"ollama_version": "two"},
+                    maximum_age_seconds=20,
+                    now_epoch_seconds=110,
+                )
+            )
+            self.assertIsNone(
+                load_capability_cache(
+                    path,
+                    model=model,
+                    runtime=runtime,
+                    maximum_age_seconds=5,
+                    now_epoch_seconds=110,
+                )
+            )
     def test_round44_capability_probe_distinguishes_plain_json_only(self):
         with tempfile.TemporaryDirectory(dir=ROOT) as directory:
             artifact = Path(directory) / "safe.ppm"
@@ -159,6 +232,124 @@ class OllamaMultimodalMatrixTests(unittest.TestCase):
             trial["capability_skip_receipt"]["network_call_started"]
         )
         self.assertIsNone(trial["cancellation_receipt"])
+
+    def test_round46_plain_json_is_independent_and_request_counts_conserve(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            artifact = Path(directory) / "safe.ppm"
+            artifact.write_bytes(b"P6\n1 1\n255\n\x00\x00\xff")
+            calls = []
+            model = {
+                "model_id": "plain-json-model",
+                "model_digest": "sha256:" + "9" * 64,
+            }
+
+            def invoke(_model, payload, _timeout):
+                calls.append(payload["format"])
+                return {
+                    "response": json.dumps({
+                        "risk_present": False,
+                        "taxonomy_classes": [],
+                        "summary": "safe",
+                    })
+                }
+
+            result = build_matrix(
+                cases=[{
+                    "case_id": "safe",
+                    "taxonomy": "safe_control",
+                    "expected_risk": False,
+                    "artifact_path": artifact.relative_to(ROOT).as_posix(),
+                    "artifact_hash": sha256_ref(artifact.read_bytes()),
+                }],
+                models=[model],
+                formats=["json", "json_schema"],
+                num_predict_values=[64],
+                repeats=1,
+                runtime={
+                    "provider_id": "ollama-local",
+                    "ollama_version": "test",
+                    "base_url_class": "loopback",
+                },
+                invoke=invoke,
+                maximum_local_requests=1,
+                capability_probe_receipts=[{
+                    "schema_version": "a2.ollama_schema_capability_probe.v1",
+                    "model_id_hash": sha256_ref(model["model_id"]),
+                    "model_digest": model["model_digest"],
+                    "object_schema_supported": False,
+                    "plain_json_supported": True,
+                    "probe_state": "plain_json_only",
+                    "object_schema_error_hash": "sha256:" + "7" * 64,
+                    "plain_json_error_hash": "",
+                    "raw_payload_included": False,
+                    "release_authority": False,
+                    "public_safe": True,
+                }],
+                minimum_safe_samples=1,
+            )
+        self.assertEqual(calls, ["json"])
+        by_format = {trial["format_mode"]: trial for trial in result["trials"]}
+        self.assertEqual(by_format["json"]["http_state"], "completed")
+        self.assertTrue(by_format["json"]["promotion_eligible"])
+        self.assertEqual(
+            by_format["json_schema"]["error_class"], "capability_unsupported"
+        )
+        self.assertFalse(by_format["json_schema"]["promotion_eligible"])
+        count = result["request_count_receipt"]
+        self.assertEqual(
+            count["attempted"], count["completed"] + count["failed"]
+        )
+        self.assertEqual(count["attempted"], 1)
+        self.assertEqual(count["completed"], 1)
+        self.assertEqual(count["failed"], 0)
+
+    def test_round46_failed_request_counts_once_and_budget_skip_counts_zero(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            artifact = Path(directory) / "attack.ppm"
+            artifact.write_bytes(b"P6\n1 1\n255\n\xff\x00\x00")
+            calls = 0
+
+            def invoke(*_):
+                nonlocal calls
+                calls += 1
+                raise TimeoutError()
+
+            result = build_matrix(
+                cases=[{
+                    "case_id": "attack",
+                    "taxonomy": "visual_prompt_injection",
+                    "expected_risk": True,
+                    "artifact_path": artifact.relative_to(ROOT).as_posix(),
+                    "artifact_hash": sha256_ref(artifact.read_bytes()),
+                }],
+                models=[{
+                    "model_id": "model",
+                    "model_digest": "sha256:" + "8" * 64,
+                }],
+                formats=["json"],
+                num_predict_values=[64, 128],
+                repeats=1,
+                runtime={
+                    "provider_id": "ollama-local",
+                    "ollama_version": "test",
+                    "base_url_class": "loopback",
+                },
+                invoke=invoke,
+                maximum_local_attempts=1,
+                maximum_local_requests=1,
+            )
+        self.assertEqual(calls, 1)
+        count = result["request_count_receipt"]
+        self.assertEqual(count["attempted"], 1)
+        self.assertEqual(count["completed"], 0)
+        self.assertEqual(count["failed"], 1)
+        self.assertEqual(
+            count["attempted"], count["completed"] + count["failed"]
+        )
+        self.assertIn(
+            "request_budget_exhausted",
+            {trial["error_class"] for trial in result["trials"]},
+        )
 
     def test_round45_cancellation_receipt_cannot_coexist_with_completed_trial(self):
         schema = json.loads(

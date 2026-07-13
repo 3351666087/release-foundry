@@ -25,6 +25,12 @@
         "unavailable": {"type": "integer", "minimum": 0}
       }
     },
+    "pairwise_summaries": {
+      "type": "object",
+      "minProperties": 3,
+      "maxProperties": 3,
+      "additionalProperties": {"$ref": "#/$defs/summary"}
+    },
     "human_review_queue_receipts": {
       "type": "array", "items": {"$ref": "#/$defs/receipt"}
     },
@@ -51,6 +57,16 @@
         "eligible": {"type": "boolean"},
         "parse_state": {"type": "string", "minLength": 1},
         "observed_risk": {"type": ["boolean", "null"]}
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["agreement", "semantic_disagreement", "unavailable"],
+      "properties": {
+        "agreement": {"type": "integer", "minimum": 0},
+        "semantic_disagreement": {"type": "integer", "minimum": 0},
+        "unavailable": {"type": "integer", "minimum": 0}
       }
     },
     "comparison": {

@@ -72,6 +72,20 @@ class ThreeWayComparisonTests(unittest.TestCase):
         )
         self.assertEqual(sum(second["summary"].values()), len(second["comparisons"]))
 
+    def test_round46_pairwise_conservation_and_duplicate_rejection(self):
+        providers = {
+            "qwen": evidence(False),
+            "llava": evidence(True),
+            "dashscope": evidence(False),
+        }
+        result = build_three_way_comparison(providers)
+        self.assertEqual(len(result["pairwise_summaries"]), 3)
+        for summary in result["pairwise_summaries"].values():
+            self.assertEqual(sum(summary.values()), len(result["comparisons"]))
+        providers["qwen"]["trials"].append(dict(providers["qwen"]["trials"][0]))
+        with self.assertRaisesRegex(ValueError, "duplicate comparison case key"):
+            build_three_way_comparison(providers)
+
 
 if __name__ == "__main__":
     unittest.main()

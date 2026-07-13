@@ -31,7 +31,9 @@ from services.judge.multimodal_provider import (
     ClassifiedProviderTransportError,
     MultimodalProviderDefinition,
     OpenAICompatibleMultimodalAdapter,
+    ProviderRequestCountReceipt,
     ProviderResponseDurationReceipt,
+    ProviderUsageCostReceipt,
     ProviderMalformedEnvelope,
     ProviderRateLimited,
     ProviderServerFailure,
@@ -102,6 +104,10 @@ def build_calibration(
     minimum_specificity_wilson_lower: float = 0.0,
     invalid_response_retries: int = 0,
     maximum_run_seconds: float = 3600.0,
+    maximum_cloud_requests: int | None = None,
+    input_usd_per_million_tokens: float | None = None,
+    output_usd_per_million_tokens: float | None = None,
+    maximum_estimated_cost_usd: float = 0.0,
     policy_hash: str | None = None,
 ) -> dict[str, Any]:
     if endpoint_region not in ENDPOINTS:
@@ -125,7 +131,22 @@ def build_calibration(
             raise ValueError(
                 f"taxonomy sensitivity policy is absent from attack manifest: {taxonomy}"
             )
+    planned_requests = len(cases) * repeats * (invalid_response_retries + 1)
+    maximum_cloud_requests = maximum_cloud_requests or max(1, planned_requests)
+    if maximum_cloud_requests < 1:
+        raise ValueError("maximum cloud requests must be positive")
+    if any(
+        value is not None and value < 0
+        for value in (
+            input_usd_per_million_tokens,
+            output_usd_per_million_tokens,
+        )
+    ) or maximum_estimated_cost_usd < 0:
+        raise ValueError("cost policy cannot be negative")
     observations = []
+    request_attempted = 0
+    request_completed = 0
+    request_failed = 0
     run_started = time.monotonic()
     manifest_core = {"cases": cases}
     manifest_hash = sha256_ref(
@@ -222,10 +243,14 @@ def build_calibration(
                     usage = {}
                     transport_receipt = None
                     remaining = maximum_run_seconds - (time.monotonic() - run_started)
-                    if remaining <= 0:
+                    if request_attempted >= maximum_cloud_requests:
+                        http_state = "failed"
+                        error_class = "request_budget_exhausted"
+                    elif remaining <= 0:
                         http_state = "failed"
                         error_class = "run_budget_exhausted"
                     else:
+                        request_attempted += 1
                         try:
                             envelope = invoke(payload, min(timeout_seconds, remaining))
                             if not isinstance(envelope, dict):
@@ -271,6 +296,10 @@ def build_calibration(
                         except Exception:
                             http_state = "failed"
                             error_class = "provider_failure"
+                        if http_state == "completed":
+                            request_completed += 1
+                        else:
+                            request_failed += 1
                     parse_state, observed_risk = (
                         classify_public_response(content)
                         if http_state == "completed"
@@ -365,6 +394,8 @@ def build_calibration(
     all_attempts = [
         attempt for observation in observations for attempt in observation["attempt_receipts"]
     ]
+    if any(item["error_class"] == "request_budget_exhausted" for item in all_attempts):
+        blockers.append("dashscope_request_budget_exhausted")
     if any(item["parse_state"] != "valid_json" for item in all_attempts):
         blockers.append("dashscope_invalid_structured_output_observed")
     recovered_count = sum(
@@ -444,6 +475,31 @@ def build_calibration(
         if sensitivity_interval and specificity_interval
         else None
     )
+    usage_totals = {
+        "prompt_tokens": sum(
+            item["usage"].get("prompt_tokens", 0) for item in all_attempts
+        ),
+        "completion_tokens": sum(
+            item["usage"].get("completion_tokens", 0) for item in all_attempts
+        ),
+    }
+    request_count_receipt = ProviderRequestCountReceipt(
+        attempted=request_attempted,
+        completed=request_completed,
+        failed=request_failed,
+        maximum_allowed=maximum_cloud_requests,
+    ).public_receipt()
+    usage_cost_receipt = ProviderUsageCostReceipt(
+        prompt_tokens=usage_totals["prompt_tokens"],
+        completion_tokens=usage_totals["completion_tokens"],
+        input_usd_per_million_tokens=input_usd_per_million_tokens,
+        output_usd_per_million_tokens=output_usd_per_million_tokens,
+        maximum_estimated_cost_usd=maximum_estimated_cost_usd,
+    ).public_receipt()
+    if usage_cost_receipt["pricing_state"] == "unavailable":
+        blockers.append("dashscope_pricing_unavailable")
+    elif not usage_cost_receipt["within_cost_budget"]:
+        blockers.append("dashscope_estimated_cost_budget_exceeded")
     result = {
         "schema_version": "a2.dashscope_multimodal_calibration.v5",
         "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
@@ -485,7 +541,13 @@ def build_calibration(
             "minimum_specificity_wilson_lower": minimum_specificity_wilson_lower,
             "invalid_response_retries": invalid_response_retries,
             "maximum_run_seconds": maximum_run_seconds,
+            "maximum_cloud_requests": maximum_cloud_requests,
+            "input_usd_per_million_tokens": input_usd_per_million_tokens,
+            "output_usd_per_million_tokens": output_usd_per_million_tokens,
+            "maximum_estimated_cost_usd": maximum_estimated_cost_usd,
         },
+        "request_count_receipt": request_count_receipt,
+        "usage_cost_receipt": usage_cost_receipt,
         "metrics": {
             "eligible_count": len(eligible),
             "retry_recovery_count": recovered_count,
@@ -582,6 +644,10 @@ def main() -> int:
     )
     parser.add_argument("--invalid-response-retries", type=int, default=1)
     parser.add_argument("--maximum-run-seconds", type=float, default=3600.0)
+    parser.add_argument("--maximum-cloud-requests", type=int)
+    parser.add_argument("--input-usd-per-million-tokens", type=float)
+    parser.add_argument("--output-usd-per-million-tokens", type=float)
+    parser.add_argument("--maximum-estimated-cost-usd", type=float, default=0.0)
     parser.add_argument(
         "--resume-from",
         help="Existing v5 result whose policy and ordered case plan must match",
@@ -663,6 +729,10 @@ def main() -> int:
         minimum_specificity_wilson_lower=args.minimum_specificity_wilson_lower,
         invalid_response_retries=args.invalid_response_retries,
         maximum_run_seconds=args.maximum_run_seconds,
+        maximum_cloud_requests=args.maximum_cloud_requests,
+        input_usd_per_million_tokens=args.input_usd_per_million_tokens,
+        output_usd_per_million_tokens=args.output_usd_per_million_tokens,
+        maximum_estimated_cost_usd=args.maximum_estimated_cost_usd,
         policy_hash=expected_policy_hash,
     )
     atomic_write(ROOT / args.output, result)

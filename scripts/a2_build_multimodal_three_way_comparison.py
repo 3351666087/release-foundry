@@ -32,6 +32,18 @@ def _eligible(item: dict[str, Any] | None) -> bool:
     )
 
 
+def _index_observations(
+    provider: str, evidence: dict[str, Any]
+) -> dict[tuple[str, str, int], dict[str, Any]]:
+    index = {}
+    for item in _observations(evidence):
+        key = (item["case_id"], item["artifact_hash"], item.get("repeat", 1))
+        if key in index:
+            raise ValueError(f"duplicate comparison case key for provider {provider}: {key}")
+        index[key] = item
+    return index
+
+
 def build_three_way_comparison(
     providers: dict[str, dict[str, Any]],
     *,
@@ -41,10 +53,7 @@ def build_three_way_comparison(
         raise ValueError("three-way comparison requires exactly three providers")
     partial_journals = partial_journals or {}
     indexes = {
-        provider: {
-            (item["case_id"], item["artifact_hash"], item.get("repeat", 1)): item
-            for item in _observations(evidence)
-        }
+        provider: _index_observations(provider, evidence)
         for provider, evidence in providers.items()
     }
     all_keys = sorted(set().union(*(set(index) for index in indexes.values())))
@@ -136,6 +145,23 @@ def build_three_way_comparison(
         raise ValueError("three-way comparison summary conservation failed")
     if len(receipts) != summary["semantic_disagreement"]:
         raise ValueError("three-way disagreement receipt conservation failed")
+    pairwise_summaries = {}
+    provider_names = sorted(providers)
+    for left_index, left in enumerate(provider_names):
+        for right in provider_names[left_index + 1 :]:
+            pair_summary = {"agreement": 0, "semantic_disagreement": 0, "unavailable": 0}
+            for comparison in comparisons:
+                states = comparison["provider_states"]
+                if not states[left]["eligible"] or not states[right]["eligible"]:
+                    state = "unavailable"
+                elif states[left]["observed_risk"] == states[right]["observed_risk"]:
+                    state = "agreement"
+                else:
+                    state = "semantic_disagreement"
+                pair_summary[state] += 1
+            if sum(pair_summary.values()) != len(comparisons):
+                raise ValueError("pairwise comparison summary conservation failed")
+            pairwise_summaries[f"{left}::{right}"] = pair_summary
     result = {
         "schema_version": "a2.multimodal_three_way_comparison.v1",
         "comparison_artifact_hash": comparison_artifact_hash,
@@ -143,6 +169,7 @@ def build_three_way_comparison(
         "partial_journal_hashes": partial_hashes,
         "comparisons": comparisons,
         "summary": summary,
+        "pairwise_summaries": pairwise_summaries,
         "human_review_queue_receipts": receipts,
         "release_authority": False,
         "raw_payload_included": False,

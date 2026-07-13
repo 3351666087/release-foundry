@@ -51,6 +51,7 @@
         "maximum_model_run_seconds": {"type": "number", "exclusiveMinimum": 0},
         "maximum_case_wall_seconds": {"type": "number", "exclusiveMinimum": 0},
         "maximum_local_attempts": {"type": "integer", "minimum": 1, "maximum": 2},
+        "maximum_local_requests": {"type": "integer", "minimum": 1},
         "minimum_sensitivity_wilson_lower_bound": {
           "type": "number", "minimum": 0, "maximum": 1
         },
@@ -68,6 +69,7 @@
       "type": "array",
       "items": {"$ref": "#/$defs/capabilityProbeReceipt"}
     },
+    "request_count_receipt": {"$ref": "#/$defs/requestCountReceipt"},
     "startup_latency_seconds": {
       "type": "object",
       "propertyNames": {"enum": ["cold", "warm"]},
@@ -421,6 +423,25 @@
         "probe_state": {"enum": ["object_schema", "plain_json_only", "unsupported"]},
         "object_schema_error_hash": {"$ref": "#/$defs/optionalHash"},
         "plain_json_error_hash": {"$ref": "#/$defs/optionalHash"},
+        "cache_key": {"$ref": "#/$defs/hash"},
+        "capability_layers": {
+          "type": "object",
+          "propertyNames": {"enum": ["object_schema", "plain_json"]},
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "transport_supported", "envelope_valid", "json_valid",
+              "schema_semantics_valid"
+            ],
+            "properties": {
+              "transport_supported": {"type": "boolean"},
+              "envelope_valid": {"type": "boolean"},
+              "json_valid": {"type": "boolean"},
+              "schema_semantics_valid": {"type": "boolean"}
+            }
+          }
+        },
         "runtime_version_hash": {"$ref": "#/$defs/hash"},
         "prompt_hash": {"$ref": "#/$defs/hash"},
         "output_schema_hash": {"$ref": "#/$defs/hash"},
@@ -451,11 +472,36 @@
                 "type": "number", "minimum": 0
               },
               "network_call_started": {"type": "boolean"},
+              "timeout_enforcement": {
+                "enum": [
+                  "client_side_budget",
+                  "provider_side",
+                  "worker_detached_after_deadline"
+                ]
+              },
               "error_hash": {"$ref": "#/$defs/optionalHash"}
             }
           }
         },
         "raw_payload_included": {"const": false},
+        "release_authority": {"const": false},
+        "public_safe": {"const": true}
+      }
+    },
+    "requestCountReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version", "attempted", "completed", "failed", "maximum_allowed",
+        "budget_exhausted", "release_authority", "public_safe"
+      ],
+      "properties": {
+        "schema_version": {"const": "a2.provider_request_count_receipt.v1"},
+        "attempted": {"type": "integer", "minimum": 0},
+        "completed": {"type": "integer", "minimum": 0},
+        "failed": {"type": "integer", "minimum": 0},
+        "maximum_allowed": {"type": "integer", "minimum": 1},
+        "budget_exhausted": {"type": "boolean"},
         "release_authority": {"const": false},
         "public_safe": {"const": true}
       }

@@ -12,6 +12,8 @@ from services.judge.multimodal_provider import (
     ParseRetryPolicy,
     ClassifiedProviderTransportError,
     ProviderResponseDurationReceipt,
+    ProviderRequestCountReceipt,
+    ProviderUsageCostReceipt,
     ProviderRateLimited,
     TransportRetryPolicy,
     build_provider_conformance_receipt,
@@ -119,6 +121,38 @@ class MultimodalProviderTests(unittest.TestCase):
             ProviderResponseDurationReceipt(
                 wall_seconds=1,
                 provider_source="ollama.total_duration",
+            )
+
+    def test_round46_request_and_usage_cost_receipts_are_bounded(self):
+        count = ProviderRequestCountReceipt(
+            attempted=3, completed=2, failed=1, maximum_allowed=4
+        ).public_receipt()
+        self.assertEqual(count["attempted"], 3)
+        self.assertFalse(count["budget_exhausted"])
+        usage = ProviderUsageCostReceipt(
+            prompt_tokens=1000,
+            completion_tokens=500,
+            input_usd_per_million_tokens=2,
+            output_usd_per_million_tokens=4,
+            maximum_estimated_cost_usd=0.01,
+        ).public_receipt()
+        self.assertEqual(usage["total_tokens"], 1500)
+        self.assertEqual(usage["pricing_state"], "configured")
+        self.assertTrue(usage["within_cost_budget"])
+        self.assertFalse(usage["raw_payload_included"])
+        unknown = ProviderUsageCostReceipt(
+            prompt_tokens=1000,
+            completion_tokens=500,
+            input_usd_per_million_tokens=None,
+            output_usd_per_million_tokens=None,
+            maximum_estimated_cost_usd=1,
+        ).public_receipt()
+        self.assertEqual(unknown["pricing_state"], "unavailable")
+        self.assertIsNone(unknown["estimated_cost_usd"])
+        self.assertFalse(unknown["within_cost_budget"])
+        with self.assertRaisesRegex(ValueError, "must equal"):
+            ProviderRequestCountReceipt(
+                attempted=3, completed=1, failed=1, maximum_allowed=4
             )
 
     def test_offline_adapter_has_explicit_valid_invalid_timeout_rate_limit(self):

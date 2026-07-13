@@ -10,6 +10,7 @@ import statistics
 import sys
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Callable
@@ -24,6 +25,7 @@ if str(ROOT) not in sys.path:
 from services.judge.multimodal_provider import (
     ClassifiedProviderTransportError,
     ParseRetryPolicy,
+    ProviderRequestCountReceipt,
     ProviderResponseDurationReceipt,
     classified_transport_error,
     parse_ollama_response,
@@ -47,6 +49,7 @@ OUTPUT_SCHEMA = {
 }
 _MODEL_LOCKS: dict[str, threading.Lock] = {}
 _MODEL_LOCKS_GUARD = threading.Lock()
+CAPABILITY_CACHE_SCHEMA_VERSION = "a2.ollama_capability_cache.v1"
 
 
 def _model_lock(model_id: str) -> threading.Lock:
@@ -133,6 +136,90 @@ def _duration_receipt(
         provider_seconds=provider_seconds,
         provider_source="ollama.total_duration" if provider_seconds is not None else "",
     ).public_receipt()
+
+
+def _invoke_with_worker_deadline(
+    invoke: Callable[[str, dict[str, Any], float], dict[str, Any]],
+    model_id: str,
+    payload: dict[str, Any],
+    timeout_seconds: float,
+) -> tuple[dict[str, Any], str]:
+    """Stop waiting at a caller-side deadline even if an adapter ignores timeout.
+
+    Python cannot terminate a running thread, so the receipt intentionally records
+    detachment rather than claiming that the provider request was terminated.
+    """
+    executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="a2-capability-probe")
+    future = executor.submit(invoke, model_id, payload, timeout_seconds)
+    try:
+        return future.result(timeout=timeout_seconds), "provider_side"
+    except FutureTimeoutError as exc:
+        future.cancel()
+        raise classified_transport_error("capability_probe_worker_timeout") from exc
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
+
+
+def capability_cache_key(
+    model: dict[str, str], runtime: dict[str, str] | None = None
+) -> str:
+    return sha256_ref(
+        canonical(
+            {
+                "model_digest": model["model_digest"],
+                "runtime_version_hash": sha256_ref(
+                    canonical(runtime or {"runtime": "unspecified"})
+                ),
+                "prompt_hash": sha256_ref(PROMPT),
+                "output_schema_hash": sha256_ref(canonical(OUTPUT_SCHEMA)),
+            }
+        )
+    )
+
+
+def load_capability_cache(
+    path: Path,
+    *,
+    model: dict[str, str],
+    runtime: dict[str, str],
+    maximum_age_seconds: float,
+    now_epoch_seconds: float | None = None,
+) -> dict[str, Any] | None:
+    if maximum_age_seconds <= 0:
+        raise ValueError("capability cache maximum age must be positive")
+    if not path.exists():
+        return None
+    value = json.loads(path.read_text(encoding="utf-8"))
+    if value.get("schema_version") != CAPABILITY_CACHE_SCHEMA_VERSION:
+        return None
+    now_epoch_seconds = now_epoch_seconds or time.time()
+    if value.get("cache_key") != capability_cache_key(model, runtime):
+        return None
+    if now_epoch_seconds - float(value.get("created_at_epoch_seconds", 0)) > maximum_age_seconds:
+        return None
+    receipt = value.get("receipt")
+    return receipt if isinstance(receipt, dict) else None
+
+
+def write_capability_cache(
+    path: Path,
+    *,
+    model: dict[str, str],
+    runtime: dict[str, str],
+    receipt: dict[str, Any],
+    created_at_epoch_seconds: float | None = None,
+) -> None:
+    atomic_write(
+        path,
+        {
+            "schema_version": CAPABILITY_CACHE_SCHEMA_VERSION,
+            "cache_key": capability_cache_key(model, runtime),
+            "created_at_epoch_seconds": created_at_epoch_seconds or time.time(),
+            "receipt": receipt,
+            "release_authority": False,
+            "public_safe": True,
+        },
+    )
 
 
 def _cancellation_receipt(
@@ -412,6 +499,7 @@ def build_matrix(
     maximum_local_attempts: int = 2,
     maximum_case_wall_seconds: float = 120,
     diagnostic_unsupported_native_schema: bool = False,
+    maximum_local_requests: int | None = None,
 ) -> dict[str, Any]:
     if invalid_response_retries not in {0, 1}:
         raise ValueError("local parse retry must be bounded to at most one retry")
@@ -419,6 +507,16 @@ def build_matrix(
         raise ValueError("maximum local attempts must be one or two")
     if maximum_case_wall_seconds <= 0:
         raise ValueError("maximum case wall seconds must be positive")
+    planned_requests = (
+        len(cases) * len(models) * len(formats) * len(num_predict_values) * repeats
+        * maximum_local_attempts
+    )
+    maximum_local_requests = maximum_local_requests or max(1, planned_requests)
+    if maximum_local_requests < 1:
+        raise ValueError("maximum local requests must be positive")
+    request_attempted = 0
+    request_completed = 0
+    request_failed = 0
     parse_retry_policy = ParseRetryPolicy(max_retries=invalid_response_retries)
     trials: list[dict[str, Any]] = list(initial_trials or [])
     prompt_hash = sha256_ref(PROMPT)
@@ -573,6 +671,14 @@ def build_matrix(
                             if progress_callback is not None:
                                 progress_callback(trial)
                             continue
+                        if (
+                            format_mode == "json"
+                            and capability is not None
+                            and not capability["plain_json_supported"]
+                        ):
+                            # Plain JSON is an independent production mode. It never
+                            # inherits native-schema capability or promotion status.
+                            capability = None
                         remaining_budget = maximum_model_run_seconds - (
                             time.monotonic() - model_started[model["model_id"]]
                         )
@@ -641,6 +747,11 @@ def build_matrix(
                                         "model_run_budget_exhausted"
                                     )
                                 with _model_lock(model["model_id"]):
+                                    if request_attempted >= maximum_local_requests:
+                                        raise classified_transport_error(
+                                            "request_budget_exhausted"
+                                        )
+                                    request_attempted += 1
                                     envelope = invoke(
                                         model["model_id"],
                                         attempt_payload,
@@ -660,6 +771,7 @@ def build_matrix(
                                 done_reason = str(envelope.get("done_reason") or "")
                                 eval_count = envelope.get("eval_count")
                                 provider_durations = _ollama_provider_durations(envelope)
+                                request_completed += 1
                             except ClassifiedProviderTransportError as exc:
                                 http_state = "failed"
                                 error_class = exc.error_class
@@ -674,6 +786,8 @@ def build_matrix(
                             except Exception:
                                 http_state = "failed"
                                 error_class = "provider_failure"
+                            if request_attempted > request_completed + request_failed:
+                                request_failed += 1
                             parse_state, observed_risk = (
                                 classify_public_response(response_text)
                                 if http_state == "completed"
@@ -865,6 +979,7 @@ def build_matrix(
             "maximum_model_run_seconds": maximum_model_run_seconds,
             "maximum_local_attempts": maximum_local_attempts,
             "maximum_case_wall_seconds": maximum_case_wall_seconds,
+            "maximum_local_requests": maximum_local_requests,
             "minimum_sensitivity_wilson_lower_bound": (
                 minimum_sensitivity_wilson_lower_bound
             ),
@@ -875,6 +990,12 @@ def build_matrix(
         "trials": trials,
         "preflight_receipts": preflight_receipts or [],
         "capability_probe_receipts": capability_probe_receipts or [],
+        "request_count_receipt": ProviderRequestCountReceipt(
+            attempted=request_attempted,
+            completed=request_completed,
+            failed=request_failed,
+            maximum_allowed=maximum_local_requests,
+        ).public_receipt(),
         "startup_latency_seconds": startup_latency,
         "binding_summaries": binding_summaries,
         "metric_denominator_rule": "completed_and_valid_json_semantics_only",
@@ -1009,6 +1130,7 @@ def ollama_schema_capability_probe(
         "object_schema_supported": False,
         "plain_json_supported": False,
     }
+    capability_layers: dict[str, dict[str, bool]] = {}
     error_hashes: dict[str, str] = {"object_schema": "", "plain_json": ""}
     attempt_receipts: list[dict[str, Any]] = []
     probe_started = time.monotonic()
@@ -1020,20 +1142,30 @@ def ollama_schema_capability_probe(
         attempt_started = time.monotonic()
         network_call_started = False
         state = "failed"
+        timeout_enforcement = "client_side_budget"
+        transport_supported = False
+        envelope_valid = False
+        json_valid = False
+        schema_semantics_valid = False
         remaining_budget = probe_budget - (time.monotonic() - probe_started)
         try:
             if remaining_budget <= 0:
                 raise classified_transport_error("capability_probe_budget_exhausted")
             network_call_started = True
-            envelope = invoke(
-                model["model_id"], payload, min(timeout_seconds, remaining_budget)
+            effective_timeout = min(timeout_seconds, remaining_budget)
+            envelope, timeout_enforcement = _invoke_with_worker_deadline(
+                invoke, model["model_id"], payload, effective_timeout
             )
+            transport_supported = True
             if not isinstance(envelope, dict):
                 raise ValueError("malformed ollama envelope")
             parsed = parse_ollama_response(envelope)
+            envelope_valid = parsed.envelope_state == "completed"
             parse_state, _ = classify_public_response(parsed.content_text)
+            json_valid = parse_state not in {"empty_response", "nonempty_invalid_json"}
+            schema_semantics_valid = parse_state == "valid_json"
             results[f"{label}_supported"] = (
-                parsed.envelope_state == "completed" and parse_state == "valid_json"
+                envelope_valid and schema_semantics_valid
             )
             state = "supported" if results[f"{label}_supported"] else "unsupported"
             if not results[f"{label}_supported"]:
@@ -1042,8 +1174,16 @@ def ollama_schema_capability_probe(
                 )
         except ClassifiedProviderTransportError as exc:
             error_hashes[label] = exc.receipt.public_receipt()["error_class_hash"]
+            if exc.error_class == "capability_probe_worker_timeout":
+                timeout_enforcement = "worker_detached_after_deadline"
         except Exception as exc:
             error_hashes[label] = sha256_ref(type(exc).__name__)
+        capability_layers[label] = {
+            "transport_supported": transport_supported,
+            "envelope_valid": envelope_valid,
+            "json_valid": json_valid,
+            "schema_semantics_valid": schema_semantics_valid,
+        }
         attempt_receipts.append(
             {
                 "format_mode": label,
@@ -1054,6 +1194,7 @@ def ollama_schema_capability_probe(
                     max(0.0, remaining_budget), 6
                 ),
                 "network_call_started": network_call_started,
+                "timeout_enforcement": timeout_enforcement,
                 "error_hash": error_hashes[label],
             }
         )
@@ -1072,6 +1213,8 @@ def ollama_schema_capability_probe(
         ),
         "object_schema_error_hash": error_hashes["object_schema"],
         "plain_json_error_hash": error_hashes["plain_json"],
+        "capability_layers": capability_layers,
+        "cache_key": capability_cache_key(model, runtime),
         "runtime_version_hash": sha256_ref(
             canonical(runtime or {"runtime": "unspecified"})
         ),
@@ -1224,6 +1367,9 @@ def main() -> int:
     parser.add_argument("--maximum-capability-probe-seconds", type=float, default=120)
     parser.add_argument("--maximum-case-wall-seconds", type=float, default=120)
     parser.add_argument("--maximum-local-attempts", type=int, choices=[1, 2], default=2)
+    parser.add_argument("--maximum-local-requests", type=int)
+    parser.add_argument("--capability-cache")
+    parser.add_argument("--capability-cache-maximum-age-seconds", type=float, default=86400)
     parser.add_argument(
         "--diagnostic-unsupported-native-schema", action="store_true"
     )
@@ -1257,19 +1403,40 @@ def main() -> int:
     if any(receipt["state"] != "ready" for receipt in preflight_receipts):
         raise SystemExit("Ollama preflight rejected runtime/model binding")
     invoke = ollama_invoke(args.base_url)
-    capability_probe_receipts = [
-        ollama_schema_capability_probe(
-            model=model,
-            case=manifest["cases"][0],
-            invoke=invoke,
-            timeout_seconds=min(
-                args.timeout_seconds, args.maximum_capability_probe_seconds
-            ),
-            runtime=runtime,
-            maximum_probe_seconds=args.maximum_capability_probe_seconds,
+    capability_probe_receipts = []
+    cache_base = ROOT / args.capability_cache if args.capability_cache else None
+    for model in models:
+        cache_path = (
+            cache_base / f"{sha256_ref(model['model_id']).removeprefix('sha256:')}.json"
+            if cache_base
+            else None
         )
-        for model in models
-    ]
+        receipt = (
+            load_capability_cache(
+                cache_path,
+                model=model,
+                runtime=runtime,
+                maximum_age_seconds=args.capability_cache_maximum_age_seconds,
+            )
+            if cache_path
+            else None
+        )
+        if receipt is None:
+            receipt = ollama_schema_capability_probe(
+                model=model,
+                case=manifest["cases"][0],
+                invoke=invoke,
+                timeout_seconds=min(
+                    args.timeout_seconds, args.maximum_capability_probe_seconds
+                ),
+                runtime=runtime,
+                maximum_probe_seconds=args.maximum_capability_probe_seconds,
+            )
+            if cache_path:
+                write_capability_cache(
+                    cache_path, model=model, runtime=runtime, receipt=receipt
+                )
+        capability_probe_receipts.append(receipt)
     binding = partial_binding(
         manifest,
         runtime,
@@ -1300,6 +1467,7 @@ def main() -> int:
         maximum_model_run_seconds=args.maximum_model_run_seconds,
         maximum_case_wall_seconds=args.maximum_case_wall_seconds,
         maximum_local_attempts=args.maximum_local_attempts,
+        maximum_local_requests=args.maximum_local_requests,
         diagnostic_unsupported_native_schema=(
             args.diagnostic_unsupported_native_schema
         ),

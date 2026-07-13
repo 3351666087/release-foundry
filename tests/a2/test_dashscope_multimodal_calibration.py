@@ -19,10 +19,112 @@ from scripts.a2_dashscope_multimodal_calibration import (
 )
 from scripts.a2_generate_round37_multimodal_controls import generate
 from scripts.a2_generate_round38_multimodal_controls import generate as generate_round38
+from scripts.a2_generate_round46_multimodal_controls import generate as generate_round46
 from scripts.a2_ollama_multimodal_matrix import ROOT, sha256_ref
 
 
 class DashScopeMultimodalCalibrationTests(unittest.TestCase):
+    def test_round46_controls_are_deterministic_and_cover_text_and_transforms(self):
+        first = generate_round46()
+        second = generate_round46()
+        schema = json.loads(
+            (ROOT / "docs/a2/schemas/multimodal_runtime_cases.schema.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        jsonschema.Draft202012Validator(schema).validate(second)
+        self.assertEqual(
+            {case["case_id"]: case["artifact_hash"] for case in first["cases"]},
+            {case["case_id"]: case["artifact_hash"] for case in second["cases"]},
+        )
+        self.assertEqual(len(second["cases"]), 35)
+        self.assertEqual(
+            sum(not case["expected_risk"] for case in second["cases"]), 15
+        )
+        self.assertEqual(sum(case["expected_risk"] for case in second["cases"]), 20)
+        benign = [
+            case for case in second["cases"] if case["taxonomy"] == "benign_text_safe"
+        ]
+        transformed = [
+            case for case in second["cases"] if "source_case_id" in case
+        ]
+        self.assertEqual(len(benign), 5)
+        self.assertEqual(len(transformed), 5)
+        self.assertEqual(
+            {case["perturbation"]["kind"] for case in transformed},
+            {"rotation", "jpeg_compression"},
+        )
+
+    def test_round46_unknown_pricing_is_not_treated_as_free(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            artifact = Path(directory) / "safe.png"
+            Image.new("RGB", (1, 1), (20, 20, 200)).save(artifact)
+            result = build_calibration(
+                cases=[{
+                    "case_id": "pricing-unknown",
+                    "taxonomy": "safe_control",
+                    "expected_risk": False,
+                    "artifact_path": artifact.relative_to(ROOT).as_posix(),
+                    "artifact_hash": sha256_ref(artifact.read_bytes()),
+                }],
+                model_id="qwen-vl-plus",
+                endpoint_region="beijing",
+                invoke=lambda *_: {
+                    "model": "qwen-vl-plus",
+                    "choices": [{"message": {"content": json.dumps({
+                        "risk_present": False,
+                        "taxonomy_classes": [],
+                        "summary": "safe",
+                    })}}],
+                    "usage": {"prompt_tokens": 10, "completion_tokens": 5},
+                },
+                minimum_safe_samples=1,
+                minimum_attack_samples=1,
+            )
+        self.assertEqual(result["usage_cost_receipt"]["pricing_state"], "unavailable")
+        self.assertIsNone(result["usage_cost_receipt"]["estimated_cost_usd"])
+        self.assertFalse(result["usage_cost_receipt"]["within_cost_budget"])
+        self.assertIn("dashscope_pricing_unavailable", result["blockers"])
+
+    def test_round46_request_budget_and_usage_cost_are_fail_closed(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            artifact = Path(directory) / "attack.png"
+            Image.new("RGB", (1, 1), (200, 20, 20)).save(artifact)
+            case = {
+                "case_id": "request-budget",
+                "taxonomy": "attack",
+                "expected_risk": True,
+                "artifact_path": artifact.relative_to(ROOT).as_posix(),
+                "artifact_hash": sha256_ref(artifact.read_bytes()),
+            }
+            calls = 0
+
+            def invoke(*_):
+                nonlocal calls
+                calls += 1
+                return {
+                    "model": "qwen-vl-plus",
+                    "choices": [{"message": {"content": "not-json"}}],
+                    "usage": {"prompt_tokens": 100, "completion_tokens": 50},
+                }
+
+            result = build_calibration(
+                cases=[case],
+                model_id="qwen-vl-plus",
+                endpoint_region="beijing",
+                invoke=invoke,
+                invalid_response_retries=1,
+                maximum_cloud_requests=1,
+                input_usd_per_million_tokens=100,
+                output_usd_per_million_tokens=100,
+                maximum_estimated_cost_usd=0.001,
+                minimum_safe_samples=1,
+                minimum_attack_samples=1,
+            )
+        self.assertEqual(calls, 1)
+        self.assertEqual(result["request_count_receipt"]["attempted"], 1)
+        self.assertIn("dashscope_request_budget_exhausted", result["blockers"])
+        self.assertIn("dashscope_estimated_cost_budget_exceeded", result["blockers"])
     def test_round42_resume_policy_mismatch_stops_before_provider_invocation(self):
         with tempfile.TemporaryDirectory(dir=ROOT) as directory:
             base = Path(directory)
@@ -672,6 +774,8 @@ class DashScopeMultimodalCalibrationTests(unittest.TestCase):
                 minimum_taxonomy_samples=2,
                 minimum_sensitivity=1.0,
                 minimum_specificity=1.0,
+                input_usd_per_million_tokens=0,
+                output_usd_per_million_tokens=0,
             )
         taxonomy = result["metrics"]["taxonomy_metrics"]["attack_taxonomy"]
         self.assertEqual(taxonomy["eligible_count"], 2)
