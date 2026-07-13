@@ -353,6 +353,66 @@ class ProcessInterruptedAdapter:
 
 
 class ReleaseDecisionOrchestratorTests(unittest.TestCase):
+    def test_round33_taxonomy_policy_hash_change_conflicts_and_legacy_recovery_fails_closed(self):
+        connection = sqlite3.connect(":memory:")
+        try:
+            initialize_sql_store(connection)
+            candidate = request()
+            candidate["taxonomy_policy_hash"] = "sha256:" + "1" * 64
+
+            def fail(point):
+                if point == "after_provider_outcome_committed":
+                    raise OSError("stop")
+
+            with self.assertRaises(OSError):
+                execute_release_decision(
+                    candidate,
+                    gateway=gateway(),
+                    key_resolver=lambda _: KEY,
+                    now_unix_ms=NOW,
+                    persistence_connection=connection,
+                    persistence_failure_injector=fail,
+                )
+            changed = request()
+            changed["taxonomy_policy_hash"] = "sha256:" + "2" * 64
+            with self.assertRaises(IdempotencyConflictError):
+                execute_release_decision(
+                    changed,
+                    gateway=gateway(),
+                    key_resolver=lambda _: KEY,
+                    now_unix_ms=NOW,
+                    persistence_connection=connection,
+                )
+
+            operation_id = connection.execute(
+                "SELECT operation_id FROM a2_decision_operations"
+            ).fetchone()[0]
+            envelope = json.loads(
+                connection.execute(
+                    "SELECT recovery_envelope_json FROM a2_provider_outcomes"
+                ).fetchone()[0]
+            )
+            envelope.pop("taxonomy_policy_hash")
+            connection.execute(
+                "UPDATE a2_provider_outcomes SET recovery_envelope_json = ?, recovery_envelope_hash = ?",
+                (
+                    json.dumps(envelope, sort_keys=True, separators=(",", ":")),
+                    stable_hash(envelope),
+                ),
+            )
+            connection.commit()
+            with self.assertRaisesRegex(ValueError, "governed schema"):
+                load_decision_recovery_envelope(
+                    connection,
+                    operation_id=operation_id,
+                    scope={key: candidate[key] for key in (
+                        "organization_id", "tenant_id", "workspace_id",
+                        "project_id", "environment_id",
+                    )},
+                )
+        finally:
+            connection.close()
+
     def test_trust_policy_normalization_rejects_ungoverned_issuers_and_hashes(self):
         base = {
             "schema_version": "a2.evaluation_trust_policy.v1",

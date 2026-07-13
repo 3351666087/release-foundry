@@ -6,6 +6,9 @@ import tempfile
 import threading
 import base64
 import os
+import multiprocessing
+import subprocess
+import sys
 from pathlib import Path
 
 from services.judge.result_persistence import (
@@ -16,6 +19,7 @@ from services.judge.result_persistence import (
     build_structured_output_failure_record,
     discover_directory_flush_capability,
     observe_filesystem_volume_hash,
+    observe_parent_directory_durability,
     stable_hash,
     verify_jsonl_manifest,
     verify_jsonl_manifest_predecessor,
@@ -152,6 +156,7 @@ class A2ResultPersistenceTests(unittest.TestCase):
         from cryptography.hazmat.primitives import serialization
         from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
         from services.judge.provider_receipt_verification import (
+            PersistentReplaySet,
             ReplaySet,
             verify_ed25519_receipt,
             verify_receipt_operation_binding,
@@ -162,7 +167,12 @@ class A2ResultPersistenceTests(unittest.TestCase):
             "nonce_hash": "sha256:" + "3" * 64,
         }
         private = Ed25519PrivateKey.generate()
-        message = json.dumps(receipt, sort_keys=True, separators=(",", ":")).encode()
+        signed_identity = {
+            "signature_algorithm": "ed25519",
+            "canonicalization_version": "rfc8785-subset-json-v1",
+            "receipt": receipt,
+        }
+        message = json.dumps(signed_identity, sort_keys=True, separators=(",", ":")).encode()
         public = private.public_key().public_bytes(
             serialization.Encoding.Raw, serialization.PublicFormat.Raw
         )
@@ -174,8 +184,16 @@ class A2ResultPersistenceTests(unittest.TestCase):
             key_id="key-1",
             key_policy={
                 "schema_version": "a2.provider_receipt_key_policy.v1",
-                "allowed_keys": {"key-1": {"issuer": "local-test", "state": "active"}},
+                "allowed_keys": {
+                    "key-1": {
+                        "issuer": "local-test",
+                        "state": "active",
+                        "effective_at_unix_ms": 100,
+                        "expires_at_unix_ms": 300,
+                    }
+                },
             },
+            now_unix_ms=200,
         )
         self.assertEqual(verified["verification_state"], "verified")
         binding = verify_receipt_operation_binding(
@@ -202,16 +220,111 @@ class A2ResultPersistenceTests(unittest.TestCase):
                     post_replace_hook=lambda target: target.write_bytes(b"corrupt"),
                 )
 
+        with tempfile.TemporaryDirectory() as directory:
+            persistent_path = Path(directory) / "replay.json"
+            self.assertTrue(PersistentReplaySet(persistent_path).admit(receipt["nonce_hash"])["admitted"])
+            self.assertFalse(PersistentReplaySet(persistent_path).admit(receipt["nonce_hash"])["admitted"])
+
+    def test_round33_receipt_key_time_rotation_and_identity_fail_closed(self):
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+        from services.judge.provider_receipt_verification import verify_ed25519_receipt
+
+        receipt = {"nonce_hash": "sha256:" + "4" * 64}
+        private = Ed25519PrivateKey.generate()
+        public = private.public_key().public_bytes(
+            serialization.Encoding.Raw, serialization.PublicFormat.Raw
+        )
+        identity = {
+            "signature_algorithm": "ed25519",
+            "canonicalization_version": "rfc8785-subset-json-v1",
+            "receipt": receipt,
+        }
+        signature = base64.b64encode(
+            private.sign(json.dumps(identity, sort_keys=True, separators=(",", ":")).encode())
+        ).decode()
+
+        def verify(state="active", now=200, algorithm="ed25519", canonicalization="rfc8785-subset-json-v1"):
+            return verify_ed25519_receipt(
+                receipt=receipt,
+                signature_base64=signature,
+                public_key_base64=base64.b64encode(public).decode(),
+                issuer="issuer",
+                key_id="rotating",
+                key_policy={
+                    "schema_version": "a2.provider_receipt_key_policy.v1",
+                    "allowed_keys": {
+                        "rotating": {
+                            "issuer": "issuer",
+                            "state": state,
+                            "effective_at_unix_ms": 100,
+                            "expires_at_unix_ms": 300,
+                        }
+                    },
+                },
+                now_unix_ms=now,
+                signature_algorithm=algorithm,
+                canonicalization_version=canonicalization,
+            )
+
+        self.assertEqual(verify()["verification_state"], "verified")
+        self.assertIn("provider_receipt_key_not_yet_active", verify(now=99)["blockers"])
+        self.assertIn("provider_receipt_key_expired", verify(now=300)["blockers"])
+        self.assertIn("provider_receipt_key_not_active", verify(state="revoked")["blockers"])
+        self.assertIn(
+            "provider_receipt_signature_algorithm_unsupported",
+            verify(algorithm="rsa")["blockers"],
+        )
+        self.assertIn(
+            "provider_receipt_canonicalization_unsupported",
+            verify(canonicalization="legacy-json")["blockers"],
+        )
+
+    def test_round33_persistent_replay_set_multiprocess_contention(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "multiprocess-replay.json"
+            program = (
+                "from services.judge.provider_receipt_verification import PersistentReplaySet;"
+                "import sys;"
+                "print(int(PersistentReplaySet(sys.argv[1]).admit(sys.argv[2])['admitted']))"
+            )
+            processes = [
+                subprocess.Popen(
+                    [sys.executable, "-c", program, str(path), "sha256:" + "7" * 64],
+                    cwd=ROOT,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    text=True,
+                )
+                for _ in range(6)
+            ]
+            results = []
+            for process in processes:
+                stdout, stderr = process.communicate(timeout=20)
+                self.assertEqual(process.returncode, 0, stderr)
+                results.append(int(stdout.strip()))
+            self.assertEqual(results.count(1), 1)
+
     def test_round32_volume_observation_and_directory_flush_discovery_are_public_safe(self):
         with tempfile.TemporaryDirectory() as directory:
             observation = observe_filesystem_volume_hash(directory)
         self.assertRegex(observation["filesystem_volume_id_hash"], r"^sha256:[0-9a-f]{64}$")
         self.assertFalse(observation["raw_identifier_exposed"])
+        self.assertIn(
+            observation["observation_method"],
+            {"resolved_drive_hash", "windows_volume_api_hashed"},
+        )
         capability = discover_directory_flush_capability()
         self.assertIn(capability["directory_flush_state"], {"supported", "not_exposed"})
         self.assertTrue(capability["public_safe"])
         if os.name == "nt":
             self.assertFalse(capability["durability_claim_allowed"])
+        with tempfile.TemporaryDirectory() as directory:
+            durability = observe_parent_directory_durability(Path(directory) / "result.jsonl")
+        self.assertTrue(durability["public_safe"])
+        if os.name == "nt":
+            self.assertFalse(durability["durability_claim_allowed"])
+            self.assertIn("parent_directory_flush_evidence_unavailable", durability["blockers"])
 
     def test_jsonl_manifest_chains_batches_and_blocks_truncated_line(self):
         with tempfile.TemporaryDirectory() as directory:

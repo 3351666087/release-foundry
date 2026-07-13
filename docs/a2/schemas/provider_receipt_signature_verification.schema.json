@@ -13,7 +13,9 @@
     "blockers",
     "public_safe",
     "key_id",
-    "key_policy_hash"
+    "key_policy_hash",
+    "canonicalization_version",
+    "signed_identity_hash"
   ],
   "properties": {
     "schema_version": {
@@ -55,6 +57,14 @@
       "minLength": 1
     },
     "key_policy_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "canonicalization_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "signed_identity_hash": {
       "type": "string",
       "pattern": "^sha256:[a-f0-9]{64}$"
     }

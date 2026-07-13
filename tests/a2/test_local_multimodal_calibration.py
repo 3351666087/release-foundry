@@ -1,5 +1,6 @@
-import json
+﻿import json
 import unittest
+import hashlib
 from pathlib import Path
 
 import jsonschema
@@ -40,6 +41,7 @@ from services.judge.local_multimodal_calibration import (
     validate_requested_allow_ledger,
     validate_mutation_artifact_binding,
     validate_runtime_binding,
+    verify_external_provenance_retrieval,
 )
 from services.judge.ocr_contract import build_offline_ocr_closure
 
@@ -1487,6 +1489,7 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
             health_status_codes=[200, 200, 200],
             health_semantic_states=["healthy", "healthy", "healthy"],
             health_response_schema_validity=[True, True, True],
+            health_response_schema_versions=["a2.runtime_health_response.v1"] * 3,
         )
         self.assert_schema("runtime_recovery_summary.schema.json", recovery)
 
@@ -1584,6 +1587,7 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
             health_status_codes=[503],
             health_semantic_states=["healthy"],
             health_response_schema_validity=[True],
+            health_response_schema_versions=["a2.runtime_health_response.v1"],
         )
         self.assertIn("runtime_recovery_health_status_semantic_mismatch", recovery["blockers"])
 
@@ -1609,6 +1613,50 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
                 safety_critical_case_ids=["p"],
                 policy={**policy, "minimum_recall_wilson_lower": {"mixed_control": float("nan")}},
             )
+
+    def test_round33_health_schema_version_downgrade_is_blocked(self):
+        recovery = summarize_runtime_recoveries(
+            recovery_latency_seconds=[1],
+            maximum_p95_seconds=2,
+            health_response_hashes=["sha256:" + "1" * 64],
+            health_endpoint_hashes=["sha256:" + "2" * 64],
+            health_status_codes=[200],
+            health_semantic_states=["healthy"],
+            health_response_schema_validity=[True],
+            health_response_schema_versions=["a2.runtime_health_response.v0"],
+        )
+        self.assertIn(
+            "runtime_recovery_health_schema_version_unsupported",
+            recovery["blockers"],
+        )
+
+    def test_round33_photographic_provenance_retrieval_failure_and_digest_mismatch(self):
+        content = b"public provenance page"
+        provenance = {
+            "provenance_retrieved_at": "2026-07-13T12:00:00+08:00",
+            "provenance_content_hash": "sha256:" + hashlib.sha256(content).hexdigest(),
+        }
+        verified = verify_external_provenance_retrieval(
+            provenance=provenance,
+            retrieval_succeeded=True,
+            retrieved_content=content,
+        )
+        self.assertEqual(verified["verification_state"], "verified")
+        failed = verify_external_provenance_retrieval(
+            provenance=provenance,
+            retrieval_succeeded=False,
+            retrieved_content=None,
+        )
+        self.assertIn("photographic_provenance_retrieval_failed", failed["blockers"])
+        mismatch = verify_external_provenance_retrieval(
+            provenance=provenance,
+            retrieval_succeeded=True,
+            retrieved_content=b"changed",
+        )
+        self.assertIn(
+            "photographic_provenance_content_digest_mismatch",
+            mismatch["blockers"],
+        )
         for name in ("patterned_safe_control_round31_stripes.ppm", "patterned_safe_control_round31_checker.ppm"):
             data = (ROOT / "fixtures/a2/calibration" / name).read_bytes()
             header = data.split(b"\n", 3)

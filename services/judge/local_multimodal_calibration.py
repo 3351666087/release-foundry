@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import hashlib
 import json
 import math
 import re
@@ -1408,6 +1409,8 @@ def summarize_runtime_recoveries(
     health_status_codes: list[int] | None = None,
     health_semantic_states: list[str] | None = None,
     health_response_schema_validity: list[bool] | None = None,
+    health_response_schema_versions: list[str] | None = None,
+    accepted_health_schema_versions: set[str] | None = None,
 ) -> dict[str, Any]:
     if not recovery_latency_seconds or any(value < 0 for value in recovery_latency_seconds):
         raise ValueError("recovery latencies must be non-empty and non-negative")
@@ -1420,6 +1423,10 @@ def summarize_runtime_recoveries(
     health_status_codes = list(health_status_codes or [])
     health_semantic_states = list(health_semantic_states or [])
     health_response_schema_validity = list(health_response_schema_validity or [])
+    health_response_schema_versions = list(health_response_schema_versions or [])
+    accepted_health_schema_versions = set(
+        accepted_health_schema_versions or {"a2.runtime_health_response.v1"}
+    )
     for value in health_response_hashes:
         if _SHA256_REF.fullmatch(value) is None:
             raise ValueError("health response hashes must be sha256 references")
@@ -1447,6 +1454,10 @@ def summarize_runtime_recoveries(
         blockers.append("runtime_recovery_health_schema_coverage_not_met")
     elif not all(value is True for value in health_response_schema_validity):
         blockers.append("runtime_recovery_health_response_schema_invalid")
+    if len(health_response_schema_versions) != len(ordered):
+        blockers.append("runtime_recovery_health_schema_version_coverage_not_met")
+    elif any(value not in accepted_health_schema_versions for value in health_response_schema_versions):
+        blockers.append("runtime_recovery_health_schema_version_unsupported")
     return {
         "observation_count": len(ordered),
         "minimum_observations": minimum_observations,
@@ -1458,6 +1469,8 @@ def summarize_runtime_recoveries(
         "health_status_codes": health_status_codes,
         "health_semantic_states": health_semantic_states,
         "health_response_schema_validity": health_response_schema_validity,
+        "health_response_schema_versions": health_response_schema_versions,
+        "accepted_health_schema_versions": sorted(accepted_health_schema_versions),
         "maximum_p95_recovery_latency_seconds": maximum_p95_seconds,
         "qualification_state": "review_available" if not blockers else "blocked",
         "release_authority": False,
@@ -1529,6 +1542,31 @@ def validate_runtime_binding(*, receipt: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def verify_external_provenance_retrieval(
+    *,
+    provenance: dict[str, Any],
+    retrieval_succeeded: bool,
+    retrieved_content: bytes | None,
+) -> dict[str, Any]:
+    blockers: list[str] = []
+    expected_hash = str(provenance.get("provenance_content_hash") or "")
+    if not retrieval_succeeded or retrieved_content is None:
+        blockers.append("photographic_provenance_retrieval_failed")
+        observed_hash = ""
+    else:
+        observed_hash = "sha256:" + hashlib.sha256(retrieved_content).hexdigest()
+        if not hmac.compare_digest(observed_hash, expected_hash):
+            blockers.append("photographic_provenance_content_digest_mismatch")
+    if not provenance.get("provenance_retrieved_at"):
+        blockers.append("photographic_provenance_retrieval_timestamp_missing")
+    return {
+        "provenance_content_hash": expected_hash,
+        "observed_content_hash": observed_hash,
+        "verification_state": "verified" if not blockers else "blocked",
+        "release_authority": False,
+        "blockers": blockers,
+        "public_safe": True,
+    }
 def validate_mutation_artifact_binding(
     *,
     source_artifact_hash: str,

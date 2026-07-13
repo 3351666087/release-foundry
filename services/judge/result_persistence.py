@@ -316,8 +316,21 @@ def observe_filesystem_volume_hash(path: str | Path) -> dict[str, Any]:
     resolved = Path(path).resolve()
     drive = resolved.drive or resolved.anchor
     observation = {"platform": os.name, "drive": drive.upper()}
+    observation_method = "resolved_drive_hash"
+    if os.name == "nt" and drive:
+        try:
+            import ctypes
+            serial = ctypes.c_uint32()
+            if ctypes.windll.kernel32.GetVolumeInformationW(
+                drive + "\\", None, 0, ctypes.byref(serial), None, None, None, 0
+            ):
+                observation["volume_serial"] = int(serial.value)
+                observation_method = "windows_volume_api_hashed"
+        except (AttributeError, OSError):
+            pass
     return {
         "filesystem_volume_id_hash": stable_hash(observation),
+        "observation_method": observation_method,
         "raw_identifier_exposed": False,
         "public_safe": True,
     }
@@ -329,6 +342,29 @@ def discover_directory_flush_capability() -> dict[str, Any]:
         "platform": os.name,
         "directory_flush_state": "supported" if supported else "not_exposed",
         "durability_claim_allowed": supported,
+        "public_safe": True,
+    }
+
+
+def observe_parent_directory_durability(path: str | Path) -> dict[str, Any]:
+    capability = discover_directory_flush_capability()
+    parent = Path(path).resolve().parent
+    attempted = False
+    succeeded = False
+    if capability["directory_flush_state"] == "supported":
+        attempted = True
+        descriptor = os.open(parent, os.O_RDONLY)
+        try:
+            os.fsync(descriptor)
+            succeeded = True
+        finally:
+            os.close(descriptor)
+    return {
+        "parent_path_hash": stable_hash(str(parent)),
+        "flush_attempted": attempted,
+        "flush_succeeded": succeeded,
+        "durability_claim_allowed": succeeded,
+        "blockers": [] if succeeded else ["parent_directory_flush_evidence_unavailable"],
         "public_safe": True,
     }
 
