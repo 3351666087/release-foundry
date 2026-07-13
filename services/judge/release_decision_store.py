@@ -640,6 +640,7 @@ def load_decision_recovery_envelope(
         "policy_version": envelope.get("policy_version"),
         "evaluation_quality": envelope.get("evaluation_quality"),
         "evaluation_trust_policy_hash": envelope.get("evaluation_trust_policy_hash"),
+        "taxonomy_policy_hash": str(envelope.get("taxonomy_policy_hash") or ""),
         "required_modalities": snapshot.get("required_modalities"),
         "snapshot_hash": snapshot.get("snapshot_hash"),
         "provider_payload_hash": row["provider_payload_hash"],
@@ -1241,6 +1242,7 @@ def _validate_recovery_envelope(
         "schema_version", *scope.keys(), "idempotency_key", "request_hash", "snapshot",
         "provider", "provider_provenance", "semantic_output", "citation_validation",
         "bundle_verification", "evaluation_quality", "evaluation_trust_policy_hash",
+        "taxonomy_policy_hash",
         "policy_version", "ledger_id", "judge_version", "builder_version", "created_at",
         "provider_outcome_hash", "public_safe", "recovery_supported",
         "raw_provider_payload_included", "raw_evidence_included",
@@ -1251,6 +1253,9 @@ def _validate_recovery_envelope(
         raise ValueError("unsupported recovery envelope schema")
     if _SHA256_REF.fullmatch(str(envelope.get("evaluation_trust_policy_hash") or "")) is None:
         raise ValueError("evaluation trust policy hash is invalid")
+    taxonomy_policy_hash = str(envelope.get("taxonomy_policy_hash") or "")
+    if taxonomy_policy_hash and _SHA256_REF.fullmatch(taxonomy_policy_hash) is None:
+        raise ValueError("taxonomy policy hash is invalid")
     _assert_scope(envelope, scope, "recovery envelope")
     for flag in (
         "public_safe", "recovery_supported",

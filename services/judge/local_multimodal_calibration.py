@@ -1407,6 +1407,7 @@ def summarize_runtime_recoveries(
     health_endpoint_hashes: list[str] | None = None,
     health_status_codes: list[int] | None = None,
     health_semantic_states: list[str] | None = None,
+    health_response_schema_validity: list[bool] | None = None,
 ) -> dict[str, Any]:
     if not recovery_latency_seconds or any(value < 0 for value in recovery_latency_seconds):
         raise ValueError("recovery latencies must be non-empty and non-negative")
@@ -1418,6 +1419,7 @@ def summarize_runtime_recoveries(
     health_endpoint_hashes = list(health_endpoint_hashes or [])
     health_status_codes = list(health_status_codes or [])
     health_semantic_states = list(health_semantic_states or [])
+    health_response_schema_validity = list(health_response_schema_validity or [])
     for value in health_response_hashes:
         if _SHA256_REF.fullmatch(value) is None:
             raise ValueError("health response hashes must be sha256 references")
@@ -1441,6 +1443,10 @@ def summarize_runtime_recoveries(
             if (200 <= status < 300) != (semantic_state == "healthy"):
                 blockers.append("runtime_recovery_health_status_semantic_mismatch")
                 break
+    if len(health_response_schema_validity) != len(ordered):
+        blockers.append("runtime_recovery_health_schema_coverage_not_met")
+    elif not all(value is True for value in health_response_schema_validity):
+        blockers.append("runtime_recovery_health_response_schema_invalid")
     return {
         "observation_count": len(ordered),
         "minimum_observations": minimum_observations,
@@ -1451,6 +1457,7 @@ def summarize_runtime_recoveries(
         "health_endpoint_hashes": health_endpoint_hashes,
         "health_status_codes": health_status_codes,
         "health_semantic_states": health_semantic_states,
+        "health_response_schema_validity": health_response_schema_validity,
         "maximum_p95_recovery_latency_seconds": maximum_p95_seconds,
         "qualification_state": "review_available" if not blockers else "blocked",
         "release_authority": False,
@@ -1485,6 +1492,8 @@ def apply_taxonomy_policy(
             for value in policy[key].values()
         ):
             raise ValueError(f"{key} must contain numeric thresholds")
+        if any(not math.isfinite(float(value)) for value in policy[key].values()):
+            raise ValueError(f"{key} thresholds must be finite")
         if any(not 0 <= float(value) <= 1 for value in policy[key].values()):
             raise ValueError(f"{key} thresholds must be between zero and one")
     policy_hash = stable_hash(policy)
@@ -1506,6 +1515,7 @@ def validate_runtime_binding(*, receipt: dict[str, Any]) -> dict[str, Any]:
         for key in (
             "provider_id", "model_id", "model_version", "request_hash",
             "runtime_environment_hash", "ollama_version_observation_hash",
+            "ollama_binary_hash",
         )
     }
     observed = stable_hash(fields)

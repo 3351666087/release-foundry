@@ -11,7 +11,9 @@
     "verification_state",
     "release_authority",
     "blockers",
-    "public_safe"
+    "public_safe",
+    "key_id",
+    "key_policy_hash"
   ],
   "properties": {
     "schema_version": {
@@ -47,6 +49,14 @@
     },
     "public_safe": {
       "const": true
+    },
+    "key_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "key_policy_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
     }
   }
 }

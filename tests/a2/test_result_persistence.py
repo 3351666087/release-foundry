@@ -3,6 +3,9 @@ import jsonschema
 import re
 import unittest
 import tempfile
+import threading
+import base64
+import os
 from pathlib import Path
 
 from services.judge.result_persistence import (
@@ -11,6 +14,8 @@ from services.judge.result_persistence import (
     build_ocr_vision_disagreement_record,
     build_multimodal_runtime_record,
     build_structured_output_failure_record,
+    discover_directory_flush_capability,
+    observe_filesystem_volume_hash,
     stable_hash,
     verify_jsonl_manifest,
     verify_jsonl_manifest_predecessor,
@@ -142,6 +147,71 @@ class A2ResultPersistenceTests(unittest.TestCase):
         )
         self.assertEqual(good["state"], "verified")
         self.assertIn("provider_receipt_replay_set_tampered", bad["blockers"])
+
+    def test_round32_ed25519_operation_binding_replay_race_and_corruption(self):
+        from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+        from services.judge.provider_receipt_verification import (
+            ReplaySet,
+            verify_ed25519_receipt,
+            verify_receipt_operation_binding,
+        )
+        receipt = {
+            "request_hash": "sha256:" + "1" * 64,
+            "cancellation_operation_id_hash": "sha256:" + "2" * 64,
+            "nonce_hash": "sha256:" + "3" * 64,
+        }
+        private = Ed25519PrivateKey.generate()
+        message = json.dumps(receipt, sort_keys=True, separators=(",", ":")).encode()
+        public = private.public_key().public_bytes(
+            serialization.Encoding.Raw, serialization.PublicFormat.Raw
+        )
+        verified = verify_ed25519_receipt(
+            receipt=receipt,
+            signature_base64=base64.b64encode(private.sign(message)).decode(),
+            public_key_base64=base64.b64encode(public).decode(),
+            issuer="local-test",
+            key_id="key-1",
+            key_policy={
+                "schema_version": "a2.provider_receipt_key_policy.v1",
+                "allowed_keys": {"key-1": {"issuer": "local-test", "state": "active"}},
+            },
+        )
+        self.assertEqual(verified["verification_state"], "verified")
+        binding = verify_receipt_operation_binding(
+            receipt=receipt,
+            expected_request_hash=receipt["request_hash"],
+            expected_operation_id_hash=receipt["cancellation_operation_id_hash"],
+        )
+        self.assertEqual(binding["state"], "verified")
+        replay = ReplaySet()
+        outcomes = []
+        threads = [threading.Thread(target=lambda: outcomes.append(replay.admit(receipt["nonce_hash"]))) for _ in range(8)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join()
+        self.assertEqual(outcomes.count(True), 1)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "corrupt.jsonl"
+            with self.assertRaisesRegex(OSError, "post-replace"):
+                write_jsonl(
+                    path,
+                    [{"case": "x"}],
+                    replay_set_snapshot=replay.snapshot(),
+                    post_replace_hook=lambda target: target.write_bytes(b"corrupt"),
+                )
+
+    def test_round32_volume_observation_and_directory_flush_discovery_are_public_safe(self):
+        with tempfile.TemporaryDirectory() as directory:
+            observation = observe_filesystem_volume_hash(directory)
+        self.assertRegex(observation["filesystem_volume_id_hash"], r"^sha256:[0-9a-f]{64}$")
+        self.assertFalse(observation["raw_identifier_exposed"])
+        capability = discover_directory_flush_capability()
+        self.assertIn(capability["directory_flush_state"], {"supported", "not_exposed"})
+        self.assertTrue(capability["public_safe"])
+        if os.name == "nt":
+            self.assertFalse(capability["durability_claim_allowed"])
 
     def test_jsonl_manifest_chains_batches_and_blocks_truncated_line(self):
         with tempfile.TemporaryDirectory() as directory:

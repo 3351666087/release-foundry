@@ -7,6 +7,7 @@ import hashlib
 import json
 from datetime import datetime, timezone
 from pathlib import Path
+import os
 import re
 from typing import Any
 
@@ -253,6 +254,8 @@ def write_jsonl(
     created_at: str | None = None,
     replace_function: Any | None = None,
     filesystem_volume_id_hash: str = "",
+    post_replace_hook: Any | None = None,
+    replay_set_snapshot: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if sequence_number < 1:
         raise ValueError("sequence_number must be positive")
@@ -270,6 +273,8 @@ def write_jsonl(
     except Exception:
         temporary.unlink(missing_ok=True)
         raise
+    if post_replace_hook:
+        post_replace_hook(destination)
     reopened_hash = hashlib.sha256(destination.read_bytes()).hexdigest()
     expected_file_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
     if reopened_hash != expected_file_hash:
@@ -300,7 +305,30 @@ def write_jsonl(
         "filesystem_volume_id_hash": filesystem_volume_id_hash,
         "post_replace_reopen_state": "verified",
         "durability_qualification_state": "atomic_replace_verified_durability_unproven",
+        "replay_set_snapshot_hash": stable_hash(replay_set_snapshot) if replay_set_snapshot else "",
         "chain_hash": chain_hash,
+        "public_safe": True,
+    }
+
+
+def observe_filesystem_volume_hash(path: str | Path) -> dict[str, Any]:
+    """Hash an OS volume observation; never return the raw identifier."""
+    resolved = Path(path).resolve()
+    drive = resolved.drive or resolved.anchor
+    observation = {"platform": os.name, "drive": drive.upper()}
+    return {
+        "filesystem_volume_id_hash": stable_hash(observation),
+        "raw_identifier_exposed": False,
+        "public_safe": True,
+    }
+
+
+def discover_directory_flush_capability() -> dict[str, Any]:
+    supported = os.name != "nt" and hasattr(os, "fsync")
+    return {
+        "platform": os.name,
+        "directory_flush_state": "supported" if supported else "not_exposed",
+        "durability_claim_allowed": supported,
         "public_safe": True,
     }
 

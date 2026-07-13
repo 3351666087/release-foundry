@@ -1486,6 +1486,7 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
             health_endpoint_hashes=["sha256:" + str(index + 3) * 64 for index in range(1, 4)],
             health_status_codes=[200, 200, 200],
             health_semantic_states=["healthy", "healthy", "healthy"],
+            health_response_schema_validity=[True, True, True],
         )
         self.assert_schema("runtime_recovery_summary.schema.json", recovery)
 
@@ -1582,6 +1583,7 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
             health_endpoint_hashes=["sha256:" + "6" * 64],
             health_status_codes=[503],
             health_semantic_states=["healthy"],
+            health_response_schema_validity=[True],
         )
         self.assertIn("runtime_recovery_health_status_semantic_mismatch", recovery["blockers"])
 
@@ -1600,6 +1602,12 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
                 labeled_cases=cases,
                 safety_critical_case_ids=["p"],
                 policy={**policy, "minimum_recall_wilson_lower": {"mixed_control": 1.1}},
+            )
+        with self.assertRaisesRegex(ValueError, "finite"):
+            apply_taxonomy_policy(
+                labeled_cases=cases,
+                safety_critical_case_ids=["p"],
+                policy={**policy, "minimum_recall_wilson_lower": {"mixed_control": float("nan")}},
             )
         for name in ("patterned_safe_control_round31_stripes.ppm", "patterned_safe_control_round31_checker.ppm"):
             data = (ROOT / "fixtures/a2/calibration" / name).read_bytes()

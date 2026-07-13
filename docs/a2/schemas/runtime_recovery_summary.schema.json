@@ -14,6 +14,7 @@
     "health_endpoint_hashes",
     "health_status_codes",
     "health_semantic_states",
+    "health_response_schema_validity",
     "qualification_state",
     "release_authority",
     "blockers",
@@ -93,6 +94,12 @@
           "unhealthy",
           "unknown"
         ]
+      }
+    },
+    "health_response_schema_validity": {
+      "type": "array",
+      "items": {
+        "type": "boolean"
       }
     }
   }

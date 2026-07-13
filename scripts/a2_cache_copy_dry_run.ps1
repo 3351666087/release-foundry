@@ -11,13 +11,21 @@ if (-not $Destination.StartsWith('D:\', [System.StringComparison]::OrdinalIgnore
     throw 'Destination must be under D:\.'
 }
 
-Get-ChildItem -LiteralPath $resolvedSource -File -Recurse |
-    ForEach-Object {
+$plans = Get-ChildItem -LiteralPath $resolvedSource -File -Recurse | ForEach-Object {
+        $sourcePrefix = $resolvedSource.TrimEnd('\') + '\'
+        if (-not $_.FullName.StartsWith($sourcePrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw 'Enumerated file escaped the resolved source.'
+        }
+        $relative = $_.FullName.Substring($sourcePrefix.Length)
         [pscustomobject]@{
             operation = 'copy_dry_run'
             source = $_.FullName
-            destination = Join-Path $Destination $_.Name
+            relative_path = $relative
+            destination = Join-Path $Destination $relative
             size_bytes = $_.Length
             deletes_source = $false
         }
-    } | ConvertTo-Json -Depth 4
+    }
+$collisions = $plans | Group-Object destination | Where-Object Count -gt 1
+if ($collisions) { throw 'Destination collision detected.' }
+$plans | ConvertTo-Json -Depth 4

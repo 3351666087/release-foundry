@@ -20,7 +20,8 @@
     "release_authority",
     "blockers",
     "public_safe",
-    "ollama_version_observation_hash"
+    "ollama_version_observation_hash",
+    "ollama_binary_hash"
   ],
   "properties": {
     "schema_version": {
@@ -93,6 +94,10 @@
       "pattern": "^sha256:[a-f0-9]{64}$"
     },
     "ollama_version_observation_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "ollama_binary_hash": {
       "type": "string",
       "pattern": "^sha256:[a-f0-9]{64}$"
     }

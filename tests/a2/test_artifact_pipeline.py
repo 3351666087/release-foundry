@@ -103,6 +103,11 @@ def png(width=2, height=3):
     return b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr) + chunk(b"IDAT", zlib.compress(raw * height)) + chunk(b"IEND", b"")
 
 
+def jpeg(width=5, height=7):
+    sof = b"\x08" + struct.pack(">HH", height, width) + b"\x03\x01\x11\x00\x02\x11\x00\x03\x11\x00"
+    return b"\xff\xd8" + b"\xff\xc0" + struct.pack(">H", len(sof) + 2) + sof + b"\xff\xd9"
+
+
 def wav_bytes():
     output = io.BytesIO()
     with wave.open(output, "wb") as writer:
@@ -259,6 +264,22 @@ class ArtifactPipelineTests(unittest.TestCase):
                 self.assertNotIn("object://private", serialized)
                 self.assertFalse(result["raw_content_included"])
                 self.assertFalse(result["release_authority"])
+
+    def test_round32_png_and_jpeg_dimensions_are_decoder_independent(self):
+        for content, media_type, filename, expected in (
+            (png(width=11, height=13), "image/png", "dimensions.png", (11, 13)),
+            (jpeg(width=17, height=19), "image/jpeg", "dimensions.jpg", (17, 19)),
+        ):
+            with self.subTest(media_type=media_type):
+                result = process_artifact(
+                    submission(content, media_type, filename),
+                    content,
+                    scanner=ProductionScanner(),
+                    require_production_scanner=True,
+                )
+                metadata = result["extraction"]["metadata"]
+                self.assertEqual((metadata["width"], metadata["height"]), expected)
+                self.assertIn("metadata_only", result["extraction"]["quality"]["limitations"])
 
     def test_hash_mime_scope_filename_scanner_and_size_fail_closed(self):
         content = png()
