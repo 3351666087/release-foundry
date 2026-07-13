@@ -62,7 +62,11 @@ import {
   buildDeploymentAcceptance,
   normalizeA2GradeReport
 } from "./a3_release_delivery.mjs";
-import { buildA3ReleaseComparison } from "./a3_release_comparison.mjs";
+import {
+  bindA3ReleaseComparisonRuntimeAuthority,
+  buildA3ReleaseComparison
+} from "./a3_release_comparison.mjs";
+import { buildA3DeploymentHandoff } from "./a3_deployment_handoff.mjs";
 
 export const A3_STORE_SCHEMA_VERSION = "a3.store.v1";
 
@@ -2521,6 +2525,21 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
   const deliveryGoldenPath = snapshot.deliveryGoldenPath?.schema_version === "a3.delivery_golden_path.v1"
     ? snapshot.deliveryGoldenPath
     : buildDeliveryGoldenPath({ ...deliveryInputs, deploymentAcceptance }, deliveryInputs);
+  const releaseComparison = bindA3ReleaseComparisonRuntimeAuthority(
+    snapshot.releaseComparison,
+    trustedReleaseAuthority
+  );
+  const deploymentHandoff = buildA3DeploymentHandoff({
+    deploymentAcceptance,
+    deliveryGoldenPath,
+    trustedReleaseAuthority,
+    a2TrustedSpine: snapshot.a2TrustedSpine,
+    runFixture: snapshot.runFixture,
+    releaseArtifactManifest: snapshot.releaseArtifactManifest
+  }, {
+    source: snapshot.source,
+    tenantScope: snapshot.tenant_scope
+  });
   return {
     schema_version: "a3.api_dashboard_payload.v1",
     source: snapshot.source,
@@ -2562,6 +2581,7 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     a1_a2_evidence_spine: a1A2EvidenceSpine,
     deployment_probe: snapshot.deploymentProbe,
     deployment_acceptance: deploymentAcceptance,
+    deployment_handoff: deploymentHandoff,
     release_artifact_manifest: snapshot.releaseArtifactManifest,
     release_artifact_verification: snapshot.releaseArtifactVerification,
     delivery_golden_path: deliveryGoldenPath,
@@ -2569,7 +2589,7 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     github_pr_comment_readback: snapshot.githubPrCommentReadback,
     github_required_check_proof: snapshot.githubRequiredCheckProof,
     github_actions_artifact_readback: snapshot.githubActionsArtifactReadback,
-    release_comparison: snapshot.releaseComparison,
+    release_comparison: releaseComparison,
     release_evidence_api: {
       schema_version: "a3.release_evidence_api_link.v1",
       release_id: releaseId,

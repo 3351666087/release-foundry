@@ -7126,7 +7126,8 @@
           "summary",
           "runs",
           "aggregate_scope_status",
-          "trusted_release_authority"
+          "trusted_release_authority",
+          "deployment_handoff"
         ],
         "properties": {
           "schema_version": {
@@ -7155,6 +7156,9 @@
           },
           "release_comparison": {
             "$ref": "#/components/schemas/ReleaseComparison"
+          },
+          "deployment_handoff": {
+            "$ref": "#/components/schemas/DeploymentHandoff"
           }
         },
         "additionalProperties": true
@@ -7170,7 +7174,8 @@
           "quality",
           "authority_boundary",
           "provenance",
-          "safety"
+          "safety",
+          "runtime_authority_validation"
         ],
         "properties": {
           "schema_version": {
@@ -7204,15 +7209,32 @@
                 "direction"
               ],
               "properties": {
-                "id": { "type": "string" },
-                "before": { "type": "number" },
-                "after": { "type": "number" },
-                "delta": { "type": "number" },
-                "unit": { "type": "string" },
-                "authority": { "type": "string" },
+                "id": {
+                  "type": "string"
+                },
+                "before": {
+                  "type": "number"
+                },
+                "after": {
+                  "type": "number"
+                },
+                "delta": {
+                  "type": "number"
+                },
+                "unit": {
+                  "type": "string"
+                },
+                "authority": {
+                  "type": "string"
+                },
                 "direction": {
                   "type": "string",
-                  "enum": ["improved", "regressed", "unchanged", "evidence_added"]
+                  "enum": [
+                    "improved",
+                    "regressed",
+                    "unchanged",
+                    "evidence_added"
+                  ]
                 }
               },
               "additionalProperties": false
@@ -7222,25 +7244,57 @@
             "type": "array",
             "items": {
               "type": "object",
-              "required": ["failure_class", "before", "after", "resolved"],
+              "required": [
+                "failure_class",
+                "before",
+                "after",
+                "resolved"
+              ],
               "properties": {
-                "failure_class": { "type": "string" },
-                "before": { "type": "integer", "minimum": 0 },
-                "after": { "type": "integer", "minimum": 0 },
-                "resolved": { "type": "integer", "minimum": 0 }
+                "failure_class": {
+                  "type": "string"
+                },
+                "before": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "after": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "resolved": {
+                  "type": "integer",
+                  "minimum": 0
+                }
               },
               "additionalProperties": false
             }
           },
           "quality": {
             "type": "object",
-            "required": ["improved", "a2_passed_case_delta", "a2_pass_rate_point_delta", "tool_call_delta", "summary_code"],
+            "required": [
+              "improved",
+              "a2_passed_case_delta",
+              "a2_pass_rate_point_delta",
+              "tool_call_delta",
+              "summary_code"
+            ],
             "properties": {
-              "improved": { "type": "boolean" },
-              "a2_passed_case_delta": { "type": "number" },
-              "a2_pass_rate_point_delta": { "type": "number" },
-              "tool_call_delta": { "type": "number" },
-              "summary_code": { "type": "string" }
+              "improved": {
+                "type": "boolean"
+              },
+              "a2_passed_case_delta": {
+                "type": "number"
+              },
+              "a2_pass_rate_point_delta": {
+                "type": "number"
+              },
+              "tool_call_delta": {
+                "type": "number"
+              },
+              "summary_code": {
+                "type": "string"
+              }
             },
             "additionalProperties": false
           },
@@ -7258,15 +7312,65 @@
               "explanation_code"
             ],
             "properties": {
-              "owner": { "type": "string", "const": "A2 Decision Ledger" },
-              "decision_changed": { "type": "boolean" },
-              "baseline_decision": { "type": "string" },
-              "candidate_decision": { "type": "string" },
-              "baseline_release_ready": { "type": "boolean" },
-              "candidate_release_ready": { "type": "boolean" },
-              "production_ready": { "type": "boolean" },
-              "delivery_progress_changed": { "type": "boolean" },
-              "explanation_code": { "type": "string" }
+              "owner": {
+                "type": "string",
+                "const": "A2 Decision Ledger"
+              },
+              "decision_changed": {
+                "type": "boolean"
+              },
+              "baseline_decision": {
+                "type": "string"
+              },
+              "candidate_decision": {
+                "type": "string"
+              },
+              "baseline_release_ready": {
+                "type": "boolean"
+              },
+              "candidate_release_ready": {
+                "type": "boolean"
+              },
+              "production_ready": {
+                "type": "boolean"
+              },
+              "delivery_progress_changed": {
+                "type": "boolean"
+              },
+              "explanation_code": {
+                "type": "string"
+              },
+              "current_status": {
+                "type": "string",
+                "enum": [
+                  "release_ready",
+                  "blocked",
+                  "review_required",
+                  "integrity_invalid",
+                  "not_ready"
+                ]
+              },
+              "current_integrity_verified": {
+                "type": "boolean"
+              },
+              "current_upstream_decision": {
+                "type": "string",
+                "enum": [
+                  "allow",
+                  "block",
+                  "review",
+                  "unknown"
+                ]
+              },
+              "current_release_ready": {
+                "type": "boolean"
+              },
+              "current_release_authorized": {
+                "type": "boolean"
+              },
+              "current_reason_code": {
+                "type": "string"
+              }
             },
             "additionalProperties": false
           },
@@ -7286,15 +7390,47 @@
               "secret_values_allowed"
             ],
             "properties": {
-              "a1_execution_recomputed": { "type": "boolean", "const": false },
-              "a2_scores_recomputed": { "type": "boolean", "const": false },
-              "a2_pass_fail_recomputed": { "type": "boolean", "const": false },
-              "a2_failure_class_recomputed": { "type": "boolean", "const": false },
-              "a2_release_decision_recomputed": { "type": "boolean", "const": false },
-              "production_readiness_overstated": { "type": "boolean", "const": false },
-              "secret_values_allowed": { "type": "boolean", "const": false }
+              "a1_execution_recomputed": {
+                "type": "boolean",
+                "const": false
+              },
+              "a2_scores_recomputed": {
+                "type": "boolean",
+                "const": false
+              },
+              "a2_pass_fail_recomputed": {
+                "type": "boolean",
+                "const": false
+              },
+              "a2_failure_class_recomputed": {
+                "type": "boolean",
+                "const": false
+              },
+              "a2_release_decision_recomputed": {
+                "type": "boolean",
+                "const": false
+              },
+              "production_readiness_overstated": {
+                "type": "boolean",
+                "const": false
+              },
+              "secret_values_allowed": {
+                "type": "boolean",
+                "const": false
+              },
+              "runtime_authority_recomputed": {
+                "type": "boolean",
+                "const": false
+              },
+              "runtime_authority_attached_from_backend_verifier": {
+                "type": "boolean",
+                "const": true
+              }
             },
             "additionalProperties": false
+          },
+          "runtime_authority_validation": {
+            "$ref": "#/components/schemas/ReleaseComparisonRuntimeAuthority"
           }
         },
         "additionalProperties": false
@@ -8390,6 +8526,484 @@
         },
         "additionalProperties": false,
         "x-sanitized": true
+      },
+      "ReleaseComparisonRuntimeAuthority": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "integrity_verified",
+          "status",
+          "upstream_decision",
+          "release_ready",
+          "reason_code",
+          "blockers",
+          "historical_candidate_decision",
+          "historical_candidate_release_ready",
+          "historical_integrity_marker",
+          "current_release_authorized"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.release_comparison_runtime_authority.v1"
+          },
+          "integrity_verified": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "release_ready",
+              "blocked",
+              "review_required",
+              "integrity_invalid",
+              "not_ready"
+            ]
+          },
+          "upstream_decision": {
+            "type": "string",
+            "enum": [
+              "allow",
+              "block",
+              "review",
+              "unknown"
+            ]
+          },
+          "release_ready": {
+            "type": "boolean"
+          },
+          "reason_code": {
+            "type": "string"
+          },
+          "blockers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "decision_record_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "decision_ledger_head_hash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "historical_candidate_decision": {
+            "type": "string",
+            "enum": [
+              "allow",
+              "block",
+              "review",
+              "unknown"
+            ]
+          },
+          "historical_candidate_release_ready": {
+            "type": "boolean"
+          },
+          "historical_integrity_marker": {
+            "type": "boolean"
+          },
+          "current_release_authorized": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Current backend A2 Trusted Spine validation attached to a sealed historical comparison. A3 never recomputes A2 authority."
+      },
+      "DeploymentHandoffCheck": {
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "owner",
+          "status",
+          "evidence_class",
+          "evidence_level",
+          "production_proof",
+          "next_action",
+          "required_receipt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string",
+            "enum": [
+              "A1",
+              "A2",
+              "A1/A3",
+              "A3",
+              "Repository maintainer",
+              "Unassigned"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "passed",
+              "blocked",
+              "not_proven"
+            ]
+          },
+          "evidence_class": {
+            "type": "string"
+          },
+          "evidence_level": {
+            "type": "string",
+            "enum": [
+              "production_verified",
+              "locally_authoritative",
+              "locally_verified",
+              "contract_only",
+              "not_proven"
+            ]
+          },
+          "production_proof": {
+            "type": "boolean"
+          },
+          "evidence_ref": {},
+          "blocked_reason": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "next_action": {
+            "type": "string"
+          },
+          "required_receipt": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "CandidateBindingHandoff": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "status",
+          "same_candidate_bound",
+          "expected",
+          "observed_a2",
+          "checks",
+          "runtime_authority",
+          "historical_packet",
+          "next_action_owner",
+          "next_action"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.candidate_binding_handoff.v1"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "bound",
+              "integrity_invalid"
+            ]
+          },
+          "same_candidate_bound": {
+            "type": "boolean"
+          },
+          "expected": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "observed_a2": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "status",
+                "passed",
+                "requirement"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "passed",
+                    "failed"
+                  ]
+                },
+                "passed": {
+                  "type": "boolean"
+                },
+                "requirement": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "runtime_authority": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "historical_packet": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "next_action_owner": {
+            "type": "string"
+          },
+          "next_action": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DeploymentHandoff": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "source",
+          "status",
+          "production_ready",
+          "summary",
+          "candidate_binding",
+          "owner_groups",
+          "blocking_items",
+          "next_actions",
+          "safety"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.deployment_handoff.v1"
+          },
+          "source": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "blocked"
+            ]
+          },
+          "production_ready": {
+            "type": "boolean",
+            "description": "Always fail-closed until all upstream and deployed environment receipts are authoritative."
+          },
+          "summary": {
+            "type": "object",
+            "required": [
+              "total_checks",
+              "passed",
+              "blocked_or_not_proven",
+              "production_proof_count",
+              "owner_group_count",
+              "candidate_binding_status",
+              "golden_path_passed",
+              "golden_path_total"
+            ],
+            "properties": {
+              "total_checks": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "passed": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "blocked_or_not_proven": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "production_proof_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "owner_group_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "candidate_binding_status": {
+                "type": "string",
+                "enum": [
+                  "bound",
+                  "integrity_invalid"
+                ]
+              },
+              "golden_path_passed": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "golden_path_total": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "additionalProperties": false
+          },
+          "candidate_binding": {
+            "$ref": "#/components/schemas/CandidateBindingHandoff"
+          },
+          "owner_groups": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "owner",
+                "label",
+                "dependency",
+                "status",
+                "total",
+                "passed",
+                "blocked",
+                "production_proof_count",
+                "actionable_by_a3",
+                "blocking_ids",
+                "checks"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "owner": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "dependency": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "passed",
+                    "blocked"
+                  ]
+                },
+                "total": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "passed": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "blocked": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "production_proof_count": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "actionable_by_a3": {
+                  "type": "boolean"
+                },
+                "blocking_ids": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "checks": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DeploymentHandoffCheck"
+                  }
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "blocking_items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DeploymentHandoffCheck"
+            }
+          },
+          "next_actions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": [
+                "id",
+                "owner",
+                "action",
+                "required_receipt"
+              ],
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "owner": {
+                  "type": "string"
+                },
+                "action": {
+                  "type": "string"
+                },
+                "required_receipt": {
+                  "type": "string"
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "safety": {
+            "type": "object",
+            "required": [
+              "source_status_overridden",
+              "a2_decision_recomputed",
+              "a2_release_ready_recomputed",
+              "historical_packet_treated_as_current_authority",
+              "contract_only_claimed_as_production",
+              "secret_values_allowed"
+            ],
+            "properties": {
+              "source_status_overridden": {
+                "type": "boolean",
+                "const": false
+              },
+              "a2_decision_recomputed": {
+                "type": "boolean",
+                "const": false
+              },
+              "a2_release_ready_recomputed": {
+                "type": "boolean",
+                "const": false
+              },
+              "historical_packet_treated_as_current_authority": {
+                "type": "boolean",
+                "const": false
+              },
+              "contract_only_claimed_as_production": {
+                "type": "boolean",
+                "const": false
+              },
+              "secret_values_allowed": {
+                "type": "boolean",
+                "const": false
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false
       }
     }
   },

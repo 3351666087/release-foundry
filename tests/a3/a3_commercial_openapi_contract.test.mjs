@@ -415,6 +415,11 @@ test("dashboard contract exposes a fail-closed partial aggregate state", async (
 
   assert.equal(dashboard.properties.aggregate_scope_status.$ref, "#/components/schemas/AggregateScopeStatus");
   assert.equal(dashboard.properties.trusted_release_authority.$ref, "#/components/schemas/TrustedReleaseAuthority");
+  assert.equal(dashboard.properties.deployment_handoff.$ref, "#/components/schemas/DeploymentHandoff");
+  assert.equal(spec.components.schemas.DeploymentHandoff.properties.schema_version.const, "a3.deployment_handoff.v1");
+  assert.equal(spec.components.schemas.DeploymentHandoff.properties.safety.properties.a2_decision_recomputed.const, false);
+  assert.equal(spec.components.schemas.CandidateBindingHandoff.properties.schema_version.const, "a3.candidate_binding_handoff.v1");
+  assert.equal(spec.components.schemas.ReleaseComparisonRuntimeAuthority.properties.schema_version.const, "a3.release_comparison_runtime_authority.v1");
   assert.equal(aggregate.additionalProperties, false);
   assert.deepEqual(aggregate.properties.status.enum, ["complete", "partial"]);
   assert.equal(aggregate.properties.excluded_record_count.minimum, 0);

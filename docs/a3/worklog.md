@@ -6864,3 +6864,22 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
 - Re-fetched `origin`; main remained `ccf6ce5`. A1 `2307231` and A2 `8eb57a4` peer updates were inspected as drafts and were not promoted into main authority.
 - Kept the sealed rc.2 manifest and its hashed strategy, Golden Agent record, release note, and Round 14 audit unchanged.
 - Detailed record: `docs/a3/a3_release_comparison_ui_2026_07_12.md`.
+
+## 2026-07-13 - Candidate Integrity and Deployment Handoff
+
+- Revalidated rc.2 through the current backend A2 Trusted Spine verifier instead of trusting the sealed packet's historical integrity marker.
+- Confirmed the current candidate is `integrity_invalid`: A3 expects run `a3-golden-20260712-002`, while merged-main A2 evidence and decision records bind `a2_trusted_spine_demo` under a different five-level scope.
+- Added runtime authority attachment to `a3.release_comparison.v1`; historical `block` remains visible, while current `upstream_decision` fails closed to `unknown`.
+- Added `a3.deployment_handoff.v1` with 17 checks, 5 owner groups, 9 blockers, explicit next actions, and required receipt descriptions.
+- Added candidate-binding checks for tenant scope, A1/A2 run, Release Artifact run, Golden Path run, and backend A2 integrity.
+- Updated Store and Dashboard API wiring without changing A1 runtime logic or A2 judge semantics.
+- Updated OpenAPI and API Reference with Deployment Handoff and current-vs-historical authority contracts.
+- Rebuilt the Chinese-first bilingual Delivery page with current authority, candidate binding, owner handoff, blocker receipts, sealed history, and raw audit contracts.
+- Added focused Node, OpenAPI, API Reference, bilingual E2E, desktop, and 390 x 844 coverage.
+- Visual inspection confirmed long run/scope text wraps, owner cards remain readable, local table scrolling does not create page-level overflow, and no controls overlap.
+- Kept the rc.2 sealed manifest and its hashed inputs unchanged; this is a post-seal product/API correction, not a new production Release.
+- Detailed record: `docs/a3/a3_candidate_integrity_deployment_handoff_2026_07_13.md`.
+- Growth audit: `docs/a3/growth_auditor_money_grade_round15_2026_07_13.md`.
+- Final validation passed A3 Node `421/421`, current-main A2 `186/186` plus `1050` subtests, Next.js typecheck and 15-page production export, Playwright `37/37`, CL hygiene with 0 findings, Commercial CL with 0 blockers/advisories, and rc.2 bundle/archive/manifest verification.
+- The broader Python run reached `1239` passes plus `1050` subtests, but this Windows environment has no Docker, Go, or Cargo. Therefore 26 live PostgreSQL tests were environment errors and 2 A1 toolchain-presence contracts failed; these are not presented as green A3 evidence and no A1 source was changed.
+- A final `git fetch origin --prune` attempt failed on GitHub port 443 after 21 seconds. The branch remains based on the last successfully observed authoritative `origin/main` `ccf6ce5`; publication must recheck remote state when GitHub connectivity returns.

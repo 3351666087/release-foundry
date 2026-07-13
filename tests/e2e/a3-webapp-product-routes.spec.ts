@@ -108,13 +108,14 @@ test.describe("A3 Next.js product console", () => {
     await page.goto(`${base}/delivery/?source=a3-golden-path`);
     await expect(page.getByRole("heading", { name: "交付闭环" })).toBeVisible();
     await expect(page.locator(".source-control select")).toHaveValue("a3-golden-path");
-    await expect(page.locator(".delivery-signal")).toContainText("候选版本保持阻塞");
+    await expect(page.locator(".delivery-signal")).toContainText("候选证据绑定无效");
+    await expect(page.locator(".delivery-signal")).toContainText("integrity_invalid");
     await expect(page.locator(".delivery-stage-list article")).toHaveCount(11);
     await expect(page.locator('.delivery-stage-list article[data-status="passed"]')).toHaveCount(7);
     await expect(page.getByText("A2 Decision Ledger authorizes release", { exact: true })).toBeVisible();
-    await expect(page.getByText("Tenant-bound GitHub App installation", { exact: true })).toBeVisible();
-    await expect(page.getByText("Required Check enforced on main", { exact: true })).toBeVisible();
-    await expect(page.getByText("GitHub Actions artifact live readback", { exact: true })).toBeVisible();
+    await expect(page.getByText("Tenant-bound GitHub App installation", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("Required Check enforced on main", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("GitHub Actions artifact live readback", { exact: true }).first()).toBeVisible();
     const bounds = await page.evaluate(() => ({
       viewport: document.documentElement.clientWidth,
       documentScrollWidth: document.documentElement.scrollWidth,
@@ -128,7 +129,7 @@ test.describe("A3 Next.js product console", () => {
     await page.reload();
     await expect(page.getByRole("heading", { name: "交付闭环" })).toBeVisible();
     await expect(page.locator(".route-content")).toHaveCSS("opacity", "1");
-    await expect(page.locator(".delivery-signal")).toContainText("通过 7/11 个步骤");
+    await expect(page.locator(".delivery-signal")).toContainText("Golden Path 通过 7/11");
     await page.waitForTimeout(500);
     await expect(page.locator(".route-content")).toHaveCSS("opacity", "1");
     const mobileBounds = await page.evaluate(() => ({
@@ -145,33 +146,56 @@ test.describe("A3 Next.js product console", () => {
     await page.screenshot({ path: "docs/screenshots/a3-webapp-delivery-golden-path-mobile-390x844.png", fullPage: false });
   });
 
-  test("shows the rc.2 tool-chain repair with CI evidence while A2 authority still blocks", async ({ page }) => {
+  test("shows rc.2 repair while sealed A2 block and current candidate integrity stay separate", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto(`${base}/delivery/?source=a3-golden-path-rc2`);
 
     await expect(page.getByRole("heading", { name: "交付闭环" })).toBeVisible();
     await expect(page.locator(".source-control select")).toHaveValue("a3-golden-path-rc2");
     await expect(page.locator(".metric-strip")).toContainText("7/11");
-    await expect(page.locator(".metric-strip")).toContainText("0.2.0-rc.2");
+    await expect(page.locator(".page-header")).toContainText("0.2.0-rc.2");
+    await expect(page.locator(".delivery-signal")).toContainText("候选证据绑定无效");
+    await expect(page.locator(".delivery-signal")).toContainText("evidence_scope_mismatch");
     await expect(page.locator('.delivery-stage-list article[data-status="passed"]')).toHaveCount(7);
     const newRunEvidence = page.locator("section").filter({ has: page.getByRole("heading", { name: "新 Run 证据" }) });
     await expect(newRunEvidence).toContainText("A1 执行");
     await expect(newRunEvidence).toContainText("A2 案例评分");
     await expect(newRunEvidence).toContainText("3/3");
     await expect(newRunEvidence).toContainText("4");
-    await expect(newRunEvidence).toContainText("block");
+    await expect(newRunEvidence).toContainText("unknown");
+    const candidateBinding = page.locator("section").filter({ has: page.getByRole("heading", { name: "同一候选绑定校验" }) });
+    await expect(candidateBinding).toContainText("a3-golden-20260712-002");
+    await expect(candidateBinding).toContainText("a2_trusted_spine_demo");
+    await expect(candidateBinding).toContainText("integrity_invalid");
+    await expect(candidateBinding).toContainText("历史封存包");
+    await expect(candidateBinding).toContainText("block");
+    await expect(candidateBinding.locator('.candidate-binding-checks article[data-status="passed"]')).toHaveCount(2);
+    await expect(candidateBinding.locator('.candidate-binding-checks article[data-status="failed"]')).toHaveCount(3);
+    await candidateBinding.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-candidate-binding-rc2-desktop.png", fullPage: false, animations: "disabled" });
     const releaseComparison = page.locator("section").filter({ has: page.getByRole("heading", { name: "版本对比：rc.1 → rc.2" }) });
-    await expect(releaseComparison).toContainText("案例质量已修复，发布授权仍未通过");
+    await expect(releaseComparison).toContainText("案例质量已修复，当前候选绑定无效");
     await expect(releaseComparison).toContainText("1/3");
     await expect(releaseComparison).toContainText("3/3");
     await expect(releaseComparison).toContainText("missing_required_tool");
     await expect(releaseComparison).toContainText("0");
     await expect(releaseComparison).toContainText("4");
     await expect(releaseComparison).toContainText("block");
+    await expect(releaseComparison).toContainText("integrity_invalid");
     await expect(releaseComparison).toContainText("质量提升不等于发布批准");
     await releaseComparison.scrollIntoViewIfNeeded();
     await page.screenshot({ path: "docs/screenshots/a3-webapp-release-comparison-rc1-rc2-desktop.png", fullPage: false, animations: "disabled" });
-    await expect(page.getByText("A2 Decision Ledger authorizes release", { exact: true })).toBeVisible();
+    const deploymentHandoff = page.locator("section").filter({ has: page.getByRole("heading", { name: "部署交接：按负责人拆分" }) });
+    await expect(deploymentHandoff.locator(".deployment-owner-grid article")).toHaveCount(5);
+    await expect(deploymentHandoff.locator("tbody tr")).toHaveCount(9);
+    await expect(deploymentHandoff).toContainText("A3");
+    await expect(deploymentHandoff).toContainText("6/6");
+    await expect(deploymentHandoff).toContainText("Tenant-bound GitHub App installation");
+    await expect(deploymentHandoff).toContainText("Required Check enforced on main");
+    await expect(deploymentHandoff.locator("details")).not.toHaveAttribute("open", "");
+    await deploymentHandoff.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-deployment-handoff-rc2-desktop.png", fullPage: false, animations: "disabled" });
+    await expect(page.getByText("A2 Decision Ledger authorizes release", { exact: true }).first()).toBeVisible();
     const githubReadback = page.locator("section").filter({ has: page.getByRole("heading", { name: "GitHub 真实回读" }) });
     await expect(githubReadback).toContainText("github-actions");
     await expect(githubReadback).toContainText("86656698704");
@@ -194,7 +218,9 @@ test.describe("A3 Next.js product console", () => {
     await expect(englishReadback).toContainText("not enforced");
     await expect(englishReadback).toContainText("release approval");
     await expect(page.getByRole("heading", { name: "Release comparison: rc.1 → rc.2" })).toBeVisible();
-    await expect(page.getByText("Case quality repaired; release authority unchanged")).toBeVisible();
+    await expect(page.getByText("Case quality repaired; current candidate binding invalid")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Same-candidate binding" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Deployment handoff by owner" })).toBeVisible();
     await page.getByRole("button", { name: "中", exact: true }).click();
     await expect(page.getByRole("heading", { name: "GitHub 真实回读" })).toBeVisible();
     const releaseArtifact = page.locator("section").filter({ has: page.getByRole("heading", { name: "版本化 Release Artifact" }) });
@@ -214,6 +240,14 @@ test.describe("A3 Next.js product console", () => {
       window.scrollTo(0, node.getBoundingClientRect().top + window.scrollY - 64);
     });
     await page.screenshot({ path: "docs/screenshots/a3-webapp-release-comparison-rc1-rc2-mobile-390x844.png", fullPage: false, animations: "disabled" });
+    const mobileCandidateBinding = page.locator("section").filter({ has: page.getByRole("heading", { name: "同一候选绑定校验" }) });
+    await mobileCandidateBinding.scrollIntoViewIfNeeded();
+    await expect(mobileCandidateBinding).toContainText("a2_trusted_spine_demo");
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-candidate-binding-rc2-mobile-390x844.png", fullPage: false, animations: "disabled" });
+    const mobileDeploymentHandoff = page.locator("section").filter({ has: page.getByRole("heading", { name: "部署交接：按负责人拆分" }) });
+    await mobileDeploymentHandoff.scrollIntoViewIfNeeded();
+    await expect(mobileDeploymentHandoff.locator(".deployment-owner-grid article")).toHaveCount(5);
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-deployment-handoff-rc2-mobile-390x844.png", fullPage: false, animations: "disabled" });
     const mobileGithubReadback = page.locator("section").filter({ has: page.getByRole("heading", { name: "GitHub 真实回读" }) });
     await mobileGithubReadback.evaluate((node) => {
       document.documentElement.style.scrollBehavior = "auto";

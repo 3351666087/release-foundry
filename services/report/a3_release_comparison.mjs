@@ -1,5 +1,52 @@
 export const A3_RELEASE_COMPARISON_SCHEMA_VERSION = "a3.release_comparison.v1";
 
+export function bindA3ReleaseComparisonRuntimeAuthority(comparison = {}, runtimeAuthority = {}) {
+  if (comparison.schema_version !== A3_RELEASE_COMPARISON_SCHEMA_VERSION) return comparison;
+  const authority = object(runtimeAuthority);
+  const integrityVerified = authority.integrity_verified === true;
+  const historicalCandidate = object(object(comparison.candidate).delivery);
+  const blockers = list(authority.blockers).map((item) => text(item, "")).filter(Boolean);
+  const runtimeValidation = {
+    schema_version: "a3.release_comparison_runtime_authority.v1",
+    integrity_verified: integrityVerified,
+    status: text(authority.status, integrityVerified ? "not_ready" : "integrity_invalid"),
+    upstream_decision: integrityVerified ? text(authority.upstream_decision, "unknown") : "unknown",
+    release_ready: integrityVerified && authority.release_ready === true,
+    reason_code: text(authority.reason_code, blockers[0] || "trusted_authority_missing"),
+    blockers,
+    decision_record_id: object(authority.decision_ledger).record_id || null,
+    decision_ledger_head_hash: object(authority.decision_ledger).head_hash || null,
+    historical_candidate_decision: text(historicalCandidate.authoritative_decision, "unknown"),
+    historical_candidate_release_ready: historicalCandidate.release_ready === true,
+    historical_integrity_marker: historicalCandidate.integrity_verified === true,
+    current_release_authorized: integrityVerified
+      && authority.release_ready === true
+      && authority.upstream_decision === "allow"
+  };
+
+  return {
+    ...comparison,
+    runtime_authority_validation: runtimeValidation,
+    authority_boundary: {
+      ...object(comparison.authority_boundary),
+      current_status: runtimeValidation.status,
+      current_integrity_verified: runtimeValidation.integrity_verified,
+      current_upstream_decision: runtimeValidation.upstream_decision,
+      current_release_ready: runtimeValidation.release_ready,
+      current_release_authorized: runtimeValidation.current_release_authorized,
+      current_reason_code: runtimeValidation.reason_code,
+      explanation_code: integrityVerified
+        ? object(comparison.authority_boundary).explanation_code
+        : "historical_quality_improved_but_current_candidate_binding_invalid"
+    },
+    safety: {
+      ...object(comparison.safety),
+      runtime_authority_recomputed: false,
+      runtime_authority_attached_from_backend_verifier: true
+    }
+  };
+}
+
 export function buildA3ReleaseComparison(baselineInput = {}, candidateInput = {}) {
   const baseline = summarizeCandidate(baselineInput);
   const candidate = summarizeCandidate(candidateInput);
@@ -118,6 +165,7 @@ function summarizeCandidate(input = {}) {
     },
     delivery: {
       authoritative_decision: text(authority.upstream_decision, "unknown"),
+      integrity_verified: authority.integrity_verified === true,
       release_ready: authority.release_ready === true,
       production_ready: path.production_ready === true,
       golden_path_passed: integer(progress.passed),

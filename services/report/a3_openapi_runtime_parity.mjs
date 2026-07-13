@@ -61,6 +61,7 @@ export function synchronizeA3OpenApiRuntimeParity(spec = {}) {
   next.components.responses.ServiceUnavailable = sanitizedServiceUnavailableResponse();
   next.components.schemas.SanitizedBadRequestError = sanitizedBadRequestSchema();
   next.components.schemas.SanitizedServiceUnavailableError = sanitizedServiceUnavailableSchema();
+  synchronizeDeliveryHandoffSchemas(next.components.schemas);
   next["x-request-boundary-contract"] = requestBoundaryContract();
 
   const operationIndex = openApiOperationIndex(next);
@@ -112,6 +113,204 @@ export function normalizeContractPath(path = "") {
   return String(path)
     .replace(/:([A-Za-z0-9_]+)/g, "{}")
     .replace(/\{[^}]+\}/g, "{}");
+}
+
+function synchronizeDeliveryHandoffSchemas(schemas) {
+  const dashboard = schemas.DashboardSnapshot;
+  if (dashboard) {
+    dashboard.required = unique([...(dashboard.required || []), "deployment_handoff"]);
+    dashboard.properties ||= {};
+    dashboard.properties.deployment_handoff = { $ref: "#/components/schemas/DeploymentHandoff" };
+  }
+
+  const comparison = schemas.ReleaseComparison;
+  if (comparison) {
+    comparison.required = unique([...(comparison.required || []), "runtime_authority_validation"]);
+    comparison.properties ||= {};
+    comparison.properties.runtime_authority_validation = {
+      $ref: "#/components/schemas/ReleaseComparisonRuntimeAuthority"
+    };
+    Object.assign(comparison.properties.authority_boundary?.properties || {}, {
+      current_status: { type: "string", enum: ["release_ready", "blocked", "review_required", "integrity_invalid", "not_ready"] },
+      current_integrity_verified: { type: "boolean" },
+      current_upstream_decision: { type: "string", enum: ["allow", "block", "review", "unknown"] },
+      current_release_ready: { type: "boolean" },
+      current_release_authorized: { type: "boolean" },
+      current_reason_code: { type: "string" }
+    });
+    Object.assign(comparison.properties.safety?.properties || {}, {
+      runtime_authority_recomputed: { type: "boolean", const: false },
+      runtime_authority_attached_from_backend_verifier: { type: "boolean", const: true }
+    });
+  }
+
+  schemas.ReleaseComparisonRuntimeAuthority = releaseComparisonRuntimeAuthoritySchema();
+  schemas.DeploymentHandoffCheck = deploymentHandoffCheckSchema();
+  schemas.CandidateBindingHandoff = candidateBindingHandoffSchema();
+  schemas.DeploymentHandoff = deploymentHandoffSchema();
+}
+
+function releaseComparisonRuntimeAuthoritySchema() {
+  return {
+    type: "object",
+    required: [
+      "schema_version", "integrity_verified", "status", "upstream_decision", "release_ready",
+      "reason_code", "blockers", "historical_candidate_decision", "historical_candidate_release_ready",
+      "historical_integrity_marker", "current_release_authorized"
+    ],
+    properties: {
+      schema_version: { type: "string", const: "a3.release_comparison_runtime_authority.v1" },
+      integrity_verified: { type: "boolean" },
+      status: { type: "string", enum: ["release_ready", "blocked", "review_required", "integrity_invalid", "not_ready"] },
+      upstream_decision: { type: "string", enum: ["allow", "block", "review", "unknown"] },
+      release_ready: { type: "boolean" },
+      reason_code: { type: "string" },
+      blockers: { type: "array", items: { type: "string" } },
+      decision_record_id: { type: ["string", "null"] },
+      decision_ledger_head_hash: { type: ["string", "null"] },
+      historical_candidate_decision: { type: "string", enum: ["allow", "block", "review", "unknown"] },
+      historical_candidate_release_ready: { type: "boolean" },
+      historical_integrity_marker: { type: "boolean" },
+      current_release_authorized: { type: "boolean" }
+    },
+    additionalProperties: false,
+    description: "Current backend A2 Trusted Spine validation attached to a sealed historical comparison. A3 never recomputes A2 authority."
+  };
+}
+
+function deploymentHandoffCheckSchema() {
+  return {
+    type: "object",
+    required: ["id", "label", "owner", "status", "evidence_class", "evidence_level", "production_proof", "next_action", "required_receipt"],
+    properties: {
+      id: { type: "string" },
+      label: { type: "string" },
+      owner: { type: "string", enum: ["A1", "A2", "A1/A3", "A3", "Repository maintainer", "Unassigned"] },
+      status: { type: "string", enum: ["passed", "blocked", "not_proven"] },
+      evidence_class: { type: "string" },
+      evidence_level: { type: "string", enum: ["production_verified", "locally_authoritative", "locally_verified", "contract_only", "not_proven"] },
+      production_proof: { type: "boolean" },
+      evidence_ref: {},
+      blocked_reason: { type: ["string", "null"] },
+      next_action: { type: "string" },
+      required_receipt: { type: "string" }
+    },
+    additionalProperties: false
+  };
+}
+
+function candidateBindingHandoffSchema() {
+  return {
+    type: "object",
+    required: ["schema_version", "status", "same_candidate_bound", "expected", "observed_a2", "checks", "runtime_authority", "historical_packet", "next_action_owner", "next_action"],
+    properties: {
+      schema_version: { type: "string", const: "a3.candidate_binding_handoff.v1" },
+      status: { type: "string", enum: ["bound", "integrity_invalid"] },
+      same_candidate_bound: { type: "boolean" },
+      expected: { type: "object", additionalProperties: true },
+      observed_a2: { type: "object", additionalProperties: true },
+      checks: {
+        type: "array",
+        items: {
+          type: "object",
+          required: ["id", "status", "passed", "requirement"],
+          properties: {
+            id: { type: "string" },
+            status: { type: "string", enum: ["passed", "failed"] },
+            passed: { type: "boolean" },
+            requirement: { type: "string" }
+          },
+          additionalProperties: false
+        }
+      },
+      runtime_authority: { type: "object", additionalProperties: true },
+      historical_packet: { type: "object", additionalProperties: true },
+      next_action_owner: { type: "string" },
+      next_action: { type: "string" }
+    },
+    additionalProperties: false
+  };
+}
+
+function deploymentHandoffSchema() {
+  return {
+    type: "object",
+    required: ["schema_version", "source", "status", "production_ready", "summary", "candidate_binding", "owner_groups", "blocking_items", "next_actions", "safety"],
+    properties: {
+      schema_version: { type: "string", const: "a3.deployment_handoff.v1" },
+      source: { type: "string" },
+      status: { type: "string", enum: ["ready", "blocked"] },
+      production_ready: { type: "boolean", description: "Always fail-closed until all upstream and deployed environment receipts are authoritative." },
+      summary: {
+        type: "object",
+        required: ["total_checks", "passed", "blocked_or_not_proven", "production_proof_count", "owner_group_count", "candidate_binding_status", "golden_path_passed", "golden_path_total"],
+        properties: {
+          total_checks: { type: "integer", minimum: 0 },
+          passed: { type: "integer", minimum: 0 },
+          blocked_or_not_proven: { type: "integer", minimum: 0 },
+          production_proof_count: { type: "integer", minimum: 0 },
+          owner_group_count: { type: "integer", minimum: 0 },
+          candidate_binding_status: { type: "string", enum: ["bound", "integrity_invalid"] },
+          golden_path_passed: { type: "integer", minimum: 0 },
+          golden_path_total: { type: "integer", minimum: 0 }
+        },
+        additionalProperties: false
+      },
+      candidate_binding: { $ref: "#/components/schemas/CandidateBindingHandoff" },
+      owner_groups: {
+        type: "array",
+        items: {
+          type: "object",
+          required: ["id", "owner", "label", "dependency", "status", "total", "passed", "blocked", "production_proof_count", "actionable_by_a3", "blocking_ids", "checks"],
+          properties: {
+            id: { type: "string" },
+            owner: { type: "string" },
+            label: { type: "string" },
+            dependency: { type: "string" },
+            status: { type: "string", enum: ["passed", "blocked"] },
+            total: { type: "integer", minimum: 0 },
+            passed: { type: "integer", minimum: 0 },
+            blocked: { type: "integer", minimum: 0 },
+            production_proof_count: { type: "integer", minimum: 0 },
+            actionable_by_a3: { type: "boolean" },
+            blocking_ids: { type: "array", items: { type: "string" } },
+            checks: { type: "array", items: { $ref: "#/components/schemas/DeploymentHandoffCheck" } }
+          },
+          additionalProperties: false
+        }
+      },
+      blocking_items: { type: "array", items: { $ref: "#/components/schemas/DeploymentHandoffCheck" } },
+      next_actions: {
+        type: "array",
+        items: {
+          type: "object",
+          required: ["id", "owner", "action", "required_receipt"],
+          properties: {
+            id: { type: "string" }, owner: { type: "string" }, action: { type: "string" }, required_receipt: { type: "string" }
+          },
+          additionalProperties: false
+        }
+      },
+      safety: {
+        type: "object",
+        required: ["source_status_overridden", "a2_decision_recomputed", "a2_release_ready_recomputed", "historical_packet_treated_as_current_authority", "contract_only_claimed_as_production", "secret_values_allowed"],
+        properties: {
+          source_status_overridden: { type: "boolean", const: false },
+          a2_decision_recomputed: { type: "boolean", const: false },
+          a2_release_ready_recomputed: { type: "boolean", const: false },
+          historical_packet_treated_as_current_authority: { type: "boolean", const: false },
+          contract_only_claimed_as_production: { type: "boolean", const: false },
+          secret_values_allowed: { type: "boolean", const: false }
+        },
+        additionalProperties: false
+      }
+    },
+    additionalProperties: false
+  };
+}
+
+function unique(values) {
+  return [...new Set(values)];
 }
 
 function buildParityOperation(route, path) {

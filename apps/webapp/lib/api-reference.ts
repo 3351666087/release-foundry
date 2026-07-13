@@ -24,7 +24,7 @@ export type ApiEndpoint = {
 };
 
 export const apiReferenceMeta = {
-  schemaVersion: "a3.api_reference.v3",
+  schemaVersion: "a3.api_reference.v4",
   calibratedAt: "2026-07-12",
   mainSha: "ccf6ce5",
   a1Sha: "c784163",
@@ -40,7 +40,7 @@ export const apiReferenceMeta = {
   a2TrustedSpineSchema: "a2.trusted_spine_handoff.v1",
   a2RequiredScope: ["organization_id", "tenant_id", "workspace_id", "project_id", "environment_id"],
   a2ValidationErrors: true,
-  a3ReleaseCandidate: "0.2.0-rc.1"
+  a3ReleaseCandidate: "0.2.0-rc.2"
 } as const;
 
 export const apiGroups = [
@@ -341,19 +341,28 @@ export const apiEndpoints: ApiEndpoint[] = [
       source: "api-mock",
       summary: { totalRuns: 4, totalCases: 32, passed: 18, failed: 14 },
       a1_a2_evidence_spine: { a1_authority: "execution facts", a2_authority: "grade and release decision" },
+      trusted_release_authority: { status: "integrity_invalid", integrity_verified: false, upstream_decision: "unknown", release_ready: false },
       delivery_golden_path: { status: "blocked_by_a2", production_ready: false },
       deployment_acceptance: { status: "blocked", production_accepted: false },
+      deployment_handoff: {
+        schema_version: "a3.deployment_handoff.v1",
+        status: "blocked",
+        summary: { passed: 8, total_checks: 17, owner_group_count: 5, candidate_binding_status: "integrity_invalid" },
+        candidate_binding: { expected: { run_id: "a3-golden-20260712-002" }, observed_a2: { evidence_run_id: "a2_trusted_spine_demo" } }
+      },
       release_artifact_manifest: { release: { version: "0.2.0-rc.2", git_sha_alias: "candidate-head-sha", ci_tested_sha_alias: "tested-merge-sha", production_release: false } },
       release_comparison: {
         schema_version: "a3.release_comparison.v1",
         baseline: { version: "0.2.0-rc.1", a2_evaluation: { passed: 1, total_cases: 3 } },
         candidate: { version: "0.2.0-rc.2", a2_evaluation: { passed: 3, total_cases: 3 } },
-        authority_boundary: { baseline_decision: "block", candidate_decision: "block", candidate_release_ready: false }
+        authority_boundary: { baseline_decision: "block", candidate_decision: "block", current_status: "integrity_invalid", current_upstream_decision: "unknown" },
+        runtime_authority_validation: { historical_candidate_decision: "block", status: "integrity_invalid", current_release_authorized: false }
       }
     },
     notes: [
       { zh: "这是当前 Next.js Webapp 默认消费的只读 API。", en: "This is the read-only API consumed by the current Next.js webapp." },
-      { zh: "交付闭环和版本对比字段只汇总 A1/A2 权威证据；A3 不重算 A2 分数或发布决定。", en: "Delivery and release-comparison fields summarize authoritative A1/A2 evidence; A3 does not recompute A2 scores or release decisions." }
+      { zh: "当前运行时校验与历史封存结论分开返回；A3 不重算 A2 分数、pass/fail、failure class 或发布决定。", en: "Current runtime validation is separate from sealed historical decisions; A3 does not recompute A2 scores, pass/fail, failure class, or release decisions." },
+      { zh: "deployment_handoff 把 17 项验收拆给 A1、A2、A1/A3、A3 和仓库管理员，并说明每个阻塞项需要什么真实回执。", en: "deployment_handoff assigns 17 checks to A1, A2, A1/A3, A3, and the repository maintainer, with a required receipt for every blocker." }
     ]
   },
   {

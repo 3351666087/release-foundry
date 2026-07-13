@@ -80,9 +80,19 @@ test("dashboard API and OpenAPI expose the same release-comparison contract", as
   assert.equal(dashboard.release_comparison.schema_version, "a3.release_comparison.v1");
   assert.equal(dashboard.release_comparison.candidate.a2_evaluation.passed, 3);
   assert.equal(dashboard.release_comparison.authority_boundary.candidate_decision, "block");
+  assert.equal(dashboard.release_comparison.authority_boundary.current_status, "integrity_invalid");
+  assert.equal(dashboard.release_comparison.authority_boundary.current_integrity_verified, false);
+  assert.equal(dashboard.release_comparison.authority_boundary.current_upstream_decision, "unknown");
+  assert.equal(dashboard.release_comparison.runtime_authority_validation.historical_candidate_decision, "block");
+  assert.equal(dashboard.release_comparison.runtime_authority_validation.current_release_authorized, false);
+  assert.equal(dashboard.release_comparison.safety.runtime_authority_recomputed, false);
   assert.equal(
     openapi.components.schemas.DashboardSnapshot.properties.release_comparison.$ref,
     "#/components/schemas/ReleaseComparison"
+  );
+  assert.equal(
+    openapi.components.schemas.DashboardSnapshot.properties.deployment_handoff.$ref,
+    "#/components/schemas/DeploymentHandoff"
   );
   assert.equal(
     openapi.components.schemas.ReleaseComparison.properties.schema_version.const,
@@ -91,6 +101,10 @@ test("dashboard API and OpenAPI expose the same release-comparison contract", as
   assert.equal(
     openapi.components.schemas.ReleaseComparison.properties.safety.properties.a2_release_decision_recomputed.const,
     false
+  );
+  assert.equal(
+    openapi.components.schemas.ReleaseComparison.properties.runtime_authority_validation.$ref,
+    "#/components/schemas/ReleaseComparisonRuntimeAuthority"
   );
 });
 

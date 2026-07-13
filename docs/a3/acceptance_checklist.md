@@ -1246,3 +1246,25 @@
 - [x] Pass both CL guards and reverify the sealed rc.2 manifest without changing it.
 - [x] Save desktop and 390 x 844 screenshots with no horizontal overflow.
 - [x] Do not rewrite any sealed rc.2 manifest input.
+
+## Candidate Integrity and Deployment Handoff - 2026-07-13
+
+- [x] Revalidate the current A2 Trusted Spine through the backend verifier.
+- [x] Show `integrity_invalid` instead of treating the sealed historical `block` as current authority.
+- [x] Fail current `upstream_decision` closed to `unknown` when integrity is invalid.
+- [x] Preserve the sealed rc.2 historical decision separately.
+- [x] Compare expected A3 run/scope with observed A2 evidence and decision run/scope.
+- [x] Check Release Artifact and Golden Path run binding.
+- [x] Add `a3.deployment_handoff.v1` with 17 checks and 5 owner groups.
+- [x] Expose all 9 blocking checks with next action and required receipt.
+- [x] Keep A3 product-evidence ownership at 6/6 without overstating the other owner groups.
+- [x] Expose Deployment Handoff and runtime authority through Store, API Reference, and OpenAPI.
+- [x] Add Node tests for fail-closed mismatch and a fully bound ready handoff.
+- [x] Add Chinese/English UI and desktop/mobile Playwright assertions.
+- [x] Save four candidate-binding and deployment-handoff screenshots.
+- [x] Record at least 20 actionable Growth Auditor points.
+- [x] Keep A1 runtime facts and A2 score/pass/fail/failure-class/release semantics unchanged.
+- [x] Keep keys, tokens, cookies, email, OTP, signed URLs, local paths, and customer data out of artifacts.
+- [ ] Obtain a new A2 Trusted Spine for `a3-golden-20260712-002` and the exact five-level scope.
+- [ ] Rebuild a single-candidate Release Artifact after A2 supplies that authoritative record.
+- [ ] Attach tenant GitHub App, main required-check, staging/VPC, PostgreSQL/RLS, queue, object-storage, and rollback receipts.
