@@ -54,16 +54,19 @@ test("A3 webapp consumes A1 and A2 through the existing read-only dashboard API"
   assert.doesNotMatch(overviewSource, /releaseDecision\.includes\("block"\)/);
   assert.match(caseSource, /Trace timeline/);
   assert.match(caseSource, /Judge decisions/);
-  assert.match(reviewSource, /A2 release authority/);
+  assert.match(reviewSource, /Authoritative decision/);
 });
 
 test("A3 webapp keeps auth and commercial writes explicitly fail-closed", async () => {
-  const [loginSource, reviewSource, reportsSource, billingSource, teamSource] = await Promise.all([
+  const [loginSource, reviewSource, reportsSource, billingSource, teamSource, apiReferenceSource, i18nSource, authApiSource] = await Promise.all([
     readFile(new URL("components/pages/login-page.tsx", webappUrl), "utf8"),
     readFile(new URL("components/pages/review-page.tsx", webappUrl), "utf8"),
     readFile(new URL("components/pages/reports-page.tsx", webappUrl), "utf8"),
     readFile(new URL("components/pages/billing-page.tsx", webappUrl), "utf8"),
-    readFile(new URL("components/pages/team-page.tsx", webappUrl), "utf8")
+    readFile(new URL("components/pages/team-page.tsx", webappUrl), "utf8"),
+    readFile(new URL("components/pages/api-reference-page.tsx", webappUrl), "utf8"),
+    readFile(new URL("lib/i18n.tsx", webappUrl), "utf8"),
+    readFile(new URL("lib/auth-api.ts", webappUrl), "utf8")
   ]);
 
   assert.match(loginSource, /READ-ONLY DEMO IDENTITY/);
@@ -76,6 +79,11 @@ test("A3 webapp keeps auth and commercial writes explicitly fail-closed", async 
   assert.match(reportsSource, /hosted report service/);
   assert.match(billingSource, /live payment backend/);
   assert.match(teamSource, /hosted auth/);
+  assert.match(apiReferenceSource, /productCopy\(zh \? endpoint\.description\.zh/);
+  assert.match(apiReferenceSource, /productCopy\(endpoint\.source, zh\)/);
+  assert.match(apiReferenceSource, /productCopy\(zh \? note\.zh : note\.en, zh\)/);
+  assert.doesNotMatch(i18nSource, /common\.loading[^\n]+A1\/A2/);
+  assert.doesNotMatch(authApiSource, /"[^"]*\bA1\b[^"]*"/);
   assert.doesNotMatch([loginSource, reviewSource, reportsSource, billingSource, teamSource].join("\n"), /ASHR_API_KEY|sk-[A-Za-z0-9]/);
 });
 
@@ -111,7 +119,7 @@ test("self-host sandbox UI consumes A1 evidence without presenting it as product
   }
   assert.match(sandboxSource, /这不是生产部署证明/);
   assert.match(sandboxSource, /不会改变部署验收/);
-  assert.match(sandboxSource, /不会重算 A2 裁决/);
+  assert.match(sandboxSource, /不会重算权威裁决/);
   assert.match(sandboxSource, /production_gaps/);
   assert.match(sandboxSource, /postgres_qualification/);
   assert.match(sandboxSource, /PostgreSQL 五层租户隔离已验证/);

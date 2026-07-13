@@ -230,10 +230,11 @@ export function normalizeDashboard(payload: JsonRecord): DashboardModel {
     ? trustedAuthorityDecision(trustedReleaseAuthority.upstream_decision)
     : "unknown";
 
+  const source = string(payload.source, "api-mock");
   return {
     raw: payload,
-    source: string(payload.source, "api-mock"),
-    sourceLabel: string(payload.source_label, "A1/A2 API-backed evidence"),
+    source,
+    sourceLabel: customerSourceLabel(source, string(payload.source_label, "API evidence projection")),
     aggregateScopeStatus: {
       status: reportedAggregateStatus === "complete" ? "complete" : "partial",
       strictScopeEnforced: boolean(aggregateScopeStatus.strict_scope_enforced),
@@ -275,6 +276,19 @@ export function normalizeDashboard(payload: JsonRecord): DashboardModel {
     runs: normalizedRuns,
     cases
   };
+}
+
+function customerSourceLabel(source: string, sourceLabel: string): string {
+  const labels: Record<string, string> = {
+    "api-mock": "API 聚合证据",
+    "p3-official-demo": "官方校准样本",
+    "raw-a1": "执行证据原始样本",
+    "raw-a2": "评测结论原始样本",
+    "a3-golden-path-rc2": "发布候选 rc.2",
+    "a3-golden-path": "发布候选 rc.1"
+  };
+  if (labels[source]) return labels[source];
+  return /\bA[123](?:\/A[123])*\b/.test(sourceLabel) ? "发布证据数据源" : sourceLabel;
 }
 
 function trustedAuthorityStatus(value: unknown): TrustedReleaseAuthority["status"] {

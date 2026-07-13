@@ -22,7 +22,7 @@ test.describe("A3 Next.js product console", () => {
     for (const [route, title] of dataRoutes) {
       await page.goto(`${base}/${route}/`);
       await expect(page.getByRole("heading", { name: title })).toBeVisible();
-      await expect(page.locator(".sidebar-contract")).toContainText("32 cases");
+      await expect(page.locator(".sidebar-contract")).toContainText("32 个案例");
       await expect(page.locator(".source-control select")).toHaveValue("api-mock");
     }
 
@@ -38,7 +38,7 @@ test.describe("A3 Next.js product console", () => {
     await expect(page.getByRole("heading", { name: "进入工作区" })).toBeVisible();
     await expect(page.getByRole("button", { name: /Google 登录待接入/ })).toBeDisabled();
     await expect(page.getByRole("button", { name: /GitHub 登录待接入/ })).toBeDisabled();
-    await expect(page.locator(".auth-roadmap")).toContainText("A1 身份服务未连接");
+    await expect(page.locator(".auth-roadmap")).toContainText("身份服务未连接");
     await page.screenshot({ path: "docs/screenshots/a3-webapp-login-desktop.png", fullPage: false });
 
     expect(consoleErrors).toEqual([]);
@@ -112,7 +112,7 @@ test.describe("A3 Next.js product console", () => {
     await expect(page.locator(".delivery-signal")).toContainText("integrity_invalid");
     await expect(page.locator(".delivery-stage-list article")).toHaveCount(11);
     await expect(page.locator('.delivery-stage-list article[data-status="passed"]')).toHaveCount(7);
-    await expect(page.getByText("A2 Decision Ledger authorizes release", { exact: true })).toBeVisible();
+    await expect(page.getByText("权威决策账本允许发布", { exact: true })).toBeVisible();
     await expect(page.getByText("Tenant-bound GitHub App installation", { exact: true }).first()).toBeVisible();
     await expect(page.getByText("Required Check enforced on main", { exact: true }).first()).toBeVisible();
     await expect(page.getByText("GitHub Actions artifact live readback", { exact: true }).first()).toBeVisible();
@@ -158,8 +158,8 @@ test.describe("A3 Next.js product console", () => {
     await expect(page.locator(".delivery-signal")).toContainText("evidence_scope_mismatch");
     await expect(page.locator('.delivery-stage-list article[data-status="passed"]')).toHaveCount(7);
     const newRunEvidence = page.locator("section").filter({ has: page.getByRole("heading", { name: "新 Run 证据" }) });
-    await expect(newRunEvidence).toContainText("A1 执行");
-    await expect(newRunEvidence).toContainText("A2 案例评分");
+    await expect(newRunEvidence).toContainText("执行结果");
+    await expect(newRunEvidence).toContainText("案例评分");
     await expect(newRunEvidence).toContainText("3/3");
     await expect(newRunEvidence).toContainText("4");
     await expect(newRunEvidence).toContainText("unknown");
@@ -188,14 +188,14 @@ test.describe("A3 Next.js product console", () => {
     const deploymentHandoff = page.locator("section").filter({ has: page.getByRole("heading", { name: "部署交接：按负责人拆分" }) });
     await expect(deploymentHandoff.locator(".deployment-owner-grid article")).toHaveCount(5);
     await expect(deploymentHandoff.locator("tbody tr")).toHaveCount(9);
-    await expect(deploymentHandoff).toContainText("A3");
+    await expect(deploymentHandoff).toContainText("产品工作流");
     await expect(deploymentHandoff).toContainText("6/6");
     await expect(deploymentHandoff).toContainText("Tenant-bound GitHub App installation");
     await expect(deploymentHandoff).toContainText("Required Check enforced on main");
     await expect(deploymentHandoff.locator("details")).not.toHaveAttribute("open", "");
     await deploymentHandoff.scrollIntoViewIfNeeded();
     await page.screenshot({ path: "docs/screenshots/a3-webapp-deployment-handoff-rc2-desktop.png", fullPage: false, animations: "disabled" });
-    await expect(page.getByText("A2 Decision Ledger authorizes release", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("权威决策账本允许发布", { exact: true }).first()).toBeVisible();
     const githubReadback = page.locator("section").filter({ has: page.getByRole("heading", { name: "GitHub 真实回读" }) });
     await expect(githubReadback).toContainText("github-actions");
     await expect(githubReadback).toContainText("86656698704");
@@ -484,7 +484,7 @@ test.describe("A3 Next.js product console", () => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto(`${base}/api-reference/`);
     await expect(page.getByRole("heading", { name: "API 文档与参考" })).toBeVisible();
-    await expect(page.getByText(/A1 身份会话与 A2 可信判定链已进入 main/)).toBeVisible();
+    await expect(page.getByText(/身份会话与可信判定链已进入 main/)).toBeVisible();
     await expect(page.getByText("organization_id", { exact: true })).toBeVisible();
     await expect(page.getByText("可信证据与决策账本", { exact: true })).toBeVisible();
     await expect(page.getByText("请求邮箱验证码", { exact: true })).toBeVisible();
@@ -501,7 +501,7 @@ test.describe("A3 Next.js product console", () => {
     await expect(page.getByRole("button", { name: /发送验证码/ })).toBeDisabled();
     await page.getByText("查看验证邮件设计稿").click();
     await expect(page.getByLabel("验证码邮件设计预览")).toBeVisible();
-    await expect(page.getByText(/当前 A1 SMTP 仍发送纯文本/)).toBeVisible();
+    await expect(page.getByText(/当前身份服务的 SMTP 仍发送纯文本/)).toBeVisible();
     await page.screenshot({ path: "docs/screenshots/a3-webapp-email-signup-preview-desktop.png", fullPage: false });
   });
 

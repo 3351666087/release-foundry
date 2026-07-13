@@ -47,7 +47,7 @@ export function RunsPage() {
           { label: zh ? "平均分" : "Average score", value: model.summary.avgScore, tone: "cobalt" }
         ]} />
 
-        <Section title={zh ? "案例队列" : "Case queue"} description={zh ? "A1 执行记录与 A2 判定结果的联合视图" : "Joined A1 execution and A2 decision view"}>
+        <Section title={zh ? "案例队列" : "Case queue"} description={zh ? "执行记录与权威评测结果的联合视图" : "Joined execution and authoritative decision view"}>
           <div className="filter-bar">
             <label className="search-field"><Search size={16} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={zh ? "搜索案例、场景或失败分类" : "Search case, scenario, or failure class"} /></label>
             <div className="segmented-control" role="group" aria-label="Case status">

@@ -96,8 +96,8 @@ export function DeliveryPage() {
           eyebrow="RELEASE / DELIVERY / GOLDEN PATH"
           title={zh ? "交付闭环" : "Release delivery"}
           summary={zh
-            ? "把 A1 运行事实、A2 权威裁决、A3 制品和 GitHub 回读放在同一条可审计证据链中。"
-            : "One auditable chain for A1 runtime facts, A2 authority, A3 artifacts, and GitHub readback."}
+            ? "把运行事实、权威裁决、发布制品和 GitHub 回读放在同一条可审计证据链中。"
+            : "One auditable chain for runtime facts, authoritative decisions, release artifacts, and GitHub readback."}
           meta={<><span>{string(release.version, string(path.release_version))}</span><StatusBadge value={currentStatus} tone={productionReady ? "pass" : "fail"} /></>}
         />
 
@@ -110,8 +110,8 @@ export function DeliveryPage() {
                 ? (zh ? "候选证据绑定无效" : "Candidate evidence binding is invalid")
                 : (zh ? "候选版本保持阻塞" : "Release candidate remains blocked")}</h2>
             <p>{zh
-              ? `当前状态：${currentStatus}；A2 决策：${currentDecision}；原因：${string(runtimeAuthority.reason_code)}。Golden Path 通过 ${number(progress.passed)}/${number(progress.total)}，部署验收通过 ${number(acceptanceSummary.passed)}/${number(acceptanceSummary.total_checks)}。`
-              : `Current status: ${currentStatus}; A2 decision: ${currentDecision}; reason: ${string(runtimeAuthority.reason_code)}. Golden Path ${number(progress.passed)}/${number(progress.total)} and deployment acceptance ${number(acceptanceSummary.passed)}/${number(acceptanceSummary.total_checks)}.`}</p>
+              ? `当前状态：${currentStatus}；权威决策：${currentDecision}；原因：${string(runtimeAuthority.reason_code)}。Golden Path 通过 ${number(progress.passed)}/${number(progress.total)}，部署验收通过 ${number(acceptanceSummary.passed)}/${number(acceptanceSummary.total_checks)}。`
+              : `Current status: ${currentStatus}; authoritative decision: ${currentDecision}; reason: ${string(runtimeAuthority.reason_code)}. Golden Path ${number(progress.passed)}/${number(progress.total)} and deployment acceptance ${number(acceptanceSummary.passed)}/${number(acceptanceSummary.total_checks)}.`}</p>
             <div className="delivery-signal-actions">
               <Link href="/review">{zh ? "处理审核" : "Open review"}<ArrowRight size={15} /></Link>
               <Link href="/reports">{zh ? "查看制品" : "View artifacts"}<PackageCheck size={15} /></Link>
@@ -134,15 +134,15 @@ export function DeliveryPage() {
         <Section
           title={zh ? "新 Run 证据" : "New-run evidence"}
           description={zh
-            ? "案例执行和发布授权是两套独立证据。A3 只并列展示，不把案例通过换算成发布批准。"
-            : "Case execution and release authorization are independent. A3 displays both without converting passing cases into approval."}
+            ? "案例执行和发布授权是两套独立证据。控制台只并列展示，不把案例通过换算成发布批准。"
+            : "Case execution and release authorization are independent. The console displays both without converting passing cases into approval."}
         >
           <div className="release-artifact-band">
-            <div><span>{zh ? "A1 执行" : "A1 execution"}</span><strong>{number(runFixture.passed)}/{number(runFixture.total_cases)}</strong></div>
-            <div><span>{zh ? "A2 案例评分" : "A2 case grades"}</span><strong>{model.summary.passed}/{model.summary.totalCases}</strong></div>
+            <div><span>{zh ? "执行结果" : "Execution"}</span><strong>{number(runFixture.passed)}/{number(runFixture.total_cases)}</strong></div>
+            <div><span>{zh ? "案例评分" : "Case grades"}</span><strong>{model.summary.passed}/{model.summary.totalCases}</strong></div>
             <div><span>{zh ? "Trace 完整率" : "Trace completeness"}</span><strong>{number(model.summary.traceCompleteness)}%</strong></div>
             <div><span>{zh ? "工具调用" : "Tool calls"}</span><strong>{toolCallCount}</strong></div>
-            <div><span>{zh ? "当前 A2 决策" : "Current A2 decision"}</span><strong>{currentDecision}</strong></div>
+            <div><span>{zh ? "当前权威决策" : "Current decision"}</span><strong>{currentDecision}</strong></div>
           </div>
         </Section>
 
@@ -151,12 +151,12 @@ export function DeliveryPage() {
             className="candidate-binding-section"
             title={zh ? "同一候选绑定校验" : "Same-candidate binding"}
             description={zh
-              ? "最新 Git SHA、A1 Run、A2 证据与裁决、A3 制品必须属于同一个 candidate，缺一项就 fail closed。"
-              : "The latest Git SHA, A1 run, A2 evidence and decision, and A3 artifact must bind one candidate or fail closed."}
+              ? "最新 Git SHA、执行记录、评测证据与裁决、发布制品必须属于同一个 candidate，缺一项就 fail closed。"
+              : "The latest Git SHA, run, evaluation evidence and decision, and release artifact must bind one candidate or fail closed."}
           >
             <div className="candidate-binding-hero" data-status={string(candidateBinding.status)}>
               <div>
-                <span>{zh ? "期望的 A3 候选" : "EXPECTED A3 CANDIDATE"}</span>
+                <span>{zh ? "期望的发布候选" : "EXPECTED RELEASE CANDIDATE"}</span>
                 <strong>{string(expectedBinding.run_id)}</strong>
                 <small>{scopeLabel(record(expectedBinding.tenant_scope))}</small>
               </div>
@@ -165,7 +165,7 @@ export function DeliveryPage() {
                 <StatusBadge value={string(candidateBinding.status)} tone={bindingValid ? "pass" : "fail"} />
               </div>
               <div>
-                <span>{zh ? "实际的 A2 证据" : "OBSERVED A2 EVIDENCE"}</span>
+                <span>{zh ? "实际的评测证据" : "OBSERVED EVALUATION EVIDENCE"}</span>
                 <strong>{string(observedA2.evidence_run_id)}</strong>
                 <small>{scopeLabel(record(observedA2.tenant_scope))}</small>
               </div>
@@ -186,7 +186,7 @@ export function DeliveryPage() {
               <article data-state="current">
                 <span>{zh ? "当前运行时校验" : "CURRENT RUNTIME VALIDATION"}</span>
                 <strong>{string(bindingRuntime.status)}</strong>
-                <p>{zh ? "当前 A2 决策只能显示为" : "Current A2 decision must be"} <code>{string(bindingRuntime.upstream_decision)}</code></p>
+                <p>{zh ? "当前权威决策只能显示为" : "Current authoritative decision must be"} <code>{string(bindingRuntime.upstream_decision)}</code></p>
                 <small>{string(bindingRuntime.reason_code)}</small>
               </article>
               <article data-state="historical">
@@ -204,16 +204,16 @@ export function DeliveryPage() {
             className="release-comparison-section"
             title={zh ? "版本对比：rc.1 → rc.2" : "Release comparison: rc.1 → rc.2"}
             description={zh
-              ? "A1/A2 权威字段说明修复了什么；当前后端校验说明这份历史包为什么还不能授权发布。"
-              : "A1/A2 authority fields show what improved; runtime validation explains why the historical packet cannot authorize release."}
+              ? "执行与评测权威字段说明修复了什么；当前后端校验说明这份历史包为什么还不能授权发布。"
+              : "Runtime and evaluation authority fields show what improved; current validation explains why the historical packet cannot authorize release."}
           >
             <div className="release-comparison-hero">
               <div className="release-comparison-copy">
                 <span>{zh ? "本轮最重要的变化" : "MOST IMPORTANT CHANGE"}</span>
                 <h3>{zh ? "案例质量已修复，当前候选绑定无效" : "Case quality repaired; current candidate binding invalid"}</h3>
                 <p>{zh
-                  ? "rc.2 补齐了真实工具链，A2 案例评分从 1/3 提升到 3/3。但当前 A2 Trusted Spine 属于另一条 run 和 scope，因此后端返回 integrity_invalid。"
-                  : "rc.2 adds the required tool chain and moves A2 case grades from 1/3 to 3/3. The current A2 Trusted Spine belongs to another run and scope, so the backend returns integrity_invalid."}</p>
+                  ? "rc.2 补齐了真实工具链，案例评分从 1/3 提升到 3/3。但当前可信证据链属于另一条 run 和 scope，因此后端返回 integrity_invalid。"
+                  : "rc.2 adds the required tool chain and moves case grades from 1/3 to 3/3. The current trusted spine belongs to another run and scope, so the backend returns integrity_invalid."}</p>
               </div>
               <div className="release-comparison-verdict" data-state={currentStatus}>
                 <ShieldAlert size={23} aria-hidden="true" />
@@ -231,25 +231,25 @@ export function DeliveryPage() {
 
             <div className="release-comparison-metrics" aria-label={zh ? "rc.1 与 rc.2 指标对比" : "rc.1 and rc.2 metric comparison"}>
               <article data-tone="quality">
-                <header><span>A2</span><strong>{zh ? "评分通过" : "Cases passed"}</strong></header>
+                <header><span>{zh ? "评测" : "EVAL"}</span><strong>{zh ? "评分通过" : "Cases passed"}</strong></header>
                 <div><b>{number(baselineA2.passed)}/{number(baselineA2.total_cases)}</b><ArrowRight size={17} /><b>{number(candidateA2.passed)}/{number(candidateA2.total_cases)}</b></div>
                 <p>+{number(comparisonQuality.a2_passed_case_delta)} {zh ? "例" : "cases"}</p>
                 <small>{zh ? `通过率提升 ${number(comparisonQuality.a2_pass_rate_point_delta)} 个百分点` : `Pass rate +${number(comparisonQuality.a2_pass_rate_point_delta)} points`}</small>
               </article>
               <article data-tone="resolved">
-                <header><span>A2</span><strong>missing_required_tool</strong></header>
+                <header><span>{zh ? "评测" : "EVAL"}</span><strong>missing_required_tool</strong></header>
                 <div><b>{number(resolvedToolFailure?.before)}</b><ArrowRight size={17} /><b>{number(resolvedToolFailure?.after)}</b></div>
                 <p>-{number(resolvedToolFailure?.resolved)} {zh ? "例失败" : "failures"}</p>
-                <small>{zh ? "失败分类由 A2 原样提供" : "Failure classes are copied from A2"}</small>
+                <small>{zh ? "失败分类由权威评测原样提供" : "Failure classes are copied from the evaluation authority"}</small>
               </article>
               <article data-tone="tools">
-                <header><span>A1</span><strong>{zh ? "工具调用" : "Tool calls"}</strong></header>
+                <header><span>{zh ? "执行" : "RUN"}</span><strong>{zh ? "工具调用" : "Tool calls"}</strong></header>
                 <div><b>{number(baselineA1.tool_call_count)}</b><ArrowRight size={17} /><b>{number(candidateA1.tool_call_count)}</b></div>
                 <p>+{number(comparisonQuality.tool_call_delta)} {zh ? "次调用" : "calls"}</p>
                 <small>{zh ? "web.search + 媒体工具链" : "web.search + media tool chain"}</small>
               </article>
               <article data-tone="evidence">
-                <header><span>A3</span><strong>{zh ? "发布制品" : "Release artifacts"}</strong></header>
+                <header><span>{zh ? "发布" : "RELEASE"}</span><strong>{zh ? "发布制品" : "Release artifacts"}</strong></header>
                 <div><b>{number(comparisonBaseline.artifact_count)}</b><ArrowRight size={17} /><b>{number(comparisonCandidate.artifact_count)}</b></div>
                 <p>+{number(comparisonCandidate.artifact_count) - number(comparisonBaseline.artifact_count)} {zh ? "份证据" : "artifacts"}</p>
                 <small>{zh ? "版本化、哈希绑定、可回读" : "Versioned, hash-bound, readable"}</small>
@@ -261,14 +261,14 @@ export function DeliveryPage() {
                 <TrendingUp size={20} aria-hidden="true" />
                 <span>{zh ? "质量层" : "QUALITY LAYER"}</span>
                 <strong>{zh ? "已经改善" : "Improved"}</strong>
-                <small>{zh ? "A1 工具事实 + A2 案例评分" : "A1 tool facts + A2 case grades"}</small>
+                <small>{zh ? "工具事实 + 案例评分" : "Tool facts + case grades"}</small>
               </div>
               <ArrowRight className="release-comparison-boundary-arrow" size={22} aria-hidden="true" />
               <div data-state="blocked">
                 <Wrench size={20} aria-hidden="true" />
                 <span>{zh ? "交付层" : "DELIVERY LAYER"}</span>
                 <strong>{zh ? "仍需重新绑定" : "Rebinding required"}</strong>
-                <small>{zh ? "同一 run/scope 的 A2 Spine、部署和仓库治理" : "Same-run A2 Spine, deployment, and repository governance"}</small>
+                <small>{zh ? "同一 run/scope 的可信证据链、部署和仓库治理" : "Same-run trusted spine, deployment, and repository governance"}</small>
               </div>
             </div>
 
@@ -283,8 +283,8 @@ export function DeliveryPage() {
             className="deployment-handoff-section"
             title={zh ? "部署交接：按负责人拆分" : "Deployment handoff by owner"}
             description={zh
-              ? "17 项验收拆成 5 个责任组。A3 已完成产品证据组，其余工作需要对应负责人提供可回读的真实回执。"
-              : "Seventeen checks are grouped across five owners. A3 product evidence is complete; remaining owners must attach live receipts."}
+              ? "17 项验收拆成 5 个责任组。产品证据组已完成，其余工作需要对应负责人提供可回读的真实回执。"
+              : "Seventeen checks are grouped across five owners. Product evidence is complete; remaining owners must attach live receipts."}
           >
             <div className="deployment-owner-grid">
               {ownerGroups.map((group) => {
@@ -292,7 +292,7 @@ export function DeliveryPage() {
                 return <article key={string(group.id)} data-status={groupStatus}>
                   <header>
                     {ownerIcon(string(group.owner))}
-                    <div><span>{string(group.owner)}</span><strong>{ownerGroupLabel(string(group.id), zh, string(group.label))}</strong></div>
+                    <div><span>{ownerLabel(string(group.owner), zh)}</span><strong>{ownerGroupLabel(string(group.id), zh, string(group.label))}</strong></div>
                     <StatusBadge value={groupStatus} tone={groupStatus === "passed" ? "pass" : "fail"} />
                   </header>
                   <div className="deployment-owner-count"><strong>{number(group.passed)}/{number(group.total)}</strong><span>{zh ? "项已通过" : "checks passed"}</span></div>
@@ -312,7 +312,7 @@ export function DeliveryPage() {
             <DataTable headers={[zh ? "阻塞项" : "Blocker", zh ? "负责人" : "Owner", zh ? "下一步" : "Next action", zh ? "必须回执" : "Required receipt"]} label={zh ? "部署阻塞与回执" : "Deployment blockers and receipts"}>
               {blockingItems.map((item) => <tr key={string(item.id)}>
                 <td><strong>{string(item.label)}</strong><small><code>{string(item.id)}</code> · {string(item.blocked_reason)}</small></td>
-                <td><StatusBadge value={string(item.owner)} tone="neutral" /></td>
+                <td><StatusBadge value={ownerLabel(string(item.owner), zh)} tone="neutral" /></td>
                 <td>{string(item.next_action)}</td>
                 <td>{string(item.required_receipt)}</td>
               </tr>)}
@@ -329,8 +329,8 @@ export function DeliveryPage() {
             className="deployment-receipt-section"
             title={zh ? "部署回执收件箱" : "Deployment receipt inbox"}
             description={zh
-              ? "按候选版本和 Run 收集 9 类回执，并分别展示收件状态、服务器权威回读、原始验收和只读投影；A2 裁决保持不变。"
-              : "Collects nine receipt classes for one candidate and run, separating intake, server readback, source acceptance, and read-only projection while preserving A2 authority."}
+              ? "按候选版本和 Run 收集 9 类回执，并分别展示收件状态、服务器权威回读、原始验收和只读投影；权威裁决保持不变。"
+              : "Collects nine receipt classes for one candidate and run, separating intake, server readback, source acceptance, and read-only projection while preserving decision authority."}
           >
             <DeploymentReceiptInbox inbox={deploymentReceiptInbox} projection={deploymentAcceptanceProjection} />
           </Section>
@@ -340,8 +340,8 @@ export function DeliveryPage() {
           className="self-host-sandbox-section"
           title={zh ? "自托管沙箱校准" : "Self-host sandbox calibration"}
           description={zh
-            ? "直接运行 A1 本地控制面、Worker 和对象存储契约；沙箱证据与生产部署回执严格分层。"
-            : "Runs A1 local control-plane, worker, and object-storage contracts while keeping sandbox and production receipts separate."}
+            ? "直接运行本地控制面、Worker 和对象存储契约；沙箱证据与生产部署回执严格分层。"
+            : "Runs local control-plane, worker, and object-storage contracts while keeping sandbox and production receipts separate."}
         >
           <SelfHostSandboxPanel
             source={model.source}
@@ -361,7 +361,7 @@ export function DeliveryPage() {
                 <article key={`${string(item.id)}-${index}`} data-status={string(item.status)}>
                   <span className="delivery-stage-index">{String(index + 1).padStart(2, "0")}</span>
                   {passed ? <CheckCircle2 size={19} /> : <CircleDashed size={19} />}
-                  <div><strong>{string(item.label)}</strong><small>{string(item.owner)}</small></div>
+                  <div><strong>{deliveryStageLabel(string(item.id), zh, string(item.label))}</strong><small>{ownerLabel(string(item.owner), zh)}</small></div>
                   <StatusBadge value={string(item.status)} tone={passed ? "pass" : "fail"} />
                   {!passed && <p>{string(item.blocked_reason)}</p>}
                 </article>
@@ -373,14 +373,14 @@ export function DeliveryPage() {
         <Section
           title={zh ? "GitHub 真实回读" : "Live GitHub readback"}
           description={zh
-            ? "区分真实外部回读、操作员身份和生产门禁；成功的 CI 不会覆盖 A2 的发布阻塞。"
-            : "Separates live external readback, operator identity, and production enforcement; successful CI never overrides A2."}
+            ? "区分真实外部回读、操作员身份和生产门禁；成功的 CI 不会覆盖权威发布阻塞。"
+            : "Separates live external readback, operator identity, and production enforcement; successful CI never overrides release authority."}
         >
           <div className="github-readback-grid">
             <article data-state={checkReadback.readback_confirmed === true ? "confirmed" : "blocked"}>
               <div className="github-readback-head">
                 <Workflow size={18} />
-                <div><span>CHECK RUN</span><strong>{string(checkObserved.check_name, "A3 golden path release artifact")}</strong></div>
+                <div><span>CHECK RUN</span><strong>{string(checkObserved.check_name, "release artifact golden path")}</strong></div>
                 <StatusBadge value={checkReadback.readback_confirmed === true ? (zh ? "已回读" : "confirmed") : string(checkReadback.readback_status)} tone={checkReadback.readback_confirmed === true ? "pass" : "fail"} />
               </div>
               <dl>
@@ -439,7 +439,7 @@ export function DeliveryPage() {
                 <div><dt>{zh ? "回读状态" : "Readback"}</dt><dd>{string(requiredCheck.readback_status)}</dd></div>
                 <div><dt>{zh ? "检查数量" : "Checks found"}</dt><dd>{number(requiredCheck.checked_count)}</dd></div>
               </dl>
-              <p>{zh ? "main 返回 404，branch protection 未启用；A3 没有把计划冒充强制门禁。" : "main returned 404 and branch protection is absent; A3 does not present a plan as enforced policy."}</p>
+              <p>{zh ? "main 返回 404，branch protection 未启用；控制台没有把计划冒充强制门禁。" : "main returned 404 and branch protection is absent; the console does not present a plan as enforced policy."}</p>
             </article>
           </div>
         </Section>
@@ -452,7 +452,7 @@ export function DeliveryPage() {
             <DataTable headers={[zh ? "检查" : "Check", zh ? "负责人" : "Owner", zh ? "证据等级" : "Evidence", zh ? "状态" : "Status"]} label="Deployment acceptance checks">
               {checks.map((item, index) => <tr key={`${string(item.id)}-${index}`}>
                 <td><strong>{string(item.label)}</strong><small>{string(item.blocked_reason, string(item.evidence_ref, "verified"))}</small></td>
-                <td>{string(item.owner)}</td>
+                <td>{ownerLabel(string(item.owner), zh)}</td>
                 <td><code>{string(item.evidence_class)}</code></td>
                 <td><StatusBadge value={string(item.status)} tone={string(item.status) === "passed" ? "pass" : "fail"} /></td>
               </tr>)}
@@ -461,12 +461,12 @@ export function DeliveryPage() {
 
           <Section
             title={zh ? "权威边界" : "Authority boundary"}
-            description={zh ? "A3 只编排，不改写上游结论。" : "A3 orchestrates without rewriting upstream decisions."}
+            description={zh ? "产品控制台只编排，不改写上游结论。" : "The product console orchestrates without rewriting upstream decisions."}
           >
             <div className="delivery-authority-list">
-              <article><CloudCog size={18} /><div><span>A1</span><strong>{zh ? "运行、身份、部署事实" : "Runtime, identity, deploy facts"}</strong></div></article>
-              <article><ShieldAlert size={18} /><div><span>A2</span><strong>{zh ? "评分与发布裁决" : "Scores and release decision"}</strong></div></article>
-              <article><Archive size={18} /><div><span>A3</span><strong>{zh ? "工作流、报告、证据包" : "Workflow, reports, bundles"}</strong></div></article>
+              <article><CloudCog size={18} /><div><span>{zh ? "运行平台" : "Runtime"}</span><strong>{zh ? "运行、身份、部署事实" : "Runtime, identity, deploy facts"}</strong></div></article>
+              <article><ShieldAlert size={18} /><div><span>{zh ? "评测服务" : "Evaluation"}</span><strong>{zh ? "评分与发布裁决" : "Scores and release decision"}</strong></div></article>
+              <article><Archive size={18} /><div><span>{zh ? "产品工作流" : "Product"}</span><strong>{zh ? "工作流、报告、证据包" : "Workflow, reports, bundles"}</strong></div></article>
               <article><GitBranch size={18} /><div><span>GitHub</span><strong>{zh ? "Check、PR、分支策略" : "Checks, PR, branch policy"}</strong></div></article>
             </div>
           </Section>
@@ -506,6 +506,36 @@ function ownerIcon(owner: string) {
   return <UsersRound size={19} />;
 }
 
+function ownerLabel(owner: string, zh: boolean): string {
+  const labels: Record<string, [string, string]> = {
+    A1: ["运行平台", "Runtime platform"],
+    A2: ["评测服务", "Evaluation service"],
+    A3: ["产品工作流", "Product workflow"],
+    "A1/A3": ["平台与产品", "Platform and product"],
+    repository_maintainer: ["仓库管理员", "Repository maintainer"]
+  };
+  const value = labels[owner];
+  return value ? value[zh ? 0 : 1] : owner;
+}
+
+function deliveryStageLabel(id: string, zh: boolean, fallback: string): string {
+  const labels: Record<string, [string, string]> = {
+    capture: ["采集新的执行记录", "Capture a new run"],
+    evaluate: ["评测全部案例", "Evaluate every case"],
+    decide: ["权威决策账本允许发布", "Decision ledger authorizes release"],
+    bundle: ["封存并验证审计证据包", "Seal and verify the audit bundle"],
+    archive: ["验证签名归档", "Verify the signed archive"],
+    package: ["版本化发布制品可验证", "Versioned release artifact is verifiable"],
+    deploy: ["部署验收通过", "Deployment acceptance passes"],
+    github_app: ["租户 GitHub App 身份可信", "Tenant GitHub App is trusted"],
+    github_check: ["GitHub Check 已发布并回读", "GitHub Check is published and read back"],
+    pr_comment: ["PR 评论已发布并回读", "PR comment is published and read back"],
+    required_check: ["main 强制执行发布检查", "main enforces the release check"]
+  };
+  const value = labels[id];
+  return value ? value[zh ? 0 : 1] : fallback;
+}
+
 function ownerGroupLabel(id: string, zh: boolean, fallback: string) {
   const labels: Record<string, [string, string]> = {
     decision_authority: ["裁决权威", "Decision authority"],
@@ -520,10 +550,10 @@ function ownerGroupLabel(id: string, zh: boolean, fallback: string) {
 function bindingCheckLabel(id: string, zh: boolean) {
   const labels: Record<string, [string, string]> = {
     tenant_scope: ["五级租户作用域", "Five-level tenant scope"],
-    run_id: ["A1/A2 Run ID", "A1/A2 run ID"],
+    run_id: ["执行/评测 Run ID", "Runtime/evaluation run ID"],
     release_artifact_run: ["Release Artifact 绑定", "Release Artifact binding"],
     golden_path_run: ["Golden Path 绑定", "Golden Path binding"],
-    a2_integrity: ["A2 Trusted Spine 完整性", "A2 Trusted Spine integrity"]
+    a2_integrity: ["可信证据链完整性", "Trusted spine integrity"]
   };
   return labels[id]?.[zh ? 0 : 1] || id;
 }

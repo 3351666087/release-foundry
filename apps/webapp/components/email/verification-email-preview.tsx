@@ -1,4 +1,4 @@
-import { ArrowRight, LockKeyhole, ShieldCheck } from "lucide-react";
+import { ArrowRight, LockKeyhole, PackageCheck, ShieldCheck } from "lucide-react";
 
 import styles from "./verification-email-preview.module.css";
 
@@ -6,7 +6,7 @@ export function VerificationEmailPreview({ zh }: { zh: boolean }) {
   return (
     <article className={styles.email} aria-label={zh ? "验证码邮件设计预览" : "Verification email design preview"}>
       <header className={styles.header}>
-        <div className={styles.brand}><span>A3</span><strong>ASHR</strong></div>
+        <div className={styles.brand}><span><PackageCheck size={16} strokeWidth={1.9} aria-hidden="true" /></span><strong>ASHR</strong></div>
         <span className={styles.security}><ShieldCheck size={13} /> SECURITY MESSAGE</span>
       </header>
       <div className={styles.body}>

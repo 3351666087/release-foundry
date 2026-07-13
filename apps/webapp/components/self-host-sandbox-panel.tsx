@@ -118,7 +118,7 @@ function SandboxEvidence({
         <div className="sandbox-verdict-copy">
           <div className="sandbox-verdict-mark">{partial ? <AlertTriangle size={24} /> : <ShieldCheck size={24} />}</div>
           <div>
-            <span>{zh ? "A1 本地运行时回执" : "A1 LOCAL RUNTIME RECEIPT"}</span>
+            <span>{zh ? "本地运行时回执" : "LOCAL RUNTIME RECEIPT"}</span>
             <h3>{partial
               ? (zh ? "沙箱校准仅部分通过" : "Sandbox calibration is partial")
               : (zh ? "沙箱行为已验证" : "Sandbox behavior verified")}</h3>
@@ -139,15 +139,15 @@ function SandboxEvidence({
         <div>
           <strong>{zh ? "这不是生产部署证明" : "This is not production deployment proof"}</strong>
           <span>{zh
-            ? `沙箱 ${passed}/${total} 不会改变部署验收 ${acceptancePassed}/${acceptanceTotal}，也不会重算 A2 裁决。`
-            : `Sandbox ${passed}/${total} does not change deployment acceptance ${acceptancePassed}/${acceptanceTotal} or recompute A2.`}</span>
+            ? `沙箱 ${passed}/${total} 不会改变部署验收 ${acceptancePassed}/${acceptanceTotal}，也不会重算权威裁决。`
+            : `Sandbox ${passed}/${total} does not change deployment acceptance ${acceptancePassed}/${acceptanceTotal} or recompute the authoritative decision.`}</span>
         </div>
         <StatusBadge value={zh ? "生产验证 0" : "production proof 0"} tone="fail" />
       </div>
 
       {Object.keys(postgres).length > 0 && <PostgresQualification payload={postgres} zh={zh} />}
 
-      <div className="sandbox-check-grid" aria-label={zh ? "A1 沙箱检查" : "A1 sandbox checks"}>
+      <div className="sandbox-check-grid" aria-label={zh ? "运行时沙箱检查" : "Runtime sandbox checks"}>
         {checks.map((check) => {
           const passedCheck = string(check.status) === "passed";
           return <article key={string(check.id)} data-status={string(check.status)}>
@@ -235,7 +235,7 @@ function SandboxLoading({ zh }: { zh: boolean }) {
   return (
     <div className="sandbox-boundary-state" data-sandbox-state="loading" role="status" aria-live="polite">
       <LoaderCircle className="spin" size={23} />
-      <div><strong>{zh ? "正在读取 A1 沙箱回执" : "Loading A1 sandbox receipt"}</strong><span>{zh ? "验证结果和生产缺口会分别展示。" : "Results and production gaps will remain separate."}</span></div>
+      <div><strong>{zh ? "正在读取运行时沙箱回执" : "Loading runtime sandbox receipt"}</strong><span>{zh ? "验证结果和生产缺口会分别展示。" : "Results and production gaps will remain separate."}</span></div>
       <div className="sandbox-loading-lines"><i /><i /><i /></div>
     </div>
   );
@@ -256,7 +256,7 @@ function SandboxBoundary({
     empty: {
       icon: <FileQuestion size={23} />,
       title: zh ? "暂无沙箱校准回执" : "No sandbox calibration receipt",
-      detail: zh ? "请先运行 A1 本地沙箱探针，再重新读取。" : "Run the local A1 sandbox probe, then reload."
+      detail: zh ? "请先运行本地沙箱探针，再重新读取。" : "Run the local sandbox probe, then reload."
     },
     failed: {
       icon: <AlertTriangle size={23} />,
@@ -330,7 +330,7 @@ function gapLabel(id: string, zh: boolean) {
     container_image_identity: ["容器镜像身份", "Container image identity"],
     vpc_network_policy: ["VPC 网络策略", "VPC network policy"],
     upgrade_rollback_recovery: ["升级、回滚与恢复", "Upgrade, rollback, recovery"],
-    production_a2_release_authority: ["生产 A2 发布裁决", "Production A2 release authority"]
+    production_a2_release_authority: ["生产发布裁决", "Production release authority"]
   };
   return labels[id]?.[zh ? 0 : 1] || id;
 }

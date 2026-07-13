@@ -29,7 +29,7 @@ test("API Reference is a typed route grounded in A1, A2, and A3 contracts", asyn
   assert.match(reference, /a2SourceState: "merged_to_main"/);
   assert.match(page, /UPSTREAM MAIN INTEGRATION/);
   assert.match(page, /a2RequiredScope\.map/);
-  assert.match(page, /A1 Capture · A2 Judge · A3 Operate/);
+  assert.match(page, /运行平台 · 评测策略 · 产品工作流/);
   assert.match(reference, /\/v1\/identity-verification\/challenges/);
   assert.match(reference, /browser-sessions\/refresh/);
   assert.match(reference, /\/internal\/judge\/case/);
@@ -88,7 +88,7 @@ test("login and registration disclose upstream capability gaps instead of faking
   assert.match(login, /completeEmailVerification/);
   assert.match(login, /!challengeId/);
   assert.match(login, /Google\/GitHub remain signed-in account linking rather than initial sign-in/);
-  assert.match(login, /current A1 SMTP sender still sends plain text/);
+  assert.match(login, /identity service currently sends plain text/);
   assert.match(login, /This preview does not create an account or store email or credentials/);
   assert.doesNotMatch(login, /localStorage|sessionStorage|document\.cookie|console\./);
 });

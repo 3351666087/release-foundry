@@ -153,6 +153,11 @@ button:disabled {
   font-weight: 800;
 }
 
+.brand-emblem > svg,
+.login-brand > span > svg {
+  display: block;
+}
+
 .app-brand > strong {
   display: grid;
   font-family: var(--font-display);

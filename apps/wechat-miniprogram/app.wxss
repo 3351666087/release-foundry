@@ -1,63 +1,273 @@
 page {
-  background: #f8fafc;
-  color: #0f172a;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  min-height: 100%;
+  background: #f3f4f6;
+  color: #18181b;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 28rpx;
+  letter-spacing: 0;
 }
 
-.page {
-  padding: 32rpx;
+view,
+text,
+button {
+  box-sizing: border-box;
+  letter-spacing: 0;
 }
 
-.eyebrow {
-  color: #475569;
-  font-size: 24rpx;
-  font-weight: 600;
-  text-transform: uppercase;
+button::after {
+  border: 0;
 }
 
-.title {
-  color: #0f172a;
-  font-size: 42rpx;
-  font-weight: 700;
-  margin: 10rpx 0 24rpx;
+.screen {
+  min-height: 100vh;
+  padding: 28rpx 28rpx calc(48rpx + env(safe-area-inset-bottom));
 }
 
-.section {
-  background: #ffffff;
-  border: 1rpx solid #e2e8f0;
-  border-radius: 8rpx;
-  margin-bottom: 20rpx;
-  padding: 22rpx;
+.product-header {
+  display: flex;
+  align-items: center;
+  gap: 18rpx;
+  margin-bottom: 28rpx;
 }
 
-.label {
-  color: #64748b;
-  display: block;
-  font-size: 24rpx;
-  margin-bottom: 8rpx;
+.brand-mark {
+  display: flex;
+  width: 68rpx;
+  height: 68rpx;
+  flex: 0 0 68rpx;
+  align-items: center;
+  justify-content: center;
+  background: #e9442c;
+  color: #ffffff;
+  font-size: 27rpx;
+  font-weight: 800;
 }
 
-.value {
-  color: #0f172a;
+.product-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.product-name {
   display: block;
   font-size: 30rpx;
-  font-weight: 600;
-  word-break: break-all;
+  font-weight: 750;
+  line-height: 1.25;
 }
 
-.row {
-  border-top: 1rpx solid #e2e8f0;
-  color: #334155;
+.product-context {
+  display: block;
+  margin-top: 5rpx;
+  color: #71717a;
+  font-size: 21rpx;
+  line-height: 1.35;
+}
+
+.mode-pill,
+.status-pill {
+  display: inline-flex;
+  min-height: 42rpx;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16rpx;
+  border: 1rpx solid #d4d4d8;
+  border-radius: 999rpx;
+  background: #ffffff;
+  color: #52525b;
+  font-size: 20rpx;
+  font-weight: 650;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.status-pill.is-danger { border-color: #f3aaa0; background: #fff3f1; color: #b42318; }
+.status-pill.is-warning { border-color: #edcf7a; background: #fff9e8; color: #7a5200; }
+.status-pill.is-success { border-color: #8fc5ae; background: #edf8f2; color: #176b48; }
+.status-pill.is-neutral { border-color: #d4d4d8; background: #f4f4f5; color: #52525b; }
+
+.section-label {
+  display: block;
+  margin: 32rpx 0 16rpx;
+  color: #71717a;
+  font-size: 21rpx;
+  font-weight: 700;
+}
+
+.panel {
+  border: 1rpx solid #d4d4d8;
+  border-radius: 8rpx;
+  background: #ffffff;
+}
+
+.panel + .panel {
+  margin-top: 18rpx;
+}
+
+.panel-body {
+  padding: 26rpx;
+}
+
+.panel-title {
+  display: block;
+  font-size: 29rpx;
+  font-weight: 750;
+  line-height: 1.35;
+}
+
+.panel-copy {
+  display: block;
+  margin-top: 9rpx;
+  color: #52525b;
+  font-size: 23rpx;
+  line-height: 1.6;
+}
+
+.key-value {
+  display: flex;
+  min-height: 76rpx;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20rpx;
+  border-top: 1rpx solid #e4e4e7;
+}
+
+.key-value:first-child { border-top: 0; }
+.key-value-label { color: #71717a; font-size: 22rpx; }
+.key-value-value { max-width: 64%; text-align: right; font-size: 23rpx; font-weight: 650; overflow-wrap: anywhere; }
+
+.primary-button,
+.secondary-button,
+.danger-button {
+  display: flex;
+  min-height: 84rpx;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6rpx;
   font-size: 26rpx;
-  padding: 14rpx 0;
+  font-weight: 700;
+  line-height: 1;
 }
 
-.row:first-child {
-  border-top: 0;
+.primary-button { background: #18181b; color: #ffffff; }
+.secondary-button { border: 1rpx solid #a1a1aa; background: #ffffff; color: #18181b; }
+.danger-button { border: 1rpx solid #d9483b; background: #fff3f1; color: #a52a20; }
+.button-pressed { transform: translateY(1rpx); opacity: 0.82; }
+button[disabled] { background: #e4e4e7; color: #a1a1aa; opacity: 1; }
+
+.state-panel {
+  display: flex;
+  min-height: 300rpx;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40rpx;
+  border: 1rpx solid #d4d4d8;
+  border-radius: 8rpx;
+  background: #ffffff;
+  text-align: center;
 }
 
-.guardrail {
-  color: #166534;
-  font-size: 24rpx;
+.state-mark {
+  display: flex;
+  width: 62rpx;
+  height: 62rpx;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 18rpx;
+  border: 1rpx solid #a1a1aa;
+  border-radius: 50%;
+  color: #52525b;
+  font-weight: 800;
+}
+
+.state-title { display: block; font-size: 28rpx; font-weight: 750; }
+.state-copy { display: block; max-width: 520rpx; margin: 10rpx 0 24rpx; color: #71717a; font-size: 23rpx; line-height: 1.55; }
+
+.state-action {
+  min-width: 220rpx;
+  margin: 0;
+  padding: 0 30rpx;
+}
+
+.compact-state {
+  min-height: 210rpx;
+}
+
+.loading-mark {
+  width: 48rpx;
+  height: 48rpx;
+  margin-bottom: 22rpx;
+  border: 5rpx solid #d4d4d8;
+  border-top-color: #e9442c;
+  border-radius: 50%;
+  animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.notice {
+  margin-bottom: 20rpx;
+  padding: 20rpx 22rpx;
+  border: 1rpx solid #d4d4d8;
+  border-left: 6rpx solid #71717a;
+  border-radius: 6rpx;
+  background: #ffffff;
+}
+
+.notice.is-warning {
+  border-color: #edcf7a;
+  border-left-color: #b77900;
+  background: #fff9e8;
+}
+
+.notice-title,
+.notice-copy {
+  display: block;
+}
+
+.notice-title {
+  font-size: 23rpx;
+  font-weight: 730;
+}
+
+.notice-copy {
+  margin-top: 7rpx;
+  color: #66522a;
+  font-size: 21rpx;
   line-height: 1.5;
 }
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12rpx;
+}
+
+.metric-item {
+  min-height: 128rpx;
+  padding: 22rpx;
+  border: 1rpx solid #d4d4d8;
+  border-radius: 8rpx;
+  background: #ffffff;
+}
+
+.metric-value,
+.metric-label {
+  display: block;
+}
+
+.metric-value {
+  font-size: 32rpx;
+  font-weight: 780;
+  line-height: 1.2;
+}
+
+.metric-label {
+  margin-top: 10rpx;
+  color: #71717a;
+  font-size: 20rpx;
+}
+
+.safe-bottom { height: calc(20rpx + env(safe-area-inset-bottom)); }

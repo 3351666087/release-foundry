@@ -124,8 +124,8 @@ export function DeploymentReceiptInbox({ inbox, projection = {} }: { inbox: Json
         <div>
           <strong>{zh ? "回执收件箱不是生产批准器" : "The receipt inbox is not a production approver"}</strong>
           <span>{zh
-            ? "提交或确认只表示元数据已收集。只有服务器权威 resolver 的只读回读可标记单项验证；原始部署验收和 A2 Release Ready 不会被网页改写。"
-            : "Submit or acknowledge only records metadata. Only a server-authoritative resolver readback can verify a check; the source acceptance and A2 Release Ready cannot be rewritten by this page."}</span>
+            ? "提交或确认只表示元数据已收集。只有服务器权威 resolver 的只读回读可标记单项验证；原始部署验收和权威发布判定不会被网页改写。"
+            : "Submit or acknowledge only records metadata. Only a server-authoritative resolver readback can verify a check; source acceptance and release authority cannot be rewritten by this page."}</span>
         </div>
       </div>
 
@@ -145,8 +145,8 @@ export function DeploymentReceiptInbox({ inbox, projection = {} }: { inbox: Json
           <div><span>{zh ? "需要重建验收" : "Acceptance rebuild"}</span><strong>{requiresRebuild ? (zh ? "是" : "Yes") : (zh ? "否" : "No")}</strong><small>{zh ? "需后端重新封存" : "server reseal required"}</small></div>
         </div>
         <p>{zh
-          ? "浏览器没有权威验证按钮。内部验证接口只接受 A1 验证过的 service account，并由服务器 resolver 读取真实证据。"
-          : "There is no browser verification control. The internal verifier accepts only an A1-verified service account and reads evidence through a server resolver."}</p>
+          ? "浏览器没有权威验证按钮。内部验证接口只接受身份平台验证过的 service account，并由服务器 resolver 读取真实证据。"
+          : "There is no browser verification control. The internal verifier accepts only a platform-verified service account and reads evidence through a server resolver."}</p>
       </div>
 
       <form className="deployment-receipt-form" onSubmit={submit}>

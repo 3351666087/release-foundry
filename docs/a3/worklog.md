@@ -6984,3 +6984,27 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
 - OpenAPI runtime parity remained `58/58`; Commercial CL passed with 0 blockers/advisories, hygiene CL had no findings, and root/Webapp production npm audits found 0 vulnerabilities.
 - Sealed rc.2 revalidation passed Bundle `15/15`, custody `7/7`, signed archive `16/16`, and Release Artifact manifest hash `8f84c5e3d4f064ae5d042b0f8ef72f2a3fb4d7ae06eb0a7d4dea01dc113d5a2f` without rewriting sealed inputs.
 - Final synchronization kept authoritative `origin/main` at `ccf6ce5` and A1 Draft at `2307231`. A2 development advanced to `b778e11`; its additive multimodal runtime and composite-agent receipt schemas were inspected as non-main compatibility evidence, with `qualified_for_review` kept distinct from PASS and A2 release authority.
+## 2026-07-13 - WeChat Enterprise Release Center
+
+- Re-read the enterprise Release strategy and current A1/A2 product projections before changing the client surface.
+- Replaced the two-page static WeChat shell with four Chinese-first pages: 发布工作台、发布审批、风险告警、账户与连接.
+- Added explicit `preview` and `connected` modes; preview data is labeled and cannot perform a production mutation.
+- Added an HTTPS-only, route-allowlisted API client with no embedded Authorization header or persistent credential storage.
+- Added fail-closed request and response screening for tokens, cookies, passwords, API keys, signed URLs, bearer material, GitHub tokens, OpenAI-like keys, and PostgreSQL DSNs.
+- Mapped real `/api/a3/health` `ok: true`, Dashboard evidence spine, Release Evidence v2, readbacks, and UI-action preflight into the mobile product model.
+- Preserved A1/A2 provenance internally while rendering customer terms: execution evidence, evaluation result, release decision, and human review.
+- Mapped valid A1/A2 source-artifact SHA-256 references into preflight evidence; missing hashes remain missing and cannot be inferred.
+- Kept approval and denial as `reviewer.approve` / `reviewer.deny` preflight only; no release decision write is performed.
+- Added loading, ready, partial, empty, error, retry, pull-to-refresh, alert filtering, detail timeline, blocker, and connection diagnostic states.
+- Removed prominent internal lane badges from the Webapp brand, source selector, Overview, Login, Delivery, API Reference, and adjacent customer-facing copy while keeping internal contracts unchanged.
+- Productized the remaining customer-visible loading text, identity errors, and API Reference descriptions, authentication notes, sources, and boundaries; internal owner keys and provenance remain unchanged for integration.
+- Kept `touristappid`; real WeChat identity, payment, subscription messages, review mutation, upload, audit, and publication remain explicitly unimplemented.
+- Added focused Node contract/security/normalization tests and updated the mini-program implementation record.
+- Added a static browser layout preview and four 390 x 844 screenshots for workbench, approval, incidents, and account; the preview is explicitly not WeChat Developer Tools or device publication proof.
+- Visually inspected all four final-frame screenshots after correcting a preview-only inherited button color and waiting for route animations to finish.
+- Final A3 Node regression passed `468` tests with `1` explicit live-target PostgreSQL skip and `0` failures.
+- Full Playwright passed `41/41`, including the new four-page mini-program preview, existing dashboard, and Next.js product routes.
+- Webapp TypeScript and the production build passed; Next.js generated `15` static pages.
+- CL hygiene passed with no findings. Commercial CL passed with `0` blockers and `0` advisories. `git diff --check` passed.
+- `.env.local` remains ignored and absent from Git status. No key, token, cookie, email, account identity, signed URL, or real customer data was added.
+- `origin/main` at the last successful fetch remains `ccf6ce5` and is an ancestor of this branch. A final `git fetch origin --prune` attempt was reset by the GitHub connection, so no newer remote state is claimed.

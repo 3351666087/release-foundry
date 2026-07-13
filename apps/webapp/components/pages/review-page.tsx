@@ -21,8 +21,8 @@ export function ReviewPage() {
         <PageHeader
           eyebrow="RELEASE / HUMAN REVIEW"
           title={zh ? "人工审核" : "Human review"}
-          summary={zh ? "审核人依据 A1 执行证据和 A2 发布判定做最终治理记录。" : "Reviewers use A1 execution evidence and A2 release authority to record governance decisions."}
-          meta={<><span>{zh ? "A2 判定" : "A2 decision"}</span><StatusBadge value={decision} tone={decision.includes("block") ? "fail" : "pass"} /></>}
+          summary={zh ? "审核人依据执行证据和权威发布判定做最终治理记录。" : "Reviewers use execution evidence and release authority to record governance decisions."}
+          meta={<><span>{zh ? "权威判定" : "Authoritative decision"}</span><StatusBadge value={decision} tone={decision.includes("block") ? "fail" : "pass"} /></>}
         />
 
         <section className="review-decision">

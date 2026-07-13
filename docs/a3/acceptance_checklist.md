@@ -1387,3 +1387,32 @@
 - [x] Re-fetch `main`/A1/A2 and inspect A2 `b778e11` additive multimodal receipts without treating `qualified_for_review` as PASS or release authority.
 - [ ] Run the same probe through an A1-authenticated service identity in authorized staging/VPC PostgreSQL.
 - [ ] Prove connection-pool scope reset, migration rollback, backup, PITR, and restore in the target environment.
+## WeChat Enterprise Release Center - 2026-07-13
+
+- [x] Replace the two-page static shell with four product pages.
+- [x] Add 发布工作台、发布审批、风险告警、账户与连接.
+- [x] Use Chinese-first customer terminology without visible A1/A2/A3 lane badges in WXML.
+- [x] Keep A1 RunResult/Trace/ToolCall and A2 GradeResult/ReleaseGate/DecisionLedger as internal provenance only.
+- [x] Add explicit `preview` and `connected` modes.
+- [x] Require an HTTPS API base and allowlist every client route.
+- [x] Reject secret-bearing request and response material.
+- [x] Prohibit token, cookie, API-key, Authorization-header, localStorage, sessionStorage, and `wx.setStorage` credential persistence.
+- [x] Map `/api/a3/health` `ok: true` correctly.
+- [x] Map Dashboard evidence stages to execution evidence, evaluation result, release decision, and human review.
+- [x] Map Release Evidence v2 source-artifact hashes into preflight evidence references.
+- [x] Keep approve/deny operations at `preflight_only`; do not write a release decision.
+- [x] Add loading, partial, empty, error, retry, and pull-to-refresh states.
+- [x] Add alert filtering, selected incident detail, timeline, evidence status, and response checklist.
+- [x] Add account/API connectivity and production-capability diagnostics.
+- [x] Keep `touristappid` and label unsupported production capabilities honestly.
+- [x] Remove prominent lane badges from the Webapp brand and primary product navigation.
+- [x] Translate remaining customer-visible loading, identity-error, and API Reference lane names into enterprise product terminology.
+- [x] Add and visually inspect four 390 x 844 mini-program preview screenshots.
+- [x] Pass focused mini-program contract/security tests `10/10`.
+- [x] Pass full A3 Node regression with `468` passes, `1` explicit live-target skip, and `0` failures.
+- [x] Pass full Playwright `41/41` and Next.js 15-page production build.
+- [x] Pass CL hygiene, Commercial CL, diff hygiene, and changed-product-file secret scan.
+- [ ] Compile and inspect all pages in WeChat Developer Tools with a qualified production AppID.
+- [ ] Connect a production identity backend and server-issued WeChat session.
+- [ ] Add audited review mutation only after hosted auth, RBAC, idempotency, and immutable audit persistence are proven.
+- [ ] Obtain real subscription-message, upload, review, and publication receipts.

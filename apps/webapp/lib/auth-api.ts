@@ -183,7 +183,7 @@ export async function refreshIdentitySession(accountId: string): Promise<Identit
   const apiOrigin = new URL(config.apiBaseUrl).origin;
   if (window.location.origin !== apiOrigin) {
     throw new AuthApiError(
-      "A1 browser session refresh requires the webapp and API to share one origin.",
+      "Browser session refresh requires the webapp and identity API to share one origin.",
       "identity_session_same_origin_required"
     );
   }
@@ -197,7 +197,7 @@ export async function refreshIdentitySession(accountId: string): Promise<Identit
     }
   );
   if (readString(payload, "status") !== "rotated") {
-    throw new AuthApiError("A1 returned an unexpected session refresh status.", "identity_session_refresh_invalid");
+    throw new AuthApiError("The identity service returned an unexpected session refresh status.", "identity_session_refresh_invalid");
   }
   return {
     schema_version: "ashr.identity_session_refresh.v1",
@@ -208,7 +208,7 @@ export async function refreshIdentitySession(accountId: string): Promise<Identit
 function requireConfig(): AuthRuntimeConfig & { apiBaseUrl: string } {
   const config = getAuthRuntimeConfig();
   if (!config.configured || !config.apiBaseUrl) {
-    throw new AuthApiError("A1 identity service is not configured for this build.", config.reason);
+    throw new AuthApiError("The identity service is not configured for this build.", config.reason);
   }
   return { ...config, apiBaseUrl: config.apiBaseUrl };
 }
@@ -230,11 +230,11 @@ function validateProviderUrl(provider: OAuthProvider, value: string) {
   try {
     url = new URL(value);
   } catch {
-    throw new AuthApiError("A1 returned an invalid OAuth authorization URL.", "oauth_authorize_url_invalid");
+    throw new AuthApiError("The identity service returned an invalid OAuth authorization URL.", "oauth_authorize_url_invalid");
   }
   const expectedHost = provider === "google" ? "accounts.google.com" : "github.com";
   if (url.protocol !== "https:" || url.hostname !== expectedHost || url.username || url.password) {
-    throw new AuthApiError("A1 returned an untrusted OAuth authorization URL.", "oauth_authorize_url_untrusted");
+    throw new AuthApiError("The identity service returned an untrusted OAuth authorization URL.", "oauth_authorize_url_untrusted");
   }
 }
 
@@ -271,9 +271,9 @@ async function fetchJson(url: string, init: RequestInit): Promise<Record<string,
   } catch (error) {
     if (error instanceof AuthApiError) throw error;
     if (error instanceof DOMException && error.name === "AbortError") {
-      throw new AuthApiError("A1 identity service timed out.", "identity_service_timeout");
+      throw new AuthApiError("The identity service timed out.", "identity_service_timeout");
     }
-    throw new AuthApiError("A1 identity service could not be reached.", "identity_service_unreachable");
+    throw new AuthApiError("The identity service could not be reached.", "identity_service_unreachable");
   } finally {
     window.clearTimeout(timeout);
   }
@@ -292,14 +292,14 @@ async function readResponsePayload(response: Response): Promise<Record<string, u
 
 function readString(record: Record<string, unknown>, key: string) {
   const value = optionalString(record[key]);
-  if (!value) throw new AuthApiError(`A1 response is missing ${key}.`, "identity_response_invalid");
+  if (!value) throw new AuthApiError(`The identity response is missing ${key}.`, "identity_response_invalid");
   return value;
 }
 
 function readRecord(record: Record<string, unknown>, key: string) {
   const value = record[key];
   if (value === null || typeof value !== "object" || Array.isArray(value)) {
-    throw new AuthApiError(`A1 response is missing ${key}.`, "identity_response_invalid");
+    throw new AuthApiError(`The identity response is missing ${key}.`, "identity_response_invalid");
   }
   return value as Record<string, unknown>;
 }
@@ -309,9 +309,9 @@ function optionalString(value: unknown) {
 }
 
 function publicErrorMessage(status: number) {
-  if (status === 401) return "A trusted A1 identity session is required.";
+  if (status === 401) return "A trusted identity session is required.";
   if (status === 403) return "This identity action is outside the current tenant scope.";
   if (status === 429) return "Too many attempts. Wait before trying again.";
-  if (status === 503) return "The requested identity provider is not configured in A1.";
+  if (status === 503) return "The requested identity provider is not configured.";
   return "The identity request could not be completed.";
 }
