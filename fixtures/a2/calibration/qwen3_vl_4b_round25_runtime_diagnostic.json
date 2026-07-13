@@ -17,5 +17,6 @@
     "multimodal_runtime_valid_semantic_output_rate_not_met"
   ],
   "public_safe": true,
-  "runtime_binding_hash": "sha256:4f4392804394f2a0f6f4c99c04b401c07ed49de372dca08e33cc082ac7efbd36"
+  "runtime_binding_hash": "sha256:4f4392804394f2a0f6f4c99c04b401c07ed49de372dca08e33cc082ac7efbd36",
+  "runtime_environment_hash": "sha256:6666666666666666666666666666666666666666666666666666666666666666"
 }

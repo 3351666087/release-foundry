@@ -82,6 +82,7 @@ class A2ResultPersistenceTests(unittest.TestCase):
                 second_path,
                 [{"case": "two"}],
                 previous_manifest_hash=stable_hash(first),
+                sequence_number=2,
             )
             self.assertEqual(second["previous_manifest_hash"], stable_hash(first))
             self.assertEqual(verify_jsonl_manifest(second_path, second)["state"], "verified")
@@ -89,6 +90,28 @@ class A2ResultPersistenceTests(unittest.TestCase):
             truncated = verify_jsonl_manifest(second_path, second)
             self.assertEqual(truncated["state"], "blocked")
             self.assertIn("jsonl_parse_failure", truncated["blockers"])
+
+    def test_jsonl_sequence_pin_and_atomic_replacement(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "batch.jsonl"
+            path.write_text('{"stale": true}\n', encoding="utf-8")
+            manifest = write_jsonl(path, [{"case": "fresh"}], sequence_number=3)
+            self.assertFalse(path.with_name(path.name + ".tmp").exists())
+            replay = verify_jsonl_manifest(
+                path,
+                manifest,
+                expected_sequence_number=4,
+                pinned_chain_hash="sha256:" + "0" * 64,
+            )
+            self.assertIn("jsonl_sequence_gap_or_replay", replay["blockers"])
+            self.assertIn("jsonl_chain_head_pin_mismatch", replay["blockers"])
+            verified = verify_jsonl_manifest(
+                path,
+                manifest,
+                expected_sequence_number=3,
+                pinned_chain_hash=manifest["chain_hash"],
+            )
+            self.assertEqual(verified["state"], "verified")
 
     def test_multimodal_runtime_timeout_receipts_persist_hash_only(self):
         receipt = "sha256:" + "9" * 64

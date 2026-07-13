@@ -10,6 +10,7 @@
     "model_version",
     "request_hash",
     "runtime_binding_hash",
+    "runtime_environment_hash",
     "request_started_at",
     "client_terminated_at",
     "server_recovered_at",
@@ -83,6 +84,10 @@
       "const": true
     },
     "runtime_binding_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "runtime_environment_hash": {
       "type": "string",
       "pattern": "^sha256:[a-f0-9]{64}$"
     }

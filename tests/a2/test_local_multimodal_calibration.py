@@ -18,7 +18,9 @@ from services.judge.local_multimodal_calibration import (
     evaluate_multimodal_adversarial_observation,
     evaluate_local_multimodal_golden,
     evaluate_multimodal_safety_metrics,
+    evaluate_cancellation_acknowledgement,
     evaluate_runtime_recovery,
+    summarize_runtime_recoveries,
     govern_structured_output_repair,
     observe_local_model_resources,
     resolve_multimodal_adversarial_review,
@@ -1384,6 +1386,67 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
         )
         self.assertEqual(mismatch["binding_state"], "rejected")
         self.assertIn("mutation_artifact_hash_mismatch", mismatch["blockers"])
+
+    def test_round28_cancellation_recovery_and_timezone_contracts(self):
+        unavailable = evaluate_cancellation_acknowledgement(
+            acknowledgement_state="unavailable",
+            provider_endpoint_hash="sha256:" + "1" * 64,
+            runtime_version_hash="sha256:" + "2" * 64,
+        )
+        rejected = evaluate_cancellation_acknowledgement(
+            acknowledgement_state="rejected",
+            provider_endpoint_hash="sha256:" + "1" * 64,
+            runtime_version_hash="sha256:" + "2" * 64,
+        )
+        self.assertNotEqual(unavailable["blockers"], rejected["blockers"])
+        naive = evaluate_runtime_recovery(
+            client_terminated_at="2026-07-13T08:00:00",
+            server_recovered_at="2026-07-13T08:00:01",
+            maximum_recovery_latency_seconds=2,
+        )
+        self.assertIn("runtime_recovery_unavailable", naive["blockers"])
+        summary = summarize_runtime_recoveries(
+            recovery_latency_seconds=[1, 2, 3, 4, 100],
+            maximum_p95_seconds=10,
+        )
+        self.assertIn("runtime_recovery_p95_exceeded", summary["blockers"])
+
+    def test_round28_mixed_taxonomy_policy_and_exact_wilson_equality(self):
+        policy = json.loads(
+            (ROOT / "fixtures/a2/calibration/multimodal_mixed_taxonomy_policy_round28.json").read_text()
+        )
+        self.assert_schema("multimodal_taxonomy_policy.schema.json", policy)
+        cases = [
+            {"case_id": "p1", "attack_taxonomy": "mixed_control", "expected_risk": True, "observed_risk": True},
+            {"case_id": "p2", "attack_taxonomy": "mixed_control", "expected_risk": True, "observed_risk": True},
+            {"case_id": "n1", "attack_taxonomy": "mixed_control", "expected_risk": False, "observed_risk": False},
+            {"case_id": "n2", "attack_taxonomy": "mixed_control", "expected_risk": False, "observed_risk": False},
+        ]
+        baseline = evaluate_multimodal_safety_metrics(
+            labeled_cases=cases, safety_critical_case_ids=["p1", "p2"], **{
+                "taxonomy_minimum_positive_denominators": policy["minimum_positive_denominators"],
+                "taxonomy_minimum_negative_denominators": policy["minimum_negative_denominators"],
+            }
+        )
+        lower = baseline["by_attack_taxonomy"]["mixed_control"]["recall_wilson_95"][0]
+        equality = evaluate_multimodal_safety_metrics(
+            labeled_cases=cases,
+            safety_critical_case_ids=["p1", "p2"],
+            taxonomy_minimum_recall_wilson_lower={"mixed_control": lower},
+        )
+        self.assertNotIn("taxonomy_recall_wilson_lower_bound_not_met:mixed_control", equality["blockers"])
+
+    def test_round28_mutation_binding_checks_mime_and_size(self):
+        result = validate_mutation_artifact_binding(
+            source_artifact_hash="sha256:" + "1" * 64,
+            observed_artifact_hash="sha256:" + "1" * 64,
+            expected_mime_type="image/png",
+            observed_mime_type="image/jpeg",
+            expected_size_bytes=100,
+            observed_size_bytes=99,
+        )
+        self.assertIn("mutation_artifact_mime_mismatch", result["blockers"])
+        self.assertIn("mutation_artifact_size_mismatch", result["blockers"])
 
     def test_sidecar_rejects_malformed_provenance_hashes_before_schema_validation(self):
         with self.assertRaisesRegex(ValueError, "extraction_tool_version_hash"):

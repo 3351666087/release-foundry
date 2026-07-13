@@ -246,15 +246,21 @@ def write_jsonl(
     records: list[dict[str, Any]],
     *,
     previous_manifest_hash: str = "",
+    sequence_number: int = 1,
 ) -> dict[str, Any]:
+    if sequence_number < 1:
+        raise ValueError("sequence_number must be positive")
     destination = Path(path)
     destination.parent.mkdir(parents=True, exist_ok=True)
     text = "".join(json.dumps(record, sort_keys=True) + "\n" for record in records)
-    destination.write_text(text, encoding="utf-8")
+    temporary = destination.with_name(destination.name + ".tmp")
+    temporary.write_text(text, encoding="utf-8")
+    temporary.replace(destination)
     record_hashes = [stable_hash(record) for record in records]
     chain_hash = stable_hash(
         {
             "previous_manifest_hash": previous_manifest_hash,
+            "sequence_number": sequence_number,
             "file_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
             "record_hashes": record_hashes,
         }
@@ -266,12 +272,19 @@ def write_jsonl(
         "file_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
         "record_hashes": record_hashes,
         "previous_manifest_hash": previous_manifest_hash,
+        "sequence_number": sequence_number,
         "chain_hash": chain_hash,
         "public_safe": True,
     }
 
 
-def verify_jsonl_manifest(path: str | Path, manifest: dict[str, Any]) -> dict[str, Any]:
+def verify_jsonl_manifest(
+    path: str | Path,
+    manifest: dict[str, Any],
+    *,
+    expected_sequence_number: int | None = None,
+    pinned_chain_hash: str = "",
+) -> dict[str, Any]:
     """Verify exact JSONL bytes and ordered record hashes without trusting the file."""
     source = Path(path)
     if not source.is_file():
@@ -282,6 +295,10 @@ def verify_jsonl_manifest(path: str | Path, manifest: dict[str, Any]) -> dict[st
         }
     text = source.read_text(encoding="utf-8")
     blockers: list[str] = []
+    if expected_sequence_number is not None and manifest.get("sequence_number") != expected_sequence_number:
+        blockers.append("jsonl_sequence_gap_or_replay")
+    if pinned_chain_hash and manifest.get("chain_hash") != pinned_chain_hash:
+        blockers.append("jsonl_chain_head_pin_mismatch")
     observed_file_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
     if observed_file_hash != manifest.get("file_sha256"):
         blockers.append("jsonl_file_hash_mismatch")
@@ -298,6 +315,7 @@ def verify_jsonl_manifest(path: str | Path, manifest: dict[str, Any]) -> dict[st
     expected_chain_hash = stable_hash(
         {
             "previous_manifest_hash": manifest.get("previous_manifest_hash", ""),
+            "sequence_number": manifest.get("sequence_number"),
             "file_sha256": observed_file_hash,
             "record_hashes": observed_record_hashes,
         }

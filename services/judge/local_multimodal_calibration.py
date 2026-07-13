@@ -1291,6 +1291,8 @@ def evaluate_runtime_recovery(
     try:
         terminated = datetime.fromisoformat(client_terminated_at)
         recovered = datetime.fromisoformat(server_recovered_at)
+        if terminated.tzinfo is None or recovered.tzinfo is None:
+            raise ValueError("timestamps must be timezone-aware")
         recovery_latency_seconds = (recovered - terminated).total_seconds()
         if recovery_latency_seconds < 0:
             blockers.append("runtime_recovery_timestamp_order_invalid")
@@ -1309,8 +1311,67 @@ def evaluate_runtime_recovery(
     }
 
 
+def evaluate_cancellation_acknowledgement(
+    *,
+    acknowledgement_state: str,
+    provider_endpoint_hash: str,
+    runtime_version_hash: str,
+) -> dict[str, Any]:
+    """Classify provider cancellation evidence without inventing acknowledgement."""
+    allowed = {"acknowledged", "rejected", "unavailable"}
+    if acknowledgement_state not in allowed:
+        raise ValueError("unknown cancellation acknowledgement state")
+    for name, value in (
+        ("provider_endpoint_hash", provider_endpoint_hash),
+        ("runtime_version_hash", runtime_version_hash),
+    ):
+        if _SHA256_REF.fullmatch(value) is None:
+            raise ValueError(f"{name} must be a sha256 reference")
+    blockers = {
+        "acknowledged": [],
+        "rejected": ["provider_cancellation_rejected"],
+        "unavailable": ["provider_cancellation_acknowledgement_unavailable"],
+    }[acknowledgement_state]
+    return {
+        "acknowledgement_state": acknowledgement_state,
+        "provider_endpoint_hash": provider_endpoint_hash,
+        "runtime_version_hash": runtime_version_hash,
+        "request_cancellation_proven": acknowledgement_state == "acknowledged",
+        "release_authority": False,
+        "blockers": blockers,
+        "public_safe": True,
+    }
+
+
+def summarize_runtime_recoveries(
+    *, recovery_latency_seconds: list[float], maximum_p95_seconds: float
+) -> dict[str, Any]:
+    if not recovery_latency_seconds or any(value < 0 for value in recovery_latency_seconds):
+        raise ValueError("recovery latencies must be non-empty and non-negative")
+    if maximum_p95_seconds <= 0:
+        raise ValueError("maximum p95 recovery latency must be positive")
+    ordered = sorted(recovery_latency_seconds)
+    p95 = ordered[max(0, math.ceil(len(ordered) * 0.95) - 1)]
+    blockers = [] if p95 <= maximum_p95_seconds else ["runtime_recovery_p95_exceeded"]
+    return {
+        "observation_count": len(ordered),
+        "p95_recovery_latency_seconds": p95,
+        "maximum_p95_recovery_latency_seconds": maximum_p95_seconds,
+        "qualification_state": "review_available" if not blockers else "blocked",
+        "release_authority": False,
+        "blockers": blockers,
+        "public_safe": True,
+    }
+
+
 def validate_mutation_artifact_binding(
-    *, source_artifact_hash: str, observed_artifact_hash: str
+    *,
+    source_artifact_hash: str,
+    observed_artifact_hash: str,
+    expected_mime_type: str = "",
+    observed_mime_type: str = "",
+    expected_size_bytes: int | None = None,
+    observed_size_bytes: int | None = None,
 ) -> dict[str, Any]:
     """Reject mutation evidence when the evaluated bytes are not the bound artifact."""
     for name, value in (
@@ -1320,10 +1381,15 @@ def validate_mutation_artifact_binding(
         if _SHA256_REF.fullmatch(value) is None:
             raise ValueError(f"{name} must be a sha256 reference")
     matched = hmac.compare_digest(source_artifact_hash, observed_artifact_hash)
+    blockers = [] if matched else ["mutation_artifact_hash_mismatch"]
+    if expected_mime_type and observed_mime_type != expected_mime_type:
+        blockers.append("mutation_artifact_mime_mismatch")
+    if expected_size_bytes is not None and observed_size_bytes != expected_size_bytes:
+        blockers.append("mutation_artifact_size_mismatch")
     return {
-        "binding_state": "matched" if matched else "rejected",
+        "binding_state": "matched" if not blockers else "rejected",
         "release_authority": False,
-        "blockers": [] if matched else ["mutation_artifact_hash_mismatch"],
+        "blockers": blockers,
         "public_safe": True,
     }
 
