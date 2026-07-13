@@ -2,6 +2,7 @@ import unittest
 
 from scripts.a2_build_multimodal_three_way_comparison import (
     build_three_way_comparison,
+    load_pairs,
 )
 
 
@@ -42,8 +43,25 @@ class ThreeWayComparisonTests(unittest.TestCase):
             "llava": evidence(True, eligible=False),
             "dashscope": evidence(False),
         })
-        self.assertEqual(result["summary"]["agreement"], 1)
+        self.assertEqual(
+            result["summary"]["pairwise_agreement_with_unavailable"], 1
+        )
+        self.assertEqual(
+            result["comparisons"][0]["comparison_state"],
+            "pairwise_agreement_with_unavailable",
+        )
         self.assertEqual(result["human_review_queue_receipts"], [])
+
+    def test_round47_three_eligible_agreement_is_named_three_way(self):
+        result = build_three_way_comparison({
+            "qwen": evidence(False),
+            "llava": evidence(False),
+            "dashscope": evidence(False),
+        })
+        self.assertEqual(result["summary"]["three_way_agreement"], 1)
+        self.assertEqual(
+            result["comparisons"][0]["comparison_state"], "three_way_agreement"
+        )
 
     def test_fewer_than_two_eligible_is_unavailable(self):
         result = build_three_way_comparison({
@@ -79,12 +97,39 @@ class ThreeWayComparisonTests(unittest.TestCase):
             "dashscope": evidence(False),
         }
         result = build_three_way_comparison(providers)
+        self.assertEqual(
+            result["schema_version"], "a2.multimodal_three_way_comparison.v2"
+        )
         self.assertEqual(len(result["pairwise_summaries"]), 3)
         for summary in result["pairwise_summaries"].values():
             self.assertEqual(sum(summary.values()), len(result["comparisons"]))
         providers["qwen"]["trials"].append(dict(providers["qwen"]["trials"][0]))
         with self.assertRaisesRegex(ValueError, "duplicate comparison case key"):
             build_three_way_comparison(providers)
+
+    def test_round47_rejects_ambiguous_and_duplicate_provider_labels(self):
+        for labels in (
+            ("qwen", " qwen ", "dashscope"),
+            ("qwen::local", "llava", "dashscope"),
+            ("", "llava", "dashscope"),
+        ):
+            with self.subTest(labels=labels), self.assertRaisesRegex(
+                ValueError, "provider labels"
+            ):
+                build_three_way_comparison({
+                    labels[0]: evidence(False),
+                    labels[1]: evidence(True),
+                    labels[2]: evidence(False),
+                })
+        with self.assertRaisesRegex(ValueError, "partial journal labels"):
+            build_three_way_comparison(
+                {
+                    "qwen": evidence(False),
+                    "llava": evidence(True),
+                    "dashscope": evidence(False),
+                },
+                partial_journals={"other": {}},
+            )
 
 
 if __name__ == "__main__":

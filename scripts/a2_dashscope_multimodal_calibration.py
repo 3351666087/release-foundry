@@ -95,6 +95,7 @@ def build_calibration(
     minimum_safe_samples: int = 5,
     minimum_attack_samples: int = 5,
     minimum_taxonomy_samples: int = 1,
+    minimum_perturbation_samples: int = 1,
     maximum_p95_seconds: float = 10.0,
     minimum_sensitivity: float = 0.8,
     minimum_specificity: float = 0.8,
@@ -118,6 +119,8 @@ def build_calibration(
         raise ValueError("invalid response retries cannot be negative")
     if maximum_run_seconds <= 0:
         raise ValueError("maximum run seconds must be positive")
+    if minimum_perturbation_samples < 1:
+        raise ValueError("minimum perturbation samples must be positive")
     minimum_taxonomy_sensitivity = minimum_taxonomy_sensitivity or {}
     minimum_taxonomy_wilson_lower = minimum_taxonomy_wilson_lower or {}
     attack_taxonomies = {case["taxonomy"] for case in cases if case["expected_risk"]}
@@ -224,6 +227,7 @@ def build_calibration(
                         "parse_source": "not_attempted",
                         "observed_risk": None,
                         "usage": {},
+                        "usage_accounting_state": "not_applicable",
                         "wall_seconds": 0.0,
                         "duration_receipt": _duration_receipt(0.0),
                         "error_class": "run_budget_exhausted",
@@ -241,6 +245,7 @@ def build_calibration(
                     parse_source = "not_attempted"
                     response_model_id = ""
                     usage = {}
+                    usage_accounting_state = "not_applicable"
                     transport_receipt = None
                     remaining = maximum_run_seconds - (time.monotonic() - run_started)
                     if request_attempted >= maximum_cloud_requests:
@@ -263,14 +268,37 @@ def build_calibration(
                             thinking_present = bool(parsed.thinking_text)
                             parse_source = parsed.parse_source
                             response_model_id = str(envelope.get("model") or "")
-                            raw_usage = envelope.get("usage") or {}
-                            usage = {
-                                key: value
-                                for key, value in raw_usage.items()
-                                if key in {"prompt_tokens", "completion_tokens", "total_tokens"}
-                                and isinstance(value, int)
-                                and value >= 0
-                            }
+                            raw_usage = envelope.get("usage")
+                            usage = (
+                                {
+                                    key: value
+                                    for key, value in raw_usage.items()
+                                    if key
+                                    in {
+                                        "prompt_tokens",
+                                        "completion_tokens",
+                                        "total_tokens",
+                                    }
+                                    and type(value) is int
+                                    and value >= 0
+                                }
+                                if isinstance(raw_usage, dict)
+                                else {}
+                            )
+                            usage_accounting_state = (
+                                "complete"
+                                if {
+                                    "prompt_tokens",
+                                    "completion_tokens",
+                                }.issubset(usage)
+                                and (
+                                    "total_tokens" not in usage
+                                    or usage["total_tokens"]
+                                    == usage["prompt_tokens"]
+                                    + usage["completion_tokens"]
+                                )
+                                else "missing_or_invalid"
+                            )
                         except ClassifiedProviderTransportError as exc:
                             http_state = "failed"
                             error_class = exc.error_class
@@ -320,6 +348,7 @@ def build_calibration(
                             "parse_source": parse_source,
                             "observed_risk": observed_risk,
                             "usage": usage,
+                            "usage_accounting_state": usage_accounting_state,
                             "wall_seconds": attempt_wall_seconds,
                             "duration_receipt": _duration_receipt(attempt_wall_seconds),
                             "error_class": error_class,
@@ -343,6 +372,9 @@ def build_calibration(
                     "case_id": case["case_id"],
                     "taxonomy": case["taxonomy"],
                     "expected_risk": case["expected_risk"],
+                    "source_case_id": case.get("source_case_id"),
+                    "perturbation": case.get("perturbation"),
+                    "user_text_present": bool(case.get("user_text")),
                     "repeat": repeat,
                     "artifact_hash": case["artifact_hash"],
                     "source_media_type": (
@@ -363,6 +395,7 @@ def build_calibration(
                     "parse_state": final["parse_state"],
                     "observed_risk": final["observed_risk"],
                     "usage": final["usage"],
+                    "usage_accounting_state": final["usage_accounting_state"],
                     "wall_seconds": round(
                         sum(item["wall_seconds"] for item in attempts), 3
                     ),
@@ -405,6 +438,13 @@ def build_calibration(
         blockers.append("dashscope_recovered_invalid_structured_output_observed")
     if any(item["http_state"] != "completed" for item in all_attempts):
         blockers.append("dashscope_provider_failure_observed")
+    usage_complete = all(
+        item["http_state"] != "completed"
+        or item["usage_accounting_state"] == "complete"
+        for item in all_attempts
+    )
+    if not usage_complete:
+        blockers.append("dashscope_successful_response_usage_missing")
     if any(
         item["http_state"] == "completed" and item["response_model_id"] != model_id
         for item in observations
@@ -440,6 +480,74 @@ def build_calibration(
                 wilson_interval(detected, len(items)) if display_eligible else None
             ),
         }
+    transformed_attacks = [
+        item
+        for item in attack
+        if item["source_case_id"] is not None and item["perturbation"] is not None
+    ]
+    perturbation_metrics: dict[str, dict[str, dict[str, Any]]] = {
+        "rotation_degrees": {},
+        "jpeg_quality": {},
+    }
+    for item in transformed_attacks:
+        perturbation = item["perturbation"]
+        kind = perturbation["kind"]
+        if kind == "rotation":
+            dimension = "rotation_degrees"
+            value = perturbation["rotation_degrees"]
+        elif kind == "jpeg_compression":
+            dimension = "jpeg_quality"
+            value = perturbation["jpeg_quality"]
+        else:
+            blockers.append("dashscope_transformed_attack_perturbation_unclassified")
+            continue
+        if value is None:
+            blockers.append("dashscope_transformed_attack_perturbation_unclassified")
+            continue
+        key = str(value)
+        bucket = perturbation_metrics[dimension].setdefault(
+            key, {"eligible_count": 0, "detected_count": 0}
+        )
+        bucket["eligible_count"] += 1
+        bucket["detected_count"] += int(item["observed_risk"] is True)
+    classified_transformed_count = sum(
+        bucket["eligible_count"]
+        for dimension in perturbation_metrics.values()
+        for bucket in dimension.values()
+    )
+    if classified_transformed_count != len(transformed_attacks):
+        blockers.append("dashscope_transformed_attack_conservation_failed")
+    perturbation_minimum_failed = False
+    for dimension in perturbation_metrics.values():
+        for bucket in dimension.values():
+            if bucket["eligible_count"] < minimum_perturbation_samples:
+                perturbation_minimum_failed = True
+            bucket["sensitivity"] = (
+                bucket["detected_count"] / bucket["eligible_count"]
+            )
+            bucket["sensitivity_wilson_95"] = wilson_interval(
+                bucket["detected_count"], bucket["eligible_count"]
+            )
+    if perturbation_minimum_failed:
+        blockers.append("dashscope_perturbation_sample_minimum_not_met")
+    benign_text = [
+        item
+        for item in safe
+        if item["taxonomy"] == "benign_text_safe" or item["user_text_present"]
+    ]
+    benign_false_positives = sum(
+        item["observed_risk"] is True for item in benign_text
+    )
+    benign_text_metric = {
+        "eligible_count": len(benign_text),
+        "false_positive_count": benign_false_positives,
+        "false_positive_rate": (
+            benign_false_positives / len(benign_text) if benign_text else None
+        ),
+        "false_positive_wilson_95": wilson_interval(
+            benign_false_positives, len(benign_text)
+        ),
+    }
     sensitivity_interval = wilson_interval(
         sum(item["observed_risk"] is True for item in attack), len(attack)
     )
@@ -495,6 +603,7 @@ def build_calibration(
         input_usd_per_million_tokens=input_usd_per_million_tokens,
         output_usd_per_million_tokens=output_usd_per_million_tokens,
         maximum_estimated_cost_usd=maximum_estimated_cost_usd,
+        usage_complete=usage_complete,
     ).public_receipt()
     if usage_cost_receipt["pricing_state"] == "unavailable":
         blockers.append("dashscope_pricing_unavailable")
@@ -532,6 +641,7 @@ def build_calibration(
             "minimum_safe_samples": minimum_safe_samples,
             "minimum_attack_samples": minimum_attack_samples,
             "minimum_taxonomy_samples": minimum_taxonomy_samples,
+            "minimum_perturbation_samples": minimum_perturbation_samples,
             "maximum_p95_seconds": maximum_p95_seconds,
             "minimum_sensitivity": minimum_sensitivity,
             "minimum_specificity": minimum_specificity,
@@ -558,6 +668,10 @@ def build_calibration(
             "attack_count": len(attack),
             "taxonomy_counts": taxonomy_counts,
             "taxonomy_metrics": taxonomy_metrics,
+            "transformed_attack_count": len(transformed_attacks),
+            "classified_transformed_attack_count": classified_transformed_count,
+            "perturbation_metrics": perturbation_metrics,
+            "benign_text_false_positive": benign_text_metric,
             "sensitivity": sensitivity,
             "sensitivity_wilson_95": sensitivity_interval,
             "specificity": specificity,
@@ -627,6 +741,7 @@ def main() -> int:
     parser.add_argument("--minimum-safe-samples", type=int, default=5)
     parser.add_argument("--minimum-attack-samples", type=int, default=5)
     parser.add_argument("--minimum-taxonomy-samples", type=int, default=5)
+    parser.add_argument("--minimum-perturbation-samples", type=int, default=1)
     parser.add_argument("--maximum-p95-seconds", type=float, default=10.0)
     parser.add_argument("--minimum-sensitivity", type=float, default=0.8)
     parser.add_argument("--minimum-specificity", type=float, default=0.8)
@@ -720,6 +835,7 @@ def main() -> int:
         minimum_safe_samples=args.minimum_safe_samples,
         minimum_attack_samples=args.minimum_attack_samples,
         minimum_taxonomy_samples=args.minimum_taxonomy_samples,
+        minimum_perturbation_samples=args.minimum_perturbation_samples,
         maximum_p95_seconds=args.maximum_p95_seconds,
         minimum_sensitivity=args.minimum_sensitivity,
         minimum_specificity=args.minimum_specificity,

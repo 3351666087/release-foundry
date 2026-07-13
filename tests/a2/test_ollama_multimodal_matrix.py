@@ -102,6 +102,79 @@ class OllamaMultimodalMatrixTests(unittest.TestCase):
                     now_epoch_seconds=110,
                 )
             )
+
+    def test_round47_capability_cache_rejects_future_timestamp(self):
+        model = {"model_id": "m", "model_digest": "sha256:" + "b" * 64}
+        runtime = {"ollama_version": "test"}
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            cache = Path(directory) / "capability.json"
+            write_capability_cache(
+                cache,
+                model=model,
+                runtime=runtime,
+                receipt={"probe_state": "unsupported"},
+                created_at_epoch_seconds=101,
+            )
+            self.assertIsNone(
+                load_capability_cache(
+                    cache,
+                    model=model,
+                    runtime=runtime,
+                    maximum_age_seconds=100,
+                    now_epoch_seconds=100,
+                )
+            )
+
+    def test_round47_capability_cache_rejects_malformed_and_hash_mismatch(self):
+        model = {"model_id": "m", "model_digest": "sha256:" + "b" * 64}
+        runtime = {"ollama_version": "one"}
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            path = Path(directory) / "cache.json"
+            path.write_text('{"truncated":', encoding="utf-8")
+            self.assertIsNone(
+                load_capability_cache(
+                    path,
+                    model=model,
+                    runtime=runtime,
+                    maximum_age_seconds=20,
+                )
+            )
+            write_capability_cache(
+                path,
+                model=model,
+                runtime=runtime,
+                receipt={"probe_state": "unsupported"},
+            )
+            value = json.loads(path.read_text(encoding="utf-8"))
+            value["receipt"]["probe_state"] = "object_schema"
+            path.write_text(json.dumps(value), encoding="utf-8")
+            self.assertIsNone(
+                load_capability_cache(
+                    path,
+                    model=model,
+                    runtime=runtime,
+                    maximum_age_seconds=20,
+                )
+            )
+
+            self.assertIsNone(
+                load_capability_cache(
+                    path,
+                    model=model,
+                    runtime={"ollama_version": "two"},
+                    maximum_age_seconds=20,
+                    now_epoch_seconds=110,
+                )
+            )
+            self.assertIsNone(
+                load_capability_cache(
+                    path,
+                    model=model,
+                    runtime=runtime,
+                    maximum_age_seconds=5,
+                    now_epoch_seconds=110,
+                )
+            )
     def test_round44_capability_probe_distinguishes_plain_json_only(self):
         with tempfile.TemporaryDirectory(dir=ROOT) as directory:
             artifact = Path(directory) / "safe.ppm"
@@ -159,6 +232,15 @@ class OllamaMultimodalMatrixTests(unittest.TestCase):
         self.assertTrue(receipt["plain_json_supported"])
         self.assertEqual(receipt["probe_state"], "plain_json_only")
         self.assertEqual(len(receipt["attempt_receipts"]), 2)
+        self.assertEqual(
+            receipt["request_count_receipt"]["attempted"], 2
+        )
+        self.assertEqual(
+            receipt["request_count_receipt"]["completed"], 1
+        )
+        self.assertEqual(
+            receipt["request_count_receipt"]["failed"], 1
+        )
         self.assertTrue(receipt["runtime_version_hash"].startswith("sha256:"))
         self.assertTrue(receipt["prompt_hash"].startswith("sha256:"))
         self.assertTrue(receipt["output_schema_hash"].startswith("sha256:"))
@@ -302,6 +384,18 @@ class OllamaMultimodalMatrixTests(unittest.TestCase):
         self.assertEqual(count["attempted"], 1)
         self.assertEqual(count["completed"], 1)
         self.assertEqual(count["failed"], 0)
+        probe_count = result["probe_request_count_receipt"]
+        combined = result["combined_request_count_receipt"]
+        self.assertEqual(probe_count["attempted"], 0)
+        self.assertEqual(
+            combined["attempted"], count["attempted"] + probe_count["attempted"]
+        )
+        self.assertEqual(
+            combined["completed"], count["completed"] + probe_count["completed"]
+        )
+        self.assertEqual(
+            combined["failed"], count["failed"] + probe_count["failed"]
+        )
 
     def test_round46_failed_request_counts_once_and_budget_skip_counts_zero(self):
         with tempfile.TemporaryDirectory(dir=ROOT) as directory:

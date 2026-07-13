@@ -24,6 +24,166 @@ from scripts.a2_ollama_multimodal_matrix import ROOT, sha256_ref
 
 
 class DashScopeMultimodalCalibrationTests(unittest.TestCase):
+    def test_round47_perturbation_and_benign_text_metrics_are_conserved(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            base = Path(directory)
+            cases = []
+            specifications = [
+                ("benign", False, "benign_text_safe", None),
+                (
+                    "rotation",
+                    True,
+                    "visual_prompt_injection",
+                    {
+                        "kind": "rotation",
+                        "rotation_degrees": 6,
+                        "jpeg_quality": None,
+                        "width": 2,
+                        "height": 2,
+                    },
+                ),
+                (
+                    "jpeg",
+                    True,
+                    "visual_prompt_injection",
+                    {
+                        "kind": "jpeg_compression",
+                        "rotation_degrees": None,
+                        "jpeg_quality": 43,
+                        "width": 2,
+                        "height": 2,
+                    },
+                ),
+            ]
+            for index, (case_id, expected, taxonomy, perturbation) in enumerate(
+                specifications
+            ):
+                artifact = base / f"{case_id}.png"
+                Image.new("RGB", (2, 2), (index * 30, 20, 200)).save(artifact)
+                case = {
+                    "case_id": case_id,
+                    "taxonomy": taxonomy,
+                    "expected_risk": expected,
+                    "artifact_path": artifact.relative_to(ROOT).as_posix(),
+                    "artifact_hash": sha256_ref(artifact.read_bytes()),
+                }
+                if perturbation:
+                    case["source_case_id"] = f"source-{case_id}"
+                    case["perturbation"] = perturbation
+                cases.append(case)
+            responses = iter((False, True, False))
+
+            def invoke(*_):
+                risk = next(responses)
+                return {
+                    "model": "qwen-vl-plus",
+                    "choices": [{"message": {"content": json.dumps({
+                        "risk_present": risk,
+                        "taxonomy_classes": [],
+                        "summary": "result",
+                    })}}],
+                    "usage": {
+                        "prompt_tokens": 10,
+                        "completion_tokens": 2,
+                        "total_tokens": 12,
+                    },
+                }
+
+            result = build_calibration(
+                cases=cases,
+                model_id="qwen-vl-plus",
+                endpoint_region="beijing",
+                invoke=invoke,
+                minimum_safe_samples=1,
+                minimum_attack_samples=1,
+                minimum_taxonomy_samples=1,
+                minimum_perturbation_samples=2,
+            )
+        metrics = result["metrics"]
+        self.assertEqual(metrics["transformed_attack_count"], 2)
+        self.assertEqual(metrics["classified_transformed_attack_count"], 2)
+        self.assertEqual(
+            metrics["perturbation_metrics"]["rotation_degrees"]["6"][
+                "detected_count"
+            ],
+            1,
+        )
+        self.assertEqual(
+            metrics["perturbation_metrics"]["jpeg_quality"]["43"]["detected_count"],
+            0,
+        )
+        self.assertEqual(
+            metrics["benign_text_false_positive"]["false_positive_rate"], 0
+        )
+        self.assertNotIn(
+            "dashscope_transformed_attack_conservation_failed", result["blockers"]
+        )
+        self.assertIn(
+            "dashscope_perturbation_sample_minimum_not_met", result["blockers"]
+        )
+        self.assertEqual(result["sample_policy"]["minimum_perturbation_samples"], 2)
+
+    def test_round47_perturbation_minimum_must_be_positive(self):
+        with self.assertRaisesRegex(
+            ValueError, "minimum perturbation samples must be positive"
+        ):
+            build_calibration(
+                cases=[],
+                model_id="qwen-vl-plus",
+                endpoint_region="beijing",
+                invoke=lambda *_: {},
+                minimum_perturbation_samples=0,
+            )
+
+    def test_round47_bool_or_inconsistent_usage_is_not_complete(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            artifact = Path(directory) / "safe.png"
+            Image.new("RGB", (1, 1), (20, 20, 200)).save(artifact)
+            responses = iter(
+                [
+                    {
+                        "prompt_tokens": True,
+                        "completion_tokens": False,
+                        "total_tokens": 1,
+                    },
+                    {
+                        "prompt_tokens": 10,
+                        "completion_tokens": 5,
+                        "total_tokens": 1,
+                    },
+                ]
+            )
+            for usage in responses:
+                result = build_calibration(
+                    cases=[{
+                        "case_id": "usage-invalid",
+                        "taxonomy": "safe_control",
+                        "expected_risk": False,
+                        "artifact_path": artifact.relative_to(ROOT).as_posix(),
+                        "artifact_hash": sha256_ref(artifact.read_bytes()),
+                    }],
+                    model_id="qwen-vl-plus",
+                    endpoint_region="beijing",
+                    invoke=lambda *_, usage=usage: {
+                        "model": "qwen-vl-plus",
+                        "choices": [{"message": {"content": json.dumps({
+                            "risk_present": False,
+                            "taxonomy_classes": [],
+                            "summary": "safe",
+                        })}}],
+                        "usage": usage,
+                    },
+                    minimum_safe_samples=1,
+                    minimum_attack_samples=1,
+                )
+                self.assertEqual(
+                    result["observations"][0]["usage_accounting_state"],
+                    "missing_or_invalid",
+                )
+                self.assertIn(
+                    "dashscope_successful_response_usage_missing", result["blockers"]
+                )
+
     def test_round46_controls_are_deterministic_and_cover_text_and_transforms(self):
         first = generate_round46()
         second = generate_round46()
@@ -422,6 +582,10 @@ class DashScopeMultimodalCalibrationTests(unittest.TestCase):
                             }
                         }
                     ],
+                    "usage": {
+                        "prompt_tokens": 10,
+                        "completion_tokens": 5,
+                    },
                 }
 
             result = build_calibration(
@@ -762,6 +926,10 @@ class DashScopeMultimodalCalibrationTests(unittest.TestCase):
                             }
                         }
                     ],
+                    "usage": {
+                        "prompt_tokens": 10,
+                        "completion_tokens": 5,
+                    },
                 }
 
             result = build_calibration(
@@ -783,6 +951,48 @@ class DashScopeMultimodalCalibrationTests(unittest.TestCase):
         self.assertEqual(taxonomy["sensitivity"], 1.0)
         self.assertEqual(len(taxonomy["sensitivity_wilson_95"]), 2)
         self.assertEqual(result["qualification_state"], "qualified_for_review")
+
+    def test_round47_success_without_usage_is_blocked_and_not_zero_cost(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            artifact = Path(directory) / "safe.png"
+            Image.new("RGB", (1, 1), (0, 0, 255)).save(artifact)
+            result = build_calibration(
+                cases=[{
+                    "case_id": "safe",
+                    "taxonomy": "safe_control",
+                    "expected_risk": False,
+                    "artifact_path": artifact.relative_to(ROOT).as_posix(),
+                    "artifact_hash": sha256_ref(artifact.read_bytes()),
+                }],
+                model_id="qwen-vl-plus",
+                endpoint_region="beijing",
+                invoke=lambda *_: {
+                    "model": "qwen-vl-plus",
+                    "choices": [{
+                        "message": {
+                            "content": json.dumps({
+                                "risk_present": False,
+                                "taxonomy_classes": [],
+                                "summary": "safe",
+                            })
+                        }
+                    }],
+                },
+                minimum_safe_samples=1,
+                minimum_attack_samples=1,
+                minimum_taxonomy_samples=1,
+                input_usd_per_million_tokens=1,
+                output_usd_per_million_tokens=1,
+            )
+        self.assertIn(
+            "dashscope_successful_response_usage_missing", result["blockers"]
+        )
+        self.assertEqual(
+            result["usage_cost_receipt"]["usage_accounting_state"],
+            "missing_or_invalid",
+        )
+        self.assertIsNone(result["usage_cost_receipt"]["estimated_cost_usd"])
+        self.assertFalse(result["usage_cost_receipt"]["within_cost_budget"])
 
     def test_round38_sensitivity_and_specificity_thresholds_fail_closed(self):
         observations = iter([True, False])

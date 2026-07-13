@@ -6,7 +6,7 @@ import json
 import socket
 import time
 from dataclasses import asdict, dataclass
-from typing import Any, Callable, Mapping, Protocol
+from typing import Any, Callable, Mapping, Protocol, runtime_checkable
 from urllib import error, request
 
 from .result_persistence import stable_hash
@@ -20,6 +20,93 @@ TRANSPORT_RECEIPT_SCHEMA_VERSION = "a2.provider_transport_receipt.v1"
 RESPONSE_DURATION_RECEIPT_SCHEMA_VERSION = "a2.provider_response_duration_receipt.v1"
 REQUEST_COUNT_RECEIPT_SCHEMA_VERSION = "a2.provider_request_count_receipt.v1"
 USAGE_COST_RECEIPT_SCHEMA_VERSION = "a2.provider_usage_cost_receipt.v1"
+PRICING_POLICY_SCHEMA_VERSION = "a2.provider_pricing_policy.v1"
+CANCELLATION_HANDLE_RECEIPT_SCHEMA_VERSION = (
+    "a2.provider_cancellation_handle_receipt.v1"
+)
+
+
+@runtime_checkable
+class ProviderCancellationHandle(Protocol):
+    """Optional adapter handle; acknowledgement is not proof of remote abort."""
+
+    def cancel(self) -> bool: ...
+
+
+@dataclass(frozen=True)
+class ProviderCancellationHandleReceipt:
+    """Public-safe record of one bounded cancellation request."""
+
+    requested: bool
+    supported: bool
+    acknowledged: bool
+    enforcement: str
+    schema_version: str = CANCELLATION_HANDLE_RECEIPT_SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        if self.schema_version != CANCELLATION_HANDLE_RECEIPT_SCHEMA_VERSION:
+            raise ValueError("unsupported provider cancellation handle receipt version")
+        if self.acknowledged and not (self.requested and self.supported):
+            raise ValueError(
+                "cancellation acknowledgement requires a supported request"
+            )
+        if self.enforcement not in {
+            "not_requested",
+            "unsupported",
+            "adapter_acknowledged",
+            "adapter_rejected",
+        }:
+            raise ValueError("unsupported cancellation enforcement")
+        expected = (
+            "not_requested"
+            if not self.requested
+            else "unsupported"
+            if not self.supported
+            else "adapter_acknowledged"
+            if self.acknowledged
+            else "adapter_rejected"
+        )
+        if self.enforcement != expected:
+            raise ValueError("cancellation enforcement contradicts receipt state")
+
+    def public_receipt(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "requested": self.requested,
+            "supported": self.supported,
+            "acknowledged": self.acknowledged,
+            "enforcement": self.enforcement,
+            "remote_request_termination_proven": False,
+            "raw_provider_state_included": False,
+            "release_authority": False,
+            "public_safe": True,
+        }
+
+
+def request_provider_cancellation(
+    handle: ProviderCancellationHandle | None,
+) -> dict[str, Any]:
+    """Request cancellation once and fail closed without leaking adapter state."""
+
+    if handle is None or not isinstance(handle, ProviderCancellationHandle):
+        return ProviderCancellationHandleReceipt(
+            requested=True,
+            supported=False,
+            acknowledged=False,
+            enforcement="unsupported",
+        ).public_receipt()
+    try:
+        acknowledged = handle.cancel() is True
+    except Exception:
+        acknowledged = False
+    return ProviderCancellationHandleReceipt(
+        requested=True,
+        supported=True,
+        acknowledged=acknowledged,
+        enforcement=(
+            "adapter_acknowledged" if acknowledged else "adapter_rejected"
+        ),
+    ).public_receipt()
 
 
 @dataclass(frozen=True)
@@ -159,6 +246,62 @@ class ProviderRequestCountReceipt:
 
 
 @dataclass(frozen=True)
+class ProviderPricingPolicy:
+    """Versioned public-safe pricing provenance; source locations stay hashed."""
+
+    provider_id: str
+    model_id: str
+    input_usd_per_million_tokens: float
+    output_usd_per_million_tokens: float
+    effective_at: str
+    retrieved_at: str
+    source_class: str
+    source_uri_hash: str
+    schema_version: str = PRICING_POLICY_SCHEMA_VERSION
+
+    def __post_init__(self) -> None:
+        if self.schema_version != PRICING_POLICY_SCHEMA_VERSION:
+            raise ValueError("unsupported provider pricing policy version")
+        if not all(
+            (
+                self.provider_id,
+                self.model_id,
+                self.effective_at,
+                self.retrieved_at,
+                self.source_class,
+            )
+        ):
+            raise ValueError("provider pricing policy fields must not be empty")
+        if min(
+            self.input_usd_per_million_tokens,
+            self.output_usd_per_million_tokens,
+        ) < 0:
+            raise ValueError("provider pricing rates cannot be negative")
+        if not (
+            self.source_uri_hash.startswith("sha256:")
+            and len(self.source_uri_hash) == 71
+        ):
+            raise ValueError("provider pricing source URI must be hashed")
+
+    def public_policy(self) -> dict[str, Any]:
+        value = {
+            "schema_version": self.schema_version,
+            "provider_id": self.provider_id,
+            "model_id": self.model_id,
+            "currency": "USD",
+            "input_usd_per_million_tokens": self.input_usd_per_million_tokens,
+            "output_usd_per_million_tokens": self.output_usd_per_million_tokens,
+            "effective_at": self.effective_at,
+            "retrieved_at": self.retrieved_at,
+            "source_class": self.source_class,
+            "source_uri_hash": self.source_uri_hash,
+            "release_authority": False,
+            "public_safe": True,
+        }
+        return {**value, "content_hash": stable_hash(value)}
+
+
+@dataclass(frozen=True)
 class ProviderUsageCostReceipt:
     """Bounded token/cost projection without retaining provider payloads."""
 
@@ -167,6 +310,8 @@ class ProviderUsageCostReceipt:
     input_usd_per_million_tokens: float | None
     output_usd_per_million_tokens: float | None
     maximum_estimated_cost_usd: float
+    usage_complete: bool = True
+    pricing_policy: Mapping[str, Any] | None = None
     schema_version: str = USAGE_COST_RECEIPT_SCHEMA_VERSION
 
     def __post_init__(self) -> None:
@@ -182,6 +327,19 @@ class ProviderUsageCostReceipt:
             raise ValueError("cost values cannot be negative")
         if self.maximum_estimated_cost_usd < 0:
             raise ValueError("cost values cannot be negative")
+        if self.pricing_policy is not None:
+            policy = dict(self.pricing_policy)
+            content_hash = policy.pop("content_hash", "")
+            if content_hash != stable_hash(policy):
+                raise ValueError("provider pricing policy content hash mismatch")
+            if (
+                policy.get("schema_version") != PRICING_POLICY_SCHEMA_VERSION
+                or policy.get("input_usd_per_million_tokens")
+                != self.input_usd_per_million_tokens
+                or policy.get("output_usd_per_million_tokens")
+                != self.output_usd_per_million_tokens
+            ):
+                raise ValueError("provider pricing policy does not bind receipt rates")
 
     @property
     def pricing_configured(self) -> bool:
@@ -192,7 +350,7 @@ class ProviderUsageCostReceipt:
 
     @property
     def estimated_cost_usd(self) -> float | None:
-        if not self.pricing_configured:
+        if not self.pricing_configured or not self.usage_complete:
             return None
         assert self.input_usd_per_million_tokens is not None
         assert self.output_usd_per_million_tokens is not None
@@ -204,14 +362,23 @@ class ProviderUsageCostReceipt:
     def public_receipt(self) -> dict[str, Any]:
         projected = self.estimated_cost_usd
         estimated = round(projected, 8) if projected is not None else None
+        policy = dict(self.pricing_policy or {})
         return {
             "schema_version": self.schema_version,
             "prompt_tokens": self.prompt_tokens,
             "completion_tokens": self.completion_tokens,
             "total_tokens": self.prompt_tokens + self.completion_tokens,
+            "usage_accounting_state": (
+                "complete" if self.usage_complete else "missing_or_invalid"
+            ),
             "pricing_state": (
                 "configured" if self.pricing_configured else "unavailable"
             ),
+            "pricing_policy_version": policy.get("schema_version", ""),
+            "pricing_policy_hash": policy.get("content_hash", ""),
+            "pricing_effective_at": policy.get("effective_at", ""),
+            "pricing_retrieved_at": policy.get("retrieved_at", ""),
+            "pricing_source_hash": policy.get("source_uri_hash", ""),
             "input_usd_per_million_tokens": self.input_usd_per_million_tokens,
             "output_usd_per_million_tokens": self.output_usd_per_million_tokens,
             "estimated_cost_usd": estimated,

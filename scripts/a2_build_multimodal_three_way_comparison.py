@@ -15,7 +15,32 @@ if str(ROOT) not in sys.path:
 from scripts.a2_build_multimodal_cross_provider_comparison import stable_hash
 
 
-SCHEMA = ROOT / "docs/a2/schemas/multimodal_three_way_comparison.schema.json"
+SCHEMA = (
+    ROOT / "docs/a2/schemas/multimodal_three_way_comparison_v2.schema.json"
+)
+
+
+def _validate_provider_labels(labels: list[str]) -> None:
+    normalized = [label.strip() for label in labels]
+    if any(not label for label in normalized):
+        raise ValueError("provider labels must not be empty")
+    if any("::" in label for label in normalized):
+        raise ValueError("provider labels must not contain pairwise separator")
+    if len(set(normalized)) != len(normalized) or normalized != labels:
+        raise ValueError("duplicate or ambiguous provider labels")
+
+
+def load_pairs(values: list[str]) -> dict[str, dict[str, Any]]:
+    loaded = {}
+    labels = []
+    for value in values:
+        label, separator, path = value.partition("=")
+        if not separator:
+            raise ValueError("provider/partial arguments must use label=path")
+        labels.append(label)
+        _validate_provider_labels(labels)
+        loaded[label] = json.loads((ROOT / path).read_text(encoding="utf-8"))
+    return loaded
 
 
 def _observations(evidence: dict[str, Any]) -> list[dict[str, Any]]:
@@ -51,14 +76,23 @@ def build_three_way_comparison(
 ) -> dict[str, Any]:
     if len(providers) != 3:
         raise ValueError("three-way comparison requires exactly three providers")
+    _validate_provider_labels(list(providers))
     partial_journals = partial_journals or {}
+    unknown_partial_labels = set(partial_journals) - set(providers)
+    if unknown_partial_labels:
+        raise ValueError("partial journal labels must match provider labels")
     indexes = {
         provider: _index_observations(provider, evidence)
         for provider, evidence in providers.items()
     }
     all_keys = sorted(set().union(*(set(index) for index in indexes.values())))
     comparisons = []
-    summary = {"agreement": 0, "semantic_disagreement": 0, "unavailable": 0}
+    summary = {
+        "three_way_agreement": 0,
+        "pairwise_agreement_with_unavailable": 0,
+        "semantic_disagreement": 0,
+        "unavailable": 0,
+    }
     pending_receipts = []
     for case_id, artifact_hash, repeat in all_keys:
         states = {}
@@ -80,8 +114,10 @@ def build_three_way_comparison(
                 eligible_values.append(observed)
         if len(eligible_values) < 2:
             comparison_state = "unavailable"
+        elif len(set(eligible_values)) == 1 and len(eligible_values) == 3:
+            comparison_state = "three_way_agreement"
         elif len(set(eligible_values)) == 1:
-            comparison_state = "agreement"
+            comparison_state = "pairwise_agreement_with_unavailable"
         else:
             comparison_state = "semantic_disagreement"
         comparison = {
@@ -163,7 +199,7 @@ def build_three_way_comparison(
                 raise ValueError("pairwise comparison summary conservation failed")
             pairwise_summaries[f"{left}::{right}"] = pair_summary
     result = {
-        "schema_version": "a2.multimodal_three_way_comparison.v1",
+        "schema_version": "a2.multimodal_three_way_comparison.v2",
         "comparison_artifact_hash": comparison_artifact_hash,
         "evidence_hashes": evidence_hashes,
         "partial_journal_hashes": partial_hashes,
@@ -188,18 +224,12 @@ def main() -> int:
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
 
-    def load_pairs(values: list[str]) -> dict[str, dict[str, Any]]:
-        loaded = {}
-        for value in values:
-            label, separator, path = value.partition("=")
-            if not separator:
-                raise SystemExit("provider/partial arguments must use label=path")
-            loaded[label] = json.loads((ROOT / path).read_text(encoding="utf-8"))
-        return loaded
-
-    result = build_three_way_comparison(
-        load_pairs(args.provider), partial_journals=load_pairs(args.partial)
-    )
+    try:
+        result = build_three_way_comparison(
+            load_pairs(args.provider), partial_journals=load_pairs(args.partial)
+        )
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
     (ROOT / args.output).write_text(
         json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )

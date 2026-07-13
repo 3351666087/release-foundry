@@ -21,6 +21,9 @@ def build_release_gate_report(
     regression_replay_report: dict[str, Any] | None = None,
     scenario_selection_report: dict[str, Any] | None = None,
     a1_evidence_index: dict[str, Any] | None = None,
+    modality_scope: list[str] | None = None,
+    multimodal_qualification: dict[str, Any] | None = None,
+    multimodal_expected_bindings: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Convert readiness evidence into a machine-readable PR/release gate."""
     gates = {str(gate.get("gate", "")): gate for gate in commercial_readiness_report.get("gate_status", [])}
@@ -35,13 +38,24 @@ def build_release_gate_report(
     scenario_selection_blockers = _scenario_selection_blockers(scenario_selection_gate)
     a1_output_policy_gate = build_a1_output_policy_gate(a1_evidence_index)
     output_policy_blockers = _a1_output_policy_blockers(a1_output_policy_gate)
-    blockers = blocking_gates + evidence_blockers + scenario_selection_blockers + output_policy_blockers
+    multimodal_blockers = _multimodal_qualification_blockers(
+        modality_scope or ["text"],
+        multimodal_qualification,
+        multimodal_expected_bindings,
+    )
+    blockers = (
+        blocking_gates
+        + evidence_blockers
+        + scenario_selection_blockers
+        + output_policy_blockers
+        + multimodal_blockers
+    )
     warnings = _warnings(commercial_readiness_report, evidence_readiness_report) + _scenario_selection_warnings(
         scenario_selection_gate
     )
     decision = "block" if blockers else "warn" if warnings else "pass"
     risk_score = _risk_score(blockers, warnings)
-    return {
+    report = {
         "schema_version": "a2.release_gate.v1",
         "report_id": "a2_release_gate",
         "release_candidate": {
@@ -103,6 +117,61 @@ def build_release_gate_report(
             "does_not_execute_live_calls": True,
         },
     }
+    if "image" in (modality_scope or ["text"]):
+        report["multimodal_qualification"] = multimodal_qualification
+        report["multimodal_qualification_blocker_count"] = len(multimodal_blockers)
+        report["machine_contract"]["blocking_fields"].append(
+            "multimodal_qualification"
+        )
+    return report
+
+
+def _multimodal_qualification_blockers(
+    modality_scope: list[str],
+    artifact: dict[str, Any] | None,
+    expected_bindings: dict[str, Any] | None,
+) -> list[dict[str, Any]]:
+    if "image" not in modality_scope:
+        return []
+    reasons: list[str] = []
+    if not isinstance(artifact, dict):
+        reasons.append("multimodal qualification artifact is missing")
+    else:
+        if not isinstance(expected_bindings, dict) or not expected_bindings:
+            reasons.append("multimodal expected bindings are missing")
+        else:
+            for field, expected in sorted(expected_bindings.items()):
+                if not isinstance(field, str) or not field or expected in (None, ""):
+                    reasons.append("multimodal expected bindings are malformed")
+                    break
+                if artifact.get(field) != expected:
+                    reasons.append(f"multimodal qualification binding mismatch: {field}")
+        if artifact.get("qualification_state") != "qualified_for_review":
+            reasons.append("multimodal qualification is not qualified for review")
+        artifact_blockers = artifact.get("blockers")
+        if not isinstance(artifact_blockers, list) or artifact_blockers:
+            reasons.append("multimodal qualification contains blockers")
+        if artifact.get("release_authority") is not False:
+            reasons.append("multimodal qualification authority boundary is invalid")
+        usage = artifact.get("usage_cost_receipt")
+        if isinstance(usage, dict) and (
+            usage.get("usage_accounting_state") != "complete"
+            or usage.get("pricing_state") != "configured"
+            or usage.get("within_cost_budget") is not True
+        ):
+            reasons.append("multimodal usage or pricing qualification is incomplete")
+    if not reasons:
+        return []
+    return [{
+        "type": "multimodal_qualification_gate",
+        "gate": "MM1",
+        "status": "blocked",
+        "severity": "critical",
+        "summary": "Image-capable release candidate lacks passing multimodal qualification.",
+        "required_action": "Provide a current, hash-bound, blocker-free multimodal qualification artifact.",
+        "gaps": reasons,
+        "evidence_refs": [],
+    }]
 
 
 def apply_a1_output_policy_gate(report: dict[str, Any], evidence_index: dict[str, Any] | None) -> dict[str, Any]:

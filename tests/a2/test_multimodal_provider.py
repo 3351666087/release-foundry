@@ -14,18 +14,54 @@ from services.judge.multimodal_provider import (
     ProviderResponseDurationReceipt,
     ProviderRequestCountReceipt,
     ProviderUsageCostReceipt,
+    ProviderPricingPolicy,
+    ProviderCancellationHandleReceipt,
     ProviderRateLimited,
     TransportRetryPolicy,
     build_provider_conformance_receipt,
     default_multimodal_provider_registry,
     parse_ollama_response,
     parse_openai_compatible_response,
+    request_provider_cancellation,
 )
 from services.judge.provider_runtime import EnvironmentCredentialResolver
 from scripts.a2_ollama_multimodal_matrix import ROOT
 
 
 class MultimodalProviderTests(unittest.TestCase):
+    def test_round47_provider_cancellation_handle_contract_is_fail_closed(self):
+        class Handle:
+            def __init__(self, result=True):
+                self.result = result
+                self.calls = 0
+
+            def cancel(self):
+                self.calls += 1
+                return self.result
+
+        schema = json.loads(
+            (
+                ROOT
+                / "docs/a2/schemas/provider_cancellation_handle_receipt.schema.json"
+            ).read_text(encoding="utf-8")
+        )
+        supported = Handle()
+        receipt = request_provider_cancellation(supported)
+        self.assertEqual(supported.calls, 1)
+        self.assertTrue(receipt["acknowledged"])
+        self.assertFalse(receipt["remote_request_termination_proven"])
+        jsonschema.Draft202012Validator(schema).validate(receipt)
+        unsupported = request_provider_cancellation(None)
+        self.assertEqual(unsupported["enforcement"], "unsupported")
+        self.assertFalse(unsupported["acknowledged"])
+        with self.assertRaisesRegex(ValueError, "requires a supported request"):
+            ProviderCancellationHandleReceipt(
+                requested=True,
+                supported=False,
+                acknowledged=True,
+                enforcement="unsupported",
+            )
+
     def test_registry_discovers_generic_capabilities_without_secret(self):
         registry = default_multimodal_provider_registry()
         capability = registry.discover("dashscope")
@@ -137,6 +173,7 @@ class MultimodalProviderTests(unittest.TestCase):
             maximum_estimated_cost_usd=0.01,
         ).public_receipt()
         self.assertEqual(usage["total_tokens"], 1500)
+        self.assertEqual(usage["usage_accounting_state"], "complete")
         self.assertEqual(usage["pricing_state"], "configured")
         self.assertTrue(usage["within_cost_budget"])
         self.assertFalse(usage["raw_payload_included"])
@@ -150,6 +187,46 @@ class MultimodalProviderTests(unittest.TestCase):
         self.assertEqual(unknown["pricing_state"], "unavailable")
         self.assertIsNone(unknown["estimated_cost_usd"])
         self.assertFalse(unknown["within_cost_budget"])
+        missing_usage = ProviderUsageCostReceipt(
+            prompt_tokens=0,
+            completion_tokens=0,
+            input_usd_per_million_tokens=2,
+            output_usd_per_million_tokens=4,
+            maximum_estimated_cost_usd=1,
+            usage_complete=False,
+        ).public_receipt()
+        self.assertEqual(
+            missing_usage["usage_accounting_state"], "missing_or_invalid"
+        )
+        self.assertIsNone(missing_usage["estimated_cost_usd"])
+        self.assertFalse(missing_usage["within_cost_budget"])
+        policy = ProviderPricingPolicy(
+            provider_id="unit",
+            model_id="unit-model",
+            input_usd_per_million_tokens=2,
+            output_usd_per_million_tokens=4,
+            effective_at="2026-07-14T00:00:00Z",
+            retrieved_at="2026-07-14T01:00:00Z",
+            source_class="unit_fixture",
+            source_uri_hash="sha256:" + "a" * 64,
+        ).public_policy()
+        jsonschema.Draft202012Validator(
+            json.loads(
+                (
+                    ROOT / "docs/a2/schemas/provider_pricing_policy.schema.json"
+                ).read_text(encoding="utf-8")
+            )
+        ).validate(policy)
+        bound = ProviderUsageCostReceipt(
+            prompt_tokens=1000,
+            completion_tokens=500,
+            input_usd_per_million_tokens=2,
+            output_usd_per_million_tokens=4,
+            maximum_estimated_cost_usd=1,
+            pricing_policy=policy,
+        ).public_receipt()
+        self.assertEqual(bound["pricing_policy_hash"], policy["content_hash"])
+        self.assertEqual(bound["pricing_source_hash"], policy["source_uri_hash"])
         with self.assertRaisesRegex(ValueError, "must equal"):
             ProviderRequestCountReceipt(
                 attempted=3, completed=1, failed=1, maximum_allowed=4

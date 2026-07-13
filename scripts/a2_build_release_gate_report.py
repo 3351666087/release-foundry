@@ -26,6 +26,17 @@ def main() -> int:
     parser.add_argument("--regression-replay", default="fixtures/a2/results/a2_regression_replay_report.json")
     parser.add_argument("--scenario-selection", default="fixtures/a2/results/a2_scenario_selection_report.json")
     parser.add_argument("--a1-evidence-index", default="docs/a1/api_calibration/real_api_evidence_index.json")
+    parser.add_argument(
+        "--modality-scope",
+        action="append",
+        choices=["text", "image"],
+        default=None,
+    )
+    parser.add_argument("--multimodal-qualification")
+    parser.add_argument(
+        "--multimodal-expected-bindings",
+        help="JSON object of exact fields the multimodal qualification must bind",
+    )
     parser.add_argument("--check", action="store_true", help="Compare generated report with the output path.")
     parser.add_argument("--fail-on-block", action="store_true", help="Return the report exit_code when decision is block or warn.")
     args = parser.parse_args()
@@ -38,6 +49,17 @@ def main() -> int:
         _read_json(Path(args.regression_replay)),
         _read_json(Path(args.scenario_selection)),
         _read_optional_json(Path(args.a1_evidence_index)),
+        args.modality_scope or ["text"],
+        (
+            _read_optional_json(Path(args.multimodal_qualification))
+            if args.multimodal_qualification
+            else None
+        ),
+        (
+            _read_optional_json(Path(args.multimodal_expected_bindings))
+            if args.multimodal_expected_bindings
+            else None
+        ),
     )
     text = json.dumps(report, indent=2) + "\n"
     output = Path(args.output)

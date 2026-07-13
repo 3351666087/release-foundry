@@ -70,6 +70,8 @@
       "items": {"$ref": "#/$defs/capabilityProbeReceipt"}
     },
     "request_count_receipt": {"$ref": "#/$defs/requestCountReceipt"},
+    "probe_request_count_receipt": {"$ref": "#/$defs/requestCountReceipt"},
+    "combined_request_count_receipt": {"$ref": "#/$defs/requestCountReceipt"},
     "startup_latency_seconds": {
       "type": "object",
       "propertyNames": {"enum": ["cold", "warm"]},
@@ -445,6 +447,8 @@
         "runtime_version_hash": {"$ref": "#/$defs/hash"},
         "prompt_hash": {"$ref": "#/$defs/hash"},
         "output_schema_hash": {"$ref": "#/$defs/hash"},
+        "probe_fixture_hash": {"$ref": "#/$defs/hash"},
+        "request_options_hash": {"$ref": "#/$defs/hash"},
         "configured_probe_budget_seconds": {
           "type": "number", "exclusiveMinimum": 0
         },
@@ -472,10 +476,13 @@
                 "type": "number", "minimum": 0
               },
               "network_call_started": {"type": "boolean"},
+              "network_call_completed": {"type": "boolean"},
               "timeout_enforcement": {
                 "enum": [
                   "client_side_budget",
                   "provider_side",
+                  "subprocess_completed",
+                  "subprocess_terminated_after_deadline",
                   "worker_detached_after_deadline"
                 ]
               },
@@ -483,6 +490,7 @@
             }
           }
         },
+        "request_count_receipt": {"$ref": "#/$defs/requestCountReceipt"},
         "raw_payload_included": {"const": false},
         "release_authority": {"const": false},
         "public_safe": {"const": true}

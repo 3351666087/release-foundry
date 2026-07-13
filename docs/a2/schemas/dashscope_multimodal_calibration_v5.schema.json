@@ -101,6 +101,45 @@
           "expected_risk": {
             "type": "boolean"
           },
+          "source_case_id": {
+            "type": ["string", "null"],
+            "minLength": 1
+          },
+          "user_text_present": {
+            "type": "boolean"
+          },
+          "perturbation": {
+            "type": ["object", "null"],
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "jpeg_quality",
+              "rotation_degrees",
+              "width",
+              "height"
+            ],
+            "properties": {
+              "kind": {
+                "enum": ["jpeg_compression", "rescaling", "rotation"]
+              },
+              "jpeg_quality": {
+                "type": ["integer", "null"],
+                "minimum": 1,
+                "maximum": 100
+              },
+              "rotation_degrees": {
+                "type": ["number", "null"]
+              },
+              "width": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "height": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          },
           "repeat": {
             "type": "integer",
             "minimum": 1
@@ -182,6 +221,9 @@
               }
             }
           },
+          "usage_accounting_state": {
+            "enum": ["complete", "missing_or_invalid", "not_applicable"]
+          },
           "wall_seconds": {
             "type": "number",
             "minimum": 0
@@ -226,6 +268,10 @@
           "minimum": 1
         },
         "minimum_taxonomy_samples": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "minimum_perturbation_samples": {
           "type": "integer",
           "minimum": 1
         },
@@ -414,6 +460,26 @@
             }
           }
         },
+        "transformed_attack_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "classified_transformed_attack_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "perturbation_metrics": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["rotation_degrees", "jpeg_quality"],
+          "properties": {
+            "rotation_degrees": {"$ref": "#/$defs/perturbationBuckets"},
+            "jpeg_quality": {"$ref": "#/$defs/perturbationBuckets"}
+          }
+        },
+        "benign_text_false_positive": {
+          "$ref": "#/$defs/benignTextMetric"
+        },
         "final_attempt_latency_seconds": {
           "$ref": "#/$defs/latency"
         }
@@ -477,6 +543,45 @@
       },
       "minItems": 2,
       "maxItems": 2
+    },
+    "perturbationBuckets": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "eligible_count",
+          "detected_count",
+          "sensitivity",
+          "sensitivity_wilson_95"
+        ],
+        "properties": {
+          "eligible_count": {"type": "integer", "minimum": 1},
+          "detected_count": {"type": "integer", "minimum": 0},
+          "sensitivity": {"type": "number", "minimum": 0, "maximum": 1},
+          "sensitivity_wilson_95": {"$ref": "#/$defs/optionalInterval"}
+        }
+      }
+    },
+    "benignTextMetric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "eligible_count",
+        "false_positive_count",
+        "false_positive_rate",
+        "false_positive_wilson_95"
+      ],
+      "properties": {
+        "eligible_count": {"type": "integer", "minimum": 0},
+        "false_positive_count": {"type": "integer", "minimum": 0},
+        "false_positive_rate": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "false_positive_wilson_95": {"$ref": "#/$defs/optionalInterval"}
+      }
     },
     "latency": {
       "type": "object",
@@ -583,6 +688,9 @@
               "minimum": 0
             }
           }
+        },
+        "usage_accounting_state": {
+          "enum": ["complete", "missing_or_invalid", "not_applicable"]
         },
         "wall_seconds": {
           "type": "number",
@@ -709,7 +817,15 @@
         "prompt_tokens": {"type": "integer", "minimum": 0},
         "completion_tokens": {"type": "integer", "minimum": 0},
         "total_tokens": {"type": "integer", "minimum": 0},
+        "usage_accounting_state": {
+          "enum": ["complete", "missing_or_invalid"]
+        },
         "pricing_state": {"enum": ["configured", "unavailable"]},
+        "pricing_policy_version": {"type": "string"},
+        "pricing_policy_hash": {"$ref": "#/$defs/optionalHash"},
+        "pricing_effective_at": {"type": "string"},
+        "pricing_retrieved_at": {"type": "string"},
+        "pricing_source_hash": {"$ref": "#/$defs/optionalHash"},
         "input_usd_per_million_tokens": {
           "type": ["number", "null"],
           "minimum": 0
