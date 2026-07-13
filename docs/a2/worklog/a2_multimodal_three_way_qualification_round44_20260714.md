@@ -1,6 +1,6 @@
 # A2 Round 44 — multimodal three-way qualification
 
-Date: 2026-07-14  
+Date: 2026-07-14
 Branch: `dev/g3-a2-calibration`
 
 ## Scope and reviewed refs
