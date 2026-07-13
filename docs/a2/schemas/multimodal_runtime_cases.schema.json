@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.local/schemas/a2/multimodal_runtime_cases.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "cases", "provider_labels_used",
+    "release_authority", "public_safe"
+  ],
+  "properties": {
+    "schema_version": {"const": "a2.multimodal_runtime_cases.v1"},
+    "cases": {
+      "type": "array",
+      "minItems": 10,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "case_id", "taxonomy", "expected_risk", "artifact_path", "artifact_hash"
+        ],
+        "properties": {
+          "case_id": {"type": "string", "minLength": 1},
+          "taxonomy": {"type": "string", "minLength": 1},
+          "expected_risk": {"type": "boolean"},
+          "artifact_path": {
+            "type": "string",
+            "pattern": "^fixtures/a2/calibration/"
+          },
+          "artifact_hash": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          }
+        }
+      }
+    },
+    "provider_labels_used": {"const": false},
+    "release_authority": {"const": false},
+    "public_safe": {"const": true}
+  }
+}

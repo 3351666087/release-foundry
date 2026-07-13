@@ -23,6 +23,7 @@ from services.judge.provider_runtime import (
     TenantProviderPolicy,
     build_local_smoke_evidence,
     build_composite_agent_capability_contract,
+    build_composite_agent_delegated_batch_receipt,
     build_composite_agent_delegated_call_receipt,
     build_provider_provenance_handoff,
     validate_semantic_judge_output,
@@ -150,6 +151,35 @@ class ProviderRuntimeTests(unittest.TestCase):
         self.assertIn("composite_agent_image_generator_missing", missing["blockers"])
         self.assert_schema(missing, "composite_agent_capability_contract.schema.json")
 
+    def test_round36_composite_agent_text_rendering_capability_mismatch_blocks(self):
+        contract = build_composite_agent_capability_contract(
+            agent_model={
+                "provider_id": "internal-agent",
+                "model_id": "gpt-5.6-sol",
+                "model_version": "observed-version",
+            },
+            delegated_models=[
+                {
+                    "provider_id": "internal-image",
+                    "model_id": "image-2",
+                    "model_version": "observed-version",
+                    "role": "image_generator",
+                    "capabilities": ["image_generation"],
+                }
+            ],
+            capabilities=[
+                "text_reasoning",
+                "image_generation",
+                "image_text_rendering",
+            ],
+        )
+        self.assertEqual(contract["qualification_state"], "blocked")
+        self.assertIn(
+            "composite_agent_image_text_renderer_missing", contract["blockers"]
+        )
+        self.assertNotIn("composite_agent_image_generator_missing", contract["blockers"])
+        self.assert_schema(contract, "composite_agent_capability_contract.schema.json")
+
     def test_round35_composite_delegated_receipt_routes_disagreement_to_review(self):
         delegated_model = {
             "provider_id": "internal-image",
@@ -179,6 +209,12 @@ class ProviderRuntimeTests(unittest.TestCase):
             generated_artifact_hash=stable_hash("artifact"),
             requested_text_hash=stable_hash("requested"),
             ocr_observed_text_hash=stable_hash("observed"),
+            ocr_engine={
+                "provider_id": "local-ocr",
+                "model_id": "ocr-engine",
+                "model_version": "observed-version",
+            },
+            ocr_extraction_artifact_hash=stable_hash("ocr-extraction"),
             planner_safety_claim="safe",
             safety_judge_result={
                 "provider_id": "independent-local",
@@ -196,6 +232,113 @@ class ProviderRuntimeTests(unittest.TestCase):
         self.assertIn("composite_agent_safety_disagreement", receipt["blockers"])
         self.assert_schema(
             receipt, "composite_agent_delegated_call_receipt.schema.json"
+        )
+
+    def test_round36_composite_judge_provider_failure_is_incomplete(self):
+        delegated_model = {
+            "provider_id": "internal-image",
+            "model_id": "image-2",
+            "model_version": "observed-version",
+        }
+        contract = build_composite_agent_capability_contract(
+            agent_model={
+                "provider_id": "internal-agent",
+                "model_id": "gpt-5.6-sol",
+                "model_version": "observed-version",
+            },
+            delegated_models=[
+                {
+                    **delegated_model,
+                    "role": "image_generator",
+                    "capabilities": ["image_generation"],
+                }
+            ],
+            capabilities=["text_reasoning", "image_generation"],
+        )
+        receipt = build_composite_agent_delegated_call_receipt(
+            capability_contract=contract,
+            planner_request_hash=stable_hash("request"),
+            delegated_model=delegated_model,
+            image_model_response_hash=stable_hash("response"),
+            generated_artifact_hash=stable_hash("artifact"),
+            planner_safety_claim="safe",
+            safety_judge_result={
+                "provider_id": "independent-local",
+                "model_id": "safety-judge",
+                "model_version": "observed-version",
+                "evaluated_artifact_hash": stable_hash("artifact"),
+                "status": "provider_failure",
+                "release_authority": False,
+            },
+        )
+        self.assertEqual(receipt["qualification_state"], "incomplete")
+        self.assertIn(
+            "composite_agent_safety_judge_provider_failure", receipt["blockers"]
+        )
+        self.assertNotEqual(receipt["qualification_state"], "review_available")
+        self.assert_schema(
+            receipt, "composite_agent_delegated_call_receipt.schema.json"
+        )
+
+    def test_round36_composite_batch_binds_multiple_artifacts_and_ocr_engine(self):
+        delegated_model = {
+            "provider_id": "internal-image",
+            "model_id": "image-2",
+            "model_version": "observed-version",
+        }
+        contract = build_composite_agent_capability_contract(
+            agent_model={
+                "provider_id": "internal-agent",
+                "model_id": "gpt-5.6-sol",
+                "model_version": "observed-version",
+            },
+            delegated_models=[
+                {
+                    **delegated_model,
+                    "role": "image_generator",
+                    "capabilities": ["image_generation", "image_text_rendering"],
+                }
+            ],
+            capabilities=["text_reasoning", "image_generation", "image_text_rendering"],
+        )
+        artifact_calls = []
+        for index in range(2):
+            artifact_hash = stable_hash(f"artifact-{index}")
+            artifact_calls.append(
+                {
+                    "delegated_model": delegated_model,
+                    "image_model_response_hash": stable_hash(f"response-{index}"),
+                    "generated_artifact_hash": artifact_hash,
+                    "requested_text_hash": stable_hash(f"text-{index}"),
+                    "ocr_observed_text_hash": stable_hash(f"text-{index}"),
+                    "ocr_engine": {
+                        "provider_id": "local-ocr",
+                        "model_id": "ocr-engine",
+                        "model_version": "observed-version",
+                    },
+                    "ocr_extraction_artifact_hash": stable_hash(
+                        f"ocr-extraction-{index}"
+                    ),
+                    "safety_judge_result": {
+                        "provider_id": "independent-local",
+                        "model_id": "safety-judge",
+                        "model_version": "observed-version",
+                        "evaluated_artifact_hash": artifact_hash,
+                        "status": "safe",
+                        "release_authority": False,
+                    },
+                }
+            )
+        receipt = build_composite_agent_delegated_batch_receipt(
+            capability_contract=contract,
+            planner_request_hash=stable_hash("request"),
+            artifact_calls=artifact_calls,
+        )
+        self.assertEqual(receipt["artifact_count"], 2)
+        self.assertEqual(receipt["qualification_state"], "review_available")
+        self.assertEqual(len(set(receipt["artifact_receipt_hashes"])), 2)
+        self.assert_schema(
+            receipt, "composite_agent_delegated_batch_receipt.schema.json"
         )
 
     def test_round35_composite_delegated_receipt_rejects_tampered_contract_and_wrong_artifact_review(self):

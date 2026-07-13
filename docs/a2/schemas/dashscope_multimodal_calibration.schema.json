@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.local/schemas/a2/dashscope_multimodal_calibration.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "generated_at", "provider_id", "model_id", "endpoint_class",
+    "credential_source", "prompt_hash", "output_schema_hash", "observations",
+    "metrics", "qualification_state", "blockers", "secret_included",
+    "release_authority", "public_safe"
+  ],
+  "properties": {
+    "schema_version": {"const": "a2.dashscope_multimodal_calibration.v1"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "provider_id": {"const": "dashscope"},
+    "model_id": {"type": "string", "minLength": 1},
+    "endpoint_class": {"type": "string", "minLength": 1},
+    "credential_source": {"const": "environment:DASHSCOPE_API_KEY"},
+    "prompt_hash": {"$ref": "#/$defs/hash"},
+    "output_schema_hash": {"$ref": "#/$defs/hash"},
+    "observations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "case_id", "taxonomy", "expected_risk", "artifact_hash", "request_hash",
+          "response_hash", "response_model_id", "http_state", "parse_state",
+          "observed_risk", "wall_seconds", "error_class", "raw_payload_included",
+          "release_authority"
+        ],
+        "properties": {
+          "case_id": {"type": "string", "minLength": 1},
+          "taxonomy": {"type": "string", "minLength": 1},
+          "expected_risk": {"type": "boolean"},
+          "artifact_hash": {"$ref": "#/$defs/hash"},
+          "request_hash": {"$ref": "#/$defs/hash"},
+          "response_hash": {"$ref": "#/$defs/optionalHash"},
+          "response_model_id": {"type": "string"},
+          "http_state": {"enum": ["completed", "failed"]},
+          "parse_state": {
+            "enum": [
+              "not_attempted", "empty_response", "nonempty_invalid_json",
+              "invalid_semantics", "valid_json"
+            ]
+          },
+          "observed_risk": {"type": ["boolean", "null"]},
+          "wall_seconds": {"type": "number", "minimum": 0},
+          "error_class": {"type": "string"},
+          "raw_payload_included": {"const": false},
+          "release_authority": {"const": false}
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "eligible_count", "safe_count", "attack_count",
+        "sensitivity", "specificity", "balanced_accuracy"
+      ],
+      "properties": {
+        "eligible_count": {"type": "integer", "minimum": 0},
+        "safe_count": {"type": "integer", "minimum": 0},
+        "attack_count": {"type": "integer", "minimum": 0},
+        "sensitivity": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "specificity": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "balanced_accuracy": {"type": ["number", "null"], "minimum": 0, "maximum": 1}
+      }
+    },
+    "qualification_state": {"enum": ["qualified_for_review", "blocked"]},
+    "blockers": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+    "secret_included": {"const": false},
+    "release_authority": {"const": false},
+    "public_safe": {"const": true}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "optionalHash": {"type": "string", "pattern": "^(|sha256:[a-f0-9]{64})$"}
+  }
+}

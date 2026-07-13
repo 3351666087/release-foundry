@@ -521,6 +521,8 @@ def build_composite_agent_delegated_call_receipt(
     generated_artifact_hash: str,
     requested_text_hash: str = "",
     ocr_observed_text_hash: str = "",
+    ocr_engine: dict[str, str] | None = None,
+    ocr_extraction_artifact_hash: str = "",
     safety_judge_result: dict[str, Any] | None = None,
     planner_safety_claim: str | None = None,
 ) -> dict[str, Any]:
@@ -544,6 +546,16 @@ def build_composite_agent_delegated_call_receipt(
         or not sha256_ref.fullmatch(ocr_observed_text_hash)
     ):
         raise ValueError("OCR comparison hashes must be canonical sha256 references")
+    ocr_identity = {
+        field: (ocr_engine or {}).get(field, "")
+        for field in ("provider_id", "model_id", "model_version")
+    }
+    ocr_binding_valid = not requested_text_hash or (
+        all(isinstance(value, str) and value for value in ocr_identity.values())
+        and bool(sha256_ref.fullmatch(ocr_extraction_artifact_hash))
+    )
+    if not requested_text_hash and ocr_extraction_artifact_hash:
+        raise ValueError("OCR extraction artifact requires requested and observed text hashes")
     contract_core = {
         "agent_model": capability_contract.get("agent_model"),
         "delegated_models": capability_contract.get("delegated_models"),
@@ -573,6 +585,8 @@ def build_composite_agent_delegated_call_receipt(
         ocr_state = "matched" if hmac.compare_digest(requested_text_hash, ocr_observed_text_hash) else "disagreed"
         if ocr_state == "disagreed":
             blockers.append("composite_agent_ocr_disagreement")
+        if not ocr_binding_valid:
+            blockers.append("composite_agent_ocr_engine_unbound")
     safety = safety_judge_result or {}
     safety_identity = {
         field: safety.get(field, "")
@@ -581,12 +595,15 @@ def build_composite_agent_delegated_call_receipt(
     safety_valid = (
         all(isinstance(value, str) and value for value in safety_identity.values())
         and safety.get("release_authority") is False
-        and safety.get("status") in {"safe", "unsafe", "abstain"}
+        and safety.get("status")
+        in {"safe", "unsafe", "abstain", "timeout", "provider_failure", "malformed"}
         and safety.get("evaluated_artifact_hash") == generated_artifact_hash
     )
     if not safety_valid:
         blockers.append("composite_agent_independent_safety_judge_invalid")
     if safety.get("status") in {"unsafe", "abstain"}:
+        blockers.append(f"composite_agent_safety_judge_{safety['status']}")
+    if safety.get("status") in {"timeout", "provider_failure", "malformed"}:
         blockers.append(f"composite_agent_safety_judge_{safety['status']}")
     if planner_safety_claim not in {None, "safe", "unsafe", "abstain"}:
         raise ValueError("planner_safety_claim must be safe, unsafe, abstain, or omitted")
@@ -598,19 +615,86 @@ def build_composite_agent_delegated_call_receipt(
         "delegated_model": dict(delegated_model),
         "requested_text_hash": requested_text_hash,
         "ocr_observed_text_hash": ocr_observed_text_hash,
+        "ocr_engine": ocr_identity,
+        "ocr_extraction_artifact_hash": ocr_extraction_artifact_hash,
         "ocr_comparison_state": ocr_state,
         "planner_safety_claim": planner_safety_claim or "",
         "safety_judge_model": safety_identity,
         "safety_judge_result_hash": stable_hash(safety),
     }
+    operational_failure = safety.get("status") in {
+        "timeout",
+        "provider_failure",
+        "malformed",
+    }
     return {
-        "schema_version": "a2.composite_agent_delegated_call_receipt.v1",
+        "schema_version": "a2.composite_agent_delegated_call_receipt.v2",
         **core,
         "receipt_hash": stable_hash(core),
-        "qualification_state": "review_available" if not blockers else "blocked",
+        "qualification_state": (
+            "review_available"
+            if not blockers
+            else "incomplete"
+            if operational_failure
+            else "blocked"
+        ),
         "human_review_required": bool(blockers),
         "release_authority": False,
         "blockers": sorted(set(blockers)),
+        "public_safe": True,
+    }
+
+
+def build_composite_agent_delegated_batch_receipt(
+    *,
+    capability_contract: dict[str, Any],
+    planner_request_hash: str,
+    artifact_calls: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """Bind every generated artifact from one planner request without granting release authority."""
+    if not artifact_calls:
+        raise ValueError("artifact_calls must contain at least one delegated artifact")
+    receipts = []
+    for call in artifact_calls:
+        if call.get("planner_request_hash", planner_request_hash) != planner_request_hash:
+            raise ValueError("all delegated artifacts must bind the same planner request")
+        inputs = dict(call)
+        inputs.pop("planner_request_hash", None)
+        receipts.append(
+            build_composite_agent_delegated_call_receipt(
+                capability_contract=capability_contract,
+                planner_request_hash=planner_request_hash,
+                **inputs,
+            )
+        )
+    receipt_hashes = [receipt["receipt_hash"] for receipt in receipts]
+    blockers = sorted(
+        {
+            blocker
+            for receipt in receipts
+            for blocker in receipt["blockers"]
+        }
+    )
+    if any(receipt["qualification_state"] == "incomplete" for receipt in receipts):
+        qualification_state = "incomplete"
+    elif blockers:
+        qualification_state = "blocked"
+    else:
+        qualification_state = "review_available"
+    core = {
+        "capability_contract_hash": capability_contract.get("contract_hash"),
+        "planner_request_hash": planner_request_hash,
+        "artifact_count": len(receipts),
+        "artifact_receipt_hashes": receipt_hashes,
+    }
+    return {
+        "schema_version": "a2.composite_agent_delegated_batch_receipt.v1",
+        **core,
+        "batch_receipt_hash": stable_hash(core),
+        "qualification_state": qualification_state,
+        "human_review_required": bool(blockers),
+        "release_authority": False,
+        "blockers": blockers,
         "public_safe": True,
     }
 
