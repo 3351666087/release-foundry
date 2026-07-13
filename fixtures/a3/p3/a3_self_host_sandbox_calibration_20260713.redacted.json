@@ -1,0 +1,154 @@
+{
+  "schema_version": "a3.self_host_sandbox_calibration.v1",
+  "calibration_id": "a1-local-self-host-20260713",
+  "observed_at": "2026-07-13T08:00:00.000Z",
+  "source": "a1_local_runtime_probe",
+  "source_lane": "A1",
+  "product_owner": "A3",
+  "status": "sandbox_verified",
+  "tenant_scope": {
+    "environment_id": "staging",
+    "organization_id": "org-local",
+    "project_id": "project-local",
+    "tenant_id": "tenant-local",
+    "workspace_id": "workspace-local"
+  },
+  "summary": {
+    "failed": 0,
+    "passed": 4,
+    "production_gap_count": 5,
+    "total_checks": 4
+  },
+  "checks": [
+    {
+      "contract_source": "services.api.control_plane.create_control_plane_wsgi_app",
+      "evidence_level": "sandbox_verified",
+      "id": "a1_control_plane_health",
+      "label": "A1 local control-plane health",
+      "observed": {
+        "external_api_used": false,
+        "http_status": 200,
+        "local_only": true,
+        "service": "ashr-saas-control-plane",
+        "service_status": "ok"
+      },
+      "production_proof": false,
+      "status": "passed"
+    },
+    {
+      "contract_source": "services.api.control_plane.SaaSControlPlaneService",
+      "evidence_level": "sandbox_verified",
+      "id": "a1_worker_retry_dead_letter",
+      "label": "A1 worker retry, heartbeat, and dead-letter lifecycle",
+      "observed": {
+        "attempts": 2,
+        "audit_action_count": 4,
+        "dead_letter_count": 1,
+        "raw_job_payload_exposed": false,
+        "state_sequence": [
+          "queued",
+          "leased",
+          "retrying",
+          "dead_lettered"
+        ]
+      },
+      "production_proof": false,
+      "status": "passed"
+    },
+    {
+      "contract_source": "services.api.control_plane.SaaSControlPlaneService",
+      "evidence_level": "sandbox_verified",
+      "id": "a1_worker_expired_lease_recovery",
+      "label": "A1 worker expired-lease recovery",
+      "observed": {
+        "expired_lease_recovered": true,
+        "initial_lease_acquired": true,
+        "recovery_attempt": 2,
+        "recovery_owner_alias": "worker-a3-recovery"
+      },
+      "production_proof": false,
+      "status": "passed"
+    },
+    {
+      "contract_source": "packages.sdk.ashr_clone.storage.LocalFilesystemObjectStorage",
+      "evidence_level": "sandbox_verified",
+      "id": "a1_local_object_storage_integrity",
+      "label": "A1 local object write, readback, and tamper detection",
+      "observed": {
+        "backend": "local-filesystem",
+        "content_sha256_alias": "sha256:dcc418d48503eeac83e11bd2247e0477b59c42fbdb3b28819c1635aa7a4f6e51",
+        "raw_payload_exposed": false,
+        "size_bytes": 43,
+        "tamper_detected": true,
+        "tamper_failure_classes": [
+          "sha256_mismatch",
+          "size_bytes_mismatch"
+        ],
+        "write_readback_verified": true
+      },
+      "production_proof": false,
+      "status": "passed"
+    }
+  ],
+  "production_gaps": [
+    {
+      "id": "postgres_rls_tenant_isolation",
+      "reason": "No PostgreSQL server or psql client is available in this workspace.",
+      "required_evidence": "Two-tenant PostgreSQL/RLS negative test receipt from the target environment.",
+      "status": "not_run"
+    },
+    {
+      "id": "container_image_identity",
+      "reason": "Docker and Podman are unavailable in this workspace.",
+      "required_evidence": "Signed image digest and runtime image readback from the target environment.",
+      "status": "not_run"
+    },
+    {
+      "id": "vpc_network_policy",
+      "reason": "This local process cannot prove customer VPC ingress, egress, or service identity.",
+      "required_evidence": "Target VPC network-policy and service-identity probe receipt.",
+      "status": "not_run"
+    },
+    {
+      "id": "upgrade_rollback_recovery",
+      "reason": "No authorized production-like installation is available for upgrade or rollback.",
+      "required_evidence": "Versioned upgrade, forced-failure, rollback, and recovery receipt.",
+      "status": "not_run"
+    },
+    {
+      "id": "production_a2_release_authority",
+      "reason": "A3 sandbox validation does not create or change an A2 Decision Ledger record.",
+      "required_evidence": "Same-candidate A2 Trusted Spine with an authoritative release decision.",
+      "status": "not_run"
+    }
+  ],
+  "authority_boundary": {
+    "a2_decision_recomputed": false,
+    "a2_release_decision_authority": "A2",
+    "deployment_acceptance_mutated": false,
+    "evidence_level": "sandbox_verified",
+    "production_verified": false,
+    "release_ready_mutated": false
+  },
+  "evidence_integrity": {
+    "algorithm": "sha256",
+    "probe_payload_sha256": "sha256:18139c89a0894dd3077250b705e0f653ac364851ac7e8017b3e4a91554ec039e",
+    "source_schema_version": "a3.a1_self_host_sandbox_probe.v1",
+    "validated": true
+  },
+  "safety": {
+    "absolute_local_path_included": false,
+    "ashr_api_used": false,
+    "credential_material_included": false,
+    "external_network_used": false,
+    "local_only": true,
+    "raw_payload_included": false,
+    "child_process_environment_allowlisted": true,
+    "stdout_size_limited": true,
+    "execution_timeout_enforced": true,
+    "output_schema_validated": true,
+    "production_verified": false,
+    "deployment_acceptance_mutated": false,
+    "a2_decision_recomputed": false
+  }
+}

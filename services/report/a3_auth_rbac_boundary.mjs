@@ -198,6 +198,12 @@ export const A3_AUTHZ_OPERATION_POLICIES = [
     resourceType: "review_workflow",
     a2: ["A2 ReleaseGate and policy evaluation are authoritative"]
   }),
+  operation("read_self_host_sandbox_calibration", "GET /api/a3/deployment/sandbox-calibration", "deployment:read", "read_only", {
+    event: "deployment.sandbox_calibration_read",
+    resourceType: "self_host_sandbox_calibration",
+    a1: ["local control-plane health, worker retry/dead-letter, lease recovery, and object-integrity behavior"],
+    a2: ["A2 remains the sole release-decision authority; sandbox evidence never changes its decision"]
+  }),
   operation("read_deployment_receipts", "GET /api/a3/deployment/receipts", "deployment:read", "read_only", {
     event: "deployment.receipts_read",
     resourceType: "deployment_receipt_inbox",

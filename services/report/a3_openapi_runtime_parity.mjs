@@ -84,6 +84,7 @@ export function synchronizeA3OpenApiRuntimeParity(spec = {}) {
     applyRequestBoundaryContract(operation, route);
   }
   synchronizeDeploymentReceiptOperations(next);
+  synchronizeSelfHostSandboxOperation(next);
   return next;
 }
 
@@ -160,6 +161,146 @@ function synchronizeDeliveryHandoffSchemas(schemas) {
   schemas.DeploymentReceiptReview = deploymentReceiptReviewSchema();
   schemas.DeploymentReceiptVerificationRequest = deploymentReceiptVerificationRequestSchema();
   schemas.DeploymentReceiptConflict = deploymentReceiptConflictSchema();
+  schemas.SelfHostSandboxCheck = selfHostSandboxCheckSchema();
+  schemas.SelfHostSandboxGap = selfHostSandboxGapSchema();
+  schemas.SelfHostSandboxCalibration = selfHostSandboxCalibrationSchema();
+}
+
+function synchronizeSelfHostSandboxOperation(spec) {
+  const operation = spec.paths?.["/api/a3/deployment/sandbox-calibration"]?.get;
+  if (!operation) return;
+  operation.operationId = "getA3SelfHostSandboxCalibration";
+  operation.summary = "Read tenant-scoped A1 local self-host sandbox calibration evidence.";
+  operation.tags = ["Operations", "Trust"];
+  operation["x-schema-version"] = "a3.self_host_sandbox_calibration.v1";
+  operation["x-evidence-boundary"] = {
+    evidence_level: "sandbox_verified",
+    production_verified: false,
+    deployment_acceptance_mutated: false,
+    a2_decision_recomputed: false,
+    release_decision_authority: "A2"
+  };
+  operation.responses["200"] = {
+    description: "Validated local A1 sandbox calibration; never production deployment proof.",
+    content: {
+      "application/json": {
+        schema: { $ref: "#/components/schemas/SelfHostSandboxCalibration" }
+      }
+    }
+  };
+  operation.responses["404"] = {
+    description: "No tenant-scoped sandbox calibration is available.",
+    content: {
+      "application/json": { schema: { type: "object", additionalProperties: true } }
+    }
+  };
+}
+
+function selfHostSandboxCheckSchema() {
+  return {
+    type: "object",
+    required: ["id", "label", "status", "evidence_level", "contract_source", "observed", "production_proof"],
+    properties: {
+      id: { type: "string" },
+      label: { type: "string" },
+      status: { type: "string", enum: ["passed", "failed"] },
+      evidence_level: { type: "string", enum: ["sandbox_verified", "sandbox_failed"] },
+      contract_source: { type: "string" },
+      observed: { type: "object", additionalProperties: true },
+      production_proof: { type: "boolean", const: false }
+    },
+    additionalProperties: false
+  };
+}
+
+function selfHostSandboxGapSchema() {
+  return {
+    type: "object",
+    required: ["id", "status", "reason", "required_evidence"],
+    properties: {
+      id: { type: "string" },
+      status: { type: "string", const: "not_run" },
+      reason: { type: "string" },
+      required_evidence: { type: "string" }
+    },
+    additionalProperties: false
+  };
+}
+
+function selfHostSandboxCalibrationSchema() {
+  return {
+    type: "object",
+    required: [
+      "schema_version", "calibration_id", "observed_at", "source", "source_lane",
+      "product_owner", "status", "tenant_scope", "summary", "checks", "production_gaps",
+      "authority_boundary", "evidence_integrity", "safety", "dashboard_source", "access_contract"
+    ],
+    properties: {
+      schema_version: { type: "string", const: "a3.self_host_sandbox_calibration.v1" },
+      calibration_id: { type: "string" },
+      observed_at: { type: "string", format: "date-time" },
+      source: { type: "string", const: "a1_local_runtime_probe" },
+      source_lane: { type: "string", const: "A1" },
+      product_owner: { type: "string", const: "A3" },
+      status: { type: "string", enum: ["sandbox_verified", "sandbox_failed"] },
+      tenant_scope: { $ref: "#/components/schemas/TenantScope" },
+      summary: {
+        type: "object",
+        required: ["total_checks", "passed", "failed", "production_gap_count"],
+        properties: {
+          total_checks: { type: "integer", minimum: 0 },
+          passed: { type: "integer", minimum: 0 },
+          failed: { type: "integer", minimum: 0 },
+          production_gap_count: { type: "integer", minimum: 0 }
+        },
+        additionalProperties: false
+      },
+      checks: { type: "array", items: { $ref: "#/components/schemas/SelfHostSandboxCheck" } },
+      production_gaps: { type: "array", items: { $ref: "#/components/schemas/SelfHostSandboxGap" } },
+      authority_boundary: {
+        type: "object",
+        required: [
+          "evidence_level", "production_verified", "deployment_acceptance_mutated",
+          "release_ready_mutated", "a2_decision_recomputed", "a2_release_decision_authority"
+        ],
+        properties: {
+          evidence_level: { type: "string", enum: ["sandbox_verified", "sandbox_failed"] },
+          production_verified: { type: "boolean", const: false },
+          deployment_acceptance_mutated: { type: "boolean", const: false },
+          release_ready_mutated: { type: "boolean", const: false },
+          a2_decision_recomputed: { type: "boolean", const: false },
+          a2_release_decision_authority: { type: "string", const: "A2" }
+        },
+        additionalProperties: false
+      },
+      evidence_integrity: {
+        type: "object",
+        required: ["algorithm", "probe_payload_sha256", "source_schema_version", "validated"],
+        properties: {
+          algorithm: { type: "string", const: "sha256" },
+          probe_payload_sha256: { type: "string", pattern: "^sha256:[a-f0-9]{64}$" },
+          source_schema_version: { type: "string", const: "a3.a1_self_host_sandbox_probe.v1" },
+          validated: { type: "boolean", const: true }
+        },
+        additionalProperties: false
+      },
+      safety: { type: "object", additionalProperties: { type: "boolean" } },
+      dashboard_source: { type: "string" },
+      access_contract: {
+        type: "object",
+        required: ["required_permission", "tenant_scope_enforced", "hosted_read_audited", "raw_probe_payload_exposed"],
+        properties: {
+          required_permission: { type: "string", const: "deployment:read" },
+          tenant_scope_enforced: { type: "boolean" },
+          hosted_read_audited: { type: "boolean" },
+          raw_probe_payload_exposed: { type: "boolean", const: false }
+        },
+        additionalProperties: false
+      }
+    },
+    additionalProperties: false,
+    description: "Tenant-scoped local A1 behavior evidence. It never changes production acceptance or A2 authority."
+  };
 }
 
 function releaseComparisonRuntimeAuthoritySchema() {

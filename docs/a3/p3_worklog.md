@@ -3966,3 +3966,13 @@ Safety boundary:
 - No GitHub mutation, merge attempt, branch-protection update, token output, A2 recomputation, or sealed rc.2 rewrite occurred.
 - Final verification passed A3 Node `449/449`, merged-main A2 `186/186` plus `1050` subtests, Next.js typecheck/build with 15 static pages, the full Playwright command plus an isolated `1/1` visual retry, both CL guards, both production npm audits, pinned evidence, and all sealed rc.2 verifiers.
 - Post-verification fetch kept main at `ccf6ce5` and A1 Draft at `2307231`; A2 development moved to `d31aaab`. Its new multimodal/provider/persistence schemas remain non-authoritative calibration and explicitly do not supply the same-candidate Trusted Spine A3 needs.
+
+## 2026-07-13 - A1 Self-host Sandbox Calibration
+
+- Executed four real local A1 behaviors and generated a sanitized `sandbox_verified` fixture.
+- Added Store/SQLite/API/RBAC/OpenAPI/API Reference and Delivery UI integration.
+- Kept production proof, Deployment Acceptance mutation, and A2 recomputation false.
+- Focused Python, Node, TypeScript, production build, and Playwright checks passed.
+- Final local regression passed A3 Node `458/458`, current-main A2 `186/186` plus `1050` subtests, Next.js typecheck/build with 15 static pages, and Playwright `40/40`.
+- Both CL guards passed, both production npm audits found 0 vulnerabilities, and the sealed rc.2 bundle/archive/Release Artifact reverified without mutation.
+- Remote CI status is tracked in `docs/a3/worklog.md` after publish.

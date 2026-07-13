@@ -38,6 +38,10 @@ test("API Reference is a typed route grounded in A1, A2, and A3 contracts", asyn
   assert.match(reference, /a3\.deployment_receipt_inbox\.v1/);
   assert.match(reference, /a3\.deployment_acceptance_projection\.v1/);
   assert.match(reference, /a3\.deployment_receipt_authoritative_readback\.v1/);
+  assert.match(reference, /a3\.self_host_sandbox_calibration\.v1/);
+  assert.match(reference, /\/api\/a3\/deployment\/sandbox-calibration/);
+  assert.match(reference, /deployment_acceptance_mutated: false/);
+  assert.match(reference, /a2_decision_recomputed: false/);
   assert.match(reference, /\/api\/a3\/deployment\/receipts/);
   assert.match(reference, /\/internal\/a3\/deployment\/receipts\/\{receipt_id\}\/verify/);
   assert.match(reference, /expected_version/);

@@ -7408,6 +7408,131 @@
           "raw_evidence_forbidden": true
         }
       }
+    },
+    "/api/a3/deployment/sandbox-calibration": {
+      "get": {
+        "operationId": "getA3SelfHostSandboxCalibration",
+        "summary": "Read tenant-scoped A1 local self-host sandbox calibration evidence.",
+        "tags": [
+          "Operations",
+          "Trust"
+        ],
+        "x-schema-version": "a3.self_host_sandbox_calibration.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
+          ],
+          "source": "server_verified_a1_principal",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true,
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "contract_only_fail_closed",
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
+        },
+        "x-rbac": {
+          "operation_id": "read_self_host_sandbox_calibration",
+          "permission": "deployment:read",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger; A3 only emits a metering intent."
+        },
+        "x-audit": {
+          "events": [
+            "read_self_host_sandbox_calibration.requested"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "verified principal",
+            "tenant scope",
+            "usage and audit execution"
+          ],
+          "a2": [
+            "GradeResult and release decision authority remain unchanged"
+          ],
+          "a3_rule": "A3 orchestrates product workflow and must not reinterpret A1 runtime facts or A2 decision semantics."
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_read",
+        "responses": {
+          "200": {
+            "description": "Validated local A1 sandbox calibration; never production deployment proof.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SelfHostSandboxCalibration"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "description": "No tenant-scoped sandbox calibration is available.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true
+                }
+              }
+            }
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        },
+        "x-evidence-boundary": {
+          "evidence_level": "sandbox_verified",
+          "production_verified": false,
+          "deployment_acceptance_mutated": false,
+          "a2_decision_recomputed": false,
+          "release_decision_authority": "A2"
+        }
+      }
     }
   },
   "components": {
@@ -10610,6 +10735,279 @@
         },
         "additionalProperties": false,
         "description": "Trigger only. Verification status, claims, evidence, authority, and attestation are supplied by the configured server resolver, never by this request."
+      },
+      "SelfHostSandboxCheck": {
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "status",
+          "evidence_level",
+          "contract_source",
+          "observed",
+          "production_proof"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "passed",
+              "failed"
+            ]
+          },
+          "evidence_level": {
+            "type": "string",
+            "enum": [
+              "sandbox_verified",
+              "sandbox_failed"
+            ]
+          },
+          "contract_source": {
+            "type": "string"
+          },
+          "observed": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "production_proof": {
+            "type": "boolean",
+            "const": false
+          }
+        },
+        "additionalProperties": false
+      },
+      "SelfHostSandboxGap": {
+        "type": "object",
+        "required": [
+          "id",
+          "status",
+          "reason",
+          "required_evidence"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "const": "not_run"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "required_evidence": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "SelfHostSandboxCalibration": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "calibration_id",
+          "observed_at",
+          "source",
+          "source_lane",
+          "product_owner",
+          "status",
+          "tenant_scope",
+          "summary",
+          "checks",
+          "production_gaps",
+          "authority_boundary",
+          "evidence_integrity",
+          "safety",
+          "dashboard_source",
+          "access_contract"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.self_host_sandbox_calibration.v1"
+          },
+          "calibration_id": {
+            "type": "string"
+          },
+          "observed_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "source": {
+            "type": "string",
+            "const": "a1_local_runtime_probe"
+          },
+          "source_lane": {
+            "type": "string",
+            "const": "A1"
+          },
+          "product_owner": {
+            "type": "string",
+            "const": "A3"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "sandbox_verified",
+              "sandbox_failed"
+            ]
+          },
+          "tenant_scope": {
+            "$ref": "#/components/schemas/TenantScope"
+          },
+          "summary": {
+            "type": "object",
+            "required": [
+              "total_checks",
+              "passed",
+              "failed",
+              "production_gap_count"
+            ],
+            "properties": {
+              "total_checks": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "passed": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "failed": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "production_gap_count": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "additionalProperties": false
+          },
+          "checks": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SelfHostSandboxCheck"
+            }
+          },
+          "production_gaps": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SelfHostSandboxGap"
+            }
+          },
+          "authority_boundary": {
+            "type": "object",
+            "required": [
+              "evidence_level",
+              "production_verified",
+              "deployment_acceptance_mutated",
+              "release_ready_mutated",
+              "a2_decision_recomputed",
+              "a2_release_decision_authority"
+            ],
+            "properties": {
+              "evidence_level": {
+                "type": "string",
+                "enum": [
+                  "sandbox_verified",
+                  "sandbox_failed"
+                ]
+              },
+              "production_verified": {
+                "type": "boolean",
+                "const": false
+              },
+              "deployment_acceptance_mutated": {
+                "type": "boolean",
+                "const": false
+              },
+              "release_ready_mutated": {
+                "type": "boolean",
+                "const": false
+              },
+              "a2_decision_recomputed": {
+                "type": "boolean",
+                "const": false
+              },
+              "a2_release_decision_authority": {
+                "type": "string",
+                "const": "A2"
+              }
+            },
+            "additionalProperties": false
+          },
+          "evidence_integrity": {
+            "type": "object",
+            "required": [
+              "algorithm",
+              "probe_payload_sha256",
+              "source_schema_version",
+              "validated"
+            ],
+            "properties": {
+              "algorithm": {
+                "type": "string",
+                "const": "sha256"
+              },
+              "probe_payload_sha256": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              },
+              "source_schema_version": {
+                "type": "string",
+                "const": "a3.a1_self_host_sandbox_probe.v1"
+              },
+              "validated": {
+                "type": "boolean",
+                "const": true
+              }
+            },
+            "additionalProperties": false
+          },
+          "safety": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "boolean"
+            }
+          },
+          "dashboard_source": {
+            "type": "string"
+          },
+          "access_contract": {
+            "type": "object",
+            "required": [
+              "required_permission",
+              "tenant_scope_enforced",
+              "hosted_read_audited",
+              "raw_probe_payload_exposed"
+            ],
+            "properties": {
+              "required_permission": {
+                "type": "string",
+                "const": "deployment:read"
+              },
+              "tenant_scope_enforced": {
+                "type": "boolean"
+              },
+              "hosted_read_audited": {
+                "type": "boolean"
+              },
+              "raw_probe_payload_exposed": {
+                "type": "boolean",
+                "const": false
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false,
+        "description": "Tenant-scoped local A1 behavior evidence. It never changes production acceptance or A2 authority."
       }
     }
   },

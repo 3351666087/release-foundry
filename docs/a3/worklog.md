@@ -6941,3 +6941,26 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
 - CL hygiene passed with no findings; Commercial CL passed with 0 blockers and 0 advisories; root and Webapp production npm audits reported 0 vulnerabilities.
 - Pinned evidence passed `11/11`; sealed rc.2 bundle passed `15/15` plus custody `7/7`; archive passed `16/16` with valid Ed25519 signature; release manifest hash remained `8f84c5e3d4f064ae5d042b0f8ef72f2a3fb4d7ae06eb0a7d4dea01dc113d5a2f`.
 - Final fetch kept authoritative `origin/main` at `ccf6ce5` and A1 Draft at `2307231`. A2 development advanced to `d31aaab`; its multimodal runtime, provider receipt, JSONL, and PostgreSQL qualification additions were inspected as non-main calibration only. That branch still defers a same-candidate Trusted Spine, so A3 did not merge it or change current authority.
+
+## 2026-07-13 - A1-backed Self-host Sandbox Calibration
+
+- Re-read the enterprise strategy, latest known main, A1 Draft `2307231`, A2 development `d31aaab`, current A3 deployment contracts, PR #35, and green CI before editing.
+- A fresh `git fetch origin --prune` timed out on GitHub port 443, while `gh pr list` still confirmed PR #35 is clean with its previous CI green. No non-main peer ref was promoted to authority.
+- Added a real local A1 probe covering control-plane health, worker retry/heartbeat/dead-letter, expired-lease recovery, object write/readback, and tamper detection.
+- Added a Node child-process boundary with no shell, an allowlisted environment, execution timeout, output limit, schema validation, SHA-256, and secret/path scans.
+- Generated `fixtures/a3/p3/a3_self_host_sandbox_calibration_20260713.redacted.json`; it records `4/4` sandbox checks and five explicit production gaps.
+- Added tenant-scoped Store access and SQLite migration `019_self_host_sandbox_calibrations`; restart verification preserves the record with all production authority flags false.
+- Added protected `GET /api/a3/deployment/sandbox-calibration`, `deployment:read`, hosted access audit/outbox, cross-scope denial, OpenAPI runtime parity `58/58`, commercial contract mapping, DB contract, and API Reference v7.
+- Added a Chinese-first bilingual self-host operations panel with loading, ready, partial, empty, failed, denied, and retry states.
+- The UI states prominently that sandbox `4/4` does not change Deployment Acceptance `8/17` and cannot recompute A2.
+- Focused Python passed `2/2`; sandbox Node passed `4/4`; Store/API/SQLite and adjacent contracts passed; Webapp TypeScript passed; Next.js produced 15 static pages.
+- Focused Playwright passed `2/2`, including desktop/mobile rendering and partial/denied/empty/failed/retry behavior.
+- Saved and visually inspected desktop and 390 x 844 screenshots. The page has no document-level overflow; the mobile screenshot centers the sandbox-vs-production boundary.
+- Added the implementation record and Growth Auditor Round 18 with 24 executable next steps.
+- `.env.local`, Ashr API, external network credentials, cookies, emails, signed URLs, raw object bytes, and temporary paths were not used or persisted.
+- Current truth remains Golden Path `7/11`, Deployment Acceptance `8/17`, authority `integrity_invalid`, current A2 decision `unknown`, historical A2 decision `block`, production receipts `0`, and production ready `false`.
+- The sealed rc.2 bundle, archive, Release Artifact manifest, and hashed release inputs were not rewritten.
+- Final regression passed A3 Node `458/458`, current-main A2 `186/186` plus `1050` subtests, Next.js typecheck/build with 15 static pages, and full Playwright `40/40`.
+- CL hygiene passed with no findings; Commercial CL passed with 0 blockers and 0 advisories; root and Webapp production npm audits both reported 0 vulnerabilities.
+- Sealed rc.2 revalidation passed Audit Bundle `15/15`, custody `7/7`, signed archive `16/16`, and Release Artifact manifest hash `8f84c5e3d4f064ae5d042b0f8ef72f2a3fb4d7ae06eb0a7d4dea01dc113d5a2f` without rewriting any sealed input.
+- Git HTTPS fetch remained unavailable, but authenticated GitHub API readback confirmed `main=ccf6ce5`, PR #35 remote head `19476d4`, A1 Draft `2307231`, and A2 development `d31aaab`; this branch is 0 commits behind current main.

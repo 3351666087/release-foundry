@@ -270,6 +270,111 @@ test.describe("A3 Next.js product console", () => {
     await page.screenshot({ path: "docs/screenshots/a3-webapp-delivery-golden-path-rc2-mobile-390x844.png", fullPage: false, animations: "disabled" });
   });
 
+  test("renders A1 self-host sandbox evidence separately from production deployment", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto(`${base}/delivery/?source=a3-golden-path-rc2`);
+    const section = page.locator("section.self-host-sandbox-section");
+    await expect(section.getByRole("heading", { name: "自托管沙箱校准" })).toBeVisible();
+    await expect(section.locator('.self-host-sandbox[data-sandbox-state="ready"]')).toBeVisible();
+    await expect(section.locator(".sandbox-verdict-score")).toContainText("4/4");
+    await expect(section.locator(".sandbox-production-boundary")).toContainText("这不是生产部署证明");
+    await expect(section.locator(".sandbox-production-boundary")).toContainText("部署验收 8/17");
+    await expect(section.locator(".sandbox-production-boundary")).toContainText("生产验证 0");
+    await expect(section.locator(".sandbox-check-grid article")).toHaveCount(4);
+    await expect(section.locator(".sandbox-check-grid article[data-status='passed']")).toHaveCount(4);
+    await expect(section.locator("tbody tr")).toHaveCount(5);
+    await expect(section).toContainText("PostgreSQL / RLS 租户隔离");
+    await expect(section).toContainText("升级、回滚与恢复");
+    await expect(section).toContainText("deployment:read");
+    await expect(section).toContainText("sandbox_verified");
+    await section.scrollIntoViewIfNeeded();
+    const desktop = await page.evaluate(() => {
+      const panel = document.querySelector<HTMLElement>(".self-host-sandbox-section")!;
+      const cards = document.querySelector<HTMLElement>(".sandbox-check-grid")!;
+      return {
+        viewport: document.documentElement.clientWidth,
+        documentWidth: document.documentElement.scrollWidth,
+        panelOverflow: panel.scrollWidth > panel.clientWidth,
+        cardColumns: getComputedStyle(cards).gridTemplateColumns.split(" ").length
+      };
+    });
+    expect(desktop.documentWidth).toBeLessThanOrEqual(desktop.viewport);
+    expect(desktop.panelOverflow).toBe(false);
+    expect(desktop.cardColumns).toBe(4);
+    await page.screenshot({ path: "docs/screenshots/a3-self-host-sandbox-calibration-desktop-20260713.png", fullPage: false, animations: "disabled" });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.reload();
+    const mobileSection = page.locator("section.self-host-sandbox-section");
+    await expect(mobileSection.locator('.self-host-sandbox[data-sandbox-state="ready"]')).toBeVisible();
+    await mobileSection.locator(".sandbox-verdict").evaluate((node) => {
+      document.documentElement.style.scrollBehavior = "auto";
+      window.scrollTo(0, node.getBoundingClientRect().top + window.scrollY - 64);
+    });
+    const mobile = await page.evaluate(() => {
+      const panel = document.querySelector<HTMLElement>(".self-host-sandbox-section")!;
+      const cards = document.querySelector<HTMLElement>(".sandbox-check-grid")!;
+      return {
+        viewport: document.documentElement.clientWidth,
+        documentWidth: document.documentElement.scrollWidth,
+        bodyWidth: document.body.scrollWidth,
+        panelRight: panel.getBoundingClientRect().right,
+        panelOverflow: panel.scrollWidth > panel.clientWidth,
+        cardColumns: getComputedStyle(cards).gridTemplateColumns.split(" ").length
+      };
+    });
+    expect(mobile.documentWidth).toBeLessThanOrEqual(mobile.viewport);
+    expect(mobile.bodyWidth).toBeLessThanOrEqual(mobile.viewport);
+    expect(mobile.panelRight).toBeLessThanOrEqual(mobile.viewport);
+    expect(mobile.panelOverflow).toBe(false);
+    expect(mobile.cardColumns).toBe(1);
+    await page.screenshot({ path: "docs/screenshots/a3-self-host-sandbox-calibration-mobile-390x844-20260713.png", fullPage: false, animations: "disabled" });
+  });
+
+  test("self-host sandbox panel handles partial, denied, empty, failed, and retry states", async ({ page }) => {
+    const routePattern = /\/api\/a3\/deployment\/sandbox-calibration/;
+    await page.route(routePattern, async (route) => {
+      const response = await route.fetch();
+      const payload = await response.json();
+      payload.status = "sandbox_failed";
+      payload.summary.passed = 3;
+      payload.summary.failed = 1;
+      payload.checks[0].status = "failed";
+      payload.checks[0].evidence_level = "sandbox_failed";
+      payload.authority_boundary.evidence_level = "sandbox_failed";
+      await route.fulfill({ response, json: payload });
+    });
+    await page.goto(`${base}/delivery/?source=a3-golden-path-rc2`);
+    let section = page.locator("section.self-host-sandbox-section");
+    await expect(section.locator('[data-sandbox-state="partial"]')).toBeVisible();
+    await expect(section.locator(".sandbox-verdict-score")).toContainText("3/4");
+    await expect(section.locator(".sandbox-production-boundary")).toContainText("部署验收 8/17");
+    await page.unroute(routePattern);
+
+    await page.route(routePattern, (route) => route.fulfill({ status: 403, contentType: "application/json", body: '{"error":"access_denied"}' }));
+    await page.reload();
+    section = page.locator("section.self-host-sandbox-section");
+    await expect(section.locator('[data-sandbox-state="denied"]')).toContainText("无权查看部署校准");
+    await expect(section.getByRole("button", { name: "重试" })).toHaveCount(0);
+    await page.unroute(routePattern);
+
+    await page.route(routePattern, (route) => route.fulfill({ status: 404, contentType: "application/json", body: '{"error":"not_found"}' }));
+    await page.reload();
+    section = page.locator("section.self-host-sandbox-section");
+    await expect(section.locator('[data-sandbox-state="empty"]')).toContainText("暂无沙箱校准回执");
+    await expect(section.getByRole("button", { name: "重试" })).toBeVisible();
+    await page.unroute(routePattern);
+
+    await page.route(routePattern, (route) => route.fulfill({ status: 503, contentType: "application/json", body: '{"error":"unavailable"}' }));
+    await page.reload();
+    section = page.locator("section.self-host-sandbox-section");
+    await expect(section.locator('[data-sandbox-state="failed"]')).toContainText("沙箱校准读取失败");
+    await page.unroute(routePattern);
+    await section.getByRole("button", { name: "重试" }).click();
+    await expect(section.locator('.self-host-sandbox[data-sandbox-state="ready"]')).toBeVisible();
+    await expect(section.locator(".sandbox-production-boundary")).toContainText("生产验证 0");
+  });
+
   test("submits and reviews deployment receipt metadata without promoting delivery", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto(`${base}/delivery/?source=a3-golden-path-rc2`);

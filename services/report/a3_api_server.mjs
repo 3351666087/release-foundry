@@ -312,6 +312,20 @@ export function createA3ApiHandler(options = {}) {
         return sendJson(response, 200, await store.getDashboardSnapshot(sourceFrom(url), security));
       }
 
+      if (request.method === "GET" && url.pathname === "/api/a3/deployment/sandbox-calibration") {
+        const calibration = await store.getSelfHostSandboxCalibration(scopedStoreOptions(url, {
+          source: sourceFrom(url),
+          organizationId: url.searchParams.get("organization_id") || undefined,
+          tenantId: url.searchParams.get("tenant_id") || undefined,
+          workspaceId: url.searchParams.get("workspace_id") || undefined,
+          projectId: url.searchParams.get("project_id") || undefined,
+          environmentId: url.searchParams.get("environment_id") || undefined
+        }));
+        return calibration
+          ? sendJson(response, 200, calibration)
+          : sendJson(response, 404, notFound("self_host_sandbox_calibration", sourceFrom(url)));
+      }
+
       if (request.method === "GET" && url.pathname === "/api/a3/deployment/receipts") {
         return sendJson(response, 200, await store.listDeploymentReceipts(scopedStoreOptions(url, {
           source: sourceFrom(url),

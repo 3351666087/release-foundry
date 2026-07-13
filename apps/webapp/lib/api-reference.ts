@@ -24,7 +24,7 @@ export type ApiEndpoint = {
 };
 
 export const apiReferenceMeta = {
-  schemaVersion: "a3.api_reference.v6",
+  schemaVersion: "a3.api_reference.v7",
   calibratedAt: "2026-07-13",
   mainSha: "ccf6ce5",
   a1Sha: "c784163",
@@ -379,6 +379,43 @@ export const apiEndpoints: ApiEndpoint[] = [
       { zh: "这是当前 Next.js Webapp 默认消费的只读 API。", en: "This is the read-only API consumed by the current Next.js webapp." },
       { zh: "当前运行时校验与历史封存结论分开返回；A3 不重算 A2 分数、pass/fail、failure class 或发布决定。", en: "Current runtime validation is separate from sealed historical decisions; A3 does not recompute A2 scores, pass/fail, failure class, or release decisions." },
       { zh: "deployment_handoff 把 17 项验收拆给 A1、A2、A1/A3、A3 和仓库管理员，并说明每个阻塞项需要什么真实回执。", en: "deployment_handoff assigns 17 checks to A1, A2, A1/A3, A3, and the repository maintainer, with a required receipt for every blocker." }
+    ]
+  },
+  {
+    id: "a3-self-host-sandbox-calibration",
+    group: "console",
+    owner: "A1/A2/A3",
+    method: "GET",
+    path: "/api/a3/deployment/sandbox-calibration",
+    title: { zh: "读取自托管沙箱校准", en: "Read self-host sandbox calibration" },
+    description: {
+      zh: "读取 A1 本地控制面、Worker 重试/死信、租约恢复和对象完整性检查的净化回执。",
+      en: "Read a sanitized receipt for A1 local control-plane, worker retry/dead-letter, lease recovery, and object-integrity checks."
+    },
+    auth: { zh: "A1 可信身份 + deployment:read + 五层租户范围", en: "Trusted A1 principal, deployment:read, and five-level tenant scope" },
+    status: "implemented",
+    source: "services/report/a3_self_host_sandbox.mjs",
+    response: {
+      schema_version: "a3.self_host_sandbox_calibration.v1",
+      status: "sandbox_verified",
+      summary: { passed: 4, total_checks: 4, production_gap_count: 5 },
+      authority_boundary: {
+        production_verified: false,
+        deployment_acceptance_mutated: false,
+        a2_decision_recomputed: false,
+        a2_release_decision_authority: "A2"
+      },
+      production_gaps: [
+        { id: "postgres_rls_tenant_isolation", status: "not_run" },
+        { id: "container_image_identity", status: "not_run" },
+        { id: "vpc_network_policy", status: "not_run" },
+        { id: "upgrade_rollback_recovery", status: "not_run" }
+      ]
+    },
+    notes: [
+      { zh: "这是实际执行的本地 A1 行为证据，但不是客户环境或生产部署证明。", en: "This is executed local A1 behavior evidence, not customer-environment or production deployment proof." },
+      { zh: "沙箱 4/4 不会把 Deployment Acceptance 从 8/17 提高，也不能生成 Release Ready。", en: "Sandbox 4/4 does not raise Deployment Acceptance beyond 8/17 or create Release Ready." },
+      { zh: "A2 仍是评分、失败分类和 Release Decision 的唯一权威。", en: "A2 remains the sole authority for scores, failure classes, and Release Decision." }
     ]
   },
   {

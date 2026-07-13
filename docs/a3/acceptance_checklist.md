@@ -1326,3 +1326,32 @@
 - [ ] Obtain an A1 tenant-installation binding receipt and a Check published by the tenant custom GitHub App.
 - [ ] Obtain maintainer-approved main policy and failing-merge denial receipts.
 - [ ] Rebuild and reseal Deployment Acceptance only after same-candidate A1/A2/A3 evidence exists.
+
+## A1-backed Self-host Sandbox Calibration - 2026-07-13
+
+- [x] Execute A1 local control-plane health behavior and preserve `local_only=true`.
+- [x] Execute A1 worker enqueue, lease, heartbeat, retry, and dead-letter behavior.
+- [x] Execute A1 expired-lease recovery with a second worker identity alias.
+- [x] Execute A1 local object write/readback and a tamper-negative checksum test.
+- [x] Invoke Python without a shell, with an allowlisted environment, timeout, and output limit.
+- [x] Reject invalid schema, missing checks, production overclaims, and A2 authority overclaims.
+- [x] Reject token, email, cookie, signed URL, API-key-like value, and absolute local path leaks.
+- [x] Generate a sanitized SHA-256-bound calibration fixture.
+- [x] Add a tenant-scoped Memory/File/SQLite Store resource.
+- [x] Add migration `019_self_host_sandbox_calibrations` with all production mutation flags false.
+- [x] Add `GET /api/a3/deployment/sandbox-calibration` with `deployment:read`.
+- [x] Audit hosted allow/deny reads and reject cross-scope access.
+- [x] Add OpenAPI, commercial API contract, DB contract, and API Reference coverage.
+- [x] Add Chinese-first and English Delivery UI.
+- [x] Cover loading, ready, partial, empty, failed, denied, and retry states.
+- [x] Keep Golden Path `7/11`, Deployment Acceptance `8/17`, and production receipts `0` unchanged.
+- [x] Keep current authority `integrity_invalid`, current A2 decision `unknown`, and historical A2 `block` unchanged.
+- [x] Save and inspect desktop and 390 x 844 screenshots without document-level overflow.
+- [x] Add more than 20 executable next growth points in Growth Auditor Round 18.
+- [x] Leave the sealed rc.2 bundle, archive, manifest, and hashed inputs unchanged.
+- [x] Pass final A3 Node `458/458` and current-main A2 `186/186` plus `1050` subtests.
+- [x] Pass Next.js typecheck/build with 15 static pages and full Playwright `40/40`.
+- [x] Pass both CL guards, both production npm audits, export safety checks, and diff hygiene.
+- [x] Reverify rc.2 bundle `15/15`, custody `7/7`, archive `16/16`, and Release manifest hash without rewriting sealed inputs.
+- [ ] Run PostgreSQL/RLS, container identity, VPC policy, and upgrade/rollback in a target environment.
+- [ ] Obtain a same-candidate A2 Trusted Spine before rebuilding production acceptance.

@@ -58,7 +58,7 @@ const REQUIRED_SENSITIVE_READ_SURFACES = {
     "/api/a3/reports/{reportId}/manifest"
   ],
   review: ["/api/a3/review/workflow"],
-  deployment_receipts: ["/api/a3/deployment/receipts"],
+  deployment_operations: ["/api/a3/deployment/sandbox-calibration", "/api/a3/deployment/receipts"],
   admin: ["/api/a3/admin/console", "/api/a3/auth/context", "/api/a3/auth/rbac-policy"],
   usage_and_billing: [
     "/api/a3/usage/ledger",
@@ -118,8 +118,8 @@ test("every runtime RBAC route has an OpenAPI operation with the same permission
   ]));
 
   assert.equal(parity.complete, true);
-  assert.equal(parity.runtime_operation_count, 57);
-  assert.equal(parity.documented_runtime_operation_count, 57);
+  assert.equal(parity.runtime_operation_count, 58);
+  assert.equal(parity.documented_runtime_operation_count, 58);
   assert.deepEqual(parity.missing, []);
   for (const route of A3_SENSITIVE_ROUTE_PATTERNS) {
     const key = `${route.method} ${normalizeContractPath(route.path_pattern)}`;
@@ -128,6 +128,27 @@ test("every runtime RBAC route has an OpenAPI operation with the same permission
     assert.equal(operation["x-rbac"].permission, route.required_permission, `${key} permission drift`);
   }
   assert.deepEqual(synchronizeA3OpenApiRuntimeParity(spec), spec, "committed OpenAPI must be synchronizer-clean");
+});
+
+test("self-host sandbox OpenAPI keeps local evidence separate from production acceptance", async () => {
+  const spec = await readOpenApi();
+  const operation = spec.paths["/api/a3/deployment/sandbox-calibration"].get;
+  const schema = spec.components.schemas.SelfHostSandboxCalibration;
+
+  assert.equal(operation.operationId, "getA3SelfHostSandboxCalibration");
+  assert.equal(operation["x-rbac"].permission, "deployment:read");
+  assert.deepEqual(operation["x-evidence-boundary"], {
+    evidence_level: "sandbox_verified",
+    production_verified: false,
+    deployment_acceptance_mutated: false,
+    a2_decision_recomputed: false,
+    release_decision_authority: "A2"
+  });
+  assert.equal(operation.responses["200"].content["application/json"].schema.$ref, "#/components/schemas/SelfHostSandboxCalibration");
+  assert.equal(schema.properties.authority_boundary.properties.production_verified.const, false);
+  assert.equal(schema.properties.authority_boundary.properties.deployment_acceptance_mutated.const, false);
+  assert.equal(schema.properties.authority_boundary.properties.a2_decision_recomputed.const, false);
+  assert.equal(schema.properties.access_contract.properties.required_permission.const, "deployment:read");
 });
 
 test("every non-public A3 read explicitly requires a verified A1 principal, RBAC, scope, and sanitized denials", async () => {
@@ -296,7 +317,7 @@ test("OpenAPI documents sanitized malformed JSON and protected OPTIONS behavior"
 
   const operations = collectOperations(spec).filter((operation) => operation["x-rbac"]);
   const mutations = operations.filter((operation) => !["get", "head"].includes(operation.method));
-  assert.equal(operations.length, 57);
+  assert.equal(operations.length, 58);
   assert.ok(mutations.length > 0);
   for (const operation of operations) {
     const optionsPolicy = operation["x-protected-options"];

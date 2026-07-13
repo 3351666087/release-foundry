@@ -23,6 +23,7 @@ export function buildA3SqlMigrationPlan(options = {}) {
       "Release evidence readback capture must be idempotent, tenant-scoped, audit-linked, and hash-only before it can influence PR gates.",
       "Billing migration readiness rows must be tenant-scoped, read-only A3 projections of A1 ledger/migration evidence; A3 must never store provider secrets, card data, or raw provider payloads.",
       "Notification channel and delivery rows must be tenant-scoped, metadata-only, and must store connector secrets as encrypted references or hashes owned by A1 hosted workers.",
+      "Self-host sandbox calibration rows store validated A1 local behavior metadata only and must keep production_verified, deployment_acceptance_mutated, and a2_decision_recomputed false.",
       "Secret values are never stored; API keys and idempotency keys are hashed.",
       "Postgres is the recommended production target; MySQL and SQLite dialects are contract targets for student/self-host deployments."
     ],
@@ -676,7 +677,28 @@ CREATE TABLE IF NOT EXISTS deployment_receipt_readbacks (
 );
 CREATE INDEX IF NOT EXISTS idx_deployment_receipt_readbacks_scope ON deployment_receipt_readbacks(organization_id, tenant_id, workspace_id, project_id, environment_id, source, candidate_id, run_id, blocker_id, verification_status);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_deployment_receipt_readbacks_chain ON deployment_receipt_readbacks(receipt_id, sequence);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_deployment_receipt_readbacks_hash ON deployment_receipt_readbacks(receipt_id, readback_hash);`)
+CREATE UNIQUE INDEX IF NOT EXISTS idx_deployment_receipt_readbacks_hash ON deployment_receipt_readbacks(receipt_id, readback_hash);`),
+    statement("019_self_host_sandbox_calibrations", ["self_host_sandbox_calibrations"], `
+CREATE TABLE IF NOT EXISTS self_host_sandbox_calibrations (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL,
+  workspace_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  environment_id TEXT NOT NULL,
+  source TEXT NOT NULL,
+  status TEXT NOT NULL,
+  evidence_level TEXT NOT NULL,
+  production_verified BOOLEAN NOT NULL DEFAULT FALSE,
+  deployment_acceptance_mutated BOOLEAN NOT NULL DEFAULT FALSE,
+  a2_decision_recomputed BOOLEAN NOT NULL DEFAULT FALSE,
+  probe_payload_sha256 TEXT NOT NULL,
+  payload ${types.json} NOT NULL,
+  observed_at ${types.timestamp} NOT NULL,
+  created_at ${types.timestamp} NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_self_host_sandbox_scope ON self_host_sandbox_calibrations(organization_id, tenant_id, workspace_id, project_id, environment_id, observed_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_self_host_sandbox_digest ON self_host_sandbox_calibrations(project_id, probe_payload_sha256);`)
   ];
 }
 

@@ -75,6 +75,10 @@ import {
   isTrustedA3DeploymentReceiptAuthoritativeReadback,
   reviewA3DeploymentReceipt
 } from "./a3_deployment_receipt_workflow.mjs";
+import {
+  loadSelfHostSandboxCalibration,
+  validateSelfHostSandboxCalibration
+} from "./a3_self_host_sandbox.mjs";
 
 export const A3_STORE_SCHEMA_VERSION = "a3.store.v1";
 
@@ -213,6 +217,7 @@ export const A3_DB_CONTRACT = {
     "github_publish_receipts",
     "deployment_receipts",
     "deployment_receipt_readbacks",
+    "self_host_sandbox_calibrations",
     "notification_channels",
     "notification_subscriptions",
     "notification_templates",
@@ -236,6 +241,7 @@ export const A3_DB_CONTRACT = {
     "GET /api/a3/auth/rbac-policy",
     "POST /api/a3/auth/authorize",
     "GET /api/a3/dashboard",
+    "GET /api/a3/deployment/sandbox-calibration",
     "GET /api/a3/deployment/receipts",
     "POST /api/a3/deployment/receipts",
     "POST /api/a3/deployment/receipts/:receiptId/review",
@@ -287,6 +293,7 @@ export const A3_DB_CONTRACT = {
   guardrails: [
     "Hosted reads require exact source plus organization, tenant, workspace, project, and environment scope equality.",
     "Memory, file, and SQLite stores are local reference implementations and are not production RLS evidence.",
+    "Self-host sandbox calibrations are local A1 behavior evidence and never mutate production deployment acceptance.",
     "Auth context, RBAC policy, and authorization decisions are metadata-only until A1 hosted auth middleware is available.",
     "Shareable reports must pass the export redaction firewall.",
     "Secrets, cookies, tokens, emails, raw signed URLs, and local paths are never persisted in public report payloads.",
@@ -402,6 +409,7 @@ export function createMemoryA3Store(seed = {}) {
   const githubPublishReceipts = [];
   const deploymentReceipts = [];
   const deploymentReceiptReadbacks = [];
+  const selfHostSandboxCalibrations = [];
 
   for (const [source, snapshot] of Object.entries(seed.sources || {})) {
     snapshots.set(source, normalizeSnapshot({ source, ...snapshot }));
@@ -448,6 +456,9 @@ export function createMemoryA3Store(seed = {}) {
     if (isTrustedA3DeploymentReceiptAuthoritativeReadback(readback)) {
       deploymentReceiptReadbacks.push(structuredClone(readback));
     }
+  }
+  for (const calibration of seed.selfHostSandboxCalibrations || []) {
+    selfHostSandboxCalibrations.push(validateSelfHostSandboxCalibration(calibration));
   }
 
   return {
@@ -500,6 +511,32 @@ export function createMemoryA3Store(seed = {}) {
           importReceipts
         }, snapshot, requestOptions)
       });
+    },
+
+    async getSelfHostSandboxCalibration(options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source, options);
+      const scopedSnapshot = snapshotWithScope(snapshot, options);
+      const tenantScope = {
+        organization_id: scopedSnapshot.organizationId,
+        tenant_id: scopedSnapshot.tenantId,
+        workspace_id: scopedSnapshot.workspaceId,
+        project_id: scopedSnapshot.projectId,
+        environment_id: scopedSnapshot.environmentId
+      };
+      const calibration = selfHostSandboxCalibrations
+        .filter((item) => tenantScopeMatches(item.tenant_scope, tenantScope))
+        .sort((left, right) => String(right.observed_at).localeCompare(String(left.observed_at)))[0];
+      if (!calibration) return null;
+      return {
+        ...structuredClone(calibration),
+        dashboard_source: snapshot.source,
+        access_contract: {
+          required_permission: "deployment:read",
+          tenant_scope_enforced: options.enforceScope === true,
+          hosted_read_audited: options.enforceScope === true,
+          raw_probe_payload_exposed: false
+        }
+      };
     },
 
     async listRuns(options = {}) {
@@ -2421,7 +2458,8 @@ export function createMemoryA3Store(seed = {}) {
         releaseEvidenceReadbacks,
         githubPublishReceipts,
         deploymentReceipts,
-        deploymentReceiptReadbacks
+        deploymentReceiptReadbacks,
+        selfHostSandboxCalibrations
       };
     }
   };
@@ -2517,8 +2555,15 @@ export async function createFixtureBackedA3Store(options = {}) {
   for (const source of options.sources || Object.keys(A3_SOURCE_FIXTURES)) {
     sources[source] = await loadA3SourceSnapshot(source, options);
   }
+  const selfHostSandboxCalibrations = options.selfHostSandboxCalibrations || [
+    await loadSelfHostSandboxCalibration(
+      options.selfHostSandboxCalibrationPath
+        || fileURLToPath(new URL("../../fixtures/a3/p3/a3_self_host_sandbox_calibration_20260713.redacted.json", import.meta.url))
+    )
+  ];
   return createMemoryA3Store({
     sources,
+    selfHostSandboxCalibrations,
     storageMode: "fixture_file"
   });
 }

@@ -188,6 +188,7 @@ export function inspectSqliteA3Store(db) {
       github_publish_receipts: countRows(db, "github_publish_receipts"),
       deployment_receipts: countRows(db, "deployment_receipts"),
       deployment_receipt_readbacks: countRows(db, "deployment_receipt_readbacks"),
+      self_host_sandbox_calibrations: countRows(db, "self_host_sandbox_calibrations"),
       usage_ledger: countRows(db, "usage_ledger")
     },
     safety: {
@@ -247,6 +248,7 @@ async function persistSqliteState(db, store) {
     persistGitHubPublishReceipts(db, state, updatedAt);
     persistDeploymentReceipts(db, state, updatedAt);
     persistDeploymentReceiptReadbacks(db, state, updatedAt);
+    persistSelfHostSandboxCalibrations(db, state, updatedAt);
     await persistUsageLedger(db, store, state, updatedAt);
     db.exec("COMMIT");
   } catch (error) {
@@ -273,6 +275,7 @@ function clearOperationalRows(db) {
     "github_publish_receipts",
     "deployment_receipt_readbacks",
     "deployment_receipts",
+    "self_host_sandbox_calibrations",
     "artifact_lifecycle_events",
     "artifact_registry_entries",
     "release_evidence_readbacks",
@@ -800,6 +803,38 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       readback.readback_hash,
       JSON.stringify(readback),
       readback.verified_at || updatedAt
+    );
+  }
+}
+
+function persistSelfHostSandboxCalibrations(db, state, updatedAt) {
+  for (const calibration of state.selfHostSandboxCalibrations || []) {
+    const scope = calibration.tenant_scope || {};
+    db.prepare(`
+INSERT INTO self_host_sandbox_calibrations (
+  id, organization_id, tenant_id, workspace_id, project_id, environment_id,
+  source, status, evidence_level, production_verified,
+  deployment_acceptance_mutated, a2_decision_recomputed, probe_payload_sha256,
+  payload, observed_at, created_at
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`).run(
+      calibration.calibration_id,
+      scope.organization_id || "org-local",
+      scope.tenant_id || "tenant-local",
+      scope.workspace_id || "workspace-local",
+      scope.project_id || "project-local",
+      scope.environment_id || "staging",
+      calibration.source || "a1_local_runtime_probe",
+      calibration.status || "sandbox_failed",
+      calibration.authority_boundary?.evidence_level || "sandbox_failed",
+      0,
+      0,
+      0,
+      calibration.evidence_integrity?.probe_payload_sha256 || `sha256:${sha256(JSON.stringify(calibration))}`,
+      JSON.stringify(calibration),
+      calibration.observed_at || updatedAt,
+      updatedAt
     );
   }
 }

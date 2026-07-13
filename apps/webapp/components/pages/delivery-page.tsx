@@ -27,6 +27,7 @@ import { array, number, record, string } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { DataBoundary, DataTable, EvidenceDetails, MetricStrip, PageHeader, Section, StatusBadge } from "../ui";
 import { DeploymentReceiptInbox } from "../deployment-receipt-inbox";
+import { SelfHostSandboxPanel } from "../self-host-sandbox-panel";
 
 export function DeliveryPage() {
   const { language } = useI18n();
@@ -334,6 +335,20 @@ export function DeliveryPage() {
             <DeploymentReceiptInbox inbox={deploymentReceiptInbox} projection={deploymentAcceptanceProjection} />
           </Section>
         )}
+
+        <Section
+          className="self-host-sandbox-section"
+          title={zh ? "自托管沙箱校准" : "Self-host sandbox calibration"}
+          description={zh
+            ? "直接运行 A1 本地控制面、Worker 和对象存储契约；沙箱证据与生产部署回执严格分层。"
+            : "Runs A1 local control-plane, worker, and object-storage contracts while keeping sandbox and production receipts separate."}
+        >
+          <SelfHostSandboxPanel
+            source={model.source}
+            acceptancePassed={number(acceptanceSummary.passed)}
+            acceptanceTotal={number(acceptanceSummary.total_checks)}
+          />
+        </Section>
 
         <Section
           title={zh ? "Golden Path 阶段" : "Golden path stages"}

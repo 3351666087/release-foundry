@@ -24,7 +24,7 @@ until A1 hosted auth/RBAC/payment backends exist.
 
 ANCHOR: ENDPOINT_COVERAGE
 
-The contract currently maps 38 commercial endpoints, including:
+The contract currently maps 39 commercial endpoints, including:
 
 - `GET /v1/me`
 - `GET /v1/organizations`
@@ -38,6 +38,7 @@ The contract currently maps 38 commercial endpoints, including:
 - `POST /v1/release-gates/{release_gate_id}/waivers`
 - `POST /v1/release-gates/{release_gate_id}/approvals`
 - `POST /v1/release-gates/{release_gate_id}/denials`
+- `GET /v1/deployments/sandbox-calibration`
 - `POST /v1/releases/{release_id}/deployment-receipts`
 - `POST /v1/releases/{release_id}/deployment-receipts/{receipt_id}/reviews`
 - `POST /internal/v1/releases/{release_id}/deployment-receipts/{receipt_id}/verify`
@@ -66,6 +67,11 @@ The internal deployment-receipt verifier is service-account-only. Client payload
 supply verification status, claims, evidence, authority, or attestation; those values come
 from the configured server resolver and are stored as immutable hash-chained readbacks.
 
+The self-host sandbox calibration route is different from a deployment receipt. It executes
+real local A1 behavior and stores a validated calibration in
+`self_host_sandbox_calibrations`, but its authority fields remain fixed to false for
+production verification, Deployment Acceptance mutation, and A2 decision recomputation.
+
 ## API Contract
 
 ANCHOR: API_CONTRACT
@@ -74,6 +80,7 @@ New local A3 API route:
 
 ```text
 GET /api/a3/commercial-api/contract
+GET /api/a3/deployment/sandbox-calibration
 ```
 
 Response schema:
@@ -94,6 +101,7 @@ The A3 DB contract now includes:
 
 ```text
 commercial_api_contracts
+self_host_sandbox_calibrations
 source_artifacts
 event_outbox
 ```
@@ -167,6 +175,7 @@ Commercial artifact types referenced by the endpoint map include:
 - `usage_ledger`
 - `billing_readiness_snapshot`
 - `audit_bundle_index`
+- `a1_self_host_sandbox_calibration`
 
 This round also introduces source-artifact hash summaries for A1/A2 inputs:
 

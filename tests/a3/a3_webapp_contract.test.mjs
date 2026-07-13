@@ -95,6 +95,28 @@ test("deployment receipt UI displays authoritative readbacks without exposing th
   assert.doesNotMatch(inboxSource, /postDeploymentReceiptVerification|verifyDeploymentReceipt/);
 });
 
+test("self-host sandbox UI consumes A1 evidence without presenting it as production proof", async () => {
+  const [deliverySource, sandboxSource] = await Promise.all([
+    readFile(new URL("components/pages/delivery-page.tsx", webappUrl), "utf8"),
+    readFile(new URL("components/self-host-sandbox-panel.tsx", webappUrl), "utf8")
+  ]);
+
+  assert.match(deliverySource, /SelfHostSandboxPanel/);
+  assert.match(deliverySource, /acceptancePassed/);
+  assert.match(deliverySource, /acceptanceTotal/);
+  assert.match(sandboxSource, /\/api\/a3\/deployment\/sandbox-calibration/);
+  assert.match(sandboxSource, /credentials: "include"/);
+  for (const state of ["loading", "empty", "partial", "failed", "denied", "ready"]) {
+    assert.match(sandboxSource, new RegExp(`"${state}"`));
+  }
+  assert.match(sandboxSource, /这不是生产部署证明/);
+  assert.match(sandboxSource, /不会改变部署验收/);
+  assert.match(sandboxSource, /不会重算 A2 裁决/);
+  assert.match(sandboxSource, /production_gaps/);
+  assert.match(sandboxSource, /deployment:read/);
+  assert.doesNotMatch(sandboxSource, /\/internal\/a3\/deployment|x-a3-role|ASHR_API_KEY/);
+});
+
 test("A3 webapp visual source enforces the Signal-Form safety constraints", async () => {
   const [css, runsSource, ignoreSource, packageSource] = await Promise.all([
     readFile(new URL("app/globals.css", webappUrl), "utf8"),

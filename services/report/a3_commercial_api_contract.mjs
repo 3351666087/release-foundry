@@ -469,6 +469,16 @@ const COMMERCIAL_ENDPOINTS = [
     usage: ["api_requests"],
     dependencies: ["A2 release policy", "A3 reviewer workflow"]
   }),
+  endpoint("GET /v1/deployments/sandbox-calibration", "A1/A3", "deployment_operations", "GET /api/a3/deployment/sandbox-calibration", {
+    status: "implemented_local_sandbox",
+    rbac: "deployment:read",
+    db: ["self_host_sandbox_calibrations", "audit_events", "event_outbox"],
+    events: ["deployment.sandbox_calibration_read"],
+    artifacts: ["a1_self_host_sandbox_calibration"],
+    usage: ["api_requests"],
+    dependencies: ["A1 local control-plane", "A1 worker queue", "A1 local object storage"],
+    notes: "Local A1-backed evidence only. Never production verification and never mutates A2 or deployment acceptance."
+  }),
   endpoint("GET /v1/releases/{release_id}/deployment-receipts", "A1/A2/A3", "release_gate", "GET /api/a3/deployment/receipts", {
     status: "read_only",
     rbac: "deployment:read",
