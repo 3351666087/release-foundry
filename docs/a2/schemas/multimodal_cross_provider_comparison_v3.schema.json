@@ -9,6 +9,20 @@
     "comparison_artifact_hash": {"$ref": "#/$defs/hash"},
     "left_evidence_hash": {"$ref": "#/$defs/hash"},
     "right_evidence_hash": {"$ref": "#/$defs/hash"},
+    "lineage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "left_final_matrix_hash", "right_final_matrix_hash",
+        "left_partial_journal_hash", "right_partial_journal_hash"
+      ],
+      "properties": {
+        "left_final_matrix_hash": {"$ref": "#/$defs/hash"},
+        "right_final_matrix_hash": {"$ref": "#/$defs/hash"},
+        "left_partial_journal_hash": {"$ref": "#/$defs/optionalHash"},
+        "right_partial_journal_hash": {"$ref": "#/$defs/optionalHash"}
+      }
+    },
     "left_binding": {"$ref": "#/$defs/binding"},
     "right_binding": {"$ref": "#/$defs/binding"},
     "comparisons": {"type": "array", "items": {"$ref": "#/$defs/repeatComparison"}},
@@ -32,6 +46,7 @@
   },
   "$defs": {
     "hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "optionalHash": {"type": "string", "pattern": "^(|sha256:[a-f0-9]{64})$"},
     "binding": {
       "type": "object",
       "additionalProperties": false,

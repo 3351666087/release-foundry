@@ -52,7 +52,11 @@ def _binding(evidence: dict[str, Any]) -> dict[str, str]:
 
 
 def build_comparison(
-    left: dict[str, Any], right: dict[str, Any]
+    left: dict[str, Any],
+    right: dict[str, Any],
+    *,
+    left_partial: dict[str, Any] | None = None,
+    right_partial: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     left_items = {
         (item["case_id"], item["artifact_hash"], item.get("repeat", 1)): item
@@ -188,6 +192,16 @@ def build_comparison(
         "comparison_artifact_hash": comparison_artifact_hash,
         "left_evidence_hash": stable_hash(left),
         "right_evidence_hash": stable_hash(right),
+        "lineage": {
+            "left_final_matrix_hash": stable_hash(left),
+            "right_final_matrix_hash": stable_hash(right),
+            "left_partial_journal_hash": (
+                stable_hash(left_partial) if left_partial is not None else ""
+            ),
+            "right_partial_journal_hash": (
+                stable_hash(right_partial) if right_partial is not None else ""
+            ),
+        },
         "left_binding": _binding(left),
         "right_binding": _binding(right),
         "comparisons": comparisons,
@@ -210,10 +224,27 @@ def main() -> int:
     parser.add_argument("--left", required=True)
     parser.add_argument("--right", required=True)
     parser.add_argument("--output", required=True)
+    parser.add_argument("--left-partial")
+    parser.add_argument("--right-partial")
     args = parser.parse_args()
     left = json.loads((ROOT / args.left).read_text(encoding="utf-8"))
     right = json.loads((ROOT / args.right).read_text(encoding="utf-8"))
-    result = build_comparison(left, right)
+    left_partial = (
+        json.loads((ROOT / args.left_partial).read_text(encoding="utf-8"))
+        if args.left_partial
+        else None
+    )
+    right_partial = (
+        json.loads((ROOT / args.right_partial).read_text(encoding="utf-8"))
+        if args.right_partial
+        else None
+    )
+    result = build_comparison(
+        left,
+        right,
+        left_partial=left_partial,
+        right_partial=right_partial,
+    )
     (ROOT / args.output).write_text(
         json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )

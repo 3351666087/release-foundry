@@ -3,9 +3,18 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+import sys
 from typing import Any
 
+import jsonschema
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
 from scripts.a2_build_multimodal_cross_provider_comparison import ROOT, stable_hash
+
+SCHEMA = ROOT / "docs/a2/schemas/multimodal_review_chain_verification.schema.json"
 
 
 def verify_review_chain(receipts: list[dict[str, Any]]) -> dict[str, Any]:
@@ -30,7 +39,7 @@ def verify_review_chain(receipts: list[dict[str, Any]]) -> dict[str, Any]:
         if receipt.get("predecessor_receipt_hash") != previous_hash:
             errors.append("predecessor_receipt_hash_mismatch")
         previous_hash = receipt_hash
-    return {
+    result = {
         "schema_version": "a2.multimodal_review_chain_verification.v1",
         "receipt_count": len(receipts),
         "terminal_receipt_hash": previous_hash,
@@ -39,6 +48,10 @@ def verify_review_chain(receipts: list[dict[str, Any]]) -> dict[str, Any]:
         "release_authority": False,
         "public_safe": True,
     }
+    jsonschema.Draft202012Validator(
+        json.loads(SCHEMA.read_text(encoding="utf-8"))
+    ).validate(result)
+    return result
 
 
 def main() -> int:

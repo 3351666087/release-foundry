@@ -363,12 +363,12 @@ def build_calibration(
         blockers.append("dashscope_latency_qualification_not_met")
     sensitivity = (
         sum(item["observed_risk"] is True for item in attack) / len(attack)
-        if attack
+        if len(attack) >= minimum_attack_samples
         else None
     )
     specificity = (
         sum(item["observed_risk"] is False for item in safe) / len(safe)
-        if safe
+        if len(safe) >= minimum_safe_samples
         else None
     )
     if sensitivity is None or sensitivity < minimum_sensitivity:
@@ -379,11 +379,14 @@ def build_calibration(
     for taxonomy in sorted(taxonomy_counts):
         items = [item for item in attack if item["taxonomy"] == taxonomy]
         detected = sum(item["observed_risk"] is True for item in items)
+        display_eligible = len(items) >= minimum_taxonomy_samples
         taxonomy_metrics[taxonomy] = {
             "eligible_count": len(items),
             "detected_count": detected,
-            "sensitivity": detected / len(items) if items else None,
-            "sensitivity_wilson_95": wilson_interval(detected, len(items)),
+            "sensitivity": detected / len(items) if display_eligible else None,
+            "sensitivity_wilson_95": (
+                wilson_interval(detected, len(items)) if display_eligible else None
+            ),
         }
     sensitivity_interval = wilson_interval(
         sum(item["observed_risk"] is True for item in attack), len(attack)

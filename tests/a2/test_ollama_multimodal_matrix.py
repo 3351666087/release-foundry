@@ -3,10 +3,12 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+from urllib import error
 
 import jsonschema
 
 from scripts.a2_ollama_multimodal_matrix import (
+    OllamaTransportError,
     ROOT,
     append_trial_atomic,
     atomic_write,
@@ -14,6 +16,7 @@ from scripts.a2_ollama_multimodal_matrix import (
     classify_public_response,
     complete_partial,
     load_partial,
+    ollama_invoke,
     partial_binding,
     sha256_ref,
 )
@@ -280,6 +283,140 @@ class OllamaMultimodalMatrixTests(unittest.TestCase):
         self.assertTrue(trial["thinking_present"])
         self.assertEqual(len(trial["attempt_receipts"]), 2)
         self.assertIsNone(trial["observed_risk"])
+
+    def test_round43_json_fallback_probe_cannot_enter_metric_denominator(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            artifact = Path(directory) / "safe.ppm"
+            artifact.write_bytes(b"P6\n1 1\n255\n\x00\x00\xff")
+            calls = []
+
+            def invoke(_model, payload, _timeout):
+                calls.append(payload["format"])
+                if isinstance(payload["format"], dict):
+                    return {"response": "invalid"}
+                return {
+                    "response": json.dumps(
+                        {
+                            "risk_present": False,
+                            "taxonomy_classes": [],
+                            "summary": "safe",
+                        }
+                    )
+                }
+
+            result = build_matrix(
+                cases=[{
+                    "case_id": "safe",
+                    "taxonomy": "safe_control",
+                    "expected_risk": False,
+                    "artifact_path": artifact.relative_to(ROOT).as_posix(),
+                    "artifact_hash": sha256_ref(artifact.read_bytes()),
+                }],
+                models=[{
+                    "model_id": "qwen3-vl:4b",
+                    "model_digest": "sha256:" + "4" * 64,
+                }],
+                formats=["json_schema"],
+                num_predict_values=[64],
+                repeats=1,
+                runtime={
+                    "provider_id": "ollama-local",
+                    "ollama_version": "test",
+                    "base_url_class": "loopback",
+                },
+                invoke=invoke,
+            )
+        trial = result["trials"][0]
+        self.assertEqual(calls, [
+            {
+                "type": "object",
+                "additionalProperties": False,
+                "required": ["risk_present", "taxonomy_classes", "summary"],
+                "properties": {
+                    "risk_present": {"type": "boolean"},
+                    "taxonomy_classes": {
+                        "type": "array",
+                        "items": {"type": "string"},
+                    },
+                    "summary": {"type": "string"},
+                },
+            },
+            "json",
+        ])
+        self.assertTrue(trial["fallback_probe_used"])
+        self.assertFalse(trial["promotion_eligible"])
+        self.assertEqual(
+            next(iter(result["binding_summaries"].values()))["eligible_count"], 0
+        )
+        self.assertIn(
+            "multimodal_fallback_probe_not_promotion_eligible", result["blockers"]
+        )
+
+    def test_round43_metrics_hidden_below_minimum_and_taxonomy_wilson_reported(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            artifacts = []
+            cases = []
+            for index, expected in enumerate((False, True)):
+                artifact = Path(directory) / f"{index}.ppm"
+                artifact.write_bytes(b"P6\n1 1\n255\n\x00\x00\xff")
+                artifacts.append(artifact)
+                cases.append({
+                    "case_id": f"case-{index}",
+                    "taxonomy": (
+                        "safe_control" if not expected else "visual_prompt_injection"
+                    ),
+                    "expected_risk": expected,
+                    "artifact_path": artifact.relative_to(ROOT).as_posix(),
+                    "artifact_hash": sha256_ref(artifact.read_bytes()),
+                })
+
+            result = build_matrix(
+                cases=cases,
+                models=[{
+                    "model_id": "model",
+                    "model_digest": "sha256:" + "5" * 64,
+                }],
+                formats=["json"],
+                num_predict_values=[64],
+                repeats=1,
+                runtime={
+                    "provider_id": "ollama-local",
+                    "ollama_version": "test",
+                    "base_url_class": "loopback",
+                },
+                invoke=lambda *_: {
+                    "response": json.dumps({
+                        "risk_present": True,
+                        "taxonomy_classes": [],
+                        "summary": "observation",
+                    })
+                },
+                minimum_safe_samples=2,
+                minimum_attack_samples=2,
+                minimum_taxonomy_samples=1,
+            )
+        summary = next(iter(result["binding_summaries"].values()))
+        self.assertIsNone(summary["sensitivity"])
+        self.assertIsNone(summary["specificity"])
+        self.assertIsNone(summary["balanced_accuracy"])
+        taxonomy = summary["taxonomy_metrics"]["visual_prompt_injection"]
+        self.assertEqual(taxonomy["eligible_count"], 1)
+        self.assertEqual(taxonomy["sensitivity"], 1)
+        self.assertEqual(len(taxonomy["sensitivity_wilson_95"]), 2)
+
+    def test_round43_transport_receipt_classifies_http_without_body(self):
+        invoke = ollama_invoke("http://127.0.0.1:11434")
+        with patch(
+            "scripts.a2_ollama_multimodal_matrix.request.urlopen",
+            side_effect=error.HTTPError(
+                "http://127.0.0.1", 503, "private body", {}, None
+            ),
+        ):
+            with self.assertRaises(OllamaTransportError) as caught:
+                invoke("model", {}, 1)
+        self.assertEqual(caught.exception.error_class, "http_server_error")
+        self.assertEqual(caught.exception.http_status_class, "5xx")
+        self.assertNotIn("private body", str(caught.exception))
 
     def test_round38_timeout_receipt_is_persisted_after_each_trial(self):
         with tempfile.TemporaryDirectory(dir=ROOT) as directory:

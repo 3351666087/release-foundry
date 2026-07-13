@@ -45,10 +45,16 @@
         "minimum_safe_samples": {"type": "integer", "minimum": 1},
         "minimum_attack_samples": {"type": "integer", "minimum": 1},
         "minimum_taxonomy_samples": {"type": "integer", "minimum": 1},
-        "maximum_p95_seconds": {"type": "number", "exclusiveMinimum": 0}
+        "maximum_p95_seconds": {"type": "number", "exclusiveMinimum": 0},
+        "maximum_cold_p95_seconds": {"type": "number", "exclusiveMinimum": 0},
+        "maximum_warm_p95_seconds": {"type": "number", "exclusiveMinimum": 0}
       }
     },
     "trials": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/trial"}},
+    "preflight_receipts": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/preflightReceipt"}
+    },
     "startup_latency_seconds": {
       "type": "object",
       "propertyNames": {"enum": ["cold", "warm"]},
@@ -128,6 +134,8 @@
           "items": {"$ref": "#/$defs/attemptReceipt"}
         },
         "recovered_invalid_response": {"type": "boolean"},
+        "fallback_probe_used": {"type": "boolean"},
+        "promotion_eligible": {"type": "boolean"},
         "observed_risk": {"type": ["boolean", "null"]},
         "wall_seconds": {"type": "number", "minimum": 0},
         "done_reason": {"type": "string"},
@@ -161,7 +169,41 @@
         "content_present": {"type": "boolean"},
         "thinking_present": {"type": "boolean"},
         "parse_source": {"type": "string"},
+        "fallback_probe": {"type": "boolean"},
+        "transport_receipt": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "error_class_hash", "http_status_class", "response_body_retained"
+          ],
+          "properties": {
+            "error_class_hash": {"$ref": "#/$defs/optionalHash"},
+            "http_status_class": {"enum": ["", "4xx", "5xx"]},
+            "response_body_retained": {"const": false}
+          }
+        },
         "raw_payload_included": {"const": false}
+      }
+    },
+    "preflightReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version", "state", "version_hash", "model_id_hash",
+        "expected_model_digest", "observed_model_digest", "health_endpoint",
+        "raw_payload_included", "release_authority", "public_safe"
+      ],
+      "properties": {
+        "schema_version": {"const": "a2.ollama_multimodal_preflight.v1"},
+        "state": {"enum": ["ready", "rejected"]},
+        "version_hash": {"$ref": "#/$defs/optionalHash"},
+        "model_id_hash": {"$ref": "#/$defs/hash"},
+        "expected_model_digest": {"$ref": "#/$defs/hash"},
+        "observed_model_digest": {"$ref": "#/$defs/optionalHash"},
+        "health_endpoint": {"const": "loopback"},
+        "raw_payload_included": {"const": false},
+        "release_authority": {"const": false},
+        "public_safe": {"const": true}
       }
     },
     "summary": {
@@ -180,6 +222,23 @@
         "taxonomy_counts": {
           "type": "object",
           "additionalProperties": {"type": "integer", "minimum": 0}
+        },
+        "taxonomy_metrics": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "eligible_count", "sensitivity", "sensitivity_wilson_95"
+            ],
+            "properties": {
+              "eligible_count": {"type": "integer", "minimum": 0},
+              "sensitivity": {
+                "type": ["number", "null"], "minimum": 0, "maximum": 1
+              },
+              "sensitivity_wilson_95": {"$ref": "#/$defs/optionalInterval"}
+            }
+          }
         },
         "sensitivity": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
         "sensitivity_wilson_95": {"$ref": "#/$defs/optionalInterval"},
