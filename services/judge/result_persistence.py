@@ -257,6 +257,7 @@ def write_jsonl(
     post_replace_hook: Any | None = None,
     replay_set_snapshot: dict[str, Any] | None = None,
     parent_directory_flush_evidence: dict[str, Any] | None = None,
+    crash_injector: Any | None = None,
 ) -> dict[str, Any]:
     if sequence_number < 1:
         raise ValueError("sequence_number must be positive")
@@ -268,12 +269,18 @@ def write_jsonl(
     destination.parent.mkdir(parents=True, exist_ok=True)
     text = "".join(json.dumps(record, sort_keys=True) + "\n" for record in records)
     temporary = destination.with_name(destination.name + ".tmp")
-    temporary.write_bytes(text.encode("utf-8"))
+    injector = crash_injector or (lambda _: None)
+    with temporary.open("wb") as temporary_file:
+        temporary_file.write(text.encode("utf-8"))
+        temporary_file.flush()
+        os.fsync(temporary_file.fileno())
+    injector("after_file_fsync")
     try:
         (replace_function or Path.replace)(temporary, destination)
     except Exception:
         temporary.unlink(missing_ok=True)
         raise
+    injector("after_atomic_replace")
     if post_replace_hook:
         post_replace_hook(destination)
     reopened_hash = hashlib.sha256(destination.read_bytes()).hexdigest()
@@ -292,7 +299,7 @@ def write_jsonl(
     )
     durability_receipt = {
         "file_write_state": "completed",
-        "file_fsync_state": "not_exposed",
+        "file_fsync_state": "verified",
         "atomic_replace_state": "verified",
         "post_replace_reopen_state": "verified",
         "parent_directory_flush_state": (
@@ -319,6 +326,7 @@ def write_jsonl(
         "post_replace_reopen_state": "verified",
         "durability_qualification_state": "atomic_replace_verified_durability_unproven",
         "durability_receipt": durability_receipt,
+        "durability_receipt_hash": stable_hash(durability_receipt),
         "replay_set_snapshot_hash": stable_hash(replay_set_snapshot) if replay_set_snapshot else "",
         "chain_hash": chain_hash,
         "public_safe": True,
@@ -340,28 +348,44 @@ def _classify_windows_volume_error(error: BaseException) -> str:
     return "volume_api_unexpected_error"
 
 
-def observe_filesystem_volume_hash(path: str | Path) -> dict[str, Any]:
+def observe_filesystem_volume_hash(
+    path: str | Path,
+    *,
+    windows_volume_observer: Any | None = None,
+    platform_name: str | None = None,
+) -> dict[str, Any]:
     """Hash an OS volume observation; never return the raw identifier."""
     resolved = Path(path).resolve()
     drive = resolved.drive or resolved.anchor
-    observation = {"platform": os.name, "drive": drive.upper()}
+    observed_platform = platform_name or os.name
+    observation = {"platform": observed_platform, "drive": drive.upper()}
     observation_method = "resolved_drive_hash"
     observation_state = "fallback"
     error_class = "not_applicable"
-    if os.name == "nt" and drive:
+    if observed_platform == "nt" and drive:
         try:
-            import ctypes
-            serial = ctypes.c_uint32()
-            if ctypes.windll.kernel32.GetVolumeInformationW(
-                drive + "\\", None, 0, ctypes.byref(serial), None, None, None, 0
-            ):
-                observation["volume_serial"] = int(serial.value)
+            if windows_volume_observer is None:
+                import ctypes
+
+                serial = ctypes.c_uint32()
+                succeeded = ctypes.windll.kernel32.GetVolumeInformationW(
+                    drive + "\\", None, 0, ctypes.byref(serial), None, None, None, 0
+                )
+                if not succeeded:
+                    raise ctypes.WinError()
+                serial_value = int(serial.value)
+            else:
+                serial_value = windows_volume_observer(drive + "\\")
+                if serial_value is False or serial_value is None:
+                    raise OSError("windows volume observer returned false")
+                if not isinstance(serial_value, int) or isinstance(serial_value, bool):
+                    raise TypeError("windows volume observer returned invalid serial")
+            if serial_value >= 0:
+                observation["volume_serial"] = serial_value
                 observation_method = "windows_volume_api_hashed"
                 observation_state = "observed"
                 error_class = "none"
-            else:
-                error_class = _classify_windows_volume_error(ctypes.WinError())
-        except (AttributeError, OSError) as error:
+        except (AttributeError, OSError, TypeError) as error:
             error_class = _classify_windows_volume_error(error)
     return {
         "filesystem_volume_id_hash": stable_hash(observation),
@@ -452,6 +476,12 @@ def verify_jsonl_manifest(
         blockers.append("jsonl_previous_sequence_mismatch")
     if pinned_chain_hash and manifest.get("chain_hash") != pinned_chain_hash:
         blockers.append("jsonl_chain_head_pin_mismatch")
+    durability_receipt = manifest.get("durability_receipt")
+    if (
+        not isinstance(durability_receipt, dict)
+        or manifest.get("durability_receipt_hash") != stable_hash(durability_receipt)
+    ):
+        blockers.append("jsonl_durability_receipt_hash_mismatch")
     observed_file_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
     if observed_file_hash != manifest.get("file_sha256"):
         blockers.append("jsonl_file_hash_mismatch")

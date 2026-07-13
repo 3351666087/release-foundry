@@ -1531,11 +1531,6 @@ def apply_taxonomy_policy(
     if policy.get("schema_version") != "a2.multimodal_taxonomy_policy.v1":
         raise ValueError("unsupported taxonomy policy schema version")
     allowed_taxonomy_classes = policy.get("allowed_taxonomy_classes")
-    if allowed_taxonomy_classes is None:
-        allowed_taxonomy_classes = sorted(
-            set(policy.get("minimum_positive_denominators", {}))
-            | set(policy.get("minimum_negative_denominators", {}))
-        )
     if not isinstance(allowed_taxonomy_classes, list) or not allowed_taxonomy_classes or any(
         not isinstance(value, str) or not value for value in allowed_taxonomy_classes
     ):

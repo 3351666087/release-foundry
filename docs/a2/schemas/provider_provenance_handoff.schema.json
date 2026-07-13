@@ -30,6 +30,7 @@
     "model_id": { "type": "string", "minLength": 1 },
     "response_hash": { "$ref": "#/$defs/hash" },
     "bundle_digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "durability_receipt_hash": { "$ref": "#/$defs/hash" },
     "evaluation_eligible": { "type": "boolean" },
     "release_authority": { "const": false },
     "decision_authority": { "const": "a2.release_gate.v1" },

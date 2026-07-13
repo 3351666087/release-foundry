@@ -255,6 +255,8 @@ class PersistentReplaySet:
         *,
         lock_timeout_seconds: float = 5.0,
         after_fsync_hook: Callable[[Path], None] | None = None,
+        minimum_sequence_number: int = 0,
+        expected_snapshot_hash: str = "",
     ) -> None:
         self.path = Path(path)
         self.lock_path = self.path.with_suffix(self.path.suffix + ".lock")
@@ -262,6 +264,10 @@ class PersistentReplaySet:
             raise ValueError("lock_timeout_seconds must be positive")
         self.lock_timeout_seconds = lock_timeout_seconds
         self.after_fsync_hook = after_fsync_hook
+        if minimum_sequence_number < 0:
+            raise ValueError("minimum_sequence_number must be non-negative")
+        self.minimum_sequence_number = minimum_sequence_number
+        self.expected_snapshot_hash = expected_snapshot_hash
 
     def admit(self, nonce_hash: str) -> dict[str, Any]:
         self.path.parent.mkdir(parents=True, exist_ok=True)
@@ -271,6 +277,11 @@ class PersistentReplaySet:
                     "admitted": False,
                     "snapshot_hash": "",
                     "lock_state": "timeout_blocked",
+                    "lock_diagnostics": {
+                        "ownership_state": "held_by_other_process",
+                        "owner_identity_exposed": False,
+                        "wait_bucket": _wait_bucket(self.lock_timeout_seconds),
+                    },
                     "atomic_replace": False,
                     "release_authority": False,
                     "blockers": ["provider_receipt_replay_lock_timeout"],
@@ -278,6 +289,22 @@ class PersistentReplaySet:
                 }
             try:
                 snapshot = self._load()
+                rollback_blockers = self._rollback_blockers(snapshot)
+                if rollback_blockers:
+                    return {
+                        "admitted": False,
+                        "snapshot_hash": stable_hash(snapshot),
+                        "lock_state": "exclusive_os_lock",
+                        "lock_diagnostics": {
+                            "ownership_state": "owned_by_current_process",
+                            "owner_identity_exposed": False,
+                            "wait_bucket": "under_1s",
+                        },
+                        "atomic_replace": False,
+                        "release_authority": False,
+                        "blockers": rollback_blockers,
+                        "public_safe": True,
+                    }
                 values = set(snapshot["nonce_hashes"])
                 admitted = nonce_hash not in values
                 if admitted:
@@ -307,6 +334,11 @@ class PersistentReplaySet:
                     "admitted": admitted,
                     "snapshot_hash": stable_hash(self._load()),
                     "lock_state": "exclusive_os_lock",
+                    "lock_diagnostics": {
+                        "ownership_state": "owned_by_current_process",
+                        "owner_identity_exposed": False,
+                        "wait_bucket": "under_1s",
+                    },
                     "atomic_replace": True,
                     "release_authority": False,
                     "blockers": [],
@@ -314,6 +346,18 @@ class PersistentReplaySet:
                 }
             finally:
                 _unlock_file(lock_file)
+
+    def _rollback_blockers(self, snapshot: dict[str, Any]) -> list[str]:
+        blockers: list[str] = []
+        if snapshot["sequence_number"] < self.minimum_sequence_number:
+            blockers.append("provider_receipt_replay_snapshot_rollback")
+        if (
+            self.expected_snapshot_hash
+            and snapshot["sequence_number"] == self.minimum_sequence_number
+            and not hmac.compare_digest(stable_hash(snapshot), self.expected_snapshot_hash)
+        ):
+            blockers.append("provider_receipt_replay_snapshot_fork")
+        return blockers
 
     def _load(self) -> dict[str, Any]:
         if not self.path.exists():
@@ -373,3 +417,11 @@ def _unlock_file(file_object: Any) -> None:
     else:
         import fcntl
         fcntl.flock(file_object.fileno(), fcntl.LOCK_UN)
+
+
+def _wait_bucket(timeout_seconds: float) -> str:
+    if timeout_seconds < 1:
+        return "under_1s"
+    if timeout_seconds < 5:
+        return "1_to_5s"
+    return "5s_or_more"

@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.local/schemas/a2/composite_agent_delegated_call_receipt.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "capability_contract_hash",
+    "planner_request_hash",
+    "image_model_response_hash",
+    "generated_artifact_hash",
+    "delegated_model",
+    "requested_text_hash",
+    "ocr_observed_text_hash",
+    "ocr_comparison_state",
+    "planner_safety_claim",
+    "safety_judge_model",
+    "safety_judge_result_hash",
+    "receipt_hash",
+    "qualification_state",
+    "human_review_required",
+    "release_authority",
+    "blockers",
+    "public_safe"
+  ],
+  "properties": {
+    "schema_version": {"const": "a2.composite_agent_delegated_call_receipt.v1"},
+    "capability_contract_hash": {"$ref": "#/$defs/hash"},
+    "planner_request_hash": {"$ref": "#/$defs/hash"},
+    "image_model_response_hash": {"$ref": "#/$defs/hash"},
+    "generated_artifact_hash": {"$ref": "#/$defs/hash"},
+    "delegated_model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider_id", "model_id", "model_version"],
+      "properties": {
+        "provider_id": {"type": "string", "minLength": 1},
+        "model_id": {"type": "string", "minLength": 1},
+        "model_version": {"type": "string", "minLength": 1}
+      }
+    },
+    "requested_text_hash": {"$ref": "#/$defs/optionalHash"},
+    "ocr_observed_text_hash": {"$ref": "#/$defs/optionalHash"},
+    "ocr_comparison_state": {"enum": ["not_required", "matched", "disagreed"]},
+    "planner_safety_claim": {"enum": ["", "safe", "unsafe", "abstain"]},
+    "safety_judge_model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider_id", "model_id", "model_version"],
+      "properties": {
+        "provider_id": {"type": "string"},
+        "model_id": {"type": "string"},
+        "model_version": {"type": "string"}
+      }
+    },
+    "safety_judge_result_hash": {"$ref": "#/$defs/hash"},
+    "receipt_hash": {"$ref": "#/$defs/hash"},
+    "qualification_state": {"enum": ["review_available", "blocked"]},
+    "human_review_required": {"type": "boolean"},
+    "release_authority": {"const": false},
+    "blockers": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+    "public_safe": {"const": true}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "optionalHash": {"type": "string", "pattern": "^(|sha256:[a-f0-9]{64})$"}
+  }
+}

@@ -512,6 +512,109 @@ def verify_authenticated_evidence_bundle(
     }
 
 
+def build_composite_agent_delegated_call_receipt(
+    *,
+    capability_contract: dict[str, Any],
+    planner_request_hash: str,
+    delegated_model: dict[str, str],
+    image_model_response_hash: str,
+    generated_artifact_hash: str,
+    requested_text_hash: str = "",
+    ocr_observed_text_hash: str = "",
+    safety_judge_result: dict[str, Any] | None = None,
+    planner_safety_claim: str | None = None,
+) -> dict[str, Any]:
+    """Bind one delegated image call and route cross-model disagreement to review."""
+    sha256_ref = re.compile(r"^sha256:[0-9a-f]{64}$")
+    required_hashes = {
+        "planner_request_hash": planner_request_hash,
+        "image_model_response_hash": image_model_response_hash,
+        "generated_artifact_hash": generated_artifact_hash,
+    }
+    if any(not sha256_ref.fullmatch(value) for value in required_hashes.values()):
+        raise ValueError("delegated-call hashes must be canonical sha256 references")
+    if set(delegated_model) != {"provider_id", "model_id", "model_version"} or any(
+        not isinstance(value, str) or not value for value in delegated_model.values()
+    ):
+        raise ValueError("delegated_model requires exact provider/model/version identity")
+    if bool(requested_text_hash) != bool(ocr_observed_text_hash):
+        raise ValueError("requested and OCR text hashes must be provided together")
+    if requested_text_hash and (
+        not sha256_ref.fullmatch(requested_text_hash)
+        or not sha256_ref.fullmatch(ocr_observed_text_hash)
+    ):
+        raise ValueError("OCR comparison hashes must be canonical sha256 references")
+    contract_core = {
+        "agent_model": capability_contract.get("agent_model"),
+        "delegated_models": capability_contract.get("delegated_models"),
+        "capabilities": capability_contract.get("capabilities"),
+    }
+    contract_valid = (
+        capability_contract.get("schema_version")
+        == "a2.composite_agent_capability_contract.v1"
+        and capability_contract.get("contract_hash") == stable_hash(contract_core)
+        and capability_contract.get("qualification_state") == "declared"
+        and not capability_contract.get("blockers")
+        and capability_contract.get("release_authority") is False
+    )
+    delegates = capability_contract.get("delegated_models") or []
+    identity_matched = any(
+        all(item.get(field) == delegated_model[field] for field in delegated_model)
+        and item.get("role") == "image_generator"
+        and "image_generation" in (item.get("capabilities") or [])
+        for item in delegates
+        if isinstance(item, dict)
+    )
+    blockers = [] if contract_valid else ["composite_agent_capability_contract_invalid"]
+    if not identity_matched:
+        blockers.append("composite_agent_delegated_model_unbound")
+    ocr_state = "not_required"
+    if requested_text_hash:
+        ocr_state = "matched" if hmac.compare_digest(requested_text_hash, ocr_observed_text_hash) else "disagreed"
+        if ocr_state == "disagreed":
+            blockers.append("composite_agent_ocr_disagreement")
+    safety = safety_judge_result or {}
+    safety_identity = {
+        field: safety.get(field, "")
+        for field in ("provider_id", "model_id", "model_version")
+    }
+    safety_valid = (
+        all(isinstance(value, str) and value for value in safety_identity.values())
+        and safety.get("release_authority") is False
+        and safety.get("status") in {"safe", "unsafe", "abstain"}
+        and safety.get("evaluated_artifact_hash") == generated_artifact_hash
+    )
+    if not safety_valid:
+        blockers.append("composite_agent_independent_safety_judge_invalid")
+    if safety.get("status") in {"unsafe", "abstain"}:
+        blockers.append(f"composite_agent_safety_judge_{safety['status']}")
+    if planner_safety_claim not in {None, "safe", "unsafe", "abstain"}:
+        raise ValueError("planner_safety_claim must be safe, unsafe, abstain, or omitted")
+    if planner_safety_claim is not None and planner_safety_claim != safety.get("status"):
+        blockers.append("composite_agent_safety_disagreement")
+    core = {
+        "capability_contract_hash": capability_contract.get("contract_hash"),
+        **required_hashes,
+        "delegated_model": dict(delegated_model),
+        "requested_text_hash": requested_text_hash,
+        "ocr_observed_text_hash": ocr_observed_text_hash,
+        "ocr_comparison_state": ocr_state,
+        "planner_safety_claim": planner_safety_claim or "",
+        "safety_judge_model": safety_identity,
+        "safety_judge_result_hash": stable_hash(safety),
+    }
+    return {
+        "schema_version": "a2.composite_agent_delegated_call_receipt.v1",
+        **core,
+        "receipt_hash": stable_hash(core),
+        "qualification_state": "review_available" if not blockers else "blocked",
+        "human_review_required": bool(blockers),
+        "release_authority": False,
+        "blockers": sorted(set(blockers)),
+        "public_safe": True,
+    }
+
+
 def build_provider_provenance_handoff(
     *,
     tenant_scope: dict[str, str],
@@ -519,6 +622,7 @@ def build_provider_provenance_handoff(
     provider_result: dict[str, Any],
     semantic_output: dict[str, Any] | None,
     bundle_verification: dict[str, Any],
+    durability_receipt: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     missing_scope = [field for field in SCOPE_FIELDS if not tenant_scope.get(field)]
     blockers = list(provider_result.get("blockers") or [])
@@ -526,6 +630,8 @@ def build_provider_provenance_handoff(
         blockers.append("scope_incomplete")
     if bundle_verification.get("manifest_authenticated") is not True:
         blockers.append("bundle_not_authenticated")
+    if durability_receipt is not None and durability_receipt.get("file_fsync_state") != "verified":
+        blockers.append("result_persistence_file_fsync_unverified")
     if provider_result.get("release_authority") is not False:
         blockers.append("provider_authority_invalid")
     if provider_result.get("status") != "completed":
@@ -554,6 +660,8 @@ def build_provider_provenance_handoff(
         handoff["response_hash"] = provider_result["response_hash"]
     if bundle_verification.get("authenticated_bundle_digest") is not None:
         handoff["bundle_digest"] = bundle_verification["authenticated_bundle_digest"]
+    if durability_receipt is not None:
+        handoff["durability_receipt_hash"] = stable_hash(durability_receipt)
     return handoff
 
 

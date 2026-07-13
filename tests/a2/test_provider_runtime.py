@@ -23,6 +23,7 @@ from services.judge.provider_runtime import (
     TenantProviderPolicy,
     build_local_smoke_evidence,
     build_composite_agent_capability_contract,
+    build_composite_agent_delegated_call_receipt,
     build_provider_provenance_handoff,
     validate_semantic_judge_output,
     verify_authenticated_evidence_bundle,
@@ -148,6 +149,156 @@ class ProviderRuntimeTests(unittest.TestCase):
         )
         self.assertIn("composite_agent_image_generator_missing", missing["blockers"])
         self.assert_schema(missing, "composite_agent_capability_contract.schema.json")
+
+    def test_round35_composite_delegated_receipt_routes_disagreement_to_review(self):
+        delegated_model = {
+            "provider_id": "internal-image",
+            "model_id": "image-2",
+            "model_version": "observed-version",
+        }
+        contract = build_composite_agent_capability_contract(
+            agent_model={
+                "provider_id": "internal-agent",
+                "model_id": "gpt-5.6-sol",
+                "model_version": "observed-version",
+            },
+            delegated_models=[
+                {
+                    **delegated_model,
+                    "role": "image_generator",
+                    "capabilities": ["image_generation", "image_text_rendering"],
+                }
+            ],
+            capabilities=["text_reasoning", "image_generation", "image_text_rendering"],
+        )
+        receipt = build_composite_agent_delegated_call_receipt(
+            capability_contract=contract,
+            planner_request_hash=stable_hash("request"),
+            delegated_model=delegated_model,
+            image_model_response_hash=stable_hash("response"),
+            generated_artifact_hash=stable_hash("artifact"),
+            requested_text_hash=stable_hash("requested"),
+            ocr_observed_text_hash=stable_hash("observed"),
+            planner_safety_claim="safe",
+            safety_judge_result={
+                "provider_id": "independent-local",
+                "model_id": "safety-judge",
+                "model_version": "observed-version",
+                "evaluated_artifact_hash": stable_hash("artifact"),
+                "status": "unsafe",
+                "release_authority": False,
+            },
+        )
+        self.assertEqual(receipt["qualification_state"], "blocked")
+        self.assertTrue(receipt["human_review_required"])
+        self.assertIn("composite_agent_ocr_disagreement", receipt["blockers"])
+        self.assertIn("composite_agent_safety_judge_unsafe", receipt["blockers"])
+        self.assertIn("composite_agent_safety_disagreement", receipt["blockers"])
+        self.assert_schema(
+            receipt, "composite_agent_delegated_call_receipt.schema.json"
+        )
+
+    def test_round35_composite_delegated_receipt_rejects_tampered_contract_and_wrong_artifact_review(self):
+        delegated_model = {
+            "provider_id": "internal-image",
+            "model_id": "image-2",
+            "model_version": "observed-version",
+        }
+        contract = build_composite_agent_capability_contract(
+            agent_model={
+                "provider_id": "internal-agent",
+                "model_id": "gpt-5.6-sol",
+                "model_version": "observed-version",
+            },
+            delegated_models=[
+                {
+                    **delegated_model,
+                    "role": "image_generator",
+                    "capabilities": ["image_generation"],
+                }
+            ],
+            capabilities=["text_reasoning", "image_generation"],
+        )
+        receipt = build_composite_agent_delegated_call_receipt(
+            capability_contract={**contract, "capabilities": ["text_reasoning"]},
+            planner_request_hash=stable_hash("request"),
+            delegated_model=delegated_model,
+            image_model_response_hash=stable_hash("response"),
+            generated_artifact_hash=stable_hash("artifact"),
+            safety_judge_result={
+                "provider_id": "independent-local",
+                "model_id": "safety-judge",
+                "model_version": "observed-version",
+                "evaluated_artifact_hash": stable_hash("different-artifact"),
+                "status": "safe",
+                "release_authority": False,
+            },
+        )
+        self.assertEqual(receipt["qualification_state"], "blocked")
+        self.assertIn("composite_agent_capability_contract_invalid", receipt["blockers"])
+        self.assertIn(
+            "composite_agent_independent_safety_judge_invalid", receipt["blockers"]
+        )
+        self.assertEqual(
+            receipt["safety_judge_model"]["model_id"], "safety-judge"
+        )
+        self.assert_schema(
+            receipt, "composite_agent_delegated_call_receipt.schema.json"
+        )
+
+    def test_round35_provider_handoff_binds_verified_durability_receipt(self):
+        scope = {
+            "organization_id": "org-a",
+            "tenant_id": "tenant-a",
+            "workspace_id": "workspace-a",
+            "project_id": "project-a",
+            "environment_id": "prod",
+        }
+        result = {
+            "status": "completed",
+            "logical_call_id": stable_hash("call"),
+            "provider_id": "unit",
+            "model_id": "model",
+            "response_hash": stable_hash("response"),
+            "release_authority": False,
+            "blockers": [],
+            "attempts": [],
+        }
+        receipt = {
+            "file_write_state": "completed",
+            "file_fsync_state": "verified",
+            "atomic_replace_state": "verified",
+            "post_replace_reopen_state": "verified",
+            "parent_directory_flush_state": "unavailable",
+        }
+        ready = build_provider_provenance_handoff(
+            tenant_scope=scope,
+            snapshot=snapshot(),
+            provider_result=result,
+            semantic_output={"validated": True},
+            bundle_verification={
+                "manifest_authenticated": True,
+                "authenticated_bundle_digest": digest(b"bundle"),
+            },
+            durability_receipt=receipt,
+        )
+        self.assertEqual(ready["durability_receipt_hash"], stable_hash(receipt))
+        self.assert_schema(ready, "provider_provenance_handoff.schema.json")
+
+        blocked = build_provider_provenance_handoff(
+            tenant_scope=scope,
+            snapshot=snapshot(),
+            provider_result=result,
+            semantic_output={"validated": True},
+            bundle_verification={
+                "manifest_authenticated": True,
+                "authenticated_bundle_digest": digest(b"bundle"),
+            },
+            durability_receipt={**receipt, "file_fsync_state": "not_exposed"},
+        )
+        self.assertIn(
+            "result_persistence_file_fsync_unverified", blocked["blockers"]
+        )
 
     @staticmethod
     def assert_schema(instance, schema_name):

@@ -12,6 +12,9 @@
   "minimum_specificity_wilson_lower": {
     "mixed_control": 0.0
   },
+  "allowed_taxonomy_classes": [
+    "mixed_control"
+  ],
   "release_authority": false,
   "public_safe": true
 }

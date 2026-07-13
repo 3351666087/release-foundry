@@ -1601,6 +1601,12 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
         ]
         metrics = apply_taxonomy_policy(labeled_cases=cases, safety_critical_case_ids=["p"], policy=policy)
         self.assertRegex(metrics["taxonomy_policy_hash"], r"^sha256:[a-f0-9]{64}$")
+        with self.assertRaisesRegex(ValueError, "allowed_taxonomy_classes"):
+            apply_taxonomy_policy(
+                labeled_cases=cases,
+                safety_critical_case_ids=["p"],
+                policy={key: value for key, value in policy.items() if key != "allowed_taxonomy_classes"},
+            )
         with self.assertRaisesRegex(ValueError, "between zero and one"):
             apply_taxonomy_policy(
                 labeled_cases=cases,
@@ -1759,13 +1765,97 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
         expected_taxonomies = set(balanced["taxonomy_classes"])
         self.assertEqual(len(expected_taxonomies), 5)
         self.assertFalse(balanced["provider_labels_used"])
-        for taxonomy in expected_taxonomies:
+
+    def test_round35_control_schemas_and_two_new_text_free_artifacts(self):
+        safe_fixture = json.loads(
+            (
+                ROOT
+                / "fixtures/a2/calibration/deterministic_safe_controls_round35.json"
+            ).read_text(encoding="utf-8")
+        )
+        self.assert_schema("deterministic_safe_controls.schema.json", safe_fixture)
+        self.assertEqual(len(safe_fixture["controls"]), 2)
+        for control in safe_fixture["controls"]:
+            artifact = ROOT / control["artifact_path"]
+            self.assertEqual(
+                "sha256:" + hashlib.sha256(artifact.read_bytes()).hexdigest(),
+                control["artifact_hash"],
+            )
+            header = artifact.read_bytes().splitlines()[:3]
+            self.assertEqual(header[0], b"P3")
+            self.assertEqual(header[1], b"16 16")
+
+        balanced = json.loads(
+            (
+                ROOT
+                / "fixtures/a2/calibration/balanced_taxonomy_controls_round34.json"
+            ).read_text(encoding="utf-8")
+        )
+        self.assert_schema("balanced_taxonomy_controls.schema.json", balanced)
+        expected = set(balanced["taxonomy_classes"])
+        observed = {
+            taxonomy: {
+                bool(case["expected_risk"])
+                for case in balanced["cases"]
+                if case["attack_taxonomy"] == taxonomy
+            }
+            for taxonomy in expected
+        }
+        self.assertTrue(all(states == {False, True} for states in observed.values()))
+        for taxonomy in expected:
             cases = [
                 case for case in balanced["cases"] if case["attack_taxonomy"] == taxonomy
             ]
             self.assertEqual(len(cases), 2)
             self.assertEqual({case["expected_risk"] for case in cases}, {False, True})
             self.assertTrue(all(not case["raw_prompt_included"] for case in cases))
+
+    def test_round35_real_runtime_matrix_and_postgresql_blocker_are_public_safe(self):
+        runtime = json.loads(
+            (
+                ROOT / "docs/evidence/a2_multimodal_runtime_matrix_round35.json"
+            ).read_text(encoding="utf-8")
+        )
+        self.assert_schema("multimodal_runtime_matrix.schema.json", runtime)
+        self.assertEqual(runtime["qualification_state"], "blocked")
+        self.assertIn(
+            "multimodal_invalid_structured_output_observed", runtime["blockers"]
+        )
+        self.assertEqual(len(runtime["trials"]), 12)
+        qwen_matrix = [
+            trial
+            for trial in runtime["trials"][:8]
+            if trial["model_id"] == "qwen3-vl:4b"
+        ]
+        self.assertEqual(
+            {
+                (trial["format_mode"], trial["num_predict"], trial["repeat"])
+                for trial in qwen_matrix
+            },
+            {
+                (mode, budget, repeat)
+                for mode in ("json", "plain")
+                for budget in (128, 256)
+                for repeat in (1, 2)
+            },
+        )
+        self.assertTrue(
+            all(not trial["raw_payload_included"] for trial in runtime["trials"])
+        )
+
+        postgres = json.loads(
+            (
+                ROOT
+                / "docs/evidence/a2_postgresql_persistence_qualification_round35.json"
+            ).read_text(encoding="utf-8")
+        )
+        self.assert_schema(
+            "postgresql_persistence_qualification.schema.json", postgres
+        )
+        self.assertEqual(postgres["real_postgresql_proof_state"], "blocked")
+        self.assertFalse(
+            postgres["claims"]["same_round_real_postgresql_verified"]
+        )
 
     def test_sidecar_rejects_malformed_provenance_hashes_before_schema_validation(self):
         with self.assertRaisesRegex(ValueError, "extraction_tool_version_hash"):

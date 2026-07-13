@@ -402,9 +402,17 @@ class A2ResultPersistenceTests(unittest.TestCase):
                     _unlock_file(held)
             self.assertFalse(outcome["admitted"])
             self.assertEqual(outcome["lock_state"], "timeout_blocked")
+            self.assertEqual(
+                outcome["lock_diagnostics"],
+                {
+                    "ownership_state": "held_by_other_process",
+                    "owner_identity_exposed": False,
+                    "wait_bucket": "under_1s",
+                },
+            )
             self.assertIn("provider_receipt_replay_lock_timeout", outcome["blockers"])
 
-    def test_round34_durability_receipt_separates_each_stage(self):
+    def test_round35_durability_receipt_separates_and_hash_binds_each_stage(self):
         with tempfile.TemporaryDirectory() as directory:
             manifest = write_jsonl(
                 Path(directory) / "result.jsonl",
@@ -418,12 +426,98 @@ class A2ResultPersistenceTests(unittest.TestCase):
             manifest["durability_receipt"],
             {
                 "file_write_state": "completed",
-                "file_fsync_state": "not_exposed",
+                "file_fsync_state": "verified",
                 "atomic_replace_state": "verified",
                 "post_replace_reopen_state": "verified",
                 "parent_directory_flush_state": "verified",
             },
         )
+        self.assertEqual(
+            manifest["durability_receipt_hash"],
+            stable_hash(manifest["durability_receipt"]),
+        )
+
+    def test_round35_jsonl_crash_injection_preserves_expected_bytes(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "result.jsonl"
+            original = b'{"case":"original"}\n'
+            path.write_bytes(original)
+
+            def crash(stage):
+                if stage == "after_file_fsync":
+                    raise RuntimeError(stage)
+
+            with self.assertRaisesRegex(RuntimeError, "after_file_fsync"):
+                write_jsonl(path, [{"case": "replacement"}], crash_injector=crash)
+            self.assertEqual(path.read_bytes(), original)
+
+            def crash_after_replace(stage):
+                if stage == "after_atomic_replace":
+                    raise RuntimeError(stage)
+
+            with self.assertRaisesRegex(RuntimeError, "after_atomic_replace"):
+                write_jsonl(
+                    path,
+                    [{"case": "replacement"}],
+                    crash_injector=crash_after_replace,
+                )
+            self.assertEqual(
+                path.read_text(encoding="utf-8"),
+                '{"case": "replacement"}\n',
+            )
+
+    def test_round35_windows_volume_observer_false_return_is_public_safe(self):
+        observed = observe_filesystem_volume_hash(
+            "C:/governed/result.jsonl",
+            platform_name="nt",
+            windows_volume_observer=lambda _root: False,
+        )
+        self.assertEqual(observed["observation_state"], "fallback")
+        self.assertEqual(observed["error_class"], "volume_api_os_error")
+        self.assertFalse(observed["raw_identifier_exposed"])
+        jsonschema.validate(
+            observed,
+            load_json(ROOT / "docs/a2/schemas/filesystem_volume_observation.schema.json"),
+        )
+
+        successful = observe_filesystem_volume_hash(
+            "C:/governed/result.jsonl",
+            platform_name="nt",
+            windows_volume_observer=lambda _root: 12345,
+        )
+        self.assertEqual(successful["observation_state"], "observed")
+        self.assertEqual(successful["error_class"], "none")
+        jsonschema.validate(
+            successful,
+            load_json(ROOT / "docs/a2/schemas/filesystem_volume_observation.schema.json"),
+        )
+
+    def test_round35_replay_snapshot_rollback_and_fork_fail_closed(self):
+        from services.judge.provider_receipt_verification import PersistentReplaySet
+
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "replay.json"
+            replay = PersistentReplaySet(path)
+            replay.admit("sha256:" + "a" * 64)
+            first_snapshot = json.loads(path.read_text(encoding="utf-8"))
+            replay.admit("sha256:" + "b" * 64)
+
+            path.write_text(json.dumps(first_snapshot), encoding="utf-8")
+            rollback = PersistentReplaySet(path, minimum_sequence_number=2).admit(
+                "sha256:" + "c" * 64
+            )
+            self.assertIn(
+                "provider_receipt_replay_snapshot_rollback", rollback["blockers"]
+            )
+
+            fork = PersistentReplaySet(
+                path,
+                minimum_sequence_number=1,
+                expected_snapshot_hash=stable_hash(
+                    {**first_snapshot, "nonce_hashes": ["sha256:" + "f" * 64]}
+                ),
+            ).admit("sha256:" + "d" * 64)
+            self.assertIn("provider_receipt_replay_snapshot_fork", fork["blockers"])
 
     def test_round34_windows_volume_errors_are_public_safe_classes(self):
         from services.judge.result_persistence import _classify_windows_volume_error
