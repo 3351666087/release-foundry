@@ -252,28 +252,35 @@ def write_jsonl(
     writer_build_hash: str = "",
     created_at: str | None = None,
     replace_function: Any | None = None,
+    filesystem_volume_id_hash: str = "",
 ) -> dict[str, Any]:
     if sequence_number < 1:
         raise ValueError("sequence_number must be positive")
     if previous_sequence_number != sequence_number - 1:
         raise ValueError("previous_sequence_number must immediately precede sequence_number")
+    if filesystem_volume_id_hash and not re.fullmatch(r"sha256:[a-f0-9]{64}", filesystem_volume_id_hash):
+        raise ValueError("filesystem_volume_id_hash must be empty or a sha256 reference")
     destination = Path(path)
     destination.parent.mkdir(parents=True, exist_ok=True)
     text = "".join(json.dumps(record, sort_keys=True) + "\n" for record in records)
     temporary = destination.with_name(destination.name + ".tmp")
-    temporary.write_text(text, encoding="utf-8")
+    temporary.write_bytes(text.encode("utf-8"))
     try:
         (replace_function or Path.replace)(temporary, destination)
     except Exception:
         temporary.unlink(missing_ok=True)
         raise
+    reopened_hash = hashlib.sha256(destination.read_bytes()).hexdigest()
+    expected_file_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    if reopened_hash != expected_file_hash:
+        raise OSError("post-replace JSONL hash mismatch")
     record_hashes = [stable_hash(record) for record in records]
     chain_hash = stable_hash(
         {
             "previous_manifest_hash": previous_manifest_hash,
             "sequence_number": sequence_number,
             "previous_sequence_number": previous_sequence_number,
-            "file_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+            "file_sha256": expected_file_hash,
             "record_hashes": record_hashes,
         }
     )
@@ -281,7 +288,7 @@ def write_jsonl(
         "schema_version": "a2.result_persistence_jsonl_manifest.v1",
         "path": destination.as_posix(),
         "record_count": len(records),
-        "file_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+        "file_sha256": expected_file_hash,
         "record_hashes": record_hashes,
         "previous_manifest_hash": previous_manifest_hash,
         "sequence_number": sequence_number,
@@ -290,6 +297,9 @@ def write_jsonl(
         "writer_build_hash": writer_build_hash,
         "created_at": created_at or datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
         "directory_fsync_state": "not_exposed",
+        "filesystem_volume_id_hash": filesystem_volume_id_hash,
+        "post_replace_reopen_state": "verified",
+        "durability_qualification_state": "atomic_replace_verified_durability_unproven",
         "chain_hash": chain_hash,
         "public_safe": True,
     }
@@ -310,6 +320,7 @@ def verify_jsonl_manifest_predecessor(
         if manifest.get("previous_manifest_hash") != stable_hash(previous_manifest):
             blockers.append("jsonl_predecessor_hash_mismatch")
     return {
+        "schema_version": "a2.result_persistence_predecessor_verification.v1",
         "state": "verified" if not blockers else "blocked",
         "release_authority": False,
         "blockers": blockers,

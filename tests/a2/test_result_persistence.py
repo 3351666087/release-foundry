@@ -105,6 +105,44 @@ class A2ResultPersistenceTests(unittest.TestCase):
             self.assertEqual(target.read_bytes(), old)
             self.assertFalse(target.with_name(target.name + ".tmp").exists())
 
+    def test_round31_volume_reopen_predecessor_schema_and_replay_snapshot(self):
+        from services.judge.provider_receipt_verification import (
+            verify_provider_receipt_signature,
+            verify_replay_set_snapshot,
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "reopen.jsonl"
+            manifest = write_jsonl(
+                path,
+                [{"case": "round31"}],
+                filesystem_volume_id_hash="sha256:" + "7" * 64,
+            )
+            self.assertEqual(manifest["post_replace_reopen_state"], "verified")
+            self.assertEqual(
+                manifest["durability_qualification_state"],
+                "atomic_replace_verified_durability_unproven",
+            )
+            predecessor = verify_jsonl_manifest_predecessor(manifest=manifest, previous_manifest=None)
+            jsonschema.validate(
+                predecessor,
+                load_json(ROOT / "docs/a2/schemas/result_persistence_predecessor_verification.schema.json"),
+            )
+        receipt = {"nonce": "public-safe"}
+        signature = verify_provider_receipt_signature(
+            receipt=receipt, issuer="test", signature_algorithm="test", verifier=lambda _: True
+        )
+        jsonschema.validate(
+            signature,
+            load_json(ROOT / "docs/a2/schemas/provider_receipt_signature_verification.schema.json"),
+        )
+        snapshot = {"receipt_hashes": ["sha256:" + "8" * 64], "nonce_hashes": ["sha256:" + "9" * 64]}
+        good = verify_replay_set_snapshot(snapshot=snapshot, expected_snapshot_hash=stable_hash(snapshot))
+        bad = verify_replay_set_snapshot(
+            snapshot={**snapshot, "nonce_hashes": []}, expected_snapshot_hash=stable_hash(snapshot)
+        )
+        self.assertEqual(good["state"], "verified")
+        self.assertIn("provider_receipt_replay_set_tampered", bad["blockers"])
+
     def test_jsonl_manifest_chains_batches_and_blocks_truncated_line(self):
         with tempfile.TemporaryDirectory() as directory:
             first_path = Path(directory) / "first.jsonl"

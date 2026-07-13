@@ -1323,6 +1323,10 @@ def evaluate_cancellation_acknowledgement(
     observed_at: str = "",
     maximum_age_seconds: float = 300,
     previously_seen_receipt_hashes: list[str] | None = None,
+    receipt_nonce_hash: str = "",
+    previously_seen_nonce_hashes: list[str] | None = None,
+    allowed_receipt_issuers: list[str] | None = None,
+    signature_verification: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Classify provider cancellation evidence without inventing acknowledgement."""
     allowed = {"acknowledged", "rejected", "unavailable"}
@@ -1335,6 +1339,7 @@ def evaluate_cancellation_acknowledgement(
         if _SHA256_REF.fullmatch(value) is None:
             raise ValueError(f"{name} must be a sha256 reference")
     _require_optional_sha256_ref(provider_receipt_hash, field_name="provider_receipt_hash")
+    _require_optional_sha256_ref(receipt_nonce_hash, field_name="receipt_nonce_hash")
     blockers = {
         "acknowledged": [],
         "rejected": ["provider_cancellation_rejected"],
@@ -1344,8 +1349,25 @@ def evaluate_cancellation_acknowledgement(
         blockers.append("provider_cancellation_receipt_missing")
     if acknowledgement_state == "acknowledged" and (not receipt_issuer or not signature_algorithm):
         blockers.append("provider_cancellation_receipt_identity_missing")
+    if acknowledgement_state == "acknowledged" and not receipt_nonce_hash:
+        blockers.append("provider_cancellation_receipt_nonce_missing")
+    if allowed_receipt_issuers is not None and receipt_issuer not in set(allowed_receipt_issuers):
+        blockers.append("provider_cancellation_receipt_issuer_not_allowed")
+    verification = dict(signature_verification or {})
+    if acknowledgement_state == "acknowledged":
+        if verification.get("schema_version") != "a2.provider_receipt_signature_verification.v1":
+            blockers.append("provider_cancellation_signature_verification_missing")
+        elif (
+            verification.get("verification_state") != "verified"
+            or verification.get("receipt_hash") != provider_receipt_hash
+            or verification.get("issuer") != receipt_issuer
+            or verification.get("signature_algorithm") != signature_algorithm
+        ):
+            blockers.append("provider_cancellation_signature_verification_failed")
     if provider_receipt_hash and provider_receipt_hash in set(previously_seen_receipt_hashes or []):
         blockers.append("provider_cancellation_receipt_replayed")
+    if receipt_nonce_hash and receipt_nonce_hash in set(previously_seen_nonce_hashes or []):
+        blockers.append("provider_cancellation_receipt_nonce_replayed")
     if issued_at or observed_at:
         try:
             issued = datetime.fromisoformat(issued_at)
@@ -1362,11 +1384,13 @@ def evaluate_cancellation_acknowledgement(
         "provider_endpoint_hash": provider_endpoint_hash,
         "runtime_version_hash": runtime_version_hash,
         "provider_receipt_hash": provider_receipt_hash,
+        "receipt_nonce_hash": receipt_nonce_hash,
         "receipt_issuer": receipt_issuer,
         "signature_algorithm": signature_algorithm,
         "issued_at": issued_at,
         "observed_at": observed_at,
         "maximum_age_seconds": maximum_age_seconds,
+        "signature_verification": verification,
         "request_cancellation_proven": acknowledgement_state == "acknowledged" and not blockers,
         "release_authority": False,
         "blockers": blockers,
@@ -1382,6 +1406,7 @@ def summarize_runtime_recoveries(
     health_response_hashes: list[str] | None = None,
     health_endpoint_hashes: list[str] | None = None,
     health_status_codes: list[int] | None = None,
+    health_semantic_states: list[str] | None = None,
 ) -> dict[str, Any]:
     if not recovery_latency_seconds or any(value < 0 for value in recovery_latency_seconds):
         raise ValueError("recovery latencies must be non-empty and non-negative")
@@ -1392,6 +1417,7 @@ def summarize_runtime_recoveries(
     health_response_hashes = list(health_response_hashes or [])
     health_endpoint_hashes = list(health_endpoint_hashes or [])
     health_status_codes = list(health_status_codes or [])
+    health_semantic_states = list(health_semantic_states or [])
     for value in health_response_hashes:
         if _SHA256_REF.fullmatch(value) is None:
             raise ValueError("health response hashes must be sha256 references")
@@ -1408,6 +1434,13 @@ def summarize_runtime_recoveries(
         blockers.append("runtime_recovery_health_hash_coverage_not_met")
     if len(health_endpoint_hashes) != len(ordered) or len(health_status_codes) != len(ordered):
         blockers.append("runtime_recovery_health_binding_coverage_not_met")
+    if len(health_semantic_states) != len(ordered):
+        blockers.append("runtime_recovery_health_semantic_coverage_not_met")
+    else:
+        for status, semantic_state in zip(health_status_codes, health_semantic_states):
+            if (200 <= status < 300) != (semantic_state == "healthy"):
+                blockers.append("runtime_recovery_health_status_semantic_mismatch")
+                break
     return {
         "observation_count": len(ordered),
         "minimum_observations": minimum_observations,
@@ -1417,6 +1450,7 @@ def summarize_runtime_recoveries(
         "health_response_hashes": health_response_hashes,
         "health_endpoint_hashes": health_endpoint_hashes,
         "health_status_codes": health_status_codes,
+        "health_semantic_states": health_semantic_states,
         "maximum_p95_recovery_latency_seconds": maximum_p95_seconds,
         "qualification_state": "review_available" if not blockers else "blocked",
         "release_authority": False,
@@ -1443,13 +1477,18 @@ def apply_taxonomy_policy(
             not isinstance(value, int) or isinstance(value, bool) for value in policy[key].values()
         ):
             raise ValueError(f"{key} must contain integer thresholds")
+        if any(value < 1 for value in policy[key].values()):
+            raise ValueError(f"{key} thresholds must be at least one")
     for key in ("minimum_recall_wilson_lower", "minimum_specificity_wilson_lower"):
         if not isinstance(policy.get(key), dict) or any(
             not isinstance(value, (int, float)) or isinstance(value, bool)
             for value in policy[key].values()
         ):
             raise ValueError(f"{key} must contain numeric thresholds")
-    return evaluate_multimodal_safety_metrics(
+        if any(not 0 <= float(value) <= 1 for value in policy[key].values()):
+            raise ValueError(f"{key} thresholds must be between zero and one")
+    policy_hash = stable_hash(policy)
+    result = evaluate_multimodal_safety_metrics(
         labeled_cases=labeled_cases,
         safety_critical_case_ids=safety_critical_case_ids,
         taxonomy_minimum_positive_denominators=policy.get("minimum_positive_denominators"),
@@ -1457,12 +1496,17 @@ def apply_taxonomy_policy(
         taxonomy_minimum_recall_wilson_lower=policy.get("minimum_recall_wilson_lower"),
         taxonomy_minimum_specificity_wilson_lower=policy.get("minimum_specificity_wilson_lower"),
     )
+    result["taxonomy_policy_hash"] = policy_hash
+    return result
 
 
 def validate_runtime_binding(*, receipt: dict[str, Any]) -> dict[str, Any]:
     fields = {
         key: receipt.get(key)
-        for key in ("provider_id", "model_id", "model_version", "request_hash", "runtime_environment_hash")
+        for key in (
+            "provider_id", "model_id", "model_version", "request_hash",
+            "runtime_environment_hash", "ollama_version_observation_hash",
+        )
     }
     observed = stable_hash(fields)
     matched = hmac.compare_digest(observed, str(receipt.get("runtime_binding_hash") or ""))

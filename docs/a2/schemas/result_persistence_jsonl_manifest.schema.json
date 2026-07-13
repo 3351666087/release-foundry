@@ -17,7 +17,10 @@
     "directory_fsync_state",
     "writer_build_hash",
     "chain_hash",
-    "public_safe"
+    "public_safe",
+    "filesystem_volume_id_hash",
+    "post_replace_reopen_state",
+    "durability_qualification_state"
   ],
   "properties": {
     "schema_version": {
@@ -79,6 +82,20 @@
     "writer_build_hash": {
       "type": "string",
       "pattern": "^(|sha256:[a-f0-9]{64})$"
+    },
+    "filesystem_volume_id_hash": {
+      "type": "string",
+      "pattern": "^(|sha256:[a-f0-9]{64})$"
+    },
+    "post_replace_reopen_state": {
+      "const": "verified"
+    },
+    "durability_qualification_state": {
+      "enum": [
+        "atomic_replace_verified_durability_unproven",
+        "durability_verified",
+        "blocked"
+      ]
     }
   }
 }

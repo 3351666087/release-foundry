@@ -81,6 +81,14 @@
           },
           "external_provenance_only": {
             "type": "boolean"
+          },
+          "provenance_url_hash": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
+          "license_evidence_hash": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
           }
         }
       }

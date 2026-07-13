@@ -19,7 +19,8 @@
     "semantic_output_observed",
     "release_authority",
     "blockers",
-    "public_safe"
+    "public_safe",
+    "ollama_version_observation_hash"
   ],
   "properties": {
     "schema_version": {
@@ -88,6 +89,10 @@
       "pattern": "^sha256:[a-f0-9]{64}$"
     },
     "runtime_environment_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "ollama_version_observation_hash": {
       "type": "string",
       "pattern": "^sha256:[a-f0-9]{64}$"
     }

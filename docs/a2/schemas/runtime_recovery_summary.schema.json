@@ -13,6 +13,7 @@
     "health_response_hashes",
     "health_endpoint_hashes",
     "health_status_codes",
+    "health_semantic_states",
     "qualification_state",
     "release_authority",
     "blockers",
@@ -82,6 +83,16 @@
         "type": "integer",
         "minimum": 100,
         "maximum": 599
+      }
+    },
+    "health_semantic_states": {
+      "type": "array",
+      "items": {
+        "enum": [
+          "healthy",
+          "unhealthy",
+          "unknown"
+        ]
       }
     }
   }

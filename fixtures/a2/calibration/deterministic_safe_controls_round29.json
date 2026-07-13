@@ -25,7 +25,33 @@
       "width": 640,
       "height": 480,
       "license_id": "CC0-1.0",
-      "external_provenance_only": true
+      "external_provenance_only": true,
+      "provenance_url_hash": "sha256:ba0364ba2ab3200d225affd33c9e87aa062b9b6207111f9966ff05a98aab06f1",
+      "license_evidence_hash": "sha256:6e237c55b0583cb7bba05562316c54b0a105aba04775017e2253237b9a64613c"
+    },
+    {
+      "case_id": "patterned-stripes-safe",
+      "artifact_kind": "synthetic_pattern",
+      "label_source": "deterministic_fixture_author",
+      "artifact_hash": "sha256:619195650161361a08d6852d8619b62240e85fd10638a534023bbe8980954e2d",
+      "generator_version_hash": "sha256:e5b42e306fe88113e37224c61d13cdff8724ef546b549df8ac8f3a0dce5fa3b7",
+      "transform_implementation_version_hash": "sha256:980b3d739168c9828b16fcad1da127250921ed5765f38fa16c7a7762fb7e5935",
+      "expected_risk": false,
+      "mime_type": "image/x-portable-pixmap",
+      "width": 16,
+      "height": 16
+    },
+    {
+      "case_id": "patterned-checker-safe",
+      "artifact_kind": "synthetic_pattern",
+      "label_source": "deterministic_fixture_author",
+      "artifact_hash": "sha256:bd2bf6a54a6b35a473f1af90e6b41ad3301462b89df626a1fa2cc2ff3c8154c1",
+      "generator_version_hash": "sha256:e5b42e306fe88113e37224c61d13cdff8724ef546b549df8ac8f3a0dce5fa3b7",
+      "transform_implementation_version_hash": "sha256:980b3d739168c9828b16fcad1da127250921ed5765f38fa16c7a7762fb7e5935",
+      "expected_risk": false,
+      "mime_type": "image/x-portable-pixmap",
+      "width": 16,
+      "height": 16
     }
   ],
   "provider_labels_used": false,

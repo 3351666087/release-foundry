@@ -1465,6 +1465,9 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
             issued_at=fixture["issued_at"],
             observed_at=fixture["observed_at"],
             maximum_age_seconds=fixture["maximum_age_seconds"],
+            receipt_nonce_hash=fixture["receipt_nonce_hash"],
+            allowed_receipt_issuers=[fixture["receipt_issuer"]],
+            signature_verification=fixture["signature_verification"],
         )
         observed["schema_version"] = fixture["schema_version"]
         self.assert_schema("provider_cancellation_acknowledgement.schema.json", observed)
@@ -1482,6 +1485,7 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
             health_response_hashes=["sha256:" + str(index) * 64 for index in range(1, 4)],
             health_endpoint_hashes=["sha256:" + str(index + 3) * 64 for index in range(1, 4)],
             health_status_codes=[200, 200, 200],
+            health_semantic_states=["healthy", "healthy", "healthy"],
         )
         self.assert_schema("runtime_recovery_summary.schema.json", recovery)
 
@@ -1545,6 +1549,63 @@ class LocalMultimodalCalibrationTests(unittest.TestCase):
                 safety_critical_case_ids=["x"],
                 policy={**policy, "minimum_positive_denominators": {"x": True}},
             )
+
+    def test_round31_receipt_signature_nonce_issuer_and_health_semantics_fail_closed(self):
+        verification = {
+            "schema_version": "a2.provider_receipt_signature_verification.v1",
+            "receipt_hash": "sha256:" + "3" * 64,
+            "issuer": "unknown",
+            "signature_algorithm": "ed25519",
+            "verification_state": "verified",
+        }
+        result = evaluate_cancellation_acknowledgement(
+            acknowledgement_state="acknowledged",
+            provider_endpoint_hash="sha256:" + "1" * 64,
+            runtime_version_hash="sha256:" + "2" * 64,
+            provider_receipt_hash="sha256:" + "3" * 64,
+            receipt_nonce_hash="sha256:" + "4" * 64,
+            receipt_issuer="unknown",
+            signature_algorithm="ed25519",
+            issued_at="2026-07-13T10:00:00+08:00",
+            observed_at="2026-07-13T10:00:01+08:00",
+            previously_seen_nonce_hashes=["sha256:" + "4" * 64],
+            allowed_receipt_issuers=["trusted"],
+            signature_verification=verification,
+        )
+        self.assertFalse(result["request_cancellation_proven"])
+        self.assertIn("provider_cancellation_receipt_issuer_not_allowed", result["blockers"])
+        self.assertIn("provider_cancellation_receipt_nonce_replayed", result["blockers"])
+        recovery = summarize_runtime_recoveries(
+            recovery_latency_seconds=[1],
+            maximum_p95_seconds=2,
+            health_response_hashes=["sha256:" + "5" * 64],
+            health_endpoint_hashes=["sha256:" + "6" * 64],
+            health_status_codes=[503],
+            health_semantic_states=["healthy"],
+        )
+        self.assertIn("runtime_recovery_health_status_semantic_mismatch", recovery["blockers"])
+
+    def test_round31_taxonomy_ranges_policy_hash_and_pattern_dimensions(self):
+        policy = json.loads(
+            (ROOT / "fixtures/a2/calibration/multimodal_mixed_taxonomy_policy_round28.json").read_text()
+        )
+        cases = [
+            {"case_id": "p", "attack_taxonomy": "mixed_control", "expected_risk": True, "observed_risk": True},
+            {"case_id": "n", "attack_taxonomy": "mixed_control", "expected_risk": False, "observed_risk": False},
+        ]
+        metrics = apply_taxonomy_policy(labeled_cases=cases, safety_critical_case_ids=["p"], policy=policy)
+        self.assertRegex(metrics["taxonomy_policy_hash"], r"^sha256:[a-f0-9]{64}$")
+        with self.assertRaisesRegex(ValueError, "between zero and one"):
+            apply_taxonomy_policy(
+                labeled_cases=cases,
+                safety_critical_case_ids=["p"],
+                policy={**policy, "minimum_recall_wilson_lower": {"mixed_control": 1.1}},
+            )
+        for name in ("patterned_safe_control_round31_stripes.ppm", "patterned_safe_control_round31_checker.ppm"):
+            data = (ROOT / "fixtures/a2/calibration" / name).read_bytes()
+            header = data.split(b"\n", 3)
+            self.assertEqual(header[0], b"P6")
+            self.assertEqual(header[1], b"16 16")
 
     def test_sidecar_rejects_malformed_provenance_hashes_before_schema_validation(self):
         with self.assertRaisesRegex(ValueError, "extraction_tool_version_hash"):

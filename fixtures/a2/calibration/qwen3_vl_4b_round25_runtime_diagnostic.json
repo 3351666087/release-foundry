@@ -17,6 +17,7 @@
     "multimodal_runtime_valid_semantic_output_rate_not_met"
   ],
   "public_safe": true,
-  "runtime_binding_hash": "sha256:8da56b9baf5d221740111530b1e9467b59fa19ed88d5ed1aae032976d83d2ffd",
-  "runtime_environment_hash": "sha256:6666666666666666666666666666666666666666666666666666666666666666"
+  "runtime_binding_hash": "sha256:fc1e6d0e9411f7aaeea264c352c19ff1f329604d568db888529852bd173c6680",
+  "runtime_environment_hash": "sha256:6666666666666666666666666666666666666666666666666666666666666666",
+  "ollama_version_observation_hash": "sha256:8eb1b93d4f3e5fc4f276040088baadf65f50420880def69865611972d57b97e2"
 }

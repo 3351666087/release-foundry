@@ -9,12 +9,14 @@
     "provider_endpoint_hash",
     "runtime_version_hash",
     "provider_receipt_hash",
+    "receipt_nonce_hash",
     "request_cancellation_proven",
     "receipt_issuer",
     "signature_algorithm",
     "issued_at",
     "observed_at",
     "maximum_age_seconds",
+    "signature_verification",
     "release_authority",
     "blockers",
     "public_safe"
@@ -73,6 +75,44 @@
     "maximum_age_seconds": {
       "type": "number",
       "exclusiveMinimum": 0
+    },
+    "receipt_nonce_hash": {
+      "type": "string",
+      "pattern": "^(|sha256:[a-f0-9]{64})$"
+    },
+    "signature_verification": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "schema_version",
+        "receipt_hash",
+        "issuer",
+        "signature_algorithm",
+        "verification_state"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "a2.provider_receipt_signature_verification.v1"
+        },
+        "receipt_hash": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "issuer": {
+          "type": "string",
+          "minLength": 1
+        },
+        "signature_algorithm": {
+          "type": "string",
+          "minLength": 1
+        },
+        "verification_state": {
+          "enum": [
+            "verified",
+            "rejected"
+          ]
+        }
+      }
     }
   }
 }
