@@ -5682,6 +5682,11 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
       `- Unassigned: ${multimodalReviewQueue.summary.assignment_unassigned_count}`,
       `- Expired leases: ${multimodalReviewQueue.summary.assignment_expired_count}`,
       `- Assignment events: ${multimodalReviewQueue.summary.assignment_event_count}`,
+      `- Evidence requests: ${multimodalReviewQueue.summary.evidence_request_count}`,
+      `- Evidence requests open: ${multimodalReviewQueue.summary.evidence_request_open_count}`,
+      `- Evidence requests overdue: ${multimodalReviewQueue.summary.evidence_request_overdue_count}`,
+      `- Evidence submitted for review: ${multimodalReviewQueue.summary.evidence_request_submitted_count}`,
+      `- Evidence requests accepted: ${multimodalReviewQueue.summary.evidence_request_accepted_count}`,
       `- Can change release decision: ${multimodalReviewQueue.authority_boundary.can_change_release_decision ? "yes" : "no"}`,
       `- Candidate binding verified: ${multimodalReviewQueue.authority_boundary.candidate_binding_verified ? "yes" : "no"}`,
       ""
@@ -5698,7 +5703,10 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
             return `${provider.provider_key}=${observation}`;
           }).join(" vs ")
         : `${item.left_model}=${item.left_observed_risk} vs ${item.right_model}=${item.right_observed_risk}`;
-      lines.push(`- ${item.case_id}: ${item.comparison_scope}${item.repeat ? ` #${item.repeat}` : ""} / ${providerComparison} / ${item.queue_state} / assignment ${item.assignment_status} v${item.assignment_version} / release authority no`);
+      const evidenceRequestState = item.evidence_requests?.length
+        ? item.evidence_requests.map((request) => `${request.status} v${request.version}`).join(", ")
+        : "none";
+      lines.push(`- ${item.case_id}: ${item.comparison_scope}${item.repeat ? ` #${item.repeat}` : ""} / ${providerComparison} / ${item.queue_state} / assignment ${item.assignment_status} v${item.assignment_version} / evidence requests ${evidenceRequestState} / release authority no`);
     }
     lines.push("");
   }
@@ -6425,7 +6433,15 @@ export function summarizeMultimodalReviewQueueExport(queue = {}) {
       assignment_expired_count: numberOrDefault(summary.assignment_expired_count, 0),
       assignment_unassigned_count: numberOrDefault(summary.assignment_unassigned_count, 0),
       assignment_event_count: numberOrDefault(summary.assignment_event_count, 0),
-      assignment_invalid_event_count: numberOrDefault(summary.assignment_invalid_event_count, 0)
+      assignment_invalid_event_count: numberOrDefault(summary.assignment_invalid_event_count, 0),
+      evidence_request_count: numberOrDefault(summary.evidence_request_count, 0),
+      evidence_request_open_count: numberOrDefault(summary.evidence_request_open_count, 0),
+      evidence_request_overdue_count: numberOrDefault(summary.evidence_request_overdue_count, 0),
+      evidence_request_submitted_count: numberOrDefault(summary.evidence_request_submitted_count, 0),
+      evidence_request_accepted_count: numberOrDefault(summary.evidence_request_accepted_count, 0),
+      evidence_request_cancelled_count: numberOrDefault(summary.evidence_request_cancelled_count, 0),
+      evidence_request_event_count: numberOrDefault(summary.evidence_request_event_count, 0),
+      evidence_request_invalid_event_count: numberOrDefault(summary.evidence_request_invalid_event_count, 0)
     },
     authority_boundary: {
       upstream_release_authority: authority.upstream_release_authority === true,
@@ -6435,7 +6451,10 @@ export function summarizeMultimodalReviewQueueExport(queue = {}) {
       candidate_binding_verified: authority.candidate_binding_verified === true,
       can_change_release_decision: authority.can_change_release_decision === true,
       assignment_events_release_authority: authority.assignment_events_release_authority === true,
-      assignment_events_change_a2_decision: authority.assignment_events_change_a2_decision === true
+      assignment_events_change_a2_decision: authority.assignment_events_change_a2_decision === true,
+      evidence_request_acceptance_is_human_disposition: authority.evidence_request_acceptance_is_human_disposition === true,
+      evidence_requests_release_authority: authority.evidence_requests_release_authority === true,
+      evidence_requests_change_a2_decision: authority.evidence_requests_change_a2_decision === true
     },
     review_packet: {
       available: reviewPacketAvailable,
@@ -6454,6 +6473,8 @@ export function summarizeMultimodalReviewQueueExport(queue = {}) {
     items: items.slice(0, 100).map((item) => {
       const operational = objectOr(item.operational_state);
       const history = Array.isArray(item.assignment_history) ? item.assignment_history : [];
+      const evidenceRequestSummary = objectOr(item.evidence_request_summary);
+      const evidenceRequests = Array.isArray(item.evidence_requests) ? item.evidence_requests : [];
       return ({
       queue_id: item.queue_id,
       case_id: item.case_id,
@@ -6510,6 +6531,41 @@ export function summarizeMultimodalReviewQueueExport(queue = {}) {
         release_authority: false,
         a2_decision_recomputed: false
       })),
+      evidence_request_summary: {
+        total_count: numberOrDefault(evidenceRequestSummary.total_count, evidenceRequests.length),
+        open_count: numberOrDefault(evidenceRequestSummary.open_count, 0),
+        overdue_count: numberOrDefault(evidenceRequestSummary.overdue_count, 0),
+        submitted_count: numberOrDefault(evidenceRequestSummary.submitted_count, 0),
+        accepted_count: numberOrDefault(evidenceRequestSummary.accepted_count, 0),
+        cancelled_count: numberOrDefault(evidenceRequestSummary.cancelled_count, 0),
+        integrity_failed_count: numberOrDefault(evidenceRequestSummary.integrity_failed_count, 0)
+      },
+      evidence_requests: evidenceRequests.slice(0, 50).map((request) => ({
+        request_id: request.request_id,
+        status: request.status,
+        version: numberOrDefault(request.version, 0),
+        owner_lane: request.owner_lane,
+        required_evidence_kinds: Array.isArray(request.required_evidence_kinds) ? request.required_evidence_kinds : [],
+        submitted_evidence_kinds: Array.isArray(request.submitted_evidence_kinds) ? request.submitted_evidence_kinds : [],
+        evidence_refs: (Array.isArray(request.evidence_refs) ? request.evidence_refs : []).slice(0, 24).map((reference) => ({
+          kind: reference.kind,
+          evidence_hash: reference.evidence_hash,
+          ...(reference.binding_hash ? { binding_hash: reference.binding_hash } : {})
+        })),
+        due_at: request.due_at || null,
+        overdue: request.overdue === true,
+        last_action: request.last_action || null,
+        last_action_at: request.last_action_at || null,
+        last_reason_code: request.last_reason_code || null,
+        event_count: numberOrDefault(request.event_count, 0),
+        terminal_event_hash: request.terminal_event_hash || null,
+        integrity_status: request.integrity?.status || "unknown",
+        evidence_accepted: request.authority_boundary?.evidence_accepted === true,
+        authoritative_human_disposition_recorded: false,
+        release_authority: false,
+        a2_decision_recomputed: false,
+        release_decision_changed: false
+      })),
       authoritative_disposition_recorded: false,
       release_authority: false
     });
@@ -6520,6 +6576,9 @@ export function summarizeMultimodalReviewQueueExport(queue = {}) {
       signed_url_included: false,
       raw_reviewer_identity_included: false,
       assignment_history_metadata_only: true,
+      evidence_request_hash_references_only: true,
+      raw_evidence_included: false,
+      evidence_request_acceptance_is_human_disposition: false,
       release_decision_recomputed: false
     },
     recommendation: "Require an authoritative human-review resolution and same-candidate Decision Ledger before any release-state change."

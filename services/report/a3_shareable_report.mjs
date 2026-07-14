@@ -195,6 +195,7 @@ export function renderShareableReportHtml(report = {}) {
   const summary = report.summary || payload.summary || {};
   const releaseGate = report.release_gate || payload.release_gate || {};
   const releaseEvidence = report.release_evidence_summary || payload.release_evidence_summary || {};
+  const multimodalReviewQueue = report.multimodal_review_queue || payload.multimodal_review_queue || {};
   const cases = Array.isArray(payload.cases) ? payload.cases.slice(0, 12) : [];
   const status = report.status || "unknown";
 
@@ -255,6 +256,8 @@ export function renderShareableReportHtml(report = {}) {
     </section>
 
     ${renderReleaseEvidenceHtml(releaseEvidence)}
+
+    ${renderMultimodalEvidenceRequestsHtml(multimodalReviewQueue)}
 
     <section style="margin-top: 20px;">
       <h2>Case Evidence</h2>
@@ -367,6 +370,51 @@ function renderReleaseEvidenceHtml(releaseEvidence = {}) {
         </tbody>
       </table>
     </section>`;
+}
+
+function renderMultimodalEvidenceRequestsHtml(queue = {}) {
+  if (queue.available !== true) return "";
+  const summary = queue.summary || {};
+  const rows = (Array.isArray(queue.items) ? queue.items : []).flatMap((item) => (
+    (Array.isArray(item.evidence_requests) ? item.evidence_requests : []).map((request) => ({
+      case_id: item.case_id || "unknown",
+      status: request.status || "unknown",
+      owner_lane: request.owner_lane || "unknown",
+      required_kinds: Array.isArray(request.required_evidence_kinds) ? request.required_evidence_kinds.join(", ") : "none",
+      submitted_hashes: (Array.isArray(request.evidence_refs) ? request.evidence_refs : [])
+        .map((reference) => `${reference.kind || "evidence"}:${hashPrefix(reference.evidence_hash)}`)
+        .join(", ") || "pending",
+      due_at: request.due_at || "unknown",
+      event_count: request.event_count || 0
+    }))
+  ));
+  return `<section class="card" style="margin-top: 20px;">
+      <h2>Multimodal Review Evidence Requests</h2>
+      <p class="muted">Hash-only coordination records. Evidence acceptance is not a human disposition and cannot change A2 grading or release authority.</p>
+      <div class="grid" aria-label="Evidence request metrics">
+        ${metric("Requests", summary.evidence_request_count || 0)}
+        ${metric("Open", summary.evidence_request_open_count || 0)}
+        ${metric("Overdue", summary.evidence_request_overdue_count || 0)}
+        ${metric("Submitted", summary.evidence_request_submitted_count || 0)}
+        ${metric("Accepted", summary.evidence_request_accepted_count || 0)}
+      </div>
+      ${rows.length ? `<table>
+        <thead><tr><th>Case</th><th>Status</th><th>Owner</th><th>Required evidence</th><th>Submitted hashes</th><th>Due</th></tr></thead>
+        <tbody>${rows.map((row) => `<tr>
+          <td>${escapeHtml(row.case_id)}</td>
+          <td>${escapeHtml(row.status)}</td>
+          <td>${escapeHtml(row.owner_lane)}</td>
+          <td>${escapeHtml(row.required_kinds)}</td>
+          <td>${escapeHtml(row.submitted_hashes)}</td>
+          <td>${escapeHtml(row.due_at)} / ${escapeHtml(row.event_count)} event(s)</td>
+        </tr>`).join("")}</tbody>
+      </table>` : `<p class="muted">No evidence requests are recorded for this report snapshot.</p>`}
+    </section>`;
+}
+
+function hashPrefix(value) {
+  const text = String(value || "missing");
+  return text.length > 22 ? `${text.slice(0, 18)}...` : text;
 }
 
 function normalizeVisibility(value) {

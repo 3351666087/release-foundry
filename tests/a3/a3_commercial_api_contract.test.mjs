@@ -45,6 +45,10 @@ test("A3 commercial API contract maps SaaS /v1 routes to product surfaces", asyn
     "POST /v1/release-gates/{release_gate_id}/approvals",
     "POST /v1/release-gates/{release_gate_id}/denials",
     "POST /v1/review-queues/multimodal/{queue_id}/assignment",
+    "GET /v1/review-queues/multimodal/{queue_id}/evidence-requests",
+    "POST /v1/review-queues/multimodal/{queue_id}/evidence-requests",
+    "POST /v1/review-queues/multimodal/{queue_id}/evidence-requests/{request_id}/submissions",
+    "POST /v1/review-queues/multimodal/{queue_id}/evidence-requests/{request_id}/reviews",
     "POST /v1/releases/{release_id}/deployment-receipts",
     "POST /v1/releases/{release_id}/deployment-receipts/{receipt_id}/reviews",
     "POST /internal/v1/releases/{release_id}/deployment-receipts/{receipt_id}/verify",
@@ -154,12 +158,15 @@ test("A3 API exposes commercial API contract and DB migration coverage", async (
 
   assert.equal(A3_DB_CONTRACT.tables.includes("commercial_api_contracts"), true);
   assert.equal(A3_DB_CONTRACT.tables.includes("multimodal_review_assignment_events"), true);
+  assert.equal(A3_DB_CONTRACT.tables.includes("multimodal_review_evidence_request_events"), true);
   assert.equal(A3_DB_CONTRACT.api_surfaces.includes("GET /api/a3/commercial-api/contract"), true);
   assert.equal(A3_DB_CONTRACT.api_surfaces.includes("POST /api/a3/review/multimodal-queue/:queueId/assignment"), true);
+  assert.equal(A3_DB_CONTRACT.api_surfaces.includes("POST /api/a3/review/multimodal-queue/:queueId/evidence-requests/:requestId/review"), true);
   const migrations = buildA3SqlMigrationPlan();
   assert.equal(migrations.statements.some((statement) => statement.tables.includes("commercial_api_contracts")), true);
   assert.equal(migrations.statements.some((statement) => statement.tables.includes("billing_migration_readiness")), true);
   assert.equal(migrations.statements.some((statement) => statement.tables.includes("deployment_receipts")), true);
   assert.equal(migrations.statements.some((statement) => statement.tables.includes("deployment_receipt_readbacks")), true);
   assert.equal(migrations.statements.some((statement) => statement.tables.includes("multimodal_review_assignment_events")), true);
+  assert.equal(migrations.statements.some((statement) => statement.tables.includes("multimodal_review_evidence_request_events")), true);
 });

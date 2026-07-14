@@ -24,15 +24,15 @@ export type ApiEndpoint = {
 };
 
 export const apiReferenceMeta = {
-  schemaVersion: "a3.api_reference.v12",
+  schemaVersion: "a3.api_reference.v13",
   calibratedAt: "2026-07-14",
   mainSha: "ccf6ce5",
   a1Sha: "c784163",
   a2Sha: "8cd1d4f",
   a1SourceState: "merged_to_main",
   a2SourceState: "merged_to_main",
-  a1IdentityPeerSha: "770ccc8",
-  a1IdentityPeerState: "peer_branch_live_postgres_evidence_not_merged",
+  a1IdentityPeerSha: "6a985b8",
+  a1IdentityPeerState: "peer_branch_identity_authority_readiness_not_merged",
   a2MultimodalPeerSha: "bb3bcfe",
   a2MultimodalPeerState: "peer_branch_contract_not_merged",
   a2MultimodalSupportedSchemas: [
@@ -478,6 +478,149 @@ export const apiEndpoints: ApiEndpoint[] = [
       { zh: "锁默认 15 分钟，支持过期回收；expected_version 过旧时返回 409。", en: "Leases default to 15 minutes, can be reclaimed after expiry, and stale expected_version writes return 409." },
       { zh: "完整历史可生成 a3.multimodal_review_assignment_packet.v1，先通过根哈希校验，再作为 review_record 进入 Ed25519 签名的 Audit Archive。", en: "Complete history can produce a3.multimodal_review_assignment_packet.v1, pass root-hash verification, and enter the Ed25519-signed Audit Archive as a review_record." },
       { zh: "这是人员协作状态，不是 A2 的真人复核凭证，也不会改变发布决定。", en: "This is human coordination state, not an A2 review receipt, and it cannot change the release decision." }
+    ]
+  },
+  {
+    id: "a3-multimodal-evidence-request-list",
+    group: "judge",
+    owner: "A1/A2/A3",
+    method: "GET",
+    path: "/api/a3/review/multimodal-queue/{queueId}/evidence-requests",
+    title: { zh: "读取审核补证请求", en: "Read review evidence requests" },
+    description: {
+      zh: "查看某个多模态分歧案例还缺哪些执行、评测、媒体或候选版本证据，以及补证是否超期。",
+      en: "Read missing execution, evaluation, media, or candidate evidence and deadline state for one multimodal disagreement."
+    },
+    auth: { zh: "服务端验证身份 + release:review + 五级租户范围", en: "Server-verified principal, release:review, and five-level scope" },
+    status: "implemented",
+    source: "A3 OpenAPI 2026-07-14 / hash-only evidence request workflow",
+    response: {
+      schema_version: "a3.multimodal_review_evidence_request_list.v1",
+      summary: { total_count: 1, open_count: 1, overdue_count: 0, accepted_count: 0 },
+      requests: [{
+        request_id: "mmreq_[REDACTED_HASH]",
+        status: "open",
+        version: 1,
+        owner_lane: "execution",
+        required_evidence_kinds: ["a1_run_trace"],
+        evidence_refs: [],
+        release_authority: false
+      }]
+    },
+    notes: [
+      { zh: "只返回哈希引用和状态元数据，不返回原始图片、音频、视频、URL、邮箱或身份。", en: "Returns hash references and state metadata only, never raw media, URLs, email, or identity." },
+      { zh: "跨租户读取返回脱敏 404，不泄露 request ID 或证据哈希。", en: "Cross-tenant reads return a sanitized 404 without request IDs or evidence hashes." }
+    ]
+  },
+  {
+    id: "a3-multimodal-evidence-request-create",
+    group: "judge",
+    owner: "A1/A2/A3",
+    method: "POST",
+    path: "/api/a3/review/multimodal-queue/{queueId}/evidence-requests",
+    title: { zh: "创建审核补证请求", en: "Create review evidence request" },
+    description: {
+      zh: "由当前领取该案例的审核人指定责任通道、证据种类和截止时间。",
+      en: "Let the active assignment owner specify the owner lane, evidence kinds, and deadline."
+    },
+    auth: { zh: "release:review + 当前审核租约所有者 + Idempotency-Key 请求头", en: "release:review, active lease ownership, and Idempotency-Key header" },
+    status: "implemented",
+    source: "A3 append-only evidence request workflow / migration 023-024",
+    request: {
+      source: "api-ingest",
+      evidence_request: {
+        expected_version: 0,
+        owner_lane: "execution",
+        required_evidence_kinds: ["a1_run_trace", "a1_tool_call"],
+        due_at: "2026-07-15T21:00:00.000Z",
+        reason_code: "execution_evidence_required"
+      }
+    },
+    response: {
+      schema_version: "a3.multimodal_review_evidence_request_receipt.v1",
+      event_type: "requested",
+      status: "open",
+      version: 1,
+      authoritative_human_disposition_recorded: false,
+      release_authority: false,
+      release_decision_changed: false
+    },
+    notes: [
+      { zh: "截止时间必须在未来 30 天内；原因只允许受控 reason_code，不接收自由文本。", en: "Deadline must be within 30 days; only a controlled reason_code is accepted, not free text." },
+      { zh: "创建请求不会修改 A2 分数、风险、pass/fail 或发布决定。", en: "Creating a request never changes A2 score, risk, pass/fail, or release decision." }
+    ]
+  },
+  {
+    id: "a3-multimodal-evidence-submit",
+    group: "judge",
+    owner: "A1/A2/A3",
+    method: "POST",
+    path: "/api/a3/review/multimodal-queue/{queueId}/evidence-requests/{requestId}/submissions",
+    title: { zh: "提交审核证据哈希", en: "Submit review evidence hashes" },
+    description: {
+      zh: "由执行、评测或客户运营接入方提交所有被要求的证据哈希和可选绑定哈希。",
+      en: "Submit all requested evidence hashes and optional binding hashes from execution, evaluation, or customer operations."
+    },
+    auth: { zh: "project:ingest + Idempotency-Key 请求头", en: "project:ingest and Idempotency-Key header" },
+    status: "implemented",
+    source: "A3 OpenAPI / A1-A2 hash-addressed evidence boundary",
+    request: {
+      source: "api-ingest",
+      submission: {
+        expected_version: 1,
+        owner_lane: "execution",
+        evidence_refs: [
+          { kind: "a1_run_trace", evidence_hash: exampleSha256, binding_hash: exampleSha256 },
+          { kind: "a1_tool_call", evidence_hash: exampleSha256, binding_hash: exampleSha256 }
+        ],
+        reason_code: "execution_evidence_submitted"
+      }
+    },
+    response: {
+      schema_version: "a3.multimodal_review_evidence_request_receipt.v1",
+      event_type: "submitted",
+      status: "submitted",
+      version: 2,
+      submitted_evidence_kinds: ["a1_run_trace", "a1_tool_call"],
+      release_authority: false
+    },
+    notes: [
+      { zh: "只接受白名单种类和 sha256 引用；URL、Signed URL、本地路径、原始媒体和额外字段会被拒绝。", en: "Only allowlisted kinds and SHA-256 refs are accepted; URLs, signed URLs, local paths, raw media, and extra fields are rejected." },
+      { zh: "必须一次覆盖该请求的全部证据种类，缺项返回 409。", en: "A submission must cover every requested kind; incomplete submissions return 409." }
+    ]
+  },
+  {
+    id: "a3-multimodal-evidence-review",
+    group: "judge",
+    owner: "A1/A2/A3",
+    method: "POST",
+    path: "/api/a3/review/multimodal-queue/{queueId}/evidence-requests/{requestId}/review",
+    title: { zh: "审核补充证据", en: "Review submitted evidence" },
+    description: {
+      zh: "当前审核租约所有者可以接受、退回或取消补证请求，并保留完整事件链。",
+      en: "The active assignment owner may accept, reject, or cancel the request while preserving the event chain."
+    },
+    auth: { zh: "release:review + 当前审核租约所有者 + expected_version + Idempotency-Key", en: "release:review, active lease ownership, expected_version, and Idempotency-Key" },
+    status: "implemented",
+    source: "A3 append-only evidence review / audit and event outbox",
+    request: {
+      source: "api-ingest",
+      review: { expected_version: 2, action: "accept", reason_code: "evidence_hashes_verified" }
+    },
+    response: {
+      schema_version: "a3.multimodal_review_evidence_request_receipt.v1",
+      event_type: "accepted",
+      status: "accepted",
+      version: 3,
+      evidence_accepted: true,
+      authoritative_human_disposition_recorded: false,
+      release_authority: false,
+      a2_decision_recomputed: false,
+      release_decision_changed: false
+    },
+    notes: [
+      { zh: "这里的 accepted 只表示补充材料通过检查，不等于 A2 的真人裁决。", en: "Accepted means the supplemental material passed inspection; it is not an A2 human disposition." },
+      { zh: "退回后请求重新打开；过期状态由服务器时间投影，不伪造一条过期操作事件。", en: "Rejection reopens the request; overdue is projected from server time without fabricating an action event." }
     ]
   },
   {

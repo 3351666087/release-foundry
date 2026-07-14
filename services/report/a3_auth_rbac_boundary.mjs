@@ -279,6 +279,30 @@ export const A3_AUTHZ_OPERATION_POLICIES = [
     a1: ["server-verified reviewer identity, five-level scope, durable audit and outbox"],
     a2: ["queue receipt remains non-authoritative; assignment never rewrites risk or release decisions"]
   }),
+  operation("read_multimodal_review_evidence_requests", "GET /api/a3/review/multimodal-queue/:queueId/evidence-requests", "release:review", "read_only", {
+    event: "review.multimodal_evidence_requests_read",
+    resourceType: "multimodal_review_evidence_request",
+    a1: ["server-verified reviewer identity and exact five-level tenant scope"],
+    a2: ["evidence requests remain coordination metadata and never become human dispositions"]
+  }),
+  operation("create_multimodal_review_evidence_request", "POST /api/a3/review/multimodal-queue/:queueId/evidence-requests", "release:review", "local_write", {
+    event: "review.multimodal_evidence_request.requested",
+    resourceType: "multimodal_review_evidence_request",
+    a1: ["active reviewer assignment lease, audit, outbox, and hash-only evidence contract"],
+    a2: ["requested evidence kinds cannot alter score, risk, or release authority"]
+  }),
+  operation("submit_multimodal_review_evidence_request", "POST /api/a3/review/multimodal-queue/:queueId/evidence-requests/:requestId/submissions", "project:ingest", "local_write", {
+    event: "review.multimodal_evidence_request.submitted",
+    resourceType: "multimodal_review_evidence_request",
+    a1: ["server-verified ingest principal, hash-only evidence refs, audit, and outbox"],
+    a2: ["A2 judge or review receipt hashes may be referenced but never rewritten"]
+  }),
+  operation("review_multimodal_review_evidence_request", "POST /api/a3/review/multimodal-queue/:queueId/evidence-requests/:requestId/review", "release:review", "local_write", {
+    event: "review.multimodal_evidence_request.reviewed",
+    resourceType: "multimodal_review_evidence_request",
+    a1: ["active reviewer assignment lease, optimistic version, durable audit and outbox"],
+    a2: ["accepting evidence is not an A2 human disposition and cannot change release readiness"]
+  }),
   operation("share_report", "POST /api/a3/reports/share", "reports:share", "local_write", {
     event: "report.share_link_created",
     resourceType: "shareable_report",

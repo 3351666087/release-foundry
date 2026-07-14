@@ -647,6 +647,168 @@ test.describe("A3 Next.js product console", () => {
     await page.screenshot({ path: "docs/screenshots/a3-webapp-three-provider-review-mobile-390x844.png", fullPage: false });
   });
 
+  test("renders an audit-grade hash-only evidence request workflow and conflict state", async ({ page }) => {
+    const source = "p3-media";
+    const reviewerHash = "reviewer_hash_e2e";
+    const queueResponse = await page.request.get(`/api/a3/review/multimodal-queue?source=${source}`, {
+      headers: { "x-a3-role": "reviewer" }
+    });
+    expect(queueResponse.status()).toBe(200);
+    let queue = await queueResponse.json();
+    const queueItem = queue.items[0];
+    const scope = queue.tenant_scope;
+    const scopeQuery = new URLSearchParams({ source, ...scope, role: "reviewer" });
+    if (queueItem.operational_state.status !== "claimed") {
+      const claim = await page.request.post(
+        `/api/a3/review/multimodal-queue/${encodeURIComponent(queueItem.queue_id)}/assignment?${scopeQuery}`,
+        {
+          headers: {
+            ...receiptApiHeaders("reviewer"),
+            "idempotency-key": `evidence-ui-claim-${Date.now()}`,
+            "x-a3-actor-hash": reviewerHash
+          },
+          data: {
+            source,
+            ...scope,
+            assignment: {
+              action: "claim",
+              expected_version: queueItem.operational_state.version,
+              lease_seconds: 3600
+            }
+          }
+        }
+      );
+      expect(claim.status()).toBe(200);
+    }
+
+    const collectionPath = `/api/a3/review/multimodal-queue/${encodeURIComponent(queueItem.queue_id)}/evidence-requests`;
+    const existingResponse = await page.request.get(`${collectionPath}?${scopeQuery}`, {
+      headers: { ...receiptApiHeaders("reviewer"), "x-a3-actor-hash": reviewerHash }
+    });
+    expect(existingResponse.status()).toBe(200);
+    const existing = await existingResponse.json();
+    let evidenceRequest = existing.requests.find((item: Record<string, unknown>) => item.status === "accepted");
+    if (!evidenceRequest) {
+      const createdResponse = await page.request.post(`${collectionPath}?${scopeQuery}`, {
+        headers: {
+          ...receiptApiHeaders("reviewer"),
+          "idempotency-key": `evidence-ui-create-${Date.now()}`,
+          "x-a3-actor-hash": reviewerHash
+        },
+        data: {
+          source,
+          ...scope,
+          evidence_request: {
+            expected_version: 0,
+            owner_lane: "execution",
+            required_evidence_kinds: ["a1_run_trace", "a1_tool_call", "media_evidence"],
+            due_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+            reason_code: "execution_evidence_required"
+          }
+        }
+      });
+      expect(createdResponse.status()).toBe(201);
+      const created = await createdResponse.json();
+      const submissionQuery = new URLSearchParams(scopeQuery);
+      submissionQuery.set("role", "service_account");
+      const submittedResponse = await page.request.post(
+        `${collectionPath}/${encodeURIComponent(created.request_id)}/submissions?${submissionQuery}`,
+        {
+          headers: {
+            ...receiptApiHeaders("service_account"),
+            "idempotency-key": `evidence-ui-submit-${Date.now()}`,
+            "x-a3-actor-hash": "service_account_hash_evidence_ui"
+          },
+          data: {
+            source,
+            ...scope,
+            submission: {
+              expected_version: 1,
+              owner_lane: "execution",
+              evidence_refs: [
+                { kind: "a1_run_trace", evidence_hash: `sha256:${"a".repeat(64)}` },
+                { kind: "a1_tool_call", evidence_hash: `sha256:${"b".repeat(64)}` },
+                { kind: "media_evidence", evidence_hash: `sha256:${"c".repeat(64)}` }
+              ],
+              reason_code: "execution_evidence_submitted"
+            }
+          }
+        }
+      );
+      expect(submittedResponse.status()).toBe(200);
+      const submitted = await submittedResponse.json();
+      const acceptedResponse = await page.request.post(
+        `${collectionPath}/${encodeURIComponent(created.request_id)}/review?${scopeQuery}`,
+        {
+          headers: {
+            ...receiptApiHeaders("reviewer"),
+            "idempotency-key": `evidence-ui-accept-${Date.now()}`,
+            "x-a3-actor-hash": reviewerHash
+          },
+          data: {
+            source,
+            ...scope,
+            review: { expected_version: submitted.version, action: "accept", reason_code: "evidence_hashes_verified" }
+          }
+        }
+      );
+      expect(acceptedResponse.status()).toBe(200);
+      evidenceRequest = await acceptedResponse.json();
+    }
+    expect(evidenceRequest.release_authority ?? evidenceRequest.authority_boundary?.release_authority).toBe(false);
+
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto(`${base}/review/?source=${source}`);
+    const workflow = page.locator(".evidence-request-workflow");
+    await expect(workflow.getByRole("heading", { name: "审核补证" })).toBeVisible();
+    await expect(workflow.locator(".evidence-request-totals")).toContainText("已收1");
+    await expect(workflow.locator('.evidence-request-item[data-status="accepted"]')).toContainText("已接收");
+    await expect(workflow).toContainText("运行链路");
+    await expect(workflow).toContainText("工具调用");
+    await expect(workflow).toContainText("媒体证据");
+    await expect(workflow).toContainText("接受补证只确认材料完整");
+    await expect(workflow).not.toContainText(/https?:\/\/|Bearer\s|Cookie:/);
+    await workflow.evaluate((node) => {
+      document.documentElement.style.scrollBehavior = "auto";
+      window.scrollTo(0, node.getBoundingClientRect().top + window.scrollY - 78);
+    });
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(600);
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-evidence-request-desktop.png", fullPage: false, animations: "disabled" });
+
+    const createToggle = workflow.getByRole("button", { name: /请求补证/ }).first();
+    await createToggle.click();
+    await page.route(/\/api\/a3\/review\/multimodal-queue\/[^/]+\/evidence-requests\?source=/, async (route) => {
+      if (route.request().method() === "POST") {
+        await route.fulfill({ status: 409, contentType: "application/json", body: JSON.stringify({ error: "version_conflict" }) });
+        return;
+      }
+      await route.continue();
+    });
+    await workflow.getByRole("button", { name: "发送请求" }).click();
+    await expect(workflow).toHaveAttribute("data-state", "conflict");
+    await expect(workflow).toContainText("数据已被其他人更新");
+    await page.unroute(/\/api\/a3\/review\/multimodal-queue\/[^/]+\/evidence-requests\?source=/);
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.reload();
+    await expect(workflow).toBeVisible();
+    await workflow.evaluate((node) => {
+      document.documentElement.style.scrollBehavior = "auto";
+      window.scrollTo(0, node.getBoundingClientRect().top + window.scrollY - 66);
+    });
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(600);
+    const mobile = await page.evaluate(() => ({
+      viewport: document.documentElement.clientWidth,
+      documentWidth: document.documentElement.scrollWidth,
+      workflowRight: document.querySelector(".evidence-request-workflow")!.getBoundingClientRect().right,
+      itemRight: document.querySelector(".evidence-request-item")!.getBoundingClientRect().right
+    }));
+    expect(mobile.documentWidth).toBeLessThanOrEqual(mobile.viewport + 1);
+    expect(mobile.workflowRight).toBeLessThanOrEqual(mobile.viewport);
+    expect(mobile.itemRight).toBeLessThanOrEqual(mobile.viewport);
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-evidence-request-mobile-390x844.png", fullPage: false, animations: "disabled" });
+  });
+
   test("stays readable at 390 by 844 with mobile navigation", async ({ page }) => {
     const consoleErrors = collectConsoleErrors(page);
     await page.setViewportSize({ width: 390, height: 844 });

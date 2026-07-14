@@ -130,6 +130,7 @@ test("hosted A3 excludes foreign and legacy records from every dashboard aggrega
     adminActionRequests: 0,
     reviewWorkflowRecords: 0,
     multimodalReviewAssignmentEvents: 0,
+    multimodalReviewEvidenceRequestEvents: 0,
     releaseEvidenceReadbacks: 0,
     githubPublishReceipts: 0,
     deploymentReceipts: 0,

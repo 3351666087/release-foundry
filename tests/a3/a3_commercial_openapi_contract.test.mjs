@@ -118,8 +118,8 @@ test("every runtime RBAC route has an OpenAPI operation with the same permission
   ]));
 
   assert.equal(parity.complete, true);
-  assert.equal(parity.runtime_operation_count, 61);
-  assert.equal(parity.documented_runtime_operation_count, 61);
+  assert.equal(parity.runtime_operation_count, 65);
+  assert.equal(parity.documented_runtime_operation_count, 65);
   assert.deepEqual(parity.missing, []);
   for (const route of A3_SENSITIVE_ROUTE_PATTERNS) {
     const key = `${route.method} ${normalizeContractPath(route.path_pattern)}`;
@@ -135,6 +135,9 @@ test("multimodal OpenAPI matches the header-only import and non-authoritative re
   const importOperation = spec.paths["/api/a3/import/a2-multimodal-comparison"].post;
   const readOperation = spec.paths["/api/a3/review/multimodal-queue"].get;
   const assignmentOperation = spec.paths["/api/a3/review/multimodal-queue/{queueId}/assignment"].post;
+  const evidenceCollection = spec.paths["/api/a3/review/multimodal-queue/{queueId}/evidence-requests"];
+  const evidenceSubmission = spec.paths["/api/a3/review/multimodal-queue/{queueId}/evidence-requests/{requestId}/submissions"].post;
+  const evidenceReview = spec.paths["/api/a3/review/multimodal-queue/{queueId}/evidence-requests/{requestId}/review"].post;
   const idempotency = importOperation.parameters.find((item) => item.name === "Idempotency-Key");
   const assignmentIdempotency = assignmentOperation.parameters.find((item) => item.name === "Idempotency-Key");
 
@@ -153,6 +156,22 @@ test("multimodal OpenAPI matches the header-only import and non-authoritative re
   assert.equal(assignmentOperation.requestBody.content["application/json"].schema.$ref, "#/components/schemas/MultimodalReviewAssignmentRequest");
   assert.equal(assignmentOperation.responses["200"].content["application/json"].schema.$ref, "#/components/schemas/MultimodalReviewAssignmentReceipt");
   assert.equal(assignmentOperation["x-concurrency"].strategy, "optimistic_expected_version_plus_time_bounded_lease");
+  assert.equal(evidenceCollection.get["x-rbac"].permission, "release:review");
+  assert.equal(evidenceCollection.get.responses["200"].content["application/json"].schema.$ref, "#/components/schemas/MultimodalReviewEvidenceRequestList");
+  assert.equal(evidenceCollection.post["x-rbac"].permission, "release:review");
+  assert.equal(evidenceCollection.post["x-assignment-owner-required"], true);
+  assert.equal(evidenceCollection.post.parameters.find((item) => item.name === "Idempotency-Key").required, true);
+  assert.equal(evidenceCollection.post.requestBody.content["application/json"].schema.$ref, "#/components/schemas/MultimodalReviewEvidenceRequestCreate");
+  assert.equal(evidenceSubmission["x-rbac"].permission, "project:ingest");
+  assert.equal(evidenceSubmission["x-assignment-owner-required"], false);
+  assert.equal(evidenceSubmission.requestBody.content["application/json"].schema.$ref, "#/components/schemas/MultimodalReviewEvidenceSubmission");
+  assert.equal(evidenceReview["x-rbac"].permission, "release:review");
+  assert.equal(evidenceReview["x-assignment-owner-required"], true);
+  assert.equal(evidenceReview.requestBody.content["application/json"].schema.$ref, "#/components/schemas/MultimodalReviewEvidenceReview");
+  assert.equal(evidenceReview["x-authority-boundary"].evidence_acceptance_is_human_disposition, false);
+  assert.equal(evidenceReview["x-authority-boundary"].release_decision_changed, false);
+  assert.equal(evidenceReview["x-evidence-boundary"].sha256_references_only, true);
+  assert.equal(evidenceReview["x-evidence-boundary"].raw_evidence_forbidden, true);
 
   const request = spec.components.schemas.MultimodalComparisonImportRequest;
   const envelope = spec.components.schemas.A2MultimodalComparisonEnvelope;
@@ -160,6 +179,9 @@ test("multimodal OpenAPI matches the header-only import and non-authoritative re
   const queue = spec.components.schemas.MultimodalReviewQueue;
   const assignmentRequest = spec.components.schemas.MultimodalReviewAssignmentRequest;
   const assignmentReceipt = spec.components.schemas.MultimodalReviewAssignmentReceipt;
+  const evidenceReference = spec.components.schemas.MultimodalReviewEvidenceReference;
+  const evidenceRequest = spec.components.schemas.MultimodalReviewEvidenceRequest;
+  const evidenceRequestReceipt = spec.components.schemas.MultimodalReviewEvidenceRequestReceipt;
   assert.match(request.description, /header-only/);
   assert.match(request.properties.imported_at.description, /server assigns/);
   assert.deepEqual(envelope.oneOf.map((item) => item.properties.schema_version.const), [
@@ -190,6 +212,11 @@ test("multimodal OpenAPI matches the header-only import and non-authoritative re
   assert.match(assignmentRequest.description, /cannot contain a disposition/);
   assert.equal(assignmentReceipt.properties.release_authority.const, false);
   assert.equal(assignmentReceipt.properties.a2_decision_recomputed.const, false);
+  assert.match(evidenceReference.properties.evidence_hash.pattern, /sha256/);
+  assert.equal(evidenceReference.additionalProperties, false);
+  assert.equal(evidenceRequest.properties.authority_boundary.properties.authoritative_human_disposition_recorded.const, false);
+  assert.equal(evidenceRequest.properties.authority_boundary.properties.release_authority.const, false);
+  assert.equal(evidenceRequestReceipt.properties.release_decision_changed.const, false);
 });
 
 test("self-host sandbox OpenAPI keeps local evidence separate from production acceptance", async () => {
@@ -391,7 +418,7 @@ test("OpenAPI documents sanitized malformed JSON and protected OPTIONS behavior"
 
   const operations = collectOperations(spec).filter((operation) => operation["x-rbac"]);
   const mutations = operations.filter((operation) => !["get", "head"].includes(operation.method));
-  assert.equal(operations.length, 61);
+  assert.equal(operations.length, 65);
   assert.ok(mutations.length > 0);
   for (const operation of operations) {
     const optionsPolicy = operation["x-protected-options"];
