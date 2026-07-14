@@ -355,6 +355,103 @@ SELECT
 		}
 	})
 
+	t.Run("credential link replay survives encryption key retirement", func(t *testing.T) {
+		h := newPostgresLifecycleHarness(t, adminDSN)
+		oldEncryption := []byte("old-link-encryption-0123456789012345")
+		newEncryption := []byte("new-link-encryption-0123456789012345")
+		stableLookup := []byte("stable-link-lookup-012345678901234567")
+		old := h.newInstanceWithLifecycleKeys(
+			t, oldEncryption, "enc-old", nil,
+			stableLookup, "lookup-v1", nil,
+		)
+		registration := issueLifecycleProof(t, old.service, TrustedIdentityProof{
+			Operation: IdentityOperationRegistration, Kind: IdentityCredentialEmail,
+			Provider: IdentityProviderLocal, Identifier: "rotated-link@example.cn",
+			VerifiedEmail: "rotated-link@example.cn", DisplayName: "Rotated Link Owner",
+		})
+		account, err := old.service.CompleteRegistration(completionFor(registration))
+		if err != nil {
+			t.Fatal(err)
+		}
+		orgID := "25000000-0000-4000-8000-000000000001"
+		workspaceID := "25000000-0000-4000-8000-000000000002"
+		projectID := "25000000-0000-4000-8000-000000000003"
+		establishIdentityProjectScope(
+			t, old, account.AccountID, orgID, workspaceID, projectID, h.now,
+		)
+		sessionID, sessionDigest := issueScopedIdentitySession(
+			t, old, account.AccountID, account.Credentials[0].CredentialID,
+			orgID, projectID, h.now,
+		)
+		proof := issueLifecycleProof(t, old.service, TrustedIdentityProof{
+			Operation: IdentityOperationCredentialLink, Kind: IdentityCredentialOAuth,
+			Provider: IdentityProviderGoogle, Identifier: "rotated-google-subject",
+			VerifiedEmail: "rotated-link@example.cn",
+			TenantID:      orgID, ProjectID: projectID,
+		})
+		command := authorizeIdentityCredentialLink(
+			t, old, account.AccountID, sessionID, sessionDigest,
+			orgID, projectID, proof, "credential-link-key-retirement", h.now,
+		)
+		first, err := old.credentialLinkService.Complete(context.Background(), command)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		retired := h.newInstanceWithLifecycleKeys(
+			t, newEncryption, "enc-new", nil,
+			stableLookup, "lookup-v1", nil,
+		)
+		replay, err := retired.credentialLinkService.Complete(context.Background(), command)
+		if err != nil {
+			t.Fatalf("completed replay failed after old encryption key retirement: %v", err)
+		}
+		if replay.CredentialAdded ||
+			replay.Credential.CredentialID != first.Credential.CredentialID ||
+			!replay.LinkedAt.Equal(first.LinkedAt) {
+			t.Fatalf("retired-key replay changed result: first=%#v replay=%#v", first, replay)
+		}
+
+		pendingProof := issueLifecycleProof(t, old.service, TrustedIdentityProof{
+			Operation: IdentityOperationCredentialLink, Kind: IdentityCredentialOAuth,
+			Provider: IdentityProviderGitHub, Identifier: "retired-github-subject",
+			VerifiedEmail: "rotated-link@example.cn",
+			TenantID:      orgID, ProjectID: projectID,
+		})
+		pendingCommand := authorizeIdentityCredentialLink(
+			t, old, account.AccountID, sessionID, sessionDigest,
+			orgID, projectID, pendingProof, "credential-link-pending-retirement", h.now,
+		)
+		_, err = retired.credentialLinkService.Complete(context.Background(), pendingCommand)
+		var domain IdentityDomainError
+		if !errors.As(err, &domain) || domain.Code != "identity_credential_link_unavailable" {
+			t.Fatalf("unconsumed retired-key proof returned %v", err)
+		}
+		if strings.Contains(err.Error(), "enc-old") ||
+			strings.Contains(err.Error(), ErrIdentityProofKeyUnavailable.Error()) {
+			t.Fatalf("retired-key failure leaked internal key detail: %v", err)
+		}
+		if _, err := old.credentialLinkService.Complete(context.Background(), pendingCommand); err != nil {
+			t.Fatalf("retired-key failure consumed authorization artifacts: %v", err)
+		}
+
+		var credentials, completedEvents int
+		if err := old.adminDB.QueryRow(`
+SELECT
+  (SELECT count(*) FROM identity_credentials WHERE principal_id=$1::uuid),
+  (SELECT count(*) FROM identity_audit_events
+    WHERE principal_id=$1::uuid AND action='identity.credential.link.completed')
+`, account.AccountID).Scan(&credentials, &completedEvents); err != nil {
+			t.Fatal(err)
+		}
+		if credentials != 3 || completedEvents != 2 {
+			t.Fatalf(
+				"retired-key replay duplicated state credentials=%d completed_events=%d",
+				credentials, completedEvents,
+			)
+		}
+	})
+
 	t.Run("concurrent credential link is one mutation with stable replay", func(t *testing.T) {
 		h := newPostgresLifecycleHarness(t, adminDSN)
 		key := []byte("concurrent-link-key-012345678901234")
@@ -942,6 +1039,26 @@ func (h *postgresLifecycleHarness) newInstance(
 	keyVersion string,
 	previous []IdentityLifecycleEncryptionKey,
 ) *postgresLifecycleInstance {
+	return h.newInstanceWithLifecycleKeys(
+		t,
+		lifecycleKey,
+		keyVersion,
+		previous,
+		nil,
+		"",
+		nil,
+	)
+}
+
+func (h *postgresLifecycleHarness) newInstanceWithLifecycleKeys(
+	t *testing.T,
+	lifecycleKey []byte,
+	keyVersion string,
+	previous []IdentityLifecycleEncryptionKey,
+	lookupKey []byte,
+	lookupKeyVersion string,
+	previousLookup []IdentityLifecycleLookupKey,
+) *postgresLifecycleInstance {
 	t.Helper()
 	db, err := sql.Open("postgres", h.runtimeDSN)
 	if err != nil {
@@ -950,12 +1067,15 @@ func (h *postgresLifecycleHarness) newInstance(
 	db.SetMaxOpenConns(16)
 	store, err := NewProductionIdentityStore(ProductionIdentityStoreOptions{
 		DB: db, Now: func() time.Time { return h.now },
-		SessionKey:                   []byte("session-hmac-key-012345678901234567"),
-		SessionKeyVersion:            "integration",
-		LifecycleReceiptKey:          lifecycleKey,
-		LifecycleReceiptKeyVersion:   keyVersion,
-		PreviousLifecycleReceiptKeys: previous,
-		SQLTimeout:                   10 * time.Second, StatementTimeout: 9 * time.Second, LockTimeout: 8 * time.Second,
+		SessionKey:                         []byte("session-hmac-key-012345678901234567"),
+		SessionKeyVersion:                  "integration",
+		LifecycleReceiptKey:                lifecycleKey,
+		LifecycleReceiptKeyVersion:         keyVersion,
+		PreviousLifecycleReceiptKeys:       previous,
+		LifecycleReceiptLookupKey:          lookupKey,
+		LifecycleReceiptLookupKeyVersion:   lookupKeyVersion,
+		PreviousLifecycleReceiptLookupKeys: previousLookup,
+		SQLTimeout:                         10 * time.Second, StatementTimeout: 9 * time.Second, LockTimeout: 8 * time.Second,
 	})
 	if err != nil {
 		_ = db.Close()

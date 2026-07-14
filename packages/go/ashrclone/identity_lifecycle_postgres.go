@@ -26,11 +26,12 @@ const defaultIdentityLifecycleKeyVersion = "v1"
 var ErrIdentityProofKeyUnavailable = errors.New("identity proof receipt key version unavailable")
 
 type identityLifecycleKeyring struct {
-	mu     sync.RWMutex
-	active string
-	keys   map[string][]byte
-	digest []byte
-	random io.Reader
+	mu           sync.RWMutex
+	active       string
+	keys         map[string][]byte
+	lookupActive string
+	lookupKeys   map[string][]byte
+	random       io.Reader
 }
 
 func newIdentityLifecycleKeyring(
@@ -38,7 +39,26 @@ func newIdentityLifecycleKeyring(
 	key []byte,
 	previous []IdentityLifecycleEncryptionKey,
 ) (*identityLifecycleKeyring, error) {
+	return newIdentityLifecycleKeyringWithLookup(
+		active, key, previous, "", nil, nil,
+	)
+}
+
+func newIdentityLifecycleKeyringWithLookup(
+	active string,
+	key []byte,
+	previous []IdentityLifecycleEncryptionKey,
+	lookupActive string,
+	lookupKey []byte,
+	previousLookup []IdentityLifecycleLookupKey,
+) (*identityLifecycleKeyring, error) {
+	explicitLookup := strings.TrimSpace(lookupActive) != "" ||
+		len(lookupKey) != 0 ||
+		len(previousLookup) != 0
 	if len(key) == 0 && len(previous) == 0 {
+		if explicitLookup {
+			return nil, fmt.Errorf("production identity lifecycle lookup key requires a receipt encryption keyring")
+		}
 		return nil, nil
 	}
 	if len(key) < 32 {
@@ -64,10 +84,37 @@ func newIdentityLifecycleKeyring(
 		}
 		keys[version] = append([]byte(nil), item.Key...)
 	}
+	lookupKeys := make(map[string][]byte)
+	if !explicitLookup {
+		lookupActive = active
+		for version, item := range keys {
+			lookupKeys[version] = append([]byte(nil), item...)
+		}
+	} else {
+		lookupActive = strings.TrimSpace(lookupActive)
+		if !validIdentitySessionKeyVersion(lookupActive) || len(lookupKey) < 32 {
+			closeIdentityLifecycleKeys(keys)
+			return nil, fmt.Errorf("production identity lifecycle lookup key is invalid")
+		}
+		lookupKeys[lookupActive] = append([]byte(nil), lookupKey...)
+		for _, item := range previousLookup {
+			version := strings.TrimSpace(item.Version)
+			if !validIdentitySessionKeyVersion(version) || len(item.Key) < 32 {
+				closeIdentityLifecycleKeys(keys)
+				closeIdentityLifecycleKeys(lookupKeys)
+				return nil, fmt.Errorf("production identity previous lifecycle lookup key is invalid")
+			}
+			if _, exists := lookupKeys[version]; exists {
+				closeIdentityLifecycleKeys(keys)
+				closeIdentityLifecycleKeys(lookupKeys)
+				return nil, fmt.Errorf("production identity lifecycle lookup key version %q is duplicated", version)
+			}
+			lookupKeys[version] = append([]byte(nil), item.Key...)
+		}
+	}
 	return &identityLifecycleKeyring{
-		active: active,
-		keys:   keys,
-		digest: append([]byte(nil), key...),
+		active: active, keys: keys,
+		lookupActive: lookupActive, lookupKeys: lookupKeys,
 		random: rand.Reader,
 	}, nil
 }
@@ -82,8 +129,14 @@ func (ring *identityLifecycleKeyring) clone() *identityLifecycleKeyring {
 	for version, key := range ring.keys {
 		keys[version] = append([]byte(nil), key...)
 	}
+	lookupKeys := make(map[string][]byte, len(ring.lookupKeys))
+	for version, key := range ring.lookupKeys {
+		lookupKeys[version] = append([]byte(nil), key...)
+	}
 	return &identityLifecycleKeyring{
-		active: ring.active, keys: keys, digest: append([]byte(nil), ring.digest...), random: ring.random,
+		active: ring.active, keys: keys,
+		lookupActive: ring.lookupActive, lookupKeys: lookupKeys,
+		random: ring.random,
 	}
 }
 
@@ -94,9 +147,7 @@ func (ring *identityLifecycleKeyring) close() {
 	ring.mu.Lock()
 	defer ring.mu.Unlock()
 	closeIdentityLifecycleKeys(ring.keys)
-	for i := range ring.digest {
-		ring.digest[i] = 0
-	}
+	closeIdentityLifecycleKeys(ring.lookupKeys)
 }
 
 func closeIdentityLifecycleKeys(keys map[string][]byte) {
@@ -135,7 +186,7 @@ func (metadata identityLifecycleReceiptMetadata) aad() []byte {
 func (ring *identityLifecycleKeyring) receiptDigest(raw string) string {
 	ring.mu.RLock()
 	defer ring.mu.RUnlock()
-	mac := hmac.New(sha256.New, ring.digest)
+	mac := hmac.New(sha256.New, ring.lookupKeys[ring.lookupActive])
 	_, _ = mac.Write([]byte(strings.TrimSpace(raw)))
 	return hex.EncodeToString(mac.Sum(nil))
 }
@@ -144,10 +195,10 @@ func (ring *identityLifecycleKeyring) receiptDigests(raw string) []string {
 	ring.mu.RLock()
 	defer ring.mu.RUnlock()
 	raw = strings.TrimSpace(raw)
-	versions := make([]string, 1, len(ring.keys))
-	versions[0] = ring.active
-	for version := range ring.keys {
-		if version != ring.active {
+	versions := make([]string, 1, len(ring.lookupKeys))
+	versions[0] = ring.lookupActive
+	for version := range ring.lookupKeys {
+		if version != ring.lookupActive {
 			versions = append(versions, version)
 		}
 	}
@@ -155,7 +206,7 @@ func (ring *identityLifecycleKeyring) receiptDigests(raw string) []string {
 	digests := make([]string, 0, len(versions))
 	seen := make(map[string]struct{}, len(versions))
 	for _, version := range versions {
-		mac := hmac.New(sha256.New, ring.keys[version])
+		mac := hmac.New(sha256.New, ring.lookupKeys[version])
 		_, _ = mac.Write([]byte(raw))
 		digest := hex.EncodeToString(mac.Sum(nil))
 		if _, exists := seen[digest]; exists {

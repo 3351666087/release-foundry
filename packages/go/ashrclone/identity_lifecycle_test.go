@@ -524,3 +524,79 @@ func TestIdentityLifecycleReceiptDigestsPreferActiveKey(t *testing.T) {
 		t.Fatal("previous lifecycle key digest was not retained for lookup")
 	}
 }
+
+func TestIdentityLifecycleReceiptLookupKeyIsIndependentFromEncryption(t *testing.T) {
+	oldEncryption := []byte("old-encryption-key-01234567890123456")
+	newEncryption := []byte("new-encryption-key-01234567890123456")
+	stableLookup := []byte("stable-lookup-key-012345678901234567")
+	oldRing, err := newIdentityLifecycleKeyringWithLookup(
+		"enc-old", oldEncryption, nil,
+		"lookup-v1", stableLookup, nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer oldRing.close()
+	newRing, err := newIdentityLifecycleKeyringWithLookup(
+		"enc-new", newEncryption, nil,
+		"lookup-v1", stableLookup, nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer newRing.close()
+
+	raw := "receipt-independent-lookup"
+	if oldRing.receiptDigest(raw) != newRing.receiptDigest(raw) {
+		t.Fatal("receipt lookup changed when only the encryption key rotated")
+	}
+	metadata := identityLifecycleReceiptMetadata{
+		Operation:  IdentityOperationCredentialLink,
+		Provider:   IdentityProviderGoogle,
+		KeyVersion: "enc-old",
+	}
+	nonce, ciphertext, err := oldRing.seal(
+		metadata,
+		TrustedIdentityProof{
+			Operation:  IdentityOperationCredentialLink,
+			Kind:       IdentityCredentialOAuth,
+			Provider:   IdentityProviderGoogle,
+			Identifier: "subject",
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := newRing.open(metadata, nonce, ciphertext); !errors.Is(err, ErrIdentityProofKeyUnavailable) {
+		t.Fatalf("retired encryption key returned %v", err)
+	}
+}
+
+func TestIdentityLifecycleLookupKeyringRejectsIncompleteConfiguration(t *testing.T) {
+	encryption := []byte("encryption-key-01234567890123456789")
+	lookup := []byte("lookup-key-012345678901234567890123")
+	tests := []struct {
+		name           string
+		active         string
+		key            []byte
+		previousLookup []IdentityLifecycleLookupKey
+	}{
+		{name: "version without key", active: "lookup-v1"},
+		{name: "key without version", key: lookup},
+		{name: "previous without active", previousLookup: []IdentityLifecycleLookupKey{
+			{Version: "lookup-old", Key: lookup},
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ring, err := newIdentityLifecycleKeyringWithLookup(
+				"enc-v1", encryption, nil,
+				test.active, test.key, test.previousLookup,
+			)
+			if err == nil {
+				ring.close()
+				t.Fatal("incomplete lookup keyring was accepted")
+			}
+		})
+	}
+}

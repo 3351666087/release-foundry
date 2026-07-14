@@ -512,6 +512,8 @@ func TestIdentityLifecycleKeyRuntimeConfigSupportsRotationAndClearsKeys(t *testi
 	activeKey := strings.Repeat("L", 40)
 	previousV2 := strings.Repeat("M", 40)
 	previousV1 := strings.Repeat("N", 40)
+	lookupActive := strings.Repeat("P", 40)
+	lookupPrevious := strings.Repeat("Q", 40)
 	config, err := identityLifecycleKeyRuntimeConfigFromEnv(lookup(map[string]string{
 		"ASHR_IDENTITY_LIFECYCLE_RECEIPT_ACTIVE_VERSION": "v3",
 		"ASHR_IDENTITY_LIFECYCLE_RECEIPT_KEY":            activeKey,
@@ -520,6 +522,12 @@ func TestIdentityLifecycleKeyRuntimeConfigSupportsRotationAndClearsKeys(t *testi
 			previousV2,
 			previousV1,
 		),
+		"ASHR_IDENTITY_LIFECYCLE_RECEIPT_LOOKUP_ACTIVE_VERSION": "lookup-v2",
+		"ASHR_IDENTITY_LIFECYCLE_RECEIPT_LOOKUP_KEY":            lookupActive,
+		"ASHR_IDENTITY_LIFECYCLE_RECEIPT_LOOKUP_PREVIOUS_KEYS_JSON": fmt.Sprintf(
+			`[{"version":"lookup-v1","key":%q}]`,
+			lookupPrevious,
+		),
 	}))
 	if err != nil {
 		t.Fatal(err)
@@ -527,21 +535,36 @@ func TestIdentityLifecycleKeyRuntimeConfigSupportsRotationAndClearsKeys(t *testi
 	if config.activeVersion != "v3" || string(config.activeKey) != activeKey ||
 		len(config.previousKeys) != 2 ||
 		config.previousKeys[0].Version != "v2" || string(config.previousKeys[0].Key) != previousV2 ||
-		config.previousKeys[1].Version != "v1" || string(config.previousKeys[1].Key) != previousV1 {
-		t.Fatalf("unexpected lifecycle keyring config: active=%q previous=%d", config.activeVersion, len(config.previousKeys))
+		config.previousKeys[1].Version != "v1" || string(config.previousKeys[1].Key) != previousV1 ||
+		config.lookupActiveVersion != "lookup-v2" || string(config.lookupActiveKey) != lookupActive ||
+		len(config.previousLookupKeys) != 1 ||
+		config.previousLookupKeys[0].Version != "lookup-v1" ||
+		string(config.previousLookupKeys[0].Key) != lookupPrevious {
+		t.Fatalf(
+			"unexpected lifecycle keyring config: active=%q previous=%d lookup_active=%q lookup_previous=%d",
+			config.activeVersion, len(config.previousKeys),
+			config.lookupActiveVersion, len(config.previousLookupKeys),
+		)
 	}
 	activeBytes := config.activeKey
 	previousV2Bytes := config.previousKeys[0].Key
 	previousV1Bytes := config.previousKeys[1].Key
+	lookupActiveBytes := config.lookupActiveKey
+	lookupPreviousBytes := config.previousLookupKeys[0].Key
 	config.clear()
-	for _, key := range [][]byte{activeBytes, previousV2Bytes, previousV1Bytes} {
+	for _, key := range [][]byte{
+		activeBytes, previousV2Bytes, previousV1Bytes,
+		lookupActiveBytes, lookupPreviousBytes,
+	} {
 		for _, value := range key {
 			if value != 0 {
 				t.Fatal("cleared lifecycle keyring retained key bytes")
 			}
 		}
 	}
-	if config.activeKey != nil || config.previousKeys != nil || config.activeVersion != "" {
+	if config.activeKey != nil || config.previousKeys != nil || config.activeVersion != "" ||
+		config.lookupActiveKey != nil || config.previousLookupKeys != nil ||
+		config.lookupActiveVersion != "" {
 		t.Fatalf("cleared lifecycle keyring retained metadata: %#v", config)
 	}
 }
@@ -549,12 +572,20 @@ func TestIdentityLifecycleKeyRuntimeConfigSupportsRotationAndClearsKeys(t *testi
 func TestIdentityLifecycleKeyRuntimeConfigRejectsUnsafeInputsWithoutEchoingKeys(t *testing.T) {
 	activeSecret := "active-lifecycle-secret-that-must-not-leak-1234"
 	previousSecret := "previous-lifecycle-secret-that-must-not-leak"
+	lookupSecret := "lookup-lifecycle-secret-that-must-not-leak-1234"
+	previousLookupSecret := "previous-lookup-secret-that-must-not-leak-123"
 	base := map[string]string{
 		"ASHR_IDENTITY_LIFECYCLE_RECEIPT_ACTIVE_VERSION": "v2",
 		"ASHR_IDENTITY_LIFECYCLE_RECEIPT_KEY":            activeSecret,
 		"ASHR_IDENTITY_LIFECYCLE_RECEIPT_PREVIOUS_KEYS_JSON": fmt.Sprintf(
 			`[{"version":"v1","key":%q}]`,
 			previousSecret,
+		),
+		"ASHR_IDENTITY_LIFECYCLE_RECEIPT_LOOKUP_ACTIVE_VERSION": "lookup-v2",
+		"ASHR_IDENTITY_LIFECYCLE_RECEIPT_LOOKUP_KEY":            lookupSecret,
+		"ASHR_IDENTITY_LIFECYCLE_RECEIPT_LOOKUP_PREVIOUS_KEYS_JSON": fmt.Sprintf(
+			`[{"version":"lookup-v1","key":%q}]`,
+			previousLookupSecret,
 		),
 	}
 	tests := []struct {
@@ -612,6 +643,37 @@ func TestIdentityLifecycleKeyRuntimeConfigRejectsUnsafeInputsWithoutEchoingKeys(
 			values["ASHR_IDENTITY_LIFECYCLE_RECEIPT_PREVIOUS_KEYS_JSON"] =
 				`{"version":"v1","key":"non-array-private-value"}`
 		}},
+		{name: "missing lookup active version", mutate: func(values map[string]string) {
+			delete(values, "ASHR_IDENTITY_LIFECYCLE_RECEIPT_LOOKUP_ACTIVE_VERSION")
+		}},
+		{name: "missing lookup active key", mutate: func(values map[string]string) {
+			delete(values, "ASHR_IDENTITY_LIFECYCLE_RECEIPT_LOOKUP_KEY")
+		}},
+		{name: "previous lookup without active", mutate: func(values map[string]string) {
+			delete(values, "ASHR_IDENTITY_LIFECYCLE_RECEIPT_LOOKUP_ACTIVE_VERSION")
+			delete(values, "ASHR_IDENTITY_LIFECYCLE_RECEIPT_LOOKUP_KEY")
+		}},
+		{name: "invalid lookup version", mutate: func(values map[string]string) {
+			values["ASHR_IDENTITY_LIFECYCLE_RECEIPT_LOOKUP_ACTIVE_VERSION"] = "bad/version"
+		}},
+		{name: "short lookup key", mutate: func(values map[string]string) {
+			values["ASHR_IDENTITY_LIFECYCLE_RECEIPT_LOOKUP_KEY"] = "short-lookup-private-value"
+		}},
+		{name: "duplicate lookup version", mutate: func(values map[string]string) {
+			values["ASHR_IDENTITY_LIFECYCLE_RECEIPT_LOOKUP_PREVIOUS_KEYS_JSON"] = fmt.Sprintf(
+				`[{"version":"lookup-v2","key":%q}]`, previousLookupSecret,
+			)
+		}},
+		{name: "malformed lookup JSON", mutate: func(values map[string]string) {
+			values["ASHR_IDENTITY_LIFECYCLE_RECEIPT_LOOKUP_PREVIOUS_KEYS_JSON"] =
+				`[{"version":"lookup-v1","key":"lookup-json-private-value"}`
+		}},
+		{name: "unknown lookup JSON field", mutate: func(values map[string]string) {
+			values["ASHR_IDENTITY_LIFECYCLE_RECEIPT_LOOKUP_PREVIOUS_KEYS_JSON"] = fmt.Sprintf(
+				`[{"version":"lookup-v1","key":%q,"private":"lookup-field-private-value"}]`,
+				previousLookupSecret,
+			)
+		}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -624,8 +686,13 @@ func TestIdentityLifecycleKeyRuntimeConfigRejectsUnsafeInputsWithoutEchoingKeys(
 			for _, secret := range []string{
 				activeSecret,
 				previousSecret,
+				lookupSecret,
+				previousLookupSecret,
 				"short-active-lifecycle-secret",
 				"short-previous-lifecycle",
+				"short-lookup-private-value",
+				"lookup-json-private-value",
+				"lookup-field-private-value",
 				"unknown-field-private-value",
 				"trailing-private-value",
 				"non-array-private-value",
