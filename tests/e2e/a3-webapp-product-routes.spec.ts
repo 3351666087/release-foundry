@@ -506,6 +506,32 @@ test.describe("A3 Next.js product console", () => {
   });
 
   test("renders a non-authoritative multimodal disagreement queue on desktop and mobile", async ({ page }) => {
+    const queueApiResponse = await page.request.get("/api/a3/review/multimodal-queue?source=p3-media", {
+      headers: { "x-a3-role": "reviewer" }
+    });
+    expect(queueApiResponse.status()).toBe(200);
+    const queueApi = await queueApiResponse.json();
+    const queueItem = queueApi.items[0];
+    const scope = queueApi.tenant_scope;
+    if (queueItem.operational_state.version === 0) {
+      const assignmentQuery = new URLSearchParams({ source: "p3-media", ...scope });
+      const claimResponse = await page.request.post(
+        `/api/a3/review/multimodal-queue/${encodeURIComponent(queueItem.queue_id)}/assignment?${assignmentQuery}`,
+        {
+          headers: {
+            ...receiptApiHeaders("reviewer"),
+            "idempotency-key": "mm-review-e2e-claim-001",
+            "x-a3-actor-hash": "reviewer_hash_e2e"
+          },
+          data: {
+            source: "p3-media",
+            ...scope,
+            assignment: { action: "claim", expected_version: 0, lease_seconds: 900 }
+          }
+        }
+      );
+      expect(claimResponse.status()).toBe(200);
+    }
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto(`${base}/review/?source=p3-media`);
     await expect(page.getByRole("heading", { name: "人工审核" })).toBeVisible();
@@ -526,6 +552,20 @@ test.describe("A3 Next.js product console", () => {
     await expect(queue).toContainText("重复结果聚合");
     await expect(queue).toContainText("重复结果不稳定");
     await expect(queue).toContainText("等待人工复核");
+    await expect(page.locator(".multimodal-assignment-strip")).toContainText("正在处理1");
+    const packet = page.locator(".multimodal-review-packet");
+    await expect(packet).toHaveAttribute("data-integrity", "passed");
+    await expect(packet).toContainText("历史记录已通过内部完整性校验");
+    await expect(packet).toContainText("等待归档签名");
+    const history = page.locator(".assignment-history").first();
+    const historySummary = history.locator("summary");
+    await expect(historySummary).toContainText("查看 1 条操作记录");
+    await historySummary.focus();
+    await expect(historySummary).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(history).toHaveAttribute("open", "");
+    await expect(history).toContainText("领取");
+    await expect(history).toContainText("v1");
     const authorityNote = page.locator(".multimodal-authority-note");
     await expect(authorityNote).toContainText("同一候选版本的决策账本");
     await expect(authorityNote).toContainText("上游契约待合并");
@@ -549,7 +589,7 @@ test.describe("A3 Next.js product console", () => {
     expect(mobile.documentWidth).toBeLessThanOrEqual(mobile.viewport + 1);
     expect(mobile.summaryWidth).toBeLessThanOrEqual(mobile.viewport);
     expect(mobile.authorityWidth).toBeLessThanOrEqual(mobile.viewport);
-    await authorityNote.scrollIntoViewIfNeeded();
+    await packet.scrollIntoViewIfNeeded();
     await page.screenshot({ path: "docs/screenshots/a3-webapp-multimodal-review-queue-mobile-390x844.png", fullPage: false });
   });
 

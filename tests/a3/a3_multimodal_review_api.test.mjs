@@ -166,12 +166,22 @@ test("A3 API exposes the peer calibration queue and a protected tenant-scoped mu
     const assignedQueue = await assignedQueueResponse.json();
     assert.equal(assignedQueue.summary.assignment_active_count, 1);
     assert.equal(assignedQueue.items[0].operational_state.status, "claimed");
+    assert.equal(assignedQueue.items[0].assignment_history.length, 1);
+    assert.equal(assignedQueue.items[0].assignment_history[0].event_hash, claimReceipt.event_hash);
     assert.equal(assignedQueue.authority_boundary.assignment_events_change_a2_decision, false);
 
     const dashboardResponse = await fetch(`${url}/api/a3/dashboard?${query}`);
     assert.equal(dashboardResponse.status, 200);
     const dashboard = await dashboardResponse.json();
     assert.equal(dashboard.multimodal_review_queue.items.length, 4);
+    assert.equal(dashboard.multimodal_review_assignment_packet.event_count, 1);
+    assert.equal(dashboard.multimodal_review_assignment_packet.integrity.status, "passed");
+    assert.match(dashboard.multimodal_review_assignment_packet.packet_root_hash, /^sha256:[a-f0-9]{64}$/);
+    assert.equal(dashboard.multimodal_review_assignment_packet.archive_binding.audit_archive_signature_verified, false);
+    assert.ok(dashboard.artifact_registry.entries.some((entry) => (
+      entry.artifact_type === "multimodal_review_assignment_packet"
+      && entry.hash_status === "content_hash_present"
+    )));
     assert.equal(dashboard.event_outbox.event_type_counts["a2.multimodal_comparison_imported"], 1);
 
     query.set("tenant_id", "tenant-other");

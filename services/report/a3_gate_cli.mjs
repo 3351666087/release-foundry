@@ -12,6 +12,7 @@ import {
 import { redactExport } from "./export_redaction_firewall.mjs";
 import { normalizeA2GradeReport } from "./a3_release_delivery.mjs";
 import { evaluateA2TrustedReleaseAuthority } from "./a3_trusted_release_authority.mjs";
+import { verifyA3MultimodalReviewAssignmentPacket } from "./a3_multimodal_review_assignment.mjs";
 
 export async function buildGateCliPayload(options = {}) {
   const workspaceRoot = resolve(options.workspaceRoot || process.cwd());
@@ -961,6 +962,9 @@ function parseArgs(argv = []) {
     } else if (arg === "--deployment-probe") {
       options.deploymentProbe = next;
       index += 1;
+    } else if (arg === "--multimodal-review-packet") {
+      options.multimodalReviewPacket = next;
+      index += 1;
     } else if (arg === "--verify-index") {
       options.verifyIndex = next;
       index += 1;
@@ -1001,7 +1005,7 @@ function parseArgs(argv = []) {
 }
 
 function helpText() {
-  return `Usage: node services/report/a3_gate_cli.mjs --runs fixtures/a3/mock_run_results.json --grades fixtures/a3/mock_grade_results.json --coverage fixtures/a2/results/a2_g3_coverage_report.json --thresholds fixtures/a3/release_gate_thresholds.json --json [--a2-trusted-spine path] [--waiver path] [--approval path] [--generated-at ISO] [--strict-exit|--no-fail] [--output-json path] [--output-md path] [--output-check path] [--output-pr-comment path] [--output-manifest path] [--output-bundle path] [--github-check-publish-receipt path] [--github-pr-comment-publish-receipt path] [--github-required-check-plan path] [--github-check-readback path] [--github-pr-comment-readback path] [--github-required-check-proof path] [--github-actions-artifact-readback path] [--deployment-probe path]\n       node services/report/a3_gate_cli.mjs --verify-index fixtures/a3/p3/a3_audit_bundle_index_blocked_exception.redacted.json --json [--output-json path] [--output-md path] [--strict-exit|--no-fail]\n`;
+  return `Usage: node services/report/a3_gate_cli.mjs --runs fixtures/a3/mock_run_results.json --grades fixtures/a3/mock_grade_results.json --coverage fixtures/a2/results/a2_g3_coverage_report.json --thresholds fixtures/a3/release_gate_thresholds.json --json [--a2-trusted-spine path] [--waiver path] [--approval path] [--generated-at ISO] [--strict-exit|--no-fail] [--output-json path] [--output-md path] [--output-check path] [--output-pr-comment path] [--output-manifest path] [--output-bundle path] [--github-check-publish-receipt path] [--github-pr-comment-publish-receipt path] [--github-required-check-plan path] [--github-check-readback path] [--github-pr-comment-readback path] [--github-required-check-proof path] [--github-actions-artifact-readback path] [--deployment-probe path] [--multimodal-review-packet path]\n       node services/report/a3_gate_cli.mjs --verify-index fixtures/a3/p3/a3_audit_bundle_index_blocked_exception.redacted.json --json [--output-json path] [--output-md path] [--strict-exit|--no-fail]\n`;
 }
 
 async function loadJsonRequired(path, label) {
@@ -1204,6 +1208,12 @@ async function readExternalEvidenceArtifacts(options = {}, workspaceRoot) {
       options.deploymentProbe,
       workspaceRoot,
       { origin: "deployment_acceptance_input", bundleRole: "deployment_record" }
+    ),
+    externalEvidenceArtifactInput(
+      "multimodal_review_assignment_packet",
+      options.multimodalReviewPacket,
+      workspaceRoot,
+      { origin: "a3_review_assignment_evidence", bundleRole: "review_record" }
     )
   ].filter(Boolean);
   return Promise.all(candidates.map(readExternalEvidenceArtifact));
@@ -1226,6 +1236,13 @@ function externalEvidenceArtifactInput(id, path, workspaceRoot, options = {}) {
 }
 
 async function readExternalEvidenceArtifact(artifact) {
+  if (artifact.id === "multimodal_review_assignment_packet") {
+    const packet = JSON.parse(await readFile(artifact.resolved_path, "utf8"));
+    const verification = verifyA3MultimodalReviewAssignmentPacket(packet, { noFail: true });
+    if (verification.status !== "passed") {
+      throw new Error("Multimodal review assignment packet failed integrity verification.");
+    }
+  }
   return {
     id: artifact.id,
     path: artifact.path,

@@ -7048,3 +7048,27 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
 - Saved and visually inspected desktop and 390 x 844 review-queue screenshots; both have no document-level horizontal overflow.
 - `.env.local` remains ignored. No key, token, cookie, email, account identity, signed URL, raw provider payload, private media, or local account path was added.
 - GitHub CI remains pending publication; no remote result is claimed in this local validation entry.
+
+## 2026-07-14 - Signed Multimodal Review Assignment Packet
+
+- Re-fetched `origin/main=ccf6ce5`, A1 peer `2307231`, and A2 peer `1553562`; the branch was 0 commits behind main before implementation.
+- Re-read the authoritative enterprise strategy and confirmed A3 owns review workflow, report, artifact, UI and audit projection while A2 retains disposition and release authority.
+- Confirmed A1 still lacks the complete hosted browser identity/CSRF path and A2 still lacks a public-safe real human disposition; neither was fabricated.
+- Strengthened assignment event validation with exact field allowlisting, event id/hash recomputation, tenant/subject binding, secret screening and fail-closed invalid-event exclusion.
+- Added `a3.multimodal_review_assignment_packet.v1` with contiguous version, reviewer transition, timestamp, scope, queue/case/comparison and packet-root verification.
+- Added a standalone packet build/verify CLI and a Gate CLI `--multimodal-review-packet` input that accepts only internally verified packets as `review_record` artifacts.
+- Generated a new review packet, Audit Bundle and Ed25519 Audit Archive without rewriting the historical rc.2 bundle.
+- Verified the packet root, all three bundle artifacts, custody chain, archive root and Ed25519 signature; signer identity remains explicitly `self_signed_local_key_not_sso_bound`.
+- Added packet and metadata-only assignment history to Dashboard, JSON/Markdown/Hosted Report, Artifact Registry and the new `multimodal_review_packet` preset.
+- Upgraded API Reference to v11 and documented the signed-archive boundary in the commercial API contract.
+- Added a Chinese-first audit-evidence panel and native keyboard-expandable assignment history to the Review page.
+- Playwright now performs a protected assignment API claim before rendering, checks keyboard expansion and captures desktop/mobile evidence without horizontal overflow.
+- Added five committed redacted evidence fixtures plus packet, bundle, archive, tamper, CLI, report, registry and API tests.
+- Preserved Golden Path `7/11`, Deployment Acceptance `8/17`, current authority `integrity_invalid`, current A2 decision `unknown`, historical A2 decision `block`, production receipts `0`, and production ready `false`.
+- Final A3 Node regression passed `486` runnable tests with `1` explicit live-target PostgreSQL skip and `0` failures.
+- Current-main A2 passed `186/186` test files with `1050` subtests; A3 did not alter or recompute A2 judgement semantics.
+- Next.js TypeScript and production build passed with `15` pages; full Playwright passed `42/42`.
+- CL hygiene passed with `0` findings; Commercial CL passed with `0` blockers and `0` advisories.
+- Root and Webapp production dependency audits each reported `0` vulnerabilities.
+- Offline packet verification passed; the new Audit Bundle verified `3/3` artifacts and its custody chain; the Audit Archive root and Ed25519 signature verified.
+- GitHub CI remains pending publication; no remote result is claimed in this local validation entry.

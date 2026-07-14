@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Check, CircleSlash2, Clock3, GitCompareArrows, Images, LockKeyhole, ShieldAlert, UserRoundCheck, X } from "lucide-react";
+import { Check, CircleSlash2, Clock3, FileCheck2, GitCompareArrows, History, Images, LockKeyhole, ShieldAlert, UserRoundCheck, X } from "lucide-react";
 
 import { array, number, record, string } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
@@ -20,6 +20,9 @@ export function ReviewPage() {
     const multimodalSummary = record(multimodalQueue.summary);
     const multimodalAuthority = record(multimodalQueue.authority_boundary);
     const multimodalItems = array(multimodalQueue.items).map(record);
+    const multimodalPacket = record(model.raw.multimodal_review_assignment_packet);
+    const multimodalPacketIntegrity = record(multimodalPacket.integrity);
+    const multimodalPacketArchive = record(multimodalPacket.archive_binding);
     const multimodalAvailable = multimodalQueue.available === true;
     const multimodalStatus = string(multimodalQueue.status, "not_ingested");
     return (
@@ -83,12 +86,35 @@ export function ReviewPage() {
             </div>
           )}
 
+          {multimodalAvailable && (
+            <div className="multimodal-review-packet" data-integrity={string(multimodalPacketIntegrity.status, "unknown")}>
+              <span className="multimodal-review-packet-icon"><FileCheck2 size={20} aria-hidden="true" /></span>
+              <div>
+                <small>{zh ? "审核操作留痕" : "Review operation evidence"}</small>
+                <strong>{number(multimodalPacket.event_count) > 0
+                  ? (zh ? "历史记录已通过内部完整性校验" : "History passed internal integrity checks")
+                  : (zh ? "等待第一条审核操作记录" : "Waiting for the first review operation")}</strong>
+                <span>{zh
+                  ? "领取记录只证明人员协作；必须进入签名审计归档后，才能作为可验证交付证据。"
+                  : "Assignment history proves coordination only; it becomes verifiable delivery evidence after inclusion in a signed Audit Archive."}</span>
+              </div>
+              <div className="multimodal-review-packet-state">
+                <StatusBadge value={packetIntegrityLabel(multimodalPacketIntegrity.status, zh)} tone={multimodalPacketIntegrity.status === "passed" ? "pass" : "fail"} />
+                <StatusBadge value={multimodalPacketArchive.audit_archive_signature_verified === true
+                  ? (zh ? "归档签名已验证" : "archive signature verified")
+                  : (zh ? "等待归档签名" : "archive signature pending")} tone="warn" />
+                <code title={string(multimodalPacket.packet_root_hash)}>{hashPrefix(string(multimodalPacket.packet_root_hash, "hash-pending"))}</code>
+              </div>
+            </div>
+          )}
+
           {multimodalItems.length ? (
             <div className="multimodal-review-list" role="region" aria-label={zh ? "多模态分歧审核队列" : "Multimodal disagreement review queue"}>
               {multimodalItems.map((item) => {
                 const left = record(item.left);
                 const right = record(item.right);
                 const operational = record(item.operational_state);
+                const assignmentHistory = array(item.assignment_history).map(record);
                 return (
                   <article key={string(item.queue_id)}>
                     <div><small>{zh ? "案例与证据" : "Case and evidence"}</small><strong>{string(item.case_id)}</strong><span>{comparisonScopeLabel(item, zh)}</span><code>{hashPrefix(string(item.artifact_hash))}</code></div>
@@ -112,6 +138,20 @@ export function ReviewPage() {
                         ? `${zh ? "审核员" : "Reviewer"} ${hashPrefix(string(operational.assigned_reviewer_hash))}`
                         : (zh ? "尚未分配审核员" : "No reviewer assigned")}</span>
                       <span>{zh ? "版本" : "Version"} {number(operational.version)} · {leaseLabel(operational.lease_expires_at, zh)}</span>
+                      {assignmentHistory.length > 0 && (
+                        <details className="assignment-history">
+                          <summary><History size={14} aria-hidden="true" />{zh ? `查看 ${assignmentHistory.length} 条操作记录` : `View ${assignmentHistory.length} operation event(s)`}</summary>
+                          <ol>
+                            {assignmentHistory.map((event, eventIndex) => (
+                              <li key={`${string(event.event_id)}-${eventIndex}`}>
+                                <strong>{assignmentEventLabel(event.event_type, zh)}</strong>
+                                <span>{formatDate(string(event.created_at))} · v{number(event.version)}</span>
+                                <code title={string(event.event_hash)}>{hashPrefix(string(event.event_hash))}</code>
+                              </li>
+                            ))}
+                          </ol>
+                        </details>
+                      )}
                     </div>
                   </article>
                 );
@@ -209,6 +249,24 @@ function assignmentStateTone(value: unknown): "pass" | "warn" | "fail" {
   if (state === "claimed") return "pass";
   if (state === "expired") return "fail";
   return "warn";
+}
+
+function assignmentEventLabel(value: unknown, zh: boolean) {
+  const event = string(value, "unknown");
+  const labels: Record<string, [string, string]> = {
+    claimed: ["领取", "claimed"],
+    reclaimed_after_expiry: ["超时后重新领取", "reclaimed after expiry"],
+    renewed: ["续期", "renewed"],
+    released: ["释放", "released"],
+    transferred: ["转交", "transferred"]
+  };
+  return labels[event]?.[zh ? 0 : 1] || event;
+}
+
+function packetIntegrityLabel(value: unknown, zh: boolean) {
+  return string(value) === "passed"
+    ? (zh ? "内部完整性通过" : "integrity passed")
+    : (zh ? "完整性失败" : "integrity failed");
 }
 
 function leaseLabel(value: unknown, zh: boolean) {

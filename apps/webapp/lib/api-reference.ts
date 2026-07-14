@@ -24,7 +24,7 @@ export type ApiEndpoint = {
 };
 
 export const apiReferenceMeta = {
-  schemaVersion: "a3.api_reference.v10",
+  schemaVersion: "a3.api_reference.v11",
   calibratedAt: "2026-07-14",
   mainSha: "ccf6ce5",
   a1Sha: "c784163",
@@ -416,12 +416,13 @@ export const apiEndpoints: ApiEndpoint[] = [
       schema_version: "a3.multimodal_review_queue.v1",
       status: "human_review_required",
       source_contract: "a2.multimodal_cross_provider_comparison.v3",
-      summary: { comparison_count: 8, semantic_disagreement: 2, internally_unstable: 2, review_required_count: 4 },
+      summary: { comparison_count: 8, semantic_disagreement: 2, internally_unstable: 2, review_required_count: 4, assignment_event_count: 1 },
       authority_boundary: { can_change_release_decision: false, candidate_binding_verified: false },
       items: []
     },
     notes: [
       { zh: "跨租户请求返回 404 或空结果，不泄露模型、案例或证据哈希。", en: "Cross-tenant requests return 404 or no records without revealing models, cases, or evidence hashes." },
+      { zh: "每个案例可以返回仅含哈希别名、版本、时间、原因码和事件哈希的 assignment_history；不包含原始身份。", en: "Each case may return assignment_history containing hash aliases, versions, times, reason codes, and event hashes only; raw identity is excluded." },
       { zh: "只有权威人工复核结果与同一候选版本的 Decision Ledger 才可能改变发布状态。", en: "Only an authoritative human resolution and a same-candidate Decision Ledger may change release state." }
     ]
   },
@@ -464,6 +465,7 @@ export const apiEndpoints: ApiEndpoint[] = [
     notes: [
       { zh: "操作者身份来自服务端会话；请求体不能提交原始姓名、邮箱、处置结论、分数或发布权限。", en: "Reviewer identity comes from the server session; the body cannot submit raw identity, disposition, score, or release authority." },
       { zh: "锁默认 15 分钟，支持过期回收；expected_version 过旧时返回 409。", en: "Leases default to 15 minutes, can be reclaimed after expiry, and stale expected_version writes return 409." },
+      { zh: "完整历史可生成 a3.multimodal_review_assignment_packet.v1，先通过根哈希校验，再作为 review_record 进入 Ed25519 签名的 Audit Archive。", en: "Complete history can produce a3.multimodal_review_assignment_packet.v1, pass root-hash verification, and enter the Ed25519-signed Audit Archive as a review_record." },
       { zh: "这是人员协作状态，不是 A2 的真人复核凭证，也不会改变发布决定。", en: "This is human coordination state, not an A2 review receipt, and it cannot change the release decision." }
     ]
   },
@@ -487,6 +489,12 @@ export const apiEndpoints: ApiEndpoint[] = [
       a1_a2_evidence_spine: { a1_authority: "execution facts", a2_authority: "grade and release decision" },
       trusted_release_authority: { status: "integrity_invalid", integrity_verified: false, upstream_decision: "unknown", release_ready: false },
       delivery_golden_path: { status: "blocked_by_a2", production_ready: false },
+      multimodal_review_assignment_packet: {
+        schema_version: "a3.multimodal_review_assignment_packet.v1",
+        integrity: { status: "passed", event_count: 1 },
+        archive_binding: { audit_archive_signature_required: true, audit_archive_signature_verified: false },
+        authority_boundary: { authoritative_human_review_included: false, release_authority: false }
+      },
       deployment_acceptance: { status: "blocked", production_accepted: false },
       deployment_handoff: {
         schema_version: "a3.deployment_handoff.v1",

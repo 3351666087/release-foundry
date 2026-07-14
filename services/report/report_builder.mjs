@@ -6370,6 +6370,8 @@ export function summarizeMultimodalReviewQueueExport(queue = {}) {
   const summary = objectOr(queue.summary);
   const authority = objectOr(queue.authority_boundary);
   const items = Array.isArray(queue.items) ? queue.items : [];
+  const reviewPacket = objectOr(queue.review_packet);
+  const reviewPacketAvailable = reviewPacket.schema_version === "a3.multimodal_review_assignment_packet.v1";
   return {
     schema_version: "a3.multimodal_review_queue_export.v1",
     available: true,
@@ -6405,8 +6407,23 @@ export function summarizeMultimodalReviewQueueExport(queue = {}) {
       assignment_events_release_authority: authority.assignment_events_release_authority === true,
       assignment_events_change_a2_decision: authority.assignment_events_change_a2_decision === true
     },
+    review_packet: {
+      available: reviewPacketAvailable,
+      schema_version: reviewPacket.schema_version || "none",
+      packet_id: reviewPacket.packet_id || null,
+      packet_root_hash: reviewPacket.packet_root_hash || null,
+      integrity_status: reviewPacket.integrity?.status || "not_generated",
+      item_count: numberOrDefault(reviewPacket.item_count, 0),
+      event_count: numberOrDefault(reviewPacket.event_count, 0),
+      audit_archive_signature_required: true,
+      audit_archive_signature_verified: false,
+      bundle_artifact_id: reviewPacket.archive_binding?.bundle_artifact_id || "multimodal_review_assignment_packet",
+      authoritative_human_review_included: false,
+      release_authority: false
+    },
     items: items.slice(0, 100).map((item) => {
       const operational = objectOr(item.operational_state);
+      const history = Array.isArray(item.assignment_history) ? item.assignment_history : [];
       return ({
       queue_id: item.queue_id,
       case_id: item.case_id,
@@ -6437,6 +6454,22 @@ export function summarizeMultimodalReviewQueueExport(queue = {}) {
       lease_expires_at: operational.lease_expires_at || null,
       assignment_last_action: operational.last_action || null,
       assignment_event_count: numberOrDefault(operational.event_count, 0),
+      assignment_history: history.slice(0, 100).map((event) => ({
+        event_id: event.event_id,
+        event_hash: event.event_hash,
+        event_type: event.event_type,
+        version: event.version,
+        actor_role: event.actor_role,
+        actor_hash: event.actor_hash,
+        previous_reviewer_hash: event.previous_reviewer_hash || null,
+        assigned_reviewer_hash: event.assigned_reviewer_hash || null,
+        lease_started_at: event.lease_started_at || null,
+        lease_expires_at: event.lease_expires_at || null,
+        reason_code: event.reason_code,
+        created_at: event.created_at,
+        release_authority: false,
+        a2_decision_recomputed: false
+      })),
       authoritative_disposition_recorded: false,
       release_authority: false
     });
@@ -6446,6 +6479,7 @@ export function summarizeMultimodalReviewQueueExport(queue = {}) {
       raw_media_included: false,
       signed_url_included: false,
       raw_reviewer_identity_included: false,
+      assignment_history_metadata_only: true,
       release_decision_recomputed: false
     },
     recommendation: "Require an authoritative human-review resolution and same-candidate Decision Ledger before any release-state change."

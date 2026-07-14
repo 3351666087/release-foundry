@@ -85,6 +85,7 @@ import {
 } from "./a3_multimodal_review_queue.mjs";
 import {
   A3_MULTIMODAL_REVIEW_ASSIGNMENT_RECEIPT_SCHEMA_VERSION,
+  buildA3MultimodalReviewAssignmentPacket,
   buildA3MultimodalReviewAssignmentProjection,
   planA3MultimodalReviewAssignmentTransition
 } from "./a3_multimodal_review_assignment.mjs";
@@ -3157,6 +3158,7 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     options.multimodalReviewAssignmentEvents || [],
     { now: options.now }
   );
+  const multimodalReviewAssignmentPacket = multimodalReviewQueue.review_packet;
   const a1A2EvidenceSpine = buildA3A1A2EvidenceSpine({
     source: snapshot.source,
     runFixture: snapshot.runFixture,
@@ -3305,7 +3307,8 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
       migrationPlan,
       productConsole,
       saasAdmin,
-      notificationControlPlane
+      notificationControlPlane,
+      multimodalReviewAssignmentPacket
     }),
     commercial_api_contract: buildA3CommercialApiContract({
       source: "docs/strategy/large-saas-a1-a2-a3-full-plan.md",
@@ -3315,6 +3318,7 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
       projectId: snapshot.projectId
     }),
     review_workflow: reviewWorkflow,
+    multimodal_review_assignment_packet: multimodalReviewAssignmentPacket,
     product_console: productConsole,
     summary: snapshot.summary,
     cases: cases.map((item) => ({
@@ -4848,7 +4852,13 @@ function buildMultimodalQueueForSnapshot(snapshot = {}, assignmentEvents = [], o
     ingestMode: metadata.ingest_mode,
     capabilityState: metadata.capability_state
   });
-  return buildA3MultimodalReviewAssignmentProjection(queue, assignmentEvents, options);
+  const projection = buildA3MultimodalReviewAssignmentProjection(queue, assignmentEvents, options);
+  return {
+    ...projection,
+    review_packet: buildA3MultimodalReviewAssignmentPacket(projection, {
+      generatedAt: options.now || "queue-read"
+    })
+  };
 }
 
 function selectSnapshot(snapshots, source = "mock", options = {}) {

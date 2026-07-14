@@ -73,6 +73,13 @@ release, or transfer an item with `expected_version` concurrency protection. The
 coordinate people only; they do not create an A2 human-review disposition and cannot alter
 risk, score, pass/fail, the Decision Ledger, or release authority.
 
+The same route now feeds a metadata-only `a3.multimodal_review_assignment_packet.v1`.
+Its event hashes, contiguous versions, tenant scope, queue/case/comparison binding, and
+packet root hash must verify before Gate CLI accepts it as a `review_record`. The packet is
+not self-authorizing: only a separate Ed25519 Audit Archive verification can prove that the
+exact file entered a signed archive, and the committed sample signer remains explicitly
+`self_signed_local_key_not_sso_bound` rather than production KMS/SSO identity.
+
 The self-host sandbox calibration route is different from a deployment receipt. It executes
 real local A1 behavior and stores a validated calibration in
 `self_host_sandbox_calibrations`, but its authority fields remain fixed to false for
@@ -184,6 +191,8 @@ Commercial artifact types referenced by the endpoint map include:
 - `usage_ledger`
 - `billing_readiness_snapshot`
 - `audit_bundle_index`
+- `multimodal_review_assignment_packet`
+- `audit_archive_manifest`
 - `a1_self_host_sandbox_calibration`
 
 This round also introduces source-artifact hash summaries for A1/A2 inputs:

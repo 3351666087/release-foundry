@@ -1477,3 +1477,35 @@
 - [ ] Ingest a real A2 human-review receipt and verify its chain.
 - [ ] Bind the terminal review hash to a same-candidate A2 Decision Ledger.
 - [ ] Run the workflow with A1 hosted identity, CSRF, target PostgreSQL RLS and staging acceptance evidence.
+
+## Signed Multimodal Review Assignment Packet - 2026-07-14
+
+- [x] Re-fetch and inspect current main, A1, A2 and the enterprise strategy before implementation.
+- [x] Preserve A2 disposition and release authority and refuse to fabricate a real human-review receipt.
+- [x] Recompute every assignment event id/hash and reject unknown or unsafe event fields.
+- [x] Validate contiguous versions, reviewer transitions, monotonic time, tenant scope and queue/case/comparison binding.
+- [x] Add a metadata-only packet root hash and fail-closed packet verifier.
+- [x] Reject secret, email, URL, local account path, raw identity, raw model payload, private media and signed URL material.
+- [x] Add a packet build/verify CLI with JSON and Markdown output.
+- [x] Add Gate CLI `--multimodal-review-packet` verified ingestion as a `review_record`.
+- [x] Add a new Audit Bundle without rewriting the historical rc.2 bundle.
+- [x] Add a locally Ed25519-signed Audit Archive and verify packet, bundle, custody, archive root and signature.
+- [x] Label the signer `self_signed_local_key_not_sso_bound` and avoid any production-signing claim.
+- [x] Add packet state and metadata-only assignment history to Dashboard and report exports.
+- [x] Add the packet to Artifact Registry with content hash, missing production-signature controls and a packet preset.
+- [x] Upgrade API Reference to v11 and update the commercial API contract fixture/documentation.
+- [x] Add Chinese-first integrity/signature UI and keyboard-expandable history.
+- [x] Make Playwright claim through the protected API before checking the rendered history.
+- [x] Save and inspect desktop and 390 x 844 screenshots without document-level horizontal overflow.
+- [x] Add positive, tamper, scope, CLI, bundle, archive, API, report and registry tests.
+- [x] Add implementation evidence and Growth Auditor Round 22 with 22 executable next steps.
+- [x] Keep Golden Path `7/11`, Deployment Acceptance `8/17`, production receipts `0`, current authority `integrity_invalid`, current A2 decision `unknown`, historical A2 `block`, and production ready false.
+- [x] Pass A3 Node `486` runnable tests with one explicit live-target PostgreSQL skip and zero failures.
+- [x] Pass current-main A2 `186/186` test files and `1050` subtests without changing A2 judgement semantics.
+- [x] Pass Next.js TypeScript/build with 15 pages and full Playwright `42/42`.
+- [x] Pass CL hygiene with zero findings and Commercial CL with zero blockers/advisories.
+- [x] Confirm root and Webapp production dependency audits report zero vulnerabilities.
+- [x] Verify the packet, all `3/3` Audit Bundle artifacts and custody chain, and the Audit Archive root and Ed25519 signature.
+- [ ] Import and validate a public-safe real A2 human-review chain.
+- [ ] Bind the terminal review hash and packet to a same-candidate A2 Decision Ledger.
+- [ ] Replace local self-signing with tenant-bound KMS/HSM or workload identity in authorized staging.

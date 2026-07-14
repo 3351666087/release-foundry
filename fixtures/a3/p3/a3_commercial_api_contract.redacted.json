@@ -796,7 +796,8 @@
       ],
       "artifacts": [
         "multimodal_review_assignment_receipt",
-        "multimodal_review_queue_export"
+        "multimodal_review_queue_export",
+        "multimodal_review_assignment_packet"
       ],
       "usage_meters": [
         "api_requests",
@@ -807,7 +808,7 @@
         "A2 non-authoritative multimodal queue receipt",
         "A3 reviewer lease workflow"
       ],
-      "notes": "Append-only assignment leases use expected_version and never alter A2 risk, score, disposition, or release authority.",
+      "notes": "Append-only assignment leases use expected_version and never alter A2 risk, score, disposition, or release authority. Metadata-only history can enter the signed Audit Archive only after packet integrity verification.",
       "order": 22,
       "a3_status": "implemented_local_a3",
       "contract_risk": "low_read_or_ingest_contract",
@@ -1659,5 +1660,5 @@
     "documentation": "docs/a3/p3_commercial_api_contract_2026_07_09.md",
     "api_route": "GET /api/a3/commercial-api/contract"
   },
-  "contract_hash": "67be889ce0a05149ec465fc9815f33cf4d0727715ee5f72bda83c5265ffc98ad"
+  "contract_hash": "8e357dfb2ef7dd2975e1bc3fbe0b32f908b73c4414a65aaeee1ff2f42c9748da"
 }

@@ -22,6 +22,10 @@ export function buildA3ArtifactRegistry(inputs = {}, options = {}) {
   const githubPublishEvidence = options.githubPublishEvidence || inputs.githubPublishEvidence || {};
   const billingMigrationReadiness = options.billingMigrationReadiness || inputs.billingMigrationReadiness || inputs.billingMigration || {};
   const notificationControlPlane = options.notificationControlPlane || inputs.notificationControlPlane || inputs.notification_control_plane || {};
+  const multimodalReviewAssignmentPacket = options.multimodalReviewAssignmentPacket
+    || inputs.multimodalReviewAssignmentPacket
+    || inputs.multimodal_review_assignment_packet
+    || {};
   const sourceArtifacts = options.sourceArtifacts || inputs.sourceArtifacts || {};
   const source = options.source || inputs.source || reportCenter.source || "unknown";
   const tenantScope = {
@@ -46,7 +50,8 @@ export function buildA3ArtifactRegistry(inputs = {}, options = {}) {
     saasAdmin,
     githubPublishEvidence,
     billingMigrationReadiness,
-    notificationControlPlane
+    notificationControlPlane,
+    multimodalReviewAssignmentPacket
   });
   const entries = [...reportEntries, ...controlEntries, ...sourceArtifactEntries(sourceArtifacts, {
     tenantScope,
@@ -159,8 +164,35 @@ function controlArtifactEntries(context) {
   }));
   entries.push(billingMigrationReadinessArtifact(context));
   entries.push(notificationControlPlaneArtifact(context));
+  if (context.multimodalReviewAssignmentPacket?.schema_version === "a3.multimodal_review_assignment_packet.v1") {
+    entries.push(multimodalReviewAssignmentPacketArtifact(context));
+  }
   entries.push(...githubPublishArtifactEntries(context));
   return entries;
+}
+
+function multimodalReviewAssignmentPacketArtifact(context) {
+  const packet = context.multimodalReviewAssignmentPacket || {};
+  const integrityPassed = packet.integrity?.status === "passed"
+    && /^sha256:[a-f0-9]{64}$/.test(String(packet.packet_root_hash || ""));
+  const signatureVerified = packet.archive_binding?.audit_archive_signature_verified === true;
+  return controlArtifact("multimodal_review_assignment_packet", {
+    context,
+    ready: integrityPassed,
+    contentType: "application/json",
+    contentHash: packet.packet_root_hash || null,
+    billableMeter: "review_packet_exports",
+    customerValue: "tamper-evident reviewer assignment history for audit, handoff, and signed review packets",
+    billableValue: `${packet.event_count || 0} metadata-only assignment event(s) across ${packet.item_count || 0} queue item(s).`,
+    selfHostValue: "Can be added to the existing Audit Bundle and signed with the deployment-controlled archive signer.",
+    auditValue: "Preserves claim, renew, transfer, release, lease, reviewer hash alias, reason, scope, version, and event hash without human disposition claims.",
+    missingControls: integrityPassed
+      ? signatureVerified
+        ? []
+        : ["audit_archive_signature_receipt", "kms_or_sso_bound_signer_identity"]
+      : ["assignment_history_integrity"],
+    resourceId: packet.packet_id || null
+  });
 }
 
 function notificationControlPlaneArtifact(context) {
@@ -282,7 +314,8 @@ function controlArtifact(type, options) {
     report_id: null,
     manifest_join_key: `control:${type}`,
     lifecycle_state: options.lifecycleState || (options.ready ? "generated" : "planned"),
-    hash_status: options.ready ? "schema_reference_present" : "pending_source",
+    hash_status: options.contentHash ? "content_hash_present" : options.ready ? "schema_reference_present" : "pending_source",
+    content_hash: options.contentHash || null,
     redaction_status: "metadata_only",
     retention_class: "control_plane_evidence",
     share_scope: "internal_admin",
@@ -339,6 +372,7 @@ function buildPacketPresets(entries) {
     packetPreset("security_audit_packet", ["report_manifest", "release_evidence_summary", "usage_ledger", "saas_admin_guardrails", "auth_rbac_boundary", "db_migration_plan", "billing_migration_readiness", "notification_control_plane"], entries),
     packetPreset("billing_migration_packet", ["billing_migration_readiness", "usage_ledger", "db_migration_plan", "report_manifest"], entries),
     packetPreset("notification_readiness_packet", ["notification_control_plane", "release_evidence_summary", "usage_ledger", "report_manifest"], entries),
+    packetPreset("multimodal_review_packet", ["multimodal_review_assignment_packet", "report_manifest"], entries),
     packetPreset("source_evidence_packet", ["a1_run_result", "a1_trace_event_batch", "a2_grade_result", "a2_release_gate"], entries),
     packetPreset("customer_safe_packet", ["hosted_report", "release_evidence_summary", "report_manifest"], entries)
   ];
