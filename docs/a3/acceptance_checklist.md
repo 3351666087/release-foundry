@@ -1545,3 +1545,37 @@
 - [ ] Import and validate a real A2 human-review chain.
 - [ ] Bind the review result and three-way evidence to one exact shared candidate and Decision Ledger.
 - [ ] Run the workflow with hosted identity, target PostgreSQL RLS, object storage and tenant KMS in authorized staging.
+
+## Multimodal Review Evidence Request Workflow - 2026-07-14
+
+- [x] Re-read the enterprise strategy and calibrate against main `ccf6ce5`, A1 peer `6a985b8`, and latest A2 peer `7504680` while retaining exact Round 50 source `bb3bcfe`.
+- [x] Confirm A2 Round 51 real review remains pending with zero receipts, all three retained calibrations remain blocked, and shared-candidate verification remains false.
+- [x] Preserve the real A2 Round 50 fact that one review is pending and zero real human dispositions exist.
+- [x] Add requested, submitted, accepted, rejected and cancelled append-only events.
+- [x] Derive overdue from server time without fabricating an operational event.
+- [x] Require active assignment ownership for create and review actions.
+- [x] Require `project:ingest` for evidence submission.
+- [x] Require header-only `Idempotency-Key` and `expected_version` optimistic concurrency.
+- [x] Require complete submission of every requested evidence kind and reject unrequested kinds.
+- [x] Allow only A1/A2/media/provider/candidate SHA-256 evidence references.
+- [x] Reject raw media, payloads, URLs, signed URLs, paths, email, identity, secrets and free text.
+- [x] Validate event id/hash, previous hash, version, lifecycle, time, scope and immutable request fields.
+- [x] Enforce five-level tenant scope and sanitized cross-tenant 404 behavior.
+- [x] Add metadata-only audit events, Event Outbox rows and usage metering.
+- [x] Persist and restore the workflow through Memory, JSON-file and SQLite stores.
+- [x] Add PostgreSQL migrations 023/024 with forced-RLS contract coverage.
+- [x] Add four protected API routes and keep OpenAPI runtime parity at `65/65`.
+- [x] Upgrade API Reference to v13 and commercial endpoint coverage from 40 to 44.
+- [x] Add evidence-request state to Dashboard, JSON, Markdown and Hosted Report exports.
+- [x] Add Chinese-first create, accept, reject, cancel, denied, conflict, failure, retry and empty UI states.
+- [x] Save and visually inspect desktop and 390 x 844 screenshots without document-level horizontal overflow.
+- [x] Pass A3 Node `498` runnable tests with one explicit target-PostgreSQL opt-in skip and zero failures.
+- [x] Pass current-main A2 `186/186` test files plus `1050` subtests without changing A2 judgement semantics.
+- [x] Pass Next.js TypeScript/build with 15 pages and full Playwright `44/44`.
+- [x] Pass both CL guards, both production npm audits and OpenAPI parity.
+- [x] Publish feature commit `565cec7` and confirm GitHub Actions run `29322903320` passes every applicable check.
+- [x] Keep `.env.local` ignored and exclude credentials, account identity, signed URLs, raw provider payloads and private media.
+- [x] Keep Golden Path `7/11`, Deployment Acceptance `8/17`, production receipts `0`, current authority `integrity_invalid`, current A2 decision `unknown`, historical A2 `block`, and production ready false.
+- [ ] Import and validate a real A2 human-review receipt and complete review chain.
+- [ ] Bind accepted evidence and the terminal review to one exact candidate and A2 Decision Ledger.
+- [ ] Run migrations 023/024 and the complete workflow in authorized target PostgreSQL/VPC/object storage/KMS.

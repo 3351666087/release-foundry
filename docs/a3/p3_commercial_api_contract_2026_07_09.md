@@ -24,7 +24,7 @@ until A1 hosted auth/RBAC/payment backends exist.
 
 ANCHOR: ENDPOINT_COVERAGE
 
-The contract currently maps 40 commercial endpoints, including:
+The contract currently maps 44 commercial endpoints, including:
 
 - `GET /v1/me`
 - `GET /v1/organizations`
@@ -39,6 +39,10 @@ The contract currently maps 40 commercial endpoints, including:
 - `POST /v1/release-gates/{release_gate_id}/approvals`
 - `POST /v1/release-gates/{release_gate_id}/denials`
 - `POST /v1/review-queues/multimodal/{queue_id}/assignment`
+- `GET /v1/review-queues/multimodal/{queue_id}/evidence-requests`
+- `POST /v1/review-queues/multimodal/{queue_id}/evidence-requests`
+- `POST /v1/review-queues/multimodal/{queue_id}/evidence-requests/{request_id}/submissions`
+- `POST /v1/review-queues/multimodal/{queue_id}/evidence-requests/{request_id}/reviews`
 - `GET /v1/deployments/sandbox-calibration`
 - `POST /v1/releases/{release_id}/deployment-receipts`
 - `POST /v1/releases/{release_id}/deployment-receipts/{receipt_id}/reviews`
@@ -73,6 +77,13 @@ release, or transfer an item with `expected_version` concurrency protection. The
 coordinate people only; they do not create an A2 human-review disposition and cannot alter
 risk, score, pass/fail, the Decision Ledger, or release authority.
 
+Multimodal evidence requests are a separate append-only workflow layered on an active reviewer
+assignment. The assignment owner can request allowlisted A1 execution, A2 evaluation, media,
+provider-identity, or candidate-binding evidence; an ingest principal can submit SHA-256 references;
+and the assignment owner can accept, reject, or cancel the coordination request. `accepted` means
+the supplemental hashes passed inspection, not that A2 recorded a human disposition. Raw media,
+URLs, signed URLs, local paths, email, identity, secrets, and free text are rejected.
+
 The review queue adapter now accepts A2 two-way v1, repeated/aggregate two-way v3, and
 three-way v2. Three-way v2 support is calibrated against A2 Round 50 commit `bb3bcfe`:
 the public-safe source contains three provider observations, one semantic disagreement,
@@ -103,6 +114,10 @@ New local A3 API route:
 ```text
 GET /api/a3/commercial-api/contract
 GET /api/a3/deployment/sandbox-calibration
+GET /api/a3/review/multimodal-queue/:queueId/evidence-requests
+POST /api/a3/review/multimodal-queue/:queueId/evidence-requests
+POST /api/a3/review/multimodal-queue/:queueId/evidence-requests/:requestId/submissions
+POST /api/a3/review/multimodal-queue/:queueId/evidence-requests/:requestId/review
 ```
 
 Response schema:
@@ -124,9 +139,14 @@ The A3 DB contract now includes:
 ```text
 commercial_api_contracts
 self_host_sandbox_calibrations
+multimodal_review_evidence_request_events
 source_artifacts
 event_outbox
 ```
+
+Migration 023 creates the evidence-request event table and indexes; migration 024 enables and
+forces five-level PostgreSQL RLS. These are executable, tested migration contracts, not proof that
+an authorized target staging database has run them.
 
 The SQL migration contract includes a tenant-scoped table with:
 
@@ -198,6 +218,8 @@ Commercial artifact types referenced by the endpoint map include:
 - `billing_readiness_snapshot`
 - `audit_bundle_index`
 - `multimodal_review_assignment_packet`
+- `multimodal_review_evidence_request_receipt`
+- `hash_only_evidence_reference_set`
 - `audit_archive_manifest`
 - `a1_self_host_sandbox_calibration`
 

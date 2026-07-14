@@ -479,6 +479,46 @@ const COMMERCIAL_ENDPOINTS = [
     dependencies: ["A1 trusted reviewer identity and tenant scope", "A2 two-way or three-way non-authoritative multimodal queue receipt", "A3 reviewer lease workflow"],
     notes: "Append-only assignment leases consume validated A2 two-way v1/v3 or three-way v2 queue receipts, use expected_version, and never alter A2 risk, score, disposition, or release authority. Metadata-only history can enter the signed Audit Archive only after packet integrity verification."
   }),
+  endpoint("GET /v1/review-queues/multimodal/{queue_id}/evidence-requests", "A1/A2/A3", "review_workflow", "GET /api/a3/review/multimodal-queue/:queueId/evidence-requests", {
+    status: "read_only",
+    rbac: "release:review",
+    db: ["multimodal_review_evidence_request_events", "audit_events"],
+    events: ["review.multimodal_evidence_requests_read"],
+    artifacts: ["multimodal_review_evidence_request_list"],
+    usage: ["api_requests"],
+    dependencies: ["A1 trusted reviewer identity and five-level scope", "A2 non-authoritative multimodal queue receipt", "A3 evidence-request projection"],
+    notes: "Returns request lifecycle metadata and allowlisted SHA-256 references only; raw evidence, URLs, identities, dispositions, and release authority remain excluded."
+  }),
+  endpoint("POST /v1/review-queues/multimodal/{queue_id}/evidence-requests", "A1/A2/A3", "review_workflow", "POST /api/a3/review/multimodal-queue/:queueId/evidence-requests", {
+    status: "implemented",
+    rbac: "release:review active_assignment_owner",
+    db: ["multimodal_review_evidence_request_events", "idempotency_keys", "audit_events", "event_outbox"],
+    events: ["review.multimodal_evidence_request.requested"],
+    artifacts: ["multimodal_review_evidence_request_receipt", "hosted_review_report"],
+    usage: ["api_requests", "multimodal_review_evidence_request_actions"],
+    dependencies: ["A1 trusted reviewer identity and durable event execution", "A2 evidence-kind ownership boundaries", "A3 active assignment lease"],
+    notes: "The active assignment owner requests allowlisted execution, evaluation, media, provider, or candidate-binding evidence with expected_version=0 and a bounded deadline."
+  }),
+  endpoint("POST /v1/review-queues/multimodal/{queue_id}/evidence-requests/{request_id}/submissions", "A1/A2/A3", "review_workflow", "POST /api/a3/review/multimodal-queue/:queueId/evidence-requests/:requestId/submissions", {
+    status: "implemented",
+    rbac: "project:ingest",
+    db: ["multimodal_review_evidence_request_events", "idempotency_keys", "audit_events", "event_outbox"],
+    events: ["review.multimodal_evidence_request.submitted"],
+    artifacts: ["multimodal_review_evidence_request_receipt", "hash_only_evidence_reference_set"],
+    usage: ["api_requests", "multimodal_review_evidence_request_actions"],
+    dependencies: ["A1 or A2 tenant-scoped ingest principal", "A1/A2 hash-addressed evidence", "A3 evidence-request lifecycle"],
+    notes: "Submission must cover every requested evidence kind using SHA-256 evidence and optional binding hashes; raw evidence, URLs, signed media URLs, local paths, and free text are rejected."
+  }),
+  endpoint("POST /v1/review-queues/multimodal/{queue_id}/evidence-requests/{request_id}/reviews", "A1/A2/A3", "review_workflow", "POST /api/a3/review/multimodal-queue/:queueId/evidence-requests/:requestId/review", {
+    status: "implemented",
+    rbac: "release:review active_assignment_owner",
+    db: ["multimodal_review_evidence_request_events", "idempotency_keys", "audit_events", "event_outbox"],
+    events: ["review.multimodal_evidence_request.accepted", "review.multimodal_evidence_request.rejected", "review.multimodal_evidence_request.cancelled"],
+    artifacts: ["multimodal_review_evidence_request_receipt", "hosted_review_report"],
+    usage: ["api_requests", "multimodal_review_evidence_request_actions"],
+    dependencies: ["A1 active reviewer lease and durable audit", "A2 authoritative human disposition service remains separate", "A3 optimistic request version"],
+    notes: "Accepting evidence closes a coordination request only. It never creates an A2 human-review disposition, changes score or pass/fail, or grants release authority."
+  }),
   endpoint("GET /v1/deployments/sandbox-calibration", "A1/A3", "deployment_operations", "GET /api/a3/deployment/sandbox-calibration", {
     status: "implemented_local_sandbox",
     rbac: "deployment:read",

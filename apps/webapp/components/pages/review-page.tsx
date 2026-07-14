@@ -5,6 +5,7 @@ import { Check, CircleSlash2, Clock3, FileCheck2, GitCompareArrows, History, Ima
 
 import { array, number, record, string } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
+import { MultimodalEvidenceRequestPanel } from "../multimodal-evidence-request-panel";
 import { DataBoundary, DataTable, EmptyState, formatDate, MetricStrip, PageHeader, Section, StatusBadge } from "../ui";
 
 export function ReviewPage() {
@@ -171,6 +172,16 @@ export function ReviewPage() {
               detail={multimodalStatus === "invalid_upstream_contract"
                 ? (zh ? "已停止展示不一致或不安全的上游字段，请检查导入回执。" : "Unsafe or inconsistent upstream fields are hidden; inspect the import receipt.")
                 : (zh ? "接入评测服务比较回执后，这里会显示真实分歧。" : "Authoritative comparison receipts will appear here after ingestion.")}
+            />
+          )}
+
+          {multimodalAvailable && (
+            <MultimodalEvidenceRequestPanel
+              source={model.source}
+              tenantScope={record(multimodalQueue.tenant_scope)}
+              queueItems={multimodalItems}
+              summary={multimodalSummary}
+              zh={zh}
             />
           )}
 

@@ -19,6 +19,7 @@ export function buildA3SqlMigrationPlan(options = {}) {
       "Auth context, RBAC policy snapshots, and authz decisions are metadata-only records until A1 hosted auth becomes authoritative.",
       "Reviewer waiver and approval records must be hash-sealed, tenant-scoped, and durable before they can influence release governance.",
       "Multimodal reviewer assignment events must be append-only, five-level tenant-scoped, version-checked, and unable to modify A2 decisions.",
+      "Multimodal review evidence requests must be append-only, hash-reference-only, assignment-owner reviewed, and unable to create an A2 disposition or release authority.",
       "Release evidence summaries must be tenant-scoped, hash-sealed, and safe to expose through API-backed dashboard and hosted report snapshots.",
       "Release evidence v2 authority rows must separate immutable snapshots, safe diffs, and external readback states before claiming enterprise enforcement.",
       "Release evidence readback capture must be idempotent, tenant-scoped, audit-linked, and hash-only before it can influence PR gates.",
@@ -727,8 +728,63 @@ CREATE TABLE IF NOT EXISTS multimodal_review_assignment_events (
 );
 CREATE UNIQUE INDEX IF NOT EXISTS idx_multimodal_review_assignment_version ON multimodal_review_assignment_events(organization_id, tenant_id, workspace_id, project_id, environment_id, source, queue_id, version);
 CREATE INDEX IF NOT EXISTS idx_multimodal_review_assignment_active ON multimodal_review_assignment_events(organization_id, tenant_id, workspace_id, project_id, environment_id, source, queue_id, lease_expires_at);`),
-    statement("022_multimodal_review_assignment_scope_hardening", ["multimodal_review_assignment_events"], multimodalReviewAssignmentScopeHardening(dialect))
+    statement("022_multimodal_review_assignment_scope_hardening", ["multimodal_review_assignment_events"], multimodalReviewAssignmentScopeHardening(dialect)),
+    statement("023_multimodal_review_evidence_request_events", ["multimodal_review_evidence_request_events"], `
+CREATE TABLE IF NOT EXISTS multimodal_review_evidence_request_events (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL,
+  workspace_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  environment_id TEXT NOT NULL,
+  source TEXT NOT NULL,
+  queue_id TEXT NOT NULL,
+  request_id TEXT NOT NULL,
+  case_id TEXT NOT NULL,
+  comparison_hash TEXT NOT NULL,
+  event_type TEXT NOT NULL,
+  version INTEGER NOT NULL,
+  actor_hash TEXT NOT NULL,
+  actor_role TEXT NOT NULL,
+  owner_lane TEXT NOT NULL,
+  required_evidence_kinds ${types.json} NOT NULL,
+  evidence_refs ${types.json} NOT NULL,
+  due_at ${types.timestamp} NOT NULL,
+  reason_code TEXT NOT NULL,
+  previous_event_hash TEXT,
+  event_hash TEXT NOT NULL,
+  payload ${types.json} NOT NULL,
+  created_at ${types.timestamp} NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_multimodal_review_evidence_request_version ON multimodal_review_evidence_request_events(organization_id, tenant_id, workspace_id, project_id, environment_id, source, request_id, version);
+CREATE INDEX IF NOT EXISTS idx_multimodal_review_evidence_request_queue ON multimodal_review_evidence_request_events(organization_id, tenant_id, workspace_id, project_id, environment_id, source, queue_id, due_at);`),
+    statement("024_multimodal_review_evidence_request_scope_hardening", ["multimodal_review_evidence_request_events"], multimodalReviewEvidenceRequestScopeHardening(dialect))
   ];
+}
+
+function multimodalReviewEvidenceRequestScopeHardening(dialect) {
+  if (dialect === "sqlite" || dialect === "mysql") {
+    return `
+CREATE UNIQUE INDEX IF NOT EXISTS idx_multimodal_review_evidence_request_scope_identity ON multimodal_review_evidence_request_events(organization_id, tenant_id, workspace_id, project_id, environment_id, id);`;
+  }
+  const scopePredicate = [
+    ["organization_id", "app.a3_organization_id"],
+    ["tenant_id", "app.a3_tenant_id"],
+    ["workspace_id", "app.a3_workspace_id"],
+    ["project_id", "app.a3_project_id"],
+    ["environment_id", "app.a3_environment_id"]
+  ].map(([column, setting]) => `${column} = NULLIF(current_setting('${setting}', TRUE), '')`).join("\n    AND ");
+  return `
+ALTER TABLE multimodal_review_evidence_request_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE multimodal_review_evidence_request_events FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS multimodal_review_evidence_request_scope_isolation ON multimodal_review_evidence_request_events;
+CREATE POLICY multimodal_review_evidence_request_scope_isolation ON multimodal_review_evidence_request_events
+  USING (
+    ${scopePredicate}
+  )
+  WITH CHECK (
+    ${scopePredicate}
+  );`;
 }
 
 function multimodalReviewAssignmentScopeHardening(dialect) {

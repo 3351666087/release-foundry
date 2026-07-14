@@ -173,6 +173,13 @@ function synchronizeDeliveryHandoffSchemas(schemas) {
   schemas.MultimodalReviewAssignmentRequest = multimodalReviewAssignmentRequestSchema();
   schemas.MultimodalReviewAssignmentReceipt = multimodalReviewAssignmentReceiptSchema();
   schemas.MultimodalReviewOperationalState = multimodalReviewOperationalStateSchema();
+  schemas.MultimodalReviewEvidenceReference = multimodalReviewEvidenceReferenceSchema();
+  schemas.MultimodalReviewEvidenceRequest = multimodalReviewEvidenceRequestSchema();
+  schemas.MultimodalReviewEvidenceRequestList = multimodalReviewEvidenceRequestListSchema();
+  schemas.MultimodalReviewEvidenceRequestCreate = multimodalReviewEvidenceRequestCreateSchema();
+  schemas.MultimodalReviewEvidenceSubmission = multimodalReviewEvidenceSubmissionSchema();
+  schemas.MultimodalReviewEvidenceReview = multimodalReviewEvidenceReviewSchema();
+  schemas.MultimodalReviewEvidenceRequestReceipt = multimodalReviewEvidenceRequestReceiptSchema();
 }
 
 function synchronizeSelfHostSandboxOperation(spec) {
@@ -979,6 +986,10 @@ function synchronizeMultimodalReviewOperations(spec) {
   const importOperation = spec.paths?.["/api/a3/import/a2-multimodal-comparison"]?.post;
   const readOperation = spec.paths?.["/api/a3/review/multimodal-queue"]?.get;
   const assignmentOperation = spec.paths?.["/api/a3/review/multimodal-queue/{queueId}/assignment"]?.post;
+  const evidenceRequestReadOperation = spec.paths?.["/api/a3/review/multimodal-queue/{queueId}/evidence-requests"]?.get;
+  const evidenceRequestCreateOperation = spec.paths?.["/api/a3/review/multimodal-queue/{queueId}/evidence-requests"]?.post;
+  const evidenceSubmissionOperation = spec.paths?.["/api/a3/review/multimodal-queue/{queueId}/evidence-requests/{requestId}/submissions"]?.post;
+  const evidenceReviewOperation = spec.paths?.["/api/a3/review/multimodal-queue/{queueId}/evidence-requests/{requestId}/review"]?.post;
   if (importOperation) {
     importOperation.operationId = "a3ImportA2MultimodalComparison";
     importOperation.summary = "Import a public-safe A2 multimodal comparison into the tenant review queue.";
@@ -1042,6 +1053,93 @@ function synchronizeMultimodalReviewOperations(spec) {
     };
     assignmentOperation["x-authority-boundary"] = multimodalAuthorityBoundary();
   }
+  if (evidenceRequestReadOperation) {
+    evidenceRequestReadOperation.operationId = "a3ReadMultimodalReviewEvidenceRequests";
+    evidenceRequestReadOperation.summary = "Read hash-only evidence requests for one tenant-scoped review item.";
+    evidenceRequestReadOperation.tags = ["Review", "Evidence"];
+    evidenceRequestReadOperation["x-schema-version"] = "a3.multimodal_review_evidence_request_list.v1";
+    evidenceRequestReadOperation.responses["200"] = typedJsonResponse(
+      "Evidence-request states and hash references without raw evidence.",
+      "MultimodalReviewEvidenceRequestList"
+    );
+    evidenceRequestReadOperation["x-authority-boundary"] = multimodalEvidenceRequestAuthorityBoundary();
+  }
+  if (evidenceRequestCreateOperation) {
+    configureEvidenceRequestMutation(evidenceRequestCreateOperation, {
+      operationId: "a3CreateMultimodalReviewEvidenceRequest",
+      summary: "Request additional execution, evaluation, media, provider, or candidate-binding evidence.",
+      schemaVersion: "a3.multimodal_review_evidence_request_receipt.v1",
+      requestSchema: "MultimodalReviewEvidenceRequestCreate",
+      successStatus: "201",
+      successDescription: "Evidence request opened by the active assignment owner.",
+      events: ["review.multimodal_evidence_request.requested"],
+      assignmentOwnerRequired: true
+    });
+  }
+  if (evidenceSubmissionOperation) {
+    configureEvidenceRequestMutation(evidenceSubmissionOperation, {
+      operationId: "a3SubmitMultimodalReviewEvidenceRequest",
+      summary: "Submit all requested evidence as allowlisted SHA-256 references.",
+      schemaVersion: "a3.multimodal_review_evidence_request_receipt.v1",
+      requestSchema: "MultimodalReviewEvidenceSubmission",
+      successStatus: "200",
+      successDescription: "Hash-only evidence submission recorded for reviewer inspection.",
+      events: ["review.multimodal_evidence_request.submitted"],
+      assignmentOwnerRequired: false
+    });
+  }
+  if (evidenceReviewOperation) {
+    configureEvidenceRequestMutation(evidenceReviewOperation, {
+      operationId: "a3ReviewMultimodalReviewEvidenceRequest",
+      summary: "Accept, reject, or cancel submitted evidence without creating an A2 disposition.",
+      schemaVersion: "a3.multimodal_review_evidence_request_receipt.v1",
+      requestSchema: "MultimodalReviewEvidenceReview",
+      successStatus: "200",
+      successDescription: "Evidence coordination state updated by the active assignment owner.",
+      events: [
+        "review.multimodal_evidence_request.accepted",
+        "review.multimodal_evidence_request.rejected",
+        "review.multimodal_evidence_request.cancelled"
+      ],
+      assignmentOwnerRequired: true
+    });
+  }
+}
+
+function configureEvidenceRequestMutation(operation, options) {
+  operation.operationId = options.operationId;
+  operation.summary = options.summary;
+  operation.tags = ["Review", "Evidence", "Operations"];
+  operation["x-schema-version"] = options.schemaVersion;
+  operation.parameters = withIdempotencyHeader(operation.parameters);
+  operation.requestBody = typedJsonRequest(options.requestSchema);
+  delete operation.responses["202"];
+  operation.responses[options.successStatus] = typedJsonResponse(
+    options.successDescription,
+    "MultimodalReviewEvidenceRequestReceipt"
+  );
+  operation.responses["409"] = typedJsonResponse(
+    "Stale expected_version, assignment ownership, lifecycle, or idempotency conflict.",
+    "DeploymentReceiptConflict"
+  );
+  operation["x-audit"] = {
+    events: options.events,
+    payload_policy: "queue_request_ids_hashes_versions_kinds_owner_lane_due_time_and_reason_codes_only"
+  };
+  operation["x-concurrency"] = {
+    strategy: "optimistic_expected_version",
+    stale_write_http_status: 409,
+    idempotency_header_only: true
+  };
+  operation["x-assignment-owner-required"] = options.assignmentOwnerRequired;
+  operation["x-evidence-boundary"] = {
+    allowlisted_kinds_only: true,
+    sha256_references_only: true,
+    raw_evidence_forbidden: true,
+    urls_forbidden: true,
+    free_text_forbidden: true
+  };
+  operation["x-authority-boundary"] = multimodalEvidenceRequestAuthorityBoundary();
 }
 
 function a2MultimodalComparisonEnvelopeSchema() {
@@ -1409,6 +1507,232 @@ function multimodalReviewAssignmentReceiptSchema() {
   };
 }
 
+function multimodalReviewEvidenceReferenceSchema() {
+  return {
+    type: "object",
+    required: ["kind", "evidence_hash"],
+    properties: {
+      kind: multimodalReviewEvidenceKindSchema(),
+      evidence_hash: sha256Schema(),
+      binding_hash: sha256Schema()
+    },
+    additionalProperties: false,
+    description: "Hash-only reference. Raw evidence, URLs, signed URLs, local paths, and free text are forbidden."
+  };
+}
+
+function multimodalReviewEvidenceRequestSchema() {
+  return {
+    type: "object",
+    required: [
+      "schema_version", "request_id", "queue_id", "case_id", "status", "version",
+      "owner_lane", "required_evidence_kinds", "submitted_evidence_kinds", "evidence_refs",
+      "due_at", "overdue", "event_count", "authority_boundary", "safety"
+    ],
+    properties: {
+      schema_version: { type: "string", const: "a3.multimodal_review_evidence_request.v1" },
+      request_id: { type: "string", pattern: "^mmreq_[a-f0-9]{20}$" },
+      queue_id: { type: "string", minLength: 1, maxLength: 240 },
+      case_id: { type: "string", minLength: 1, maxLength: 240 },
+      comparison_hash: sha256Schema(),
+      status: { type: "string", enum: ["open", "overdue", "submitted", "accepted", "cancelled"] },
+      version: { type: "integer", minimum: 1 },
+      owner_lane: multimodalReviewEvidenceOwnerLaneSchema(),
+      required_evidence_kinds: {
+        type: "array", minItems: 1, maxItems: 8, uniqueItems: true, items: multimodalReviewEvidenceKindSchema()
+      },
+      submitted_evidence_kinds: {
+        type: "array", maxItems: 8, uniqueItems: true, items: multimodalReviewEvidenceKindSchema()
+      },
+      evidence_refs: {
+        type: "array", maxItems: 24, items: { $ref: "#/components/schemas/MultimodalReviewEvidenceReference" }
+      },
+      due_at: { type: "string", format: "date-time" },
+      overdue: { type: "boolean" },
+      last_action: { type: ["string", "null"], enum: ["requested", "submitted", "accepted", "rejected", "cancelled", null] },
+      last_action_at: { type: ["string", "null"], format: "date-time" },
+      last_reason_code: { type: ["string", "null"], pattern: "^[a-z0-9_]{3,64}$" },
+      created_at: { type: "string", format: "date-time" },
+      event_count: { type: "integer", minimum: 1 },
+      terminal_event_hash: sha256Schema(),
+      history: { type: "array", maxItems: 1000, items: { type: "object", additionalProperties: true } },
+      integrity: { type: "object", additionalProperties: true },
+      authority_boundary: {
+        type: "object",
+        required: [
+          "evidence_accepted", "authoritative_human_disposition_recorded", "release_authority",
+          "a2_decision_recomputed", "release_decision_changed"
+        ],
+        properties: {
+          evidence_accepted: { type: "boolean" },
+          authoritative_human_disposition_recorded: { type: "boolean", const: false },
+          release_authority: { type: "boolean", const: false },
+          a2_decision_recomputed: { type: "boolean", const: false },
+          release_decision_changed: { type: "boolean", const: false }
+        },
+        additionalProperties: false
+      },
+      safety: { type: "object", additionalProperties: true }
+    },
+    additionalProperties: false
+  };
+}
+
+function multimodalReviewEvidenceRequestListSchema() {
+  return {
+    type: "object",
+    required: ["schema_version", "source", "queue_id", "case_id", "summary", "requests", "authority_boundary", "safety"],
+    properties: {
+      schema_version: { type: "string", const: "a3.multimodal_review_evidence_request_list.v1" },
+      source: { type: "string" },
+      ...multimodalScopeProperties(),
+      tenant_scope: { type: "object", additionalProperties: true },
+      queue_id: { type: "string" },
+      case_id: { type: "string" },
+      summary: { type: "object", additionalProperties: true },
+      requests: {
+        type: "array", maxItems: 1000, items: { $ref: "#/components/schemas/MultimodalReviewEvidenceRequest" }
+      },
+      authority_boundary: { type: "object", additionalProperties: true },
+      safety: { type: "object", additionalProperties: true }
+    },
+    additionalProperties: true
+  };
+}
+
+function multimodalReviewEvidenceRequestCreateSchema() {
+  return evidenceMutationEnvelope("evidence_request", {
+    type: "object",
+    required: ["expected_version", "owner_lane", "required_evidence_kinds", "due_at", "reason_code"],
+    properties: {
+      expected_version: { type: "integer", const: 0 },
+      owner_lane: multimodalReviewEvidenceOwnerLaneSchema(),
+      required_evidence_kinds: {
+        type: "array", minItems: 1, maxItems: 8, uniqueItems: true, items: multimodalReviewEvidenceKindSchema()
+      },
+      due_at: { type: "string", format: "date-time", description: "Must be in the future and no more than 30 days from server time." },
+      reason_code: { type: "string", pattern: "^[a-z0-9_]{3,64}$" }
+    },
+    additionalProperties: false
+  });
+}
+
+function multimodalReviewEvidenceSubmissionSchema() {
+  return evidenceMutationEnvelope("submission", {
+    type: "object",
+    required: ["expected_version", "owner_lane", "evidence_refs", "reason_code"],
+    properties: {
+      expected_version: { type: "integer", minimum: 1 },
+      owner_lane: multimodalReviewEvidenceOwnerLaneSchema(),
+      evidence_refs: {
+        type: "array",
+        minItems: 1,
+        maxItems: 24,
+        items: { $ref: "#/components/schemas/MultimodalReviewEvidenceReference" }
+      },
+      reason_code: { type: "string", pattern: "^[a-z0-9_]{3,64}$" }
+    },
+    additionalProperties: false
+  });
+}
+
+function multimodalReviewEvidenceReviewSchema() {
+  return evidenceMutationEnvelope("review", {
+    type: "object",
+    required: ["expected_version", "action", "reason_code"],
+    properties: {
+      expected_version: { type: "integer", minimum: 1 },
+      action: { type: "string", enum: ["accept", "reject", "cancel"] },
+      reason_code: { type: "string", pattern: "^[a-z0-9_]{3,64}$" }
+    },
+    additionalProperties: false
+  });
+}
+
+function multimodalReviewEvidenceRequestReceiptSchema() {
+  return {
+    type: "object",
+    required: [
+      "schema_version", "source", "queue_id", "request_id", "event_id", "event_hash",
+      "event_type", "action", "status", "version", "owner_lane", "required_evidence_kinds",
+      "submitted_evidence_kinds", "due_at", "evidence_accepted",
+      "authoritative_human_disposition_recorded", "release_authority", "a2_decision_recomputed",
+      "release_decision_changed", "created_at", "idempotency", "safety"
+    ],
+    properties: {
+      schema_version: { type: "string", const: "a3.multimodal_review_evidence_request_receipt.v1" },
+      source: { type: "string" },
+      ...multimodalScopeProperties(),
+      tenant_scope: { type: "object", additionalProperties: true },
+      queue_id: { type: "string" },
+      request_id: { type: "string", pattern: "^mmreq_[a-f0-9]{20}$" },
+      event_id: { type: "string", pattern: "^mmre_[a-f0-9]{20}$" },
+      event_hash: sha256Schema(),
+      event_type: { type: "string", enum: ["requested", "submitted", "accepted", "rejected", "cancelled"] },
+      action: { type: "string", enum: ["create", "submit", "accept", "reject", "cancel"] },
+      status: { type: "string", enum: ["open", "overdue", "submitted", "accepted", "cancelled"] },
+      version: { type: "integer", minimum: 1 },
+      owner_lane: multimodalReviewEvidenceOwnerLaneSchema(),
+      required_evidence_kinds: { type: "array", items: multimodalReviewEvidenceKindSchema() },
+      submitted_evidence_kinds: { type: "array", items: multimodalReviewEvidenceKindSchema() },
+      due_at: { type: "string", format: "date-time" },
+      reason_code: { type: "string", pattern: "^[a-z0-9_]{3,64}$" },
+      evidence_accepted: { type: "boolean" },
+      authoritative_human_disposition_recorded: { type: "boolean", const: false },
+      release_authority: { type: "boolean", const: false },
+      a2_decision_recomputed: { type: "boolean", const: false },
+      release_decision_changed: { type: "boolean", const: false },
+      created_at: { type: "string", format: "date-time" },
+      idempotency: { type: "object", additionalProperties: true },
+      event_envelope: { type: "object", additionalProperties: true },
+      safety: { type: "object", additionalProperties: true }
+    },
+    additionalProperties: true
+  };
+}
+
+function evidenceMutationEnvelope(field, payloadSchema) {
+  return {
+    type: "object",
+    required: ["source", field],
+    properties: {
+      source: { type: "string", minLength: 1, maxLength: 160 },
+      ...multimodalScopeProperties(),
+      [field]: payloadSchema
+    },
+    additionalProperties: false,
+    description: "Scope and identity are server verified. Idempotency is accepted only from the Idempotency-Key header."
+  };
+}
+
+function multimodalScopeProperties() {
+  return Object.fromEntries(TENANT_SCOPE_CONTRACT.required.map((field) => [field, {
+    type: "string",
+    minLength: 1,
+    maxLength: 160
+  }]));
+}
+
+function multimodalReviewEvidenceKindSchema() {
+  return {
+    type: "string",
+    enum: [
+      "a1_run_trace",
+      "a1_tool_call",
+      "a1_artifact",
+      "a2_judge_receipt",
+      "a2_review_receipt",
+      "media_evidence",
+      "provider_identity",
+      "candidate_binding"
+    ]
+  };
+}
+
+function multimodalReviewEvidenceOwnerLaneSchema() {
+  return { type: "string", enum: ["execution", "evaluation", "customer_operator"] };
+}
+
 function multimodalAuthorityBoundary() {
   return {
     upstream_release_authority: false,
@@ -1418,7 +1742,20 @@ function multimodalAuthorityBoundary() {
     candidate_binding_verified: false,
     can_change_release_decision: false,
     assignment_events_release_authority: false,
-    assignment_events_change_a2_decision: false
+    assignment_events_change_a2_decision: false,
+    evidence_request_acceptance_is_human_disposition: false,
+    evidence_requests_release_authority: false,
+    evidence_requests_change_a2_decision: false
+  };
+}
+
+function multimodalEvidenceRequestAuthorityBoundary() {
+  return {
+    evidence_acceptance_is_human_disposition: false,
+    authoritative_human_disposition_recorded: false,
+    release_authority: false,
+    a2_decision_recomputed: false,
+    release_decision_changed: false
   };
 }
 

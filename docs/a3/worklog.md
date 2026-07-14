@@ -7098,3 +7098,31 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
 - Root and Webapp production dependency audits each reported `0` vulnerabilities; `git diff --check` passed.
 - `.env.local` remains ignored. No key, token, cookie, email, account identity, signed URL, raw provider payload, private media, or local account path was added.
 - GitHub CI remains pending publication; no remote result is claimed in this local validation entry.
+
+## 2026-07-14 - Multimodal Review Evidence Request Workflow
+
+- Authenticated GitHub readback confirmed main `ccf6ce5`, A1 peer `6a985b8`, latest A2 peer `7504680`, and PR #35 open, Draft, clean; the exact consumed A2 Round 50 source remains `bb3bcfe`.
+- Inspected A1 `6a985b8` identity-authority readiness hardening; kept it peer-only and preserved A3's non-production reviewer-identity boundary.
+- Inspected A2 Round 51 multi-repeat and review-collection evidence: three retained calibrations remain blocked, review collection is pending with zero receipts, shared-candidate verification is false, and the new schema remains peer-only/not ingested.
+- Continued from A2 Round 50 three-provider intake and the existing A3 reviewer assignment lease; no new A2 disposition was invented.
+- Added a hash-only evidence-request state machine: request, submit, accept, reject/reopen, cancel, and time-derived overdue.
+- Allowed only controlled A1 execution/tool/artifact, A2 Judge/review, media, provider-identity, and candidate-binding SHA-256 references.
+- Rejected raw media, raw payloads, URLs, signed URLs, local paths, email, identity, secrets, free text, unknown fields, and incomplete submissions.
+- Required active assignment ownership for create/review, `project:ingest` for submit, header-only idempotency, and optimistic `expected_version`.
+- Added full event-chain validation for hashes, versions, predecessor, lifecycle, time, five-level scope, queue/case/comparison/request binding, and immutable fields.
+- Added four protected API routes with sanitized denial/conflict behavior, metadata-only audit, Event Outbox, and `multimodal_review_evidence_request_actions` usage metering.
+- Added Memory, JSON-file, and SQLite restart persistence plus PostgreSQL migrations 023/024 with forced-RLS contract tests.
+- Added request lifecycle data to Dashboard, JSON, Markdown and Hosted Report while keeping raw evidence and signed media URLs excluded.
+- Added a Chinese-first Review panel with create, accept, reject, cancel, loading, success, denied, conflict, failed, retry, empty and deadline states.
+- Upgraded API Reference to v13, commercial endpoint coverage to 44, and OpenAPI runtime parity from `61/61` to `65/65`.
+- Fixed the tenant-resource-isolation regression expectation to include the new scoped event collection; no foreign record exposure occurred.
+- Saved and visually inspected desktop and 390 x 844 screenshots with no text overlap or document-level horizontal overflow.
+- Added the Round 24 implementation record and Growth Auditor Round 24 with 24 executable next steps.
+- Preserved Golden Path `7/11`, Deployment Acceptance `8/17`, current authority `integrity_invalid`, current A2 decision `unknown`, historical A2 decision `block`, production receipts `0`, and production ready `false`.
+- Final A3 Node regression passed `498` runnable tests with `1` explicit target-PostgreSQL opt-in skip and `0` failures.
+- Current-main A2 passed `186/186` test files plus `1050` subtests; A3 did not alter or recompute A2 judgement semantics.
+- Next.js TypeScript and production build passed with `15` pages; full Playwright passed `44/44`.
+- OpenAPI runtime parity passed `65/65`; CL hygiene had `0` findings and Commercial CL had `0` blockers/advisories.
+- Root and Webapp production dependency audits each reported `0` vulnerabilities.
+- `.env.local` remains ignored. No key, token, cookie, email, account identity, signed URL, raw provider payload, private media, or local account path was added.
+- Published feature commit `565cec7` to Draft PR #35; GitHub Actions run `29322903320` passed every applicable check. TypeScript SDK, Go SDK and Rust verifier were path-plan skipped, not failed.

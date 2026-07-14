@@ -747,6 +747,103 @@ export function createA3ApiHandler(options = {}) {
         return sendJson(response, 200, receipt);
       }
 
+      const multimodalEvidenceRequestCollectionMatch = url.pathname.match(
+        /^\/api\/a3\/review\/multimodal-queue\/([^/]+)\/evidence-requests$/
+      );
+      if (request.method === "GET" && multimodalEvidenceRequestCollectionMatch) {
+        const authz = authorizeRequest(request, url, "read_multimodal_review_evidence_requests");
+        if (!authz.allowed) return sendJson(response, 403, forbiddenPayload(authz));
+        const listing = await store.listMultimodalReviewEvidenceRequests(
+          decodeURIComponent(multimodalEvidenceRequestCollectionMatch[1]),
+          scopedStoreOptions(url, {
+            source: sourceFrom(url),
+            organizationId: url.searchParams.get("organization_id") || undefined,
+            tenantId: url.searchParams.get("tenant_id") || undefined,
+            workspaceId: url.searchParams.get("workspace_id") || undefined,
+            projectId: url.searchParams.get("project_id") || undefined,
+            environmentId: url.searchParams.get("environment_id") || undefined,
+            now: serverNow(options)
+          })
+        );
+        return sendJson(response, 200, listing);
+      }
+      if (request.method === "POST" && multimodalEvidenceRequestCollectionMatch) {
+        const body = await readJsonBody(request);
+        const authz = authorizeRequest(request, url, "create_multimodal_review_evidence_request", body);
+        if (!authz.allowed) return sendJson(response, 403, forbiddenPayload(authz));
+        const receipt = await store.createMultimodalReviewEvidenceRequest(
+          decodeURIComponent(multimodalEvidenceRequestCollectionMatch[1]),
+          body.evidence_request || {},
+          scopedStoreOptions(url, {
+            source: body.source || sourceFrom(url),
+            organizationId: body.organization_id,
+            tenantId: body.tenant_id,
+            workspaceId: body.workspace_id,
+            projectId: body.project_id,
+            environmentId: body.environment_id,
+            actorHash: authz.actor_hash,
+            actorRole: authz.role,
+            idempotencyKey: request.headers["idempotency-key"],
+            now: serverNow(options)
+          })
+        );
+        return sendJson(response, 201, receipt);
+      }
+
+      const multimodalEvidenceSubmissionMatch = url.pathname.match(
+        /^\/api\/a3\/review\/multimodal-queue\/([^/]+)\/evidence-requests\/([^/]+)\/submissions$/
+      );
+      if (request.method === "POST" && multimodalEvidenceSubmissionMatch) {
+        const body = await readJsonBody(request);
+        const authz = authorizeRequest(request, url, "submit_multimodal_review_evidence_request", body);
+        if (!authz.allowed) return sendJson(response, 403, forbiddenPayload(authz));
+        const receipt = await store.submitMultimodalReviewEvidenceRequest(
+          decodeURIComponent(multimodalEvidenceSubmissionMatch[1]),
+          decodeURIComponent(multimodalEvidenceSubmissionMatch[2]),
+          body.submission || {},
+          scopedStoreOptions(url, {
+            source: body.source || sourceFrom(url),
+            organizationId: body.organization_id,
+            tenantId: body.tenant_id,
+            workspaceId: body.workspace_id,
+            projectId: body.project_id,
+            environmentId: body.environment_id,
+            actorHash: authz.actor_hash,
+            actorRole: authz.role,
+            idempotencyKey: request.headers["idempotency-key"],
+            now: serverNow(options)
+          })
+        );
+        return sendJson(response, 200, receipt);
+      }
+
+      const multimodalEvidenceReviewMatch = url.pathname.match(
+        /^\/api\/a3\/review\/multimodal-queue\/([^/]+)\/evidence-requests\/([^/]+)\/review$/
+      );
+      if (request.method === "POST" && multimodalEvidenceReviewMatch) {
+        const body = await readJsonBody(request);
+        const authz = authorizeRequest(request, url, "review_multimodal_review_evidence_request", body);
+        if (!authz.allowed) return sendJson(response, 403, forbiddenPayload(authz));
+        const receipt = await store.reviewMultimodalReviewEvidenceRequest(
+          decodeURIComponent(multimodalEvidenceReviewMatch[1]),
+          decodeURIComponent(multimodalEvidenceReviewMatch[2]),
+          body.review || {},
+          scopedStoreOptions(url, {
+            source: body.source || sourceFrom(url),
+            organizationId: body.organization_id,
+            tenantId: body.tenant_id,
+            workspaceId: body.workspace_id,
+            projectId: body.project_id,
+            environmentId: body.environment_id,
+            actorHash: authz.actor_hash,
+            actorRole: authz.role,
+            idempotencyKey: request.headers["idempotency-key"],
+            now: serverNow(options)
+          })
+        );
+        return sendJson(response, 200, receipt);
+      }
+
       if (request.method === "GET" && url.pathname === "/api/a3/runs") {
         return sendJson(response, 200, {
           schema_version: "a3.api_run_list.v1",
