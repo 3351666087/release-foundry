@@ -3290,3 +3290,36 @@ Date: 2026-07-14
 Next: publish this scoped authority, add explicit legacy receipt-digest
 migration/retention readiness, then continue cross-language identity-security
 client parity and production key-rotation drills.
+
+## Round 66: Lifecycle Receipt Lookup-Key Retirement Readiness
+
+Date: 2026-07-14
+
+- Added migration 023 with explicit per-receipt `lookup_key_version`; existing
+  rows are conservatively labeled `legacy-unversioned` because raw opaque
+  receipt IDs are intentionally unavailable for re-keying.
+- New receipt issuance requires an explicit nonlegacy lookup-key version, and
+  the old nine-argument runtime authority is revoked.
+- Added an aggregate-only, pinned-search-path PostgreSQL retirement preflight
+  that exposes safe version labels, counts, a live-receipt deadline, and
+  readiness booleans without exposing digests, proof material, replay payloads,
+  or key bytes.
+- Active, invalid, and unconfigured key retirement requests fail before any
+  database query.
+- Retirement remains blocked by unexpired unconsumed receipts, completed exact
+  replay rows, legacy-unversioned rows, or rows outside the retained key set.
+- Closed a live rotation bug by deriving credential-link idempotency, request,
+  event, subject, and email fingerprints with the lookup key that actually
+  matched the locked receipt rather than blindly using the new active key.
+- Docker/PostgreSQL proves lookup-v1 rows are explicitly versioned, lookup-v2
+  plus retained lookup-v1 preserves exact replay, and the retirement preflight
+  blocks both a pending live receipt and a completed replay row.
+- Verification passed: focused Go identity/lookup/credential-link tests,
+  14 migration tests, full Go module tests, Go vet, command API tests, and the
+  full live PostgreSQL identity lifecycle integration.
+- Evidence:
+  `docs/a1/evidence/round66_lifecycle_receipt_lookup_readiness.md`.
+
+Next: define bounded credential-link replay retention and an audited purge
+authority so old lookup keys can eventually retire safely, then continue
+cross-language identity-security client parity.

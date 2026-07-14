@@ -18,7 +18,7 @@ import (
 	"sync"
 	"time"
 
-	_ "github.com/lib/pq"
+	"github.com/lib/pq"
 )
 
 const (
@@ -52,6 +52,14 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
    AND to_regclass('public.identity_verification_delivery_redrive_audit') IS NOT NULL
    AND to_regclass('public.identity_lifecycle_receipts') IS NOT NULL
    AND to_regclass('public.identity_lifecycle_receipt_audit') IS NOT NULL
+   AND EXISTS (
+     SELECT 1
+     FROM pg_catalog.pg_attribute
+     WHERE attrelid='public.identity_lifecycle_receipts'::regclass
+       AND attname='lookup_key_version'
+       AND attnotnull
+       AND NOT attisdropped
+   )
    AND to_regclass('public.identity_account_security') IS NOT NULL
    AND to_regclass('public.identity_security_receipts') IS NOT NULL
    AND to_regclass('public.identity_security_mutation_tickets') IS NOT NULL
@@ -121,6 +129,12 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
    ) IS NOT NULL
    AND to_regprocedure(
      'public.a1_project_identity_lifecycle_account(uuid)'
+   ) IS NOT NULL
+   AND to_regprocedure(
+     'public.a1_issue_identity_lifecycle_receipt(text,text,text,text,text,bytea,text,text,bytea,timestamp with time zone)'
+   ) IS NOT NULL
+   AND to_regprocedure(
+     'public.a1_identity_lifecycle_lookup_retirement_readiness(text,text[],timestamp with time zone)'
    ) IS NOT NULL
    AND to_regprocedure(
      'public.a1_mutate_account_password(uuid,text,text,text,text,text,uuid,timestamp with time zone)'
@@ -459,6 +473,21 @@ type IdentityLifecycleEncryptionKey struct {
 type IdentityLifecycleLookupKey struct {
 	Version string
 	Key     []byte
+}
+
+type IdentityLifecycleLookupRetirementReadiness struct {
+	SchemaVersion                  string     `json:"schema_version"`
+	ActiveVersion                  string     `json:"active_version"`
+	RetiringVersion                string     `json:"retiring_version"`
+	Ready                          bool       `json:"ready"`
+	LegacyUnversionedLiveReceipts  int64      `json:"legacy_unversioned_live_receipts"`
+	LegacyUnversionedReplayRecords int64      `json:"legacy_unversioned_replay_records"`
+	RetiringLiveReceipts           int64      `json:"retiring_live_receipts"`
+	RetiringReplayRecords          int64      `json:"retiring_replay_records"`
+	UnreachableLiveReceipts        int64      `json:"unreachable_live_receipts"`
+	UnreachableReplayRecords       int64      `json:"unreachable_replay_records"`
+	LiveReceiptsRequiredUntil      *time.Time `json:"live_receipts_required_until"`
+	ReplayRetentionRequired        bool       `json:"replay_retention_required"`
 }
 
 type IdentitySessionKeyRetirement struct {
@@ -977,6 +1006,50 @@ func (store *ProductionIdentityStore) SessionKeyringReadiness() IdentitySessionK
 	return store.sessionTokens.readiness(store.now())
 }
 
+// LifecycleReceiptLookupRetirementReadiness performs a database-backed,
+// aggregate-only preflight before a previous receipt lookup key is removed.
+// It never exposes receipt digests, proof material, ciphertext, or key bytes.
+func (store *ProductionIdentityStore) LifecycleReceiptLookupRetirementReadiness(
+	ctx context.Context,
+	retiringVersion string,
+) (IdentityLifecycleLookupRetirementReadiness, error) {
+	if store == nil || store.db == nil || store.lifecycleKeys == nil {
+		return IdentityLifecycleLookupRetirementReadiness{},
+			fmt.Errorf("production identity lifecycle lookup keyring is unavailable")
+	}
+	retiringVersion = strings.TrimSpace(retiringVersion)
+	if !validIdentitySessionKeyVersion(retiringVersion) {
+		return IdentityLifecycleLookupRetirementReadiness{},
+			fmt.Errorf("lifecycle receipt lookup key version is invalid")
+	}
+	retained, err := store.lifecycleKeys.lookupVersionsExcept(retiringVersion)
+	if err != nil {
+		return IdentityLifecycleLookupRetirementReadiness{}, err
+	}
+	queryCtx, cancel := context.WithTimeout(ctx, store.sqlTimeout)
+	defer cancel()
+	var raw []byte
+	err = store.db.QueryRowContext(queryCtx, `
+SELECT a1_identity_lifecycle_lookup_retirement_readiness($1,$2,$3)
+`, retiringVersion, pq.Array(retained), store.now().UTC()).Scan(&raw)
+	if err != nil {
+		return IdentityLifecycleLookupRetirementReadiness{},
+			fmt.Errorf("check lifecycle receipt lookup key retirement: %w", err)
+	}
+	var readiness IdentityLifecycleLookupRetirementReadiness
+	if err = json.Unmarshal(raw, &readiness); err != nil {
+		return IdentityLifecycleLookupRetirementReadiness{},
+			fmt.Errorf("decode lifecycle receipt lookup key retirement readiness: %w", err)
+	}
+	readiness.ActiveVersion = store.lifecycleKeys.lookupActive
+	if readiness.SchemaVersion != "a1.identity.lifecycle.lookup-readiness.v1" ||
+		readiness.RetiringVersion != retiringVersion {
+		return IdentityLifecycleLookupRetirementReadiness{},
+			fmt.Errorf("lifecycle receipt lookup key retirement readiness is invalid")
+	}
+	return readiness, nil
+}
+
 func OpenProductionIdentityStore(dsn string, sessionKey []byte) (*ProductionIdentityStore, error) {
 	dsn = strings.TrimSpace(dsn)
 	if dsn == "" {
@@ -1021,7 +1094,7 @@ func (store *ProductionIdentityStore) Ready(ctx context.Context) error {
 		return fmt.Errorf("verify production identity schema: %w", err)
 	}
 	if !ready {
-		return fmt.Errorf("production identity PostgreSQL schema is incomplete; migration 022 scoped identity security runtime grants are required")
+		return fmt.Errorf("production identity PostgreSQL schema is incomplete; migrations through 023 lifecycle receipt lookup readiness are required")
 	}
 	return nil
 }

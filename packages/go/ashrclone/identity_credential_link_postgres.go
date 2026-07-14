@@ -91,36 +91,59 @@ SELECT set_config('app.a1_organization_id',$1,true),
 	if err != nil {
 		return IdentityCredentialLinkResultDTO{}, err
 	}
-	subjectDigest := coordinator.receipts.receiptDigest(
+	digest := func(value string) (string, error) {
+		return coordinator.receipts.keys.receiptDigestForVersion(
+			value, locked.lookupKeyVersion,
+		)
+	}
+	subjectDigest, err := digest(
 		"credential-link:consumed-replay:" + locked.metadata.Digest,
 	)
+	if err != nil {
+		return IdentityCredentialLinkResultDTO{}, err
+	}
 	emailDigest := ""
 	credentialKind := postgresIdentityCredentialKind(
 		IdentityCredentialOAuth, command.Provider,
 	)
 	if !consumed {
 		proof := locked.proof
-		subjectDigest = coordinator.receipts.receiptDigest(
+		subjectDigest, err = digest(
 			"credential:" + string(proof.Provider) + ":" + proof.Identifier,
 		)
+		if err != nil {
+			return IdentityCredentialLinkResultDTO{}, err
+		}
 		if strings.TrimSpace(proof.VerifiedEmail) != "" {
-			emailDigest = coordinator.receipts.receiptDigest(
+			emailDigest, err = digest(
 				"email:" + strings.ToLower(strings.TrimSpace(proof.VerifiedEmail)),
 			)
+			if err != nil {
+				return IdentityCredentialLinkResultDTO{}, err
+			}
 		}
 		credentialKind = postgresIdentityCredentialKind(proof.Kind, proof.Provider)
 	}
-	idempotencyDigest := coordinator.receipts.receiptDigest(
+	idempotencyDigest, err := digest(
 		"credential-link:idempotency:" + command.AccountID + ":" + command.IdempotencyKey,
 	)
-	requestDigest := coordinator.receipts.receiptDigest(strings.Join([]string{
+	if err != nil {
+		return IdentityCredentialLinkResultDTO{}, err
+	}
+	requestDigest, err := digest(strings.Join([]string{
 		"credential-link:request", command.AccountID, command.ActorID,
 		command.SessionID, command.TenantID, command.ProjectID,
 		string(command.Provider), locked.metadata.Digest,
 	}, "\x00"))
-	eventDigest := coordinator.receipts.receiptDigest(
+	if err != nil {
+		return IdentityCredentialLinkResultDTO{}, err
+	}
+	eventDigest, err := digest(
 		"credential-link:event:" + requestDigest,
 	)
+	if err != nil {
+		return IdentityCredentialLinkResultDTO{}, err
+	}
 	metadata, _ := json.Marshal(map[string]any{
 		"source":         "identity_credential_link",
 		"provider":       postgresIdentityProvider(command.Provider),
@@ -204,7 +227,15 @@ FROM a1_lock_identity_credential_link_receipt($1)
 		metadata.ProjectScope != strings.TrimSpace(request.ProjectID) {
 		return lockedIdentityLifecycleReceipt{}, false, ErrIdentityProofScopeMismatch
 	}
-	locked := lockedIdentityLifecycleReceipt{metadata: metadata}
+	lookupKeyVersion, err := coordinator.receipts.keys.lookupVersionForDigest(
+		request.ReceiptID, metadata.Digest,
+	)
+	if err != nil {
+		return lockedIdentityLifecycleReceipt{}, false, err
+	}
+	locked := lockedIdentityLifecycleReceipt{
+		metadata: metadata, lookupKeyVersion: lookupKeyVersion,
+	}
 	if consumedAt.Valid {
 		// Exact replay is authorized by PostgreSQL using the persisted keyed
 		// request fingerprints. Do not decrypt a completed proof: its old

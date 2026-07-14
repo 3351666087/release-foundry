@@ -360,6 +360,7 @@ SELECT
 		oldEncryption := []byte("old-link-encryption-0123456789012345")
 		newEncryption := []byte("new-link-encryption-0123456789012345")
 		stableLookup := []byte("stable-link-lookup-012345678901234567")
+		newLookup := []byte("new-link-lookup-012345678901234567890")
 		old := h.newInstanceWithLifecycleKeys(
 			t, oldEncryption, "enc-old", nil,
 			stableLookup, "lookup-v1", nil,
@@ -400,7 +401,9 @@ SELECT
 
 		retired := h.newInstanceWithLifecycleKeys(
 			t, newEncryption, "enc-new", nil,
-			stableLookup, "lookup-v1", nil,
+			newLookup, "lookup-v2", []IdentityLifecycleLookupKey{{
+				Version: "lookup-v1", Key: stableLookup,
+			}},
 		)
 		replay, err := retired.credentialLinkService.Complete(context.Background(), command)
 		if err != nil {
@@ -422,6 +425,42 @@ SELECT
 			t, old, account.AccountID, sessionID, sessionDigest,
 			orgID, projectID, pendingProof, "credential-link-pending-retirement", h.now,
 		)
+		readiness, err := retired.store.LifecycleReceiptLookupRetirementReadiness(
+			context.Background(), "lookup-v1",
+		)
+		if err != nil {
+			t.Fatalf("lookup retirement preflight failed: %v", err)
+		}
+		if readiness.Ready ||
+			readiness.ActiveVersion != "lookup-v2" ||
+			readiness.RetiringVersion != "lookup-v1" ||
+			readiness.RetiringLiveReceipts == 0 ||
+			readiness.RetiringReplayRecords == 0 ||
+			readiness.UnreachableLiveReceipts == 0 ||
+			readiness.UnreachableReplayRecords == 0 ||
+			readiness.LiveReceiptsRequiredUntil == nil ||
+			!readiness.ReplayRetentionRequired {
+			t.Fatalf("unsafe lookup retirement was not blocked: %#v", readiness)
+		}
+		var completedLookupVersion, pendingLookupVersion string
+		if err := old.adminDB.QueryRow(`
+SELECT
+  (SELECT lookup_key_version FROM identity_lifecycle_receipts
+    WHERE receipt_digest=$1),
+  (SELECT lookup_key_version FROM identity_lifecycle_receipts
+    WHERE receipt_digest=$2)
+`, old.receipts.receiptDigest(proof.ReceiptID),
+			old.receipts.receiptDigest(pendingProof.ReceiptID)).
+			Scan(&completedLookupVersion, &pendingLookupVersion); err != nil {
+			t.Fatal(err)
+		}
+		if completedLookupVersion != "lookup-v1" ||
+			pendingLookupVersion != "lookup-v1" {
+			t.Fatalf(
+				"receipt lookup versions completed=%q pending=%q",
+				completedLookupVersion, pendingLookupVersion,
+			)
+		}
 		_, err = retired.credentialLinkService.Complete(context.Background(), pendingCommand)
 		var domain IdentityDomainError
 		if !errors.As(err, &domain) || domain.Code != "identity_credential_link_unavailable" {
@@ -985,7 +1024,8 @@ $$`); err != nil {
 		t.Fatal(err)
 	}
 	for _, signature := range []string{
-		"a1_issue_identity_lifecycle_receipt(TEXT,TEXT,TEXT,TEXT,TEXT,BYTEA,TEXT,BYTEA,TIMESTAMPTZ)",
+		"a1_issue_identity_lifecycle_receipt(TEXT,TEXT,TEXT,TEXT,TEXT,BYTEA,TEXT,TEXT,BYTEA,TIMESTAMPTZ)",
+		"a1_identity_lifecycle_lookup_retirement_readiness(TEXT,TEXT[],TIMESTAMPTZ)",
 		"a1_lock_identity_lifecycle_receipt(TEXT[])",
 		"a1_consume_identity_lifecycle_receipt(TEXT,TEXT,TEXT,TEXT,TEXT,TIMESTAMPTZ)",
 		"a1_register_identity_lifecycle_credential(TEXT,TEXT,TEXT[],TEXT,TEXT,TEXT,TEXT,TIMESTAMPTZ)",
@@ -1145,7 +1185,7 @@ func applyIdentityLifecycleMigrations(t *testing.T, db *sql.DB) {
 	applied := 0
 	for _, path := range entries {
 		base := filepath.Base(path)
-		if len(base) < 3 || base[:3] < "001" || base[:3] > "022" {
+		if len(base) < 3 || base[:3] < "001" || base[:3] > "023" {
 			continue
 		}
 		sqlBytes, err := os.ReadFile(path)
@@ -1157,8 +1197,8 @@ func applyIdentityLifecycleMigrations(t *testing.T, db *sql.DB) {
 		}
 		applied++
 	}
-	if applied != 22 {
-		t.Fatalf("expected migrations 001-022, applied %d from %s", applied, migrationsDir)
+	if applied != 23 {
+		t.Fatalf("expected migrations 001-023, applied %d from %s", applied, migrationsDir)
 	}
 }
 

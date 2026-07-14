@@ -314,7 +314,8 @@ func TestPostgresLifecycleReceiptIssueUsesDigestAndEncryptedProof(t *testing.T) 
 	mock.ExpectExec("SELECT a1_issue_identity_lifecycle_receipt").
 		WithArgs(
 			store.receiptDigest(dto.ReceiptID), dto.Operation, dto.Provider,
-			dto.TenantID, dto.ProjectID, sqlmock.AnyArg(), "v1", sqlmock.AnyArg(), dto.ExpiresAt,
+			dto.TenantID, dto.ProjectID, sqlmock.AnyArg(), "v1", "v1",
+			sqlmock.AnyArg(), dto.ExpiresAt,
 		).
 		WillReturnResult(sqlmock.NewResult(1, 1))
 	if err := store.Issue(context.Background(), dto, TrustedIdentityProof{
@@ -329,6 +330,158 @@ func TestPostgresLifecycleReceiptIssueUsesDigestAndEncryptedProof(t *testing.T) 
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func TestLifecycleReceiptLookupRetirementReadinessFailsClosed(t *testing.T) {
+	now := time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC)
+	newStore := func(t *testing.T) (*ProductionIdentityStore, sqlmock.Sqlmock) {
+		t.Helper()
+		db, mock, err := sqlmock.New()
+		if err != nil {
+			t.Fatal(err)
+		}
+		store, err := NewProductionIdentityStore(ProductionIdentityStoreOptions{
+			DB: db, Now: func() time.Time { return now },
+			SessionKey:                       bytes.Repeat([]byte{0x50}, 32),
+			LifecycleReceiptKey:              bytes.Repeat([]byte{0x51}, 32),
+			LifecycleReceiptKeyVersion:       "enc-v2",
+			LifecycleReceiptLookupKey:        bytes.Repeat([]byte{0x52}, 32),
+			LifecycleReceiptLookupKeyVersion: "lookup-v2",
+			PreviousLifecycleReceiptLookupKeys: []IdentityLifecycleLookupKey{{
+				Version: "lookup-v1", Key: bytes.Repeat([]byte{0x53}, 32),
+			}},
+			SQLTimeout: time.Second, StatementTimeout: 800 * time.Millisecond,
+			LockTimeout: 200 * time.Millisecond,
+		})
+		if err != nil {
+			_ = db.Close()
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = store.Close() })
+		return store, mock
+	}
+
+	t.Run("aggregate result is decoded without sensitive material", func(t *testing.T) {
+		store, mock := newStore(t)
+		raw := `{
+			"schema_version":"a1.identity.lifecycle.lookup-readiness.v1",
+			"retiring_version":"lookup-v1",
+			"ready":false,
+			"legacy_unversioned_live_receipts":1,
+			"legacy_unversioned_replay_records":2,
+			"retiring_live_receipts":3,
+			"retiring_replay_records":4,
+			"unreachable_live_receipts":4,
+			"unreachable_replay_records":6,
+			"live_receipts_required_until":"2026-07-14T12:05:00Z",
+			"replay_retention_required":true
+		}`
+		mock.ExpectQuery("SELECT a1_identity_lifecycle_lookup_retirement_readiness").
+			WithArgs("lookup-v1", `{"lookup-v2"}`, now).
+			WillReturnRows(sqlmock.NewRows([]string{"readiness"}).AddRow([]byte(raw)))
+		readiness, err := store.LifecycleReceiptLookupRetirementReadiness(
+			context.Background(), "lookup-v1",
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if readiness.ActiveVersion != "lookup-v2" ||
+			readiness.RetiringVersion != "lookup-v1" || readiness.Ready ||
+			readiness.LegacyUnversionedLiveReceipts != 1 ||
+			readiness.LegacyUnversionedReplayRecords != 2 ||
+			readiness.RetiringLiveReceipts != 3 ||
+			readiness.RetiringReplayRecords != 4 ||
+			readiness.UnreachableLiveReceipts != 4 ||
+			readiness.UnreachableReplayRecords != 6 ||
+			readiness.LiveReceiptsRequiredUntil == nil ||
+			!readiness.LiveReceiptsRequiredUntil.Equal(now.Add(5*time.Minute)) ||
+			!readiness.ReplayRetentionRequired {
+			t.Fatalf("unexpected lookup retirement readiness: %#v", readiness)
+		}
+		encoded, err := json.Marshal(readiness)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, forbidden := range []string{
+			"receipt_digest", "proof_ciphertext", "proof_nonce", "lookup_key",
+		} {
+			if strings.Contains(string(encoded), forbidden) {
+				t.Fatalf("readiness leaked %s: %s", forbidden, encoded)
+			}
+		}
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("active and unknown versions never reach the database", func(t *testing.T) {
+		store, mock := newStore(t)
+		for _, testCase := range []struct {
+			version string
+			want    string
+		}{
+			{version: "lookup-v2", want: "active"},
+			{version: "lookup-v0", want: "not configured"},
+			{version: "invalid version", want: "invalid"},
+		} {
+			_, err := store.LifecycleReceiptLookupRetirementReadiness(
+				context.Background(), testCase.version,
+			)
+			if err == nil || !strings.Contains(err.Error(), testCase.want) {
+				t.Fatalf("version %q returned %v", testCase.version, err)
+			}
+		}
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("database decode and contract failures are rejected", func(t *testing.T) {
+		for _, testCase := range []struct {
+			name string
+			raw  []byte
+			err  error
+			want string
+		}{
+			{name: "query", err: errors.New("catalog unavailable"), want: "check lifecycle"},
+			{name: "decode", raw: []byte("{"), want: "decode lifecycle"},
+			{
+				name: "schema",
+				raw:  []byte(`{"schema_version":"wrong","retiring_version":"lookup-v1"}`),
+				want: "readiness is invalid",
+			},
+			{
+				name: "retiring version",
+				raw: []byte(
+					`{"schema_version":"a1.identity.lifecycle.lookup-readiness.v1","retiring_version":"lookup-v0"}`,
+				),
+				want: "readiness is invalid",
+			},
+		} {
+			t.Run(testCase.name, func(t *testing.T) {
+				store, mock := newStore(t)
+				expectation := mock.ExpectQuery(
+					"SELECT a1_identity_lifecycle_lookup_retirement_readiness",
+				).WithArgs("lookup-v1", `{"lookup-v2"}`, now)
+				if testCase.err != nil {
+					expectation.WillReturnError(testCase.err)
+				} else {
+					expectation.WillReturnRows(
+						sqlmock.NewRows([]string{"readiness"}).AddRow(testCase.raw),
+					)
+				}
+				_, err := store.LifecycleReceiptLookupRetirementReadiness(
+					context.Background(), "lookup-v1",
+				)
+				if err == nil || !strings.Contains(err.Error(), testCase.want) {
+					t.Fatalf("expected %q failure, got %v", testCase.want, err)
+				}
+				if err := mock.ExpectationsWereMet(); err != nil {
+					t.Fatal(err)
+				}
+			})
+		}
+	})
 }
 
 func TestPostgresLifecycleReceiptConditionalConsumeHasOneWinnerShape(t *testing.T) {
@@ -509,6 +662,9 @@ func TestProductionIdentityReadinessRequiresSessionAndDeliveryReplacementContrac
 	for _, required := range []string{
 		"identity_session_lifecycle_operations",
 		"identity_verification_delivery_redrive_audit",
+		"lookup_key_version",
+		"a1_issue_identity_lifecycle_receipt(text,text,text,text,text,bytea,text,text,bytea,timestamp with time zone)",
+		"a1_identity_lifecycle_lookup_retirement_readiness",
 		"a1_issue_identity_verification_challenge_with_delivery",
 		"a1_issue_identity_session_with_refresh",
 		"a1_rotate_identity_session_refresh",
