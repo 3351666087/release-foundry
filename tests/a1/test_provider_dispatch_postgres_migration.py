@@ -22,6 +22,13 @@ CONTAINER = os.environ.get(
     "ashr-a1-provider-dispatch-pg",
 )
 RUNTIME_ROLE = "a1_provider_dispatch_runtime"
+ORG_A = "00000000-0000-4000-8000-00000000000a"
+ORG_B = "00000000-0000-4000-8000-00000000000b"
+WORKSPACE_A = "00000000-0000-4000-8000-00000000001a"
+WORKSPACE_B = "00000000-0000-4000-8000-00000000001b"
+PROJECT_A = "00000000-0000-4000-8000-00000000002a"
+PROJECT_B = "00000000-0000-4000-8000-00000000002b"
+PROJECT_SIBLING = "00000000-0000-4000-8000-00000000002c"
 
 
 def _normalized_sql() -> str:
@@ -113,23 +120,35 @@ def _drop_database(database: str) -> None:
 def _create_prerequisites(database: str) -> None:
     _psql(
         database,
-        """
-        CREATE TABLE ashr_tenants (
-          tenant_id TEXT PRIMARY KEY
+        f"""
+        CREATE TABLE organizations (
+          id UUID PRIMARY KEY
         );
-        CREATE TABLE ashr_projects (
-          tenant_id TEXT NOT NULL REFERENCES ashr_tenants(tenant_id)
+        CREATE TABLE workspaces (
+          id UUID PRIMARY KEY,
+          organization_id UUID NOT NULL REFERENCES organizations(id)
             ON DELETE CASCADE,
-          project_id TEXT NOT NULL,
-          PRIMARY KEY (tenant_id, project_id)
+          UNIQUE (organization_id, id)
         );
-        INSERT INTO ashr_tenants(tenant_id)
-          VALUES ('org-a'), ('org-b');
-        INSERT INTO ashr_projects(tenant_id, project_id)
+        CREATE TABLE projects (
+          id UUID PRIMARY KEY,
+          organization_id UUID NOT NULL,
+          workspace_id UUID NOT NULL,
+          UNIQUE (organization_id, id),
+          FOREIGN KEY (organization_id, workspace_id)
+            REFERENCES workspaces(organization_id, id) ON DELETE CASCADE
+        );
+        INSERT INTO organizations(id)
+          VALUES ('{ORG_A}'), ('{ORG_B}');
+        INSERT INTO workspaces(id, organization_id)
           VALUES
-            ('org-a', 'project-a'),
-            ('org-a', 'project-sibling'),
-            ('org-b', 'project-b');
+            ('{WORKSPACE_A}', '{ORG_A}'),
+            ('{WORKSPACE_B}', '{ORG_B}');
+        INSERT INTO projects(organization_id, workspace_id, id)
+          VALUES
+            ('{ORG_A}', '{WORKSPACE_A}', '{PROJECT_A}'),
+            ('{ORG_A}', '{WORKSPACE_A}', '{PROJECT_SIBLING}'),
+            ('{ORG_B}', '{WORKSPACE_B}', '{PROJECT_B}');
         """,
         tuples=False,
     )
@@ -168,6 +187,12 @@ def test_migration_uses_canonical_a1_context_and_fail_closed_policy() -> None:
     assert "enable row level security" in sql
     assert "force row level security" in sql
     assert "with check" in sql
+    assert "tenant_id uuid not null" in sql
+    assert "project_id uuid not null" in sql
+    assert (
+        "references projects(organization_id,id) on delete cascade"
+        in sql
+    )
 
 
 def test_fresh_migration_and_second_application_are_idempotent(
@@ -203,12 +228,12 @@ def test_upgrade_preserves_rows_and_replaces_legacy_policy(
     _apply_migration(provider_dispatch_database)
     _psql(
         provider_dispatch_database,
-        """
+        f"""
         INSERT INTO ashr_provider_dispatches (
           tenant_id, project_id, dispatch_id, provider, operation,
           request_fingerprint
         ) VALUES (
-          'org-a', 'project-a', 'dispatch-before-upgrade',
+          '{ORG_A}', '{PROJECT_A}', 'dispatch-before-upgrade',
           'openai-compatible', 'responses.create',
           repeat('a', 64)
         );
@@ -219,8 +244,12 @@ def test_upgrade_preserves_rows_and_replaces_legacy_policy(
           ON ashr_provider_dispatches;
         CREATE POLICY ashr_provider_dispatch_tenant_policy
           ON ashr_provider_dispatches
-          USING (tenant_id = current_setting('app.tenant_id', true))
-          WITH CHECK (tenant_id = current_setting('app.tenant_id', true));
+          USING (
+            tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::UUID
+          )
+          WITH CHECK (
+            tenant_id = NULLIF(current_setting('app.tenant_id', true), '')::UUID
+          );
         """,
         tuples=False,
     )
@@ -286,16 +315,16 @@ def test_restricted_role_is_fail_closed_and_project_isolated(
 
     _psql(
         provider_dispatch_database,
-        """
+        f"""
         INSERT INTO ashr_provider_dispatches (
           tenant_id, project_id, dispatch_id, provider, operation,
           request_fingerprint
         ) VALUES
-          ('org-a', 'project-a', 'dispatch-a', 'provider', 'operation',
+          ('{ORG_A}', '{PROJECT_A}', 'dispatch-a', 'provider', 'operation',
            repeat('a', 64)),
-          ('org-a', 'project-sibling', 'dispatch-sibling', 'provider',
+          ('{ORG_A}', '{PROJECT_SIBLING}', 'dispatch-sibling', 'provider',
            'operation', repeat('b', 64)),
-          ('org-b', 'project-b', 'dispatch-b', 'provider', 'operation',
+          ('{ORG_B}', '{PROJECT_B}', 'dispatch-b', 'provider', 'operation',
            repeat('c', 64));
         """,
         tuples=False,
@@ -316,15 +345,15 @@ def test_restricted_role_is_fail_closed_and_project_isolated(
         f"""
         BEGIN;
         SET LOCAL ROLE {RUNTIME_ROLE};
-        SET LOCAL app.a1_organization_id = 'org-a';
-        SET LOCAL app.a1_project_id = 'project-a';
+        SET LOCAL app.a1_organization_id = '{ORG_A}';
+        SET LOCAL app.a1_project_id = '{PROJECT_A}';
         SELECT string_agg(dispatch_id, ',' ORDER BY dispatch_id)
           FROM ashr_provider_dispatches;
         INSERT INTO ashr_provider_dispatches (
           tenant_id, project_id, dispatch_id, provider, operation,
           request_fingerprint
         ) VALUES (
-          'org-a', 'project-a', 'dispatch-a-write', 'provider', 'operation',
+          '{ORG_A}', '{PROJECT_A}', 'dispatch-a-write', 'provider', 'operation',
           repeat('d', 64)
         );
         COMMIT;
@@ -333,16 +362,16 @@ def test_restricted_role_is_fail_closed_and_project_isolated(
     assert _rows(scoped) == ["dispatch-a"]
 
     for tenant_id, project_id, dispatch_id in (
-        ("org-a", "project-sibling", "dispatch-cross-project"),
-        ("org-b", "project-b", "dispatch-cross-organization"),
+        (ORG_A, PROJECT_SIBLING, "dispatch-cross-project"),
+        (ORG_B, PROJECT_B, "dispatch-cross-organization"),
     ):
         denied = _psql(
             provider_dispatch_database,
             f"""
             BEGIN;
             SET LOCAL ROLE {RUNTIME_ROLE};
-            SET LOCAL app.a1_organization_id = 'org-a';
-            SET LOCAL app.a1_project_id = 'project-a';
+            SET LOCAL app.a1_organization_id = '{ORG_A}';
+            SET LOCAL app.a1_project_id = '{PROJECT_A}';
             INSERT INTO ashr_provider_dispatches (
               tenant_id, project_id, dispatch_id, provider, operation,
               request_fingerprint

@@ -1,8 +1,8 @@
 BEGIN;
 
 CREATE TABLE IF NOT EXISTS ashr_provider_dispatches (
-  tenant_id TEXT NOT NULL,
-  project_id TEXT NOT NULL,
+  tenant_id UUID NOT NULL,
+  project_id UUID NOT NULL,
   dispatch_id TEXT NOT NULL,
   provider TEXT NOT NULL,
   operation TEXT NOT NULL,
@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS ashr_provider_dispatches (
   failed_at TIMESTAMPTZ,
   PRIMARY KEY (tenant_id,project_id,dispatch_id),
   FOREIGN KEY (tenant_id,project_id)
-    REFERENCES ashr_projects(tenant_id,project_id) ON DELETE CASCADE,
+    REFERENCES projects(organization_id,id) ON DELETE CASCADE,
   CONSTRAINT ashr_provider_dispatch_lease_shape CHECK (
     (status IN ('claimed','reconciling') AND lease_owner_id<>'' AND lease_expires_at IS NOT NULL)
     OR (status NOT IN ('claimed','reconciling') AND lease_owner_id='' AND lease_expires_at IS NULL)
@@ -68,12 +68,12 @@ DROP POLICY IF EXISTS ashr_provider_dispatch_tenant_policy ON ashr_provider_disp
 DROP POLICY IF EXISTS ashr_provider_dispatch_scope_policy ON ashr_provider_dispatches;
 CREATE POLICY ashr_provider_dispatch_scope_policy ON ashr_provider_dispatches
   USING (
-    tenant_id=NULLIF(current_setting('app.a1_organization_id',true),'')
-    AND project_id=NULLIF(current_setting('app.a1_project_id',true),'')
+    tenant_id=NULLIF(current_setting('app.a1_organization_id',true),'')::UUID
+    AND project_id=NULLIF(current_setting('app.a1_project_id',true),'')::UUID
   )
   WITH CHECK (
-    tenant_id=NULLIF(current_setting('app.a1_organization_id',true),'')
-    AND project_id=NULLIF(current_setting('app.a1_project_id',true),'')
+    tenant_id=NULLIF(current_setting('app.a1_organization_id',true),'')::UUID
+    AND project_id=NULLIF(current_setting('app.a1_project_id',true),'')::UUID
   );
 
 COMMIT;
