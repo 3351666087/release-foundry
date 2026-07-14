@@ -83,6 +83,35 @@ def test_a3_surface_covers_account_security_lifecycle() -> None:
     assert contract["a3_response_envelope"]["secret_values_present"] is False
 
 
+def test_public_identity_and_existing_account_binding_security_are_distinct() -> None:
+    contract = a3_identity_contract_manifest()
+    security = contract["operation_security"]
+
+    for public_flow in ("public_registration", "public_login"):
+        profile = security[public_flow]
+        assert profile["authenticated_actor_required"] is False
+        assert profile["matching_authenticated_actor_required"] is False
+        assert profile["recent_reauthentication_required"] is False
+        assert profile["csrf_required"] is False
+        assert profile["verified_assertion_required"] is True
+        assert (
+            profile["verified_assertion_source"]
+            == "server_owned_single_use_proof_receipt"
+        )
+        assert profile["route_lifecycle"] == "active"
+        assert profile["client_callable"] is True
+
+    binding = security["existing_account_binding"]
+    assert binding["explicit_user_action_required"] is True
+    assert binding["authenticated_actor_required"] is True
+    assert binding["matching_authenticated_actor_required"] is True
+    assert binding["recent_reauthentication_required"] is True
+    assert binding["csrf_required"] is True
+    assert binding["verified_assertion_required"] is True
+    assert binding["route_lifecycle"] == "proposed"
+    assert binding["client_callable"] is False
+
+
 def test_evidence_separates_desired_implemented_runtime_and_gaps() -> None:
     evidence = json.loads(EVIDENCE.read_text(encoding="utf-8"))
 
@@ -135,6 +164,13 @@ def test_evidence_pins_oauth_binding_password_and_two_factor_rules() -> None:
         assert desired[mutation]["matching_authenticated_actor_required"] is True
         assert desired[mutation]["recent_reauthentication_required"] is True
         assert desired[mutation]["csrf_required"] is True
+    assert desired["account_binding"]["authenticated_actor_required"] is True
+    assert desired["account_binding"]["verified_assertion_required"] is True
+    assert desired["account_binding"]["route_lifecycle"] == "proposed"
+    assert desired["account_binding"]["client_callable"] is False
+    assert evidence["operation_security"] == a3_identity_contract_manifest()[
+        "operation_security"
+    ]
     assert desired["two_factor"]["optional"] is True
     assert desired["two_factor"]["recommended"] is True
 

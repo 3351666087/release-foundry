@@ -145,6 +145,7 @@ export interface A3IdentityContractManifest {
   providers: readonly A3IdentityProviderCapability[];
   registration: Readonly<Record<string, unknown>>;
   login: Readonly<Record<string, unknown>>;
+  operation_security: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
   account_mutations: Readonly<Record<string, boolean>>;
   a3_response_envelope: Readonly<Record<string, unknown>>;
 }
@@ -1210,6 +1211,40 @@ export function a3IdentityContractManifest(): A3IdentityContractManifest {
       account_enumeration_safe: true,
       unknown_and_invalid_secret_share_public_failure: true,
       unknown_identity_next_action: null,
+    },
+    operation_security: {
+      public_registration: {
+        authenticated_actor_required: false,
+        matching_authenticated_actor_required: false,
+        recent_reauthentication_required: false,
+        csrf_required: false,
+        verified_assertion_required: true,
+        verified_assertion_source: "server_owned_single_use_proof_receipt",
+        route_lifecycle: "active",
+        client_callable: true,
+      },
+      public_login: {
+        authenticated_actor_required: false,
+        matching_authenticated_actor_required: false,
+        recent_reauthentication_required: false,
+        csrf_required: false,
+        verified_assertion_required: true,
+        verified_assertion_source: "server_owned_single_use_proof_receipt",
+        account_enumeration_safe: true,
+        route_lifecycle: "active",
+        client_callable: true,
+      },
+      existing_account_binding: {
+        explicit_user_action_required: true,
+        authenticated_actor_required: true,
+        matching_authenticated_actor_required: true,
+        recent_reauthentication_required: true,
+        csrf_required: true,
+        verified_assertion_required: true,
+        verified_assertion_source: "server_owned_single_use_proof_receipt",
+        route_lifecycle: "proposed",
+        client_callable: false,
+      },
     },
     account_mutations: {
       link_requires_authenticated_account: true,
