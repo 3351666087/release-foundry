@@ -86,6 +86,8 @@ CREATE TABLE IF NOT EXISTS identity_security_mutation_tickets (
 CREATE INDEX IF NOT EXISTS identity_security_mutation_tickets_active_idx
   ON identity_security_mutation_tickets(principal_id,operation,expires_at)
   WHERE consumed_at IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS identity_security_mutation_tickets_receipt_uidx
+  ON identity_security_mutation_tickets(step_up_receipt_digest);
 ALTER TABLE identity_security_mutation_tickets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE identity_security_mutation_tickets FORCE ROW LEVEL SECURITY;
 CREATE POLICY identity_security_mutation_tickets_self ON identity_security_mutation_tickets
@@ -196,12 +198,19 @@ CREATE OR REPLACE FUNCTION a1_begin_totp_enrollment(
   p_receipt_digest TEXT,p_context_digest TEXT,p_actor_principal_id UUID,p_now TIMESTAMPTZ
 ) RETURNS JSONB
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
-DECLARE v_version BIGINT;
+DECLARE v_version BIGINT; v_status TEXT;
 BEGIN
   IF p_actor_principal_id<>p_principal_id OR length(p_secret_ref)<16
-     OR NOT a1_identity_digest_valid(p_secret_digest)
-     OR NOT a1_consume_identity_security_receipt(p_receipt_digest,p_principal_id,
-          'mfa_enroll',p_context_digest,p_now) THEN
+     OR NOT a1_identity_digest_valid(p_secret_digest) THEN
+    RAISE EXCEPTION 'mfa enrollment rejected' USING ERRCODE='42501';
+  END IF;
+  SELECT two_factor_status INTO v_status FROM identity_account_security
+   WHERE principal_id=p_principal_id FOR UPDATE;
+  IF v_status='enabled' THEN
+    RAISE EXCEPTION 'mfa_already_enabled' USING ERRCODE='55000';
+  END IF;
+  IF NOT a1_consume_identity_security_receipt(p_receipt_digest,p_principal_id,
+       'mfa_enroll',p_context_digest,p_now) THEN
     RAISE EXCEPTION 'mfa enrollment rejected' USING ERRCODE='42501';
   END IF;
   INSERT INTO identity_account_security(principal_id,two_factor_status,totp_secret_ref,
@@ -244,20 +253,47 @@ BEGIN
     'reauthentication_required',TRUE);
 END $$;
 
+DROP FUNCTION IF EXISTS a1_issue_identity_security_mutation_ticket(
+  TEXT,TEXT,UUID,UUID,TEXT,TEXT,TEXT,TEXT,TEXT,INTEGER,TIMESTAMPTZ,TIMESTAMPTZ
+);
 CREATE OR REPLACE FUNCTION a1_issue_identity_security_mutation_ticket(
   p_ticket_digest TEXT,p_step_up_receipt_digest TEXT,p_principal_id UUID,
   p_actor_principal_id UUID,p_operation TEXT,p_context_digest TEXT,
   p_secret_ref TEXT,p_secret_digest TEXT,p_recovery_batch_digest TEXT,
-  p_recovery_code_count INTEGER,p_expires_at TIMESTAMPTZ,p_now TIMESTAMPTZ
+  p_recovery_code_count INTEGER,p_expires_at TIMESTAMPTZ
 ) RETURNS BOOLEAN
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
-DECLARE v_receipt identity_security_receipts%ROWTYPE;
+DECLARE
+  v_receipt identity_security_receipts%ROWTYPE;
+  v_existing identity_security_mutation_tickets%ROWTYPE;
+  v_now CONSTANT TIMESTAMPTZ := clock_timestamp();
 BEGIN
   IF NOT a1_identity_digest_valid(p_ticket_digest)
      OR p_actor_principal_id<>p_principal_id
      OR p_operation NOT IN
-       ('password_enroll','password_change','password_recovery','mfa_enroll','mfa_confirm')
-     OR p_expires_at<=p_now THEN
+       ('password_enroll','password_change','password_recovery','mfa_enroll','mfa_confirm') THEN
+    RAISE EXCEPTION 'identity_security_ticket_rejected' USING ERRCODE='42501';
+  END IF;
+
+  SELECT * INTO v_existing FROM identity_security_mutation_tickets
+   WHERE ticket_digest=p_ticket_digest FOR UPDATE;
+  IF FOUND THEN
+    IF v_existing.step_up_receipt_digest IS NOT DISTINCT FROM p_step_up_receipt_digest
+       AND v_existing.principal_id IS NOT DISTINCT FROM p_principal_id
+       AND v_existing.actor_principal_id IS NOT DISTINCT FROM p_actor_principal_id
+       AND v_existing.operation IS NOT DISTINCT FROM p_operation
+       AND v_existing.context_digest IS NOT DISTINCT FROM p_context_digest
+       AND v_existing.secret_ref IS NOT DISTINCT FROM p_secret_ref
+       AND v_existing.secret_digest IS NOT DISTINCT FROM p_secret_digest
+       AND v_existing.recovery_batch_digest IS NOT DISTINCT FROM p_recovery_batch_digest
+       AND v_existing.recovery_code_count IS NOT DISTINCT FROM p_recovery_code_count
+       AND v_existing.expires_at IS NOT DISTINCT FROM p_expires_at THEN
+      RETURN TRUE;
+    END IF;
+    RAISE EXCEPTION 'identity_security_ticket_issuance_conflict' USING ERRCODE='23505';
+  END IF;
+
+  IF p_expires_at IS NULL OR p_expires_at<=v_now THEN
     RAISE EXCEPTION 'identity_security_ticket_rejected' USING ERRCODE='42501';
   END IF;
 
@@ -265,33 +301,62 @@ BEGIN
    WHERE receipt_digest=p_step_up_receipt_digest
      AND principal_id=p_principal_id AND purpose=p_operation
      AND context_digest=p_context_digest
-     AND consumed_at IS NULL AND expires_at>p_now
+     AND consumed_at IS NULL AND expires_at>v_now
    FOR UPDATE;
   IF NOT FOUND OR p_expires_at>v_receipt.expires_at THEN
     RAISE EXCEPTION 'identity_security_ticket_receipt_rejected' USING ERRCODE='42501';
   END IF;
 
+  -- A concurrent exact retry may have inserted while this transaction waited
+  -- for the receipt lock. Re-read the digest before checking receipt ownership.
+  SELECT * INTO v_existing FROM identity_security_mutation_tickets
+   WHERE ticket_digest=p_ticket_digest FOR UPDATE;
+  IF FOUND THEN
+    IF v_existing.step_up_receipt_digest IS NOT DISTINCT FROM p_step_up_receipt_digest
+       AND v_existing.principal_id IS NOT DISTINCT FROM p_principal_id
+       AND v_existing.actor_principal_id IS NOT DISTINCT FROM p_actor_principal_id
+       AND v_existing.operation IS NOT DISTINCT FROM p_operation
+       AND v_existing.context_digest IS NOT DISTINCT FROM p_context_digest
+       AND v_existing.secret_ref IS NOT DISTINCT FROM p_secret_ref
+       AND v_existing.secret_digest IS NOT DISTINCT FROM p_secret_digest
+       AND v_existing.recovery_batch_digest IS NOT DISTINCT FROM p_recovery_batch_digest
+       AND v_existing.recovery_code_count IS NOT DISTINCT FROM p_recovery_code_count
+       AND v_existing.expires_at IS NOT DISTINCT FROM p_expires_at THEN
+      RETURN TRUE;
+    END IF;
+    RAISE EXCEPTION 'identity_security_ticket_issuance_conflict' USING ERRCODE='23505';
+  END IF;
+
+  PERFORM 1 FROM identity_security_mutation_tickets
+   WHERE step_up_receipt_digest=p_step_up_receipt_digest FOR UPDATE;
+  IF FOUND THEN
+    RAISE EXCEPTION 'identity_security_receipt_ticket_conflict' USING ERRCODE='23505';
+  END IF;
+
   INSERT INTO identity_security_mutation_tickets(
     ticket_digest,step_up_receipt_digest,principal_id,actor_principal_id,
     operation,context_digest,secret_ref,secret_digest,recovery_batch_digest,
-    recovery_code_count,expires_at
+    recovery_code_count,expires_at,created_at
   ) VALUES (
     p_ticket_digest,p_step_up_receipt_digest,p_principal_id,p_actor_principal_id,
     p_operation,p_context_digest,p_secret_ref,p_secret_digest,p_recovery_batch_digest,
-    p_recovery_code_count,p_expires_at
+    p_recovery_code_count,p_expires_at,v_now
   );
   RETURN TRUE;
 END $$;
 
+DROP FUNCTION IF EXISTS a1_execute_identity_security_mutation(
+  TEXT,TEXT,TEXT,TIMESTAMPTZ
+);
 CREATE OR REPLACE FUNCTION a1_execute_identity_security_mutation(
-  p_ticket_digest TEXT,p_idempotency_key TEXT,p_request_fingerprint TEXT,
-  p_now TIMESTAMPTZ
+  p_ticket_digest TEXT,p_idempotency_key TEXT,p_request_fingerprint TEXT
 ) RETURNS JSONB
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
 DECLARE
   v_ticket identity_security_mutation_tickets%ROWTYPE;
   v_idempotency identity_security_mutation_idempotency%ROWTYPE;
   v_result JSONB;
+  v_now CONSTANT TIMESTAMPTZ := clock_timestamp();
 BEGIN
   IF NOT a1_identity_digest_valid(p_ticket_digest)
      OR length(p_idempotency_key) NOT BETWEEN 8 AND 255
@@ -307,10 +372,10 @@ BEGIN
   END IF;
 
   INSERT INTO identity_security_mutation_idempotency(
-    principal_id,operation,idempotency_key,ticket_digest,request_fingerprint
+    principal_id,operation,idempotency_key,ticket_digest,request_fingerprint,created_at
   ) VALUES (
     v_ticket.principal_id,v_ticket.operation,p_idempotency_key,
-    p_ticket_digest,p_request_fingerprint
+    p_ticket_digest,p_request_fingerprint,v_now
   )
   ON CONFLICT (principal_id,operation,idempotency_key) DO NOTHING;
 
@@ -326,36 +391,36 @@ BEGIN
     RETURN v_idempotency.result_json;
   END IF;
 
-  IF v_ticket.consumed_at IS NOT NULL OR v_ticket.expires_at<=p_now THEN
+  IF v_ticket.consumed_at IS NOT NULL OR v_ticket.expires_at<=v_now THEN
     RAISE EXCEPTION 'identity_security_ticket_expired_or_consumed' USING ERRCODE='42501';
   END IF;
-  UPDATE identity_security_mutation_tickets SET consumed_at=p_now
+  UPDATE identity_security_mutation_tickets SET consumed_at=v_now
    WHERE ticket_digest=p_ticket_digest;
 
   IF v_ticket.operation IN ('password_enroll','password_change','password_recovery') THEN
     v_result := a1_mutate_account_password(
       v_ticket.principal_id,v_ticket.operation,v_ticket.secret_ref,
       v_ticket.secret_digest,v_ticket.step_up_receipt_digest,
-      v_ticket.context_digest,v_ticket.actor_principal_id,p_now
+      v_ticket.context_digest,v_ticket.actor_principal_id,v_now
     );
   ELSIF v_ticket.operation='mfa_enroll' THEN
     v_result := a1_begin_totp_enrollment(
       v_ticket.principal_id,v_ticket.secret_ref,v_ticket.secret_digest,
       v_ticket.step_up_receipt_digest,v_ticket.context_digest,
-      v_ticket.actor_principal_id,p_now
+      v_ticket.actor_principal_id,v_now
     );
   ELSIF v_ticket.operation='mfa_confirm' THEN
     v_result := a1_confirm_totp_enrollment(
       v_ticket.principal_id,v_ticket.step_up_receipt_digest,
       v_ticket.context_digest,v_ticket.recovery_batch_digest,
-      v_ticket.recovery_code_count,p_now
+      v_ticket.recovery_code_count,v_now
     );
   ELSE
     RAISE EXCEPTION 'identity_security_operation_unsupported' USING ERRCODE='0A000';
   END IF;
 
   UPDATE identity_security_mutation_idempotency
-     SET result_json=v_result,completed_at=p_now
+     SET result_json=v_result,completed_at=v_now
    WHERE principal_id=v_ticket.principal_id AND operation=v_ticket.operation
      AND idempotency_key=p_idempotency_key;
   RETURN v_result;
@@ -412,11 +477,12 @@ REVOKE ALL ON FUNCTION a1_consume_identity_security_receipt(TEXT,UUID,TEXT,TEXT,
 REVOKE ALL ON FUNCTION a1_mutate_account_password(UUID,TEXT,TEXT,TEXT,TEXT,TEXT,UUID,TIMESTAMPTZ) FROM PUBLIC;
 REVOKE ALL ON FUNCTION a1_begin_totp_enrollment(UUID,TEXT,TEXT,TEXT,TEXT,UUID,TIMESTAMPTZ) FROM PUBLIC;
 REVOKE ALL ON FUNCTION a1_confirm_totp_enrollment(UUID,TEXT,TEXT,TEXT,INTEGER,TIMESTAMPTZ) FROM PUBLIC;
+REVOKE ALL ON FUNCTION a1_set_account_two_factor(UUID,BOOLEAN,UUID,TIMESTAMPTZ,BOOLEAN) FROM PUBLIC;
 REVOKE ALL ON FUNCTION a1_issue_identity_security_mutation_ticket(
-  TEXT,TEXT,UUID,UUID,TEXT,TEXT,TEXT,TEXT,TEXT,INTEGER,TIMESTAMPTZ,TIMESTAMPTZ
+  TEXT,TEXT,UUID,UUID,TEXT,TEXT,TEXT,TEXT,TEXT,INTEGER,TIMESTAMPTZ
 ) FROM PUBLIC;
 REVOKE ALL ON FUNCTION a1_execute_identity_security_mutation(
-  TEXT,TEXT,TEXT,TIMESTAMPTZ
+  TEXT,TEXT,TEXT
 ) FROM PUBLIC;
 REVOKE ALL ON FUNCTION a1_resolve_identity_security_mutation_ticket(
   TEXT,TEXT,TEXT,TIMESTAMPTZ
@@ -426,18 +492,65 @@ REVOKE ALL ON FUNCTION a1_project_account_security(UUID) FROM PUBLIC;
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'a1_runtime') THEN
-    REVOKE ALL ON identity_security_receipts, identity_security_mutation_tickets,
-      identity_security_mutation_idempotency FROM a1_runtime;
-    GRANT EXECUTE ON FUNCTION a1_issue_identity_security_mutation_ticket(
-      TEXT,TEXT,UUID,UUID,TEXT,TEXT,TEXT,TEXT,TEXT,INTEGER,TIMESTAMPTZ,TIMESTAMPTZ
-    ) TO a1_runtime;
+    REVOKE ALL ON identity_account_security, identity_security_receipts,
+      identity_security_mutation_tickets, identity_security_mutation_idempotency
+      FROM a1_runtime;
+    REVOKE EXECUTE ON FUNCTION a1_consume_identity_security_receipt(
+      TEXT,UUID,TEXT,TEXT,TIMESTAMPTZ
+    ) FROM a1_runtime;
+    REVOKE EXECUTE ON FUNCTION a1_mutate_account_password(
+      UUID,TEXT,TEXT,TEXT,TEXT,TEXT,UUID,TIMESTAMPTZ
+    ) FROM a1_runtime;
+    REVOKE EXECUTE ON FUNCTION a1_begin_totp_enrollment(
+      UUID,TEXT,TEXT,TEXT,TEXT,UUID,TIMESTAMPTZ
+    ) FROM a1_runtime;
+    REVOKE EXECUTE ON FUNCTION a1_confirm_totp_enrollment(
+      UUID,TEXT,TEXT,TEXT,INTEGER,TIMESTAMPTZ
+    ) FROM a1_runtime;
+    REVOKE EXECUTE ON FUNCTION a1_set_account_two_factor(
+      UUID,BOOLEAN,UUID,TIMESTAMPTZ,BOOLEAN
+    ) FROM a1_runtime;
+    REVOKE EXECUTE ON FUNCTION a1_issue_identity_security_mutation_ticket(
+      TEXT,TEXT,UUID,UUID,TEXT,TEXT,TEXT,TEXT,TEXT,INTEGER,TIMESTAMPTZ
+    ) FROM a1_runtime;
     GRANT EXECUTE ON FUNCTION a1_execute_identity_security_mutation(
-      TEXT,TEXT,TEXT,TIMESTAMPTZ
+      TEXT,TEXT,TEXT
     ) TO a1_runtime;
     GRANT EXECUTE ON FUNCTION a1_resolve_identity_security_mutation_ticket(
       TEXT,TEXT,TEXT,TIMESTAMPTZ
     ) TO a1_runtime;
     GRANT EXECUTE ON FUNCTION a1_project_account_security(UUID) TO a1_runtime;
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'a1_security_ticket_issuer') THEN
+    REVOKE ALL ON identity_account_security, identity_security_receipts,
+      identity_security_mutation_tickets, identity_security_mutation_idempotency
+      FROM a1_security_ticket_issuer;
+    REVOKE EXECUTE ON FUNCTION a1_consume_identity_security_receipt(
+      TEXT,UUID,TEXT,TEXT,TIMESTAMPTZ
+    ) FROM a1_security_ticket_issuer;
+    REVOKE EXECUTE ON FUNCTION a1_mutate_account_password(
+      UUID,TEXT,TEXT,TEXT,TEXT,TEXT,UUID,TIMESTAMPTZ
+    ) FROM a1_security_ticket_issuer;
+    REVOKE EXECUTE ON FUNCTION a1_begin_totp_enrollment(
+      UUID,TEXT,TEXT,TEXT,TEXT,UUID,TIMESTAMPTZ
+    ) FROM a1_security_ticket_issuer;
+    REVOKE EXECUTE ON FUNCTION a1_confirm_totp_enrollment(
+      UUID,TEXT,TEXT,TEXT,INTEGER,TIMESTAMPTZ
+    ) FROM a1_security_ticket_issuer;
+    REVOKE EXECUTE ON FUNCTION a1_set_account_two_factor(
+      UUID,BOOLEAN,UUID,TIMESTAMPTZ,BOOLEAN
+    ) FROM a1_security_ticket_issuer;
+    REVOKE EXECUTE ON FUNCTION a1_execute_identity_security_mutation(
+      TEXT,TEXT,TEXT
+    ) FROM a1_security_ticket_issuer;
+    REVOKE EXECUTE ON FUNCTION a1_resolve_identity_security_mutation_ticket(
+      TEXT,TEXT,TEXT,TIMESTAMPTZ
+    ) FROM a1_security_ticket_issuer;
+    REVOKE EXECUTE ON FUNCTION a1_project_account_security(UUID)
+      FROM a1_security_ticket_issuer;
+    GRANT EXECUTE ON FUNCTION a1_issue_identity_security_mutation_ticket(
+      TEXT,TEXT,UUID,UUID,TEXT,TEXT,TEXT,TEXT,TEXT,INTEGER,TIMESTAMPTZ
+    ) TO a1_security_ticket_issuer;
   END IF;
 END
 $$;

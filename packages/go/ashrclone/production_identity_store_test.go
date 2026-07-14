@@ -540,6 +540,29 @@ func TestProductionIdentityReadinessRequiresSessionAndDeliveryReplacementContrac
 	}
 }
 
+func TestProductionIdentityReadinessEnforcesSecurityAuthorityLeastPrivilege(t *testing.T) {
+	for _, required := range []string{
+		"NOT has_function_privilege",
+		"a1_issue_identity_security_mutation_ticket",
+		"a1_consume_identity_security_receipt",
+		"a1_mutate_account_password",
+		"a1_begin_totp_enrollment",
+		"a1_confirm_totp_enrollment",
+		"a1_set_account_two_factor",
+		"NOT has_table_privilege",
+		"identity_account_security",
+		"relrowsecurity",
+		"relforcerowsecurity",
+		"p.prosecdef",
+		"pg_get_userbyid(p.proowner) <> current_user",
+		"search_path=pg_catalog,public",
+	} {
+		if !strings.Contains(productionIdentityReadinessQuery, required) {
+			t.Fatalf("security readiness omitted %s", required)
+		}
+	}
+}
+
 func TestProductionIdentityStoreResolvesOneTrustedSessionForAllInterfaces(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {

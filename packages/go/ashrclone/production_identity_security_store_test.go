@@ -167,7 +167,7 @@ func TestProductionIdentitySecurityStoreRoutesAtomicMigration018Authority(t *tes
 			expectIdentitySecurityTransaction(mock)
 			mock.ExpectQuery("SELECT a1_execute_identity_security_mutation").
 				WithArgs(ticket.TicketID, mutation.IdempotencyKey,
-					identitySecurityRequestFingerprint(mutation), now).
+					identitySecurityRequestFingerprint(mutation)).
 				WillReturnRows(sqlmock.NewRows([]string{"result"}).AddRow(testCase.resultJSON))
 			mock.ExpectCommit()
 

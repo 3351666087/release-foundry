@@ -358,9 +358,8 @@ $$`); err != nil {
 		"a1_authenticate_identity_lifecycle_credential(TEXT,TEXT[],TIMESTAMPTZ)",
 		"a1_project_identity_lifecycle_account(UUID)",
 		"a1_issue_identity_session(UUID,UUID,TEXT,TEXT,TIMESTAMPTZ,UUID,UUID,TEXT,TEXT,JSONB)",
-		"a1_issue_identity_security_mutation_ticket(TEXT,TEXT,UUID,UUID,TEXT,TEXT,TEXT,TEXT,TEXT,INTEGER,TIMESTAMPTZ,TIMESTAMPTZ)",
 		"a1_resolve_identity_security_mutation_ticket(TEXT,TEXT,TEXT,TIMESTAMPTZ)",
-		"a1_execute_identity_security_mutation(TEXT,TEXT,TEXT,TIMESTAMPTZ)",
+		"a1_execute_identity_security_mutation(TEXT,TEXT,TEXT)",
 		"a1_project_account_security(UUID)",
 	} {
 		if _, err := db.Exec(`GRANT EXECUTE ON FUNCTION ` + signature + ` TO ` +
@@ -601,13 +600,13 @@ INSERT INTO identity_security_receipts(
 ) VALUES ($1,$2::uuid,$3,$4,$5)
 `, receiptDigest, principalID, operation, contextDigest, now.Add(10*time.Minute))
 		var issued bool
-		if err := instance.db.QueryRow(`
+		if err := instance.adminDB.QueryRow(`
 SELECT a1_issue_identity_security_mutation_ticket(
-  $1,$2,$3::uuid,$3::uuid,$4,$5,$6,$7,$8,$9,$10,$11
+  $1,$2,$3::uuid,$3::uuid,$4,$5,$6,$7,$8,$9,$10
 )
 `, ticketDigest, receiptDigest, principalID, operation, contextDigest,
 			secretRef, secretDigest, recoveryBatchDigest, recoveryCodeCount,
-			now.Add(5*time.Minute), now).Scan(&issued); err != nil {
+			now.Add(5*time.Minute)).Scan(&issued); err != nil {
 			t.Fatalf("issue %s security mutation ticket: %v", operation, err)
 		}
 		if !issued {

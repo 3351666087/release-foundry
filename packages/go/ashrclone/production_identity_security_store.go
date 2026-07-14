@@ -176,8 +176,8 @@ func (store *ProductionIdentityStore) MutateIdentitySecurity(
 	requestFingerprint := identitySecurityRequestFingerprint(mutation)
 	var raw []byte
 	err = tx.QueryRowContext(queryCtx, `
-SELECT a1_execute_identity_security_mutation($1,$2,$3,$4)
-`, mutation.Ticket.TicketID, mutation.IdempotencyKey, requestFingerprint, now).Scan(&raw)
+SELECT a1_execute_identity_security_mutation($1,$2,$3)
+`, mutation.Ticket.TicketID, mutation.IdempotencyKey, requestFingerprint).Scan(&raw)
 	if err != nil {
 		return IdentitySecurityHTTPMutationResultDTO{}, identitySecurityDatabaseError(err)
 	}
