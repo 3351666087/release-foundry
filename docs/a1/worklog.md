@@ -3234,3 +3234,29 @@ Python/TypeScript/parity/commercial gates, then implement a typed
 PostgreSQL-backed `IdentitySecurityHTTPStore` that routes all password/MFA
 mutations through migration 018 while keeping unsafe split-memory stores fail
 closed.
+
+## Round 64: Independent Lifecycle Receipt Lookup Keys
+
+Date: 2026-07-14
+
+- Separated lifecycle proof-encryption keys from keyed receipt-lookup keys.
+- Added optional production lookup-key environment configuration with strict
+  version, length, duplicate, JSON-shape, and no-secret-error validation.
+- Preserved compatibility when no explicit lookup keyring is configured.
+- Added byte clearing for active and previous lookup keys in runtime config,
+  cloned keyrings, constructor failures, and keyring shutdown.
+- Added live PostgreSQL proof that a completed credential-link replay survives
+  retirement of the old encryption key when the stable lookup key remains.
+- Added fail-closed proof that an unconsumed old-key receipt is locatable but
+  cannot decrypt, does not leak internal key details, and does not consume
+  proof, mutation-ticket, or step-up authorization state.
+- Verification passed: full Go tests, Go vet, live PostgreSQL identity
+  lifecycle integration, six atomic migration tests, and `git diff --check`.
+- Published A1 commit:
+  `6d4ba9c9c1c463267fa734c0589b509d46c96b0f`.
+- Evidence:
+  `docs/a1/evidence/round64_identity_receipt_lookup_key_rotation.md`.
+
+Next: add an explicit legacy receipt-digest migration/retention readiness
+report, then continue the typed PostgreSQL-backed password/MFA HTTP store
+without weakening the current fail-closed split-store guard.
