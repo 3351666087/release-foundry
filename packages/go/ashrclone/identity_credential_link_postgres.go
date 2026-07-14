@@ -40,7 +40,7 @@ func (coordinator *PostgresIdentityCredentialLinkCoordinator) CompleteIdentityCr
 	for attempt := 0; attempt < maxAttempts; attempt++ {
 		result, err := coordinator.completeOnce(ctx, command, now.UTC())
 		if !isPostgresTransactionRetryable(err) {
-			return result, err
+			return result, mapPostgresIdentityCredentialLinkError(err)
 		}
 		timer := time.NewTimer(time.Duration(attempt+1) * 5 * time.Millisecond)
 		select {
@@ -50,7 +50,10 @@ func (coordinator *PostgresIdentityCredentialLinkCoordinator) CompleteIdentityCr
 		case <-timer.C:
 		}
 	}
-	return IdentityCredentialLinkResultDTO{}, fmt.Errorf("identity credential-link transaction remained contended")
+	return IdentityCredentialLinkResultDTO{}, identityCredentialLinkError(
+		"identity_credential_link_unavailable",
+		"credential linking is temporarily unavailable",
+	)
 }
 
 func (coordinator *PostgresIdentityCredentialLinkCoordinator) completeOnce(
@@ -140,12 +143,6 @@ FROM a1_complete_identity_credential_link(
 		idempotencyDigest, requestDigest, eventDigest, metadata).
 		Scan(&credentialID, &credentialAdded, &linkedAt)
 	if err != nil {
-		if isPostgresUniqueViolation(err) {
-			return IdentityCredentialLinkResultDTO{}, IdentityDomainError{
-				Code:    "identity_credential_link_conflict",
-				Message: "credential or canonical email is already linked",
-			}
-		}
 		return IdentityCredentialLinkResultDTO{}, err
 	}
 	account, err := (&PostgresIdentityLifecycleTransactionCoordinator{
@@ -223,6 +220,66 @@ FROM a1_lock_identity_credential_link_receipt($1)
 	}
 	locked.proof = proof
 	return locked, false, nil
+}
+
+func mapPostgresIdentityCredentialLinkError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+		return err
+	}
+	for _, target := range []error{
+		ErrIdentityProofReceiptNotFound,
+		ErrIdentityProofReceiptConsumed,
+		ErrIdentityProofReceiptExpired,
+		ErrIdentityProofScopeMismatch,
+	} {
+		if errors.Is(err, target) {
+			return target
+		}
+	}
+	var domain IdentityDomainError
+	if errors.As(err, &domain) {
+		return domain
+	}
+	var postgresError *pq.Error
+	if errors.As(err, &postgresError) {
+		switch {
+		case postgresError.Code == "23505":
+			return identityCredentialLinkError(
+				"identity_credential_link_conflict",
+				"credential or canonical email is already linked",
+			)
+		case postgresError.Code == "22023",
+			postgresError.Code == "42501",
+			postgresError.Code == "55000":
+			return identityCredentialLinkError(
+				"identity_credential_link_rejected",
+				"credential linking authorization or state was rejected",
+			)
+		case postgresError.Code.Class() == "08",
+			postgresError.Code.Class() == "40",
+			postgresError.Code.Class() == "53",
+			postgresError.Code.Class() == "54",
+			postgresError.Code.Class() == "55",
+			postgresError.Code.Class() == "57",
+			postgresError.Code.Class() == "58":
+			return identityCredentialLinkError(
+				"identity_credential_link_unavailable",
+				"credential linking is temporarily unavailable",
+			)
+		default:
+			return identityCredentialLinkError(
+				"identity_credential_link_rejected",
+				"credential linking authorization or state was rejected",
+			)
+		}
+	}
+	return identityCredentialLinkError(
+		"identity_credential_link_unavailable",
+		"credential linking is temporarily unavailable",
+	)
 }
 
 var _ IdentityCredentialLinkCoordinator = (*PostgresIdentityCredentialLinkCoordinator)(nil)

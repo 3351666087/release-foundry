@@ -304,6 +304,31 @@ INSERT INTO identity_project_memberships(
 			!replay.LinkedAt.Equal(result.LinkedAt) {
 			t.Fatalf("exact replay changed result: first=%#v replay=%#v", result, replay)
 		}
+		changedRequests := map[string]func(*IdentityCredentialLinkCommand){
+			"idempotency": func(item *IdentityCredentialLinkCommand) {
+				item.IdempotencyKey = "credential-link-integration-changed"
+			},
+			"request fingerprint": func(item *IdentityCredentialLinkCommand) {
+				item.SessionID = "different-trusted-session-id"
+			},
+		}
+		for name, mutate := range changedRequests {
+			t.Run(name+" conflict is public safe", func(t *testing.T) {
+				changed := command
+				mutate(&changed)
+				_, changedErr := instance.credentialLinkService.Complete(
+					context.Background(), changed,
+				)
+				var domain IdentityDomainError
+				if !errors.As(changedErr, &domain) ||
+					domain.Code != "identity_credential_link_conflict" {
+					t.Fatalf("changed replay returned %v", changedErr)
+				}
+				if strings.Contains(changedErr.Error(), "identity_credential_link_idempotency_conflict") {
+					t.Fatalf("changed replay leaked PostgreSQL detail: %v", changedErr)
+				}
+			})
+		}
 		var credentials, consumedProofs, consumedTickets, consumedReceipts, events int
 		if err := instance.adminDB.QueryRow(`
 SELECT
