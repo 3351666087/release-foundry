@@ -469,6 +469,26 @@ const COMMERCIAL_ENDPOINTS = [
     usage: ["api_requests"],
     dependencies: ["A2 release policy", "A3 reviewer workflow"]
   }),
+  endpoint("POST /v1/review-queues/multimodal/repeat-stability", "A1/A2/A3", "review_workflow", "POST /api/a3/import/a2-multimodal-repeat-stability", {
+    status: "implemented",
+    rbac: "project:ingest",
+    db: ["dashboard_snapshots", "idempotency_keys", "audit_events", "event_outbox"],
+    events: ["a2.multimodal_repeat_stability_imported"],
+    artifacts: ["multimodal_repeat_stability_projection", "multimodal_repeat_stability_export"],
+    usage: ["api_requests", "a2_multimodal_repeat_stability_imports"],
+    dependencies: ["A1 trusted ingest principal and five-level scope", "A2 multi-repeat comparison and review conservation", "A3 strict public-safe projection"],
+    notes: "Imports one atomic comparison/review/candidate envelope using header-only idempotency. Stable repeats remain non-authoritative and cannot rewrite A2 quality or release state."
+  }),
+  endpoint("GET /v1/review-queues/multimodal/repeat-stability", "A1/A2/A3", "review_workflow", "GET /api/a3/review/multimodal-repeat-stability", {
+    status: "read_only",
+    rbac: "release:review",
+    db: ["dashboard_snapshots", "audit_events"],
+    events: ["review.multimodal_repeat_stability_read"],
+    artifacts: ["multimodal_repeat_stability_projection", "hosted_review_report"],
+    usage: ["api_requests"],
+    dependencies: ["A1 trusted reviewer identity and five-level scope", "A2 aggregate calibration metrics", "A3 hash-only report projection"],
+    notes: "Returns aggregate repeat metrics, review pending state, and candidate blockers without raw provider payloads, identities, URLs, or release authority."
+  }),
   endpoint("POST /v1/review-queues/multimodal/{queue_id}/assignment", "A1/A2/A3", "review_workflow", "POST /api/a3/review/multimodal-queue/:queueId/assignment", {
     status: "implemented",
     rbac: "release:review",

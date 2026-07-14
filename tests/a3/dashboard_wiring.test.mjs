@@ -211,7 +211,7 @@ test("A3 dashboard wires official generated demo dataset 884 and run 11926 sourc
   assert.match(html, /ashr_after_generate_dataset_884\.redacted\.json/);
   assert.match(html, /ashr_after_generate_frontend_summary\.redacted\.json/);
   assert.match(html, /p3_official_demo_884_11926_dashboard_sample/);
-  assert.match(html, /allowedSources = new Set\(\["mock", "api-mock", "raw-a1", "raw-a2", "p3-media", "p3-a2-round50", "p3-official-demo"\]\)/);
+  assert.match(html, /allowedSources = new Set\(\["mock", "api-mock", "raw-a1", "raw-a2", "p3-media", "p3-a2-round50", "p3-a2-round51", "p3-official-demo"\]\)/);
   assert.match(html, /P3 official Ashr demo dataset 884 \/ run 11926/);
 });
 
@@ -651,7 +651,7 @@ test("A3 dashboard wires API-backed SaaS runtime and hosted report sharing", asy
   assert.match(reportComponent, /callbacks\.revoke/);
   assert.doesNotMatch(reportComponent, /token_hash_prefix/);
   assert.match(reportComponent, /manifest-ready/);
-  assert.match(html, /allowedSources = new Set\(\["mock", "api-mock", "raw-a1", "raw-a2", "p3-media", "p3-a2-round50", "p3-official-demo"\]\)/);
+  assert.match(html, /allowedSources = new Set\(\["mock", "api-mock", "raw-a1", "raw-a2", "p3-media", "p3-a2-round50", "p3-a2-round51", "p3-official-demo"\]\)/);
 });
 
 test("A3 dashboard wires billing migration readiness into API-backed and static console", async () => {

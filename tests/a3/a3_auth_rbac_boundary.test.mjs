@@ -74,6 +74,8 @@ test("A3 RBAC policy covers local write and audit operations with expected roles
   for (const operation of [
     "import_a1_run_result",
     "import_a2_grade_result",
+    "import_a2_multimodal_repeat_stability",
+    "read_multimodal_repeat_stability",
     "share_report",
     "revoke_report",
     "view_report",
@@ -106,6 +108,9 @@ test("A3 RBAC policy covers local write and audit operations with expected roles
   assert.equal(operations.read_notification_control_plane.required_permission, "notifications:read");
   assert.equal(operations.read_notification_control_plane.mode, "read_only");
   assert.deepEqual(operations.read_notification_control_plane.roles_allowed, ["admin", "auditor", "owner", "reviewer", "viewer"]);
+  assert.deepEqual(operations.import_a2_multimodal_repeat_stability.roles_allowed, ["admin", "developer", "owner", "service_account"]);
+  assert.deepEqual(operations.read_multimodal_repeat_stability.roles_allowed, ["admin", "owner", "reviewer", "service_account"]);
+  assert.equal(authorizeA3Operation("read_multimodal_repeat_stability", { role: "viewer" }).decision, "denied_missing_permission");
   assert.equal(authorizeA3Operation("submit_review_approval", { role: "admin" }).allowed, false);
   assert.equal(authorizeA3Operation("submit_review_approval", { role: "admin" }).decision, "denied_missing_permission");
   assert.equal(authorizeA3Operation("plan_admin_action", { role: "viewer" }).allowed, false);

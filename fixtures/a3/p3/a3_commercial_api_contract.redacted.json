@@ -12,21 +12,21 @@
   },
   "purpose": "Map commercial /v1 SaaS endpoints to current A3 product surfaces without claiming A1/A2 backend ownership.",
   "summary": {
-    "endpoint_count": 44,
-    "implemented_or_read_only_count": 30,
+    "endpoint_count": 46,
+    "implemented_or_read_only_count": 32,
     "plan_only_count": 10,
     "blocked_by_auth_count": 3,
     "by_status": {
       "blocked_until_A1_auth_RBAC": 3,
       "contract_mapped_not_live": 1,
-      "implemented_local_a3": 18,
+      "implemented_local_a3": 19,
       "plan_only_until_backend": 10,
-      "read_only_local_a3": 12
+      "read_only_local_a3": 13
     },
     "by_owner_lane": {
       "A1": 13,
       "A1/A2": 4,
-      "A1/A2/A3": 9,
+      "A1/A2/A3": 11,
       "A1/A3": 10,
       "A2/A3": 4,
       "A3": 4
@@ -40,7 +40,7 @@
       "product_console": 9,
       "release_gate": 5,
       "report_center": 3,
-      "review_workflow": 9,
+      "review_workflow": 11,
       "usage_billing": 5
     },
     "sellable_claim": "A3 can show customers which release-intelligence workflow is product-ready, which API is only planned, and which backend owner must close the gap before live SaaS launch."
@@ -776,6 +776,75 @@
       "secret_values_allowed": false
     },
     {
+      "route": "POST /v1/review-queues/multimodal/repeat-stability",
+      "owner_lane": "A1/A2/A3",
+      "a3_surface": "review_workflow",
+      "local_a3_route": "POST /api/a3/import/a2-multimodal-repeat-stability",
+      "method": "POST",
+      "status_hint": "implemented",
+      "rbac": "project:ingest",
+      "db_tables": [
+        "dashboard_snapshots",
+        "idempotency_keys",
+        "audit_events",
+        "event_outbox"
+      ],
+      "events": [
+        "a2.multimodal_repeat_stability_imported"
+      ],
+      "artifacts": [
+        "multimodal_repeat_stability_projection",
+        "multimodal_repeat_stability_export"
+      ],
+      "usage_meters": [
+        "api_requests",
+        "a2_multimodal_repeat_stability_imports"
+      ],
+      "a1_a2_dependencies": [
+        "A1 trusted ingest principal and five-level scope",
+        "A2 multi-repeat comparison and review conservation",
+        "A3 strict public-safe projection"
+      ],
+      "notes": "Imports one atomic comparison/review/candidate envelope using header-only idempotency. Stable repeats remain non-authoritative and cannot rewrite A2 quality or release state.",
+      "order": 22,
+      "a3_status": "implemented_local_a3",
+      "contract_risk": "low_read_or_ingest_contract",
+      "secret_values_allowed": false
+    },
+    {
+      "route": "GET /v1/review-queues/multimodal/repeat-stability",
+      "owner_lane": "A1/A2/A3",
+      "a3_surface": "review_workflow",
+      "local_a3_route": "GET /api/a3/review/multimodal-repeat-stability",
+      "method": "GET",
+      "status_hint": "read_only",
+      "rbac": "release:review",
+      "db_tables": [
+        "dashboard_snapshots",
+        "audit_events"
+      ],
+      "events": [
+        "review.multimodal_repeat_stability_read"
+      ],
+      "artifacts": [
+        "multimodal_repeat_stability_projection",
+        "hosted_review_report"
+      ],
+      "usage_meters": [
+        "api_requests"
+      ],
+      "a1_a2_dependencies": [
+        "A1 trusted reviewer identity and five-level scope",
+        "A2 aggregate calibration metrics",
+        "A3 hash-only report projection"
+      ],
+      "notes": "Returns aggregate repeat metrics, review pending state, and candidate blockers without raw provider payloads, identities, URLs, or release authority.",
+      "order": 23,
+      "a3_status": "read_only_local_a3",
+      "contract_risk": "low_read_or_ingest_contract",
+      "secret_values_allowed": false
+    },
+    {
       "route": "POST /v1/review-queues/multimodal/{queue_id}/assignment",
       "owner_lane": "A1/A2/A3",
       "a3_surface": "review_workflow",
@@ -809,7 +878,7 @@
         "A3 reviewer lease workflow"
       ],
       "notes": "Append-only assignment leases consume validated A2 two-way v1/v3 or three-way v2 queue receipts, use expected_version, and never alter A2 risk, score, disposition, or release authority. Metadata-only history can enter the signed Audit Archive only after packet integrity verification.",
-      "order": 22,
+      "order": 24,
       "a3_status": "implemented_local_a3",
       "contract_risk": "low_read_or_ingest_contract",
       "secret_values_allowed": false
@@ -841,7 +910,7 @@
         "A3 evidence-request projection"
       ],
       "notes": "Returns request lifecycle metadata and allowlisted SHA-256 references only; raw evidence, URLs, identities, dispositions, and release authority remain excluded.",
-      "order": 23,
+      "order": 25,
       "a3_status": "read_only_local_a3",
       "contract_risk": "low_read_or_ingest_contract",
       "secret_values_allowed": false
@@ -877,7 +946,7 @@
         "A3 active assignment lease"
       ],
       "notes": "The active assignment owner requests allowlisted execution, evaluation, media, provider, or candidate-binding evidence with expected_version=0 and a bounded deadline.",
-      "order": 24,
+      "order": 26,
       "a3_status": "implemented_local_a3",
       "contract_risk": "low_read_or_ingest_contract",
       "secret_values_allowed": false
@@ -913,7 +982,7 @@
         "A3 evidence-request lifecycle"
       ],
       "notes": "Submission must cover every requested evidence kind using SHA-256 evidence and optional binding hashes; raw evidence, URLs, signed media URLs, local paths, and free text are rejected.",
-      "order": 25,
+      "order": 27,
       "a3_status": "implemented_local_a3",
       "contract_risk": "low_read_or_ingest_contract",
       "secret_values_allowed": false
@@ -951,7 +1020,7 @@
         "A3 optimistic request version"
       ],
       "notes": "Accepting evidence closes a coordination request only. It never creates an A2 human-review disposition, changes score or pass/fail, or grants release authority.",
-      "order": 26,
+      "order": 28,
       "a3_status": "implemented_local_a3",
       "contract_risk": "low_read_or_ingest_contract",
       "secret_values_allowed": false
@@ -984,7 +1053,7 @@
         "A1 local object storage"
       ],
       "notes": "Local A1-backed evidence only. Never production verification and never mutates A2 or deployment acceptance.",
-      "order": 27,
+      "order": 29,
       "a3_status": "contract_mapped_not_live",
       "contract_risk": "low_read_or_ingest_contract",
       "secret_values_allowed": false
@@ -1017,7 +1086,7 @@
         "A3 deployment handoff"
       ],
       "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
-      "order": 28,
+      "order": 30,
       "a3_status": "read_only_local_a3",
       "contract_risk": "low_read_or_ingest_contract",
       "secret_values_allowed": false
@@ -1052,7 +1121,7 @@
         "A3 metadata redaction boundary"
       ],
       "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
-      "order": 29,
+      "order": 31,
       "a3_status": "implemented_local_a3",
       "contract_risk": "low_read_or_ingest_contract",
       "secret_values_allowed": false
@@ -1089,7 +1158,7 @@
         "A3 optimistic concurrency"
       ],
       "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
-      "order": 30,
+      "order": 32,
       "a3_status": "implemented_local_a3",
       "contract_risk": "low_read_or_ingest_contract",
       "secret_values_allowed": false
@@ -1128,7 +1197,7 @@
         "A3 hash-chain and acceptance projection"
       ],
       "notes": "Trigger-only internal route. Client-supplied verification status, claims, evidence, authority, and attestation are rejected.",
-      "order": 31,
+      "order": 33,
       "a3_status": "implemented_local_a3",
       "contract_risk": "low_read_or_ingest_contract",
       "secret_values_allowed": false
@@ -1163,7 +1232,7 @@
         "A3 audit export UI"
       ],
       "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
-      "order": 32,
+      "order": 34,
       "a3_status": "read_only_local_a3",
       "contract_risk": "low_read_or_ingest_contract",
       "secret_values_allowed": false
@@ -1199,7 +1268,7 @@
         "A3 audit export UI"
       ],
       "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
-      "order": 33,
+      "order": 35,
       "a3_status": "read_only_local_a3",
       "contract_risk": "low_read_or_ingest_contract",
       "secret_values_allowed": false
@@ -1231,7 +1300,7 @@
         "A1/A2 source evidence"
       ],
       "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
-      "order": 34,
+      "order": 36,
       "a3_status": "implemented_local_a3",
       "contract_risk": "low_read_or_ingest_contract",
       "secret_values_allowed": false
@@ -1266,7 +1335,7 @@
         "A1/A2 source evidence"
       ],
       "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
-      "order": 35,
+      "order": 37,
       "a3_status": "implemented_local_a3",
       "contract_risk": "low_read_or_ingest_contract",
       "secret_values_allowed": false
@@ -1301,7 +1370,7 @@
         "A1/A2 source evidence"
       ],
       "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
-      "order": 36,
+      "order": 38,
       "a3_status": "implemented_local_a3",
       "contract_risk": "low_read_or_ingest_contract",
       "secret_values_allowed": false
@@ -1336,7 +1405,7 @@
         "A3 usage UI"
       ],
       "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
-      "order": 37,
+      "order": 39,
       "a3_status": "read_only_local_a3",
       "contract_risk": "low_read_or_ingest_contract",
       "secret_values_allowed": false
@@ -1372,7 +1441,7 @@
         "A3 billing UI"
       ],
       "notes": "Maps future commercial billing migration readiness to A1 ledger/migration summaries; A3 remains read-only and cannot mutate billing provider state.",
-      "order": 38,
+      "order": 40,
       "a3_status": "read_only_local_a3",
       "contract_risk": "low_read_or_ingest_contract",
       "secret_values_allowed": false
@@ -1405,7 +1474,7 @@
         "A3 billing UI"
       ],
       "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
-      "order": 39,
+      "order": 41,
       "a3_status": "read_only_local_a3",
       "contract_risk": "low_read_or_ingest_contract",
       "secret_values_allowed": false
@@ -1438,7 +1507,7 @@
         "A3 billing UI"
       ],
       "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
-      "order": 40,
+      "order": 42,
       "a3_status": "blocked_until_A1_auth_RBAC",
       "contract_risk": "high_payment_mutation",
       "secret_values_allowed": false
@@ -1471,7 +1540,7 @@
         "A3 billing UI"
       ],
       "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
-      "order": 41,
+      "order": 43,
       "a3_status": "blocked_until_A1_auth_RBAC",
       "contract_risk": "high_payment_mutation",
       "secret_values_allowed": false
@@ -1504,7 +1573,7 @@
         "A3 notification UI"
       ],
       "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
-      "order": 42,
+      "order": 44,
       "a3_status": "read_only_local_a3",
       "contract_risk": "low_read_or_ingest_contract",
       "secret_values_allowed": false
@@ -1540,7 +1609,7 @@
         "A3 notification control plane"
       ],
       "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
-      "order": 43,
+      "order": 45,
       "a3_status": "plan_only_until_backend",
       "contract_risk": "low_read_or_ingest_contract",
       "secret_values_allowed": false
@@ -1581,7 +1650,7 @@
         "A3 report/review workflow"
       ],
       "notes": "Mapped from commercial SaaS strategy into A3 downstream product workflow.",
-      "order": 44,
+      "order": 46,
       "a3_status": "plan_only_until_backend",
       "contract_risk": "medium_release_governance",
       "secret_values_allowed": false
@@ -1698,6 +1767,7 @@
     },
     "usage": {
       "meters": [
+        "a2_multimodal_repeat_stability_imports",
         "api_requests",
         "artifact_bytes_uploaded",
         "billing_readiness_reads",
@@ -1721,6 +1791,7 @@
       "append_only_required": true,
       "event_types": [
         "a1.imported",
+        "a2.multimodal_repeat_stability_imported",
         "api_key.create_requested",
         "api_key.listed",
         "approval.recorded",
@@ -1780,6 +1851,7 @@
         "review.multimodal_evidence_request.requested",
         "review.multimodal_evidence_request.submitted",
         "review.multimodal_evidence_requests_read",
+        "review.multimodal_repeat_stability_read",
         "run.completed",
         "run.created",
         "run.listed",
@@ -1809,5 +1881,5 @@
     "documentation": "docs/a3/p3_commercial_api_contract_2026_07_09.md",
     "api_route": "GET /api/a3/commercial-api/contract"
   },
-  "contract_hash": "268d0adb6e64c7831177f3c157c7b4f5fb257e76e5db595808f2b2f1952ed8ad"
+  "contract_hash": "92b273ec5f90ac5cc912eb436a535ef5652274eac61f0ef629782715094a0d5a"
 }

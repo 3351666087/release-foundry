@@ -24,7 +24,7 @@ export type ApiEndpoint = {
 };
 
 export const apiReferenceMeta = {
-  schemaVersion: "a3.api_reference.v13",
+  schemaVersion: "a3.api_reference.v14",
   calibratedAt: "2026-07-14",
   mainSha: "ccf6ce5",
   a1Sha: "c784163",
@@ -33,15 +33,20 @@ export const apiReferenceMeta = {
   a2SourceState: "merged_to_main",
   a1IdentityPeerSha: "6a985b8",
   a1IdentityPeerState: "peer_branch_identity_authority_readiness_not_merged",
+  a1LatestPeerSha: "81f7e9e",
+  a1LatestPeerState: "peer_branch_dedicated_identity_registration_not_merged",
   a2MultimodalPeerSha: "bb3bcfe",
   a2MultimodalPeerState: "peer_branch_contract_not_merged",
   a2LatestPeerSha: "7504680",
-  a2LatestPeerState: "peer_branch_round51_multi_repeat_reviewed_not_ingested",
+  a2LatestPeerState: "peer_branch_round51_multi_repeat_capture_ingested_non_authoritatively",
+  a2CurrentRemoteSha: "7504680",
+  a2CurrentRemoteState: "peer_branch_round51_current_not_main_authority",
   a2MultimodalSupportedSchemas: [
     "a2.multimodal_cross_provider_comparison.v1",
     "a2.multimodal_cross_provider_comparison.v3",
     "a2.multimodal_three_way_comparison.v2"
   ],
+  a2MultimodalRepeatSchema: "a2.multimodal_multi_repeat_comparison.v1",
   secretValuesIncluded: false,
   a1BrowserSession: "implemented",
   a1OAuthInitialLogin: "not_implemented",
@@ -401,6 +406,94 @@ export const apiEndpoints: ApiEndpoint[] = [
       { zh: "服务端拒绝原始模型载荷、URL、Secret、错误摘要、孤立队列回执和伪造发布权。", en: "The server rejects raw model payloads, URLs, secrets, inconsistent summaries, orphan receipts, and fabricated release authority." },
       { zh: "当前向后兼容双路 v1，支持双路 v3 的重复观察、聚合不稳定和回执守恒，并已根据 A2 Round 50 的公开安全实物接入三路 v2；四路 v1 仍等待可复现样本。", en: "The adapter remains backward-compatible with two-way v1, supports v3 repeats, aggregate instability, and receipt conservation, and now consumes three-way v2 from the real public-safe A2 Round 50 artifact; four-way v1 still awaits a reproducible sample." },
       { zh: "导入只形成可审计的审核队列投影，不会改写分数、风险或发布决定。", en: "Import creates an auditable review-queue projection and never rewrites scores, risk, or release decisions." }
+    ]
+  },
+  {
+    id: "a3-multimodal-repeat-stability-import",
+    group: "judge",
+    owner: "A1/A2/A3",
+    method: "POST",
+    path: "/api/a3/import/a2-multimodal-repeat-stability",
+    title: { zh: "导入多轮校准稳定性", en: "Import multi-repeat calibration stability" },
+    description: {
+      zh: "原子接收多轮比较、真人复核守恒状态和同一候选版本校验，生成只读稳定性证据。",
+      en: "Atomically ingest multi-repeat comparison, human-review conservation, and same-candidate verification into read-only stability evidence."
+    },
+    auth: { zh: "服务端验证身份 + project:ingest + Idempotency-Key", en: "Server-verified principal, project:ingest, and Idempotency-Key" },
+    status: "implemented",
+    source: "评测服务 Round 51 公开安全样本 / 产品 OpenAPI",
+    request: {
+      source: "api-ingest",
+      stability_evidence: {
+        schema_version: "a3.a2_multimodal_repeat_stability_intake.v1",
+        source_commit_alias: "7504680",
+        comparison: {
+          schema_version: "a2.multimodal_multi_repeat_comparison.v1",
+          repeat_count: 3,
+          all_required_units_complete: true,
+          retained_calibration_states: ["blocked", "blocked", "blocked"],
+          promotion_eligible: false,
+          release_authority: false
+        },
+        review_collection: { collection_state: "pending", receipts: [], release_authority: false },
+        shared_candidate_verification: { verified: false, blockers: ["shared_candidate_id_mismatch"] },
+        release_authority: false,
+        public_safe: true
+      }
+    },
+    response: {
+      schema_version: "a3.a2_multimodal_repeat_stability_ingest.v1",
+      repeat_count: 3,
+      retained_blocked_count: 3,
+      all_required_units_complete: true,
+      human_review_receipt_count: 0,
+      shared_candidate_verified: false,
+      upstream_release_authority: false,
+      a2_decision_recomputed: false,
+      release_decision_changed: false
+    },
+    notes: [
+      { zh: "只接受哈希、聚合指标、计数、状态和原因码；原始模型内容、URL、签名媒体地址和身份会被拒绝。", en: "Only hashes, aggregate metrics, counts, states, and reason codes are accepted; raw provider content, URLs, signed media links, and identity are rejected." },
+      { zh: "三轮结果完全一致只说明问题稳定可复现，不代表质量合格。", en: "Three identical repeats prove stable reproducibility, not qualified quality." },
+      { zh: "当前真人回执对象的精确契约尚未发布，因此非空回执会失败关闭。", en: "Non-empty human receipts fail closed until their exact authoritative object schema is published." }
+    ]
+  },
+  {
+    id: "a3-multimodal-repeat-stability-read",
+    group: "judge",
+    owner: "A3",
+    method: "GET",
+    path: "/api/a3/review/multimodal-repeat-stability",
+    title: { zh: "读取多轮校准稳定性", en: "Read multi-repeat calibration stability" },
+    description: {
+      zh: "返回租户范围内的多轮指标、质量阻塞、真人复核待办和候选版本绑定状态。",
+      en: "Return tenant-scoped repeat metrics, quality blockers, human-review backlog, and candidate-binding state."
+    },
+    auth: { zh: "服务端验证身份 + release:review + 五层租户范围", en: "Server-verified principal, release:review, and five-level tenant scope" },
+    status: "implemented",
+    source: "docs/a3/openapi/a3_commercial_api.openapi.json",
+    response: {
+      schema_version: "a3.multimodal_repeat_stability.v1",
+      status: "blocked_stable_repeat",
+      summary: {
+        repeat_count: 3,
+        required_source_unit_count: 45,
+        stable_observation: true,
+        quality_qualified: false,
+        promotion_eligible: false
+      },
+      metrics: [
+        { metric_id: "specificity", repeat_estimates: [0.95, 0.95, 0.95] },
+        { metric_id: "visual_prompt_injection_sensitivity", repeat_estimates: [0.6, 0.6, 0.6] }
+      ],
+      human_review: { collection_state: "pending", receipt_count: 0, pending_queue_receipt_count: 1 },
+      candidate_binding: { verified: false },
+      authority_boundary: { release_authority: false, a2_decision_recomputed: false, production_ready: false }
+    },
+    notes: [
+      { zh: "产品结论是“完整且稳定，但质量未达标”，而不是通过。", en: "The product conclusion is complete and stable, but quality is not qualified, never a pass." },
+      { zh: "该接口不能创建真人处置、重算评分或改变发布决定。", en: "This endpoint cannot create a human disposition, recompute grading, or change release state." },
+      { zh: "跨租户读取返回 404，不泄露指标、哈希或阻塞原因。", en: "Cross-tenant reads return 404 without exposing metrics, hashes, or blocker reasons." }
     ]
   },
   {

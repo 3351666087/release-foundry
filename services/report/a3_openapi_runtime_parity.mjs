@@ -39,6 +39,9 @@ const AUTH_CONTRACT = {
 
 export function synchronizeA3OpenApiRuntimeParity(spec = {}) {
   const next = structuredClone(spec);
+  next.info ||= {};
+  next.info.version = "2026.07.14";
+  next["x-contract-id"] = "a3_commercial_api_openapi_2026_07_14";
   next.paths ||= {};
   next.components ||= {};
   next.components.parameters ||= {};
@@ -121,11 +124,18 @@ export function normalizeContractPath(path = "") {
 function synchronizeDeliveryHandoffSchemas(schemas) {
   const dashboard = schemas.DashboardSnapshot;
   if (dashboard) {
-    dashboard.required = unique([...(dashboard.required || []), "deployment_handoff", "deployment_receipt_inbox", "deployment_acceptance_projection"]);
+    dashboard.required = unique([
+      ...(dashboard.required || []),
+      "deployment_handoff",
+      "deployment_receipt_inbox",
+      "deployment_acceptance_projection",
+      "multimodal_repeat_stability"
+    ]);
     dashboard.properties ||= {};
     dashboard.properties.deployment_handoff = { $ref: "#/components/schemas/DeploymentHandoff" };
     dashboard.properties.deployment_receipt_inbox = { $ref: "#/components/schemas/DeploymentReceiptInbox" };
     dashboard.properties.deployment_acceptance_projection = { $ref: "#/components/schemas/DeploymentAcceptanceProjection" };
+    dashboard.properties.multimodal_repeat_stability = { $ref: "#/components/schemas/MultimodalRepeatStability" };
   }
 
   const comparison = schemas.ReleaseComparison;
@@ -170,6 +180,10 @@ function synchronizeDeliveryHandoffSchemas(schemas) {
   schemas.MultimodalComparisonImportRequest = multimodalComparisonImportRequestSchema();
   schemas.MultimodalComparisonIngestReceipt = multimodalComparisonIngestReceiptSchema();
   schemas.MultimodalReviewQueue = multimodalReviewQueueSchema();
+  schemas.A2MultimodalRepeatStabilityEnvelope = a2MultimodalRepeatStabilityEnvelopeSchema();
+  schemas.MultimodalRepeatStabilityImportRequest = multimodalRepeatStabilityImportRequestSchema();
+  schemas.MultimodalRepeatStabilityIngestReceipt = multimodalRepeatStabilityIngestReceiptSchema();
+  schemas.MultimodalRepeatStability = multimodalRepeatStabilitySchema();
   schemas.MultimodalReviewAssignmentRequest = multimodalReviewAssignmentRequestSchema();
   schemas.MultimodalReviewAssignmentReceipt = multimodalReviewAssignmentReceiptSchema();
   schemas.MultimodalReviewOperationalState = multimodalReviewOperationalStateSchema();
@@ -985,6 +999,8 @@ function synchronizeDeploymentReceiptOperations(spec) {
 function synchronizeMultimodalReviewOperations(spec) {
   const importOperation = spec.paths?.["/api/a3/import/a2-multimodal-comparison"]?.post;
   const readOperation = spec.paths?.["/api/a3/review/multimodal-queue"]?.get;
+  const repeatStabilityImportOperation = spec.paths?.["/api/a3/import/a2-multimodal-repeat-stability"]?.post;
+  const repeatStabilityReadOperation = spec.paths?.["/api/a3/review/multimodal-repeat-stability"]?.get;
   const assignmentOperation = spec.paths?.["/api/a3/review/multimodal-queue/{queueId}/assignment"]?.post;
   const evidenceRequestReadOperation = spec.paths?.["/api/a3/review/multimodal-queue/{queueId}/evidence-requests"]?.get;
   const evidenceRequestCreateOperation = spec.paths?.["/api/a3/review/multimodal-queue/{queueId}/evidence-requests"]?.post;
@@ -1019,6 +1035,41 @@ function synchronizeMultimodalReviewOperations(spec) {
       "MultimodalReviewQueue"
     );
     readOperation["x-authority-boundary"] = multimodalAuthorityBoundary();
+  }
+  if (repeatStabilityImportOperation) {
+    repeatStabilityImportOperation.operationId = "a3ImportA2MultimodalRepeatStability";
+    repeatStabilityImportOperation.summary = "Import public-safe multi-repeat calibration stability evidence.";
+    repeatStabilityImportOperation.tags = ["Review", "Evidence", "Operations"];
+    repeatStabilityImportOperation["x-schema-version"] = "a3.a2_multimodal_repeat_stability_ingest.v1";
+    repeatStabilityImportOperation.parameters = withIdempotencyHeader(repeatStabilityImportOperation.parameters);
+    repeatStabilityImportOperation.requestBody = typedJsonRequest("MultimodalRepeatStabilityImportRequest");
+    delete repeatStabilityImportOperation.responses["202"];
+    repeatStabilityImportOperation.responses["201"] = typedJsonResponse(
+      "Repeat stability accepted as non-authoritative aggregate evidence.",
+      "MultimodalRepeatStabilityIngestReceipt"
+    );
+    repeatStabilityImportOperation.responses["409"] = typedJsonResponse(
+      "Idempotency conflict.",
+      "DeploymentReceiptConflict"
+    );
+    repeatStabilityImportOperation["x-audit"] = {
+      events: ["a2.multimodal_repeat_stability_imported"],
+      payload_policy: "hashes_aggregate_metrics_counts_states_and_reason_codes_only"
+    };
+    repeatStabilityImportOperation["x-evidence-boundary"] = multimodalRepeatStabilityEvidenceBoundary();
+    repeatStabilityImportOperation["x-authority-boundary"] = multimodalRepeatStabilityAuthorityBoundary();
+  }
+  if (repeatStabilityReadOperation) {
+    repeatStabilityReadOperation.operationId = "a3ReadMultimodalRepeatStability";
+    repeatStabilityReadOperation.summary = "Read tenant-scoped multi-repeat calibration stability evidence.";
+    repeatStabilityReadOperation.tags = ["Review", "Evidence"];
+    repeatStabilityReadOperation["x-schema-version"] = "a3.multimodal_repeat_stability.v1";
+    repeatStabilityReadOperation.responses["200"] = typedJsonResponse(
+      "Public-safe repeat stability projection without release authority.",
+      "MultimodalRepeatStability"
+    );
+    repeatStabilityReadOperation["x-evidence-boundary"] = multimodalRepeatStabilityEvidenceBoundary();
+    repeatStabilityReadOperation["x-authority-boundary"] = multimodalRepeatStabilityAuthorityBoundary();
   }
   if (assignmentOperation) {
     assignmentOperation.operationId = "a3ManageMultimodalReviewAssignment";
@@ -1412,6 +1463,366 @@ function multimodalReviewQueueSchema() {
   };
 }
 
+function a2MultimodalRepeatStabilityEnvelopeSchema() {
+  const repeatMetric = {
+    type: "object",
+    required: [
+      "required_unit_count", "matched_unit_count", "missing_unit_counts_by_repeat",
+      "complete_across_repeats", "repeat_summaries", "paired_max_minus_min_bootstrap_ci_95"
+    ],
+    properties: {
+      required_unit_count: { type: "integer", minimum: 0 },
+      matched_unit_count: { type: "integer", minimum: 0 },
+      missing_unit_counts_by_repeat: { type: "array", minItems: 3, maxItems: 100, items: { type: "integer", minimum: 0 } },
+      complete_across_repeats: { type: "boolean" },
+      repeat_summaries: {
+        type: "array",
+        minItems: 3,
+        maxItems: 100,
+        items: {
+          type: "object",
+          required: ["eligible_unit_count", "success_count", "estimate", "bootstrap_ci_95"],
+          properties: {
+            eligible_unit_count: { type: "integer", minimum: 0 },
+            success_count: { type: "integer", minimum: 0 },
+            estimate: { type: ["number", "null"], minimum: 0, maximum: 1 },
+            bootstrap_ci_95: probabilityIntervalSchema()
+          },
+          additionalProperties: false
+        }
+      },
+      paired_max_minus_min_bootstrap_ci_95: probabilityIntervalSchema()
+    },
+    additionalProperties: false
+  };
+  const bindingFields = [
+    "endpoint_region", "manifest_hash", "model_id", "ordered_case_plan_hash",
+    "output_schema_hash", "policy_hash", "prompt_hash", "provider_capability_hash", "provider_id"
+  ];
+  const hashBindingFields = new Set(bindingFields.filter((field) => field.endsWith("_hash")));
+  return {
+    type: "object",
+    required: [
+      "schema_version", "source_commit_alias", "comparison", "review_collection",
+      "review_conservation", "shared_candidate_verification", "release_authority",
+      "public_safe", "raw_provider_payload_included", "raw_reviewer_identity_included"
+    ],
+    properties: {
+      schema_version: { type: "string", const: "a3.a2_multimodal_repeat_stability_intake.v1" },
+      source_commit_alias: { type: "string", pattern: "^[a-f0-9]{7,40}$" },
+      comparison: {
+        type: "object",
+        required: [
+          "schema_version", "calibration_hashes", "repeat_count", "binding_fields",
+          "mismatched_binding_fields", "bootstrap_samples", "seed", "retained_calibration_states",
+          "source_unit_coverage", "metrics", "taxonomy_sensitivity", "all_required_units_complete",
+          "blockers", "promotion_eligible", "provider_is_truth", "release_authority",
+          "raw_provider_text_included", "public_safe"
+        ],
+        properties: {
+          schema_version: { type: "string", const: "a2.multimodal_multi_repeat_comparison.v1" },
+          calibration_hashes: { type: "array", minItems: 3, maxItems: 100, uniqueItems: true, items: sha256Schema() },
+          repeat_count: { type: "integer", minimum: 3, maximum: 100 },
+          binding_fields: {
+            type: "object",
+            required: bindingFields,
+            properties: Object.fromEntries(bindingFields.map((field) => [field, hashBindingFields.has(field)
+              ? sha256Schema()
+              : { type: "string", minLength: 1, maxLength: 160 }])),
+            additionalProperties: false
+          },
+          mismatched_binding_fields: { type: "array", maxItems: bindingFields.length, uniqueItems: true, items: { type: "string", enum: bindingFields } },
+          bootstrap_samples: { type: "integer", minimum: 100, maximum: 10000000 },
+          seed: { type: "integer" },
+          retained_calibration_states: {
+            type: "array", minItems: 3, maxItems: 100,
+            items: { type: "string", enum: ["qualified", "blocked", "incomplete", "unavailable"] }
+          },
+          source_unit_coverage: {
+            type: "object",
+            required: ["required_unit_count", "eligible_unit_counts_by_repeat", "missing_unit_counts_by_repeat", "complete_across_repeats"],
+            properties: {
+              required_unit_count: { type: "integer", minimum: 0 },
+              eligible_unit_counts_by_repeat: { type: "array", minItems: 3, maxItems: 100, items: { type: "integer", minimum: 0 } },
+              missing_unit_counts_by_repeat: { type: "array", minItems: 3, maxItems: 100, items: { type: "integer", minimum: 0 } },
+              complete_across_repeats: { type: "boolean" }
+            },
+            additionalProperties: false
+          },
+          metrics: {
+            type: "object",
+            required: ["specificity", "benign_text_false_positive_rate"],
+            properties: {
+              specificity: repeatMetric,
+              benign_text_false_positive_rate: repeatMetric
+            },
+            additionalProperties: false
+          },
+          taxonomy_sensitivity: {
+            type: "object",
+            required: ["cross_modal_conflict", "visual_prompt_injection"],
+            properties: {
+              cross_modal_conflict: repeatMetric,
+              visual_prompt_injection: repeatMetric
+            },
+            additionalProperties: false
+          },
+          all_required_units_complete: { type: "boolean" },
+          blockers: reasonCodeArraySchema(),
+          promotion_eligible: { type: "boolean" },
+          provider_is_truth: { type: "boolean", const: false },
+          release_authority: { type: "boolean", const: false },
+          raw_provider_text_included: { type: "boolean", const: false },
+          public_safe: { type: "boolean", const: true }
+        },
+        additionalProperties: false
+      },
+      review_collection: {
+        type: "object",
+        required: ["schema_version", "collection_state", "receipts", "note", "release_authority", "public_safe"],
+        properties: {
+          schema_version: { type: "string", const: "a2.multimodal_real_review_collection.v1" },
+          collection_state: { type: "string", enum: ["pending", "partially_reviewed", "reviewed"] },
+          receipts: {
+            type: "array",
+            maxItems: 100,
+            description: "A3 currently accepts an empty array only and fails closed until the exact authoritative receipt schema is published.",
+            items: { type: "object", additionalProperties: false }
+          },
+          note: { type: "string", minLength: 1, maxLength: 500, description: "Public-safe note; URLs, credentials, identity, and raw evidence are forbidden." },
+          release_authority: { type: "boolean", const: false },
+          public_safe: { type: "boolean", const: true }
+        },
+        additionalProperties: false
+      },
+      review_conservation: {
+        type: "object",
+        required: [
+          "schema_version", "queue_receipt_count", "pending_queue_receipt_count",
+          "reviewed_queue_receipt_count", "latest_receipt_hashes", "conservation_holds",
+          "verification_state", "errors", "release_authority", "public_safe"
+        ],
+        properties: {
+          schema_version: { type: "string", const: "a2.multimodal_review_conservation.v1" },
+          queue_receipt_count: { type: "integer", minimum: 0 },
+          pending_queue_receipt_count: { type: "integer", minimum: 0 },
+          reviewed_queue_receipt_count: { type: "integer", minimum: 0 },
+          latest_receipt_hashes: { type: "object", additionalProperties: sha256Schema() },
+          conservation_holds: { type: "boolean" },
+          verification_state: { type: "string", enum: ["verified", "failed"] },
+          errors: reasonCodeArraySchema(),
+          release_authority: { type: "boolean", const: false },
+          public_safe: { type: "boolean", const: true }
+        },
+        additionalProperties: false
+      },
+      shared_candidate_verification: {
+        type: "object",
+        required: ["blockers", "verified"],
+        properties: {
+          blockers: reasonCodeArraySchema(),
+          verified: { type: "boolean" }
+        },
+        additionalProperties: false
+      },
+      release_authority: { type: "boolean", const: false },
+      public_safe: { type: "boolean", const: true },
+      raw_provider_payload_included: { type: "boolean", const: false },
+      raw_reviewer_identity_included: { type: "boolean", const: false }
+    },
+    additionalProperties: false,
+    description: "Atomic A2 comparison, review-conservation, and candidate-binding envelope. Repeat stability is not a release decision."
+  };
+}
+
+function multimodalRepeatStabilityImportRequestSchema() {
+  const scopeProperties = Object.fromEntries(TENANT_SCOPE_CONTRACT.required.map((field) => [field, {
+    type: "string", minLength: 1, maxLength: 160
+  }]));
+  return {
+    type: "object",
+    required: ["source", "stability_evidence"],
+    properties: {
+      source: { type: "string", minLength: 1, maxLength: 160 },
+      source_label: { type: "string", minLength: 1, maxLength: 160 },
+      sourceLabel: { type: "string", minLength: 1, maxLength: 160 },
+      ...scopeProperties,
+      imported_at: { type: "string", deprecated: true, description: "Ignored. The server assigns imported_at from its own clock." },
+      idempotency_key: { type: "string", deprecated: true, description: "Ignored. Use the required Idempotency-Key header." },
+      idempotencyKey: { type: "string", deprecated: true, description: "Ignored. Use the required Idempotency-Key header." },
+      stability_evidence: { $ref: "#/components/schemas/A2MultimodalRepeatStabilityEnvelope" }
+    },
+    additionalProperties: false,
+    description: "Header-only idempotency; identity and five-level scope are verified server-side."
+  };
+}
+
+function multimodalRepeatStabilityIngestReceiptSchema() {
+  return {
+    type: "object",
+    required: [
+      "schema_version", "source", "payload_hash", "repeat_count", "retained_blocked_count",
+      "all_required_units_complete", "human_review_receipt_count", "pending_queue_receipt_count",
+      "shared_candidate_verified", "upstream_release_authority", "a2_decision_recomputed",
+      "release_decision_changed", "imported_at", "idempotency"
+    ],
+    properties: {
+      schema_version: { type: "string", const: "a3.a2_multimodal_repeat_stability_ingest.v1" },
+      source: { type: "string" },
+      payload_hash: { type: "string", pattern: "^[a-f0-9]{64}$" },
+      repeat_count: { type: "integer", minimum: 3 },
+      retained_blocked_count: { type: "integer", minimum: 0 },
+      all_required_units_complete: { type: "boolean" },
+      human_review_receipt_count: { type: "integer", minimum: 0 },
+      pending_queue_receipt_count: { type: "integer", minimum: 0 },
+      shared_candidate_verified: { type: "boolean" },
+      upstream_release_authority: { type: "boolean", const: false },
+      a2_decision_recomputed: { type: "boolean", const: false },
+      release_decision_changed: { type: "boolean", const: false },
+      imported_at: { type: "string", format: "date-time" },
+      idempotency: { type: "object", additionalProperties: true },
+      event_envelope: { type: "object", additionalProperties: true }
+    },
+    additionalProperties: true
+  };
+}
+
+function multimodalRepeatStabilitySchema() {
+  return {
+    type: "object",
+    required: [
+      "schema_version", "available", "status", "tenant_scope", "release_authority",
+      "a2_decision_recomputed", "production_ready", "authority_boundary", "safety"
+    ],
+    properties: {
+      schema_version: { type: "string", const: "a3.multimodal_repeat_stability.v1" },
+      available: { type: "boolean" },
+      status: { type: "string", enum: ["invalid_upstream_contract", "blocked_stable_repeat", "promotion_evidence_non_authoritative"] },
+      source: { type: "string" },
+      source_commit_alias: { type: ["string", "null"], pattern: "^[a-f0-9]{7,40}$" },
+      source_contract: { type: "string" },
+      capability_state: { type: "string" },
+      tenant_scope: multimodalTenantScopeSchema(),
+      release_authority: { type: "boolean", const: false },
+      a2_decision_recomputed: { type: "boolean", const: false },
+      production_ready: { type: "boolean", const: false },
+      summary: {
+        type: "object",
+        properties: {
+          repeat_count: { type: "integer", minimum: 0 },
+          retained_blocked_count: { type: "integer", minimum: 0 },
+          retained_qualified_count: { type: "integer", minimum: 0 },
+          all_required_units_complete: { type: "boolean" },
+          required_source_unit_count: { type: "integer", minimum: 0 },
+          bootstrap_samples: { type: "integer", minimum: 0 },
+          blocker_count: { type: "integer", minimum: 0 },
+          promotion_eligible: { type: "boolean" },
+          stable_observation: { type: "boolean" },
+          quality_qualified: { type: "boolean" }
+        },
+        additionalProperties: false
+      },
+      metrics: {
+        type: "array",
+        maxItems: 4,
+        items: {
+          type: "object",
+          required: ["metric_id", "required_unit_count", "matched_unit_count", "complete_across_repeats", "repeat_estimates"],
+          properties: {
+            metric_id: {
+              type: "string",
+              enum: ["specificity", "benign_text_false_positive_rate", "cross_modal_conflict_sensitivity", "visual_prompt_injection_sensitivity"]
+            },
+            required_unit_count: { type: "integer", minimum: 0 },
+            matched_unit_count: { type: "integer", minimum: 0 },
+            complete_across_repeats: { type: "boolean" },
+            repeat_estimates: { type: "array", minItems: 3, maxItems: 100, items: { type: "number", minimum: 0, maximum: 1 } },
+            repeat_eligible_counts: { type: "array", items: { type: "integer", minimum: 0 } },
+            repeat_success_counts: { type: "array", items: { type: "integer", minimum: 0 } },
+            repeat_bootstrap_ci_95: { type: "array", items: probabilityIntervalSchema() },
+            paired_max_minus_min_bootstrap_ci_95: probabilityIntervalSchema()
+          },
+          additionalProperties: false
+        }
+      },
+      blockers: reasonCodeArraySchema(),
+      human_review: { type: "object", additionalProperties: true },
+      candidate_binding: {
+        type: "object",
+        required: ["verified", "blockers"],
+        properties: { verified: { type: "boolean" }, blockers: reasonCodeArraySchema() },
+        additionalProperties: false
+      },
+      integrity: { type: "object", additionalProperties: true },
+      authority_boundary: {
+        type: "object",
+        required: [
+          "provider_is_truth", "provider_identity_verified", "authoritative_human_disposition_recorded",
+          "candidate_binding_verified", "a2_decision_recomputed", "release_authority",
+          "release_decision_changed", "production_ready"
+        ],
+        properties: Object.fromEntries([
+          "provider_is_truth", "provider_identity_verified", "authoritative_human_disposition_recorded",
+          "candidate_binding_verified", "a2_decision_recomputed", "release_authority",
+          "release_decision_changed", "production_ready"
+        ].map((field) => [field, { type: "boolean", const: false }])),
+        additionalProperties: false
+      },
+      safety: {
+        type: "object",
+        required: [
+          "public_safe", "hashes_and_aggregate_metrics_only", "raw_provider_payload_included",
+          "raw_provider_text_included", "raw_reviewer_identity_included", "signed_url_included",
+          "secret_values_included"
+        ],
+        properties: {
+          public_safe: { type: "boolean", const: true },
+          hashes_and_aggregate_metrics_only: { type: "boolean", const: true },
+          raw_provider_payload_included: { type: "boolean", const: false },
+          raw_provider_text_included: { type: "boolean", const: false },
+          raw_reviewer_identity_included: { type: "boolean", const: false },
+          signed_url_included: { type: "boolean", const: false },
+          secret_values_included: { type: "boolean", const: false }
+        },
+        additionalProperties: false
+      },
+      recommendation_code: { type: "string" }
+    },
+    additionalProperties: true,
+    description: "Aggregate stability evidence. Stable blocked repeats remain blocked and never become release authority."
+  };
+}
+
+function multimodalTenantScopeSchema() {
+  return {
+    type: "object",
+    required: [...TENANT_SCOPE_CONTRACT.required],
+    properties: Object.fromEntries(TENANT_SCOPE_CONTRACT.required.map((field) => [field, { type: ["string", "null"] }])),
+    additionalProperties: false
+  };
+}
+
+function probabilityIntervalSchema() {
+  return {
+    type: "object",
+    required: ["lower", "upper"],
+    properties: {
+      lower: { type: ["number", "null"], minimum: 0, maximum: 1 },
+      upper: { type: ["number", "null"], minimum: 0, maximum: 1 }
+    },
+    additionalProperties: false
+  };
+}
+
+function reasonCodeArraySchema() {
+  return {
+    type: "array",
+    maxItems: 100,
+    uniqueItems: true,
+    items: { type: "string", pattern: "^[a-z0-9][a-z0-9_.:-]{0,159}$" }
+  };
+}
+
 function multimodalReviewAssignmentRequestSchema() {
   const scopeProperties = Object.fromEntries(TENANT_SCOPE_CONTRACT.required.map((field) => [field, {
     type: "string",
@@ -1756,6 +2167,30 @@ function multimodalEvidenceRequestAuthorityBoundary() {
     release_authority: false,
     a2_decision_recomputed: false,
     release_decision_changed: false
+  };
+}
+
+function multimodalRepeatStabilityAuthorityBoundary() {
+  return {
+    provider_is_truth: false,
+    authoritative_human_disposition_recorded: false,
+    candidate_binding_verified: false,
+    a2_decision_recomputed: false,
+    release_authority: false,
+    release_decision_changed: false,
+    production_ready: false
+  };
+}
+
+function multimodalRepeatStabilityEvidenceBoundary() {
+  return {
+    hashes_and_aggregate_metrics_only: true,
+    repeat_stability_is_quality_pass: false,
+    raw_provider_payload_forbidden: true,
+    raw_provider_text_forbidden: true,
+    raw_reviewer_identity_forbidden: true,
+    urls_and_signed_urls_forbidden: true,
+    non_empty_human_receipts_fail_closed_until_exact_schema: true
   };
 }
 

@@ -94,6 +94,10 @@ import {
   buildA3MultimodalReviewEvidenceRequestProjection,
   planA3MultimodalReviewEvidenceRequestTransition
 } from "./a3_multimodal_review_evidence_request.mjs";
+import {
+  buildA3MultimodalRepeatStability,
+  validateA2MultimodalRepeatStabilityEnvelope
+} from "./a3_multimodal_repeat_stability.mjs";
 
 export const A3_STORE_SCHEMA_VERSION = "a3.store.v1";
 
@@ -165,6 +169,25 @@ export const A3_SOURCE_FIXTURES = {
     a2MultimodalComparison: "fixtures/a3/p3/a2_multimodal_three_way_v2_bb3bcfe_sample.redacted.json",
     a2MultimodalComparisonSourceCommit: "bb3bcfe",
     a2MultimodalComparisonCapability: "peer_branch_contract_not_merged"
+  },
+  "p3-a2-round51": {
+    label: "Multi-repeat Stability - Round 51",
+    ashrRunSample: "fixtures/a3/p3/ashr_run_detail_sample.redacted.json",
+    datasetSample: "fixtures/a3/p3/ashr_dataset_detail_sample.redacted.json",
+    fixtureId: "p3_a2_round51_repeat_stability_dashboard_sample",
+    gradeFixtureId: "p3_a2_round51_repeat_stability_dashboard_grades",
+    requestProvenance: "fixtures/a3/p3/ashr_request_detail_sample.redacted.json",
+    usageQuota: "fixtures/a3/p3/ashr_usage_quota_sample.redacted.json",
+    usageQuotaApiProbe: "fixtures/a3/p3/ashr_usage_quota_api_probe.redacted.json",
+    mediaSignedUrlCoverage: "fixtures/a3/p3/ashr_signed_media_url_coverage.redacted.json",
+    authCheck: "fixtures/a3/p3/ashr_auth_check.redacted.json",
+    frontendSummary: "fixtures/a3/p3/ashr_frontend_relogin_top_level_summary.redacted.json",
+    a2MultimodalComparison: "fixtures/a3/p3/a2_multimodal_three_way_v2_bb3bcfe_sample.redacted.json",
+    a2MultimodalComparisonSourceCommit: "bb3bcfe",
+    a2MultimodalComparisonCapability: "round50_queue_with_round51_stability_peer_only",
+    a2MultimodalRepeatStability: "fixtures/a3/p3/a2_multimodal_repeat_stability_round51_7504680.redacted.json",
+    a2MultimodalRepeatStabilitySourceCommit: "7504680",
+    a2MultimodalRepeatStabilityCapability: "peer_branch_contract_not_merged"
   },
   "p3-official-demo": {
     label: "P3 Official Demo 884/11926",
@@ -291,6 +314,7 @@ export const A3_DB_CONTRACT = {
     "POST /api/a3/import/a1-run-result",
     "POST /api/a3/import/a2-grade-result",
     "POST /api/a3/import/a2-multimodal-comparison",
+    "POST /api/a3/import/a2-multimodal-repeat-stability",
     "POST /api/a3/reports/share",
     "GET /api/a3/reports/:reportId",
     "GET /reports/:reportId",
@@ -306,6 +330,7 @@ export const A3_DB_CONTRACT = {
     "POST /api/a3/review/denials",
     "GET /api/a3/review/workflow",
     "GET /api/a3/review/multimodal-queue",
+    "GET /api/a3/review/multimodal-repeat-stability",
     "POST /api/a3/review/multimodal-queue/:queueId/assignment",
     "GET /api/a3/review/multimodal-queue/:queueId/evidence-requests",
     "POST /api/a3/review/multimodal-queue/:queueId/evidence-requests",
@@ -407,6 +432,14 @@ export async function loadA3SourceSnapshot(source = "mock", options = {}) {
           ingest_mode: "peer_branch_redacted_sample",
           source_commit_alias: config.a2MultimodalComparisonSourceCommit || null,
           capability_state: config.a2MultimodalComparisonCapability || "contract_supported_not_production_verified"
+        }
+      : {},
+    a2MultimodalRepeatStability: await readOptionalJson(root, config.a2MultimodalRepeatStability),
+    a2MultimodalRepeatStabilityMeta: config.a2MultimodalRepeatStability
+      ? {
+          ingest_mode: "peer_branch_redacted_sample",
+          source_commit_alias: config.a2MultimodalRepeatStabilitySourceCommit || null,
+          capability_state: config.a2MultimodalRepeatStabilityCapability || "contract_supported_not_production_verified"
         }
       : {},
     a2GradeResults: await readOptionalJson(root, config.a2GradeResults),
@@ -946,6 +979,108 @@ export function createMemoryA3Store(seed = {}) {
         receiptWithEvent
       );
       return receiptWithEvent;
+    },
+
+    async importA2MultimodalRepeatStability(stabilityEvidence, options = {}) {
+      const source = normalizeSourceKey(options.source || "api-ingest");
+      requireMutationIdempotencyKey(options, "a2_multimodal_repeat_stability_import", source);
+      const existing = findSnapshotForMutation(snapshots, source, options);
+      const tenantScope = tenantScopeRecordFields(options, existing || {});
+      const validation = validateA2MultimodalRepeatStabilityEnvelope(stabilityEvidence);
+      if (!validation.valid) {
+        throw new A3StoreValidationError("A2 multimodal repeat stability import failed validation.", validation.details, {
+          requestType: "a2_multimodal_repeat_stability_import",
+          source
+        });
+      }
+      const payloadHash = String(validation.payload_hash || "").replace(/^sha256:/, "");
+      const idempotencySource = scopedIdempotencySource(source, options, existing || tenantScope);
+      const replay = getIdempotentReplay(
+        idempotencyReceipts,
+        "a2_multimodal_repeat_stability_import",
+        idempotencySource,
+        options.idempotencyKey,
+        payloadHash
+      );
+      if (replay) return replay;
+
+      const importedAt = options.importedAt || new Date().toISOString();
+      const normalized = normalizeSnapshot({
+        ...(existing || {}),
+        source,
+        source_label: options.sourceLabel || existing?.source_label || "A2 Multimodal Repeat Stability API Ingest",
+        ...tenantScope,
+        runFixture: existing?.runFixture || {},
+        gradeFixture: existing?.gradeFixture || {},
+        a2MultimodalRepeatStability: stabilityEvidence,
+        a2MultimodalRepeatStabilityMeta: {
+          ingest_mode: "tenant_scoped_api",
+          source_commit_alias: stabilityEvidence.source_commit_alias,
+          capability_state: "contract_supported_unverified_candidate_binding",
+          imported_at: importedAt,
+          payload_hash: payloadHash
+        },
+        storage: {
+          mode: this.storage_mode || "memory",
+          db_ready: this.db_ready === true,
+          ingest_source: "a2_multimodal_repeat_stability_api"
+        }
+      });
+      storeSnapshotByScope(snapshots, normalized);
+      const projection = buildMultimodalRepeatStabilityForSnapshot(normalized);
+      const receipt = {
+        schema_version: "a3.a2_multimodal_repeat_stability_ingest.v1",
+        source,
+        ...tenantScope,
+        storage_mode: normalized.storage.mode,
+        db_ready: normalized.storage.db_ready === true,
+        payload_hash: payloadHash,
+        repeat_count: projection.summary.repeat_count,
+        retained_blocked_count: projection.summary.retained_blocked_count,
+        all_required_units_complete: projection.summary.all_required_units_complete,
+        human_review_receipt_count: projection.human_review.receipt_count,
+        pending_queue_receipt_count: projection.human_review.pending_queue_receipt_count,
+        shared_candidate_verified: projection.candidate_binding.verified,
+        upstream_release_authority: false,
+        a2_decision_recomputed: false,
+        release_decision_changed: false,
+        imported_at: importedAt,
+        idempotency: {
+          key_present: true,
+          duplicate: false,
+          status: "recorded"
+        }
+      };
+      auditEvents.push(multimodalRepeatStabilityAuditEvent(receipt, auditEvents.length));
+      const outboxRow = recordEventOutbox(eventOutbox, {
+        source,
+        eventType: "a2.multimodal_repeat_stability_imported",
+        resourceType: "multimodal_repeat_stability",
+        resourceId: payloadHash,
+        tenantScope,
+        actorHash: options.actorHash || options.actor,
+        createdAt: importedAt,
+        payload: receipt,
+        usageMeter: {
+          meter: "a2_multimodal_repeat_stability_imports",
+          quantity: 1
+        }
+      });
+      const receiptWithEvent = attachEventEnvelopeReceipt(receipt, outboxRow);
+      rememberIdempotentReceipt(
+        idempotencyReceipts,
+        "a2_multimodal_repeat_stability_import",
+        idempotencySource,
+        options.idempotencyKey,
+        payloadHash,
+        receiptWithEvent
+      );
+      return receiptWithEvent;
+    },
+
+    async getMultimodalRepeatStability(options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source, options);
+      return buildMultimodalRepeatStabilityForSnapshot(snapshot);
     },
 
     async getMultimodalReviewQueue(options = {}) {
@@ -3066,6 +3201,11 @@ export async function createFileBackedA3Store(options = {}) {
       await persist();
       return result;
     },
+    async importA2MultimodalRepeatStability(stabilityEvidence, options = {}) {
+      const result = await store.importA2MultimodalRepeatStability(stabilityEvidence, options);
+      await persist();
+      return result;
+    },
     async mutateMultimodalReviewAssignment(queueId, input, options = {}) {
       const result = await store.mutateMultimodalReviewAssignment(queueId, input, options);
       await persist();
@@ -3187,6 +3327,8 @@ function normalizeSnapshot(snapshot = {}) {
     peerBranchCalibration: snapshot.peerBranchCalibration || snapshot.peer_branch_calibration || {},
     a2MultimodalComparison: snapshot.a2MultimodalComparison || snapshot.a2_multimodal_comparison || {},
     a2MultimodalComparisonMeta: snapshot.a2MultimodalComparisonMeta || snapshot.a2_multimodal_comparison_meta || {},
+    a2MultimodalRepeatStability: snapshot.a2MultimodalRepeatStability || snapshot.a2_multimodal_repeat_stability || {},
+    a2MultimodalRepeatStabilityMeta: snapshot.a2MultimodalRepeatStabilityMeta || snapshot.a2_multimodal_repeat_stability_meta || {},
     releaseEvidence: snapshot.releaseEvidence || snapshot.release_evidence || {},
     a2GradeResults: snapshot.a2GradeResults || snapshot.a2_grade_results || {},
     a2ReleaseGate: snapshot.a2ReleaseGate || snapshot.a2_release_gate || {},
@@ -3472,6 +3614,7 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     frontend_code_crawl: snapshot.frontendCodeCrawl,
     peer_branch_calibration: peerBranchCalibration,
     multimodal_review_queue: multimodalReviewQueue,
+    multimodal_repeat_stability: multimodalReviewQueue.repeat_stability,
     release_evidence: releaseEvidenceForDashboard,
     release_evidence_summary: releaseEvidenceForDashboard,
     release_evidence_readbacks: releaseEvidenceReadbackHistory,
@@ -5040,6 +5183,31 @@ function multimodalComparisonAuditEvent(receipt = {}, index = 0) {
   };
 }
 
+function multimodalRepeatStabilityAuditEvent(receipt = {}, index = 0) {
+  return {
+    event_id: `mmrs_evt_${sha256(`${receipt.payload_hash || "missing"}:${index}`).slice(0, 12)}`,
+    source: receipt.source,
+    ...tenantScopeRecordFields(receipt),
+    event_type: "a2_multimodal_repeat_stability_imported",
+    subject_id: receipt.payload_hash,
+    payload: {
+      schema_version: receipt.schema_version,
+      payload_hash: receipt.payload_hash,
+      repeat_count: receipt.repeat_count,
+      retained_blocked_count: receipt.retained_blocked_count,
+      all_required_units_complete: receipt.all_required_units_complete,
+      human_review_receipt_count: receipt.human_review_receipt_count,
+      pending_queue_receipt_count: receipt.pending_queue_receipt_count,
+      shared_candidate_verified: false,
+      upstream_release_authority: false,
+      a2_decision_recomputed: false,
+      release_decision_changed: false
+    },
+    created_at: receipt.imported_at,
+    redacted: true
+  };
+}
+
 function multimodalReviewAssignmentAuditEvent(event = {}, index = 0) {
   return {
     event_id: `mmra_evt_${sha256(`${event.event_id || "missing"}:${index}`).slice(0, 12)}`,
@@ -5099,6 +5267,19 @@ function multimodalReviewEvidenceRequestAuditEvent(event = {}, index = 0) {
   };
 }
 
+function buildMultimodalRepeatStabilityForSnapshot(snapshot = {}) {
+  const metadata = snapshot.a2MultimodalRepeatStabilityMeta || {};
+  return buildA3MultimodalRepeatStability(
+    snapshot.a2MultimodalRepeatStability || {},
+    {
+      source: snapshot.source,
+      tenantScope: snapshot.tenant_scope || tenantScopeRecordFields(snapshot).tenant_scope,
+      sourceCommitAlias: metadata.source_commit_alias,
+      capabilityState: metadata.capability_state
+    }
+  );
+}
+
 function buildMultimodalQueueForSnapshot(snapshot = {}, assignmentEvents = [], options = {}) {
   const metadata = snapshot.a2MultimodalComparisonMeta || {};
   const queue = buildA3MultimodalReviewQueue(snapshot.a2MultimodalComparison || {}, {
@@ -5114,8 +5295,10 @@ function buildMultimodalQueueForSnapshot(snapshot = {}, assignmentEvents = [], o
     options.evidenceRequestEvents || [],
     options
   );
+  const repeatStability = buildMultimodalRepeatStabilityForSnapshot(snapshot);
   return {
     ...projection,
+    repeat_stability: repeatStability,
     review_packet: buildA3MultimodalReviewAssignmentPacket(projection, {
       generatedAt: options.now || "queue-read"
     })

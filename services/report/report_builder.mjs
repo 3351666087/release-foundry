@@ -5337,6 +5337,9 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
   const liveOpsControlPlane = summarizeLiveOpsControlPlaneExport(notificationControlPlaneFixture.live_ops_control_plane || {});
   const peerBranchCalibration = summarizeA3PeerBranchCalibration(peerBranchCalibrationFixture);
   const multimodalReviewQueue = summarizeMultimodalReviewQueueExport(multimodalReviewQueueFixture);
+  const multimodalRepeatStability = summarizeMultimodalRepeatStabilityExport(
+    multimodalReviewQueueFixture.repeat_stability || {}
+  );
   const clusters = clusterFailures(runFixture, gradeFixture);
   const cases = normalizeCases(runFixture, gradeFixture);
   const lines = [
@@ -5707,6 +5710,39 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
         ? item.evidence_requests.map((request) => `${request.status} v${request.version}`).join(", ")
         : "none";
       lines.push(`- ${item.case_id}: ${item.comparison_scope}${item.repeat ? ` #${item.repeat}` : ""} / ${providerComparison} / ${item.queue_state} / assignment ${item.assignment_status} v${item.assignment_version} / evidence requests ${evidenceRequestState} / release authority no`);
+    }
+    lines.push("");
+  }
+
+  if (multimodalRepeatStability.available) {
+    lines.push(
+      "## Multimodal Repeat Stability",
+      "",
+      `- Status: ${multimodalRepeatStability.status}`,
+      `- Interpretation: ${multimodalRepeatStability.interpretation}`,
+      `- Repeats: ${multimodalRepeatStability.summary.repeat_count}`,
+      `- Required source units per repeat: ${multimodalRepeatStability.summary.required_source_unit_count}`,
+      `- All required units complete: ${multimodalRepeatStability.summary.all_required_units_complete ? "yes" : "no"}`,
+      `- Stable observation: ${multimodalRepeatStability.summary.stable_observation ? "yes" : "no"}`,
+      `- Retained blocked repeats: ${multimodalRepeatStability.summary.retained_blocked_count}`,
+      `- Quality qualified: ${multimodalRepeatStability.summary.quality_qualified ? "yes" : "no"}`,
+      `- Promotion eligible: ${multimodalRepeatStability.summary.promotion_eligible ? "yes" : "no"}`,
+      `- Human review: ${multimodalRepeatStability.human_review.collection_state} / ${multimodalRepeatStability.human_review.receipt_count} authoritative receipt(s)`,
+      `- Pending queue receipts: ${multimodalRepeatStability.human_review.pending_queue_receipt_count}`,
+      `- Shared candidate verified: ${multimodalRepeatStability.candidate_binding.verified ? "yes" : "no"}`,
+      `- Release authority: ${multimodalRepeatStability.authority_boundary.release_authority ? "yes" : "no"}`,
+      ""
+    );
+    lines.push("### Repeat Metrics", "");
+    for (const metric of multimodalRepeatStability.metrics) {
+      lines.push(`- ${metric.metric_id}: ${metric.repeat_estimates.join(" / ")} / complete ${metric.complete_across_repeats ? "yes" : "no"}`);
+    }
+    lines.push("", "### Blocking Conditions", "");
+    for (const blocker of [
+      ...multimodalRepeatStability.blockers,
+      ...multimodalRepeatStability.candidate_binding.blockers
+    ]) {
+      lines.push(`- ${blocker}`);
     }
     lines.push("");
   }
@@ -6585,6 +6621,94 @@ export function summarizeMultimodalReviewQueueExport(queue = {}) {
   };
 }
 
+export function summarizeMultimodalRepeatStabilityExport(stability = {}) {
+  const available = stability?.schema_version === "a3.multimodal_repeat_stability.v1"
+    && stability.available === true;
+  if (!available) {
+    return {
+      schema_version: "a3.multimodal_repeat_stability_export.v1",
+      available: false,
+      status: stability?.status || "missing",
+      recommendation: "Import an A2 multi-repeat comparison envelope before exporting stability evidence."
+    };
+  }
+  const summary = objectOr(stability.summary);
+  const humanReview = objectOr(stability.human_review);
+  const candidateBinding = objectOr(stability.candidate_binding);
+  const authority = objectOr(stability.authority_boundary);
+  const safety = objectOr(stability.safety);
+  return {
+    schema_version: "a3.multimodal_repeat_stability_export.v1",
+    available: true,
+    status: stability.status || "unknown",
+    capability_state: stability.capability_state || "unknown",
+    source_contract: stability.source_contract || "unknown",
+    source_commit_alias: stability.source_commit_alias || null,
+    tenant_scope: objectOr(stability.tenant_scope),
+    summary: {
+      repeat_count: numberOrDefault(summary.repeat_count, 0),
+      retained_blocked_count: numberOrDefault(summary.retained_blocked_count, 0),
+      retained_qualified_count: numberOrDefault(summary.retained_qualified_count, 0),
+      required_source_unit_count: numberOrDefault(summary.required_source_unit_count, 0),
+      bootstrap_samples: numberOrDefault(summary.bootstrap_samples, 0),
+      blocker_count: numberOrDefault(summary.blocker_count, 0),
+      all_required_units_complete: summary.all_required_units_complete === true,
+      stable_observation: summary.stable_observation === true,
+      quality_qualified: summary.quality_qualified === true,
+      promotion_eligible: summary.promotion_eligible === true
+    },
+    metrics: (Array.isArray(stability.metrics) ? stability.metrics : []).map((metric) => ({
+      metric_id: metric.metric_id,
+      required_unit_count: numberOrDefault(metric.required_unit_count, 0),
+      matched_unit_count: numberOrDefault(metric.matched_unit_count, 0),
+      complete_across_repeats: metric.complete_across_repeats === true,
+      repeat_estimates: Array.isArray(metric.repeat_estimates)
+        ? metric.repeat_estimates.filter((value) => typeof value === "number")
+        : [],
+      paired_max_minus_min_bootstrap_ci_95: objectOr(metric.paired_max_minus_min_bootstrap_ci_95)
+    })),
+    blockers: Array.isArray(stability.blockers) ? [...stability.blockers] : [],
+    human_review: {
+      collection_state: humanReview.collection_state || "unknown",
+      receipt_count: numberOrDefault(humanReview.receipt_count, 0),
+      queue_receipt_count: numberOrDefault(humanReview.queue_receipt_count, 0),
+      pending_queue_receipt_count: numberOrDefault(humanReview.pending_queue_receipt_count, 0),
+      reviewed_queue_receipt_count: numberOrDefault(humanReview.reviewed_queue_receipt_count, 0),
+      conservation_state: humanReview.conservation_state || "unknown",
+      conservation_holds: humanReview.conservation_holds === true,
+      authoritative_human_disposition_recorded: false
+    },
+    candidate_binding: {
+      verified: candidateBinding.verified === true,
+      blockers: Array.isArray(candidateBinding.blockers) ? [...candidateBinding.blockers] : []
+    },
+    authority_boundary: {
+      provider_is_truth: false,
+      authoritative_human_disposition_recorded: false,
+      candidate_binding_verified: authority.candidate_binding_verified === true,
+      a2_decision_recomputed: false,
+      release_authority: false,
+      release_decision_changed: false,
+      production_ready: false
+    },
+    safety: {
+      public_safe: safety.public_safe === true,
+      hashes_and_aggregate_metrics_only: safety.hashes_and_aggregate_metrics_only === true,
+      raw_provider_payload_included: false,
+      raw_provider_text_included: false,
+      raw_reviewer_identity_included: false,
+      signed_url_included: false,
+      secret_values_included: false
+    },
+    interpretation: summary.all_required_units_complete === true
+      && summary.stable_observation === true
+      && summary.quality_qualified !== true
+      ? "Complete and stable, but quality is not qualified."
+      : "Repeat stability is evidence only and does not determine release authority.",
+    recommendation: "Require qualified repeats, an authoritative human disposition, and same-candidate verification before any release-state change."
+  };
+}
+
 export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}, productConsoleFixture = {}, saasAdminFixture = {}, a2ReadinessBundle = {}, artifactRegistryFixture = {}, reviewWorkflowFixture = {}, releaseEvidenceFixture = {}, githubPublishEvidenceFixture = {}, peerBranchCalibrationFixture = {}, billingMigrationReadinessFixture = {}, notificationControlPlaneFixture = {}, multimodalReviewQueueFixture = {}) {
   if (isArtifactRegistryFixture(a2ReadinessBundle) && !isArtifactRegistryFixture(artifactRegistryFixture)) {
     artifactRegistryFixture = a2ReadinessBundle;
@@ -6636,6 +6760,9 @@ export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixt
     artifact_registry: summarizeArtifactRegistryExport(artifactRegistryFixture),
     review_workflow: summarizeReviewWorkflowExport(reviewWorkflowFixture),
     multimodal_review_queue: summarizeMultimodalReviewQueueExport(multimodalReviewQueueFixture),
+    multimodal_repeat_stability: summarizeMultimodalRepeatStabilityExport(
+      multimodalReviewQueueFixture.repeat_stability || {}
+    ),
     release_evidence_summary: summarizeReleaseEvidenceSummary(releaseEvidenceFixture),
     github_publish_evidence: summarizeGithubPublishEvidence(githubPublishEvidenceFixture),
     notification_control_plane: summarizeNotificationControlPlane(notificationControlPlaneFixture),

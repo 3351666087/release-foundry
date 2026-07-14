@@ -1579,3 +1579,40 @@
 - [ ] Import and validate a real A2 human-review receipt and complete review chain.
 - [ ] Bind accepted evidence and the terminal review to one exact candidate and A2 Decision Ledger.
 - [ ] Run migrations 023/024 and the complete workflow in authorized target PostgreSQL/VPC/object storage/KMS.
+
+## A2 Round 51 Multi-repeat Stability Intake - 2026-07-14
+
+- [x] Re-fetch authoritative main `ccf6ce5`, A1 peer `81f7e9e` and A2 peer/source `7504680`.
+- [x] Re-read the enterprise strategy and preserve A1 identity and A2 evaluation/release ownership.
+- [x] Record that peer-branch Round 51 evidence is not merged-main or production authority.
+- [x] Build one public-safe atomic intake envelope from comparison, review collection, conservation and candidate verification.
+- [x] Preserve all three complete 45-unit repeats and all three blocked retained calibration states.
+- [x] Preserve 95% specificity, 20% benign false-positive rate, 30% cross-modal conflict sensitivity and 60% visual prompt-injection sensitivity across all three repeats.
+- [x] Preserve one pending queue receipt, zero reviewed receipts and zero human dispositions.
+- [x] Preserve shared-candidate verification false and all seven source blockers.
+- [x] Add exact top-level and nested allowlists.
+- [x] Recompute count, ratio, interval, hash and review conservation for integrity only.
+- [x] Reject raw Provider payloads, identity, URLs, signed URLs, email, secrets, DSNs and local account paths.
+- [x] Fail closed on non-empty human-review receipts until A2 publishes their exact schema.
+- [x] Keep stable observation separate from quality qualification and render `blocked_stable_repeat`.
+- [x] Prevent A3 from changing score, pass/fail, failure class, Decision Ledger or release authority.
+- [x] Add `p3-a2-round51` to the API-backed and legacy source selectors.
+- [x] Persist and restore repeat stability through Memory, JSON-file and SQLite stores.
+- [x] Add protected import and read APIs with five-level scope, RBAC and sanitized denial behavior.
+- [x] Add header-only idempotency, metadata-only audit, Event Outbox and usage metering.
+- [x] Add repeat stability to Dashboard, JSON, Markdown and Hosted Report exports.
+- [x] Keep raw payloads, identity, URLs and private media out of exported reports.
+- [x] Upgrade API Reference to v14 and commercial endpoint coverage from 44 to 46.
+- [x] Keep OpenAPI runtime parity at `67/67`.
+- [x] Add a Chinese-first desktop/mobile Review panel without customer-facing lane badges.
+- [x] Save and visually inspect desktop and 390 x 844 screenshots without horizontal overflow.
+- [x] Pass A3 Node `505` runnable tests with one explicit target-PostgreSQL opt-in skip and zero failures.
+- [x] Pass current-main A2 `186` tests plus `1050` subtests without changing A2 semantics.
+- [x] Pass Next.js TypeScript/build with 15 pages and full Playwright `45/45`.
+- [x] Pass both CL guards and both production dependency audits.
+- [x] Keep `.env.local` ignored and exclude credentials, account identity, signed URLs and private media.
+- [x] Keep Golden Path `7/11`, Deployment Acceptance `8/17`, production receipts `0`, current authority `integrity_invalid`, current A2 decision `unknown`, historical A2 `block`, and production ready false.
+- [ ] Publish the Round 25 feature commit and record the actual GitHub Actions result.
+- [ ] Import and validate a real non-empty A2 human-review receipt and terminal disposition.
+- [ ] Bind the exact candidate across current A1 evidence, A2 Decision Ledger and A3 artifact.
+- [ ] Run the complete workflow with hosted identity, target PostgreSQL, object storage, tenant KMS and authorized staging/VPC deployment.
