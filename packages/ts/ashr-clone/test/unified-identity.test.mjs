@@ -324,6 +324,14 @@ test("A3 registration and login contract is explicit and fail closed", () => {
   assert.equal(bindingSecurity.recent_reauthentication_required, true);
   assert.equal(bindingSecurity.csrf_required, true);
   assert.equal(bindingSecurity.verified_assertion_required, true);
+  assert.equal(bindingSecurity.atomic_completion_required, true);
+  assert.equal(bindingSecurity.proof_receipt_consumed_with_mutation, true);
+  assert.equal(bindingSecurity.mutation_ticket_consumed_with_step_up, true);
+  assert.equal(bindingSecurity.activation_requires_postgres_coordinator, true);
+  assert.equal(
+    bindingSecurity.go_atomic_coordinator_contract,
+    "IdentityCredentialLinkCoordinator",
+  );
   assert.equal(bindingSecurity.route_lifecycle, "proposed");
   assert.equal(bindingSecurity.client_callable, false);
   for (const route of contract.routes) {

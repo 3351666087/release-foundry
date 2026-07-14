@@ -110,6 +110,14 @@ def test_public_identity_and_existing_account_binding_security_are_distinct() ->
     assert binding["recent_reauthentication_required"] is True
     assert binding["csrf_required"] is True
     assert binding["verified_assertion_required"] is True
+    assert binding["atomic_completion_required"] is True
+    assert binding["proof_receipt_consumed_with_mutation"] is True
+    assert binding["mutation_ticket_consumed_with_step_up"] is True
+    assert binding["activation_requires_postgres_coordinator"] is True
+    assert (
+        binding["go_atomic_coordinator_contract"]
+        == "IdentityCredentialLinkCoordinator"
+    )
     assert binding["route_lifecycle"] == "proposed"
     assert binding["client_callable"] is False
 
@@ -129,6 +137,15 @@ def test_evidence_separates_desired_implemented_runtime_and_gaps() -> None:
         "GoRouteManifestEntries"
     )
     assert evidence["runtime_verified"]["status"] == "not_claimed"
+    binding = evidence["operation_security"]["existing_account_binding"]
+    assert binding["atomic_completion_required"] is True
+    assert binding["proof_receipt_consumed_with_mutation"] is True
+    assert binding["mutation_ticket_consumed_with_step_up"] is True
+    assert binding["activation_requires_postgres_coordinator"] is True
+    assert (
+        binding["go_atomic_coordinator_contract"]
+        == "IdentityCredentialLinkCoordinator"
+    )
     implemented = {
         (route["method"], route["path"])
         for route in evidence["implemented_routes"]["routes"]
