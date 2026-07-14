@@ -188,6 +188,11 @@ document/body 横向溢出，标题与状态没有重叠，长模型 ID 和状�
 - CL hygiene: `0` findings；
 - Commercial CL: `0` blockers, `0` advisories；
 - root/Webapp production dependency audit: `0` vulnerabilities；
+- GitHub Actions feature commit `1809513`: CL Gate run `29338036122` passed Plan/Hygiene,
+  A3 Node, Next.js/Playwright, Python A1/A2, pinned evidence, Golden Path artifact and final summary；
+- TypeScript SDK、Go SDK 与 Rust verifier 按 changed-path plan 跳过，不是失败；
+- CI advisory: GitHub 官方 actions 仍声明 Node 20 runtime，runner 已强制使用 Node 24；这是后续维护项，
+  没有改变本轮成功结论；
 - `.env.local`: ignored and absent from Git status。
 
 ## 仍未完成
