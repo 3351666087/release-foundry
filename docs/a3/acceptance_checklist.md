@@ -1612,7 +1612,7 @@
 - [x] Pass both CL guards and both production dependency audits.
 - [x] Keep `.env.local` ignored and exclude credentials, account identity, signed URLs and private media.
 - [x] Keep Golden Path `7/11`, Deployment Acceptance `8/17`, production receipts `0`, current authority `integrity_invalid`, current A2 decision `unknown`, historical A2 `block`, and production ready false.
-- [ ] Publish the Round 25 feature commit and record the actual GitHub Actions result.
+- [x] Publish feature commit `456a193` and record successful GitHub Actions run `29329313569`.
 - [ ] Import and validate a real non-empty A2 human-review receipt and terminal disposition.
 - [ ] Bind the exact candidate across current A1 evidence, A2 Decision Ledger and A3 artifact.
 - [ ] Run the complete workflow with hosted identity, target PostgreSQL, object storage, tenant KMS and authorized staging/VPC deployment.

@@ -7151,4 +7151,4 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
 - Root and Webapp production dependency audits each reported `0` vulnerabilities.
 - `.env.local` remains ignored. No key, token, cookie, email, account identity, signed URL, raw Provider payload, private media or local account path was added.
 - Golden Path remains `7/11`, Deployment Acceptance remains `8/17`, current authority remains `integrity_invalid`, current A2 decision remains `unknown`, historical A2 remains `block`, production receipts remain `0`, and production ready remains false.
-- GitHub CI for the Round 25 feature commit is pending publication and is not claimed by this local verification entry.
+- Published feature commit `456a193` to Draft PR #35. GitHub Actions CL Gate run `29329313569` passed Plan/Hygiene, A3 contracts, Next.js/Playwright, Python A1/A2 contracts, pinned evidence, Golden Path artifact and the final summary. TypeScript SDK, Go SDK and Rust verifier were path-plan skipped, not failed.

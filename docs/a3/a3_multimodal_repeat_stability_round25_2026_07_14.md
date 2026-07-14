@@ -142,6 +142,8 @@ Review 页面新增中文优先的“多轮校准 / 稳定性证据”区：
 - CL hygiene: `0` findings；
 - Commercial CL: `0` blockers, `0` advisories；
 - root/Webapp production dependency audit: `0` vulnerabilities；
+- GitHub Actions feature commit `456a193`: CL Gate run `29329313569` passed every applicable check；
+  TypeScript SDK、Go SDK 和 Rust verifier 依照 path plan 跳过，不是失败；
 - `.env.local`: ignored and absent from Git status。
 
 ## 仍未完成
