@@ -128,7 +128,7 @@ CREATE OR REPLACE FUNCTION a1_consume_identity_security_receipt(
   p_receipt_digest TEXT, p_principal_id UUID, p_purpose TEXT,
   p_context_digest TEXT, p_now TIMESTAMPTZ
 ) RETURNS BOOLEAN
-LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
 BEGIN
   UPDATE identity_security_receipts SET consumed_at=p_now
    WHERE receipt_digest=p_receipt_digest AND principal_id=p_principal_id
@@ -144,7 +144,7 @@ CREATE OR REPLACE FUNCTION a1_set_account_two_factor(
   p_principal_id UUID, p_enabled BOOLEAN, p_actor_principal_id UUID,
   p_step_up_at TIMESTAMPTZ, p_csrf_validated BOOLEAN
 ) RETURNS TEXT
-LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
 BEGIN
   RAISE EXCEPTION 'two_factor_legacy_mutation_disabled' USING ERRCODE='0A000';
 END $$;
@@ -154,7 +154,7 @@ CREATE OR REPLACE FUNCTION a1_mutate_account_password(
   p_fingerprint_digest TEXT, p_receipt_digest TEXT,
   p_context_digest TEXT, p_actor_principal_id UUID, p_now TIMESTAMPTZ
 ) RETURNS JSONB
-LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
 DECLARE v_security identity_account_security%ROWTYPE; v_revoked BIGINT; v_version BIGINT;
 BEGIN
   IF p_operation NOT IN ('password_enroll','password_change','password_recovery')
@@ -197,7 +197,7 @@ CREATE OR REPLACE FUNCTION a1_begin_totp_enrollment(
   p_principal_id UUID,p_secret_ref TEXT,p_secret_digest TEXT,
   p_receipt_digest TEXT,p_context_digest TEXT,p_actor_principal_id UUID,p_now TIMESTAMPTZ
 ) RETURNS JSONB
-LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
 DECLARE v_version BIGINT; v_status TEXT;
 BEGIN
   IF p_actor_principal_id<>p_principal_id OR length(p_secret_ref)<16
@@ -229,7 +229,7 @@ CREATE OR REPLACE FUNCTION a1_confirm_totp_enrollment(
   p_principal_id UUID,p_receipt_digest TEXT,p_context_digest TEXT,
   p_recovery_batch_digest TEXT,p_recovery_code_count INTEGER,p_now TIMESTAMPTZ
 ) RETURNS JSONB
-LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
 DECLARE v_revoked BIGINT; v_version BIGINT;
 BEGIN
   IF p_recovery_code_count NOT BETWEEN 6 AND 20
@@ -262,7 +262,7 @@ CREATE OR REPLACE FUNCTION a1_issue_identity_security_mutation_ticket(
   p_secret_ref TEXT,p_secret_digest TEXT,p_recovery_batch_digest TEXT,
   p_recovery_code_count INTEGER,p_expires_at TIMESTAMPTZ
 ) RETURNS BOOLEAN
-LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
 DECLARE
   v_receipt identity_security_receipts%ROWTYPE;
   v_existing identity_security_mutation_tickets%ROWTYPE;
@@ -351,7 +351,7 @@ DROP FUNCTION IF EXISTS a1_execute_identity_security_mutation(
 CREATE OR REPLACE FUNCTION a1_execute_identity_security_mutation(
   p_ticket_digest TEXT,p_idempotency_key TEXT,p_request_fingerprint TEXT
 ) RETURNS JSONB
-LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
 DECLARE
   v_ticket identity_security_mutation_tickets%ROWTYPE;
   v_idempotency identity_security_mutation_idempotency%ROWTYPE;
@@ -433,7 +433,7 @@ CREATE OR REPLACE FUNCTION a1_resolve_identity_security_mutation_ticket(
   p_ticket_digest TEXT,p_step_up_receipt_digest TEXT,p_operation TEXT,
   p_now TIMESTAMPTZ
 ) RETURNS JSONB
-LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
 DECLARE v_ticket identity_security_mutation_tickets%ROWTYPE;
 BEGIN
   IF NOT a1_identity_digest_valid(p_ticket_digest)
@@ -461,7 +461,7 @@ BEGIN
 END $$;
 
 CREATE OR REPLACE FUNCTION a1_project_account_security(p_principal_id UUID) RETURNS JSONB
-LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,public AS $$
+LANGUAGE sql STABLE SECURITY DEFINER SET search_path=pg_catalog,public,pg_temp AS $$
  SELECT jsonb_build_object('password_status',CASE WHEN password_secret_ref IS NULL THEN 'absent' ELSE 'set' END,
    'password_change_available',password_secret_ref IS NOT NULL,
    'password_recovery_available',EXISTS(SELECT 1 FROM identity_account_emails e WHERE e.principal_id=p_principal_id),
@@ -473,6 +473,7 @@ $$;
 
 REVOKE ALL ON identity_security_receipts, identity_security_mutation_tickets,
   identity_security_mutation_idempotency FROM PUBLIC;
+REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 REVOKE ALL ON FUNCTION a1_consume_identity_security_receipt(TEXT,UUID,TEXT,TEXT,TIMESTAMPTZ) FROM PUBLIC;
 REVOKE ALL ON FUNCTION a1_mutate_account_password(UUID,TEXT,TEXT,TEXT,TEXT,TEXT,UUID,TIMESTAMPTZ) FROM PUBLIC;
 REVOKE ALL ON FUNCTION a1_begin_totp_enrollment(UUID,TEXT,TEXT,TEXT,TEXT,UUID,TIMESTAMPTZ) FROM PUBLIC;
@@ -492,6 +493,7 @@ REVOKE ALL ON FUNCTION a1_project_account_security(UUID) FROM PUBLIC;
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'a1_runtime') THEN
+    REVOKE CREATE ON SCHEMA public FROM a1_runtime;
     REVOKE ALL ON identity_account_security, identity_security_receipts,
       identity_security_mutation_tickets, identity_security_mutation_idempotency
       FROM a1_runtime;
@@ -522,6 +524,7 @@ BEGIN
     GRANT EXECUTE ON FUNCTION a1_project_account_security(UUID) TO a1_runtime;
   END IF;
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'a1_security_ticket_issuer') THEN
+    REVOKE CREATE ON SCHEMA public FROM a1_security_ticket_issuer;
     REVOKE ALL ON identity_account_security, identity_security_receipts,
       identity_security_mutation_tickets, identity_security_mutation_idempotency
       FROM a1_security_ticket_issuer;

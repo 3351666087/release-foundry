@@ -140,7 +140,20 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
    AND to_regprocedure(
      'public.a1_execute_identity_security_mutation(text,text,text)'
    ) IS NOT NULL
+   AND to_regprocedure(
+     'public.a1_issue_identity_security_mutation_ticket(text,text,uuid,uuid,text,text,text,text,text,integer,timestamp with time zone,timestamp with time zone)'
+   ) IS NULL
+   AND to_regprocedure(
+     'public.a1_execute_identity_security_mutation(text,text,text,timestamp with time zone)'
+   ) IS NULL
    AND has_schema_privilege(current_user, 'public', 'USAGE')
+   AND NOT has_schema_privilege(current_user, 'public', 'CREATE')
+   AND NOT has_schema_privilege('public', 'public', 'CREATE')
+   AND (
+     SELECT NOT r.rolsuper AND NOT r.rolbypassrls
+       FROM pg_catalog.pg_roles r
+      WHERE r.rolname = current_user
+   )
    AND NOT has_function_privilege(
      current_user,
      'public.a1_issue_identity_security_mutation_ticket(text,text,uuid,uuid,text,text,text,text,text,integer,timestamp with time zone)',
@@ -206,6 +219,98 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
      'public.identity_security_mutation_idempotency',
      'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
    )
+   AND NOT has_any_column_privilege(
+     current_user,
+     'public.identity_account_security',
+     'SELECT,INSERT,UPDATE,REFERENCES'
+   )
+   AND NOT has_any_column_privilege(
+     current_user,
+     'public.identity_security_receipts',
+     'SELECT,INSERT,UPDATE,REFERENCES'
+   )
+   AND NOT has_any_column_privilege(
+     current_user,
+     'public.identity_security_mutation_tickets',
+     'SELECT,INSERT,UPDATE,REFERENCES'
+   )
+   AND NOT has_any_column_privilege(
+     current_user,
+     'public.identity_security_mutation_idempotency',
+     'SELECT,INSERT,UPDATE,REFERENCES'
+   )
+   AND NOT has_table_privilege(
+     'public',
+     'public.identity_account_security',
+     'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+   )
+   AND NOT has_table_privilege(
+     'public',
+     'public.identity_security_receipts',
+     'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+   )
+   AND NOT has_table_privilege(
+     'public',
+     'public.identity_security_mutation_tickets',
+     'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+   )
+   AND NOT has_table_privilege(
+     'public',
+     'public.identity_security_mutation_idempotency',
+     'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+   )
+   AND NOT has_any_column_privilege(
+     'public',
+     'public.identity_account_security',
+     'SELECT,INSERT,UPDATE,REFERENCES'
+   )
+   AND NOT has_any_column_privilege(
+     'public',
+     'public.identity_security_receipts',
+     'SELECT,INSERT,UPDATE,REFERENCES'
+   )
+   AND NOT has_any_column_privilege(
+     'public',
+     'public.identity_security_mutation_tickets',
+     'SELECT,INSERT,UPDATE,REFERENCES'
+   )
+   AND NOT has_any_column_privilege(
+     'public',
+     'public.identity_security_mutation_idempotency',
+     'SELECT,INSERT,UPDATE,REFERENCES'
+   )
+   AND NOT EXISTS (
+     SELECT 1
+       FROM unnest(ARRAY[
+         to_regprocedure(
+           'public.a1_consume_identity_security_receipt(text,uuid,text,text,timestamp with time zone)'
+         ),
+         to_regprocedure(
+           'public.a1_mutate_account_password(uuid,text,text,text,text,text,uuid,timestamp with time zone)'
+         ),
+         to_regprocedure(
+           'public.a1_begin_totp_enrollment(uuid,text,text,text,text,uuid,timestamp with time zone)'
+         ),
+         to_regprocedure(
+           'public.a1_confirm_totp_enrollment(uuid,text,text,text,integer,timestamp with time zone)'
+         ),
+         to_regprocedure(
+           'public.a1_set_account_two_factor(uuid,boolean,uuid,timestamp with time zone,boolean)'
+         ),
+         to_regprocedure(
+           'public.a1_issue_identity_security_mutation_ticket(text,text,uuid,uuid,text,text,text,text,text,integer,timestamp with time zone)'
+         ),
+         to_regprocedure(
+           'public.a1_resolve_identity_security_mutation_ticket(text,text,text,timestamp with time zone)'
+         ),
+         to_regprocedure(
+           'public.a1_execute_identity_security_mutation(text,text,text)'
+         ),
+         to_regprocedure('public.a1_project_account_security(uuid)')
+       ]) function_oid
+      WHERE function_oid IS NULL
+         OR has_function_privilege('public', function_oid, 'EXECUTE')
+   )
    AND (
      SELECT count(*) = 3
        FROM pg_catalog.pg_class c
@@ -218,6 +323,21 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
         )
         AND c.relrowsecurity
         AND c.relforcerowsecurity
+   )
+   AND (
+     SELECT count(*) = 3
+        AND count(*) FILTER (
+          WHERE p.policyname = p.tablename || '_self'
+            AND p.permissive = 'PERMISSIVE'
+            AND p.roles = ARRAY['public'::name]
+        ) = 3
+       FROM pg_catalog.pg_policies p
+      WHERE p.schemaname = 'public'
+        AND p.tablename IN (
+          'identity_security_receipts',
+          'identity_security_mutation_tickets',
+          'identity_security_mutation_idempotency'
+        )
    )
    AND (
      SELECT count(*) = 4
@@ -233,14 +353,15 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
           'public.a1_execute_identity_security_mutation(text,text,text)'
         ),
         to_regprocedure('public.a1_project_account_security(uuid)')
-      )
+        )
         AND p.prosecdef
         AND pg_catalog.pg_get_userbyid(p.proowner) <> current_user
+        AND NOT pg_catalog.pg_has_role(current_user, p.proowner, 'MEMBER')
         AND EXISTS (
           SELECT 1
             FROM unnest(COALESCE(p.proconfig, ARRAY[]::text[])) setting
            WHERE regexp_replace(setting, '\s', '', 'g') =
-             'search_path=pg_catalog,public'
+             'search_path=pg_catalog,public,pg_temp'
         )
    )
 `

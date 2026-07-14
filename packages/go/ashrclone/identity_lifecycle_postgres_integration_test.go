@@ -421,6 +421,10 @@ func (h *postgresLifecycleHarness) newInstance(
 		_ = db.Close()
 		t.Fatal(err)
 	}
+	if err := store.Ready(context.Background()); err != nil {
+		_ = store.Close()
+		t.Fatalf("production identity readiness: %v", err)
+	}
 	receiptStore, err := store.NewIdentityLifecycleReceiptStore()
 	if err != nil {
 		_ = store.Close()

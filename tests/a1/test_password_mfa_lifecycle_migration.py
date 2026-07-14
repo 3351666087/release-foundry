@@ -321,6 +321,71 @@ def test_runtime_grants_hide_secret_tables_and_internal_functions(password_mfa_d
     assert _rows(_psql(database, privilege_sql)) == ["f|t|t|t|t|f|f|f|f|f"]
 
 
+def test_identity_security_authority_catalog_posture(password_mfa_database: str) -> None:
+    database = password_mfa_database
+    posture_sql = """
+    SELECT
+      (SELECT NOT rolsuper AND NOT rolbypassrls
+         FROM pg_roles WHERE rolname='a1_runtime'),
+      NOT has_schema_privilege('a1_runtime','public','CREATE'),
+      NOT has_schema_privilege('public','public','CREATE'),
+      NOT has_any_column_privilege(
+        'a1_runtime','identity_security_mutation_tickets',
+        'SELECT,INSERT,UPDATE,REFERENCES'
+      ),
+      NOT has_any_column_privilege(
+        'public','identity_security_mutation_tickets',
+        'SELECT,INSERT,UPDATE,REFERENCES'
+      ),
+      NOT has_function_privilege(
+        'public','a1_execute_identity_security_mutation(text,text,text)','EXECUTE'
+      ),
+      to_regprocedure(
+        'a1_issue_identity_security_mutation_ticket('
+        'text,text,uuid,uuid,text,text,text,text,text,integer,timestamptz,timestamptz)'
+      ) IS NULL,
+      to_regprocedure(
+        'a1_execute_identity_security_mutation(text,text,text,timestamptz)'
+      ) IS NULL,
+      (SELECT count(*)=3
+          AND count(*) FILTER (
+            WHERE policyname=tablename||'_self'
+              AND permissive='PERMISSIVE'
+              AND roles=ARRAY['public'::name]
+          )=3
+         FROM pg_policies
+        WHERE schemaname='public'
+          AND tablename IN (
+            'identity_security_receipts',
+            'identity_security_mutation_tickets',
+            'identity_security_mutation_idempotency'
+          )),
+      (SELECT count(*)=9
+         FROM pg_proc
+        WHERE oid IN (
+          'a1_consume_identity_security_receipt(text,uuid,text,text,timestamptz)'::regprocedure,
+          'a1_mutate_account_password(uuid,text,text,text,text,text,uuid,timestamptz)'::regprocedure,
+          'a1_begin_totp_enrollment(uuid,text,text,text,text,uuid,timestamptz)'::regprocedure,
+          'a1_confirm_totp_enrollment(uuid,text,text,text,integer,timestamptz)'::regprocedure,
+          'a1_set_account_two_factor(uuid,boolean,uuid,timestamptz,boolean)'::regprocedure,
+          'a1_issue_identity_security_mutation_ticket('
+            'text,text,uuid,uuid,text,text,text,text,text,integer,timestamptz)'::regprocedure,
+          'a1_resolve_identity_security_mutation_ticket(text,text,text,timestamptz)'::regprocedure,
+          'a1_execute_identity_security_mutation(text,text,text)'::regprocedure,
+          'a1_project_account_security(uuid)'::regprocedure
+        )
+          AND prosecdef
+          AND EXISTS (
+            SELECT 1 FROM unnest(COALESCE(proconfig,ARRAY[]::text[])) setting
+             WHERE regexp_replace(setting,'\\s','','g')=
+               'search_path=pg_catalog,public,pg_temp'
+          ));
+    """
+    assert _rows(_psql(database, posture_sql)) == [
+        "t|t|t|t|t|t|t|t|t|t"
+    ]
+
+
 def test_runtime_resolves_only_public_ticket_envelope(password_mfa_database: str) -> None:
     database, principal = password_mfa_database, _seed_principal(password_mfa_database)
     ticket, receipt, _ = _issue_ticket(
