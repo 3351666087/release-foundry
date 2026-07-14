@@ -7124,4 +7124,4 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
 - OpenAPI runtime parity passed `65/65`; CL hygiene had `0` findings and Commercial CL had `0` blockers/advisories.
 - Root and Webapp production dependency audits each reported `0` vulnerabilities.
 - `.env.local` remains ignored. No key, token, cookie, email, account identity, signed URL, raw provider payload, private media, or local account path was added.
-- GitHub CI remains pending publication; no remote result is claimed in this local validation entry.
+- Published feature commit `565cec7` to Draft PR #35; GitHub Actions run `29322903320` passed every applicable check. TypeScript SDK, Go SDK and Rust verifier were path-plan skipped, not failed.

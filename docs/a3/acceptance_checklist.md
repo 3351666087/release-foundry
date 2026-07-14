@@ -1572,6 +1572,7 @@
 - [x] Pass current-main A2 `186/186` test files plus `1050` subtests without changing A2 judgement semantics.
 - [x] Pass Next.js TypeScript/build with 15 pages and full Playwright `44/44`.
 - [x] Pass both CL guards, both production npm audits and OpenAPI parity.
+- [x] Publish feature commit `565cec7` and confirm GitHub Actions run `29322903320` passes every applicable check.
 - [x] Keep `.env.local` ignored and exclude credentials, account identity, signed URLs, raw provider payloads and private media.
 - [x] Keep Golden Path `7/11`, Deployment Acceptance `8/17`, production receipts `0`, current authority `integrity_invalid`, current A2 decision `unknown`, historical A2 `block`, and production ready false.
 - [ ] Import and validate a real A2 human-review receipt and complete review chain.

@@ -154,7 +154,9 @@ Review 页面新增中文优先“审核补证”区：
 - OpenAPI runtime parity: `65/65`；
 - CL hygiene: `0` findings；
 - Commercial CL: `0` blockers, `0` advisories；
-- root/Webapp production dependency audit: `0` vulnerabilities。
+- root/Webapp production dependency audit: `0` vulnerabilities；
+- GitHub Actions feature commit `565cec7`: run `29322903320` passed every applicable check；
+  TypeScript SDK、Go SDK 和 Rust verifier 依照 path plan 跳过，不是失败。
 
 ## 仍未完成
 
