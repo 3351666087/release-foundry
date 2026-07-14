@@ -469,6 +469,121 @@ SELECT
 		}
 	})
 
+	t.Run("provider subject conflict rolls back cross-account takeover", func(t *testing.T) {
+		h := newPostgresLifecycleHarness(t, adminDSN)
+		instance := h.newInstance(t, []byte("subject-conflict-key-01234567890123"), "v1", nil)
+		register := func(email, displayName string) IdentityAccountDTO {
+			t.Helper()
+			proof := issueLifecycleProof(t, instance.service, TrustedIdentityProof{
+				Operation: IdentityOperationRegistration, Kind: IdentityCredentialEmail,
+				Provider: IdentityProviderLocal, Identifier: email,
+				VerifiedEmail: email, DisplayName: displayName,
+			})
+			account, err := instance.service.CompleteRegistration(completionFor(proof))
+			if err != nil {
+				t.Fatalf("register %s: %v", email, err)
+			}
+			return account
+		}
+		owner := register("subject-owner@example.cn", "Subject Owner")
+		attacker := register("subject-attacker@example.cn", "Subject Attacker")
+
+		ownerOrgID := "40000000-0000-4000-8000-000000000001"
+		ownerWorkspaceID := "40000000-0000-4000-8000-000000000002"
+		ownerProjectID := "40000000-0000-4000-8000-000000000003"
+		establishIdentityProjectScope(
+			t, instance, owner.AccountID,
+			ownerOrgID, ownerWorkspaceID, ownerProjectID, h.now,
+		)
+		ownerSessionID, ownerSessionDigest := issueScopedIdentitySession(
+			t, instance, owner.AccountID, owner.Credentials[0].CredentialID,
+			ownerOrgID, ownerProjectID, h.now,
+		)
+		ownerProof := issueLifecycleProof(t, instance.service, TrustedIdentityProof{
+			Operation: IdentityOperationCredentialLink, Kind: IdentityCredentialOAuth,
+			Provider: IdentityProviderGoogle, Identifier: "globally-unique-google-subject",
+			VerifiedEmail: "subject-owner@example.cn",
+			TenantID:      ownerOrgID, ProjectID: ownerProjectID,
+		})
+		ownerCommand := authorizeIdentityCredentialLink(
+			t, instance, owner.AccountID, ownerSessionID, ownerSessionDigest,
+			ownerOrgID, ownerProjectID, ownerProof, "subject-owner-link", h.now,
+		)
+		if _, err := instance.credentialLinkService.Complete(
+			context.Background(), ownerCommand,
+		); err != nil {
+			t.Fatalf("owner credential link: %v", err)
+		}
+
+		attackerOrgID := "50000000-0000-4000-8000-000000000001"
+		attackerWorkspaceID := "50000000-0000-4000-8000-000000000002"
+		attackerProjectID := "50000000-0000-4000-8000-000000000003"
+		establishIdentityProjectScope(
+			t, instance, attacker.AccountID,
+			attackerOrgID, attackerWorkspaceID, attackerProjectID, h.now,
+		)
+		attackerSessionID, attackerSessionDigest := issueScopedIdentitySession(
+			t, instance, attacker.AccountID, attacker.Credentials[0].CredentialID,
+			attackerOrgID, attackerProjectID, h.now,
+		)
+		attackerProof := issueLifecycleProof(t, instance.service, TrustedIdentityProof{
+			Operation: IdentityOperationCredentialLink, Kind: IdentityCredentialOAuth,
+			Provider: IdentityProviderGoogle, Identifier: "globally-unique-google-subject",
+			VerifiedEmail: "subject-attacker@example.cn",
+			TenantID:      attackerOrgID, ProjectID: attackerProjectID,
+		})
+		attackerCommand := authorizeIdentityCredentialLink(
+			t, instance, attacker.AccountID, attackerSessionID, attackerSessionDigest,
+			attackerOrgID, attackerProjectID, attackerProof, "subject-attacker-link", h.now,
+		)
+		for attempt := 0; attempt < 2; attempt++ {
+			_, linkErr := instance.credentialLinkService.Complete(
+				context.Background(), attackerCommand,
+			)
+			var domain IdentityDomainError
+			if !errors.As(linkErr, &domain) ||
+				domain.Code != "identity_credential_link_conflict" {
+				t.Fatalf("cross-account subject conflict attempt %d returned %v", attempt+1, linkErr)
+			}
+			if strings.Contains(linkErr.Error(), "identity_credential_link_conflict") {
+				t.Fatalf("cross-account subject conflict leaked PostgreSQL detail: %v", linkErr)
+			}
+		}
+
+		var ownerCredentials, attackerCredentials int
+		var proofUnconsumed, ticketUnconsumed, stepUpUnconsumed bool
+		var attackerEvents int
+		if err := instance.adminDB.QueryRow(`
+SELECT
+  (SELECT count(*) FROM identity_credentials WHERE principal_id=$1::uuid),
+  (SELECT count(*) FROM identity_credentials WHERE principal_id=$2::uuid),
+  (SELECT consumed_at IS NULL FROM identity_lifecycle_receipts WHERE receipt_digest=$3),
+  (SELECT consumed_at IS NULL FROM identity_security_mutation_tickets WHERE ticket_digest=$4),
+  (SELECT consumed_at IS NULL FROM identity_security_receipts WHERE receipt_digest=$5),
+  (SELECT count(*) FROM identity_audit_events
+    WHERE principal_id=$2::uuid AND action='identity.credential.link.completed')
+`, owner.AccountID, attacker.AccountID,
+			instance.receipts.receiptDigest(attackerProof.ReceiptID),
+			attackerCommand.MutationTicketID, attackerCommand.StepUpReceiptID).
+			Scan(
+				&ownerCredentials, &attackerCredentials,
+				&proofUnconsumed, &ticketUnconsumed, &stepUpUnconsumed,
+				&attackerEvents,
+			); err != nil {
+			t.Fatal(err)
+		}
+		if ownerCredentials != 2 || attackerCredentials != 1 ||
+			!proofUnconsumed || !ticketUnconsumed || !stepUpUnconsumed ||
+			attackerEvents != 0 {
+			t.Fatalf(
+				"cross-account rollback owner_credentials=%d attacker_credentials=%d proof_unconsumed=%t ticket_unconsumed=%t step_up_unconsumed=%t events=%d",
+				ownerCredentials, attackerCredentials,
+				proofUnconsumed, ticketUnconsumed, stepUpUnconsumed,
+				attackerEvents,
+			)
+		}
+	})
+
 	t.Run("receipt key rotation and tamper fail closed", func(t *testing.T) {
 		h := newPostgresLifecycleHarness(t, adminDSN)
 		oldKey := []byte("old-lifecycle-key-01234567890123456")
@@ -842,18 +957,22 @@ func establishIdentityProjectScope(
 	now time.Time,
 ) {
 	t.Helper()
+	scopeSuffix := strings.ToLower(strings.ReplaceAll(organizationID, "-", ""))
+	if len(scopeSuffix) > 8 {
+		scopeSuffix = scopeSuffix[:8]
+	}
 	mustExecArgs(t, instance.adminDB, `
 INSERT INTO organizations(id,slug,display_name)
-VALUES ($1::uuid,'credential-link-org','Credential Link Org')
-`, organizationID)
+VALUES ($1::uuid,$2,'Credential Link Org')
+`, organizationID, "credential-link-org-"+scopeSuffix)
 	mustExecArgs(t, instance.adminDB, `
 INSERT INTO workspaces(id,organization_id,slug,display_name)
-VALUES ($1::uuid,$2::uuid,'credential-link-workspace','Credential Link Workspace')
-`, workspaceID, organizationID)
+VALUES ($1::uuid,$2::uuid,$3,'Credential Link Workspace')
+`, workspaceID, organizationID, "credential-link-workspace-"+scopeSuffix)
 	mustExecArgs(t, instance.adminDB, `
 INSERT INTO projects(id,organization_id,workspace_id,slug,display_name)
-VALUES ($1::uuid,$2::uuid,$3::uuid,'credential-link-project','Credential Link Project')
-`, projectID, organizationID, workspaceID)
+VALUES ($1::uuid,$2::uuid,$3::uuid,$4,'Credential Link Project')
+`, projectID, organizationID, workspaceID, "credential-link-project-"+scopeSuffix)
 	var organizationMembershipID string
 	if err := instance.adminDB.QueryRow(`
 INSERT INTO identity_organization_memberships(
