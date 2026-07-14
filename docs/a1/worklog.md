@@ -3354,3 +3354,32 @@ Date: 2026-07-14
 
 Next: continue cross-language identity-security/client parity and production
 lookup-key rotation drills after publishing bounded replay retention.
+
+## Round 68: Authorized Credential-Binding Regression
+
+Date: 2026-07-14
+
+- Migrated the complete-suite PostgreSQL verification regression from
+  migration 017's revoked direct credential-binding function to migration
+  020's authorized wrapper.
+- The live test now provisions a recent canonical-account session, a
+  request-bound `credential_bind` step-up receipt, and a secret-free mutation
+  ticket issued through the dedicated ticket authority.
+- Explicitly proves `a1_runtime` can execute the authorized wrapper but cannot
+  execute the old direct function.
+- Injected credential insertion failure now proves atomic rollback preserves
+  the verification receipt, step-up receipt, and mutation ticket for retry.
+- Concurrent independently authorized requests still produce exactly one
+  credential; the winner consumes its authority while the losing transaction
+  leaves its own authority unconsumed.
+- Exact replay, changed-request rejection, cross-scope denial, forced-RLS
+  direct-mutation denial, durable outbox, and abuse-budget assertions remain
+  covered.
+- Verification passed: the previously failing test is green, 20 related
+  PostgreSQL/RLS/authority tests pass, and the complete Python A1 suite is
+  green with `1394 passed, 2 skipped`.
+- Evidence:
+  `docs/a1/evidence/round68_authorized_credential_binding_regression.md`.
+
+Next: publish this authority regression, then continue production lookup-key
+rotation drills and cross-language identity-security/client parity.
