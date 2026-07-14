@@ -7711,7 +7711,9 @@
           "a3_recomputed_risk": false,
           "a3_recomputed_release_decision": false,
           "candidate_binding_verified": false,
-          "can_change_release_decision": false
+          "can_change_release_decision": false,
+          "assignment_events_release_authority": false,
+          "assignment_events_change_a2_decision": false
         }
       }
     },
@@ -7828,7 +7830,212 @@
           "a3_recomputed_risk": false,
           "a3_recomputed_release_decision": false,
           "candidate_binding_verified": false,
-          "can_change_release_decision": false
+          "can_change_release_decision": false,
+          "assignment_events_release_authority": false,
+          "assignment_events_change_a2_decision": false
+        }
+      }
+    },
+    "/api/a3/review/multimodal-queue/{queueId}/assignment": {
+      "post": {
+        "operationId": "a3ManageMultimodalReviewAssignment",
+        "summary": "Claim, renew, release, or transfer one tenant-scoped multimodal review lease.",
+        "tags": [
+          "Review",
+          "Operations"
+        ],
+        "x-schema-version": "a3.multimodal_review_assignment_receipt.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
+          ],
+          "source": "server_verified_a1_principal",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true,
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "contract_only_fail_closed",
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
+        },
+        "x-rbac": {
+          "operation_id": "manage_multimodal_review_assignment",
+          "permission": "release:review",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger; A3 only emits a metering intent."
+        },
+        "x-audit": {
+          "events": [
+            "review.multimodal_assignment.claimed",
+            "review.multimodal_assignment.renewed",
+            "review.multimodal_assignment.released",
+            "review.multimodal_assignment.transferred",
+            "review.multimodal_assignment.reclaimed_after_expiry"
+          ],
+          "payload_policy": "queue_ids_hashes_versions_lease_times_and_reason_codes_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "verified principal",
+            "tenant scope",
+            "usage and audit execution"
+          ],
+          "a2": [
+            "GradeResult and release decision authority remain unchanged"
+          ],
+          "a3_rule": "A3 orchestrates product workflow and must not reinterpret A1 runtime facts or A2 decision semantics."
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_write",
+        "responses": {
+          "200": {
+            "description": "Append-only assignment event accepted with optimistic concurrency.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MultimodalReviewAssignmentReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "408": {
+            "$ref": "#/components/responses/RequestTimeout"
+          },
+          "409": {
+            "description": "The lease is active, stale, or owned by another reviewer.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeploymentReceiptConflict"
+                }
+              }
+            }
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "parameters": [
+          {
+            "name": "queueId",
+            "in": "path",
+            "required": true,
+            "description": "queueId path identifier.",
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160
+            }
+          },
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "description": "Opaque caller-generated retry key. The raw value is never persisted.",
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 160
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "x-secret-policy": "raw_secret_values_forbidden",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MultimodalReviewAssignmentRequest"
+              }
+            }
+          }
+        },
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        },
+        "x-request-validation": {
+          "malformed_json": "sanitized_400_after_authentication_and_authorization",
+          "body_read_timeout": "sanitized_408_after_authentication_and_authorization",
+          "maximum_body_bytes_default": 1048576,
+          "payload_too_large": "sanitized_413_after_authentication_and_authorization",
+          "required_media_type": "application/json",
+          "unsupported_media_type": "sanitized_415_after_authentication_and_authorization",
+          "required_top_level_shape": "object",
+          "invalid_json_shape": "sanitized_422_after_authentication_and_authorization",
+          "unauthorized_precedence": "401",
+          "forbidden_precedence": "403",
+          "raw_body_echoed": false,
+          "metadata_only_denial_audit_required": true
+        },
+        "x-concurrency": {
+          "strategy": "optimistic_expected_version_plus_time_bounded_lease",
+          "stale_write_http_status": 409,
+          "idempotency_header_only": true
+        },
+        "x-authority-boundary": {
+          "upstream_release_authority": false,
+          "queue_receipts_release_authority": false,
+          "a3_recomputed_risk": false,
+          "a3_recomputed_release_decision": false,
+          "candidate_binding_verified": false,
+          "can_change_release_decision": false,
+          "assignment_events_release_authority": false,
+          "assignment_events_change_a2_decision": false
         }
       }
     }
@@ -12095,6 +12302,14 @@
               "can_change_release_decision": {
                 "type": "boolean",
                 "const": false
+              },
+              "assignment_events_release_authority": {
+                "type": "boolean",
+                "const": false
+              },
+              "assignment_events_change_a2_decision": {
+                "type": "boolean",
+                "const": false
               }
             },
             "additionalProperties": true
@@ -12136,12 +12351,302 @@
               "production_ready_claimed": {
                 "type": "boolean",
                 "const": false
+              },
+              "raw_reviewer_identity_exposed": {
+                "type": "boolean",
+                "const": false
+              },
+              "raw_assignment_payload_exposed": {
+                "type": "boolean",
+                "const": false
               }
             },
             "additionalProperties": true
           }
         },
         "additionalProperties": true
+      },
+      "MultimodalReviewAssignmentRequest": {
+        "type": "object",
+        "required": [
+          "source",
+          "assignment"
+        ],
+        "properties": {
+          "source": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "organization_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "tenant_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "workspace_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "project_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "environment_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "assignment": {
+            "type": "object",
+            "required": [
+              "action",
+              "expected_version"
+            ],
+            "properties": {
+              "action": {
+                "type": "string",
+                "enum": [
+                  "claim",
+                  "renew",
+                  "release",
+                  "transfer"
+                ]
+              },
+              "expected_version": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "lease_seconds": {
+                "type": "integer",
+                "minimum": 60,
+                "maximum": 3600,
+                "default": 900
+              },
+              "target_reviewer_hash": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9:_-]{8,160}$",
+                "description": "Hash alias only; raw reviewer identity is forbidden. Required for transfer."
+              },
+              "reason_code": {
+                "type": "string",
+                "pattern": "^[a-z0-9_]{3,64}$"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "additionalProperties": false,
+        "description": "Identity and scope are server verified. The body cannot contain a disposition, score, risk, or release authority."
+      },
+      "MultimodalReviewAssignmentReceipt": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "source",
+          "queue_id",
+          "event_id",
+          "event_hash",
+          "action",
+          "status",
+          "version",
+          "release_authority",
+          "a2_decision_recomputed",
+          "release_decision_changed",
+          "created_at",
+          "idempotency"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.multimodal_review_assignment_receipt.v1"
+          },
+          "source": {
+            "type": "string"
+          },
+          "queue_id": {
+            "type": "string"
+          },
+          "event_id": {
+            "type": "string"
+          },
+          "event_hash": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
+          "action": {
+            "type": "string",
+            "enum": [
+              "claim",
+              "renew",
+              "release",
+              "transfer"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "unassigned",
+              "claimed",
+              "expired"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "assigned_reviewer_hash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lease_expires_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "reason_code": {
+            "type": "string"
+          },
+          "release_authority": {
+            "type": "boolean",
+            "const": false
+          },
+          "a2_decision_recomputed": {
+            "type": "boolean",
+            "const": false
+          },
+          "release_decision_changed": {
+            "type": "boolean",
+            "const": false
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "idempotency": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "event_envelope": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "safety": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": true
+      },
+      "MultimodalReviewOperationalState": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "status",
+          "version",
+          "event_count",
+          "lock_active",
+          "can_be_claimed",
+          "authoritative_disposition_recorded",
+          "release_authority",
+          "a2_decision_recomputed"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.multimodal_review_operational_state.v1"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "unassigned",
+              "claimed",
+              "expired"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "assigned_reviewer_hash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "previous_reviewer_hash": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "lease_started_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "lease_expires_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "last_action": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "last_action_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time"
+          },
+          "reason_code": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "event_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "lock_active": {
+            "type": "boolean"
+          },
+          "can_be_claimed": {
+            "type": "boolean"
+          },
+          "authoritative_disposition_recorded": {
+            "type": "boolean",
+            "const": false
+          },
+          "release_authority": {
+            "type": "boolean",
+            "const": false
+          },
+          "a2_decision_recomputed": {
+            "type": "boolean",
+            "const": false
+          }
+        },
+        "additionalProperties": false
       }
     }
   },

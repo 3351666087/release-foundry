@@ -83,6 +83,11 @@ import {
   buildA3MultimodalReviewQueue,
   validateA2MultimodalComparison
 } from "./a3_multimodal_review_queue.mjs";
+import {
+  A3_MULTIMODAL_REVIEW_ASSIGNMENT_RECEIPT_SCHEMA_VERSION,
+  buildA3MultimodalReviewAssignmentProjection,
+  planA3MultimodalReviewAssignmentTransition
+} from "./a3_multimodal_review_assignment.mjs";
 
 export const A3_STORE_SCHEMA_VERSION = "a3.store.v1";
 
@@ -218,6 +223,7 @@ export const A3_DB_CONTRACT = {
     "saas_admin_action_requests",
     "review_workflow_records",
     "multimodal_review_snapshots",
+    "multimodal_review_assignment_events",
     "release_evidence_summaries",
     "release_evidence_snapshots",
     "release_evidence_diffs",
@@ -277,6 +283,7 @@ export const A3_DB_CONTRACT = {
     "POST /api/a3/review/denials",
     "GET /api/a3/review/workflow",
     "GET /api/a3/review/multimodal-queue",
+    "POST /api/a3/review/multimodal-queue/:queueId/assignment",
     "GET /api/a3/product/console",
     "GET /api/a3/enterprise/readiness",
     "GET /api/a3/db-migrations",
@@ -423,6 +430,7 @@ export function createMemoryA3Store(seed = {}) {
   const eventOutbox = [];
   const adminActionRequests = [];
   const reviewWorkflowRecords = [];
+  const multimodalReviewAssignmentEvents = [];
   const releaseEvidenceReadbacks = [];
   const githubPublishReceipts = [];
   const deploymentReceipts = [];
@@ -461,6 +469,9 @@ export function createMemoryA3Store(seed = {}) {
   for (const record of seed.reviewWorkflowRecords || []) {
     reviewWorkflowRecords.push(record);
   }
+  for (const event of seed.multimodalReviewAssignmentEvents || []) {
+    multimodalReviewAssignmentEvents.push(event);
+  }
   for (const readback of seed.releaseEvidenceReadbacks || []) {
     releaseEvidenceReadbacks.push(sanitizeReleaseEvidenceReadback(readback));
   }
@@ -497,6 +508,11 @@ export function createMemoryA3Store(seed = {}) {
       const scopedAuditEvents = filterTenantScopedRecords(auditEvents, snapshot, requestOptions);
       const scopedAdminActionRequests = filterTenantScopedRecords(adminActionRequests, snapshot, requestOptions);
       const scopedReviewWorkflowRecords = filterTenantScopedRecords(reviewWorkflowRecords, snapshot, requestOptions);
+      const scopedMultimodalReviewAssignmentEvents = filterTenantScopedRecords(
+        multimodalReviewAssignmentEvents,
+        snapshot,
+        requestOptions
+      );
       const scopedReleaseEvidenceReadbacks = filterTenantScopedRecords(releaseEvidenceReadbacks, snapshot, requestOptions);
       const scopedGitHubPublishReceipts = filterTenantScopedRecords(githubPublishReceipts, snapshot, requestOptions);
       const scopedDeploymentReceipts = filterTenantScopedRecords(deploymentReceipts, snapshot, requestOptions);
@@ -510,6 +526,7 @@ export function createMemoryA3Store(seed = {}) {
         eventOutbox,
         adminActionRequests: scopedAdminActionRequests,
         reviewWorkflowRecords: scopedReviewWorkflowRecords,
+        multimodalReviewAssignmentEvents: scopedMultimodalReviewAssignmentEvents,
         releaseEvidenceReadbacks: scopedReleaseEvidenceReadbacks,
         githubPublishReceipts: scopedGitHubPublishReceipts,
         deploymentReceipts: scopedDeploymentReceipts,
@@ -522,6 +539,7 @@ export function createMemoryA3Store(seed = {}) {
           auditEvents,
           adminActionRequests,
           reviewWorkflowRecords,
+          multimodalReviewAssignmentEvents,
           releaseEvidenceReadbacks,
           githubPublishReceipts,
           deploymentReceipts,
@@ -779,7 +797,109 @@ export function createMemoryA3Store(seed = {}) {
 
     async getMultimodalReviewQueue(options = {}) {
       const snapshot = selectSnapshot(snapshots, options.source, options);
-      return buildMultimodalQueueForSnapshot(snapshot);
+      return buildMultimodalQueueForSnapshot(
+        snapshot,
+        filterTenantScopedRecords(multimodalReviewAssignmentEvents, snapshot, options),
+        { now: options.now }
+      );
+    },
+
+    async mutateMultimodalReviewAssignment(queueId, input = {}, options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source, options);
+      requireMutationIdempotencyKey(options, "multimodal_review_assignment", snapshot.source);
+      const scopedEvents = filterTenantScopedRecords(multimodalReviewAssignmentEvents, snapshot, options);
+      const queue = buildMultimodalQueueForSnapshot(snapshot, scopedEvents, { now: options.now });
+      const tenantScope = eventTenantScopeFromRecord({}, snapshot);
+      const payloadHash = sha256(stableJson({
+        queue_id: queueId,
+        assignment: input,
+        tenant_scope: tenantScope
+      }));
+      const idempotencySource = scopedIdempotencySource(snapshot.source, options, snapshot);
+      const replay = getIdempotentReplay(
+        idempotencyReceipts,
+        "multimodal_review_assignment",
+        idempotencySource,
+        options.idempotencyKey,
+        payloadHash
+      );
+      if (replay) return replay;
+
+      const transition = planA3MultimodalReviewAssignmentTransition(queue, scopedEvents, input, {
+        queueId,
+        source: snapshot.source,
+        tenantScope,
+        actorHash: options.actorHash,
+        actorRole: options.actorRole,
+        now: options.now
+      });
+      if (!transition.valid) {
+        if (transition.statusCode === 404) throw new A3StoreResourceNotFoundError();
+        throw new A3StoreValidationError("Multimodal review assignment action was rejected.", transition.details, {
+          requestType: "multimodal_review_assignment",
+          source: snapshot.source,
+          statusCode: transition.statusCode,
+          error: transition.error
+        });
+      }
+
+      multimodalReviewAssignmentEvents.push(transition.event);
+      auditEvents.push(multimodalReviewAssignmentAuditEvent(
+        transition.event,
+        multimodalReviewAssignmentEvents.length - 1
+      ));
+      const receipt = {
+        schema_version: A3_MULTIMODAL_REVIEW_ASSIGNMENT_RECEIPT_SCHEMA_VERSION,
+        source: snapshot.source,
+        ...tenantScopeRecordFields(snapshot),
+        queue_id: queueId,
+        event_id: transition.event.event_id,
+        event_hash: transition.event.event_hash,
+        action: input.action,
+        status: transition.operational_state.status,
+        version: transition.operational_state.version,
+        assigned_reviewer_hash: transition.operational_state.assigned_reviewer_hash,
+        lease_expires_at: transition.operational_state.lease_expires_at,
+        reason_code: transition.operational_state.reason_code,
+        release_authority: false,
+        a2_decision_recomputed: false,
+        release_decision_changed: false,
+        created_at: transition.event.created_at,
+        safety: {
+          raw_reviewer_identity_included: false,
+          raw_model_payload_included: false,
+          raw_media_included: false,
+          signed_url_included: false,
+          secret_values_included: false
+        }
+      };
+      const outboxRow = recordEventOutbox(eventOutbox, {
+        source: snapshot.source,
+        eventType: `review.multimodal_assignment.${transition.event.event_type}`,
+        resourceType: "multimodal_review_assignment",
+        resourceId: transition.event.event_id,
+        tenantScope,
+        actorHash: options.actorHash,
+        createdAt: transition.event.created_at,
+        payload: receipt,
+        usageMeter: {
+          meter: "multimodal_review_assignment_actions",
+          quantity: 1
+        }
+      });
+      const receiptWithEvent = attachIdempotencyReceipt(
+        attachEventEnvelopeReceipt(receipt, outboxRow),
+        options.idempotencyKey
+      );
+      rememberIdempotentReceipt(
+        idempotencyReceipts,
+        "multimodal_review_assignment",
+        idempotencySource,
+        options.idempotencyKey,
+        payloadHash,
+        receiptWithEvent
+      );
+      return receiptWithEvent;
     },
 
     async getSaasAdminConsole(options = {}) {
@@ -2019,7 +2139,11 @@ export function createMemoryA3Store(seed = {}) {
       const report = {
         ...buildShareableReportPayload({
           ...snapshot,
-          multimodalReviewQueue: buildMultimodalQueueForSnapshot(snapshot)
+          multimodalReviewQueue: buildMultimodalQueueForSnapshot(
+            snapshot,
+            filterTenantScopedRecords(multimodalReviewAssignmentEvents, snapshot, options),
+            { now: options.createdAt || options.now }
+          )
         }, {
           source: snapshot.source,
           title: options.title,
@@ -2575,6 +2699,7 @@ export function createMemoryA3Store(seed = {}) {
         eventOutbox,
         adminActionRequests,
         reviewWorkflowRecords,
+        multimodalReviewAssignmentEvents,
         releaseEvidenceReadbacks,
         githubPublishReceipts,
         deploymentReceipts,
@@ -2731,6 +2856,11 @@ export async function createFileBackedA3Store(options = {}) {
     },
     async importA2MultimodalComparison(comparison, options = {}) {
       const result = await store.importA2MultimodalComparison(comparison, options);
+      await persist();
+      return result;
+    },
+    async mutateMultimodalReviewAssignment(queueId, input, options = {}) {
+      const result = await store.mutateMultimodalReviewAssignment(queueId, input, options);
       await persist();
       return result;
     },
@@ -3022,7 +3152,11 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     auth: options.auth || {}
   });
   const peerBranchCalibration = summarizeA3PeerBranchCalibration(snapshot.peerBranchCalibration);
-  const multimodalReviewQueue = buildMultimodalQueueForSnapshot(snapshot);
+  const multimodalReviewQueue = buildMultimodalQueueForSnapshot(
+    snapshot,
+    options.multimodalReviewAssignmentEvents || [],
+    { now: options.now }
+  );
   const a1A2EvidenceSpine = buildA3A1A2EvidenceSpine({
     source: snapshot.source,
     runFixture: snapshot.runFixture,
@@ -4678,15 +4812,43 @@ function multimodalComparisonAuditEvent(receipt = {}, index = 0) {
   };
 }
 
-function buildMultimodalQueueForSnapshot(snapshot = {}) {
+function multimodalReviewAssignmentAuditEvent(event = {}, index = 0) {
+  return {
+    event_id: `mmra_evt_${sha256(`${event.event_id || "missing"}:${index}`).slice(0, 12)}`,
+    source: event.source,
+    ...tenantScopeRecordFields(event),
+    event_type: `multimodal_review_assignment_${event.event_type || "changed"}`,
+    subject_id: event.queue_id,
+    actor_hash: event.actor_hash,
+    payload: {
+      schema_version: event.schema_version,
+      assignment_event_id: event.event_id,
+      assignment_event_hash: event.event_hash,
+      queue_id: event.queue_id,
+      event_type: event.event_type,
+      version: event.version,
+      assigned_reviewer_hash: event.assigned_reviewer_hash,
+      lease_expires_at: event.lease_expires_at,
+      reason_code: event.reason_code,
+      release_authority: false,
+      a2_decision_recomputed: false,
+      raw_reviewer_identity_included: false
+    },
+    created_at: event.created_at,
+    redacted: true
+  };
+}
+
+function buildMultimodalQueueForSnapshot(snapshot = {}, assignmentEvents = [], options = {}) {
   const metadata = snapshot.a2MultimodalComparisonMeta || {};
-  return buildA3MultimodalReviewQueue(snapshot.a2MultimodalComparison || {}, {
+  const queue = buildA3MultimodalReviewQueue(snapshot.a2MultimodalComparison || {}, {
     source: snapshot.source,
     tenantScope: snapshot.tenant_scope || tenantScopeRecordFields(snapshot).tenant_scope,
     sourceCommitAlias: metadata.source_commit_alias,
     ingestMode: metadata.ingest_mode,
     capabilityState: metadata.capability_state
   });
+  return buildA3MultimodalReviewAssignmentProjection(queue, assignmentEvents, options);
 }
 
 function selectSnapshot(snapshots, source = "mock", options = {}) {

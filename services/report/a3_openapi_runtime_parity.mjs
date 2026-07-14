@@ -170,6 +170,9 @@ function synchronizeDeliveryHandoffSchemas(schemas) {
   schemas.MultimodalComparisonImportRequest = multimodalComparisonImportRequestSchema();
   schemas.MultimodalComparisonIngestReceipt = multimodalComparisonIngestReceiptSchema();
   schemas.MultimodalReviewQueue = multimodalReviewQueueSchema();
+  schemas.MultimodalReviewAssignmentRequest = multimodalReviewAssignmentRequestSchema();
+  schemas.MultimodalReviewAssignmentReceipt = multimodalReviewAssignmentReceiptSchema();
+  schemas.MultimodalReviewOperationalState = multimodalReviewOperationalStateSchema();
 }
 
 function synchronizeSelfHostSandboxOperation(spec) {
@@ -975,6 +978,7 @@ function synchronizeDeploymentReceiptOperations(spec) {
 function synchronizeMultimodalReviewOperations(spec) {
   const importOperation = spec.paths?.["/api/a3/import/a2-multimodal-comparison"]?.post;
   const readOperation = spec.paths?.["/api/a3/review/multimodal-queue"]?.get;
+  const assignmentOperation = spec.paths?.["/api/a3/review/multimodal-queue/{queueId}/assignment"]?.post;
   if (importOperation) {
     importOperation.operationId = "a3ImportA2MultimodalComparison";
     importOperation.summary = "Import a public-safe A2 multimodal comparison into the tenant review queue.";
@@ -1004,6 +1008,39 @@ function synchronizeMultimodalReviewOperations(spec) {
       "MultimodalReviewQueue"
     );
     readOperation["x-authority-boundary"] = multimodalAuthorityBoundary();
+  }
+  if (assignmentOperation) {
+    assignmentOperation.operationId = "a3ManageMultimodalReviewAssignment";
+    assignmentOperation.summary = "Claim, renew, release, or transfer one tenant-scoped multimodal review lease.";
+    assignmentOperation.tags = ["Review", "Operations"];
+    assignmentOperation["x-schema-version"] = "a3.multimodal_review_assignment_receipt.v1";
+    assignmentOperation.parameters = withIdempotencyHeader(assignmentOperation.parameters);
+    assignmentOperation.requestBody = typedJsonRequest("MultimodalReviewAssignmentRequest");
+    delete assignmentOperation.responses["202"];
+    assignmentOperation.responses["200"] = typedJsonResponse(
+      "Append-only assignment event accepted with optimistic concurrency.",
+      "MultimodalReviewAssignmentReceipt"
+    );
+    assignmentOperation.responses["409"] = typedJsonResponse(
+      "The lease is active, stale, or owned by another reviewer.",
+      "DeploymentReceiptConflict"
+    );
+    assignmentOperation["x-audit"] = {
+      events: [
+        "review.multimodal_assignment.claimed",
+        "review.multimodal_assignment.renewed",
+        "review.multimodal_assignment.released",
+        "review.multimodal_assignment.transferred",
+        "review.multimodal_assignment.reclaimed_after_expiry"
+      ],
+      payload_policy: "queue_ids_hashes_versions_lease_times_and_reason_codes_only"
+    };
+    assignmentOperation["x-concurrency"] = {
+      strategy: "optimistic_expected_version_plus_time_bounded_lease",
+      stale_write_http_status: 409,
+      idempotency_header_only: true
+    };
+    assignmentOperation["x-authority-boundary"] = multimodalAuthorityBoundary();
   }
 }
 
@@ -1138,10 +1175,107 @@ function multimodalReviewQueueSchema() {
           raw_media_exposed: { type: "boolean", const: false },
           signed_url_exposed: { type: "boolean", const: false },
           provider_secret_exposed: { type: "boolean", const: false },
-          production_ready_claimed: { type: "boolean", const: false }
+          production_ready_claimed: { type: "boolean", const: false },
+          raw_reviewer_identity_exposed: { type: "boolean", const: false },
+          raw_assignment_payload_exposed: { type: "boolean", const: false }
         },
         additionalProperties: true
       }
+    },
+    additionalProperties: true
+  };
+}
+
+function multimodalReviewAssignmentRequestSchema() {
+  const scopeProperties = Object.fromEntries(TENANT_SCOPE_CONTRACT.required.map((field) => [field, {
+    type: "string",
+    minLength: 1,
+    maxLength: 160
+  }]));
+  return {
+    type: "object",
+    required: ["source", "assignment"],
+    properties: {
+      source: { type: "string", minLength: 1, maxLength: 160 },
+      ...scopeProperties,
+      assignment: {
+        type: "object",
+        required: ["action", "expected_version"],
+        properties: {
+          action: { type: "string", enum: ["claim", "renew", "release", "transfer"] },
+          expected_version: { type: "integer", minimum: 0 },
+          lease_seconds: { type: "integer", minimum: 60, maximum: 3600, default: 900 },
+          target_reviewer_hash: {
+            type: "string",
+            pattern: "^[A-Za-z0-9:_-]{8,160}$",
+            description: "Hash alias only; raw reviewer identity is forbidden. Required for transfer."
+          },
+          reason_code: { type: "string", pattern: "^[a-z0-9_]{3,64}$" }
+        },
+        additionalProperties: false
+      }
+    },
+    additionalProperties: false,
+    description: "Identity and scope are server verified. The body cannot contain a disposition, score, risk, or release authority."
+  };
+}
+
+function multimodalReviewOperationalStateSchema() {
+  return {
+    type: "object",
+    required: [
+      "schema_version", "status", "version", "event_count", "lock_active", "can_be_claimed",
+      "authoritative_disposition_recorded", "release_authority", "a2_decision_recomputed"
+    ],
+    properties: {
+      schema_version: { type: "string", const: "a3.multimodal_review_operational_state.v1" },
+      status: { type: "string", enum: ["unassigned", "claimed", "expired"] },
+      version: { type: "integer", minimum: 0 },
+      assigned_reviewer_hash: { type: ["string", "null"] },
+      previous_reviewer_hash: { type: ["string", "null"] },
+      lease_started_at: { type: ["string", "null"], format: "date-time" },
+      lease_expires_at: { type: ["string", "null"], format: "date-time" },
+      last_action: { type: ["string", "null"] },
+      last_action_at: { type: ["string", "null"], format: "date-time" },
+      reason_code: { type: ["string", "null"] },
+      event_count: { type: "integer", minimum: 0 },
+      lock_active: { type: "boolean" },
+      can_be_claimed: { type: "boolean" },
+      authoritative_disposition_recorded: { type: "boolean", const: false },
+      release_authority: { type: "boolean", const: false },
+      a2_decision_recomputed: { type: "boolean", const: false }
+    },
+    additionalProperties: false
+  };
+}
+
+function multimodalReviewAssignmentReceiptSchema() {
+  return {
+    type: "object",
+    required: [
+      "schema_version", "source", "queue_id", "event_id", "event_hash", "action", "status",
+      "version", "release_authority", "a2_decision_recomputed", "release_decision_changed",
+      "created_at", "idempotency"
+    ],
+    properties: {
+      schema_version: { type: "string", const: "a3.multimodal_review_assignment_receipt.v1" },
+      source: { type: "string" },
+      queue_id: { type: "string" },
+      event_id: { type: "string" },
+      event_hash: sha256Schema(),
+      action: { type: "string", enum: ["claim", "renew", "release", "transfer"] },
+      status: { type: "string", enum: ["unassigned", "claimed", "expired"] },
+      version: { type: "integer", minimum: 1 },
+      assigned_reviewer_hash: { type: ["string", "null"] },
+      lease_expires_at: { type: ["string", "null"], format: "date-time" },
+      reason_code: { type: "string" },
+      release_authority: { type: "boolean", const: false },
+      a2_decision_recomputed: { type: "boolean", const: false },
+      release_decision_changed: { type: "boolean", const: false },
+      created_at: { type: "string", format: "date-time" },
+      idempotency: { type: "object", additionalProperties: true },
+      event_envelope: { type: "object", additionalProperties: true },
+      safety: { type: "object", additionalProperties: true }
     },
     additionalProperties: true
   };
@@ -1154,7 +1288,9 @@ function multimodalAuthorityBoundary() {
     a3_recomputed_risk: false,
     a3_recomputed_release_decision: false,
     candidate_binding_verified: false,
-    can_change_release_decision: false
+    can_change_release_decision: false,
+    assignment_events_release_authority: false,
+    assignment_events_change_a2_decision: false
   };
 }
 

@@ -5675,13 +5675,17 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
       `- Semantic disagreements: ${multimodalReviewQueue.summary.semantic_disagreement}`,
       `- Internally unstable aggregates: ${multimodalReviewQueue.summary.internally_unstable}`,
       `- Awaiting human review: ${multimodalReviewQueue.summary.review_required_count}`,
+      `- Actively assigned: ${multimodalReviewQueue.summary.assignment_active_count}`,
+      `- Unassigned: ${multimodalReviewQueue.summary.assignment_unassigned_count}`,
+      `- Expired leases: ${multimodalReviewQueue.summary.assignment_expired_count}`,
+      `- Assignment events: ${multimodalReviewQueue.summary.assignment_event_count}`,
       `- Can change release decision: ${multimodalReviewQueue.authority_boundary.can_change_release_decision ? "yes" : "no"}`,
       `- Candidate binding verified: ${multimodalReviewQueue.authority_boundary.candidate_binding_verified ? "yes" : "no"}`,
       ""
     );
     lines.push("### Disagreement Queue", "");
     for (const item of multimodalReviewQueue.items) {
-      lines.push(`- ${item.case_id}: ${item.comparison_scope}${item.repeat ? ` #${item.repeat}` : ""} / ${item.left_model}=${item.left_observed_risk} vs ${item.right_model}=${item.right_observed_risk} / ${item.queue_state} / release authority no`);
+      lines.push(`- ${item.case_id}: ${item.comparison_scope}${item.repeat ? ` #${item.repeat}` : ""} / ${item.left_model}=${item.left_observed_risk} vs ${item.right_model}=${item.right_observed_risk} / ${item.queue_state} / assignment ${item.assignment_status} v${item.assignment_version} / release authority no`);
     }
     lines.push("");
   }
@@ -6384,7 +6388,12 @@ export function summarizeMultimodalReviewQueueExport(queue = {}) {
       unavailable: numberOrDefault(summary.unavailable, 0),
       internally_unstable: numberOrDefault(summary.internally_unstable, 0),
       review_required_count: numberOrDefault(summary.review_required_count, 0),
-      queue_receipt_count: numberOrDefault(summary.queue_receipt_count, 0)
+      queue_receipt_count: numberOrDefault(summary.queue_receipt_count, 0),
+      assignment_active_count: numberOrDefault(summary.assignment_active_count, 0),
+      assignment_expired_count: numberOrDefault(summary.assignment_expired_count, 0),
+      assignment_unassigned_count: numberOrDefault(summary.assignment_unassigned_count, 0),
+      assignment_event_count: numberOrDefault(summary.assignment_event_count, 0),
+      assignment_invalid_event_count: numberOrDefault(summary.assignment_invalid_event_count, 0)
     },
     authority_boundary: {
       upstream_release_authority: authority.upstream_release_authority === true,
@@ -6392,9 +6401,13 @@ export function summarizeMultimodalReviewQueueExport(queue = {}) {
       a3_recomputed_risk: authority.a3_recomputed_risk === true,
       a3_recomputed_release_decision: authority.a3_recomputed_release_decision === true,
       candidate_binding_verified: authority.candidate_binding_verified === true,
-      can_change_release_decision: authority.can_change_release_decision === true
+      can_change_release_decision: authority.can_change_release_decision === true,
+      assignment_events_release_authority: authority.assignment_events_release_authority === true,
+      assignment_events_change_a2_decision: authority.assignment_events_change_a2_decision === true
     },
-    items: items.slice(0, 100).map((item) => ({
+    items: items.slice(0, 100).map((item) => {
+      const operational = objectOr(item.operational_state);
+      return ({
       queue_id: item.queue_id,
       case_id: item.case_id,
       artifact_hash: item.artifact_hash,
@@ -6418,12 +6431,21 @@ export function summarizeMultimodalReviewQueueExport(queue = {}) {
       right_valid_risks: Array.isArray(item.right?.valid_risks)
         ? item.right.valid_risks.filter((value) => typeof value === "boolean")
         : [],
+      assignment_status: operational.status || "unassigned",
+      assignment_version: numberOrDefault(operational.version, 0),
+      assigned_reviewer_hash: operational.assigned_reviewer_hash || null,
+      lease_expires_at: operational.lease_expires_at || null,
+      assignment_last_action: operational.last_action || null,
+      assignment_event_count: numberOrDefault(operational.event_count, 0),
+      authoritative_disposition_recorded: false,
       release_authority: false
-    })),
+    });
+    }),
     safety: {
       raw_model_payload_included: false,
       raw_media_included: false,
       signed_url_included: false,
+      raw_reviewer_identity_included: false,
       release_decision_recomputed: false
     },
     recommendation: "Require an authoritative human-review resolution and same-candidate Decision Ledger before any release-state change."

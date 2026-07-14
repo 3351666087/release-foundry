@@ -47,6 +47,22 @@ test("A3 store imports one tenant-scoped A2 multimodal comparison with idempoten
   const receipt = await store.importA2MultimodalComparison(comparison, options);
   const replay = await store.importA2MultimodalComparison(comparison, options);
   const queue = await store.getMultimodalReviewQueue(options);
+  const queueId = queue.items[0].queue_id;
+  const assignment = await store.mutateMultimodalReviewAssignment(queueId, {
+    action: "claim",
+    expected_version: 0,
+    lease_seconds: 300
+  }, {
+    ...options,
+    idempotencyKey: "mm-assignment-001",
+    actorHash: "reviewer_hash_store",
+    actorRole: "reviewer",
+    now: "2026-07-13T14:01:00.000Z"
+  });
+  const assignedQueue = await store.getMultimodalReviewQueue({
+    ...options,
+    now: "2026-07-13T14:01:01.000Z"
+  });
   const dashboard = await store.getDashboardSnapshot("api-ingest", options);
   const report = await store.createShareableReport({
     source: "api-ingest",
@@ -70,17 +86,32 @@ test("A3 store imports one tenant-scoped A2 multimodal comparison with idempoten
   assert.equal(replay.idempotency.status, "duplicate_replay");
   assert.equal(queue.status, "human_review_required");
   assert.equal(queue.items[0].release_authority, false);
+  assert.equal(assignment.schema_version, "a3.multimodal_review_assignment_receipt.v1");
+  assert.equal(assignment.status, "claimed");
+  assert.equal(assignment.version, 1);
+  assert.equal(assignment.release_decision_changed, false);
+  assert.equal(assignedQueue.items[0].operational_state.status, "claimed");
+  assert.equal(assignedQueue.summary.assignment_active_count, 1);
   assert.equal(dashboard.multimodal_review_queue.summary.review_required_count, 1);
   assert.equal(report.multimodal_review_queue.available, true);
   assert.equal(report.multimodal_review_queue.summary.semantic_disagreement, 1);
+  assert.equal(report.multimodal_review_queue.summary.assignment_active_count, 1);
+  assert.equal(report.multimodal_review_queue.items[0].assignment_status, "claimed");
+  assert.equal(report.multimodal_review_queue.items[0].assignment_version, 1);
   assert.equal(report.multimodal_review_queue.authority_boundary.can_change_release_decision, false);
   assert.match(report.markdown_report, /## Multimodal Disagreement Review/);
+  assert.match(report.markdown_report, /Actively assigned: 1/);
+  assert.match(report.markdown_report, /assignment claimed v1/);
   assert.match(report.markdown_report, /Can change release decision: no/);
   assert.doesNotMatch(JSON.stringify(report.multimodal_review_queue), /local-test-share-token|https?:\/\//);
-  assert.equal(state.auditEvents.at(-1).event_type, "a2_multimodal_comparison_imported");
+  assert.ok(state.auditEvents.some((item) => item.event_type === "a2_multimodal_comparison_imported"));
+  assert.equal(state.auditEvents.at(-1).event_type, "multimodal_review_assignment_claimed");
   const importEvent = state.eventOutbox.find((item) => item.event_type === "a2.multimodal_comparison_imported");
   assert.ok(importEvent);
   assert.equal(importEvent.safety.metadata_only, true);
+  assert.equal(state.multimodalReviewAssignmentEvents.length, 1);
+  assert.equal(state.multimodalReviewAssignmentEvents[0].a2_decision_recomputed, false);
+  assert.ok(state.eventOutbox.some((item) => item.event_type === "review.multimodal_assignment.claimed"));
 
   const changed = structuredClone(comparison);
   changed.left_evidence_hash = hash("a");
@@ -118,6 +149,25 @@ test("SQLite restores the imported multimodal review queue without promoting rel
       idempotencyKey: "mm-sqlite-001",
       importedAt: "2026-07-13T14:05:00.000Z"
     });
+    const importedQueue = await store.getMultimodalReviewQueue({
+      source: "api-ingest",
+      ...scope,
+      enforceScope: true,
+      now: "2026-07-13T14:05:01.000Z"
+    });
+    await store.mutateMultimodalReviewAssignment(importedQueue.items[0].queue_id, {
+      action: "claim",
+      expected_version: 0,
+      lease_seconds: 300
+    }, {
+      source: "api-ingest",
+      ...scope,
+      enforceScope: true,
+      idempotencyKey: "mm-sqlite-assignment-001",
+      actorHash: "reviewer_hash_sqlite",
+      actorRole: "reviewer",
+      now: "2026-07-13T14:05:02.000Z"
+    });
     store.close();
     store = null;
 
@@ -125,13 +175,18 @@ test("SQLite restores the imported multimodal review queue without promoting rel
     const queue = await reopened.getMultimodalReviewQueue({
       source: "api-ingest",
       ...scope,
-      enforceScope: true
+      enforceScope: true,
+      now: "2026-07-13T14:05:03.000Z"
     });
     const state = reopened.exportState();
+    const inspection = reopened.inspectSqliteState();
 
     assert.equal(queue.available, true);
     assert.equal(queue.summary.review_required_count, 1);
     assert.equal(queue.authority_boundary.can_change_release_decision, false);
+    assert.equal(queue.items[0].operational_state.status, "claimed");
+    assert.equal(queue.summary.assignment_active_count, 1);
+    assert.equal(inspection.operational_tables.multimodal_review_assignment_events, 1);
     assert.equal(state.sources["api-ingest"].a2MultimodalComparison.schema_version, "a2.multimodal_cross_provider_comparison.v1");
   } finally {
     store?.close();

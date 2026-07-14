@@ -469,6 +469,16 @@ const COMMERCIAL_ENDPOINTS = [
     usage: ["api_requests"],
     dependencies: ["A2 release policy", "A3 reviewer workflow"]
   }),
+  endpoint("POST /v1/review-queues/multimodal/{queue_id}/assignment", "A1/A2/A3", "review_workflow", "POST /api/a3/review/multimodal-queue/:queueId/assignment", {
+    status: "implemented",
+    rbac: "release:review",
+    db: ["multimodal_review_assignment_events", "audit_events", "event_outbox", "idempotency_keys"],
+    events: ["review.multimodal_assignment.claimed", "review.multimodal_assignment.transferred", "review.multimodal_assignment.released"],
+    artifacts: ["multimodal_review_assignment_receipt", "multimodal_review_queue_export"],
+    usage: ["api_requests", "multimodal_review_assignment_actions"],
+    dependencies: ["A1 trusted reviewer identity and tenant scope", "A2 non-authoritative multimodal queue receipt", "A3 reviewer lease workflow"],
+    notes: "Append-only assignment leases use expected_version and never alter A2 risk, score, disposition, or release authority."
+  }),
   endpoint("GET /v1/deployments/sandbox-calibration", "A1/A3", "deployment_operations", "GET /api/a3/deployment/sandbox-calibration", {
     status: "implemented_local_sandbox",
     rbac: "deployment:read",

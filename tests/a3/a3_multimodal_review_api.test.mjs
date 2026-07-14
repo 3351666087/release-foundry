@@ -92,6 +92,82 @@ test("A3 API exposes the peer calibration queue and a protected tenant-scoped mu
     assert.deepEqual(queue.tenant_scope, scope);
     assert.equal(queue.authority_boundary.candidate_binding_verified, false);
 
+    const queueId = queue.items[0].queue_id;
+    const assignmentUrl = `${url}/api/a3/review/multimodal-queue/${encodeURIComponent(queueId)}/assignment?${query}`;
+    const assignmentBody = JSON.stringify({
+      source: "api-ingest",
+      ...scope,
+      assignment: {
+        action: "claim",
+        expected_version: 0,
+        lease_seconds: 300
+      }
+    });
+    const missingAssignmentKey = await fetch(assignmentUrl, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-a3-role": "reviewer",
+        "x-a3-actor-hash": "reviewer_hash_api"
+      },
+      body: assignmentBody
+    });
+    assert.equal(missingAssignmentKey.status, 400);
+
+    const claimed = await fetch(assignmentUrl, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": "mm-api-assignment-001",
+        "x-a3-role": "reviewer",
+        "x-a3-actor-hash": "reviewer_hash_api"
+      },
+      body: assignmentBody
+    });
+    assert.equal(claimed.status, 200);
+    const claimReceipt = await claimed.json();
+    assert.equal(claimReceipt.schema_version, "a3.multimodal_review_assignment_receipt.v1");
+    assert.equal(claimReceipt.status, "claimed");
+    assert.equal(claimReceipt.version, 1);
+    assert.equal(claimReceipt.release_authority, false);
+    assert.equal(claimReceipt.a2_decision_recomputed, false);
+
+    const replayed = await fetch(assignmentUrl, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": "mm-api-assignment-001",
+        "x-a3-role": "reviewer",
+        "x-a3-actor-hash": "reviewer_hash_api"
+      },
+      body: assignmentBody
+    });
+    assert.equal(replayed.status, 200);
+    assert.equal((await replayed.json()).idempotency.status, "duplicate_replay");
+
+    const competing = await fetch(assignmentUrl, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": "mm-api-assignment-002",
+        "x-a3-role": "reviewer",
+        "x-a3-actor-hash": "reviewer_hash_other"
+      },
+      body: JSON.stringify({
+        source: "api-ingest",
+        ...scope,
+        assignment: { action: "claim", expected_version: 1 }
+      })
+    });
+    assert.equal(competing.status, 409);
+    assert.equal((await competing.json()).error, "assignment_already_claimed");
+
+    const assignedQueueResponse = await fetch(`${url}/api/a3/review/multimodal-queue?${query}`);
+    const assignedQueue = await assignedQueueResponse.json();
+    assert.equal(assignedQueue.summary.assignment_active_count, 1);
+    assert.equal(assignedQueue.items[0].operational_state.status, "claimed");
+    assert.equal(assignedQueue.authority_boundary.assignment_events_change_a2_decision, false);
+
     const dashboardResponse = await fetch(`${url}/api/a3/dashboard?${query}`);
     assert.equal(dashboardResponse.status, 200);
     const dashboard = await dashboardResponse.json();

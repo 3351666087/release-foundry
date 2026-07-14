@@ -24,14 +24,14 @@ export type ApiEndpoint = {
 };
 
 export const apiReferenceMeta = {
-  schemaVersion: "a3.api_reference.v9",
+  schemaVersion: "a3.api_reference.v10",
   calibratedAt: "2026-07-14",
   mainSha: "ccf6ce5",
   a1Sha: "c784163",
   a2Sha: "8cd1d4f",
   a1SourceState: "merged_to_main",
   a2SourceState: "merged_to_main",
-  a2MultimodalPeerSha: "564d4b0",
+  a2MultimodalPeerSha: "1553562",
   a2MultimodalPeerState: "peer_branch_contract_not_merged",
   a2MultimodalSupportedSchemas: [
     "a2.multimodal_cross_provider_comparison.v1",
@@ -423,6 +423,48 @@ export const apiEndpoints: ApiEndpoint[] = [
     notes: [
       { zh: "跨租户请求返回 404 或空结果，不泄露模型、案例或证据哈希。", en: "Cross-tenant requests return 404 or no records without revealing models, cases, or evidence hashes." },
       { zh: "只有权威人工复核结果与同一候选版本的 Decision Ledger 才可能改变发布状态。", en: "Only an authoritative human resolution and a same-candidate Decision Ledger may change release state." }
+    ]
+  },
+  {
+    id: "a3-multimodal-review-assignment",
+    group: "judge",
+    owner: "A3",
+    method: "POST",
+    path: "/api/a3/review/multimodal-queue/{queueId}/assignment",
+    title: { zh: "管理多模态审核领取", en: "Manage multimodal review assignment" },
+    description: {
+      zh: "让审核员领取、续期、释放或转交一个分歧案例，并用版本号防止多人同时覆盖。",
+      en: "Claim, renew, release, or transfer one disagreement case with optimistic concurrency."
+    },
+    auth: {
+      zh: "服务端验证身份 + release:review + Idempotency-Key 请求头",
+      en: "Server-verified principal, release:review, and Idempotency-Key header"
+    },
+    status: "implemented",
+    source: "A2 1553562 queue contract / A3 append-only lease workflow",
+    request: {
+      source: "api-ingest",
+      assignment: {
+        action: "claim",
+        expected_version: 0,
+        lease_seconds: 900,
+        reason_code: "manual_review_claim"
+      }
+    },
+    response: {
+      schema_version: "a3.multimodal_review_assignment_receipt.v1",
+      action: "claim",
+      status: "claimed",
+      version: 1,
+      assigned_reviewer_hash: "reviewer_hash_[REDACTED]",
+      release_authority: false,
+      a2_decision_recomputed: false,
+      release_decision_changed: false
+    },
+    notes: [
+      { zh: "操作者身份来自服务端会话；请求体不能提交原始姓名、邮箱、处置结论、分数或发布权限。", en: "Reviewer identity comes from the server session; the body cannot submit raw identity, disposition, score, or release authority." },
+      { zh: "锁默认 15 分钟，支持过期回收；expected_version 过旧时返回 409。", en: "Leases default to 15 minutes, can be reclaimed after expiry, and stale expected_version writes return 409." },
+      { zh: "这是人员协作状态，不是 A2 的真人复核凭证，也不会改变发布决定。", en: "This is human coordination state, not an A2 review receipt, and it cannot change the release decision." }
     ]
   },
   {

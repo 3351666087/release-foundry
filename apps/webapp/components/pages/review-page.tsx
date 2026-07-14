@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { Check, CircleSlash2, Clock3, GitCompareArrows, Images, ShieldAlert, X } from "lucide-react";
+import { Check, CircleSlash2, Clock3, GitCompareArrows, Images, LockKeyhole, ShieldAlert, UserRoundCheck, X } from "lucide-react";
 
 import { array, number, record, string } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
-import { DataBoundary, DataTable, EmptyState, MetricStrip, PageHeader, Section, StatusBadge } from "../ui";
+import { DataBoundary, DataTable, EmptyState, formatDate, MetricStrip, PageHeader, Section, StatusBadge } from "../ui";
 
 export function ReviewPage() {
   const { language } = useI18n();
@@ -75,11 +75,20 @@ export function ReviewPage() {
             </div>
           </div>
 
+          {multimodalAvailable && (
+            <div className="multimodal-assignment-strip" aria-label={zh ? "审核领取状态" : "Review assignment status"}>
+              <div><UserRoundCheck size={17} aria-hidden="true" /><span>{zh ? "正在处理" : "Actively assigned"}</span><strong>{number(multimodalSummary.assignment_active_count)}</strong></div>
+              <div><LockKeyhole size={17} aria-hidden="true" /><span>{zh ? "等待领取" : "Unassigned"}</span><strong>{number(multimodalSummary.assignment_unassigned_count)}</strong></div>
+              <div><Clock3 size={17} aria-hidden="true" /><span>{zh ? "锁已过期" : "Expired leases"}</span><strong>{number(multimodalSummary.assignment_expired_count)}</strong></div>
+            </div>
+          )}
+
           {multimodalItems.length ? (
             <div className="multimodal-review-list" role="region" aria-label={zh ? "多模态分歧审核队列" : "Multimodal disagreement review queue"}>
               {multimodalItems.map((item) => {
                 const left = record(item.left);
                 const right = record(item.right);
+                const operational = record(item.operational_state);
                 return (
                   <article key={string(item.queue_id)}>
                     <div><small>{zh ? "案例与证据" : "Case and evidence"}</small><strong>{string(item.case_id)}</strong><span>{comparisonScopeLabel(item, zh)}</span><code>{hashPrefix(string(item.artifact_hash))}</code></div>
@@ -95,7 +104,15 @@ export function ReviewPage() {
                         <StatusBadge value={`${string(right.model_id)}: ${modelRiskLabel(right, zh)}`} tone={modelRiskTone(right)} />
                       </span>
                     </div>
-                    <div><small>{zh ? "队列状态" : "Queue state"}</small><StatusBadge value={queueStateLabel(item.queue_state, zh)} tone="warn" /><span>{zh ? "安全审核员" : "Safety reviewer"}</span></div>
+                    <div className="multimodal-assignment-state">
+                      <small>{zh ? "人员领取状态" : "Human assignment"}</small>
+                      <StatusBadge value={assignmentStateLabel(operational.status, zh)} tone={assignmentStateTone(operational.status)} />
+                      <span>{zh ? "评测队列" : "Evaluation queue"}: {queueStateLabel(item.queue_state, zh)}</span>
+                      <span>{operational.assigned_reviewer_hash
+                        ? `${zh ? "审核员" : "Reviewer"} ${hashPrefix(string(operational.assigned_reviewer_hash))}`
+                        : (zh ? "尚未分配审核员" : "No reviewer assigned")}</span>
+                      <span>{zh ? "版本" : "Version"} {number(operational.version)} · {leaseLabel(operational.lease_expires_at, zh)}</span>
+                    </div>
                   </article>
                 );
               })}
@@ -178,6 +195,25 @@ function queueStateLabel(value: unknown, zh: boolean) {
   const state = string(value, "unknown");
   if (state === "awaiting_human_review") return zh ? "等待人工复核" : "awaiting human review";
   return state;
+}
+
+function assignmentStateLabel(value: unknown, zh: boolean) {
+  const state = string(value, "unassigned");
+  if (state === "claimed") return zh ? "处理中" : "claimed";
+  if (state === "expired") return zh ? "锁已过期" : "lease expired";
+  return zh ? "等待领取" : "unassigned";
+}
+
+function assignmentStateTone(value: unknown): "pass" | "warn" | "fail" {
+  const state = string(value, "unassigned");
+  if (state === "claimed") return "pass";
+  if (state === "expired") return "fail";
+  return "warn";
+}
+
+function leaseLabel(value: unknown, zh: boolean) {
+  if (!value) return zh ? "无活动锁" : "no active lease";
+  return `${zh ? "锁定至" : "lease until"} ${formatDate(string(value))}`;
 }
 
 function capabilityLabel(value: unknown, zh: boolean) {

@@ -18,6 +18,7 @@ export function buildA3SqlMigrationPlan(options = {}) {
       "SaaS admin actions are request/audit records first; real cloud mutations stay disabled until hosted auth and RBAC are enforced.",
       "Auth context, RBAC policy snapshots, and authz decisions are metadata-only records until A1 hosted auth becomes authoritative.",
       "Reviewer waiver and approval records must be hash-sealed, tenant-scoped, and durable before they can influence release governance.",
+      "Multimodal reviewer assignment events must be append-only, five-level tenant-scoped, version-checked, and unable to modify A2 decisions.",
       "Release evidence summaries must be tenant-scoped, hash-sealed, and safe to expose through API-backed dashboard and hosted report snapshots.",
       "Release evidence v2 authority rows must separate immutable snapshots, safe diffs, and external readback states before claiming enterprise enforcement.",
       "Release evidence readback capture must be idempotent, tenant-scoped, audit-linked, and hash-only before it can influence PR gates.",
@@ -699,8 +700,64 @@ CREATE TABLE IF NOT EXISTS self_host_sandbox_calibrations (
 );
 CREATE INDEX IF NOT EXISTS idx_self_host_sandbox_scope ON self_host_sandbox_calibrations(organization_id, tenant_id, workspace_id, project_id, environment_id, observed_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_self_host_sandbox_digest ON self_host_sandbox_calibrations(project_id, probe_payload_sha256);`),
-    statement("020_self_host_sandbox_scope_hardening", ["self_host_sandbox_calibrations"], selfHostSandboxScopeHardening(dialect))
+    statement("020_self_host_sandbox_scope_hardening", ["self_host_sandbox_calibrations"], selfHostSandboxScopeHardening(dialect)),
+    statement("021_multimodal_review_assignment_events", ["multimodal_review_assignment_events"], `
+CREATE TABLE IF NOT EXISTS multimodal_review_assignment_events (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL,
+  workspace_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  environment_id TEXT NOT NULL,
+  source TEXT NOT NULL,
+  queue_id TEXT NOT NULL,
+  case_id TEXT NOT NULL,
+  comparison_hash TEXT NOT NULL,
+  event_type TEXT NOT NULL,
+  version INTEGER NOT NULL,
+  actor_hash TEXT NOT NULL,
+  actor_role TEXT NOT NULL,
+  previous_reviewer_hash TEXT,
+  assigned_reviewer_hash TEXT,
+  lease_expires_at ${types.timestamp},
+  reason_code TEXT NOT NULL,
+  event_hash TEXT NOT NULL,
+  payload ${types.json} NOT NULL,
+  created_at ${types.timestamp} NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_multimodal_review_assignment_version ON multimodal_review_assignment_events(organization_id, tenant_id, workspace_id, project_id, environment_id, source, queue_id, version);
+CREATE INDEX IF NOT EXISTS idx_multimodal_review_assignment_active ON multimodal_review_assignment_events(organization_id, tenant_id, workspace_id, project_id, environment_id, source, queue_id, lease_expires_at);`),
+    statement("022_multimodal_review_assignment_scope_hardening", ["multimodal_review_assignment_events"], multimodalReviewAssignmentScopeHardening(dialect))
   ];
+}
+
+function multimodalReviewAssignmentScopeHardening(dialect) {
+  if (dialect === "sqlite") {
+    return `
+CREATE UNIQUE INDEX IF NOT EXISTS idx_multimodal_review_assignment_scope_identity ON multimodal_review_assignment_events(organization_id, tenant_id, workspace_id, project_id, environment_id, id);`;
+  }
+  if (dialect === "mysql") {
+    return `
+CREATE UNIQUE INDEX IF NOT EXISTS idx_multimodal_review_assignment_scope_identity ON multimodal_review_assignment_events(organization_id, tenant_id, workspace_id, project_id, environment_id, id);`;
+  }
+  const scopePredicate = [
+    ["organization_id", "app.a3_organization_id"],
+    ["tenant_id", "app.a3_tenant_id"],
+    ["workspace_id", "app.a3_workspace_id"],
+    ["project_id", "app.a3_project_id"],
+    ["environment_id", "app.a3_environment_id"]
+  ].map(([column, setting]) => `${column} = NULLIF(current_setting('${setting}', TRUE), '')`).join("\n    AND ");
+  return `
+ALTER TABLE multimodal_review_assignment_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE multimodal_review_assignment_events FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS multimodal_review_assignment_scope_isolation ON multimodal_review_assignment_events;
+CREATE POLICY multimodal_review_assignment_scope_isolation ON multimodal_review_assignment_events
+  USING (
+    ${scopePredicate}
+  )
+  WITH CHECK (
+    ${scopePredicate}
+  );`;
 }
 
 function selfHostSandboxScopeHardening(dialect) {

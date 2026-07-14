@@ -7028,3 +7028,23 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
 - CL hygiene passed with zero findings; Commercial CL passed with zero blockers/advisories; root and Webapp production npm audits found zero vulnerabilities; `git diff --check` passed.
 - `.env.local` remains ignored. No key, token, cookie, email, account identity, signed URL, raw provider payload, private media, or local account path was added.
 - The sealed rc.2 bundle, archive, release artifact, Deployment Acceptance, and A2 Decision Ledger were not rewritten.
+
+## 2026-07-14 - Multimodal Reviewer Assignment and Lease Workflow
+
+- Re-checked `origin/main=ccf6ce5`, A1 peer `2307231`, and latest A2 peer `1553562` before implementation.
+- Inspected A2 Round 49 real DashScope calibration, perturbation comparison, review conservation schema, human-review schemas, PostgreSQL qualification, and Trusted Spine binding recheck.
+- Recorded exact public-safe measurements: 50 requested, 49 completed, 48 eligible, sensitivity `0.6364`, specificity `0.9333`, P95 `10.373s`, and qualification `blocked`.
+- Confirmed that A2 exposes only a `test_review_fixture` disposition artifact, not a public-safe real human-review receipt; no human result was fabricated.
+- Added append-only multimodal review assignment events with claim, renew, release, transfer, expiry, and reclaim transitions.
+- Added `expected_version` optimistic concurrency and header-only idempotency; stale or competing writes return sanitized conflicts.
+- Added protected assignment API, `release:review` RBAC, five-level scope, cross-tenant 404, metadata-only audit, outbox and usage metering.
+- Added Memory, JSON-file, and SQLite persistence plus SQL migrations 021 and 022 with a PostgreSQL forced-RLS contract.
+- Added assignment status to Dashboard, JSON, Markdown, Hosted Report, OpenAPI runtime parity, commercial API contract, API Reference v10, and the Chinese-first Review page.
+- Preserved all authority boundaries: assignment is not disposition; A3 did not change risk, score, pass/fail, failure class, Decision Ledger or release readiness.
+- Added implementation evidence, exact peer calibration fixture, focused unit/API/store tests, and Growth Auditor Round 21 with 22 executable next steps.
+- Final A3 Node regression passed `479` runnable tests with one explicit live-target PostgreSQL opt-in skip and zero failures; current-main A2 passed `186/186`.
+- Next.js TypeScript/build passed with 15 static pages; full Playwright passed `42/42`; OpenAPI runtime parity passed `61/61`.
+- CL hygiene passed with zero findings; Commercial CL passed with zero blockers/advisories; root and Webapp production npm audits found zero vulnerabilities; `git diff --check` passed.
+- Saved and visually inspected desktop and 390 x 844 review-queue screenshots; both have no document-level horizontal overflow.
+- `.env.local` remains ignored. No key, token, cookie, email, account identity, signed URL, raw provider payload, private media, or local account path was added.
+- GitHub CI remains pending publication; no remote result is claimed in this local validation entry.

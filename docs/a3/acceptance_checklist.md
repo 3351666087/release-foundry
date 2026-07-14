@@ -1447,3 +1447,33 @@
 - [ ] Add four-way v1 only after an exact public-safe runtime artifact exists.
 - [ ] Ingest an authoritative real-review receipt and same-candidate A2 Decision Ledger.
 - [ ] Run the workflow in authorized staging with target PostgreSQL/object custody and production identity.
+
+## Multimodal Reviewer Assignment and Lease Workflow - 2026-07-14
+
+- [x] Re-fetch and inspect current main, A1, and latest A2 peer state before implementation.
+- [x] Record A2 Round 49 real provider counts, quality, latency, usage and blockers in a redacted A3 calibration fixture.
+- [x] Confirm no public-safe real human-review receipt exists and refuse to fabricate one.
+- [x] Add claim, renew, release, transfer, expiry and reclaim transitions.
+- [x] Add append-only assignment events and `expected_version` optimistic concurrency.
+- [x] Require header-only `Idempotency-Key` and preserve duplicate replay behavior.
+- [x] Derive actor hash and role from the authorization context instead of assignment payload fields.
+- [x] Reject disposition, score, risk and release-authority fields at the assignment boundary.
+- [x] Add protected assignment API with `release:review` RBAC.
+- [x] Enforce five-level tenant scope and cross-tenant 404 behavior.
+- [x] Emit metadata-only audit, event outbox and usage-meter records.
+- [x] Persist and reopen assignment state through Memory, JSON file and SQLite stores.
+- [x] Add SQL migrations 021/022 and PostgreSQL forced-RLS contract coverage.
+- [x] Add current assignment state to Dashboard, JSON, Markdown and Hosted Report exports.
+- [x] Add OpenAPI typed request/receipt/concurrency schemas and runtime route parity.
+- [x] Add API Reference v10 and commercial API/DB contract coverage.
+- [x] Add Chinese-first active, unassigned, expired, reviewer alias, version and lease UI states.
+- [x] Add focused transition, conflict, security, API and persistence tests.
+- [x] Pass final A3 Node `479` runnable tests with one explicit live-target PostgreSQL skip and zero failures.
+- [x] Pass current-main A2 `186/186`, Next.js 15-page typecheck/build, Playwright `42/42`, and OpenAPI runtime parity `61/61`.
+- [x] Pass both CL guards and both production npm audits with zero findings, blockers, advisories, or vulnerabilities.
+- [x] Save and inspect desktop and 390 x 844 review-queue screenshots without document-level horizontal overflow.
+- [x] Keep `.env.local` ignored and exclude keys, tokens, cookies, identities, signed URLs, raw provider payloads, and private media.
+- [x] Keep Golden Path `7/11`, Deployment Acceptance `8/17`, production receipts `0`, current authority `integrity_invalid`, current A2 decision `unknown`, historical A2 `block`, and production ready false.
+- [ ] Ingest a real A2 human-review receipt and verify its chain.
+- [ ] Bind the terminal review hash to a same-candidate A2 Decision Ledger.
+- [ ] Run the workflow with A1 hosted identity, CSRF, target PostgreSQL RLS and staging acceptance evidence.

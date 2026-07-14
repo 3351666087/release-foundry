@@ -716,8 +716,35 @@ export function createA3ApiHandler(options = {}) {
           tenantId: url.searchParams.get("tenant_id") || undefined,
           workspaceId: url.searchParams.get("workspace_id") || undefined,
           projectId: url.searchParams.get("project_id") || undefined,
-          environmentId: url.searchParams.get("environment_id") || undefined
+          environmentId: url.searchParams.get("environment_id") || undefined,
+          now: serverNow(options)
         })));
+      }
+
+      const multimodalAssignmentMatch = url.pathname.match(/^\/api\/a3\/review\/multimodal-queue\/([^/]+)\/assignment$/);
+      if (request.method === "POST" && multimodalAssignmentMatch) {
+        const body = await readJsonBody(request);
+        const authz = authorizeRequest(request, url, "manage_multimodal_review_assignment", body);
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
+        const receipt = await store.mutateMultimodalReviewAssignment(
+          decodeURIComponent(multimodalAssignmentMatch[1]),
+          body.assignment || {},
+          scopedStoreOptions(url, {
+            source: body.source || sourceFrom(url),
+            organizationId: body.organization_id,
+            tenantId: body.tenant_id,
+            workspaceId: body.workspace_id,
+            projectId: body.project_id,
+            environmentId: body.environment_id,
+            actorHash: authz.actor_hash,
+            actorRole: authz.role,
+            idempotencyKey: request.headers["idempotency-key"],
+            now: serverNow(options)
+          })
+        );
+        return sendJson(response, 200, receipt);
       }
 
       if (request.method === "GET" && url.pathname === "/api/a3/runs") {

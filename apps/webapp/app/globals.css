@@ -1426,6 +1426,31 @@ pre {
   border-radius: 3px;
 }
 
+.multimodal-assignment-strip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: -1px 0 18px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+}
+
+.multimodal-assignment-strip > div {
+  display: grid;
+  min-height: 70px;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 16px;
+  border-left: 1px solid var(--line);
+}
+
+.multimodal-assignment-strip > div:first-child { border-left: 0; }
+.multimodal-assignment-strip svg { color: var(--cobalt); }
+.multimodal-assignment-strip span { color: var(--muted); font-size: 10px; font-weight: 700; }
+.multimodal-assignment-strip strong { font-family: var(--font-display); font-size: 22px; }
+.multimodal-assignment-state .status-badge { justify-self: start; }
+
 .multimodal-review-list > article {
   display: grid;
   grid-template-columns: minmax(190px, 1.1fr) minmax(250px, 1.35fr) minmax(230px, 1.2fr) minmax(170px, 0.8fr);
@@ -2993,6 +3018,7 @@ pre {
   .multimodal-review-summary { grid-template-columns: minmax(0, 1fr); }
   .multimodal-review-metrics { border-top: 1px solid var(--line); border-left: 0; }
   .multimodal-review-list > article { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .multimodal-assignment-strip { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .multimodal-review-list > article > div:nth-child(3) { border-top: 1px solid var(--line); border-left: 0; }
   .multimodal-review-list > article > div:nth-child(4) { border-top: 1px solid var(--line); }
   .delivery-signal { grid-template-columns: minmax(0, 1fr); }
@@ -3087,6 +3113,9 @@ pre {
   .multimodal-review-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .multimodal-review-metrics > div { min-height: 84px; padding: 12px; }
   .multimodal-review-list > article { grid-template-columns: minmax(0, 1fr); }
+  .multimodal-assignment-strip { grid-template-columns: minmax(0, 1fr); }
+  .multimodal-assignment-strip > div { border-top: 1px solid var(--line); border-left: 0; }
+  .multimodal-assignment-strip > div:first-child { border-top: 0; }
   .multimodal-review-list > article > div { min-height: 84px; border-top: 1px solid var(--line); border-left: 0; }
   .multimodal-review-list > article > div:first-child { border-top: 0; }
   .observation-pair-risk { min-width: 0; }

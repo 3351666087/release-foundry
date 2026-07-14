@@ -24,7 +24,7 @@ until A1 hosted auth/RBAC/payment backends exist.
 
 ANCHOR: ENDPOINT_COVERAGE
 
-The contract currently maps 39 commercial endpoints, including:
+The contract currently maps 40 commercial endpoints, including:
 
 - `GET /v1/me`
 - `GET /v1/organizations`
@@ -38,6 +38,7 @@ The contract currently maps 39 commercial endpoints, including:
 - `POST /v1/release-gates/{release_gate_id}/waivers`
 - `POST /v1/release-gates/{release_gate_id}/approvals`
 - `POST /v1/release-gates/{release_gate_id}/denials`
+- `POST /v1/review-queues/multimodal/{queue_id}/assignment`
 - `GET /v1/deployments/sandbox-calibration`
 - `POST /v1/releases/{release_id}/deployment-receipts`
 - `POST /v1/releases/{release_id}/deployment-receipts/{receipt_id}/reviews`
@@ -66,6 +67,11 @@ Each endpoint records:
 The internal deployment-receipt verifier is service-account-only. Client payloads cannot
 supply verification status, claims, evidence, authority, or attestation; those values come
 from the configured server resolver and are stored as immutable hash-chained readbacks.
+
+Multimodal review assignments are append-only lease events. A reviewer can claim, renew,
+release, or transfer an item with `expected_version` concurrency protection. These events
+coordinate people only; they do not create an A2 human-review disposition and cannot alter
+risk, score, pass/fail, the Decision Ledger, or release authority.
 
 The self-host sandbox calibration route is different from a deployment receipt. It executes
 real local A1 behavior and stores a validated calibration in

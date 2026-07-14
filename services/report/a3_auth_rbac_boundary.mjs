@@ -273,6 +273,12 @@ export const A3_AUTHZ_OPERATION_POLICIES = [
     resourceType: "multimodal_review_queue",
     a2: ["semantic disagreement and queue receipt facts remain non-release-authoritative"]
   }),
+  operation("manage_multimodal_review_assignment", "POST /api/a3/review/multimodal-queue/:queueId/assignment", "release:review", "local_write", {
+    event: "review.multimodal_assignment_changed",
+    resourceType: "multimodal_review_assignment",
+    a1: ["server-verified reviewer identity, five-level scope, durable audit and outbox"],
+    a2: ["queue receipt remains non-authoritative; assignment never rewrites risk or release decisions"]
+  }),
   operation("share_report", "POST /api/a3/reports/share", "reports:share", "local_write", {
     event: "report.share_link_created",
     resourceType: "shareable_report",

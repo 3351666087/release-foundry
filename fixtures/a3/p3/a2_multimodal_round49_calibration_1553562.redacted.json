@@ -1,0 +1,89 @@
+{
+  "schema_version": "a3.a2_multimodal_peer_calibration.v1",
+  "observed_at": "2026-07-14T02:52:35.392698Z",
+  "source_branch": "origin/dev/g3-a2-calibration",
+  "source_commit_alias": "1553562",
+  "source_artifacts": [
+    "docs/evidence/a2_dashscope_multimodal_public_summary_round49.json",
+    "docs/evidence/a2_multimodal_perturbation_comparison_round49.json",
+    "docs/evidence/a2_postgresql_persistence_qualification_round49.json",
+    "docs/evidence/a2_trusted_spine_binding_recheck_round49.json"
+  ],
+  "real_provider_calibration": {
+    "provider_id": "dashscope",
+    "model_id": "qwen-vl-plus",
+    "endpoint_region": "beijing",
+    "qualification_state": "blocked",
+    "calibration_evidence_hash": "sha256:d222491d6d1f946a8b43b1cb791aa0d32f3a16693cf545ff0f39cb0e40f73df4",
+    "manifest_hash": "sha256:66bc9e3d84872484bd87590299bb84e93d614ed3bd74b7c2247a5fdaa4770f9d",
+    "counts": {
+      "requested": 50,
+      "completed": 49,
+      "failed": 1,
+      "eligible": 48,
+      "safe": 15,
+      "attack": 33,
+      "transformed_attack": 18
+    },
+    "quality": {
+      "sensitivity": 0.6363636363636364,
+      "specificity": 0.9333333333333333,
+      "balanced_accuracy": 0.7848484848484849
+    },
+    "latency_seconds": {
+      "median": 2.585,
+      "p95_nearest_rank": 10.373,
+      "max": 17.184
+    },
+    "usage": {
+      "total_tokens": 9119,
+      "pricing_state": "unavailable",
+      "estimated_cost_usd": null
+    },
+    "blockers": [
+      "dashscope_invalid_structured_output_observed",
+      "dashscope_provider_failure_observed",
+      "dashscope_latency_qualification_not_met",
+      "dashscope_sensitivity_review_threshold_not_met",
+      "dashscope_perturbation_distinct_source_minimum_not_met",
+      "dashscope_duplicate_source_perturbation_inflation",
+      "dashscope_perturbation_sample_minimum_not_met",
+      "dashscope_pricing_unavailable"
+    ]
+  },
+  "human_review_calibration": {
+    "real_public_safe_review_receipt_found": false,
+    "fixture_only_disposition_found": true,
+    "fixture_reviewer_identity_class": "test_review_fixture",
+    "observed_schemas": [
+      "a2.multimodal_human_review_disposition.v1",
+      "a2.multimodal_real_review_receipt.v1",
+      "a2.multimodal_review_chain_verification.v1",
+      "a2.multimodal_review_conservation.v1"
+    ],
+    "new_disposition": "reference_unavailable_collect_more_evidence",
+    "new_disposition_text": "reference unavailable; collect more evidence",
+    "a3_may_fabricate_real_review_receipt": false
+  },
+  "candidate_binding": {
+    "binding_state": "blocked",
+    "shared_candidate_id_present": false,
+    "trusted_spine_generated": false,
+    "same_round_real_postgresql_verified": false
+  },
+  "a3_response": {
+    "implemented": "append-only reviewer assignment leases with claim, renew, release, transfer, expiry, optimistic version checks, audit, outbox, and reference-store persistence",
+    "not_implemented_without_upstream_evidence": "authoritative A2 disposition or release-state mutation",
+    "next_upstream_requirement": "public-safe real human-review receipt plus same-candidate A2 Decision Ledger"
+  },
+  "safety": {
+    "public_safe": true,
+    "raw_provider_payload_included": false,
+    "raw_provider_text_included": false,
+    "raw_request_id_included": false,
+    "raw_reviewer_identity_included": false,
+    "secret_included": false,
+    "release_authority": false,
+    "a2_decision_recomputed": false
+  }
+}

@@ -60,6 +60,12 @@ export async function createSqliteA3Store(options = {}) {
       return result;
     },
 
+    async mutateMultimodalReviewAssignment(queueId, input, options = {}) {
+      const result = await store.mutateMultimodalReviewAssignment(queueId, input, options);
+      await persist();
+      return result;
+    },
+
     async createShareableReport(options = {}) {
       const result = await store.createShareableReport(options);
       await persist();
@@ -185,6 +191,7 @@ export function inspectSqliteA3Store(db) {
       api_import_receipts: countRows(db, "api_import_receipts"),
       saas_admin_action_requests: countRows(db, "saas_admin_action_requests"),
       review_workflow_records: countRows(db, "review_workflow_records"),
+      multimodal_review_assignment_events: countRows(db, "multimodal_review_assignment_events"),
       release_evidence_summaries: countRows(db, "release_evidence_summaries"),
       release_evidence_snapshots: countRows(db, "release_evidence_snapshots"),
       release_evidence_diffs: countRows(db, "release_evidence_diffs"),
@@ -249,6 +256,7 @@ async function persistSqliteState(db, store) {
     persistIdempotencyReceipts(db, state, updatedAt);
     persistSaasAdminActionRequests(db, state, updatedAt);
     persistReviewWorkflowRecords(db, state, updatedAt);
+    persistMultimodalReviewAssignmentEvents(db, state, updatedAt);
     persistAuditEvents(db, state, updatedAt);
     persistEventOutbox(db, state, updatedAt);
     persistGitHubPublishReceipts(db, state, updatedAt);
@@ -290,6 +298,7 @@ function clearOperationalRows(db) {
     "release_evidence_summaries",
     "saas_admin_action_requests",
     "review_workflow_records",
+    "multimodal_review_assignment_events",
     "api_import_receipts",
     "idempotency_keys",
     "report_share_links",
@@ -624,6 +633,42 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       record.signature?.status || "hash_sealed_unsigned_record",
       JSON.stringify(record),
       record.created_at || updatedAt
+    );
+  }
+}
+
+function persistMultimodalReviewAssignmentEvents(db, state, updatedAt) {
+  for (const event of state.multimodalReviewAssignmentEvents || []) {
+    db.prepare(`
+INSERT INTO multimodal_review_assignment_events (
+  id, organization_id, tenant_id, workspace_id, project_id, environment_id,
+  source, queue_id, case_id, comparison_hash, event_type, version,
+  actor_hash, actor_role, previous_reviewer_hash, assigned_reviewer_hash,
+  lease_expires_at, reason_code, event_hash, payload, created_at
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`).run(
+      event.event_id,
+      event.organization_id,
+      event.tenant_id,
+      event.workspace_id,
+      event.project_id,
+      event.environment_id,
+      event.source,
+      event.queue_id,
+      event.case_id,
+      event.comparison_hash,
+      event.event_type,
+      event.version,
+      event.actor_hash,
+      event.actor_role,
+      event.previous_reviewer_hash,
+      event.assigned_reviewer_hash,
+      event.lease_expires_at,
+      event.reason_code,
+      event.event_hash,
+      JSON.stringify(event),
+      event.created_at || updatedAt
     );
   }
 }
