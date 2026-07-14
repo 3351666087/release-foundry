@@ -3323,3 +3323,34 @@ Date: 2026-07-14
 Next: define bounded credential-link replay retention and an audited purge
 authority so old lookup keys can eventually retire safely, then continue
 cross-language identity-security client parity.
+
+## Round 67: Credential-Link Replay Retention and Audited Purge
+
+Date: 2026-07-14
+
+- Added migration 024 with an immutable 30-day replay-retention deadline for
+  completed credential-link lifecycle receipts.
+- Added a bounded, advisory-lock-serialized, idempotent `SECURITY DEFINER`
+  purge authority using `FOR UPDATE SKIP LOCKED`.
+- Added a forced-RLS durable purge audit that contains aggregate counts by safe
+  lookup-key version only; direct runtime access to receipt and audit tables
+  remains revoked.
+- Excluded `legacy-unversioned` rows from deletion and preserved exact replay
+  for the full retention window.
+- Added an A3-safe typed Go purge API with HMAC-keyed request fingerprints,
+  strict aggregate receipt validation, Unicode Chinese actor/reason support,
+  and fail-closed readiness checks.
+- Docker/PostgreSQL proves a lookup-v1 replay blocks retirement before expiry,
+  purges after expiry, replays idempotently, rejects changed requests, and
+  leaves no direct runtime deletion authority.
+- Verification passed: 18 focused migration tests, focused and complete Go
+  module tests, Go vet, live PostgreSQL lifecycle integration, and
+  `git diff --check`.
+- The full Python A1 suite produced `1393 passed, 2 skipped, 1 failed`; the
+  isolated failure reproduces an existing test that calls migration 017's old
+  binding function after migration 020 intentionally revoked it.
+- Evidence:
+  `docs/a1/evidence/round67_credential_link_replay_retention.md`.
+
+Next: continue cross-language identity-security/client parity and production
+lookup-key rotation drills after publishing bounded replay retention.

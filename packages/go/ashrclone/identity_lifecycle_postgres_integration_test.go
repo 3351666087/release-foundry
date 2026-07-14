@@ -491,6 +491,144 @@ SELECT
 		}
 	})
 
+	t.Run("credential link replay purge is bounded idempotent and aggregate only", func(t *testing.T) {
+		h := newPostgresLifecycleHarness(t, adminDSN)
+		instance := h.newInstanceWithLifecycleKeys(
+			t, []byte("purge-encryption-0123456789012345678"), "enc-v1", nil,
+			[]byte("purge-new-lookup-012345678901234567890"), "lookup-v2",
+			[]IdentityLifecycleLookupKey{{
+				Version: "lookup-v1",
+				Key:     []byte("purge-old-lookup-012345678901234567890"),
+			}},
+		)
+		registration := issueLifecycleProof(t, instance.service, TrustedIdentityProof{
+			Operation: IdentityOperationRegistration, Kind: IdentityCredentialEmail,
+			Provider: IdentityProviderLocal, Identifier: "replay-purge@example.cn",
+			VerifiedEmail: "replay-purge@example.cn", DisplayName: "Replay Purge Owner",
+		})
+		account, err := instance.service.CompleteRegistration(completionFor(registration))
+		if err != nil {
+			t.Fatal(err)
+		}
+		historicalConsumedAt := h.now.Add(-31 * 24 * time.Hour)
+		historicalExpiresAt := historicalConsumedAt.Add(-time.Minute)
+		mustExecArgs(t, instance.adminDB, `
+INSERT INTO identity_lifecycle_receipts(
+  receipt_digest,operation,provider,tenant_scope,project_scope,
+  proof_nonce,proof_key_version,lookup_key_version,proof_ciphertext,
+  expires_at,consumed_at,consume_outcome,
+  link_idempotency_digest,link_request_digest,link_result_id
+) VALUES (
+  $1,'credential_link','google','','',
+  decode($2,'hex'),'enc-v1','lookup-v1',decode($3,'hex'),
+  $4,$5,'success',$6,$7,$8::uuid
+)
+`, strings.Repeat("1", 64), strings.Repeat("ab", 12),
+			strings.Repeat("cd", 32), historicalExpiresAt,
+			historicalConsumedAt, strings.Repeat("2", 64),
+			strings.Repeat("3", 64), account.Credentials[0].CredentialID)
+
+		readiness, err := instance.store.LifecycleReceiptLookupRetirementReadiness(
+			context.Background(), "lookup-v1",
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if readiness.Ready || readiness.RetiringReplayRecords != 1 ||
+			!readiness.ReplayRetentionRequired {
+			t.Fatalf("historical replay did not block retirement: %#v", readiness)
+		}
+
+		beforeDeadline, err := instance.store.PurgeExpiredCredentialLinkReplays(
+			context.Background(), IdentityCredentialLinkReplayPurgeRequest{
+				Cutoff:  historicalConsumedAt.Add(29 * 24 * time.Hour),
+				MaxRows: 1, Actor: "中国区身份运维",
+				Reason: "保留期前验证", IdempotencyKey: "before-retention",
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if beforeDeadline.PurgedRows != 0 ||
+			len(beforeDeadline.LookupVersionCounts) != 0 {
+			t.Fatalf("pre-retention purge removed replay: %#v", beforeDeadline)
+		}
+
+		request := IdentityCredentialLinkReplayPurgeRequest{
+			Cutoff: h.now, MaxRows: 1, Actor: "中国区身份运维",
+			Reason: "已过保留期且密钥轮换", IdempotencyKey: "retire-lookup-v1",
+		}
+		first, err := instance.store.PurgeExpiredCredentialLinkReplays(
+			context.Background(), request,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if first.PurgedRows != 1 ||
+			first.LookupVersionCounts["lookup-v1"] != 1 {
+			t.Fatalf("eligible replay was not purged: %#v", first)
+		}
+		replay, err := instance.store.PurgeExpiredCredentialLinkReplays(
+			context.Background(), request,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if replay.PurgeID != first.PurgeID ||
+			replay.PurgedRows != first.PurgedRows ||
+			!replay.CompletedAt.Equal(first.CompletedAt) {
+			t.Fatalf("purge replay changed receipt: first=%#v replay=%#v", first, replay)
+		}
+		conflict := request
+		conflict.Reason = "changed request"
+		if _, err := instance.store.PurgeExpiredCredentialLinkReplays(
+			context.Background(), conflict,
+		); err == nil || !strings.Contains(err.Error(), "idempotency") {
+			t.Fatalf("changed purge request did not conflict: %v", err)
+		}
+
+		readiness, err = instance.store.LifecycleReceiptLookupRetirementReadiness(
+			context.Background(), "lookup-v1",
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !readiness.Ready || readiness.RetiringReplayRecords != 0 ||
+			readiness.ReplayRetentionRequired {
+			t.Fatalf("purge did not unblock lookup retirement: %#v", readiness)
+		}
+
+		var auditRows int
+		var auditText string
+		if err := instance.adminDB.QueryRow(`
+SELECT count(*),string_agg(to_jsonb(a)::text,'')
+FROM identity_credential_link_replay_purge_audit AS a
+`).Scan(&auditRows, &auditText); err != nil {
+			t.Fatal(err)
+		}
+		if auditRows != 2 {
+			t.Fatalf("purge audit rows=%d want=2", auditRows)
+		}
+		for _, forbidden := range []string{
+			"proof_nonce", "proof_ciphertext", "receipt_digest",
+			"link_result_id", account.Credentials[0].CredentialID,
+		} {
+			if strings.Contains(auditText, forbidden) {
+				t.Fatalf("purge audit leaked %q: %s", forbidden, auditText)
+			}
+		}
+		if _, err := instance.db.Exec(
+			`DELETE FROM identity_credential_link_replay_purge_audit`,
+		); err == nil {
+			t.Fatal("runtime directly deleted purge audit")
+		}
+		if _, err := instance.db.Exec(
+			`DELETE FROM identity_lifecycle_receipts`,
+		); err == nil {
+			t.Fatal("runtime directly deleted lifecycle receipts")
+		}
+	})
+
 	t.Run("concurrent credential link is one mutation with stable replay", func(t *testing.T) {
 		h := newPostgresLifecycleHarness(t, adminDSN)
 		key := []byte("concurrent-link-key-012345678901234")
@@ -1026,6 +1164,7 @@ $$`); err != nil {
 	for _, signature := range []string{
 		"a1_issue_identity_lifecycle_receipt(TEXT,TEXT,TEXT,TEXT,TEXT,BYTEA,TEXT,TEXT,BYTEA,TIMESTAMPTZ)",
 		"a1_identity_lifecycle_lookup_retirement_readiness(TEXT,TEXT[],TIMESTAMPTZ)",
+		"a1_purge_identity_credential_link_replays(TIMESTAMPTZ,INTEGER,TEXT,TEXT,TEXT,TEXT,TIMESTAMPTZ)",
 		"a1_lock_identity_lifecycle_receipt(TEXT[])",
 		"a1_consume_identity_lifecycle_receipt(TEXT,TEXT,TEXT,TEXT,TEXT,TIMESTAMPTZ)",
 		"a1_register_identity_lifecycle_credential(TEXT,TEXT,TEXT[],TEXT,TEXT,TEXT,TEXT,TIMESTAMPTZ)",
@@ -1185,7 +1324,7 @@ func applyIdentityLifecycleMigrations(t *testing.T, db *sql.DB) {
 	applied := 0
 	for _, path := range entries {
 		base := filepath.Base(path)
-		if len(base) < 3 || base[:3] < "001" || base[:3] > "023" {
+		if len(base) < 3 || base[:3] < "001" || base[:3] > "024" {
 			continue
 		}
 		sqlBytes, err := os.ReadFile(path)
@@ -1197,8 +1336,8 @@ func applyIdentityLifecycleMigrations(t *testing.T, db *sql.DB) {
 		}
 		applied++
 	}
-	if applied != 23 {
-		t.Fatalf("expected migrations 001-023, applied %d from %s", applied, migrationsDir)
+	if applied != 24 {
+		t.Fatalf("expected migrations 001-024, applied %d from %s", applied, migrationsDir)
 	}
 }
 

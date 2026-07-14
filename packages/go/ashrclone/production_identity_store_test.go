@@ -484,6 +484,214 @@ func TestLifecycleReceiptLookupRetirementReadinessFailsClosed(t *testing.T) {
 	})
 }
 
+func TestCredentialLinkReplayPurgeIsAggregateOnlyAndFailsClosed(t *testing.T) {
+	now := time.Date(2026, 7, 14, 12, 0, 0, 123456000, time.UTC)
+	newStore := func(t *testing.T) (*ProductionIdentityStore, sqlmock.Sqlmock) {
+		t.Helper()
+		db, mock, err := sqlmock.New()
+		if err != nil {
+			t.Fatal(err)
+		}
+		store, err := NewProductionIdentityStore(ProductionIdentityStoreOptions{
+			DB: db, Now: func() time.Time { return now },
+			SessionKey:                       bytes.Repeat([]byte{0x60}, 32),
+			LifecycleReceiptKey:              bytes.Repeat([]byte{0x61}, 32),
+			LifecycleReceiptKeyVersion:       "enc-v2",
+			LifecycleReceiptLookupKey:        bytes.Repeat([]byte{0x62}, 32),
+			LifecycleReceiptLookupKeyVersion: "lookup-v2",
+			SQLTimeout:                       time.Second, StatementTimeout: 800 * time.Millisecond,
+			LockTimeout: 200 * time.Millisecond,
+		})
+		if err != nil {
+			_ = db.Close()
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = store.Close() })
+		return store, mock
+	}
+	request := IdentityCredentialLinkReplayPurgeRequest{
+		Cutoff:         now.Add(-time.Hour),
+		MaxRows:        100,
+		Actor:          "identity-maintenance",
+		Reason:         "retired lookup namespace cleanup",
+		IdempotencyKey: "purge-2026-07-14T11",
+	}
+
+	t.Run("safe aggregate receipt", func(t *testing.T) {
+		store, mock := newStore(t)
+		raw := `{
+			"schema_version":"a1.identity.credential-link.replay-purge.v1",
+			"purge_id":"42",
+			"cutoff":"2026-07-14T11:00:00.123456Z",
+			"max_rows":100,
+			"purged_rows":4,
+			"lookup_version_counts":{"lookup-v1":4},
+			"completed_at":"2026-07-14T12:00:00.123456Z"
+		}`
+		mock.ExpectQuery("SELECT a1_purge_identity_credential_link_replays").
+			WithArgs(
+				request.Cutoff, request.MaxRows, request.Actor,
+				request.Reason, sqlmock.AnyArg(), sqlmock.AnyArg(), now,
+			).
+			WillReturnRows(sqlmock.NewRows([]string{"receipt"}).AddRow([]byte(raw)))
+		receipt, err := store.PurgeExpiredCredentialLinkReplays(
+			context.Background(), request,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if receipt.PurgeID != "42" || receipt.PurgedRows != 4 ||
+			receipt.LookupVersionCounts["lookup-v1"] != 4 ||
+			!receipt.Cutoff.Equal(request.Cutoff) {
+			t.Fatalf("unexpected purge receipt: %#v", receipt)
+		}
+		encoded, err := json.Marshal(receipt)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, forbidden := range []string{
+			"receipt_digest", "proof", "ciphertext", "nonce",
+			"subject", "email", "session", "ticket", "link_result",
+			"idempotency_digest", "request_digest", "lookup_key",
+		} {
+			if strings.Contains(string(encoded), forbidden) {
+				t.Fatalf("purge receipt leaked %s: %s", forbidden, encoded)
+			}
+		}
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("invalid requests never reach PostgreSQL", func(t *testing.T) {
+		for _, testCase := range []struct {
+			name    string
+			mutate  func(*IdentityCredentialLinkReplayPurgeRequest)
+			wantErr string
+		}{
+			{
+				name: "future cutoff",
+				mutate: func(item *IdentityCredentialLinkReplayPurgeRequest) {
+					item.Cutoff = now.Add(time.Second)
+				},
+				wantErr: "cutoff",
+			},
+			{
+				name: "zero limit",
+				mutate: func(item *IdentityCredentialLinkReplayPurgeRequest) {
+					item.MaxRows = 0
+				},
+				wantErr: "max rows",
+			},
+			{
+				name: "excessive limit",
+				mutate: func(item *IdentityCredentialLinkReplayPurgeRequest) {
+					item.MaxRows = 1001
+				},
+				wantErr: "max rows",
+			},
+			{
+				name: "empty actor",
+				mutate: func(item *IdentityCredentialLinkReplayPurgeRequest) {
+					item.Actor = " "
+				},
+				wantErr: "actor",
+			},
+			{
+				name: "control reason",
+				mutate: func(item *IdentityCredentialLinkReplayPurgeRequest) {
+					item.Reason = "unsafe\nreason"
+				},
+				wantErr: "reason",
+			},
+			{
+				name: "empty idempotency",
+				mutate: func(item *IdentityCredentialLinkReplayPurgeRequest) {
+					item.IdempotencyKey = ""
+				},
+				wantErr: "idempotency",
+			},
+		} {
+			t.Run(testCase.name, func(t *testing.T) {
+				store, mock := newStore(t)
+				item := request
+				testCase.mutate(&item)
+				_, err := store.PurgeExpiredCredentialLinkReplays(
+					context.Background(), item,
+				)
+				if err == nil || !strings.Contains(err.Error(), testCase.wantErr) {
+					t.Fatalf("expected %q failure, got %v", testCase.wantErr, err)
+				}
+				if err := mock.ExpectationsWereMet(); err != nil {
+					t.Fatal(err)
+				}
+			})
+		}
+	})
+
+	t.Run("database and malformed receipts fail closed", func(t *testing.T) {
+		for _, testCase := range []struct {
+			name string
+			raw  string
+			err  error
+			want string
+		}{
+			{name: "query", err: errors.New("maintenance unavailable"), want: "purge expired"},
+			{name: "decode", raw: `{`, want: "decode credential-link"},
+			{
+				name: "schema",
+				raw:  `{"schema_version":"wrong"}`,
+				want: "receipt is invalid",
+			},
+			{
+				name: "count mismatch",
+				raw: `{"schema_version":"a1.identity.credential-link.replay-purge.v1",
+					"purge_id":"1","cutoff":"2026-07-14T11:00:00.123456Z",
+					"max_rows":100,"purged_rows":2,
+					"lookup_version_counts":{"lookup-v1":1},
+					"completed_at":"2026-07-14T12:00:00Z"}`,
+				want: "receipt is invalid",
+			},
+			{
+				name: "legacy version",
+				raw: `{"schema_version":"a1.identity.credential-link.replay-purge.v1",
+					"purge_id":"1","cutoff":"2026-07-14T11:00:00.123456Z",
+					"max_rows":100,"purged_rows":1,
+					"lookup_version_counts":{"legacy-unversioned":1},
+					"completed_at":"2026-07-14T12:00:00Z"}`,
+				want: "receipt is invalid",
+			},
+		} {
+			t.Run(testCase.name, func(t *testing.T) {
+				store, mock := newStore(t)
+				expectation := mock.ExpectQuery(
+					"SELECT a1_purge_identity_credential_link_replays",
+				).WithArgs(
+					request.Cutoff, request.MaxRows, request.Actor,
+					request.Reason, sqlmock.AnyArg(), sqlmock.AnyArg(), now,
+				)
+				if testCase.err != nil {
+					expectation.WillReturnError(testCase.err)
+				} else {
+					expectation.WillReturnRows(
+						sqlmock.NewRows([]string{"receipt"}).
+							AddRow([]byte(testCase.raw)),
+					)
+				}
+				_, err := store.PurgeExpiredCredentialLinkReplays(
+					context.Background(), request,
+				)
+				if err == nil || !strings.Contains(err.Error(), testCase.want) {
+					t.Fatalf("expected %q failure, got %v", testCase.want, err)
+				}
+				if err := mock.ExpectationsWereMet(); err != nil {
+					t.Fatal(err)
+				}
+			})
+		}
+	})
+}
+
 func TestPostgresLifecycleReceiptConditionalConsumeHasOneWinnerShape(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {
@@ -663,8 +871,11 @@ func TestProductionIdentityReadinessRequiresSessionAndDeliveryReplacementContrac
 		"identity_session_lifecycle_operations",
 		"identity_verification_delivery_redrive_audit",
 		"lookup_key_version",
+		"replay_retain_until",
+		"identity_credential_link_replay_purge_audit",
 		"a1_issue_identity_lifecycle_receipt(text,text,text,text,text,bytea,text,text,bytea,timestamp with time zone)",
 		"a1_identity_lifecycle_lookup_retirement_readiness",
+		"a1_purge_identity_credential_link_replays",
 		"a1_issue_identity_verification_challenge_with_delivery",
 		"a1_issue_identity_session_with_refresh",
 		"a1_rotate_identity_session_refresh",
