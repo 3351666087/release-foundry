@@ -32,11 +32,12 @@ type postgresLifecycleHarness struct {
 }
 
 type postgresLifecycleInstance struct {
-	db       *sql.DB
-	adminDB  *sql.DB
-	store    *ProductionIdentityStore
-	receipts *postgresIdentityLifecycleReceiptStore
-	service  *IdentityLifecycleService
+	db                    *sql.DB
+	adminDB               *sql.DB
+	store                 *ProductionIdentityStore
+	receipts              *postgresIdentityLifecycleReceiptStore
+	service               *IdentityLifecycleService
+	credentialLinkService *IdentityCredentialLinkService
 }
 
 func TestIdentityLifecyclePostgresIntegration(t *testing.T) {
@@ -232,6 +233,639 @@ INSERT INTO identity_project_memberships(
 		assertPublicIdentityJSON(t, auth)
 	})
 
+	t.Run("atomic credential link and exact replay", func(t *testing.T) {
+		h := newPostgresLifecycleHarness(t, adminDSN)
+		instance := h.newInstance(t, []byte("credential-link-key-012345678901234"), "v1", nil)
+		registration := issueLifecycleProof(t, instance.service, TrustedIdentityProof{
+			Operation: IdentityOperationRegistration, Kind: IdentityCredentialEmail,
+			Provider: IdentityProviderLocal, Identifier: "link-owner@example.cn",
+			VerifiedEmail: "link-owner@example.cn", DisplayName: "Credential Link Owner",
+		})
+		account, err := instance.service.CompleteRegistration(completionFor(registration))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(account.Credentials) != 1 {
+			t.Fatalf("registration returned credentials=%d want=1", len(account.Credentials))
+		}
+
+		orgID := "20000000-0000-4000-8000-000000000001"
+		workspaceID := "20000000-0000-4000-8000-000000000002"
+		projectID := "20000000-0000-4000-8000-000000000003"
+		establishIdentityProjectScope(
+			t, instance, account.AccountID, orgID, workspaceID, projectID, h.now,
+		)
+		sessionID, sessionDigest := issueScopedIdentitySession(
+			t, instance, account.AccountID, account.Credentials[0].CredentialID,
+			orgID, projectID, h.now,
+		)
+		proof := issueLifecycleProof(t, instance.service, TrustedIdentityProof{
+			Operation: IdentityOperationCredentialLink, Kind: IdentityCredentialOAuth,
+			Provider: IdentityProviderGoogle, Identifier: "google-link-subject",
+			VerifiedEmail: "link-owner@example.cn",
+			TenantID:      orgID, ProjectID: projectID,
+		})
+		command := authorizeIdentityCredentialLink(
+			t, instance, account.AccountID, sessionID, sessionDigest,
+			orgID, projectID, proof, "credential-link-integration", h.now,
+		)
+
+		result, err := instance.credentialLinkService.Complete(context.Background(), command)
+		if err != nil {
+			t.Fatalf("complete credential link: %v", err)
+		}
+		if result.SchemaVersion != IdentityCredentialLinkSchemaVersion ||
+			result.AccountID != account.AccountID ||
+			result.Credential.Provider != IdentityProviderGoogle ||
+			!result.Credential.Verified || !result.CredentialAdded ||
+			result.LinkedAt.IsZero() {
+			t.Fatalf("credential link returned %#v", result)
+		}
+		assertPublicIdentityJSON(t, result)
+		encoded, err := json.Marshal(result)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, secret := range []string{
+			proof.ReceiptID, command.SessionDigest, command.MutationTicketID,
+			command.StepUpReceiptID, "google-link-subject", "link-owner@example.cn",
+		} {
+			if strings.Contains(string(encoded), secret) {
+				t.Fatalf("credential link result leaked trusted material %q: %s", secret, encoded)
+			}
+		}
+
+		replay, err := instance.credentialLinkService.Complete(context.Background(), command)
+		if err != nil {
+			t.Fatalf("exact credential link replay: %v", err)
+		}
+		if replay.CredentialAdded ||
+			replay.Credential.CredentialID != result.Credential.CredentialID ||
+			!replay.LinkedAt.Equal(result.LinkedAt) {
+			t.Fatalf("exact replay changed result: first=%#v replay=%#v", result, replay)
+		}
+		changedRequests := map[string]func(*IdentityCredentialLinkCommand){
+			"idempotency": func(item *IdentityCredentialLinkCommand) {
+				item.IdempotencyKey = "credential-link-integration-changed"
+			},
+			"request fingerprint": func(item *IdentityCredentialLinkCommand) {
+				item.SessionID = "different-trusted-session-id"
+			},
+		}
+		for name, mutate := range changedRequests {
+			t.Run(name+" conflict is public safe", func(t *testing.T) {
+				changed := command
+				mutate(&changed)
+				_, changedErr := instance.credentialLinkService.Complete(
+					context.Background(), changed,
+				)
+				var domain IdentityDomainError
+				if !errors.As(changedErr, &domain) ||
+					domain.Code != "identity_credential_link_conflict" {
+					t.Fatalf("changed replay returned %v", changedErr)
+				}
+				if strings.Contains(changedErr.Error(), "identity_credential_link_idempotency_conflict") {
+					t.Fatalf("changed replay leaked PostgreSQL detail: %v", changedErr)
+				}
+			})
+		}
+		var credentials, consumedProofs, consumedTickets, consumedReceipts, events int
+		if err := instance.adminDB.QueryRow(`
+SELECT
+  (SELECT count(*) FROM identity_credentials WHERE principal_id=$1::uuid),
+  (SELECT count(*) FROM identity_lifecycle_receipts
+    WHERE receipt_digest=$2 AND consumed_at IS NOT NULL),
+  (SELECT count(*) FROM identity_security_mutation_tickets
+    WHERE ticket_digest=$3 AND consumed_at IS NOT NULL),
+  (SELECT count(*) FROM identity_security_receipts
+    WHERE receipt_digest=$4 AND consumed_at IS NOT NULL),
+  (SELECT count(*) FROM identity_audit_events
+    WHERE principal_id=$1::uuid AND action='identity.credential.link.completed')
+`, account.AccountID, instance.receipts.receiptDigest(proof.ReceiptID),
+			command.MutationTicketID, command.StepUpReceiptID).
+			Scan(&credentials, &consumedProofs, &consumedTickets, &consumedReceipts, &events); err != nil {
+			t.Fatal(err)
+		}
+		if credentials != 2 || consumedProofs != 1 || consumedTickets != 1 ||
+			consumedReceipts != 1 || events != 1 {
+			t.Fatalf(
+				"credential link counts credentials=%d proof=%d ticket=%d step_up=%d events=%d",
+				credentials, consumedProofs, consumedTickets, consumedReceipts, events,
+			)
+		}
+	})
+
+	t.Run("credential link replay survives encryption key retirement", func(t *testing.T) {
+		h := newPostgresLifecycleHarness(t, adminDSN)
+		oldEncryption := []byte("old-link-encryption-0123456789012345")
+		newEncryption := []byte("new-link-encryption-0123456789012345")
+		stableLookup := []byte("stable-link-lookup-012345678901234567")
+		old := h.newInstanceWithLifecycleKeys(
+			t, oldEncryption, "enc-old", nil,
+			stableLookup, "lookup-v1", nil,
+		)
+		registration := issueLifecycleProof(t, old.service, TrustedIdentityProof{
+			Operation: IdentityOperationRegistration, Kind: IdentityCredentialEmail,
+			Provider: IdentityProviderLocal, Identifier: "rotated-link@example.cn",
+			VerifiedEmail: "rotated-link@example.cn", DisplayName: "Rotated Link Owner",
+		})
+		account, err := old.service.CompleteRegistration(completionFor(registration))
+		if err != nil {
+			t.Fatal(err)
+		}
+		orgID := "25000000-0000-4000-8000-000000000001"
+		workspaceID := "25000000-0000-4000-8000-000000000002"
+		projectID := "25000000-0000-4000-8000-000000000003"
+		establishIdentityProjectScope(
+			t, old, account.AccountID, orgID, workspaceID, projectID, h.now,
+		)
+		sessionID, sessionDigest := issueScopedIdentitySession(
+			t, old, account.AccountID, account.Credentials[0].CredentialID,
+			orgID, projectID, h.now,
+		)
+		proof := issueLifecycleProof(t, old.service, TrustedIdentityProof{
+			Operation: IdentityOperationCredentialLink, Kind: IdentityCredentialOAuth,
+			Provider: IdentityProviderGoogle, Identifier: "rotated-google-subject",
+			VerifiedEmail: "rotated-link@example.cn",
+			TenantID:      orgID, ProjectID: projectID,
+		})
+		command := authorizeIdentityCredentialLink(
+			t, old, account.AccountID, sessionID, sessionDigest,
+			orgID, projectID, proof, "credential-link-key-retirement", h.now,
+		)
+		first, err := old.credentialLinkService.Complete(context.Background(), command)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		retired := h.newInstanceWithLifecycleKeys(
+			t, newEncryption, "enc-new", nil,
+			stableLookup, "lookup-v1", nil,
+		)
+		replay, err := retired.credentialLinkService.Complete(context.Background(), command)
+		if err != nil {
+			t.Fatalf("completed replay failed after old encryption key retirement: %v", err)
+		}
+		if replay.CredentialAdded ||
+			replay.Credential.CredentialID != first.Credential.CredentialID ||
+			!replay.LinkedAt.Equal(first.LinkedAt) {
+			t.Fatalf("retired-key replay changed result: first=%#v replay=%#v", first, replay)
+		}
+
+		pendingProof := issueLifecycleProof(t, old.service, TrustedIdentityProof{
+			Operation: IdentityOperationCredentialLink, Kind: IdentityCredentialOAuth,
+			Provider: IdentityProviderGitHub, Identifier: "retired-github-subject",
+			VerifiedEmail: "rotated-link@example.cn",
+			TenantID:      orgID, ProjectID: projectID,
+		})
+		pendingCommand := authorizeIdentityCredentialLink(
+			t, old, account.AccountID, sessionID, sessionDigest,
+			orgID, projectID, pendingProof, "credential-link-pending-retirement", h.now,
+		)
+		_, err = retired.credentialLinkService.Complete(context.Background(), pendingCommand)
+		var domain IdentityDomainError
+		if !errors.As(err, &domain) || domain.Code != "identity_credential_link_unavailable" {
+			t.Fatalf("unconsumed retired-key proof returned %v", err)
+		}
+		if strings.Contains(err.Error(), "enc-old") ||
+			strings.Contains(err.Error(), ErrIdentityProofKeyUnavailable.Error()) {
+			t.Fatalf("retired-key failure leaked internal key detail: %v", err)
+		}
+		if _, err := old.credentialLinkService.Complete(context.Background(), pendingCommand); err != nil {
+			t.Fatalf("retired-key failure consumed authorization artifacts: %v", err)
+		}
+
+		var credentials, completedEvents int
+		if err := old.adminDB.QueryRow(`
+SELECT
+  (SELECT count(*) FROM identity_credentials WHERE principal_id=$1::uuid),
+  (SELECT count(*) FROM identity_audit_events
+    WHERE principal_id=$1::uuid AND action='identity.credential.link.completed')
+`, account.AccountID).Scan(&credentials, &completedEvents); err != nil {
+			t.Fatal(err)
+		}
+		if credentials != 3 || completedEvents != 2 {
+			t.Fatalf(
+				"retired-key replay duplicated state credentials=%d completed_events=%d",
+				credentials, completedEvents,
+			)
+		}
+	})
+
+	t.Run("concurrent credential link is one mutation with stable replay", func(t *testing.T) {
+		h := newPostgresLifecycleHarness(t, adminDSN)
+		key := []byte("concurrent-link-key-012345678901234")
+		first := h.newInstance(t, key, "v1", nil)
+		second := h.newInstance(t, key, "v1", nil)
+		registration := issueLifecycleProof(t, first.service, TrustedIdentityProof{
+			Operation: IdentityOperationRegistration, Kind: IdentityCredentialEmail,
+			Provider: IdentityProviderLocal, Identifier: "concurrent-link@example.cn",
+			VerifiedEmail: "concurrent-link@example.cn", DisplayName: "Concurrent Link Owner",
+		})
+		account, err := first.service.CompleteRegistration(completionFor(registration))
+		if err != nil {
+			t.Fatal(err)
+		}
+		orgID := "30000000-0000-4000-8000-000000000001"
+		workspaceID := "30000000-0000-4000-8000-000000000002"
+		projectID := "30000000-0000-4000-8000-000000000003"
+		establishIdentityProjectScope(
+			t, first, account.AccountID, orgID, workspaceID, projectID, h.now,
+		)
+		sessionID, sessionDigest := issueScopedIdentitySession(
+			t, first, account.AccountID, account.Credentials[0].CredentialID,
+			orgID, projectID, h.now,
+		)
+		proof := issueLifecycleProof(t, first.service, TrustedIdentityProof{
+			Operation: IdentityOperationCredentialLink, Kind: IdentityCredentialOAuth,
+			Provider: IdentityProviderGitHub, Identifier: "concurrent-github-subject",
+			VerifiedEmail: "concurrent-link@example.cn",
+			TenantID:      orgID, ProjectID: projectID,
+		})
+		command := authorizeIdentityCredentialLink(
+			t, first, account.AccountID, sessionID, sessionDigest,
+			orgID, projectID, proof, "credential-link-concurrent", h.now,
+		)
+
+		type completion struct {
+			result IdentityCredentialLinkResultDTO
+			err    error
+		}
+		const completions = 16
+		responses := make(chan completion, completions)
+		var wait sync.WaitGroup
+		for index := 0; index < completions; index++ {
+			wait.Add(1)
+			go func(index int) {
+				defer wait.Done()
+				service := first.credentialLinkService
+				if index%2 == 1 {
+					service = second.credentialLinkService
+				}
+				result, err := service.Complete(context.Background(), command)
+				responses <- completion{result: result, err: err}
+			}(index)
+		}
+		wait.Wait()
+		close(responses)
+
+		var credentialID string
+		var linkedAt time.Time
+		added := 0
+		replayed := 0
+		for response := range responses {
+			if response.err != nil {
+				t.Fatalf("concurrent credential link returned %v", response.err)
+			}
+			if response.result.CredentialAdded {
+				added++
+			} else {
+				replayed++
+			}
+			if credentialID == "" {
+				credentialID = response.result.Credential.CredentialID
+				linkedAt = response.result.LinkedAt
+				continue
+			}
+			if response.result.Credential.CredentialID != credentialID ||
+				!response.result.LinkedAt.Equal(linkedAt) {
+				t.Fatalf(
+					"concurrent replay changed result: credential=%q/%q linked_at=%s/%s",
+					credentialID, response.result.Credential.CredentialID,
+					linkedAt, response.result.LinkedAt,
+				)
+			}
+		}
+		if added != 1 || replayed != completions-1 {
+			t.Fatalf("concurrent completion added=%d replayed=%d", added, replayed)
+		}
+
+		var credentials, consumedProofs, consumedTickets, consumedReceipts, events int
+		if err := first.adminDB.QueryRow(`
+SELECT
+  (SELECT count(*) FROM identity_credentials WHERE principal_id=$1::uuid),
+  (SELECT count(*) FROM identity_lifecycle_receipts
+    WHERE receipt_digest=$2 AND consumed_at IS NOT NULL),
+  (SELECT count(*) FROM identity_security_mutation_tickets
+    WHERE ticket_digest=$3 AND consumed_at IS NOT NULL),
+  (SELECT count(*) FROM identity_security_receipts
+    WHERE receipt_digest=$4 AND consumed_at IS NOT NULL),
+  (SELECT count(*) FROM identity_audit_events
+    WHERE principal_id=$1::uuid AND action='identity.credential.link.completed')
+`, account.AccountID, first.receipts.receiptDigest(proof.ReceiptID),
+			command.MutationTicketID, command.StepUpReceiptID).
+			Scan(&credentials, &consumedProofs, &consumedTickets, &consumedReceipts, &events); err != nil {
+			t.Fatal(err)
+		}
+		if credentials != 2 || consumedProofs != 1 || consumedTickets != 1 ||
+			consumedReceipts != 1 || events != 1 {
+			t.Fatalf(
+				"concurrent credential link counts credentials=%d proof=%d ticket=%d step_up=%d events=%d",
+				credentials, consumedProofs, consumedTickets, consumedReceipts, events,
+			)
+		}
+	})
+
+	t.Run("provider subject conflict rolls back cross-account takeover", func(t *testing.T) {
+		h := newPostgresLifecycleHarness(t, adminDSN)
+		instance := h.newInstance(t, []byte("subject-conflict-key-01234567890123"), "v1", nil)
+		register := func(email, displayName string) IdentityAccountDTO {
+			t.Helper()
+			proof := issueLifecycleProof(t, instance.service, TrustedIdentityProof{
+				Operation: IdentityOperationRegistration, Kind: IdentityCredentialEmail,
+				Provider: IdentityProviderLocal, Identifier: email,
+				VerifiedEmail: email, DisplayName: displayName,
+			})
+			account, err := instance.service.CompleteRegistration(completionFor(proof))
+			if err != nil {
+				t.Fatalf("register %s: %v", email, err)
+			}
+			return account
+		}
+		owner := register("subject-owner@example.cn", "Subject Owner")
+		attacker := register("subject-attacker@example.cn", "Subject Attacker")
+
+		ownerOrgID := "40000000-0000-4000-8000-000000000001"
+		ownerWorkspaceID := "40000000-0000-4000-8000-000000000002"
+		ownerProjectID := "40000000-0000-4000-8000-000000000003"
+		establishIdentityProjectScope(
+			t, instance, owner.AccountID,
+			ownerOrgID, ownerWorkspaceID, ownerProjectID, h.now,
+		)
+		ownerSessionID, ownerSessionDigest := issueScopedIdentitySession(
+			t, instance, owner.AccountID, owner.Credentials[0].CredentialID,
+			ownerOrgID, ownerProjectID, h.now,
+		)
+		ownerProof := issueLifecycleProof(t, instance.service, TrustedIdentityProof{
+			Operation: IdentityOperationCredentialLink, Kind: IdentityCredentialOAuth,
+			Provider: IdentityProviderGoogle, Identifier: "globally-unique-google-subject",
+			VerifiedEmail: "subject-owner@example.cn",
+			TenantID:      ownerOrgID, ProjectID: ownerProjectID,
+		})
+		ownerCommand := authorizeIdentityCredentialLink(
+			t, instance, owner.AccountID, ownerSessionID, ownerSessionDigest,
+			ownerOrgID, ownerProjectID, ownerProof, "subject-owner-link", h.now,
+		)
+		if _, err := instance.credentialLinkService.Complete(
+			context.Background(), ownerCommand,
+		); err != nil {
+			t.Fatalf("owner credential link: %v", err)
+		}
+
+		attackerOrgID := "50000000-0000-4000-8000-000000000001"
+		attackerWorkspaceID := "50000000-0000-4000-8000-000000000002"
+		attackerProjectID := "50000000-0000-4000-8000-000000000003"
+		establishIdentityProjectScope(
+			t, instance, attacker.AccountID,
+			attackerOrgID, attackerWorkspaceID, attackerProjectID, h.now,
+		)
+		attackerSessionID, attackerSessionDigest := issueScopedIdentitySession(
+			t, instance, attacker.AccountID, attacker.Credentials[0].CredentialID,
+			attackerOrgID, attackerProjectID, h.now,
+		)
+		attackerProof := issueLifecycleProof(t, instance.service, TrustedIdentityProof{
+			Operation: IdentityOperationCredentialLink, Kind: IdentityCredentialOAuth,
+			Provider: IdentityProviderGoogle, Identifier: "globally-unique-google-subject",
+			VerifiedEmail: "subject-attacker@example.cn",
+			TenantID:      attackerOrgID, ProjectID: attackerProjectID,
+		})
+		attackerCommand := authorizeIdentityCredentialLink(
+			t, instance, attacker.AccountID, attackerSessionID, attackerSessionDigest,
+			attackerOrgID, attackerProjectID, attackerProof, "subject-attacker-link", h.now,
+		)
+		for attempt := 0; attempt < 2; attempt++ {
+			_, linkErr := instance.credentialLinkService.Complete(
+				context.Background(), attackerCommand,
+			)
+			var domain IdentityDomainError
+			if !errors.As(linkErr, &domain) ||
+				domain.Code != "identity_credential_link_conflict" {
+				t.Fatalf("cross-account subject conflict attempt %d returned %v", attempt+1, linkErr)
+			}
+			if strings.Contains(linkErr.Error(), "identity_credential_link_conflict") {
+				t.Fatalf("cross-account subject conflict leaked PostgreSQL detail: %v", linkErr)
+			}
+		}
+
+		var ownerCredentials, attackerCredentials int
+		var proofUnconsumed, ticketUnconsumed, stepUpUnconsumed bool
+		var attackerEvents int
+		if err := instance.adminDB.QueryRow(`
+SELECT
+  (SELECT count(*) FROM identity_credentials WHERE principal_id=$1::uuid),
+  (SELECT count(*) FROM identity_credentials WHERE principal_id=$2::uuid),
+  (SELECT consumed_at IS NULL FROM identity_lifecycle_receipts WHERE receipt_digest=$3),
+  (SELECT consumed_at IS NULL FROM identity_security_mutation_tickets WHERE ticket_digest=$4),
+  (SELECT consumed_at IS NULL FROM identity_security_receipts WHERE receipt_digest=$5),
+  (SELECT count(*) FROM identity_audit_events
+    WHERE principal_id=$2::uuid AND action='identity.credential.link.completed')
+`, owner.AccountID, attacker.AccountID,
+			instance.receipts.receiptDigest(attackerProof.ReceiptID),
+			attackerCommand.MutationTicketID, attackerCommand.StepUpReceiptID).
+			Scan(
+				&ownerCredentials, &attackerCredentials,
+				&proofUnconsumed, &ticketUnconsumed, &stepUpUnconsumed,
+				&attackerEvents,
+			); err != nil {
+			t.Fatal(err)
+		}
+		if ownerCredentials != 2 || attackerCredentials != 1 ||
+			!proofUnconsumed || !ticketUnconsumed || !stepUpUnconsumed ||
+			attackerEvents != 0 {
+			t.Fatalf(
+				"cross-account rollback owner_credentials=%d attacker_credentials=%d proof_unconsumed=%t ticket_unconsumed=%t step_up_unconsumed=%t events=%d",
+				ownerCredentials, attackerCredentials,
+				proofUnconsumed, ticketUnconsumed, stepUpUnconsumed,
+				attackerEvents,
+			)
+		}
+	})
+
+	t.Run("canonical email conflict rolls back credential and authorization", func(t *testing.T) {
+		h := newPostgresLifecycleHarness(t, adminDSN)
+		instance := h.newInstance(t, []byte("email-conflict-key-0123456789012345"), "v1", nil)
+		register := func(email, displayName string) IdentityAccountDTO {
+			t.Helper()
+			proof := issueLifecycleProof(t, instance.service, TrustedIdentityProof{
+				Operation: IdentityOperationRegistration, Kind: IdentityCredentialEmail,
+				Provider: IdentityProviderLocal, Identifier: email,
+				VerifiedEmail: email, DisplayName: displayName,
+			})
+			account, err := instance.service.CompleteRegistration(completionFor(proof))
+			if err != nil {
+				t.Fatalf("register %s: %v", email, err)
+			}
+			return account
+		}
+		owner := register("canonical-email-owner@example.cn", "Canonical Email Owner")
+		target := register("canonical-email-target@example.cn", "Canonical Email Target")
+
+		orgID := "60000000-0000-4000-8000-000000000001"
+		workspaceID := "60000000-0000-4000-8000-000000000002"
+		projectID := "60000000-0000-4000-8000-000000000003"
+		establishIdentityProjectScope(
+			t, instance, target.AccountID, orgID, workspaceID, projectID, h.now,
+		)
+		sessionID, sessionDigest := issueScopedIdentitySession(
+			t, instance, target.AccountID, target.Credentials[0].CredentialID,
+			orgID, projectID, h.now,
+		)
+		proof := issueLifecycleProof(t, instance.service, TrustedIdentityProof{
+			Operation: IdentityOperationCredentialLink, Kind: IdentityCredentialOAuth,
+			Provider: IdentityProviderGitHub, Identifier: "distinct-github-subject",
+			VerifiedEmail: "canonical-email-owner@example.cn",
+			TenantID:      orgID, ProjectID: projectID,
+		})
+		command := authorizeIdentityCredentialLink(
+			t, instance, target.AccountID, sessionID, sessionDigest,
+			orgID, projectID, proof, "canonical-email-conflict", h.now,
+		)
+		for attempt := 0; attempt < 2; attempt++ {
+			_, linkErr := instance.credentialLinkService.Complete(
+				context.Background(), command,
+			)
+			var domain IdentityDomainError
+			if !errors.As(linkErr, &domain) ||
+				domain.Code != "identity_credential_link_conflict" {
+				t.Fatalf("canonical email conflict attempt %d returned %v", attempt+1, linkErr)
+			}
+			if strings.Contains(linkErr.Error(), "canonical_email_conflict") {
+				t.Fatalf("canonical email conflict leaked PostgreSQL detail: %v", linkErr)
+			}
+		}
+
+		var ownerCredentials, targetCredentials, emailOwners int
+		var proofUnconsumed, ticketUnconsumed, stepUpUnconsumed bool
+		var targetEvents int
+		if err := instance.adminDB.QueryRow(`
+SELECT
+  (SELECT count(*) FROM identity_credentials WHERE principal_id=$1::uuid),
+  (SELECT count(*) FROM identity_credentials WHERE principal_id=$2::uuid),
+  (SELECT count(*) FROM identity_account_emails
+    WHERE principal_id IN ($1::uuid,$2::uuid)),
+  (SELECT consumed_at IS NULL FROM identity_lifecycle_receipts WHERE receipt_digest=$3),
+  (SELECT consumed_at IS NULL FROM identity_security_mutation_tickets WHERE ticket_digest=$4),
+  (SELECT consumed_at IS NULL FROM identity_security_receipts WHERE receipt_digest=$5),
+  (SELECT count(*) FROM identity_audit_events
+    WHERE principal_id=$2::uuid AND action='identity.credential.link.completed')
+`, owner.AccountID, target.AccountID,
+			instance.receipts.receiptDigest(proof.ReceiptID),
+			command.MutationTicketID, command.StepUpReceiptID).
+			Scan(
+				&ownerCredentials, &targetCredentials, &emailOwners,
+				&proofUnconsumed, &ticketUnconsumed, &stepUpUnconsumed,
+				&targetEvents,
+			); err != nil {
+			t.Fatal(err)
+		}
+		if ownerCredentials != 1 || targetCredentials != 1 || emailOwners != 2 ||
+			!proofUnconsumed || !ticketUnconsumed || !stepUpUnconsumed ||
+			targetEvents != 0 {
+			t.Fatalf(
+				"canonical email rollback owner_credentials=%d target_credentials=%d email_owners=%d proof_unconsumed=%t ticket_unconsumed=%t step_up_unconsumed=%t events=%d",
+				ownerCredentials, targetCredentials, emailOwners,
+				proofUnconsumed, ticketUnconsumed, stepUpUnconsumed,
+				targetEvents,
+			)
+		}
+	})
+
+	t.Run("foreign project scope is rejected with complete rollback", func(t *testing.T) {
+		h := newPostgresLifecycleHarness(t, adminDSN)
+		instance := h.newInstance(t, []byte("foreign-scope-key-01234567890123456"), "v1", nil)
+		register := func(email, displayName string) IdentityAccountDTO {
+			t.Helper()
+			proof := issueLifecycleProof(t, instance.service, TrustedIdentityProof{
+				Operation: IdentityOperationRegistration, Kind: IdentityCredentialEmail,
+				Provider: IdentityProviderLocal, Identifier: email,
+				VerifiedEmail: email, DisplayName: displayName,
+			})
+			account, err := instance.service.CompleteRegistration(completionFor(proof))
+			if err != nil {
+				t.Fatalf("register %s: %v", email, err)
+			}
+			return account
+		}
+		target := register("scope-target@example.cn", "Scope Target")
+		foreign := register("scope-foreign@example.cn", "Scope Foreign")
+
+		targetOrgID := "70000000-0000-4000-8000-000000000001"
+		targetWorkspaceID := "70000000-0000-4000-8000-000000000002"
+		targetProjectID := "70000000-0000-4000-8000-000000000003"
+		establishIdentityProjectScope(
+			t, instance, target.AccountID,
+			targetOrgID, targetWorkspaceID, targetProjectID, h.now,
+		)
+		targetSessionID, targetSessionDigest := issueScopedIdentitySession(
+			t, instance, target.AccountID, target.Credentials[0].CredentialID,
+			targetOrgID, targetProjectID, h.now,
+		)
+
+		foreignOrgID := "80000000-0000-4000-8000-000000000001"
+		foreignWorkspaceID := "80000000-0000-4000-8000-000000000002"
+		foreignProjectID := "80000000-0000-4000-8000-000000000003"
+		establishIdentityProjectScope(
+			t, instance, foreign.AccountID,
+			foreignOrgID, foreignWorkspaceID, foreignProjectID, h.now,
+		)
+		proof := issueLifecycleProof(t, instance.service, TrustedIdentityProof{
+			Operation: IdentityOperationCredentialLink, Kind: IdentityCredentialOAuth,
+			Provider: IdentityProviderGitHub, Identifier: "foreign-scope-github-subject",
+			VerifiedEmail: "scope-target@example.cn",
+			TenantID:      foreignOrgID, ProjectID: foreignProjectID,
+		})
+		command := authorizeIdentityCredentialLink(
+			t, instance, target.AccountID, targetSessionID, targetSessionDigest,
+			foreignOrgID, foreignProjectID, proof, "foreign-project-scope", h.now,
+		)
+		for attempt := 0; attempt < 2; attempt++ {
+			_, linkErr := instance.credentialLinkService.Complete(
+				context.Background(), command,
+			)
+			var domain IdentityDomainError
+			if !errors.As(linkErr, &domain) ||
+				domain.Code != "identity_credential_link_rejected" {
+				t.Fatalf("foreign project scope attempt %d returned %v", attempt+1, linkErr)
+			}
+			if strings.Contains(linkErr.Error(), "identity session scope") {
+				t.Fatalf("foreign project scope leaked PostgreSQL detail: %v", linkErr)
+			}
+		}
+
+		var targetCredentials, foreignCredentials int
+		var proofUnconsumed, ticketUnconsumed, stepUpUnconsumed bool
+		var targetEvents int
+		if err := instance.adminDB.QueryRow(`
+SELECT
+  (SELECT count(*) FROM identity_credentials WHERE principal_id=$1::uuid),
+  (SELECT count(*) FROM identity_credentials WHERE principal_id=$2::uuid),
+  (SELECT consumed_at IS NULL FROM identity_lifecycle_receipts WHERE receipt_digest=$3),
+  (SELECT consumed_at IS NULL FROM identity_security_mutation_tickets WHERE ticket_digest=$4),
+  (SELECT consumed_at IS NULL FROM identity_security_receipts WHERE receipt_digest=$5),
+  (SELECT count(*) FROM identity_audit_events
+    WHERE principal_id=$1::uuid AND action='identity.credential.link.completed')
+`, target.AccountID, foreign.AccountID,
+			instance.receipts.receiptDigest(proof.ReceiptID),
+			command.MutationTicketID, command.StepUpReceiptID).
+			Scan(
+				&targetCredentials, &foreignCredentials,
+				&proofUnconsumed, &ticketUnconsumed, &stepUpUnconsumed,
+				&targetEvents,
+			); err != nil {
+			t.Fatal(err)
+		}
+		if targetCredentials != 1 || foreignCredentials != 1 ||
+			!proofUnconsumed || !ticketUnconsumed || !stepUpUnconsumed ||
+			targetEvents != 0 {
+			t.Fatalf(
+				"foreign scope rollback target_credentials=%d foreign_credentials=%d proof_unconsumed=%t ticket_unconsumed=%t step_up_unconsumed=%t events=%d",
+				targetCredentials, foreignCredentials,
+				proofUnconsumed, ticketUnconsumed, stepUpUnconsumed,
+				targetEvents,
+			)
+		}
+	})
+
 	t.Run("receipt key rotation and tamper fail closed", func(t *testing.T) {
 		h := newPostgresLifecycleHarness(t, adminDSN)
 		oldKey := []byte("old-lifecycle-key-01234567890123456")
@@ -361,6 +995,9 @@ $$`); err != nil {
 		"a1_resolve_identity_security_mutation_ticket(TEXT,TEXT,TEXT,TIMESTAMPTZ)",
 		"a1_execute_identity_security_mutation(TEXT,TEXT,TEXT)",
 		"a1_project_account_security(UUID)",
+		"a1_bind_verified_identity_credential_authorized(UUID,UUID,TEXT,UUID,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,JSONB)",
+		"a1_lock_identity_credential_link_receipt(TEXT[])",
+		"a1_complete_identity_credential_link(UUID,UUID,TEXT,UUID,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,JSONB)",
 	} {
 		if _, err := db.Exec(`GRANT EXECUTE ON FUNCTION ` + signature + ` TO ` +
 			quotePostgresIdentifier(runtimeRole)); err != nil {
@@ -402,6 +1039,26 @@ func (h *postgresLifecycleHarness) newInstance(
 	keyVersion string,
 	previous []IdentityLifecycleEncryptionKey,
 ) *postgresLifecycleInstance {
+	return h.newInstanceWithLifecycleKeys(
+		t,
+		lifecycleKey,
+		keyVersion,
+		previous,
+		nil,
+		"",
+		nil,
+	)
+}
+
+func (h *postgresLifecycleHarness) newInstanceWithLifecycleKeys(
+	t *testing.T,
+	lifecycleKey []byte,
+	keyVersion string,
+	previous []IdentityLifecycleEncryptionKey,
+	lookupKey []byte,
+	lookupKeyVersion string,
+	previousLookup []IdentityLifecycleLookupKey,
+) *postgresLifecycleInstance {
 	t.Helper()
 	db, err := sql.Open("postgres", h.runtimeDSN)
 	if err != nil {
@@ -410,12 +1067,15 @@ func (h *postgresLifecycleHarness) newInstance(
 	db.SetMaxOpenConns(16)
 	store, err := NewProductionIdentityStore(ProductionIdentityStoreOptions{
 		DB: db, Now: func() time.Time { return h.now },
-		SessionKey:                   []byte("session-hmac-key-012345678901234567"),
-		SessionKeyVersion:            "integration",
-		LifecycleReceiptKey:          lifecycleKey,
-		LifecycleReceiptKeyVersion:   keyVersion,
-		PreviousLifecycleReceiptKeys: previous,
-		SQLTimeout:                   10 * time.Second, StatementTimeout: 9 * time.Second, LockTimeout: 8 * time.Second,
+		SessionKey:                         []byte("session-hmac-key-012345678901234567"),
+		SessionKeyVersion:                  "integration",
+		LifecycleReceiptKey:                lifecycleKey,
+		LifecycleReceiptKeyVersion:         keyVersion,
+		PreviousLifecycleReceiptKeys:       previous,
+		LifecycleReceiptLookupKey:          lookupKey,
+		LifecycleReceiptLookupKeyVersion:   lookupKeyVersion,
+		PreviousLifecycleReceiptLookupKeys: previousLookup,
+		SQLTimeout:                         10 * time.Second, StatementTimeout: 9 * time.Second, LockTimeout: 8 * time.Second,
 	})
 	if err != nil {
 		_ = db.Close()
@@ -453,8 +1113,21 @@ func (h *postgresLifecycleHarness) newInstance(
 		_ = store.Close()
 		t.Fatal(err)
 	}
+	linkCoordinator, err := NewPostgresIdentityCredentialLinkCoordinator(store, receipts)
+	if err != nil {
+		_ = store.Close()
+		t.Fatal(err)
+	}
+	credentialLinkService, err := NewIdentityCredentialLinkService(
+		linkCoordinator, func() time.Time { return h.now },
+	)
+	if err != nil {
+		_ = store.Close()
+		t.Fatal(err)
+	}
 	instance := &postgresLifecycleInstance{
 		db: db, adminDB: h.adminDB, store: store, receipts: receipts, service: service,
+		credentialLinkService: credentialLinkService,
 	}
 	t.Cleanup(func() { _ = instance.store.Close() })
 	return instance
@@ -472,7 +1145,7 @@ func applyIdentityLifecycleMigrations(t *testing.T, db *sql.DB) {
 	applied := 0
 	for _, path := range entries {
 		base := filepath.Base(path)
-		if len(base) < 3 || base[:3] < "001" || base[:3] > "018" {
+		if len(base) < 3 || base[:3] < "001" || base[:3] > "021" {
 			continue
 		}
 		sqlBytes, err := os.ReadFile(path)
@@ -484,8 +1157,8 @@ func applyIdentityLifecycleMigrations(t *testing.T, db *sql.DB) {
 		}
 		applied++
 	}
-	if applied != 18 {
-		t.Fatalf("expected migrations 001-018, applied %d from %s", applied, migrationsDir)
+	if applied != 21 {
+		t.Fatalf("expected migrations 001-021, applied %d from %s", applied, migrationsDir)
 	}
 }
 
@@ -576,6 +1249,138 @@ func assertPublicIdentityJSON(t *testing.T, value any) {
 		if strings.Contains(lower, forbidden) {
 			t.Fatalf("public identity DTO leaked %q: %s", forbidden, encoded)
 		}
+	}
+}
+
+func establishIdentityProjectScope(
+	t *testing.T,
+	instance *postgresLifecycleInstance,
+	principalID string,
+	organizationID string,
+	workspaceID string,
+	projectID string,
+	now time.Time,
+) {
+	t.Helper()
+	scopeSuffix := strings.ToLower(strings.ReplaceAll(organizationID, "-", ""))
+	if len(scopeSuffix) > 8 {
+		scopeSuffix = scopeSuffix[:8]
+	}
+	mustExecArgs(t, instance.adminDB, `
+INSERT INTO organizations(id,slug,display_name)
+VALUES ($1::uuid,$2,'Credential Link Org')
+`, organizationID, "credential-link-org-"+scopeSuffix)
+	mustExecArgs(t, instance.adminDB, `
+INSERT INTO workspaces(id,organization_id,slug,display_name)
+VALUES ($1::uuid,$2::uuid,$3,'Credential Link Workspace')
+`, workspaceID, organizationID, "credential-link-workspace-"+scopeSuffix)
+	mustExecArgs(t, instance.adminDB, `
+INSERT INTO projects(id,organization_id,workspace_id,slug,display_name)
+VALUES ($1::uuid,$2::uuid,$3::uuid,$4,'Credential Link Project')
+`, projectID, organizationID, workspaceID, "credential-link-project-"+scopeSuffix)
+	var organizationMembershipID string
+	if err := instance.adminDB.QueryRow(`
+INSERT INTO identity_organization_memberships(
+  organization_id,principal_id,role,status,activated_at
+) VALUES ($1::uuid,$2::uuid,'owner','active',$3)
+RETURNING id::text
+`, organizationID, principalID, now).Scan(&organizationMembershipID); err != nil {
+		t.Fatal(err)
+	}
+	mustExecArgs(t, instance.adminDB, `
+INSERT INTO identity_project_memberships(
+  organization_id,project_id,principal_id,organization_membership_id,
+  role,status,activated_at
+) VALUES ($1::uuid,$2::uuid,$3::uuid,$4::uuid,'admin','active',$5)
+`, organizationID, projectID, principalID, organizationMembershipID, now)
+}
+
+func issueScopedIdentitySession(
+	t *testing.T,
+	instance *postgresLifecycleInstance,
+	principalID string,
+	credentialID string,
+	organizationID string,
+	projectID string,
+	now time.Time,
+) (string, string) {
+	t.Helper()
+	token, err := instance.store.sessionTokens.issue()
+	if err != nil {
+		t.Fatal(err)
+	}
+	rotationDigest, err := instance.store.sessionTokens.digestActive(
+		"identity-credential-link-integration", principalID, token.digest,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	requestDigest := instance.receipts.receiptDigest(
+		"identity-credential-link-session:" + principalID,
+	)
+	var sessionID string
+	if err := instance.db.QueryRow(`
+SELECT id::text FROM a1_issue_identity_session(
+  $1::uuid,$2::uuid,$3,$4,$5,$6::uuid,$7::uuid,'aal1',$8,
+  '{"source":"identity_credential_link_integration"}'::jsonb
+)
+`, principalID, credentialID, token.digest, rotationDigest, now.Add(30*time.Minute),
+		organizationID, projectID, requestDigest).Scan(&sessionID); err != nil {
+		t.Fatalf("issue scoped identity session: %v", err)
+	}
+	return sessionID, token.digest
+}
+
+func authorizeIdentityCredentialLink(
+	t *testing.T,
+	instance *postgresLifecycleInstance,
+	principalID string,
+	sessionID string,
+	sessionDigest string,
+	organizationID string,
+	projectID string,
+	proof IdentityProofReceiptDTO,
+	idempotencyKey string,
+	now time.Time,
+) IdentityCredentialLinkCommand {
+	t.Helper()
+	proofDigest := instance.receipts.receiptDigest(proof.ReceiptID)
+	requestDigest := instance.receipts.receiptDigest(strings.Join([]string{
+		"credential-link:request", principalID, principalID,
+		sessionID, organizationID, projectID,
+		string(proof.Provider), proofDigest,
+	}, "\x00"))
+	stepUpReceiptDigest := instance.receipts.receiptDigest(
+		"credential-link:step-up:" + proof.ReceiptID,
+	)
+	mutationTicketDigest := instance.receipts.receiptDigest(
+		"credential-link:ticket:" + proof.ReceiptID,
+	)
+	mustExecArgs(t, instance.adminDB, `
+INSERT INTO identity_security_receipts(
+  receipt_digest,principal_id,purpose,context_digest,expires_at
+) VALUES ($1,$2::uuid,'credential_bind',$3,$4)
+`, stepUpReceiptDigest, principalID, requestDigest, now.Add(10*time.Minute))
+	var issued bool
+	if err := instance.adminDB.QueryRow(`
+SELECT a1_issue_identity_security_mutation_ticket(
+  $1,$2,$3::uuid,$3::uuid,'credential_bind',$4,
+  NULL,NULL,NULL,NULL,$5
+)
+`, mutationTicketDigest, stepUpReceiptDigest, principalID, requestDigest,
+		now.Add(5*time.Minute)).Scan(&issued); err != nil {
+		t.Fatalf("issue credential-bind mutation ticket: %v", err)
+	}
+	if !issued {
+		t.Fatal("credential-bind mutation ticket was not issued")
+	}
+	return IdentityCredentialLinkCommand{
+		AccountID: principalID, ActorID: principalID,
+		SessionID: sessionID, SessionDigest: sessionDigest,
+		Provider: proof.Provider, TenantID: organizationID, ProjectID: projectID,
+		ProofReceiptID:   proof.ReceiptID,
+		MutationTicketID: mutationTicketDigest, StepUpReceiptID: stepUpReceiptDigest,
+		IdempotencyKey: idempotencyKey,
 	}
 }
 

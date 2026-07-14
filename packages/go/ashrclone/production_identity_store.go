@@ -405,25 +405,36 @@ type IdentitySessionHMACKey struct {
 }
 
 type ProductionIdentityStoreOptions struct {
-	DB                           *sql.DB
-	SessionKey                   []byte
-	SessionKeyVersion            string
-	PreviousSessionKeys          []IdentitySessionHMACKey
-	LegacySessionKeyVersion      string
-	Random                       io.Reader
-	Now                          func() time.Time
-	RequirePreviousKeyRetention  bool
-	RefreshTokenLifetime         time.Duration
-	PreviousKeyRetentionMargin   time.Duration
-	SQLTimeout                   time.Duration
-	StatementTimeout             time.Duration
-	LockTimeout                  time.Duration
-	LifecycleReceiptKey          []byte
-	LifecycleReceiptKeyVersion   string
-	PreviousLifecycleReceiptKeys []IdentityLifecycleEncryptionKey
+	DB                                 *sql.DB
+	SessionKey                         []byte
+	SessionKeyVersion                  string
+	PreviousSessionKeys                []IdentitySessionHMACKey
+	LegacySessionKeyVersion            string
+	Random                             io.Reader
+	Now                                func() time.Time
+	RequirePreviousKeyRetention        bool
+	RefreshTokenLifetime               time.Duration
+	PreviousKeyRetentionMargin         time.Duration
+	SQLTimeout                         time.Duration
+	StatementTimeout                   time.Duration
+	LockTimeout                        time.Duration
+	LifecycleReceiptKey                []byte
+	LifecycleReceiptKeyVersion         string
+	PreviousLifecycleReceiptKeys       []IdentityLifecycleEncryptionKey
+	LifecycleReceiptLookupKey          []byte
+	LifecycleReceiptLookupKeyVersion   string
+	PreviousLifecycleReceiptLookupKeys []IdentityLifecycleLookupKey
 }
 
 type IdentityLifecycleEncryptionKey struct {
+	Version string
+	Key     []byte
+}
+
+// IdentityLifecycleLookupKey retains only the keyed receipt-lookup namespace.
+// Keeping lookup keys independent from proof-encryption keys allows completed
+// idempotent replays to remain locatable after an old encryption key retires.
+type IdentityLifecycleLookupKey struct {
 	Version string
 	Key     []byte
 }
@@ -891,10 +902,13 @@ func NewProductionIdentityStore(options ProductionIdentityStoreOptions) (*Produc
 		}
 		return nil, fmt.Errorf("production identity SQL timeouts must satisfy lock <= statement <= operation")
 	}
-	lifecycleKeys, err := newIdentityLifecycleKeyring(
+	lifecycleKeys, err := newIdentityLifecycleKeyringWithLookup(
 		options.LifecycleReceiptKeyVersion,
 		options.LifecycleReceiptKey,
 		options.PreviousLifecycleReceiptKeys,
+		options.LifecycleReceiptLookupKeyVersion,
+		options.LifecycleReceiptLookupKey,
+		options.PreviousLifecycleReceiptLookupKeys,
 	)
 	if err != nil {
 		sessionTokens.close()

@@ -139,10 +139,10 @@ def test_rls_is_fail_closed_and_isolates_tenant_and_project() -> None:
     assert "app.project_id" not in migration
     organization_scope = (
         "tenant_id=nullif("
-        "current_setting('app.a1_organization_id',true),'')"
+        "current_setting('app.a1_organization_id',true),'')::uuid"
     )
     project_scope = (
-        "project_id=nullif(current_setting('app.a1_project_id',true),'')"
+        "project_id=nullif(current_setting('app.a1_project_id',true),'')::uuid"
     )
     assert migration.count(organization_scope) >= 2, (
         "an absent organization context must expose zero rows and reject writes"
