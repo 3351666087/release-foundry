@@ -1409,6 +1409,9 @@ function sourceLabel(source) {
   if (source === "p3-media") {
     return "P3 redacted Ashr media sample";
   }
+  if (source === "p3-a2-round50") {
+    return "Round 50 public-safe three-provider review sample";
+  }
   if (source === "p3-official-demo") {
     return "P3 official Ashr demo dataset 884 / run 11926";
   }
@@ -1425,7 +1428,7 @@ function workflowRequestLabel(source) {
   if (source === "p3-official-demo") {
     return "official run";
   }
-  return source === "p3-media" ? "API sample" : "mock seed";
+  return ["p3-media", "p3-a2-round50"].includes(source) ? "API sample" : "mock seed";
 }
 
 function workflowRequestDetail(source) {
@@ -1438,7 +1441,7 @@ function workflowRequestDetail(source) {
   if (source === "p3-official-demo") {
     return "official dataset/run";
   }
-  return source === "p3-media" ? "sampled read-only" : "mock only";
+  return ["p3-media", "p3-a2-round50"].includes(source) ? "sampled read-only" : "mock only";
 }
 
 function renderCoverageHealth() {
@@ -3280,7 +3283,7 @@ async function loadDataSource(source) {
     state.productConsole = await fetchA3ProductConsole({ source, baseUrl: getA3ApiBaseUrl() });
     state.reviewWorkflow = await fetchA3ReviewWorkflow({ source, baseUrl: getA3ApiBaseUrl() });
     state.saasAdmin = await fetchA3AdminConsole({ source, baseUrl: getA3ApiBaseUrl() });
-  } else if (source === "p3-media") {
+  } else if (["p3-media", "p3-a2-round50"].includes(source)) {
     const sample = await loadJson("../../fixtures/a3/p3/ashr_run_detail_sample.redacted.json");
     const datasetSample = await loadOptionalJson("../../fixtures/a3/p3/ashr_dataset_detail_sample.redacted.json");
     state.requestProvenance = await loadOptionalJson("../../fixtures/a3/p3/ashr_request_detail_sample.redacted.json");
@@ -3543,7 +3546,7 @@ async function init() {
     actorHash: initParams.get("reviewActor") || ""
   };
   const initialSource = initParams.get("source") || "mock";
-  const allowedSources = new Set(["mock", "api-mock", "raw-a1", "raw-a2", "p3-media", "p3-official-demo"]);
+  const allowedSources = new Set(["mock", "api-mock", "raw-a1", "raw-a2", "p3-media", "p3-a2-round50", "p3-official-demo"]);
   $("source-select").value = allowedSources.has(initialSource) ? initialSource : "mock";
   await loadDataSource($("source-select").value);
 

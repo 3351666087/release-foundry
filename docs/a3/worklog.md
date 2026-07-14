@@ -7072,3 +7072,29 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
 - Root and Webapp production dependency audits each reported `0` vulnerabilities.
 - Offline packet verification passed; the new Audit Bundle verified `3/3` artifacts and its custody chain; the Audit Archive root and Ed25519 signature verified.
 - GitHub CI remains pending publication; no remote result is claimed in this local validation entry.
+
+## 2026-07-14 - A2 Round 50 Three-provider Review Intake
+
+- Started from clean A3 head `a13e9ae`, authoritative main `ccf6ce5`, and zero commits behind main.
+- `git fetch origin --prune` stalled in Git HTTPS transport; terminated only the hung fetch processes and used authenticated GitHub API readback instead of treating stale local refs as current.
+- Confirmed A1 peer `770ccc8` adds live PostgreSQL identity lifecycle evidence and A2 peer `bb3bcfe` adds a real public-safe three-way v2 artifact, review conservation and shared-candidate schema.
+- Confirmed A2 Round 50 has 74 three-provider comparisons, one semantic disagreement, one queue receipt, zero real human-review receipts, blocked candidate binding and release authority false.
+- Added a documented three-case redacted representative projection preserving real hashes, provider states and the queue receipt while recomputing subset summaries.
+- Validated the same adapter against the complete 74-case upstream artifact fetched into OS temp storage: `valid=true`, zero errors, three providers, one required review and one queue item; deleted the temporary file afterward.
+- Extended the multimodal adapter with exact three-provider key matching, state/eligible-count derivation, four-state summary, three pairwise summaries, receipt conservation and sensitive-material rejection.
+- Added `p3-a2-round50` to fixture Store, API defaults, Next.js source selector, customer labels and legacy source compatibility.
+- Preserved import RBAC, five-level tenant scope, Idempotency-Key, audit/outbox, assignment leases, optimistic concurrency and cross-tenant fail-closed behavior.
+- Proved the new schema survives API import, reviewer claim, Dashboard projection and SQLite restart without changing A2 decision or release authority.
+- Extended JSON, Markdown and Hosted Report with provider-set and provider-observation fields.
+- Generalized the Review page from a fixed left/right pair to dynamic two/three-provider observations and did not infer missing provider/model identity.
+- Extended OpenAPI to three-way v2 while keeping runtime parity `61/61`; upgraded API Reference to v12 and calibrated A1/A2 peer SHAs.
+- Saved and visually inspected desktop and 390 x 844 three-provider screenshots; the focused Playwright flow passed and reported no document-level horizontal overflow.
+- Added the implementation record and Growth Auditor Round 23 with 23 executable follow-ups.
+- Preserved Golden Path `7/11`, Deployment Acceptance `8/17`, current authority `integrity_invalid`, current A2 decision `unknown`, historical A2 `block`, production receipts `0`, and production ready `false`.
+- Final A3 Node regression passed `489` runnable tests with `1` explicit live-target PostgreSQL skip and `0` failures.
+- Current-main A2 passed `186/186` test files with `1050` subtests; A3 did not change A2 judgement semantics.
+- Next.js TypeScript/build passed with `15` pages; full Playwright passed `43/43`.
+- OpenAPI runtime parity passed `61/61`; CL hygiene had `0` findings and Commercial CL had `0` blockers/advisories.
+- Root and Webapp production dependency audits each reported `0` vulnerabilities; `git diff --check` passed.
+- `.env.local` remains ignored. No key, token, cookie, email, account identity, signed URL, raw provider payload, private media, or local account path was added.
+- GitHub CI remains pending publication; no remote result is claimed in this local validation entry.

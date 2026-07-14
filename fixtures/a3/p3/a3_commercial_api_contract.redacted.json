@@ -805,10 +805,10 @@
       ],
       "a1_a2_dependencies": [
         "A1 trusted reviewer identity and tenant scope",
-        "A2 non-authoritative multimodal queue receipt",
+        "A2 two-way or three-way non-authoritative multimodal queue receipt",
         "A3 reviewer lease workflow"
       ],
-      "notes": "Append-only assignment leases use expected_version and never alter A2 risk, score, disposition, or release authority. Metadata-only history can enter the signed Audit Archive only after packet integrity verification.",
+      "notes": "Append-only assignment leases consume validated A2 two-way v1/v3 or three-way v2 queue receipts, use expected_version, and never alter A2 risk, score, disposition, or release authority. Metadata-only history can enter the signed Audit Archive only after packet integrity verification.",
       "order": 22,
       "a3_status": "implemented_local_a3",
       "contract_risk": "low_read_or_ingest_contract",
@@ -1660,5 +1660,5 @@
     "documentation": "docs/a3/p3_commercial_api_contract_2026_07_09.md",
     "api_route": "GET /api/a3/commercial-api/contract"
   },
-  "contract_hash": "8e357dfb2ef7dd2975e1bc3fbe0b32f908b73c4414a65aaeee1ff2f42c9748da"
+  "contract_hash": "4f76491377370a7ee7395df6556e93b33c1f588ed84932042b53213e07cc078c"
 }

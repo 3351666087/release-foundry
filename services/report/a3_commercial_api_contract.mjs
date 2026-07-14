@@ -476,8 +476,8 @@ const COMMERCIAL_ENDPOINTS = [
     events: ["review.multimodal_assignment.claimed", "review.multimodal_assignment.transferred", "review.multimodal_assignment.released"],
     artifacts: ["multimodal_review_assignment_receipt", "multimodal_review_queue_export", "multimodal_review_assignment_packet"],
     usage: ["api_requests", "multimodal_review_assignment_actions"],
-    dependencies: ["A1 trusted reviewer identity and tenant scope", "A2 non-authoritative multimodal queue receipt", "A3 reviewer lease workflow"],
-    notes: "Append-only assignment leases use expected_version and never alter A2 risk, score, disposition, or release authority. Metadata-only history can enter the signed Audit Archive only after packet integrity verification."
+    dependencies: ["A1 trusted reviewer identity and tenant scope", "A2 two-way or three-way non-authoritative multimodal queue receipt", "A3 reviewer lease workflow"],
+    notes: "Append-only assignment leases consume validated A2 two-way v1/v3 or three-way v2 queue receipts, use expected_version, and never alter A2 risk, score, disposition, or release authority. Metadata-only history can enter the signed Audit Archive only after packet integrity verification."
   }),
   endpoint("GET /v1/deployments/sandbox-calibration", "A1/A3", "deployment_operations", "GET /api/a3/deployment/sandbox-calibration", {
     status: "implemented_local_sandbox",

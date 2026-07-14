@@ -113,21 +113,27 @@ export function ReviewPage() {
               {multimodalItems.map((item) => {
                 const left = record(item.left);
                 const right = record(item.right);
+                const threeWayProviders = array(item.providers).map(record);
+                const comparedProviders = threeWayProviders.length ? threeWayProviders : [left, right];
+                const providerLabels = comparedProviders.map(providerObservationLabel);
                 const operational = record(item.operational_state);
                 const assignmentHistory = array(item.assignment_history).map(record);
                 return (
                   <article key={string(item.queue_id)}>
                     <div><small>{zh ? "案例与证据" : "Case and evidence"}</small><strong>{string(item.case_id)}</strong><span>{comparisonScopeLabel(item, zh)}</span><code>{hashPrefix(string(item.artifact_hash))}</code></div>
                     <div>
-                      <small>{zh ? "模型比较" : "Model pair"}</small>
-                      <span className="model-pair"><GitCompareArrows size={15} aria-hidden="true" /><strong>{string(left.model_id)} / {string(right.model_id)}</strong></span>
-                      <span>{string(left.provider_id)} / {string(right.provider_id)} · {zh ? "同一媒体证据" : "same media evidence"}</span>
+                      <small>{comparedProviders.length > 2 ? (zh ? "三方模型比较" : "Three-provider comparison") : (zh ? "模型比较" : "Model pair")}</small>
+                      <span className="model-pair"><GitCompareArrows size={15} aria-hidden="true" /><strong>{providerLabels.join(" / ")}</strong></span>
+                      <span>{comparedProviders.length} {zh ? "路观察" : "observations"} · {zh ? "同一媒体证据" : "same media evidence"}{threeWayProviders.length ? ` · ${zh ? "可用" : "eligible"} ${number(item.eligible_provider_count)}` : ""}</span>
                     </div>
                     <div>
                       <small>{zh ? "风险观察" : "Risk observation"}</small>
                       <span className="observation-pair-risk">
-                        <StatusBadge value={`${string(left.model_id)}: ${modelRiskLabel(left, zh)}`} tone={modelRiskTone(left)} />
-                        <StatusBadge value={`${string(right.model_id)}: ${modelRiskLabel(right, zh)}`} tone={modelRiskTone(right)} />
+                        {comparedProviders.map((provider, providerIndex) => (
+                          <span key={`${providerObservationLabel(provider)}-${providerIndex}`} title={string(provider.observation_state, zh ? "状态未知" : "state unknown")}>
+                            <StatusBadge value={`${providerObservationLabel(provider)}: ${modelRiskLabel(provider, zh)}`} tone={modelRiskTone(provider)} />
+                          </span>
+                        ))}
                       </span>
                     </div>
                     <div className="multimodal-assignment-state">
@@ -221,6 +227,11 @@ function modelRiskTone(value: unknown): "pass" | "warn" | "fail" {
   if (observation.observed_risk === true) return "fail";
   if (observation.observed_risk === false) return "pass";
   return "warn";
+}
+
+function providerObservationLabel(value: unknown) {
+  const observation = record(value);
+  return string(observation.model_id, string(observation.provider_key, string(observation.provider_id, "provider")));
 }
 
 function comparisonScopeLabel(value: unknown, zh: boolean) {

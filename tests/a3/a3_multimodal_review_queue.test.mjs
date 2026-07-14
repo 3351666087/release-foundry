@@ -19,6 +19,10 @@ const v3FixtureUrl = new URL(
   "../../fixtures/a3/p3/a2_multimodal_comparison_v3_564d4b0_sample.redacted.json",
   import.meta.url
 );
+const threeWayV2FixtureUrl = new URL(
+  "../../fixtures/a3/p3/a2_multimodal_three_way_v2_bb3bcfe_sample.redacted.json",
+  import.meta.url
+);
 const tenantScope = {
   organization_id: "org-review",
   tenant_id: "tenant-review",
@@ -121,6 +125,73 @@ test("A3 maps A2 v3 repeated and aggregate disagreement evidence without promoti
   assert.ok(invalid.details.some((item) => item.issue === "review_receipt_conservation_failed"));
   assert.equal(invalidQueue.status, "invalid_upstream_contract");
   assert.equal(invalidQueue.source_contract, "a2.multimodal_cross_provider_comparison.v3");
+});
+
+test("A3 maps the real A2 Round 50 three-way v2 sample into one non-authoritative review item", async () => {
+  const fixture = JSON.parse(await readFile(threeWayV2FixtureUrl, "utf8"));
+  const validation = validateA2MultimodalComparison(fixture, { tenantScope });
+  const queue = buildA3MultimodalReviewQueue(fixture, {
+    tenantScope,
+    source: "p3-a2-round50",
+    sourceCommitAlias: "bb3bcfe",
+    ingestMode: "peer_branch_redacted_sample",
+    capabilityState: "peer_branch_contract_not_merged"
+  });
+
+  assert.equal(validation.valid, true);
+  assert.deepEqual(validation.provider_keys, ["dashscope_run_a", "dashscope_run_b", "qwen3vl_local"]);
+  assert.equal(validation.review_required_count, 1);
+  assert.equal(queue.available, true);
+  assert.equal(queue.source_contract, "a2.multimodal_three_way_comparison.v2");
+  assert.equal(queue.source_commit_alias, "bb3bcfe");
+  assert.equal(queue.provider_set.provider_count, 3);
+  assert.equal(queue.summary.comparison_count, 3);
+  assert.equal(queue.summary.provider_count, 3);
+  assert.equal(queue.summary.three_way_agreement, 0);
+  assert.equal(queue.summary.pairwise_agreement_with_unavailable, 1);
+  assert.equal(queue.summary.semantic_disagreement, 1);
+  assert.equal(queue.summary.unavailable, 1);
+  assert.equal(queue.summary.review_required_count, 1);
+  assert.equal(queue.items.length, 1);
+  assert.equal(queue.items[0].case_id, "round45-attack-unsafe_content_evasion-01");
+  assert.equal(queue.items[0].eligible_provider_count, 2);
+  assert.equal(queue.items[0].providers.length, 3);
+  assert.equal(queue.items[0].providers[0].model_identity_included, false);
+  assert.equal(queue.items[0].providers.find((item) => item.provider_key === "qwen3vl_local").eligible, false);
+  assert.equal(queue.items[0].risk_disagreement, true);
+  assert.equal(queue.items[0].eligibility_rule, "at_least_two_eligible_and_semantically_disagree");
+  assert.equal(queue.validation.pairwise_summary_verified, true);
+  assert.equal(queue.validation.receipt_conservation_verified, true);
+  assert.equal(queue.authority_boundary.can_change_release_decision, false);
+
+  const jsonReport = buildJsonReport(...emptyInputs(22), queue);
+  const markdownReport = buildMarkdownReport(...emptyInputs(21), queue);
+  assert.equal(jsonReport.multimodal_review_queue.provider_set.provider_count, 3);
+  assert.equal(jsonReport.multimodal_review_queue.items[0].provider_observations.length, 3);
+  assert.match(markdownReport, /dashscope_run_a=no risk observed/);
+  assert.match(markdownReport, /qwen3vl_local=unavailable/);
+});
+
+test("A3 rejects malformed three-way providers, summaries, receipt conservation, and authority claims", async () => {
+  const fixture = JSON.parse(await readFile(threeWayV2FixtureUrl, "utf8"));
+  const mutations = [
+    (value) => { delete value.evidence_hashes.qwen3vl_local; },
+    (value) => { value.comparisons[1].eligible_provider_count = 3; },
+    (value) => { value.comparisons[1].provider_states.dashscope_run_b.observed_risk = null; },
+    (value) => { value.summary.semantic_disagreement = 0; },
+    (value) => { value.pairwise_summaries["dashscope_run_a::dashscope_run_b"].agreement = 0; },
+    (value) => { value.human_review_queue_receipts = []; },
+    (value) => { value.release_authority = true; },
+    (value) => { value.evidence_hashes.dashscope_run_a = "https://private.invalid/evidence"; }
+  ];
+
+  for (const mutate of mutations) {
+    const candidate = structuredClone(fixture);
+    mutate(candidate);
+    const validation = validateA2MultimodalComparison(candidate, { tenantScope });
+    assert.equal(validation.valid, false);
+    assert.ok(validation.details.length > 0);
+  }
 });
 
 test("A3 exposes a bounded invalid state without echoing unsafe upstream content", async () => {

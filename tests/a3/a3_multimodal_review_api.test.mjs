@@ -9,6 +9,10 @@ const fixtureUrl = new URL(
   "../../fixtures/a3/p3/a2_multimodal_comparison_v3_564d4b0_sample.redacted.json",
   import.meta.url
 );
+const threeWayFixtureUrl = new URL(
+  "../../fixtures/a3/p3/a2_multimodal_three_way_v2_bb3bcfe_sample.redacted.json",
+  import.meta.url
+);
 const scope = {
   organization_id: "org-api-mm",
   tenant_id: "tenant-api-mm",
@@ -188,6 +192,80 @@ test("A3 API exposes the peer calibration queue and a protected tenant-scoped mu
     const foreign = await fetch(`${url}/api/a3/review/multimodal-queue?${query}`);
     assert.equal(foreign.status, 404);
     assert.doesNotMatch(await foreign.text(), /round40|qwen-vl|sha256:/);
+  } finally {
+    await new Promise((resolve) => server.close(resolve));
+  }
+});
+
+test("A3 API imports A2 Round 50 three-way v2 and preserves assignment, scope, and authority boundaries", async () => {
+  const store = await createFixtureBackedA3Store({ sources: ["p3-a2-round50"] });
+  const { server, url } = await startA3ApiServer({
+    store,
+    routeAccessMode: "demo_contract",
+    now: "2026-07-14T15:00:00.000Z"
+  });
+  try {
+    const peerResponse = await fetch(`${url}/api/a3/review/multimodal-queue?source=p3-a2-round50`, {
+      headers: { "x-a3-role": "reviewer" }
+    });
+    assert.equal(peerResponse.status, 200);
+    const peerQueue = await peerResponse.json();
+    assert.equal(peerQueue.source_commit_alias, "bb3bcfe");
+    assert.equal(peerQueue.source_contract, "a2.multimodal_three_way_comparison.v2");
+    assert.equal(peerQueue.provider_set.provider_count, 3);
+    assert.equal(peerQueue.summary.review_required_count, 1);
+    assert.equal(peerQueue.items[0].providers.length, 3);
+    assert.equal(peerQueue.items[0].release_authority, false);
+
+    const comparison = JSON.parse(await readFile(threeWayFixtureUrl, "utf8"));
+    const importResponse = await fetch(`${url}/api/a3/import/a2-multimodal-comparison`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": "mm-three-way-import-001",
+        "x-a3-role": "service_account"
+      },
+      body: JSON.stringify({ source: "api-three-way", ...scope, comparison })
+    });
+    assert.equal(importResponse.status, 201);
+    const importReceipt = await importResponse.json();
+    assert.equal(importReceipt.comparison_count, 3);
+    assert.equal(importReceipt.review_required_count, 1);
+    assert.equal(importReceipt.queue_receipt_count, 1);
+    assert.equal(importReceipt.upstream_release_authority, false);
+
+    const query = new URLSearchParams({ source: "api-three-way", ...scope, role: "reviewer" });
+    const queueResponse = await fetch(`${url}/api/a3/review/multimodal-queue?${query}`);
+    assert.equal(queueResponse.status, 200);
+    const queue = await queueResponse.json();
+    const queueId = queue.items[0].queue_id;
+    const claimResponse = await fetch(
+      `${url}/api/a3/review/multimodal-queue/${encodeURIComponent(queueId)}/assignment?${query}`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "idempotency-key": "mm-three-way-claim-001",
+          "x-a3-role": "reviewer",
+          "x-a3-actor-hash": "reviewer_hash_three_way"
+        },
+        body: JSON.stringify({
+          source: "api-three-way",
+          ...scope,
+          assignment: { action: "claim", expected_version: 0, lease_seconds: 300 }
+        })
+      }
+    );
+    assert.equal(claimResponse.status, 200);
+    assert.equal((await claimResponse.json()).release_decision_changed, false);
+
+    const dashboardResponse = await fetch(`${url}/api/a3/dashboard?${query}`);
+    assert.equal(dashboardResponse.status, 200);
+    const dashboard = await dashboardResponse.json();
+    assert.equal(dashboard.multimodal_review_queue.provider_set.provider_count, 3);
+    assert.equal(dashboard.multimodal_review_queue.items[0].operational_state.status, "claimed");
+    assert.equal(dashboard.multimodal_review_assignment_packet.integrity.status, "passed");
+    assert.equal(dashboard.multimodal_review_assignment_packet.authority_boundary.authoritative_human_review_included, false);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }

@@ -89,6 +89,7 @@ export function AppShell({ route, children }: { route: ProductRoute; children: R
             <select value={source} onChange={(event) => setSource(event.target.value)}>
               <option value="api-mock">{language === "zh-CN" ? "API 聚合证据" : "API evidence projection"}</option>
               <option value="p3-media">{language === "zh-CN" ? "多模态分歧校准" : "Multimodal disagreement calibration"}</option>
+              <option value="p3-a2-round50">{language === "zh-CN" ? "三方模型复核 · Round 50" : "Three-provider review · Round 50"}</option>
               <option value="p3-official-demo">{language === "zh-CN" ? "官方校准样本 884/11926" : "Official calibration sample 884/11926"}</option>
               <option value="raw-a1">{language === "zh-CN" ? "执行证据原始样本" : "Raw execution evidence"}</option>
               <option value="raw-a2">{language === "zh-CN" ? "评测结论原始样本" : "Raw evaluation evidence"}</option>

@@ -593,6 +593,60 @@ test.describe("A3 Next.js product console", () => {
     await page.screenshot({ path: "docs/screenshots/a3-webapp-multimodal-review-queue-mobile-390x844.png", fullPage: false });
   });
 
+  test("renders the real A2 Round 50 three-provider review projection without inventing model identity", async ({ page }) => {
+    const queueApiResponse = await page.request.get("/api/a3/review/multimodal-queue?source=p3-a2-round50", {
+      headers: { "x-a3-role": "reviewer" }
+    });
+    expect(queueApiResponse.status()).toBe(200);
+    const queueApi = await queueApiResponse.json();
+    expect(queueApi.source_contract).toBe("a2.multimodal_three_way_comparison.v2");
+    expect(queueApi.provider_set.provider_count).toBe(3);
+    expect(queueApi.summary.review_required_count).toBe(1);
+    expect(queueApi.items[0].providers).toHaveLength(3);
+    expect(queueApi.authority_boundary.can_change_release_decision).toBe(false);
+
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto(`${base}/review/?source=p3-a2-round50`);
+    await expect(page.getByRole("heading", { name: "人工审核" })).toBeVisible();
+    await expect(page.locator(".source-control select")).toHaveValue("p3-a2-round50");
+    const summary = page.locator(".multimodal-review-summary");
+    await expect(summary).toContainText("比较记录3");
+    await expect(summary).toContainText("语义分歧1");
+    await expect(summary).toContainText("等待复核1");
+    await expect(summary).toContainText("可改变发布决定否");
+
+    const queue = page.getByRole("region", { name: "多模态分歧审核队列" });
+    await expect(queue).toContainText("round45-attack-unsafe_content_evasion-01");
+    await expect(queue).toContainText("三方模型比较");
+    await expect(queue).toContainText("dashscope_run_a / dashscope_run_b / qwen3vl_local");
+    await expect(queue).toContainText("3 路观察");
+    await expect(queue).toContainText("可用 2");
+    await expect(queue).toContainText("dashscope_run_a: 未发现风险");
+    await expect(queue).toContainText("dashscope_run_b: 发现风险");
+    await expect(queue).toContainText("qwen3vl_local: 不可用");
+    await expect(queue).not.toContainText(/qwen-vl-plus|qwen-vl-max/);
+    await expect(page.locator(".multimodal-review-packet")).toContainText("等待第一条审核操作记录");
+    await expect(page.locator(".multimodal-authority-note")).toContainText("同一候选版本的决策账本");
+    await queue.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-three-provider-review-desktop.png", fullPage: false });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.reload();
+    await expect(summary).toBeVisible();
+    await summary.scrollIntoViewIfNeeded();
+    const mobile = await page.evaluate(() => ({
+      viewport: document.documentElement.clientWidth,
+      documentWidth: document.documentElement.scrollWidth,
+      summaryWidth: document.querySelector(".multimodal-review-summary")?.getBoundingClientRect().width || 0,
+      queueWidth: document.querySelector(".multimodal-review-list")?.getBoundingClientRect().width || 0
+    }));
+    expect(mobile.documentWidth).toBeLessThanOrEqual(mobile.viewport + 1);
+    expect(mobile.summaryWidth).toBeLessThanOrEqual(mobile.viewport);
+    expect(mobile.queueWidth).toBeLessThanOrEqual(mobile.viewport);
+    await queue.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-three-provider-review-mobile-390x844.png", fullPage: false });
+  });
+
   test("stays readable at 390 by 844 with mobile navigation", async ({ page }) => {
     const consoleErrors = collectConsoleErrors(page);
     await page.setViewportSize({ width: 390, height: 844 });

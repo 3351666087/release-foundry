@@ -5670,8 +5670,11 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
       `- Status: ${multimodalReviewQueue.status}`,
       `- Capability state: ${multimodalReviewQueue.capability_state}`,
       `- Compared cases: ${multimodalReviewQueue.summary.comparison_count}`,
+      `- Providers per comparison: ${multimodalReviewQueue.summary.provider_count}`,
       `- Repeat comparisons: ${multimodalReviewQueue.summary.repeat_comparison_count}`,
       `- Aggregate comparisons: ${multimodalReviewQueue.summary.aggregate_comparison_count}`,
+      `- Three-way agreements: ${multimodalReviewQueue.summary.three_way_agreement}`,
+      `- Pairwise agreements with unavailable provider: ${multimodalReviewQueue.summary.pairwise_agreement_with_unavailable}`,
       `- Semantic disagreements: ${multimodalReviewQueue.summary.semantic_disagreement}`,
       `- Internally unstable aggregates: ${multimodalReviewQueue.summary.internally_unstable}`,
       `- Awaiting human review: ${multimodalReviewQueue.summary.review_required_count}`,
@@ -5685,7 +5688,17 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
     );
     lines.push("### Disagreement Queue", "");
     for (const item of multimodalReviewQueue.items) {
-      lines.push(`- ${item.case_id}: ${item.comparison_scope}${item.repeat ? ` #${item.repeat}` : ""} / ${item.left_model}=${item.left_observed_risk} vs ${item.right_model}=${item.right_observed_risk} / ${item.queue_state} / assignment ${item.assignment_status} v${item.assignment_version} / release authority no`);
+      const providerComparison = item.provider_observations?.length
+        ? item.provider_observations.map((provider) => {
+            const observation = provider.observed_risk === true
+              ? "risk observed"
+              : provider.observed_risk === false
+                ? "no risk observed"
+                : "unavailable";
+            return `${provider.provider_key}=${observation}`;
+          }).join(" vs ")
+        : `${item.left_model}=${item.left_observed_risk} vs ${item.right_model}=${item.right_observed_risk}`;
+      lines.push(`- ${item.case_id}: ${item.comparison_scope}${item.repeat ? ` #${item.repeat}` : ""} / ${providerComparison} / ${item.queue_state} / assignment ${item.assignment_status} v${item.assignment_version} / release authority no`);
     }
     lines.push("");
   }
@@ -6370,6 +6383,8 @@ export function summarizeMultimodalReviewQueueExport(queue = {}) {
   const summary = objectOr(queue.summary);
   const authority = objectOr(queue.authority_boundary);
   const items = Array.isArray(queue.items) ? queue.items : [];
+  const providerSet = objectOr(queue.provider_set);
+  const providerSetItems = Array.isArray(providerSet.providers) ? providerSet.providers : [];
   const reviewPacket = objectOr(queue.review_packet);
   const reviewPacketAvailable = reviewPacket.schema_version === "a3.multimodal_review_assignment_packet.v1";
   return {
@@ -6381,14 +6396,29 @@ export function summarizeMultimodalReviewQueueExport(queue = {}) {
     source_commit_alias: queue.source_commit_alias || null,
     tenant_scope: objectOr(queue.tenant_scope),
     provider_pair: objectOr(queue.provider_pair),
+    provider_set: {
+      provider_count: numberOrDefault(providerSet.provider_count, providerSetItems.length),
+      providers: providerSetItems.map((provider) => ({
+        provider_key: provider.provider_key,
+        evidence_hash: provider.evidence_hash,
+        partial_journal_hash: provider.partial_journal_hash || null,
+        provider_identity_included: provider.provider_identity_included === true,
+        model_identity_included: provider.model_identity_included === true
+      })),
+      pairwise_summaries: objectOr(providerSet.pairwise_summaries),
+      designated_high_quality_reference: providerSet.designated_high_quality_reference || null
+    },
     summary: {
       comparison_count: numberOrDefault(summary.comparison_count, 0),
       repeat_comparison_count: numberOrDefault(summary.repeat_comparison_count, 0),
       aggregate_comparison_count: numberOrDefault(summary.aggregate_comparison_count, 0),
       agreement: numberOrDefault(summary.agreement, 0),
+      three_way_agreement: numberOrDefault(summary.three_way_agreement, 0),
+      pairwise_agreement_with_unavailable: numberOrDefault(summary.pairwise_agreement_with_unavailable, 0),
       semantic_disagreement: numberOrDefault(summary.semantic_disagreement, 0),
       unavailable: numberOrDefault(summary.unavailable, 0),
       internally_unstable: numberOrDefault(summary.internally_unstable, 0),
+      provider_count: numberOrDefault(summary.provider_count, providerSetItems.length),
       review_required_count: numberOrDefault(summary.review_required_count, 0),
       queue_receipt_count: numberOrDefault(summary.queue_receipt_count, 0),
       assignment_active_count: numberOrDefault(summary.assignment_active_count, 0),
@@ -6448,6 +6478,16 @@ export function summarizeMultimodalReviewQueueExport(queue = {}) {
       right_valid_risks: Array.isArray(item.right?.valid_risks)
         ? item.right.valid_risks.filter((value) => typeof value === "boolean")
         : [],
+      provider_observations: (Array.isArray(item.providers) ? item.providers : []).map((provider) => ({
+        provider_key: provider.provider_key,
+        evidence_hash: provider.evidence_hash,
+        partial_journal_hash: provider.partial_journal_hash || null,
+        eligible: provider.eligible === true,
+        observation_state: provider.observation_state,
+        observed_risk: [true, false, null].includes(provider.observed_risk) ? provider.observed_risk : null,
+        provider_identity_included: provider.provider_identity_included === true,
+        model_identity_included: provider.model_identity_included === true
+      })),
       assignment_status: operational.status || "unassigned",
       assignment_version: numberOrDefault(operational.version, 0),
       assigned_reviewer_hash: operational.assigned_reviewer_hash || null,

@@ -12045,9 +12045,297 @@
               }
             },
             "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "required": [
+              "schema_version",
+              "comparison_artifact_hash",
+              "evidence_hashes",
+              "partial_journal_hashes",
+              "comparisons",
+              "summary",
+              "pairwise_summaries",
+              "human_review_queue_receipts",
+              "release_authority",
+              "raw_payload_included",
+              "public_safe"
+            ],
+            "properties": {
+              "schema_version": {
+                "type": "string",
+                "const": "a2.multimodal_three_way_comparison.v2"
+              },
+              "comparison_artifact_hash": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              },
+              "evidence_hashes": {
+                "type": "object",
+                "minProperties": 3,
+                "maxProperties": 3,
+                "propertyNames": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 160,
+                  "pattern": "^(?!\\s)(?!.*\\s$)(?!.*::).+$"
+                },
+                "additionalProperties": {
+                  "type": "string",
+                  "pattern": "^sha256:[a-f0-9]{64}$"
+                }
+              },
+              "partial_journal_hashes": {
+                "type": "object",
+                "minProperties": 3,
+                "maxProperties": 3,
+                "propertyNames": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 160,
+                  "pattern": "^(?!\\s)(?!.*\\s$)(?!.*::).+$"
+                },
+                "additionalProperties": {
+                  "type": "string",
+                  "pattern": "^(|sha256:[a-f0-9]{64})$"
+                }
+              },
+              "comparisons": {
+                "type": "array",
+                "maxItems": 5000,
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "case_id",
+                    "artifact_hash",
+                    "repeat",
+                    "eligible_provider_count",
+                    "provider_states",
+                    "comparison_state",
+                    "human_review_required"
+                  ],
+                  "properties": {
+                    "case_id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 240
+                    },
+                    "artifact_hash": {
+                      "type": "string",
+                      "pattern": "^sha256:[a-f0-9]{64}$"
+                    },
+                    "repeat": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "eligible_provider_count": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 3
+                    },
+                    "provider_states": {
+                      "type": "object",
+                      "minProperties": 3,
+                      "maxProperties": 3,
+                      "propertyNames": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 160,
+                        "pattern": "^(?!\\s)(?!.*\\s$)(?!.*::).+$"
+                      },
+                      "additionalProperties": {
+                        "type": "object",
+                        "required": [
+                          "eligible",
+                          "parse_state",
+                          "observed_risk"
+                        ],
+                        "properties": {
+                          "eligible": {
+                            "type": "boolean"
+                          },
+                          "parse_state": {
+                            "type": "string",
+                            "minLength": 1,
+                            "maxLength": 240
+                          },
+                          "observed_risk": {
+                            "type": [
+                              "boolean",
+                              "null"
+                            ]
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "comparison_state": {
+                      "type": "string",
+                      "enum": [
+                        "three_way_agreement",
+                        "pairwise_agreement_with_unavailable",
+                        "semantic_disagreement",
+                        "unavailable"
+                      ]
+                    },
+                    "human_review_required": {
+                      "type": "boolean"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "summary": {
+                "type": "object",
+                "required": [
+                  "three_way_agreement",
+                  "pairwise_agreement_with_unavailable",
+                  "semantic_disagreement",
+                  "unavailable"
+                ],
+                "properties": {
+                  "three_way_agreement": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "pairwise_agreement_with_unavailable": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "semantic_disagreement": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "unavailable": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "additionalProperties": false
+              },
+              "pairwise_summaries": {
+                "type": "object",
+                "minProperties": 3,
+                "maxProperties": 3,
+                "additionalProperties": {
+                  "type": "object",
+                  "required": [
+                    "agreement",
+                    "semantic_disagreement",
+                    "unavailable"
+                  ],
+                  "properties": {
+                    "agreement": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "semantic_disagreement": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "unavailable": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "human_review_queue_receipts": {
+                "type": "array",
+                "maxItems": 5000,
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "receipt_id",
+                    "comparison_artifact_hash",
+                    "comparison_hash",
+                    "artifact_hash",
+                    "case_id",
+                    "repeat",
+                    "eligibility_rule",
+                    "queue_state",
+                    "reviewer_role",
+                    "release_authority"
+                  ],
+                  "properties": {
+                    "receipt_id": {
+                      "type": "string",
+                      "pattern": "^sha256:[a-f0-9]{64}$"
+                    },
+                    "comparison_artifact_hash": {
+                      "type": "string",
+                      "pattern": "^sha256:[a-f0-9]{64}$"
+                    },
+                    "comparison_hash": {
+                      "type": "string",
+                      "pattern": "^sha256:[a-f0-9]{64}$"
+                    },
+                    "artifact_hash": {
+                      "type": "string",
+                      "pattern": "^sha256:[a-f0-9]{64}$"
+                    },
+                    "case_id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 240
+                    },
+                    "repeat": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "eligibility_rule": {
+                      "type": "string",
+                      "enum": [
+                        "at_least_two_eligible_and_semantically_disagree",
+                        "designated_high_quality_reference_unavailable"
+                      ]
+                    },
+                    "reference_provider": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 160,
+                      "pattern": "^(?!\\s)(?!.*\\s$)(?!.*::).+$"
+                    },
+                    "queue_state": {
+                      "type": "string",
+                      "const": "awaiting_human_review"
+                    },
+                    "reviewer_role": {
+                      "type": "string",
+                      "const": "multimodal_safety_reviewer"
+                    },
+                    "release_authority": {
+                      "type": "boolean",
+                      "const": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "designated_high_quality_reference": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160,
+                "pattern": "^(?!\\s)(?!.*\\s$)(?!.*::).+$"
+              },
+              "release_authority": {
+                "type": "boolean",
+                "const": false
+              },
+              "raw_payload_included": {
+                "type": "boolean",
+                "const": false
+              },
+              "public_safe": {
+                "type": "boolean",
+                "const": true
+              }
+            },
+            "additionalProperties": false
           }
         ],
-        "description": "Validated by the A3 v1/v3 adapter; raw provider payloads and release authority are forbidden."
+        "description": "Validated by the A3 two-way v1/v3 and three-way v2 adapters; raw provider payloads and release authority are forbidden."
       },
       "MultimodalComparisonImportRequest": {
         "type": "object",
@@ -12218,7 +12506,8 @@
             "type": "string",
             "enum": [
               "a2.multimodal_cross_provider_comparison.v1",
-              "a2.multimodal_cross_provider_comparison.v3"
+              "a2.multimodal_cross_provider_comparison.v3",
+              "a2.multimodal_three_way_comparison.v2"
             ]
           },
           "tenant_scope": {

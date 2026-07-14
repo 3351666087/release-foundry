@@ -1443,7 +1443,7 @@
 - [x] Pass both CL guards, both production npm audits, and diff hygiene.
 - [x] Add implementation evidence and Growth Auditor Round 20 with 24 executable next steps.
 - [x] Keep release authority, score, pass/fail, failure class, and Decision Ledger unchanged.
-- [ ] Add three-way v2 only after an exact public-safe runtime artifact exists.
+- [x] Add three-way v2 after A2 Round 50 published an exact public-safe runtime artifact; consume a documented redacted representative projection.
 - [ ] Add four-way v1 only after an exact public-safe runtime artifact exists.
 - [ ] Ingest an authoritative real-review receipt and same-candidate A2 Decision Ledger.
 - [ ] Run the workflow in authorized staging with target PostgreSQL/object custody and production identity.
@@ -1509,3 +1509,39 @@
 - [ ] Import and validate a public-safe real A2 human-review chain.
 - [ ] Bind the terminal review hash and packet to a same-candidate A2 Decision Ledger.
 - [ ] Replace local self-signing with tenant-bound KMS/HSM or workload identity in authorized staging.
+
+## A2 Round 50 Three-provider Review Intake - 2026-07-14
+
+- [x] Confirm remote main `ccf6ce5`, A1 peer `770ccc8`, A2 peer `bb3bcfe`, PR state and CI through authenticated GitHub API after Git transport stalled.
+- [x] Re-read the enterprise strategy and preserve A1 identity/A2 decision ownership.
+- [x] Inspect the exact A2 three-way v2 schema, 74-case artifact, queue receipt, review conservation and shared-candidate blocker evidence.
+- [x] Record that Round 50 has one pending review and zero real human-review receipts.
+- [x] Add a three-case public-safe projection preserving the real representative rows, evidence hashes and queue receipt.
+- [x] Document that the projection is not byte-identical to the full 74-case artifact.
+- [x] Validate the adapter against the complete 74-case upstream artifact with zero errors, then remove the temporary copy.
+- [x] Add strict top-level and nested field allowlists for three-way v2.
+- [x] Require exactly three matching provider-key sets across evidence, journals and case observations.
+- [x] Recompute eligible counts, comparison states, four-way summary and three pairwise summaries for integrity only.
+- [x] Enforce queue-receipt conservation and comparison-artifact/case/artifact/repeat binding.
+- [x] Reject raw payloads, secrets, URLs, email, signed URLs, unsafe paths and release authority.
+- [x] Add `p3-a2-round50` to fixture Store, API server, Next.js selector and legacy compatibility selector.
+- [x] Preserve Memory, JSON-file and SQLite generic snapshot compatibility.
+- [x] Prove SQLite restart restores the three-way comparison and assignment lease.
+- [x] Extend OpenAPI with the exact three-way v2 envelope and keep runtime parity `61/61`.
+- [x] Upgrade API Reference to v12 with A1 `770ccc8` and A2 `bb3bcfe` peer calibration.
+- [x] Extend JSON, Markdown and Hosted Report exports with provider-set and provider-observation fields.
+- [x] Render a dynamic three-provider Review UI without inventing provider/model identity.
+- [x] Preserve assignment packet integrity and all A2 release-authority boundaries.
+- [x] Add unit, tamper, API, assignment, SQLite, OpenAPI, report and browser coverage.
+- [x] Save and inspect desktop and 390 x 844 screenshots without document-level horizontal overflow.
+- [x] Add implementation evidence and Growth Auditor Round 23 with 23 executable next steps.
+- [x] Keep Golden Path `7/11`, Deployment Acceptance `8/17`, production receipts `0`, current authority `integrity_invalid`, current A2 decision `unknown`, historical A2 `block`, and production ready false.
+- [x] Pass A3 Node `489` runnable tests with one explicit live-target PostgreSQL skip and zero failures.
+- [x] Pass current-main A2 `186/186` test files and `1050` subtests without changing A2 judgement semantics.
+- [x] Pass Next.js TypeScript/build with 15 pages and full Playwright `43/43`.
+- [x] Pass OpenAPI runtime parity `61/61`, CL hygiene with zero findings, and Commercial CL with zero blockers/advisories.
+- [x] Confirm root and Webapp production dependency audits report zero vulnerabilities.
+- [x] Keep `.env.local` ignored and exclude credentials, account identity, signed URLs, raw provider payloads and private media.
+- [ ] Import and validate a real A2 human-review chain.
+- [ ] Bind the review result and three-way evidence to one exact shared candidate and Decision Ledger.
+- [ ] Run the workflow with hosted identity, target PostgreSQL RLS, object storage and tenant KMS in authorized staging.

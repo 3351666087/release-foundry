@@ -15,6 +15,10 @@ const fixtureUrl = new URL(
   "../../fixtures/a3/p3/a2_multimodal_comparison_6673310_sample.redacted.json",
   import.meta.url
 );
+const threeWayFixtureUrl = new URL(
+  "../../fixtures/a3/p3/a2_multimodal_three_way_v2_bb3bcfe_sample.redacted.json",
+  import.meta.url
+);
 const scope = {
   organizationId: "org-mm",
   tenantId: "tenant-mm",
@@ -131,10 +135,10 @@ test("A3 store imports one tenant-scoped A2 multimodal comparison with idempoten
   );
 });
 
-test("SQLite restores the imported multimodal review queue without promoting release authority", async () => {
+test("SQLite restores the imported A2 three-way review queue without promoting release authority", async () => {
   const root = await mkdtemp(join(tmpdir(), "a3-mm-review-"));
   const dbPath = join(root, "a3.sqlite");
-  const comparison = await loadFixture();
+  const comparison = await loadThreeWayFixture();
   let store;
   let reopened;
   try {
@@ -183,11 +187,13 @@ test("SQLite restores the imported multimodal review queue without promoting rel
 
     assert.equal(queue.available, true);
     assert.equal(queue.summary.review_required_count, 1);
+    assert.equal(queue.provider_set.provider_count, 3);
+    assert.equal(queue.items[0].providers.length, 3);
     assert.equal(queue.authority_boundary.can_change_release_decision, false);
     assert.equal(queue.items[0].operational_state.status, "claimed");
     assert.equal(queue.summary.assignment_active_count, 1);
     assert.equal(inspection.operational_tables.multimodal_review_assignment_events, 1);
-    assert.equal(state.sources["api-ingest"].a2MultimodalComparison.schema_version, "a2.multimodal_cross_provider_comparison.v1");
+    assert.equal(state.sources["api-ingest"].a2MultimodalComparison.schema_version, "a2.multimodal_three_way_comparison.v2");
   } finally {
     store?.close();
     reopened?.close();
@@ -211,6 +217,10 @@ function snapshot() {
 
 async function loadFixture() {
   return JSON.parse(await readFile(fixtureUrl, "utf8"));
+}
+
+async function loadThreeWayFixture() {
+  return JSON.parse(await readFile(threeWayFixtureUrl, "utf8"));
 }
 
 function hash(character) {

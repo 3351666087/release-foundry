@@ -164,9 +164,19 @@ test("multimodal OpenAPI matches the header-only import and non-authoritative re
   assert.match(request.properties.imported_at.description, /server assigns/);
   assert.deepEqual(envelope.oneOf.map((item) => item.properties.schema_version.const), [
     "a2.multimodal_cross_provider_comparison.v1",
-    "a2.multimodal_cross_provider_comparison.v3"
+    "a2.multimodal_cross_provider_comparison.v3",
+    "a2.multimodal_three_way_comparison.v2"
   ]);
   assert.equal(envelope.oneOf[1].properties.release_authority.const, false);
+  assert.equal(envelope.oneOf[2].properties.release_authority.const, false);
+  assert.equal(envelope.oneOf[2].properties.evidence_hashes.minProperties, 3);
+  assert.equal(envelope.oneOf[2].properties.evidence_hashes.maxProperties, 3);
+  assert.deepEqual(envelope.oneOf[2].properties.comparisons.items.properties.comparison_state.enum, [
+    "three_way_agreement",
+    "pairwise_agreement_with_unavailable",
+    "semantic_disagreement",
+    "unavailable"
+  ]);
   assert.equal(receipt.properties.upstream_release_authority.const, false);
   assert.equal(receipt.properties.candidate_binding_verified.const, false);
   assert.equal(receipt.properties.release_decision_changed.const, false);

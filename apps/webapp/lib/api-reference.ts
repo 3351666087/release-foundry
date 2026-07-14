@@ -24,18 +24,21 @@ export type ApiEndpoint = {
 };
 
 export const apiReferenceMeta = {
-  schemaVersion: "a3.api_reference.v11",
+  schemaVersion: "a3.api_reference.v12",
   calibratedAt: "2026-07-14",
   mainSha: "ccf6ce5",
   a1Sha: "c784163",
   a2Sha: "8cd1d4f",
   a1SourceState: "merged_to_main",
   a2SourceState: "merged_to_main",
-  a2MultimodalPeerSha: "1553562",
+  a1IdentityPeerSha: "770ccc8",
+  a1IdentityPeerState: "peer_branch_live_postgres_evidence_not_merged",
+  a2MultimodalPeerSha: "bb3bcfe",
   a2MultimodalPeerState: "peer_branch_contract_not_merged",
   a2MultimodalSupportedSchemas: [
     "a2.multimodal_cross_provider_comparison.v1",
-    "a2.multimodal_cross_provider_comparison.v3"
+    "a2.multimodal_cross_provider_comparison.v3",
+    "a2.multimodal_three_way_comparison.v2"
   ],
   secretValuesIncluded: false,
   a1BrowserSession: "implemented",
@@ -394,7 +397,7 @@ export const apiEndpoints: ApiEndpoint[] = [
     },
     notes: [
       { zh: "服务端拒绝原始模型载荷、URL、Secret、错误摘要、孤立队列回执和伪造发布权。", en: "The server rejects raw model payloads, URLs, secrets, inconsistent summaries, orphan receipts, and fabricated release authority." },
-      { zh: "当前向后兼容双路 v1，并支持双路 v3 的重复观察、聚合不稳定与回执守恒；三路 v2 和四路 v1 等待实际公开安全输出后接入。", en: "The adapter remains backward-compatible with two-way v1 and supports v3 repeats, aggregate instability, and receipt conservation; three-way v2 and four-way v1 await real public-safe outputs." },
+      { zh: "当前向后兼容双路 v1，支持双路 v3 的重复观察、聚合不稳定和回执守恒，并已根据 A2 Round 50 的公开安全实物接入三路 v2；四路 v1 仍等待可复现样本。", en: "The adapter remains backward-compatible with two-way v1, supports v3 repeats, aggregate instability, and receipt conservation, and now consumes three-way v2 from the real public-safe A2 Round 50 artifact; four-way v1 still awaits a reproducible sample." },
       { zh: "导入只形成可审计的审核队列投影，不会改写分数、风险或发布决定。", en: "Import creates an auditable review-queue projection and never rewrites scores, risk, or release decisions." }
     ]
   },
@@ -415,8 +418,16 @@ export const apiEndpoints: ApiEndpoint[] = [
     response: {
       schema_version: "a3.multimodal_review_queue.v1",
       status: "human_review_required",
-      source_contract: "a2.multimodal_cross_provider_comparison.v3",
-      summary: { comparison_count: 8, semantic_disagreement: 2, internally_unstable: 2, review_required_count: 4, assignment_event_count: 1 },
+      source_contract: "a2.multimodal_three_way_comparison.v2",
+      summary: { comparison_count: 3, provider_count: 3, semantic_disagreement: 1, review_required_count: 1, assignment_event_count: 1 },
+      provider_set: {
+        provider_count: 3,
+        providers: [
+          { provider_key: "dashscope_run_a", provider_identity_included: false, model_identity_included: false },
+          { provider_key: "dashscope_run_b", provider_identity_included: false, model_identity_included: false },
+          { provider_key: "qwen3vl_local", provider_identity_included: false, model_identity_included: false }
+        ]
+      },
       authority_boundary: { can_change_release_decision: false, candidate_binding_verified: false },
       items: []
     },
@@ -442,7 +453,7 @@ export const apiEndpoints: ApiEndpoint[] = [
       en: "Server-verified principal, release:review, and Idempotency-Key header"
     },
     status: "implemented",
-    source: "A2 1553562 queue contract / A3 append-only lease workflow",
+    source: "A2 bb3bcfe three-way queue contract / A3 append-only lease workflow",
     request: {
       source: "api-ingest",
       assignment: {

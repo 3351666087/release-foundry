@@ -73,6 +73,12 @@ release, or transfer an item with `expected_version` concurrency protection. The
 coordinate people only; they do not create an A2 human-review disposition and cannot alter
 risk, score, pass/fail, the Decision Ledger, or release authority.
 
+The review queue adapter now accepts A2 two-way v1, repeated/aggregate two-way v3, and
+three-way v2. Three-way v2 support is calibrated against A2 Round 50 commit `bb3bcfe`:
+the public-safe source contains three provider observations, one semantic disagreement,
+one queue receipt, and no real human disposition. Provider keys and evidence hashes may be
+displayed, but absent provider/model identity is not inferred and the queue remains blocked.
+
 The same route now feeds a metadata-only `a3.multimodal_review_assignment_packet.v1`.
 Its event hashes, contiguous versions, tenant scope, queue/case/comparison binding, and
 packet root hash must verify before Gate CLI accepts it as a `review_record`. The packet is

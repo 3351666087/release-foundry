@@ -145,6 +145,22 @@ export const A3_SOURCE_FIXTURES = {
     a2MultimodalComparisonSourceCommit: "564d4b0",
     a2MultimodalComparisonCapability: "peer_branch_contract_not_merged"
   },
+  "p3-a2-round50": {
+    label: "Three-provider Review - Round 50",
+    ashrRunSample: "fixtures/a3/p3/ashr_run_detail_sample.redacted.json",
+    datasetSample: "fixtures/a3/p3/ashr_dataset_detail_sample.redacted.json",
+    fixtureId: "p3_a2_round50_three_way_dashboard_sample",
+    gradeFixtureId: "p3_a2_round50_three_way_dashboard_grades",
+    requestProvenance: "fixtures/a3/p3/ashr_request_detail_sample.redacted.json",
+    usageQuota: "fixtures/a3/p3/ashr_usage_quota_sample.redacted.json",
+    usageQuotaApiProbe: "fixtures/a3/p3/ashr_usage_quota_api_probe.redacted.json",
+    mediaSignedUrlCoverage: "fixtures/a3/p3/ashr_signed_media_url_coverage.redacted.json",
+    authCheck: "fixtures/a3/p3/ashr_auth_check.redacted.json",
+    frontendSummary: "fixtures/a3/p3/ashr_frontend_relogin_top_level_summary.redacted.json",
+    a2MultimodalComparison: "fixtures/a3/p3/a2_multimodal_three_way_v2_bb3bcfe_sample.redacted.json",
+    a2MultimodalComparisonSourceCommit: "bb3bcfe",
+    a2MultimodalComparisonCapability: "peer_branch_contract_not_merged"
+  },
   "p3-official-demo": {
     label: "P3 Official Demo 884/11926",
     ashrRunSample: "fixtures/a3/p3/ashr_dataset_884_run_11926_ui_tests_detail.redacted.json",

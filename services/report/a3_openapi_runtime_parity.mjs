@@ -1048,9 +1048,10 @@ function a2MultimodalComparisonEnvelopeSchema() {
   return {
     oneOf: [
       multimodalComparisonVersionSchema("a2.multimodal_cross_provider_comparison.v1", false),
-      multimodalComparisonVersionSchema("a2.multimodal_cross_provider_comparison.v3", true)
+      multimodalComparisonVersionSchema("a2.multimodal_cross_provider_comparison.v3", true),
+      threeWayMultimodalComparisonSchema()
     ],
-    description: "Validated by the A3 v1/v3 adapter; raw provider payloads and release authority are forbidden."
+    description: "Validated by the A3 two-way v1/v3 and three-way v2 adapters; raw provider payloads and release authority are forbidden."
   };
 }
 
@@ -1088,6 +1089,129 @@ function multimodalComparisonVersionSchema(schemaVersion, aggregateRequired) {
     type: "object",
     required,
     properties,
+    additionalProperties: false
+  };
+}
+
+function threeWayMultimodalComparisonSchema() {
+  const providerKey = {
+    type: "string",
+    minLength: 1,
+    maxLength: 160,
+    pattern: "^(?!\\s)(?!.*\\s$)(?!.*::).+$"
+  };
+  const providerState = {
+    type: "object",
+    required: ["eligible", "parse_state", "observed_risk"],
+    properties: {
+      eligible: { type: "boolean" },
+      parse_state: { type: "string", minLength: 1, maxLength: 240 },
+      observed_risk: { type: ["boolean", "null"] }
+    },
+    additionalProperties: false
+  };
+  return {
+    type: "object",
+    required: [
+      "schema_version", "comparison_artifact_hash", "evidence_hashes", "partial_journal_hashes",
+      "comparisons", "summary", "pairwise_summaries", "human_review_queue_receipts",
+      "release_authority", "raw_payload_included", "public_safe"
+    ],
+    properties: {
+      schema_version: { type: "string", const: "a2.multimodal_three_way_comparison.v2" },
+      comparison_artifact_hash: sha256Schema(),
+      evidence_hashes: {
+        type: "object",
+        minProperties: 3,
+        maxProperties: 3,
+        propertyNames: providerKey,
+        additionalProperties: sha256Schema()
+      },
+      partial_journal_hashes: {
+        type: "object",
+        minProperties: 3,
+        maxProperties: 3,
+        propertyNames: providerKey,
+        additionalProperties: { type: "string", pattern: "^(|sha256:[a-f0-9]{64})$" }
+      },
+      comparisons: {
+        type: "array",
+        maxItems: 5000,
+        items: {
+          type: "object",
+          required: [
+            "case_id", "artifact_hash", "repeat", "eligible_provider_count", "provider_states",
+            "comparison_state", "human_review_required"
+          ],
+          properties: {
+            case_id: { type: "string", minLength: 1, maxLength: 240 },
+            artifact_hash: sha256Schema(),
+            repeat: { type: "integer", minimum: 1 },
+            eligible_provider_count: { type: "integer", minimum: 0, maximum: 3 },
+            provider_states: {
+              type: "object",
+              minProperties: 3,
+              maxProperties: 3,
+              propertyNames: providerKey,
+              additionalProperties: providerState
+            },
+            comparison_state: {
+              type: "string",
+              enum: ["three_way_agreement", "pairwise_agreement_with_unavailable", "semantic_disagreement", "unavailable"]
+            },
+            human_review_required: { type: "boolean" }
+          },
+          additionalProperties: false
+        }
+      },
+      summary: countSummarySchema([
+        "three_way_agreement",
+        "pairwise_agreement_with_unavailable",
+        "semantic_disagreement",
+        "unavailable"
+      ]),
+      pairwise_summaries: {
+        type: "object",
+        minProperties: 3,
+        maxProperties: 3,
+        additionalProperties: countSummarySchema(["agreement", "semantic_disagreement", "unavailable"])
+      },
+      human_review_queue_receipts: {
+        type: "array",
+        maxItems: 5000,
+        items: {
+          type: "object",
+          required: [
+            "receipt_id", "comparison_artifact_hash", "comparison_hash", "artifact_hash", "case_id",
+            "repeat", "eligibility_rule", "queue_state", "reviewer_role", "release_authority"
+          ],
+          properties: {
+            receipt_id: sha256Schema(),
+            comparison_artifact_hash: sha256Schema(),
+            comparison_hash: sha256Schema(),
+            artifact_hash: sha256Schema(),
+            case_id: { type: "string", minLength: 1, maxLength: 240 },
+            repeat: { type: "integer", minimum: 1 },
+            eligibility_rule: {
+              type: "string",
+              enum: [
+                "at_least_two_eligible_and_semantically_disagree",
+                "designated_high_quality_reference_unavailable"
+              ]
+            },
+            reference_provider: providerKey,
+            queue_state: { type: "string", const: "awaiting_human_review" },
+            reviewer_role: { type: "string", const: "multimodal_safety_reviewer" },
+            release_authority: { type: "boolean", const: false }
+          },
+          additionalProperties: false
+        }
+      },
+      designated_high_quality_reference: providerKey,
+      release_authority: { type: "boolean", const: false },
+      raw_payload_included: { type: "boolean", const: false },
+      public_safe: { type: "boolean", const: true }
+    },
     additionalProperties: false
   };
 }
@@ -1151,7 +1275,11 @@ function multimodalReviewQueueSchema() {
       status: { type: "string", enum: ["not_ingested", "invalid_upstream_contract", "no_open_multimodal_review", "human_review_required"] },
       source_contract: {
         type: "string",
-        enum: ["a2.multimodal_cross_provider_comparison.v1", "a2.multimodal_cross_provider_comparison.v3"]
+        enum: [
+          "a2.multimodal_cross_provider_comparison.v1",
+          "a2.multimodal_cross_provider_comparison.v3",
+          "a2.multimodal_three_way_comparison.v2"
+        ]
       },
       tenant_scope: {
         type: "object",
