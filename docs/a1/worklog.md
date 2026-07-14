@@ -327,6 +327,129 @@ Real API calibration addendum:
 - Private evidence path is ignored and must not be staged: `docs/evidence/private_refs/a1_round_ts316_go_key_quota_readonly_20260709_131208.json`.
 - Raw key remained env-only; no desktop key file was read.
 
+## 2026-07-14 - Durable provider request journal and fenced recovery
+
+Round goal:
+- Add Python and TypeScript provider-call journals for non-idempotent commercial
+  operations.
+- Fail closed after restart, stale leases, ambiguous completion, or partial
+  streaming.
+- Prevent same-process duplicate TypeScript execution and stale-owner
+  completion overwrite.
+- Persist only bounded, public-safe five-modality evidence.
+
+Implemented / integrated files:
+- `packages/sdk/ashr_clone/provider_journal.py`
+- `packages/sdk/ashr_clone/__init__.py`
+- `packages/ts/ashr-clone/src/provider-request-journal.ts`
+- `packages/ts/ashr-clone/src/index.ts`
+- `tests/a1/test_provider_journal.py`
+- `tests/a1/test_provider_journal_adversarial_round58.py`
+- `packages/ts/ashr-clone/test/provider-request-journal.test.mjs`
+- `packages/ts/ashr-clone/test/provider-request-journal-adversarial-round58.test.mjs`
+- `tests/a1/docs/a1/ts_python_gap_matrix.json`
+- `docs/a1/evidence/round58_provider_request_journal.md`
+
+Validation:
+- Focused Python provider-journal tests: `24 passed`.
+- Full TypeScript SDK suite after fencing fixes: `329 passed`, no failures,
+  skips, or TODO tests.
+- Full Python A1 suite reached `336 passed`, `1 skipped`; the only failure was
+  the expected generated TS/Python parity artifact drift caused by the new
+  exports. The artifact was regenerated and its focused test passed.
+
+Safety and recovery:
+- Persisted active Python requests recover as `indeterminate`, with lease owner
+  and expiry removed and restart evidence recorded.
+- Stream-observed requests cannot enter automatic retry through either normal
+  scheduling or reconciliation.
+- TypeScript coordinates active executions per journal key, waits for the
+  current owner to settle before rejecting a duplicate, and uses token identity
+  so an obsolete owner cannot remove or overwrite a newer fence.
+- Persisted evidence excludes raw idempotency keys, prompts, media, provider
+  URLs, credentials, and lease owners.
+- Python and TypeScript behavioral guarantees are aligned, but their current
+  local snapshot layouts are explicitly implementation-private and not claimed
+  as cross-language wire-compatible.
+
+## 2026-07-14 - Canonical identity, OAuth security, and SDK client parity
+
+Round goal:
+- Separate registration from login across the Go authority and A3-facing
+  Python/TypeScript clients.
+- Establish one canonical account with explicit multi-credential binding,
+  domestic email-first defaults, optional/recommended MFA, and retained
+  QQ/WeChat OAuth capability surfaces.
+- Add rotation-aware identity schema/RLS foundations and complete cross-language
+  contract validation without exposing credentials or OAuth artifacts.
+
+Implemented / integrated files:
+- `packages/go/ashrclone/identity.go`
+- `packages/go/ashrclone/identity_http.go`
+- `packages/go/ashrclone/identity_oauth.go`
+- `packages/go/ashrclone/identity_test.go`
+- `packages/go/ashrclone/identity_http_test.go`
+- `packages/go/ashrclone/identity_oauth_test.go`
+- `packages/go/ashrclone/server.go`
+- `packages/sdk/ashr_clone/identity_client.py`
+- `packages/sdk/ashr_clone/__init__.py`
+- `tests/a1/test_identity_client.py`
+- `packages/ts/ashr-clone/src/identity-client.ts`
+- `packages/ts/ashr-clone/src/index.ts`
+- `packages/ts/ashr-clone/test/identity-client.test.mjs`
+- `docs/a1/schemas/a1_control_plane_postgres_migration.sql`
+- `packages/go/ashrclone/postgres.go`
+- `packages/go/ashrclone/postgres_test.go`
+- `tests/a1/test_a1_control_plane_postgres_migration.py`
+- `tests/integration/test_a1_control_plane_identity_migration_live.py`
+- `tests/a1/ts_python_parity_matrix.py`
+- `tests/a1/test_ts_python_gap_matrix.py`
+- `tests/a1/docs/a1/ts_python_gap_matrix.json`
+- `docs/a1/evidence/go_python_ts_route_parity_snapshot.json`
+- `docs/a1/evidence/round60_identity_client_oauth_parity.md`
+
+Security / contract results:
+- Registration and login use separate routes and challenge purposes.
+- OAuth login and explicit link are separate; verified-email equality never
+  silently links or merges canonical accounts.
+- Link mode requires an authenticated session; credential binding additionally
+  requires an opaque account-bound proof and explicit consent.
+- QQ/WeChat capability metadata is typed while PKCE S256, one-time HMAC state,
+  exact redirect allowlists, no-store responses, and authority mismatch checks
+  fail closed.
+- Python and TypeScript safe serialization excludes session tokens, binding
+  proofs, and OAuth authorization URLs while transports can still use them.
+- PostgreSQL schema/RLS foundations store only ciphertext or keyed hashes for
+  delivery targets, challenge secrets, sessions, and provider subjects.
+
+Validation:
+- `python -B tests/a1/ts_python_parity_matrix.py --check` -> passed.
+- Go/Python/TS route evidence test -> `8 passed`.
+- Full Python A1 suite -> `343 passed`, `1 skipped`.
+- Full TypeScript SDK suite -> `333 passed`, no failures/skips/TODOs.
+- `go test ./...` in `packages/go/ashrclone` -> passed.
+- Live PostgreSQL identity migration/RLS test -> `1 skipped` because
+  `A1_POSTGRES_TEST_DSN` was not configured; no live database pass is claimed.
+- `git diff --check` -> passed with line-ending warnings only.
+- Go race validation remains blocked: CGO is disabled by default, and
+  `CGO_ENABLED=1 go test -race ./...` cannot build because `gcc` is absent.
+
+Known gaps:
+1. The identity authority still uses in-memory runtime state; implement and wire
+   the PostgreSQL identity repository.
+2. Complete production delivery-target encryption and key-provider-backed
+   rotation/migration, not only rotation-ready schema fields and in-memory HMAC
+   lifecycle.
+3. Run live PostgreSQL migration idempotency and RLS isolation with
+   `A1_POSTGRES_TEST_DSN`.
+4. Add database concurrency tests for one-time challenge/session/binding use and
+   credential uniqueness.
+5. Add compiled-Go HTTP smoke from both Python and TypeScript identity clients.
+6. Install a supported C compiler and run the Go race suite.
+7. Add production QQ/WeChat provider adapters while retaining current redirect,
+   PKCE, state, explicit-link, and redaction guardrails.
+8. Overall A1 remains in progress.
+
 ## 2026-07-09 - Worker-Evidence-API public-safe WSL/API evidence
 
 Round goal:

@@ -300,6 +300,38 @@ func TestPostgresSchemaIncludesAuditLogHashChainContract(t *testing.T) {
 	}
 }
 
+func TestPostgresSchemaIncludesCanonicalIdentityContract(t *testing.T) {
+	for _, required := range []string{
+		"CREATE TABLE IF NOT EXISTS ashr_accounts",
+		"account_id TEXT PRIMARY KEY",
+		"two_factor_enabled BOOLEAN NOT NULL DEFAULT false",
+		"two_factor_methods TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[]",
+		"CREATE TABLE IF NOT EXISTS ashr_identity_credentials",
+		"provider_subject_fingerprint TEXT NOT NULL",
+		"UNIQUE (provider, provider_subject_fingerprint)",
+		"ashr_identity_credentials_union_idx",
+		"CREATE TABLE IF NOT EXISTS ashr_identity_challenges",
+		"delivery_target_ciphertext BYTEA NOT NULL",
+		"delivery_target_key_id TEXT NOT NULL",
+		"secret_hash TEXT NOT NULL",
+		"secret_hash_key_id TEXT NOT NULL",
+		"CREATE TABLE IF NOT EXISTS ashr_identity_sessions",
+		"token_hash TEXT NOT NULL",
+		"token_hash_key_id TEXT NOT NULL",
+		"CREATE TABLE IF NOT EXISTS ashr_account_organization_memberships",
+		"PRIMARY KEY (account_id, tenant_id)",
+	} {
+		if !strings.Contains(PostgresSchemaSQL, required) {
+			t.Fatalf("identity schema missing %q", required)
+		}
+	}
+	for _, forbidden := range []string{"oauth_access_token", "oauth_refresh_token", "session_token TEXT", "secret TEXT"} {
+		if strings.Contains(strings.ToLower(PostgresSchemaSQL), strings.ToLower(forbidden)) {
+			t.Fatalf("identity schema stores forbidden plaintext field %q", forbidden)
+		}
+	}
+}
+
 func TestPostgresRepositoryRequiresDBForImplementedOperations(t *testing.T) {
 	repository := NewPostgresRepository(nil)
 	checks := []struct {

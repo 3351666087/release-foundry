@@ -28,6 +28,11 @@ type HTTPServer struct {
 	oauthProviders                     map[string]*OAuthService
 	githubOAuth                        *GitHubOAuthService
 	providerDispatch                   ProviderDispatchBackend
+	identity                           *IdentityService
+	identityDelivery                   IdentityChallengeDeliverer
+	identityRateLimiter                IdentityRateLimiter
+	identityAudit                      IdentityAuditSink
+	oauth                              *OAuthFlowCoordinator
 	backendName                        string
 	backendReady                       bool
 }
@@ -82,6 +87,11 @@ type HTTPServerOptions struct {
 	OAuthProviders                     map[string]*OAuthService
 	GitHubOAuth                        *GitHubOAuthService
 	ProviderDispatch                   ProviderDispatchBackend
+	IdentityService                    *IdentityService
+	IdentityDelivery                   IdentityChallengeDeliverer
+	IdentityRateLimiter                IdentityRateLimiter
+	IdentityAudit                      IdentityAuditSink
+	OAuthCoordinator                   *OAuthFlowCoordinator
 }
 
 func NewHTTPServer(service ControlPlaneBackend) http.Handler {
@@ -104,6 +114,32 @@ func NewHTTPServerWithOptions(service ControlPlaneBackend, options HTTPServerOpt
 		}
 		oauthProviders[normalizedProvider] = oauthService
 	}
+	identity := options.IdentityService
+	oauth := options.OAuthCoordinator
+	if identity == nil && oauth != nil {
+		identity = oauth.identity
+	}
+	if identity == nil {
+		identity = NewIdentityService()
+	}
+	// OAuth validation and canonical-account mutation must share one identity
+	// authority. A mismatched coordinator is disabled rather than allowing
+	// tickets or sessions to cross service instances.
+	if oauth != nil && oauth.identity != identity {
+		oauth = nil
+	}
+	delivery := options.IdentityDelivery
+	if delivery == nil {
+		delivery = unavailableIdentityDeliverer{}
+	}
+	rateLimiter := options.IdentityRateLimiter
+	if rateLimiter == nil {
+		rateLimiter = allowIdentityRateLimiter{}
+	}
+	audit := options.IdentityAudit
+	if audit == nil {
+		audit = discardIdentityAuditSink{}
+	}
 	return &HTTPServer{
 		service:                            service,
 		paymentReconciliation:              options.PaymentReconciliation,
@@ -120,6 +156,11 @@ func NewHTTPServerWithOptions(service ControlPlaneBackend, options HTTPServerOpt
 		oauthProviders:                     oauthProviders,
 		githubOAuth:                        options.GitHubOAuth,
 		providerDispatch:                   options.ProviderDispatch,
+		identity:                           identity,
+		identityDelivery:                   delivery,
+		identityRateLimiter:                rateLimiter,
+		identityAudit:                      audit,
+		oauth:                              oauth,
 		backendName:                        backendName,
 		backendReady:                       options.BackendReady,
 	}
@@ -155,6 +196,9 @@ func (server *HTTPServer) ServeHTTP(writer http.ResponseWriter, request *http.Re
 		}
 	}
 	parts := pathParts(request.URL.Path)
+	if server.handleIdentityRoute(writer, request, parts) {
+		return
+	}
 	if len(parts) >= 2 && parts[0] == "v1" && parts[1] == "identity" {
 		server.handleIdentityLifecycle(writer, request, parts[2:])
 		return
@@ -976,6 +1020,16 @@ func GoRouteManifestEntries() []RouteManifestEntry {
 		goPublicRoute("POST", "/v1/identity/registration/complete", "identity.registration.complete", "identity"),
 		goPublicRoute("POST", "/v1/identity/login/start", "identity.login.start", "identity"),
 		goPublicRoute("POST", "/v1/identity/login/complete", "identity.login.complete", "identity"),
+		goPublicRoute("POST", "/v1/identity/registration/email/begin", "identity.registration.email.begin", "identity"),
+		goPublicRoute("POST", "/v1/identity/registration/email/complete", "identity.registration.email.complete", "identity"),
+		goPublicRoute("POST", "/v1/identity/login/email/begin", "identity.login.email.begin", "identity"),
+		goPublicRoute("POST", "/v1/identity/login/email/complete", "identity.login.email.complete", "identity"),
+		goPublicRoute("POST", "/v1/identity/oauth/begin", "identity.oauth.begin", "identity"),
+		goPublicRoute("POST", "/v1/identity/oauth/complete", "identity.oauth.complete", "identity"),
+		goPublicRoute("POST", "/v1/identity/mfa/complete", "identity.mfa.complete", "identity"),
+		goPublicRoute("POST", "/v1/identity/credentials/bind", "identity.credentials.bind", "identity"),
+		goPublicRoute("POST", "/v1/identity/sessions/revoke", "identity.sessions.revoke", "identity"),
+		goPublicRoute("GET", "/v1/me", "identity.me", "identity"),
 		goScopedRoute("GET", "/v1/accounts/{account_id}", "identity.account.get", "identity"),
 		goScopedRoute("GET", "/v1/accounts/{account_id}/credentials", "identity.credentials.list", "identity"),
 		goScopedRoute("GET", "/v1/accounts/{account_id}/memberships", "identity.memberships.list", "identity"),

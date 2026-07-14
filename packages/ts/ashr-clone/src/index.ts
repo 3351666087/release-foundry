@@ -1675,5 +1675,6 @@ export const redact_text = redactText;
 export * from "./provider-request-journal.js";
 export * from "./provider-dispatch.js";
 export * from "./provider-stream.js";
+export * from "./identity-client.js";
 
 export * from "./provider-evidence.js";

@@ -23,6 +23,31 @@ REQUIRED_HOSTED_ROUTE_LITERALS = [
     "/v1/projects/{project_id}/runs/{run_id}/release-evidence",
     "/v1/projects/{project_id}/runs/{run_id}/release-evidence/verify",
 ]
+REQUIRED_IDENTITY_ROUTE_LITERALS = [
+    "/v1/identity/credentials/bind",
+    "/v1/identity/login/email/begin",
+    "/v1/identity/login/email/complete",
+    "/v1/identity/mfa/complete",
+    "/v1/identity/oauth/begin",
+    "/v1/identity/oauth/complete",
+    "/v1/identity/registration/email/begin",
+    "/v1/identity/registration/email/complete",
+    "/v1/identity/sessions/revoke",
+    "/v1/me",
+]
+IDENTITY_METHOD_PAIRS = {
+    "begin_email_registration": "beginEmailRegistration",
+    "complete_email_registration": "completeEmailRegistration",
+    "begin_email_login": "beginEmailLogin",
+    "complete_email_login": "completeEmailLogin",
+    "complete_mfa": "completeMfa",
+    "begin_oauth": "beginOAuth",
+    "complete_oauth": "completeOAuth",
+    "bind_credential": "bindCredential",
+    "me": "me",
+    "revoke_session": "revokeSession",
+    "with_session": "withSession",
+}
 PYTHON_ROUTE_EXAMPLES = {
     "bootstrap_project": {"project_id": "project_contract", "run_id": "run_contract", "key_id": "key_contract", "job_id": "job_contract"},
     "create_api_key": {"project_id": "project_contract"},
@@ -584,6 +609,70 @@ def route_literals(path: Path) -> list[str]:
     return sorted_unique(normalized)
 
 
+def identity_client_contract(python_path: Path, typescript_path: Path) -> dict[str, Any]:
+    python_text = read_text(python_path)
+    typescript_text = read_text(typescript_path)
+    python_methods = sorted(
+        name for name in IDENTITY_METHOD_PAIRS if f"def {name}(" in python_text
+    )
+    typescript_methods = sorted(
+        name
+        for name in IDENTITY_METHOD_PAIRS.values()
+        if re.search(rf"\b{name}\s*\(", typescript_text)
+    )
+    python_routes = route_literals(python_path)
+    typescript_routes = route_literals(typescript_path)
+    required_routes = set(REQUIRED_IDENTITY_ROUTE_LITERALS)
+    return {
+        "required_method_pairs": IDENTITY_METHOD_PAIRS,
+        "python_methods": python_methods,
+        "typescript_methods": typescript_methods,
+        "missing_python_methods": sorted(set(IDENTITY_METHOD_PAIRS) - set(python_methods)),
+        "missing_typescript_methods": sorted(
+            set(IDENTITY_METHOD_PAIRS.values()) - set(typescript_methods)
+        ),
+        "required_routes": REQUIRED_IDENTITY_ROUTE_LITERALS,
+        "python_routes": python_routes,
+        "typescript_routes": typescript_routes,
+        "missing_python_routes": sorted(required_routes - set(python_routes)),
+        "missing_typescript_routes": sorted(required_routes - set(typescript_routes)),
+        "security_contract": {
+            "registration_login_methods_separate": all(
+                method in python_methods
+                for method in (
+                    "begin_email_registration",
+                    "complete_email_registration",
+                    "begin_email_login",
+                    "complete_email_login",
+                )
+            )
+            and all(
+                method in typescript_methods
+                for method in (
+                    "beginEmailRegistration",
+                    "completeEmailRegistration",
+                    "beginEmailLogin",
+                    "completeEmailLogin",
+                )
+            ),
+            "explicit_binding_consent": "explicit_consent" in python_text
+            and "explicitConsent" in typescript_text,
+            "session_secret_safe_serialization": "session_token_present" in python_text
+            and "session_token_present" in typescript_text,
+            "binding_secret_safe_serialization": "binding_ticket_proof_present" in python_text
+            and "binding_ticket_proof_present" in typescript_text,
+            "oauth_url_safe_serialization": "authorization_url_present" in python_text
+            and "authorization_url_present" in typescript_text,
+            "schema_fail_closed": "unsupported identity schema version" in python_text
+            and "unsupported identity schema version" in typescript_text,
+            "domestic_oauth_types": all(
+                symbol in python_text and symbol in typescript_text
+                for symbol in ("ProviderCapability", "OAuthBegin", "OAuthBindingTicket")
+            ),
+        },
+    }
+
+
 def python_hosted_route_literals() -> list[str]:
     sdk_root = ROOT / "packages" / "sdk"
     if str(sdk_root) not in sys.path:
@@ -669,6 +758,16 @@ def generate_matrix() -> dict[str, Any]:
         "missing_required_exports": sorted(set(required_ts_calibration_exports) - ts_calibration_exports),
         "sdk_import_surface": "public" if "calibrate" in ts_modules else "cli_only",
     }
+    identity_contract = identity_client_contract(
+        py_pkg / "identity_client.py", ts_src / "identity-client.ts"
+    )
+    identity_parity = (
+        not identity_contract["missing_python_methods"]
+        and not identity_contract["missing_typescript_methods"]
+        and not identity_contract["missing_python_routes"]
+        and not identity_contract["missing_typescript_routes"]
+        and all(identity_contract["security_contract"].values())
+    )
     py_identity = python_unified_identity_contract(py_pkg / "unified_identity.py")
     ts_identity = ts_unified_identity_contract(ts_src / "unified-identity.ts")
     py_session = python_session_lifecycle_contract(py_pkg / "session_lifecycle.py")
@@ -764,6 +863,7 @@ def generate_matrix() -> dict[str, Any]:
                 "typescript_module": "packages/ts/ashr-clone/src/calibrate.ts",
                 "typescript": ts_calibration_contract,
             },
+            "identity_client": identity_contract,
             "unified_identity": {
                 "requirements": identity_contract_requirements,
                 "python": py_identity,
@@ -866,6 +966,33 @@ def generate_matrix() -> dict[str, Any]:
                     "packages/ts/ashr-clone/src/calibrate.ts",
                     "packages/ts/ashr-clone/test/calibrate.test.mjs",
                     "packages/ts/ashr-clone/test/calibration-parity.test.mjs",
+                ],
+            },
+            {
+                "area": "identity client registration/login/OAuth/binding parity",
+                "status": "parity" if identity_parity else "partial",
+                "shared": [
+                    "canonical account identity view",
+                    "domestic email-first registration defaults",
+                    "QQ and WeChat OAuth capability types",
+                    "optional/recommended 2FA response",
+                    "opaque explicit credential binding",
+                    "safe session, binding proof, and authorization URL serialization",
+                ],
+                "missing_python_methods": identity_contract["missing_python_methods"],
+                "missing_typescript_methods": identity_contract[
+                    "missing_typescript_methods"
+                ],
+                "missing_python_routes": identity_contract["missing_python_routes"],
+                "missing_typescript_routes": identity_contract[
+                    "missing_typescript_routes"
+                ],
+                "security_contract": identity_contract["security_contract"],
+                "evidence": [
+                    "packages/sdk/ashr_clone/identity_client.py",
+                    "tests/a1/test_identity_client.py",
+                    "packages/ts/ashr-clone/src/identity-client.ts",
+                    "packages/ts/ashr-clone/test/identity-client.test.mjs",
                 ],
             },
             {

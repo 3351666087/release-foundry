@@ -4,7 +4,14 @@ import json
 import re
 from pathlib import Path
 
-from tests.a1.ts_python_parity_matrix import ARTIFACT, MEDIA_MODALITIES, REQUIRED_HOSTED_ROUTE_LITERALS, generate_matrix
+from tests.a1.ts_python_parity_matrix import (
+    ARTIFACT,
+    IDENTITY_METHOD_PAIRS,
+    MEDIA_MODALITIES,
+    REQUIRED_HOSTED_ROUTE_LITERALS,
+    REQUIRED_IDENTITY_ROUTE_LITERALS,
+    generate_matrix,
+)
 
 
 def _matrix_by_area(matrix: dict) -> dict[str, dict]:
@@ -40,6 +47,7 @@ def test_ts_python_gap_matrix_is_generated_public_safe_and_current():
         "SaaS route literals",
         "media text/audio/file/image/video parity",
         "official API calibration SDK import surface",
+        "identity client registration/login/OAuth/binding parity",
         "Python/TypeScript identity delivery protocol",
         "Python/TypeScript unified identity contract",
         "Python/TypeScript session lifecycle contract",
@@ -47,6 +55,7 @@ def test_ts_python_gap_matrix_is_generated_public_safe_and_current():
     assert by_area["CLI commands"]["status"] in {"parity", "typescript_leads"}
     assert by_area["media text/audio/file/image/video parity"]["status"] == "parity"
     assert by_area["official API calibration SDK import surface"]["status"] == "parity"
+    assert by_area["identity client registration/login/OAuth/binding parity"]["status"] == "parity"
 
     symbols = matrix["generated_contract"]["symbols"]
     assert "SaaSIngestionClient" in symbols["shared_export_names"]
@@ -78,6 +87,15 @@ def test_ts_python_gap_matrix_is_generated_public_safe_and_current():
     assert calibration["typescript"]["barrel_module_exported"] is True
     assert calibration["typescript"]["missing_required_exports"] == []
     assert calibration["typescript"]["sdk_import_surface"] == "public"
+
+    identity_client = matrix["generated_contract"]["identity_client"]
+    assert identity_client["required_method_pairs"] == IDENTITY_METHOD_PAIRS
+    assert identity_client["required_routes"] == REQUIRED_IDENTITY_ROUTE_LITERALS
+    assert identity_client["missing_python_methods"] == []
+    assert identity_client["missing_typescript_methods"] == []
+    assert identity_client["missing_python_routes"] == []
+    assert identity_client["missing_typescript_routes"] == []
+    assert all(identity_client["security_contract"].values())
 
     identity = matrix["generated_contract"]["unified_identity"]
     assert identity["differing_fields"] == []

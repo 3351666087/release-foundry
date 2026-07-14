@@ -19,10 +19,16 @@ REQUIRED_TABLES = (
     "ashr_artifact_manifests",
     "ashr_quota_ledger",
     "ashr_audit_events",
+    "ashr_accounts",
+    "ashr_identity_credentials",
+    "ashr_identity_challenges",
+    "ashr_identity_sessions",
+    "ashr_account_organization_memberships",
 )
 
 REQUIRED_FUNCTIONS = (
     "ashr_current_tenant_id",
+    "ashr_current_account_id",
     "ashr_set_updated_at",
 )
 
@@ -32,6 +38,8 @@ REQUIRED_TRIGGERS = (
     "ashr_datasets_set_updated_at",
     "ashr_runs_set_updated_at",
     "ashr_worker_jobs_set_updated_at",
+    "ashr_accounts_set_updated_at",
+    "ashr_account_organization_memberships_set_updated_at",
 )
 
 REQUIRED_POLICIES = (
@@ -117,9 +125,20 @@ def test_a1_postgres_migration_preserves_go_control_plane_first_slice():
         "ashr_quota_ledger_run_idx",
         "ashr_audit_events_scope_idx",
         "ashr_audit_events_target_idx",
+        "ashr_identity_credentials_account_idx",
+        "ashr_identity_challenges_expiry_idx",
+        "ashr_identity_challenges_account_idx",
+        "ashr_identity_sessions_account_idx",
+        "ashr_identity_sessions_expiry_idx",
+        "ashr_account_organization_memberships_tenant_idx",
     ):
         go_index = _extract_statement(go_schema_sql, f"CREATE INDEX IF NOT EXISTS {index_name}")
         assert _normalize_sql(go_index) in migration_sql
+
+    union_index = _extract_statement(
+        go_schema_sql, "CREATE UNIQUE INDEX IF NOT EXISTS ashr_identity_credentials_union_idx"
+    )
+    assert _normalize_sql(union_index) in migration_sql
 
 
 def test_a1_postgres_migration_declares_static_rls_and_audit_contract():
@@ -269,3 +288,78 @@ def test_a1_go_postgres_mutations_append_usage_and_audit_foundation():
         "worker.job.fail",
     ):
         assert operation in source
+
+
+def test_a1_postgres_identity_schema_is_account_global_hash_only_and_rotation_ready():
+    migration_sql = _normalize_sql(_read(MIGRATION_PATH))
+
+    required_fragments = (
+        "create table if not exists ashr_accounts",
+        "primary_email_normalized text not null",
+        "two_factor_enabled boolean not null default false",
+        "two_factor_methods text[] not null default array[]::text[]",
+        "create table if not exists ashr_identity_credentials",
+        "unique (provider, provider_subject_fingerprint)",
+        "provider_union_fingerprint text not null default ''",
+        "create unique index if not exists ashr_identity_credentials_union_idx",
+        "create table if not exists ashr_identity_challenges",
+        "delivery_target_fingerprint text not null",
+        "delivery_target_ciphertext bytea not null",
+        "delivery_target_key_id text not null",
+        "secret_hash text not null",
+        "secret_hash_key_id text not null",
+        "create table if not exists ashr_identity_sessions",
+        "token_hash text not null",
+        "token_hash_key_id text not null",
+        "create table if not exists ashr_account_organization_memberships",
+        "primary key (account_id, tenant_id)",
+    )
+    for fragment in required_fragments:
+        assert fragment in migration_sql
+
+    challenge_statement = _normalize_sql(
+        _extract_statement(_read(MIGRATION_PATH), "CREATE TABLE IF NOT EXISTS ashr_identity_challenges")
+    )
+    session_statement = _normalize_sql(
+        _extract_statement(_read(MIGRATION_PATH), "CREATE TABLE IF NOT EXISTS ashr_identity_sessions")
+    )
+    assert " secret text " not in f" {challenge_statement} "
+    assert " session_token " not in f" {session_statement} "
+    assert "oauth_access_token" not in migration_sql
+    assert "oauth_refresh_token" not in migration_sql
+
+
+def test_a1_postgres_identity_rls_uses_account_context_and_denies_secret_tables_by_default():
+    migration_sql = _normalize_sql(_read(MIGRATION_PATH))
+
+    for table in (
+        "ashr_accounts",
+        "ashr_identity_credentials",
+        "ashr_identity_challenges",
+        "ashr_identity_sessions",
+        "ashr_account_organization_memberships",
+    ):
+        assert f"alter table {table} enable row level security" in migration_sql
+        assert f"alter table {table} force row level security" in migration_sql
+
+    assert "create policy ashr_accounts_account_read on ashr_accounts for select" in migration_sql
+    assert "using (account_id = ashr_current_account_id())" in migration_sql
+    assert (
+        "create policy ashr_account_organization_memberships_read "
+        "on ashr_account_organization_memberships for select"
+    ) in migration_sql
+    assert "account_id = ashr_current_account_id() or tenant_id = ashr_current_tenant_id()" in migration_sql
+    assert (
+        "create policy ashr_account_organization_memberships_tenant_write "
+        "on ashr_account_organization_memberships for all"
+    ) in migration_sql
+
+    # The A3 surface is produced by the trusted identity service. Raw binding,
+    # proof, and session rows must not become directly readable by account or
+    # tenant context merely because the caller knows an id.
+    for secret_table in (
+        "ashr_identity_credentials",
+        "ashr_identity_challenges",
+        "ashr_identity_sessions",
+    ):
+        assert f"create policy {secret_table}" not in migration_sql
