@@ -180,15 +180,8 @@ RETURNING id::text
 		if err != nil {
 			t.Fatalf("bind email credential: %v", err)
 		}
-		mustExecArgs(t, instance.adminDB, `
-UPDATE identity_account_security SET
-  password_secret_ref='vault://identity/password/test',
-  password_fingerprint_digest=$2,
-  password_set_at=$3,
-  two_factor_status='enabled',
-  two_factor_enrolled_at=$3
-WHERE principal_id=$1::uuid
-`, account.AccountID, strings.Repeat("a", 64), h.now)
+		exerciseAuthoritativeSecurityLifecycle(t, instance, account.AccountID, h.now)
+		assertIdentityAccountSecurityRLS(t, h, instance, account.AccountID, h.now)
 
 		orgID := "10000000-0000-4000-8000-000000000001"
 		workspaceID := "10000000-0000-4000-8000-000000000002"
@@ -323,6 +316,16 @@ func newPostgresLifecycleHarness(t *testing.T, adminDSN string) *postgresLifecyc
 	if err := admin.PingContext(ctx); err != nil {
 		t.Fatalf("connect identity lifecycle PostgreSQL: %v", err)
 	}
+	if _, err := admin.ExecContext(ctx, `
+DO $$
+BEGIN
+  CREATE ROLE a1_runtime NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END
+$$`); err != nil {
+		t.Fatalf("ensure migration runtime role: %v", err)
+	}
 	dbName := fmt.Sprintf("ashr_identity_lifecycle_%d", time.Now().UnixNano())
 	runtimeRole := fmt.Sprintf("a1_lifecycle_test_%d", time.Now().UnixNano())
 	runtimePassword := fmt.Sprintf("runtime-%d-test-only", time.Now().UnixNano())
@@ -362,6 +365,11 @@ func newPostgresLifecycleHarness(t *testing.T, adminDSN string) *postgresLifecyc
 		}
 	}
 	runtimeDSN := replacePostgresCredentials(dsn, runtimeRole, runtimePassword)
+	runtimeDSN = replacePostgresPeerSocketHost(runtimeDSN)
+	var databaseNow time.Time
+	if err := db.QueryRowContext(ctx, `SELECT clock_timestamp()`).Scan(&databaseNow); err != nil {
+		t.Fatalf("read disposable database clock: %v", err)
+	}
 	t.Cleanup(func() {
 		_ = db.Close()
 		cleanup, openErr := sql.Open("postgres", adminDSN)
@@ -381,7 +389,7 @@ func newPostgresLifecycleHarness(t *testing.T, adminDSN string) *postgresLifecyc
 	return &postgresLifecycleHarness{
 		adminDSN: adminDSN, dbName: dbName, adminDB: db,
 		runtimeDSN: runtimeDSN, runtimeRole: runtimeRole,
-		now: time.Date(2026, 7, 12, 8, 0, 0, 0, time.UTC),
+		now: databaseNow.UTC(),
 	}
 }
 
@@ -457,7 +465,7 @@ func applyIdentityLifecycleMigrations(t *testing.T, db *sql.DB) {
 	applied := 0
 	for _, path := range entries {
 		base := filepath.Base(path)
-		if len(base) < 3 || base[:3] < "001" || base[:3] > "017" {
+		if len(base) < 3 || base[:3] < "001" || base[:3] > "018" {
 			continue
 		}
 		sqlBytes, err := os.ReadFile(path)
@@ -469,8 +477,8 @@ func applyIdentityLifecycleMigrations(t *testing.T, db *sql.DB) {
 		}
 		applied++
 	}
-	if applied != 17 {
-		t.Fatalf("expected migrations 001-017, applied %d from %s", applied, migrationsDir)
+	if applied != 18 {
+		t.Fatalf("expected migrations 001-018, applied %d from %s", applied, migrationsDir)
 	}
 }
 
@@ -494,6 +502,19 @@ func replacePostgresCredentials(dsn, username, password string) string {
 		return dsn
 	}
 	parsed.User = url.UserPassword(username, password)
+	return parsed.String()
+}
+
+func replacePostgresPeerSocketHost(dsn string) string {
+	parsed, err := url.Parse(dsn)
+	if err != nil || parsed.Scheme == "" {
+		return dsn
+	}
+	query := parsed.Query()
+	if strings.HasPrefix(query.Get("host"), "/") {
+		query.Set("host", "127.0.0.1")
+		parsed.RawQuery = query.Encode()
+	}
 	return parsed.String()
 }
 
@@ -548,5 +569,124 @@ func assertPublicIdentityJSON(t *testing.T, value any) {
 		if strings.Contains(lower, forbidden) {
 			t.Fatalf("public identity DTO leaked %q: %s", forbidden, encoded)
 		}
+	}
+}
+
+func exerciseAuthoritativeSecurityLifecycle(
+	t *testing.T,
+	instance *postgresLifecycleInstance,
+	principalID string,
+	now time.Time,
+) {
+	t.Helper()
+	issueReceipt := func(purpose, label string) (string, string) {
+		t.Helper()
+		receiptDigest := instance.receipts.receiptDigest("security-receipt:" + label)
+		contextDigest := instance.receipts.receiptDigest("security-context:" + label)
+		mustExecArgs(t, instance.adminDB, `
+INSERT INTO identity_security_receipts(
+  receipt_digest,principal_id,purpose,context_digest,expires_at
+) VALUES ($1,$2::uuid,$3,$4,$5)
+`, receiptDigest, principalID, purpose, contextDigest, now.Add(10*time.Minute))
+		return receiptDigest, contextDigest
+	}
+
+	passwordReceipt, passwordContext := issueReceipt("password_enroll", "password-enroll")
+	var passwordStatus string
+	if err := instance.adminDB.QueryRow(`
+SELECT a1_mutate_account_password(
+  $1::uuid,'password_enroll','vault://identity/password/integration',
+  $2,$3,$4,$1::uuid,$5
+)->>'password_status'
+`, principalID, strings.Repeat("a", 64), passwordReceipt, passwordContext, now).Scan(&passwordStatus); err != nil {
+		t.Fatalf("enroll password through authoritative lifecycle: %v", err)
+	}
+	if passwordStatus != "set" {
+		t.Fatalf("password lifecycle returned %q", passwordStatus)
+	}
+
+	enrollReceipt, enrollContext := issueReceipt("mfa_enroll", "totp-enroll")
+	var pendingStatus string
+	if err := instance.adminDB.QueryRow(`
+SELECT a1_begin_totp_enrollment(
+  $1::uuid,'vault://identity/totp/integration',$2,$3,$4,$1::uuid,$5
+)->>'two_factor_status'
+`, principalID, strings.Repeat("b", 64), enrollReceipt, enrollContext, now).Scan(&pendingStatus); err != nil {
+		t.Fatalf("begin TOTP enrollment through authoritative lifecycle: %v", err)
+	}
+	if pendingStatus != "pending" {
+		t.Fatalf("TOTP enrollment returned %q", pendingStatus)
+	}
+
+	confirmReceipt, confirmContext := issueReceipt("mfa_confirm", "totp-confirm")
+	var enabledStatus string
+	if err := instance.adminDB.QueryRow(`
+SELECT a1_confirm_totp_enrollment(
+  $1::uuid,$2,$3,$4,10,$5
+)->>'two_factor_status'
+`, principalID, confirmReceipt, confirmContext, strings.Repeat("c", 64), now).Scan(&enabledStatus); err != nil {
+		t.Fatalf("confirm TOTP enrollment through authoritative lifecycle: %v", err)
+	}
+	if enabledStatus != "enabled" {
+		t.Fatalf("TOTP confirmation returned %q", enabledStatus)
+	}
+
+	var consumedReceipts, revokedSessions int
+	if err := instance.adminDB.QueryRow(`
+SELECT
+  (SELECT count(*) FROM identity_security_receipts
+    WHERE principal_id=$1::uuid AND consumed_at IS NOT NULL),
+  (SELECT count(*) FROM identity_sessions
+    WHERE principal_id=$1::uuid AND status='revoked')
+`, principalID).Scan(&consumedReceipts, &revokedSessions); err != nil {
+		t.Fatalf("inspect security lifecycle effects: %v", err)
+	}
+	if consumedReceipts != 3 || revokedSessions < 1 {
+		t.Fatalf("security lifecycle effects receipts=%d revoked_sessions=%d", consumedReceipts, revokedSessions)
+	}
+}
+
+func assertIdentityAccountSecurityRLS(
+	t *testing.T,
+	harness *postgresLifecycleHarness,
+	instance *postgresLifecycleInstance,
+	principalID string,
+	now time.Time,
+) {
+	t.Helper()
+	otherPrincipalID := "20000000-0000-4000-8000-000000000001"
+	mustExecArgs(t, instance.adminDB, `
+INSERT INTO identity_principals(id,status,display_label)
+VALUES ($1::uuid,'active','RLS Isolation Fixture')
+`, otherPrincipalID)
+	mustExecArgs(t, instance.adminDB, `
+INSERT INTO identity_account_security(principal_id,updated_at)
+VALUES ($1::uuid,$2)
+`, otherPrincipalID, now)
+	mustExec(t, instance.adminDB,
+		`GRANT SELECT ON identity_account_security TO `+quotePostgresIdentifier(harness.runtimeRole))
+
+	conn, err := instance.db.Conn(context.Background())
+	if err != nil {
+		t.Fatalf("open RLS runtime connection: %v", err)
+	}
+	defer conn.Close()
+	tx, err := conn.BeginTx(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("begin RLS runtime transaction: %v", err)
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`SELECT set_config('app.a1_principal_id',$1,TRUE)`, principalID); err != nil {
+		t.Fatalf("set RLS principal context: %v", err)
+	}
+	var visibleRows, foreignRows int
+	if err := tx.QueryRow(`
+SELECT count(*), count(*) FILTER (WHERE principal_id=$1::uuid)
+FROM identity_account_security
+`, otherPrincipalID).Scan(&visibleRows, &foreignRows); err != nil {
+		t.Fatalf("query account security through RLS runtime role: %v", err)
+	}
+	if visibleRows != 1 || foreignRows != 0 {
+		t.Fatalf("RLS exposed visible=%d foreign=%d account security rows", visibleRows, foreignRows)
 	}
 }

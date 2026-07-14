@@ -3202,3 +3202,35 @@ Commercial candidates (1-5): provider receipt chain 5/5/3/4/5; successful five-m
 - Evidence: `docs/a1/evidence/round62_provider_release_receipts.md`.- Final authoritative verification: Python A1/integration `1338 passed, 40 skipped in 93.29s`; TypeScript `639/639`; Go module tests and vet passed; TS/Python generated parity passed with zero Python-only exports; CL hygiene and commercial guards passed; public secret scan and owned-directory audit passed.
 - Bus-Auditor follow-up capability was unavailable in this resumed tool surface: no subagent creation/message tool was exposed for the three listed agents. The main agent therefore executed the required goal, contract, owned-directory, peer-change, evidence, secret, toolchain, and release-gate audit locally and records this limitation rather than inventing a subagent result.
 - Bus-equivalent decision: GO for commit/push, contingent on the new GitHub CL Gate becoming green. Next top three: provider-specific successful official audio calibration; XJTLU image-route protocol discovery; PostgreSQL-backed durable provider receipt ingestion and A3 retrieval API.
+
+## Round 63: Live PostgreSQL Identity Security Lifecycle
+
+Date: 2026-07-14
+
+- Corrected the live integration harness to use the disposable PostgreSQL
+  database's `clock_timestamp()` instead of a stale July 12 application clock.
+  Strict session-expiry and ten-minute recent-auth validation were not weakened.
+- Fresh-cluster setup now idempotently creates migration role `a1_runtime`,
+  applies migrations 001 through 018, and converts only the generated
+  password-authenticated runtime DSN from a Unix socket to `127.0.0.1` to avoid
+  peer-auth mismatch.
+- Replaced an invalid direct `two_factor_status='enabled'` fixture mutation
+  with migration 018's authoritative password enrollment, TOTP begin, and TOTP
+  confirmation operations.
+- The live test proves three scoped security receipts are consumed and existing
+  sessions are revoked after credential-security mutations.
+- Added real `identity_account_security` RLS verification through a disposable
+  `NOSUPERUSER NOBYPASSRLS` runtime role: one own row is visible and zero
+  foreign rows are visible.
+- Receipt signing-key rotation and fail-closed tamper rejection remain covered
+  for ciphertext, nonce, tenant scope, and proof key version.
+- Authoritative WSL/PostgreSQL 16.14 result:
+  `PASS; ok github.com/ashr-labs/ashr/packages/go/ashrclone 6.954s`.
+- Evidence:
+  `docs/a1/evidence/round63_identity_lifecycle_live_postgres.md`.
+
+Next: publish this focused regression slice, run Go race/vet plus complete
+Python/TypeScript/parity/commercial gates, then implement a typed
+PostgreSQL-backed `IdentitySecurityHTTPStore` that routes all password/MFA
+mutations through migration 018 while keeping unsafe split-memory stores fail
+closed.
