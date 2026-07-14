@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"sort"
 	"strconv"
@@ -1211,6 +1212,11 @@ func decodeJSONBody(writer http.ResponseWriter, request *http.Request) (JSONMap,
 	decoder.UseNumber()
 	if err := decoder.Decode(&body); err != nil {
 		writeError(writer, http.StatusBadRequest, "invalid_json", "request body must be a JSON object")
+		return nil, false
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		writeError(writer, http.StatusBadRequest, "invalid_json", "request body must contain exactly one JSON object")
 		return nil, false
 	}
 	return body, true

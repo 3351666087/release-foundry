@@ -11,6 +11,31 @@ import (
 const IdentitySecurityHTTPSchemaVersion = "ashr.identity_security_http.v1"
 
 var ErrIdentitySecurityUnavailable = errors.New("identity security mutation unavailable")
+var ErrIdentitySecurityRejected = errors.New("identity security mutation rejected")
+
+type IdentitySecurityHTTPPostureDTO struct {
+	SchemaVersion             string `json:"schema_version"`
+	PasswordStatus            string `json:"password_status"`
+	PasswordChangeAvailable   bool   `json:"password_change_available"`
+	PasswordRecoveryAvailable bool   `json:"password_recovery_available"`
+	TwoFactorStatus           string `json:"two_factor_status"`
+	TwoFactorOptional         bool   `json:"two_factor_optional"`
+	TwoFactorRecommended      bool   `json:"two_factor_recommended"`
+	RecoveryCodesRemaining    int    `json:"recovery_codes_remaining"`
+	SecurityVersion           int64  `json:"security_version"`
+	ActiveSessions            int64  `json:"active_sessions"`
+}
+
+type IdentitySecurityHTTPMutationResultDTO struct {
+	SchemaVersion            string `json:"schema_version"`
+	PasswordStatus           string `json:"password_status,omitempty"`
+	TwoFactorStatus          string `json:"two_factor_status,omitempty"`
+	ConfirmationRequired     bool   `json:"confirmation_required,omitempty"`
+	RecoveryCodesRemaining   int    `json:"recovery_codes_remaining,omitempty"`
+	SecurityVersion          int64  `json:"security_version,omitempty"`
+	SessionsRevoked          int64  `json:"sessions_revoked"`
+	ReauthenticationRequired bool   `json:"reauthentication_required,omitempty"`
+}
 
 // IdentitySecurityMutationTicket is resolved exclusively by trusted server-side
 // infrastructure. Its secret material must never be serialized to a client.
@@ -41,8 +66,8 @@ type IdentitySecurityMutation struct {
 }
 
 type IdentitySecurityHTTPStore interface {
-	GetIdentitySecurityPosture(context.Context, string) (JSONMap, error)
-	MutateIdentitySecurity(context.Context, IdentitySecurityMutation) (JSONMap, error)
+	GetIdentitySecurityPosture(context.Context, string) (IdentitySecurityHTTPPostureDTO, error)
+	MutateIdentitySecurity(context.Context, IdentitySecurityMutation) (IdentitySecurityHTTPMutationResultDTO, error)
 }
 
 func (server *HTTPServer) handleIdentitySecurity(w http.ResponseWriter, r *http.Request, session IdentityHTTPSession, parts []string) {
@@ -56,7 +81,12 @@ func (server *HTTPServer) handleIdentitySecurity(w http.ResponseWriter, r *http.
 			return
 		}
 		posture, err := server.identitySecurity.GetIdentitySecurityPosture(r.Context(), session.AccountID)
-		writeIdentitySecurityResult(w, posture, err)
+		if err != nil {
+			writeError(w, http.StatusServiceUnavailable, "identity_security_unavailable", "identity security capability is unavailable")
+			return
+		}
+		posture.SchemaVersion = IdentitySecurityHTTPSchemaVersion
+		writeJSON(w, http.StatusOK, posture)
 		return
 	}
 	operation, ok := identitySecurityOperation(parts)
@@ -80,12 +110,14 @@ func (server *HTTPServer) handleIdentitySecurity(w http.ResponseWriter, r *http.
 	stepUpID := stringValue(body, "step_up_receipt_id")
 	bodyKey := stringValue(body, "idempotency_key")
 	headerKey := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
-	if headerKey == "" || bodyKey == "" || headerKey != bodyKey || ticketID == "" || stepUpID == "" {
+	if headerKey == "" || bodyKey == "" || headerKey != bodyKey ||
+		!validIdentitySecurityIdempotencyKey(headerKey) ||
+		ticketID == "" || stepUpID == "" {
 		writeError(w, http.StatusBadRequest, "invalid_security_mutation", "mutation ticket, step-up receipt, and matching idempotency key are required")
 		return
 	}
 	ticket, err := server.identitySecurityTickets.ResolveIdentitySecurityMutationTicket(r.Context(), ticketID, stepUpID, operation)
-	if err != nil || ticket.AccountID != session.AccountID || ticket.Operation != operation || !ticket.ExpiresAt.After(time.Now().UTC()) {
+	if err != nil || ticket.AccountID != session.AccountID || ticket.Operation != operation {
 		writeError(w, http.StatusForbidden, "identity_security_mutation_rejected", "identity security mutation could not be authorized")
 		return
 	}
@@ -93,7 +125,16 @@ func (server *HTTPServer) handleIdentitySecurity(w http.ResponseWriter, r *http.
 		AccountID: session.AccountID, ActorID: session.ActorID, SessionID: session.SessionID,
 		Operation: operation, IdempotencyKey: headerKey, Ticket: ticket,
 	})
-	writeIdentitySecurityResult(w, result, err)
+	if err != nil {
+		if errors.Is(err, ErrIdentitySecurityUnavailable) {
+			writeError(w, http.StatusServiceUnavailable, "identity_security_unavailable", "identity security capability is unavailable")
+			return
+		}
+		writeError(w, http.StatusForbidden, "identity_security_mutation_rejected", "identity security mutation could not be completed")
+		return
+	}
+	result.SchemaVersion = IdentitySecurityHTTPSchemaVersion
+	writeJSON(w, http.StatusOK, result)
 }
 
 func identitySecurityOperation(parts []string) (string, bool) {
@@ -120,13 +161,4 @@ func validateIdentitySecurityBody(body JSONMap) error {
 		}
 	}
 	return nil
-}
-
-func writeIdentitySecurityResult(w http.ResponseWriter, result JSONMap, err error) {
-	if err != nil {
-		writeError(w, http.StatusForbidden, "identity_security_mutation_rejected", "identity security mutation could not be completed")
-		return
-	}
-	result["schema_version"] = IdentitySecurityHTTPSchemaVersion
-	writeJSON(w, http.StatusOK, result)
 }

@@ -15,6 +15,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 MIGRATIONS = ROOT / "services" / "api" / "migrations"
 MIGRATION = MIGRATIONS / "014_a1_identity_delivery_outbox.sql"
+IDENTITY_MIGRATION_MAX = "018_a1_password_mfa_lifecycle.sql"
 GO_STORE = ROOT / "packages" / "go" / "ashrclone" / "identity_delivery_postgres.go"
 CONTAINER = os.environ.get("A1_POSTGRES_TEST_CONTAINER", "ashr-oauth-pg-test")
 RUNTIME_ROLE = "a1_runtime"
@@ -144,6 +145,14 @@ def _apply_migrations(database: str, migrations: list[Path]) -> None:
         )
 
 
+def _identity_migrations() -> list[Path]:
+    return [
+        migration
+        for migration in sorted(MIGRATIONS.glob("*.sql"))
+        if migration.name <= IDENTITY_MIGRATION_MAX
+    ]
+
+
 def _drop_database(database: str) -> None:
     _psql(
         "postgres",
@@ -158,7 +167,7 @@ def identity_delivery_database() -> str:
     _require_live_postgres()
     database = _create_database("a1_identity_delivery_it")
     try:
-        _apply_migrations(database, sorted(MIGRATIONS.glob("*.sql")))
+        _apply_migrations(database, _identity_migrations())
         yield database
     finally:
         _drop_database(database)
@@ -171,13 +180,20 @@ def identity_delivery_012_database() -> str:
     try:
         migrations = [
             migration
-            for migration in sorted(MIGRATIONS.glob("*.sql"))
+            for migration in _identity_migrations()
             if migration.name <= "012_a1_identity_verification.sql"
         ]
         _apply_migrations(database, migrations)
         yield database
     finally:
         _drop_database(database)
+
+
+def test_identity_fixture_excludes_control_plane_provider_dispatch_migration() -> None:
+    migrations = _identity_migrations()
+
+    assert migrations[-1].name == IDENTITY_MIGRATION_MAX
+    assert all(migration.name != "019_a1_provider_dispatch_coordination.sql" for migration in migrations)
 
 
 def test_migration_is_additive_and_follows_session_lifecycle() -> None:

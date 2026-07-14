@@ -52,6 +52,10 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
    AND to_regclass('public.identity_verification_delivery_redrive_audit') IS NOT NULL
    AND to_regclass('public.identity_lifecycle_receipts') IS NOT NULL
    AND to_regclass('public.identity_lifecycle_receipt_audit') IS NOT NULL
+   AND to_regclass('public.identity_account_security') IS NOT NULL
+   AND to_regclass('public.identity_security_receipts') IS NOT NULL
+   AND to_regclass('public.identity_security_mutation_tickets') IS NOT NULL
+   AND to_regclass('public.identity_security_mutation_idempotency') IS NOT NULL
    AND to_regprocedure(
      'public.a1_complete_oauth_identity_callback(uuid,uuid,uuid,text,text,text,text,text,text,text,text,text,text,text,jsonb)'
    ) IS NOT NULL
@@ -115,6 +119,47 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
    AND to_regprocedure(
      'public.a1_project_identity_lifecycle_account(uuid)'
    ) IS NOT NULL
+   AND to_regprocedure(
+     'public.a1_mutate_account_password(uuid,text,text,text,text,text,uuid,timestamp with time zone)'
+   ) IS NOT NULL
+   AND to_regprocedure(
+     'public.a1_begin_totp_enrollment(uuid,text,text,text,text,uuid,timestamp with time zone)'
+   ) IS NOT NULL
+   AND to_regprocedure(
+     'public.a1_confirm_totp_enrollment(uuid,text,text,text,integer,timestamp with time zone)'
+   ) IS NOT NULL
+   AND to_regprocedure(
+     'public.a1_project_account_security(uuid)'
+   ) IS NOT NULL
+   AND to_regprocedure(
+     'public.a1_issue_identity_security_mutation_ticket(text,text,uuid,uuid,text,text,text,text,text,integer,timestamp with time zone,timestamp with time zone)'
+   ) IS NOT NULL
+   AND to_regprocedure(
+     'public.a1_resolve_identity_security_mutation_ticket(text,text,text,timestamp with time zone)'
+   ) IS NOT NULL
+   AND to_regprocedure(
+     'public.a1_execute_identity_security_mutation(text,text,text,timestamp with time zone)'
+   ) IS NOT NULL
+   AND has_function_privilege(
+     current_user,
+     'public.a1_issue_identity_security_mutation_ticket(text,text,uuid,uuid,text,text,text,text,text,integer,timestamp with time zone,timestamp with time zone)',
+     'EXECUTE'
+   )
+   AND has_function_privilege(
+     current_user,
+     'public.a1_resolve_identity_security_mutation_ticket(text,text,text,timestamp with time zone)',
+     'EXECUTE'
+   )
+   AND has_function_privilege(
+     current_user,
+     'public.a1_execute_identity_security_mutation(text,text,text,timestamp with time zone)',
+     'EXECUTE'
+   )
+   AND has_function_privilege(
+     current_user,
+     'public.a1_project_account_security(uuid)',
+     'EXECUTE'
+   )
 `
 
 type ProductionIdentityStore struct {
@@ -714,7 +759,7 @@ func (store *ProductionIdentityStore) Ready(ctx context.Context) error {
 		return fmt.Errorf("verify production identity schema: %w", err)
 	}
 	if !ready {
-		return fmt.Errorf("production identity PostgreSQL schema is incomplete; migration 017 identity lifecycle account projection capability is required")
+		return fmt.Errorf("production identity PostgreSQL schema is incomplete; migration 018 identity security authority and runtime grants are required")
 	}
 	return nil
 }

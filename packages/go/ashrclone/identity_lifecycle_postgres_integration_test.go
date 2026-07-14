@@ -358,6 +358,10 @@ $$`); err != nil {
 		"a1_authenticate_identity_lifecycle_credential(TEXT,TEXT[],TIMESTAMPTZ)",
 		"a1_project_identity_lifecycle_account(UUID)",
 		"a1_issue_identity_session(UUID,UUID,TEXT,TEXT,TIMESTAMPTZ,UUID,UUID,TEXT,TEXT,JSONB)",
+		"a1_issue_identity_security_mutation_ticket(TEXT,TEXT,UUID,UUID,TEXT,TEXT,TEXT,TEXT,TEXT,INTEGER,TIMESTAMPTZ,TIMESTAMPTZ)",
+		"a1_resolve_identity_security_mutation_ticket(TEXT,TEXT,TEXT,TIMESTAMPTZ)",
+		"a1_execute_identity_security_mutation(TEXT,TEXT,TEXT,TIMESTAMPTZ)",
+		"a1_project_account_security(UUID)",
 	} {
 		if _, err := db.Exec(`GRANT EXECUTE ON FUNCTION ` + signature + ` TO ` +
 			quotePostgresIdentifier(runtimeRole)); err != nil {
@@ -579,56 +583,157 @@ func exerciseAuthoritativeSecurityLifecycle(
 	now time.Time,
 ) {
 	t.Helper()
-	issueReceipt := func(purpose, label string) (string, string) {
+	issueTicket := func(
+		operation string,
+		label string,
+		secretRef any,
+		secretDigest any,
+		recoveryBatchDigest any,
+		recoveryCodeCount any,
+	) IdentitySecurityMutationTicket {
 		t.Helper()
 		receiptDigest := instance.receipts.receiptDigest("security-receipt:" + label)
 		contextDigest := instance.receipts.receiptDigest("security-context:" + label)
+		ticketDigest := instance.receipts.receiptDigest("security-ticket:" + label)
 		mustExecArgs(t, instance.adminDB, `
 INSERT INTO identity_security_receipts(
   receipt_digest,principal_id,purpose,context_digest,expires_at
 ) VALUES ($1,$2::uuid,$3,$4,$5)
-`, receiptDigest, principalID, purpose, contextDigest, now.Add(10*time.Minute))
-		return receiptDigest, contextDigest
+`, receiptDigest, principalID, operation, contextDigest, now.Add(10*time.Minute))
+		var issued bool
+		if err := instance.db.QueryRow(`
+SELECT a1_issue_identity_security_mutation_ticket(
+  $1,$2,$3::uuid,$3::uuid,$4,$5,$6,$7,$8,$9,$10,$11
+)
+`, ticketDigest, receiptDigest, principalID, operation, contextDigest,
+			secretRef, secretDigest, recoveryBatchDigest, recoveryCodeCount,
+			now.Add(5*time.Minute), now).Scan(&issued); err != nil {
+			t.Fatalf("issue %s security mutation ticket: %v", operation, err)
+		}
+		if !issued {
+			t.Fatalf("issue %s security mutation ticket returned false", operation)
+		}
+		ticket, err := instance.store.ResolveIdentitySecurityMutationTicket(
+			context.Background(), ticketDigest, receiptDigest, operation,
+		)
+		if err != nil {
+			t.Fatalf("resolve %s security mutation ticket: %v", operation, err)
+		}
+		return ticket
 	}
 
-	passwordReceipt, passwordContext := issueReceipt("password_enroll", "password-enroll")
-	var passwordStatus string
-	if err := instance.adminDB.QueryRow(`
-SELECT a1_mutate_account_password(
-  $1::uuid,'password_enroll','vault://identity/password/integration',
-  $2,$3,$4,$1::uuid,$5
-)->>'password_status'
-`, principalID, strings.Repeat("a", 64), passwordReceipt, passwordContext, now).Scan(&passwordStatus); err != nil {
-		t.Fatalf("enroll password through authoritative lifecycle: %v", err)
-	}
-	if passwordStatus != "set" {
-		t.Fatalf("password lifecycle returned %q", passwordStatus)
+	mutate := func(
+		operation string,
+		idempotencyKey string,
+		ticket IdentitySecurityMutationTicket,
+	) IdentitySecurityHTTPMutationResultDTO {
+		t.Helper()
+		mutation := IdentitySecurityMutation{
+			AccountID: principalID, ActorID: principalID, SessionID: "integration-session",
+			Operation: operation, IdempotencyKey: idempotencyKey, Ticket: ticket,
+		}
+		result, err := instance.store.MutateIdentitySecurity(context.Background(), mutation)
+		if err != nil {
+			t.Fatalf("execute %s security mutation: %v", operation, err)
+		}
+		replay, err := instance.store.MutateIdentitySecurity(context.Background(), mutation)
+		if err != nil {
+			t.Fatalf("replay %s security mutation: %v", operation, err)
+		}
+		if replay != result {
+			t.Fatalf("%s replay changed result: first=%#v replay=%#v", operation, result, replay)
+		}
+		conflict := mutation
+		conflict.SessionID = "different-integration-session"
+		if _, err := instance.store.MutateIdentitySecurity(context.Background(), conflict); !errors.Is(err, ErrIdentitySecurityRejected) {
+			t.Fatalf("%s idempotency binding conflict returned %v", operation, err)
+		}
+		return result
 	}
 
-	enrollReceipt, enrollContext := issueReceipt("mfa_enroll", "totp-enroll")
-	var pendingStatus string
-	if err := instance.adminDB.QueryRow(`
-SELECT a1_begin_totp_enrollment(
-  $1::uuid,'vault://identity/totp/integration',$2,$3,$4,$1::uuid,$5
-)->>'two_factor_status'
-`, principalID, strings.Repeat("b", 64), enrollReceipt, enrollContext, now).Scan(&pendingStatus); err != nil {
-		t.Fatalf("begin TOTP enrollment through authoritative lifecycle: %v", err)
-	}
-	if pendingStatus != "pending" {
-		t.Fatalf("TOTP enrollment returned %q", pendingStatus)
+	passwordTicket := issueTicket(
+		"password_enroll",
+		"password-enroll",
+		"vault://identity/password/integration",
+		strings.Repeat("a", 64),
+		nil,
+		nil,
+	)
+	passwordResult := mutate(
+		"password_enroll",
+		"password-enroll",
+		passwordTicket,
+	)
+	if passwordResult.PasswordStatus != "set" || !passwordResult.ReauthenticationRequired {
+		t.Fatalf("password lifecycle returned %#v", passwordResult)
 	}
 
-	confirmReceipt, confirmContext := issueReceipt("mfa_confirm", "totp-confirm")
-	var enabledStatus string
-	if err := instance.adminDB.QueryRow(`
-SELECT a1_confirm_totp_enrollment(
-  $1::uuid,$2,$3,$4,10,$5
-)->>'two_factor_status'
-`, principalID, confirmReceipt, confirmContext, strings.Repeat("c", 64), now).Scan(&enabledStatus); err != nil {
-		t.Fatalf("confirm TOTP enrollment through authoritative lifecycle: %v", err)
+	enrollTicket := issueTicket(
+		"mfa_enroll",
+		"totp-enroll",
+		"vault://identity/totp/integration",
+		strings.Repeat("b", 64),
+		nil,
+		nil,
+	)
+	enrollResult := mutate(
+		"mfa_enroll",
+		"totp-enroll",
+		enrollTicket,
+	)
+	if enrollResult.TwoFactorStatus != "pending" || !enrollResult.ConfirmationRequired {
+		t.Fatalf("TOTP enrollment returned %#v", enrollResult)
 	}
-	if enabledStatus != "enabled" {
-		t.Fatalf("TOTP confirmation returned %q", enabledStatus)
+
+	confirmTicket := issueTicket(
+		"mfa_confirm",
+		"totp-confirm",
+		nil,
+		nil,
+		strings.Repeat("c", 64),
+		10,
+	)
+	confirmResult := mutate(
+		"mfa_confirm",
+		"totp-confirm",
+		confirmTicket,
+	)
+	if confirmResult.TwoFactorStatus != "enabled" ||
+		confirmResult.RecoveryCodesRemaining != 10 ||
+		!confirmResult.ReauthenticationRequired {
+		t.Fatalf("TOTP confirmation returned %#v", confirmResult)
+	}
+
+	/*
+		The production boundary deliberately receives only the public ticket
+		projection. Secret refs, secret digests, context digests, and recovery
+		material above are supplied only to PostgreSQL's trusted issuance
+		authority and never re-enter the Go mutation path.
+	*/
+	_, err := instance.store.MutateIdentitySecurity(
+		context.Background(),
+		IdentitySecurityMutation{
+			AccountID: principalID, ActorID: principalID, SessionID: "integration-session",
+			Operation: "password_enroll", IdempotencyKey: "unissued-ticket",
+			Ticket: IdentitySecurityMutationTicket{
+				TicketID: strings.Repeat("d", 64), AccountID: principalID,
+				Operation: "password_enroll", ReceiptDigest: strings.Repeat("e", 64),
+				ExpiresAt: now.Add(5 * time.Minute),
+			},
+		},
+	)
+	if !errors.Is(err, ErrIdentitySecurityRejected) {
+		t.Fatalf("unissued security mutation ticket returned %v", err)
+	}
+
+	posture, err := instance.store.GetIdentitySecurityPosture(context.Background(), principalID)
+	if err != nil {
+		t.Fatalf("project identity security posture through production store: %v", err)
+	}
+	if posture.PasswordStatus != "set" || posture.TwoFactorStatus != "enabled" ||
+		!posture.TwoFactorOptional || !posture.TwoFactorRecommended ||
+		posture.RecoveryCodesRemaining != 10 || posture.SecurityVersion < 3 {
+		t.Fatalf("production identity security posture returned %#v", posture)
 	}
 
 	var consumedReceipts, revokedSessions int

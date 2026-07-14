@@ -42,10 +42,12 @@ def password_mfa_database() -> str:
     )
     if running.returncode or running.stdout.strip() != "true":
         pytest.skip(f"PostgreSQL container {CONTAINER!r} is not running")
+    _psql("postgres", "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='a1_runtime') "
+                       "THEN CREATE ROLE a1_runtime NOLOGIN NOSUPERUSER NOBYPASSRLS; END IF; END $$;")
     database = f"a1_password_mfa_it_{uuid.uuid4().hex[:10]}"
     _psql("postgres", f'CREATE DATABASE "{database}";')
     try:
-        for migration in sorted(MIGRATIONS.glob("*.sql")):
+        for migration in sorted(path for path in MIGRATIONS.glob("*.sql") if path.name[:3] <= "018"):
             _psql(database, migration.read_text(encoding="utf-8"))
         yield database
     finally:
@@ -64,6 +66,37 @@ def _issue_receipt(database: str, principal: str, purpose: str, label: str, *, m
     _psql(database, f"INSERT INTO identity_security_receipts(receipt_digest,principal_id,purpose,context_digest,expires_at) "
                      f"VALUES ('{receipt}','{principal}','{purpose}','{context}',clock_timestamp()+interval '{minutes} minutes');")
     return receipt, context
+
+
+def _issue_ticket(
+    database: str,
+    principal: str,
+    purpose: str,
+    label: str,
+    *,
+    secret_ref: str | None = None,
+    secret_digest: str | None = None,
+    recovery_batch_digest: str | None = None,
+    recovery_code_count: int | None = None,
+) -> tuple[str, str, str]:
+    receipt, context = _issue_receipt(database, principal, purpose, label)
+    ticket = _digest(f"{label}-ticket")
+
+    def sql_value(value: str | None) -> str:
+        return "NULL" if value is None else f"'{value}'"
+
+    count_value = "NULL" if recovery_code_count is None else str(recovery_code_count)
+    result = _psql(
+        database,
+        "SET ROLE a1_runtime; "
+        "SELECT a1_issue_identity_security_mutation_ticket("
+        f"'{ticket}','{receipt}','{principal}','{principal}','{purpose}','{context}',"
+        f"{sql_value(secret_ref)},{sql_value(secret_digest)},"
+        f"{sql_value(recovery_batch_digest)},{count_value},"
+        "clock_timestamp()+interval '5 minutes',clock_timestamp());",
+    )
+    assert _rows(result) == ["t"]
+    return ticket, receipt, context
 
 
 def test_security_receipts_are_single_use_scoped_and_expiring() -> None:
@@ -94,12 +127,57 @@ def test_totp_requires_confirmation_and_never_projects_secret_material() -> None
     for forbidden in ("totp_secret_ref", "totp_secret_digest", "recovery_code_batch_digest"):
         assert forbidden not in projection
     assert "two_factor_recommended',true" in projection
+    begin = SQL.split("create or replace function a1_begin_totp_enrollment", 1)[1]
+    confirm = SQL.split("create or replace function a1_confirm_totp_enrollment", 1)[1]
+    assert "'security_version',v_version" in begin
+    assert "'security_version',v_version" in confirm
 
 
 def test_tables_are_rls_forced_and_public_access_is_revoked() -> None:
-    assert "alter table identity_security_receipts enable row level security" in SQL
-    assert "alter table identity_security_receipts force row level security" in SQL
-    assert "revoke all on identity_security_receipts from public" in SQL
+    for table in (
+        "identity_security_receipts",
+        "identity_security_mutation_tickets",
+        "identity_security_mutation_idempotency",
+    ):
+        assert f"alter table {table} enable row level security" in SQL
+        assert f"alter table {table} force row level security" in SQL
+    revoke = SQL.split("revoke all on identity_security_receipts", 1)[1].split("from public", 1)[0]
+    assert "identity_security_mutation_tickets" in revoke
+    assert "identity_security_mutation_idempotency" in revoke
+
+
+def test_trusted_ticket_and_idempotency_authority_is_database_owned() -> None:
+    assert "create table if not exists identity_security_mutation_tickets" in SQL
+    assert "step_up_receipt_digest text not null" in SQL
+    assert "actor_principal_id uuid not null" in SQL
+    assert "create table if not exists identity_security_mutation_idempotency" in SQL
+    assert "primary key (principal_id,operation,idempotency_key)" in SQL
+    assert "request_fingerprint text not null" in SQL
+    execute = SQL.split("create or replace function a1_execute_identity_security_mutation", 1)[1]
+    assert "for update" in execute
+    assert "on conflict (principal_id,operation,idempotency_key) do nothing" in execute
+    assert "identity_security_idempotency_conflict" in execute
+    assert "if v_idempotency.result_json is not null then" in execute
+    assert "update identity_security_mutation_tickets set consumed_at=p_now" in execute
+    assert "set result_json=v_result,completed_at=p_now" in execute
+
+
+def test_runtime_role_is_granted_only_safe_security_entrypoints() -> None:
+    assert "if exists (select 1 from pg_roles where rolname = 'a1_runtime')" in SQL
+    for function in (
+        "a1_issue_identity_security_mutation_ticket",
+        "a1_execute_identity_security_mutation",
+        "a1_resolve_identity_security_mutation_ticket",
+        "a1_project_account_security",
+    ):
+        assert f"grant execute on function {function}" in SQL
+    for internal in (
+        "a1_consume_identity_security_receipt",
+        "a1_mutate_account_password",
+        "a1_begin_totp_enrollment",
+        "a1_confirm_totp_enrollment",
+    ):
+        assert f"grant execute on function {internal}" not in SQL
 
 
 def test_registration_and_login_functions_are_not_modified_by_security_migration() -> None:
@@ -140,12 +218,14 @@ def test_password_lifecycle_receipts_and_session_revocation(password_mfa_databas
 def test_totp_two_phase_expiry_projection_and_concurrent_receipt(password_mfa_database: str) -> None:
     database, principal = password_mfa_database, _seed_principal(password_mfa_database)
     enroll, enroll_context = _issue_receipt(database, principal, "mfa_enroll", "mfa-enroll")
-    _psql(database, f"SELECT a1_begin_totp_enrollment('{principal}','vault://totp/secret','{_digest('totp-secret')}',"
-                     f"'{enroll}','{enroll_context}','{principal}',clock_timestamp());")
+    begin = _psql(database, f"SELECT a1_begin_totp_enrollment('{principal}','vault://totp/secret','{_digest('totp-secret')}',"
+                   f"'{enroll}','{enroll_context}','{principal}',clock_timestamp())->>'security_version';")
+    assert _rows(begin) == ["1"]
     confirm, confirm_context = _issue_receipt(database, principal, "mfa_confirm", "mfa-confirm")
-    result = _psql(database, f"SELECT a1_confirm_totp_enrollment('{principal}','{confirm}','{confirm_context}',"
-                    f"'{_digest('recovery-batch')}',10,clock_timestamp())->>'two_factor_status';")
-    assert _rows(result) == ["enabled"]
+    result = _psql(database, f"SELECT (result->>'two_factor_status')||'|'||(result->>'security_version') "
+                    f"FROM (SELECT a1_confirm_totp_enrollment('{principal}','{confirm}','{confirm_context}',"
+                    f"'{_digest('recovery-batch')}',10,clock_timestamp()) AS result) confirmed;")
+    assert _rows(result) == ["enabled|2"]
     projection = "|".join(_rows(_psql(database, f"SELECT a1_project_account_security('{principal}');")))
     assert '"two_factor_status": "enabled"' in projection
     assert all(secret not in projection for secret in ("vault://", _digest("totp-secret"), _digest("recovery-batch")))
@@ -166,3 +246,117 @@ def test_totp_two_phase_expiry_projection_and_concurrent_receipt(password_mfa_da
     with ThreadPoolExecutor(max_workers=8) as pool:
         outcomes = list(pool.map(lambda _: _rows(_psql(database, statement))[0], range(16)))
     assert outcomes.count("t") == 1 and outcomes.count("f") == 15
+
+
+def test_runtime_grants_hide_secret_tables_and_internal_functions(password_mfa_database: str) -> None:
+    database = password_mfa_database
+    privilege_sql = """
+    SELECT
+      has_function_privilege('a1_runtime',
+        'a1_issue_identity_security_mutation_ticket(text,text,uuid,uuid,text,text,text,text,text,integer,timestamptz,timestamptz)',
+        'EXECUTE'),
+      has_function_privilege('a1_runtime',
+        'a1_execute_identity_security_mutation(text,text,text,timestamptz)',
+        'EXECUTE'),
+      has_function_privilege('a1_runtime',
+        'a1_resolve_identity_security_mutation_ticket(text,text,text,timestamptz)',
+        'EXECUTE'),
+      has_function_privilege('a1_runtime','a1_project_account_security(uuid)','EXECUTE'),
+      has_function_privilege('a1_runtime',
+        'a1_mutate_account_password(uuid,text,text,text,text,text,uuid,timestamptz)',
+        'EXECUTE'),
+      has_table_privilege('a1_runtime','identity_security_mutation_tickets','SELECT'),
+      has_table_privilege('a1_runtime','identity_security_mutation_idempotency','SELECT');
+    """
+    assert _rows(_psql(database, privilege_sql)) == ["t|t|t|t|f|f|f"]
+
+
+def test_runtime_resolves_only_public_ticket_envelope(password_mfa_database: str) -> None:
+    database, principal = password_mfa_database, _seed_principal(password_mfa_database)
+    ticket, receipt, _ = _issue_ticket(
+        database,
+        principal,
+        "password_enroll",
+        "resolver-envelope",
+        secret_ref="vault://password/resolver-envelope",
+        secret_digest=_digest("resolver-password-fingerprint"),
+    )
+    projection = _psql(
+        database,
+        "SET ROLE a1_runtime; "
+        "SELECT a1_resolve_identity_security_mutation_ticket("
+        f"'{ticket}','{receipt}','password_enroll',clock_timestamp());",
+    )
+    public_result = "|".join(_rows(projection))
+    assert ticket in public_result
+    assert receipt in public_result
+    assert str(principal) in public_result
+    assert "password_enroll" in public_result
+    for forbidden in (
+        "vault://password/resolver-envelope",
+        _digest("resolver-password-fingerprint"),
+        "secret_ref",
+        "secret_digest",
+        "context_digest",
+        "recovery_batch_digest",
+    ):
+        assert forbidden not in public_result
+
+
+def test_durable_idempotency_retry_conflict_and_concurrency_exactly_once(
+    password_mfa_database: str,
+) -> None:
+    database, principal = password_mfa_database, _seed_principal(password_mfa_database)
+    ticket, _, _ = _issue_ticket(
+        database,
+        principal,
+        "password_enroll",
+        "durable-idempotency",
+        secret_ref="vault://password/durable",
+        secret_digest=_digest("durable-password-fingerprint"),
+    )
+    fingerprint = _digest("durable-public-request")
+    idempotency_key = "password:durable:retry-1"
+    statement = (
+        "SET ROLE a1_runtime; "
+        "SELECT a1_execute_identity_security_mutation("
+        f"'{ticket}','{idempotency_key}','{fingerprint}',clock_timestamp());"
+    )
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        outcomes = list(pool.map(lambda _: "|".join(_rows(_psql(database, statement))), range(16)))
+    assert len(set(outcomes)) == 1
+    assert '"password_status": "set"' in outcomes[0]
+    assert '"security_version": 1' in outcomes[0]
+
+    replay_after_expiry = _psql(
+        database,
+        "SET ROLE a1_runtime; "
+        "SELECT a1_execute_identity_security_mutation("
+        f"'{ticket}','{idempotency_key}','{fingerprint}',"
+        "clock_timestamp()+interval '1 hour');",
+    )
+    assert "|".join(_rows(replay_after_expiry)) == outcomes[0]
+
+    conflict = _psql(
+        database,
+        "SET ROLE a1_runtime; "
+        "SELECT a1_execute_identity_security_mutation("
+        f"'{ticket}','{idempotency_key}','{_digest('different-request')}',clock_timestamp());",
+        check=False,
+    )
+    assert conflict.returncode != 0
+    assert "identity_security_idempotency_conflict" in conflict.stderr
+
+    state = _psql(
+        database,
+        "SELECT s.security_version,"
+        "(SELECT count(*) FROM identity_security_mutation_idempotency i "
+        f" WHERE i.principal_id='{principal}' AND i.operation='password_enroll'),"
+        "(SELECT count(*) FROM identity_security_mutation_tickets t "
+        f" WHERE t.principal_id='{principal}' AND t.consumed_at IS NOT NULL),"
+        "(SELECT count(*) FROM identity_audit_events e "
+        f" WHERE e.principal_id='{principal}' AND e.action='identity.password_enroll') "
+        f"FROM identity_account_security s WHERE s.principal_id='{principal}';",
+    )
+    assert _rows(state) == ["1|1|1|1"]

@@ -78,30 +78,43 @@ func main() {
 		}
 	}
 	log.Printf("ashr Go control plane listening on %s with backend %s", addr, selection.Name)
+	serverOptions := identityHTTPServerOptions(identityRuntime, identitySessions)
+	serverOptions.BackendName = selection.Name
+	serverOptions.BackendReady = selection.Ready
+	serverOptions.PaymentReconciliation = selection.PaymentReconciliation
+	serverOptions.PaymentDomain = selection.PaymentDomain
+	serverOptions.OAuthProviders = oauthProviders
+	serverOptions.GitHubOAuth = githubOAuth
+	serverOptions.ProviderDispatch = selection.ProviderDispatch
 	server := &http.Server{
 		Addr:              addr,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      30 * time.Second,
 		IdleTimeout:       60 * time.Second,
-		Handler: ashrclone.NewHTTPServerWithOptions(selection.Backend, ashrclone.HTTPServerOptions{
-			BackendName:                        selection.Name,
-			BackendReady:                       selection.Ready,
-			PaymentReconciliation:              selection.PaymentReconciliation,
-			PaymentDomain:                      selection.PaymentDomain,
-			UnifiedIdentity:                    identityRuntime.unifiedIdentity,
-			UnifiedIdentityStore:               identityRuntime.postgres,
-			IdentityLifecycle:                  identityRuntime.identityLifecycle,
-			IdentitySessions:                   identitySessions,
-			IdentityVerification:               identityRuntime.verification,
-			IdentityVerificationResponsePolicy: identityRuntime.verificationResponsePolicy,
-			IdentitySessionReceiptTransport:    identityRuntime.sessionReceiptTransport,
-			OAuthProviders:                     oauthProviders,
-			GitHubOAuth:                        githubOAuth,
-			ProviderDispatch:                   selection.ProviderDispatch,
-		}),
+		Handler:           ashrclone.NewHTTPServerWithOptions(selection.Backend, serverOptions),
 	}
 	if err := server.ListenAndServe(); err != nil {
 		log.Fatal(err)
 	}
+}
+
+func identityHTTPServerOptions(
+	runtime identityRuntime,
+	sessions ashrclone.IdentityHTTPSessionResolver,
+) ashrclone.HTTPServerOptions {
+	options := ashrclone.HTTPServerOptions{
+		UnifiedIdentity:                    runtime.unifiedIdentity,
+		IdentityLifecycle:                  runtime.identityLifecycle,
+		IdentitySessions:                   sessions,
+		IdentityVerification:               runtime.verification,
+		IdentityVerificationResponsePolicy: runtime.verificationResponsePolicy,
+		IdentitySessionReceiptTransport:    runtime.sessionReceiptTransport,
+	}
+	if runtime.postgres != nil {
+		options.UnifiedIdentityStore = runtime.postgres
+		options.IdentitySecurity = runtime.postgres
+		options.IdentitySecurityTickets = runtime.postgres
+	}
+	return options
 }

@@ -83,6 +83,13 @@ func TestProductionIdentityRuntimeUsesPostgresAsSoleIdentityAuthority(t *testing
 			runtime.identitySessions != nil,
 		)
 	}
+	options := identityHTTPServerOptions(runtime, runtime.identitySessions)
+	if options.IdentitySecurity != runtime.postgres ||
+		options.IdentitySecurityTickets != runtime.postgres ||
+		options.UnifiedIdentityStore != runtime.postgres ||
+		options.IdentitySessions != runtime.identitySessions {
+		t.Fatalf("production HTTP identity authority was not wired from PostgreSQL: %#v", options)
+	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)
 	}
@@ -108,6 +115,11 @@ func TestIdentityRuntimeMemoryRequiresExplicitDevelopmentOptIn(t *testing.T) {
 	}
 	if runtime.mode != ashrclone.IdentityRuntimeMemory || runtime.unifiedIdentity == nil {
 		t.Fatalf("unexpected memory runtime: %#v", runtime)
+	}
+	options := identityHTTPServerOptions(runtime, nil)
+	if options.IdentitySecurity != nil || options.IdentitySecurityTickets != nil ||
+		options.UnifiedIdentityStore != nil {
+		t.Fatalf("development memory runtime silently acquired a production security backend: %#v", options)
 	}
 }
 
