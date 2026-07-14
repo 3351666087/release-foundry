@@ -7101,8 +7101,9 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
 
 ## 2026-07-14 - Multimodal Review Evidence Request Workflow
 
-- Authenticated GitHub readback confirmed main `ccf6ce5`, A1 peer `6a985b8`, A2 peer `bb3bcfe`, and PR #35 open, Draft, clean, with the previous head checks green.
+- Authenticated GitHub readback confirmed main `ccf6ce5`, A1 peer `6a985b8`, latest A2 peer `7504680`, and PR #35 open, Draft, clean; the exact consumed A2 Round 50 source remains `bb3bcfe`.
 - Inspected A1 `6a985b8` identity-authority readiness hardening; kept it peer-only and preserved A3's non-production reviewer-identity boundary.
+- Inspected A2 Round 51 multi-repeat and review-collection evidence: three retained calibrations remain blocked, review collection is pending with zero receipts, shared-candidate verification is false, and the new schema remains peer-only/not ingested.
 - Continued from A2 Round 50 three-provider intake and the existing A3 reviewer assignment lease; no new A2 disposition was invented.
 - Added a hash-only evidence-request state machine: request, submit, accept, reject/reopen, cancel, and time-derived overdue.
 - Allowed only controlled A1 execution/tool/artifact, A2 Judge/review, media, provider-identity, and candidate-binding SHA-256 references.

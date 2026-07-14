@@ -45,6 +45,7 @@ test("API Reference is a typed route grounded in A1, A2, and A3 contracts", asyn
   assert.match(reference, /a2\.multimodal_three_way_comparison\.v2/);
   assert.match(reference, /a3\.multimodal_review_queue\.v1/);
   assert.match(reference, /bb3bcfe/);
+  assert.match(reference, /7504680/);
   assert.match(reference, /6a985b8/);
   assert.match(reference, /aggregate_comparisons/);
   assert.match(reference, /receipt conservation/);

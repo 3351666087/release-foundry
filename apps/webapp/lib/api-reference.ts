@@ -35,6 +35,8 @@ export const apiReferenceMeta = {
   a1IdentityPeerState: "peer_branch_identity_authority_readiness_not_merged",
   a2MultimodalPeerSha: "bb3bcfe",
   a2MultimodalPeerState: "peer_branch_contract_not_merged",
+  a2LatestPeerSha: "7504680",
+  a2LatestPeerState: "peer_branch_round51_multi_repeat_reviewed_not_ingested",
   a2MultimodalSupportedSchemas: [
     "a2.multimodal_cross_provider_comparison.v1",
     "a2.multimodal_cross_provider_comparison.v3",

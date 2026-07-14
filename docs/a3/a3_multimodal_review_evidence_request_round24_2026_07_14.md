@@ -15,7 +15,8 @@ failure class、Decision Ledger 或 release status。
 
 - authoritative `origin/main`: `ccf6ce5`
 - A1 peer: `6a985b8`
-- A2 peer: `bb3bcfe`
+- A2 latest peer: `7504680`
+- exact A2 Round 50 three-way source: `bb3bcfe`
 - A3 previous head: `7bd03bf`
 - product strategy: `docs/strategy/large-saas-a1-a2-a3-full-plan.md`
 
@@ -27,6 +28,12 @@ A1 `6a985b8` 在 peer branch 新增 identity-authority readiness：runtime 不�
 bypass-RLS，不能创建 public schema 对象，PUBLIC/运行角色不能直接读取安全表或调用内部函数，
 security-definer 函数的 `search_path` 也进一步收紧。该提交尚未进入 main，因此 A3 只记录能力
 校准，仍把当前本地 reviewer principal 视为非生产身份，不宣称 hosted identity 已完成。
+
+A2 `7504680` Round 51 新增 `a2.multimodal_multi_repeat_comparison.v1` 和真实 review collection
+contract。三次 retained calibration 都是 `blocked`；真实 review collection 仍为 `pending`、
+`receipts=[]`；shared-candidate verification 为 false，Trusted Spine 没有生成。本轮只完成 peer
+校准，不把这个新 schema 写成已接入；当前三方队列仍精确消费 Round 50 `bb3bcfe`。这些新事实
+不会改变补证状态机，也不会赋予 A3 release authority。
 
 ## 为什么需要这一步
 
