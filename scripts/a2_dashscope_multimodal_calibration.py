@@ -172,6 +172,7 @@ def policy_binding_payload(
     minimum_perturbation_bucket_sensitivity: dict[str, float],
     minimum_perturbation_bucket_wilson_lower: dict[str, float],
     minimum_benign_text_samples: int,
+    maximum_benign_text_false_positive_count: int | None,
     maximum_benign_text_false_positive_rate: float | None,
     maximum_benign_text_wilson_upper: float | None,
 ) -> dict[str, Any]:
@@ -186,6 +187,7 @@ def policy_binding_payload(
         or minimum_perturbation_bucket_sensitivity
         or minimum_perturbation_bucket_wilson_lower
         or minimum_benign_text_samples != 0
+        or maximum_benign_text_false_positive_count is not None
         or maximum_benign_text_false_positive_rate is not None
         or maximum_benign_text_wilson_upper is not None
     ):
@@ -203,6 +205,9 @@ def policy_binding_payload(
                     minimum_perturbation_bucket_wilson_lower
                 ),
                 "minimum_benign_text_samples": minimum_benign_text_samples,
+                "maximum_benign_text_false_positive_count": (
+                    maximum_benign_text_false_positive_count
+                ),
                 "maximum_benign_text_false_positive_rate": (
                     maximum_benign_text_false_positive_rate
                 ),
@@ -236,6 +241,7 @@ def build_calibration(
     minimum_perturbation_bucket_sensitivity: dict[str, float] | None = None,
     minimum_perturbation_bucket_wilson_lower: dict[str, float] | None = None,
     minimum_benign_text_samples: int = 0,
+    maximum_benign_text_false_positive_count: int | None = None,
     maximum_benign_text_false_positive_rate: float | None = None,
     maximum_benign_text_wilson_upper: float | None = None,
     minimum_sensitivity_wilson_lower: float = 0.0,
@@ -274,6 +280,11 @@ def build_calibration(
     required_perturbation_buckets = sorted(set(required_perturbation_buckets or []))
     if minimum_benign_text_samples < 0:
         raise ValueError("minimum benign-text samples cannot be negative")
+    if (
+        maximum_benign_text_false_positive_count is not None
+        and maximum_benign_text_false_positive_count < 0
+    ):
+        raise ValueError("maximum benign-text false-positive count cannot be negative")
     for threshold in (
         maximum_benign_text_false_positive_rate,
         maximum_benign_text_wilson_upper,
@@ -811,6 +822,11 @@ def build_calibration(
     if len(benign_text) < minimum_benign_text_samples:
         blockers.append("dashscope_benign_text_sample_minimum_not_met")
     if (
+        maximum_benign_text_false_positive_count is not None
+        and benign_false_positives > maximum_benign_text_false_positive_count
+    ):
+        blockers.append("dashscope_benign_text_false_positive_count_exceeded")
+    if (
         maximum_benign_text_false_positive_rate is not None
         and (
             benign_text_metric["false_positive_rate"] is None
@@ -920,6 +936,9 @@ def build_calibration(
                         minimum_perturbation_bucket_wilson_lower
                     ),
                     minimum_benign_text_samples=minimum_benign_text_samples,
+                    maximum_benign_text_false_positive_count=(
+                        maximum_benign_text_false_positive_count
+                    ),
                     maximum_benign_text_false_positive_rate=(
                         maximum_benign_text_false_positive_rate
                     ),
@@ -957,6 +976,9 @@ def build_calibration(
                 minimum_perturbation_bucket_wilson_lower
             ),
             "minimum_benign_text_samples": minimum_benign_text_samples,
+            "maximum_benign_text_false_positive_count": (
+                maximum_benign_text_false_positive_count
+            ),
             "maximum_benign_text_false_positive_rate": (
                 maximum_benign_text_false_positive_rate
             ),
@@ -1114,6 +1136,7 @@ def main() -> int:
     minimum_distinct_perturbation_source_hashes = 3
     required_perturbation_buckets = []
     minimum_benign_text_samples = 0
+    maximum_benign_text_false_positive_count = None
     maximum_benign_text_false_positive_rate = None
     maximum_benign_text_wilson_upper = None
     policy_hash = None
@@ -1140,6 +1163,9 @@ def main() -> int:
             "required_perturbation_buckets", []
         )
         minimum_benign_text_samples = value.get("minimum_benign_text_samples", 0)
+        maximum_benign_text_false_positive_count = value.get(
+            "maximum_benign_text_false_positive_count"
+        )
         maximum_benign_text_false_positive_rate = value.get(
             "maximum_benign_text_false_positive_rate"
         )
@@ -1186,6 +1212,9 @@ def main() -> int:
                     perturbation_wilson_thresholds
                 ),
                 minimum_benign_text_samples=minimum_benign_text_samples,
+                maximum_benign_text_false_positive_count=(
+                    maximum_benign_text_false_positive_count
+                ),
                 maximum_benign_text_false_positive_rate=(
                     maximum_benign_text_false_positive_rate
                 ),
@@ -1240,6 +1269,9 @@ def main() -> int:
             perturbation_wilson_thresholds
         ),
         minimum_benign_text_samples=minimum_benign_text_samples,
+        maximum_benign_text_false_positive_count=(
+            maximum_benign_text_false_positive_count
+        ),
         maximum_benign_text_false_positive_rate=(
             maximum_benign_text_false_positive_rate
         ),
