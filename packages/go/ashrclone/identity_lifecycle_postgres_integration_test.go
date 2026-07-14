@@ -673,6 +673,102 @@ SELECT
 		}
 	})
 
+	t.Run("foreign project scope is rejected with complete rollback", func(t *testing.T) {
+		h := newPostgresLifecycleHarness(t, adminDSN)
+		instance := h.newInstance(t, []byte("foreign-scope-key-01234567890123456"), "v1", nil)
+		register := func(email, displayName string) IdentityAccountDTO {
+			t.Helper()
+			proof := issueLifecycleProof(t, instance.service, TrustedIdentityProof{
+				Operation: IdentityOperationRegistration, Kind: IdentityCredentialEmail,
+				Provider: IdentityProviderLocal, Identifier: email,
+				VerifiedEmail: email, DisplayName: displayName,
+			})
+			account, err := instance.service.CompleteRegistration(completionFor(proof))
+			if err != nil {
+				t.Fatalf("register %s: %v", email, err)
+			}
+			return account
+		}
+		target := register("scope-target@example.cn", "Scope Target")
+		foreign := register("scope-foreign@example.cn", "Scope Foreign")
+
+		targetOrgID := "70000000-0000-4000-8000-000000000001"
+		targetWorkspaceID := "70000000-0000-4000-8000-000000000002"
+		targetProjectID := "70000000-0000-4000-8000-000000000003"
+		establishIdentityProjectScope(
+			t, instance, target.AccountID,
+			targetOrgID, targetWorkspaceID, targetProjectID, h.now,
+		)
+		targetSessionID, targetSessionDigest := issueScopedIdentitySession(
+			t, instance, target.AccountID, target.Credentials[0].CredentialID,
+			targetOrgID, targetProjectID, h.now,
+		)
+
+		foreignOrgID := "80000000-0000-4000-8000-000000000001"
+		foreignWorkspaceID := "80000000-0000-4000-8000-000000000002"
+		foreignProjectID := "80000000-0000-4000-8000-000000000003"
+		establishIdentityProjectScope(
+			t, instance, foreign.AccountID,
+			foreignOrgID, foreignWorkspaceID, foreignProjectID, h.now,
+		)
+		proof := issueLifecycleProof(t, instance.service, TrustedIdentityProof{
+			Operation: IdentityOperationCredentialLink, Kind: IdentityCredentialOAuth,
+			Provider: IdentityProviderGitHub, Identifier: "foreign-scope-github-subject",
+			VerifiedEmail: "scope-target@example.cn",
+			TenantID:      foreignOrgID, ProjectID: foreignProjectID,
+		})
+		command := authorizeIdentityCredentialLink(
+			t, instance, target.AccountID, targetSessionID, targetSessionDigest,
+			foreignOrgID, foreignProjectID, proof, "foreign-project-scope", h.now,
+		)
+		for attempt := 0; attempt < 2; attempt++ {
+			_, linkErr := instance.credentialLinkService.Complete(
+				context.Background(), command,
+			)
+			var domain IdentityDomainError
+			if !errors.As(linkErr, &domain) ||
+				domain.Code != "identity_credential_link_rejected" {
+				t.Fatalf("foreign project scope attempt %d returned %v", attempt+1, linkErr)
+			}
+			if strings.Contains(linkErr.Error(), "identity session scope") {
+				t.Fatalf("foreign project scope leaked PostgreSQL detail: %v", linkErr)
+			}
+		}
+
+		var targetCredentials, foreignCredentials int
+		var proofUnconsumed, ticketUnconsumed, stepUpUnconsumed bool
+		var targetEvents int
+		if err := instance.adminDB.QueryRow(`
+SELECT
+  (SELECT count(*) FROM identity_credentials WHERE principal_id=$1::uuid),
+  (SELECT count(*) FROM identity_credentials WHERE principal_id=$2::uuid),
+  (SELECT consumed_at IS NULL FROM identity_lifecycle_receipts WHERE receipt_digest=$3),
+  (SELECT consumed_at IS NULL FROM identity_security_mutation_tickets WHERE ticket_digest=$4),
+  (SELECT consumed_at IS NULL FROM identity_security_receipts WHERE receipt_digest=$5),
+  (SELECT count(*) FROM identity_audit_events
+    WHERE principal_id=$1::uuid AND action='identity.credential.link.completed')
+`, target.AccountID, foreign.AccountID,
+			instance.receipts.receiptDigest(proof.ReceiptID),
+			command.MutationTicketID, command.StepUpReceiptID).
+			Scan(
+				&targetCredentials, &foreignCredentials,
+				&proofUnconsumed, &ticketUnconsumed, &stepUpUnconsumed,
+				&targetEvents,
+			); err != nil {
+			t.Fatal(err)
+		}
+		if targetCredentials != 1 || foreignCredentials != 1 ||
+			!proofUnconsumed || !ticketUnconsumed || !stepUpUnconsumed ||
+			targetEvents != 0 {
+			t.Fatalf(
+				"foreign scope rollback target_credentials=%d foreign_credentials=%d proof_unconsumed=%t ticket_unconsumed=%t step_up_unconsumed=%t events=%d",
+				targetCredentials, foreignCredentials,
+				proofUnconsumed, ticketUnconsumed, stepUpUnconsumed,
+				targetEvents,
+			)
+		}
+	})
+
 	t.Run("receipt key rotation and tamper fail closed", func(t *testing.T) {
 		h := newPostgresLifecycleHarness(t, adminDSN)
 		oldKey := []byte("old-lifecycle-key-01234567890123456")
