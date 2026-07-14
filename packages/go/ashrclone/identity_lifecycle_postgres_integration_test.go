@@ -584,6 +584,95 @@ SELECT
 		}
 	})
 
+	t.Run("canonical email conflict rolls back credential and authorization", func(t *testing.T) {
+		h := newPostgresLifecycleHarness(t, adminDSN)
+		instance := h.newInstance(t, []byte("email-conflict-key-0123456789012345"), "v1", nil)
+		register := func(email, displayName string) IdentityAccountDTO {
+			t.Helper()
+			proof := issueLifecycleProof(t, instance.service, TrustedIdentityProof{
+				Operation: IdentityOperationRegistration, Kind: IdentityCredentialEmail,
+				Provider: IdentityProviderLocal, Identifier: email,
+				VerifiedEmail: email, DisplayName: displayName,
+			})
+			account, err := instance.service.CompleteRegistration(completionFor(proof))
+			if err != nil {
+				t.Fatalf("register %s: %v", email, err)
+			}
+			return account
+		}
+		owner := register("canonical-email-owner@example.cn", "Canonical Email Owner")
+		target := register("canonical-email-target@example.cn", "Canonical Email Target")
+
+		orgID := "60000000-0000-4000-8000-000000000001"
+		workspaceID := "60000000-0000-4000-8000-000000000002"
+		projectID := "60000000-0000-4000-8000-000000000003"
+		establishIdentityProjectScope(
+			t, instance, target.AccountID, orgID, workspaceID, projectID, h.now,
+		)
+		sessionID, sessionDigest := issueScopedIdentitySession(
+			t, instance, target.AccountID, target.Credentials[0].CredentialID,
+			orgID, projectID, h.now,
+		)
+		proof := issueLifecycleProof(t, instance.service, TrustedIdentityProof{
+			Operation: IdentityOperationCredentialLink, Kind: IdentityCredentialOAuth,
+			Provider: IdentityProviderGitHub, Identifier: "distinct-github-subject",
+			VerifiedEmail: "canonical-email-owner@example.cn",
+			TenantID:      orgID, ProjectID: projectID,
+		})
+		command := authorizeIdentityCredentialLink(
+			t, instance, target.AccountID, sessionID, sessionDigest,
+			orgID, projectID, proof, "canonical-email-conflict", h.now,
+		)
+		for attempt := 0; attempt < 2; attempt++ {
+			_, linkErr := instance.credentialLinkService.Complete(
+				context.Background(), command,
+			)
+			var domain IdentityDomainError
+			if !errors.As(linkErr, &domain) ||
+				domain.Code != "identity_credential_link_conflict" {
+				t.Fatalf("canonical email conflict attempt %d returned %v", attempt+1, linkErr)
+			}
+			if strings.Contains(linkErr.Error(), "canonical_email_conflict") {
+				t.Fatalf("canonical email conflict leaked PostgreSQL detail: %v", linkErr)
+			}
+		}
+
+		var ownerCredentials, targetCredentials, emailOwners int
+		var proofUnconsumed, ticketUnconsumed, stepUpUnconsumed bool
+		var targetEvents int
+		if err := instance.adminDB.QueryRow(`
+SELECT
+  (SELECT count(*) FROM identity_credentials WHERE principal_id=$1::uuid),
+  (SELECT count(*) FROM identity_credentials WHERE principal_id=$2::uuid),
+  (SELECT count(*) FROM identity_account_emails
+    WHERE principal_id IN ($1::uuid,$2::uuid)),
+  (SELECT consumed_at IS NULL FROM identity_lifecycle_receipts WHERE receipt_digest=$3),
+  (SELECT consumed_at IS NULL FROM identity_security_mutation_tickets WHERE ticket_digest=$4),
+  (SELECT consumed_at IS NULL FROM identity_security_receipts WHERE receipt_digest=$5),
+  (SELECT count(*) FROM identity_audit_events
+    WHERE principal_id=$2::uuid AND action='identity.credential.link.completed')
+`, owner.AccountID, target.AccountID,
+			instance.receipts.receiptDigest(proof.ReceiptID),
+			command.MutationTicketID, command.StepUpReceiptID).
+			Scan(
+				&ownerCredentials, &targetCredentials, &emailOwners,
+				&proofUnconsumed, &ticketUnconsumed, &stepUpUnconsumed,
+				&targetEvents,
+			); err != nil {
+			t.Fatal(err)
+		}
+		if ownerCredentials != 1 || targetCredentials != 1 || emailOwners != 2 ||
+			!proofUnconsumed || !ticketUnconsumed || !stepUpUnconsumed ||
+			targetEvents != 0 {
+			t.Fatalf(
+				"canonical email rollback owner_credentials=%d target_credentials=%d email_owners=%d proof_unconsumed=%t ticket_unconsumed=%t step_up_unconsumed=%t events=%d",
+				ownerCredentials, targetCredentials, emailOwners,
+				proofUnconsumed, ticketUnconsumed, stepUpUnconsumed,
+				targetEvents,
+			)
+		}
+	})
+
 	t.Run("receipt key rotation and tamper fail closed", func(t *testing.T) {
 		h := newPostgresLifecycleHarness(t, adminDSN)
 		oldKey := []byte("old-lifecycle-key-01234567890123456")
