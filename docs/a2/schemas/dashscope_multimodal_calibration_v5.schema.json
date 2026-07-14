@@ -338,6 +338,36 @@
             "minimum": 0,
             "maximum": 1
           }
+        },
+        "minimum_perturbation_bucket_sensitivity": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "minimum_perturbation_bucket_wilson_lower": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1
+          }
+        },
+        "minimum_benign_text_samples": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maximum_benign_text_false_positive_rate": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "maximum_benign_text_wilson_upper": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1
         }
       }
     },

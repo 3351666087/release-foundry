@@ -140,6 +140,13 @@ def _multimodal_qualification_blockers(
         if not isinstance(expected_bindings, dict) or not expected_bindings:
             reasons.append("multimodal expected bindings are missing")
         else:
+            missing_required = sorted(
+                {"candidate_sha", "manifest_hash"} - set(expected_bindings)
+            )
+            for field in missing_required:
+                reasons.append(
+                    f"multimodal required expected binding is missing: {field}"
+                )
             for field, expected in sorted(expected_bindings.items()):
                 if not isinstance(field, str) or not field or expected in (None, ""):
                     reasons.append("multimodal expected bindings are malformed")

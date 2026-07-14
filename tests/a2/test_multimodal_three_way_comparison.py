@@ -52,6 +52,38 @@ class ThreeWayComparisonTests(unittest.TestCase):
         )
         self.assertEqual(result["human_review_queue_receipts"], [])
 
+    def test_round48_unavailable_designated_reference_enqueues_human_review(self):
+        result = build_three_way_comparison(
+            {
+                "qwen": evidence(False),
+                "llava": evidence(False),
+                "dashscope": evidence(False, eligible=False),
+            },
+            designated_high_quality_reference="dashscope",
+        )
+        comparison = result["comparisons"][0]
+        receipt = result["human_review_queue_receipts"][0]
+        self.assertEqual(
+            comparison["comparison_state"], "pairwise_agreement_with_unavailable"
+        )
+        self.assertTrue(comparison["human_review_required"])
+        self.assertEqual(
+            receipt["eligibility_rule"],
+            "designated_high_quality_reference_unavailable",
+        )
+        self.assertEqual(receipt["reference_provider"], "dashscope")
+
+    def test_round48_designated_reference_must_be_a_provider_label(self):
+        with self.assertRaisesRegex(ValueError, "high-quality reference"):
+            build_three_way_comparison(
+                {
+                    "qwen": evidence(False),
+                    "llava": evidence(False),
+                    "dashscope": evidence(False),
+                },
+                designated_high_quality_reference="missing",
+            )
+
     def test_round47_three_eligible_agreement_is_named_three_way(self):
         result = build_three_way_comparison({
             "qwen": evidence(False),

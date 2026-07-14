@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import argparse
 import base64
+import ctypes
 import hashlib
 import json
 import math
 import multiprocessing
+import os
 import socket
 import statistics
 import sys
@@ -25,11 +27,13 @@ if str(ROOT) not in sys.path:
 
 from services.judge.multimodal_provider import (
     ClassifiedProviderTransportError,
+    DEFAULT_MAXIMUM_RESPONSE_BYTES,
     ParseRetryPolicy,
     ProviderRequestCountReceipt,
     ProviderResponseDurationReceipt,
     classified_transport_error,
     parse_ollama_response,
+    read_bounded_json_response,
 )
 
 SCHEMA = ROOT / "docs/a2/schemas/multimodal_runtime_matrix_v2.schema.json"
@@ -153,6 +157,8 @@ def _invoke_with_worker_deadline(
     model_id: str,
     payload: dict[str, Any],
     timeout_seconds: float,
+    *,
+    process_started: Callable[[int], None] | None = None,
 ) -> tuple[dict[str, Any], str]:
     """Stop waiting at a caller-side deadline even if an adapter ignores timeout.
 
@@ -169,6 +175,8 @@ def _invoke_with_worker_deadline(
             daemon=True,
         )
         process.start()
+        if process_started is not None and process.pid is not None:
+            process_started(process.pid)
         child.close()
         try:
             if parent.poll(timeout_seconds):
@@ -194,6 +202,37 @@ def _invoke_with_worker_deadline(
         raise classified_transport_error("capability_probe_worker_timeout") from exc
     finally:
         executor.shutdown(wait=False, cancel_futures=True)
+
+
+def _pid_is_running(pid: int) -> bool:
+    """Cross-platform test support without adding a process-inspection dependency."""
+
+    if pid < 1:
+        return False
+    if os.name == "nt":
+        process_query_limited_information = 0x1000
+        still_active = 259
+        handle = ctypes.windll.kernel32.OpenProcess(
+            process_query_limited_information, False, pid
+        )
+        if not handle:
+            return False
+        try:
+            exit_code = ctypes.c_ulong()
+            if not ctypes.windll.kernel32.GetExitCodeProcess(
+                handle, ctypes.byref(exit_code)
+            ):
+                return False
+            return exit_code.value == still_active
+        finally:
+            ctypes.windll.kernel32.CloseHandle(handle)
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
 
 
 def _ollama_probe_subprocess(
@@ -310,12 +349,15 @@ def _cancellation_receipt(
     *,
     reason: str = "model_run_budget_exhausted",
     network_call_started: bool = False,
+    request_correlation_hash: str,
 ) -> dict[str, Any]:
     return {
         "schema_version": "a2.model_run_cancellation_receipt.v1",
         "reason": reason,
         "configured_budget_seconds": configured_budget_seconds,
         "network_call_started": network_call_started,
+        "request_correlation_hash": request_correlation_hash,
+        "raw_request_id_included": False,
         "promotion_eligible": False,
         "release_authority": False,
         "public_safe": True,
@@ -386,7 +428,12 @@ def _budget_exhausted_trial(
         "provider_durations_seconds": _empty_provider_durations(),
         "duration_receipt": _duration_receipt(0.0),
         "error_class": error_class,
-        "cancellation_receipt": _cancellation_receipt(maximum_model_run_seconds),
+        "cancellation_receipt": _cancellation_receipt(
+            maximum_model_run_seconds,
+            request_correlation_hash=sha256_ref(
+                canonical({"request_hash": request_hash, "attempt": 0})
+            ),
+        ),
         "raw_payload_included": False,
         "release_authority": False,
     }
@@ -812,6 +859,15 @@ def build_matrix(
                             attempt_payload = payload
                             if fallback_probe:
                                 attempt_payload = dict(payload, format="json")
+                            request_id_hash = sha256_ref(
+                                canonical(
+                                    {
+                                        "request_hash": request_hash,
+                                        "attempt": attempt,
+                                        "fallback_probe": fallback_probe,
+                                    }
+                                )
+                            )
                             http_status_class = ""
                             transport_receipt = None
                             try:
@@ -879,6 +935,8 @@ def build_matrix(
                             attempts.append(
                                 {
                                     "attempt": attempt,
+                                    "request_id_hash": request_id_hash,
+                                    "raw_request_id_included": False,
                                     "http_state": http_state,
                                     "parse_state": parse_state,
                                     "error_class": error_class,
@@ -993,6 +1051,9 @@ def build_matrix(
                                         else maximum_case_wall_seconds,
                                         reason=error_class,
                                         network_call_started=bool(attempts),
+                                        request_correlation_hash=final_attempt[
+                                            "request_id_hash"
+                                        ],
                                     )
                                     if error_class
                                     in {
@@ -1138,7 +1199,14 @@ def _latency_summary(values: list[float]) -> dict[str, Any]:
     }
 
 
-def ollama_invoke(base_url: str) -> Callable[[str, dict[str, Any], float], dict[str, Any]]:
+def ollama_invoke(
+    base_url: str,
+    *,
+    maximum_response_bytes: int = DEFAULT_MAXIMUM_RESPONSE_BYTES,
+) -> Callable[[str, dict[str, Any], float], dict[str, Any]]:
+    if maximum_response_bytes < 1:
+        raise ValueError("maximum response bytes must be positive")
+
     def invoke(_model_id: str, payload: dict[str, Any], timeout_seconds: float) -> dict[str, Any]:
         req = request.Request(
             base_url.rstrip("/") + "/api/generate",
@@ -1148,7 +1216,7 @@ def ollama_invoke(base_url: str) -> Callable[[str, dict[str, Any], float], dict[
         )
         try:
             with request.urlopen(req, timeout=timeout_seconds) as response:
-                return json.loads(response.read().decode("utf-8"))
+                return read_bounded_json_response(response, maximum_response_bytes)
         except error.HTTPError as exc:
             status_class = f"{exc.code // 100}xx"
             if exc.code in {401, 403}:
@@ -1176,12 +1244,18 @@ def ollama_invoke(base_url: str) -> Callable[[str, dict[str, Any], float], dict[
     return invoke
 
 
-def ollama_preflight(base_url: str, model: dict[str, str], timeout_seconds: float) -> dict[str, Any]:
+def ollama_preflight(
+    base_url: str,
+    model: dict[str, str],
+    timeout_seconds: float,
+    *,
+    maximum_response_bytes: int = DEFAULT_MAXIMUM_RESPONSE_BYTES,
+) -> dict[str, Any]:
     def read_json(path: str) -> dict[str, Any]:
         req = request.Request(base_url.rstrip("/") + path, method="GET")
         try:
             with request.urlopen(req, timeout=timeout_seconds) as response:
-                return json.loads(response.read().decode("utf-8"))
+                return read_bounded_json_response(response, maximum_response_bytes)
         except Exception as exc:
             raise classified_transport_error("preflight_failed") from exc
 

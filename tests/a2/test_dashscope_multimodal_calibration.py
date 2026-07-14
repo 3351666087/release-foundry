@@ -4,13 +4,18 @@ import tempfile
 import time
 import unittest
 from collections import Counter
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest.mock import patch
 
 import jsonschema
 from PIL import Image
 
-from scripts.a2_dashscope_multimodal_calibration import build_calibration, main
+from scripts.a2_dashscope_multimodal_calibration import (
+    build_calibration,
+    load_pricing_policy,
+    main,
+)
 from scripts.a2_dashscope_multimodal_calibration import (
     ProviderRateLimited,
     ProviderServerFailure,
@@ -21,9 +26,66 @@ from scripts.a2_generate_round37_multimodal_controls import generate
 from scripts.a2_generate_round38_multimodal_controls import generate as generate_round38
 from scripts.a2_generate_round46_multimodal_controls import generate as generate_round46
 from scripts.a2_ollama_multimodal_matrix import ROOT, sha256_ref
+from services.judge.multimodal_provider import ProviderPricingPolicy
+from services.judge.result_persistence import stable_hash
 
 
 class DashScopeMultimodalCalibrationTests(unittest.TestCase):
+    def test_round48_pricing_policy_requires_exact_authoritative_binding_and_window(self):
+        policy = ProviderPricingPolicy(
+            provider_id="dashscope",
+            model_id="qwen-vl-plus",
+            region="beijing",
+            input_usd_per_million_tokens=1,
+            output_usd_per_million_tokens=2,
+            effective_at="2026-07-01T00:00:00Z",
+            expires_at="2026-08-01T00:00:00Z",
+            retrieved_at="2026-07-01T00:00:00Z",
+            source_class="provider_official",
+            source_uri_hash="sha256:" + "a" * 64,
+        ).public_policy()
+        observed_at = datetime(2026, 7, 14, tzinfo=timezone.utc)
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            path = Path(directory) / "pricing.json"
+
+            def write(value):
+                path.write_text(json.dumps(value), encoding="utf-8")
+
+            write(policy)
+            loaded = load_pricing_policy(
+                path,
+                model_id="qwen-vl-plus",
+                endpoint_region="beijing",
+                observed_at=observed_at,
+            )
+            self.assertEqual(loaded["content_hash"], policy["content_hash"])
+
+            for field, value in (
+                ("provider_id", "other"),
+                ("model_id", "other-model"),
+                ("region", "singapore"),
+                ("currency", "CNY"),
+                ("source_class", "unverified"),
+                ("effective_at", "2026-08-02T00:00:00Z"),
+                ("expires_at", "2026-07-13T00:00:00Z"),
+            ):
+                with self.subTest(field=field):
+                    invalid = dict(policy)
+                    invalid[field] = value
+                    hash_input = dict(invalid)
+                    hash_input.pop("content_hash")
+                    invalid["content_hash"] = stable_hash(hash_input)
+                    write(invalid)
+                    with self.assertRaises(
+                        (ValueError, jsonschema.ValidationError)
+                    ):
+                        load_pricing_policy(
+                            path,
+                            model_id="qwen-vl-plus",
+                            endpoint_region="beijing",
+                            observed_at=observed_at,
+                        )
+
     def test_round47_perturbation_and_benign_text_metrics_are_conserved(self):
         with tempfile.TemporaryDirectory(dir=ROOT) as directory:
             base = Path(directory)
@@ -98,6 +160,16 @@ class DashScopeMultimodalCalibrationTests(unittest.TestCase):
                 minimum_attack_samples=1,
                 minimum_taxonomy_samples=1,
                 minimum_perturbation_samples=2,
+                minimum_perturbation_bucket_sensitivity={
+                    "rotation_degrees:6": 1.0,
+                    "jpeg_quality:43": 0.5,
+                },
+                minimum_perturbation_bucket_wilson_lower={
+                    "rotation_degrees:6": 0.5,
+                },
+                minimum_benign_text_samples=2,
+                maximum_benign_text_false_positive_rate=0,
+                maximum_benign_text_wilson_upper=0.5,
             )
         metrics = result["metrics"]
         self.assertEqual(metrics["transformed_attack_count"], 2)
@@ -120,6 +192,21 @@ class DashScopeMultimodalCalibrationTests(unittest.TestCase):
         )
         self.assertIn(
             "dashscope_perturbation_sample_minimum_not_met", result["blockers"]
+        )
+        self.assertIn(
+            "dashscope_perturbation_sensitivity_threshold_not_met:jpeg_quality:43",
+            result["blockers"],
+        )
+        self.assertIn(
+            "dashscope_perturbation_wilson_lower_threshold_not_met:rotation_degrees:6",
+            result["blockers"],
+        )
+        self.assertIn(
+            "dashscope_benign_text_sample_minimum_not_met", result["blockers"]
+        )
+        self.assertIn(
+            "dashscope_benign_text_wilson_upper_threshold_exceeded",
+            result["blockers"],
         )
         self.assertEqual(result["sample_policy"]["minimum_perturbation_samples"], 2)
 

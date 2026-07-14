@@ -226,6 +226,8 @@
       ],
       "properties": {
         "attempt": {"type": "integer", "minimum": 1},
+        "request_id_hash": {"$ref": "#/$defs/hash"},
+        "raw_request_id_included": {"const": false},
         "http_state": {"enum": ["completed", "failed"]},
         "parse_state": {
           "enum": [
@@ -346,6 +348,8 @@
         },
         "configured_budget_seconds": {"type": "number", "exclusiveMinimum": 0},
         "network_call_started": {"type": "boolean"},
+        "request_correlation_hash": {"$ref": "#/$defs/hash"},
+        "raw_request_id_included": {"const": false},
         "promotion_eligible": {"const": false},
         "release_authority": {"const": false},
         "public_safe": {"const": true}

@@ -42,15 +42,66 @@ from services.judge.multimodal_provider import (
     parse_openai_compatible_response,
 )
 from services.judge.provider_runtime import EnvironmentCredentialResolver
+from services.judge.result_persistence import stable_hash
 
 
 SCHEMA = ROOT / "docs/a2/schemas/dashscope_multimodal_calibration_v5.schema.json"
 POLICY_SCHEMA = ROOT / "docs/a2/schemas/dashscope_multimodal_policy.schema.json"
+PRICING_POLICY_SCHEMA = ROOT / "docs/a2/schemas/provider_pricing_policy.schema.json"
 PROVIDER_IDS = {"beijing": "dashscope", "singapore": "dashscope-international"}
 ENDPOINTS = {
     region: default_multimodal_provider_registry().require(provider_id).endpoint
     for region, provider_id in PROVIDER_IDS.items()
 }
+
+
+def _parse_utc_datetime(value: str, field: str) -> datetime:
+    try:
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    except (AttributeError, ValueError) as exc:
+        raise ValueError(f"pricing policy {field} must be an ISO date-time") from exc
+    if parsed.tzinfo is None:
+        raise ValueError(f"pricing policy {field} must include a timezone")
+    return parsed.astimezone(timezone.utc)
+
+
+def load_pricing_policy(
+    path: Path,
+    *,
+    model_id: str,
+    endpoint_region: str,
+    observed_at: datetime | None = None,
+) -> dict[str, Any]:
+    """Load an authoritative, hash-bound policy for one exact live run."""
+
+    policy = json.loads(path.read_text(encoding="utf-8"))
+    schema = json.loads(PRICING_POLICY_SCHEMA.read_text(encoding="utf-8"))
+    jsonschema.Draft202012Validator(schema).validate(policy)
+    content_hash = policy.get("content_hash", "")
+    hash_input = dict(policy)
+    hash_input.pop("content_hash", None)
+    if content_hash != stable_hash(hash_input):
+        raise ValueError("provider pricing policy content hash mismatch")
+    if policy.get("provider_id") != "dashscope":
+        raise ValueError("provider pricing policy provider mismatch")
+    if policy.get("model_id") != model_id:
+        raise ValueError("provider pricing policy model mismatch")
+    if policy.get("region") != endpoint_region:
+        raise ValueError("provider pricing policy region mismatch")
+    if policy.get("currency") != "USD":
+        raise ValueError("provider pricing policy currency mismatch")
+    if policy.get("source_class") not in {
+        "provider_official",
+        "contracted_provider_pricing",
+    }:
+        raise ValueError("provider pricing policy source is not authoritative")
+    now = (observed_at or datetime.now(timezone.utc)).astimezone(timezone.utc)
+    if _parse_utc_datetime(policy["effective_at"], "effective_at") > now:
+        raise ValueError("provider pricing policy is not yet effective")
+    expires_at = policy.get("expires_at")
+    if expires_at and _parse_utc_datetime(expires_at, "expires_at") <= now:
+        raise ValueError("provider pricing policy has expired")
+    return policy
 
 
 def _duration_receipt(wall_seconds: float) -> dict[str, Any]:
@@ -84,6 +135,50 @@ def validate_attempt_receipts(attempts: list[dict[str, Any]]) -> None:
         raise ValueError("attempt receipt numbers must be contiguous and unique")
 
 
+def policy_binding_payload(
+    *,
+    minimum_taxonomy_sensitivity: dict[str, float],
+    minimum_taxonomy_wilson_lower: dict[str, float],
+    minimum_perturbation_samples: int,
+    minimum_perturbation_bucket_sensitivity: dict[str, float],
+    minimum_perturbation_bucket_wilson_lower: dict[str, float],
+    minimum_benign_text_samples: int,
+    maximum_benign_text_false_positive_rate: float | None,
+    maximum_benign_text_wilson_upper: float | None,
+) -> dict[str, Any]:
+    payload: dict[str, Any] = {
+        "minimum_taxonomy_sensitivity": minimum_taxonomy_sensitivity,
+        "minimum_taxonomy_wilson_lower": minimum_taxonomy_wilson_lower,
+    }
+    if (
+        minimum_perturbation_samples != 1
+        or minimum_perturbation_bucket_sensitivity
+        or minimum_perturbation_bucket_wilson_lower
+        or minimum_benign_text_samples != 0
+        or maximum_benign_text_false_positive_rate is not None
+        or maximum_benign_text_wilson_upper is not None
+    ):
+        payload.update(
+            {
+                "minimum_perturbation_samples": minimum_perturbation_samples,
+                "minimum_perturbation_bucket_sensitivity": (
+                    minimum_perturbation_bucket_sensitivity
+                ),
+                "minimum_perturbation_bucket_wilson_lower": (
+                    minimum_perturbation_bucket_wilson_lower
+                ),
+                "minimum_benign_text_samples": minimum_benign_text_samples,
+                "maximum_benign_text_false_positive_rate": (
+                    maximum_benign_text_false_positive_rate
+                ),
+                "maximum_benign_text_wilson_upper": (
+                    maximum_benign_text_wilson_upper
+                ),
+            }
+        )
+    return payload
+
+
 def build_calibration(
     *,
     cases: list[dict[str, Any]],
@@ -101,6 +196,11 @@ def build_calibration(
     minimum_specificity: float = 0.8,
     minimum_taxonomy_sensitivity: dict[str, float] | None = None,
     minimum_taxonomy_wilson_lower: dict[str, float] | None = None,
+    minimum_perturbation_bucket_sensitivity: dict[str, float] | None = None,
+    minimum_perturbation_bucket_wilson_lower: dict[str, float] | None = None,
+    minimum_benign_text_samples: int = 0,
+    maximum_benign_text_false_positive_rate: float | None = None,
+    maximum_benign_text_wilson_upper: float | None = None,
     minimum_sensitivity_wilson_lower: float = 0.0,
     minimum_specificity_wilson_lower: float = 0.0,
     invalid_response_retries: int = 0,
@@ -109,6 +209,7 @@ def build_calibration(
     input_usd_per_million_tokens: float | None = None,
     output_usd_per_million_tokens: float | None = None,
     maximum_estimated_cost_usd: float = 0.0,
+    pricing_policy: dict[str, Any] | None = None,
     policy_hash: str | None = None,
 ) -> dict[str, Any]:
     if endpoint_region not in ENDPOINTS:
@@ -123,6 +224,20 @@ def build_calibration(
         raise ValueError("minimum perturbation samples must be positive")
     minimum_taxonomy_sensitivity = minimum_taxonomy_sensitivity or {}
     minimum_taxonomy_wilson_lower = minimum_taxonomy_wilson_lower or {}
+    minimum_perturbation_bucket_sensitivity = (
+        minimum_perturbation_bucket_sensitivity or {}
+    )
+    minimum_perturbation_bucket_wilson_lower = (
+        minimum_perturbation_bucket_wilson_lower or {}
+    )
+    if minimum_benign_text_samples < 0:
+        raise ValueError("minimum benign-text samples cannot be negative")
+    for threshold in (
+        maximum_benign_text_false_positive_rate,
+        maximum_benign_text_wilson_upper,
+    ):
+        if threshold is not None and not 0 <= threshold <= 1:
+            raise ValueError("invalid benign-text false-positive policy")
     attack_taxonomies = {case["taxonomy"] for case in cases if case["expected_risk"]}
     for taxonomy, threshold in {
         **minimum_taxonomy_sensitivity,
@@ -134,6 +249,12 @@ def build_calibration(
             raise ValueError(
                 f"taxonomy sensitivity policy is absent from attack manifest: {taxonomy}"
             )
+    for bucket_id, threshold in {
+        **minimum_perturbation_bucket_sensitivity,
+        **minimum_perturbation_bucket_wilson_lower,
+    }.items():
+        if not bucket_id or ":" not in bucket_id or not 0 <= threshold <= 1:
+            raise ValueError("invalid perturbation bucket policy")
     planned_requests = len(cases) * repeats * (invalid_response_retries + 1)
     maximum_cloud_requests = maximum_cloud_requests or max(1, planned_requests)
     if maximum_cloud_requests < 1:
@@ -518,8 +639,8 @@ def build_calibration(
     if classified_transformed_count != len(transformed_attacks):
         blockers.append("dashscope_transformed_attack_conservation_failed")
     perturbation_minimum_failed = False
-    for dimension in perturbation_metrics.values():
-        for bucket in dimension.values():
+    for dimension_name, dimension in perturbation_metrics.items():
+        for bucket_name, bucket in dimension.items():
             if bucket["eligible_count"] < minimum_perturbation_samples:
                 perturbation_minimum_failed = True
             bucket["sensitivity"] = (
@@ -528,6 +649,30 @@ def build_calibration(
             bucket["sensitivity_wilson_95"] = wilson_interval(
                 bucket["detected_count"], bucket["eligible_count"]
             )
+            bucket_id = f"{dimension_name}:{bucket_name}"
+            sensitivity_threshold = minimum_perturbation_bucket_sensitivity.get(
+                bucket_id
+            )
+            if (
+                sensitivity_threshold is not None
+                and bucket["sensitivity"] < sensitivity_threshold
+            ):
+                blockers.append(
+                    f"dashscope_perturbation_sensitivity_threshold_not_met:{bucket_id}"
+                )
+            wilson_threshold = minimum_perturbation_bucket_wilson_lower.get(
+                bucket_id
+            )
+            if (
+                wilson_threshold is not None
+                and (
+                    bucket["sensitivity_wilson_95"] is None
+                    or bucket["sensitivity_wilson_95"][0] < wilson_threshold
+                )
+            ):
+                blockers.append(
+                    f"dashscope_perturbation_wilson_lower_threshold_not_met:{bucket_id}"
+                )
     if perturbation_minimum_failed:
         blockers.append("dashscope_perturbation_sample_minimum_not_met")
     benign_text = [
@@ -548,6 +693,26 @@ def build_calibration(
             benign_false_positives, len(benign_text)
         ),
     }
+    if len(benign_text) < minimum_benign_text_samples:
+        blockers.append("dashscope_benign_text_sample_minimum_not_met")
+    if (
+        maximum_benign_text_false_positive_rate is not None
+        and (
+            benign_text_metric["false_positive_rate"] is None
+            or benign_text_metric["false_positive_rate"]
+            > maximum_benign_text_false_positive_rate
+        )
+    ):
+        blockers.append("dashscope_benign_text_false_positive_threshold_exceeded")
+    if (
+        maximum_benign_text_wilson_upper is not None
+        and (
+            benign_text_metric["false_positive_wilson_95"] is None
+            or benign_text_metric["false_positive_wilson_95"][1]
+            > maximum_benign_text_wilson_upper
+        )
+    ):
+        blockers.append("dashscope_benign_text_wilson_upper_threshold_exceeded")
     sensitivity_interval = wilson_interval(
         sum(item["observed_risk"] is True for item in attack), len(attack)
     )
@@ -604,6 +769,7 @@ def build_calibration(
         output_usd_per_million_tokens=output_usd_per_million_tokens,
         maximum_estimated_cost_usd=maximum_estimated_cost_usd,
         usage_complete=usage_complete,
+        pricing_policy=pricing_policy,
     ).public_receipt()
     if usage_cost_receipt["pricing_state"] == "unavailable":
         blockers.append("dashscope_pricing_unavailable")
@@ -624,10 +790,24 @@ def build_calibration(
         "ordered_case_plan_hash": ordered_case_plan_hash,
         "policy_hash": policy_hash or sha256_ref(
             json.dumps(
-                {
-                    "minimum_taxonomy_sensitivity": minimum_taxonomy_sensitivity,
-                    "minimum_taxonomy_wilson_lower": minimum_taxonomy_wilson_lower,
-                },
+                policy_binding_payload(
+                    minimum_taxonomy_sensitivity=minimum_taxonomy_sensitivity,
+                    minimum_taxonomy_wilson_lower=minimum_taxonomy_wilson_lower,
+                    minimum_perturbation_samples=minimum_perturbation_samples,
+                    minimum_perturbation_bucket_sensitivity=(
+                        minimum_perturbation_bucket_sensitivity
+                    ),
+                    minimum_perturbation_bucket_wilson_lower=(
+                        minimum_perturbation_bucket_wilson_lower
+                    ),
+                    minimum_benign_text_samples=minimum_benign_text_samples,
+                    maximum_benign_text_false_positive_rate=(
+                        maximum_benign_text_false_positive_rate
+                    ),
+                    maximum_benign_text_wilson_upper=(
+                        maximum_benign_text_wilson_upper
+                    ),
+                ),
                 sort_keys=True,
                 separators=(",", ":"),
             )
@@ -647,6 +827,17 @@ def build_calibration(
             "minimum_specificity": minimum_specificity,
             "minimum_taxonomy_sensitivity": minimum_taxonomy_sensitivity,
             "minimum_taxonomy_wilson_lower": minimum_taxonomy_wilson_lower,
+            "minimum_perturbation_bucket_sensitivity": (
+                minimum_perturbation_bucket_sensitivity
+            ),
+            "minimum_perturbation_bucket_wilson_lower": (
+                minimum_perturbation_bucket_wilson_lower
+            ),
+            "minimum_benign_text_samples": minimum_benign_text_samples,
+            "maximum_benign_text_false_positive_rate": (
+                maximum_benign_text_false_positive_rate
+            ),
+            "maximum_benign_text_wilson_upper": maximum_benign_text_wilson_upper,
             "minimum_sensitivity_wilson_lower": minimum_sensitivity_wilson_lower,
             "minimum_specificity_wilson_lower": minimum_specificity_wilson_lower,
             "invalid_response_retries": invalid_response_retries,
@@ -760,6 +951,10 @@ def main() -> int:
     parser.add_argument("--invalid-response-retries", type=int, default=1)
     parser.add_argument("--maximum-run-seconds", type=float, default=3600.0)
     parser.add_argument("--maximum-cloud-requests", type=int)
+    parser.add_argument(
+        "--pricing-policy-file",
+        help="Authoritative hash-bound provider pricing policy JSON",
+    )
     parser.add_argument("--input-usd-per-million-tokens", type=float)
     parser.add_argument("--output-usd-per-million-tokens", type=float)
     parser.add_argument("--maximum-estimated-cost-usd", type=float, default=0.0)
@@ -771,12 +966,25 @@ def main() -> int:
     args = parser.parse_args()
     if not args.execute_live:
         raise SystemExit("--execute-live is required; live cloud calls are opt-in")
+    if (
+        args.input_usd_per_million_tokens is not None
+        or args.output_usd_per_million_tokens is not None
+    ):
+        raise SystemExit(
+            "unbound numeric pricing flags are prohibited; use --pricing-policy-file"
+        )
     api_key = os.environ.get("DASHSCOPE_API_KEY")
     if not api_key:
         raise SystemExit("DASHSCOPE_API_KEY is unavailable")
     cases = json.loads((ROOT / args.manifest).read_text(encoding="utf-8"))["cases"]
     taxonomy_thresholds = {}
     taxonomy_wilson_thresholds = {}
+    perturbation_thresholds = {}
+    perturbation_wilson_thresholds = {}
+    minimum_perturbation_samples = args.minimum_perturbation_samples
+    minimum_benign_text_samples = 0
+    maximum_benign_text_false_positive_rate = None
+    maximum_benign_text_wilson_upper = None
     policy_hash = None
     if args.taxonomy_policy_file:
         policy_path = ROOT / args.taxonomy_policy_file
@@ -785,6 +993,22 @@ def main() -> int:
         jsonschema.Draft202012Validator(schema).validate(value)
         taxonomy_thresholds.update(value["minimum_taxonomy_sensitivity"])
         taxonomy_wilson_thresholds.update(value["minimum_taxonomy_wilson_lower"])
+        perturbation_thresholds.update(
+            value.get("minimum_perturbation_bucket_sensitivity", {})
+        )
+        perturbation_wilson_thresholds.update(
+            value.get("minimum_perturbation_bucket_wilson_lower", {})
+        )
+        minimum_perturbation_samples = value.get(
+            "minimum_perturbation_samples", minimum_perturbation_samples
+        )
+        minimum_benign_text_samples = value.get("minimum_benign_text_samples", 0)
+        maximum_benign_text_false_positive_rate = value.get(
+            "maximum_benign_text_false_positive_rate"
+        )
+        maximum_benign_text_wilson_upper = value.get(
+            "maximum_benign_text_wilson_upper"
+        )
         policy_hash = sha256_ref(
             json.dumps(value, sort_keys=True, separators=(",", ":"))
         )
@@ -795,12 +1019,37 @@ def main() -> int:
         taxonomy_thresholds[taxonomy] = float(threshold)
     registry = default_multimodal_provider_registry()
     provider = registry.require(PROVIDER_IDS[args.region])
+    pricing_policy = None
+    if args.pricing_policy_file:
+        try:
+            pricing_policy = load_pricing_policy(
+                ROOT / args.pricing_policy_file,
+                model_id=args.model,
+                endpoint_region=args.region,
+            )
+        except (
+            OSError,
+            ValueError,
+            json.JSONDecodeError,
+            jsonschema.ValidationError,
+        ) as exc:
+            raise SystemExit(str(exc)) from exc
     expected_policy_hash = policy_hash or sha256_ref(
         json.dumps(
-            {
-                "minimum_taxonomy_sensitivity": taxonomy_thresholds,
-                "minimum_taxonomy_wilson_lower": taxonomy_wilson_thresholds,
-            },
+            policy_binding_payload(
+                minimum_taxonomy_sensitivity=taxonomy_thresholds,
+                minimum_taxonomy_wilson_lower=taxonomy_wilson_thresholds,
+                minimum_perturbation_samples=minimum_perturbation_samples,
+                minimum_perturbation_bucket_sensitivity=perturbation_thresholds,
+                minimum_perturbation_bucket_wilson_lower=(
+                    perturbation_wilson_thresholds
+                ),
+                minimum_benign_text_samples=minimum_benign_text_samples,
+                maximum_benign_text_false_positive_rate=(
+                    maximum_benign_text_false_positive_rate
+                ),
+                maximum_benign_text_wilson_upper=maximum_benign_text_wilson_upper,
+            ),
             sort_keys=True,
             separators=(",", ":"),
         )
@@ -835,20 +1084,38 @@ def main() -> int:
         minimum_safe_samples=args.minimum_safe_samples,
         minimum_attack_samples=args.minimum_attack_samples,
         minimum_taxonomy_samples=args.minimum_taxonomy_samples,
-        minimum_perturbation_samples=args.minimum_perturbation_samples,
+        minimum_perturbation_samples=minimum_perturbation_samples,
         maximum_p95_seconds=args.maximum_p95_seconds,
         minimum_sensitivity=args.minimum_sensitivity,
         minimum_specificity=args.minimum_specificity,
         minimum_taxonomy_sensitivity=taxonomy_thresholds,
         minimum_taxonomy_wilson_lower=taxonomy_wilson_thresholds,
+        minimum_perturbation_bucket_sensitivity=perturbation_thresholds,
+        minimum_perturbation_bucket_wilson_lower=(
+            perturbation_wilson_thresholds
+        ),
+        minimum_benign_text_samples=minimum_benign_text_samples,
+        maximum_benign_text_false_positive_rate=(
+            maximum_benign_text_false_positive_rate
+        ),
+        maximum_benign_text_wilson_upper=maximum_benign_text_wilson_upper,
         minimum_sensitivity_wilson_lower=args.minimum_sensitivity_wilson_lower,
         minimum_specificity_wilson_lower=args.minimum_specificity_wilson_lower,
         invalid_response_retries=args.invalid_response_retries,
         maximum_run_seconds=args.maximum_run_seconds,
         maximum_cloud_requests=args.maximum_cloud_requests,
-        input_usd_per_million_tokens=args.input_usd_per_million_tokens,
-        output_usd_per_million_tokens=args.output_usd_per_million_tokens,
+        input_usd_per_million_tokens=(
+            pricing_policy["input_usd_per_million_tokens"]
+            if pricing_policy
+            else None
+        ),
+        output_usd_per_million_tokens=(
+            pricing_policy["output_usd_per_million_tokens"]
+            if pricing_policy
+            else None
+        ),
         maximum_estimated_cost_usd=args.maximum_estimated_cost_usd,
+        pricing_policy=pricing_policy,
         policy_hash=expected_policy_hash,
     )
     atomic_write(ROOT / args.output, result)

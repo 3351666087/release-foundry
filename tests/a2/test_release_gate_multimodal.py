@@ -1,6 +1,7 @@
 import json
 import unittest
 
+from scripts.a2_build_release_gate_report import _multimodal_expected_bindings
 from scripts.a2_ollama_multimodal_matrix import ROOT
 from services.judge.release_gate import build_release_gate_report
 
@@ -77,6 +78,7 @@ class ReleaseGateMultimodalTests(unittest.TestCase):
         artifact = {
             "qualification_state": "qualified_for_review",
             "blockers": [],
+            "candidate_sha": "a" * 40,
             "manifest_hash": "sha256:" + "a" * 64,
             "model_id": "qwen-vl-plus",
             "release_authority": False,
@@ -86,6 +88,7 @@ class ReleaseGateMultimodalTests(unittest.TestCase):
             modality_scope=["image"],
             multimodal_qualification=artifact,
             multimodal_expected_bindings={
+                "candidate_sha": artifact["candidate_sha"],
                 "manifest_hash": "sha256:" + "b" * 64,
                 "model_id": "qwen-vl-plus",
             },
@@ -104,6 +107,7 @@ class ReleaseGateMultimodalTests(unittest.TestCase):
         artifact = {
             "qualification_state": "qualified_for_review",
             "blockers": [],
+            "candidate_sha": "a" * 40,
             "manifest_hash": "sha256:" + "a" * 64,
             "model_id": "qwen-vl-plus",
             "release_authority": False,
@@ -113,6 +117,7 @@ class ReleaseGateMultimodalTests(unittest.TestCase):
             modality_scope=["image"],
             multimodal_qualification=artifact,
             multimodal_expected_bindings={
+                "candidate_sha": artifact["candidate_sha"],
                 "manifest_hash": artifact["manifest_hash"],
                 "model_id": artifact["model_id"],
             },
@@ -123,3 +128,54 @@ class ReleaseGateMultimodalTests(unittest.TestCase):
                 for item in report["blockers"]
             )
         )
+
+    def test_stale_qualified_artifact_from_prior_candidate_is_blocked(self):
+        artifact = {
+            "qualification_state": "qualified_for_review",
+            "blockers": [],
+            "candidate_sha": "a" * 40,
+            "manifest_hash": "sha256:" + "b" * 64,
+            "release_authority": False,
+        }
+        report = build_release_gate_report(
+            *self._inputs(),
+            modality_scope=["image"],
+            multimodal_qualification=artifact,
+            multimodal_expected_bindings={
+                "candidate_sha": "c" * 40,
+                "manifest_hash": artifact["manifest_hash"],
+            },
+        )
+        blocker = next(
+            item
+            for item in report["blockers"]
+            if item["type"] == "multimodal_qualification_gate"
+        )
+        self.assertIn(
+            "multimodal qualification binding mismatch: candidate_sha",
+            blocker["gaps"],
+        )
+
+    def test_release_gate_cli_builds_mandatory_exact_bindings(self):
+        bindings = _multimodal_expected_bindings(
+            modality_scope=["image"],
+            binding_file=None,
+            candidate_sha="d" * 40,
+            dataset_manifest_hash="sha256:" + "e" * 64,
+        )
+        self.assertEqual(
+            bindings,
+            {
+                "candidate_sha": "d" * 40,
+                "manifest_hash": "sha256:" + "e" * 64,
+            },
+        )
+
+    def test_release_gate_cli_rejects_missing_candidate_sha(self):
+        with self.assertRaisesRegex(SystemExit, "--candidate-sha is required"):
+            _multimodal_expected_bindings(
+                modality_scope=["image"],
+                binding_file=None,
+                candidate_sha=None,
+                dataset_manifest_hash="sha256:" + "e" * 64,
+            )

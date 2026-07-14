@@ -1,4 +1,5 @@
 import json
+import http.server
 import tempfile
 import unittest
 import socket
@@ -17,6 +18,8 @@ from scripts.a2_ollama_multimodal_matrix import (
     complete_partial,
     load_capability_cache,
     load_partial,
+    _invoke_with_worker_deadline,
+    _pid_is_running,
     ollama_invoke,
     ollama_schema_capability_probe,
     partial_binding,
@@ -31,6 +34,42 @@ from scripts.a2_generate_round36_multimodal_controls import generate
 
 
 class OllamaMultimodalMatrixTests(unittest.TestCase):
+    def test_round48_subprocess_deadline_removes_recorded_child_pid(self):
+        class SlowHandler(http.server.BaseHTTPRequestHandler):
+            def do_POST(self):
+                __import__("time").sleep(5)
+
+            def log_message(self, *_):
+                return
+
+        server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), SlowHandler)
+        server.daemon_threads = True
+        server_thread = __import__("threading").Thread(
+            target=server.serve_forever, daemon=True
+        )
+        server_thread.start()
+        observed_pids = []
+        try:
+            invoke = ollama_invoke(
+                f"http://127.0.0.1:{server.server_address[1]}"
+            )
+            with self.assertRaises(ClassifiedProviderTransportError) as observed:
+                _invoke_with_worker_deadline(
+                    invoke,
+                    "slow",
+                    {"model": "slow"},
+                    0.1,
+                    process_started=observed_pids.append,
+                )
+        finally:
+            server.shutdown()
+            server.server_close()
+        self.assertEqual(
+            observed.exception.error_class, "capability_probe_worker_timeout"
+        )
+        self.assertEqual(len(observed_pids), 1)
+        self.assertFalse(_pid_is_running(observed_pids[0]))
+
     def test_round46_probe_worker_deadline_and_capability_layers(self):
         with tempfile.TemporaryDirectory(dir=ROOT) as directory:
             artifact = Path(directory) / "safe.ppm"
@@ -553,6 +592,13 @@ class OllamaMultimodalMatrixTests(unittest.TestCase):
             self.assertFalse(trial["promotion_eligible"])
             self.assertIsNone(trial["observed_risk"])
             self.assertFalse(trial["cancellation_receipt"]["network_call_started"])
+            self.assertRegex(
+                trial["cancellation_receipt"]["request_correlation_hash"],
+                r"^sha256:[a-f0-9]{64}$",
+            )
+            self.assertFalse(
+                trial["cancellation_receipt"]["raw_request_id_included"]
+            )
         self.assertEqual(result["qualification_state"], "blocked")
 
         # A normal call records provider-native durations separately from wall time.
@@ -585,6 +631,44 @@ class OllamaMultimodalMatrixTests(unittest.TestCase):
         self.assertEqual(durations["provider_total_seconds"], 4.0)
         self.assertEqual(durations["model_load_seconds"], 1.5)
         self.assertEqual(durations["first_inference_seconds"], 2.5)
+
+    def test_round48_case_budget_cancellation_correlates_to_final_attempt(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            artifact = Path(directory) / "safe.ppm"
+            artifact.write_bytes(b"P6\n1 1\n255\n\x00\x00\xff")
+            result = build_matrix(
+                cases=[{
+                    "case_id": "case-budget",
+                    "taxonomy": "safe_control",
+                    "expected_risk": False,
+                    "artifact_path": artifact.relative_to(ROOT).as_posix(),
+                    "artifact_hash": sha256_ref(artifact.read_bytes()),
+                }],
+                models=[{
+                    "model_id": "model",
+                    "model_digest": "sha256:" + "d" * 64,
+                }],
+                formats=["json"],
+                num_predict_values=[64],
+                repeats=1,
+                runtime={
+                    "provider_id": "ollama-local",
+                    "ollama_version": "test",
+                    "base_url_class": "loopback",
+                },
+                invoke=lambda *_: self.fail("case budget must fail before invoke"),
+                maximum_case_wall_seconds=1e-12,
+            )
+
+        trial = result["trials"][0]
+        self.assertEqual(trial["error_class"], "case_wall_budget_exhausted")
+        self.assertEqual(len(trial["attempt_receipts"]), 1)
+        self.assertEqual(
+            trial["cancellation_receipt"]["request_correlation_hash"],
+            trial["attempt_receipts"][-1]["request_id_hash"],
+        )
+        self.assertFalse(trial["cancellation_receipt"]["raw_request_id_included"])
+        self.assertFalse(trial["promotion_eligible"])
 
     def test_round44_schema_rejects_failed_attempt_without_error_hash(self):
         schema = json.loads(
@@ -878,6 +962,21 @@ class OllamaMultimodalMatrixTests(unittest.TestCase):
         self.assertEqual(trial["parse_state"], "empty_response")
         self.assertTrue(trial["thinking_present"])
         self.assertEqual(len(trial["attempt_receipts"]), 2)
+        self.assertEqual(
+            len(
+                {
+                    attempt["request_id_hash"]
+                    for attempt in trial["attempt_receipts"]
+                }
+            ),
+            2,
+        )
+        self.assertTrue(
+            all(
+                not attempt["raw_request_id_included"]
+                for attempt in trial["attempt_receipts"]
+            )
+        )
         self.assertIsNone(trial["observed_risk"])
 
     def test_round43_json_fallback_probe_cannot_enter_metric_denominator(self):

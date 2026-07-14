@@ -13,10 +13,12 @@
     "schema_version": {"const": "a2.provider_pricing_policy.v1"},
     "provider_id": {"type": "string", "minLength": 1},
     "model_id": {"type": "string", "minLength": 1},
+    "region": {"type": "string", "minLength": 1},
     "currency": {"const": "USD"},
     "input_usd_per_million_tokens": {"type": "number", "minimum": 0},
     "output_usd_per_million_tokens": {"type": "number", "minimum": 0},
     "effective_at": {"type": "string", "format": "date-time"},
+    "expires_at": {"type": "string", "format": "date-time"},
     "retrieved_at": {"type": "string", "format": "date-time"},
     "source_class": {"type": "string", "minLength": 1},
     "source_uri_hash": {

@@ -73,6 +73,7 @@ def build_three_way_comparison(
     providers: dict[str, dict[str, Any]],
     *,
     partial_journals: dict[str, dict[str, Any] | None] | None = None,
+    designated_high_quality_reference: str | None = None,
 ) -> dict[str, Any]:
     if len(providers) != 3:
         raise ValueError("three-way comparison requires exactly three providers")
@@ -81,6 +82,11 @@ def build_three_way_comparison(
     unknown_partial_labels = set(partial_journals) - set(providers)
     if unknown_partial_labels:
         raise ValueError("partial journal labels must match provider labels")
+    if (
+        designated_high_quality_reference is not None
+        and designated_high_quality_reference not in providers
+    ):
+        raise ValueError("designated high-quality reference must match provider labels")
     indexes = {
         provider: _index_observations(provider, evidence)
         for provider, evidence in providers.items()
@@ -120,6 +126,11 @@ def build_three_way_comparison(
             comparison_state = "pairwise_agreement_with_unavailable"
         else:
             comparison_state = "semantic_disagreement"
+        reference_unavailable = bool(
+            comparison_state == "pairwise_agreement_with_unavailable"
+            and designated_high_quality_reference
+            and not states[designated_high_quality_reference]["eligible"]
+        )
         comparison = {
             "case_id": case_id,
             "artifact_hash": artifact_hash,
@@ -127,12 +138,24 @@ def build_three_way_comparison(
             "eligible_provider_count": len(eligible_values),
             "provider_states": states,
             "comparison_state": comparison_state,
-            "human_review_required": comparison_state == "semantic_disagreement",
+            "human_review_required": (
+                comparison_state == "semantic_disagreement" or reference_unavailable
+            ),
         }
         comparisons.append(comparison)
         summary[comparison_state] += 1
-        if comparison_state == "semantic_disagreement":
-            pending_receipts.append(comparison)
+        if comparison_state == "semantic_disagreement" or reference_unavailable:
+            pending_receipts.append({
+                "comparison": comparison,
+                "eligibility_rule": (
+                    "designated_high_quality_reference_unavailable"
+                    if reference_unavailable
+                    else "at_least_two_eligible_and_semantically_disagree"
+                ),
+                "reference_provider": (
+                    designated_high_quality_reference if reference_unavailable else ""
+                ),
+            })
     evidence_hashes = {
         provider: stable_hash(evidence)
         for provider, evidence in sorted(providers.items())
@@ -151,14 +174,16 @@ def build_three_way_comparison(
         "comparisons": comparisons,
     })
     receipts_by_id = {}
-    for comparison in pending_receipts:
+    for pending in pending_receipts:
+        comparison = pending["comparison"]
         comparison_hash = stable_hash({
             "case_id": comparison["case_id"],
             "artifact_hash": comparison["artifact_hash"],
             "repeat": comparison["repeat"],
             "provider_states": comparison["provider_states"],
             "comparison_state": comparison["comparison_state"],
-            "eligibility_rule": "at_least_two_eligible_and_semantically_disagree",
+            "eligibility_rule": pending["eligibility_rule"],
+            "reference_provider": pending["reference_provider"],
         })
         receipt_id = stable_hash({
             "comparison_hash": comparison_hash,
@@ -171,7 +196,12 @@ def build_three_way_comparison(
             "artifact_hash": comparison["artifact_hash"],
             "case_id": comparison["case_id"],
             "repeat": comparison["repeat"],
-            "eligibility_rule": "at_least_two_eligible_and_semantically_disagree",
+            "eligibility_rule": pending["eligibility_rule"],
+            **(
+                {"reference_provider": pending["reference_provider"]}
+                if pending["reference_provider"]
+                else {}
+            ),
             "queue_state": "awaiting_human_review",
             "reviewer_role": "multimodal_safety_reviewer",
             "release_authority": False,
@@ -179,7 +209,9 @@ def build_three_way_comparison(
     receipts = [receipts_by_id[key] for key in sorted(receipts_by_id)]
     if sum(summary.values()) != len(comparisons):
         raise ValueError("three-way comparison summary conservation failed")
-    if len(receipts) != summary["semantic_disagreement"]:
+    if len(receipts) != sum(
+        int(comparison["human_review_required"]) for comparison in comparisons
+    ):
         raise ValueError("three-way disagreement receipt conservation failed")
     pairwise_summaries = {}
     provider_names = sorted(providers)
@@ -207,6 +239,11 @@ def build_three_way_comparison(
         "summary": summary,
         "pairwise_summaries": pairwise_summaries,
         "human_review_queue_receipts": receipts,
+        **(
+            {"designated_high_quality_reference": designated_high_quality_reference}
+            if designated_high_quality_reference is not None
+            else {}
+        ),
         "release_authority": False,
         "raw_payload_included": False,
         "public_safe": True,
@@ -221,12 +258,17 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--provider", action="append", required=True, help="label=path")
     parser.add_argument("--partial", action="append", default=[], help="label=path")
+    parser.add_argument("--designated-high-quality-reference")
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
 
     try:
         result = build_three_way_comparison(
-            load_pairs(args.provider), partial_journals=load_pairs(args.partial)
+            load_pairs(args.provider),
+            partial_journals=load_pairs(args.partial),
+            designated_high_quality_reference=(
+                args.designated_high_quality_reference
+            ),
         )
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc

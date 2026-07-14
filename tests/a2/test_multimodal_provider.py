@@ -1,4 +1,6 @@
 import json
+import gzip
+import io
 import socket
 import unittest
 from unittest.mock import patch
@@ -22,6 +24,7 @@ from services.judge.multimodal_provider import (
     default_multimodal_provider_registry,
     parse_ollama_response,
     parse_openai_compatible_response,
+    read_bounded_json_response,
     request_provider_cancellation,
 )
 from services.judge.provider_runtime import EnvironmentCredentialResolver
@@ -79,8 +82,9 @@ class MultimodalProviderTests(unittest.TestCase):
             def __exit__(self, *_):
                 return False
 
-            def read(self):
-                return b'{"model":"qwen-vl-plus","choices":[{"message":{"content":"{}"}}]}'
+            def read(self, maximum_bytes=-1):
+                value = b'{"model":"qwen-vl-plus","choices":[{"message":{"content":"{}"}}]}'
+                return value if maximum_bytes < 0 else value[:maximum_bytes]
 
         registry = default_multimodal_provider_registry()
         provider = registry.require("dashscope")
@@ -114,6 +118,47 @@ class MultimodalProviderTests(unittest.TestCase):
         )
         self.assertEqual(sent["response_format"], {"type": "json_object"})
         self.assertEqual(result["model"], "qwen-vl-plus")
+
+    def test_round48_bounded_json_reader_rejects_oversized_truncated_and_amplified(self):
+        class Response:
+            def __init__(self, body, headers=None):
+                self.body = body
+                self.headers = headers or {}
+
+            def getheader(self, name):
+                return self.headers.get(name)
+
+            def read(self, maximum_bytes=-1):
+                return self.body if maximum_bytes < 0 else self.body[:maximum_bytes]
+
+        oversized = Response(b'{"value":"' + b"x" * 100 + b'"}')
+        with self.assertRaises(ClassifiedProviderTransportError) as observed:
+            read_bounded_json_response(oversized, 32)
+        self.assertEqual(observed.exception.error_class, "response_body_too_large")
+
+        truncated = Response(b'{"value":', {"Content-Length": "100"})
+        with self.assertRaises(ClassifiedProviderTransportError) as observed:
+            read_bounded_json_response(truncated, 128)
+        self.assertEqual(observed.exception.error_class, "response_body_truncated")
+
+        compressed_body = io.BytesIO()
+        with gzip.GzipFile(fileobj=compressed_body, mode="wb") as compressed:
+            compressed.write(b'{"value":"' + b"x" * 200 + b'"}')
+        amplified = Response(
+            compressed_body.getvalue(),
+            {"Content-Encoding": "gzip"},
+        )
+        with self.assertRaises(ClassifiedProviderTransportError) as observed:
+            read_bounded_json_response(amplified, 64)
+        self.assertEqual(
+            observed.exception.error_class,
+            "response_decompression_limit_exceeded",
+        )
+
+        malformed = Response(b'{"value":')
+        with self.assertRaises(ClassifiedProviderTransportError) as observed:
+            read_bounded_json_response(malformed, 64)
+        self.assertEqual(observed.exception.error_class, "response_json_malformed")
 
     def test_openai_compatible_adapter_emits_provider_neutral_transport_receipts(self):
         registry = default_multimodal_provider_registry()

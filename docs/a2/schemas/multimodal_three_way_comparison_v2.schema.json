@@ -25,6 +25,10 @@
     "human_review_queue_receipts": {
       "type": "array", "items": {"$ref": "#/$defs/receipt"}
     },
+    "designated_high_quality_reference": {
+      "type": "string", "minLength": 1,
+      "pattern": "^(?!\\s)(?!.*\\s$)(?!.*::).+$"
+    },
     "release_authority": {"const": false},
     "raw_payload_included": {"const": false},
     "public_safe": {"const": true}
@@ -123,7 +127,14 @@
         "case_id": {"type": "string", "minLength": 1},
         "repeat": {"type": "integer", "minimum": 1},
         "eligibility_rule": {
-          "const": "at_least_two_eligible_and_semantically_disagree"
+          "enum": [
+            "at_least_two_eligible_and_semantically_disagree",
+            "designated_high_quality_reference_unavailable"
+          ]
+        },
+        "reference_provider": {
+          "type": "string", "minLength": 1,
+          "pattern": "^(?!\\s)(?!.*\\s$)(?!.*::).+$"
         },
         "queue_state": {"const": "awaiting_human_review"},
         "reviewer_role": {"const": "multimodal_safety_reviewer"},

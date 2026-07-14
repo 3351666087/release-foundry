@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import gzip
+import io
 import json
 import socket
 import time
@@ -24,6 +26,7 @@ PRICING_POLICY_SCHEMA_VERSION = "a2.provider_pricing_policy.v1"
 CANCELLATION_HANDLE_RECEIPT_SCHEMA_VERSION = (
     "a2.provider_cancellation_handle_receipt.v1"
 )
+DEFAULT_MAXIMUM_RESPONSE_BYTES = 1024 * 1024
 
 
 @runtime_checkable
@@ -165,6 +168,57 @@ def classified_transport_error(
     )
 
 
+def read_bounded_json_response(
+    response: Any,
+    maximum_response_bytes: int = DEFAULT_MAXIMUM_RESPONSE_BYTES,
+) -> dict[str, Any]:
+    """Read one provider JSON envelope without retaining an unbounded body."""
+
+    if maximum_response_bytes < 1:
+        raise ValueError("maximum response bytes must be positive")
+
+    getheader = getattr(response, "getheader", None)
+    content_length_text = getheader("Content-Length") if callable(getheader) else None
+    content_encoding = getheader("Content-Encoding") if callable(getheader) else None
+    if content_length_text:
+        try:
+            content_length = int(content_length_text)
+        except (TypeError, ValueError) as exc:
+            raise classified_transport_error("response_length_invalid") from exc
+        if content_length < 0:
+            raise classified_transport_error("response_length_invalid")
+        if content_length > maximum_response_bytes:
+            raise classified_transport_error("response_body_too_large")
+    else:
+        content_length = None
+
+    raw = response.read(maximum_response_bytes + 1)
+    if len(raw) > maximum_response_bytes:
+        raise classified_transport_error("response_body_too_large")
+    if content_length is not None and len(raw) < content_length:
+        raise classified_transport_error("response_body_truncated")
+
+    if str(content_encoding or "").lower().strip() == "gzip":
+        try:
+            with gzip.GzipFile(fileobj=io.BytesIO(raw)) as compressed:
+                decoded = compressed.read(maximum_response_bytes + 1)
+        except (EOFError, OSError) as exc:
+            raise classified_transport_error("response_body_truncated") from exc
+        if len(decoded) > maximum_response_bytes:
+            raise classified_transport_error("response_decompression_limit_exceeded")
+        raw = decoded
+    elif content_encoding not in {None, "", "identity"}:
+        raise classified_transport_error("response_encoding_unsupported")
+
+    try:
+        value = json.loads(raw.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise classified_transport_error("response_json_malformed") from exc
+    if not isinstance(value, dict):
+        raise classified_transport_error("response_json_not_object")
+    return value
+
+
 @dataclass(frozen=True)
 class ProviderResponseDurationReceipt:
     """Public-safe duration projection with explicit measurement provenance."""
@@ -257,6 +311,8 @@ class ProviderPricingPolicy:
     retrieved_at: str
     source_class: str
     source_uri_hash: str
+    region: str = ""
+    expires_at: str = ""
     schema_version: str = PRICING_POLICY_SCHEMA_VERSION
 
     def __post_init__(self) -> None:
@@ -298,6 +354,10 @@ class ProviderPricingPolicy:
             "release_authority": False,
             "public_safe": True,
         }
+        if self.region:
+            value["region"] = self.region
+        if self.expires_at:
+            value["expires_at"] = self.expires_at
         return {**value, "content_hash": stable_hash(value)}
 
 
@@ -584,8 +644,16 @@ class MultimodalProviderRegistry:
 class OpenAICompatibleMultimodalAdapter:
     """Generic OpenAI-compatible chat-completions transport."""
 
-    def __init__(self, credential_resolver: CredentialResolver) -> None:
+    def __init__(
+        self,
+        credential_resolver: CredentialResolver,
+        *,
+        maximum_response_bytes: int = DEFAULT_MAXIMUM_RESPONSE_BYTES,
+    ) -> None:
+        if maximum_response_bytes < 1:
+            raise ValueError("maximum response bytes must be positive")
         self.credential_resolver = credential_resolver
+        self.maximum_response_bytes = maximum_response_bytes
 
     def invoke(
         self,
@@ -605,7 +673,9 @@ class OpenAICompatibleMultimodalAdapter:
         )
         try:
             with request.urlopen(call, timeout=timeout_seconds) as response:
-                value = json.loads(response.read().decode("utf-8"))
+                value = read_bounded_json_response(
+                    response, self.maximum_response_bytes
+                )
         except error.HTTPError as exc:
             status_class = f"{exc.code // 100}xx"
             if exc.code in {401, 403}:
@@ -628,8 +698,6 @@ class OpenAICompatibleMultimodalAdapter:
             if isinstance(reason, ConnectionRefusedError):
                 raise classified_transport_error("connection_refused") from exc
             raise classified_transport_error("connection_failure") from exc
-        if not isinstance(value, dict):
-            raise ProviderMalformedEnvelope
         return value
 
 
