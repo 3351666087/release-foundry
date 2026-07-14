@@ -311,6 +311,9 @@ test("A3 registration and login contract is explicit and fail closed", () => {
     assert.equal(security.csrf_required, false);
     assert.equal(security.verified_assertion_required, true);
     assert.equal(security.verified_assertion_source, "server_owned_single_use_proof_receipt");
+    if (name === "public_registration") {
+      assert.equal(security.legacy_accountless_binding_http_rejected, true);
+    }
     assert.equal(security.route_lifecycle, "active");
     assert.equal(security.client_callable, true);
   }

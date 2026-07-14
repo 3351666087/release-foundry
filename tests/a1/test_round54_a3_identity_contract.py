@@ -98,6 +98,8 @@ def test_public_identity_and_existing_account_binding_security_are_distinct() ->
             profile["verified_assertion_source"]
             == "server_owned_single_use_proof_receipt"
         )
+        if public_flow == "public_registration":
+            assert profile["legacy_accountless_binding_http_rejected"] is True
         assert profile["route_lifecycle"] == "active"
         assert profile["client_callable"] is True
 

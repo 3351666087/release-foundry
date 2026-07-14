@@ -1220,6 +1220,7 @@ export function a3IdentityContractManifest(): A3IdentityContractManifest {
         csrf_required: false,
         verified_assertion_required: true,
         verified_assertion_source: "server_owned_single_use_proof_receipt",
+        legacy_accountless_binding_http_rejected: true,
         route_lifecycle: "active",
         client_callable: true,
       },

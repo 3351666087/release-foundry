@@ -384,6 +384,7 @@ def a3_identity_contract_manifest() -> dict[str, Any]:
                 "csrf_required": False,
                 "verified_assertion_required": True,
                 "verified_assertion_source": "server_owned_single_use_proof_receipt",
+                "legacy_accountless_binding_http_rejected": True,
                 "route_lifecycle": "active",
                 "client_callable": True,
             },
