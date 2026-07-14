@@ -66,6 +66,7 @@ type httpSessionVerificationCoordinator struct {
 	completeCalls     int
 	issueCalls        int
 	lastPurpose       IdentityVerificationPurpose
+	lastCommand       IdentityVerificationCompletionCommand
 	lastReceipt       IdentitySessionIssuanceReceipt
 	lastBearer        string
 	lastRefreshBearer string
@@ -77,6 +78,7 @@ func (coordinator *httpSessionVerificationCoordinator) CompleteIdentityVerificat
 ) (IdentityVerificationResultDTO, error) {
 	coordinator.completeCalls++
 	coordinator.lastPurpose = command.Purpose
+	coordinator.lastCommand = command
 	return httpSessionVerificationResult(command, coordinator.now), nil
 }
 
@@ -325,6 +327,78 @@ func TestIdentityVerificationHTTPBindingKeepsPublicCompletionWithoutCookieTransp
 	}
 	if response.Header().Get("Set-Cookie") != "" {
 		t.Fatal("binding emitted a session cookie")
+	}
+}
+
+func TestIdentityVerificationHTTPExistingAccountBindingRequiresTrustedAuthorization(t *testing.T) {
+	now := time.Date(2026, 7, 14, 10, 0, 0, 0, time.UTC)
+	baseHandler, coordinator := newHTTPSessionVerificationHandler(t, now, nil)
+	server := baseHandler.(*HTTPServer)
+	accountID := "11111111-1111-4111-8111-111111111111"
+	sessionDigest := strings.Repeat("a", 64)
+	ticketID := strings.Repeat("b", 64)
+	stepUpID := strings.Repeat("c", 64)
+	server.identitySessions = identityHTTPTestSessionResolver{session: IdentityHTTPSession{
+		AccountID: accountID, ActorID: accountID, SessionID: "session-binding",
+		SessionDigest: sessionDigest,
+	}}
+	server.identitySecurityTickets = identitySecurityTestResolver{ticket: IdentitySecurityMutationTicket{
+		TicketID: ticketID, AccountID: accountID, Operation: "credential_bind",
+		ReceiptDigest: stepUpID, ExpiresAt: now.Add(time.Minute),
+	}}
+
+	requestBody := func(extra string) string {
+		return fmt.Sprintf(
+			`{"challenge_id":"challenge-http-test","code":"123456","channel":"email","identifier":"person@example.test","purpose":"binding","tenant_id":"tenant-http","account_id":%q%s}`,
+			accountID, extra,
+		)
+	}
+	request := func(body string, origin string) *http.Request {
+		result := httptest.NewRequest(
+			http.MethodPost,
+			"https://api.example.test/v1/identity-verification/verify",
+			strings.NewReader(body),
+		)
+		result.Header.Set("Origin", origin)
+		result.Header.Set("Sec-Fetch-Site", "same-origin")
+		return result
+	}
+
+	missing := httptest.NewRecorder()
+	server.ServeHTTP(missing, request(requestBody(""), "https://api.example.test"))
+	if missing.Code != http.StatusBadRequest || coordinator.completeCalls != 0 {
+		t.Fatalf("missing trusted binding authority was accepted: status=%d body=%s", missing.Code, missing.Body.String())
+	}
+
+	crossOrigin := httptest.NewRecorder()
+	server.ServeHTTP(crossOrigin, request(requestBody(
+		fmt.Sprintf(`,"mutation_ticket_id":%q,"step_up_receipt_id":%q`, ticketID, stepUpID),
+	), "https://evil.example.test"))
+	if crossOrigin.Code != http.StatusForbidden || coordinator.completeCalls != 0 {
+		t.Fatalf("cross-origin binding was accepted: status=%d body=%s", crossOrigin.Code, crossOrigin.Body.String())
+	}
+
+	untrustedBody := httptest.NewRecorder()
+	server.ServeHTTP(untrustedBody, request(requestBody(
+		fmt.Sprintf(`,"mutation_ticket_id":%q,"step_up_receipt_id":%q,"actor_id":%q`, ticketID, stepUpID, accountID),
+	), "https://api.example.test"))
+	if untrustedBody.Code != http.StatusBadRequest || coordinator.completeCalls != 0 {
+		t.Fatalf("body authority was accepted: status=%d body=%s", untrustedBody.Code, untrustedBody.Body.String())
+	}
+
+	success := httptest.NewRecorder()
+	server.ServeHTTP(success, request(requestBody(
+		fmt.Sprintf(`,"mutation_ticket_id":%q,"step_up_receipt_id":%q`, ticketID, stepUpID),
+	), "https://api.example.test"))
+	if success.Code != http.StatusOK || coordinator.completeCalls != 1 {
+		t.Fatalf("authorized binding failed: status=%d body=%s", success.Code, success.Body.String())
+	}
+	command := coordinator.lastCommand
+	if command.AccountID != accountID || command.ActorID != accountID ||
+		command.SessionDigest != sessionDigest ||
+		command.MutationTicketID != ticketID ||
+		command.StepUpReceiptID != stepUpID {
+		t.Fatalf("trusted binding authority was not propagated: %#v", command)
 	}
 }
 

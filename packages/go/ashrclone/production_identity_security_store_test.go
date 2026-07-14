@@ -129,6 +129,63 @@ func TestProductionIdentitySecurityStoreResolvesPublicTicketEnvelope(t *testing.
 	}
 }
 
+func TestProductionIdentitySecurityStoreResolvesCredentialBindTicket(t *testing.T) {
+	now := time.Date(2026, 7, 14, 8, 0, 0, 0, time.UTC)
+	store, mock := newProductionIdentitySecurityTestStore(t, now)
+	ticketID := strings.Repeat("a", 64)
+	stepUpID := strings.Repeat("b", 64)
+	raw := `{
+	  "ticket_id":"` + ticketID + `",
+	  "account_id":"` + identitySecurityTestAccountID + `",
+	  "operation":"credential_bind",
+	  "step_up_receipt_id":"` + stepUpID + `",
+	  "expires_at":"2026-07-14T08:05:00Z"
+	}`
+	expectIdentitySecurityTransaction(mock)
+	mock.ExpectQuery("SELECT a1_resolve_identity_security_mutation_ticket").
+		WithArgs(ticketID, stepUpID, "credential_bind", now).
+		WillReturnRows(sqlmock.NewRows([]string{"ticket"}).AddRow(raw))
+	mock.ExpectCommit()
+
+	ticket, err := store.ResolveIdentitySecurityMutationTicket(
+		context.Background(), ticketID, stepUpID, "credential_bind",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if ticket.Operation != "credential_bind" || ticket.AccountID != identitySecurityTestAccountID {
+		t.Fatalf("unexpected credential-bind ticket: %#v", ticket)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestProductionIdentitySecurityStoreRejectsCredentialBindInGenericExecutor(t *testing.T) {
+	now := time.Date(2026, 7, 14, 8, 0, 0, 0, time.UTC)
+	store, mock := newProductionIdentitySecurityTestStore(t, now)
+	_, err := store.MutateIdentitySecurity(context.Background(), IdentitySecurityMutation{
+		AccountID:      identitySecurityTestAccountID,
+		ActorID:        identitySecurityTestAccountID,
+		SessionID:      "security-session",
+		Operation:      "credential_bind",
+		IdempotencyKey: "security-idempotency-key",
+		Ticket: IdentitySecurityMutationTicket{
+			TicketID:      strings.Repeat("a", 64),
+			AccountID:     identitySecurityTestAccountID,
+			Operation:     "credential_bind",
+			ReceiptDigest: strings.Repeat("b", 64),
+			ExpiresAt:     now.Add(time.Minute),
+		},
+	})
+	if !errors.Is(err, ErrIdentitySecurityRejected) {
+		t.Fatalf("credential_bind entered generic executor: %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestProductionIdentitySecurityStoreRoutesAtomicMigration018Authority(t *testing.T) {
 	now := time.Date(2026, 7, 14, 8, 0, 0, 0, time.UTC)
 	baseTicket := IdentitySecurityMutationTicket{

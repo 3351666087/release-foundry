@@ -12,10 +12,11 @@ import (
 // IdentityHTTPSession is trusted server-side authentication context. AccountID
 // is authoritative; an account ID in a URL is only an ownership assertion.
 type IdentityHTTPSession struct {
-	AccountID string
-	ActorID   string
-	SessionID string
-	Revoked   bool
+	AccountID     string
+	ActorID       string
+	SessionID     string
+	SessionDigest string
+	Revoked       bool
 }
 
 type IdentityHTTPSessionResolver interface {
@@ -48,11 +49,12 @@ type UnifiedIdentityHTTPStore interface {
 // loopback requests and fixed server configuration. It never reads identity
 // ownership from request headers, query parameters, or bodies.
 type LocalhostDevIdentityHTTPSessionResolver struct {
-	Enabled   bool
-	AccountID string
-	ActorID   string
-	SessionID string
-	Revoked   func(context.Context, string) (bool, error)
+	Enabled       bool
+	AccountID     string
+	ActorID       string
+	SessionID     string
+	SessionDigest string
+	Revoked       func(context.Context, string) (bool, error)
 }
 
 func (resolver LocalhostDevIdentityHTTPSessionResolver) ResolveIdentityHTTPSession(_ context.Context, request *http.Request) (IdentityHTTPSession, error) {
@@ -63,9 +65,10 @@ func (resolver LocalhostDevIdentityHTTPSessionResolver) ResolveIdentityHTTPSessi
 		return IdentityHTTPSession{}, fmt.Errorf("localhost identity session resolver rejected a non-loopback request")
 	}
 	session := IdentityHTTPSession{
-		AccountID: strings.TrimSpace(resolver.AccountID),
-		ActorID:   strings.TrimSpace(resolver.ActorID),
-		SessionID: strings.TrimSpace(resolver.SessionID),
+		AccountID:     strings.TrimSpace(resolver.AccountID),
+		ActorID:       strings.TrimSpace(resolver.ActorID),
+		SessionID:     strings.TrimSpace(resolver.SessionID),
+		SessionDigest: strings.TrimSpace(resolver.SessionDigest),
 	}
 	if session.AccountID == "" || session.ActorID == "" || session.SessionID == "" {
 		return IdentityHTTPSession{}, fmt.Errorf("localhost identity session is incomplete")
@@ -193,6 +196,7 @@ func (server *HTTPServer) resolveIdentityHTTPSession(writer http.ResponseWriter,
 	session.AccountID = strings.TrimSpace(session.AccountID)
 	session.ActorID = strings.TrimSpace(session.ActorID)
 	session.SessionID = strings.TrimSpace(session.SessionID)
+	session.SessionDigest = strings.TrimSpace(session.SessionDigest)
 	if session.Revoked || session.AccountID == "" || session.ActorID == "" || session.SessionID == "" {
 		writeError(writer, http.StatusUnauthorized, "identity_session_invalid", "identity session could not be authenticated")
 		return IdentityHTTPSession{}, false
