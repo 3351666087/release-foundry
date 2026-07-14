@@ -355,6 +355,120 @@ SELECT
 		}
 	})
 
+	t.Run("concurrent credential link is one mutation with stable replay", func(t *testing.T) {
+		h := newPostgresLifecycleHarness(t, adminDSN)
+		key := []byte("concurrent-link-key-012345678901234")
+		first := h.newInstance(t, key, "v1", nil)
+		second := h.newInstance(t, key, "v1", nil)
+		registration := issueLifecycleProof(t, first.service, TrustedIdentityProof{
+			Operation: IdentityOperationRegistration, Kind: IdentityCredentialEmail,
+			Provider: IdentityProviderLocal, Identifier: "concurrent-link@example.cn",
+			VerifiedEmail: "concurrent-link@example.cn", DisplayName: "Concurrent Link Owner",
+		})
+		account, err := first.service.CompleteRegistration(completionFor(registration))
+		if err != nil {
+			t.Fatal(err)
+		}
+		orgID := "30000000-0000-4000-8000-000000000001"
+		workspaceID := "30000000-0000-4000-8000-000000000002"
+		projectID := "30000000-0000-4000-8000-000000000003"
+		establishIdentityProjectScope(
+			t, first, account.AccountID, orgID, workspaceID, projectID, h.now,
+		)
+		sessionID, sessionDigest := issueScopedIdentitySession(
+			t, first, account.AccountID, account.Credentials[0].CredentialID,
+			orgID, projectID, h.now,
+		)
+		proof := issueLifecycleProof(t, first.service, TrustedIdentityProof{
+			Operation: IdentityOperationCredentialLink, Kind: IdentityCredentialOAuth,
+			Provider: IdentityProviderGitHub, Identifier: "concurrent-github-subject",
+			VerifiedEmail: "concurrent-link@example.cn",
+			TenantID:      orgID, ProjectID: projectID,
+		})
+		command := authorizeIdentityCredentialLink(
+			t, first, account.AccountID, sessionID, sessionDigest,
+			orgID, projectID, proof, "credential-link-concurrent", h.now,
+		)
+
+		type completion struct {
+			result IdentityCredentialLinkResultDTO
+			err    error
+		}
+		const completions = 16
+		responses := make(chan completion, completions)
+		var wait sync.WaitGroup
+		for index := 0; index < completions; index++ {
+			wait.Add(1)
+			go func(index int) {
+				defer wait.Done()
+				service := first.credentialLinkService
+				if index%2 == 1 {
+					service = second.credentialLinkService
+				}
+				result, err := service.Complete(context.Background(), command)
+				responses <- completion{result: result, err: err}
+			}(index)
+		}
+		wait.Wait()
+		close(responses)
+
+		var credentialID string
+		var linkedAt time.Time
+		added := 0
+		replayed := 0
+		for response := range responses {
+			if response.err != nil {
+				t.Fatalf("concurrent credential link returned %v", response.err)
+			}
+			if response.result.CredentialAdded {
+				added++
+			} else {
+				replayed++
+			}
+			if credentialID == "" {
+				credentialID = response.result.Credential.CredentialID
+				linkedAt = response.result.LinkedAt
+				continue
+			}
+			if response.result.Credential.CredentialID != credentialID ||
+				!response.result.LinkedAt.Equal(linkedAt) {
+				t.Fatalf(
+					"concurrent replay changed result: credential=%q/%q linked_at=%s/%s",
+					credentialID, response.result.Credential.CredentialID,
+					linkedAt, response.result.LinkedAt,
+				)
+			}
+		}
+		if added != 1 || replayed != completions-1 {
+			t.Fatalf("concurrent completion added=%d replayed=%d", added, replayed)
+		}
+
+		var credentials, consumedProofs, consumedTickets, consumedReceipts, events int
+		if err := first.adminDB.QueryRow(`
+SELECT
+  (SELECT count(*) FROM identity_credentials WHERE principal_id=$1::uuid),
+  (SELECT count(*) FROM identity_lifecycle_receipts
+    WHERE receipt_digest=$2 AND consumed_at IS NOT NULL),
+  (SELECT count(*) FROM identity_security_mutation_tickets
+    WHERE ticket_digest=$3 AND consumed_at IS NOT NULL),
+  (SELECT count(*) FROM identity_security_receipts
+    WHERE receipt_digest=$4 AND consumed_at IS NOT NULL),
+  (SELECT count(*) FROM identity_audit_events
+    WHERE principal_id=$1::uuid AND action='identity.credential.link.completed')
+`, account.AccountID, first.receipts.receiptDigest(proof.ReceiptID),
+			command.MutationTicketID, command.StepUpReceiptID).
+			Scan(&credentials, &consumedProofs, &consumedTickets, &consumedReceipts, &events); err != nil {
+			t.Fatal(err)
+		}
+		if credentials != 2 || consumedProofs != 1 || consumedTickets != 1 ||
+			consumedReceipts != 1 || events != 1 {
+			t.Fatalf(
+				"concurrent credential link counts credentials=%d proof=%d ticket=%d step_up=%d events=%d",
+				credentials, consumedProofs, consumedTickets, consumedReceipts, events,
+			)
+		}
+	})
+
 	t.Run("receipt key rotation and tamper fail closed", func(t *testing.T) {
 		h := newPostgresLifecycleHarness(t, adminDSN)
 		oldKey := []byte("old-lifecycle-key-01234567890123456")
