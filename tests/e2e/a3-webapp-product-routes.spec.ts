@@ -647,6 +647,78 @@ test.describe("A3 Next.js product console", () => {
     await page.screenshot({ path: "docs/screenshots/a3-webapp-three-provider-review-mobile-390x844.png", fullPage: false });
   });
 
+  test("renders Round 51 as stable blocked evidence instead of a quality pass", async ({ page }) => {
+    const stabilityApiResponse = await page.request.get(
+      "/api/a3/review/multimodal-repeat-stability?source=p3-a2-round51",
+      { headers: { "x-a3-role": "reviewer" } }
+    );
+    expect(stabilityApiResponse.status()).toBe(200);
+    const stabilityApi = await stabilityApiResponse.json();
+    expect(stabilityApi.status).toBe("blocked_stable_repeat");
+    expect(stabilityApi.summary.repeat_count).toBe(3);
+    expect(stabilityApi.summary.required_source_unit_count).toBe(45);
+    expect(stabilityApi.summary.stable_observation).toBe(true);
+    expect(stabilityApi.summary.quality_qualified).toBe(false);
+    expect(stabilityApi.human_review.receipt_count).toBe(0);
+    expect(stabilityApi.candidate_binding.verified).toBe(false);
+    expect(stabilityApi.authority_boundary.release_authority).toBe(false);
+
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto(`${base}/review/?source=p3-a2-round51`);
+    await expect(page.getByRole("heading", { name: "人工审核" })).toBeVisible();
+    await expect(page.locator(".source-control select")).toHaveValue("p3-a2-round51");
+    const panel = page.locator(".repeat-stability-panel");
+    await expect(panel).toHaveAttribute("data-status", "blocked_stable_repeat");
+    await expect(panel).toContainText("完整且稳定，但质量未达标");
+    await expect(panel).toContainText("三轮结果一致只能证明问题可重复");
+    await expect(panel).toContainText("重复轮次3");
+    await expect(panel).toContainText("每轮必需样本45");
+    await expect(panel).toContainText("阻塞轮次3");
+    await expect(panel).toContainText("人工结论0");
+    await expect(panel).toContainText("特异性95%95%95%");
+    await expect(panel).toContainText("良性文本误报率20%20%20%");
+    await expect(panel).toContainText("跨模态冲突识别30%30%30%");
+    await expect(panel).toContainText("视觉提示注入识别60%60%60%");
+    await expect(panel).toContainText("等待人工复核");
+    await expect(panel).toContainText("候选版本绑定未验证");
+    await expect(panel).toContainText("当前证据没有发布权");
+    await expect(panel).not.toContainText(/\bA[123]\b/);
+
+    const desktop = await panel.evaluate((node) => ({
+      viewport: document.documentElement.clientWidth,
+      documentWidth: document.documentElement.scrollWidth,
+      panelWidth: node.getBoundingClientRect().width,
+      metricWidth: node.querySelector(".repeat-metric-list")?.getBoundingClientRect().width || 0
+    }));
+    expect(desktop.documentWidth).toBeLessThanOrEqual(desktop.viewport + 1);
+    expect(desktop.panelWidth).toBeLessThanOrEqual(desktop.viewport);
+    expect(desktop.metricWidth).toBeLessThanOrEqual(desktop.panelWidth);
+    await panel.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-repeat-stability-round51-desktop.png", fullPage: false });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.reload();
+    await expect(panel).toBeVisible();
+    await panel.scrollIntoViewIfNeeded();
+    const mobile = await panel.evaluate((node) => ({
+      viewport: document.documentElement.clientWidth,
+      documentWidth: document.documentElement.scrollWidth,
+      panelWidth: node.getBoundingClientRect().width,
+      headerWidth: node.querySelector(".repeat-stability-header")?.getBoundingClientRect().width || 0,
+      metricWidth: node.querySelector(".repeat-metric-list")?.getBoundingClientRect().width || 0
+    }));
+    expect(mobile.documentWidth).toBeLessThanOrEqual(mobile.viewport + 1);
+    expect(mobile.panelWidth).toBeLessThanOrEqual(mobile.viewport);
+    expect(mobile.headerWidth).toBeLessThanOrEqual(mobile.panelWidth);
+    expect(mobile.metricWidth).toBeLessThanOrEqual(mobile.panelWidth);
+    await panel.evaluate((node) => {
+      document.documentElement.style.scrollBehavior = "auto";
+      window.scrollTo(0, window.scrollY + node.getBoundingClientRect().top - 72);
+    });
+    await page.waitForTimeout(100);
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-repeat-stability-round51-mobile-390x844.png", fullPage: false });
+  });
+
   test("renders an audit-grade hash-only evidence request workflow and conflict state", async ({ page }) => {
     const source = "p3-media";
     const reviewerHash = "reviewer_hash_e2e";

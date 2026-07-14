@@ -89,7 +89,7 @@ test("A3 commercial OpenAPI v2 covers the required tenant-sensitive read surface
   assert.equal(spec.openapi, "3.1.0");
   assert.equal(spec["x-schema-version"], "a3.openapi.commercial_api.v2");
   assert.equal(spec.info.title, "Ashr++ A3 Commercial Product Console API");
-  assert.equal(spec.info.version, "2026.07.13");
+  assert.equal(spec.info.version, "2026.07.14");
   assert.ok(spec["x-contract-source"].includes("services/report/a3_commercial_api_contract.mjs"));
   assert.ok(spec["x-contract-source"].includes("docs/a3/a3_trusted_read_access_contract_2026_07_12.md"));
 
@@ -118,8 +118,8 @@ test("every runtime RBAC route has an OpenAPI operation with the same permission
   ]));
 
   assert.equal(parity.complete, true);
-  assert.equal(parity.runtime_operation_count, 65);
-  assert.equal(parity.documented_runtime_operation_count, 65);
+  assert.equal(parity.runtime_operation_count, 67);
+  assert.equal(parity.documented_runtime_operation_count, 67);
   assert.deepEqual(parity.missing, []);
   for (const route of A3_SENSITIVE_ROUTE_PATTERNS) {
     const key = `${route.method} ${normalizeContractPath(route.path_pattern)}`;
@@ -134,12 +134,15 @@ test("multimodal OpenAPI matches the header-only import and non-authoritative re
   const spec = await readOpenApi();
   const importOperation = spec.paths["/api/a3/import/a2-multimodal-comparison"].post;
   const readOperation = spec.paths["/api/a3/review/multimodal-queue"].get;
+  const repeatImportOperation = spec.paths["/api/a3/import/a2-multimodal-repeat-stability"].post;
+  const repeatReadOperation = spec.paths["/api/a3/review/multimodal-repeat-stability"].get;
   const assignmentOperation = spec.paths["/api/a3/review/multimodal-queue/{queueId}/assignment"].post;
   const evidenceCollection = spec.paths["/api/a3/review/multimodal-queue/{queueId}/evidence-requests"];
   const evidenceSubmission = spec.paths["/api/a3/review/multimodal-queue/{queueId}/evidence-requests/{requestId}/submissions"].post;
   const evidenceReview = spec.paths["/api/a3/review/multimodal-queue/{queueId}/evidence-requests/{requestId}/review"].post;
   const idempotency = importOperation.parameters.find((item) => item.name === "Idempotency-Key");
   const assignmentIdempotency = assignmentOperation.parameters.find((item) => item.name === "Idempotency-Key");
+  const repeatIdempotency = repeatImportOperation.parameters.find((item) => item.name === "Idempotency-Key");
 
   assert.equal(importOperation["x-rbac"].permission, "project:ingest");
   assert.equal(idempotency.in, "header");
@@ -150,6 +153,18 @@ test("multimodal OpenAPI matches the header-only import and non-authoritative re
   assert.equal(importOperation["x-authority-boundary"].can_change_release_decision, false);
   assert.equal(readOperation["x-rbac"].permission, "release:review");
   assert.equal(readOperation.responses["200"].content["application/json"].schema.$ref, "#/components/schemas/MultimodalReviewQueue");
+  assert.equal(repeatImportOperation["x-rbac"].permission, "project:ingest");
+  assert.equal(repeatIdempotency.in, "header");
+  assert.equal(repeatIdempotency.required, true);
+  assert.equal(repeatImportOperation.requestBody.content["application/json"].schema.$ref, "#/components/schemas/MultimodalRepeatStabilityImportRequest");
+  assert.equal(repeatImportOperation.responses["201"].content["application/json"].schema.$ref, "#/components/schemas/MultimodalRepeatStabilityIngestReceipt");
+  assert.equal(repeatImportOperation.responses["202"], undefined);
+  assert.equal(repeatImportOperation["x-evidence-boundary"].repeat_stability_is_quality_pass, false);
+  assert.equal(repeatImportOperation["x-evidence-boundary"].non_empty_human_receipts_fail_closed_until_exact_schema, true);
+  assert.equal(repeatImportOperation["x-authority-boundary"].release_authority, false);
+  assert.equal(repeatReadOperation["x-rbac"].permission, "release:review");
+  assert.equal(repeatReadOperation.responses["200"].content["application/json"].schema.$ref, "#/components/schemas/MultimodalRepeatStability");
+  assert.equal(repeatReadOperation["x-authority-boundary"].production_ready, false);
   assert.equal(assignmentOperation["x-rbac"].permission, "release:review");
   assert.equal(assignmentIdempotency.in, "header");
   assert.equal(assignmentIdempotency.required, true);
@@ -182,6 +197,10 @@ test("multimodal OpenAPI matches the header-only import and non-authoritative re
   const evidenceReference = spec.components.schemas.MultimodalReviewEvidenceReference;
   const evidenceRequest = spec.components.schemas.MultimodalReviewEvidenceRequest;
   const evidenceRequestReceipt = spec.components.schemas.MultimodalReviewEvidenceRequestReceipt;
+  const repeatRequest = spec.components.schemas.MultimodalRepeatStabilityImportRequest;
+  const repeatEnvelope = spec.components.schemas.A2MultimodalRepeatStabilityEnvelope;
+  const repeatReceipt = spec.components.schemas.MultimodalRepeatStabilityIngestReceipt;
+  const repeatProjection = spec.components.schemas.MultimodalRepeatStability;
   assert.match(request.description, /header-only/);
   assert.match(request.properties.imported_at.description, /server assigns/);
   assert.deepEqual(envelope.oneOf.map((item) => item.properties.schema_version.const), [
@@ -217,6 +236,24 @@ test("multimodal OpenAPI matches the header-only import and non-authoritative re
   assert.equal(evidenceRequest.properties.authority_boundary.properties.authoritative_human_disposition_recorded.const, false);
   assert.equal(evidenceRequest.properties.authority_boundary.properties.release_authority.const, false);
   assert.equal(evidenceRequestReceipt.properties.release_decision_changed.const, false);
+  assert.match(repeatRequest.description, /Header-only idempotency/);
+  assert.equal(repeatRequest.properties.stability_evidence.$ref, "#/components/schemas/A2MultimodalRepeatStabilityEnvelope");
+  assert.equal(repeatEnvelope.properties.schema_version.const, "a3.a2_multimodal_repeat_stability_intake.v1");
+  assert.equal(repeatEnvelope.properties.comparison.properties.schema_version.const, "a2.multimodal_multi_repeat_comparison.v1");
+  assert.equal(repeatEnvelope.properties.comparison.properties.repeat_count.minimum, 3);
+  assert.equal(repeatEnvelope.properties.comparison.properties.provider_is_truth.const, false);
+  assert.equal(repeatEnvelope.properties.comparison.properties.release_authority.const, false);
+  assert.equal(repeatEnvelope.properties.review_collection.properties.release_authority.const, false);
+  assert.equal(repeatEnvelope.properties.raw_provider_payload_included.const, false);
+  assert.equal(repeatEnvelope.properties.raw_reviewer_identity_included.const, false);
+  assert.equal(repeatReceipt.properties.upstream_release_authority.const, false);
+  assert.equal(repeatReceipt.properties.a2_decision_recomputed.const, false);
+  assert.equal(repeatReceipt.properties.release_decision_changed.const, false);
+  assert.equal(repeatProjection.properties.status.enum.includes("blocked_stable_repeat"), true);
+  assert.equal(repeatProjection.properties.authority_boundary.properties.release_authority.const, false);
+  assert.equal(repeatProjection.properties.authority_boundary.properties.production_ready.const, false);
+  assert.equal(repeatProjection.properties.safety.properties.hashes_and_aggregate_metrics_only.const, true);
+  assert.equal(repeatProjection.properties.safety.properties.signed_url_included.const, false);
 });
 
 test("self-host sandbox OpenAPI keeps local evidence separate from production acceptance", async () => {
@@ -418,7 +455,7 @@ test("OpenAPI documents sanitized malformed JSON and protected OPTIONS behavior"
 
   const operations = collectOperations(spec).filter((operation) => operation["x-rbac"]);
   const mutations = operations.filter((operation) => !["get", "head"].includes(operation.method));
-  assert.equal(operations.length, 65);
+  assert.equal(operations.length, 67);
   assert.ok(mutations.length > 0);
   for (const operation of operations) {
     const optionsPolicy = operation["x-protected-options"];
@@ -541,6 +578,7 @@ test("dashboard contract exposes a fail-closed partial aggregate state", async (
   assert.equal(dashboard.properties.deployment_handoff.$ref, "#/components/schemas/DeploymentHandoff");
   assert.equal(dashboard.properties.deployment_receipt_inbox.$ref, "#/components/schemas/DeploymentReceiptInbox");
   assert.equal(dashboard.properties.deployment_acceptance_projection.$ref, "#/components/schemas/DeploymentAcceptanceProjection");
+  assert.equal(dashboard.properties.multimodal_repeat_stability.$ref, "#/components/schemas/MultimodalRepeatStability");
   assert.equal(spec.components.schemas.DeploymentHandoff.properties.schema_version.const, "a3.deployment_handoff.v1");
   assert.equal(spec.components.schemas.DeploymentHandoff.properties.safety.properties.a2_decision_recomputed.const, false);
   assert.equal(spec.components.schemas.CandidateBindingHandoff.properties.schema_version.const, "a3.candidate_binding_handoff.v1");

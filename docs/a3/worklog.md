@@ -7126,3 +7126,29 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
 - Root and Webapp production dependency audits each reported `0` vulnerabilities.
 - `.env.local` remains ignored. No key, token, cookie, email, account identity, signed URL, raw provider payload, private media, or local account path was added.
 - Published feature commit `565cec7` to Draft PR #35; GitHub Actions run `29322903320` passed every applicable check. TypeScript SDK, Go SDK and Rust verifier were path-plan skipped, not failed.
+
+## 2026-07-14 - A2 Round 51 Multi-repeat Stability Intake
+
+- Re-fetched remote state successfully: authoritative main remains `ccf6ce5`, current A1 peer is `81f7e9e`, current A2 peer and exact Round 51 source are `7504680`, and Draft PR #35 remains open and clean before publication.
+- Inspected A1's dedicated registration/login and verified-proof hardening as peer-only evidence; updated API Reference metadata without enabling non-main identity behavior.
+- Ingested one public-safe atomic envelope combining A2 multi-repeat comparison, real-review collection, review conservation and shared-candidate verification.
+- Preserved the exact A2 facts: three complete 45-unit repeats, three blocked retained calibrations, zero qualified repeats, one pending review queue receipt, zero human dispositions and unverified shared-candidate binding.
+- Added exact allowlists, count/ratio/hash conservation, binding validation and secret/URL/email/path rejection.
+- Deliberately fail closed on non-empty human-review receipts until A2 publishes their exact authoritative object schema.
+- Added `a3.multimodal_repeat_stability.v1` with `blocked_stable_repeat`, `stable_observation=true`, `quality_qualified=false`, `release_authority=false` and `production_ready=false`.
+- Added `p3-a2-round51` fixture source plus Memory, JSON-file and SQLite persistence/restart support.
+- Added protected import/read APIs with `project:ingest` and `release:review`, five-level scope, header-only idempotency, sanitized cross-tenant 404, metadata-only audit, Event Outbox and usage metering.
+- Added repeat stability to Dashboard snapshot, JSON, Markdown and Hosted Report while excluding raw Provider payloads, identity, URLs, signed media links and private media.
+- Added a Chinese-first responsive Review panel with 3 repeats, 45 required units, 3 blocked repeats, 0 human dispositions and metric rows for 95%, 20%, 30% and 60%.
+- Kept customer-facing UI free of A1/A2/A3 internal lane badges and explicitly stated that stable evidence does not change release authority.
+- Upgraded API Reference to v14, commercial contract coverage from 44 to 46 endpoints and OpenAPI runtime parity from `65/65` to `67/67`.
+- Saved and visually inspected desktop and 390 x 844 screenshots; no overlap or document-level horizontal overflow was found.
+- Added the Round 25 implementation record and Growth Auditor Round 25 with 25 executable follow-ups.
+- Final A3 Node regression passed `505` runnable tests with `1` explicit target-PostgreSQL opt-in skip and `0` failures.
+- Current-main A2 passed `186` tests plus `1050` subtests; A3 did not change or recompute A2 judgement semantics.
+- Next.js TypeScript/build passed with `15` pages; full single-worker Playwright passed `45/45`.
+- CL hygiene passed with `0` findings; Commercial CL passed with `0` blockers and `0` advisories.
+- Root and Webapp production dependency audits each reported `0` vulnerabilities.
+- `.env.local` remains ignored. No key, token, cookie, email, account identity, signed URL, raw Provider payload, private media or local account path was added.
+- Golden Path remains `7/11`, Deployment Acceptance remains `8/17`, current authority remains `integrity_invalid`, current A2 decision remains `unknown`, historical A2 remains `block`, production receipts remain `0`, and production ready remains false.
+- GitHub CI for the Round 25 feature commit is pending publication and is not claimed by this local verification entry.

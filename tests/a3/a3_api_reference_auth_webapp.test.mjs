@@ -23,7 +23,7 @@ test("API Reference is a typed route grounded in A1, A2, and A3 contracts", asyn
   assert.match(page, /Request example/);
   assert.match(page, /Response example/);
   assert.match(reference, /mainSha: "ccf6ce5"/);
-  assert.match(reference, /schemaVersion: "a3\.api_reference\.v13"/);
+  assert.match(reference, /schemaVersion: "a3\.api_reference\.v14"/);
   assert.match(reference, /a1Sha: "c784163"/);
   assert.match(reference, /a2Sha: "8cd1d4f"/);
   assert.match(reference, /a1SourceState: "merged_to_main"/);
@@ -35,6 +35,8 @@ test("API Reference is a typed route grounded in A1, A2, and A3 contracts", asyn
   assert.match(reference, /browser-sessions\/refresh/);
   assert.match(reference, /\/internal\/judge\/case/);
   assert.match(reference, /\/api\/a3\/import\/a2-multimodal-comparison/);
+  assert.match(reference, /\/api\/a3\/import\/a2-multimodal-repeat-stability/);
+  assert.match(reference, /\/api\/a3\/review\/multimodal-repeat-stability/);
   assert.match(reference, /\/api\/a3\/review\/multimodal-queue/);
   assert.match(reference, /multimodal-queue\/\{queueId\}\/assignment/);
   assert.match(reference, /multimodal-queue\/\{queueId\}\/evidence-requests/);
@@ -43,10 +45,14 @@ test("API Reference is a typed route grounded in A1, A2, and A3 contracts", asyn
   assert.match(reference, /a2\.multimodal_cross_provider_comparison\.v1/);
   assert.match(reference, /a2\.multimodal_cross_provider_comparison\.v3/);
   assert.match(reference, /a2\.multimodal_three_way_comparison\.v2/);
+  assert.match(reference, /a2\.multimodal_multi_repeat_comparison\.v1/);
+  assert.match(reference, /a3\.multimodal_repeat_stability\.v1/);
   assert.match(reference, /a3\.multimodal_review_queue\.v1/);
   assert.match(reference, /bb3bcfe/);
   assert.match(reference, /7504680/);
   assert.match(reference, /6a985b8/);
+  assert.match(reference, /81f7e9e/);
+  assert.match(reference, /a2CurrentRemoteSha: "7504680"/);
   assert.match(reference, /aggregate_comparisons/);
   assert.match(reference, /receipt conservation/);
   assert.match(reference, /release_decision_changed: false/);

@@ -57,7 +57,7 @@ class A3RequestBodyBoundaryError extends Error {
 
 export function createA3ApiHandler(options = {}) {
   const storePromise = Promise.resolve(options.store || createFixtureBackedA3Store({
-    sources: options.sources || ["mock", "raw-a1", "raw-a2", "p3-media", "p3-a2-round50", "p3-official-demo", "a3-golden-path", "a3-golden-path-rc2"],
+    sources: options.sources || ["mock", "raw-a1", "raw-a2", "p3-media", "p3-a2-round50", "p3-a2-round51", "p3-official-demo", "a3-golden-path", "a3-golden-path-rc2"],
     repoRoot: options.repoRoot
   }));
 
@@ -315,6 +315,30 @@ export function createA3ApiHandler(options = {}) {
         }
         const receipt = await store.importA2MultimodalComparison(
           body.comparison || body.multimodal_comparison || body,
+          scopedStoreOptions(url, {
+            source: body.source || url.searchParams.get("source") || "api-ingest",
+            sourceLabel: body.source_label || body.sourceLabel,
+            organizationId: body.organization_id,
+            tenantId: body.tenant_id,
+            workspaceId: body.workspace_id,
+            projectId: body.project_id,
+            environmentId: body.environment_id,
+            actorHash: authz.actor_hash,
+            importedAt: serverNow(options),
+            idempotencyKey: request.headers["idempotency-key"]
+          })
+        );
+        return sendJson(response, 201, receipt);
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/a3/import/a2-multimodal-repeat-stability") {
+        const body = await readJsonBody(request);
+        const authz = authorizeRequest(request, url, "import_a2_multimodal_repeat_stability", body);
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
+        const receipt = await store.importA2MultimodalRepeatStability(
+          body.stability_evidence || body.multimodal_repeat_stability || body,
           scopedStoreOptions(url, {
             source: body.source || url.searchParams.get("source") || "api-ingest",
             sourceLabel: body.source_label || body.sourceLabel,
@@ -718,6 +742,21 @@ export function createA3ApiHandler(options = {}) {
           projectId: url.searchParams.get("project_id") || undefined,
           environmentId: url.searchParams.get("environment_id") || undefined,
           now: serverNow(options)
+        })));
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/a3/review/multimodal-repeat-stability") {
+        const authz = authorizeRequest(request, url, "read_multimodal_repeat_stability");
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
+        return sendJson(response, 200, await store.getMultimodalRepeatStability(scopedStoreOptions(url, {
+          source: sourceFrom(url),
+          organizationId: url.searchParams.get("organization_id") || undefined,
+          tenantId: url.searchParams.get("tenant_id") || undefined,
+          workspaceId: url.searchParams.get("workspace_id") || undefined,
+          projectId: url.searchParams.get("project_id") || undefined,
+          environmentId: url.searchParams.get("environment_id") || undefined
         })));
       }
 

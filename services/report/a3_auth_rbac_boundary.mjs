@@ -268,10 +268,21 @@ export const A3_AUTHZ_OPERATION_POLICIES = [
     a1: ["verified principal", "five-level tenant scope", "audit and usage execution"],
     a2: ["MultimodalCrossProviderComparison", "non-authoritative human-review queue receipt"]
   }),
+  operation("import_a2_multimodal_repeat_stability", "POST /api/a3/import/a2-multimodal-repeat-stability", "project:ingest", "local_write", {
+    event: "a2.multimodal_repeat_stability_imported",
+    resourceType: "multimodal_repeat_stability",
+    a1: ["verified ingest principal", "five-level tenant scope", "audit and usage execution"],
+    a2: ["MultiRepeatComparison", "real-review collection", "review conservation", "shared-candidate verification"]
+  }),
   operation("read_multimodal_review_queue", "GET /api/a3/review/multimodal-queue", "release:review", "read_only", {
     event: "review.multimodal_queue_read",
     resourceType: "multimodal_review_queue",
     a2: ["semantic disagreement and queue receipt facts remain non-release-authoritative"]
+  }),
+  operation("read_multimodal_repeat_stability", "GET /api/a3/review/multimodal-repeat-stability", "release:review", "read_only", {
+    event: "review.multimodal_repeat_stability_read",
+    resourceType: "multimodal_repeat_stability",
+    a2: ["repeat stability is read-only evidence and never becomes a release decision"]
   }),
   operation("manage_multimodal_review_assignment", "POST /api/a3/review/multimodal-queue/:queueId/assignment", "release:review", "local_write", {
     event: "review.multimodal_assignment_changed",

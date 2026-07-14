@@ -3,13 +3,13 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Ashr++ A3 Commercial Product Console API",
-    "version": "2026.07.13",
+    "version": "2026.07.14",
     "summary": "Machine-readable A3 hosted security contract for tenant-sensitive product-console reads and commercial workflows.",
     "description": "A3 owns hosted product enforcement and product workflow surfaces. Protected operations consume a server-verified A1 browser-session or service-account principal with a complete five-level tenant scope. This artifact is a contract, not proof that A1 hosted login or every A3 route is production-complete. A2 remains the sole judge, scoring, policy, and release-decision authority."
   },
   "jsonSchemaDialect": "https://json-schema.org/draft/2020-12/schema",
   "x-schema-version": "a3.openapi.commercial_api.v2",
-  "x-contract-id": "a3_commercial_api_openapi_2026_07_13",
+  "x-contract-id": "a3_commercial_api_openapi_2026_07_14",
   "x-contract-source": [
     "docs/strategy/large-saas-a1-a2-a3-full-plan.md",
     "docs/a3/a3_trusted_read_access_contract_2026_07_12.md",
@@ -8814,6 +8814,326 @@
           "release_decision_changed": false
         }
       }
+    },
+    "/api/a3/import/a2-multimodal-repeat-stability": {
+      "post": {
+        "operationId": "a3ImportA2MultimodalRepeatStability",
+        "summary": "Import public-safe multi-repeat calibration stability evidence.",
+        "tags": [
+          "Review",
+          "Evidence",
+          "Operations"
+        ],
+        "x-schema-version": "a3.a2_multimodal_repeat_stability_ingest.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
+          ],
+          "source": "server_verified_a1_principal",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true,
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "contract_only_fail_closed",
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
+        },
+        "x-rbac": {
+          "operation_id": "import_a2_multimodal_repeat_stability",
+          "permission": "project:ingest",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger; A3 only emits a metering intent."
+        },
+        "x-audit": {
+          "events": [
+            "a2.multimodal_repeat_stability_imported"
+          ],
+          "payload_policy": "hashes_aggregate_metrics_counts_states_and_reason_codes_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "verified principal",
+            "tenant scope",
+            "usage and audit execution"
+          ],
+          "a2": [
+            "GradeResult and release decision authority remain unchanged"
+          ],
+          "a3_rule": "A3 orchestrates product workflow and must not reinterpret A1 runtime facts or A2 decision semantics."
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_write",
+        "responses": {
+          "201": {
+            "description": "Repeat stability accepted as non-authoritative aggregate evidence.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MultimodalRepeatStabilityIngestReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "408": {
+            "$ref": "#/components/responses/RequestTimeout"
+          },
+          "409": {
+            "description": "Idempotency conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeploymentReceiptConflict"
+                }
+              }
+            }
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "x-secret-policy": "raw_secret_values_forbidden",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MultimodalRepeatStabilityImportRequest"
+              }
+            }
+          }
+        },
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        },
+        "x-request-validation": {
+          "malformed_json": "sanitized_400_after_authentication_and_authorization",
+          "body_read_timeout": "sanitized_408_after_authentication_and_authorization",
+          "maximum_body_bytes_default": 1048576,
+          "payload_too_large": "sanitized_413_after_authentication_and_authorization",
+          "required_media_type": "application/json",
+          "unsupported_media_type": "sanitized_415_after_authentication_and_authorization",
+          "required_top_level_shape": "object",
+          "invalid_json_shape": "sanitized_422_after_authentication_and_authorization",
+          "unauthorized_precedence": "401",
+          "forbidden_precedence": "403",
+          "raw_body_echoed": false,
+          "metadata_only_denial_audit_required": true
+        },
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "description": "Opaque caller-generated retry key. The raw value is never persisted.",
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 160
+            }
+          }
+        ],
+        "x-evidence-boundary": {
+          "hashes_and_aggregate_metrics_only": true,
+          "repeat_stability_is_quality_pass": false,
+          "raw_provider_payload_forbidden": true,
+          "raw_provider_text_forbidden": true,
+          "raw_reviewer_identity_forbidden": true,
+          "urls_and_signed_urls_forbidden": true,
+          "non_empty_human_receipts_fail_closed_until_exact_schema": true
+        },
+        "x-authority-boundary": {
+          "provider_is_truth": false,
+          "authoritative_human_disposition_recorded": false,
+          "candidate_binding_verified": false,
+          "a2_decision_recomputed": false,
+          "release_authority": false,
+          "release_decision_changed": false,
+          "production_ready": false
+        }
+      }
+    },
+    "/api/a3/review/multimodal-repeat-stability": {
+      "get": {
+        "operationId": "a3ReadMultimodalRepeatStability",
+        "summary": "Read tenant-scoped multi-repeat calibration stability evidence.",
+        "tags": [
+          "Review",
+          "Evidence"
+        ],
+        "x-schema-version": "a3.multimodal_repeat_stability.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
+          ],
+          "source": "server_verified_a1_principal",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true,
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "contract_only_fail_closed",
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
+        },
+        "x-rbac": {
+          "operation_id": "read_multimodal_repeat_stability",
+          "permission": "release:review",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger; A3 only emits a metering intent."
+        },
+        "x-audit": {
+          "events": [
+            "read_multimodal_repeat_stability.requested"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "verified principal",
+            "tenant scope",
+            "usage and audit execution"
+          ],
+          "a2": [
+            "GradeResult and release decision authority remain unchanged"
+          ],
+          "a3_rule": "A3 orchestrates product workflow and must not reinterpret A1 runtime facts or A2 decision semantics."
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_read",
+        "responses": {
+          "200": {
+            "description": "Public-safe repeat stability projection without release authority.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MultimodalRepeatStability"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        },
+        "x-evidence-boundary": {
+          "hashes_and_aggregate_metrics_only": true,
+          "repeat_stability_is_quality_pass": false,
+          "raw_provider_payload_forbidden": true,
+          "raw_provider_text_forbidden": true,
+          "raw_reviewer_identity_forbidden": true,
+          "urls_and_signed_urls_forbidden": true,
+          "non_empty_human_receipts_fail_closed_until_exact_schema": true
+        },
+        "x-authority-boundary": {
+          "provider_is_truth": false,
+          "authoritative_human_disposition_recorded": false,
+          "candidate_binding_verified": false,
+          "a2_decision_recomputed": false,
+          "release_authority": false,
+          "release_decision_changed": false,
+          "production_ready": false
+        }
+      }
     }
   },
   "components": {
@@ -9193,7 +9513,8 @@
           "trusted_release_authority",
           "deployment_handoff",
           "deployment_receipt_inbox",
-          "deployment_acceptance_projection"
+          "deployment_acceptance_projection",
+          "multimodal_repeat_stability"
         ],
         "properties": {
           "schema_version": {
@@ -9231,6 +9552,9 @@
           },
           "deployment_acceptance_projection": {
             "$ref": "#/components/schemas/DeploymentAcceptanceProjection"
+          },
+          "multimodal_repeat_stability": {
+            "$ref": "#/components/schemas/MultimodalRepeatStability"
           }
         },
         "additionalProperties": true
@@ -14476,6 +14800,1437 @@
           }
         },
         "additionalProperties": true
+      },
+      "A2MultimodalRepeatStabilityEnvelope": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "source_commit_alias",
+          "comparison",
+          "review_collection",
+          "review_conservation",
+          "shared_candidate_verification",
+          "release_authority",
+          "public_safe",
+          "raw_provider_payload_included",
+          "raw_reviewer_identity_included"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.a2_multimodal_repeat_stability_intake.v1"
+          },
+          "source_commit_alias": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{7,40}$"
+          },
+          "comparison": {
+            "type": "object",
+            "required": [
+              "schema_version",
+              "calibration_hashes",
+              "repeat_count",
+              "binding_fields",
+              "mismatched_binding_fields",
+              "bootstrap_samples",
+              "seed",
+              "retained_calibration_states",
+              "source_unit_coverage",
+              "metrics",
+              "taxonomy_sensitivity",
+              "all_required_units_complete",
+              "blockers",
+              "promotion_eligible",
+              "provider_is_truth",
+              "release_authority",
+              "raw_provider_text_included",
+              "public_safe"
+            ],
+            "properties": {
+              "schema_version": {
+                "type": "string",
+                "const": "a2.multimodal_multi_repeat_comparison.v1"
+              },
+              "calibration_hashes": {
+                "type": "array",
+                "minItems": 3,
+                "maxItems": 100,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "pattern": "^sha256:[a-f0-9]{64}$"
+                }
+              },
+              "repeat_count": {
+                "type": "integer",
+                "minimum": 3,
+                "maximum": 100
+              },
+              "binding_fields": {
+                "type": "object",
+                "required": [
+                  "endpoint_region",
+                  "manifest_hash",
+                  "model_id",
+                  "ordered_case_plan_hash",
+                  "output_schema_hash",
+                  "policy_hash",
+                  "prompt_hash",
+                  "provider_capability_hash",
+                  "provider_id"
+                ],
+                "properties": {
+                  "endpoint_region": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  },
+                  "manifest_hash": {
+                    "type": "string",
+                    "pattern": "^sha256:[a-f0-9]{64}$"
+                  },
+                  "model_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  },
+                  "ordered_case_plan_hash": {
+                    "type": "string",
+                    "pattern": "^sha256:[a-f0-9]{64}$"
+                  },
+                  "output_schema_hash": {
+                    "type": "string",
+                    "pattern": "^sha256:[a-f0-9]{64}$"
+                  },
+                  "policy_hash": {
+                    "type": "string",
+                    "pattern": "^sha256:[a-f0-9]{64}$"
+                  },
+                  "prompt_hash": {
+                    "type": "string",
+                    "pattern": "^sha256:[a-f0-9]{64}$"
+                  },
+                  "provider_capability_hash": {
+                    "type": "string",
+                    "pattern": "^sha256:[a-f0-9]{64}$"
+                  },
+                  "provider_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 160
+                  }
+                },
+                "additionalProperties": false
+              },
+              "mismatched_binding_fields": {
+                "type": "array",
+                "maxItems": 9,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "endpoint_region",
+                    "manifest_hash",
+                    "model_id",
+                    "ordered_case_plan_hash",
+                    "output_schema_hash",
+                    "policy_hash",
+                    "prompt_hash",
+                    "provider_capability_hash",
+                    "provider_id"
+                  ]
+                }
+              },
+              "bootstrap_samples": {
+                "type": "integer",
+                "minimum": 100,
+                "maximum": 10000000
+              },
+              "seed": {
+                "type": "integer"
+              },
+              "retained_calibration_states": {
+                "type": "array",
+                "minItems": 3,
+                "maxItems": 100,
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "qualified",
+                    "blocked",
+                    "incomplete",
+                    "unavailable"
+                  ]
+                }
+              },
+              "source_unit_coverage": {
+                "type": "object",
+                "required": [
+                  "required_unit_count",
+                  "eligible_unit_counts_by_repeat",
+                  "missing_unit_counts_by_repeat",
+                  "complete_across_repeats"
+                ],
+                "properties": {
+                  "required_unit_count": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "eligible_unit_counts_by_repeat": {
+                    "type": "array",
+                    "minItems": 3,
+                    "maxItems": 100,
+                    "items": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "missing_unit_counts_by_repeat": {
+                    "type": "array",
+                    "minItems": 3,
+                    "maxItems": 100,
+                    "items": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  },
+                  "complete_across_repeats": {
+                    "type": "boolean"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "metrics": {
+                "type": "object",
+                "required": [
+                  "specificity",
+                  "benign_text_false_positive_rate"
+                ],
+                "properties": {
+                  "specificity": {
+                    "type": "object",
+                    "required": [
+                      "required_unit_count",
+                      "matched_unit_count",
+                      "missing_unit_counts_by_repeat",
+                      "complete_across_repeats",
+                      "repeat_summaries",
+                      "paired_max_minus_min_bootstrap_ci_95"
+                    ],
+                    "properties": {
+                      "required_unit_count": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "matched_unit_count": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "missing_unit_counts_by_repeat": {
+                        "type": "array",
+                        "minItems": 3,
+                        "maxItems": 100,
+                        "items": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      },
+                      "complete_across_repeats": {
+                        "type": "boolean"
+                      },
+                      "repeat_summaries": {
+                        "type": "array",
+                        "minItems": 3,
+                        "maxItems": 100,
+                        "items": {
+                          "type": "object",
+                          "required": [
+                            "eligible_unit_count",
+                            "success_count",
+                            "estimate",
+                            "bootstrap_ci_95"
+                          ],
+                          "properties": {
+                            "eligible_unit_count": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "success_count": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "estimate": {
+                              "type": [
+                                "number",
+                                "null"
+                              ],
+                              "minimum": 0,
+                              "maximum": 1
+                            },
+                            "bootstrap_ci_95": {
+                              "type": "object",
+                              "required": [
+                                "lower",
+                                "upper"
+                              ],
+                              "properties": {
+                                "lower": {
+                                  "type": [
+                                    "number",
+                                    "null"
+                                  ],
+                                  "minimum": 0,
+                                  "maximum": 1
+                                },
+                                "upper": {
+                                  "type": [
+                                    "number",
+                                    "null"
+                                  ],
+                                  "minimum": 0,
+                                  "maximum": 1
+                                }
+                              },
+                              "additionalProperties": false
+                            }
+                          },
+                          "additionalProperties": false
+                        }
+                      },
+                      "paired_max_minus_min_bootstrap_ci_95": {
+                        "type": "object",
+                        "required": [
+                          "lower",
+                          "upper"
+                        ],
+                        "properties": {
+                          "lower": {
+                            "type": [
+                              "number",
+                              "null"
+                            ],
+                            "minimum": 0,
+                            "maximum": 1
+                          },
+                          "upper": {
+                            "type": [
+                              "number",
+                              "null"
+                            ],
+                            "minimum": 0,
+                            "maximum": 1
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "benign_text_false_positive_rate": {
+                    "type": "object",
+                    "required": [
+                      "required_unit_count",
+                      "matched_unit_count",
+                      "missing_unit_counts_by_repeat",
+                      "complete_across_repeats",
+                      "repeat_summaries",
+                      "paired_max_minus_min_bootstrap_ci_95"
+                    ],
+                    "properties": {
+                      "required_unit_count": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "matched_unit_count": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "missing_unit_counts_by_repeat": {
+                        "type": "array",
+                        "minItems": 3,
+                        "maxItems": 100,
+                        "items": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      },
+                      "complete_across_repeats": {
+                        "type": "boolean"
+                      },
+                      "repeat_summaries": {
+                        "type": "array",
+                        "minItems": 3,
+                        "maxItems": 100,
+                        "items": {
+                          "type": "object",
+                          "required": [
+                            "eligible_unit_count",
+                            "success_count",
+                            "estimate",
+                            "bootstrap_ci_95"
+                          ],
+                          "properties": {
+                            "eligible_unit_count": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "success_count": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "estimate": {
+                              "type": [
+                                "number",
+                                "null"
+                              ],
+                              "minimum": 0,
+                              "maximum": 1
+                            },
+                            "bootstrap_ci_95": {
+                              "type": "object",
+                              "required": [
+                                "lower",
+                                "upper"
+                              ],
+                              "properties": {
+                                "lower": {
+                                  "type": [
+                                    "number",
+                                    "null"
+                                  ],
+                                  "minimum": 0,
+                                  "maximum": 1
+                                },
+                                "upper": {
+                                  "type": [
+                                    "number",
+                                    "null"
+                                  ],
+                                  "minimum": 0,
+                                  "maximum": 1
+                                }
+                              },
+                              "additionalProperties": false
+                            }
+                          },
+                          "additionalProperties": false
+                        }
+                      },
+                      "paired_max_minus_min_bootstrap_ci_95": {
+                        "type": "object",
+                        "required": [
+                          "lower",
+                          "upper"
+                        ],
+                        "properties": {
+                          "lower": {
+                            "type": [
+                              "number",
+                              "null"
+                            ],
+                            "minimum": 0,
+                            "maximum": 1
+                          },
+                          "upper": {
+                            "type": [
+                              "number",
+                              "null"
+                            ],
+                            "minimum": 0,
+                            "maximum": 1
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "additionalProperties": false
+              },
+              "taxonomy_sensitivity": {
+                "type": "object",
+                "required": [
+                  "cross_modal_conflict",
+                  "visual_prompt_injection"
+                ],
+                "properties": {
+                  "cross_modal_conflict": {
+                    "type": "object",
+                    "required": [
+                      "required_unit_count",
+                      "matched_unit_count",
+                      "missing_unit_counts_by_repeat",
+                      "complete_across_repeats",
+                      "repeat_summaries",
+                      "paired_max_minus_min_bootstrap_ci_95"
+                    ],
+                    "properties": {
+                      "required_unit_count": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "matched_unit_count": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "missing_unit_counts_by_repeat": {
+                        "type": "array",
+                        "minItems": 3,
+                        "maxItems": 100,
+                        "items": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      },
+                      "complete_across_repeats": {
+                        "type": "boolean"
+                      },
+                      "repeat_summaries": {
+                        "type": "array",
+                        "minItems": 3,
+                        "maxItems": 100,
+                        "items": {
+                          "type": "object",
+                          "required": [
+                            "eligible_unit_count",
+                            "success_count",
+                            "estimate",
+                            "bootstrap_ci_95"
+                          ],
+                          "properties": {
+                            "eligible_unit_count": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "success_count": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "estimate": {
+                              "type": [
+                                "number",
+                                "null"
+                              ],
+                              "minimum": 0,
+                              "maximum": 1
+                            },
+                            "bootstrap_ci_95": {
+                              "type": "object",
+                              "required": [
+                                "lower",
+                                "upper"
+                              ],
+                              "properties": {
+                                "lower": {
+                                  "type": [
+                                    "number",
+                                    "null"
+                                  ],
+                                  "minimum": 0,
+                                  "maximum": 1
+                                },
+                                "upper": {
+                                  "type": [
+                                    "number",
+                                    "null"
+                                  ],
+                                  "minimum": 0,
+                                  "maximum": 1
+                                }
+                              },
+                              "additionalProperties": false
+                            }
+                          },
+                          "additionalProperties": false
+                        }
+                      },
+                      "paired_max_minus_min_bootstrap_ci_95": {
+                        "type": "object",
+                        "required": [
+                          "lower",
+                          "upper"
+                        ],
+                        "properties": {
+                          "lower": {
+                            "type": [
+                              "number",
+                              "null"
+                            ],
+                            "minimum": 0,
+                            "maximum": 1
+                          },
+                          "upper": {
+                            "type": [
+                              "number",
+                              "null"
+                            ],
+                            "minimum": 0,
+                            "maximum": 1
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false
+                  },
+                  "visual_prompt_injection": {
+                    "type": "object",
+                    "required": [
+                      "required_unit_count",
+                      "matched_unit_count",
+                      "missing_unit_counts_by_repeat",
+                      "complete_across_repeats",
+                      "repeat_summaries",
+                      "paired_max_minus_min_bootstrap_ci_95"
+                    ],
+                    "properties": {
+                      "required_unit_count": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "matched_unit_count": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "missing_unit_counts_by_repeat": {
+                        "type": "array",
+                        "minItems": 3,
+                        "maxItems": 100,
+                        "items": {
+                          "type": "integer",
+                          "minimum": 0
+                        }
+                      },
+                      "complete_across_repeats": {
+                        "type": "boolean"
+                      },
+                      "repeat_summaries": {
+                        "type": "array",
+                        "minItems": 3,
+                        "maxItems": 100,
+                        "items": {
+                          "type": "object",
+                          "required": [
+                            "eligible_unit_count",
+                            "success_count",
+                            "estimate",
+                            "bootstrap_ci_95"
+                          ],
+                          "properties": {
+                            "eligible_unit_count": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "success_count": {
+                              "type": "integer",
+                              "minimum": 0
+                            },
+                            "estimate": {
+                              "type": [
+                                "number",
+                                "null"
+                              ],
+                              "minimum": 0,
+                              "maximum": 1
+                            },
+                            "bootstrap_ci_95": {
+                              "type": "object",
+                              "required": [
+                                "lower",
+                                "upper"
+                              ],
+                              "properties": {
+                                "lower": {
+                                  "type": [
+                                    "number",
+                                    "null"
+                                  ],
+                                  "minimum": 0,
+                                  "maximum": 1
+                                },
+                                "upper": {
+                                  "type": [
+                                    "number",
+                                    "null"
+                                  ],
+                                  "minimum": 0,
+                                  "maximum": 1
+                                }
+                              },
+                              "additionalProperties": false
+                            }
+                          },
+                          "additionalProperties": false
+                        }
+                      },
+                      "paired_max_minus_min_bootstrap_ci_95": {
+                        "type": "object",
+                        "required": [
+                          "lower",
+                          "upper"
+                        ],
+                        "properties": {
+                          "lower": {
+                            "type": [
+                              "number",
+                              "null"
+                            ],
+                            "minimum": 0,
+                            "maximum": 1
+                          },
+                          "upper": {
+                            "type": [
+                              "number",
+                              "null"
+                            ],
+                            "minimum": 0,
+                            "maximum": 1
+                          }
+                        },
+                        "additionalProperties": false
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "additionalProperties": false
+              },
+              "all_required_units_complete": {
+                "type": "boolean"
+              },
+              "blockers": {
+                "type": "array",
+                "maxItems": 100,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9_.:-]{0,159}$"
+                }
+              },
+              "promotion_eligible": {
+                "type": "boolean"
+              },
+              "provider_is_truth": {
+                "type": "boolean",
+                "const": false
+              },
+              "release_authority": {
+                "type": "boolean",
+                "const": false
+              },
+              "raw_provider_text_included": {
+                "type": "boolean",
+                "const": false
+              },
+              "public_safe": {
+                "type": "boolean",
+                "const": true
+              }
+            },
+            "additionalProperties": false
+          },
+          "review_collection": {
+            "type": "object",
+            "required": [
+              "schema_version",
+              "collection_state",
+              "receipts",
+              "note",
+              "release_authority",
+              "public_safe"
+            ],
+            "properties": {
+              "schema_version": {
+                "type": "string",
+                "const": "a2.multimodal_real_review_collection.v1"
+              },
+              "collection_state": {
+                "type": "string",
+                "enum": [
+                  "pending",
+                  "partially_reviewed",
+                  "reviewed"
+                ]
+              },
+              "receipts": {
+                "type": "array",
+                "maxItems": 100,
+                "description": "A3 currently accepts an empty array only and fails closed until the exact authoritative receipt schema is published.",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false
+                }
+              },
+              "note": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500,
+                "description": "Public-safe note; URLs, credentials, identity, and raw evidence are forbidden."
+              },
+              "release_authority": {
+                "type": "boolean",
+                "const": false
+              },
+              "public_safe": {
+                "type": "boolean",
+                "const": true
+              }
+            },
+            "additionalProperties": false
+          },
+          "review_conservation": {
+            "type": "object",
+            "required": [
+              "schema_version",
+              "queue_receipt_count",
+              "pending_queue_receipt_count",
+              "reviewed_queue_receipt_count",
+              "latest_receipt_hashes",
+              "conservation_holds",
+              "verification_state",
+              "errors",
+              "release_authority",
+              "public_safe"
+            ],
+            "properties": {
+              "schema_version": {
+                "type": "string",
+                "const": "a2.multimodal_review_conservation.v1"
+              },
+              "queue_receipt_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "pending_queue_receipt_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "reviewed_queue_receipt_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "latest_receipt_hashes": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string",
+                  "pattern": "^sha256:[a-f0-9]{64}$"
+                }
+              },
+              "conservation_holds": {
+                "type": "boolean"
+              },
+              "verification_state": {
+                "type": "string",
+                "enum": [
+                  "verified",
+                  "failed"
+                ]
+              },
+              "errors": {
+                "type": "array",
+                "maxItems": 100,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9_.:-]{0,159}$"
+                }
+              },
+              "release_authority": {
+                "type": "boolean",
+                "const": false
+              },
+              "public_safe": {
+                "type": "boolean",
+                "const": true
+              }
+            },
+            "additionalProperties": false
+          },
+          "shared_candidate_verification": {
+            "type": "object",
+            "required": [
+              "blockers",
+              "verified"
+            ],
+            "properties": {
+              "blockers": {
+                "type": "array",
+                "maxItems": 100,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9_.:-]{0,159}$"
+                }
+              },
+              "verified": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          },
+          "release_authority": {
+            "type": "boolean",
+            "const": false
+          },
+          "public_safe": {
+            "type": "boolean",
+            "const": true
+          },
+          "raw_provider_payload_included": {
+            "type": "boolean",
+            "const": false
+          },
+          "raw_reviewer_identity_included": {
+            "type": "boolean",
+            "const": false
+          }
+        },
+        "additionalProperties": false,
+        "description": "Atomic A2 comparison, review-conservation, and candidate-binding envelope. Repeat stability is not a release decision."
+      },
+      "MultimodalRepeatStabilityImportRequest": {
+        "type": "object",
+        "required": [
+          "source",
+          "stability_evidence"
+        ],
+        "properties": {
+          "source": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "source_label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "sourceLabel": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "organization_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "tenant_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "workspace_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "project_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "environment_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "imported_at": {
+            "type": "string",
+            "deprecated": true,
+            "description": "Ignored. The server assigns imported_at from its own clock."
+          },
+          "idempotency_key": {
+            "type": "string",
+            "deprecated": true,
+            "description": "Ignored. Use the required Idempotency-Key header."
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "deprecated": true,
+            "description": "Ignored. Use the required Idempotency-Key header."
+          },
+          "stability_evidence": {
+            "$ref": "#/components/schemas/A2MultimodalRepeatStabilityEnvelope"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Header-only idempotency; identity and five-level scope are verified server-side."
+      },
+      "MultimodalRepeatStabilityIngestReceipt": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "source",
+          "payload_hash",
+          "repeat_count",
+          "retained_blocked_count",
+          "all_required_units_complete",
+          "human_review_receipt_count",
+          "pending_queue_receipt_count",
+          "shared_candidate_verified",
+          "upstream_release_authority",
+          "a2_decision_recomputed",
+          "release_decision_changed",
+          "imported_at",
+          "idempotency"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.a2_multimodal_repeat_stability_ingest.v1"
+          },
+          "source": {
+            "type": "string"
+          },
+          "payload_hash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "repeat_count": {
+            "type": "integer",
+            "minimum": 3
+          },
+          "retained_blocked_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "all_required_units_complete": {
+            "type": "boolean"
+          },
+          "human_review_receipt_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "pending_queue_receipt_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "shared_candidate_verified": {
+            "type": "boolean"
+          },
+          "upstream_release_authority": {
+            "type": "boolean",
+            "const": false
+          },
+          "a2_decision_recomputed": {
+            "type": "boolean",
+            "const": false
+          },
+          "release_decision_changed": {
+            "type": "boolean",
+            "const": false
+          },
+          "imported_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "idempotency": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "event_envelope": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": true
+      },
+      "MultimodalRepeatStability": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "available",
+          "status",
+          "tenant_scope",
+          "release_authority",
+          "a2_decision_recomputed",
+          "production_ready",
+          "authority_boundary",
+          "safety"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.multimodal_repeat_stability.v1"
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "invalid_upstream_contract",
+              "blocked_stable_repeat",
+              "promotion_evidence_non_authoritative"
+            ]
+          },
+          "source": {
+            "type": "string"
+          },
+          "source_commit_alias": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[a-f0-9]{7,40}$"
+          },
+          "source_contract": {
+            "type": "string"
+          },
+          "capability_state": {
+            "type": "string"
+          },
+          "tenant_scope": {
+            "type": "object",
+            "required": [
+              "organization_id",
+              "tenant_id",
+              "workspace_id",
+              "project_id",
+              "environment_id"
+            ],
+            "properties": {
+              "organization_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "tenant_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "workspace_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "project_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "environment_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "additionalProperties": false
+          },
+          "release_authority": {
+            "type": "boolean",
+            "const": false
+          },
+          "a2_decision_recomputed": {
+            "type": "boolean",
+            "const": false
+          },
+          "production_ready": {
+            "type": "boolean",
+            "const": false
+          },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "repeat_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "retained_blocked_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "retained_qualified_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "all_required_units_complete": {
+                "type": "boolean"
+              },
+              "required_source_unit_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "bootstrap_samples": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "blocker_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "promotion_eligible": {
+                "type": "boolean"
+              },
+              "stable_observation": {
+                "type": "boolean"
+              },
+              "quality_qualified": {
+                "type": "boolean"
+              }
+            },
+            "additionalProperties": false
+          },
+          "metrics": {
+            "type": "array",
+            "maxItems": 4,
+            "items": {
+              "type": "object",
+              "required": [
+                "metric_id",
+                "required_unit_count",
+                "matched_unit_count",
+                "complete_across_repeats",
+                "repeat_estimates"
+              ],
+              "properties": {
+                "metric_id": {
+                  "type": "string",
+                  "enum": [
+                    "specificity",
+                    "benign_text_false_positive_rate",
+                    "cross_modal_conflict_sensitivity",
+                    "visual_prompt_injection_sensitivity"
+                  ]
+                },
+                "required_unit_count": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "matched_unit_count": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "complete_across_repeats": {
+                  "type": "boolean"
+                },
+                "repeat_estimates": {
+                  "type": "array",
+                  "minItems": 3,
+                  "maxItems": 100,
+                  "items": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  }
+                },
+                "repeat_eligible_counts": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "repeat_success_counts": {
+                  "type": "array",
+                  "items": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "repeat_bootstrap_ci_95": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "required": [
+                      "lower",
+                      "upper"
+                    ],
+                    "properties": {
+                      "lower": {
+                        "type": [
+                          "number",
+                          "null"
+                        ],
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "upper": {
+                        "type": [
+                          "number",
+                          "null"
+                        ],
+                        "minimum": 0,
+                        "maximum": 1
+                      }
+                    },
+                    "additionalProperties": false
+                  }
+                },
+                "paired_max_minus_min_bootstrap_ci_95": {
+                  "type": "object",
+                  "required": [
+                    "lower",
+                    "upper"
+                  ],
+                  "properties": {
+                    "lower": {
+                      "type": [
+                        "number",
+                        "null"
+                      ],
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "upper": {
+                      "type": [
+                        "number",
+                        "null"
+                      ],
+                      "minimum": 0,
+                      "maximum": 1
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "blockers": {
+            "type": "array",
+            "maxItems": 100,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9_.:-]{0,159}$"
+            }
+          },
+          "human_review": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "candidate_binding": {
+            "type": "object",
+            "required": [
+              "verified",
+              "blockers"
+            ],
+            "properties": {
+              "verified": {
+                "type": "boolean"
+              },
+              "blockers": {
+                "type": "array",
+                "maxItems": 100,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-z0-9][a-z0-9_.:-]{0,159}$"
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          "integrity": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "authority_boundary": {
+            "type": "object",
+            "required": [
+              "provider_is_truth",
+              "provider_identity_verified",
+              "authoritative_human_disposition_recorded",
+              "candidate_binding_verified",
+              "a2_decision_recomputed",
+              "release_authority",
+              "release_decision_changed",
+              "production_ready"
+            ],
+            "properties": {
+              "provider_is_truth": {
+                "type": "boolean",
+                "const": false
+              },
+              "provider_identity_verified": {
+                "type": "boolean",
+                "const": false
+              },
+              "authoritative_human_disposition_recorded": {
+                "type": "boolean",
+                "const": false
+              },
+              "candidate_binding_verified": {
+                "type": "boolean",
+                "const": false
+              },
+              "a2_decision_recomputed": {
+                "type": "boolean",
+                "const": false
+              },
+              "release_authority": {
+                "type": "boolean",
+                "const": false
+              },
+              "release_decision_changed": {
+                "type": "boolean",
+                "const": false
+              },
+              "production_ready": {
+                "type": "boolean",
+                "const": false
+              }
+            },
+            "additionalProperties": false
+          },
+          "safety": {
+            "type": "object",
+            "required": [
+              "public_safe",
+              "hashes_and_aggregate_metrics_only",
+              "raw_provider_payload_included",
+              "raw_provider_text_included",
+              "raw_reviewer_identity_included",
+              "signed_url_included",
+              "secret_values_included"
+            ],
+            "properties": {
+              "public_safe": {
+                "type": "boolean",
+                "const": true
+              },
+              "hashes_and_aggregate_metrics_only": {
+                "type": "boolean",
+                "const": true
+              },
+              "raw_provider_payload_included": {
+                "type": "boolean",
+                "const": false
+              },
+              "raw_provider_text_included": {
+                "type": "boolean",
+                "const": false
+              },
+              "raw_reviewer_identity_included": {
+                "type": "boolean",
+                "const": false
+              },
+              "signed_url_included": {
+                "type": "boolean",
+                "const": false
+              },
+              "secret_values_included": {
+                "type": "boolean",
+                "const": false
+              }
+            },
+            "additionalProperties": false
+          },
+          "recommendation_code": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true,
+        "description": "Aggregate stability evidence. Stable blocked repeats remain blocked and never become release authority."
       }
     }
   },

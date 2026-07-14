@@ -97,6 +97,7 @@ export function buildShareableReportPayload(inputs = {}, options = {}) {
     export_redaction_firewall: jsonReport.export_redaction_firewall,
     release_evidence_summary: jsonReport.release_evidence_summary,
     multimodal_review_queue: jsonReport.multimodal_review_queue,
+    multimodal_repeat_stability: jsonReport.multimodal_repeat_stability,
     cases: jsonReport.cases,
     markdown_report: markdownReport
   }, { surface: "shareable_report" });
@@ -155,6 +156,7 @@ export function buildShareableReportPayload(inputs = {}, options = {}) {
     summary: safeEnvelope.value.summary,
     release_gate: safeEnvelope.value.release_gate,
     multimodal_review_queue: safeEnvelope.value.multimodal_review_queue,
+    multimodal_repeat_stability: safeEnvelope.value.multimodal_repeat_stability,
     markdown_report: safeEnvelope.value.markdown_report,
     report_center: {
       json_available: true,
@@ -196,6 +198,9 @@ export function renderShareableReportHtml(report = {}) {
   const releaseGate = report.release_gate || payload.release_gate || {};
   const releaseEvidence = report.release_evidence_summary || payload.release_evidence_summary || {};
   const multimodalReviewQueue = report.multimodal_review_queue || payload.multimodal_review_queue || {};
+  const multimodalRepeatStability = report.multimodal_repeat_stability
+    || payload.multimodal_repeat_stability
+    || {};
   const cases = Array.isArray(payload.cases) ? payload.cases.slice(0, 12) : [];
   const status = report.status || "unknown";
 
@@ -256,6 +261,8 @@ export function renderShareableReportHtml(report = {}) {
     </section>
 
     ${renderReleaseEvidenceHtml(releaseEvidence)}
+
+    ${renderMultimodalRepeatStabilityHtml(multimodalRepeatStability)}
 
     ${renderMultimodalEvidenceRequestsHtml(multimodalReviewQueue)}
 
@@ -409,6 +416,37 @@ function renderMultimodalEvidenceRequestsHtml(queue = {}) {
           <td>${escapeHtml(row.due_at)} / ${escapeHtml(row.event_count)} event(s)</td>
         </tr>`).join("")}</tbody>
       </table>` : `<p class="muted">No evidence requests are recorded for this report snapshot.</p>`}
+    </section>`;
+}
+
+function renderMultimodalRepeatStabilityHtml(stability = {}) {
+  if (stability.available !== true) return "";
+  const summary = stability.summary || {};
+  const humanReview = stability.human_review || {};
+  const candidate = stability.candidate_binding || {};
+  const metrics = Array.isArray(stability.metrics) ? stability.metrics : [];
+  const metricRows = metrics.map((item) => `<tr>
+            <th>${escapeHtml(item.metric_id || "metric")}</th>
+            <td>${escapeHtml((item.repeat_estimates || []).join(" / ") || "unavailable")}</td>
+            <td>${item.complete_across_repeats ? "complete" : "incomplete"}</td>
+          </tr>`).join("");
+  return `<section class="card" style="margin-top: 20px;">
+      <h2>Multimodal Repeat Stability</h2>
+      <p class="${summary.quality_qualified ? "passed" : "blocked"}">${escapeHtml(
+        stability.interpretation || "Repeat stability is evidence only."
+      )}</p>
+      <p class="muted">Stable repetition does not mean qualified quality. This evidence cannot change A2 grading or release authority.</p>
+      <div class="grid" aria-label="Repeat stability metrics">
+        ${metric("Repeats", summary.repeat_count || 0)}
+        ${metric("Required units", summary.required_source_unit_count || 0)}
+        ${metric("Blocked repeats", summary.retained_blocked_count || 0)}
+        ${metric("Human receipts", humanReview.receipt_count || 0)}
+      </div>
+      ${metricRows ? `<table>
+        <thead><tr><th>Metric</th><th>Repeat estimates</th><th>Coverage</th></tr></thead>
+        <tbody>${metricRows}</tbody>
+      </table>` : ""}
+      <p class="muted">Human review: ${escapeHtml(humanReview.collection_state || "unknown")} / pending queue ${escapeHtml(humanReview.pending_queue_receipt_count || 0)}. Shared candidate verified: ${candidate.verified ? "yes" : "no"}. Release authority: no.</p>
     </section>`;
 }
 

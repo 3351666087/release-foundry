@@ -26,6 +26,17 @@ export function ReviewPage() {
     const multimodalPacketArchive = record(multimodalPacket.archive_binding);
     const multimodalAvailable = multimodalQueue.available === true;
     const multimodalStatus = string(multimodalQueue.status, "not_ingested");
+    const repeatStability = record(model.raw.multimodal_repeat_stability);
+    const repeatSummary = record(repeatStability.summary);
+    const repeatHumanReview = record(repeatStability.human_review);
+    const repeatCandidate = record(repeatStability.candidate_binding);
+    const repeatMetrics = array(repeatStability.metrics).map(record);
+    const repeatBlockers = [...new Set([
+      ...array(repeatStability.blockers),
+      ...array(repeatCandidate.blockers)
+    ].map((item) => string(item)).filter(Boolean))];
+    const repeatAvailable = repeatStability.available === true;
+    const repeatQualityQualified = repeatSummary.quality_qualified === true;
     return (
       <>
         <PageHeader
@@ -50,6 +61,67 @@ export function ReviewPage() {
           { label: zh ? "拒绝" : "Denials", value: number(workflow.denial_count), tone: "fail" },
           { label: zh ? "豁免" : "Waivers", value: number(workflow.waiver_count), tone: "warn" }
         ]} />
+
+        {repeatAvailable && (
+          <section className="repeat-stability-panel" data-status={string(repeatStability.status, "unknown")}>
+            <header className="repeat-stability-header">
+              <span className="repeat-stability-mark"><History size={22} aria-hidden="true" /></span>
+              <div>
+                <span className="eyebrow">{zh ? "多轮校准 / 稳定性证据" : "MULTI-REPEAT CALIBRATION / STABILITY EVIDENCE"}</span>
+                <h2>{repeatQualityQualified
+                  ? (zh ? "重复结果稳定且达到质量门槛" : "Repeat results are stable and quality-qualified")
+                  : (zh ? "完整且稳定，但质量未达标" : "Complete and stable, but quality is not qualified")}</h2>
+                <p>{zh
+                  ? "三轮结果一致只能证明问题可重复，不代表结果正确，也不会自动改变发布决定。"
+                  : "Three matching repeats prove reproducibility, not correctness, and cannot change the release decision."}</p>
+              </div>
+              <StatusBadge
+                value={repeatQualityQualified ? (zh ? "质量通过" : "quality qualified") : (zh ? "质量阻塞" : "quality blocked")}
+                tone={repeatQualityQualified ? "pass" : "fail"}
+              />
+            </header>
+
+            <div className="repeat-stability-facts" aria-label={zh ? "重复稳定性摘要" : "Repeat stability summary"}>
+              <article><span>{zh ? "重复轮次" : "Repeats"}</span><strong>{number(repeatSummary.repeat_count)}</strong><small>{zh ? "三轮独立观察" : "independent observations"}</small></article>
+              <article><span>{zh ? "每轮必需样本" : "Required units"}</span><strong>{number(repeatSummary.required_source_unit_count)}</strong><small>{repeatSummary.all_required_units_complete === true ? (zh ? "全部完整" : "all complete") : (zh ? "存在缺口" : "coverage gap")}</small></article>
+              <article><span>{zh ? "阻塞轮次" : "Blocked repeats"}</span><strong>{number(repeatSummary.retained_blocked_count)}</strong><small>{zh ? "未达到保留门槛" : "below retention gate"}</small></article>
+              <article><span>{zh ? "人工结论" : "Human dispositions"}</span><strong>{number(repeatHumanReview.receipt_count)}</strong><small>{humanReviewStateLabel(repeatHumanReview.collection_state, zh)}</small></article>
+            </div>
+
+            <div className="repeat-stability-detail">
+              <div className="repeat-metric-list" role="region" aria-label={zh ? "重复指标" : "Repeat metrics"}>
+                <header><span>{zh ? "指标" : "Metric"}</span><span>{zh ? "三轮观察值" : "Three repeat estimates"}</span><span>{zh ? "状态" : "State"}</span></header>
+                {repeatMetrics.map((metric) => (
+                  <div key={string(metric.metric_id)}>
+                    <strong>{repeatMetricLabel(metric.metric_id, zh)}</strong>
+                    <span className="repeat-estimates">{array(metric.repeat_estimates).map((value, index) => (
+                      <code key={`${string(metric.metric_id)}-${index}`}>{formatPercent(value)}</code>
+                    ))}</span>
+                    <StatusBadge
+                      value={metric.complete_across_repeats === true ? (zh ? "完整" : "complete") : (zh ? "缺失" : "incomplete")}
+                      tone={metric.complete_across_repeats === true ? "pass" : "warn"}
+                    />
+                  </div>
+                ))}
+              </div>
+
+              <aside className="repeat-blocker-list">
+                <header><ShieldAlert size={17} aria-hidden="true" /><strong>{zh ? "仍然阻塞的条件" : "Remaining blockers"}</strong><span>{repeatBlockers.length}</span></header>
+                <ul>
+                  {repeatBlockers.slice(0, 8).map((blocker) => <li key={blocker}>{repeatBlockerLabel(blocker, zh)}</li>)}
+                </ul>
+              </aside>
+            </div>
+
+            <footer className="repeat-stability-boundary">
+              <FileCheck2 size={17} aria-hidden="true" />
+              <span>{zh
+                ? `人工复核仍为${humanReviewStateLabel(repeatHumanReview.collection_state, zh)}，候选版本绑定${repeatCandidate.verified === true ? "已验证" : "未验证"}；当前证据没有发布权。`
+                : `Human review is ${humanReviewStateLabel(repeatHumanReview.collection_state, zh)}, candidate binding is ${repeatCandidate.verified === true ? "verified" : "unverified"}; this evidence has no release authority.`}</span>
+              <StatusBadge value={zh ? "仅作证据" : "evidence only"} tone="warn" />
+            </footer>
+          </section>
+        )}
 
         <Section
           className="multimodal-review-section"
@@ -302,6 +374,47 @@ function capabilityLabel(value: unknown, zh: boolean) {
   if (state === "contract_supported_unverified_candidate_binding") return zh ? "候选版本绑定待验证" : "candidate binding unverified";
   if (state === "contract_supported_not_production_verified") return zh ? "契约已支持，未完成生产验证" : "contract supported, not production verified";
   return zh ? "尚不可用" : "not available";
+}
+
+function repeatMetricLabel(value: unknown, zh: boolean) {
+  const metric = string(value, "unknown");
+  const labels: Record<string, [string, string]> = {
+    specificity: ["特异性", "Specificity"],
+    benign_text_false_positive_rate: ["良性文本误报率", "Benign text false-positive rate"],
+    cross_modal_conflict_sensitivity: ["跨模态冲突识别", "Cross-modal conflict sensitivity"],
+    visual_prompt_injection_sensitivity: ["视觉提示注入识别", "Visual prompt-injection sensitivity"]
+  };
+  return labels[metric]?.[zh ? 0 : 1] || metric;
+}
+
+function repeatBlockerLabel(value: string, zh: boolean) {
+  if (!zh) return value.replaceAll("_", " ");
+  const labels: Record<string, string> = {
+    multi_repeat_retained_calibration_not_qualified: "重复校准结果未达到质量门槛",
+    a1_release_receipt_git_sha_stale: "执行回执未绑定当前代码版本",
+    a2_exact_shared_candidate_binding_absent: "缺少同一候选版本的精确绑定",
+    a3_candidate_id_differs_from_a1: "控制台候选版本与执行证据不一致",
+    a3_consumed_decision_hash_mismatch: "控制台读取的决策哈希不一致",
+    a3_consumed_grades_hash_mismatch: "控制台读取的评分哈希不一致",
+    a3_consumes_round50_review_sample_not_round51_release_decision: "审核样本与当前校准轮次不是同一发布判定",
+    shared_candidate_id_mismatch: "共享候选版本标识不一致"
+  };
+  return labels[value] || value.replaceAll("_", " ");
+}
+
+function humanReviewStateLabel(value: unknown, zh: boolean) {
+  const state = string(value, "unknown");
+  const labels: Record<string, [string, string]> = {
+    pending: ["等待人工复核", "pending"],
+    partially_reviewed: ["部分完成", "partially reviewed"],
+    reviewed: ["已完成", "reviewed"],
+    unknown: ["状态未知", "unknown"]
+  };
+  return labels[state]?.[zh ? 0 : 1] || state;
+}
+
+function formatPercent(value: unknown) {
+  return `${Math.round(number(value) * 100)}%`;
 }
 
 function hashPrefix(value: string) {

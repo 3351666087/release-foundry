@@ -61,6 +61,10 @@ test("A3 webapp consumes A1 and A2 through the existing read-only dashboard API"
   assert.match(reviewSource, /operational_state/);
   assert.match(reviewSource, /assignment_active_count/);
   assert.match(reviewSource, /Human assignment/);
+  assert.match(reviewSource, /multimodal_repeat_stability/);
+  assert.match(reviewSource, /Complete and stable, but quality is not qualified/);
+  assert.match(reviewSource, /三轮结果一致只能证明问题可重复/);
+  assert.match(reviewSource, /candidate_binding/);
   assert.match(reviewSource, /产品不会据此改写分数、风险或发布决定/);
 });
 
