@@ -677,7 +677,7 @@ func TestIdentityVerificationLoginRequiresBoundAccountAndScope(t *testing.T) {
 	}
 }
 
-func TestIdentityVerificationHTTPNeverReturnsCodeOrIdentifier(t *testing.T) {
+func TestIdentityVerificationHTTPRejectsLegacyAccountCreationWithoutLeaks(t *testing.T) {
 	service, sender, identity, clock := newVerificationTestService(t)
 	budget, err := NewMemoryIdentityVerificationAbuseBudget(
 		MemoryIdentityVerificationAbuseBudgetOptions{
@@ -710,38 +710,19 @@ func TestIdentityVerificationHTTPNeverReturnsCodeOrIdentifier(t *testing.T) {
 	startRequest := httptest.NewRequest(http.MethodPost, "/v1/identity-verification/challenges", strings.NewReader(startBody))
 	startResponse := httptest.NewRecorder()
 	handler.ServeHTTP(startResponse, startRequest)
-	if startResponse.Code != http.StatusAccepted {
+	if startResponse.Code != http.StatusBadRequest ||
+		!strings.Contains(startResponse.Body.String(), `"code":"identity_registration_route_required"`) {
 		t.Fatalf("start status=%d body=%s", startResponse.Code, startResponse.Body.String())
 	}
 	deliveries := sender.Deliveries()
-	if len(deliveries) != 1 {
+	if len(deliveries) != 0 {
 		t.Fatalf("verification sender received %d deliveries", len(deliveries))
 	}
-	delivery := deliveries[0]
-	code := delivery.Code
-	if verificationBodyContainsSecret(startResponse.Body.String(), code, "private@example.com") {
-		t.Fatalf("start response leaked verification material: %s", startResponse.Body.String())
-	}
-	var start IdentityVerificationPublicResponse
-	if err := json.Unmarshal(startResponse.Body.Bytes(), &start); err != nil {
-		t.Fatal(err)
-	}
-	if start.Status != "accepted" || strings.Contains(startResponse.Body.String(), delivery.ChallengeID) {
-		t.Fatalf("start response was distinguishable or leaked challenge id: %s", startResponse.Body.String())
-	}
-	verifyBody := `{"challenge_id":"` + delivery.ChallengeID + `","code":"` + code +
-		`","channel":"email","identifier":"private@example.com","purpose":"binding","tenant_id":"tenant-a"}`
-	verifyRequest := httptest.NewRequest(http.MethodPost, "/v1/identity-verification/verify", strings.NewReader(verifyBody))
-	verifyResponse := httptest.NewRecorder()
-	handler.ServeHTTP(verifyResponse, verifyRequest)
-	if verifyResponse.Code != http.StatusOK {
-		t.Fatalf("verify status=%d body=%s", verifyResponse.Code, verifyResponse.Body.String())
-	}
-	if verificationBodyContainsSecret(verifyResponse.Body.String(), code, "private@example.com") {
-		t.Fatalf("verify response leaked verification material: %s", verifyResponse.Body.String())
+	if strings.Contains(strings.ToLower(startResponse.Body.String()), "private@example.com") {
+		t.Fatalf("rejection leaked the submitted identifier: %s", startResponse.Body.String())
 	}
 	encoded, _ := json.Marshal(service.AuditEvents())
-	if verificationBodyContainsSecret(string(encoded), code, "private@example.com") {
+	if strings.Contains(strings.ToLower(string(encoded)), "private@example.com") {
 		t.Fatalf("audit event leaked verification material: %s", encoded)
 	}
 }

@@ -314,19 +314,20 @@ func TestIdentityVerificationHTTPTrustsForwardedHTTPSOnlyFromConfiguredProxy(t *
 	}
 }
 
-func TestIdentityVerificationHTTPBindingKeepsPublicCompletionWithoutCookieTransport(t *testing.T) {
+func TestIdentityVerificationHTTPRejectsAccountlessBindingOutsideRegistrationRoute(t *testing.T) {
 	now := time.Date(2026, 7, 11, 15, 0, 0, 0, time.UTC)
 	handler, coordinator := newHTTPSessionVerificationHandler(t, now, nil)
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, identitySessionVerifyRequest(IdentityVerificationBinding, false))
-	if response.Code != http.StatusOK {
+	if response.Code != http.StatusBadRequest ||
+		!strings.Contains(response.Body.String(), `"code":"identity_registration_route_required"`) {
 		t.Fatalf("status=%d body=%s", response.Code, response.Body.String())
 	}
-	if coordinator.completeCalls != 1 || coordinator.issueCalls != 0 {
-		t.Fatalf("binding used session issuance: %#v", coordinator)
+	if coordinator.completeCalls != 0 || coordinator.issueCalls != 0 {
+		t.Fatalf("accountless binding reached the verification coordinator: %#v", coordinator)
 	}
 	if response.Header().Get("Set-Cookie") != "" {
-		t.Fatal("binding emitted a session cookie")
+		t.Fatal("rejected accountless binding emitted a session cookie")
 	}
 }
 
@@ -392,6 +393,11 @@ func TestIdentityVerificationHTTPExistingAccountBindingRequiresTrustedAuthorizat
 	), "https://api.example.test"))
 	if success.Code != http.StatusOK || coordinator.completeCalls != 1 {
 		t.Fatalf("authorized binding failed: status=%d body=%s", success.Code, success.Body.String())
+	}
+	for _, secret := range []string{"123456", "person@example.test", ticketID, stepUpID, sessionDigest} {
+		if strings.Contains(success.Body.String(), secret) {
+			t.Fatalf("authorized binding response leaked private input %q: %s", secret, success.Body.String())
+		}
 	}
 	command := coordinator.lastCommand
 	if command.AccountID != accountID || command.ActorID != accountID ||

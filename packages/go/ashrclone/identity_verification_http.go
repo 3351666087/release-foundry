@@ -329,7 +329,11 @@ func (server *HTTPServer) handleIdentityVerification(writer http.ResponseWriter,
 	accountID := stringValue(body, "account_id")
 	actorID := ""
 	var bindingSession IdentityHTTPSession
-	if purpose == IdentityVerificationBinding && accountID != "" {
+	if purpose == IdentityVerificationBinding {
+		if accountID == "" {
+			writeError(writer, http.StatusBadRequest, "identity_registration_route_required", "new accounts must use the dedicated registration flow")
+			return
+		}
 		if validateIdentityVerificationBindingBody(body, action) != nil {
 			writeError(writer, http.StatusBadRequest, "identity_binding_request_invalid", "credential binding accepts only explicit public verification and trusted authorization identifiers")
 			return

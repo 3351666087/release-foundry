@@ -26,9 +26,14 @@
     },
     "account_binding": {
       "explicit_user_action_required": true,
+      "authenticated_actor_required": true,
       "matching_authenticated_actor_required": true,
       "recent_reauthentication_required": true,
-      "csrf_required": true
+      "csrf_required": true,
+      "verified_assertion_required": true,
+      "verified_assertion_source": "server_owned_single_use_proof_receipt",
+      "route_lifecycle": "proposed",
+      "client_callable": false
     },
     "password_mutation": {
       "matching_authenticated_actor_required": true,
@@ -40,6 +45,41 @@
       "recommended": true,
       "mutation_requires_recent_reauthentication": true,
       "mutation_requires_csrf": true
+    }
+  },
+  "operation_security": {
+    "public_registration": {
+      "authenticated_actor_required": false,
+      "matching_authenticated_actor_required": false,
+      "recent_reauthentication_required": false,
+      "csrf_required": false,
+      "verified_assertion_required": true,
+      "verified_assertion_source": "server_owned_single_use_proof_receipt",
+      "legacy_accountless_binding_http_rejected": true,
+      "route_lifecycle": "active",
+      "client_callable": true
+    },
+    "public_login": {
+      "authenticated_actor_required": false,
+      "matching_authenticated_actor_required": false,
+      "recent_reauthentication_required": false,
+      "csrf_required": false,
+      "verified_assertion_required": true,
+      "verified_assertion_source": "server_owned_single_use_proof_receipt",
+      "account_enumeration_safe": true,
+      "route_lifecycle": "active",
+      "client_callable": true
+    },
+    "existing_account_binding": {
+      "explicit_user_action_required": true,
+      "authenticated_actor_required": true,
+      "matching_authenticated_actor_required": true,
+      "recent_reauthentication_required": true,
+      "csrf_required": true,
+      "verified_assertion_required": true,
+      "verified_assertion_source": "server_owned_single_use_proof_receipt",
+      "route_lifecycle": "proposed",
+      "client_callable": false
     }
   },
   "implemented_routes": {
@@ -187,14 +227,14 @@
       "detail": "No route is implemented or runtime-verified merely because it appears in an SDK contract."
     },
     {
-      "code": "trusted_proof_http_boundary_pending",
+      "code": "trusted_proof_runtime_attestation_pending",
       "severity": "blocking",
-      "detail": "Public completion must accept only a server-owned opaque single-use proof receipt."
+      "detail": "The HTTP boundary already rejects caller-asserted verification and consumes server-owned opaque single-use receipts; production provider resolver deployment and live runtime attestation remain pending."
     },
     {
       "code": "link_password_two_factor_routes_proposed",
       "severity": "expected",
-      "detail": "These routes remain non-routable until matching actor, recent reauthentication, and CSRF enforcement exist."
+      "detail": "Direct A3 account-mutation routes remain non-routable until their HTTP boundaries invoke the existing trusted binding authority with matching actor, recent reauthentication, CSRF, and verified assertion enforcement."
     },
     {
       "code": "domestic_provider_qualification_unavailable",

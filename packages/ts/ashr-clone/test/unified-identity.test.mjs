@@ -303,6 +303,29 @@ test("A3 registration and login contract is explicit and fail closed", () => {
   assert.equal(contract.login.account_enumeration_safe, true);
   assert.equal(contract.login.unknown_and_invalid_secret_share_public_failure, true);
   assert.equal(contract.login.unknown_identity_next_action, null);
+  for (const name of ["public_registration", "public_login"]) {
+    const security = contract.operation_security[name];
+    assert.equal(security.authenticated_actor_required, false);
+    assert.equal(security.matching_authenticated_actor_required, false);
+    assert.equal(security.recent_reauthentication_required, false);
+    assert.equal(security.csrf_required, false);
+    assert.equal(security.verified_assertion_required, true);
+    assert.equal(security.verified_assertion_source, "server_owned_single_use_proof_receipt");
+    if (name === "public_registration") {
+      assert.equal(security.legacy_accountless_binding_http_rejected, true);
+    }
+    assert.equal(security.route_lifecycle, "active");
+    assert.equal(security.client_callable, true);
+  }
+  const bindingSecurity = contract.operation_security.existing_account_binding;
+  assert.equal(bindingSecurity.explicit_user_action_required, true);
+  assert.equal(bindingSecurity.authenticated_actor_required, true);
+  assert.equal(bindingSecurity.matching_authenticated_actor_required, true);
+  assert.equal(bindingSecurity.recent_reauthentication_required, true);
+  assert.equal(bindingSecurity.csrf_required, true);
+  assert.equal(bindingSecurity.verified_assertion_required, true);
+  assert.equal(bindingSecurity.route_lifecycle, "proposed");
+  assert.equal(bindingSecurity.client_callable, false);
   for (const route of contract.routes) {
     assert.equal(["active", "proposed", "non_routable", "unavailable"].includes(route.lifecycle), true);
     assert.equal(route.client_callable, route.lifecycle === "active");
