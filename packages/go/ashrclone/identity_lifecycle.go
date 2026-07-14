@@ -21,8 +21,9 @@ const (
 type IdentityLifecycleOperation string
 
 const (
-	IdentityOperationRegistration IdentityLifecycleOperation = "registration"
-	IdentityOperationLogin        IdentityLifecycleOperation = "login"
+	IdentityOperationRegistration   IdentityLifecycleOperation = "registration"
+	IdentityOperationLogin          IdentityLifecycleOperation = "login"
+	IdentityOperationCredentialLink IdentityLifecycleOperation = "credential_link"
 )
 
 var (
@@ -178,7 +179,9 @@ func (service *IdentityLifecycleService) issueTrustedProofReceiptContext(ctx con
 	proof.Provider = IdentityProvider(strings.ToLower(strings.TrimSpace(string(proof.Provider))))
 	proof.TenantID = strings.TrimSpace(proof.TenantID)
 	proof.ProjectID = strings.TrimSpace(proof.ProjectID)
-	if proof.Operation != IdentityOperationRegistration && proof.Operation != IdentityOperationLogin {
+	if proof.Operation != IdentityOperationRegistration &&
+		proof.Operation != IdentityOperationLogin &&
+		proof.Operation != IdentityOperationCredentialLink {
 		return IdentityProofReceiptDTO{}, IdentityDomainError{Code: "invalid_identity_operation", Message: "identity operation is invalid"}
 	}
 	kind, provider, identifier, err := normalizeIdentityCredential(IdentityCredentialInput{
