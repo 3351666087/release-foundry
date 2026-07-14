@@ -54,6 +54,18 @@ export async function createSqliteA3Store(options = {}) {
       return result;
     },
 
+    async importA2MultimodalComparison(comparison, options = {}) {
+      const result = await store.importA2MultimodalComparison(comparison, options);
+      await persist();
+      return result;
+    },
+
+    async mutateMultimodalReviewAssignment(queueId, input, options = {}) {
+      const result = await store.mutateMultimodalReviewAssignment(queueId, input, options);
+      await persist();
+      return result;
+    },
+
     async createShareableReport(options = {}) {
       const result = await store.createShareableReport(options);
       await persist();
@@ -104,6 +116,24 @@ export async function createSqliteA3Store(options = {}) {
 
     async submitReleaseEvidenceReadback(releaseId, readback, options = {}) {
       const result = await store.submitReleaseEvidenceReadback(releaseId, readback, options);
+      await persist();
+      return result;
+    },
+
+    async submitDeploymentReceipt(input, options = {}) {
+      const result = await store.submitDeploymentReceipt(input, options);
+      await persist();
+      return result;
+    },
+
+    async reviewDeploymentReceipt(receiptId, review, options = {}) {
+      const result = await store.reviewDeploymentReceipt(receiptId, review, options);
+      await persist();
+      return result;
+    },
+
+    async verifyDeploymentReceiptAuthoritatively(receiptId, resolver, options = {}) {
+      const result = await store.verifyDeploymentReceiptAuthoritatively(receiptId, resolver, options);
       await persist();
       return result;
     },
@@ -161,6 +191,7 @@ export function inspectSqliteA3Store(db) {
       api_import_receipts: countRows(db, "api_import_receipts"),
       saas_admin_action_requests: countRows(db, "saas_admin_action_requests"),
       review_workflow_records: countRows(db, "review_workflow_records"),
+      multimodal_review_assignment_events: countRows(db, "multimodal_review_assignment_events"),
       release_evidence_summaries: countRows(db, "release_evidence_summaries"),
       release_evidence_snapshots: countRows(db, "release_evidence_snapshots"),
       release_evidence_diffs: countRows(db, "release_evidence_diffs"),
@@ -168,6 +199,9 @@ export function inspectSqliteA3Store(db) {
       audit_events: countRows(db, "audit_events"),
       event_outbox: countRows(db, "event_outbox"),
       github_publish_receipts: countRows(db, "github_publish_receipts"),
+      deployment_receipts: countRows(db, "deployment_receipts"),
+      deployment_receipt_readbacks: countRows(db, "deployment_receipt_readbacks"),
+      self_host_sandbox_calibrations: countRows(db, "self_host_sandbox_calibrations"),
       usage_ledger: countRows(db, "usage_ledger")
     },
     safety: {
@@ -222,9 +256,13 @@ async function persistSqliteState(db, store) {
     persistIdempotencyReceipts(db, state, updatedAt);
     persistSaasAdminActionRequests(db, state, updatedAt);
     persistReviewWorkflowRecords(db, state, updatedAt);
+    persistMultimodalReviewAssignmentEvents(db, state, updatedAt);
     persistAuditEvents(db, state, updatedAt);
     persistEventOutbox(db, state, updatedAt);
     persistGitHubPublishReceipts(db, state, updatedAt);
+    persistDeploymentReceipts(db, state, updatedAt);
+    persistDeploymentReceiptReadbacks(db, state, updatedAt);
+    persistSelfHostSandboxCalibrations(db, state, updatedAt);
     await persistUsageLedger(db, store, state, updatedAt);
     db.exec("COMMIT");
   } catch (error) {
@@ -249,6 +287,9 @@ function clearOperationalRows(db) {
     "audit_events",
     "event_outbox",
     "github_publish_receipts",
+    "deployment_receipt_readbacks",
+    "deployment_receipts",
+    "self_host_sandbox_calibrations",
     "artifact_lifecycle_events",
     "artifact_registry_entries",
     "release_evidence_readbacks",
@@ -257,6 +298,7 @@ function clearOperationalRows(db) {
     "release_evidence_summaries",
     "saas_admin_action_requests",
     "review_workflow_records",
+    "multimodal_review_assignment_events",
     "api_import_receipts",
     "idempotency_keys",
     "report_share_links",
@@ -595,6 +637,42 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   }
 }
 
+function persistMultimodalReviewAssignmentEvents(db, state, updatedAt) {
+  for (const event of state.multimodalReviewAssignmentEvents || []) {
+    db.prepare(`
+INSERT INTO multimodal_review_assignment_events (
+  id, organization_id, tenant_id, workspace_id, project_id, environment_id,
+  source, queue_id, case_id, comparison_hash, event_type, version,
+  actor_hash, actor_role, previous_reviewer_hash, assigned_reviewer_hash,
+  lease_expires_at, reason_code, event_hash, payload, created_at
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`).run(
+      event.event_id,
+      event.organization_id,
+      event.tenant_id,
+      event.workspace_id,
+      event.project_id,
+      event.environment_id,
+      event.source,
+      event.queue_id,
+      event.case_id,
+      event.comparison_hash,
+      event.event_type,
+      event.version,
+      event.actor_hash,
+      event.actor_role,
+      event.previous_reviewer_hash,
+      event.assigned_reviewer_hash,
+      event.lease_expires_at,
+      event.reason_code,
+      event.event_hash,
+      JSON.stringify(event),
+      event.created_at || updatedAt
+    );
+  }
+}
+
 function persistAuditEvents(db, state, updatedAt) {
   for (const event of state.auditEvents || []) {
     const id = event.event_id || sha256(JSON.stringify(event)).slice(0, 16);
@@ -702,6 +780,112 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       receipt.payload_hash || sha256(JSON.stringify(receipt)),
       JSON.stringify(receipt),
       receipt.published_at || updatedAt
+    );
+  }
+}
+
+function persistDeploymentReceipts(db, state, updatedAt) {
+  for (const receipt of state.deploymentReceipts || []) {
+    db.prepare(`
+INSERT INTO deployment_receipts (
+  id, organization_id, tenant_id, workspace_id, project_id, environment_id,
+  source, blocker_id, candidate_id, run_id, status, version, evidence_kind,
+  verifier_class, evidence_ref, evidence_sha256, production_verified,
+  payload_hash, payload, created_at, reviewed_at
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`).run(
+      receipt.receipt_id,
+      receipt.organization_id || "org-local",
+      receipt.tenant_id || "tenant-local",
+      receipt.workspace_id || "workspace-local",
+      receipt.project_id || "project-local",
+      receipt.environment_id || "staging",
+      receipt.source || "unknown",
+      receipt.blocker_id || "unknown",
+      receipt.candidate_id || "unknown",
+      receipt.run_id || "unknown",
+      receipt.status || "submitted",
+      Number(receipt.version || 1),
+      receipt.evidence_kind || "unknown",
+      receipt.verifier_class || "unknown",
+      receipt.evidence_ref || "[REDACTED_UNSAFE_REF]",
+      receipt.evidence_sha256 || `sha256:${sha256(JSON.stringify(receipt))}`,
+      0,
+      receipt.metadata_validation?.payload_hash || sha256(JSON.stringify(receipt)),
+      JSON.stringify(receipt),
+      receipt.submitted_at || updatedAt,
+      receipt.reviewed_at || null
+    );
+  }
+}
+
+function persistDeploymentReceiptReadbacks(db, state, updatedAt) {
+  for (const readback of state.deploymentReceiptReadbacks || []) {
+    db.prepare(`
+INSERT INTO deployment_receipt_readbacks (
+  id, receipt_id, organization_id, tenant_id, workspace_id, project_id,
+  environment_id, source, blocker_id, candidate_id, run_id,
+  verification_status, production_verified, verifier_class, verifier_authority,
+  evidence_sha256, attestation_sha256, sequence, previous_readback_hash,
+  readback_hash, payload, created_at
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`).run(
+      readback.readback_id,
+      readback.receipt_id,
+      readback.organization_id || "org-local",
+      readback.tenant_id || "tenant-local",
+      readback.workspace_id || "workspace-local",
+      readback.project_id || "project-local",
+      readback.environment_id || "staging",
+      readback.source || "unknown",
+      readback.blocker_id || "unknown",
+      readback.candidate_id || "unknown",
+      readback.run_id || "unknown",
+      readback.verification_status || "rejected",
+      readback.production_verified === true ? 1 : 0,
+      readback.verifier_class || "unknown",
+      readback.verifier_authority || "unknown",
+      readback.evidence_sha256,
+      readback.attestation_sha256,
+      Number(readback.sequence || 1),
+      readback.previous_readback_hash || null,
+      readback.readback_hash,
+      JSON.stringify(readback),
+      readback.verified_at || updatedAt
+    );
+  }
+}
+
+function persistSelfHostSandboxCalibrations(db, state, updatedAt) {
+  for (const calibration of state.selfHostSandboxCalibrations || []) {
+    const scope = calibration.tenant_scope || {};
+    db.prepare(`
+INSERT INTO self_host_sandbox_calibrations (
+  id, organization_id, tenant_id, workspace_id, project_id, environment_id,
+  source, status, evidence_level, production_verified,
+  deployment_acceptance_mutated, a2_decision_recomputed, probe_payload_sha256,
+  payload, observed_at, created_at
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`).run(
+      calibration.calibration_id,
+      scope.organization_id || "org-local",
+      scope.tenant_id || "tenant-local",
+      scope.workspace_id || "workspace-local",
+      scope.project_id || "project-local",
+      scope.environment_id || "staging",
+      calibration.source || "a1_local_runtime_probe",
+      calibration.status || "sandbox_failed",
+      calibration.authority_boundary?.evidence_level || "sandbox_failed",
+      0,
+      0,
+      0,
+      calibration.evidence_integrity?.probe_payload_sha256 || `sha256:${sha256(JSON.stringify(calibration))}`,
+      JSON.stringify(calibration),
+      calibration.observed_at || updatedAt,
+      updatedAt
     );
   }
 }

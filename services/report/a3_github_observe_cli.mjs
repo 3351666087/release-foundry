@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import {
   buildBranchProtectionRequiredCheckPlan,
   readGitHubCheckRun,
+  readGitHubRepositoryInstallation,
   readPrCommentReadback,
   readRequiredCheckProof
 } from "./a3_github_integration.mjs";
@@ -29,11 +30,15 @@ export function parseGitHubObserveArgs(argv = []) {
     else if (item === "--comment-marker") options.commentMarker = next();
     else if (item === "--branch") options.branch = next();
     else if (item === "--required-check-name") options.requiredCheckName = next();
+    else if (item === "--expected-app-slug") options.expectedAppSlug = next();
+    else if (item === "--expected-app-id") options.expectedAppId = Number(next());
+    else if (item === "--expected-installation-alias") options.expectedInstallationAlias = next();
     else if (item === "--api-base-url") options.apiBaseUrl = next();
     else if (item === "--token-env") options.tokenEnvName = next();
     else if (item === "--output-check") options.outputCheck = next();
     else if (item === "--output-comment") options.outputComment = next();
     else if (item === "--output-required-check") options.outputRequiredCheck = next();
+    else if (item === "--output-installation") options.outputInstallation = next();
     else if (item === "--json") options.json = true;
     else if (item === "--help" || item === "-h") options.help = true;
     else throw new Error(`Unknown argument: ${item}`);
@@ -52,7 +57,9 @@ export async function observeGitHubDelivery(options = {}) {
     token,
     tokenEnvName: options.tokenEnvName,
     dryRun: false,
-    checkedAt: options.checkedAt || new Date().toISOString()
+    checkedAt: options.checkedAt || new Date().toISOString(),
+    fetchImpl: options.fetchImpl,
+    trustedApiOrigins: options.trustedApiOrigins
   };
   let checkReadback = {};
   if (options.checkRunId) {
@@ -107,10 +114,25 @@ export async function observeGitHubDelivery(options = {}) {
     expectedHeadSha: options.headSha
   });
 
+  let installationReadback = {};
+  if (options.expectedAppSlug) {
+    installationReadback = attachCalibration(await readGitHubRepositoryInstallation({
+      ...common,
+      expectedAppSlug: options.expectedAppSlug,
+      expectedAppId: options.expectedAppId,
+      expectedInstallationAlias: options.expectedInstallationAlias
+    }), {
+      authorityClass: "github_repository_installation_readback",
+      expectedAppSlug: options.expectedAppSlug,
+      tenantBindingReceiptPresent: false
+    });
+  }
+
   await Promise.all([
     writeJsonOptional(options.outputCheck, checkReadback),
     writeJsonOptional(options.outputComment, commentReadback),
-    writeJsonOptional(options.outputRequiredCheck, requiredCheckProof)
+    writeJsonOptional(options.outputRequiredCheck, requiredCheckProof),
+    writeJsonOptional(options.outputInstallation, installationReadback)
   ]);
   return {
     schema_version: "a3.github_delivery_observation.v1",
@@ -119,10 +141,13 @@ export async function observeGitHubDelivery(options = {}) {
     check_readback: checkReadback,
     pr_comment_readback: commentReadback,
     required_check_proof: requiredCheckProof,
+    repository_installation_readback: installationReadback,
     closure: {
       check_live_readback: checkReadback.readback_status === "readback_confirmed",
       pr_comment_live_readback: commentReadback.readback_status === "readback_confirmed",
       required_check_enforced: requiredCheckProof.enforced === true,
+      repository_installation_readback: installationReadback.readback_status === "readback_confirmed",
+      repository_installation_identity_matches: installationReadback.identity_matches === true,
       custom_tenant_github_app_proven: false
     },
     safety: {
@@ -188,6 +213,8 @@ function attachCalibration(receipt, options) {
       live_readback: receipt.readback_status === "readback_confirmed",
       authority_class: options.authorityClass,
       expected_head_sha_alias: options.expectedHeadSha || null,
+      expected_app_slug: options.expectedAppSlug || null,
+      tenant_binding_receipt_present: options.tenantBindingReceiptPresent === true,
       custom_tenant_github_app_proven: false,
       observed_via_read_only_api: true
     }
@@ -204,7 +231,7 @@ async function writeJsonOptional(path, value) {
 function usageReceipt() {
   return {
     schema_version: "a3.github_observe_cli_usage.v1",
-    command: "node services/report/a3_github_observe_cli.mjs --repo owner/repo --check-run-id 123 --check-name 'A3 golden path release artifact' --head-sha <sha> --pull-number 35 --comment-body-file artifacts/pr-comment.md --comment-marker '<!-- ashr-plus-plus:release-gate:run-id -->' --branch main --required-check-name 'A3 golden path release artifact' --output-check check.json --output-comment comment.json --output-required-check required.json --json",
+    command: "node services/report/a3_github_observe_cli.mjs --repo owner/repo --check-run-id 123 --check-name 'A3 golden path release artifact' --head-sha <sha> --pull-number 35 --comment-body-file artifacts/pr-comment.md --comment-marker '<!-- ashr-plus-plus:release-gate:run-id -->' --branch main --required-check-name 'A3 golden path release artifact' --expected-app-slug ashr-enterprise --expected-app-id 12345 --expected-installation-alias installation-alias --output-check check.json --output-comment comment.json --output-required-check required.json --output-installation installation.json --json",
     token_source: "GITHUB_TOKEN environment variable only",
     mutation_mode: "disabled; this CLI performs read-only GitHub API calls"
   };

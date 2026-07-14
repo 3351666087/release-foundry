@@ -126,6 +126,11 @@ test("the rc.2 dashboard source exposes passing A1/A2 evidence without inventing
   assert.equal(snapshot.githubActionsArtifactReadback.digest_match, true);
   assert.equal(snapshot.githubRequiredCheckProof.enforced, false);
   assert.equal(snapshot.githubRequiredCheckProof.http_status, 404);
+  assert.equal(snapshot.releaseComparison.schema_version, "a3.release_comparison.v1");
+  assert.equal(snapshot.releaseComparison.baseline.a2_evaluation.passed, 1);
+  assert.equal(snapshot.releaseComparison.candidate.a2_evaluation.passed, 3);
+  assert.equal(snapshot.releaseComparison.authority_boundary.candidate_decision, "block");
+  assert.equal(snapshot.releaseComparison.authority_boundary.candidate_release_ready, false);
 });
 
 test("the rc.2 Gate keeps a passing local quality gate blocked by A2 authority", async () => {

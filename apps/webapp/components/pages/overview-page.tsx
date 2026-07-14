@@ -30,22 +30,22 @@ export function OverviewPage() {
     return (
       <>
         <PageHeader
-          eyebrow="A3 / RELEASE INTELLIGENCE"
+          eyebrow="RELEASE INTELLIGENCE"
           title={zh ? "发布总览" : "Release overview"}
-          summary={zh ? "先核验 A2 决策账本，再查看案例、证据和人工审核。" : "Verify the A2 Decision Ledger before inspecting cases, evidence, and review."}
+          summary={zh ? "先核验权威决策账本，再查看案例、证据和人工审核。" : "Verify the authoritative decision ledger before inspecting cases, evidence, and review."}
           meta={<><span>{model.sourceLabel}</span><strong>{model.summary.lastRunId}</strong></>}
         />
 
         <section className="release-signal">
           <div className="release-signal-copy">
-            <span className="eyebrow">{zh ? "A2 可信发布信号" : "A2 TRUSTED RELEASE SIGNAL"}</span>
+            <span className="eyebrow">{zh ? "可信发布信号" : "TRUSTED RELEASE SIGNAL"}</span>
             <StatusBadge value={releaseSignal} tone={releaseTone} />
             <h2>{authority.releaseReady
               ? (zh ? "决策账本已核验，可以进入发布流程" : "Verified ledger permits the release workflow")
               : (zh ? "当前不得发布，需要先处理阻断项" : "Release is not authorized; resolve the blockers first")}</h2>
             <p>{zh
-              ? `账本完整性：${authority.integrityVerified ? "已核验" : "未通过"}；A2 决策：${authority.upstreamDecision}；原因：${authority.reasonCode}。`
-              : `Ledger integrity: ${authority.integrityVerified ? "verified" : "not verified"}; A2 decision: ${authority.upstreamDecision}; reason: ${authority.reasonCode}.`}</p>
+              ? `账本完整性：${authority.integrityVerified ? "已核验" : "未通过"}；权威决策：${authority.upstreamDecision}；原因：${authority.reasonCode}。`
+              : `Ledger integrity: ${authority.integrityVerified ? "verified" : "not verified"}; authoritative decision: ${authority.upstreamDecision}; reason: ${authority.reasonCode}.`}</p>
             <Link className="signal-action" href="/review">{zh ? "进入人工审核" : "Open review"}<ArrowRight size={17} /></Link>
           </div>
           <div className="release-signal-aside">
@@ -57,12 +57,12 @@ export function OverviewPage() {
         <MetricStrip items={[
           { label: zh ? "运行" : "Runs", value: model.summary.totalRuns, tone: "info", detail: model.summary.lastRunId },
           { label: zh ? "案例" : "Cases", value: model.summary.totalCases, tone: "neutral", detail: `${model.summary.passed} pass / ${model.summary.failed} fail` },
-          { label: zh ? "Trace 完整率" : "Trace complete", value: `${model.summary.traceCompleteness}%`, tone: "pass", detail: "A1 evidence" },
+          { label: zh ? "Trace 完整率" : "Trace complete", value: `${model.summary.traceCompleteness}%`, tone: "pass", detail: zh ? "执行证据" : "execution evidence" },
           { label: zh ? "媒体案例" : "Media cases", value: model.summary.mediaEvidenceCases, tone: "cobalt", detail: "image / audio / file" }
         ]} />
 
         <div className="content-grid two-one">
-          <Section title={zh ? "最近运行" : "Recent runs"} description={zh ? "来自 A1 RunResult 的执行批次" : "Execution batches from A1 RunResult"} action={<Link className="text-link" href="/runs">{zh ? "全部运行" : "All runs"}<ArrowRight size={14} /></Link>}>
+          <Section title={zh ? "最近运行" : "Recent runs"} description={zh ? "来自运行服务的执行批次" : "Execution batches from the runtime service"} action={<Link className="text-link" href="/runs">{zh ? "全部运行" : "All runs"}<ArrowRight size={14} /></Link>}>
             <DataTable headers={[zh ? "运行 ID" : "Run ID", zh ? "状态" : "Status", zh ? "案例" : "Cases", zh ? "耗时" : "Duration", zh ? "开始时间" : "Started"]} label="Recent runs">
               {model.runs.map((run) => (
                 <tr key={run.runId}>
@@ -76,14 +76,14 @@ export function OverviewPage() {
             </DataTable>
           </Section>
 
-          <Section title={zh ? "失败集中点" : "Failure concentration"} description={zh ? "按 A2 主要失败分类" : "By A2 primary failure class"}>
+          <Section title={zh ? "失败集中点" : "Failure concentration"} description={zh ? "按权威评测的主要失败分类" : "By authoritative primary failure class"}>
             <div className="rank-list">
               {failures.map(([name, count], index) => <Link href={`/runs?failure=${encodeURIComponent(name)}`} key={name}><span>{String(index + 1).padStart(2, "0")}</span><strong>{name}</strong><b>{count}</b></Link>)}
             </div>
           </Section>
         </div>
 
-        <Section title={zh ? "证据链" : "Evidence spine"} description={zh ? "A1 采集，A2 判定，A3 运营" : "A1 captures, A2 decides, A3 operates"}>
+        <Section title={zh ? "证据链" : "Evidence spine"} description={zh ? "执行取证，独立评测，人工发布" : "Capture evidence, evaluate independently, release with human control"}>
           <div className="spine-grid">
             {stages.map((stage, index) => (
               <article className="spine-stage" key={`${string(stage.stage)}-${index}`}>

@@ -8,7 +8,7 @@ export function buildA3SqlMigrationPlan(options = {}) {
     dialect,
     status: "contract_ready",
     migration_count: statements.length,
-    tenancy_columns: ["organization_id", "tenant_id", "workspace_id", "project_id"],
+    tenancy_columns: ["organization_id", "tenant_id", "workspace_id", "project_id", "environment_id"],
     guardrails: [
     "Every tenant-owned row must include organization_id, tenant_id, workspace_id, and project_id where the table participates in hosted SaaS scope.",
       "Team, RBAC, API key, and trust-center tables store metadata only until hosted auth is available.",
@@ -18,11 +18,13 @@ export function buildA3SqlMigrationPlan(options = {}) {
       "SaaS admin actions are request/audit records first; real cloud mutations stay disabled until hosted auth and RBAC are enforced.",
       "Auth context, RBAC policy snapshots, and authz decisions are metadata-only records until A1 hosted auth becomes authoritative.",
       "Reviewer waiver and approval records must be hash-sealed, tenant-scoped, and durable before they can influence release governance.",
+      "Multimodal reviewer assignment events must be append-only, five-level tenant-scoped, version-checked, and unable to modify A2 decisions.",
       "Release evidence summaries must be tenant-scoped, hash-sealed, and safe to expose through API-backed dashboard and hosted report snapshots.",
       "Release evidence v2 authority rows must separate immutable snapshots, safe diffs, and external readback states before claiming enterprise enforcement.",
       "Release evidence readback capture must be idempotent, tenant-scoped, audit-linked, and hash-only before it can influence PR gates.",
       "Billing migration readiness rows must be tenant-scoped, read-only A3 projections of A1 ledger/migration evidence; A3 must never store provider secrets, card data, or raw provider payloads.",
       "Notification channel and delivery rows must be tenant-scoped, metadata-only, and must store connector secrets as encrypted references or hashes owned by A1 hosted workers.",
+      "Self-host sandbox calibration rows store validated A1 local behavior metadata only, enforce five-level PostgreSQL RLS, and must keep production_verified, deployment_acceptance_mutated, and a2_decision_recomputed false.",
       "Secret values are never stored; API keys and idempotency keys are hashed.",
       "Postgres is the recommended production target; MySQL and SQLite dialects are contract targets for student/self-host deployments."
     ],
@@ -621,7 +623,177 @@ CREATE TABLE IF NOT EXISTS github_publish_receipts (
 );
 CREATE INDEX IF NOT EXISTS idx_github_publish_receipts_scope ON github_publish_receipts(organization_id, tenant_id, workspace_id, project_id, environment_id, source, created_at);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_github_publish_receipts_payload ON github_publish_receipts(project_id, resource_kind, payload_hash);`)
+    ,
+    statement("017_deployment_receipts", ["deployment_receipts"], `
+CREATE TABLE IF NOT EXISTS deployment_receipts (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL,
+  workspace_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  environment_id TEXT NOT NULL,
+  source TEXT NOT NULL,
+  blocker_id TEXT NOT NULL,
+  candidate_id TEXT NOT NULL,
+  run_id TEXT NOT NULL,
+  status TEXT NOT NULL,
+  version INTEGER NOT NULL,
+  evidence_kind TEXT NOT NULL,
+  verifier_class TEXT NOT NULL,
+  evidence_ref TEXT NOT NULL,
+  evidence_sha256 TEXT NOT NULL,
+  production_verified BOOLEAN NOT NULL DEFAULT FALSE,
+  payload_hash TEXT NOT NULL,
+  payload ${types.json} NOT NULL,
+  created_at ${types.timestamp} NOT NULL,
+  reviewed_at ${types.timestamp}
+);
+CREATE INDEX IF NOT EXISTS idx_deployment_receipts_scope ON deployment_receipts(organization_id, tenant_id, workspace_id, project_id, environment_id, source, candidate_id, run_id, blocker_id, status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_deployment_receipts_payload ON deployment_receipts(project_id, candidate_id, blocker_id, payload_hash);`),
+    statement("018_deployment_receipt_readbacks", ["deployment_receipt_readbacks"], `
+CREATE TABLE IF NOT EXISTS deployment_receipt_readbacks (
+  id TEXT PRIMARY KEY,
+  receipt_id TEXT NOT NULL,
+  organization_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL,
+  workspace_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  environment_id TEXT NOT NULL,
+  source TEXT NOT NULL,
+  blocker_id TEXT NOT NULL,
+  candidate_id TEXT NOT NULL,
+  run_id TEXT NOT NULL,
+  verification_status TEXT NOT NULL,
+  production_verified BOOLEAN NOT NULL DEFAULT FALSE,
+  verifier_class TEXT NOT NULL,
+  verifier_authority TEXT NOT NULL,
+  evidence_sha256 TEXT NOT NULL,
+  attestation_sha256 TEXT NOT NULL,
+  sequence INTEGER NOT NULL,
+  previous_readback_hash TEXT,
+  readback_hash TEXT NOT NULL,
+  payload ${types.json} NOT NULL,
+  created_at ${types.timestamp} NOT NULL,
+  FOREIGN KEY(receipt_id) REFERENCES deployment_receipts(id)
+);
+CREATE INDEX IF NOT EXISTS idx_deployment_receipt_readbacks_scope ON deployment_receipt_readbacks(organization_id, tenant_id, workspace_id, project_id, environment_id, source, candidate_id, run_id, blocker_id, verification_status);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_deployment_receipt_readbacks_chain ON deployment_receipt_readbacks(receipt_id, sequence);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_deployment_receipt_readbacks_hash ON deployment_receipt_readbacks(receipt_id, readback_hash);`),
+    statement("019_self_host_sandbox_calibrations", ["self_host_sandbox_calibrations"], `
+CREATE TABLE IF NOT EXISTS self_host_sandbox_calibrations (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL,
+  workspace_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  environment_id TEXT NOT NULL,
+  source TEXT NOT NULL,
+  status TEXT NOT NULL,
+  evidence_level TEXT NOT NULL,
+  production_verified BOOLEAN NOT NULL DEFAULT FALSE,
+  deployment_acceptance_mutated BOOLEAN NOT NULL DEFAULT FALSE,
+  a2_decision_recomputed BOOLEAN NOT NULL DEFAULT FALSE,
+  probe_payload_sha256 TEXT NOT NULL,
+  payload ${types.json} NOT NULL,
+  observed_at ${types.timestamp} NOT NULL,
+  created_at ${types.timestamp} NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_self_host_sandbox_scope ON self_host_sandbox_calibrations(organization_id, tenant_id, workspace_id, project_id, environment_id, observed_at);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_self_host_sandbox_digest ON self_host_sandbox_calibrations(project_id, probe_payload_sha256);`),
+    statement("020_self_host_sandbox_scope_hardening", ["self_host_sandbox_calibrations"], selfHostSandboxScopeHardening(dialect)),
+    statement("021_multimodal_review_assignment_events", ["multimodal_review_assignment_events"], `
+CREATE TABLE IF NOT EXISTS multimodal_review_assignment_events (
+  id TEXT PRIMARY KEY,
+  organization_id TEXT NOT NULL,
+  tenant_id TEXT NOT NULL,
+  workspace_id TEXT NOT NULL,
+  project_id TEXT NOT NULL,
+  environment_id TEXT NOT NULL,
+  source TEXT NOT NULL,
+  queue_id TEXT NOT NULL,
+  case_id TEXT NOT NULL,
+  comparison_hash TEXT NOT NULL,
+  event_type TEXT NOT NULL,
+  version INTEGER NOT NULL,
+  actor_hash TEXT NOT NULL,
+  actor_role TEXT NOT NULL,
+  previous_reviewer_hash TEXT,
+  assigned_reviewer_hash TEXT,
+  lease_expires_at ${types.timestamp},
+  reason_code TEXT NOT NULL,
+  event_hash TEXT NOT NULL,
+  payload ${types.json} NOT NULL,
+  created_at ${types.timestamp} NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_multimodal_review_assignment_version ON multimodal_review_assignment_events(organization_id, tenant_id, workspace_id, project_id, environment_id, source, queue_id, version);
+CREATE INDEX IF NOT EXISTS idx_multimodal_review_assignment_active ON multimodal_review_assignment_events(organization_id, tenant_id, workspace_id, project_id, environment_id, source, queue_id, lease_expires_at);`),
+    statement("022_multimodal_review_assignment_scope_hardening", ["multimodal_review_assignment_events"], multimodalReviewAssignmentScopeHardening(dialect))
   ];
+}
+
+function multimodalReviewAssignmentScopeHardening(dialect) {
+  if (dialect === "sqlite") {
+    return `
+CREATE UNIQUE INDEX IF NOT EXISTS idx_multimodal_review_assignment_scope_identity ON multimodal_review_assignment_events(organization_id, tenant_id, workspace_id, project_id, environment_id, id);`;
+  }
+  if (dialect === "mysql") {
+    return `
+CREATE UNIQUE INDEX IF NOT EXISTS idx_multimodal_review_assignment_scope_identity ON multimodal_review_assignment_events(organization_id, tenant_id, workspace_id, project_id, environment_id, id);`;
+  }
+  const scopePredicate = [
+    ["organization_id", "app.a3_organization_id"],
+    ["tenant_id", "app.a3_tenant_id"],
+    ["workspace_id", "app.a3_workspace_id"],
+    ["project_id", "app.a3_project_id"],
+    ["environment_id", "app.a3_environment_id"]
+  ].map(([column, setting]) => `${column} = NULLIF(current_setting('${setting}', TRUE), '')`).join("\n    AND ");
+  return `
+ALTER TABLE multimodal_review_assignment_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE multimodal_review_assignment_events FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS multimodal_review_assignment_scope_isolation ON multimodal_review_assignment_events;
+CREATE POLICY multimodal_review_assignment_scope_isolation ON multimodal_review_assignment_events
+  USING (
+    ${scopePredicate}
+  )
+  WITH CHECK (
+    ${scopePredicate}
+  );`;
+}
+
+function selfHostSandboxScopeHardening(dialect) {
+  if (dialect === "sqlite") {
+    return `
+DROP INDEX IF EXISTS idx_self_host_sandbox_digest;
+CREATE UNIQUE INDEX idx_self_host_sandbox_digest ON self_host_sandbox_calibrations(organization_id, tenant_id, workspace_id, project_id, environment_id, probe_payload_sha256);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_self_host_sandbox_scope_identity ON self_host_sandbox_calibrations(organization_id, tenant_id, workspace_id, project_id, environment_id, id);`;
+  }
+  if (dialect === "mysql") {
+    return `
+CREATE UNIQUE INDEX IF NOT EXISTS idx_self_host_sandbox_scope_identity ON self_host_sandbox_calibrations(organization_id, tenant_id, workspace_id, project_id, environment_id, id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_self_host_sandbox_scope_digest_v2 ON self_host_sandbox_calibrations(organization_id, tenant_id, workspace_id, project_id, environment_id, probe_payload_sha256);`;
+  }
+  const scopePredicate = [
+    ["organization_id", "app.a3_organization_id"],
+    ["tenant_id", "app.a3_tenant_id"],
+    ["workspace_id", "app.a3_workspace_id"],
+    ["project_id", "app.a3_project_id"],
+    ["environment_id", "app.a3_environment_id"]
+  ].map(([column, setting]) => `${column} = NULLIF(current_setting('${setting}', TRUE), '')`).join("\n    AND ");
+  return `
+ALTER TABLE self_host_sandbox_calibrations DROP CONSTRAINT IF EXISTS self_host_sandbox_calibrations_pkey;
+ALTER TABLE self_host_sandbox_calibrations ADD CONSTRAINT self_host_sandbox_calibrations_pkey PRIMARY KEY (organization_id, tenant_id, workspace_id, project_id, environment_id, id);
+DROP INDEX IF EXISTS idx_self_host_sandbox_digest;
+CREATE UNIQUE INDEX idx_self_host_sandbox_digest ON self_host_sandbox_calibrations(organization_id, tenant_id, workspace_id, project_id, environment_id, probe_payload_sha256);
+ALTER TABLE self_host_sandbox_calibrations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE self_host_sandbox_calibrations FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS self_host_sandbox_scope_isolation ON self_host_sandbox_calibrations;
+CREATE POLICY self_host_sandbox_scope_isolation ON self_host_sandbox_calibrations
+  USING (
+    ${scopePredicate}
+  )
+  WITH CHECK (
+    ${scopePredicate}
+  );`;
 }
 
 function dialectTypes(dialect) {

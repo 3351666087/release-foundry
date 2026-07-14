@@ -44,8 +44,8 @@ export function ApiReferencePage() {
         eyebrow="DEVELOPER / API REFERENCE"
         title={zh ? "API 文档与参考" : "API docs and reference"}
         summary={zh
-          ? "以 A1 执行与身份契约、A2 评测契约、A3 产品 API 为准的公开安全参考。"
-          : "A public-safe reference grounded in A1 execution and identity, A2 judging, and A3 product contracts."}
+          ? "以运行与身份契约、评测契约和产品 API 为准的公开安全参考。"
+          : "A public-safe reference grounded in runtime, identity, evaluation, and product contracts."}
         meta={<><span>{zh ? "校准版本" : "Calibrated"}</span><StatusBadge value={apiReferenceMeta.calibratedAt} tone="info" /></>}
       />
 
@@ -57,26 +57,26 @@ export function ApiReferencePage() {
         <div className={styles.authority}>
           <ShieldCheck size={18} />
           <span>{zh ? "权威边界" : "Authority"}</span>
-          <strong>A1 Capture · A2 Judge · A3 Operate</strong>
+          <strong>{zh ? "运行平台 · 评测策略 · 产品工作流" : "Runtime · Evaluation · Product workflow"}</strong>
         </div>
       </section>
 
       <section className={styles.upstreamDelta} aria-label={zh ? "上游契约更新" : "Upstream contract delta"}>
         <header>
           <span>UPSTREAM MAIN INTEGRATION / 2026-07-12</span>
-          <strong>{zh ? "A1 身份会话与 A2 可信判定链已进入 main，首次 OAuth 登录仍未完成" : "A1 identity sessions and the A2 trusted decision spine are in main; initial OAuth sign-in remains incomplete"}</strong>
+          <strong>{zh ? "身份会话与可信判定链已进入 main，首次 OAuth 登录仍未完成" : "Identity sessions and the trusted decision spine are in main; initial OAuth sign-in remains incomplete"}</strong>
         </header>
         <div>
           <article>
-            <span>A1 · {apiReferenceMeta.a1Sha}</span>
+            <span>{zh ? "运行与身份平台" : "Runtime and identity"} · {apiReferenceMeta.a1Sha}</span>
             <strong>{zh ? "安全浏览器会话" : "Secure browser session"}</strong>
             <p>{zh ? "邮箱 login/recovery 可签发双 HttpOnly Cookie，并支持同源轮换、幂等重放和复用检测。Google/GitHub 仍只有账号绑定。" : "Email login/recovery can issue paired HttpOnly cookies with same-origin rotation, idempotent replay, and reuse detection. Google/GitHub remain account-linking only."}</p>
             <StatusBadge value={zh ? "main 已集成" : "Integrated in main"} tone="pass" />
           </article>
           <article>
-            <span>A2 · {apiReferenceMeta.a2Sha}</span>
+            <span>{zh ? "评测与决策服务" : "Evaluation and decision"} · {apiReferenceMeta.a2Sha}</span>
             <strong>{zh ? "可信证据与决策账本" : "Trusted evidence and decision ledger"}</strong>
-            <p>{zh ? "可信链会直接校验 A1 RunResult、五层作用域与 validation_errors；A3 只读取 decision、provenance hash 和 chain 状态。" : "The trusted spine directly validates A1 RunResult, five-level scope, and validation_errors; A3 only reads the decision, provenance hash, and chain state."}</p>
+            <p>{zh ? "可信链会直接校验运行结果、五层作用域与 validation_errors；产品控制台只读取 decision、provenance hash 和 chain 状态。" : "The trusted spine directly validates run results, five-level scope, and validation_errors; the product console only reads decision, provenance hash, and chain state."}</p>
             <div className={styles.schemaTags}>
               <code>{apiReferenceMeta.a2EvidenceSnapshotSchema}</code>
               <code>{apiReferenceMeta.a2DecisionLedgerSchema}</code>
@@ -142,11 +142,11 @@ export function ApiReferencePage() {
                 <div>
                   <div className={styles.detailMeta}>
                     <span className={`${styles.method} ${styles[`method${endpoint.method}`]}`}>{endpoint.method}</span>
-                    <span className={styles.owner}>{endpoint.owner}</span>
+                    <span className={styles.owner}>{ownerDisplay(endpoint.owner, zh)}</span>
                     <StatusBadge value={statusLabel(endpoint.status, zh)} tone={statusTone(endpoint.status)} />
                   </div>
                   <h2>{zh ? endpoint.title.zh : endpoint.title.en}</h2>
-                  <p>{zh ? endpoint.description.zh : endpoint.description.en}</p>
+                  <p>{productCopy(zh ? endpoint.description.zh : endpoint.description.en, zh)}</p>
                 </div>
                 <button
                   type="button"
@@ -165,9 +165,9 @@ export function ApiReferencePage() {
               </div>
 
               <dl className={styles.contractFacts}>
-                <div><dt>{zh ? "负责人" : "Owner"}</dt><dd>{endpoint.owner}</dd></div>
-                <div><dt>{zh ? "认证" : "Authentication"}</dt><dd>{zh ? endpoint.auth.zh : endpoint.auth.en}</dd></div>
-                <div><dt>{zh ? "契约来源" : "Contract source"}</dt><dd>{endpoint.source}</dd></div>
+                <div><dt>{zh ? "负责人" : "Owner"}</dt><dd>{ownerDisplay(endpoint.owner, zh)}</dd></div>
+                <div><dt>{zh ? "认证" : "Authentication"}</dt><dd>{productCopy(zh ? endpoint.auth.zh : endpoint.auth.en, zh)}</dd></div>
+                <div><dt>{zh ? "契约来源" : "Contract source"}</dt><dd>{productCopy(endpoint.source, zh)}</dd></div>
               </dl>
 
               <div className={styles.payloadGrid}>
@@ -179,7 +179,7 @@ export function ApiReferencePage() {
 
               <section className={styles.notes}>
                 <span>{zh ? "边界与注意事项" : "Boundaries and notes"}</span>
-                <ul>{endpoint.notes.map((note) => <li key={note.en}>{zh ? note.zh : note.en}</li>)}</ul>
+                <ul>{endpoint.notes.map((note) => <li key={note.en}>{productCopy(zh ? note.zh : note.en, zh)}</li>)}</ul>
               </section>
             </article>
           )}
@@ -188,12 +188,35 @@ export function ApiReferencePage() {
 
       <footer className={styles.sourceFooter}>
         <span>main {apiReferenceMeta.mainSha}</span>
-        <span>A1 {apiReferenceMeta.a1Sha} · merged to main</span>
-        <span>A2 {apiReferenceMeta.a2Sha} · merged to main</span>
+        <span>{zh ? "运行平台" : "Runtime"} {apiReferenceMeta.a1Sha} · merged to main</span>
+        <span>{zh ? "评测服务" : "Evaluation"} {apiReferenceMeta.a2Sha} · merged to main</span>
         <span>{zh ? "不包含 key、token、cookie 或真实账号数据" : "No keys, tokens, cookies, or real account data"}</span>
       </footer>
     </>
   );
+}
+
+function ownerDisplay(owner: string, zh: boolean): string {
+  const labels: Record<string, [string, string]> = {
+    A1: ["运行与身份平台", "Runtime and identity"],
+    A2: ["评测与决策服务", "Evaluation and decision"],
+    A3: ["产品工作流", "Product workflow"],
+    "A1/A2/A3": ["跨服务契约", "Cross-service contract"]
+  };
+  const value = labels[owner];
+  return value ? value[zh ? 0 : 1] : owner;
+}
+
+function productCopy(value: string, zh: boolean): string {
+  const labels: Array<[RegExp, string, string]> = [
+    [/A1\/A2\/A3/g, "跨服务契约", "cross-service contract"],
+    [/A1\/A3/g, "平台与产品", "platform and product"],
+    [/A1\/A2/g, "执行与评测", "execution and evaluation"],
+    [/\bA1\b/g, "运行与身份平台", "runtime and identity platform"],
+    [/\bA2\b/g, "评测与决策服务", "evaluation and decision service"],
+    [/\bA3\b/g, "产品工作流", "product workflow"]
+  ];
+  return labels.reduce((copy, [pattern, chinese, english]) => copy.replace(pattern, zh ? chinese : english), value);
 }
 
 function PayloadBlock({ title, value }: { title: string; value: unknown }) {

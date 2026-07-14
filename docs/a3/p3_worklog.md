@@ -3952,3 +3952,39 @@ Safety boundary:
 - CI now verifies and uploads the immutable `ad6113e` candidate packet instead of regenerating it from a later evidence commit; standalone Release Artifact verification is available through `--verify-manifest`.
 - The first Linux sealed-packet verification correctly caught a Windows CRLF versus Git LF byte mismatch in the generated A2 grade fixture. The fixture was normalized to the existing repository LF policy and the full hash/signature chain was resealed; no verifier rule was weakened.
 - No key, token, cookie, email, installation token, private signing key, or raw GitHub response was persisted.
+
+## 2026-07-13 - Live GitHub Deployment Resolver Calibration
+
+- Extended the read-only GitHub observer with repository installation identity readback.
+- Added server-fixed GitHub resolver implementations for `github_app_installation` and `required_check_enforcement`.
+- Required A1 tenant-installation binding for GitHub App proof and separate hash-valid failing-merge plus maintainer receipts for required-check proof.
+- Read PR #35 head Check `86746616300`: HTTP 200, exact head/name/conclusion, App slug `github-actions`.
+- Read repository installation: HTTP 401 permission denied. This does not prove absence; it proves the current OAuth identity cannot establish repository binding.
+- Read main required status checks: HTTP 404 and `enforced=false`.
+- Saved three sanitized provider fixtures and one post-seal calibration summary under `fixtures/a3/p3`.
+- Proved through the internal HTTP verify route that provider mismatch becomes a persisted trusted rejection while Deployment Acceptance remains `8/17` and production verified receipts remain `0`.
+- No GitHub mutation, merge attempt, branch-protection update, token output, A2 recomputation, or sealed rc.2 rewrite occurred.
+- Final verification passed A3 Node `449/449`, merged-main A2 `186/186` plus `1050` subtests, Next.js typecheck/build with 15 static pages, the full Playwright command plus an isolated `1/1` visual retry, both CL guards, both production npm audits, pinned evidence, and all sealed rc.2 verifiers.
+- Post-verification fetch kept main at `ccf6ce5` and A1 Draft at `2307231`; A2 development moved to `d31aaab`. Its new multimodal/provider/persistence schemas remain non-authoritative calibration and explicitly do not supply the same-candidate Trusted Spine A3 needs.
+
+## 2026-07-13 - A1 Self-host Sandbox Calibration
+
+- Executed four real local A1 behaviors and generated a sanitized `sandbox_verified` fixture.
+- Added Store/SQLite/API/RBAC/OpenAPI/API Reference and Delivery UI integration.
+- Kept production proof, Deployment Acceptance mutation, and A2 recomputation false.
+- Focused Python, Node, TypeScript, production build, and Playwright checks passed.
+- Final local regression passed A3 Node `458/458`, current-main A2 `186/186` plus `1050` subtests, Next.js typecheck/build with 15 static pages, and Playwright `40/40`.
+- Both CL guards passed, both production npm audits found 0 vulnerabilities, and the sealed rc.2 bundle/archive/Release Artifact reverified without mutation.
+- Remote CI status is tracked in `docs/a3/worklog.md` after publish.
+
+## 2026-07-13 - Live Local PostgreSQL RLS Qualification
+
+- Kept published migration 019 stable, added migration 020, and ran the 019-to-020 chain twice on an isolated PostgreSQL 17.9 instance.
+- Added five-level `ENABLE + FORCE RLS` with same-scope allow, cross-scope read zero, cross-scope write denial, and missing-scope zero-row checks.
+- Used and removed a temporary `NOSUPERUSER NOBYPASSRLS` role; an independent readback confirmed zero probe rows and no remaining role.
+- Added a sanitized qualification fixture, Store/API/OpenAPI/API Reference integration, and a Chinese-first Delivery UI module.
+- Kept target-customer verification, production verification, Deployment Acceptance mutation, Release Ready, and A2 recomputation false.
+- Detailed evidence: `docs/a3/a3_postgres_rls_qualification_2026_07_13.md` and Growth Auditor Round 19.
+- Final local regression passed A3 Node `463` runnable tests plus one explicit live opt-in skip, A2 `186/186` plus `1050` subtests, A3 Python `2/2`, Next.js 15-page build, and Playwright `40/40`.
+- OpenAPI parity remained `58/58`; both CL guards, both production npm audits, export safety, and all sealed rc.2 verifiers passed.
+- Final synchronization kept authoritative `main=ccf6ce5`, A1 development at `2307231`, and A2 development at `b778e11`. A2 added multimodal and composite-agent receipts without changing GradeResult, Decision Ledger, or Trusted Spine; non-main `qualified_for_review` was not mapped to PASS or release authority.

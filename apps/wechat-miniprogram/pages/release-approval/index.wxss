@@ -1,3 +1,152 @@
-.value {
-  letter-spacing: 0;
+.decision-panel {
+  padding: 30rpx;
+  border: 1rpx solid #d4d4d8;
+  border-left: 7rpx solid #71717a;
+  border-radius: 8rpx;
+  background: #ffffff;
+}
+
+.decision-panel.is-danger { border-left-color: #d9483b; }
+.decision-panel.is-warning { border-left-color: #b77900; }
+.decision-panel.is-success { border-left-color: #20845d; }
+
+.decision-panel-top,
+.decision-meta,
+.approval-stage-head,
+.blocker-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18rpx;
+}
+
+.decision-eyebrow {
+  color: #71717a;
+  font-size: 21rpx;
+  font-weight: 700;
+}
+
+.decision-panel-title {
+  display: block;
+  margin-top: 24rpx;
+  font-size: 42rpx;
+  font-weight: 790;
+  line-height: 1.2;
+}
+
+.decision-panel-copy {
+  display: block;
+  margin-top: 16rpx;
+  color: #52525b;
+  font-size: 24rpx;
+  line-height: 1.65;
+}
+
+.decision-meta {
+  margin-top: 25rpx;
+  padding-top: 20rpx;
+  border-top: 1rpx solid #e4e4e7;
+  color: #71717a;
+  font-size: 21rpx;
+}
+
+.approval-stage {
+  padding: 24rpx;
+  border-top: 1rpx solid #e4e4e7;
+}
+
+.approval-stage:first-child { border-top: 0; }
+
+.approval-stage-head { align-items: flex-start; }
+
+.stage-number {
+  display: flex;
+  width: 48rpx;
+  height: 48rpx;
+  flex: 0 0 48rpx;
+  align-items: center;
+  justify-content: center;
+  background: #f4f4f5;
+  color: #52525b;
+  font-size: 19rpx;
+  font-weight: 750;
+}
+
+.approval-stage-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.approval-stage-title,
+.approval-stage-detail {
+  display: block;
+}
+
+.approval-stage-title {
+  font-size: 25rpx;
+  font-weight: 720;
+}
+
+.approval-stage-detail {
+  margin-top: 9rpx;
+  color: #71717a;
+  font-size: 22rpx;
+  line-height: 1.55;
+}
+
+.blocker-card {
+  padding: 24rpx;
+  border: 1rpx solid #f0b3aa;
+  border-radius: 8rpx;
+  background: #fffafa;
+}
+
+.blocker-card + .blocker-card { margin-top: 14rpx; }
+
+.blocker-title {
+  flex: 1;
+  font-size: 25rpx;
+  font-weight: 730;
+}
+
+.blocker-owner {
+  color: #8a3a31;
+  font-size: 20rpx;
+}
+
+.blocker-detail {
+  display: block;
+  margin-top: 13rpx;
+  color: #6b4d49;
+  font-size: 22rpx;
+  line-height: 1.55;
+}
+
+.action-boundary {
+  margin-top: 30rpx;
+  padding: 24rpx;
+  border: 1rpx solid #d4d4d8;
+  border-radius: 8rpx;
+  background: #ffffff;
+}
+
+.action-boundary-title,
+.action-boundary-detail {
+  display: block;
+}
+
+.action-boundary-title { font-size: 24rpx; font-weight: 720; }
+.action-boundary-detail { margin-top: 6rpx; color: #71717a; font-size: 21rpx; }
+
+.approval-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14rpx;
+  margin-top: 22rpx;
+}
+
+.approval-actions button {
+  width: 100%;
+  margin: 0;
+  font-size: 23rpx;
 }

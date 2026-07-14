@@ -24,7 +24,7 @@ until A1 hosted auth/RBAC/payment backends exist.
 
 ANCHOR: ENDPOINT_COVERAGE
 
-The contract currently maps 30 commercial endpoints, including:
+The contract currently maps 40 commercial endpoints, including:
 
 - `GET /v1/me`
 - `GET /v1/organizations`
@@ -38,6 +38,11 @@ The contract currently maps 30 commercial endpoints, including:
 - `POST /v1/release-gates/{release_gate_id}/waivers`
 - `POST /v1/release-gates/{release_gate_id}/approvals`
 - `POST /v1/release-gates/{release_gate_id}/denials`
+- `POST /v1/review-queues/multimodal/{queue_id}/assignment`
+- `GET /v1/deployments/sandbox-calibration`
+- `POST /v1/releases/{release_id}/deployment-receipts`
+- `POST /v1/releases/{release_id}/deployment-receipts/{receipt_id}/reviews`
+- `POST /internal/v1/releases/{release_id}/deployment-receipts/{receipt_id}/verify`
 - `GET /v1/evidence-bundles/{bundle_id}`
 - `GET /v1/reports`
 - `POST /v1/reports/{report_id}/share`
@@ -59,6 +64,36 @@ Each endpoint records:
 - A1/A2 dependencies
 - implementation status
 
+The internal deployment-receipt verifier is service-account-only. Client payloads cannot
+supply verification status, claims, evidence, authority, or attestation; those values come
+from the configured server resolver and are stored as immutable hash-chained readbacks.
+
+Multimodal review assignments are append-only lease events. A reviewer can claim, renew,
+release, or transfer an item with `expected_version` concurrency protection. These events
+coordinate people only; they do not create an A2 human-review disposition and cannot alter
+risk, score, pass/fail, the Decision Ledger, or release authority.
+
+The review queue adapter now accepts A2 two-way v1, repeated/aggregate two-way v3, and
+three-way v2. Three-way v2 support is calibrated against A2 Round 50 commit `bb3bcfe`:
+the public-safe source contains three provider observations, one semantic disagreement,
+one queue receipt, and no real human disposition. Provider keys and evidence hashes may be
+displayed, but absent provider/model identity is not inferred and the queue remains blocked.
+
+The same route now feeds a metadata-only `a3.multimodal_review_assignment_packet.v1`.
+Its event hashes, contiguous versions, tenant scope, queue/case/comparison binding, and
+packet root hash must verify before Gate CLI accepts it as a `review_record`. The packet is
+not self-authorizing: only a separate Ed25519 Audit Archive verification can prove that the
+exact file entered a signed archive, and the committed sample signer remains explicitly
+`self_signed_local_key_not_sso_bound` rather than production KMS/SSO identity.
+
+The self-host sandbox calibration route is different from a deployment receipt. It executes
+real local A1 behavior and stores a validated calibration in
+`self_host_sandbox_calibrations`, but its authority fields remain fixed to false for
+production verification, Deployment Acceptance mutation, and A2 decision recomputation.
+The immutable migration 019 plus new migration 020 now execute on PostgreSQL 17.9 with five-level forced RLS. The protected
+sandbox-calibration response includes a sanitized `a3.postgres_rls_qualification.v1`
+receipt, while target-customer-environment verification remains false.
+
 ## API Contract
 
 ANCHOR: API_CONTRACT
@@ -67,6 +102,7 @@ New local A3 API route:
 
 ```text
 GET /api/a3/commercial-api/contract
+GET /api/a3/deployment/sandbox-calibration
 ```
 
 Response schema:
@@ -87,6 +123,7 @@ The A3 DB contract now includes:
 
 ```text
 commercial_api_contracts
+self_host_sandbox_calibrations
 source_artifacts
 event_outbox
 ```
@@ -160,6 +197,9 @@ Commercial artifact types referenced by the endpoint map include:
 - `usage_ledger`
 - `billing_readiness_snapshot`
 - `audit_bundle_index`
+- `multimodal_review_assignment_packet`
+- `audit_archive_manifest`
+- `a1_self_host_sandbox_calibration`
 
 This round also introduces source-artifact hash summaries for A1/A2 inputs:
 

@@ -26,6 +26,7 @@ export function buildShareableReportPayload(inputs = {}, options = {}) {
   const a2ReadinessBundle = inputs.a2ReadinessBundle || inputs.a2_readiness_bundle || {};
   const artifactRegistryFixture = inputs.artifactRegistry || inputs.artifact_registry || {};
   const reviewWorkflowFixture = inputs.reviewWorkflow || inputs.review_workflow || {};
+  const multimodalReviewQueueFixture = inputs.multimodalReviewQueue || inputs.multimodal_review_queue || {};
   const releaseEvidenceFixture = inputs.releaseEvidence
     || inputs.release_evidence
     || inputs.releaseEvidenceSummary
@@ -50,7 +51,12 @@ export function buildShareableReportPayload(inputs = {}, options = {}) {
     a2ReadinessBundle,
     artifactRegistryFixture,
     reviewWorkflowFixture,
-    releaseEvidenceFixture
+    releaseEvidenceFixture,
+    {},
+    {},
+    {},
+    {},
+    multimodalReviewQueueFixture
   );
   const markdownReport = buildMarkdownReport(
     runFixture,
@@ -69,7 +75,12 @@ export function buildShareableReportPayload(inputs = {}, options = {}) {
     saasAdminFixture,
     a2ReadinessBundle,
     artifactRegistryFixture,
-    releaseEvidenceFixture
+    releaseEvidenceFixture,
+    {},
+    {},
+    {},
+    {},
+    multimodalReviewQueueFixture
   );
 
   const safeEnvelope = redactExport({
@@ -85,6 +96,7 @@ export function buildShareableReportPayload(inputs = {}, options = {}) {
     regression_factory: jsonReport.regression_factory,
     export_redaction_firewall: jsonReport.export_redaction_firewall,
     release_evidence_summary: jsonReport.release_evidence_summary,
+    multimodal_review_queue: jsonReport.multimodal_review_queue,
     cases: jsonReport.cases,
     markdown_report: markdownReport
   }, { surface: "shareable_report" });
@@ -142,6 +154,8 @@ export function buildShareableReportPayload(inputs = {}, options = {}) {
     },
     summary: safeEnvelope.value.summary,
     release_gate: safeEnvelope.value.release_gate,
+    multimodal_review_queue: safeEnvelope.value.multimodal_review_queue,
+    markdown_report: safeEnvelope.value.markdown_report,
     report_center: {
       json_available: true,
       markdown_available: true,

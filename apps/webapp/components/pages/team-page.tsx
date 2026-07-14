@@ -48,7 +48,7 @@ export function TeamPage() {
           <DataTable headers={[zh ? "成员" : "Member", zh ? "角色" : "Role", zh ? "状态" : "Status", zh ? "席位" : "Seat"]} label="Team members">{members.map((member, index) => <tr key={`${string(member.member_id)}-${index}`}><td><strong>{string(member.display_name)}</strong><small>{string(member.member_id)}</small></td><td>{string(member.role)}</td><td><StatusBadge value={string(member.status)} /></td><td>{string(member.seat_state)}</td></tr>)}</DataTable>
         </Section>}
 
-        {tab === "rbac" && <Section title={zh ? "权限矩阵" : "Permission matrix"} description={zh ? "真实执行仍需 A1 hosted auth middleware" : "Live enforcement still requires A1 hosted auth middleware"}>
+        {tab === "rbac" && <Section title={zh ? "权限矩阵" : "Permission matrix"} description={zh ? "真实执行仍需托管身份中间件" : "Live enforcement still requires hosted identity middleware"}>
           <div className="role-grid">{roles.map((role, index) => <article key={`${string(role.role)}-${index}`}><header><LockKeyhole size={17} /><h3>{string(role.role)}</h3><b>{number(role.permission_count)}</b></header><div>{array(role.permissions).map((permission) => <span key={string(permission)}>{string(permission)}</span>)}</div></article>)}</div>
         </Section>}
 

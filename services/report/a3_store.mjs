@@ -62,6 +62,33 @@ import {
   buildDeploymentAcceptance,
   normalizeA2GradeReport
 } from "./a3_release_delivery.mjs";
+import {
+  bindA3ReleaseComparisonRuntimeAuthority,
+  buildA3ReleaseComparison
+} from "./a3_release_comparison.mjs";
+import { buildA3DeploymentHandoff } from "./a3_deployment_handoff.mjs";
+import {
+  buildA3DeploymentAcceptanceProjection,
+  buildA3DeploymentReceiptAuthoritativeReadback,
+  buildA3DeploymentReceiptInbox,
+  buildA3DeploymentReceiptSubmission,
+  isTrustedA3DeploymentReceiptAuthoritativeReadback,
+  reviewA3DeploymentReceipt
+} from "./a3_deployment_receipt_workflow.mjs";
+import {
+  loadSelfHostSandboxCalibration,
+  validateSelfHostSandboxCalibration
+} from "./a3_self_host_sandbox.mjs";
+import {
+  buildA3MultimodalReviewQueue,
+  validateA2MultimodalComparison
+} from "./a3_multimodal_review_queue.mjs";
+import {
+  A3_MULTIMODAL_REVIEW_ASSIGNMENT_RECEIPT_SCHEMA_VERSION,
+  buildA3MultimodalReviewAssignmentPacket,
+  buildA3MultimodalReviewAssignmentProjection,
+  planA3MultimodalReviewAssignmentTransition
+} from "./a3_multimodal_review_assignment.mjs";
 
 export const A3_STORE_SCHEMA_VERSION = "a3.store.v1";
 
@@ -113,7 +140,26 @@ export const A3_SOURCE_FIXTURES = {
     usageQuotaApiProbe: "fixtures/a3/p3/ashr_usage_quota_api_probe.redacted.json",
     mediaSignedUrlCoverage: "fixtures/a3/p3/ashr_signed_media_url_coverage.redacted.json",
     authCheck: "fixtures/a3/p3/ashr_auth_check.redacted.json",
-    frontendSummary: "fixtures/a3/p3/ashr_frontend_relogin_top_level_summary.redacted.json"
+    frontendSummary: "fixtures/a3/p3/ashr_frontend_relogin_top_level_summary.redacted.json",
+    a2MultimodalComparison: "fixtures/a3/p3/a2_multimodal_comparison_v3_564d4b0_sample.redacted.json",
+    a2MultimodalComparisonSourceCommit: "564d4b0",
+    a2MultimodalComparisonCapability: "peer_branch_contract_not_merged"
+  },
+  "p3-a2-round50": {
+    label: "Three-provider Review - Round 50",
+    ashrRunSample: "fixtures/a3/p3/ashr_run_detail_sample.redacted.json",
+    datasetSample: "fixtures/a3/p3/ashr_dataset_detail_sample.redacted.json",
+    fixtureId: "p3_a2_round50_three_way_dashboard_sample",
+    gradeFixtureId: "p3_a2_round50_three_way_dashboard_grades",
+    requestProvenance: "fixtures/a3/p3/ashr_request_detail_sample.redacted.json",
+    usageQuota: "fixtures/a3/p3/ashr_usage_quota_sample.redacted.json",
+    usageQuotaApiProbe: "fixtures/a3/p3/ashr_usage_quota_api_probe.redacted.json",
+    mediaSignedUrlCoverage: "fixtures/a3/p3/ashr_signed_media_url_coverage.redacted.json",
+    authCheck: "fixtures/a3/p3/ashr_auth_check.redacted.json",
+    frontendSummary: "fixtures/a3/p3/ashr_frontend_relogin_top_level_summary.redacted.json",
+    a2MultimodalComparison: "fixtures/a3/p3/a2_multimodal_three_way_v2_bb3bcfe_sample.redacted.json",
+    a2MultimodalComparisonSourceCommit: "bb3bcfe",
+    a2MultimodalComparisonCapability: "peer_branch_contract_not_merged"
   },
   "p3-official-demo": {
     label: "P3 Official Demo 884/11926",
@@ -145,6 +191,7 @@ export const A3_SOURCE_FIXTURES = {
   },
   "a3-golden-path-rc2": {
     label: "A3 Golden Path rc.2 - A1/A2 3 of 3",
+    comparisonBaselineSource: "a3-golden-path",
     runFixture: "fixtures/a3/golden-path/rc2/a3_new_run_result.redacted.json",
     gradeFixture: "fixtures/a3/golden-path/rc2/a2_new_run_judge_response.redacted.json",
     a2TrustedSpine: "fixtures/a2/results/a2_trusted_spine_handoff.json",
@@ -192,11 +239,16 @@ export const A3_DB_CONTRACT = {
     "artifact_lifecycle_events",
     "saas_admin_action_requests",
     "review_workflow_records",
+    "multimodal_review_snapshots",
+    "multimodal_review_assignment_events",
     "release_evidence_summaries",
     "release_evidence_snapshots",
     "release_evidence_diffs",
     "release_evidence_readbacks",
     "github_publish_receipts",
+    "deployment_receipts",
+    "deployment_receipt_readbacks",
+    "self_host_sandbox_calibrations",
     "notification_channels",
     "notification_subscriptions",
     "notification_templates",
@@ -220,6 +272,11 @@ export const A3_DB_CONTRACT = {
     "GET /api/a3/auth/rbac-policy",
     "POST /api/a3/auth/authorize",
     "GET /api/a3/dashboard",
+    "GET /api/a3/deployment/sandbox-calibration",
+    "GET /api/a3/deployment/receipts",
+    "POST /api/a3/deployment/receipts",
+    "POST /api/a3/deployment/receipts/:receiptId/review",
+    "POST /internal/a3/deployment/receipts/:receiptId/verify",
     "GET /api/a3/release-decision/provenance",
     "POST /api/a3/ui-actions/preflight",
     "GET /api/a3/runs",
@@ -227,6 +284,7 @@ export const A3_DB_CONTRACT = {
     "GET /api/a3/cases/:caseId",
     "POST /api/a3/import/a1-run-result",
     "POST /api/a3/import/a2-grade-result",
+    "POST /api/a3/import/a2-multimodal-comparison",
     "POST /api/a3/reports/share",
     "GET /api/a3/reports/:reportId",
     "GET /reports/:reportId",
@@ -241,6 +299,8 @@ export const A3_DB_CONTRACT = {
     "POST /api/a3/review/approvals",
     "POST /api/a3/review/denials",
     "GET /api/a3/review/workflow",
+    "GET /api/a3/review/multimodal-queue",
+    "POST /api/a3/review/multimodal-queue/:queueId/assignment",
     "GET /api/a3/product/console",
     "GET /api/a3/enterprise/readiness",
     "GET /api/a3/db-migrations",
@@ -267,6 +327,7 @@ export const A3_DB_CONTRACT = {
   guardrails: [
     "Hosted reads require exact source plus organization, tenant, workspace, project, and environment scope equality.",
     "Memory, file, and SQLite stores are local reference implementations and are not production RLS evidence.",
+    "Self-host sandbox calibrations are local A1 behavior evidence and never mutate production deployment acceptance.",
     "Auth context, RBAC policy, and authorization decisions are metadata-only until A1 hosted auth middleware is available.",
     "Shareable reports must pass the export redaction firewall.",
     "Secrets, cookies, tokens, emails, raw signed URLs, and local paths are never persisted in public report payloads.",
@@ -315,7 +376,7 @@ export async function loadA3SourceSnapshot(source = "mock", options = {}) {
       : {};
   }
 
-  return normalizeSnapshot({
+  let snapshot = normalizeSnapshot({
     source: sourceKey,
     source_label: config.label,
     runFixture,
@@ -330,6 +391,14 @@ export async function loadA3SourceSnapshot(source = "mock", options = {}) {
     frontendMirror: await readOptionalJson(root, "fixtures/a3/p3/ashr_frontend_mirror_summary.redacted.json"),
     frontendCodeCrawl: await readOptionalJson(root, "fixtures/a3/p3/ashr_frontend_code_crawl_summary.redacted.json"),
     peerBranchCalibration: await readOptionalJson(root, "fixtures/a3/p3/a3_peer_branch_calibration.redacted.json"),
+    a2MultimodalComparison: await readOptionalJson(root, config.a2MultimodalComparison),
+    a2MultimodalComparisonMeta: config.a2MultimodalComparison
+      ? {
+          ingest_mode: "peer_branch_redacted_sample",
+          source_commit_alias: config.a2MultimodalComparisonSourceCommit || null,
+          capability_state: config.a2MultimodalComparisonCapability || "contract_supported_not_production_verified"
+        }
+      : {},
     a2GradeResults: await readOptionalJson(root, config.a2GradeResults),
     a2ReleaseGate: await readOptionalJson(root, config.a2ReleaseGate),
     a2TrustedSpine: await readOptionalJson(
@@ -354,6 +423,19 @@ export async function loadA3SourceSnapshot(source = "mock", options = {}) {
       )
     }
   });
+
+  if (config.comparisonBaselineSource && options.includeReleaseComparison !== false) {
+    const baseline = await loadA3SourceSnapshot(config.comparisonBaselineSource, {
+      ...options,
+      includeReleaseComparison: false
+    });
+    snapshot = normalizeSnapshot({
+      ...snapshot,
+      releaseComparison: buildA3ReleaseComparison(baseline, snapshot)
+    });
+  }
+
+  return snapshot;
 }
 
 export function createMemoryA3Store(seed = {}) {
@@ -365,8 +447,12 @@ export function createMemoryA3Store(seed = {}) {
   const eventOutbox = [];
   const adminActionRequests = [];
   const reviewWorkflowRecords = [];
+  const multimodalReviewAssignmentEvents = [];
   const releaseEvidenceReadbacks = [];
   const githubPublishReceipts = [];
+  const deploymentReceipts = [];
+  const deploymentReceiptReadbacks = [];
+  const selfHostSandboxCalibrations = [];
 
   for (const [source, snapshot] of Object.entries(seed.sources || {})) {
     snapshots.set(source, normalizeSnapshot({ source, ...snapshot }));
@@ -400,11 +486,25 @@ export function createMemoryA3Store(seed = {}) {
   for (const record of seed.reviewWorkflowRecords || []) {
     reviewWorkflowRecords.push(record);
   }
+  for (const event of seed.multimodalReviewAssignmentEvents || []) {
+    multimodalReviewAssignmentEvents.push(event);
+  }
   for (const readback of seed.releaseEvidenceReadbacks || []) {
     releaseEvidenceReadbacks.push(sanitizeReleaseEvidenceReadback(readback));
   }
   for (const receipt of seed.githubPublishReceipts || []) {
     githubPublishReceipts.push(sanitizeGitHubPublishReceipt(receipt));
+  }
+  for (const receipt of seed.deploymentReceipts || []) {
+    deploymentReceipts.push(sanitizeDeploymentReceiptRecord(receipt));
+  }
+  for (const readback of seed.deploymentReceiptReadbacks || []) {
+    if (isTrustedA3DeploymentReceiptAuthoritativeReadback(readback)) {
+      deploymentReceiptReadbacks.push(structuredClone(readback));
+    }
+  }
+  for (const calibration of seed.selfHostSandboxCalibrations || []) {
+    selfHostSandboxCalibrations.push(validateSelfHostSandboxCalibration(calibration));
   }
 
   return {
@@ -425,8 +525,15 @@ export function createMemoryA3Store(seed = {}) {
       const scopedAuditEvents = filterTenantScopedRecords(auditEvents, snapshot, requestOptions);
       const scopedAdminActionRequests = filterTenantScopedRecords(adminActionRequests, snapshot, requestOptions);
       const scopedReviewWorkflowRecords = filterTenantScopedRecords(reviewWorkflowRecords, snapshot, requestOptions);
+      const scopedMultimodalReviewAssignmentEvents = filterTenantScopedRecords(
+        multimodalReviewAssignmentEvents,
+        snapshot,
+        requestOptions
+      );
       const scopedReleaseEvidenceReadbacks = filterTenantScopedRecords(releaseEvidenceReadbacks, snapshot, requestOptions);
       const scopedGitHubPublishReceipts = filterTenantScopedRecords(githubPublishReceipts, snapshot, requestOptions);
+      const scopedDeploymentReceipts = filterTenantScopedRecords(deploymentReceipts, snapshot, requestOptions);
+      const scopedDeploymentReceiptReadbacks = filterTenantScopedRecords(deploymentReceiptReadbacks, snapshot, requestOptions);
       const importReceipts = apiImportReceiptsFromLedger(idempotencyReceipts);
       const scopedImportReceipts = filterTenantScopedRecords(importReceipts, snapshot, requestOptions);
       return buildDashboardPayload(snapshot, this.storage_mode, {
@@ -436,8 +543,11 @@ export function createMemoryA3Store(seed = {}) {
         eventOutbox,
         adminActionRequests: scopedAdminActionRequests,
         reviewWorkflowRecords: scopedReviewWorkflowRecords,
+        multimodalReviewAssignmentEvents: scopedMultimodalReviewAssignmentEvents,
         releaseEvidenceReadbacks: scopedReleaseEvidenceReadbacks,
         githubPublishReceipts: scopedGitHubPublishReceipts,
+        deploymentReceipts: scopedDeploymentReceipts,
+        deploymentReceiptReadbacks: scopedDeploymentReceiptReadbacks,
         actor: requestOptions.actor,
         auth: requestOptions.auth,
         importReceipts: scopedImportReceipts,
@@ -446,11 +556,40 @@ export function createMemoryA3Store(seed = {}) {
           auditEvents,
           adminActionRequests,
           reviewWorkflowRecords,
+          multimodalReviewAssignmentEvents,
           releaseEvidenceReadbacks,
           githubPublishReceipts,
+          deploymentReceipts,
+          deploymentReceiptReadbacks,
           importReceipts
         }, snapshot, requestOptions)
       });
+    },
+
+    async getSelfHostSandboxCalibration(options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source, options);
+      const scopedSnapshot = snapshotWithScope(snapshot, options);
+      const tenantScope = {
+        organization_id: scopedSnapshot.organizationId,
+        tenant_id: scopedSnapshot.tenantId,
+        workspace_id: scopedSnapshot.workspaceId,
+        project_id: scopedSnapshot.projectId,
+        environment_id: scopedSnapshot.environmentId
+      };
+      const calibration = selfHostSandboxCalibrations
+        .filter((item) => tenantScopeMatches(item.tenant_scope, tenantScope))
+        .sort((left, right) => String(right.observed_at).localeCompare(String(left.observed_at)))[0];
+      if (!calibration) return null;
+      return {
+        ...structuredClone(calibration),
+        dashboard_source: snapshot.source,
+        access_contract: {
+          required_permission: "deployment:read",
+          tenant_scope_enforced: options.enforceScope === true,
+          hosted_read_audited: options.enforceScope === true,
+          raw_probe_payload_exposed: false
+        }
+      };
     },
 
     async listRuns(options = {}) {
@@ -577,6 +716,207 @@ export function createMemoryA3Store(seed = {}) {
       });
       rememberIdempotentReceipt(idempotencyReceipts, "a2_grade_result_import", idempotencySource, options.idempotencyKey, payloadHash, receipt);
       return receipt;
+    },
+
+    async importA2MultimodalComparison(comparison, options = {}) {
+      const source = normalizeSourceKey(options.source || "api-ingest");
+      requireMutationIdempotencyKey(options, "a2_multimodal_comparison_import", source);
+      const existing = findSnapshotForMutation(snapshots, source, options);
+      const tenantScope = tenantScopeRecordFields(options, existing || {});
+      const validation = validateA2MultimodalComparison(comparison, { tenantScope });
+      if (!validation.valid) {
+        throw new A3StoreValidationError("A2 multimodal comparison import failed validation.", validation.details, {
+          requestType: "a2_multimodal_comparison_import",
+          source
+        });
+      }
+      const payloadHash = sha256(stableJson(comparison));
+      const idempotencySource = scopedIdempotencySource(source, options, existing || tenantScope);
+      const replay = getIdempotentReplay(
+        idempotencyReceipts,
+        "a2_multimodal_comparison_import",
+        idempotencySource,
+        options.idempotencyKey,
+        payloadHash
+      );
+      if (replay) return replay;
+
+      const importedAt = options.importedAt || new Date().toISOString();
+      const normalized = normalizeSnapshot({
+        ...(existing || {}),
+        source,
+        source_label: options.sourceLabel || existing?.source_label || "A2 Multimodal API Ingest",
+        ...tenantScope,
+        runFixture: existing?.runFixture || {},
+        gradeFixture: existing?.gradeFixture || {},
+        a2MultimodalComparison: comparison,
+        a2MultimodalComparisonMeta: {
+          ingest_mode: "tenant_scoped_api",
+          source_commit_alias: null,
+          capability_state: "contract_supported_unverified_candidate_binding",
+          imported_at: importedAt,
+          payload_hash: payloadHash
+        },
+        storage: {
+          mode: this.storage_mode || "memory",
+          db_ready: this.db_ready === true,
+          ingest_source: "a2_multimodal_comparison_api"
+        }
+      });
+      storeSnapshotByScope(snapshots, normalized);
+      const queue = buildMultimodalQueueForSnapshot(normalized);
+      const receipt = {
+        schema_version: "a3.a2_multimodal_comparison_ingest.v1",
+        source,
+        ...tenantScope,
+        storage_mode: normalized.storage.mode,
+        db_ready: normalized.storage.db_ready === true,
+        payload_hash: payloadHash,
+        comparison_count: queue.summary.comparison_count,
+        review_required_count: queue.summary.review_required_count,
+        queue_receipt_count: queue.summary.queue_receipt_count,
+        upstream_release_authority: false,
+        candidate_binding_verified: false,
+        release_decision_changed: false,
+        imported_at: importedAt,
+        idempotency: {
+          key_present: true,
+          duplicate: false,
+          status: "recorded"
+        }
+      };
+      auditEvents.push(multimodalComparisonAuditEvent(receipt, auditEvents.length));
+      const outboxRow = recordEventOutbox(eventOutbox, {
+        source,
+        eventType: "a2.multimodal_comparison_imported",
+        resourceType: "multimodal_review_snapshot",
+        resourceId: payloadHash,
+        tenantScope,
+        actorHash: options.actorHash || options.actor,
+        createdAt: importedAt,
+        payload: receipt,
+        usageMeter: {
+          meter: "a2_multimodal_comparison_imports",
+          quantity: 1
+        }
+      });
+      const receiptWithEvent = attachEventEnvelopeReceipt(receipt, outboxRow);
+      rememberIdempotentReceipt(
+        idempotencyReceipts,
+        "a2_multimodal_comparison_import",
+        idempotencySource,
+        options.idempotencyKey,
+        payloadHash,
+        receiptWithEvent
+      );
+      return receiptWithEvent;
+    },
+
+    async getMultimodalReviewQueue(options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source, options);
+      return buildMultimodalQueueForSnapshot(
+        snapshot,
+        filterTenantScopedRecords(multimodalReviewAssignmentEvents, snapshot, options),
+        { now: options.now }
+      );
+    },
+
+    async mutateMultimodalReviewAssignment(queueId, input = {}, options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source, options);
+      requireMutationIdempotencyKey(options, "multimodal_review_assignment", snapshot.source);
+      const scopedEvents = filterTenantScopedRecords(multimodalReviewAssignmentEvents, snapshot, options);
+      const queue = buildMultimodalQueueForSnapshot(snapshot, scopedEvents, { now: options.now });
+      const tenantScope = eventTenantScopeFromRecord({}, snapshot);
+      const payloadHash = sha256(stableJson({
+        queue_id: queueId,
+        assignment: input,
+        tenant_scope: tenantScope
+      }));
+      const idempotencySource = scopedIdempotencySource(snapshot.source, options, snapshot);
+      const replay = getIdempotentReplay(
+        idempotencyReceipts,
+        "multimodal_review_assignment",
+        idempotencySource,
+        options.idempotencyKey,
+        payloadHash
+      );
+      if (replay) return replay;
+
+      const transition = planA3MultimodalReviewAssignmentTransition(queue, scopedEvents, input, {
+        queueId,
+        source: snapshot.source,
+        tenantScope,
+        actorHash: options.actorHash,
+        actorRole: options.actorRole,
+        now: options.now
+      });
+      if (!transition.valid) {
+        if (transition.statusCode === 404) throw new A3StoreResourceNotFoundError();
+        throw new A3StoreValidationError("Multimodal review assignment action was rejected.", transition.details, {
+          requestType: "multimodal_review_assignment",
+          source: snapshot.source,
+          statusCode: transition.statusCode,
+          error: transition.error
+        });
+      }
+
+      multimodalReviewAssignmentEvents.push(transition.event);
+      auditEvents.push(multimodalReviewAssignmentAuditEvent(
+        transition.event,
+        multimodalReviewAssignmentEvents.length - 1
+      ));
+      const receipt = {
+        schema_version: A3_MULTIMODAL_REVIEW_ASSIGNMENT_RECEIPT_SCHEMA_VERSION,
+        source: snapshot.source,
+        ...tenantScopeRecordFields(snapshot),
+        queue_id: queueId,
+        event_id: transition.event.event_id,
+        event_hash: transition.event.event_hash,
+        action: input.action,
+        status: transition.operational_state.status,
+        version: transition.operational_state.version,
+        assigned_reviewer_hash: transition.operational_state.assigned_reviewer_hash,
+        lease_expires_at: transition.operational_state.lease_expires_at,
+        reason_code: transition.operational_state.reason_code,
+        release_authority: false,
+        a2_decision_recomputed: false,
+        release_decision_changed: false,
+        created_at: transition.event.created_at,
+        safety: {
+          raw_reviewer_identity_included: false,
+          raw_model_payload_included: false,
+          raw_media_included: false,
+          signed_url_included: false,
+          secret_values_included: false
+        }
+      };
+      const outboxRow = recordEventOutbox(eventOutbox, {
+        source: snapshot.source,
+        eventType: `review.multimodal_assignment.${transition.event.event_type}`,
+        resourceType: "multimodal_review_assignment",
+        resourceId: transition.event.event_id,
+        tenantScope,
+        actorHash: options.actorHash,
+        createdAt: transition.event.created_at,
+        payload: receipt,
+        usageMeter: {
+          meter: "multimodal_review_assignment_actions",
+          quantity: 1
+        }
+      });
+      const receiptWithEvent = attachIdempotencyReceipt(
+        attachEventEnvelopeReceipt(receipt, outboxRow),
+        options.idempotencyKey
+      );
+      rememberIdempotentReceipt(
+        idempotencyReceipts,
+        "multimodal_review_assignment",
+        idempotencySource,
+        options.idempotencyKey,
+        payloadHash,
+        receiptWithEvent
+      );
+      return receiptWithEvent;
     },
 
     async getSaasAdminConsole(options = {}) {
@@ -1148,6 +1488,320 @@ export function createMemoryA3Store(seed = {}) {
       });
     },
 
+    async listDeploymentReceipts(options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source, options);
+      const dashboard = await this.getDashboardSnapshot(snapshot.source, options);
+      return dashboard.deployment_receipt_inbox;
+    },
+
+    async submitDeploymentReceipt(input = {}, options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source, options);
+      requireIdempotencyKey(options, "deployment_receipt_submit", snapshot.source);
+      const dashboard = await this.getDashboardSnapshot(snapshot.source, options);
+      const context = deploymentReceiptContext(snapshot, dashboard, options);
+      const openBlockers = new Set((dashboard.deployment_handoff?.blocking_items || []).map((item) => item.id));
+      if (!openBlockers.has(input.blocker_id || input.blockerId)) {
+        throw new A3StoreValidationError("Deployment receipt does not match a current blocker.", [
+          { field: "blocker_id", issue: "blocker_not_currently_open" }
+        ], {
+          requestType: "deployment_receipt_submit",
+          source: snapshot.source
+        });
+      }
+      const built = buildA3DeploymentReceiptSubmission(input, context);
+      if (!built.valid) {
+        throw new A3StoreValidationError("Deployment receipt failed metadata validation.", built.errors, {
+          requestType: "deployment_receipt_submit",
+          source: snapshot.source
+        });
+      }
+      const idempotencySource = scopedIdempotencySource(snapshot.source, options, snapshot);
+      const replay = getIdempotentReplay(
+        idempotencyReceipts,
+        "deployment_receipt_submit",
+        idempotencySource,
+        options.idempotencyKey,
+        built.fingerprint
+      );
+      if (replay) return replay;
+
+      const existing = deploymentReceipts.find((item) => (
+        item.receipt_id === built.record.receipt_id && strictTenantRecordMatches(item, snapshot)
+      ));
+      if (existing) {
+        const duplicate = attachIdempotencyReceipt({
+          ...existing,
+          duplicate_content: true
+        }, options.idempotencyKey);
+        duplicate.idempotency.status = "duplicate_content";
+        duplicate.idempotency.duplicate = true;
+        rememberIdempotentReceipt(
+          idempotencyReceipts,
+          "deployment_receipt_submit",
+          idempotencySource,
+          options.idempotencyKey,
+          built.fingerprint,
+          duplicate
+        );
+        return duplicate;
+      }
+
+      const auditEvent = deploymentReceiptAuditEvent(built.record, "submitted", auditEvents.length);
+      const storedRecord = sanitizeDeploymentReceiptRecord({
+        ...built.record,
+        audit_event_id: auditEvent.event_id
+      });
+      deploymentReceipts.push(storedRecord);
+      auditEvents.push(auditEvent);
+      const outboxRow = recordEventOutbox(eventOutbox, {
+        source: snapshot.source,
+        eventType: "deployment.receipt_submitted",
+        resourceType: "deployment_receipt",
+        resourceId: storedRecord.receipt_id,
+        tenantScope: storedRecord.tenant_scope,
+        actorHash: storedRecord.submitted_by_hash,
+        createdAt: storedRecord.submitted_at,
+        payload: deploymentReceiptEventPayload(storedRecord, "submitted"),
+        usageMeter: { meter: "deployment_receipt_submissions", quantity: 1 }
+      });
+      const receipt = attachIdempotencyReceipt(
+        attachEventEnvelopeReceipt(storedRecord, outboxRow),
+        options.idempotencyKey
+      );
+      rememberIdempotentReceipt(
+        idempotencyReceipts,
+        "deployment_receipt_submit",
+        idempotencySource,
+        options.idempotencyKey,
+        built.fingerprint,
+        receipt
+      );
+      return receipt;
+    },
+
+    async reviewDeploymentReceipt(receiptId, review = {}, options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source, options);
+      requireIdempotencyKey(options, "deployment_receipt_review", snapshot.source);
+      const index = deploymentReceipts.findIndex((item) => (
+        item.receipt_id === receiptId && strictTenantRecordMatches(item, snapshot)
+      ));
+      if (index < 0) return null;
+
+      const current = deploymentReceipts[index];
+      const payloadHash = sha256(stableJson({
+        receipt_id: receiptId,
+        action: review.action,
+        reason_code: review.reason_code || review.reasonCode,
+        expected_version: review.expected_version ?? review.expectedVersion,
+        source: snapshot.source,
+        tenant_scope: current.tenant_scope
+      }));
+      const idempotencySource = scopedIdempotencySource(snapshot.source, options, snapshot);
+      const replay = getIdempotentReplay(
+        idempotencyReceipts,
+        "deployment_receipt_review",
+        idempotencySource,
+        options.idempotencyKey,
+        payloadHash
+      );
+      if (replay) return replay;
+
+      const reviewed = reviewA3DeploymentReceipt(current, review, {
+        actor_hash: options.actor
+          ? sha256(String(options.actor)).slice(0, 16)
+          : options.actorHash || "actor_[REDACTED_HASH]",
+        reviewed_at: options.reviewedAt
+      });
+      if (!reviewed.valid) {
+        const versionConflict = reviewed.errors.some((item) => item.issue === "version_conflict");
+        throw new A3StoreValidationError("Deployment receipt review failed validation.", reviewed.errors, {
+          requestType: "deployment_receipt_review",
+          source: snapshot.source,
+          statusCode: versionConflict ? 409 : 400,
+          error: versionConflict ? "version_conflict" : "validation_error"
+        });
+      }
+
+      const auditEvent = deploymentReceiptAuditEvent(reviewed.record, "reviewed", auditEvents.length);
+      const storedRecord = sanitizeDeploymentReceiptRecord({
+        ...reviewed.record,
+        audit_event_id: current.audit_event_id,
+        latest_audit_event_id: auditEvent.event_id
+      });
+      deploymentReceipts[index] = storedRecord;
+      auditEvents.push(auditEvent);
+      const outboxRow = recordEventOutbox(eventOutbox, {
+        source: snapshot.source,
+        eventType: `deployment.receipt_${storedRecord.status}`,
+        resourceType: "deployment_receipt",
+        resourceId: storedRecord.receipt_id,
+        tenantScope: storedRecord.tenant_scope,
+        actorHash: storedRecord.reviewed_by_hash,
+        createdAt: storedRecord.reviewed_at,
+        payload: deploymentReceiptEventPayload(storedRecord, "reviewed"),
+        usageMeter: { meter: "deployment_receipt_reviews", quantity: 1 }
+      });
+      const receipt = attachIdempotencyReceipt(
+        attachEventEnvelopeReceipt(storedRecord, outboxRow),
+        options.idempotencyKey
+      );
+      rememberIdempotentReceipt(
+        idempotencyReceipts,
+        "deployment_receipt_review",
+        idempotencySource,
+        options.idempotencyKey,
+        payloadHash,
+        receipt
+      );
+      return receipt;
+    },
+
+    async verifyDeploymentReceiptAuthoritatively(receiptId, resolver, options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source, options);
+      requireIdempotencyKey(options, "deployment_receipt_authoritative_verify", snapshot.source);
+      if (options.trustedResolver !== true || options.principalKind !== "service_account" || typeof resolver !== "function") {
+        throw new A3StoreValidationError("Authoritative verification requires a trusted server resolver and service account.", [
+          { field: "resolver", issue: "trusted_server_resolver_required" },
+          { field: "principal_kind", issue: "service_account_required" }
+        ], {
+          requestType: "deployment_receipt_authoritative_verify",
+          source: snapshot.source,
+          statusCode: 403,
+          error: "trusted_deployment_verifier_required"
+        });
+      }
+      const index = deploymentReceipts.findIndex((item) => (
+        item.receipt_id === receiptId && strictTenantRecordMatches(item, snapshot)
+      ));
+      if (index < 0) return null;
+
+      const current = deploymentReceipts[index];
+      const expectedVersion = Number(options.expectedVersion ?? options.expected_version);
+      const requestHash = sha256(stableJson({
+        receipt_id: receiptId,
+        expected_version: expectedVersion,
+        source: snapshot.source,
+        tenant_scope: current.tenant_scope,
+        resolver_id_alias: options.resolverIdAlias || options.resolver_id_alias || "unknown"
+      }));
+      const idempotencySource = scopedIdempotencySource(snapshot.source, options, snapshot);
+      const replay = getIdempotentReplay(
+        idempotencyReceipts,
+        "deployment_receipt_authoritative_verify",
+        idempotencySource,
+        options.idempotencyKey,
+        requestHash
+      );
+      if (replay) return replay;
+      if (!Number.isInteger(expectedVersion) || expectedVersion < 1 || expectedVersion !== Number(current.version)) {
+        throw new A3StoreValidationError("Deployment receipt authoritative verification has a stale version.", [
+          { field: "expected_version", issue: "version_conflict" }
+        ], {
+          requestType: "deployment_receipt_authoritative_verify",
+          source: snapshot.source,
+          statusCode: 409,
+          error: "version_conflict"
+        });
+      }
+      if (current.status !== "acknowledged") {
+        throw new A3StoreValidationError("Deployment receipt must be acknowledged before authoritative verification.", [
+          { field: "receipt.status", issue: "acknowledged_receipt_required" }
+        ], {
+          requestType: "deployment_receipt_authoritative_verify",
+          source: snapshot.source
+        });
+      }
+
+      const previous = deploymentReceiptReadbacks
+        .filter((item) => item.receipt_id === receiptId && strictTenantRecordMatches(item, snapshot))
+        .sort((left, right) => Number(right.sequence || 0) - Number(left.sequence || 0))[0] || null;
+      let resolverOutput;
+      try {
+        resolverOutput = await resolver({
+          receipt: structuredClone(current),
+          previous_readback: previous ? structuredClone(previous) : null,
+          source: snapshot.source,
+          tenant_scope: structuredClone(current.tenant_scope)
+        });
+      } catch {
+        throw new A3StoreValidationError("The authoritative deployment verifier did not return a usable readback.", [
+          { field: "resolver", issue: "resolver_failed" }
+        ], {
+          requestType: "deployment_receipt_authoritative_verify",
+          source: snapshot.source,
+          statusCode: 502,
+          error: "authoritative_verifier_failed"
+        });
+      }
+      const built = buildA3DeploymentReceiptAuthoritativeReadback(current, resolverOutput, {
+        trusted_resolver: true,
+        principal_kind: "service_account",
+        resolver_id_alias: options.resolverIdAlias || options.resolver_id_alias,
+        expected_version: expectedVersion,
+        previous_readback: previous
+      });
+      if (!built.valid) {
+        throw new A3StoreValidationError("The authoritative deployment verifier returned an invalid readback.", built.errors, {
+          requestType: "deployment_receipt_authoritative_verify",
+          source: snapshot.source,
+          statusCode: 502,
+          error: "authoritative_verifier_invalid"
+        });
+      }
+
+      const existing = deploymentReceiptReadbacks.find((item) => (
+        item.readback_id === built.record.readback_id && strictTenantRecordMatches(item, snapshot)
+      ));
+      if (existing) {
+        const duplicate = attachIdempotencyReceipt({ ...existing, duplicate_content: true }, options.idempotencyKey);
+        duplicate.idempotency.status = "duplicate_content";
+        duplicate.idempotency.duplicate = true;
+        rememberIdempotentReceipt(
+          idempotencyReceipts,
+          "deployment_receipt_authoritative_verify",
+          idempotencySource,
+          options.idempotencyKey,
+          requestHash,
+          duplicate
+        );
+        return duplicate;
+      }
+
+      const storedReadback = structuredClone(built.record);
+      deploymentReceiptReadbacks.push(storedReadback);
+      const auditEvent = deploymentReceiptReadbackAuditEvent(storedReadback, auditEvents.length);
+      auditEvents.push(auditEvent);
+      const outboxRow = recordEventOutbox(eventOutbox, {
+        source: snapshot.source,
+        eventType: storedReadback.production_verified
+          ? "deployment.receipt_authoritatively_verified"
+          : "deployment.receipt_authoritatively_rejected",
+        resourceType: "deployment_receipt_readback",
+        resourceId: storedReadback.readback_id,
+        tenantScope: storedReadback.tenant_scope,
+        actorHash: options.actorHash || options.actor_hash || storedReadback.resolver_id_alias,
+        createdAt: storedReadback.verified_at,
+        payload: deploymentReceiptReadbackEventPayload(storedReadback),
+        usageMeter: { meter: "deployment_receipt_authoritative_verifications", quantity: 1 }
+      });
+      const result = attachIdempotencyReceipt(
+        attachEventEnvelopeReceipt({
+          ...storedReadback,
+          audit_event_id: auditEvent.event_id
+        }, outboxRow),
+        options.idempotencyKey
+      );
+      rememberIdempotentReceipt(
+        idempotencyReceipts,
+        "deployment_receipt_authoritative_verify",
+        idempotencySource,
+        options.idempotencyKey,
+        requestHash,
+        result
+      );
+      return result;
+    },
+
     async authorizeLiveRelease(options = {}) {
       const snapshot = selectSnapshot(snapshots, options.source, options);
       return buildLiveReleaseAuthorization(snapshot, options);
@@ -1500,16 +2154,23 @@ export function createMemoryA3Store(seed = {}) {
       }
       const tenantScope = buildA3TenantScope(options, snapshot);
       const report = {
-        ...buildShareableReportPayload(snapshot, {
-        source: snapshot.source,
-        title: options.title,
-        visibility: options.visibility,
-        createdBy: options.createdBy,
-        createdAt: options.createdAt,
-        expiresAt: options.expiresAt,
-        shareToken: options.shareToken,
-        organizationId: options.organizationId,
-        projectId: options.projectId
+        ...buildShareableReportPayload({
+          ...snapshot,
+          multimodalReviewQueue: buildMultimodalQueueForSnapshot(
+            snapshot,
+            filterTenantScopedRecords(multimodalReviewAssignmentEvents, snapshot, options),
+            { now: options.createdAt || options.now }
+          )
+        }, {
+          source: snapshot.source,
+          title: options.title,
+          visibility: options.visibility,
+          createdBy: options.createdBy,
+          createdAt: options.createdAt,
+          expiresAt: options.expiresAt,
+          shareToken: options.shareToken,
+          organizationId: options.organizationId,
+          projectId: options.projectId
         }),
         tenant_scope: tenantScope
       };
@@ -2055,8 +2716,12 @@ export function createMemoryA3Store(seed = {}) {
         eventOutbox,
         adminActionRequests,
         reviewWorkflowRecords,
+        multimodalReviewAssignmentEvents,
         releaseEvidenceReadbacks,
-        githubPublishReceipts
+        githubPublishReceipts,
+        deploymentReceipts,
+        deploymentReceiptReadbacks,
+        selfHostSandboxCalibrations
       };
     }
   };
@@ -2152,8 +2817,15 @@ export async function createFixtureBackedA3Store(options = {}) {
   for (const source of options.sources || Object.keys(A3_SOURCE_FIXTURES)) {
     sources[source] = await loadA3SourceSnapshot(source, options);
   }
+  const selfHostSandboxCalibrations = options.selfHostSandboxCalibrations || [
+    await loadSelfHostSandboxCalibration(
+      options.selfHostSandboxCalibrationPath
+        || fileURLToPath(new URL("../../fixtures/a3/p3/a3_self_host_sandbox_calibration_20260713.redacted.json", import.meta.url))
+    )
+  ];
   return createMemoryA3Store({
     sources,
+    selfHostSandboxCalibrations,
     storageMode: "fixture_file"
   });
 }
@@ -2196,6 +2868,16 @@ export async function createFileBackedA3Store(options = {}) {
     },
     async importA2GradeResult(gradeResult, options = {}) {
       const result = await store.importA2GradeResult(gradeResult, options);
+      await persist();
+      return result;
+    },
+    async importA2MultimodalComparison(comparison, options = {}) {
+      const result = await store.importA2MultimodalComparison(comparison, options);
+      await persist();
+      return result;
+    },
+    async mutateMultimodalReviewAssignment(queueId, input, options = {}) {
+      const result = await store.mutateMultimodalReviewAssignment(queueId, input, options);
       await persist();
       return result;
     },
@@ -2244,6 +2926,21 @@ export async function createFileBackedA3Store(options = {}) {
       await persist();
       return result;
     },
+    async submitDeploymentReceipt(input, options = {}) {
+      const result = await store.submitDeploymentReceipt(input, options);
+      await persist();
+      return result;
+    },
+    async reviewDeploymentReceipt(receiptId, review, options = {}) {
+      const result = await store.reviewDeploymentReceipt(receiptId, review, options);
+      await persist();
+      return result;
+    },
+    async verifyDeploymentReceiptAuthoritatively(receiptId, resolver, options = {}) {
+      const result = await store.verifyDeploymentReceiptAuthoritatively(receiptId, resolver, options);
+      await persist();
+      return result;
+    },
     async recordAccessDecision(decision, options = {}) {
       const result = await store.recordAccessDecision(decision, options);
       await persist();
@@ -2283,6 +2980,8 @@ function normalizeSnapshot(snapshot = {}) {
     frontendMirror: snapshot.frontendMirror || {},
     frontendCodeCrawl: snapshot.frontendCodeCrawl || {},
     peerBranchCalibration: snapshot.peerBranchCalibration || snapshot.peer_branch_calibration || {},
+    a2MultimodalComparison: snapshot.a2MultimodalComparison || snapshot.a2_multimodal_comparison || {},
+    a2MultimodalComparisonMeta: snapshot.a2MultimodalComparisonMeta || snapshot.a2_multimodal_comparison_meta || {},
     releaseEvidence: snapshot.releaseEvidence || snapshot.release_evidence || {},
     a2GradeResults: snapshot.a2GradeResults || snapshot.a2_grade_results || {},
     a2ReleaseGate: snapshot.a2ReleaseGate || snapshot.a2_release_gate || {},
@@ -2296,6 +2995,7 @@ function normalizeSnapshot(snapshot = {}) {
     githubPrCommentReadback: snapshot.githubPrCommentReadback || snapshot.github_pr_comment_readback || {},
     githubRequiredCheckProof: snapshot.githubRequiredCheckProof || snapshot.github_required_check_proof || {},
     githubActionsArtifactReadback: snapshot.githubActionsArtifactReadback || snapshot.github_actions_artifact_readback || {},
+    releaseComparison: snapshot.releaseComparison || snapshot.release_comparison || {},
     summary: buildDashboardSummary(runFixture, gradeFixture),
     case_count: cases.length,
     storage: snapshot.storage || {
@@ -2469,6 +3169,12 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     auth: options.auth || {}
   });
   const peerBranchCalibration = summarizeA3PeerBranchCalibration(snapshot.peerBranchCalibration);
+  const multimodalReviewQueue = buildMultimodalQueueForSnapshot(
+    snapshot,
+    options.multimodalReviewAssignmentEvents || [],
+    { now: options.now }
+  );
+  const multimodalReviewAssignmentPacket = multimodalReviewQueue.review_packet;
   const a1A2EvidenceSpine = buildA3A1A2EvidenceSpine({
     source: snapshot.source,
     runFixture: snapshot.runFixture,
@@ -2505,6 +3211,35 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
   const deliveryGoldenPath = snapshot.deliveryGoldenPath?.schema_version === "a3.delivery_golden_path.v1"
     ? snapshot.deliveryGoldenPath
     : buildDeliveryGoldenPath({ ...deliveryInputs, deploymentAcceptance }, deliveryInputs);
+  const releaseComparison = bindA3ReleaseComparisonRuntimeAuthority(
+    snapshot.releaseComparison,
+    trustedReleaseAuthority
+  );
+  const deploymentHandoff = buildA3DeploymentHandoff({
+    deploymentAcceptance,
+    deliveryGoldenPath,
+    trustedReleaseAuthority,
+    a2TrustedSpine: snapshot.a2TrustedSpine,
+    runFixture: snapshot.runFixture,
+    releaseArtifactManifest: snapshot.releaseArtifactManifest
+  }, {
+    source: snapshot.source,
+    tenantScope: snapshot.tenant_scope
+  });
+  const receiptContext = deploymentReceiptContext(snapshot, {
+    deployment_handoff: deploymentHandoff,
+    release_artifact_manifest: snapshot.releaseArtifactManifest
+  });
+  const deploymentReceiptInbox = buildA3DeploymentReceiptInbox(
+    options.deploymentReceipts || [],
+    deploymentHandoff,
+    receiptContext,
+    options.deploymentReceiptReadbacks || []
+  );
+  const deploymentAcceptanceProjection = buildA3DeploymentAcceptanceProjection(
+    deploymentAcceptance,
+    deploymentReceiptInbox
+  );
   return {
     schema_version: "a3.api_dashboard_payload.v1",
     source: snapshot.source,
@@ -2528,6 +3263,7 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     frontend_mirror: snapshot.frontendMirror,
     frontend_code_crawl: snapshot.frontendCodeCrawl,
     peer_branch_calibration: peerBranchCalibration,
+    multimodal_review_queue: multimodalReviewQueue,
     release_evidence: releaseEvidenceForDashboard,
     release_evidence_summary: releaseEvidenceForDashboard,
     release_evidence_readbacks: releaseEvidenceReadbackHistory,
@@ -2546,6 +3282,9 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     a1_a2_evidence_spine: a1A2EvidenceSpine,
     deployment_probe: snapshot.deploymentProbe,
     deployment_acceptance: deploymentAcceptance,
+    deployment_acceptance_projection: deploymentAcceptanceProjection,
+    deployment_handoff: deploymentHandoff,
+    deployment_receipt_inbox: deploymentReceiptInbox,
     release_artifact_manifest: snapshot.releaseArtifactManifest,
     release_artifact_verification: snapshot.releaseArtifactVerification,
     delivery_golden_path: deliveryGoldenPath,
@@ -2553,6 +3292,7 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     github_pr_comment_readback: snapshot.githubPrCommentReadback,
     github_required_check_proof: snapshot.githubRequiredCheckProof,
     github_actions_artifact_readback: snapshot.githubActionsArtifactReadback,
+    release_comparison: releaseComparison,
     release_evidence_api: {
       schema_version: "a3.release_evidence_api_link.v1",
       release_id: releaseId,
@@ -2583,7 +3323,8 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
       migrationPlan,
       productConsole,
       saasAdmin,
-      notificationControlPlane
+      notificationControlPlane,
+      multimodalReviewAssignmentPacket
     }),
     commercial_api_contract: buildA3CommercialApiContract({
       source: "docs/strategy/large-saas-a1-a2-a3-full-plan.md",
@@ -2593,6 +3334,7 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
       projectId: snapshot.projectId
     }),
     review_workflow: reviewWorkflow,
+    multimodal_review_assignment_packet: multimodalReviewAssignmentPacket,
     product_console: productConsole,
     summary: snapshot.summary,
     cases: cases.map((item) => ({
@@ -2983,6 +3725,184 @@ function filterReleaseEvidenceReadbacks(readbacks = [], options = {}) {
     && (item.organization_id || "org-local") === organizationId
     && (item.project_id || "project-local") === projectId
   ));
+}
+
+function deploymentReceiptContext(snapshot = {}, dashboard = {}, options = {}) {
+  const handoff = dashboard.deployment_handoff || {};
+  const expected = handoff.candidate_binding?.expected || {};
+  const release = dashboard.release_artifact_manifest?.release || snapshot.releaseArtifactManifest?.release || {};
+  const run = extractRunRecords(snapshot.runFixture)[0] || {};
+  return {
+    source: snapshot.source || "unknown",
+    expected_candidate_id: expected.candidate_sha_alias || release.git_sha_alias || snapshot.source || "unknown",
+    expected_run_id: expected.run_id || run.run_id || "unknown",
+    tenant_scope: eventTenantScopeFromRecord({}, snapshot),
+    actor_hash: options.actor
+      ? sha256(String(options.actor)).slice(0, 16)
+      : options.actorHash || "actor_[REDACTED_HASH]",
+    submitted_at: options.submittedAt || options.submitted_at
+  };
+}
+
+function requireIdempotencyKey(options = {}, requestType, source) {
+  if (typeof options.idempotencyKey === "string" && options.idempotencyKey.trim()) return;
+  throw new A3StoreValidationError("Deployment receipt mutation requires an Idempotency-Key.", [
+    { field: "Idempotency-Key", issue: "required" }
+  ], {
+    requestType,
+    source
+  });
+}
+
+function requireMutationIdempotencyKey(options = {}, requestType, source) {
+  if (typeof options.idempotencyKey === "string" && options.idempotencyKey.trim()) return;
+  throw new A3StoreValidationError("Mutation requires an Idempotency-Key.", [
+    { field: "Idempotency-Key", issue: "required" }
+  ], {
+    requestType,
+    source
+  });
+}
+
+function sanitizeDeploymentReceiptRecord(record = {}) {
+  const scope = eventTenantScopeFromRecord(record, {});
+  const evidenceRef = typeof record.evidence_ref === "string"
+    && !/^(?:https?|file):/i.test(record.evidence_ref)
+    && !/[?#@\\]/.test(record.evidence_ref)
+      ? record.evidence_ref.slice(0, 240)
+      : "[REDACTED_UNSAFE_REF]";
+  const evidenceSha256 = /^sha256:[a-f0-9]{64}$/i.test(String(record.evidence_sha256 || ""))
+    ? String(record.evidence_sha256).toLowerCase()
+    : null;
+  return {
+    schema_version: "a3.deployment_receipt.v1",
+    receipt_id: safeIdentifier(record.receipt_id, "dpr"),
+    source: normalizeSourceKey(record.source || "unknown"),
+    tenant_scope: scope,
+    ...scope,
+    blocker_id: safeIdentifier(record.blocker_id, "blocker"),
+    owner: String(record.owner || "Unassigned"),
+    candidate_id: safeIdentifier(record.candidate_id, "candidate"),
+    run_id: safeIdentifier(record.run_id, "run"),
+    evidence_ref: evidenceRef,
+    evidence_sha256: evidenceSha256,
+    evidence_kind: safeIdentifier(record.evidence_kind, "evidence"),
+    verifier_class: safeIdentifier(record.verifier_class, "verifier"),
+    captured_at: record.captured_at || null,
+    selectors: redactPotentialSecret(record.selectors || {}),
+    status: String(record.status || "submitted"),
+    version: Number.isInteger(Number(record.version)) ? Number(record.version) : 1,
+    submitted_at: record.submitted_at || null,
+    submitted_by_hash: safeActorId(record.submitted_by_hash),
+    reviewed_at: record.reviewed_at || null,
+    reviewed_by_hash: record.reviewed_by_hash ? safeActorId(record.reviewed_by_hash) : null,
+    review_reason_code: record.review_reason_code || null,
+    audit_event_id: record.audit_event_id ? safeIdentifier(record.audit_event_id, "event") : null,
+    latest_audit_event_id: record.latest_audit_event_id ? safeIdentifier(record.latest_audit_event_id, "event") : null,
+    metadata_validation: {
+      status: record.metadata_validation?.status || "passed",
+      schema_version: "a3.deployment_receipt.v1",
+      payload_hash: String(record.metadata_validation?.payload_hash || "")
+    },
+    authority_validation: {
+      status: record.authority_validation?.status || "pending_external_verifier",
+      production_verified: false,
+      authoritative_readback_id: null
+    },
+    acceptance_effect: {
+      changes_deployment_acceptance: false,
+      changes_release_ready: false,
+      reason: String(record.acceptance_effect?.reason || "submission_is_not_authoritative_readback")
+    },
+    history: (Array.isArray(record.history) ? record.history : []).map((item, index) => ({
+      sequence: Number(item.sequence || index + 1),
+      action: String(item.action || "unknown"),
+      status: String(item.status || "unknown"),
+      actor_hash: safeActorId(item.actor_hash),
+      reason_code: String(item.reason_code || "unknown"),
+      created_at: item.created_at || null
+    })),
+    safety: {
+      raw_evidence_embedded: false,
+      raw_secret_values_allowed: false,
+      raw_signed_urls_allowed: false,
+      production_verified_by_submission: false,
+      a2_decision_recomputed: false,
+      deployment_acceptance_mutated: false
+    }
+  };
+}
+
+function deploymentReceiptAuditEvent(record = {}, phase = "submitted", index = 0) {
+  const createdAt = phase === "reviewed" ? record.reviewed_at : record.submitted_at;
+  return {
+    event_id: `dpr_evt_${sha256(`${record.receipt_id}:${record.version}:${phase}:${index}`).slice(0, 16)}`,
+    source: record.source,
+    ...record.tenant_scope,
+    event_type: phase === "reviewed" ? "deployment_receipt_reviewed" : "deployment_receipt_submitted",
+    subject_id: record.receipt_id,
+    actor_hash: phase === "reviewed" ? record.reviewed_by_hash : record.submitted_by_hash,
+    payload: deploymentReceiptEventPayload(record, phase),
+    created_at: createdAt,
+    redacted: true
+  };
+}
+
+function deploymentReceiptEventPayload(record = {}, phase = "submitted") {
+  return {
+    schema_version: "a3.deployment_receipt_event_payload.v1",
+    receipt_id: record.receipt_id,
+    blocker_id: record.blocker_id,
+    candidate_id: record.candidate_id,
+    run_id: record.run_id,
+    phase,
+    status: record.status,
+    version: record.version,
+    evidence_kind: record.evidence_kind,
+    verifier_class: record.verifier_class,
+    evidence_sha256: record.evidence_sha256,
+    production_verified: false,
+    deployment_acceptance_changed: false,
+    a2_release_ready_changed: false,
+    raw_evidence_embedded: false
+  };
+}
+
+function deploymentReceiptReadbackAuditEvent(readback = {}, index = 0) {
+  return {
+    event_id: `dprv_evt_${sha256(`${readback.readback_id}:${readback.sequence}:${index}`).slice(0, 16)}`,
+    source: readback.source,
+    ...readback.tenant_scope,
+    event_type: readback.production_verified
+      ? "deployment_receipt_authoritatively_verified"
+      : "deployment_receipt_authoritatively_rejected",
+    subject_id: readback.readback_id,
+    actor_hash: readback.resolver_id_alias,
+    payload: deploymentReceiptReadbackEventPayload(readback),
+    created_at: readback.verified_at,
+    redacted: true
+  };
+}
+
+function deploymentReceiptReadbackEventPayload(readback = {}) {
+  return {
+    schema_version: "a3.deployment_receipt_readback_event_payload.v1",
+    readback_id: readback.readback_id,
+    receipt_id: readback.receipt_id,
+    blocker_id: readback.blocker_id,
+    candidate_id: readback.candidate_id,
+    run_id: readback.run_id,
+    verification_status: readback.verification_status,
+    reason_code: readback.reason_code,
+    sequence: readback.sequence,
+    evidence_sha256: readback.evidence_sha256,
+    attestation_sha256: readback.attestation_sha256,
+    readback_hash: readback.readback_hash,
+    production_verified: readback.production_verified === true,
+    source_acceptance_mutated: false,
+    a2_release_ready_changed: false,
+    raw_evidence_embedded: false
+  };
 }
 
 function recordEventOutbox(eventOutbox, input = {}) {
@@ -3890,6 +4810,73 @@ function reviewWorkflowReceipt(record = {}) {
   };
 }
 
+function multimodalComparisonAuditEvent(receipt = {}, index = 0) {
+  return {
+    event_id: `mmr_evt_${sha256(`${receipt.payload_hash || "missing"}:${index}`).slice(0, 12)}`,
+    source: receipt.source,
+    ...tenantScopeRecordFields(receipt),
+    event_type: "a2_multimodal_comparison_imported",
+    subject_id: receipt.payload_hash,
+    payload: {
+      schema_version: receipt.schema_version,
+      payload_hash: receipt.payload_hash,
+      comparison_count: receipt.comparison_count,
+      review_required_count: receipt.review_required_count,
+      queue_receipt_count: receipt.queue_receipt_count,
+      upstream_release_authority: false,
+      candidate_binding_verified: false,
+      release_decision_changed: false
+    },
+    created_at: receipt.imported_at,
+    redacted: true
+  };
+}
+
+function multimodalReviewAssignmentAuditEvent(event = {}, index = 0) {
+  return {
+    event_id: `mmra_evt_${sha256(`${event.event_id || "missing"}:${index}`).slice(0, 12)}`,
+    source: event.source,
+    ...tenantScopeRecordFields(event),
+    event_type: `multimodal_review_assignment_${event.event_type || "changed"}`,
+    subject_id: event.queue_id,
+    actor_hash: event.actor_hash,
+    payload: {
+      schema_version: event.schema_version,
+      assignment_event_id: event.event_id,
+      assignment_event_hash: event.event_hash,
+      queue_id: event.queue_id,
+      event_type: event.event_type,
+      version: event.version,
+      assigned_reviewer_hash: event.assigned_reviewer_hash,
+      lease_expires_at: event.lease_expires_at,
+      reason_code: event.reason_code,
+      release_authority: false,
+      a2_decision_recomputed: false,
+      raw_reviewer_identity_included: false
+    },
+    created_at: event.created_at,
+    redacted: true
+  };
+}
+
+function buildMultimodalQueueForSnapshot(snapshot = {}, assignmentEvents = [], options = {}) {
+  const metadata = snapshot.a2MultimodalComparisonMeta || {};
+  const queue = buildA3MultimodalReviewQueue(snapshot.a2MultimodalComparison || {}, {
+    source: snapshot.source,
+    tenantScope: snapshot.tenant_scope || tenantScopeRecordFields(snapshot).tenant_scope,
+    sourceCommitAlias: metadata.source_commit_alias,
+    ingestMode: metadata.ingest_mode,
+    capabilityState: metadata.capability_state
+  });
+  const projection = buildA3MultimodalReviewAssignmentProjection(queue, assignmentEvents, options);
+  return {
+    ...projection,
+    review_packet: buildA3MultimodalReviewAssignmentPacket(projection, {
+      generatedAt: options.now || "queue-read"
+    })
+  };
+}
+
 function selectSnapshot(snapshots, source = "mock", options = {}) {
   const sourceKey = normalizeSourceKey(source || "mock");
   const exactSnapshot = snapshots.get(sourceKey);
@@ -4144,7 +5131,7 @@ function rememberIdempotentReceipt(idempotencyReceipts, requestType, source, ide
 
 function apiImportReceiptsFromLedger(idempotencyReceipts) {
   return [...idempotencyReceipts.values()]
-    .filter((item) => ["a1_run_result_import", "a2_grade_result_import"].includes(item.request_type))
+    .filter((item) => ["a1_run_result_import", "a2_grade_result_import", "a2_multimodal_comparison_import"].includes(item.request_type))
     .map((item) => item.receipt);
 }
 

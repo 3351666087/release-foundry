@@ -26,7 +26,7 @@ const copy = {
   "shell.source": ["证据来源", "Evidence source"],
   "shell.account": ["预览身份", "Preview identity"],
   "shell.legacy": ["完整证据检查器", "Full evidence inspector"],
-  "common.loading": ["正在读取 A1/A2 证据", "Loading A1/A2 evidence"],
+  "common.loading": ["正在读取执行与评测证据", "Loading execution and evaluation evidence"],
   "common.retry": ["重新加载", "Retry"],
   "common.details": ["查看证据详情", "View evidence details"],
   "common.open": ["打开", "Open"],

@@ -1,3 +1,197 @@
-.value {
-  letter-spacing: 0;
+.filter-bar {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  padding: 6rpx;
+  border: 1rpx solid #d4d4d8;
+  border-radius: 8rpx;
+  background: #ffffff;
 }
+
+.filter-button {
+  min-height: 64rpx;
+  margin: 0;
+  border-radius: 5rpx;
+  background: transparent;
+  color: #71717a;
+  font-size: 22rpx;
+  font-weight: 650;
+  line-height: 64rpx;
+}
+
+.filter-button.is-active {
+  background: #18181b;
+  color: #ffffff;
+}
+
+.incident-strip {
+  width: calc(100% + 28rpx);
+  margin-right: -28rpx;
+}
+
+.incident-strip-inner {
+  display: inline-flex;
+  gap: 14rpx;
+  padding-right: 28rpx;
+  white-space: nowrap;
+}
+
+.incident-chip {
+  width: 500rpx;
+  min-height: 188rpx;
+  margin: 0;
+  padding: 22rpx;
+  border: 1rpx solid #d4d4d8;
+  border-radius: 8rpx;
+  background: #ffffff;
+  color: #18181b;
+  text-align: left;
+  line-height: 1.3;
+  white-space: normal;
+}
+
+.incident-chip.is-active {
+  border-color: #18181b;
+  box-shadow: inset 0 -5rpx 0 #e9442c;
+}
+
+.incident-chip-pressed { background: #f4f4f5; }
+
+.incident-chip-head,
+.incident-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16rpx;
+}
+
+.incident-time {
+  color: #71717a;
+  font-size: 20rpx;
+}
+
+.incident-chip-title,
+.incident-chip-state {
+  display: block;
+}
+
+.incident-chip-title {
+  margin-top: 22rpx;
+  font-size: 27rpx;
+  font-weight: 730;
+}
+
+.incident-chip-state {
+  margin-top: 9rpx;
+  color: #71717a;
+  font-size: 21rpx;
+}
+
+.incident-detail {
+  padding: 26rpx;
+  border: 1rpx solid #d4d4d8;
+  border-radius: 8rpx;
+  background: #ffffff;
+}
+
+.incident-detail-head { align-items: flex-start; }
+
+.severity-marker {
+  width: 8rpx;
+  height: 66rpx;
+  flex: 0 0 8rpx;
+  border-radius: 4rpx;
+  background: #71717a;
+}
+
+.severity-marker.is-danger { background: #d9483b; }
+.severity-marker.is-warning { background: #b77900; }
+
+.incident-detail-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.incident-detail-title,
+.incident-detail-meta {
+  display: block;
+}
+
+.incident-detail-title { font-size: 29rpx; font-weight: 750; line-height: 1.35; }
+.incident-detail-meta { margin-top: 6rpx; color: #71717a; font-size: 21rpx; }
+
+.incident-summary {
+  display: block;
+  margin-top: 24rpx;
+  color: #3f3f46;
+  font-size: 24rpx;
+  line-height: 1.65;
+}
+
+.evidence-callout {
+  margin-top: 22rpx;
+  padding: 18rpx 20rpx;
+  background: #f4f4f5;
+}
+
+.evidence-callout-label,
+.evidence-callout-value { display: block; }
+.evidence-callout-label { color: #71717a; font-size: 19rpx; }
+.evidence-callout-value { margin-top: 5rpx; font-size: 22rpx; font-weight: 680; }
+
+.timeline { padding: 4rpx 24rpx; }
+
+.timeline-row {
+  display: flex;
+  gap: 20rpx;
+  min-height: 140rpx;
+  padding-top: 22rpx;
+}
+
+.timeline-rail {
+  position: relative;
+  width: 20rpx;
+  flex: 0 0 20rpx;
+}
+
+.timeline-rail::after {
+  position: absolute;
+  top: 20rpx;
+  bottom: -20rpx;
+  left: 9rpx;
+  width: 2rpx;
+  background: #d4d4d8;
+  content: "";
+}
+
+.timeline-row:last-child .timeline-rail::after { display: none; }
+
+.timeline-dot {
+  position: relative;
+  z-index: 1;
+  width: 18rpx;
+  height: 18rpx;
+  margin-top: 7rpx;
+  border: 5rpx solid #ffffff;
+  border-radius: 50%;
+  background: #e9442c;
+  box-shadow: 0 0 0 1rpx #e9442c;
+}
+
+.timeline-content { min-width: 0; flex: 1; padding-bottom: 22rpx; }
+.timeline-time { display: block; color: #71717a; font-size: 19rpx; }
+.timeline-title { display: block; margin-top: 5rpx; font-size: 24rpx; font-weight: 700; }
+.timeline-detail { display: block; margin-top: 7rpx; color: #71717a; font-size: 21rpx; line-height: 1.5; }
+
+.action-row {
+  display: flex;
+  min-height: 78rpx;
+  align-items: center;
+  gap: 18rpx;
+  padding: 16rpx 22rpx;
+  border-top: 1rpx solid #e4e4e7;
+}
+
+.action-row:first-child { border-top: 0; }
+.action-index { display: flex; width: 38rpx; height: 38rpx; align-items: center; justify-content: center; background: #f4f4f5; color: #71717a; font-size: 18rpx; font-weight: 700; }
+.action-text { flex: 1; font-size: 23rpx; line-height: 1.5; }
+.related-release-button { width: 100%; margin-top: 22rpx; }

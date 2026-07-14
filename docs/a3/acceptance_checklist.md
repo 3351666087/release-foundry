@@ -1229,3 +1229,319 @@
 - [x] Keep A2 `block`, Golden Path 7/11, Deployment Acceptance 8/17, and production false unchanged.
 - [x] Add desktop and 390 x 844 readback screenshots with no horizontal overflow.
 - [x] Leave the sealed rc.2 release documentation and manifest unchanged; record this as a post-seal UI increment.
+
+## rc.1 vs rc.2 Release Comparison - 2026-07-12
+
+- [x] Compare the exact rc.1 and rc.2 A1/A2 evidence instead of relying on release-note prose.
+- [x] Show that A1 execution remained 3/3 while A2 evaluation improved from 1/3 to 3/3.
+- [x] Show Tool Calls `0 -> 4` and `missing_required_tool` `2 -> 0`.
+- [x] Show Release Artifact entries `12 -> 16`.
+- [x] Keep Golden Path `7/11` and Deployment Acceptance `8/17` unchanged.
+- [x] Keep A2 Decision Ledger `block`, `release_ready=false`, and production false unchanged.
+- [x] Expose `a3.release_comparison.v1` through Store, Dashboard API, API Reference, and OpenAPI.
+- [x] Record that A3 did not recompute A1 execution, A2 score, pass/fail, failure class, or release decision.
+- [x] Add Chinese-first and English UI with clear visual hierarchy and raw evidence access.
+- [x] Pass focused Node, TypeScript, production build, OpenAPI, and Playwright checks.
+- [x] Pass final A3 Node `419/419`, current-main A2 `186/186` plus `1050` subtests, and full Playwright `37/37`.
+- [x] Pass both CL guards and reverify the sealed rc.2 manifest without changing it.
+- [x] Save desktop and 390 x 844 screenshots with no horizontal overflow.
+- [x] Do not rewrite any sealed rc.2 manifest input.
+
+## Candidate Integrity and Deployment Handoff - 2026-07-13
+
+- [x] Revalidate the current A2 Trusted Spine through the backend verifier.
+- [x] Show `integrity_invalid` instead of treating the sealed historical `block` as current authority.
+- [x] Fail current `upstream_decision` closed to `unknown` when integrity is invalid.
+- [x] Preserve the sealed rc.2 historical decision separately.
+- [x] Compare expected A3 run/scope with observed A2 evidence and decision run/scope.
+- [x] Check Release Artifact and Golden Path run binding.
+- [x] Add `a3.deployment_handoff.v1` with 17 checks and 5 owner groups.
+- [x] Expose all 9 blocking checks with next action and required receipt.
+- [x] Keep A3 product-evidence ownership at 6/6 without overstating the other owner groups.
+- [x] Expose Deployment Handoff and runtime authority through Store, API Reference, and OpenAPI.
+- [x] Add Node tests for fail-closed mismatch and a fully bound ready handoff.
+- [x] Add Chinese/English UI and desktop/mobile Playwright assertions.
+- [x] Save four candidate-binding and deployment-handoff screenshots.
+- [x] Record at least 20 actionable Growth Auditor points.
+- [x] Keep A1 runtime facts and A2 score/pass/fail/failure-class/release semantics unchanged.
+- [x] Keep keys, tokens, cookies, email, OTP, signed URLs, local paths, and customer data out of artifacts.
+- [ ] Obtain a new A2 Trusted Spine for `a3-golden-20260712-002` and the exact five-level scope.
+- [ ] Rebuild a single-candidate Release Artifact after A2 supplies that authoritative record.
+- [ ] Attach tenant GitHub App, main required-check, staging/VPC, PostgreSQL/RLS, queue, object-storage, and rollback receipts.
+
+## Deployment Receipt Inbox - 2026-07-13
+
+- [x] Add `a3.deployment_receipt.v1` and `a3.deployment_receipt_inbox.v1`.
+- [x] Bind submissions to the current blocker, candidate, A1 run, source, and five-level tenant scope.
+- [x] Reject secrets, tokens, cookies, emails, signed URLs, local paths, unsafe refs, invalid hashes, and unknown selectors.
+- [x] Require `Idempotency-Key` for submit and review mutations.
+- [x] Require `expected_version` and return HTTP 409 for stale reviewer writes.
+- [x] Support acknowledge, reject, and supersede metadata states.
+- [x] Keep `submitted` and `acknowledged` non-authoritative.
+- [x] Keep Deployment Acceptance at 8/17 and `production_verified_count=0`.
+- [x] Keep current A2 authority `integrity_invalid` / `unknown` and historical sealed `block` separate.
+- [x] Emit metadata-only audit and event-outbox records for every successful mutation.
+- [x] Persist receipt state through SQLite restart with a dedicated migration/table.
+- [x] Add separate read, submit, and review RBAC permissions.
+- [x] Add three protected HTTP routes and browser-safe same-origin calls.
+- [x] Add OpenAPI, API Reference, DB contract, and commercial contract coverage.
+- [x] Add Chinese-first and English UI with all expected operation states.
+- [x] Pass focused workflow, Store, API, concurrency, security, and SQLite tests.
+- [x] Pass a browser submit/conflict/denied/reviewer-acknowledge workflow.
+- [x] Save and inspect desktop and 390 x 844 screenshots without document overflow.
+- [x] Pass final A3 Node `429/429`, current-main A2 `186/186` plus `1050` subtests, Next.js typecheck/build, Playwright `38/38`, both CL guards, and both npm production audits.
+- [x] Reverify the sealed rc.2 bundle, signed archive, and Release Artifact without changing their inputs.
+- [x] Add server-only authoritative verifier readback before any receipt can become production verified.
+- [ ] Obtain the nine real external receipts; the inbox itself does not close those blockers.
+
+## Authoritative Deployment Receipt Verifier - 2026-07-13
+
+- [x] Add `a3.deployment_receipt_authoritative_readback.v1` and `a3.deployment_acceptance_projection.v1`.
+- [x] Restrict verification to A1-verified hosted `service_account` principals with `deployment:verify`.
+- [x] Reject demo/header-forged service accounts and every client-supplied verification result field.
+- [x] Invoke the injected resolver only after auth, tenant scope, receipt state, version, and idempotency checks.
+- [x] Bind readbacks to receipt, blocker, candidate, A1 run, five-level scope, evidence SHA-256, verifier class, and authority.
+- [x] Require every blocker-specific claim to be present, boolean, and true for `verified` status.
+- [x] Persist trusted rejections without promoting production state.
+- [x] Store immutable sequence and previous-readback hashes in migration `018_deployment_receipt_readbacks`.
+- [x] Prove idempotent replay does not invoke the resolver twice.
+- [x] Emit sanitized audit, event-outbox, and usage-meter records.
+- [x] Restore authoritative readbacks through SQLite restart.
+- [x] Keep source Deployment Acceptance unchanged and expose only a rebuild-required projection.
+- [x] Keep A2 score, pass/fail, failure class, Decision Ledger, and Release Ready unchanged.
+- [x] Add OpenAPI/API Reference/commercial contract coverage with runtime parity `57/57`.
+- [x] Display server readback and source-vs-projected acceptance in the Delivery page.
+- [x] Prove the browser UI exposes no internal verifier call or verification button.
+- [x] Keep the default rc.2 source at `8/17 -> 8/17` with zero real production readbacks.
+- [x] Leave sealed rc.2 bundle, archive, manifest, and authority records unchanged.
+- [x] Pass A3 Node `436/436` and current-main A2 `186/186` plus `1050` subtests.
+- [x] Pass Next.js typecheck/build with 15 static pages and Playwright `38/38` plus the strengthened focused E2E `1/1`.
+- [x] Pass CL hygiene, Commercial CL, both production npm audits, and `git diff --check`.
+- [x] Reverify rc.2 bundle `15/15`, custody `7/7`, archive `16/16`, Ed25519 signature, and Release manifest without rewriting sealed inputs.
+- [x] Connect the GitHub App and required-check resolver classes to live read-only GitHub API state.
+- [x] Preserve installation HTTP 401, main policy HTTP 404, and `github-actions` identity as trusted rejection evidence.
+- [x] Prove the internal HTTP verify route persists the rejected readback without changing `8/17` or production receipt count `0`.
+- [x] Pass final A3 `449/449`, A2 `186/186` plus `1050` subtests, Next.js build, Playwright, CL, audits, and sealed rc.2 verification.
+- [ ] Connect all nine resolver classes to real external services and collect real receipts.
+- [ ] Obtain an A1 tenant-installation binding receipt and a Check published by the tenant custom GitHub App.
+- [ ] Obtain maintainer-approved main policy and failing-merge denial receipts.
+- [ ] Rebuild and reseal Deployment Acceptance only after same-candidate A1/A2/A3 evidence exists.
+
+## A1-backed Self-host Sandbox Calibration - 2026-07-13
+
+- [x] Execute A1 local control-plane health behavior and preserve `local_only=true`.
+- [x] Execute A1 worker enqueue, lease, heartbeat, retry, and dead-letter behavior.
+- [x] Execute A1 expired-lease recovery with a second worker identity alias.
+- [x] Execute A1 local object write/readback and a tamper-negative checksum test.
+- [x] Invoke Python without a shell, with an allowlisted environment, timeout, and output limit.
+- [x] Reject invalid schema, missing checks, production overclaims, and A2 authority overclaims.
+- [x] Reject token, email, cookie, signed URL, API-key-like value, and absolute local path leaks.
+- [x] Generate a sanitized SHA-256-bound calibration fixture.
+- [x] Add a tenant-scoped Memory/File/SQLite Store resource.
+- [x] Add migration `019_self_host_sandbox_calibrations` with all production mutation flags false.
+- [x] Add `GET /api/a3/deployment/sandbox-calibration` with `deployment:read`.
+- [x] Audit hosted allow/deny reads and reject cross-scope access.
+- [x] Add OpenAPI, commercial API contract, DB contract, and API Reference coverage.
+- [x] Add Chinese-first and English Delivery UI.
+- [x] Cover loading, ready, partial, empty, failed, denied, and retry states.
+- [x] Keep Golden Path `7/11`, Deployment Acceptance `8/17`, and production receipts `0` unchanged.
+- [x] Keep current authority `integrity_invalid`, current A2 decision `unknown`, and historical A2 `block` unchanged.
+- [x] Save and inspect desktop and 390 x 844 screenshots without document-level overflow.
+- [x] Add more than 20 executable next growth points in Growth Auditor Round 18.
+- [x] Leave the sealed rc.2 bundle, archive, manifest, and hashed inputs unchanged.
+- [x] Pass final A3 Node `458/458` and current-main A2 `186/186` plus `1050` subtests.
+- [x] Pass Next.js typecheck/build with 15 static pages and full Playwright `40/40`.
+- [x] Pass both CL guards, both production npm audits, export safety checks, and diff hygiene.
+- [x] Reverify rc.2 bundle `15/15`, custody `7/7`, archive `16/16`, and Release manifest hash without rewriting sealed inputs.
+- [ ] Run PostgreSQL/RLS, container identity, VPC policy, and upgrade/rollback in a target environment.
+- [ ] Obtain a same-candidate A2 Trusted Spine before rebuilding production acceptance.
+
+## Live Local PostgreSQL RLS Qualification - 2026-07-13
+
+- [x] Locate and use a real PostgreSQL 17.9 engine without modifying the user's existing database authentication.
+- [x] Start an isolated loopback-only PostgreSQL test instance and keep it separate from the installed service data.
+- [x] Keep published migration 019 unchanged and add migration 020 for the five-level composite key, scope digest, and RLS upgrade.
+- [x] Enable and force PostgreSQL RLS on `self_host_sandbox_calibrations`.
+- [x] Require exact organization, tenant, workspace, project, and environment settings in `USING` and `WITH CHECK`.
+- [x] Keep SQLite free of PostgreSQL-only policy syntax and label it as a reference store.
+- [x] Apply the migration 019-to-020 chain twice against PostgreSQL and prove idempotency.
+- [x] Use a `NOSUPERUSER NOBYPASSRLS` runtime role for isolation checks.
+- [x] Prove same-scope read returns one row and same-scope write succeeds.
+- [x] Prove cross-scope read returns zero rows and cross-scope write is rejected by RLS.
+- [x] Prove missing-scope read returns zero rows.
+- [x] Remove all probe rows and the temporary role, then independently verify cleanup.
+- [x] Add a no-shell, timeout-bound, output-limited `psql` probe.
+- [x] Reject CLI password/DSN arguments and accept passwords only through environment variables.
+- [x] Save a credential-free `a3.postgres_rls_qualification.v1` fixture.
+- [x] Attach the qualification to the existing self-host Store/API/SQLite payload.
+- [x] Extend OpenAPI and API Reference without adding an unprotected route.
+- [x] Add a Chinese-first PostgreSQL qualification module to the Delivery page.
+- [x] Keep `production_verified=false`, target-customer verification false, Deployment Acceptance `8/17`, and A2 authority unchanged.
+- [x] Add desktop/mobile browser assertions and a focused mobile database screenshot.
+- [x] Add Growth Auditor Round 19 with at least 20 executable next steps.
+- [x] Pass A3 Node `463` runnable tests with one explicit target-PostgreSQL opt-in skip.
+- [x] Pass current-main A2 `186/186` plus `1050` subtests and A3 Python `2/2` outside the restricted temp boundary.
+- [x] Pass Next.js typecheck/build with 15 static pages and full Playwright `40/40`.
+- [x] Pass OpenAPI runtime parity `58/58`, both CL guards, both production npm audits, export safety, and diff hygiene.
+- [x] Reverify sealed rc.2 Bundle `15/15`, custody `7/7`, archive `16/16`, and Release Artifact without rewriting inputs.
+- [x] Re-fetch `main`/A1/A2 and inspect A2 `b778e11` additive multimodal receipts without treating `qualified_for_review` as PASS or release authority.
+- [ ] Run the same probe through an A1-authenticated service identity in authorized staging/VPC PostgreSQL.
+- [ ] Prove connection-pool scope reset, migration rollback, backup, PITR, and restore in the target environment.
+## WeChat Enterprise Release Center - 2026-07-13
+
+- [x] Replace the two-page static shell with four product pages.
+- [x] Add 发布工作台、发布审批、风险告警、账户与连接.
+- [x] Use Chinese-first customer terminology without visible A1/A2/A3 lane badges in WXML.
+- [x] Keep A1 RunResult/Trace/ToolCall and A2 GradeResult/ReleaseGate/DecisionLedger as internal provenance only.
+- [x] Add explicit `preview` and `connected` modes.
+- [x] Require an HTTPS API base and allowlist every client route.
+- [x] Reject secret-bearing request and response material.
+- [x] Prohibit token, cookie, API-key, Authorization-header, localStorage, sessionStorage, and `wx.setStorage` credential persistence.
+- [x] Map `/api/a3/health` `ok: true` correctly.
+- [x] Map Dashboard evidence stages to execution evidence, evaluation result, release decision, and human review.
+- [x] Map Release Evidence v2 source-artifact hashes into preflight evidence references.
+- [x] Keep approve/deny operations at `preflight_only`; do not write a release decision.
+- [x] Add loading, partial, empty, error, retry, and pull-to-refresh states.
+- [x] Add alert filtering, selected incident detail, timeline, evidence status, and response checklist.
+- [x] Add account/API connectivity and production-capability diagnostics.
+- [x] Keep `touristappid` and label unsupported production capabilities honestly.
+- [x] Remove prominent lane badges from the Webapp brand and primary product navigation.
+- [x] Translate remaining customer-visible loading, identity-error, and API Reference lane names into enterprise product terminology.
+- [x] Add and visually inspect four 390 x 844 mini-program preview screenshots.
+- [x] Pass focused mini-program contract/security tests `10/10`.
+- [x] Pass full A3 Node regression with `468` passes, `1` explicit live-target skip, and `0` failures.
+- [x] Pass full Playwright `41/41` and Next.js 15-page production build.
+- [x] Pass CL hygiene, Commercial CL, diff hygiene, and changed-product-file secret scan.
+- [ ] Compile and inspect all pages in WeChat Developer Tools with a qualified production AppID.
+- [ ] Connect a production identity backend and server-issued WeChat session.
+- [ ] Add audited review mutation only after hosted auth, RBAC, idempotency, and immutable audit persistence are proven.
+- [ ] Obtain real subscription-message, upload, review, and publication receipts.
+
+## Multimodal Disagreement Review Queue - 2026-07-14
+
+- [x] Re-fetch main, A1, and A2 before implementation.
+- [x] Inspect A2 multimodal changes through peer ref `564d4b0` without merging the peer branch.
+- [x] Preserve support for `a2.multimodal_cross_provider_comparison.v1`.
+- [x] Add support for `a2.multimodal_cross_provider_comparison.v3` repeats and aggregates.
+- [x] Use a real A2 `public_safe=true`, `release_authority=false` v3 artifact.
+- [x] Reject raw payloads, URLs, secrets, account paths, and forged release authority.
+- [x] Require exact five-level tenant scope on import and read.
+- [x] Verify summary counts, repeat identity, aggregate instability, and receipt conservation.
+- [x] Require `Idempotency-Key` and preserve duplicate replay behavior.
+- [x] Add protected import and reviewer queue routes with separate RBAC permissions.
+- [x] Return cross-tenant 404 without model, case, or hash leakage.
+- [x] Emit metadata-only audit and event-outbox evidence.
+- [x] Persist the comparison through Memory, JSON-file, and SQLite stores.
+- [x] Add queue evidence to Dashboard, JSON, Markdown, and shareable reports.
+- [x] Keep export redaction and share-token safety intact.
+- [x] Add API Reference v9 and preserve OpenAPI runtime parity `60/60`.
+- [x] Add Chinese-first repeat, aggregate, risk, queue, and capability labels.
+- [x] Keep customer-facing UI free of prominent A1/A2/A3 lane badges.
+- [x] Save and inspect desktop and 390 x 844 screenshots without overflow.
+- [x] Pass A3 Node `476` runnable tests plus one explicit live-target skip.
+- [x] Pass current-main A2 `186/186`, Next.js 15-page build, and Playwright `42/42`.
+- [x] Pass both CL guards, both production npm audits, and diff hygiene.
+- [x] Add implementation evidence and Growth Auditor Round 20 with 24 executable next steps.
+- [x] Keep release authority, score, pass/fail, failure class, and Decision Ledger unchanged.
+- [x] Add three-way v2 after A2 Round 50 published an exact public-safe runtime artifact; consume a documented redacted representative projection.
+- [ ] Add four-way v1 only after an exact public-safe runtime artifact exists.
+- [ ] Ingest an authoritative real-review receipt and same-candidate A2 Decision Ledger.
+- [ ] Run the workflow in authorized staging with target PostgreSQL/object custody and production identity.
+
+## Multimodal Reviewer Assignment and Lease Workflow - 2026-07-14
+
+- [x] Re-fetch and inspect current main, A1, and latest A2 peer state before implementation.
+- [x] Record A2 Round 49 real provider counts, quality, latency, usage and blockers in a redacted A3 calibration fixture.
+- [x] Confirm no public-safe real human-review receipt exists and refuse to fabricate one.
+- [x] Add claim, renew, release, transfer, expiry and reclaim transitions.
+- [x] Add append-only assignment events and `expected_version` optimistic concurrency.
+- [x] Require header-only `Idempotency-Key` and preserve duplicate replay behavior.
+- [x] Derive actor hash and role from the authorization context instead of assignment payload fields.
+- [x] Reject disposition, score, risk and release-authority fields at the assignment boundary.
+- [x] Add protected assignment API with `release:review` RBAC.
+- [x] Enforce five-level tenant scope and cross-tenant 404 behavior.
+- [x] Emit metadata-only audit, event outbox and usage-meter records.
+- [x] Persist and reopen assignment state through Memory, JSON file and SQLite stores.
+- [x] Add SQL migrations 021/022 and PostgreSQL forced-RLS contract coverage.
+- [x] Add current assignment state to Dashboard, JSON, Markdown and Hosted Report exports.
+- [x] Add OpenAPI typed request/receipt/concurrency schemas and runtime route parity.
+- [x] Add API Reference v10 and commercial API/DB contract coverage.
+- [x] Add Chinese-first active, unassigned, expired, reviewer alias, version and lease UI states.
+- [x] Add focused transition, conflict, security, API and persistence tests.
+- [x] Pass final A3 Node `479` runnable tests with one explicit live-target PostgreSQL skip and zero failures.
+- [x] Pass current-main A2 `186/186`, Next.js 15-page typecheck/build, Playwright `42/42`, and OpenAPI runtime parity `61/61`.
+- [x] Pass both CL guards and both production npm audits with zero findings, blockers, advisories, or vulnerabilities.
+- [x] Save and inspect desktop and 390 x 844 review-queue screenshots without document-level horizontal overflow.
+- [x] Keep `.env.local` ignored and exclude keys, tokens, cookies, identities, signed URLs, raw provider payloads, and private media.
+- [x] Keep Golden Path `7/11`, Deployment Acceptance `8/17`, production receipts `0`, current authority `integrity_invalid`, current A2 decision `unknown`, historical A2 `block`, and production ready false.
+- [ ] Ingest a real A2 human-review receipt and verify its chain.
+- [ ] Bind the terminal review hash to a same-candidate A2 Decision Ledger.
+- [ ] Run the workflow with A1 hosted identity, CSRF, target PostgreSQL RLS and staging acceptance evidence.
+
+## Signed Multimodal Review Assignment Packet - 2026-07-14
+
+- [x] Re-fetch and inspect current main, A1, A2 and the enterprise strategy before implementation.
+- [x] Preserve A2 disposition and release authority and refuse to fabricate a real human-review receipt.
+- [x] Recompute every assignment event id/hash and reject unknown or unsafe event fields.
+- [x] Validate contiguous versions, reviewer transitions, monotonic time, tenant scope and queue/case/comparison binding.
+- [x] Add a metadata-only packet root hash and fail-closed packet verifier.
+- [x] Reject secret, email, URL, local account path, raw identity, raw model payload, private media and signed URL material.
+- [x] Add a packet build/verify CLI with JSON and Markdown output.
+- [x] Add Gate CLI `--multimodal-review-packet` verified ingestion as a `review_record`.
+- [x] Add a new Audit Bundle without rewriting the historical rc.2 bundle.
+- [x] Add a locally Ed25519-signed Audit Archive and verify packet, bundle, custody, archive root and signature.
+- [x] Label the signer `self_signed_local_key_not_sso_bound` and avoid any production-signing claim.
+- [x] Add packet state and metadata-only assignment history to Dashboard and report exports.
+- [x] Add the packet to Artifact Registry with content hash, missing production-signature controls and a packet preset.
+- [x] Upgrade API Reference to v11 and update the commercial API contract fixture/documentation.
+- [x] Add Chinese-first integrity/signature UI and keyboard-expandable history.
+- [x] Make Playwright claim through the protected API before checking the rendered history.
+- [x] Save and inspect desktop and 390 x 844 screenshots without document-level horizontal overflow.
+- [x] Add positive, tamper, scope, CLI, bundle, archive, API, report and registry tests.
+- [x] Add implementation evidence and Growth Auditor Round 22 with 22 executable next steps.
+- [x] Keep Golden Path `7/11`, Deployment Acceptance `8/17`, production receipts `0`, current authority `integrity_invalid`, current A2 decision `unknown`, historical A2 `block`, and production ready false.
+- [x] Pass A3 Node `486` runnable tests with one explicit live-target PostgreSQL skip and zero failures.
+- [x] Pass current-main A2 `186/186` test files and `1050` subtests without changing A2 judgement semantics.
+- [x] Pass Next.js TypeScript/build with 15 pages and full Playwright `42/42`.
+- [x] Pass CL hygiene with zero findings and Commercial CL with zero blockers/advisories.
+- [x] Confirm root and Webapp production dependency audits report zero vulnerabilities.
+- [x] Verify the packet, all `3/3` Audit Bundle artifacts and custody chain, and the Audit Archive root and Ed25519 signature.
+- [ ] Import and validate a public-safe real A2 human-review chain.
+- [ ] Bind the terminal review hash and packet to a same-candidate A2 Decision Ledger.
+- [ ] Replace local self-signing with tenant-bound KMS/HSM or workload identity in authorized staging.
+
+## A2 Round 50 Three-provider Review Intake - 2026-07-14
+
+- [x] Confirm remote main `ccf6ce5`, A1 peer `770ccc8`, A2 peer `bb3bcfe`, PR state and CI through authenticated GitHub API after Git transport stalled.
+- [x] Re-read the enterprise strategy and preserve A1 identity/A2 decision ownership.
+- [x] Inspect the exact A2 three-way v2 schema, 74-case artifact, queue receipt, review conservation and shared-candidate blocker evidence.
+- [x] Record that Round 50 has one pending review and zero real human-review receipts.
+- [x] Add a three-case public-safe projection preserving the real representative rows, evidence hashes and queue receipt.
+- [x] Document that the projection is not byte-identical to the full 74-case artifact.
+- [x] Validate the adapter against the complete 74-case upstream artifact with zero errors, then remove the temporary copy.
+- [x] Add strict top-level and nested field allowlists for three-way v2.
+- [x] Require exactly three matching provider-key sets across evidence, journals and case observations.
+- [x] Recompute eligible counts, comparison states, four-way summary and three pairwise summaries for integrity only.
+- [x] Enforce queue-receipt conservation and comparison-artifact/case/artifact/repeat binding.
+- [x] Reject raw payloads, secrets, URLs, email, signed URLs, unsafe paths and release authority.
+- [x] Add `p3-a2-round50` to fixture Store, API server, Next.js selector and legacy compatibility selector.
+- [x] Preserve Memory, JSON-file and SQLite generic snapshot compatibility.
+- [x] Prove SQLite restart restores the three-way comparison and assignment lease.
+- [x] Extend OpenAPI with the exact three-way v2 envelope and keep runtime parity `61/61`.
+- [x] Upgrade API Reference to v12 with A1 `770ccc8` and A2 `bb3bcfe` peer calibration.
+- [x] Extend JSON, Markdown and Hosted Report exports with provider-set and provider-observation fields.
+- [x] Render a dynamic three-provider Review UI without inventing provider/model identity.
+- [x] Preserve assignment packet integrity and all A2 release-authority boundaries.
+- [x] Add unit, tamper, API, assignment, SQLite, OpenAPI, report and browser coverage.
+- [x] Save and inspect desktop and 390 x 844 screenshots without document-level horizontal overflow.
+- [x] Add implementation evidence and Growth Auditor Round 23 with 23 executable next steps.
+- [x] Keep Golden Path `7/11`, Deployment Acceptance `8/17`, production receipts `0`, current authority `integrity_invalid`, current A2 decision `unknown`, historical A2 `block`, and production ready false.
+- [x] Pass A3 Node `489` runnable tests with one explicit live-target PostgreSQL skip and zero failures.
+- [x] Pass current-main A2 `186/186` test files and `1050` subtests without changing A2 judgement semantics.
+- [x] Pass Next.js TypeScript/build with 15 pages and full Playwright `43/43`.
+- [x] Pass OpenAPI runtime parity `61/61`, CL hygiene with zero findings, and Commercial CL with zero blockers/advisories.
+- [x] Confirm root and Webapp production dependency audits report zero vulnerabilities.
+- [x] Keep `.env.local` ignored and exclude credentials, account identity, signed URLs, raw provider payloads and private media.
+- [ ] Import and validate a real A2 human-review chain.
+- [ ] Bind the review result and three-way evidence to one exact shared candidate and Decision Ledger.
+- [ ] Run the workflow with hosted identity, target PostgreSQL RLS, object storage and tenant KMS in authorized staging.

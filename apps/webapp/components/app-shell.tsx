@@ -48,7 +48,7 @@ export function AppShell({ route, children }: { route: ProductRoute; children: R
     <div className="app-shell">
       <aside className="app-sidebar">
         <Link className="app-brand" href="/overview" aria-label="Ashr overview">
-          <span>A3</span>
+          <span className="brand-emblem"><PackageCheck size={20} strokeWidth={1.9} aria-hidden="true" /></span>
           <strong>ASHR<small>Release Console</small></strong>
         </Link>
 
@@ -75,24 +75,26 @@ export function AppShell({ route, children }: { route: ProductRoute; children: R
         </nav>
 
         <div className="sidebar-contract">
-          <span><SearchCheck size={14} aria-hidden="true" /> A1 / A2</span>
-          <strong>{model?.summary.totalCases ?? 0} cases</strong>
-          <small>{loading ? t("common.loading") : "Capture → Judge → Operate"}</small>
+          <span><SearchCheck size={14} aria-hidden="true" /> {language === "zh-CN" ? "证据链" : "Evidence spine"}</span>
+          <strong>{model?.summary.totalCases ?? 0} {language === "zh-CN" ? "个案例" : "cases"}</strong>
+          <small>{loading ? t("common.loading") : language === "zh-CN" ? "执行 → 评测 → 发布" : "Run → Evaluate → Release"}</small>
         </div>
       </aside>
 
       <div className="app-stage">
         <header className="command-bar">
-          <div className="mobile-brand"><span>A3</span><strong>ASHR</strong></div>
+          <div className="mobile-brand"><span className="brand-emblem"><PackageCheck size={18} strokeWidth={1.9} aria-hidden="true" /></span><strong>ASHR</strong></div>
           <label className="source-control">
             <span>{t("shell.source")}</span>
             <select value={source} onChange={(event) => setSource(event.target.value)}>
-              <option value="api-mock">A1/A2 API mock</option>
-              <option value="p3-official-demo">Ashr demo 884/11926</option>
-              <option value="raw-a1">Raw A1 RunResult</option>
-              <option value="raw-a2">Raw A2 GradeResult</option>
-              <option value="a3-golden-path-rc2">A3 Golden Path rc.2 - 3/3</option>
-              <option value="a3-golden-path">A3 Golden Path rc.1 - history</option>
+              <option value="api-mock">{language === "zh-CN" ? "API 聚合证据" : "API evidence projection"}</option>
+              <option value="p3-media">{language === "zh-CN" ? "多模态分歧校准" : "Multimodal disagreement calibration"}</option>
+              <option value="p3-a2-round50">{language === "zh-CN" ? "三方模型复核 · Round 50" : "Three-provider review · Round 50"}</option>
+              <option value="p3-official-demo">{language === "zh-CN" ? "官方校准样本 884/11926" : "Official calibration sample 884/11926"}</option>
+              <option value="raw-a1">{language === "zh-CN" ? "执行证据原始样本" : "Raw execution evidence"}</option>
+              <option value="raw-a2">{language === "zh-CN" ? "评测结论原始样本" : "Raw evaluation evidence"}</option>
+              <option value="a3-golden-path-rc2">{language === "zh-CN" ? "发布候选 rc.2 · 3/3" : "Release candidate rc.2 · 3/3"}</option>
+              <option value="a3-golden-path">{language === "zh-CN" ? "发布候选 rc.1 · 历史" : "Release candidate rc.1 · history"}</option>
             </select>
           </label>
           <div className="command-actions">

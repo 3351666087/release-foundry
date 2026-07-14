@@ -1,0 +1,170 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Ashr 发布中心</title>
+  <link rel="stylesheet" href="./preview.css">
+</head>
+<body>
+  <div class="mini-app">
+    <header class="native-bar">
+      <strong>Ashr 发布中心</strong>
+      <span>•••</span>
+    </header>
+
+    <main class="app-content">
+      <section class="preview-page active" data-page="workbench">
+        <header class="product-header">
+          <span class="brand-mark">发</span>
+          <div><h1>Ashr 发布中心</h1><p>示例企业 · 预发布</p></div>
+          <span class="pill">演示数据</span>
+        </header>
+
+        <article class="release-hero">
+          <div class="hero-line"><span>当前候选版本</span><b class="pill danger">发布受阻</b></div>
+          <h2>智能客服助手 · 候选版本</h2>
+          <small>版本 0.2.0-rc.2 · 智能客服助手</small>
+          <p>案例质量已通过，但发布凭证与目标环境回执尚未闭合。</p>
+          <footer><div><span>发布决策</span><strong>暂不可发布</strong></div><button data-go="approval">查看依据</button></footer>
+        </article>
+
+        <h3 class="section-title">质量概览</h3>
+        <div class="metric-grid">
+          <article><strong>3 / 3</strong><span>案例通过</span></article>
+          <article><strong>100%</strong><span>执行链完整</span></article>
+          <article><strong>7 / 11</strong><span>发布检查</span></article>
+          <article><strong>8 / 17</strong><span>部署验收</span></article>
+        </div>
+
+        <h3 class="section-title">证据链</h3>
+        <div class="panel stage-list">
+          <article><span class="stage-number">01</span><div><strong>执行证据</strong><p>3/3 案例完成，Trace 完整率 100%。</p></div><b class="pill success">完整</b></article>
+          <article><span class="stage-number">02</span><div><strong>评测结论</strong><p>案例评分完成，质量检查通过。</p></div><b class="pill success">已生成</b></article>
+          <article><span class="stage-number">03</span><div><strong>发布凭证</strong><p>凭证不属于同一候选版本，保持阻断。</p></div><b class="pill danger">未闭合</b></article>
+        </div>
+
+        <h3 class="section-title">待办事项</h3>
+        <div class="panel task-list">
+          <button data-go="approval"><span><strong>候选版本等待复核</strong><small>0.2.0-rc.2 · 预发布</small></span><b class="pill danger">受阻</b><i>›</i></button>
+          <button data-go="incidents"><span><strong>退款状态链路不一致</strong><small>高风险 · 需要回放</small></span><b class="pill warning">待处理</b><i>›</i></button>
+        </div>
+      </section>
+
+      <section class="preview-page" data-page="approval">
+        <header class="product-header">
+          <span class="brand-mark">审</span>
+          <div><h1>发布审批</h1><p>智能客服助手 · 预发布</p></div>
+          <span class="pill">演示数据</span>
+        </header>
+
+        <article class="decision-panel">
+          <div class="hero-line"><span>发布决策</span><b class="pill danger">发布受阻</b></div>
+          <h2>暂不可发布</h2>
+          <p>案例质量已通过，但发布凭证与目标环境回执尚未闭合。</p>
+          <footer><span>0.2.0-rc.2</span><span>刚刚校准</span></footer>
+        </article>
+
+        <h3 class="section-title">发布依据</h3>
+        <div class="panel stage-list approval-stages">
+          <article><span class="stage-number">01</span><div><strong>执行证据</strong><p>3/3 案例完成，Trace 完整率 100%。</p></div><b class="pill success">完整</b></article>
+          <article><span class="stage-number">02</span><div><strong>评测结论</strong><p>案例评分完成，质量检查通过。</p></div><b class="pill success">已生成</b></article>
+          <article><span class="stage-number">03</span><div><strong>发布凭证</strong><p>仓库门禁和部署回执尚未闭合。</p></div><b class="pill danger">受阻</b></article>
+        </div>
+
+        <h3 class="section-title">阻断项 · 3</h3>
+        <div class="blocker-list">
+          <article><div><strong>1. 候选版本证据不一致</strong><span>发布负责人</span></div><p>执行记录、评测账本与发布制品需要绑定同一版本。</p></article>
+          <article><div><strong>2. 主分支门禁未强制</strong><span>仓库管理员</span></div><p>尚未证明失败候选无法合并到主分支。</p></article>
+          <article><div><strong>3. 目标环境回执缺失</strong><span>平台运维</span></div><p>缺少部署身份、镜像、迁移、健康和租户隔离回读。</p></article>
+        </div>
+
+        <article class="action-boundary">
+          <strong>当前能力：权限预检</strong>
+          <p>按钮只检查操作资格，不会提交审批结果。</p>
+          <div><button class="secondary" data-demo-action="拒绝">检查拒绝权限</button><button class="primary" data-demo-action="批准">检查批准权限</button></div>
+        </article>
+      </section>
+
+      <section class="preview-page" data-page="incidents">
+        <header class="product-header">
+          <span class="brand-mark">警</span>
+          <div><h1>风险告警</h1><p>智能客服助手 · 证据回放队列</p></div>
+          <span class="pill">演示数据</span>
+        </header>
+
+        <div class="filter-bar">
+          <button class="active" data-filter="all">全部</button>
+          <button data-filter="open">待处理</button>
+          <button data-filter="reviewing">复核中</button>
+        </div>
+
+        <h3 class="section-title">风险队列 · 2</h3>
+        <div class="incident-strip">
+          <button class="incident-chip active" data-incident="refund"><span><b class="pill danger">高风险</b><small>12 分钟前</small></span><strong>退款状态链路不一致</strong><em>待处理 · 退款案例 03</em></button>
+          <button class="incident-chip" data-incident="tools"><span><b class="pill warning">中风险</b><small>34 分钟前</small></span><strong>关键工具证据完整性复核</strong><em>复核中 · 发布凭证</em></button>
+        </div>
+
+        <h3 class="section-title">告警详情</h3>
+        <article class="incident-detail">
+          <header><i></i><div><h2 id="incident-title">退款状态链路不一致</h2><p id="incident-meta">待处理 · 退款案例 03</p></div><b class="pill danger" id="incident-severity">高风险</b></header>
+          <p id="incident-summary">页面显示退款完成，但后端确认动作晚于页面状态变化。</p>
+          <div><span>证据状态</span><strong id="incident-evidence">Trace、工具调用和评测证据齐全</strong></div>
+        </article>
+
+        <h3 class="section-title">事件时间线</h3>
+        <div class="panel timeline" id="incident-timeline">
+          <article><i></i><div><time>14:22:10</time><strong>页面状态变更</strong><p>前端缓存将状态更新为“退款完成”。</p></div></article>
+          <article><i></i><div><time>14:23:05</time><strong>退款动作执行</strong><p>确认工具返回成功并记录退款引用。</p></div></article>
+          <article><i></i><div><time>14:24:18</time><strong>风险规则命中</strong><p>状态顺序不一致，自动进入回放队列。</p></div></article>
+        </div>
+
+        <h3 class="section-title">处置建议</h3>
+        <ol class="panel action-list"><li>核对数据库退款记录</li><li>核对支付渠道结算状态</li><li>修复乐观状态更新</li></ol>
+        <button class="primary full" data-go="approval">查看关联发布决策</button>
+      </section>
+
+      <section class="preview-page" data-page="account">
+        <header class="product-header">
+          <span class="brand-mark">企</span>
+          <div><h1>账户与连接</h1><p>企业身份、环境和客户端安全状态</p></div>
+        </header>
+
+        <article class="identity-panel">
+          <span>企</span><div><strong>示例企业</strong><p>示例企业 / 智能客服助手 / 预发布</p></div><b class="pill warning">身份未连接</b>
+        </article>
+
+        <h3 class="section-title">服务连接</h3>
+        <article class="connection-panel">
+          <header><i></i><div><strong>演示模式</strong><p>未配置企业 HTTPS API。</p></div></header>
+          <dl><div><dt>客户端配置</dt><dd>游客调试 AppID</dd></div><div><dt>数据接口</dt><dd>未配置 HTTPS API</dd></div><div><dt>当前权限</dt><dd>只读演示</dd></div></dl>
+          <button class="secondary full" data-demo-check>重新检查连接</button>
+        </article>
+
+        <h3 class="section-title">客户端安全</h3>
+        <div class="panel security-list"><div><span>本地 Token 存储</span><b class="pill success">已禁用</b></div><div><span>敏感字段渲染</span><b class="pill success">默认拒绝</b></div><div><span>审批写入</span><b class="pill warning">需要服务端授权</b></div></div>
+
+        <h3 class="section-title">生产能力状态</h3>
+        <div class="capability-list">
+          <article><div><strong>企业身份会话</strong><b class="pill warning">待服务端接入</b></div><p>需要企业身份后端签发会话，小程序不保存 Token。</p></article>
+          <article><div><strong>微信登录</strong><b class="pill">尚未启用</b></div><p>取得主体资质与正式 AppID 后才能接入。</p></article>
+          <article><div><strong>审批写入</strong><b class="pill warning">仅权限预检</b></div><p>当前不会提交批准、拒绝或豁免结果。</p></article>
+          <article><div><strong>订阅消息</strong><b class="pill">尚未接入</b></div><p>不会宣称已发送真实微信通知。</p></article>
+        </div>
+
+        <aside class="security-note"><strong>安全边界</strong><p>小程序仅展示服务端脱敏摘要。正式登录、授权与审批必须在具备主体资质的企业后端完成。</p></aside>
+      </section>
+    </main>
+
+    <nav class="tab-bar" aria-label="产品导航">
+      <button class="active" data-target="workbench"><span>台</span><strong>工作台</strong></button>
+      <button data-target="approval"><span>审</span><strong>审批</strong></button>
+      <button data-target="incidents"><span>警</span><strong>告警</strong></button>
+      <button data-target="account"><span>企</span><strong>账户</strong></button>
+    </nav>
+
+    <div class="toast" role="status" aria-live="polite"></div>
+  </div>
+  <script src="./preview.js"></script>
+</body>
+</html>

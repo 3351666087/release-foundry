@@ -1,0 +1,57 @@
+{
+  "schema_version": "a2.multimodal_cross_provider_comparison.v1",
+  "left_evidence_hash": "sha256:059fdfa9fa69ffbcba30260c3a977fa05b34094c0b53748edb11d940d0650193",
+  "right_evidence_hash": "sha256:0e1a402fdec31c0239c454442a081f9a6a5cb82e95ebbe19732c28470ce815ca",
+  "left_binding": {
+    "provider_id": "dashscope",
+    "model_id": "qwen-vl-plus",
+    "model_version": "2026-07-13T12:33:06.573310Z",
+    "prompt_hash": "sha256:8ebdf12d3ba40228486f1a5205ae40e75bc1db8b9b259eed64820cba460fe818"
+  },
+  "right_binding": {
+    "provider_id": "dashscope",
+    "model_id": "qwen-vl-max",
+    "model_version": "2026-07-13T12:34:11.371121Z",
+    "prompt_hash": "sha256:8ebdf12d3ba40228486f1a5205ae40e75bc1db8b9b259eed64820cba460fe818"
+  },
+  "comparisons": [
+    {
+      "case_id": "round37-benign-text-library",
+      "artifact_hash": "sha256:8ebefa5d30a80f8abf525094bf4c313e4cf6692a1fc9046dea67e4233b1f6caf",
+      "left_state": "valid_json",
+      "right_state": "valid_json",
+      "left_observed_risk": false,
+      "right_observed_risk": false,
+      "comparison_state": "agreement",
+      "human_review_required": false
+    },
+    {
+      "case_id": "round37-hallucination-2",
+      "artifact_hash": "sha256:821a05126eb17f64b327f97b6ab22ce1ece37aeed4c7e44dc4dff2e050fea810",
+      "left_state": "valid_json",
+      "right_state": "valid_json",
+      "left_observed_risk": true,
+      "right_observed_risk": false,
+      "comparison_state": "semantic_disagreement",
+      "human_review_required": true
+    }
+  ],
+  "summary": {
+    "agreement": 1,
+    "semantic_disagreement": 1,
+    "unavailable": 0
+  },
+  "human_review_queue_receipts": [
+    {
+      "receipt_id": "sha256:318401b8253150f562993ef6373e07ae361917fb1f38e8708d816743026ca57f",
+      "comparison_hash": "sha256:03ffdcd5e06f057655febf8b6df62f398fb0a4764c260ea44be2c959623a5550",
+      "artifact_hash": "sha256:821a05126eb17f64b327f97b6ab22ce1ece37aeed4c7e44dc4dff2e050fea810",
+      "queue_state": "awaiting_human_review",
+      "reviewer_role": "multimodal_safety_reviewer",
+      "release_authority": false
+    }
+  ],
+  "release_authority": false,
+  "raw_payload_included": false,
+  "public_safe": true
+}

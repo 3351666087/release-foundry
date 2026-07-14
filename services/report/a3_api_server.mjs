@@ -35,6 +35,16 @@ const A3_SCOPE_FIELDS = [
   "project_id",
   "environment_id"
 ];
+const A3_DEPLOYMENT_VERIFICATION_REQUEST_FIELDS = new Set([
+  "source",
+  "expected_version",
+  "expectedVersion",
+  "request_id",
+  "requestId",
+  "trace_id",
+  "traceId",
+  ...A3_SCOPE_FIELDS
+]);
 
 class A3RequestBodyBoundaryError extends Error {
   constructor(bodyState, message) {
@@ -47,7 +57,7 @@ class A3RequestBodyBoundaryError extends Error {
 
 export function createA3ApiHandler(options = {}) {
   const storePromise = Promise.resolve(options.store || createFixtureBackedA3Store({
-    sources: options.sources || ["mock", "raw-a1", "raw-a2", "p3-media", "p3-official-demo", "a3-golden-path", "a3-golden-path-rc2"],
+    sources: options.sources || ["mock", "raw-a1", "raw-a2", "p3-media", "p3-a2-round50", "p3-official-demo", "a3-golden-path", "a3-golden-path-rc2"],
     repoRoot: options.repoRoot
   }));
 
@@ -297,9 +307,128 @@ export function createA3ApiHandler(options = {}) {
         return sendJson(response, 201, receipt);
       }
 
+      if (request.method === "POST" && url.pathname === "/api/a3/import/a2-multimodal-comparison") {
+        const body = await readJsonBody(request);
+        const authz = authorizeRequest(request, url, "import_a2_multimodal_comparison", body);
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
+        const receipt = await store.importA2MultimodalComparison(
+          body.comparison || body.multimodal_comparison || body,
+          scopedStoreOptions(url, {
+            source: body.source || url.searchParams.get("source") || "api-ingest",
+            sourceLabel: body.source_label || body.sourceLabel,
+            organizationId: body.organization_id,
+            tenantId: body.tenant_id,
+            workspaceId: body.workspace_id,
+            projectId: body.project_id,
+            environmentId: body.environment_id,
+            actorHash: authz.actor_hash,
+            importedAt: serverNow(options),
+            idempotencyKey: request.headers["idempotency-key"]
+          })
+        );
+        return sendJson(response, 201, receipt);
+      }
+
       if (request.method === "GET" && url.pathname === "/api/a3/dashboard") {
         const security = dashboardSecurityContext(request, url, options);
         return sendJson(response, 200, await store.getDashboardSnapshot(sourceFrom(url), security));
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/a3/deployment/sandbox-calibration") {
+        const calibration = await store.getSelfHostSandboxCalibration(scopedStoreOptions(url, {
+          source: sourceFrom(url),
+          organizationId: url.searchParams.get("organization_id") || undefined,
+          tenantId: url.searchParams.get("tenant_id") || undefined,
+          workspaceId: url.searchParams.get("workspace_id") || undefined,
+          projectId: url.searchParams.get("project_id") || undefined,
+          environmentId: url.searchParams.get("environment_id") || undefined
+        }));
+        return calibration
+          ? sendJson(response, 200, calibration)
+          : sendJson(response, 404, notFound("self_host_sandbox_calibration", sourceFrom(url)));
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/a3/deployment/receipts") {
+        return sendJson(response, 200, await store.listDeploymentReceipts(scopedStoreOptions(url, {
+          source: sourceFrom(url),
+          organizationId: url.searchParams.get("organization_id") || undefined,
+          projectId: url.searchParams.get("project_id") || undefined
+        })));
+      }
+
+      if (request.method === "POST" && url.pathname === "/api/a3/deployment/receipts") {
+        const body = await readJsonBody(request);
+        const authz = authorizeRequest(request, url, "submit_deployment_receipt", body);
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
+        const receipt = await store.submitDeploymentReceipt(body.receipt || body, scopedStoreOptions(url, {
+          source: body.source || sourceFrom(url),
+          organizationId: body.organization_id,
+          projectId: body.project_id,
+          actor: body.actor,
+          actorHash: body.actor_hash,
+          submittedAt: body.submitted_at || body.submittedAt,
+          idempotencyKey: idempotencyKeyFrom(request, body)
+        }));
+        return sendJson(response, 201, receipt);
+      }
+
+      const deploymentReceiptReviewMatch = url.pathname.match(/^\/api\/a3\/deployment\/receipts\/([^/]+)\/review$/);
+      if (request.method === "POST" && deploymentReceiptReviewMatch) {
+        const body = await readJsonBody(request);
+        const authz = authorizeRequest(request, url, "review_deployment_receipt", body);
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
+        const receipt = await store.reviewDeploymentReceipt(
+          decodeURIComponent(deploymentReceiptReviewMatch[1]),
+          body.review || body,
+          scopedStoreOptions(url, {
+            source: body.source || sourceFrom(url),
+            organizationId: body.organization_id,
+            projectId: body.project_id,
+            actor: body.actor,
+            actorHash: body.actor_hash,
+            reviewedAt: body.reviewed_at || body.reviewedAt,
+            idempotencyKey: idempotencyKeyFrom(request, body)
+          })
+        );
+        return receipt
+          ? sendJson(response, 200, receipt)
+          : sendJson(response, 404, notFound("deployment_receipt", deploymentReceiptReviewMatch[1]));
+      }
+
+      const deploymentReceiptVerifyMatch = url.pathname.match(/^\/internal\/a3\/deployment\/receipts\/([^/]+)\/verify$/);
+      if (request.method === "POST" && deploymentReceiptVerifyMatch) {
+        const body = await readJsonBody(request);
+        const guard = trustedDeploymentReceiptVerifierGuard(request, body, options);
+        if (!guard.allowed) {
+          return sendJson(response, guard.status, guard.body);
+        }
+        const receiptId = decodeURIComponent(deploymentReceiptVerifyMatch[1]);
+        const receipt = await store.verifyDeploymentReceiptAuthoritatively(
+          receiptId,
+          async (resolverInput) => guard.resolver({
+            ...resolverInput,
+            operation: "verify_deployment_receipt",
+            requested_at: serverNow(options)
+          }),
+          scopedStoreOptions(url, {
+            source: body.source || sourceFrom(url),
+            expectedVersion: body.expected_version ?? body.expectedVersion,
+            actorHash: guard.resolverIdAlias,
+            resolverIdAlias: guard.resolverIdAlias,
+            principalKind: "service_account",
+            trustedResolver: true,
+            idempotencyKey: idempotencyKeyFrom(request, body)
+          })
+        );
+        return receipt
+          ? sendJson(response, 200, receipt)
+          : sendJson(response, 404, notFound("deployment_receipt", receiptId));
       }
 
       if (request.method === "GET" && url.pathname === "/api/a3/release-decision/provenance") {
@@ -578,6 +707,44 @@ export function createA3ApiHandler(options = {}) {
           organizationId: url.searchParams.get("organization_id") || undefined,
           projectId: url.searchParams.get("project_id") || undefined
         })));
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/a3/review/multimodal-queue") {
+        return sendJson(response, 200, await store.getMultimodalReviewQueue(scopedStoreOptions(url, {
+          source: sourceFrom(url),
+          organizationId: url.searchParams.get("organization_id") || undefined,
+          tenantId: url.searchParams.get("tenant_id") || undefined,
+          workspaceId: url.searchParams.get("workspace_id") || undefined,
+          projectId: url.searchParams.get("project_id") || undefined,
+          environmentId: url.searchParams.get("environment_id") || undefined,
+          now: serverNow(options)
+        })));
+      }
+
+      const multimodalAssignmentMatch = url.pathname.match(/^\/api\/a3\/review\/multimodal-queue\/([^/]+)\/assignment$/);
+      if (request.method === "POST" && multimodalAssignmentMatch) {
+        const body = await readJsonBody(request);
+        const authz = authorizeRequest(request, url, "manage_multimodal_review_assignment", body);
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
+        const receipt = await store.mutateMultimodalReviewAssignment(
+          decodeURIComponent(multimodalAssignmentMatch[1]),
+          body.assignment || {},
+          scopedStoreOptions(url, {
+            source: body.source || sourceFrom(url),
+            organizationId: body.organization_id,
+            tenantId: body.tenant_id,
+            workspaceId: body.workspace_id,
+            projectId: body.project_id,
+            environmentId: body.environment_id,
+            actorHash: authz.actor_hash,
+            actorRole: authz.role,
+            idempotencyKey: request.headers["idempotency-key"],
+            now: serverNow(options)
+          })
+        );
+        return sendJson(response, 200, receipt);
       }
 
       if (request.method === "GET" && url.pathname === "/api/a3/runs") {
@@ -1344,6 +1511,72 @@ function trustedReleaseAuthorizationResolver(options = {}) {
   if (typeof options.resolveTrustedReleaseAuthorization === "function") return options.resolveTrustedReleaseAuthorization;
   if (typeof options.trustedReleaseAuthorizationResolver === "function") return options.trustedReleaseAuthorizationResolver;
   return null;
+}
+
+function trustedDeploymentReceiptVerifierResolver(options = {}) {
+  if (typeof options.resolveAuthoritativeDeploymentReceipt === "function") return options.resolveAuthoritativeDeploymentReceipt;
+  if (typeof options.deploymentReceiptVerifierResolver === "function") return options.deploymentReceiptVerifierResolver;
+  return null;
+}
+
+function trustedDeploymentReceiptVerifierGuard(request, body = {}, options = {}) {
+  const trustedAccess = request[REQUEST_TRUSTED_ACCESS];
+  const authContext = trustedAccess?.authContext || {};
+  const unexpectedFields = Object.keys(body || {}).filter((field) => !A3_DEPLOYMENT_VERIFICATION_REQUEST_FIELDS.has(field));
+  if (unexpectedFields.length) {
+    return {
+      allowed: false,
+      status: 400,
+      body: deploymentReceiptVerifierDenied(
+        "client_verification_result_forbidden",
+        "Authoritative verification results must come from the configured server resolver."
+      )
+    };
+  }
+  const serviceAccount = trustedAccess?.productionEnforced === true
+    && authContext.auth_state === "service_account"
+    && trustedAccess.accessDecision?.principal?.principal_type === "service_account";
+  if (!serviceAccount) {
+    return {
+      allowed: false,
+      status: 403,
+      body: deploymentReceiptVerifierDenied(
+        "trusted_deployment_verifier_required",
+        "This internal operation requires a server-verified A1 service account."
+      )
+    };
+  }
+  const resolver = trustedDeploymentReceiptVerifierResolver(options);
+  if (!resolver) {
+    return {
+      allowed: false,
+      status: 503,
+      body: deploymentReceiptVerifierDenied(
+        "authoritative_verifier_unavailable",
+        "The authoritative deployment receipt verifier is unavailable."
+      )
+    };
+  }
+  return {
+    allowed: true,
+    resolver,
+    resolverIdAlias: authContext.actor_hash
+  };
+}
+
+function deploymentReceiptVerifierDenied(error, message) {
+  return {
+    schema_version: "a3.deployment_receipt_verifier_denied.v1",
+    error,
+    message,
+    safety: {
+      client_verification_result_used: false,
+      raw_request_body_echoed: false,
+      raw_resolver_error_exposed: false,
+      production_verified: false,
+      a2_decision_recomputed: false
+    }
+  };
 }
 
 function trustedGitHubTargetResolver(options = {}) {

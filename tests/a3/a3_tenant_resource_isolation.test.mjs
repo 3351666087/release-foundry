@@ -129,8 +129,11 @@ test("hosted A3 excludes foreign and legacy records from every dashboard aggrega
     auditEvents: 1,
     adminActionRequests: 0,
     reviewWorkflowRecords: 0,
+    multimodalReviewAssignmentEvents: 0,
     releaseEvidenceReadbacks: 0,
     githubPublishReceipts: 0,
+    deploymentReceipts: 0,
+    deploymentReceiptReadbacks: 0,
     importReceipts: 0
   });
   assert.equal(dashboard.aggregate_scope_status.safety.foreign_record_counts_exposed, false);

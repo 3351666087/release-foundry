@@ -469,6 +469,63 @@ const COMMERCIAL_ENDPOINTS = [
     usage: ["api_requests"],
     dependencies: ["A2 release policy", "A3 reviewer workflow"]
   }),
+  endpoint("POST /v1/review-queues/multimodal/{queue_id}/assignment", "A1/A2/A3", "review_workflow", "POST /api/a3/review/multimodal-queue/:queueId/assignment", {
+    status: "implemented",
+    rbac: "release:review",
+    db: ["multimodal_review_assignment_events", "audit_events", "event_outbox", "idempotency_keys"],
+    events: ["review.multimodal_assignment.claimed", "review.multimodal_assignment.transferred", "review.multimodal_assignment.released"],
+    artifacts: ["multimodal_review_assignment_receipt", "multimodal_review_queue_export", "multimodal_review_assignment_packet"],
+    usage: ["api_requests", "multimodal_review_assignment_actions"],
+    dependencies: ["A1 trusted reviewer identity and tenant scope", "A2 two-way or three-way non-authoritative multimodal queue receipt", "A3 reviewer lease workflow"],
+    notes: "Append-only assignment leases consume validated A2 two-way v1/v3 or three-way v2 queue receipts, use expected_version, and never alter A2 risk, score, disposition, or release authority. Metadata-only history can enter the signed Audit Archive only after packet integrity verification."
+  }),
+  endpoint("GET /v1/deployments/sandbox-calibration", "A1/A3", "deployment_operations", "GET /api/a3/deployment/sandbox-calibration", {
+    status: "implemented_local_sandbox",
+    rbac: "deployment:read",
+    db: ["self_host_sandbox_calibrations", "audit_events", "event_outbox"],
+    events: ["deployment.sandbox_calibration_read"],
+    artifacts: ["a1_self_host_sandbox_calibration"],
+    usage: ["api_requests"],
+    dependencies: ["A1 local control-plane", "A1 worker queue", "A1 local object storage"],
+    notes: "Local A1-backed evidence only. Never production verification and never mutates A2 or deployment acceptance."
+  }),
+  endpoint("GET /v1/releases/{release_id}/deployment-receipts", "A1/A2/A3", "release_gate", "GET /api/a3/deployment/receipts", {
+    status: "read_only",
+    rbac: "deployment:read",
+    db: ["deployment_receipts", "audit_events", "event_outbox"],
+    events: ["deployment.receipts_read"],
+    artifacts: ["deployment_receipt_inbox"],
+    usage: ["api_requests"],
+    dependencies: ["A1 deployment receipts", "A2 same-candidate Trusted Spine", "A3 deployment handoff"]
+  }),
+  endpoint("POST /v1/releases/{release_id}/deployment-receipts", "A1/A3", "release_gate", "POST /api/a3/deployment/receipts", {
+    status: "implemented",
+    rbac: "deployment:submit",
+    db: ["deployment_receipts", "idempotency_keys", "audit_events", "event_outbox"],
+    events: ["deployment.receipt_submitted"],
+    artifacts: ["deployment_receipt_metadata"],
+    usage: ["api_requests", "deployment_receipt_submissions"],
+    dependencies: ["A1 external verifier receipt", "A2 candidate and run selectors", "A3 metadata redaction boundary"]
+  }),
+  endpoint("POST /v1/releases/{release_id}/deployment-receipts/{receipt_id}/reviews", "A3", "review_workflow", "POST /api/a3/deployment/receipts/:receiptId/review", {
+    status: "implemented",
+    rbac: "deployment:review",
+    db: ["deployment_receipts", "idempotency_keys", "audit_events", "event_outbox"],
+    events: ["deployment.receipt_acknowledged", "deployment.receipt_rejected", "deployment.receipt_superseded"],
+    artifacts: ["deployment_receipt_review"],
+    usage: ["api_requests", "deployment_receipt_reviews"],
+    dependencies: ["A1 authoritative verifier readback", "A2 Release Ready remains immutable", "A3 optimistic concurrency"]
+  }),
+  endpoint("POST /internal/v1/releases/{release_id}/deployment-receipts/{receipt_id}/verify", "A1/A2/A3", "release_gate", "POST /internal/a3/deployment/receipts/:receiptId/verify", {
+    status: "implemented",
+    rbac: "deployment:verify service_account_only",
+    db: ["deployment_receipts", "deployment_receipt_readbacks", "idempotency_keys", "audit_events", "event_outbox"],
+    events: ["deployment.receipt_authoritatively_verified", "deployment.receipt_authoritatively_rejected"],
+    artifacts: ["deployment_receipt_authoritative_readback", "deployment_acceptance_projection"],
+    usage: ["api_requests", "deployment_receipt_authoritative_verifications"],
+    dependencies: ["A1 trusted service-account principal", "server-only authoritative resolver", "A2 same-candidate decision authority", "A3 hash-chain and acceptance projection"],
+    notes: "Trigger-only internal route. Client-supplied verification status, claims, evidence, authority, and attestation are rejected."
+  }),
   endpoint("GET /v1/evidence-bundles/{bundle_id}", "A1/A3", "audit_export", "GET /api/a3/artifacts/registry", {
     status: "read_only",
     rbac: "auditor",

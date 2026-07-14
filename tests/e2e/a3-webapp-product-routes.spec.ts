@@ -22,7 +22,7 @@ test.describe("A3 Next.js product console", () => {
     for (const [route, title] of dataRoutes) {
       await page.goto(`${base}/${route}/`);
       await expect(page.getByRole("heading", { name: title })).toBeVisible();
-      await expect(page.locator(".sidebar-contract")).toContainText("32 cases");
+      await expect(page.locator(".sidebar-contract")).toContainText("32 个案例");
       await expect(page.locator(".source-control select")).toHaveValue("api-mock");
     }
 
@@ -38,7 +38,7 @@ test.describe("A3 Next.js product console", () => {
     await expect(page.getByRole("heading", { name: "进入工作区" })).toBeVisible();
     await expect(page.getByRole("button", { name: /Google 登录待接入/ })).toBeDisabled();
     await expect(page.getByRole("button", { name: /GitHub 登录待接入/ })).toBeDisabled();
-    await expect(page.locator(".auth-roadmap")).toContainText("A1 身份服务未连接");
+    await expect(page.locator(".auth-roadmap")).toContainText("身份服务未连接");
     await page.screenshot({ path: "docs/screenshots/a3-webapp-login-desktop.png", fullPage: false });
 
     expect(consoleErrors).toEqual([]);
@@ -108,13 +108,14 @@ test.describe("A3 Next.js product console", () => {
     await page.goto(`${base}/delivery/?source=a3-golden-path`);
     await expect(page.getByRole("heading", { name: "交付闭环" })).toBeVisible();
     await expect(page.locator(".source-control select")).toHaveValue("a3-golden-path");
-    await expect(page.locator(".delivery-signal")).toContainText("候选版本保持阻塞");
+    await expect(page.locator(".delivery-signal")).toContainText("候选证据绑定无效");
+    await expect(page.locator(".delivery-signal")).toContainText("integrity_invalid");
     await expect(page.locator(".delivery-stage-list article")).toHaveCount(11);
     await expect(page.locator('.delivery-stage-list article[data-status="passed"]')).toHaveCount(7);
-    await expect(page.getByText("A2 Decision Ledger authorizes release", { exact: true })).toBeVisible();
-    await expect(page.getByText("Tenant-bound GitHub App installation", { exact: true })).toBeVisible();
-    await expect(page.getByText("Required Check enforced on main", { exact: true })).toBeVisible();
-    await expect(page.getByText("GitHub Actions artifact live readback", { exact: true })).toBeVisible();
+    await expect(page.getByText("权威决策账本允许发布", { exact: true })).toBeVisible();
+    await expect(page.getByText("Tenant-bound GitHub App installation", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("Required Check enforced on main", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("GitHub Actions artifact live readback", { exact: true }).first()).toBeVisible();
     const bounds = await page.evaluate(() => ({
       viewport: document.documentElement.clientWidth,
       documentScrollWidth: document.documentElement.scrollWidth,
@@ -128,7 +129,7 @@ test.describe("A3 Next.js product console", () => {
     await page.reload();
     await expect(page.getByRole("heading", { name: "交付闭环" })).toBeVisible();
     await expect(page.locator(".route-content")).toHaveCSS("opacity", "1");
-    await expect(page.locator(".delivery-signal")).toContainText("通过 7/11 个步骤");
+    await expect(page.locator(".delivery-signal")).toContainText("Golden Path 通过 7/11");
     await page.waitForTimeout(500);
     await expect(page.locator(".route-content")).toHaveCSS("opacity", "1");
     const mobileBounds = await page.evaluate(() => ({
@@ -145,22 +146,56 @@ test.describe("A3 Next.js product console", () => {
     await page.screenshot({ path: "docs/screenshots/a3-webapp-delivery-golden-path-mobile-390x844.png", fullPage: false });
   });
 
-  test("shows the rc.2 tool-chain repair with CI evidence while A2 authority still blocks", async ({ page }) => {
+  test("shows rc.2 repair while sealed A2 block and current candidate integrity stay separate", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto(`${base}/delivery/?source=a3-golden-path-rc2`);
 
     await expect(page.getByRole("heading", { name: "交付闭环" })).toBeVisible();
     await expect(page.locator(".source-control select")).toHaveValue("a3-golden-path-rc2");
     await expect(page.locator(".metric-strip")).toContainText("7/11");
-    await expect(page.locator(".metric-strip")).toContainText("0.2.0-rc.2");
+    await expect(page.locator(".page-header")).toContainText("0.2.0-rc.2");
+    await expect(page.locator(".delivery-signal")).toContainText("候选证据绑定无效");
+    await expect(page.locator(".delivery-signal")).toContainText("evidence_scope_mismatch");
     await expect(page.locator('.delivery-stage-list article[data-status="passed"]')).toHaveCount(7);
     const newRunEvidence = page.locator("section").filter({ has: page.getByRole("heading", { name: "新 Run 证据" }) });
-    await expect(newRunEvidence).toContainText("A1 执行");
-    await expect(newRunEvidence).toContainText("A2 案例评分");
+    await expect(newRunEvidence).toContainText("执行结果");
+    await expect(newRunEvidence).toContainText("案例评分");
     await expect(newRunEvidence).toContainText("3/3");
     await expect(newRunEvidence).toContainText("4");
-    await expect(newRunEvidence).toContainText("block");
-    await expect(page.getByText("A2 Decision Ledger authorizes release", { exact: true })).toBeVisible();
+    await expect(newRunEvidence).toContainText("unknown");
+    const candidateBinding = page.locator("section").filter({ has: page.getByRole("heading", { name: "同一候选绑定校验" }) });
+    await expect(candidateBinding).toContainText("a3-golden-20260712-002");
+    await expect(candidateBinding).toContainText("a2_trusted_spine_demo");
+    await expect(candidateBinding).toContainText("integrity_invalid");
+    await expect(candidateBinding).toContainText("历史封存包");
+    await expect(candidateBinding).toContainText("block");
+    await expect(candidateBinding.locator('.candidate-binding-checks article[data-status="passed"]')).toHaveCount(2);
+    await expect(candidateBinding.locator('.candidate-binding-checks article[data-status="failed"]')).toHaveCount(3);
+    await candidateBinding.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-candidate-binding-rc2-desktop.png", fullPage: false, animations: "disabled" });
+    const releaseComparison = page.locator("section").filter({ has: page.getByRole("heading", { name: "版本对比：rc.1 → rc.2" }) });
+    await expect(releaseComparison).toContainText("案例质量已修复，当前候选绑定无效");
+    await expect(releaseComparison).toContainText("1/3");
+    await expect(releaseComparison).toContainText("3/3");
+    await expect(releaseComparison).toContainText("missing_required_tool");
+    await expect(releaseComparison).toContainText("0");
+    await expect(releaseComparison).toContainText("4");
+    await expect(releaseComparison).toContainText("block");
+    await expect(releaseComparison).toContainText("integrity_invalid");
+    await expect(releaseComparison).toContainText("质量提升不等于发布批准");
+    await releaseComparison.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-release-comparison-rc1-rc2-desktop.png", fullPage: false, animations: "disabled" });
+    const deploymentHandoff = page.locator("section").filter({ has: page.getByRole("heading", { name: "部署交接：按负责人拆分" }) });
+    await expect(deploymentHandoff.locator(".deployment-owner-grid article")).toHaveCount(5);
+    await expect(deploymentHandoff.locator("tbody tr")).toHaveCount(9);
+    await expect(deploymentHandoff).toContainText("产品工作流");
+    await expect(deploymentHandoff).toContainText("6/6");
+    await expect(deploymentHandoff).toContainText("Tenant-bound GitHub App installation");
+    await expect(deploymentHandoff).toContainText("Required Check enforced on main");
+    await expect(deploymentHandoff.locator("details")).not.toHaveAttribute("open", "");
+    await deploymentHandoff.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-deployment-handoff-rc2-desktop.png", fullPage: false, animations: "disabled" });
+    await expect(page.getByText("权威决策账本允许发布", { exact: true }).first()).toBeVisible();
     const githubReadback = page.locator("section").filter({ has: page.getByRole("heading", { name: "GitHub 真实回读" }) });
     await expect(githubReadback).toContainText("github-actions");
     await expect(githubReadback).toContainText("86656698704");
@@ -182,6 +217,10 @@ test.describe("A3 Next.js product console", () => {
     const englishReadback = page.locator("section").filter({ has: page.getByRole("heading", { name: "Live GitHub readback" }) });
     await expect(englishReadback).toContainText("not enforced");
     await expect(englishReadback).toContainText("release approval");
+    await expect(page.getByRole("heading", { name: "Release comparison: rc.1 → rc.2" })).toBeVisible();
+    await expect(page.getByText("Case quality repaired; current candidate binding invalid")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Same-candidate binding" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Deployment handoff by owner" })).toBeVisible();
     await page.getByRole("button", { name: "中", exact: true }).click();
     await expect(page.getByRole("heading", { name: "GitHub 真实回读" })).toBeVisible();
     const releaseArtifact = page.locator("section").filter({ has: page.getByRole("heading", { name: "版本化 Release Artifact" }) });
@@ -194,6 +233,21 @@ test.describe("A3 Next.js product console", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.reload();
     await expect(page.getByRole("heading", { name: "交付闭环" })).toBeVisible();
+    const mobileReleaseComparison = page.locator("section").filter({ has: page.getByRole("heading", { name: "版本对比：rc.1 → rc.2" }) });
+    await expect(mobileReleaseComparison).toBeVisible();
+    await mobileReleaseComparison.evaluate((node) => {
+      document.documentElement.style.scrollBehavior = "auto";
+      window.scrollTo(0, node.getBoundingClientRect().top + window.scrollY - 64);
+    });
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-release-comparison-rc1-rc2-mobile-390x844.png", fullPage: false, animations: "disabled" });
+    const mobileCandidateBinding = page.locator("section").filter({ has: page.getByRole("heading", { name: "同一候选绑定校验" }) });
+    await mobileCandidateBinding.scrollIntoViewIfNeeded();
+    await expect(mobileCandidateBinding).toContainText("a2_trusted_spine_demo");
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-candidate-binding-rc2-mobile-390x844.png", fullPage: false, animations: "disabled" });
+    const mobileDeploymentHandoff = page.locator("section").filter({ has: page.getByRole("heading", { name: "部署交接：按负责人拆分" }) });
+    await mobileDeploymentHandoff.scrollIntoViewIfNeeded();
+    await expect(mobileDeploymentHandoff.locator(".deployment-owner-grid article")).toHaveCount(5);
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-deployment-handoff-rc2-mobile-390x844.png", fullPage: false, animations: "disabled" });
     const mobileGithubReadback = page.locator("section").filter({ has: page.getByRole("heading", { name: "GitHub 真实回读" }) });
     await mobileGithubReadback.evaluate((node) => {
       document.documentElement.style.scrollBehavior = "auto";
@@ -216,6 +270,207 @@ test.describe("A3 Next.js product console", () => {
     await page.screenshot({ path: "docs/screenshots/a3-webapp-delivery-golden-path-rc2-mobile-390x844.png", fullPage: false, animations: "disabled" });
   });
 
+  test("renders A1 self-host sandbox evidence separately from production deployment", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto(`${base}/delivery/?source=a3-golden-path-rc2`);
+    const section = page.locator("section.self-host-sandbox-section");
+    await expect(section.getByRole("heading", { name: "自托管沙箱校准" })).toBeVisible();
+    await expect(section.locator('.self-host-sandbox[data-sandbox-state="ready"]')).toBeVisible();
+    await expect(section.locator(".sandbox-verdict-score")).toContainText("4/4");
+    await expect(section.locator(".sandbox-production-boundary")).toContainText("这不是生产部署证明");
+    await expect(section.locator(".sandbox-production-boundary")).toContainText("部署验收 8/17");
+    await expect(section.locator(".sandbox-production-boundary")).toContainText("生产验证 0");
+    await expect(section.locator('.sandbox-postgres-qualification[data-postgres-state="postgres_rls_verified"]')).toBeVisible();
+    await expect(section.locator(".sandbox-postgres-qualification")).toContainText("PostgreSQL 五层租户隔离已验证");
+    await expect(section.locator(".sandbox-postgres-qualification")).toContainText("PostgreSQL 17.9");
+    await expect(section.locator(".sandbox-postgres-qualification")).toContainText("019_to_020_self_host_sandbox_rls");
+    await expect(section.locator(".sandbox-postgres-qualification")).toContainText("ENABLED + FORCED");
+    await expect(section.locator(".sandbox-postgres-qualification")).toContainText("写入已拒绝");
+    await expect(section.locator(".sandbox-postgres-qualification")).toContainText("部署验收仍为 8/17");
+    await expect(section.locator(".sandbox-check-grid article")).toHaveCount(4);
+    await expect(section.locator(".sandbox-check-grid article[data-status='passed']")).toHaveCount(4);
+    await expect(section.locator("tbody tr")).toHaveCount(5);
+    await expect(section).toContainText("PostgreSQL / RLS 租户隔离");
+    await expect(section).toContainText("升级、回滚与恢复");
+    await expect(section).toContainText("deployment:read");
+    await expect(section).toContainText("sandbox_verified");
+    await section.scrollIntoViewIfNeeded();
+    const desktop = await page.evaluate(() => {
+      const panel = document.querySelector<HTMLElement>(".self-host-sandbox-section")!;
+      const cards = document.querySelector<HTMLElement>(".sandbox-check-grid")!;
+      return {
+        viewport: document.documentElement.clientWidth,
+        documentWidth: document.documentElement.scrollWidth,
+        panelOverflow: panel.scrollWidth > panel.clientWidth,
+        cardColumns: getComputedStyle(cards).gridTemplateColumns.split(" ").length
+      };
+    });
+    expect(desktop.documentWidth).toBeLessThanOrEqual(desktop.viewport);
+    expect(desktop.panelOverflow).toBe(false);
+    expect(desktop.cardColumns).toBe(4);
+    await page.screenshot({ path: "docs/screenshots/a3-self-host-sandbox-calibration-desktop-20260713.png", fullPage: false, animations: "disabled" });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.reload();
+    const mobileSection = page.locator("section.self-host-sandbox-section");
+    await expect(mobileSection.locator('.self-host-sandbox[data-sandbox-state="ready"]')).toBeVisible();
+    await mobileSection.locator(".sandbox-verdict").evaluate((node) => {
+      document.documentElement.style.scrollBehavior = "auto";
+      window.scrollTo(0, node.getBoundingClientRect().top + window.scrollY - 64);
+    });
+    const mobile = await page.evaluate(() => {
+      const panel = document.querySelector<HTMLElement>(".self-host-sandbox-section")!;
+      const cards = document.querySelector<HTMLElement>(".sandbox-check-grid")!;
+      return {
+        viewport: document.documentElement.clientWidth,
+        documentWidth: document.documentElement.scrollWidth,
+        bodyWidth: document.body.scrollWidth,
+        panelRight: panel.getBoundingClientRect().right,
+        panelOverflow: panel.scrollWidth > panel.clientWidth,
+        cardColumns: getComputedStyle(cards).gridTemplateColumns.split(" ").length
+      };
+    });
+    expect(mobile.documentWidth).toBeLessThanOrEqual(mobile.viewport);
+    expect(mobile.bodyWidth).toBeLessThanOrEqual(mobile.viewport);
+    expect(mobile.panelRight).toBeLessThanOrEqual(mobile.viewport);
+    expect(mobile.panelOverflow).toBe(false);
+    expect(mobile.cardColumns).toBe(1);
+    await expect(mobileSection.locator(".sandbox-postgres-metrics article")).toHaveCount(4);
+    await page.screenshot({ path: "docs/screenshots/a3-self-host-sandbox-calibration-mobile-390x844-20260713.png", fullPage: false, animations: "disabled" });
+    await mobileSection.locator(".sandbox-postgres-qualification").evaluate((node) => {
+      window.scrollTo(0, node.getBoundingClientRect().top + window.scrollY - 64);
+    });
+    await page.screenshot({ path: "docs/screenshots/a3-postgres-rls-qualification-mobile-390x844-20260713.png", fullPage: false, animations: "disabled" });
+  });
+
+  test("self-host sandbox panel handles partial, denied, empty, failed, and retry states", async ({ page }) => {
+    const routePattern = /\/api\/a3\/deployment\/sandbox-calibration/;
+    await page.route(routePattern, async (route) => {
+      const response = await route.fetch();
+      const payload = await response.json();
+      payload.status = "sandbox_failed";
+      payload.summary.passed = 3;
+      payload.summary.failed = 1;
+      payload.checks[0].status = "failed";
+      payload.checks[0].evidence_level = "sandbox_failed";
+      payload.authority_boundary.evidence_level = "sandbox_failed";
+      await route.fulfill({ response, json: payload });
+    });
+    await page.goto(`${base}/delivery/?source=a3-golden-path-rc2`);
+    let section = page.locator("section.self-host-sandbox-section");
+    await expect(section.locator('[data-sandbox-state="partial"]')).toBeVisible();
+    await expect(section.locator(".sandbox-verdict-score")).toContainText("3/4");
+    await expect(section.locator(".sandbox-production-boundary")).toContainText("部署验收 8/17");
+    await page.unroute(routePattern);
+
+    await page.route(routePattern, (route) => route.fulfill({ status: 403, contentType: "application/json", body: '{"error":"access_denied"}' }));
+    await page.reload();
+    section = page.locator("section.self-host-sandbox-section");
+    await expect(section.locator('[data-sandbox-state="denied"]')).toContainText("无权查看部署校准");
+    await expect(section.getByRole("button", { name: "重试" })).toHaveCount(0);
+    await page.unroute(routePattern);
+
+    await page.route(routePattern, (route) => route.fulfill({ status: 404, contentType: "application/json", body: '{"error":"not_found"}' }));
+    await page.reload();
+    section = page.locator("section.self-host-sandbox-section");
+    await expect(section.locator('[data-sandbox-state="empty"]')).toContainText("暂无沙箱校准回执");
+    await expect(section.getByRole("button", { name: "重试" })).toBeVisible();
+    await page.unroute(routePattern);
+
+    await page.route(routePattern, (route) => route.fulfill({ status: 503, contentType: "application/json", body: '{"error":"unavailable"}' }));
+    await page.reload();
+    section = page.locator("section.self-host-sandbox-section");
+    await expect(section.locator('[data-sandbox-state="failed"]')).toContainText("沙箱校准读取失败");
+    await page.unroute(routePattern);
+    await section.getByRole("button", { name: "重试" }).click();
+    await expect(section.locator('.self-host-sandbox[data-sandbox-state="ready"]')).toBeVisible();
+    await expect(section.locator(".sandbox-production-boundary")).toContainText("生产验证 0");
+  });
+
+  test("submits and reviews deployment receipt metadata without promoting delivery", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto(`${base}/delivery/?source=a3-golden-path-rc2`);
+    const section = page.locator("section.deployment-receipt-section");
+    await expect(section.getByRole("heading", { name: "部署回执收件箱" })).toBeVisible();
+    await expect(section.locator("tbody tr")).toHaveCount(9);
+    await expect(section).toContainText("生产已验证");
+    await expect(section.locator('.receipt-inbox-summary [data-state="not-authoritative"]')).toContainText("0");
+    const projection = section.getByTestId("deployment-acceptance-projection");
+    await expect(projection).toContainText("原始正式验收");
+    await expect(projection).toContainText("只读投影");
+    await expect(projection.locator(".receipt-projection-metrics > div").nth(0)).toContainText("8/17");
+    await expect(projection.locator(".receipt-projection-metrics > div").nth(1)).toContainText("8/17");
+    await expect(section.getByRole("button", { name: /权威验证|生产验证/ })).toHaveCount(0);
+
+    await section.getByLabel("阻塞项").selectOption("deployment_health");
+    await section.getByLabel("证据引用").fill(`receipt:deployment-health:e2e-${Date.now()}`);
+    await section.getByLabel("SHA-256").fill("c".repeat(64));
+    await section.getByLabel("采集时间").fill("2026-07-13T14:30");
+    await section.getByRole("button", { name: "提交元数据" }).click();
+    await expect(section.locator('.receipt-action-state[data-state="acknowledged"]')).toContainText("已进入待复核队列");
+
+    const deploymentRow = section.locator("tbody tr").filter({ hasText: "deployment_health" });
+    await expect(deploymentRow).toHaveAttribute("data-intake-status", "submitted", { timeout: 10_000 });
+    const inboxResponse = await page.request.get("/api/a3/deployment/receipts?source=a3-golden-path-rc2", {
+      headers: receiptApiHeaders("auditor")
+    });
+    expect(inboxResponse.ok()).toBe(true);
+    const inbox = await inboxResponse.json();
+    const receipt = inbox.slots.find((item: { blocker_id: string }) => item.blocker_id === "deployment_health").latest_receipt;
+
+    await page.route(/\/api\/a3\/deployment\/receipts\/[^/]+\/review/, async (route) => {
+      await route.fulfill({
+        status: 409,
+        contentType: "application/json",
+        body: JSON.stringify({ schema_version: "a3.api_validation_error.v1", error: "version_conflict", details: [] })
+      });
+    });
+    await deploymentRow.getByRole("button", { name: `确认 ${receipt.receipt_id}` }).click();
+    await expect(section.locator('.receipt-action-state[data-state="conflict"]')).toContainText("请刷新后重试");
+    await page.unroute(/\/api\/a3\/deployment\/receipts\/[^/]+\/review/);
+
+    await deploymentRow.getByRole("button", { name: `确认 ${receipt.receipt_id}` }).click();
+    await expect(section.locator('.receipt-action-state[data-state="denied"]')).toContainText("没有执行此操作的权限");
+
+    const reviewResponse = await page.request.post(`/api/a3/deployment/receipts/${receipt.receipt_id}/review?source=a3-golden-path-rc2`, {
+      headers: { ...receiptApiHeaders("reviewer"), "idempotency-key": `e2e-review-${Date.now()}` },
+      data: {
+        source: "a3-golden-path-rc2",
+        organization_id: "org-local",
+        tenant_id: "tenant-local",
+        workspace_id: "workspace-local",
+        project_id: "project-local",
+        environment_id: "staging",
+        review: { action: "acknowledge", reason_code: "metadata_complete", expected_version: receipt.version }
+      }
+    });
+    expect(reviewResponse.status()).toBe(200);
+    expect((await reviewResponse.json()).authority_validation.production_verified).toBe(false);
+
+    await page.reload();
+    const refreshed = page.locator("section.deployment-receipt-section");
+    const refreshedRow = refreshed.locator("tbody tr").filter({ hasText: "deployment_health" });
+    await expect(refreshedRow).toHaveAttribute("data-intake-status", "acknowledged");
+    await expect(refreshed.locator('.receipt-inbox-summary [data-state="not-authoritative"]')).toContainText("0");
+    await expect(refreshedRow).toContainText("等待服务器回读");
+    await expect(page.locator(".metric-strip")).toContainText("8/17");
+    await refreshed.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-deployment-receipt-inbox-desktop.png", fullPage: false, animations: "disabled" });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.reload();
+    const mobileSection = page.locator("section.deployment-receipt-section");
+    await mobileSection.scrollIntoViewIfNeeded();
+    const bounds = await page.evaluate(() => ({
+      viewport: document.documentElement.clientWidth,
+      documentScrollWidth: document.documentElement.scrollWidth,
+      sectionRight: document.querySelector(".deployment-receipt-section")!.getBoundingClientRect().right
+    }));
+    expect(bounds.documentScrollWidth).toBeLessThanOrEqual(bounds.viewport);
+    expect(bounds.sectionRight).toBeLessThanOrEqual(bounds.viewport);
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-deployment-receipt-inbox-mobile-390x844.png", fullPage: false, animations: "disabled" });
+  });
+
   test("switches Chinese and English without losing the selected evidence source", async ({ page }) => {
     await page.goto(`${base}/overview/?source=api-mock`);
     await expect(page.getByRole("heading", { name: "发布总览" })).toBeVisible();
@@ -229,7 +484,7 @@ test.describe("A3 Next.js product console", () => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto(`${base}/api-reference/`);
     await expect(page.getByRole("heading", { name: "API 文档与参考" })).toBeVisible();
-    await expect(page.getByText(/A1 身份会话与 A2 可信判定链已进入 main/)).toBeVisible();
+    await expect(page.getByText(/身份会话与可信判定链已进入 main/)).toBeVisible();
     await expect(page.getByText("organization_id", { exact: true })).toBeVisible();
     await expect(page.getByText("可信证据与决策账本", { exact: true })).toBeVisible();
     await expect(page.getByText("请求邮箱验证码", { exact: true })).toBeVisible();
@@ -246,8 +501,150 @@ test.describe("A3 Next.js product console", () => {
     await expect(page.getByRole("button", { name: /发送验证码/ })).toBeDisabled();
     await page.getByText("查看验证邮件设计稿").click();
     await expect(page.getByLabel("验证码邮件设计预览")).toBeVisible();
-    await expect(page.getByText(/当前 A1 SMTP 仍发送纯文本/)).toBeVisible();
+    await expect(page.getByText(/当前身份服务的 SMTP 仍发送纯文本/)).toBeVisible();
     await page.screenshot({ path: "docs/screenshots/a3-webapp-email-signup-preview-desktop.png", fullPage: false });
+  });
+
+  test("renders a non-authoritative multimodal disagreement queue on desktop and mobile", async ({ page }) => {
+    const queueApiResponse = await page.request.get("/api/a3/review/multimodal-queue?source=p3-media", {
+      headers: { "x-a3-role": "reviewer" }
+    });
+    expect(queueApiResponse.status()).toBe(200);
+    const queueApi = await queueApiResponse.json();
+    const queueItem = queueApi.items[0];
+    const scope = queueApi.tenant_scope;
+    if (queueItem.operational_state.version === 0) {
+      const assignmentQuery = new URLSearchParams({ source: "p3-media", ...scope });
+      const claimResponse = await page.request.post(
+        `/api/a3/review/multimodal-queue/${encodeURIComponent(queueItem.queue_id)}/assignment?${assignmentQuery}`,
+        {
+          headers: {
+            ...receiptApiHeaders("reviewer"),
+            "idempotency-key": "mm-review-e2e-claim-001",
+            "x-a3-actor-hash": "reviewer_hash_e2e"
+          },
+          data: {
+            source: "p3-media",
+            ...scope,
+            assignment: { action: "claim", expected_version: 0, lease_seconds: 900 }
+          }
+        }
+      );
+      expect(claimResponse.status()).toBe(200);
+    }
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto(`${base}/review/?source=p3-media`);
+    await expect(page.getByRole("heading", { name: "人工审核" })).toBeVisible();
+    await expect(page.locator(".source-control select")).toHaveValue("p3-media");
+    const summary = page.locator(".multimodal-review-summary");
+    await expect(summary).toHaveAttribute("data-status", "human_review_required");
+    await expect(summary).toContainText("发现需要人工确认的模型分歧");
+    await expect(summary).toContainText("比较记录8");
+    await expect(summary).toContainText("语义分歧2");
+    await expect(summary).toContainText("等待复核4");
+    await expect(summary).toContainText("可改变发布决定否");
+    const queue = page.getByRole("region", { name: "多模态分歧审核队列" });
+    await expect(queue).toContainText("round40-round37-hallucination-2-jpeg-q35");
+    await expect(queue).toContainText("qwen-vl-plus / qwen-vl-max");
+    await expect(queue).toContainText("qwen-vl-plus: 发现风险");
+    await expect(queue).toContainText("qwen-vl-max: 未发现风险");
+    await expect(queue).toContainText("第 2 次观察");
+    await expect(queue).toContainText("重复结果聚合");
+    await expect(queue).toContainText("重复结果不稳定");
+    await expect(queue).toContainText("等待人工复核");
+    await expect(page.locator(".multimodal-assignment-strip")).toContainText("正在处理1");
+    const packet = page.locator(".multimodal-review-packet");
+    await expect(packet).toHaveAttribute("data-integrity", "passed");
+    await expect(packet).toContainText("历史记录已通过内部完整性校验");
+    await expect(packet).toContainText("等待归档签名");
+    const history = page.locator(".assignment-history").first();
+    const historySummary = history.locator("summary");
+    await expect(historySummary).toContainText("查看 1 条操作记录");
+    await historySummary.focus();
+    await expect(historySummary).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(history).toHaveAttribute("open", "");
+    await expect(history).toContainText("领取");
+    await expect(history).toContainText("v1");
+    const authorityNote = page.locator(".multimodal-authority-note");
+    await expect(authorityNote).toContainText("同一候选版本的决策账本");
+    await expect(authorityNote).toContainText("上游契约待合并");
+    await expect(summary).not.toContainText(/\bA[123]\b/);
+    await expect(authorityNote).not.toContainText(/\bA[123]\b/);
+    await expect(page.locator("main")).not.toContainText("[object Object]");
+    await queue.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-multimodal-review-queue-desktop.png", fullPage: false });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.reload();
+    await expect(summary).toBeVisible();
+    await expect(page.locator(".route-content")).toHaveCSS("opacity", "1");
+    await summary.scrollIntoViewIfNeeded();
+    const mobile = await page.evaluate(() => ({
+      viewport: document.documentElement.clientWidth,
+      documentWidth: document.documentElement.scrollWidth,
+      summaryWidth: document.querySelector(".multimodal-review-summary")?.getBoundingClientRect().width || 0,
+      authorityWidth: document.querySelector(".multimodal-authority-note")?.getBoundingClientRect().width || 0
+    }));
+    expect(mobile.documentWidth).toBeLessThanOrEqual(mobile.viewport + 1);
+    expect(mobile.summaryWidth).toBeLessThanOrEqual(mobile.viewport);
+    expect(mobile.authorityWidth).toBeLessThanOrEqual(mobile.viewport);
+    await packet.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-multimodal-review-queue-mobile-390x844.png", fullPage: false });
+  });
+
+  test("renders the real A2 Round 50 three-provider review projection without inventing model identity", async ({ page }) => {
+    const queueApiResponse = await page.request.get("/api/a3/review/multimodal-queue?source=p3-a2-round50", {
+      headers: { "x-a3-role": "reviewer" }
+    });
+    expect(queueApiResponse.status()).toBe(200);
+    const queueApi = await queueApiResponse.json();
+    expect(queueApi.source_contract).toBe("a2.multimodal_three_way_comparison.v2");
+    expect(queueApi.provider_set.provider_count).toBe(3);
+    expect(queueApi.summary.review_required_count).toBe(1);
+    expect(queueApi.items[0].providers).toHaveLength(3);
+    expect(queueApi.authority_boundary.can_change_release_decision).toBe(false);
+
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto(`${base}/review/?source=p3-a2-round50`);
+    await expect(page.getByRole("heading", { name: "人工审核" })).toBeVisible();
+    await expect(page.locator(".source-control select")).toHaveValue("p3-a2-round50");
+    const summary = page.locator(".multimodal-review-summary");
+    await expect(summary).toContainText("比较记录3");
+    await expect(summary).toContainText("语义分歧1");
+    await expect(summary).toContainText("等待复核1");
+    await expect(summary).toContainText("可改变发布决定否");
+
+    const queue = page.getByRole("region", { name: "多模态分歧审核队列" });
+    await expect(queue).toContainText("round45-attack-unsafe_content_evasion-01");
+    await expect(queue).toContainText("三方模型比较");
+    await expect(queue).toContainText("dashscope_run_a / dashscope_run_b / qwen3vl_local");
+    await expect(queue).toContainText("3 路观察");
+    await expect(queue).toContainText("可用 2");
+    await expect(queue).toContainText("dashscope_run_a: 未发现风险");
+    await expect(queue).toContainText("dashscope_run_b: 发现风险");
+    await expect(queue).toContainText("qwen3vl_local: 不可用");
+    await expect(queue).not.toContainText(/qwen-vl-plus|qwen-vl-max/);
+    await expect(page.locator(".multimodal-review-packet")).toContainText("等待第一条审核操作记录");
+    await expect(page.locator(".multimodal-authority-note")).toContainText("同一候选版本的决策账本");
+    await queue.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-three-provider-review-desktop.png", fullPage: false });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.reload();
+    await expect(summary).toBeVisible();
+    await summary.scrollIntoViewIfNeeded();
+    const mobile = await page.evaluate(() => ({
+      viewport: document.documentElement.clientWidth,
+      documentWidth: document.documentElement.scrollWidth,
+      summaryWidth: document.querySelector(".multimodal-review-summary")?.getBoundingClientRect().width || 0,
+      queueWidth: document.querySelector(".multimodal-review-list")?.getBoundingClientRect().width || 0
+    }));
+    expect(mobile.documentWidth).toBeLessThanOrEqual(mobile.viewport + 1);
+    expect(mobile.summaryWidth).toBeLessThanOrEqual(mobile.viewport);
+    expect(mobile.queueWidth).toBeLessThanOrEqual(mobile.viewport);
+    await queue.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-three-provider-review-mobile-390x844.png", fullPage: false });
   });
 
   test("stays readable at 390 by 844 with mobile navigation", async ({ page }) => {
@@ -427,4 +824,16 @@ function collectConsoleErrors(page: Page) {
     }
   });
   return errors;
+}
+
+function receiptApiHeaders(role: string) {
+  return {
+    "content-type": "application/json",
+    "x-a3-role": role,
+    "x-a3-organization-id": "org-local",
+    "x-a3-tenant-id": "tenant-local",
+    "x-a3-workspace-id": "workspace-local",
+    "x-a3-project-id": "project-local",
+    "x-a3-environment-id": "staging"
+  };
 }

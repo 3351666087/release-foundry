@@ -1,4 +1,4 @@
-export type ApiOwner = "A1" | "A2" | "A3";
+export type ApiOwner = "A1" | "A2" | "A3" | "A1/A2/A3";
 export type ApiMethod = "GET" | "POST" | "DELETE";
 export type ApiStatus = "implemented" | "draft" | "blocked";
 
@@ -24,13 +24,22 @@ export type ApiEndpoint = {
 };
 
 export const apiReferenceMeta = {
-  schemaVersion: "a3.api_reference.v3",
-  calibratedAt: "2026-07-12",
+  schemaVersion: "a3.api_reference.v12",
+  calibratedAt: "2026-07-14",
   mainSha: "ccf6ce5",
   a1Sha: "c784163",
   a2Sha: "8cd1d4f",
   a1SourceState: "merged_to_main",
   a2SourceState: "merged_to_main",
+  a1IdentityPeerSha: "770ccc8",
+  a1IdentityPeerState: "peer_branch_live_postgres_evidence_not_merged",
+  a2MultimodalPeerSha: "bb3bcfe",
+  a2MultimodalPeerState: "peer_branch_contract_not_merged",
+  a2MultimodalSupportedSchemas: [
+    "a2.multimodal_cross_provider_comparison.v1",
+    "a2.multimodal_cross_provider_comparison.v3",
+    "a2.multimodal_three_way_comparison.v2"
+  ],
   secretValuesIncluded: false,
   a1BrowserSession: "implemented",
   a1OAuthInitialLogin: "not_implemented",
@@ -40,8 +49,10 @@ export const apiReferenceMeta = {
   a2TrustedSpineSchema: "a2.trusted_spine_handoff.v1",
   a2RequiredScope: ["organization_id", "tenant_id", "workspace_id", "project_id", "environment_id"],
   a2ValidationErrors: true,
-  a3ReleaseCandidate: "0.2.0-rc.1"
+  a3ReleaseCandidate: "0.2.0-rc.2"
 } as const;
+
+const exampleSha256 = `sha256:${"0".repeat(64)}`;
 
 export const apiGroups = [
   { id: "all", label: { zh: "全部接口", en: "All endpoints" } },
@@ -324,6 +335,152 @@ export const apiEndpoints: ApiEndpoint[] = [
     ]
   },
   {
+    id: "a3-multimodal-comparison-import",
+    group: "judge",
+    owner: "A1/A2/A3",
+    method: "POST",
+    path: "/api/a3/import/a2-multimodal-comparison",
+    title: { zh: "导入多模态模型比较", en: "Import multimodal model comparison" },
+    description: {
+      zh: "接收公开安全的跨模型比较和人工复核排队回执，绑定到服务端验证的五层租户范围。",
+      en: "Ingest a public-safe cross-model comparison and human-review queue receipts into a server-verified five-level tenant scope."
+    },
+    auth: { zh: "服务端验证身份 + project:ingest + Idempotency-Key", en: "Server-verified principal, project:ingest, and Idempotency-Key" },
+    status: "implemented",
+    source: "评测服务 564d4b0 双路 v3 契约校准 / 产品 OpenAPI",
+    request: {
+      source: "api-ingest",
+      comparison: {
+        schema_version: "a2.multimodal_cross_provider_comparison.v3",
+        comparison_artifact_hash: exampleSha256,
+        left_evidence_hash: exampleSha256,
+        right_evidence_hash: exampleSha256,
+        left_binding: { provider_id: "provider-left", model_id: "model-left", model_version: "version-left", prompt_hash: exampleSha256 },
+        right_binding: { provider_id: "provider-right", model_id: "model-right", model_version: "version-right", prompt_hash: exampleSha256 },
+        comparisons: [{
+          case_id: "case-media-001",
+          artifact_hash: exampleSha256,
+          repeat: 1,
+          left_state: "valid_json",
+          right_state: "valid_json",
+          left_observed_risk: true,
+          right_observed_risk: false,
+          comparison_state: "semantic_disagreement",
+          human_review_required: true
+        }],
+        summary: { agreement: 0, semantic_disagreement: 1, unavailable: 0 },
+        aggregate_comparisons: [],
+        aggregate_summary: { agreement: 0, semantic_disagreement: 0, unavailable: 0, internally_unstable: 0 },
+        human_review_queue_receipts: [{
+          receipt_id: exampleSha256,
+          comparison_artifact_hash: exampleSha256,
+          comparison_hash: exampleSha256,
+          artifact_hash: exampleSha256,
+          case_id: "case-media-001",
+          review_scope: "repeat",
+          queue_state: "awaiting_human_review",
+          reviewer_role: "multimodal_safety_reviewer",
+          release_authority: false
+        }],
+        release_authority: false,
+        raw_payload_included: false,
+        public_safe: true
+      }
+    },
+    response: {
+      schema_version: "a3.a2_multimodal_comparison_ingest.v1",
+      comparison_count: 1,
+      review_required_count: 1,
+      upstream_release_authority: false,
+      candidate_binding_verified: false,
+      release_decision_changed: false
+    },
+    notes: [
+      { zh: "服务端拒绝原始模型载荷、URL、Secret、错误摘要、孤立队列回执和伪造发布权。", en: "The server rejects raw model payloads, URLs, secrets, inconsistent summaries, orphan receipts, and fabricated release authority." },
+      { zh: "当前向后兼容双路 v1，支持双路 v3 的重复观察、聚合不稳定和回执守恒，并已根据 A2 Round 50 的公开安全实物接入三路 v2；四路 v1 仍等待可复现样本。", en: "The adapter remains backward-compatible with two-way v1, supports v3 repeats, aggregate instability, and receipt conservation, and now consumes three-way v2 from the real public-safe A2 Round 50 artifact; four-way v1 still awaits a reproducible sample." },
+      { zh: "导入只形成可审计的审核队列投影，不会改写分数、风险或发布决定。", en: "Import creates an auditable review-queue projection and never rewrites scores, risk, or release decisions." }
+    ]
+  },
+  {
+    id: "a3-multimodal-review-queue",
+    group: "judge",
+    owner: "A3",
+    method: "GET",
+    path: "/api/a3/review/multimodal-queue",
+    title: { zh: "读取多模态分歧审核队列", en: "Read multimodal disagreement queue" },
+    description: {
+      zh: "为 Reviewer 返回租户范围内的模型分歧、媒体证据哈希和非权威排队状态。",
+      en: "Return tenant-scoped model disagreements, media-evidence hashes, and non-authoritative queue state for reviewers."
+    },
+    auth: { zh: "服务端验证身份 + release:review + 五层租户范围", en: "Server-verified principal, release:review, and five-level tenant scope" },
+    status: "implemented",
+    source: "docs/a3/openapi/a3_commercial_api.openapi.json",
+    response: {
+      schema_version: "a3.multimodal_review_queue.v1",
+      status: "human_review_required",
+      source_contract: "a2.multimodal_three_way_comparison.v2",
+      summary: { comparison_count: 3, provider_count: 3, semantic_disagreement: 1, review_required_count: 1, assignment_event_count: 1 },
+      provider_set: {
+        provider_count: 3,
+        providers: [
+          { provider_key: "dashscope_run_a", provider_identity_included: false, model_identity_included: false },
+          { provider_key: "dashscope_run_b", provider_identity_included: false, model_identity_included: false },
+          { provider_key: "qwen3vl_local", provider_identity_included: false, model_identity_included: false }
+        ]
+      },
+      authority_boundary: { can_change_release_decision: false, candidate_binding_verified: false },
+      items: []
+    },
+    notes: [
+      { zh: "跨租户请求返回 404 或空结果，不泄露模型、案例或证据哈希。", en: "Cross-tenant requests return 404 or no records without revealing models, cases, or evidence hashes." },
+      { zh: "每个案例可以返回仅含哈希别名、版本、时间、原因码和事件哈希的 assignment_history；不包含原始身份。", en: "Each case may return assignment_history containing hash aliases, versions, times, reason codes, and event hashes only; raw identity is excluded." },
+      { zh: "只有权威人工复核结果与同一候选版本的 Decision Ledger 才可能改变发布状态。", en: "Only an authoritative human resolution and a same-candidate Decision Ledger may change release state." }
+    ]
+  },
+  {
+    id: "a3-multimodal-review-assignment",
+    group: "judge",
+    owner: "A3",
+    method: "POST",
+    path: "/api/a3/review/multimodal-queue/{queueId}/assignment",
+    title: { zh: "管理多模态审核领取", en: "Manage multimodal review assignment" },
+    description: {
+      zh: "让审核员领取、续期、释放或转交一个分歧案例，并用版本号防止多人同时覆盖。",
+      en: "Claim, renew, release, or transfer one disagreement case with optimistic concurrency."
+    },
+    auth: {
+      zh: "服务端验证身份 + release:review + Idempotency-Key 请求头",
+      en: "Server-verified principal, release:review, and Idempotency-Key header"
+    },
+    status: "implemented",
+    source: "A2 bb3bcfe three-way queue contract / A3 append-only lease workflow",
+    request: {
+      source: "api-ingest",
+      assignment: {
+        action: "claim",
+        expected_version: 0,
+        lease_seconds: 900,
+        reason_code: "manual_review_claim"
+      }
+    },
+    response: {
+      schema_version: "a3.multimodal_review_assignment_receipt.v1",
+      action: "claim",
+      status: "claimed",
+      version: 1,
+      assigned_reviewer_hash: "reviewer_hash_[REDACTED]",
+      release_authority: false,
+      a2_decision_recomputed: false,
+      release_decision_changed: false
+    },
+    notes: [
+      { zh: "操作者身份来自服务端会话；请求体不能提交原始姓名、邮箱、处置结论、分数或发布权限。", en: "Reviewer identity comes from the server session; the body cannot submit raw identity, disposition, score, or release authority." },
+      { zh: "锁默认 15 分钟，支持过期回收；expected_version 过旧时返回 409。", en: "Leases default to 15 minutes, can be reclaimed after expiry, and stale expected_version writes return 409." },
+      { zh: "完整历史可生成 a3.multimodal_review_assignment_packet.v1，先通过根哈希校验，再作为 review_record 进入 Ed25519 签名的 Audit Archive。", en: "Complete history can produce a3.multimodal_review_assignment_packet.v1, pass root-hash verification, and enter the Ed25519-signed Audit Archive as a review_record." },
+      { zh: "这是人员协作状态，不是 A2 的真人复核凭证，也不会改变发布决定。", en: "This is human coordination state, not an A2 review receipt, and it cannot change the release decision." }
+    ]
+  },
+  {
     id: "a3-dashboard",
     group: "console",
     owner: "A3",
@@ -341,13 +498,236 @@ export const apiEndpoints: ApiEndpoint[] = [
       source: "api-mock",
       summary: { totalRuns: 4, totalCases: 32, passed: 18, failed: 14 },
       a1_a2_evidence_spine: { a1_authority: "execution facts", a2_authority: "grade and release decision" },
+      trusted_release_authority: { status: "integrity_invalid", integrity_verified: false, upstream_decision: "unknown", release_ready: false },
       delivery_golden_path: { status: "blocked_by_a2", production_ready: false },
+      multimodal_review_assignment_packet: {
+        schema_version: "a3.multimodal_review_assignment_packet.v1",
+        integrity: { status: "passed", event_count: 1 },
+        archive_binding: { audit_archive_signature_required: true, audit_archive_signature_verified: false },
+        authority_boundary: { authoritative_human_review_included: false, release_authority: false }
+      },
       deployment_acceptance: { status: "blocked", production_accepted: false },
-      release_artifact_manifest: { release: { version: "0.2.0-rc.1", git_sha_alias: "candidate-head-sha", ci_tested_sha_alias: "tested-merge-sha", production_release: false } }
+      deployment_handoff: {
+        schema_version: "a3.deployment_handoff.v1",
+        status: "blocked",
+        summary: { passed: 8, total_checks: 17, owner_group_count: 5, candidate_binding_status: "integrity_invalid" },
+        candidate_binding: { expected: { run_id: "a3-golden-20260712-002" }, observed_a2: { evidence_run_id: "a2_trusted_spine_demo" } }
+      },
+      deployment_receipt_inbox: {
+        schema_version: "a3.deployment_receipt_inbox.v1",
+        candidate_id: "candidate-head-sha",
+        run_id: "a3-golden-20260712-002",
+        blocker_slot_count: 9,
+        receipt_count: 0,
+        production_verified_count: 0
+      },
+      deployment_acceptance_projection: {
+        schema_version: "a3.deployment_acceptance_projection.v1",
+        source_passed: 8,
+        status: "blocked",
+        production_accepted: false,
+        projected_production_accepted: false,
+        requires_acceptance_rebuild: false
+      },
+      release_artifact_manifest: { release: { version: "0.2.0-rc.2", git_sha_alias: "candidate-head-sha", ci_tested_sha_alias: "tested-merge-sha", production_release: false } },
+      release_comparison: {
+        schema_version: "a3.release_comparison.v1",
+        baseline: { version: "0.2.0-rc.1", a2_evaluation: { passed: 1, total_cases: 3 } },
+        candidate: { version: "0.2.0-rc.2", a2_evaluation: { passed: 3, total_cases: 3 } },
+        authority_boundary: { baseline_decision: "block", candidate_decision: "block", current_status: "integrity_invalid", current_upstream_decision: "unknown" },
+        runtime_authority_validation: { historical_candidate_decision: "block", status: "integrity_invalid", current_release_authorized: false }
+      }
     },
     notes: [
       { zh: "这是当前 Next.js Webapp 默认消费的只读 API。", en: "This is the read-only API consumed by the current Next.js webapp." },
-      { zh: "交付闭环字段只汇总 A1/A2 权威证据；A3 不重算 A2 分数或发布决定。", en: "Delivery fields summarize authoritative A1/A2 evidence; A3 does not recompute A2 scores or release decisions." }
+      { zh: "当前运行时校验与历史封存结论分开返回；A3 不重算 A2 分数、pass/fail、failure class 或发布决定。", en: "Current runtime validation is separate from sealed historical decisions; A3 does not recompute A2 scores, pass/fail, failure class, or release decisions." },
+      { zh: "deployment_handoff 把 17 项验收拆给 A1、A2、A1/A3、A3 和仓库管理员，并说明每个阻塞项需要什么真实回执。", en: "deployment_handoff assigns 17 checks to A1, A2, A1/A3, A3, and the repository maintainer, with a required receipt for every blocker." }
+    ]
+  },
+  {
+    id: "a3-self-host-sandbox-calibration",
+    group: "console",
+    owner: "A1/A2/A3",
+    method: "GET",
+    path: "/api/a3/deployment/sandbox-calibration",
+    title: { zh: "读取自托管沙箱校准", en: "Read self-host sandbox calibration" },
+    description: {
+      zh: "读取 A1 本地控制面、Worker 重试/死信、租约恢复和对象完整性检查的净化回执。",
+      en: "Read a sanitized receipt for A1 local control-plane, worker retry/dead-letter, lease recovery, and object-integrity checks."
+    },
+    auth: { zh: "A1 可信身份 + deployment:read + 五层租户范围", en: "Trusted A1 principal, deployment:read, and five-level tenant scope" },
+    status: "implemented",
+    source: "services/report/a3_self_host_sandbox.mjs",
+    response: {
+      schema_version: "a3.self_host_sandbox_calibration.v1",
+      status: "sandbox_verified",
+      summary: { passed: 4, total_checks: 4, production_gap_count: 5 },
+      authority_boundary: {
+        production_verified: false,
+        deployment_acceptance_mutated: false,
+        a2_decision_recomputed: false,
+        a2_release_decision_authority: "A2"
+      },
+      production_gaps: [
+        { id: "postgres_rls_tenant_isolation", status: "not_run" },
+        { id: "container_image_identity", status: "not_run" },
+        { id: "vpc_network_policy", status: "not_run" },
+        { id: "upgrade_rollback_recovery", status: "not_run" }
+      ],
+      postgres_qualification: {
+        schema_version: "a3.postgres_rls_qualification.v1",
+        status: "postgres_rls_verified",
+        target_class: "local_ephemeral_postgres",
+        database: {
+          engine: "postgresql",
+          migration_id: "019_to_020_self_host_sandbox_rls",
+          migration_ids: ["019_self_host_sandbox_calibrations", "020_self_host_sandbox_scope_hardening"],
+          migration_apply_count: 2,
+          migration_statement_count: 2,
+          rls_enabled: true,
+          rls_forced: true
+        },
+        tenant_isolation: {
+          same_scope_read_count: 1,
+          cross_scope_read_count: 0,
+          missing_scope_read_count: 0,
+          same_scope_write_allowed: true,
+          cross_scope_write_denied: true
+        },
+        authority_boundary: { production_verified: false, target_customer_environment_verified: false }
+      }
+    },
+    notes: [
+      { zh: "这是实际执行的本地 A1 行为证据，但不是客户环境或生产部署证明。", en: "This is executed local A1 behavior evidence, not customer-environment or production deployment proof." },
+      { zh: "PostgreSQL 17.9 已真实执行 migration 019→020 链两次并通过五层 RLS 正反向测试，但仍属于本机资格验证。", en: "PostgreSQL 17.9 applied the migration 019-to-020 chain twice and passed five-level RLS allow/deny checks, but remains a local qualification." },
+      { zh: "沙箱 4/4 不会把 Deployment Acceptance 从 8/17 提高，也不能生成 Release Ready。", en: "Sandbox 4/4 does not raise Deployment Acceptance beyond 8/17 or create Release Ready." },
+      { zh: "A2 仍是评分、失败分类和 Release Decision 的唯一权威。", en: "A2 remains the sole authority for scores, failure classes, and Release Decision." }
+    ]
+  },
+  {
+    id: "a3-deployment-receipt-list",
+    group: "console",
+    owner: "A3",
+    method: "GET",
+    path: "/api/a3/deployment/receipts",
+    title: { zh: "读取部署回执收件箱", en: "Read deployment receipt inbox" },
+    description: {
+      zh: "按同一 candidate、Run 和五层租户作用域列出 9 类部署阻塞回执槽位。",
+      en: "List nine deployment blocker receipt slots for one candidate, run, and five-level tenant scope."
+    },
+    auth: { zh: "A1 可信身份 + deployment:read", en: "Trusted A1 principal with deployment:read" },
+    status: "implemented",
+    source: "services/report/a3_deployment_receipt_workflow.mjs",
+    response: {
+      schema_version: "a3.deployment_receipt_inbox.v1",
+      candidate_id: "candidate-head-sha",
+      run_id: "run-example",
+      blocker_slot_count: 9,
+      missing_slot_count: 9,
+      production_verified_count: 0
+    },
+    notes: [
+      { zh: "收件状态不修改 Deployment Acceptance，也不重算 A2 裁决。", en: "Intake state does not mutate Deployment Acceptance or recompute A2 authority." }
+    ]
+  },
+  {
+    id: "a3-deployment-receipt-submit",
+    group: "console",
+    owner: "A3",
+    method: "POST",
+    path: "/api/a3/deployment/receipts",
+    title: { zh: "提交部署回执元数据", en: "Submit deployment receipt metadata" },
+    description: {
+      zh: "提交证据引用、SHA-256、证据类型和采集时间；原始文件、secret 和 signed URL 会被拒绝。",
+      en: "Submit an evidence reference, SHA-256, evidence kind, and capture time; raw files, secrets, and signed URLs are rejected."
+    },
+    auth: { zh: "A1 可信身份 + deployment:submit + Idempotency-Key", en: "Trusted A1 principal, deployment:submit, and Idempotency-Key" },
+    status: "implemented",
+    source: "services/report/a3_store.mjs",
+    request: {
+      source: "candidate-source",
+      receipt: {
+        blocker_id: "deployment_health",
+        candidate_id: "candidate-head-sha",
+        run_id: "run-example",
+        evidence_ref: "receipt:deployment-health:example",
+        evidence_sha256: "sha256:[REDACTED_HASH]",
+        evidence_kind: "deployment_health_receipt",
+        verifier_class: "deployment_probe",
+        captured_at: "2026-07-13T06:00:00.000Z"
+      }
+    },
+    response: {
+      schema_version: "a3.deployment_receipt.v1",
+      receipt_id: "dpr_example",
+      status: "submitted",
+      version: 1,
+      authority_validation: { production_verified: false },
+      acceptance_effect: { changes_deployment_acceptance: false, changes_release_ready: false }
+    },
+    notes: [
+      { zh: "submitted 只代表元数据通过本地校验，不是生产证明。", en: "submitted means metadata passed local validation; it is not production proof." }
+    ]
+  },
+  {
+    id: "a3-deployment-receipt-review",
+    group: "console",
+    owner: "A3",
+    method: "POST",
+    path: "/api/a3/deployment/receipts/{receipt_id}/review",
+    title: { zh: "复核部署回执元数据", en: "Review deployment receipt metadata" },
+    description: {
+      zh: "审核者确认、拒绝或替换回执，并用 expected_version 防止并发覆盖。",
+      en: "A reviewer acknowledges, rejects, or supersedes a receipt with expected_version concurrency control."
+    },
+    auth: { zh: "A1 可信身份 + deployment:review + Idempotency-Key", en: "Trusted A1 principal, deployment:review, and Idempotency-Key" },
+    status: "implemented",
+    source: "services/report/a3_deployment_receipt_workflow.mjs",
+    request: {
+      source: "candidate-source",
+      review: { action: "acknowledge", reason_code: "metadata_complete", expected_version: 1 }
+    },
+    response: {
+      schema_version: "a3.deployment_receipt.v1",
+      receipt_id: "dpr_example",
+      status: "acknowledged",
+      version: 2,
+      authority_validation: { status: "awaiting_authoritative_readback", production_verified: false }
+    },
+    notes: [
+      { zh: "版本冲突返回 HTTP 409；acknowledged 仍不会改写 A2 Release Ready。", en: "Version conflicts return HTTP 409; acknowledged still cannot change A2 Release Ready." }
+    ]
+  },
+  {
+    id: "a3-deployment-receipt-authoritative-verify",
+    group: "console",
+    owner: "A1/A2/A3",
+    method: "POST",
+    path: "/internal/a3/deployment/receipts/{receipt_id}/verify",
+    title: { zh: "服务器权威验证部署回执", en: "Authoritatively verify a deployment receipt" },
+    description: {
+      zh: "仅允许 A1 验证过的 service account 触发。验证状态、证明项和 attestation 必须来自服务器 resolver，客户端不能提交。",
+      en: "Only an A1-verified service account may trigger this route. Status, claims, and attestation come from the server resolver, never the client."
+    },
+    auth: { zh: "A1 service account + deployment:verify + Idempotency-Key", en: "A1 service account, deployment:verify, and Idempotency-Key" },
+    status: "implemented",
+    source: "services/report/a3_deployment_receipt_workflow.mjs",
+    request: { source: "candidate-source", expected_version: 2 },
+    response: {
+      schema_version: "a3.deployment_receipt_authoritative_readback.v1",
+      readback_id: "dprv_example",
+      receipt_id: "dpr_example",
+      blocker_id: "github_app_installation",
+      verification_status: "rejected",
+      reason_code: "policy_not_satisfied",
+      production_verified: false,
+      claims: { tenant_installation_bound: false, repository_bound: false, check_identity_verified: false },
+      binding_validation: { all_passed: true, required_claims: false },
+      safety: { trusted_server_resolver: true, client_supplied_verification_result_used: false }
+    },
+    notes: [
+      { zh: "GitHub App 与 required-check resolver 已接入只读真实回读；401、404、github-actions 身份或外部权威回执缺失都会形成可信 rejected，而不是伪造通过。", en: "GitHub App and required-check resolvers now use live read-only provider state; 401, 404, github-actions identity, or missing authority receipts produce a trusted rejection." },
+      { zh: "该 readback 只进入只读 Acceptance projection；仍需重建并重新封存正式 Deployment Acceptance。", en: "The readback enters a read-only acceptance projection; the formal Deployment Acceptance must still be rebuilt and resealed." }
     ]
   },
   {

@@ -58,6 +58,7 @@ const REQUIRED_SENSITIVE_READ_SURFACES = {
     "/api/a3/reports/{reportId}/manifest"
   ],
   review: ["/api/a3/review/workflow"],
+  deployment_operations: ["/api/a3/deployment/sandbox-calibration", "/api/a3/deployment/receipts"],
   admin: ["/api/a3/admin/console", "/api/a3/auth/context", "/api/a3/auth/rbac-policy"],
   usage_and_billing: [
     "/api/a3/usage/ledger",
@@ -88,7 +89,7 @@ test("A3 commercial OpenAPI v2 covers the required tenant-sensitive read surface
   assert.equal(spec.openapi, "3.1.0");
   assert.equal(spec["x-schema-version"], "a3.openapi.commercial_api.v2");
   assert.equal(spec.info.title, "Ashr++ A3 Commercial Product Console API");
-  assert.equal(spec.info.version, "2026.07.12");
+  assert.equal(spec.info.version, "2026.07.13");
   assert.ok(spec["x-contract-source"].includes("services/report/a3_commercial_api_contract.mjs"));
   assert.ok(spec["x-contract-source"].includes("docs/a3/a3_trusted_read_access_contract_2026_07_12.md"));
 
@@ -117,8 +118,8 @@ test("every runtime RBAC route has an OpenAPI operation with the same permission
   ]));
 
   assert.equal(parity.complete, true);
-  assert.equal(parity.runtime_operation_count, 53);
-  assert.equal(parity.documented_runtime_operation_count, 53);
+  assert.equal(parity.runtime_operation_count, 61);
+  assert.equal(parity.documented_runtime_operation_count, 61);
   assert.deepEqual(parity.missing, []);
   for (const route of A3_SENSITIVE_ROUTE_PATTERNS) {
     const key = `${route.method} ${normalizeContractPath(route.path_pattern)}`;
@@ -127,6 +128,101 @@ test("every runtime RBAC route has an OpenAPI operation with the same permission
     assert.equal(operation["x-rbac"].permission, route.required_permission, `${key} permission drift`);
   }
   assert.deepEqual(synchronizeA3OpenApiRuntimeParity(spec), spec, "committed OpenAPI must be synchronizer-clean");
+});
+
+test("multimodal OpenAPI matches the header-only import and non-authoritative review queue runtime", async () => {
+  const spec = await readOpenApi();
+  const importOperation = spec.paths["/api/a3/import/a2-multimodal-comparison"].post;
+  const readOperation = spec.paths["/api/a3/review/multimodal-queue"].get;
+  const assignmentOperation = spec.paths["/api/a3/review/multimodal-queue/{queueId}/assignment"].post;
+  const idempotency = importOperation.parameters.find((item) => item.name === "Idempotency-Key");
+  const assignmentIdempotency = assignmentOperation.parameters.find((item) => item.name === "Idempotency-Key");
+
+  assert.equal(importOperation["x-rbac"].permission, "project:ingest");
+  assert.equal(idempotency.in, "header");
+  assert.equal(idempotency.required, true);
+  assert.equal(importOperation.requestBody.content["application/json"].schema.$ref, "#/components/schemas/MultimodalComparisonImportRequest");
+  assert.equal(importOperation.responses["201"].content["application/json"].schema.$ref, "#/components/schemas/MultimodalComparisonIngestReceipt");
+  assert.equal(importOperation.responses["202"], undefined);
+  assert.equal(importOperation["x-authority-boundary"].can_change_release_decision, false);
+  assert.equal(readOperation["x-rbac"].permission, "release:review");
+  assert.equal(readOperation.responses["200"].content["application/json"].schema.$ref, "#/components/schemas/MultimodalReviewQueue");
+  assert.equal(assignmentOperation["x-rbac"].permission, "release:review");
+  assert.equal(assignmentIdempotency.in, "header");
+  assert.equal(assignmentIdempotency.required, true);
+  assert.equal(assignmentOperation.requestBody.content["application/json"].schema.$ref, "#/components/schemas/MultimodalReviewAssignmentRequest");
+  assert.equal(assignmentOperation.responses["200"].content["application/json"].schema.$ref, "#/components/schemas/MultimodalReviewAssignmentReceipt");
+  assert.equal(assignmentOperation["x-concurrency"].strategy, "optimistic_expected_version_plus_time_bounded_lease");
+
+  const request = spec.components.schemas.MultimodalComparisonImportRequest;
+  const envelope = spec.components.schemas.A2MultimodalComparisonEnvelope;
+  const receipt = spec.components.schemas.MultimodalComparisonIngestReceipt;
+  const queue = spec.components.schemas.MultimodalReviewQueue;
+  const assignmentRequest = spec.components.schemas.MultimodalReviewAssignmentRequest;
+  const assignmentReceipt = spec.components.schemas.MultimodalReviewAssignmentReceipt;
+  assert.match(request.description, /header-only/);
+  assert.match(request.properties.imported_at.description, /server assigns/);
+  assert.deepEqual(envelope.oneOf.map((item) => item.properties.schema_version.const), [
+    "a2.multimodal_cross_provider_comparison.v1",
+    "a2.multimodal_cross_provider_comparison.v3",
+    "a2.multimodal_three_way_comparison.v2"
+  ]);
+  assert.equal(envelope.oneOf[1].properties.release_authority.const, false);
+  assert.equal(envelope.oneOf[2].properties.release_authority.const, false);
+  assert.equal(envelope.oneOf[2].properties.evidence_hashes.minProperties, 3);
+  assert.equal(envelope.oneOf[2].properties.evidence_hashes.maxProperties, 3);
+  assert.deepEqual(envelope.oneOf[2].properties.comparisons.items.properties.comparison_state.enum, [
+    "three_way_agreement",
+    "pairwise_agreement_with_unavailable",
+    "semantic_disagreement",
+    "unavailable"
+  ]);
+  assert.equal(receipt.properties.upstream_release_authority.const, false);
+  assert.equal(receipt.properties.candidate_binding_verified.const, false);
+  assert.equal(receipt.properties.release_decision_changed.const, false);
+  assert.equal(queue.properties.authority_boundary.properties.a3_recomputed_risk.const, false);
+  assert.equal(queue.properties.authority_boundary.properties.a3_recomputed_release_decision.const, false);
+  assert.equal(queue.properties.authority_boundary.properties.can_change_release_decision.const, false);
+  assert.equal(queue.properties.authority_boundary.properties.assignment_events_change_a2_decision.const, false);
+  assert.equal(queue.properties.safety.properties.production_ready_claimed.const, false);
+  assert.deepEqual(assignmentRequest.properties.assignment.properties.action.enum, ["claim", "renew", "release", "transfer"]);
+  assert.equal(assignmentRequest.properties.assignment.properties.expected_version.minimum, 0);
+  assert.match(assignmentRequest.description, /cannot contain a disposition/);
+  assert.equal(assignmentReceipt.properties.release_authority.const, false);
+  assert.equal(assignmentReceipt.properties.a2_decision_recomputed.const, false);
+});
+
+test("self-host sandbox OpenAPI keeps local evidence separate from production acceptance", async () => {
+  const spec = await readOpenApi();
+  const operation = spec.paths["/api/a3/deployment/sandbox-calibration"].get;
+  const schema = spec.components.schemas.SelfHostSandboxCalibration;
+
+  assert.equal(operation.operationId, "getA3SelfHostSandboxCalibration");
+  assert.equal(operation["x-rbac"].permission, "deployment:read");
+  assert.deepEqual(operation["x-evidence-boundary"], {
+    evidence_level: "sandbox_verified",
+    production_verified: false,
+    deployment_acceptance_mutated: false,
+    a2_decision_recomputed: false,
+    release_decision_authority: "A2"
+  });
+  assert.equal(operation.responses["200"].content["application/json"].schema.$ref, "#/components/schemas/SelfHostSandboxCalibration");
+  assert.equal(schema.properties.authority_boundary.properties.production_verified.const, false);
+  assert.equal(schema.properties.authority_boundary.properties.deployment_acceptance_mutated.const, false);
+  assert.equal(schema.properties.authority_boundary.properties.a2_decision_recomputed.const, false);
+  assert.equal(schema.properties.access_contract.properties.required_permission.const, "deployment:read");
+  assert.equal(schema.properties.evidence_integrity.properties.postgres_qualification_sha256.pattern, "^sha256:[a-f0-9]{64}$");
+  assert.equal(schema.properties.evidence_integrity.properties.combined_payload_sha256.pattern, "^sha256:[a-f0-9]{64}$");
+  assert.equal(schema.properties.postgres_qualification.$ref, "#/components/schemas/PostgresRlsQualification");
+  const postgres = spec.components.schemas.PostgresRlsQualification;
+  assert.equal(postgres.properties.database.properties.migration_id.const, "019_to_020_self_host_sandbox_rls");
+  assert.equal(postgres.properties.database.properties.migration_statement_count.const, 2);
+  assert.equal(postgres.properties.database.properties.rls_enabled.const, true);
+  assert.equal(postgres.properties.database.properties.rls_forced.const, true);
+  assert.equal(postgres.properties.tenant_isolation.properties.cross_scope_read_count.const, 0);
+  assert.equal(postgres.properties.tenant_isolation.properties.cross_scope_write_denied.const, true);
+  assert.equal(postgres.properties.authority_boundary.properties.production_verified.const, false);
+  assert.equal(postgres.properties.authority_boundary.properties.target_customer_environment_verified.const, false);
 });
 
 test("every non-public A3 read explicitly requires a verified A1 principal, RBAC, scope, and sanitized denials", async () => {
@@ -295,7 +391,7 @@ test("OpenAPI documents sanitized malformed JSON and protected OPTIONS behavior"
 
   const operations = collectOperations(spec).filter((operation) => operation["x-rbac"]);
   const mutations = operations.filter((operation) => !["get", "head"].includes(operation.method));
-  assert.equal(operations.length, 53);
+  assert.equal(operations.length, 61);
   assert.ok(mutations.length > 0);
   for (const operation of operations) {
     const optionsPolicy = operation["x-protected-options"];
@@ -415,6 +511,22 @@ test("dashboard contract exposes a fail-closed partial aggregate state", async (
 
   assert.equal(dashboard.properties.aggregate_scope_status.$ref, "#/components/schemas/AggregateScopeStatus");
   assert.equal(dashboard.properties.trusted_release_authority.$ref, "#/components/schemas/TrustedReleaseAuthority");
+  assert.equal(dashboard.properties.deployment_handoff.$ref, "#/components/schemas/DeploymentHandoff");
+  assert.equal(dashboard.properties.deployment_receipt_inbox.$ref, "#/components/schemas/DeploymentReceiptInbox");
+  assert.equal(dashboard.properties.deployment_acceptance_projection.$ref, "#/components/schemas/DeploymentAcceptanceProjection");
+  assert.equal(spec.components.schemas.DeploymentHandoff.properties.schema_version.const, "a3.deployment_handoff.v1");
+  assert.equal(spec.components.schemas.DeploymentHandoff.properties.safety.properties.a2_decision_recomputed.const, false);
+  assert.equal(spec.components.schemas.CandidateBindingHandoff.properties.schema_version.const, "a3.candidate_binding_handoff.v1");
+  assert.equal(spec.components.schemas.DeploymentReceipt.properties.schema_version.const, "a3.deployment_receipt.v1");
+  assert.equal(spec.components.schemas.DeploymentReceipt.properties.authority_validation.properties.production_verified.type, "boolean");
+  assert.equal(spec.components.schemas.DeploymentReceipt.properties.acceptance_effect.properties.changes_release_ready.const, false);
+  assert.equal(spec.components.schemas.DeploymentReceiptAuthoritativeReadback.properties.schema_version.const, "a3.deployment_receipt_authoritative_readback.v1");
+  assert.equal(spec.components.schemas.DeploymentReceiptAuthoritativeReadback.properties.safety.properties.client_supplied_verification_result_used.const, false);
+  assert.equal(spec.components.schemas.DeploymentReceiptInbox.properties.schema_version.const, "a3.deployment_receipt_inbox.v1");
+  assert.equal(spec.components.schemas.DeploymentReceiptInbox.properties.production_verified_count.minimum, 0);
+  assert.equal(spec.components.schemas.DeploymentAcceptanceProjection.properties.schema_version.const, "a3.deployment_acceptance_projection.v1");
+  assert.equal(spec.components.schemas.DeploymentAcceptanceProjection.properties.production_accepted.const, false);
+  assert.equal(spec.components.schemas.ReleaseComparisonRuntimeAuthority.properties.schema_version.const, "a3.release_comparison_runtime_authority.v1");
   assert.equal(aggregate.additionalProperties, false);
   assert.deepEqual(aggregate.properties.status.enum, ["complete", "partial"]);
   assert.equal(aggregate.properties.excluded_record_count.minimum, 0);
@@ -426,6 +538,32 @@ test("dashboard contract exposes a fail-closed partial aggregate state", async (
   assert.equal(authority.properties.safety.properties.a3_score_recomputed.const, false);
   assert.equal(authority.properties.safety.properties.a3_release_ready_recomputed.const, false);
   assert.equal(authority.properties.safety.properties.client_chain_verified_flag_trusted_without_recalculation.const, false);
+});
+
+test("deployment receipt OpenAPI requires idempotency and documents non-authoritative review", async () => {
+  const spec = await readOpenApi();
+  const collection = spec.paths["/api/a3/deployment/receipts"];
+  const review = spec.paths["/api/a3/deployment/receipts/{receiptId}/review"].post;
+  const verify = spec.paths["/internal/a3/deployment/receipts/{receiptId}/verify"].post;
+
+  assert.equal(collection.get["x-rbac"].permission, "deployment:read");
+  assert.equal(collection.get.responses["200"].content["application/json"].schema.$ref, "#/components/schemas/DeploymentReceiptInbox");
+  assert.equal(collection.post["x-rbac"].permission, "deployment:submit");
+  assert.equal(collection.post.requestBody.content["application/json"].schema.$ref, "#/components/schemas/DeploymentReceiptSubmission");
+  assert.equal(collection.post.responses["201"].content["application/json"].schema.$ref, "#/components/schemas/DeploymentReceipt");
+  assert.equal(collection.post.parameters.some((item) => item.name === "Idempotency-Key" && item.required === true), true);
+  assert.equal(review["x-rbac"].permission, "deployment:review");
+  assert.equal(review.requestBody.content["application/json"].schema.$ref, "#/components/schemas/DeploymentReceiptReview");
+  assert.equal(review.responses["409"].content["application/json"].schema.$ref, "#/components/schemas/DeploymentReceiptConflict");
+  assert.equal(review.responses["200"].description.includes("without changing deployment or A2 authority"), true);
+  assert.equal(verify["x-rbac"].permission, "deployment:verify");
+  assert.equal(verify["x-browser-callable"], false);
+  assert.equal(verify["x-auth"].service_account_only, true);
+  assert.deepEqual(verify.security, [{ A1ServiceAccount: [] }]);
+  assert.equal(verify.requestBody.content["application/json"].schema.$ref, "#/components/schemas/DeploymentReceiptVerificationRequest");
+  assert.equal(verify.responses["200"].content["application/json"].schema.$ref, "#/components/schemas/DeploymentReceiptAuthoritativeReadback");
+  assert.equal(verify.parameters.some((item) => item.name === "Idempotency-Key" && item.required === true), true);
+  assert.equal(verify["x-verifier-boundary"].client_supplied_verification_result_used, false);
 });
 
 test("A3 commercial OpenAPI artifact is redacted and safe to publish", async () => {

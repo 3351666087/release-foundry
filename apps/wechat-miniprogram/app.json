@@ -1,13 +1,33 @@
 {
   "pages": [
+    "pages/workbench/index",
     "pages/release-approval/index",
-    "pages/incident-alert/index"
+    "pages/incident-alert/index",
+    "pages/account/index"
   ],
   "window": {
-    "navigationBarTitleText": "Ashr A3 Gate",
-    "navigationBarBackgroundColor": "#0f172a",
-    "navigationBarTextStyle": "white",
-    "backgroundColor": "#f8fafc"
+    "navigationBarTitleText": "Ashr 发布中心",
+    "navigationBarBackgroundColor": "#ffffff",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#f3f4f6",
+    "backgroundTextStyle": "dark"
   },
+  "tabBar": {
+    "color": "#71717a",
+    "selectedColor": "#e9442c",
+    "backgroundColor": "#ffffff",
+    "borderStyle": "black",
+    "list": [
+      { "pagePath": "pages/workbench/index", "text": "工作台" },
+      { "pagePath": "pages/release-approval/index", "text": "审批" },
+      { "pagePath": "pages/incident-alert/index", "text": "告警" },
+      { "pagePath": "pages/account/index", "text": "账户" }
+    ]
+  },
+  "networkTimeout": {
+    "request": 10000
+  },
+  "style": "v2",
+  "lazyCodeLoading": "requiredComponents",
   "sitemapLocation": "sitemap.json"
 }

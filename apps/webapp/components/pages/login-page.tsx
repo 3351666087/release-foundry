@@ -12,6 +12,7 @@ import {
   Languages,
   LockKeyhole,
   Mail,
+  PackageCheck,
   ShieldAlert,
   ShieldCheck,
   UserRound
@@ -37,7 +38,7 @@ export function LoginPage() {
   const zh = language === "zh-CN";
   const config = useMemo(() => getAuthRuntimeConfig(), []);
   const [mode, setMode] = useState<AuthMode>("signin");
-  const [workspace, setWorkspace] = useState("A3 Local Organization");
+  const [workspace, setWorkspace] = useState("示例企业 / 发布工作区");
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -67,8 +68,8 @@ export function LoginPage() {
       setNotice({
         tone: "success",
         text: zh
-          ? "请求已被 A1 接受。为防止账号枚举，无论邮箱是否存在，公开响应都相同。"
-          : "A1 accepted the request. The public response is identical whether or not the address exists."
+          ? "请求已被身份服务接受。为防止账号枚举，无论邮箱是否存在，公开响应都相同。"
+          : "The identity service accepted the request. The public response is identical whether or not the address exists."
       });
     } catch (error) {
       setNotice({ tone: "error", text: authErrorText(error, zh) });
@@ -88,8 +89,8 @@ export function LoginPage() {
       setNotice({
         tone: "success",
         text: zh
-          ? "邮箱凭据已经由 A1 验证。安全登录会话仍需 A1 callback/session handoff，当前不会伪造进入已登录状态。"
-          : "A1 verified the email credential. A secure signed-in session still requires the A1 callback/session handoff."
+          ? "邮箱凭据已经通过验证。安全登录会话仍需服务端完成 callback/session 交接，当前不会伪造进入已登录状态。"
+          : "The email credential was verified. A secure signed-in session still requires the server callback/session handoff."
       });
     } catch (error) {
       setNotice({ tone: "error", text: authErrorText(error, zh) });
@@ -99,23 +100,23 @@ export function LoginPage() {
   }
 
   const configLabel = config.configured
-    ? (zh ? "A1 身份服务已配置" : "A1 identity service configured")
-    : (zh ? "A1 身份服务未连接" : "A1 identity service not connected");
+    ? (zh ? "身份服务已配置" : "Identity service configured")
+    : (zh ? "身份服务未连接" : "Identity service not connected");
   const oauthInitialLoginReady = config.configured && authContractCapabilities.oauthInitialLogin;
 
   return (
     <main className={`login-page ${styles.page}`}>
       <section className={`login-signal ${styles.signal}`} aria-label="Ashr Release Console">
-        <div className="login-brand"><span>A3</span><strong>ASHR</strong></div>
+        <div className="login-brand"><span><PackageCheck size={20} strokeWidth={1.9} aria-hidden="true" /></span><strong>ASHR</strong></div>
         <div className="login-statement">
           <span className="eyebrow">AGENT RELEASE OS / PRODUCT CONSOLE</span>
           <h1>{zh ? <>发布<br />之前，<br />先看证据。</> : <>Evidence<br />before<br />release.</>}</h1>
           <p>{zh ? "运行、评测、审核和审计，在一个发布工作区内完成。" : "Run, evaluate, review, and audit in one release workspace."}</p>
         </div>
         <div className="login-signal-footer">
-          <span><ShieldCheck size={15} /> A1 Capture</span>
-          <span><ShieldCheck size={15} /> A2 Judge</span>
-          <span><ShieldCheck size={15} /> A3 Operate</span>
+          <span><ShieldCheck size={15} /> {zh ? "执行证据" : "Execution"}</span>
+          <span><ShieldCheck size={15} /> {zh ? "评测结论" : "Evaluation"}</span>
+          <span><ShieldCheck size={15} /> {zh ? "发布治理" : "Release"}</span>
         </div>
       </section>
 
@@ -150,18 +151,18 @@ export function LoginPage() {
           <div className={`auth-roadmap ${styles.runtimeState}`} data-ready={config.configured}>
             {config.configured ? <Check size={15} /> : <ShieldAlert size={15} />}
             <span>{configLabel}</span>
-            <small>A1 {authContractCapabilities.sourceSha} · {config.configured ? "configured" : config.reason}</small>
+            <small>IDENTITY {authContractCapabilities.sourceSha} · {config.configured ? "configured" : config.reason}</small>
           </div>
 
           {mode === "signin" ? (
             <div className={styles.signInFlow} role="tabpanel">
               <div className={styles.providerGrid}>
-                <button type="button" className={styles.providerButton} disabled={!oauthInitialLoginReady || busy !== null} title={zh ? "A1 当前只有已登录账号绑定路由" : "A1 currently exposes account linking only"}>
+                <button type="button" className={styles.providerButton} disabled={!oauthInitialLoginReady || busy !== null} title={zh ? "当前只有已登录账号绑定路由" : "Only signed-in account linking is currently available"}>
                   <span className={styles.googleMark} aria-hidden="true">G</span>
                   <span><strong>{zh ? "Google 登录待接入" : "Google sign-in pending"}</strong><small>{zh ? "现有路由仅用于已登录账号绑定" : "Current route is account linking only"}</small></span>
                   <ArrowRight size={16} />
                 </button>
-                <button type="button" className={styles.providerButton} disabled={!oauthInitialLoginReady || busy !== null} title={zh ? "A1 当前只有已登录账号绑定路由" : "A1 currently exposes account linking only"}>
+                <button type="button" className={styles.providerButton} disabled={!oauthInitialLoginReady || busy !== null} title={zh ? "当前只有已登录账号绑定路由" : "Only signed-in account linking is currently available"}>
                   <GitFork size={19} aria-hidden="true" />
                   <span><strong>{zh ? "GitHub 登录待接入" : "GitHub sign-in pending"}</strong><small>{zh ? "现有路由仅用于已登录账号绑定" : "Current route is account linking only"}</small></span>
                   <ArrowRight size={16} />
@@ -171,8 +172,8 @@ export function LoginPage() {
               <div className={styles.boundaryNote}>
                 <LockKeyhole size={15} />
                 <p>{zh
-                  ? "A1 c784163 已支持邮箱登录后的安全 Cookie 与 Session Refresh，但 Google/GitHub 仍是已登录账号绑定，不是首次登录。Provider secret、code 和 token 始终由 A1 保管。"
-                  : "A1 c784163 supports secure cookies and refresh after email login, but Google/GitHub remain signed-in account linking rather than initial sign-in. A1 retains all provider secrets, codes, and tokens."}</p>
+                  ? "身份服务已支持邮箱登录后的安全 Cookie 与 Session Refresh，但 Google/GitHub 仍是已登录账号绑定，不是首次登录。Provider secret、code 和 token 始终由服务端保管。"
+                  : "The identity service supports secure cookies and refresh after email login, but Google/GitHub remain signed-in account linking rather than initial sign-in. The server retains all provider secrets, codes, and tokens."}</p>
               </div>
 
               <details className={styles.previewEntry}>
@@ -214,7 +215,7 @@ export function LoginPage() {
                 <div className={styles.verifiedState}>
                   <span><Check size={21} /></span>
                   <h3>{zh ? "邮箱验证完成" : "Email verified"}</h3>
-                  <p>{zh ? "A1 已返回验证凭据。正式登录会话建立前，本页不会自动进入控制台。" : "A1 returned a verified credential. This page will not enter the console until a signed-in session exists."}</p>
+                  <p>{zh ? "身份服务已返回验证凭据。正式登录会话建立前，本页不会自动进入控制台。" : "The identity service returned a verified credential. This page will not enter the console until a signed-in session exists."}</p>
                 </div>
               ) : (
                 <form onSubmit={handleVerificationComplete}>
@@ -238,8 +239,8 @@ export function LoginPage() {
                     <div className={styles.contractBlocker} role="status">
                       <ShieldAlert size={16} />
                       <p>{zh
-                        ? "A1 当前邮件只包含验证码，没有浏览器提交所需的 challenge 上下文，因此验证按钮保持关闭。A3 已生成安全闭环变更请求。"
-                        : "A1 currently emails only the code, not the challenge context required by the browser. Verification remains disabled and A3 has filed a secure contract change request."}</p>
+                        ? "当前邮件只包含验证码，没有浏览器提交所需的 challenge 上下文，因此验证按钮保持关闭。团队已生成安全闭环变更请求。"
+                        : "The current email contains only the code, not the challenge context required by the browser. Verification remains disabled and a secure contract change request is open."}</p>
                     </div>
                   )}
                   <button className="login-submit" type="submit" disabled={!challengeId || !displayName.trim() || !email.trim() || code.length !== 6 || busy !== null}>
@@ -252,7 +253,7 @@ export function LoginPage() {
               <details className={styles.emailPreview}>
                 <summary>{zh ? "查看验证邮件设计稿" : "Preview verification email"}</summary>
                 <div><VerificationEmailPreview zh={zh} /></div>
-                <p>{zh ? "这是 A3 给 A1 的 HTML 模板设计稿；当前 A1 SMTP 仍发送纯文本。" : "This is A3's HTML template handoff; the current A1 SMTP sender still sends plain text."}</p>
+                <p>{zh ? "这是 HTML 邮件模板设计稿；当前身份服务的 SMTP 仍发送纯文本。" : "This is the HTML email template preview; the identity service currently sends plain text."}</p>
               </details>
             </div>
           )}
@@ -267,23 +268,23 @@ export function LoginPage() {
 function authErrorText(error: unknown, zh: boolean) {
   const code = error instanceof AuthApiError ? error.code : "identity_request_failed";
   const known: Record<string, [string, string]> = {
-    api_base_missing: ["当前构建没有配置 A1 API 地址。", "This build has no A1 API base URL."],
-    api_base_invalid: ["A1 API 地址不安全或格式不正确。", "The A1 API base URL is invalid or unsafe."],
-    project_missing: ["当前构建没有配置 A1 project_id。", "This build has no A1 project_id."],
-    tenant_missing: ["当前构建没有配置 A1 tenant_id。", "This build has no A1 tenant_id."],
-    identity_service_unreachable: ["无法连接 A1 身份服务；请确认服务已启动并允许 Webapp 来源。", "A1 identity service is unreachable; confirm it is running and allows the webapp origin."],
-    identity_service_timeout: ["A1 身份服务响应超时。", "A1 identity service timed out."],
-    identity_session_same_origin_required: ["浏览器会话轮换要求 Webapp 与 A1 API 使用同一个 HTTPS 来源。", "Browser session refresh requires the Webapp and A1 API to use the same HTTPS origin."],
-    identity_session_required: ["A1 要求可信身份会话，当前浏览器尚未建立。", "A1 requires a trusted identity session that this browser does not have."],
-    google_oauth_unavailable: ["A1 尚未配置 Google OAuth。", "Google OAuth is not configured in A1."],
-    github_oauth_unavailable: ["A1 尚未配置 GitHub OAuth。", "GitHub OAuth is not configured in A1."],
+    api_base_missing: ["当前构建没有配置身份 API 地址。", "This build has no identity API base URL."],
+    api_base_invalid: ["身份 API 地址不安全或格式不正确。", "The identity API base URL is invalid or unsafe."],
+    project_missing: ["当前构建没有配置 project_id。", "This build has no project_id."],
+    tenant_missing: ["当前构建没有配置 tenant_id。", "This build has no tenant_id."],
+    identity_service_unreachable: ["无法连接身份服务；请确认服务已启动并允许 Webapp 来源。", "The identity service is unreachable; confirm it is running and allows the webapp origin."],
+    identity_service_timeout: ["身份服务响应超时。", "The identity service timed out."],
+    identity_session_same_origin_required: ["浏览器会话轮换要求 Webapp 与身份 API 使用同一个 HTTPS 来源。", "Browser session refresh requires the Webapp and identity API to use the same HTTPS origin."],
+    identity_session_required: ["服务端要求可信身份会话，当前浏览器尚未建立。", "A trusted identity session is required and this browser does not have one."],
+    google_oauth_unavailable: ["尚未配置 Google OAuth。", "Google OAuth is not configured."],
+    github_oauth_unavailable: ["尚未配置 GitHub OAuth。", "GitHub OAuth is not configured."],
     verification_challenge_missing: ["缺少安全验证上下文。", "Secure verification context is missing."],
     verification_code_invalid: ["验证码必须是 6 位数字。", "The verification code must contain six digits."],
     email_invalid: ["请输入有效邮箱。", "Enter a valid email address."]
   };
   const selected = known[code];
   if (selected) return selected[zh ? 0 : 1];
-  if (error instanceof AuthApiError && error.status === 401) return zh ? "A1 要求可信身份会话。" : "A trusted A1 identity session is required.";
+  if (error instanceof AuthApiError && error.status === 401) return zh ? "服务端要求可信身份会话。" : "A trusted identity session is required.";
   if (error instanceof AuthApiError && error.status === 429) return zh ? "请求过于频繁，请稍后再试。" : "Too many attempts. Try again later.";
   return zh ? "身份请求未完成。请查看 API 参考中的能力状态。" : "The identity request did not complete. Check capability status in API reference.";
 }
