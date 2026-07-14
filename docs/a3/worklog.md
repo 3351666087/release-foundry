@@ -7182,3 +7182,26 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
 - `.env.local` remains ignored. No key, token, cookie, email, account identity, signed URL, raw Provider payload, private media or local account path was added.
 - Golden Path remains `7/11`, Deployment Acceptance remains `8/17`, current authority remains `integrity_invalid`, current A2 decision remains `unknown`, historical A2 remains `block`, production receipts remain `0`, and production ready remains false.
 - Published feature commit `1809513` to Draft PR #35. GitHub Actions CL Gate run `29338036122` passed Plan/Hygiene, A3 Node, Next.js/Playwright, Python A1/A2, pinned evidence, Golden Path artifact and final summary. TypeScript SDK, Go SDK and Rust verifier were changed-path skipped, not failed. GitHub action Node 20 deprecation notices remain a non-blocking workflow maintenance item.
+
+## 2026-07-15 - Round 27 multimodal release readiness
+
+- Fetched latest peers without merging them:
+  - A1 `566a13d`
+  - A2 `850b39a`
+  - main `ccf6ce5`
+- Added strict `a3.a2_multimodal_release_readiness_intake.v1` validation and `a3.multimodal_release_readiness.v1` projection.
+- Added public-safe Round 52 fixture and `p3-a2-round52` Dashboard source.
+- Preserved exact facts: 15 controls, specificity 1.0, sensitivity 0.6, balanced accuracy 0.8, 0/10 safe false positives, 3/5 attack detections, 0 local structured profiles, blocked quality, qualified stability, pending review, blocked PostgreSQL proof and invalid candidate binding.
+- Added A1 Round 68 boundary metadata after inspecting its authorized credential-binding regression; retained the Round 67 replay-retention fact without raw identity receipt material or a false client-route claim.
+- Added JSON, Markdown, Hosted Report, OpenAPI DashboardSnapshot, API Reference v16, Delivery React panel and WeChat workbench projection.
+- Fixed Dashboard service-clock propagation so assignment writes and reads use the same injected server time.
+- Saved desktop, mobile and WeChat screenshots.
+- Verification:
+  - focused Node: 137 passed
+  - full A3 Node: 519 passed, 0 failed, 1 explicit PostgreSQL opt-in skip
+  - current-main A2: 186/186 passed, 1050 subtests passed
+  - TypeScript and 15-page Next.js build passed
+  - Playwright: 47/47
+  - CL hygiene and commercial gate passed with zero findings
+  - root/Webapp audits: 0 vulnerabilities
+- Truth state unchanged: Golden Path 7/11, Deployment Acceptance 8/17, authority `integrity_invalid`, current A2 decision `unknown`, historical A2 decision `block`, production receipts 0, production_ready false.

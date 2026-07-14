@@ -1653,3 +1653,21 @@
 - [ ] Obtain A2-qualified structured outputs and a real non-empty human-review disposition.
 - [ ] Bind the exact current candidate across A1 evidence, A2 Decision Ledger and A3 artifact.
 - [ ] Deploy with hosted identity, target PostgreSQL, object storage, tenant KMS and authorized staging/VPC receipts.
+
+## Round 27 - A1 Round 68 / A2 Round 52 / WeChat alignment
+
+- [x] Fetch and inspect latest A1 `566a13d` and A2 `850b39a` without merging peer branches.
+- [x] Consume only A2 Round 52 public-safe aggregate facts and hashes.
+- [x] Record A1 replay-retention and authorized credential-binding regression without exposing receipts or claiming a client route.
+- [x] Validate exact fields, count conservation, metric ratios, quality/stability separation and authority flags.
+- [x] Reject URL, DSN, token, cookie, email, local account path, Secret and raw identity receipt material.
+- [x] Add `p3-a2-round52` to the Dashboard API and product source selector.
+- [x] Add Web Delivery panel with controls, runtime, review, persistence and candidate gates.
+- [x] Add Round 52 JSON, Markdown and Hosted Report projection.
+- [x] Add OpenAPI DashboardSnapshot field and API Reference v16 metadata.
+- [x] Add WeChat workbench summary without internal lane labels or local credential persistence.
+- [x] Fix assignment service-clock propagation exposed by the date boundary.
+- [x] Verify desktop and 390 x 844 layouts without horizontal overflow.
+- [x] Pass 519 A3 Node tests, 186 current-main A2 tests, TypeScript, 15-page build and 47 Playwright tests.
+- [x] Pass CL hygiene, commercial gate, diff check and production dependency audits.
+- [x] Keep A2 quality blocked, candidate invalid, production receipts 0 and `production_ready=false`.

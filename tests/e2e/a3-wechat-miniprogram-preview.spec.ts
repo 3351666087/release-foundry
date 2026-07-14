@@ -9,8 +9,15 @@ test.describe("WeChat enterprise release center preview", () => {
 
     await expect(page.locator('[data-page="workbench"]')).toBeVisible();
     await expect(page.getByRole("heading", { name: "Ashr 发布中心" })).toBeVisible();
+    await expect(page.locator('[data-page="workbench"]')).toContainText("多模态发布校准");
+    await expect(page.locator('[data-page="workbench"]')).toContainText("3 / 5");
+    await expect(page.locator('[data-page="workbench"]')).toContainText("稳定性 qualified");
     await expect(page.locator("body")).not.toContainText(/\bA[123]\b/);
     await assertMobileLayout(page);
+    await page.locator(".multimodal-readiness-panel").evaluate((node) => {
+      const top = node.getBoundingClientRect().top + window.scrollY - 58;
+      window.scrollTo({ top: Math.max(0, top), behavior: "auto" });
+    });
     await page.screenshot({ path: "docs/screenshots/a3-wechat-workbench-mobile.png", fullPage: false });
 
     await page.locator('[data-target="approval"]').click();

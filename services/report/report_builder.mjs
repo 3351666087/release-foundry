@@ -4130,6 +4130,10 @@ function objectOr(value) {
   return isObject(value) ? value : {};
 }
 
+function arrayOr(value) {
+  return Array.isArray(value) ? [...value] : [];
+}
+
 function isObject(value) {
   return value && typeof value === "object" && !Array.isArray(value);
 }
@@ -5343,6 +5347,9 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
   const multimodalProviderReadiness = summarizeMultimodalProviderReadinessExport(
     multimodalReviewQueueFixture.provider_readiness || {}
   );
+  const multimodalReleaseReadiness = summarizeMultimodalReleaseReadinessExport(
+    multimodalReviewQueueFixture.release_readiness || {}
+  );
   const clusters = clusterFailures(runFixture, gradeFixture);
   const cases = normalizeCases(runFixture, gradeFixture);
   const lines = [
@@ -5776,6 +5783,31 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
     for (const profile of multimodalProviderReadiness.latency_diagnostic.profiles) {
       lines.push(`- ${profile.profile}: ${profile.state} / ${profile.parse_state} / wall ${profile.phase_seconds.caller_wall_seconds ?? "unavailable"}s / ${profile.error_class}`);
     }
+    lines.push("");
+  }
+
+  if (multimodalReleaseReadiness.available) {
+    lines.push(
+      "## Multimodal Release Readiness",
+      "",
+      `- Status: ${multimodalReleaseReadiness.status}`,
+      `- Interpretation: ${multimodalReleaseReadiness.interpretation}`,
+      `- Cloud controls: ${multimodalReleaseReadiness.summary.cloud_eligible_count}`,
+      `- Specificity / sensitivity / balanced accuracy: ${multimodalReleaseReadiness.summary.specificity} / ${multimodalReleaseReadiness.summary.sensitivity} / ${multimodalReleaseReadiness.summary.balanced_accuracy}`,
+      `- Safe-control false positives: ${multimodalReleaseReadiness.summary.safe_control_false_positive_count}/${multimodalReleaseReadiness.summary.safe_control_count}`,
+      `- Attack detections: ${multimodalReleaseReadiness.summary.taxonomy_detected_count}/${multimodalReleaseReadiness.summary.taxonomy_eligible_count}`,
+      `- Local structured profiles completed: ${multimodalReleaseReadiness.summary.local_completed_profile_count}`,
+      `- Repeat quality / stability: ${multimodalReleaseReadiness.summary.repeat_quality_state} / ${multimodalReleaseReadiness.summary.repeat_stability_state}`,
+      `- Human review: ${multimodalReleaseReadiness.summary.human_review_state}`,
+      `- Same-round PostgreSQL verified: ${multimodalReleaseReadiness.summary.real_postgresql_verified ? "yes" : "no"}`,
+      `- Shared candidate verified: ${multimodalReleaseReadiness.summary.candidate_verified ? "yes" : "no"}`,
+      `- A1 identity client route: ${multimodalReleaseReadiness.identity_boundary.a3_client_route_status}`,
+      `- Release authority: ${multimodalReleaseReadiness.authority_boundary.release_authority ? "yes" : "no"}`,
+      "",
+      "### Blocking Conditions",
+      ""
+    );
+    for (const blocker of multimodalReleaseReadiness.blockers) lines.push(`- ${blocker}`);
     lines.push("");
   }
 
@@ -6853,6 +6885,148 @@ export function summarizeMultimodalProviderReadinessExport(readiness = {}) {
   };
 }
 
+export function summarizeMultimodalReleaseReadinessExport(readiness = {}) {
+  const available = readiness?.schema_version === "a3.multimodal_release_readiness.v1"
+    && readiness.available === true;
+  if (!available) {
+    return {
+      schema_version: "a3.multimodal_release_readiness_export.v1",
+      available: false,
+      status: readiness?.status || "missing",
+      recommendation: "Import a public-safe A2 multimodal release-readiness summary before exporting controls and runtime evidence."
+    };
+  }
+  const summary = objectOr(readiness.summary);
+  const cloud = objectOr(readiness.cloud_control);
+  const controls = objectOr(readiness.control_policy);
+  const local = objectOr(readiness.local_runtime);
+  const repeat = objectOr(readiness.repeat_evidence);
+  const review = objectOr(readiness.human_review);
+  const persistence = objectOr(readiness.persistence);
+  const candidate = objectOr(readiness.candidate_binding);
+  const identity = objectOr(readiness.identity_boundary);
+  const authority = objectOr(readiness.authority_boundary);
+  const blockers = [
+    ...arrayOr(cloud.blockers),
+    ...arrayOr(controls.blockers),
+    ...arrayOr(local.blockers),
+    ...arrayOr(repeat.quality_blockers),
+    ...arrayOr(repeat.stability_blockers),
+    ...arrayOr(candidate.blockers)
+  ];
+  return {
+    schema_version: "a3.multimodal_release_readiness_export.v1",
+    available: true,
+    status: readiness.status || "unknown",
+    capability_state: readiness.capability_state || "unknown",
+    source_contract: readiness.source_contract || "unknown",
+    source_commit_alias: readiness.source_commit_alias || null,
+    a1_peer_commit_alias: readiness.a1_peer_commit_alias || null,
+    tenant_scope: objectOr(readiness.tenant_scope),
+    summary: {
+      cloud_eligible_count: numberOrDefault(summary.cloud_eligible_count, 0),
+      specificity: numberOrDefault(summary.specificity, 0),
+      sensitivity: numberOrDefault(summary.sensitivity, 0),
+      balanced_accuracy: numberOrDefault(summary.balanced_accuracy, 0),
+      safe_control_count: numberOrDefault(summary.safe_control_count, 0),
+      safe_control_false_positive_count: numberOrDefault(summary.safe_control_false_positive_count, 0),
+      taxonomy_count: numberOrDefault(summary.taxonomy_count, 0),
+      taxonomy_eligible_count: numberOrDefault(summary.taxonomy_eligible_count, 0),
+      taxonomy_detected_count: numberOrDefault(summary.taxonomy_detected_count, 0),
+      local_completed_profile_count: numberOrDefault(summary.local_completed_profile_count, 0),
+      repeat_quality_state: summary.repeat_quality_state || "unknown",
+      repeat_stability_state: summary.repeat_stability_state || "unknown",
+      human_review_state: summary.human_review_state || "unknown",
+      real_postgresql_verified: summary.real_postgresql_verified === true,
+      candidate_verified: summary.candidate_verified === true,
+      promotion_permitted: false
+    },
+    cloud_control: {
+      provider_id: cloud.provider_id || "unknown",
+      model_id: cloud.model_id || "unknown",
+      endpoint_region: cloud.endpoint_region || "unknown",
+      qualification_state: cloud.qualification_state || "unknown",
+      evidence_hash: cloud.evidence_hash || null,
+      blockers: arrayOr(cloud.blockers),
+      quality: objectOr(cloud.quality),
+      latency_seconds: objectOr(cloud.latency_seconds)
+    },
+    control_policy: {
+      quality_state: controls.quality_state || "unknown",
+      evidence_hash: controls.evidence_hash || null,
+      blockers: arrayOr(controls.blockers),
+      safe_controls: objectOr(controls.safe_controls),
+      taxonomy_assessments: arrayOr(controls.taxonomy_assessments).map((item) => objectOr(item))
+    },
+    local_runtime: {
+      model_id: local.model_id || "unknown",
+      model_digest: local.model_digest || null,
+      qualification_state: local.qualification_state || "unknown",
+      runtime_promotion_state: local.runtime_promotion_state || "unknown",
+      completed_profile_count: numberOrDefault(local.completed_profile_count, 0),
+      probe_evidence_hash: local.probe_evidence_hash || null,
+      promotion_evidence_hash: local.promotion_evidence_hash || null,
+      blockers: arrayOr(local.blockers)
+    },
+    repeat_evidence: {
+      schema_version: repeat.schema_version || "unknown",
+      quality_state: repeat.quality_state || "unknown",
+      stability_state: repeat.stability_state || "unknown",
+      all_repeats_fresh: repeat.all_repeats_fresh === true,
+      promotion_eligible: false,
+      evidence_hash: repeat.evidence_hash || null,
+      quality_blockers: arrayOr(repeat.quality_blockers),
+      stability_blockers: arrayOr(repeat.stability_blockers)
+    },
+    human_review: {
+      collection_state: review.collection_state || "unknown",
+      verification_state: review.verification_state || "unknown",
+      pending_queue_receipt_count: numberOrDefault(review.pending_queue_receipt_count, 0),
+      collection_hash: review.collection_hash || null,
+      conservation_hash: review.conservation_hash || null,
+      authoritative_human_disposition_recorded: false
+    },
+    persistence: {
+      proof_state: persistence.proof_state || "unknown",
+      same_round_real_postgresql_verified: false,
+      evidence_hash: persistence.evidence_hash || null
+    },
+    candidate_binding: {
+      verified: false,
+      blockers: arrayOr(candidate.blockers)
+    },
+    identity_boundary: {
+      source_commit_alias: identity.source_commit_alias || null,
+      capability: identity.capability || "unknown",
+      a3_client_route_status: identity.a3_client_route_status || "unknown",
+      aggregate_readiness_available: identity.aggregate_readiness_available === true,
+      raw_identity_receipt_included: false,
+      production_identity_verified: false
+    },
+    blockers: [...new Set(blockers)],
+    authority_boundary: {
+      a1_runtime_identity_authority: authority.a1_runtime_identity_authority || "A1",
+      a2_evaluation_qualification_authority: authority.a2_evaluation_qualification_authority || "A2",
+      a3_product_projection_authority: authority.a3_product_projection_authority || "A3",
+      release_authority: false,
+      a2_decision_recomputed: false,
+      release_decision_changed: false,
+      production_ready: false
+    },
+    safety: {
+      public_safe: true,
+      aggregate_metrics_and_hashes_only: true,
+      raw_provider_payload_included: false,
+      raw_provider_text_included: false,
+      raw_identity_receipt_included: false,
+      endpoint_url_included: false,
+      secret_values_included: false
+    },
+    interpretation: "Safe controls passed, but attack sensitivity, local structured output, human review, same-round PostgreSQL proof, and shared candidate binding remain blocked.",
+    recommendation: "Repair A2 attack sensitivity and local structured output, complete real review and PostgreSQL proof, then bind one exact A1/A2/A3 candidate before release."
+  };
+}
+
 export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}, productConsoleFixture = {}, saasAdminFixture = {}, a2ReadinessBundle = {}, artifactRegistryFixture = {}, reviewWorkflowFixture = {}, releaseEvidenceFixture = {}, githubPublishEvidenceFixture = {}, peerBranchCalibrationFixture = {}, billingMigrationReadinessFixture = {}, notificationControlPlaneFixture = {}, multimodalReviewQueueFixture = {}) {
   if (isArtifactRegistryFixture(a2ReadinessBundle) && !isArtifactRegistryFixture(artifactRegistryFixture)) {
     artifactRegistryFixture = a2ReadinessBundle;
@@ -6909,6 +7083,9 @@ export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixt
     ),
     multimodal_provider_readiness: summarizeMultimodalProviderReadinessExport(
       multimodalReviewQueueFixture.provider_readiness || {}
+    ),
+    multimodal_release_readiness: summarizeMultimodalReleaseReadinessExport(
+      multimodalReviewQueueFixture.release_readiness || {}
     ),
     release_evidence_summary: summarizeReleaseEvidenceSummary(releaseEvidenceFixture),
     github_publish_evidence: summarizeGithubPublishEvidence(githubPublishEvidenceFixture),

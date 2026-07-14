@@ -99,6 +99,7 @@ export function buildShareableReportPayload(inputs = {}, options = {}) {
     multimodal_review_queue: jsonReport.multimodal_review_queue,
     multimodal_repeat_stability: jsonReport.multimodal_repeat_stability,
     multimodal_provider_readiness: jsonReport.multimodal_provider_readiness,
+    multimodal_release_readiness: jsonReport.multimodal_release_readiness,
     cases: jsonReport.cases,
     markdown_report: markdownReport
   }, { surface: "shareable_report" });
@@ -159,6 +160,7 @@ export function buildShareableReportPayload(inputs = {}, options = {}) {
     multimodal_review_queue: safeEnvelope.value.multimodal_review_queue,
     multimodal_repeat_stability: safeEnvelope.value.multimodal_repeat_stability,
     multimodal_provider_readiness: safeEnvelope.value.multimodal_provider_readiness,
+    multimodal_release_readiness: safeEnvelope.value.multimodal_release_readiness,
     markdown_report: safeEnvelope.value.markdown_report,
     report_center: {
       json_available: true,
@@ -205,6 +207,9 @@ export function renderShareableReportHtml(report = {}) {
     || {};
   const multimodalProviderReadiness = report.multimodal_provider_readiness
     || payload.multimodal_provider_readiness
+    || {};
+  const multimodalReleaseReadiness = report.multimodal_release_readiness
+    || payload.multimodal_release_readiness
     || {};
   const cases = Array.isArray(payload.cases) ? payload.cases.slice(0, 12) : [];
   const status = report.status || "unknown";
@@ -270,6 +275,7 @@ export function renderShareableReportHtml(report = {}) {
     ${renderMultimodalRepeatStabilityHtml(multimodalRepeatStability)}
 
     ${renderMultimodalProviderReadinessHtml(multimodalProviderReadiness)}
+    ${renderMultimodalReleaseReadinessHtml(multimodalReleaseReadiness)}
 
     ${renderMultimodalEvidenceRequestsHtml(multimodalReviewQueue)}
 
@@ -495,6 +501,40 @@ function renderMultimodalProviderReadinessHtml(readiness = {}) {
         </tr>`).join("")}</tbody>
       </table>` : ""}
       <p class="muted">Cold wall ${escapeHtml(latency.cold_wall_seconds ?? "unavailable")}s; fastest warm wall ${escapeHtml(latency.fastest_warm_wall_seconds ?? "unavailable")}s. Valid structured profiles ${escapeHtml(summary.valid_structured_profile_count || 0)}/${escapeHtml(summary.profile_count || 0)}. Release authority: no.</p>
+    </section>`;
+}
+
+function renderMultimodalReleaseReadinessHtml(readiness = {}) {
+  if (readiness.available !== true) return "";
+  const summary = readiness.summary || {};
+  const controls = readiness.control_policy || {};
+  const local = readiness.local_runtime || {};
+  const repeat = readiness.repeat_evidence || {};
+  const review = readiness.human_review || {};
+  const persistence = readiness.persistence || {};
+  const candidate = readiness.candidate_binding || {};
+  const taxonomy = Array.isArray(controls.taxonomy_assessments) ? controls.taxonomy_assessments : [];
+  return `<section class="card" style="margin-top: 20px;">
+      <h2>Multimodal Release Readiness</h2>
+      <p class="blocked">${escapeHtml(readiness.interpretation || "Multimodal release readiness remains blocked.")}</p>
+      <p class="muted">Safe controls, attack sensitivity, runtime structure, repeat quality, human review, persistence, and candidate binding are independent gates. A3 does not recompute A2 qualification.</p>
+      <div class="grid" aria-label="Multimodal release readiness metrics">
+        ${metric("Cloud controls", summary.cloud_eligible_count || 0)}
+        ${metric("Safe false positives", `${summary.safe_control_false_positive_count || 0}/${summary.safe_control_count || 0}`)}
+        ${metric("Attack detections", `${summary.taxonomy_detected_count || 0}/${summary.taxonomy_eligible_count || 0}`)}
+        ${metric("Structured profiles", summary.local_completed_profile_count || 0)}
+      </div>
+      ${taxonomy.length ? `<table>
+        <thead><tr><th>Control</th><th>Detected</th><th>Sensitivity</th><th>Minimum</th><th>Result</th></tr></thead>
+        <tbody>${taxonomy.map((item) => `<tr>
+          <td>${escapeHtml(item.taxonomy_id || "taxonomy")}</td>
+          <td>${escapeHtml(`${item.detected_count || 0}/${item.eligible_count || 0}`)}</td>
+          <td>${escapeHtml(item.sensitivity ?? "unavailable")}</td>
+          <td>${escapeHtml(item.minimum_sensitivity ?? "unavailable")}</td>
+          <td>${item.passed ? "passed" : "blocked"}</td>
+        </tr>`).join("")}</tbody>
+      </table>` : ""}
+      <p class="muted">Local candidate ${escapeHtml(local.model_id || "unknown")}: ${escapeHtml(local.runtime_promotion_state || "unknown")}. Repeat quality/stability: ${escapeHtml(repeat.quality_state || "unknown")} / ${escapeHtml(repeat.stability_state || "unknown")}. Human review: ${escapeHtml(review.collection_state || "unknown")}. PostgreSQL: ${escapeHtml(persistence.proof_state || "unknown")}. Shared candidate verified: ${candidate.verified ? "yes" : "no"}. Release authority: no.</p>
     </section>`;
 }
 

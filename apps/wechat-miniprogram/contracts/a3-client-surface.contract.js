@@ -13,7 +13,7 @@ const contract = Object.freeze({
       title: "发布工作台",
       page_role: "release_workbench",
       customer_purpose: "Show the current release decision, evidence stages, quality metrics, and pending work.",
-      consumes: ["release dashboard projection", "release evidence summary", "incident replay queue"],
+      consumes: ["release dashboard projection", "release evidence summary", "incident replay queue", "multimodal release readiness public summary"],
       api_reads: ["GET /api/a3/dashboard?source=api-ingest"],
       mutations: []
     },

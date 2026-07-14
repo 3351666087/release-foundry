@@ -102,6 +102,9 @@ import {
   buildA3MultimodalProviderReadiness,
   validateA2MultimodalProviderReadinessEnvelope
 } from "./a3_multimodal_provider_readiness.mjs";
+import {
+  buildA3MultimodalReleaseReadiness
+} from "./a3_multimodal_release_readiness.mjs";
 
 export const A3_STORE_SCHEMA_VERSION = "a3.store.v1";
 
@@ -195,6 +198,25 @@ export const A3_SOURCE_FIXTURES = {
     a2MultimodalProviderReadiness: "fixtures/a3/p3/a2_multimodal_provider_readiness_round51_7504680.redacted.json",
     a2MultimodalProviderReadinessSourceCommit: "7504680",
     a2MultimodalProviderReadinessCapability: "peer_branch_diagnostic_contract_not_merged"
+  },
+  "p3-a2-round52": {
+    label: "Multimodal Controls & Runtime - Round 52",
+    ashrRunSample: "fixtures/a3/p3/ashr_run_detail_sample.redacted.json",
+    datasetSample: "fixtures/a3/p3/ashr_dataset_detail_sample.redacted.json",
+    fixtureId: "p3_a2_round52_release_readiness_dashboard_sample",
+    gradeFixtureId: "p3_a2_round52_release_readiness_dashboard_grades",
+    requestProvenance: "fixtures/a3/p3/ashr_request_detail_sample.redacted.json",
+    usageQuota: "fixtures/a3/p3/ashr_usage_quota_sample.redacted.json",
+    usageQuotaApiProbe: "fixtures/a3/p3/ashr_usage_quota_api_probe.redacted.json",
+    mediaSignedUrlCoverage: "fixtures/a3/p3/ashr_signed_media_url_coverage.redacted.json",
+    authCheck: "fixtures/a3/p3/ashr_auth_check.redacted.json",
+    frontendSummary: "fixtures/a3/p3/ashr_frontend_relogin_top_level_summary.redacted.json",
+    a2MultimodalComparison: "fixtures/a3/p3/a2_multimodal_three_way_v2_bb3bcfe_sample.redacted.json",
+    a2MultimodalComparisonSourceCommit: "bb3bcfe",
+    a2MultimodalComparisonCapability: "round50_review_queue_with_round52_public_readiness",
+    a2MultimodalReleaseReadiness: "fixtures/a3/p3/a2_multimodal_release_readiness_round52_850b39a.redacted.json",
+    a2MultimodalReleaseReadinessSourceCommit: "850b39a",
+    a2MultimodalReleaseReadinessCapability: "peer_branch_round52_public_summary_not_merged"
   },
   "p3-official-demo": {
     label: "P3 Official Demo 884/11926",
@@ -457,6 +479,14 @@ export async function loadA3SourceSnapshot(source = "mock", options = {}) {
           ingest_mode: "peer_branch_redacted_sample",
           source_commit_alias: config.a2MultimodalProviderReadinessSourceCommit || null,
           capability_state: config.a2MultimodalProviderReadinessCapability || "contract_supported_not_production_verified"
+        }
+      : {},
+    a2MultimodalReleaseReadiness: await readOptionalJson(root, config.a2MultimodalReleaseReadiness),
+    a2MultimodalReleaseReadinessMeta: config.a2MultimodalReleaseReadiness
+      ? {
+          ingest_mode: "peer_branch_redacted_public_summary",
+          source_commit_alias: config.a2MultimodalReleaseReadinessSourceCommit || null,
+          capability_state: config.a2MultimodalReleaseReadinessCapability || "contract_supported_not_production_verified"
         }
       : {},
     a2GradeResults: await readOptionalJson(root, config.a2GradeResults),
@@ -735,6 +765,7 @@ export function createMemoryA3Store(seed = {}) {
         deploymentReceiptReadbacks: scopedDeploymentReceiptReadbacks,
         actor: requestOptions.actor,
         auth: requestOptions.auth,
+        now: requestOptions.now,
         importReceipts: scopedImportReceipts,
         enforceScope: requestOptions.enforceScope === true,
         aggregateScopeStatus: buildAggregateScopeStatus({
@@ -3459,6 +3490,8 @@ function normalizeSnapshot(snapshot = {}) {
     a2MultimodalRepeatStabilityMeta: snapshot.a2MultimodalRepeatStabilityMeta || snapshot.a2_multimodal_repeat_stability_meta || {},
     a2MultimodalProviderReadiness: snapshot.a2MultimodalProviderReadiness || snapshot.a2_multimodal_provider_readiness || {},
     a2MultimodalProviderReadinessMeta: snapshot.a2MultimodalProviderReadinessMeta || snapshot.a2_multimodal_provider_readiness_meta || {},
+    a2MultimodalReleaseReadiness: snapshot.a2MultimodalReleaseReadiness || snapshot.a2_multimodal_release_readiness || {},
+    a2MultimodalReleaseReadinessMeta: snapshot.a2MultimodalReleaseReadinessMeta || snapshot.a2_multimodal_release_readiness_meta || {},
     releaseEvidence: snapshot.releaseEvidence || snapshot.release_evidence || {},
     a2GradeResults: snapshot.a2GradeResults || snapshot.a2_grade_results || {},
     a2ReleaseGate: snapshot.a2ReleaseGate || snapshot.a2_release_gate || {},
@@ -3746,6 +3779,7 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     multimodal_review_queue: multimodalReviewQueue,
     multimodal_repeat_stability: multimodalReviewQueue.repeat_stability,
     multimodal_provider_readiness: multimodalReviewQueue.provider_readiness,
+    multimodal_release_readiness: multimodalReviewQueue.release_readiness,
     release_evidence: releaseEvidenceForDashboard,
     release_evidence_summary: releaseEvidenceForDashboard,
     release_evidence_readbacks: releaseEvidenceReadbackHistory,
@@ -5453,6 +5487,19 @@ function buildMultimodalProviderReadinessForSnapshot(snapshot = {}) {
   );
 }
 
+function buildMultimodalReleaseReadinessForSnapshot(snapshot = {}) {
+  const metadata = snapshot.a2MultimodalReleaseReadinessMeta || {};
+  return buildA3MultimodalReleaseReadiness(
+    snapshot.a2MultimodalReleaseReadiness || {},
+    {
+      source: snapshot.source,
+      tenantScope: snapshot.tenant_scope || tenantScopeRecordFields(snapshot).tenant_scope,
+      sourceCommitAlias: metadata.source_commit_alias,
+      capabilityState: metadata.capability_state
+    }
+  );
+}
+
 function buildMultimodalQueueForSnapshot(snapshot = {}, assignmentEvents = [], options = {}) {
   const metadata = snapshot.a2MultimodalComparisonMeta || {};
   const queue = buildA3MultimodalReviewQueue(snapshot.a2MultimodalComparison || {}, {
@@ -5470,10 +5517,12 @@ function buildMultimodalQueueForSnapshot(snapshot = {}, assignmentEvents = [], o
   );
   const repeatStability = buildMultimodalRepeatStabilityForSnapshot(snapshot);
   const providerReadiness = buildMultimodalProviderReadinessForSnapshot(snapshot);
+  const releaseReadiness = buildMultimodalReleaseReadinessForSnapshot(snapshot);
   return {
     ...projection,
     repeat_stability: repeatStability,
     provider_readiness: providerReadiness,
+    release_readiness: releaseReadiness,
     review_packet: buildA3MultimodalReviewAssignmentPacket(projection, {
       generatedAt: options.now || "queue-read"
     })

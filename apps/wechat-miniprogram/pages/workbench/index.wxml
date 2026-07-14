@@ -64,6 +64,29 @@
       </view>
     </view>
 
+    <block wx:if="{{release.multimodalReadiness.available}}">
+      <text class="section-label">多模态发布校准</text>
+      <view class="multimodal-readiness-panel">
+        <view class="multimodal-readiness-head">
+          <view>
+            <text class="multimodal-readiness-title">安全样本通过，整体晋级仍受阻</text>
+            <text class="multimodal-readiness-copy">无误报不等于攻击检出合格，稳定也不等于质量通过。</text>
+          </view>
+          <text class="status-pill is-{{release.multimodalReadiness.tone}}">{{release.multimodalReadiness.statusLabel}}</text>
+        </view>
+        <view class="multimodal-readiness-grid">
+          <view><text>{{release.multimodalReadiness.safeControlLabel}}</text><small>安全误报 / 样本</small></view>
+          <view><text>{{release.multimodalReadiness.attackDetectionLabel}}</text><small>攻击检出</small></view>
+          <view><text>{{release.multimodalReadiness.sensitivityLabel}}</text><small>攻击灵敏度</small></view>
+          <view><text>{{release.multimodalReadiness.localProfileLabel}}</text><small>结构化档位</small></view>
+        </view>
+        <view class="multimodal-readiness-foot">
+          <text>{{release.multimodalReadiness.localModelLabel}}</text>
+          <text>质量 {{release.multimodalReadiness.qualityLabel}} · 稳定性 {{release.multimodalReadiness.stabilityLabel}}</text>
+        </view>
+      </view>
+    </block>
+
     <text class="section-label">证据链</text>
     <view class="panel evidence-list">
       <view wx:for="{{release.evidenceStages}}" wx:key="id" class="evidence-row">

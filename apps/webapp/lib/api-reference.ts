@@ -24,8 +24,8 @@ export type ApiEndpoint = {
 };
 
 export const apiReferenceMeta = {
-  schemaVersion: "a3.api_reference.v15",
-  calibratedAt: "2026-07-14",
+  schemaVersion: "a3.api_reference.v16",
+  calibratedAt: "2026-07-15",
   mainSha: "ccf6ce5",
   a1Sha: "c784163",
   a2Sha: "8cd1d4f",
@@ -33,23 +33,31 @@ export const apiReferenceMeta = {
   a2SourceState: "merged_to_main",
   a1IdentityPeerSha: "6a985b8",
   a1IdentityPeerState: "peer_branch_identity_authority_readiness_not_merged",
-  a1LatestPeerSha: "f3071aa",
-  a1LatestPeerState: "peer_branch_atomic_credential_link_contract_proposed_not_client_callable",
+  a1LatestPeerSha: "566a13d",
+  a1LatestPeerState: "peer_branch_round68_authorized_credential_binding_regression_not_client_callable",
   a1AtomicCredentialLinkContract: "IdentityCredentialLinkCoordinator",
   a1AtomicCredentialLinkRouteLifecycle: "proposed",
   a1AtomicCredentialLinkClientCallable: false,
+  a1CredentialLinkReplayRetentionDays: 30,
+  a1CredentialLinkReadinessRouteAvailable: false,
   a2MultimodalPeerSha: "bb3bcfe",
   a2MultimodalPeerState: "peer_branch_contract_not_merged",
-  a2LatestPeerSha: "7504680",
-  a2LatestPeerState: "peer_branch_round51_multi_repeat_capture_ingested_non_authoritatively",
-  a2CurrentRemoteSha: "7504680",
-  a2CurrentRemoteState: "peer_branch_round51_current_not_main_authority",
+  a2LatestPeerSha: "850b39a",
+  a2LatestPeerState: "peer_branch_round52_controls_runtime_public_summary_ingested_non_authoritatively",
+  a2CurrentRemoteSha: "850b39a",
+  a2CurrentRemoteState: "peer_branch_round52_current_not_main_authority",
   a2MultimodalSupportedSchemas: [
     "a2.multimodal_cross_provider_comparison.v1",
     "a2.multimodal_cross_provider_comparison.v3",
     "a2.multimodal_three_way_comparison.v2"
   ],
-  a2MultimodalRepeatSchema: "a2.multimodal_multi_repeat_comparison.v1",
+  a2MultimodalRepeatSchema: "a2.multimodal_multi_repeat_comparison.v2",
+  a2MultimodalRepeatSupportedSchemas: [
+    "a2.multimodal_multi_repeat_comparison.v1",
+    "a2.multimodal_multi_repeat_comparison.v2"
+  ],
+  a2MultimodalReleaseReadinessSummarySchema: "a2.multimodal_public_summary.round52.v1",
+  a3MultimodalReleaseReadinessSchema: "a3.multimodal_release_readiness.v1",
   secretValuesIncluded: false,
   a1BrowserSession: "implemented",
   a1OAuthInitialLogin: "not_implemented",
@@ -117,7 +125,7 @@ export const apiEndpoints: ApiEndpoint[] = [
       { zh: "该账号绑定能力已随 A1 c784163 合并到 main；它仍不等于首次 Google 登录。", en: "This account-linking capability entered main with A1 c784163; it is still not initial Google sign-in." },
       { zh: "这是账号绑定接口，不是首次 Google 登录入口；A3 登录页保持关闭。", en: "This is account linking, not an initial Google sign-in endpoint; A3 keeps it disabled on the login page." },
       { zh: "A3 不接收或保存 client secret、authorization code、token。", en: "A3 never receives or stores client secrets, authorization codes, or tokens." },
-      { zh: "A1 peer f3071aa 定义了 IdentityCredentialLinkCoordinator 原子事务契约，但统一 identity 的 link_start/link_complete 仍是 proposed 且 client_callable=false；A3 不会把契约误写成已上线接口。", en: "A1 peer f3071aa defines the IdentityCredentialLinkCoordinator atomic transaction contract, but unified-identity link_start/link_complete remain proposed and client_callable=false; A3 does not present that contract as a live route." }
+      { zh: "A1 peer 566a13d 已证明凭据绑定只能经过带近期会话、step-up 和 mutation ticket 的授权包装器，并保留 Round 67 的 30 天 replay 清理能力；统一 identity 客户端路由仍未暴露。", en: "A1 peer 566a13d proves credential binding can only use the authorized wrapper with a recent session, step-up receipt, and mutation ticket while retaining Round 67's 30-day replay cleanup; the unified-identity client route remains unexposed." }
     ]
   },
   {
@@ -883,12 +891,19 @@ export const apiEndpoints: ApiEndpoint[] = [
         candidate: { version: "0.2.0-rc.2", a2_evaluation: { passed: 3, total_cases: 3 } },
         authority_boundary: { baseline_decision: "block", candidate_decision: "block", current_status: "integrity_invalid", current_upstream_decision: "unknown" },
         runtime_authority_validation: { historical_candidate_decision: "block", status: "integrity_invalid", current_release_authorized: false }
+      },
+      multimodal_release_readiness: {
+        schema_version: "a3.multimodal_release_readiness.v1",
+        status: "blocked_multimodal_release_readiness",
+        summary: { safe_control_false_positive_count: 0, safe_control_count: 10, taxonomy_detected_count: 3, taxonomy_eligible_count: 5, sensitivity: 0.6, repeat_quality_state: "blocked", repeat_stability_state: "qualified" },
+        authority_boundary: { release_authority: false, a2_decision_recomputed: false, production_ready: false }
       }
     },
     notes: [
       { zh: "这是当前 Next.js Webapp 默认消费的只读 API。", en: "This is the read-only API consumed by the current Next.js webapp." },
       { zh: "当前运行时校验与历史封存结论分开返回；A3 不重算 A2 分数、pass/fail、failure class 或发布决定。", en: "Current runtime validation is separate from sealed historical decisions; A3 does not recompute A2 scores, pass/fail, failure class, or release decisions." },
-      { zh: "deployment_handoff 把 17 项验收拆给 A1、A2、A1/A3、A3 和仓库管理员，并说明每个阻塞项需要什么真实回执。", en: "deployment_handoff assigns 17 checks to A1, A2, A1/A3, A3, and the repository maintainer, with a required receipt for every blocker." }
+      { zh: "deployment_handoff 把 17 项验收拆给 A1、A2、A1/A3、A3 和仓库管理员，并说明每个阻塞项需要什么真实回执。", en: "deployment_handoff assigns 17 checks to A1, A2, A1/A3, A3, and the repository maintainer, with a required receipt for every blocker." },
+      { zh: "Round 52 投影明确区分安全误报、攻击灵敏度、运行时结构化输出、重复质量与稳定性；稳定性合格不能覆盖质量阻断。", en: "The Round 52 projection separates safe false positives, attack sensitivity, runtime structured output, repeat quality, and stability; qualified stability cannot override blocked quality." }
     ]
   },
   {

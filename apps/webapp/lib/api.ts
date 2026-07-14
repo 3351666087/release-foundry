@@ -284,6 +284,7 @@ function customerSourceLabel(source: string, sourceLabel: string): string {
     "p3-media": "多模态分歧校准",
     "p3-a2-round50": "三方模型复核 · Round 50",
     "p3-a2-round51": "多模态稳定性与就绪度 · Round 51",
+    "p3-a2-round52": "多模态控制与运行时 · Round 52",
     "p3-official-demo": "官方校准样本",
     "raw-a1": "执行证据原始样本",
     "raw-a2": "评测结论原始样本",

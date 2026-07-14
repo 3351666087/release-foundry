@@ -55,6 +55,17 @@ h1, h2, h3, p { margin: 0; overflow-wrap: anywhere; }
 .metric-grid strong, .metric-grid span { display: block; }
 .metric-grid strong { font-size: 18px; }
 .metric-grid span { margin-top: 5px; color: var(--muted); font-size: 10px; }
+.multimodal-readiness-panel { padding: 13px; border: 1px solid var(--line); border-left: 4px solid var(--accent); border-radius: 8px; background: #fff; }
+.multimodal-readiness-panel > header, .multimodal-readiness-panel > footer { display: flex; align-items: flex-start; justify-content: space-between; gap: 9px; }
+.multimodal-readiness-panel > header > div { min-width: 0; flex: 1; }
+.multimodal-readiness-panel > header strong { font-size: 13px; }
+.multimodal-readiness-panel > header p { margin-top: 4px; color: var(--muted); font-size: 10px; }
+.multimodal-readiness-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); margin-top: 12px; border: solid #e4e4e7; border-width: 1px 0 0 1px; }
+.multimodal-readiness-grid > div { min-height: 54px; padding: 9px; border: solid #e4e4e7; border-width: 0 1px 1px 0; }
+.multimodal-readiness-grid strong, .multimodal-readiness-grid span { display: block; }
+.multimodal-readiness-grid strong { font-size: 16px; }
+.multimodal-readiness-grid span { margin-top: 3px; color: var(--muted); font-size: 9px; }
+.multimodal-readiness-panel > footer { margin-top: 10px; color: #52525b; font-size: 9px; }
 .panel { overflow: hidden; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
 .stage-list article { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: start; gap: 11px; padding: 13px; border-top: 1px solid #e4e4e7; }
 .stage-list article:first-child { border-top: 0; }

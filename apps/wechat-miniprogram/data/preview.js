@@ -22,6 +22,21 @@ const snapshot = {
     acceptanceLabel: "8 / 17",
     passRateLabel: "3 / 3",
     traceLabel: "100%",
+    multimodalReadiness: {
+      available: true,
+      status: "blocked_multimodal_release_readiness",
+      statusLabel: "多模态晋级受阻",
+      tone: "danger",
+      safeControlLabel: "0 / 10",
+      attackDetectionLabel: "3 / 5",
+      sensitivityLabel: "60%",
+      localProfileLabel: "0",
+      localModelLabel: "qwen3-vl:8b",
+      qualityLabel: "blocked",
+      stabilityLabel: "qualified",
+      reviewLabel: "pending",
+      sourceCommitAlias: "850b39a"
+    },
     nextAction: "补齐同一候选版本的评测账本、仓库门禁和部署回执。",
     tenantScope: {
       organization_id: "org-local",

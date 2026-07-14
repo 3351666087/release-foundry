@@ -57,7 +57,7 @@ class A3RequestBodyBoundaryError extends Error {
 
 export function createA3ApiHandler(options = {}) {
   const storePromise = Promise.resolve(options.store || createFixtureBackedA3Store({
-    sources: options.sources || ["mock", "raw-a1", "raw-a2", "p3-media", "p3-a2-round50", "p3-a2-round51", "p3-official-demo", "a3-golden-path", "a3-golden-path-rc2"],
+    sources: options.sources || ["mock", "raw-a1", "raw-a2", "p3-media", "p3-a2-round50", "p3-a2-round51", "p3-a2-round52", "p3-official-demo", "a3-golden-path", "a3-golden-path-rc2"],
     repoRoot: options.repoRoot
   }));
 
@@ -1464,6 +1464,7 @@ function dashboardSecurityContext(request, url, options = {}) {
       && ["hosted_session", "service_account"].includes(authContext.auth_state));
   return {
     ...scopedStoreOptions(url),
+    now: serverNow(options),
     actor: trustedIdentity ? {
       role: authContext.role,
       ...authContext.tenant_scope

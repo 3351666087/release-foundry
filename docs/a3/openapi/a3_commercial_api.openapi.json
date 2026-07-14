@@ -9842,7 +9842,8 @@
           "deployment_receipt_inbox",
           "deployment_acceptance_projection",
           "multimodal_repeat_stability",
-          "multimodal_provider_readiness"
+          "multimodal_provider_readiness",
+          "multimodal_release_readiness"
         ],
         "properties": {
           "schema_version": {
@@ -9886,6 +9887,9 @@
           },
           "multimodal_provider_readiness": {
             "$ref": "#/components/schemas/MultimodalProviderReadiness"
+          },
+          "multimodal_release_readiness": {
+            "$ref": "#/components/schemas/MultimodalReleaseReadiness"
           }
         },
         "additionalProperties": true
@@ -17943,6 +17947,141 @@
         },
         "additionalProperties": false,
         "description": "Tenant-scoped A3 projection. Faster warm latency or installed models never imply operational health, qualified quality, or production readiness."
+      },
+      "MultimodalReleaseReadiness": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "source",
+          "source_commit_alias",
+          "a1_peer_commit_alias",
+          "source_contract",
+          "tenant_scope",
+          "release_authority",
+          "a2_decision_recomputed",
+          "release_decision_changed",
+          "production_ready",
+          "available",
+          "status",
+          "integrity",
+          "authority_boundary",
+          "safety",
+          "recommendation_code"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.multimodal_release_readiness.v1"
+          },
+          "source": {
+            "type": "string"
+          },
+          "source_commit_alias": {
+            "type": ["string", "null"],
+            "pattern": "^[a-f0-9]{7,40}$"
+          },
+          "a1_peer_commit_alias": {
+            "type": ["string", "null"],
+            "pattern": "^[a-f0-9]{7,40}$"
+          },
+          "source_contract": {
+            "type": "string"
+          },
+          "tenant_scope": {
+            "$ref": "#/components/schemas/TenantScope"
+          },
+          "release_authority": {
+            "type": "boolean",
+            "const": false
+          },
+          "a2_decision_recomputed": {
+            "type": "boolean",
+            "const": false
+          },
+          "release_decision_changed": {
+            "type": "boolean",
+            "const": false
+          },
+          "production_ready": {
+            "type": "boolean",
+            "const": false
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "invalid_upstream_contract",
+              "blocked_multimodal_release_readiness",
+              "qualified_evidence_non_authoritative"
+            ]
+          },
+          "capability_state": {
+            "type": "string"
+          },
+          "integrity": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "summary": {
+            "type": "object",
+            "required": [
+              "cloud_eligible_count",
+              "specificity",
+              "sensitivity",
+              "balanced_accuracy",
+              "safe_control_count",
+              "safe_control_false_positive_count",
+              "taxonomy_count",
+              "taxonomy_eligible_count",
+              "taxonomy_detected_count",
+              "local_completed_profile_count",
+              "repeat_quality_state",
+              "repeat_stability_state",
+              "human_review_state",
+              "real_postgresql_verified",
+              "candidate_verified",
+              "promotion_permitted"
+            ],
+            "properties": {
+              "cloud_eligible_count": { "type": "integer", "minimum": 0 },
+              "specificity": { "type": "number", "minimum": 0, "maximum": 1 },
+              "sensitivity": { "type": "number", "minimum": 0, "maximum": 1 },
+              "balanced_accuracy": { "type": "number", "minimum": 0, "maximum": 1 },
+              "safe_control_count": { "type": "integer", "minimum": 0 },
+              "safe_control_false_positive_count": { "type": "integer", "minimum": 0 },
+              "taxonomy_count": { "type": "integer", "minimum": 0 },
+              "taxonomy_eligible_count": { "type": "integer", "minimum": 0 },
+              "taxonomy_detected_count": { "type": "integer", "minimum": 0 },
+              "local_completed_profile_count": { "type": "integer", "minimum": 0 },
+              "repeat_quality_state": { "type": "string", "enum": ["qualified", "blocked", "incomplete"] },
+              "repeat_stability_state": { "type": "string", "enum": ["qualified", "blocked", "incomplete"] },
+              "human_review_state": { "type": "string", "enum": ["pending", "partially_reviewed", "reviewed"] },
+              "real_postgresql_verified": { "type": "boolean" },
+              "candidate_verified": { "type": "boolean" },
+              "promotion_permitted": { "type": "boolean", "const": false }
+            },
+            "additionalProperties": false
+          },
+          "cloud_control": { "type": "object", "additionalProperties": true },
+          "control_policy": { "type": "object", "additionalProperties": true },
+          "local_runtime": { "type": "object", "additionalProperties": true },
+          "repeat_evidence": { "type": "object", "additionalProperties": true },
+          "human_review": { "type": "object", "additionalProperties": true },
+          "persistence": { "type": "object", "additionalProperties": true },
+          "candidate_binding": { "type": "object", "additionalProperties": true },
+          "identity_boundary": { "type": "object", "additionalProperties": true },
+          "interpretation": { "type": "object", "additionalProperties": true },
+          "authority_boundary": { "type": "object", "additionalProperties": true },
+          "safety": { "type": "object", "additionalProperties": true },
+          "recommendation_code": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,239}$"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Read-only A3 projection of the public-safe A2 Round 52 controls/runtime summary and the latest non-client-callable A1 identity boundary. Stability never overrides blocked quality."
       }
     }
   },
