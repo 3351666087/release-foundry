@@ -137,12 +137,18 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
    AND to_regprocedure(
      'public.a1_issue_identity_security_mutation_ticket(text,text,uuid,uuid,text,text,text,text,text,integer,timestamp with time zone)'
    ) IS NOT NULL
-   AND to_regprocedure(
-     'public.a1_resolve_identity_security_mutation_ticket(text,text,text,timestamp with time zone)'
-   ) IS NOT NULL
-   AND to_regprocedure(
-     'public.a1_execute_identity_security_mutation(text,text,text)'
-   ) IS NOT NULL
+    AND to_regprocedure(
+      'public.a1_resolve_identity_security_mutation_ticket(text,text,text,timestamp with time zone)'
+    ) IS NOT NULL
+    AND to_regprocedure(
+      'public.a1_execute_identity_security_mutation(text,text,text)'
+    ) IS NOT NULL
+    AND to_regprocedure(
+      'public.a1_resolve_identity_security_mutation_ticket(text,text,text,uuid,timestamp with time zone)'
+    ) IS NOT NULL
+    AND to_regprocedure(
+      'public.a1_execute_identity_security_mutation(text,text,text,uuid)'
+    ) IS NOT NULL
    AND to_regprocedure(
      'public.a1_issue_identity_security_mutation_ticket(text,text,uuid,uuid,text,text,text,text,text,integer,timestamp with time zone,timestamp with time zone)'
    ) IS NULL
@@ -162,16 +168,26 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
      'public.a1_issue_identity_security_mutation_ticket(text,text,uuid,uuid,text,text,text,text,text,integer,timestamp with time zone)',
      'EXECUTE'
    )
-   AND has_function_privilege(
-     current_user,
-     'public.a1_resolve_identity_security_mutation_ticket(text,text,text,timestamp with time zone)',
-     'EXECUTE'
-   )
-   AND has_function_privilege(
-     current_user,
-     'public.a1_execute_identity_security_mutation(text,text,text)',
-     'EXECUTE'
-   )
+    AND NOT has_function_privilege(
+      current_user,
+      'public.a1_resolve_identity_security_mutation_ticket(text,text,text,timestamp with time zone)',
+      'EXECUTE'
+    )
+    AND NOT has_function_privilege(
+      current_user,
+      'public.a1_execute_identity_security_mutation(text,text,text)',
+      'EXECUTE'
+    )
+    AND has_function_privilege(
+      current_user,
+      'public.a1_resolve_identity_security_mutation_ticket(text,text,text,uuid,timestamp with time zone)',
+      'EXECUTE'
+    )
+    AND has_function_privilege(
+      current_user,
+      'public.a1_execute_identity_security_mutation(text,text,text,uuid)',
+      'EXECUTE'
+    )
    AND has_function_privilege(
      current_user,
      'public.a1_project_account_security(uuid)',
@@ -316,9 +332,15 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
          to_regprocedure(
            'public.a1_resolve_identity_security_mutation_ticket(text,text,text,timestamp with time zone)'
          ),
-         to_regprocedure(
-           'public.a1_execute_identity_security_mutation(text,text,text)'
-         ),
+          to_regprocedure(
+            'public.a1_execute_identity_security_mutation(text,text,text)'
+          ),
+          to_regprocedure(
+            'public.a1_resolve_identity_security_mutation_ticket(text,text,text,uuid,timestamp with time zone)'
+          ),
+          to_regprocedure(
+            'public.a1_execute_identity_security_mutation(text,text,text,uuid)'
+          ),
          to_regprocedure('public.a1_project_account_security(uuid)'),
          to_regprocedure(
            'public.a1_bind_verified_identity_credential_authorized(uuid,uuid,text,uuid,text,text,text,text,text,text,jsonb)'
@@ -365,11 +387,11 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
         to_regprocedure(
           'public.a1_issue_identity_security_mutation_ticket(text,text,uuid,uuid,text,text,text,text,text,integer,timestamp with time zone)'
         ),
-        to_regprocedure(
-          'public.a1_resolve_identity_security_mutation_ticket(text,text,text,timestamp with time zone)'
-        ),
-        to_regprocedure(
-          'public.a1_execute_identity_security_mutation(text,text,text)'
+          to_regprocedure(
+            'public.a1_resolve_identity_security_mutation_ticket(text,text,text,uuid,timestamp with time zone)'
+          ),
+          to_regprocedure(
+            'public.a1_execute_identity_security_mutation(text,text,text,uuid)'
         ),
         to_regprocedure('public.a1_project_account_security(uuid)'),
         to_regprocedure(
@@ -999,7 +1021,7 @@ func (store *ProductionIdentityStore) Ready(ctx context.Context) error {
 		return fmt.Errorf("verify production identity schema: %w", err)
 	}
 	if !ready {
-		return fmt.Errorf("production identity PostgreSQL schema is incomplete; migration 020 verified credential mutation authority and runtime grants are required")
+		return fmt.Errorf("production identity PostgreSQL schema is incomplete; migration 022 scoped identity security runtime grants are required")
 	}
 	return nil
 }

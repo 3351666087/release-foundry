@@ -402,7 +402,8 @@ func (server *HTTPServer) handleIdentityVerification(writer http.ResponseWriter,
 				return
 			}
 			ticket, err := server.identitySecurityTickets.ResolveIdentitySecurityMutationTicket(
-				request.Context(), mutationTicketID, stepUpReceiptID, "credential_bind",
+				request.Context(), bindingSession.AccountID,
+				mutationTicketID, stepUpReceiptID, "credential_bind",
 			)
 			if err != nil || ticket.AccountID != bindingSession.AccountID ||
 				ticket.Operation != "credential_bind" ||

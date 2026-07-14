@@ -53,7 +53,7 @@ type IdentitySecurityMutationTicket struct {
 }
 
 type IdentitySecurityTicketResolver interface {
-	ResolveIdentitySecurityMutationTicket(context.Context, string, string, string) (IdentitySecurityMutationTicket, error)
+	ResolveIdentitySecurityMutationTicket(context.Context, string, string, string, string) (IdentitySecurityMutationTicket, error)
 }
 
 type IdentitySecurityMutation struct {
@@ -116,7 +116,9 @@ func (server *HTTPServer) handleIdentitySecurity(w http.ResponseWriter, r *http.
 		writeError(w, http.StatusBadRequest, "invalid_security_mutation", "mutation ticket, step-up receipt, and matching idempotency key are required")
 		return
 	}
-	ticket, err := server.identitySecurityTickets.ResolveIdentitySecurityMutationTicket(r.Context(), ticketID, stepUpID, operation)
+	ticket, err := server.identitySecurityTickets.ResolveIdentitySecurityMutationTicket(
+		r.Context(), session.AccountID, ticketID, stepUpID, operation,
+	)
 	if err != nil || ticket.AccountID != session.AccountID || ticket.Operation != operation {
 		writeError(w, http.StatusForbidden, "identity_security_mutation_rejected", "identity security mutation could not be authorized")
 		return

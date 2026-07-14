@@ -3260,3 +3260,33 @@ Date: 2026-07-14
 Next: add an explicit legacy receipt-digest migration/retention readiness
 report, then continue the typed PostgreSQL-backed password/MFA HTTP store
 without weakening the current fail-closed split-store guard.
+
+## Round 65: Canonical-Account Scoped Identity-Security Runtime
+
+Date: 2026-07-14
+
+- Added migration 022 principal-scoped PostgreSQL authorities for password/MFA
+  posture, mutation-ticket resolution, and mutation execution.
+- The A3-facing ticket resolver now requires the authenticated session's
+  canonical account ID explicitly; returned ticket envelopes must match it.
+- Every production security-store transaction installs transaction-local
+  `app.a1_principal_id` before calling the scoped database authority.
+- Revoked `a1_runtime` access to migration 018's old unscoped resolver and
+  executor; only the scoped overloads remain executable by the runtime.
+- Preserved the public-safe optional/recommended 2FA posture without exposing
+  password/TOTP secret references, keyed digests, recovery batches, or session
+  digests.
+- Added Docker/PostgreSQL proof that a foreign canonical account cannot read
+  posture, resolve a ticket, or execute a mutation and that every rejected
+  attempt leaves the target ticket and receipt unconsumed.
+- Proved own-account mutation succeeds and exact idempotent replay is stable.
+- Updated readiness and the live lifecycle harness to require migrations
+  001-022 and scoped runtime grants.
+- Verification passed: full Go tests, live PostgreSQL lifecycle integration,
+  31 focused PostgreSQL/RLS migration tests, and `git diff --check`.
+- Evidence:
+  `docs/a1/evidence/round65_scoped_identity_security_runtime.md`.
+
+Next: publish this scoped authority, add explicit legacy receipt-digest
+migration/retention readiness, then continue cross-language identity-security
+client parity and production key-rotation drills.

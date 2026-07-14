@@ -992,8 +992,8 @@ $$`); err != nil {
 		"a1_authenticate_identity_lifecycle_credential(TEXT,TEXT[],TIMESTAMPTZ)",
 		"a1_project_identity_lifecycle_account(UUID)",
 		"a1_issue_identity_session(UUID,UUID,TEXT,TEXT,TIMESTAMPTZ,UUID,UUID,TEXT,TEXT,JSONB)",
-		"a1_resolve_identity_security_mutation_ticket(TEXT,TEXT,TEXT,TIMESTAMPTZ)",
-		"a1_execute_identity_security_mutation(TEXT,TEXT,TEXT)",
+		"a1_resolve_identity_security_mutation_ticket(TEXT,TEXT,TEXT,UUID,TIMESTAMPTZ)",
+		"a1_execute_identity_security_mutation(TEXT,TEXT,TEXT,UUID)",
 		"a1_project_account_security(UUID)",
 		"a1_bind_verified_identity_credential_authorized(UUID,UUID,TEXT,UUID,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,JSONB)",
 		"a1_lock_identity_credential_link_receipt(TEXT[])",
@@ -1145,7 +1145,7 @@ func applyIdentityLifecycleMigrations(t *testing.T, db *sql.DB) {
 	applied := 0
 	for _, path := range entries {
 		base := filepath.Base(path)
-		if len(base) < 3 || base[:3] < "001" || base[:3] > "021" {
+		if len(base) < 3 || base[:3] < "001" || base[:3] > "022" {
 			continue
 		}
 		sqlBytes, err := os.ReadFile(path)
@@ -1157,8 +1157,8 @@ func applyIdentityLifecycleMigrations(t *testing.T, db *sql.DB) {
 		}
 		applied++
 	}
-	if applied != 21 {
-		t.Fatalf("expected migrations 001-021, applied %d from %s", applied, migrationsDir)
+	if applied != 22 {
+		t.Fatalf("expected migrations 001-022, applied %d from %s", applied, migrationsDir)
 	}
 }
 
@@ -1422,7 +1422,8 @@ SELECT a1_issue_identity_security_mutation_ticket(
 			t.Fatalf("issue %s security mutation ticket returned false", operation)
 		}
 		ticket, err := instance.store.ResolveIdentitySecurityMutationTicket(
-			context.Background(), ticketDigest, receiptDigest, operation,
+			context.Background(), principalID,
+			ticketDigest, receiptDigest, operation,
 		)
 		if err != nil {
 			t.Fatalf("resolve %s security mutation ticket: %v", operation, err)

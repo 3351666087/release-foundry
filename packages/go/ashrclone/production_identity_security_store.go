@@ -33,6 +33,7 @@ type identitySecurityTicketProjection struct {
 // authority.
 func (store *ProductionIdentityStore) ResolveIdentitySecurityMutationTicket(
 	ctx context.Context,
+	accountID string,
 	ticketID string,
 	stepUpReceiptID string,
 	operation string,
@@ -40,10 +41,12 @@ func (store *ProductionIdentityStore) ResolveIdentitySecurityMutationTicket(
 	if store == nil || store.db == nil || store.now == nil {
 		return IdentitySecurityMutationTicket{}, ErrIdentitySecurityUnavailable
 	}
+	accountID = strings.TrimSpace(accountID)
 	ticketID = strings.TrimSpace(ticketID)
 	stepUpReceiptID = strings.TrimSpace(stepUpReceiptID)
 	operation = strings.TrimSpace(operation)
-	if !validIdentitySecurityDigest(ticketID) ||
+	if !validPostgresIdentityVerificationUUID(accountID) ||
+		!validIdentitySecurityDigest(ticketID) ||
 		!validIdentitySecurityDigest(stepUpReceiptID) ||
 		!validIdentitySecurityTicketOperation(operation) {
 		return IdentitySecurityMutationTicket{}, ErrIdentitySecurityRejected
@@ -63,13 +66,13 @@ func (store *ProductionIdentityStore) ResolveIdentitySecurityMutationTicket(
 			_ = tx.Rollback()
 		}
 	}()
-	if err = configureIdentitySecurityTransaction(queryCtx, tx, store); err != nil {
+	if err = configureIdentitySecurityTransaction(queryCtx, tx, store, accountID); err != nil {
 		return IdentitySecurityMutationTicket{}, identitySecurityDatabaseError(err)
 	}
 	var raw []byte
 	if err = tx.QueryRowContext(queryCtx, `
-SELECT a1_resolve_identity_security_mutation_ticket($1,$2,$3,$4)
-`, ticketID, stepUpReceiptID, operation, store.now().UTC()).Scan(&raw); err != nil {
+SELECT a1_resolve_identity_security_mutation_ticket($1,$2,$3,$4::uuid,$5)
+`, ticketID, stepUpReceiptID, operation, accountID, store.now().UTC()).Scan(&raw); err != nil {
 		return IdentitySecurityMutationTicket{}, identitySecurityDatabaseError(err)
 	}
 	var projection identitySecurityTicketProjection
@@ -77,7 +80,7 @@ SELECT a1_resolve_identity_security_mutation_ticket($1,$2,$3,$4)
 		projection.TicketID != ticketID ||
 		projection.StepUpReceiptID != stepUpReceiptID ||
 		projection.Operation != operation ||
-		!validPostgresIdentityVerificationUUID(projection.AccountID) ||
+		projection.AccountID != accountID ||
 		projection.ExpiresAt.IsZero() {
 		return IdentitySecurityMutationTicket{}, ErrIdentitySecurityUnavailable
 	}
@@ -123,7 +126,7 @@ func (store *ProductionIdentityStore) GetIdentitySecurityPosture(
 			_ = tx.Rollback()
 		}
 	}()
-	if err = configureIdentitySecurityTransaction(queryCtx, tx, store); err != nil {
+	if err = configureIdentitySecurityTransaction(queryCtx, tx, store, accountID); err != nil {
 		return IdentitySecurityHTTPPostureDTO{}, identitySecurityDatabaseError(err)
 	}
 	var raw []byte
@@ -170,14 +173,17 @@ func (store *ProductionIdentityStore) MutateIdentitySecurity(
 			_ = tx.Rollback()
 		}
 	}()
-	if err = configureIdentitySecurityTransaction(queryCtx, tx, store); err != nil {
+	if err = configureIdentitySecurityTransaction(
+		queryCtx, tx, store, mutation.AccountID,
+	); err != nil {
 		return IdentitySecurityHTTPMutationResultDTO{}, identitySecurityDatabaseError(err)
 	}
 	requestFingerprint := identitySecurityRequestFingerprint(mutation)
 	var raw []byte
 	err = tx.QueryRowContext(queryCtx, `
-SELECT a1_execute_identity_security_mutation($1,$2,$3)
-`, mutation.Ticket.TicketID, mutation.IdempotencyKey, requestFingerprint).Scan(&raw)
+SELECT a1_execute_identity_security_mutation($1,$2,$3,$4::uuid)
+`, mutation.Ticket.TicketID, mutation.IdempotencyKey,
+		requestFingerprint, mutation.AccountID).Scan(&raw)
 	if err != nil {
 		return IdentitySecurityHTTPMutationResultDTO{}, identitySecurityDatabaseError(err)
 	}
@@ -197,12 +203,14 @@ func configureIdentitySecurityTransaction(
 	ctx context.Context,
 	tx *sql.Tx,
 	store *ProductionIdentityStore,
+	accountID string,
 ) error {
 	_, err := tx.ExecContext(ctx, `
 SELECT set_config('statement_timeout', $1, true),
-       set_config('lock_timeout', $2, true)
+       set_config('lock_timeout', $2, true),
+       set_config('app.a1_principal_id', $3, true)
 `, fmt.Sprintf("%dms", store.statementTimeout.Milliseconds()),
-		fmt.Sprintf("%dms", store.lockTimeout.Milliseconds()))
+		fmt.Sprintf("%dms", store.lockTimeout.Milliseconds()), accountID)
 	return err
 }
 
