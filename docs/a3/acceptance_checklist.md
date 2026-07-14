@@ -1416,3 +1416,34 @@
 - [ ] Connect a production identity backend and server-issued WeChat session.
 - [ ] Add audited review mutation only after hosted auth, RBAC, idempotency, and immutable audit persistence are proven.
 - [ ] Obtain real subscription-message, upload, review, and publication receipts.
+
+## Multimodal Disagreement Review Queue - 2026-07-14
+
+- [x] Re-fetch main, A1, and A2 before implementation.
+- [x] Inspect A2 multimodal changes through peer ref `564d4b0` without merging the peer branch.
+- [x] Preserve support for `a2.multimodal_cross_provider_comparison.v1`.
+- [x] Add support for `a2.multimodal_cross_provider_comparison.v3` repeats and aggregates.
+- [x] Use a real A2 `public_safe=true`, `release_authority=false` v3 artifact.
+- [x] Reject raw payloads, URLs, secrets, account paths, and forged release authority.
+- [x] Require exact five-level tenant scope on import and read.
+- [x] Verify summary counts, repeat identity, aggregate instability, and receipt conservation.
+- [x] Require `Idempotency-Key` and preserve duplicate replay behavior.
+- [x] Add protected import and reviewer queue routes with separate RBAC permissions.
+- [x] Return cross-tenant 404 without model, case, or hash leakage.
+- [x] Emit metadata-only audit and event-outbox evidence.
+- [x] Persist the comparison through Memory, JSON-file, and SQLite stores.
+- [x] Add queue evidence to Dashboard, JSON, Markdown, and shareable reports.
+- [x] Keep export redaction and share-token safety intact.
+- [x] Add API Reference v9 and preserve OpenAPI runtime parity `60/60`.
+- [x] Add Chinese-first repeat, aggregate, risk, queue, and capability labels.
+- [x] Keep customer-facing UI free of prominent A1/A2/A3 lane badges.
+- [x] Save and inspect desktop and 390 x 844 screenshots without overflow.
+- [x] Pass A3 Node `476` runnable tests plus one explicit live-target skip.
+- [x] Pass current-main A2 `186/186`, Next.js 15-page build, and Playwright `42/42`.
+- [x] Pass both CL guards, both production npm audits, and diff hygiene.
+- [x] Add implementation evidence and Growth Auditor Round 20 with 24 executable next steps.
+- [x] Keep release authority, score, pass/fail, failure class, and Decision Ledger unchanged.
+- [ ] Add three-way v2 only after an exact public-safe runtime artifact exists.
+- [ ] Add four-way v1 only after an exact public-safe runtime artifact exists.
+- [ ] Ingest an authoritative real-review receipt and same-candidate A2 Decision Ledger.
+- [ ] Run the workflow in authorized staging with target PostgreSQL/object custody and production identity.

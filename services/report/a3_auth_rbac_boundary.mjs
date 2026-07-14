@@ -262,6 +262,17 @@ export const A3_AUTHZ_OPERATION_POLICIES = [
     a1: ["RunResult join boundary"],
     a2: ["GradeResult", "Judge", "FailureTaxonomy"]
   }),
+  operation("import_a2_multimodal_comparison", "POST /api/a3/import/a2-multimodal-comparison", "project:ingest", "local_write", {
+    event: "a2.multimodal_comparison_imported",
+    resourceType: "multimodal_review_snapshot",
+    a1: ["verified principal", "five-level tenant scope", "audit and usage execution"],
+    a2: ["MultimodalCrossProviderComparison", "non-authoritative human-review queue receipt"]
+  }),
+  operation("read_multimodal_review_queue", "GET /api/a3/review/multimodal-queue", "release:review", "read_only", {
+    event: "review.multimodal_queue_read",
+    resourceType: "multimodal_review_queue",
+    a2: ["semantic disagreement and queue receipt facts remain non-release-authoritative"]
+  }),
   operation("share_report", "POST /api/a3/reports/share", "reports:share", "local_write", {
     event: "report.share_link_created",
     resourceType: "shareable_report",

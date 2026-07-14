@@ -54,6 +54,12 @@ export async function createSqliteA3Store(options = {}) {
       return result;
     },
 
+    async importA2MultimodalComparison(comparison, options = {}) {
+      const result = await store.importA2MultimodalComparison(comparison, options);
+      await persist();
+      return result;
+    },
+
     async createShareableReport(options = {}) {
       const result = await store.createShareableReport(options);
       await persist();

@@ -505,6 +505,54 @@ test.describe("A3 Next.js product console", () => {
     await page.screenshot({ path: "docs/screenshots/a3-webapp-email-signup-preview-desktop.png", fullPage: false });
   });
 
+  test("renders a non-authoritative multimodal disagreement queue on desktop and mobile", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto(`${base}/review/?source=p3-media`);
+    await expect(page.getByRole("heading", { name: "人工审核" })).toBeVisible();
+    await expect(page.locator(".source-control select")).toHaveValue("p3-media");
+    const summary = page.locator(".multimodal-review-summary");
+    await expect(summary).toHaveAttribute("data-status", "human_review_required");
+    await expect(summary).toContainText("发现需要人工确认的模型分歧");
+    await expect(summary).toContainText("比较记录8");
+    await expect(summary).toContainText("语义分歧2");
+    await expect(summary).toContainText("等待复核4");
+    await expect(summary).toContainText("可改变发布决定否");
+    const queue = page.getByRole("region", { name: "多模态分歧审核队列" });
+    await expect(queue).toContainText("round40-round37-hallucination-2-jpeg-q35");
+    await expect(queue).toContainText("qwen-vl-plus / qwen-vl-max");
+    await expect(queue).toContainText("qwen-vl-plus: 发现风险");
+    await expect(queue).toContainText("qwen-vl-max: 未发现风险");
+    await expect(queue).toContainText("第 2 次观察");
+    await expect(queue).toContainText("重复结果聚合");
+    await expect(queue).toContainText("重复结果不稳定");
+    await expect(queue).toContainText("等待人工复核");
+    const authorityNote = page.locator(".multimodal-authority-note");
+    await expect(authorityNote).toContainText("同一候选版本的决策账本");
+    await expect(authorityNote).toContainText("上游契约待合并");
+    await expect(summary).not.toContainText(/\bA[123]\b/);
+    await expect(authorityNote).not.toContainText(/\bA[123]\b/);
+    await expect(page.locator("main")).not.toContainText("[object Object]");
+    await queue.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-multimodal-review-queue-desktop.png", fullPage: false });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.reload();
+    await expect(summary).toBeVisible();
+    await expect(page.locator(".route-content")).toHaveCSS("opacity", "1");
+    await summary.scrollIntoViewIfNeeded();
+    const mobile = await page.evaluate(() => ({
+      viewport: document.documentElement.clientWidth,
+      documentWidth: document.documentElement.scrollWidth,
+      summaryWidth: document.querySelector(".multimodal-review-summary")?.getBoundingClientRect().width || 0,
+      authorityWidth: document.querySelector(".multimodal-authority-note")?.getBoundingClientRect().width || 0
+    }));
+    expect(mobile.documentWidth).toBeLessThanOrEqual(mobile.viewport + 1);
+    expect(mobile.summaryWidth).toBeLessThanOrEqual(mobile.viewport);
+    expect(mobile.authorityWidth).toBeLessThanOrEqual(mobile.viewport);
+    await authorityNote.scrollIntoViewIfNeeded();
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-multimodal-review-queue-mobile-390x844.png", fullPage: false });
+  });
+
   test("stays readable at 390 by 844 with mobile navigation", async ({ page }) => {
     const consoleErrors = collectConsoleErrors(page);
     await page.setViewportSize({ width: 390, height: 844 });

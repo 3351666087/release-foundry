@@ -5275,7 +5275,7 @@ export function summarizeReleaseEvidenceSummary(releaseEvidenceFixture = {}) {
   };
 }
 
-export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}, productConsoleFixture = {}, saasAdminFixture = {}, a2ReadinessBundle = {}, artifactRegistryFixture = {}, releaseEvidenceFixture = {}, githubPublishEvidenceFixture = {}, peerBranchCalibrationFixture = {}, billingMigrationReadinessFixture = {}, notificationControlPlaneFixture = {}) {
+export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}, productConsoleFixture = {}, saasAdminFixture = {}, a2ReadinessBundle = {}, artifactRegistryFixture = {}, releaseEvidenceFixture = {}, githubPublishEvidenceFixture = {}, peerBranchCalibrationFixture = {}, billingMigrationReadinessFixture = {}, notificationControlPlaneFixture = {}, multimodalReviewQueueFixture = {}) {
   if (isArtifactRegistryFixture(a2ReadinessBundle) && !isArtifactRegistryFixture(artifactRegistryFixture)) {
     artifactRegistryFixture = a2ReadinessBundle;
     a2ReadinessBundle = {};
@@ -5336,6 +5336,7 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
   const notificationControlPlane = summarizeNotificationControlPlane(notificationControlPlaneFixture);
   const liveOpsControlPlane = summarizeLiveOpsControlPlaneExport(notificationControlPlaneFixture.live_ops_control_plane || {});
   const peerBranchCalibration = summarizeA3PeerBranchCalibration(peerBranchCalibrationFixture);
+  const multimodalReviewQueue = summarizeMultimodalReviewQueueExport(multimodalReviewQueueFixture);
   const clusters = clusterFailures(runFixture, gradeFixture);
   const cases = normalizeCases(runFixture, gradeFixture);
   const lines = [
@@ -5658,6 +5659,29 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
     lines.push("", "### Reviewer Items", "");
     for (const item of reviewerWorkflowBoard.items) {
       lines.push(`- ${item.case_id}: ${item.review_state} / ${item.owner_lane} / missing ${item.missing_artifacts.join(", ") || "none"} - ${item.next_action}`);
+    }
+    lines.push("");
+  }
+
+  if (multimodalReviewQueue.available) {
+    lines.push(
+      "## Multimodal Disagreement Review",
+      "",
+      `- Status: ${multimodalReviewQueue.status}`,
+      `- Capability state: ${multimodalReviewQueue.capability_state}`,
+      `- Compared cases: ${multimodalReviewQueue.summary.comparison_count}`,
+      `- Repeat comparisons: ${multimodalReviewQueue.summary.repeat_comparison_count}`,
+      `- Aggregate comparisons: ${multimodalReviewQueue.summary.aggregate_comparison_count}`,
+      `- Semantic disagreements: ${multimodalReviewQueue.summary.semantic_disagreement}`,
+      `- Internally unstable aggregates: ${multimodalReviewQueue.summary.internally_unstable}`,
+      `- Awaiting human review: ${multimodalReviewQueue.summary.review_required_count}`,
+      `- Can change release decision: ${multimodalReviewQueue.authority_boundary.can_change_release_decision ? "yes" : "no"}`,
+      `- Candidate binding verified: ${multimodalReviewQueue.authority_boundary.candidate_binding_verified ? "yes" : "no"}`,
+      ""
+    );
+    lines.push("### Disagreement Queue", "");
+    for (const item of multimodalReviewQueue.items) {
+      lines.push(`- ${item.case_id}: ${item.comparison_scope}${item.repeat ? ` #${item.repeat}` : ""} / ${item.left_model}=${item.left_observed_risk} vs ${item.right_model}=${item.right_observed_risk} / ${item.queue_state} / release authority no`);
     }
     lines.push("");
   }
@@ -6328,7 +6352,85 @@ export function summarizeReviewWorkflowExport(reviewWorkflowFixture = {}) {
   };
 }
 
-export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}, productConsoleFixture = {}, saasAdminFixture = {}, a2ReadinessBundle = {}, artifactRegistryFixture = {}, reviewWorkflowFixture = {}, releaseEvidenceFixture = {}, githubPublishEvidenceFixture = {}, peerBranchCalibrationFixture = {}, billingMigrationReadinessFixture = {}, notificationControlPlaneFixture = {}) {
+export function summarizeMultimodalReviewQueueExport(queue = {}) {
+  const available = queue?.schema_version === "a3.multimodal_review_queue.v1"
+    && queue.available === true;
+  if (!available) {
+    return {
+      schema_version: "a3.multimodal_review_queue_export.v1",
+      available: false,
+      status: queue?.status || "missing",
+      recommendation: "Ingest a public-safe, tenant-scoped multimodal comparison before exporting reviewer evidence."
+    };
+  }
+  const summary = objectOr(queue.summary);
+  const authority = objectOr(queue.authority_boundary);
+  const items = Array.isArray(queue.items) ? queue.items : [];
+  return {
+    schema_version: "a3.multimodal_review_queue_export.v1",
+    available: true,
+    status: queue.status || "unknown",
+    capability_state: queue.capability_state || "unknown",
+    source_contract: queue.source_contract || "unknown",
+    source_commit_alias: queue.source_commit_alias || null,
+    tenant_scope: objectOr(queue.tenant_scope),
+    provider_pair: objectOr(queue.provider_pair),
+    summary: {
+      comparison_count: numberOrDefault(summary.comparison_count, 0),
+      repeat_comparison_count: numberOrDefault(summary.repeat_comparison_count, 0),
+      aggregate_comparison_count: numberOrDefault(summary.aggregate_comparison_count, 0),
+      agreement: numberOrDefault(summary.agreement, 0),
+      semantic_disagreement: numberOrDefault(summary.semantic_disagreement, 0),
+      unavailable: numberOrDefault(summary.unavailable, 0),
+      internally_unstable: numberOrDefault(summary.internally_unstable, 0),
+      review_required_count: numberOrDefault(summary.review_required_count, 0),
+      queue_receipt_count: numberOrDefault(summary.queue_receipt_count, 0)
+    },
+    authority_boundary: {
+      upstream_release_authority: authority.upstream_release_authority === true,
+      queue_receipts_release_authority: authority.queue_receipts_release_authority === true,
+      a3_recomputed_risk: authority.a3_recomputed_risk === true,
+      a3_recomputed_release_decision: authority.a3_recomputed_release_decision === true,
+      candidate_binding_verified: authority.candidate_binding_verified === true,
+      can_change_release_decision: authority.can_change_release_decision === true
+    },
+    items: items.slice(0, 100).map((item) => ({
+      queue_id: item.queue_id,
+      case_id: item.case_id,
+      artifact_hash: item.artifact_hash,
+      comparison_hash: item.comparison_hash,
+      comparison_state: item.comparison_state,
+      comparison_scope: item.comparison_scope || "case",
+      repeat: Number.isInteger(item.repeat) ? item.repeat : null,
+      queue_state: item.queue_state,
+      reviewer_role: item.reviewer_role,
+      left_provider: item.left?.provider_id,
+      left_model: item.left?.model_id,
+      left_model_version: item.left?.model_version,
+      left_observed_risk: item.left?.observed_risk,
+      left_valid_risks: Array.isArray(item.left?.valid_risks)
+        ? item.left.valid_risks.filter((value) => typeof value === "boolean")
+        : [],
+      right_provider: item.right?.provider_id,
+      right_model: item.right?.model_id,
+      right_model_version: item.right?.model_version,
+      right_observed_risk: item.right?.observed_risk,
+      right_valid_risks: Array.isArray(item.right?.valid_risks)
+        ? item.right.valid_risks.filter((value) => typeof value === "boolean")
+        : [],
+      release_authority: false
+    })),
+    safety: {
+      raw_model_payload_included: false,
+      raw_media_included: false,
+      signed_url_included: false,
+      release_decision_recomputed: false
+    },
+    recommendation: "Require an authoritative human-review resolution and same-candidate Decision Ledger before any release-state change."
+  };
+}
+
+export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}, productConsoleFixture = {}, saasAdminFixture = {}, a2ReadinessBundle = {}, artifactRegistryFixture = {}, reviewWorkflowFixture = {}, releaseEvidenceFixture = {}, githubPublishEvidenceFixture = {}, peerBranchCalibrationFixture = {}, billingMigrationReadinessFixture = {}, notificationControlPlaneFixture = {}, multimodalReviewQueueFixture = {}) {
   if (isArtifactRegistryFixture(a2ReadinessBundle) && !isArtifactRegistryFixture(artifactRegistryFixture)) {
     artifactRegistryFixture = a2ReadinessBundle;
     a2ReadinessBundle = {};
@@ -6378,6 +6480,7 @@ export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixt
     export_audience_governance: summarizeExportAudienceGovernance(saasAdminFixture.export_governance || {}),
     artifact_registry: summarizeArtifactRegistryExport(artifactRegistryFixture),
     review_workflow: summarizeReviewWorkflowExport(reviewWorkflowFixture),
+    multimodal_review_queue: summarizeMultimodalReviewQueueExport(multimodalReviewQueueFixture),
     release_evidence_summary: summarizeReleaseEvidenceSummary(releaseEvidenceFixture),
     github_publish_evidence: summarizeGithubPublishEvidence(githubPublishEvidenceFixture),
     notification_control_plane: summarizeNotificationControlPlane(notificationControlPlaneFixture),

@@ -55,6 +55,10 @@ test("A3 webapp consumes A1 and A2 through the existing read-only dashboard API"
   assert.match(caseSource, /Trace timeline/);
   assert.match(caseSource, /Judge decisions/);
   assert.match(reviewSource, /Authoritative decision/);
+  assert.match(reviewSource, /multimodal_review_queue/);
+  assert.match(reviewSource, /Multimodal disagreement review/);
+  assert.match(reviewSource, /can_change_release_decision/);
+  assert.match(reviewSource, /产品不会据此改写分数、风险或发布决定/);
 });
 
 test("A3 webapp keeps auth and commercial writes explicitly fail-closed", async () => {

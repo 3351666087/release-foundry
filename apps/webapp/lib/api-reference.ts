@@ -24,13 +24,19 @@ export type ApiEndpoint = {
 };
 
 export const apiReferenceMeta = {
-  schemaVersion: "a3.api_reference.v8",
-  calibratedAt: "2026-07-13",
+  schemaVersion: "a3.api_reference.v9",
+  calibratedAt: "2026-07-14",
   mainSha: "ccf6ce5",
   a1Sha: "c784163",
   a2Sha: "8cd1d4f",
   a1SourceState: "merged_to_main",
   a2SourceState: "merged_to_main",
+  a2MultimodalPeerSha: "564d4b0",
+  a2MultimodalPeerState: "peer_branch_contract_not_merged",
+  a2MultimodalSupportedSchemas: [
+    "a2.multimodal_cross_provider_comparison.v1",
+    "a2.multimodal_cross_provider_comparison.v3"
+  ],
   secretValuesIncluded: false,
   a1BrowserSession: "implemented",
   a1OAuthInitialLogin: "not_implemented",
@@ -42,6 +48,8 @@ export const apiReferenceMeta = {
   a2ValidationErrors: true,
   a3ReleaseCandidate: "0.2.0-rc.2"
 } as const;
+
+const exampleSha256 = `sha256:${"0".repeat(64)}`;
 
 export const apiGroups = [
   { id: "all", label: { zh: "全部接口", en: "All endpoints" } },
@@ -321,6 +329,100 @@ export const apiEndpoints: ApiEndpoint[] = [
     notes: [
       { zh: "人工批准、拒绝或 waiver 必须保留 A2 原始决定和证据来源。", en: "Human approval, denial, or waiver must preserve the original A2 decision and evidence provenance." },
       { zh: "A2 8cd1d4f 的 append-only decision ledger 绑定完整五层作用域；A3 只能展示 decision、record hash 和链验证状态，不能改写账本。", en: "A2 8cd1d4f binds the full five-level scope into its append-only decision ledger; A3 may display the decision, record hash, and chain status but may not rewrite it." }
+    ]
+  },
+  {
+    id: "a3-multimodal-comparison-import",
+    group: "judge",
+    owner: "A1/A2/A3",
+    method: "POST",
+    path: "/api/a3/import/a2-multimodal-comparison",
+    title: { zh: "导入多模态模型比较", en: "Import multimodal model comparison" },
+    description: {
+      zh: "接收公开安全的跨模型比较和人工复核排队回执，绑定到服务端验证的五层租户范围。",
+      en: "Ingest a public-safe cross-model comparison and human-review queue receipts into a server-verified five-level tenant scope."
+    },
+    auth: { zh: "服务端验证身份 + project:ingest + Idempotency-Key", en: "Server-verified principal, project:ingest, and Idempotency-Key" },
+    status: "implemented",
+    source: "评测服务 564d4b0 双路 v3 契约校准 / 产品 OpenAPI",
+    request: {
+      source: "api-ingest",
+      comparison: {
+        schema_version: "a2.multimodal_cross_provider_comparison.v3",
+        comparison_artifact_hash: exampleSha256,
+        left_evidence_hash: exampleSha256,
+        right_evidence_hash: exampleSha256,
+        left_binding: { provider_id: "provider-left", model_id: "model-left", model_version: "version-left", prompt_hash: exampleSha256 },
+        right_binding: { provider_id: "provider-right", model_id: "model-right", model_version: "version-right", prompt_hash: exampleSha256 },
+        comparisons: [{
+          case_id: "case-media-001",
+          artifact_hash: exampleSha256,
+          repeat: 1,
+          left_state: "valid_json",
+          right_state: "valid_json",
+          left_observed_risk: true,
+          right_observed_risk: false,
+          comparison_state: "semantic_disagreement",
+          human_review_required: true
+        }],
+        summary: { agreement: 0, semantic_disagreement: 1, unavailable: 0 },
+        aggregate_comparisons: [],
+        aggregate_summary: { agreement: 0, semantic_disagreement: 0, unavailable: 0, internally_unstable: 0 },
+        human_review_queue_receipts: [{
+          receipt_id: exampleSha256,
+          comparison_artifact_hash: exampleSha256,
+          comparison_hash: exampleSha256,
+          artifact_hash: exampleSha256,
+          case_id: "case-media-001",
+          review_scope: "repeat",
+          queue_state: "awaiting_human_review",
+          reviewer_role: "multimodal_safety_reviewer",
+          release_authority: false
+        }],
+        release_authority: false,
+        raw_payload_included: false,
+        public_safe: true
+      }
+    },
+    response: {
+      schema_version: "a3.a2_multimodal_comparison_ingest.v1",
+      comparison_count: 1,
+      review_required_count: 1,
+      upstream_release_authority: false,
+      candidate_binding_verified: false,
+      release_decision_changed: false
+    },
+    notes: [
+      { zh: "服务端拒绝原始模型载荷、URL、Secret、错误摘要、孤立队列回执和伪造发布权。", en: "The server rejects raw model payloads, URLs, secrets, inconsistent summaries, orphan receipts, and fabricated release authority." },
+      { zh: "当前向后兼容双路 v1，并支持双路 v3 的重复观察、聚合不稳定与回执守恒；三路 v2 和四路 v1 等待实际公开安全输出后接入。", en: "The adapter remains backward-compatible with two-way v1 and supports v3 repeats, aggregate instability, and receipt conservation; three-way v2 and four-way v1 await real public-safe outputs." },
+      { zh: "导入只形成可审计的审核队列投影，不会改写分数、风险或发布决定。", en: "Import creates an auditable review-queue projection and never rewrites scores, risk, or release decisions." }
+    ]
+  },
+  {
+    id: "a3-multimodal-review-queue",
+    group: "judge",
+    owner: "A3",
+    method: "GET",
+    path: "/api/a3/review/multimodal-queue",
+    title: { zh: "读取多模态分歧审核队列", en: "Read multimodal disagreement queue" },
+    description: {
+      zh: "为 Reviewer 返回租户范围内的模型分歧、媒体证据哈希和非权威排队状态。",
+      en: "Return tenant-scoped model disagreements, media-evidence hashes, and non-authoritative queue state for reviewers."
+    },
+    auth: { zh: "服务端验证身份 + release:review + 五层租户范围", en: "Server-verified principal, release:review, and five-level tenant scope" },
+    status: "implemented",
+    source: "docs/a3/openapi/a3_commercial_api.openapi.json",
+    response: {
+      schema_version: "a3.multimodal_review_queue.v1",
+      status: "human_review_required",
+      source_contract: "a2.multimodal_cross_provider_comparison.v3",
+      summary: { comparison_count: 8, semantic_disagreement: 2, internally_unstable: 2, review_required_count: 4 },
+      authority_boundary: { can_change_release_decision: false, candidate_binding_verified: false },
+      items: []
+    },
+    notes: [
+      { zh: "跨租户请求返回 404 或空结果，不泄露模型、案例或证据哈希。", en: "Cross-tenant requests return 404 or no records without revealing models, cases, or evidence hashes." },
+      { zh: "只有权威人工复核结果与同一候选版本的 Decision Ledger 才可能改变发布状态。", en: "Only an authoritative human resolution and a same-candidate Decision Ledger may change release state." }
     ]
   },
   {

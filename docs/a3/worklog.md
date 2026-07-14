@@ -7008,3 +7008,23 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
 - CL hygiene passed with no findings. Commercial CL passed with `0` blockers and `0` advisories. `git diff --check` passed.
 - `.env.local` remains ignored and absent from Git status. No key, token, cookie, email, account identity, signed URL, or real customer data was added.
 - `origin/main` at the last successful fetch remains `ccf6ce5` and is an ancestor of this branch. A final `git fetch origin --prune` attempt was reset by the GitHub connection, so no newer remote state is claimed.
+
+## 2026-07-14 - Multimodal Disagreement Review Queue
+
+- Re-fetched authoritative `origin/main=ccf6ce5`, A1 development `2307231`, and A2 development `564d4b0`; this branch remains 0 commits behind main before publication.
+- Inspected A2 Rounds 38-48, including two-way v3 repeats/aggregates, real-review receipts, three-way v2, four-way v1, bounded provider execution, and exact candidate binding.
+- Preserved backward-compatible A2 two-way v1 ingestion and added strict two-way v3 repeat/aggregate validation.
+- Copied the real A2 public-safe Round 41 unstable comparison into `fixtures/a3/p3` without raw model payloads or media.
+- Added review-receipt conservation, comparison-artifact binding, repeat identity, aggregate instability, SHA-256 checks, five-level tenant scope, and fail-closed sensitive-material screening.
+- Kept three-way v2 and four-way v1 pending because no generated public-safe artifact using those exact schema versions was found at the inspected peer ref.
+- Added protected import/read APIs with idempotency, RBAC, cross-tenant 404 behavior, metadata-only audit, event outbox, and Memory/JSON/SQLite durability.
+- Added the multimodal queue to Dashboard, JSON, Markdown, shareable report payload, report redaction, OpenAPI runtime parity, and API Reference v9.
+- Updated the Chinese-first Review page with repeat versus aggregate labels, unstable-repeat language, localized queue/capability states, and no internal lane badges.
+- Saved and visually inspected desktop and 390 x 844 screenshots; no overlap or document-level horizontal overflow was found.
+- Added `docs/a3/a3_multimodal_disagreement_review_2026_07_14.md` and Growth Auditor Round 20 with 24 executable next steps.
+- Preserved Golden Path `7/11`, Deployment Acceptance `8/17`, current authority `integrity_invalid`, current A2 decision `unknown`, historical A2 decision `block`, production receipts `0`, and production ready `false`.
+- Final A3 Node regression passed `476` tests with one explicit target-PostgreSQL opt-in skip and zero failures; current-main A2 passed `186/186`.
+- Next.js TypeScript/build passed with 15 static pages; full Playwright passed `42/42`; OpenAPI runtime parity passed `60/60`.
+- CL hygiene passed with zero findings; Commercial CL passed with zero blockers/advisories; root and Webapp production npm audits found zero vulnerabilities; `git diff --check` passed.
+- `.env.local` remains ignored. No key, token, cookie, email, account identity, signed URL, raw provider payload, private media, or local account path was added.
+- The sealed rc.2 bundle, archive, release artifact, Deployment Acceptance, and A2 Decision Ledger were not rewritten.

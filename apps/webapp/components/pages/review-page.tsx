@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Check, CircleSlash2, Clock3, ShieldAlert, X } from "lucide-react";
+import { Check, CircleSlash2, Clock3, GitCompareArrows, Images, ShieldAlert, X } from "lucide-react";
 
 import { array, number, record, string } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
@@ -16,6 +16,12 @@ export function ReviewPage() {
     const records = array(workflow.records).map(record);
     const blockers = array(record(model.raw.release_decision_provenance).blockers);
     const decision = string(spine.release_decision, "block_release");
+    const multimodalQueue = record(model.raw.multimodal_review_queue);
+    const multimodalSummary = record(multimodalQueue.summary);
+    const multimodalAuthority = record(multimodalQueue.authority_boundary);
+    const multimodalItems = array(multimodalQueue.items).map(record);
+    const multimodalAvailable = multimodalQueue.available === true;
+    const multimodalStatus = string(multimodalQueue.status, "not_ingested");
     return (
       <>
         <PageHeader
@@ -41,6 +47,79 @@ export function ReviewPage() {
           { label: zh ? "豁免" : "Waivers", value: number(workflow.waiver_count), tone: "warn" }
         ]} />
 
+        <Section
+          className="multimodal-review-section"
+          title={zh ? "多模态分歧审核" : "Multimodal disagreement review"}
+          description={zh ? "比较不同模型对同一媒体证据的观察，分歧必须交给权威人工复核服务。" : "Compare model observations for the same media evidence and hand disagreements to the authoritative review service."}
+        >
+          <div className="multimodal-review-summary" data-status={multimodalStatus}>
+            <div className="multimodal-review-lead">
+              <span className="multimodal-review-icon"><Images size={22} aria-hidden="true" /></span>
+              <div>
+                <span className="eyebrow">{zh ? "评测服务 / 模型比较" : "EVALUATION / MODEL COMPARISON"}</span>
+                <strong>{multimodalAvailable
+                  ? (zh ? "发现需要人工确认的模型分歧" : "Model disagreement requires human confirmation")
+                  : multimodalStatus === "invalid_upstream_contract"
+                    ? (zh ? "上游比较契约校验失败" : "Upstream comparison contract failed validation")
+                    : (zh ? "尚未接入多模态比较数据" : "No multimodal comparison data ingested")}</strong>
+                <p>{zh
+                  ? "队列回执不具备发布权，产品不会据此改写分数、风险或发布决定。"
+                  : "Queue receipts have no release authority; the product does not rewrite scores, risk, or the release decision."}</p>
+              </div>
+            </div>
+            <div className="multimodal-review-metrics" aria-label={zh ? "多模态比较摘要" : "Multimodal comparison summary"}>
+              <div><span>{zh ? "比较记录" : "Comparisons"}</span><strong>{number(multimodalSummary.comparison_count)}</strong></div>
+              <div><span>{zh ? "语义分歧" : "Disagreements"}</span><strong>{number(multimodalSummary.semantic_disagreement)}</strong></div>
+              <div><span>{zh ? "等待复核" : "Awaiting review"}</span><strong>{number(multimodalSummary.review_required_count)}</strong></div>
+              <div><span>{zh ? "可改变发布决定" : "May change release"}</span><strong>{multimodalAuthority.can_change_release_decision === true ? (zh ? "是" : "Yes") : (zh ? "否" : "No")}</strong></div>
+            </div>
+          </div>
+
+          {multimodalItems.length ? (
+            <div className="multimodal-review-list" role="region" aria-label={zh ? "多模态分歧审核队列" : "Multimodal disagreement review queue"}>
+              {multimodalItems.map((item) => {
+                const left = record(item.left);
+                const right = record(item.right);
+                return (
+                  <article key={string(item.queue_id)}>
+                    <div><small>{zh ? "案例与证据" : "Case and evidence"}</small><strong>{string(item.case_id)}</strong><span>{comparisonScopeLabel(item, zh)}</span><code>{hashPrefix(string(item.artifact_hash))}</code></div>
+                    <div>
+                      <small>{zh ? "模型比较" : "Model pair"}</small>
+                      <span className="model-pair"><GitCompareArrows size={15} aria-hidden="true" /><strong>{string(left.model_id)} / {string(right.model_id)}</strong></span>
+                      <span>{string(left.provider_id)} / {string(right.provider_id)} · {zh ? "同一媒体证据" : "same media evidence"}</span>
+                    </div>
+                    <div>
+                      <small>{zh ? "风险观察" : "Risk observation"}</small>
+                      <span className="observation-pair-risk">
+                        <StatusBadge value={`${string(left.model_id)}: ${modelRiskLabel(left, zh)}`} tone={modelRiskTone(left)} />
+                        <StatusBadge value={`${string(right.model_id)}: ${modelRiskLabel(right, zh)}`} tone={modelRiskTone(right)} />
+                      </span>
+                    </div>
+                    <div><small>{zh ? "队列状态" : "Queue state"}</small><StatusBadge value={queueStateLabel(item.queue_state, zh)} tone="warn" /><span>{zh ? "安全审核员" : "Safety reviewer"}</span></div>
+                  </article>
+                );
+              })}
+            </div>
+          ) : (
+            <EmptyState
+              title={multimodalStatus === "invalid_upstream_contract"
+                ? (zh ? "比较数据未通过安全校验" : "Comparison data failed safety validation")
+                : (zh ? "暂无多模态复核项" : "No multimodal review items")}
+              detail={multimodalStatus === "invalid_upstream_contract"
+                ? (zh ? "已停止展示不一致或不安全的上游字段，请检查导入回执。" : "Unsafe or inconsistent upstream fields are hidden; inspect the import receipt.")
+                : (zh ? "接入评测服务比较回执后，这里会显示真实分歧。" : "Authoritative comparison receipts will appear here after ingestion.")}
+            />
+          )}
+
+          <div className="multimodal-authority-note">
+            <ShieldAlert size={17} aria-hidden="true" />
+            <span>{zh
+              ? "必须收到权威人工复核结果和同一候选版本的决策账本，发布状态才可能改变。"
+              : "Release state may change only after an authoritative human resolution and a same-candidate decision ledger are available."}</span>
+            <StatusBadge value={capabilityLabel(multimodalQueue.capability_state, zh)} tone="warn" />
+          </div>
+        </Section>
+
         <div className="content-grid two-one">
           <Section title={zh ? "审核队列" : "Review queue"} description={zh ? "优先处理失败和高严重度案例" : "Failed and high-severity cases first"} action={<Link className="text-link" href="/runs">{zh ? "查看全部案例" : "View all cases"}</Link>}>
             <DataTable headers={[zh ? "案例" : "Case", zh ? "失败分类" : "Failure class", zh ? "严重度" : "Severity", zh ? "分数" : "Score", zh ? "状态" : "State"]} label="Review queue">
@@ -50,7 +129,7 @@ export function ReviewPage() {
 
           <Section title={zh ? "发布阻塞项" : "Release blockers"} description={zh ? "解除前不能进入客户发布" : "Must be resolved before customer release"}>
             <div className="blocker-list">
-              {blockers.length ? blockers.slice(0, 8).map((blocker, index) => <div key={`${string(blocker)}-${index}`}><Clock3 size={16} /><span>{string(blocker)}</span></div>) : <EmptyState title={zh ? "没有阻塞详情" : "No blocker detail"} detail={zh ? "等待 release provenance。" : "Waiting for release provenance."} />}
+              {blockers.length ? blockers.slice(0, 8).map((blocker, index) => <div key={`${blockerLabel(blocker)}-${index}`}><Clock3 size={16} /><span>{blockerLabel(blocker)}</span></div>) : <EmptyState title={zh ? "没有阻塞详情" : "No blocker detail"} detail={zh ? "等待 release provenance。" : "Waiting for release provenance."} />}
             </div>
           </Section>
         </div>
@@ -61,4 +140,59 @@ export function ReviewPage() {
       </>
     );
   }}</DataBoundary>;
+}
+
+function riskLabel(value: unknown, zh: boolean) {
+  if (value === true) return zh ? "发现风险" : "risk observed";
+  if (value === false) return zh ? "未发现风险" : "no risk observed";
+  return zh ? "不可用" : "unavailable";
+}
+
+function modelRiskLabel(value: unknown, zh: boolean) {
+  const observation = record(value);
+  const validRisks = array(observation.valid_risks).filter((item) => typeof item === "boolean");
+  if (validRisks.includes(true) && validRisks.includes(false)) {
+    return zh ? "重复结果不稳定" : "unstable across repeats";
+  }
+  return riskLabel(observation.observed_risk, zh);
+}
+
+function modelRiskTone(value: unknown): "pass" | "warn" | "fail" {
+  const observation = record(value);
+  const validRisks = array(observation.valid_risks).filter((item) => typeof item === "boolean");
+  if (validRisks.includes(true) && validRisks.includes(false)) return "warn";
+  if (observation.observed_risk === true) return "fail";
+  if (observation.observed_risk === false) return "pass";
+  return "warn";
+}
+
+function comparisonScopeLabel(value: unknown, zh: boolean) {
+  const item = record(value);
+  const scope = string(item.comparison_scope, "case");
+  if (scope === "aggregate") return zh ? "重复结果聚合" : "aggregate across repeats";
+  if (scope === "repeat") return zh ? `第 ${number(item.repeat)} 次观察` : `repeat ${number(item.repeat)}`;
+  return zh ? "单次比较" : "single comparison";
+}
+
+function queueStateLabel(value: unknown, zh: boolean) {
+  const state = string(value, "unknown");
+  if (state === "awaiting_human_review") return zh ? "等待人工复核" : "awaiting human review";
+  return state;
+}
+
+function capabilityLabel(value: unknown, zh: boolean) {
+  const state = string(value, "not_available");
+  if (state === "peer_branch_contract_not_merged") return zh ? "上游契约待合并" : "upstream contract pending merge";
+  if (state === "contract_supported_unverified_candidate_binding") return zh ? "候选版本绑定待验证" : "candidate binding unverified";
+  if (state === "contract_supported_not_production_verified") return zh ? "契约已支持，未完成生产验证" : "contract supported, not production verified";
+  return zh ? "尚不可用" : "not available";
+}
+
+function hashPrefix(value: string) {
+  return value.startsWith("sha256:") ? `${value.slice(0, 19)}...` : value;
+}
+
+function blockerLabel(value: unknown) {
+  const item = record(value);
+  return string(item.message, string(item.reason, string(item.type, string(value))));
 }

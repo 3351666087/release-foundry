@@ -84,6 +84,7 @@ export function synchronizeA3OpenApiRuntimeParity(spec = {}) {
     applyRequestBoundaryContract(operation, route);
   }
   synchronizeDeploymentReceiptOperations(next);
+  synchronizeMultimodalReviewOperations(next);
   synchronizeSelfHostSandboxOperation(next);
   return next;
 }
@@ -165,6 +166,10 @@ function synchronizeDeliveryHandoffSchemas(schemas) {
   schemas.SelfHostSandboxGap = selfHostSandboxGapSchema();
   schemas.PostgresRlsQualification = postgresRlsQualificationSchema();
   schemas.SelfHostSandboxCalibration = selfHostSandboxCalibrationSchema();
+  schemas.A2MultimodalComparisonEnvelope = a2MultimodalComparisonEnvelopeSchema();
+  schemas.MultimodalComparisonImportRequest = multimodalComparisonImportRequestSchema();
+  schemas.MultimodalComparisonIngestReceipt = multimodalComparisonIngestReceiptSchema();
+  schemas.MultimodalReviewQueue = multimodalReviewQueueSchema();
 }
 
 function synchronizeSelfHostSandboxOperation(spec) {
@@ -965,6 +970,228 @@ function synchronizeDeploymentReceiptOperations(spec) {
       raw_evidence_forbidden: true
     };
   }
+}
+
+function synchronizeMultimodalReviewOperations(spec) {
+  const importOperation = spec.paths?.["/api/a3/import/a2-multimodal-comparison"]?.post;
+  const readOperation = spec.paths?.["/api/a3/review/multimodal-queue"]?.get;
+  if (importOperation) {
+    importOperation.operationId = "a3ImportA2MultimodalComparison";
+    importOperation.summary = "Import a public-safe A2 multimodal comparison into the tenant review queue.";
+    importOperation.tags = ["Review", "Operations"];
+    importOperation["x-schema-version"] = "a3.a2_multimodal_comparison_ingest.v1";
+    importOperation.parameters = withIdempotencyHeader(importOperation.parameters);
+    importOperation.requestBody = typedJsonRequest("MultimodalComparisonImportRequest");
+    delete importOperation.responses["202"];
+    importOperation.responses["201"] = typedJsonResponse(
+      "Comparison accepted as non-authoritative reviewer evidence.",
+      "MultimodalComparisonIngestReceipt"
+    );
+    importOperation.responses["409"] = typedJsonResponse("Idempotency conflict.", "DeploymentReceiptConflict");
+    importOperation["x-audit"] = {
+      events: ["a2.multimodal_comparison_imported"],
+      payload_policy: "ids_hashes_refs_status_counts_only"
+    };
+    importOperation["x-authority-boundary"] = multimodalAuthorityBoundary();
+  }
+  if (readOperation) {
+    readOperation.operationId = "a3ReadMultimodalReviewQueue";
+    readOperation.summary = "Read tenant-scoped, non-authoritative multimodal disagreement evidence.";
+    readOperation.tags = ["Review"];
+    readOperation["x-schema-version"] = "a3.multimodal_review_queue.v1";
+    readOperation.responses["200"] = typedJsonResponse(
+      "Public-safe multimodal disagreement review queue.",
+      "MultimodalReviewQueue"
+    );
+    readOperation["x-authority-boundary"] = multimodalAuthorityBoundary();
+  }
+}
+
+function a2MultimodalComparisonEnvelopeSchema() {
+  return {
+    oneOf: [
+      multimodalComparisonVersionSchema("a2.multimodal_cross_provider_comparison.v1", false),
+      multimodalComparisonVersionSchema("a2.multimodal_cross_provider_comparison.v3", true)
+    ],
+    description: "Validated by the A3 v1/v3 adapter; raw provider payloads and release authority are forbidden."
+  };
+}
+
+function multimodalComparisonVersionSchema(schemaVersion, aggregateRequired) {
+  const required = [
+    "schema_version", "left_evidence_hash", "right_evidence_hash", "left_binding", "right_binding",
+    "comparisons", "summary", "human_review_queue_receipts", "release_authority",
+    "raw_payload_included", "public_safe"
+  ];
+  if (aggregateRequired) {
+    required.push("comparison_artifact_hash", "aggregate_comparisons", "aggregate_summary");
+  }
+  const properties = {
+    schema_version: { type: "string", const: schemaVersion },
+    left_evidence_hash: sha256Schema(),
+    right_evidence_hash: sha256Schema(),
+    left_binding: { type: "object", additionalProperties: true },
+    right_binding: { type: "object", additionalProperties: true },
+    comparisons: { type: "array", maxItems: 5000, items: { type: "object", additionalProperties: true } },
+    summary: countSummarySchema(["agreement", "semantic_disagreement", "unavailable"]),
+    human_review_queue_receipts: { type: "array", maxItems: 10000, items: { type: "object", additionalProperties: true } },
+    release_authority: { type: "boolean", const: false },
+    raw_payload_included: { type: "boolean", const: false },
+    public_safe: { type: "boolean", const: true }
+  };
+  if (aggregateRequired) {
+    Object.assign(properties, {
+      comparison_artifact_hash: sha256Schema(),
+      lineage: multimodalLineageSchema(),
+      aggregate_comparisons: { type: "array", maxItems: 5000, items: { type: "object", additionalProperties: true } },
+      aggregate_summary: countSummarySchema(["agreement", "semantic_disagreement", "unavailable", "internally_unstable"])
+    });
+  }
+  return {
+    type: "object",
+    required,
+    properties,
+    additionalProperties: false
+  };
+}
+
+function multimodalComparisonImportRequestSchema() {
+  const scopeProperties = Object.fromEntries(TENANT_SCOPE_CONTRACT.required.map((field) => [field, { type: "string", minLength: 1, maxLength: 160 }]));
+  return {
+    type: "object",
+    required: ["source", "comparison"],
+    properties: {
+      source: { type: "string", minLength: 1, maxLength: 160 },
+      source_label: { type: "string", minLength: 1, maxLength: 160 },
+      sourceLabel: { type: "string", minLength: 1, maxLength: 160 },
+      ...scopeProperties,
+      imported_at: { type: "string", deprecated: true, description: "Ignored. The server assigns imported_at from its own clock." },
+      idempotency_key: { type: "string", deprecated: true, description: "Ignored. Use the required Idempotency-Key header." },
+      idempotencyKey: { type: "string", deprecated: true, description: "Ignored. Use the required Idempotency-Key header." },
+      comparison: { $ref: "#/components/schemas/A2MultimodalComparisonEnvelope" }
+    },
+    additionalProperties: false,
+    description: "Idempotency is header-only and imported_at is assigned by the server clock."
+  };
+}
+
+function multimodalComparisonIngestReceiptSchema() {
+  return {
+    type: "object",
+    required: [
+      "schema_version", "source", "payload_hash", "comparison_count", "review_required_count",
+      "queue_receipt_count", "upstream_release_authority", "candidate_binding_verified",
+      "release_decision_changed", "imported_at", "idempotency"
+    ],
+    properties: {
+      schema_version: { type: "string", const: "a3.a2_multimodal_comparison_ingest.v1" },
+      source: { type: "string" },
+      payload_hash: { type: "string", pattern: "^[a-f0-9]{64}$" },
+      comparison_count: { type: "integer", minimum: 0 },
+      review_required_count: { type: "integer", minimum: 0 },
+      queue_receipt_count: { type: "integer", minimum: 0 },
+      upstream_release_authority: { type: "boolean", const: false },
+      candidate_binding_verified: { type: "boolean", const: false },
+      release_decision_changed: { type: "boolean", const: false },
+      imported_at: { type: "string", format: "date-time" },
+      idempotency: { type: "object", additionalProperties: true },
+      event_envelope: { type: "object", additionalProperties: true }
+    },
+    additionalProperties: true
+  };
+}
+
+function multimodalReviewQueueSchema() {
+  return {
+    type: "object",
+    required: [
+      "schema_version", "available", "status", "source_contract", "tenant_scope", "summary",
+      "authority_boundary", "items", "safety"
+    ],
+    properties: {
+      schema_version: { type: "string", const: "a3.multimodal_review_queue.v1" },
+      available: { type: "boolean" },
+      status: { type: "string", enum: ["not_ingested", "invalid_upstream_contract", "no_open_multimodal_review", "human_review_required"] },
+      source_contract: {
+        type: "string",
+        enum: ["a2.multimodal_cross_provider_comparison.v1", "a2.multimodal_cross_provider_comparison.v3"]
+      },
+      tenant_scope: {
+        type: "object",
+        required: [...TENANT_SCOPE_CONTRACT.required],
+        properties: Object.fromEntries(TENANT_SCOPE_CONTRACT.required.map((field) => [field, { type: ["string", "null"] }])),
+        additionalProperties: false
+      },
+      summary: { type: "object", additionalProperties: true },
+      authority_boundary: {
+        type: "object",
+        required: ["upstream_release_authority", "queue_receipts_release_authority", "a3_recomputed_risk", "a3_recomputed_release_decision", "candidate_binding_verified", "can_change_release_decision"],
+        properties: multimodalAuthorityBoundaryProperties(),
+        additionalProperties: true
+      },
+      items: { type: "array", maxItems: 10000, items: { type: "object", additionalProperties: true } },
+      safety: {
+        type: "object",
+        required: ["raw_model_payload_exposed", "raw_media_exposed", "signed_url_exposed", "provider_secret_exposed", "production_ready_claimed"],
+        properties: {
+          raw_model_payload_exposed: { type: "boolean", const: false },
+          raw_media_exposed: { type: "boolean", const: false },
+          signed_url_exposed: { type: "boolean", const: false },
+          provider_secret_exposed: { type: "boolean", const: false },
+          production_ready_claimed: { type: "boolean", const: false }
+        },
+        additionalProperties: true
+      }
+    },
+    additionalProperties: true
+  };
+}
+
+function multimodalAuthorityBoundary() {
+  return {
+    upstream_release_authority: false,
+    queue_receipts_release_authority: false,
+    a3_recomputed_risk: false,
+    a3_recomputed_release_decision: false,
+    candidate_binding_verified: false,
+    can_change_release_decision: false
+  };
+}
+
+function multimodalAuthorityBoundaryProperties() {
+  return Object.fromEntries(Object.keys(multimodalAuthorityBoundary()).map((field) => [field, { type: "boolean", const: false }]));
+}
+
+function sha256Schema() {
+  return { type: "string", pattern: "^sha256:[a-f0-9]{64}$" };
+}
+
+function countSummarySchema(fields) {
+  return {
+    type: "object",
+    required: [...fields],
+    properties: Object.fromEntries(fields.map((field) => [field, { type: "integer", minimum: 0 }])),
+    additionalProperties: false
+  };
+}
+
+function multimodalLineageSchema() {
+  return {
+    type: "object",
+    required: [
+      "left_final_matrix_hash",
+      "right_final_matrix_hash",
+      "left_partial_journal_hash",
+      "right_partial_journal_hash"
+    ],
+    properties: {
+      left_final_matrix_hash: sha256Schema(),
+      right_final_matrix_hash: sha256Schema(),
+      left_partial_journal_hash: { type: "string", pattern: "^(|sha256:[a-f0-9]{64})$" },
+      right_partial_journal_hash: { type: "string", pattern: "^(|sha256:[a-f0-9]{64})$" }
+    },
+    additionalProperties: false
+  };
 }
 
 function typedJsonRequest(schemaName) {

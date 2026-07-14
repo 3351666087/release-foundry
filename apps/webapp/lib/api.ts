@@ -281,6 +281,7 @@ export function normalizeDashboard(payload: JsonRecord): DashboardModel {
 function customerSourceLabel(source: string, sourceLabel: string): string {
   const labels: Record<string, string> = {
     "api-mock": "API 聚合证据",
+    "p3-media": "多模态分歧校准",
     "p3-official-demo": "官方校准样本",
     "raw-a1": "执行证据原始样本",
     "raw-a2": "评测结论原始样本",

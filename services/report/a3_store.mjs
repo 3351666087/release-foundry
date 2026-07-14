@@ -79,6 +79,10 @@ import {
   loadSelfHostSandboxCalibration,
   validateSelfHostSandboxCalibration
 } from "./a3_self_host_sandbox.mjs";
+import {
+  buildA3MultimodalReviewQueue,
+  validateA2MultimodalComparison
+} from "./a3_multimodal_review_queue.mjs";
 
 export const A3_STORE_SCHEMA_VERSION = "a3.store.v1";
 
@@ -130,7 +134,10 @@ export const A3_SOURCE_FIXTURES = {
     usageQuotaApiProbe: "fixtures/a3/p3/ashr_usage_quota_api_probe.redacted.json",
     mediaSignedUrlCoverage: "fixtures/a3/p3/ashr_signed_media_url_coverage.redacted.json",
     authCheck: "fixtures/a3/p3/ashr_auth_check.redacted.json",
-    frontendSummary: "fixtures/a3/p3/ashr_frontend_relogin_top_level_summary.redacted.json"
+    frontendSummary: "fixtures/a3/p3/ashr_frontend_relogin_top_level_summary.redacted.json",
+    a2MultimodalComparison: "fixtures/a3/p3/a2_multimodal_comparison_v3_564d4b0_sample.redacted.json",
+    a2MultimodalComparisonSourceCommit: "564d4b0",
+    a2MultimodalComparisonCapability: "peer_branch_contract_not_merged"
   },
   "p3-official-demo": {
     label: "P3 Official Demo 884/11926",
@@ -210,6 +217,7 @@ export const A3_DB_CONTRACT = {
     "artifact_lifecycle_events",
     "saas_admin_action_requests",
     "review_workflow_records",
+    "multimodal_review_snapshots",
     "release_evidence_summaries",
     "release_evidence_snapshots",
     "release_evidence_diffs",
@@ -253,6 +261,7 @@ export const A3_DB_CONTRACT = {
     "GET /api/a3/cases/:caseId",
     "POST /api/a3/import/a1-run-result",
     "POST /api/a3/import/a2-grade-result",
+    "POST /api/a3/import/a2-multimodal-comparison",
     "POST /api/a3/reports/share",
     "GET /api/a3/reports/:reportId",
     "GET /reports/:reportId",
@@ -267,6 +276,7 @@ export const A3_DB_CONTRACT = {
     "POST /api/a3/review/approvals",
     "POST /api/a3/review/denials",
     "GET /api/a3/review/workflow",
+    "GET /api/a3/review/multimodal-queue",
     "GET /api/a3/product/console",
     "GET /api/a3/enterprise/readiness",
     "GET /api/a3/db-migrations",
@@ -357,6 +367,14 @@ export async function loadA3SourceSnapshot(source = "mock", options = {}) {
     frontendMirror: await readOptionalJson(root, "fixtures/a3/p3/ashr_frontend_mirror_summary.redacted.json"),
     frontendCodeCrawl: await readOptionalJson(root, "fixtures/a3/p3/ashr_frontend_code_crawl_summary.redacted.json"),
     peerBranchCalibration: await readOptionalJson(root, "fixtures/a3/p3/a3_peer_branch_calibration.redacted.json"),
+    a2MultimodalComparison: await readOptionalJson(root, config.a2MultimodalComparison),
+    a2MultimodalComparisonMeta: config.a2MultimodalComparison
+      ? {
+          ingest_mode: "peer_branch_redacted_sample",
+          source_commit_alias: config.a2MultimodalComparisonSourceCommit || null,
+          capability_state: config.a2MultimodalComparisonCapability || "contract_supported_not_production_verified"
+        }
+      : {},
     a2GradeResults: await readOptionalJson(root, config.a2GradeResults),
     a2ReleaseGate: await readOptionalJson(root, config.a2ReleaseGate),
     a2TrustedSpine: await readOptionalJson(
@@ -663,6 +681,105 @@ export function createMemoryA3Store(seed = {}) {
       });
       rememberIdempotentReceipt(idempotencyReceipts, "a2_grade_result_import", idempotencySource, options.idempotencyKey, payloadHash, receipt);
       return receipt;
+    },
+
+    async importA2MultimodalComparison(comparison, options = {}) {
+      const source = normalizeSourceKey(options.source || "api-ingest");
+      requireMutationIdempotencyKey(options, "a2_multimodal_comparison_import", source);
+      const existing = findSnapshotForMutation(snapshots, source, options);
+      const tenantScope = tenantScopeRecordFields(options, existing || {});
+      const validation = validateA2MultimodalComparison(comparison, { tenantScope });
+      if (!validation.valid) {
+        throw new A3StoreValidationError("A2 multimodal comparison import failed validation.", validation.details, {
+          requestType: "a2_multimodal_comparison_import",
+          source
+        });
+      }
+      const payloadHash = sha256(stableJson(comparison));
+      const idempotencySource = scopedIdempotencySource(source, options, existing || tenantScope);
+      const replay = getIdempotentReplay(
+        idempotencyReceipts,
+        "a2_multimodal_comparison_import",
+        idempotencySource,
+        options.idempotencyKey,
+        payloadHash
+      );
+      if (replay) return replay;
+
+      const importedAt = options.importedAt || new Date().toISOString();
+      const normalized = normalizeSnapshot({
+        ...(existing || {}),
+        source,
+        source_label: options.sourceLabel || existing?.source_label || "A2 Multimodal API Ingest",
+        ...tenantScope,
+        runFixture: existing?.runFixture || {},
+        gradeFixture: existing?.gradeFixture || {},
+        a2MultimodalComparison: comparison,
+        a2MultimodalComparisonMeta: {
+          ingest_mode: "tenant_scoped_api",
+          source_commit_alias: null,
+          capability_state: "contract_supported_unverified_candidate_binding",
+          imported_at: importedAt,
+          payload_hash: payloadHash
+        },
+        storage: {
+          mode: this.storage_mode || "memory",
+          db_ready: this.db_ready === true,
+          ingest_source: "a2_multimodal_comparison_api"
+        }
+      });
+      storeSnapshotByScope(snapshots, normalized);
+      const queue = buildMultimodalQueueForSnapshot(normalized);
+      const receipt = {
+        schema_version: "a3.a2_multimodal_comparison_ingest.v1",
+        source,
+        ...tenantScope,
+        storage_mode: normalized.storage.mode,
+        db_ready: normalized.storage.db_ready === true,
+        payload_hash: payloadHash,
+        comparison_count: queue.summary.comparison_count,
+        review_required_count: queue.summary.review_required_count,
+        queue_receipt_count: queue.summary.queue_receipt_count,
+        upstream_release_authority: false,
+        candidate_binding_verified: false,
+        release_decision_changed: false,
+        imported_at: importedAt,
+        idempotency: {
+          key_present: true,
+          duplicate: false,
+          status: "recorded"
+        }
+      };
+      auditEvents.push(multimodalComparisonAuditEvent(receipt, auditEvents.length));
+      const outboxRow = recordEventOutbox(eventOutbox, {
+        source,
+        eventType: "a2.multimodal_comparison_imported",
+        resourceType: "multimodal_review_snapshot",
+        resourceId: payloadHash,
+        tenantScope,
+        actorHash: options.actorHash || options.actor,
+        createdAt: importedAt,
+        payload: receipt,
+        usageMeter: {
+          meter: "a2_multimodal_comparison_imports",
+          quantity: 1
+        }
+      });
+      const receiptWithEvent = attachEventEnvelopeReceipt(receipt, outboxRow);
+      rememberIdempotentReceipt(
+        idempotencyReceipts,
+        "a2_multimodal_comparison_import",
+        idempotencySource,
+        options.idempotencyKey,
+        payloadHash,
+        receiptWithEvent
+      );
+      return receiptWithEvent;
+    },
+
+    async getMultimodalReviewQueue(options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source, options);
+      return buildMultimodalQueueForSnapshot(snapshot);
     },
 
     async getSaasAdminConsole(options = {}) {
@@ -1900,16 +2017,19 @@ export function createMemoryA3Store(seed = {}) {
       }
       const tenantScope = buildA3TenantScope(options, snapshot);
       const report = {
-        ...buildShareableReportPayload(snapshot, {
-        source: snapshot.source,
-        title: options.title,
-        visibility: options.visibility,
-        createdBy: options.createdBy,
-        createdAt: options.createdAt,
-        expiresAt: options.expiresAt,
-        shareToken: options.shareToken,
-        organizationId: options.organizationId,
-        projectId: options.projectId
+        ...buildShareableReportPayload({
+          ...snapshot,
+          multimodalReviewQueue: buildMultimodalQueueForSnapshot(snapshot)
+        }, {
+          source: snapshot.source,
+          title: options.title,
+          visibility: options.visibility,
+          createdBy: options.createdBy,
+          createdAt: options.createdAt,
+          expiresAt: options.expiresAt,
+          shareToken: options.shareToken,
+          organizationId: options.organizationId,
+          projectId: options.projectId
         }),
         tenant_scope: tenantScope
       };
@@ -2609,6 +2729,11 @@ export async function createFileBackedA3Store(options = {}) {
       await persist();
       return result;
     },
+    async importA2MultimodalComparison(comparison, options = {}) {
+      const result = await store.importA2MultimodalComparison(comparison, options);
+      await persist();
+      return result;
+    },
     async createShareableReport(options = {}) {
       const result = await store.createShareableReport(options);
       await persist();
@@ -2708,6 +2833,8 @@ function normalizeSnapshot(snapshot = {}) {
     frontendMirror: snapshot.frontendMirror || {},
     frontendCodeCrawl: snapshot.frontendCodeCrawl || {},
     peerBranchCalibration: snapshot.peerBranchCalibration || snapshot.peer_branch_calibration || {},
+    a2MultimodalComparison: snapshot.a2MultimodalComparison || snapshot.a2_multimodal_comparison || {},
+    a2MultimodalComparisonMeta: snapshot.a2MultimodalComparisonMeta || snapshot.a2_multimodal_comparison_meta || {},
     releaseEvidence: snapshot.releaseEvidence || snapshot.release_evidence || {},
     a2GradeResults: snapshot.a2GradeResults || snapshot.a2_grade_results || {},
     a2ReleaseGate: snapshot.a2ReleaseGate || snapshot.a2_release_gate || {},
@@ -2895,6 +3022,7 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     auth: options.auth || {}
   });
   const peerBranchCalibration = summarizeA3PeerBranchCalibration(snapshot.peerBranchCalibration);
+  const multimodalReviewQueue = buildMultimodalQueueForSnapshot(snapshot);
   const a1A2EvidenceSpine = buildA3A1A2EvidenceSpine({
     source: snapshot.source,
     runFixture: snapshot.runFixture,
@@ -2983,6 +3111,7 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     frontend_mirror: snapshot.frontendMirror,
     frontend_code_crawl: snapshot.frontendCodeCrawl,
     peer_branch_calibration: peerBranchCalibration,
+    multimodal_review_queue: multimodalReviewQueue,
     release_evidence: releaseEvidenceForDashboard,
     release_evidence_summary: releaseEvidenceForDashboard,
     release_evidence_readbacks: releaseEvidenceReadbackHistory,
@@ -3464,6 +3593,16 @@ function deploymentReceiptContext(snapshot = {}, dashboard = {}, options = {}) {
 function requireIdempotencyKey(options = {}, requestType, source) {
   if (typeof options.idempotencyKey === "string" && options.idempotencyKey.trim()) return;
   throw new A3StoreValidationError("Deployment receipt mutation requires an Idempotency-Key.", [
+    { field: "Idempotency-Key", issue: "required" }
+  ], {
+    requestType,
+    source
+  });
+}
+
+function requireMutationIdempotencyKey(options = {}, requestType, source) {
+  if (typeof options.idempotencyKey === "string" && options.idempotencyKey.trim()) return;
+  throw new A3StoreValidationError("Mutation requires an Idempotency-Key.", [
     { field: "Idempotency-Key", issue: "required" }
   ], {
     requestType,
@@ -4517,6 +4656,39 @@ function reviewWorkflowReceipt(record = {}) {
   };
 }
 
+function multimodalComparisonAuditEvent(receipt = {}, index = 0) {
+  return {
+    event_id: `mmr_evt_${sha256(`${receipt.payload_hash || "missing"}:${index}`).slice(0, 12)}`,
+    source: receipt.source,
+    ...tenantScopeRecordFields(receipt),
+    event_type: "a2_multimodal_comparison_imported",
+    subject_id: receipt.payload_hash,
+    payload: {
+      schema_version: receipt.schema_version,
+      payload_hash: receipt.payload_hash,
+      comparison_count: receipt.comparison_count,
+      review_required_count: receipt.review_required_count,
+      queue_receipt_count: receipt.queue_receipt_count,
+      upstream_release_authority: false,
+      candidate_binding_verified: false,
+      release_decision_changed: false
+    },
+    created_at: receipt.imported_at,
+    redacted: true
+  };
+}
+
+function buildMultimodalQueueForSnapshot(snapshot = {}) {
+  const metadata = snapshot.a2MultimodalComparisonMeta || {};
+  return buildA3MultimodalReviewQueue(snapshot.a2MultimodalComparison || {}, {
+    source: snapshot.source,
+    tenantScope: snapshot.tenant_scope || tenantScopeRecordFields(snapshot).tenant_scope,
+    sourceCommitAlias: metadata.source_commit_alias,
+    ingestMode: metadata.ingest_mode,
+    capabilityState: metadata.capability_state
+  });
+}
+
 function selectSnapshot(snapshots, source = "mock", options = {}) {
   const sourceKey = normalizeSourceKey(source || "mock");
   const exactSnapshot = snapshots.get(sourceKey);
@@ -4771,7 +4943,7 @@ function rememberIdempotentReceipt(idempotencyReceipts, requestType, source, ide
 
 function apiImportReceiptsFromLedger(idempotencyReceipts) {
   return [...idempotencyReceipts.values()]
-    .filter((item) => ["a1_run_result_import", "a2_grade_result_import"].includes(item.request_type))
+    .filter((item) => ["a1_run_result_import", "a2_grade_result_import", "a2_multimodal_comparison_import"].includes(item.request_type))
     .map((item) => item.receipt);
 }
 

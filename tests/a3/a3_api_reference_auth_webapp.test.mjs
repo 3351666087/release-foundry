@@ -33,6 +33,15 @@ test("API Reference is a typed route grounded in A1, A2, and A3 contracts", asyn
   assert.match(reference, /\/v1\/identity-verification\/challenges/);
   assert.match(reference, /browser-sessions\/refresh/);
   assert.match(reference, /\/internal\/judge\/case/);
+  assert.match(reference, /\/api\/a3\/import\/a2-multimodal-comparison/);
+  assert.match(reference, /\/api\/a3\/review\/multimodal-queue/);
+  assert.match(reference, /a2\.multimodal_cross_provider_comparison\.v1/);
+  assert.match(reference, /a2\.multimodal_cross_provider_comparison\.v3/);
+  assert.match(reference, /a3\.multimodal_review_queue\.v1/);
+  assert.match(reference, /564d4b0/);
+  assert.match(reference, /aggregate_comparisons/);
+  assert.match(reference, /receipt conservation/);
+  assert.match(reference, /release_decision_changed: false/);
   assert.match(reference, /\/api\/a3\/dashboard/);
   assert.match(reference, /a3\.deployment_handoff\.v1/);
   assert.match(reference, /a3\.deployment_receipt_inbox\.v1/);
