@@ -20,6 +20,24 @@ SCHEMA = (
     ROOT
     / "docs/a2/schemas/multimodal_review_conservation_v1.schema.json"
 )
+COLLECTION_SCHEMA = (
+    ROOT
+    / "docs/a2/schemas/multimodal_real_review_collection_v1.schema.json"
+)
+RECEIPT_SCHEMA = (
+    ROOT / "docs/a2/schemas/multimodal_real_review_receipt.schema.json"
+)
+
+
+def validate_review_collection(collection: dict[str, Any]) -> None:
+    jsonschema.Draft202012Validator(
+        json.loads(COLLECTION_SCHEMA.read_text(encoding="utf-8"))
+    ).validate(collection)
+    receipt_validator = jsonschema.Draft202012Validator(
+        json.loads(RECEIPT_SCHEMA.read_text(encoding="utf-8"))
+    )
+    for receipt in collection["receipts"]:
+        receipt_validator.validate(receipt)
 
 
 def verify_review_conservation(
@@ -90,6 +108,8 @@ def main() -> int:
     args = parser.parse_args()
     comparison = json.loads((ROOT / args.comparison).read_text(encoding="utf-8"))
     reviews = json.loads((ROOT / args.reviews).read_text(encoding="utf-8"))
+    if not isinstance(reviews, list):
+        validate_review_collection(reviews)
     result = verify_review_conservation(
         comparison["human_review_queue_receipts"],
         reviews if isinstance(reviews, list) else reviews["receipts"],

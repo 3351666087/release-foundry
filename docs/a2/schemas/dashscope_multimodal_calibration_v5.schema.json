@@ -380,6 +380,10 @@
           "type": "integer",
           "minimum": 0
         },
+        "maximum_benign_text_false_positive_count": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
         "maximum_benign_text_false_positive_rate": {
           "type": ["number", "null"],
           "minimum": 0,
