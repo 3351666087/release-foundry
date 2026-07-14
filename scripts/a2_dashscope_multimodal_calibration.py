@@ -110,6 +110,33 @@ def _duration_receipt(wall_seconds: float) -> dict[str, Any]:
     ).public_receipt()
 
 
+def _latency_phase_receipt(attempts: list[dict[str, Any]]) -> dict[str, Any]:
+    total = round(sum(item["wall_seconds"] for item in attempts), 3)
+    retry = round(
+        sum(
+            item["wall_seconds"]
+            for item in attempts[:-1]
+            if item["http_state"] == "completed"
+            and item["parse_state"] != "valid_json"
+        ),
+        3,
+    )
+    return {
+        "schema_version": "a2.multimodal_latency_phase_receipt.v1",
+        "provider_network_exact_seconds": None,
+        "provider_network_effective_seconds": total,
+        "provider_network_effective_source": (
+            "caller_wall_clock_includes_transport_remote_and_parse"
+        ),
+        "structured_output_retry_seconds": retry,
+        "structured_output_retry_source": "prior_completed_invalid_attempt_wall_clock",
+        "total_wall_seconds": total,
+        "total_wall_source": "sum_attempt_wall_clock",
+        "release_authority": False,
+        "public_safe": True,
+    }
+
+
 def cloud_transport(artifact: bytes, suffix: str) -> tuple[bytes, str]:
     if suffix == ".png":
         return artifact, "image/png"
@@ -141,6 +168,7 @@ def policy_binding_payload(
     minimum_taxonomy_wilson_lower: dict[str, float],
     minimum_perturbation_samples: int,
     minimum_distinct_perturbation_source_hashes: int,
+    required_perturbation_buckets: list[str],
     minimum_perturbation_bucket_sensitivity: dict[str, float],
     minimum_perturbation_bucket_wilson_lower: dict[str, float],
     minimum_benign_text_samples: int,
@@ -154,6 +182,7 @@ def policy_binding_payload(
     if (
         minimum_perturbation_samples != 1
         or minimum_distinct_perturbation_source_hashes != 3
+        or required_perturbation_buckets
         or minimum_perturbation_bucket_sensitivity
         or minimum_perturbation_bucket_wilson_lower
         or minimum_benign_text_samples != 0
@@ -166,6 +195,7 @@ def policy_binding_payload(
                 "minimum_distinct_perturbation_source_hashes": (
                     minimum_distinct_perturbation_source_hashes
                 ),
+                "required_perturbation_buckets": required_perturbation_buckets,
                 "minimum_perturbation_bucket_sensitivity": (
                     minimum_perturbation_bucket_sensitivity
                 ),
@@ -197,6 +227,7 @@ def build_calibration(
     minimum_taxonomy_samples: int = 1,
     minimum_perturbation_samples: int = 1,
     minimum_distinct_perturbation_source_hashes: int = 3,
+    required_perturbation_buckets: list[str] | None = None,
     maximum_p95_seconds: float = 10.0,
     minimum_sensitivity: float = 0.8,
     minimum_specificity: float = 0.8,
@@ -240,6 +271,7 @@ def build_calibration(
     minimum_perturbation_bucket_wilson_lower = (
         minimum_perturbation_bucket_wilson_lower or {}
     )
+    required_perturbation_buckets = sorted(set(required_perturbation_buckets or []))
     if minimum_benign_text_samples < 0:
         raise ValueError("minimum benign-text samples cannot be negative")
     for threshold in (
@@ -265,6 +297,14 @@ def build_calibration(
     }.items():
         if not bucket_id or ":" not in bucket_id or not 0 <= threshold <= 1:
             raise ValueError("invalid perturbation bucket policy")
+    for bucket_id in required_perturbation_buckets:
+        dimension, separator, value = bucket_id.partition(":")
+        if (
+            not separator
+            or dimension not in {"rotation_degrees", "jpeg_quality"}
+            or not value
+        ):
+            raise ValueError("invalid required perturbation bucket")
     planned_requests = len(cases) * repeats * (invalid_response_retries + 1)
     maximum_cloud_requests = maximum_cloud_requests or max(1, planned_requests)
     if maximum_cloud_requests < 1:
@@ -490,6 +530,7 @@ def build_calibration(
                         break
             final = attempts[-1]
             validate_attempt_receipts(attempts)
+            latency_phase_receipt = _latency_phase_receipt(attempts)
             recovered_invalid_response = (
                 final["parse_state"] == "valid_json"
                 and any(
@@ -532,6 +573,7 @@ def build_calibration(
                         sum(item["wall_seconds"] for item in attempts), 3
                     ),
                     "final_attempt_wall_seconds": final["wall_seconds"],
+                    "latency_phase_receipt": latency_phase_receipt,
                     "duration_receipt": _duration_receipt(
                         round(sum(item["wall_seconds"] for item in attempts), 3)
                     ),
@@ -583,6 +625,18 @@ def build_calibration(
     ):
         blockers.append("dashscope_response_model_identity_mismatch")
     latency = _latency_summary([item["wall_seconds"] for item in observations])
+    provider_network_effective_latency = _latency_summary(
+        [
+            item["latency_phase_receipt"]["provider_network_effective_seconds"]
+            for item in observations
+        ]
+    )
+    structured_output_retry_latency = _latency_summary(
+        [
+            item["latency_phase_receipt"]["structured_output_retry_seconds"]
+            for item in observations
+        ]
+    )
     if latency["p95_nearest_rank"] > maximum_p95_seconds:
         blockers.append("dashscope_latency_qualification_not_met")
     sensitivity = (
@@ -726,6 +780,16 @@ def build_calibration(
                 )
     if perturbation_minimum_failed:
         blockers.append("dashscope_perturbation_sample_minimum_not_met")
+    observed_bucket_ids = {
+        f"{dimension_name}:{bucket_name}"
+        for dimension_name, dimension in perturbation_metrics.items()
+        for bucket_name in dimension
+    }
+    for bucket_id in required_perturbation_buckets:
+        if bucket_id not in observed_bucket_ids:
+            blockers.append(
+                f"dashscope_required_perturbation_bucket_unobserved:{bucket_id}"
+            )
     benign_text = [
         item
         for item in safe
@@ -848,6 +912,7 @@ def build_calibration(
                     minimum_distinct_perturbation_source_hashes=(
                         minimum_distinct_perturbation_source_hashes
                     ),
+                    required_perturbation_buckets=required_perturbation_buckets,
                     minimum_perturbation_bucket_sensitivity=(
                         minimum_perturbation_bucket_sensitivity
                     ),
@@ -879,6 +944,7 @@ def build_calibration(
             "minimum_distinct_perturbation_source_hashes": (
                 minimum_distinct_perturbation_source_hashes
             ),
+            "required_perturbation_buckets": required_perturbation_buckets,
             "maximum_p95_seconds": maximum_p95_seconds,
             "minimum_sensitivity": minimum_sensitivity,
             "minimum_specificity": minimum_specificity,
@@ -931,6 +997,12 @@ def build_calibration(
             ),
             "balanced_accuracy_interval_95": balanced_interval,
             "latency_seconds": latency,
+            "provider_network_effective_latency_seconds": (
+                provider_network_effective_latency
+            ),
+            "structured_output_retry_latency_seconds": (
+                structured_output_retry_latency
+            ),
             "final_attempt_latency_seconds": _latency_summary(
                 [item["final_attempt_wall_seconds"] for item in observations]
             ),
@@ -1040,6 +1112,7 @@ def main() -> int:
     perturbation_wilson_thresholds = {}
     minimum_perturbation_samples = args.minimum_perturbation_samples
     minimum_distinct_perturbation_source_hashes = 3
+    required_perturbation_buckets = []
     minimum_benign_text_samples = 0
     maximum_benign_text_false_positive_rate = None
     maximum_benign_text_wilson_upper = None
@@ -1062,6 +1135,9 @@ def main() -> int:
         )
         minimum_distinct_perturbation_source_hashes = value.get(
             "minimum_distinct_perturbation_source_hashes", 3
+        )
+        required_perturbation_buckets = value.get(
+            "required_perturbation_buckets", []
         )
         minimum_benign_text_samples = value.get("minimum_benign_text_samples", 0)
         maximum_benign_text_false_positive_rate = value.get(
@@ -1104,6 +1180,7 @@ def main() -> int:
                 minimum_distinct_perturbation_source_hashes=(
                     minimum_distinct_perturbation_source_hashes
                 ),
+                required_perturbation_buckets=required_perturbation_buckets,
                 minimum_perturbation_bucket_sensitivity=perturbation_thresholds,
                 minimum_perturbation_bucket_wilson_lower=(
                     perturbation_wilson_thresholds
@@ -1152,6 +1229,7 @@ def main() -> int:
         minimum_distinct_perturbation_source_hashes=(
             minimum_distinct_perturbation_source_hashes
         ),
+        required_perturbation_buckets=required_perturbation_buckets,
         maximum_p95_seconds=args.maximum_p95_seconds,
         minimum_sensitivity=args.minimum_sensitivity,
         minimum_specificity=args.minimum_specificity,

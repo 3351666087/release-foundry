@@ -141,7 +141,12 @@ def _multimodal_qualification_blockers(
             reasons.append("multimodal expected bindings are missing")
         else:
             missing_required = sorted(
-                {"candidate_sha", "manifest_hash"} - set(expected_bindings)
+                {
+                    "candidate_sha",
+                    "manifest_hash",
+                    "review_conservation_hash",
+                }
+                - set(expected_bindings)
             )
             for field in missing_required:
                 reasons.append(

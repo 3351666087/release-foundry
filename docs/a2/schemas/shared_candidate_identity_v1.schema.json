@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.io/schemas/a2/shared_candidate_identity_v1.schema.json",
+  "title": "A1/A2/A3 Shared Candidate Identity",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "candidate_id",
+    "a1",
+    "a2",
+    "a3",
+    "binding_state",
+    "release_authority",
+    "public_safe"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "a2.shared_candidate_identity.v1"
+    },
+    "candidate_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "a1": {
+      "$ref": "#/$defs/a1_binding"
+    },
+    "a2": {
+      "$ref": "#/$defs/a2_binding"
+    },
+    "a3": {
+      "$ref": "#/$defs/a3_binding"
+    },
+    "binding_state": {
+      "enum": [
+        "exact",
+        "blocked"
+      ]
+    },
+    "blockers": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "release_authority": {
+      "const": false
+    },
+    "public_safe": {
+      "const": true
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "binding_state": {
+            "const": "exact"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "blockers": {
+            "maxItems": 0
+          }
+        }
+      },
+      "else": {
+        "required": [
+          "blockers"
+        ],
+        "properties": {
+          "blockers": {
+            "minItems": 1
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "sha256_ref": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "git_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "a1_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidate_id",
+        "git_sha",
+        "evidence_bundle_hash"
+      ],
+      "properties": {
+        "candidate_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "git_sha": {
+          "$ref": "#/$defs/git_sha"
+        },
+        "evidence_bundle_hash": {
+          "$ref": "#/$defs/sha256_ref"
+        }
+      }
+    },
+    "a2_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidate_id",
+        "git_sha",
+        "decision_hash",
+        "grades_hash",
+        "review_conservation_hash"
+      ],
+      "properties": {
+        "candidate_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "git_sha": {
+          "$ref": "#/$defs/git_sha"
+        },
+        "decision_hash": {
+          "$ref": "#/$defs/sha256_ref"
+        },
+        "grades_hash": {
+          "$ref": "#/$defs/sha256_ref"
+        },
+        "review_conservation_hash": {
+          "$ref": "#/$defs/sha256_ref"
+        }
+      }
+    },
+    "a3_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidate_id",
+        "git_sha",
+        "consumed_decision_hash",
+        "consumed_grades_hash"
+      ],
+      "properties": {
+        "candidate_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "git_sha": {
+          "$ref": "#/$defs/git_sha"
+        },
+        "consumed_decision_hash": {
+          "$ref": "#/$defs/sha256_ref"
+        },
+        "consumed_grades_hash": {
+          "$ref": "#/$defs/sha256_ref"
+        }
+      }
+    }
+  }
+}

@@ -38,6 +38,14 @@
       "type": "integer",
       "minimum": 3
     },
+    "required_perturbation_buckets": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^(rotation_degrees|jpeg_quality):.+$"
+      }
+    },
     "minimum_perturbation_bucket_sensitivity": {
       "type": "object",
       "propertyNames": {"pattern": "^(rotation_degrees|jpeg_quality):.+$"},

@@ -41,7 +41,9 @@
         "jsonl_atomic_replace_tested": {"type": "boolean"},
         "file_fsync_tested": {"type": "boolean"},
         "manifest_reopen_verification_tested": {"type": "boolean"},
-        "replay_rollback_and_fork_detection_tested": {"type": "boolean"}
+        "replay_rollback_and_fork_detection_tested": {"type": "boolean"},
+        "sql_store_contract_tested": {"type": "boolean"},
+        "test_result": {"type": "string", "minLength": 1}
       }
     },
     "blockers": {

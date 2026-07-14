@@ -23,6 +23,7 @@ def _multimodal_expected_bindings(
     binding_file: str | None,
     candidate_sha: str | None,
     dataset_manifest_hash: str | None,
+    review_conservation_hash: str | None,
 ) -> dict[str, Any] | None:
     if "image" not in modality_scope:
         return None
@@ -32,12 +33,18 @@ def _multimodal_expected_bindings(
         raise SystemExit(
             "--dataset-manifest-hash is required for image release candidates"
         )
+    if not review_conservation_hash:
+        raise SystemExit(
+            "--multimodal-review-conservation-hash is required for image "
+            "release candidates"
+        )
     bindings = (
         _read_optional_json(Path(binding_file)) if binding_file else {}
     ) or {}
     required = {
         "candidate_sha": candidate_sha,
         "manifest_hash": dataset_manifest_hash,
+        "review_conservation_hash": review_conservation_hash,
     }
     for field, expected in required.items():
         configured = bindings.get(field)
@@ -77,6 +84,10 @@ def main() -> int:
         "--dataset-manifest-hash",
         help="Exact image calibration dataset manifest hash",
     )
+    parser.add_argument(
+        "--multimodal-review-conservation-hash",
+        help="Exact review-conservation receipt hash bound by image qualification",
+    )
     parser.add_argument("--check", action="store_true", help="Compare generated report with the output path.")
     parser.add_argument("--fail-on-block", action="store_true", help="Return the report exit_code when decision is block or warn.")
     args = parser.parse_args()
@@ -101,6 +112,7 @@ def main() -> int:
             binding_file=args.multimodal_expected_bindings,
             candidate_sha=args.candidate_sha,
             dataset_manifest_hash=args.dataset_manifest_hash,
+            review_conservation_hash=args.multimodal_review_conservation_hash,
         ),
     )
     text = json.dumps(report, indent=2) + "\n"

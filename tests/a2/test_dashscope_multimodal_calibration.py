@@ -31,6 +31,56 @@ from services.judge.result_persistence import stable_hash
 
 
 class DashScopeMultimodalCalibrationTests(unittest.TestCase):
+    def test_round50_required_perturbation_bucket_is_fail_closed_when_unobserved(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            artifact = Path(directory) / "safe.png"
+            Image.new("RGB", (1, 1), (20, 40, 60)).save(artifact)
+            result = build_calibration(
+                cases=[
+                    {
+                        "case_id": "safe",
+                        "taxonomy": "safe_control",
+                        "expected_risk": False,
+                        "artifact_path": artifact.relative_to(ROOT).as_posix(),
+                        "artifact_hash": sha256_ref(artifact.read_bytes()),
+                    }
+                ],
+                model_id="qwen-vl-plus",
+                endpoint_region="beijing",
+                invoke=lambda *_: {
+                    "model": "qwen-vl-plus",
+                    "choices": [
+                        {
+                            "message": {
+                                "content": json.dumps(
+                                    {
+                                        "risk_present": False,
+                                        "taxonomy_classes": [],
+                                        "summary": "safe",
+                                    }
+                                )
+                            }
+                        }
+                    ],
+                    "usage": {
+                        "prompt_tokens": 10,
+                        "completion_tokens": 2,
+                        "total_tokens": 12,
+                    },
+                },
+                minimum_safe_samples=1,
+                minimum_attack_samples=1,
+                required_perturbation_buckets=["rotation_degrees:2"],
+            )
+        self.assertIn(
+            "dashscope_required_perturbation_bucket_unobserved:rotation_degrees:2",
+            result["blockers"],
+        )
+        self.assertEqual(
+            result["sample_policy"]["required_perturbation_buckets"],
+            ["rotation_degrees:2"],
+        )
+
     def test_round48_pricing_policy_requires_exact_authoritative_binding_and_window(self):
         policy = ProviderPricingPolicy(
             provider_id="dashscope",
@@ -634,7 +684,19 @@ class DashScopeMultimodalCalibrationTests(unittest.TestCase):
             result["blockers"],
         )
         self.assertIn("final_attempt_latency_seconds", result["metrics"])
+        self.assertIn(
+            "provider_network_effective_latency_seconds", result["metrics"]
+        )
+        self.assertIn(
+            "structured_output_retry_latency_seconds", result["metrics"]
+        )
         self.assertIn("final_attempt_wall_seconds", result["observations"][0])
+        receipt = result["observations"][0]["latency_phase_receipt"]
+        self.assertIsNone(receipt["provider_network_exact_seconds"])
+        self.assertEqual(
+            receipt["provider_network_effective_source"],
+            "caller_wall_clock_includes_transport_remote_and_parse",
+        )
 
     def test_round39_invalid_response_retry_preserves_first_attempt_and_final_denominator(self):
         with tempfile.TemporaryDirectory(dir=ROOT) as directory:
@@ -687,6 +749,16 @@ class DashScopeMultimodalCalibrationTests(unittest.TestCase):
         self.assertEqual(result["metrics"]["eligible_count"], 1)
         self.assertEqual(result["metrics"]["retry_recovery_count"], 1)
         self.assertEqual(result["metrics"]["retry_recovery_rate"], 1.0)
+        receipt = observation["latency_phase_receipt"]
+        self.assertGreaterEqual(receipt["structured_output_retry_seconds"], 0)
+        self.assertEqual(
+            receipt["total_wall_seconds"],
+            receipt["provider_network_effective_seconds"],
+        )
+        self.assertEqual(
+            result["metrics"]["structured_output_retry_latency_seconds"]["count"],
+            1,
+        )
         self.assertIn(
             "dashscope_invalid_structured_output_observed", result["blockers"]
         )

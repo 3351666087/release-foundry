@@ -73,6 +73,15 @@
         },
         "shared_candidate_id": {
           "type": ["string", "null"]
+        },
+        "latest_multimodal_summary_hash": {
+          "$ref": "#/$defs/sha256Ref"
+        },
+        "review_conservation_hash": {
+          "$ref": "#/$defs/sha256Ref"
+        },
+        "shared_candidate_identity_contract_hash": {
+          "$ref": "#/$defs/sha256Ref"
         }
       }
     },
@@ -87,6 +96,12 @@
         },
         "git_sha": {
           "$ref": "#/$defs/gitSha"
+        },
+        "multimodal_review_queue_consumer_present": {
+          "type": "boolean"
+        },
+        "recomputes_a2_release_decision": {
+          "const": false
         }
       }
     },
@@ -116,6 +131,10 @@
     "gitSha": {
       "type": "string",
       "pattern": "^[a-f0-9]{40}$"
+    },
+    "sha256Ref": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
     }
   }
 }
