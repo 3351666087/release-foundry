@@ -37,6 +37,7 @@ const runtimeMarkers = {
   oauth: "buildAuthorizationEnvelope",
   "provider-adapter": "ModelProviderAdapter",
   "provider-dispatch": "ProviderDispatchClient",
+  "provider-evidence": "createProviderExecutionReceipt",
   "provider-request-journal": "ProviderRequestJournal",
   "provider-stream": "ProviderStreamLedger",
   "python-parity": "stable_id",

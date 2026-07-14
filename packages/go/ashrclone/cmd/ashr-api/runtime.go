@@ -23,6 +23,8 @@ const (
 	productionIdentityDeliveryVaultRequestTimeout   = 10 * time.Second
 )
 
+var openIdentityDatabase = sql.Open
+
 type identityRuntime struct {
 	mode                       string
 	unifiedIdentity            *ashrclone.UnifiedIdentityService
@@ -123,11 +125,6 @@ func newIdentityRuntimeFromEnv(ctx context.Context, lookup func(string) (string,
 			_ = closeResources()
 			return identityRuntime{}, err
 		}
-		identity, err := ashrclone.NewUnifiedIdentityService(ashrclone.UnifiedIdentityServiceOptions{})
-		if err != nil {
-			_ = closeResources()
-			return identityRuntime{}, fmt.Errorf("configure production unified identity service: %w", err)
-		}
 		receiptStore, err := store.NewIdentityLifecycleReceiptStore()
 		if err != nil {
 			_ = closeResources()
@@ -138,7 +135,7 @@ func newIdentityRuntimeFromEnv(ctx context.Context, lookup func(string) (string,
 			_ = closeResources()
 			return identityRuntime{}, fmt.Errorf("configure production identity lifecycle coordinator: %w", err)
 		}
-		lifecycle, err := ashrclone.NewIdentityLifecycleService(identity, ashrclone.IdentityLifecycleOptions{
+		lifecycle, err := ashrclone.NewIdentityLifecycleService(nil, ashrclone.IdentityLifecycleOptions{
 			ReceiptStore:  receiptStore,
 			Coordinator:   coordinator,
 			Environment:   environment,
@@ -160,7 +157,6 @@ func newIdentityRuntimeFromEnv(ctx context.Context, lookup func(string) (string,
 		}
 		runtime := identityRuntime{
 			mode:              mode,
-			unifiedIdentity:   identity,
 			identityLifecycle: lifecycle,
 			identitySessions:  store,
 			postgres:          store,
@@ -381,7 +377,7 @@ func openProductionIdentityStoreFromEnv(
 		return nil, err
 	}
 	defer lifecycle.clear()
-	db, err := sql.Open("postgres", dsn)
+	db, err := openIdentityDatabase("postgres", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open production identity postgres: invalid database configuration")
 	}

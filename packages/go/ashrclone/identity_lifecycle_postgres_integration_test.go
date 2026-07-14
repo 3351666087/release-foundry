@@ -180,15 +180,8 @@ RETURNING id::text
 		if err != nil {
 			t.Fatalf("bind email credential: %v", err)
 		}
-		mustExecArgs(t, instance.adminDB, `
-UPDATE identity_account_security SET
-  password_secret_ref='vault://identity/password/test',
-  password_fingerprint_digest=$2,
-  password_set_at=$3,
-  two_factor_status='enabled',
-  two_factor_enrolled_at=$3
-WHERE principal_id=$1::uuid
-`, account.AccountID, strings.Repeat("a", 64), h.now)
+		exerciseAuthoritativeSecurityLifecycle(t, instance, account.AccountID, h.now)
+		assertIdentityAccountSecurityRLS(t, h, instance, account.AccountID, h.now)
 
 		orgID := "10000000-0000-4000-8000-000000000001"
 		workspaceID := "10000000-0000-4000-8000-000000000002"
@@ -323,6 +316,16 @@ func newPostgresLifecycleHarness(t *testing.T, adminDSN string) *postgresLifecyc
 	if err := admin.PingContext(ctx); err != nil {
 		t.Fatalf("connect identity lifecycle PostgreSQL: %v", err)
 	}
+	if _, err := admin.ExecContext(ctx, `
+DO $$
+BEGIN
+  CREATE ROLE a1_runtime NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
+EXCEPTION
+  WHEN duplicate_object THEN NULL;
+END
+$$`); err != nil {
+		t.Fatalf("ensure migration runtime role: %v", err)
+	}
 	dbName := fmt.Sprintf("ashr_identity_lifecycle_%d", time.Now().UnixNano())
 	runtimeRole := fmt.Sprintf("a1_lifecycle_test_%d", time.Now().UnixNano())
 	runtimePassword := fmt.Sprintf("runtime-%d-test-only", time.Now().UnixNano())
@@ -355,6 +358,9 @@ func newPostgresLifecycleHarness(t *testing.T, adminDSN string) *postgresLifecyc
 		"a1_authenticate_identity_lifecycle_credential(TEXT,TEXT[],TIMESTAMPTZ)",
 		"a1_project_identity_lifecycle_account(UUID)",
 		"a1_issue_identity_session(UUID,UUID,TEXT,TEXT,TIMESTAMPTZ,UUID,UUID,TEXT,TEXT,JSONB)",
+		"a1_resolve_identity_security_mutation_ticket(TEXT,TEXT,TEXT,TIMESTAMPTZ)",
+		"a1_execute_identity_security_mutation(TEXT,TEXT,TEXT)",
+		"a1_project_account_security(UUID)",
 	} {
 		if _, err := db.Exec(`GRANT EXECUTE ON FUNCTION ` + signature + ` TO ` +
 			quotePostgresIdentifier(runtimeRole)); err != nil {
@@ -362,6 +368,11 @@ func newPostgresLifecycleHarness(t *testing.T, adminDSN string) *postgresLifecyc
 		}
 	}
 	runtimeDSN := replacePostgresCredentials(dsn, runtimeRole, runtimePassword)
+	runtimeDSN = replacePostgresPeerSocketHost(runtimeDSN)
+	var databaseNow time.Time
+	if err := db.QueryRowContext(ctx, `SELECT clock_timestamp()`).Scan(&databaseNow); err != nil {
+		t.Fatalf("read disposable database clock: %v", err)
+	}
 	t.Cleanup(func() {
 		_ = db.Close()
 		cleanup, openErr := sql.Open("postgres", adminDSN)
@@ -381,7 +392,7 @@ func newPostgresLifecycleHarness(t *testing.T, adminDSN string) *postgresLifecyc
 	return &postgresLifecycleHarness{
 		adminDSN: adminDSN, dbName: dbName, adminDB: db,
 		runtimeDSN: runtimeDSN, runtimeRole: runtimeRole,
-		now: time.Date(2026, 7, 12, 8, 0, 0, 0, time.UTC),
+		now: databaseNow.UTC(),
 	}
 }
 
@@ -409,6 +420,10 @@ func (h *postgresLifecycleHarness) newInstance(
 	if err != nil {
 		_ = db.Close()
 		t.Fatal(err)
+	}
+	if err := store.Ready(context.Background()); err != nil {
+		_ = store.Close()
+		t.Fatalf("production identity readiness: %v", err)
 	}
 	receiptStore, err := store.NewIdentityLifecycleReceiptStore()
 	if err != nil {
@@ -457,7 +472,7 @@ func applyIdentityLifecycleMigrations(t *testing.T, db *sql.DB) {
 	applied := 0
 	for _, path := range entries {
 		base := filepath.Base(path)
-		if len(base) < 3 || base[:3] < "001" || base[:3] > "017" {
+		if len(base) < 3 || base[:3] < "001" || base[:3] > "018" {
 			continue
 		}
 		sqlBytes, err := os.ReadFile(path)
@@ -469,8 +484,8 @@ func applyIdentityLifecycleMigrations(t *testing.T, db *sql.DB) {
 		}
 		applied++
 	}
-	if applied != 17 {
-		t.Fatalf("expected migrations 001-017, applied %d from %s", applied, migrationsDir)
+	if applied != 18 {
+		t.Fatalf("expected migrations 001-018, applied %d from %s", applied, migrationsDir)
 	}
 }
 
@@ -494,6 +509,19 @@ func replacePostgresCredentials(dsn, username, password string) string {
 		return dsn
 	}
 	parsed.User = url.UserPassword(username, password)
+	return parsed.String()
+}
+
+func replacePostgresPeerSocketHost(dsn string) string {
+	parsed, err := url.Parse(dsn)
+	if err != nil || parsed.Scheme == "" {
+		return dsn
+	}
+	query := parsed.Query()
+	if strings.HasPrefix(query.Get("host"), "/") {
+		query.Set("host", "127.0.0.1")
+		parsed.RawQuery = query.Encode()
+	}
 	return parsed.String()
 }
 
@@ -548,5 +576,225 @@ func assertPublicIdentityJSON(t *testing.T, value any) {
 		if strings.Contains(lower, forbidden) {
 			t.Fatalf("public identity DTO leaked %q: %s", forbidden, encoded)
 		}
+	}
+}
+
+func exerciseAuthoritativeSecurityLifecycle(
+	t *testing.T,
+	instance *postgresLifecycleInstance,
+	principalID string,
+	now time.Time,
+) {
+	t.Helper()
+	issueTicket := func(
+		operation string,
+		label string,
+		secretRef any,
+		secretDigest any,
+		recoveryBatchDigest any,
+		recoveryCodeCount any,
+	) IdentitySecurityMutationTicket {
+		t.Helper()
+		receiptDigest := instance.receipts.receiptDigest("security-receipt:" + label)
+		contextDigest := instance.receipts.receiptDigest("security-context:" + label)
+		ticketDigest := instance.receipts.receiptDigest("security-ticket:" + label)
+		mustExecArgs(t, instance.adminDB, `
+INSERT INTO identity_security_receipts(
+  receipt_digest,principal_id,purpose,context_digest,expires_at
+) VALUES ($1,$2::uuid,$3,$4,$5)
+`, receiptDigest, principalID, operation, contextDigest, now.Add(10*time.Minute))
+		var issued bool
+		if err := instance.adminDB.QueryRow(`
+SELECT a1_issue_identity_security_mutation_ticket(
+  $1,$2,$3::uuid,$3::uuid,$4,$5,$6,$7,$8,$9,$10
+)
+`, ticketDigest, receiptDigest, principalID, operation, contextDigest,
+			secretRef, secretDigest, recoveryBatchDigest, recoveryCodeCount,
+			now.Add(5*time.Minute)).Scan(&issued); err != nil {
+			t.Fatalf("issue %s security mutation ticket: %v", operation, err)
+		}
+		if !issued {
+			t.Fatalf("issue %s security mutation ticket returned false", operation)
+		}
+		ticket, err := instance.store.ResolveIdentitySecurityMutationTicket(
+			context.Background(), ticketDigest, receiptDigest, operation,
+		)
+		if err != nil {
+			t.Fatalf("resolve %s security mutation ticket: %v", operation, err)
+		}
+		return ticket
+	}
+
+	mutate := func(
+		operation string,
+		idempotencyKey string,
+		ticket IdentitySecurityMutationTicket,
+	) IdentitySecurityHTTPMutationResultDTO {
+		t.Helper()
+		mutation := IdentitySecurityMutation{
+			AccountID: principalID, ActorID: principalID, SessionID: "integration-session",
+			Operation: operation, IdempotencyKey: idempotencyKey, Ticket: ticket,
+		}
+		result, err := instance.store.MutateIdentitySecurity(context.Background(), mutation)
+		if err != nil {
+			t.Fatalf("execute %s security mutation: %v", operation, err)
+		}
+		replay, err := instance.store.MutateIdentitySecurity(context.Background(), mutation)
+		if err != nil {
+			t.Fatalf("replay %s security mutation: %v", operation, err)
+		}
+		if replay != result {
+			t.Fatalf("%s replay changed result: first=%#v replay=%#v", operation, result, replay)
+		}
+		conflict := mutation
+		conflict.SessionID = "different-integration-session"
+		if _, err := instance.store.MutateIdentitySecurity(context.Background(), conflict); !errors.Is(err, ErrIdentitySecurityRejected) {
+			t.Fatalf("%s idempotency binding conflict returned %v", operation, err)
+		}
+		return result
+	}
+
+	passwordTicket := issueTicket(
+		"password_enroll",
+		"password-enroll",
+		"vault://identity/password/integration",
+		strings.Repeat("a", 64),
+		nil,
+		nil,
+	)
+	passwordResult := mutate(
+		"password_enroll",
+		"password-enroll",
+		passwordTicket,
+	)
+	if passwordResult.PasswordStatus != "set" || !passwordResult.ReauthenticationRequired {
+		t.Fatalf("password lifecycle returned %#v", passwordResult)
+	}
+
+	enrollTicket := issueTicket(
+		"mfa_enroll",
+		"totp-enroll",
+		"vault://identity/totp/integration",
+		strings.Repeat("b", 64),
+		nil,
+		nil,
+	)
+	enrollResult := mutate(
+		"mfa_enroll",
+		"totp-enroll",
+		enrollTicket,
+	)
+	if enrollResult.TwoFactorStatus != "pending" || !enrollResult.ConfirmationRequired {
+		t.Fatalf("TOTP enrollment returned %#v", enrollResult)
+	}
+
+	confirmTicket := issueTicket(
+		"mfa_confirm",
+		"totp-confirm",
+		nil,
+		nil,
+		strings.Repeat("c", 64),
+		10,
+	)
+	confirmResult := mutate(
+		"mfa_confirm",
+		"totp-confirm",
+		confirmTicket,
+	)
+	if confirmResult.TwoFactorStatus != "enabled" ||
+		confirmResult.RecoveryCodesRemaining != 10 ||
+		!confirmResult.ReauthenticationRequired {
+		t.Fatalf("TOTP confirmation returned %#v", confirmResult)
+	}
+
+	/*
+		The production boundary deliberately receives only the public ticket
+		projection. Secret refs, secret digests, context digests, and recovery
+		material above are supplied only to PostgreSQL's trusted issuance
+		authority and never re-enter the Go mutation path.
+	*/
+	_, err := instance.store.MutateIdentitySecurity(
+		context.Background(),
+		IdentitySecurityMutation{
+			AccountID: principalID, ActorID: principalID, SessionID: "integration-session",
+			Operation: "password_enroll", IdempotencyKey: "unissued-ticket",
+			Ticket: IdentitySecurityMutationTicket{
+				TicketID: strings.Repeat("d", 64), AccountID: principalID,
+				Operation: "password_enroll", ReceiptDigest: strings.Repeat("e", 64),
+				ExpiresAt: now.Add(5 * time.Minute),
+			},
+		},
+	)
+	if !errors.Is(err, ErrIdentitySecurityRejected) {
+		t.Fatalf("unissued security mutation ticket returned %v", err)
+	}
+
+	posture, err := instance.store.GetIdentitySecurityPosture(context.Background(), principalID)
+	if err != nil {
+		t.Fatalf("project identity security posture through production store: %v", err)
+	}
+	if posture.PasswordStatus != "set" || posture.TwoFactorStatus != "enabled" ||
+		!posture.TwoFactorOptional || !posture.TwoFactorRecommended ||
+		posture.RecoveryCodesRemaining != 10 || posture.SecurityVersion < 3 {
+		t.Fatalf("production identity security posture returned %#v", posture)
+	}
+
+	var consumedReceipts, revokedSessions int
+	if err := instance.adminDB.QueryRow(`
+SELECT
+  (SELECT count(*) FROM identity_security_receipts
+    WHERE principal_id=$1::uuid AND consumed_at IS NOT NULL),
+  (SELECT count(*) FROM identity_sessions
+    WHERE principal_id=$1::uuid AND status='revoked')
+`, principalID).Scan(&consumedReceipts, &revokedSessions); err != nil {
+		t.Fatalf("inspect security lifecycle effects: %v", err)
+	}
+	if consumedReceipts != 3 || revokedSessions < 1 {
+		t.Fatalf("security lifecycle effects receipts=%d revoked_sessions=%d", consumedReceipts, revokedSessions)
+	}
+}
+
+func assertIdentityAccountSecurityRLS(
+	t *testing.T,
+	harness *postgresLifecycleHarness,
+	instance *postgresLifecycleInstance,
+	principalID string,
+	now time.Time,
+) {
+	t.Helper()
+	otherPrincipalID := "20000000-0000-4000-8000-000000000001"
+	mustExecArgs(t, instance.adminDB, `
+INSERT INTO identity_principals(id,status,display_label)
+VALUES ($1::uuid,'active','RLS Isolation Fixture')
+`, otherPrincipalID)
+	mustExecArgs(t, instance.adminDB, `
+INSERT INTO identity_account_security(principal_id,updated_at)
+VALUES ($1::uuid,$2)
+`, otherPrincipalID, now)
+	mustExec(t, instance.adminDB,
+		`GRANT SELECT ON identity_account_security TO `+quotePostgresIdentifier(harness.runtimeRole))
+
+	conn, err := instance.db.Conn(context.Background())
+	if err != nil {
+		t.Fatalf("open RLS runtime connection: %v", err)
+	}
+	defer conn.Close()
+	tx, err := conn.BeginTx(context.Background(), nil)
+	if err != nil {
+		t.Fatalf("begin RLS runtime transaction: %v", err)
+	}
+	defer tx.Rollback()
+	if _, err := tx.Exec(`SELECT set_config('app.a1_principal_id',$1,TRUE)`, principalID); err != nil {
+		t.Fatalf("set RLS principal context: %v", err)
+	}
+	var visibleRows, foreignRows int
+	if err := tx.QueryRow(`
+SELECT count(*), count(*) FILTER (WHERE principal_id=$1::uuid)
+FROM identity_account_security
+`, otherPrincipalID).Scan(&visibleRows, &foreignRows); err != nil {
+		t.Fatalf("query account security through RLS runtime role: %v", err)
+	}
+	if visibleRows != 1 || foreignRows != 0 {
+		t.Fatalf("RLS exposed visible=%d foreign=%d account security rows", visibleRows, foreignRows)
 	}
 }

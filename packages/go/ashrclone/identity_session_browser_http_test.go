@@ -89,6 +89,7 @@ func TestBrowserLoginCookieRefreshAndProtectedRouteLifecycle(t *testing.T) {
 		account:       account,
 	}
 	handler := NewHTTPServerWithOptions(backend, HTTPServerOptions{
+		UnifiedIdentityStore:            backend,
 		IdentitySessions:                store,
 		IdentityVerification:            verification,
 		IdentitySessionReceiptTransport: transport,

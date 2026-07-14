@@ -246,6 +246,43 @@ func (durableReceiptStoreStub) Consume(context.Context, CompleteIdentityLifecycl
 }
 func (durableReceiptStoreStub) ProductionDurable() bool { return true }
 
+type coordinatorOnlyIdentityLifecycleStub struct{}
+
+func (coordinatorOnlyIdentityLifecycleStub) CompleteRegistration(
+	context.Context,
+	CompleteIdentityLifecycleRequest,
+	time.Time,
+) (IdentityAccountDTO, error) {
+	return IdentityAccountDTO{}, nil
+}
+
+func (coordinatorOnlyIdentityLifecycleStub) CompleteLogin(
+	context.Context,
+	CompleteIdentityLifecycleRequest,
+	time.Time,
+) (IdentityAuthenticationDTO, error) {
+	return IdentityAuthenticationDTO{}, nil
+}
+
+func TestIdentityLifecycleAllowsAtomicCoordinatorWithoutMemoryIdentity(t *testing.T) {
+	service, err := NewIdentityLifecycleService(nil, IdentityLifecycleOptions{
+		Coordinator: coordinatorOnlyIdentityLifecycleStub{},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if service.identity != nil || service.coord == nil {
+		t.Fatalf("coordinator-only lifecycle was not configured: %#v", service)
+	}
+}
+
+func TestIdentityLifecycleRejectsMissingIdentityAndCoordinator(t *testing.T) {
+	if _, err := NewIdentityLifecycleService(nil, IdentityLifecycleOptions{}); err == nil ||
+		!strings.Contains(err.Error(), "transaction coordinator") {
+		t.Fatalf("missing identity authority did not fail closed: %v", err)
+	}
+}
+
 func TestIdentityLifecycleRejectsDurableReceiptWithoutAtomicCoordinator(t *testing.T) {
 	identity, err := NewUnifiedIdentityService(UnifiedIdentityServiceOptions{
 		FingerprintKey: []byte("01234567890123456789012345678901"),

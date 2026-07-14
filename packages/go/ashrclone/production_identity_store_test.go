@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -46,6 +47,217 @@ func TestProductionIdentityStoreRequiresDBAndStrongSessionKey(t *testing.T) {
 		DB: db, SessionKey: key, SessionKeyVersion: "v2", LegacySessionKeyVersion: "v1",
 	}); err == nil {
 		t.Fatal("expected missing legacy key version to fail")
+	}
+}
+
+func TestProductionIdentityStoreProjectsCanonicalAccount(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	store, err := NewProductionIdentityStore(ProductionIdentityStoreOptions{
+		DB: db, SessionKey: bytes.Repeat([]byte{0x61}, 32),
+		SQLTimeout: time.Second, StatementTimeout: 800 * time.Millisecond, LockTimeout: 200 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 7, 12, 9, 0, 0, 0, time.UTC)
+	projection := identityLifecycleAccountProjection{
+		PrincipalID: "33333333-3333-4333-8333-333333333333",
+		DisplayName: "Canonical PostgreSQL Account",
+		Status:      "active",
+		CreatedAt:   now,
+		UpdatedAt:   now,
+		Credentials: []identityLifecycleCredentialProjection{{
+			CredentialID: "44444444-4444-4444-8444-444444444444",
+			Provider:     string(IdentityProviderLocal), CredentialKind: string(IdentityCredentialEmail),
+			Verified: true, CanLogin: true, LinkedAt: now,
+		}},
+		Memberships: []identityLifecycleMembershipProjection{{
+			MembershipID: "55555555-5555-4555-8555-555555555555",
+			TenantID:     "66666666-6666-4666-8666-666666666666",
+			ProjectID:    "77777777-7777-4777-8777-777777777777",
+			Role:         "owner", CreatedAt: now, UpdatedAt: now,
+		}},
+	}
+	raw, err := json.Marshal(projection)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mock.ExpectBegin()
+	mock.ExpectExec("SELECT set_config").WithArgs("800ms", "200ms").
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery("SELECT a1_project_identity_lifecycle_account").
+		WithArgs(projection.PrincipalID).
+		WillReturnRows(sqlmock.NewRows([]string{"account"}).AddRow(string(raw)))
+	mock.ExpectCommit()
+
+	account, err := store.GetIdentityAccount(context.Background(), projection.PrincipalID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if account.AccountID != projection.PrincipalID || account.DisplayName != projection.DisplayName ||
+		account.CredentialCount != 1 || account.MembershipCount != 1 {
+		t.Fatalf("unexpected canonical account projection: %#v", account)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestProductionIdentityStoreAccountProjectionFailsClosed(t *testing.T) {
+	const accountID = "33333333-3333-4333-8333-333333333333"
+	for name, testCase := range map[string]struct {
+		value any
+		err   error
+	}{
+		"null":           {value: nil, err: ErrIdentityAccountNotFound},
+		"malformed_json": {value: "{", err: nil},
+	} {
+		t.Run(name, func(t *testing.T) {
+			db, mock, err := sqlmock.New()
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer db.Close()
+			store, err := NewProductionIdentityStore(ProductionIdentityStoreOptions{
+				DB: db, SessionKey: bytes.Repeat([]byte{0x62}, 32),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			mock.ExpectBegin()
+			mock.ExpectExec("SELECT set_config").
+				WithArgs("5000ms", "2000ms").
+				WillReturnResult(sqlmock.NewResult(0, 1))
+			mock.ExpectQuery("SELECT a1_project_identity_lifecycle_account").
+				WithArgs(accountID).
+				WillReturnRows(sqlmock.NewRows([]string{"account"}).AddRow(testCase.value))
+			mock.ExpectRollback()
+			_, got := store.GetIdentityAccount(context.Background(), accountID)
+			if testCase.err != nil {
+				if !errors.Is(got, testCase.err) {
+					t.Fatalf("expected %v, got %v", testCase.err, got)
+				}
+			} else if got == nil || strings.Contains(got.Error(), string(testCase.value.(string))) {
+				t.Fatalf("malformed projection did not fail safely: %v", got)
+			}
+			if err := mock.ExpectationsWereMet(); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestProductionIdentityStoreRejectsInvalidAccountIDBeforeQuery(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	store, err := NewProductionIdentityStore(ProductionIdentityStoreOptions{
+		DB: db, SessionKey: bytes.Repeat([]byte{0x63}, 32),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.GetIdentityAccount(context.Background(), "not-a-uuid"); !errors.Is(err, ErrIdentityAccountNotFound) {
+		t.Fatalf("invalid UUID returned %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestProductionIdentityStoreAccountProjectionDatabaseFailures(t *testing.T) {
+	const accountID = "33333333-3333-4333-8333-333333333333"
+	databaseFailure := errors.New("database unavailable")
+	tests := []struct {
+		name   string
+		expect func(sqlmock.Sqlmock)
+	}{
+		{
+			name: "begin",
+			expect: func(mock sqlmock.Sqlmock) {
+				mock.ExpectBegin().WillReturnError(databaseFailure)
+			},
+		},
+		{
+			name: "timeout configuration",
+			expect: func(mock sqlmock.Sqlmock) {
+				mock.ExpectBegin()
+				mock.ExpectExec("SELECT set_config").
+					WithArgs("5000ms", "2000ms").
+					WillReturnError(databaseFailure)
+				mock.ExpectRollback()
+			},
+		},
+		{
+			name: "projection query",
+			expect: func(mock sqlmock.Sqlmock) {
+				mock.ExpectBegin()
+				mock.ExpectExec("SELECT set_config").
+					WithArgs("5000ms", "2000ms").
+					WillReturnResult(sqlmock.NewResult(0, 1))
+				mock.ExpectQuery("SELECT a1_project_identity_lifecycle_account").
+					WithArgs(accountID).
+					WillReturnError(databaseFailure)
+				mock.ExpectRollback()
+			},
+		},
+		{
+			name: "commit",
+			expect: func(mock sqlmock.Sqlmock) {
+				projection := identityLifecycleAccountProjection{
+					PrincipalID: accountID,
+					DisplayName: "Canonical PostgreSQL Account",
+					Status:      "active",
+					CreatedAt:   time.Date(2026, 7, 12, 9, 0, 0, 0, time.UTC),
+					UpdatedAt:   time.Date(2026, 7, 12, 9, 0, 0, 0, time.UTC),
+				}
+				raw, err := json.Marshal(projection)
+				if err != nil {
+					t.Fatal(err)
+				}
+				mock.ExpectBegin()
+				mock.ExpectExec("SELECT set_config").
+					WithArgs("5000ms", "2000ms").
+					WillReturnResult(sqlmock.NewResult(0, 1))
+				mock.ExpectQuery("SELECT a1_project_identity_lifecycle_account").
+					WithArgs(accountID).
+					WillReturnRows(sqlmock.NewRows([]string{"account"}).AddRow(string(raw)))
+				mock.ExpectCommit().WillReturnError(databaseFailure)
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			db, mock, err := sqlmock.New()
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer db.Close()
+			store, err := NewProductionIdentityStore(ProductionIdentityStoreOptions{
+				DB: db, SessionKey: bytes.Repeat([]byte{0x64}, 32),
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			test.expect(mock)
+			_, got := store.GetIdentityAccount(context.Background(), accountID)
+			if got == nil || errors.Is(got, ErrIdentityAccountNotFound) ||
+				errors.Is(got, ErrIdentityStoreUnavailable) {
+				t.Fatalf("database failure was not preserved: %v", got)
+			}
+			if !errors.Is(got, databaseFailure) {
+				t.Fatalf("database failure cause was lost: %v", got)
+			}
+			if err := mock.ExpectationsWereMet(); err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }
 
@@ -324,6 +536,40 @@ func TestProductionIdentityReadinessRequiresSessionAndDeliveryReplacementContrac
 	} {
 		if strings.Contains(productionIdentityReadinessQuery, revoked) {
 			t.Fatalf("readiness still depends on revoked runtime entrypoint %s", revoked)
+		}
+	}
+}
+
+func TestProductionIdentityReadinessEnforcesSecurityAuthorityLeastPrivilege(t *testing.T) {
+	for _, required := range []string{
+		"NOT has_function_privilege",
+		"a1_issue_identity_security_mutation_ticket",
+		"a1_consume_identity_security_receipt",
+		"a1_mutate_account_password",
+		"a1_begin_totp_enrollment",
+		"a1_confirm_totp_enrollment",
+		"a1_set_account_two_factor",
+		"NOT has_table_privilege",
+		"NOT has_any_column_privilege",
+		"identity_account_security",
+		"NOT has_schema_privilege(current_user, 'public', 'CREATE')",
+		"NOT has_schema_privilege('public', 'public', 'CREATE')",
+		"NOT r.rolsuper",
+		"NOT r.rolbypassrls",
+		"has_function_privilege('public', function_oid, 'EXECUTE')",
+		"p.policyname = p.tablename || '_self'",
+		"p.roles = ARRAY['public'::name]",
+		"relrowsecurity",
+		"relforcerowsecurity",
+		"p.prosecdef",
+		"pg_get_userbyid(p.proowner) <> current_user",
+		"NOT pg_catalog.pg_has_role(current_user, p.proowner, 'MEMBER')",
+		"search_path=pg_catalog,public,pg_temp",
+		"timestamp with time zone,timestamp with time zone)'",
+		"a1_execute_identity_security_mutation(text,text,text,timestamp with time zone)'",
+	} {
+		if !strings.Contains(productionIdentityReadinessQuery, required) {
+			t.Fatalf("security readiness omitted %s", required)
 		}
 	}
 }

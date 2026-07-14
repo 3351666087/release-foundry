@@ -111,8 +111,8 @@ type IdentityLifecycleService struct {
 }
 
 func NewIdentityLifecycleService(identity *UnifiedIdentityService, options IdentityLifecycleOptions) (*IdentityLifecycleService, error) {
-	if identity == nil {
-		return nil, fmt.Errorf("unified identity service is required")
+	if identity == nil && options.Coordinator == nil {
+		return nil, fmt.Errorf("unified identity service or transaction coordinator is required")
 	}
 	if options.Now == nil {
 		options.Now = time.Now

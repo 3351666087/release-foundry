@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"database/sql"
 	"encoding/pem"
 	"fmt"
 	"math/big"
@@ -19,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/ashr-labs/ashr/packages/go/ashrclone"
 )
 
@@ -33,6 +35,63 @@ func TestIdentityRuntimeDefaultsToPostgresAndFailsClosedWithoutDSN(t *testing.T)
 	_, err := newIdentityRuntimeFromEnv(context.Background(), lookup(map[string]string{}))
 	if err == nil || !strings.Contains(err.Error(), "ASHR_POSTGRES_DSN") {
 		t.Fatalf("expected missing postgres DSN error, got %v", err)
+	}
+}
+
+func TestProductionIdentityRuntimeUsesPostgresAsSoleIdentityAuthority(t *testing.T) {
+	db, mock, err := sqlmock.New(sqlmock.MonitorPingsOption(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	originalOpen := openIdentityDatabase
+	openIdentityDatabase = func(driverName, dataSourceName string) (*sql.DB, error) {
+		if driverName != "postgres" || dataSourceName != "postgres://production-authority.invalid/ashr" {
+			t.Fatalf("unexpected production database open: driver=%q dsn=%q", driverName, dataSourceName)
+		}
+		return db, nil
+	}
+	t.Cleanup(func() {
+		openIdentityDatabase = originalOpen
+	})
+	mock.ExpectPing()
+	mock.ExpectQuery("SELECT to_regclass").WillReturnRows(
+		sqlmock.NewRows([]string{"ready"}).AddRow(true),
+	)
+	runtime, err := newIdentityRuntimeFromEnv(context.Background(), lookup(map[string]string{
+		"ASHR_POSTGRES_DSN":                              "postgres://production-authority.invalid/ashr",
+		"ASHR_IDENTITY_SESSION_HMAC_ACTIVE_VERSION":      "v1",
+		"ASHR_IDENTITY_SESSION_HMAC_KEY":                 strings.Repeat("S", 40),
+		"ASHR_IDENTITY_SESSION_HMAC_LEGACY_VERSION":      "v1",
+		"ASHR_IDENTITY_LIFECYCLE_RECEIPT_ACTIVE_VERSION": "v1",
+		"ASHR_IDENTITY_LIFECYCLE_RECEIPT_KEY":            strings.Repeat("L", 40),
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer runtime.close()
+	if runtime.mode != ashrclone.IdentityRuntimePostgres ||
+		runtime.unifiedIdentity != nil ||
+		runtime.postgres == nil ||
+		runtime.identityLifecycle == nil ||
+		runtime.identitySessions == nil {
+		t.Fatalf(
+			"production identity authority shape is invalid: mode=%q memory=%v postgres=%v lifecycle=%v sessions=%v",
+			runtime.mode,
+			runtime.unifiedIdentity != nil,
+			runtime.postgres != nil,
+			runtime.identityLifecycle != nil,
+			runtime.identitySessions != nil,
+		)
+	}
+	options := identityHTTPServerOptions(runtime, runtime.identitySessions)
+	if options.IdentitySecurity != runtime.postgres ||
+		options.IdentitySecurityTickets != runtime.postgres ||
+		options.UnifiedIdentityStore != runtime.postgres ||
+		options.IdentitySessions != runtime.identitySessions {
+		t.Fatalf("production HTTP identity authority was not wired from PostgreSQL: %#v", options)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -56,6 +115,11 @@ func TestIdentityRuntimeMemoryRequiresExplicitDevelopmentOptIn(t *testing.T) {
 	}
 	if runtime.mode != ashrclone.IdentityRuntimeMemory || runtime.unifiedIdentity == nil {
 		t.Fatalf("unexpected memory runtime: %#v", runtime)
+	}
+	options := identityHTTPServerOptions(runtime, nil)
+	if options.IdentitySecurity != nil || options.IdentitySecurityTickets != nil ||
+		options.UnifiedIdentityStore != nil {
+		t.Fatalf("development memory runtime silently acquired a production security backend: %#v", options)
 	}
 }
 

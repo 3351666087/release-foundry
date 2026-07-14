@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"sort"
 	"strconv"
@@ -16,6 +17,7 @@ type HTTPServer struct {
 	paymentReconciliation              *PaymentReconciliationService
 	paymentDomain                      *PaymentDomainService
 	unifiedIdentity                    *UnifiedIdentityService
+	unifiedIdentityStore               UnifiedIdentityHTTPStore
 	identityLifecycle                  *IdentityLifecycleService
 	identitySessions                   IdentityHTTPSessionResolver
 	identitySecurityTickets            IdentitySecurityTicketResolver
@@ -69,6 +71,7 @@ type HTTPServerOptions struct {
 	PaymentReconciliation              *PaymentReconciliationService
 	PaymentDomain                      *PaymentDomainService
 	UnifiedIdentity                    *UnifiedIdentityService
+	UnifiedIdentityStore               UnifiedIdentityHTTPStore
 	IdentityLifecycle                  *IdentityLifecycleService
 	IdentitySessions                   IdentityHTTPSessionResolver
 	IdentitySecurityTickets            IdentitySecurityTicketResolver
@@ -106,6 +109,7 @@ func NewHTTPServerWithOptions(service ControlPlaneBackend, options HTTPServerOpt
 		paymentReconciliation:              options.PaymentReconciliation,
 		paymentDomain:                      options.PaymentDomain,
 		unifiedIdentity:                    options.UnifiedIdentity,
+		unifiedIdentityStore:               options.UnifiedIdentityStore,
 		identityLifecycle:                  options.IdentityLifecycle,
 		identitySessions:                   options.IdentitySessions,
 		identitySecurityTickets:            options.IdentitySecurityTickets,
@@ -1208,6 +1212,11 @@ func decodeJSONBody(writer http.ResponseWriter, request *http.Request) (JSONMap,
 	decoder.UseNumber()
 	if err := decoder.Decode(&body); err != nil {
 		writeError(writer, http.StatusBadRequest, "invalid_json", "request body must be a JSON object")
+		return nil, false
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		writeError(writer, http.StatusBadRequest, "invalid_json", "request body must contain exactly one JSON object")
 		return nil, false
 	}
 	return body, true

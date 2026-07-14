@@ -8,6 +8,8 @@ import (
 	"database/sql"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -50,6 +52,10 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
    AND to_regclass('public.identity_verification_delivery_redrive_audit') IS NOT NULL
    AND to_regclass('public.identity_lifecycle_receipts') IS NOT NULL
    AND to_regclass('public.identity_lifecycle_receipt_audit') IS NOT NULL
+   AND to_regclass('public.identity_account_security') IS NOT NULL
+   AND to_regclass('public.identity_security_receipts') IS NOT NULL
+   AND to_regclass('public.identity_security_mutation_tickets') IS NOT NULL
+   AND to_regclass('public.identity_security_mutation_idempotency') IS NOT NULL
    AND to_regprocedure(
      'public.a1_complete_oauth_identity_callback(uuid,uuid,uuid,text,text,text,text,text,text,text,text,text,text,text,jsonb)'
    ) IS NOT NULL
@@ -110,6 +116,254 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
    AND to_regprocedure(
      'public.a1_redrive_identity_delivery_outbox(uuid,uuid,uuid,bigint,text,text,text,timestamp with time zone)'
    ) IS NOT NULL
+   AND to_regprocedure(
+     'public.a1_project_identity_lifecycle_account(uuid)'
+   ) IS NOT NULL
+   AND to_regprocedure(
+     'public.a1_mutate_account_password(uuid,text,text,text,text,text,uuid,timestamp with time zone)'
+   ) IS NOT NULL
+   AND to_regprocedure(
+     'public.a1_begin_totp_enrollment(uuid,text,text,text,text,uuid,timestamp with time zone)'
+   ) IS NOT NULL
+   AND to_regprocedure(
+     'public.a1_confirm_totp_enrollment(uuid,text,text,text,integer,timestamp with time zone)'
+   ) IS NOT NULL
+   AND to_regprocedure(
+     'public.a1_project_account_security(uuid)'
+   ) IS NOT NULL
+   AND to_regprocedure(
+     'public.a1_issue_identity_security_mutation_ticket(text,text,uuid,uuid,text,text,text,text,text,integer,timestamp with time zone)'
+   ) IS NOT NULL
+   AND to_regprocedure(
+     'public.a1_resolve_identity_security_mutation_ticket(text,text,text,timestamp with time zone)'
+   ) IS NOT NULL
+   AND to_regprocedure(
+     'public.a1_execute_identity_security_mutation(text,text,text)'
+   ) IS NOT NULL
+   AND to_regprocedure(
+     'public.a1_issue_identity_security_mutation_ticket(text,text,uuid,uuid,text,text,text,text,text,integer,timestamp with time zone,timestamp with time zone)'
+   ) IS NULL
+   AND to_regprocedure(
+     'public.a1_execute_identity_security_mutation(text,text,text,timestamp with time zone)'
+   ) IS NULL
+   AND has_schema_privilege(current_user, 'public', 'USAGE')
+   AND NOT has_schema_privilege(current_user, 'public', 'CREATE')
+   AND NOT has_schema_privilege('public', 'public', 'CREATE')
+   AND (
+     SELECT NOT r.rolsuper AND NOT r.rolbypassrls
+       FROM pg_catalog.pg_roles r
+      WHERE r.rolname = current_user
+   )
+   AND NOT has_function_privilege(
+     current_user,
+     'public.a1_issue_identity_security_mutation_ticket(text,text,uuid,uuid,text,text,text,text,text,integer,timestamp with time zone)',
+     'EXECUTE'
+   )
+   AND has_function_privilege(
+     current_user,
+     'public.a1_resolve_identity_security_mutation_ticket(text,text,text,timestamp with time zone)',
+     'EXECUTE'
+   )
+   AND has_function_privilege(
+     current_user,
+     'public.a1_execute_identity_security_mutation(text,text,text)',
+     'EXECUTE'
+   )
+   AND has_function_privilege(
+     current_user,
+     'public.a1_project_account_security(uuid)',
+     'EXECUTE'
+   )
+   AND NOT has_function_privilege(
+     current_user,
+     'public.a1_consume_identity_security_receipt(text,uuid,text,text,timestamp with time zone)',
+     'EXECUTE'
+   )
+   AND NOT has_function_privilege(
+     current_user,
+     'public.a1_mutate_account_password(uuid,text,text,text,text,text,uuid,timestamp with time zone)',
+     'EXECUTE'
+   )
+   AND NOT has_function_privilege(
+     current_user,
+     'public.a1_begin_totp_enrollment(uuid,text,text,text,text,uuid,timestamp with time zone)',
+     'EXECUTE'
+   )
+   AND NOT has_function_privilege(
+     current_user,
+     'public.a1_confirm_totp_enrollment(uuid,text,text,text,integer,timestamp with time zone)',
+     'EXECUTE'
+   )
+   AND NOT has_function_privilege(
+     current_user,
+     'public.a1_set_account_two_factor(uuid,boolean,uuid,timestamp with time zone,boolean)',
+     'EXECUTE'
+   )
+   AND NOT has_table_privilege(
+     current_user,
+     'public.identity_account_security',
+     'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+   )
+   AND NOT has_table_privilege(
+     current_user,
+     'public.identity_security_receipts',
+     'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+   )
+   AND NOT has_table_privilege(
+     current_user,
+     'public.identity_security_mutation_tickets',
+     'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+   )
+   AND NOT has_table_privilege(
+     current_user,
+     'public.identity_security_mutation_idempotency',
+     'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+   )
+   AND NOT has_any_column_privilege(
+     current_user,
+     'public.identity_account_security',
+     'SELECT,INSERT,UPDATE,REFERENCES'
+   )
+   AND NOT has_any_column_privilege(
+     current_user,
+     'public.identity_security_receipts',
+     'SELECT,INSERT,UPDATE,REFERENCES'
+   )
+   AND NOT has_any_column_privilege(
+     current_user,
+     'public.identity_security_mutation_tickets',
+     'SELECT,INSERT,UPDATE,REFERENCES'
+   )
+   AND NOT has_any_column_privilege(
+     current_user,
+     'public.identity_security_mutation_idempotency',
+     'SELECT,INSERT,UPDATE,REFERENCES'
+   )
+   AND NOT has_table_privilege(
+     'public',
+     'public.identity_account_security',
+     'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+   )
+   AND NOT has_table_privilege(
+     'public',
+     'public.identity_security_receipts',
+     'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+   )
+   AND NOT has_table_privilege(
+     'public',
+     'public.identity_security_mutation_tickets',
+     'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+   )
+   AND NOT has_table_privilege(
+     'public',
+     'public.identity_security_mutation_idempotency',
+     'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+   )
+   AND NOT has_any_column_privilege(
+     'public',
+     'public.identity_account_security',
+     'SELECT,INSERT,UPDATE,REFERENCES'
+   )
+   AND NOT has_any_column_privilege(
+     'public',
+     'public.identity_security_receipts',
+     'SELECT,INSERT,UPDATE,REFERENCES'
+   )
+   AND NOT has_any_column_privilege(
+     'public',
+     'public.identity_security_mutation_tickets',
+     'SELECT,INSERT,UPDATE,REFERENCES'
+   )
+   AND NOT has_any_column_privilege(
+     'public',
+     'public.identity_security_mutation_idempotency',
+     'SELECT,INSERT,UPDATE,REFERENCES'
+   )
+   AND NOT EXISTS (
+     SELECT 1
+       FROM unnest(ARRAY[
+         to_regprocedure(
+           'public.a1_consume_identity_security_receipt(text,uuid,text,text,timestamp with time zone)'
+         ),
+         to_regprocedure(
+           'public.a1_mutate_account_password(uuid,text,text,text,text,text,uuid,timestamp with time zone)'
+         ),
+         to_regprocedure(
+           'public.a1_begin_totp_enrollment(uuid,text,text,text,text,uuid,timestamp with time zone)'
+         ),
+         to_regprocedure(
+           'public.a1_confirm_totp_enrollment(uuid,text,text,text,integer,timestamp with time zone)'
+         ),
+         to_regprocedure(
+           'public.a1_set_account_two_factor(uuid,boolean,uuid,timestamp with time zone,boolean)'
+         ),
+         to_regprocedure(
+           'public.a1_issue_identity_security_mutation_ticket(text,text,uuid,uuid,text,text,text,text,text,integer,timestamp with time zone)'
+         ),
+         to_regprocedure(
+           'public.a1_resolve_identity_security_mutation_ticket(text,text,text,timestamp with time zone)'
+         ),
+         to_regprocedure(
+           'public.a1_execute_identity_security_mutation(text,text,text)'
+         ),
+         to_regprocedure('public.a1_project_account_security(uuid)')
+       ]) function_oid
+      WHERE function_oid IS NULL
+         OR has_function_privilege('public', function_oid, 'EXECUTE')
+   )
+   AND (
+     SELECT count(*) = 3
+       FROM pg_catalog.pg_class c
+       JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+      WHERE n.nspname = 'public'
+        AND c.relname IN (
+          'identity_security_receipts',
+          'identity_security_mutation_tickets',
+          'identity_security_mutation_idempotency'
+        )
+        AND c.relrowsecurity
+        AND c.relforcerowsecurity
+   )
+   AND (
+     SELECT count(*) = 3
+        AND count(*) FILTER (
+          WHERE p.policyname = p.tablename || '_self'
+            AND p.permissive = 'PERMISSIVE'
+            AND p.roles = ARRAY['public'::name]
+        ) = 3
+       FROM pg_catalog.pg_policies p
+      WHERE p.schemaname = 'public'
+        AND p.tablename IN (
+          'identity_security_receipts',
+          'identity_security_mutation_tickets',
+          'identity_security_mutation_idempotency'
+        )
+   )
+   AND (
+     SELECT count(*) = 4
+       FROM pg_catalog.pg_proc p
+      WHERE p.oid IN (
+        to_regprocedure(
+          'public.a1_issue_identity_security_mutation_ticket(text,text,uuid,uuid,text,text,text,text,text,integer,timestamp with time zone)'
+        ),
+        to_regprocedure(
+          'public.a1_resolve_identity_security_mutation_ticket(text,text,text,timestamp with time zone)'
+        ),
+        to_regprocedure(
+          'public.a1_execute_identity_security_mutation(text,text,text)'
+        ),
+        to_regprocedure('public.a1_project_account_security(uuid)')
+        )
+        AND p.prosecdef
+        AND pg_catalog.pg_get_userbyid(p.proowner) <> current_user
+        AND NOT pg_catalog.pg_has_role(current_user, p.proowner, 'MEMBER')
+        AND EXISTS (
+          SELECT 1
+            FROM unnest(COALESCE(p.proconfig, ARRAY[]::text[])) setting
+           WHERE regexp_replace(setting, '\s', '', 'g') =
+             'search_path=pg_catalog,public,pg_temp'
+        )
+   )
 `
 
 type ProductionIdentityStore struct {
@@ -165,6 +419,71 @@ type IdentitySessionKeyringReadiness struct {
 	LegacyVersion string                         `json:"legacy_version"`
 	Ready         bool                           `json:"ready"`
 	PreviousKeys  []IdentitySessionKeyRetirement `json:"previous_keys"`
+}
+
+// GetIdentityAccount projects the canonical PostgreSQL identity account.
+// Authentication and URL ownership checks happen at the HTTP boundary; this
+// method never falls back to process-local identity state.
+func (store *ProductionIdentityStore) GetIdentityAccount(
+	ctx context.Context,
+	accountID string,
+) (IdentityAccountDTO, error) {
+	if store == nil || store.db == nil {
+		return IdentityAccountDTO{}, ErrIdentityStoreUnavailable
+	}
+	accountID = strings.TrimSpace(accountID)
+	if !validPostgresIdentityVerificationUUID(accountID) {
+		return IdentityAccountDTO{}, ErrIdentityAccountNotFound
+	}
+	queryCtx, cancel := context.WithTimeout(ctx, store.sqlTimeout)
+	defer cancel()
+	tx, err := store.db.BeginTx(queryCtx, &sql.TxOptions{
+		Isolation: sql.LevelReadCommitted,
+		ReadOnly:  true,
+	})
+	if err != nil {
+		return IdentityAccountDTO{}, fmt.Errorf("begin identity account projection: %w", err)
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+	if _, err = tx.ExecContext(queryCtx, `
+SELECT set_config('statement_timeout', $1, true),
+       set_config('lock_timeout', $2, true)
+`, fmt.Sprintf("%dms", store.statementTimeout.Milliseconds()),
+		fmt.Sprintf("%dms", store.lockTimeout.Milliseconds())); err != nil {
+		return IdentityAccountDTO{}, fmt.Errorf("configure identity account projection: %w", err)
+	}
+	var raw sql.NullString
+	if err = tx.QueryRowContext(queryCtx, `
+SELECT a1_project_identity_lifecycle_account($1::uuid)
+`, accountID).Scan(&raw); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return IdentityAccountDTO{}, ErrIdentityAccountNotFound
+		}
+		return IdentityAccountDTO{}, fmt.Errorf("project identity account: %w", err)
+	}
+	if !raw.Valid || strings.TrimSpace(raw.String) == "" {
+		return IdentityAccountDTO{}, ErrIdentityAccountNotFound
+	}
+	var projection identityLifecycleAccountProjection
+	if err = json.Unmarshal([]byte(raw.String), &projection); err != nil {
+		return IdentityAccountDTO{}, fmt.Errorf("decode identity account projection: %w", err)
+	}
+	account := projection.toDTO()
+	if strings.TrimSpace(account.AccountID) == "" {
+		return IdentityAccountDTO{}, ErrIdentityAccountNotFound
+	}
+	if err = tx.Commit(); err != nil {
+		return IdentityAccountDTO{}, fmt.Errorf("commit identity account projection: %w", err)
+	}
+	committed = true
+	account.CredentialCount = len(account.Credentials)
+	account.MembershipCount = len(account.Memberships)
+	return account, nil
 }
 
 type identitySessionTokenMaterial struct {
@@ -644,7 +963,7 @@ func (store *ProductionIdentityStore) Ready(ctx context.Context) error {
 		return fmt.Errorf("verify production identity schema: %w", err)
 	}
 	if !ready {
-		return fmt.Errorf("production identity PostgreSQL schema is incomplete; migrations 007-015 are required")
+		return fmt.Errorf("production identity PostgreSQL schema is incomplete; migration 018 identity security authority and runtime grants are required")
 	}
 	return nil
 }
@@ -1067,6 +1386,7 @@ func (store *ProductionIdentityStore) ResolveGitHubOAuthSession(
 }
 
 var (
+	_ UnifiedIdentityHTTPStore     = (*ProductionIdentityStore)(nil)
 	_ IdentityHTTPSessionResolver  = (*ProductionIdentityStore)(nil)
 	_ IdentityHTTPSessionRefresher = (*ProductionIdentityStore)(nil)
 	_ OAuthSessionResolver         = (*ProductionIdentityStore)(nil)
