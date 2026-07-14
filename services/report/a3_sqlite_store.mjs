@@ -66,6 +66,12 @@ export async function createSqliteA3Store(options = {}) {
       return result;
     },
 
+    async importA2MultimodalProviderReadiness(readinessEvidence, options = {}) {
+      const result = await store.importA2MultimodalProviderReadiness(readinessEvidence, options);
+      await persist();
+      return result;
+    },
+
     async mutateMultimodalReviewAssignment(queueId, input, options = {}) {
       const result = await store.mutateMultimodalReviewAssignment(queueId, input, options);
       await persist();

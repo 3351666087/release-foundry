@@ -355,6 +355,30 @@ export function createA3ApiHandler(options = {}) {
         return sendJson(response, 201, receipt);
       }
 
+      if (request.method === "POST" && url.pathname === "/api/a3/import/a2-multimodal-provider-readiness") {
+        const body = await readJsonBody(request);
+        const authz = authorizeRequest(request, url, "import_a2_multimodal_provider_readiness", body);
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
+        const receipt = await store.importA2MultimodalProviderReadiness(
+          body.provider_readiness_evidence || body.multimodal_provider_readiness || body,
+          scopedStoreOptions(url, {
+            source: body.source || url.searchParams.get("source") || "api-ingest",
+            sourceLabel: body.source_label || body.sourceLabel,
+            organizationId: body.organization_id,
+            tenantId: body.tenant_id,
+            workspaceId: body.workspace_id,
+            projectId: body.project_id,
+            environmentId: body.environment_id,
+            actorHash: authz.actor_hash,
+            importedAt: serverNow(options),
+            idempotencyKey: request.headers["idempotency-key"]
+          })
+        );
+        return sendJson(response, 201, receipt);
+      }
+
       if (request.method === "GET" && url.pathname === "/api/a3/dashboard") {
         const security = dashboardSecurityContext(request, url, options);
         return sendJson(response, 200, await store.getDashboardSnapshot(sourceFrom(url), security));
@@ -751,6 +775,21 @@ export function createA3ApiHandler(options = {}) {
           return sendJson(response, 403, forbiddenPayload(authz));
         }
         return sendJson(response, 200, await store.getMultimodalRepeatStability(scopedStoreOptions(url, {
+          source: sourceFrom(url),
+          organizationId: url.searchParams.get("organization_id") || undefined,
+          tenantId: url.searchParams.get("tenant_id") || undefined,
+          workspaceId: url.searchParams.get("workspace_id") || undefined,
+          projectId: url.searchParams.get("project_id") || undefined,
+          environmentId: url.searchParams.get("environment_id") || undefined
+        })));
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/a3/providers/multimodal-readiness") {
+        const authz = authorizeRequest(request, url, "read_multimodal_provider_readiness");
+        if (!authz.allowed) {
+          return sendJson(response, 403, forbiddenPayload(authz));
+        }
+        return sendJson(response, 200, await store.getMultimodalProviderReadiness(scopedStoreOptions(url, {
           source: sourceFrom(url),
           organizationId: url.searchParams.get("organization_id") || undefined,
           tenantId: url.searchParams.get("tenant_id") || undefined,

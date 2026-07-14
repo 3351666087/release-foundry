@@ -98,6 +98,7 @@ export function buildShareableReportPayload(inputs = {}, options = {}) {
     release_evidence_summary: jsonReport.release_evidence_summary,
     multimodal_review_queue: jsonReport.multimodal_review_queue,
     multimodal_repeat_stability: jsonReport.multimodal_repeat_stability,
+    multimodal_provider_readiness: jsonReport.multimodal_provider_readiness,
     cases: jsonReport.cases,
     markdown_report: markdownReport
   }, { surface: "shareable_report" });
@@ -157,6 +158,7 @@ export function buildShareableReportPayload(inputs = {}, options = {}) {
     release_gate: safeEnvelope.value.release_gate,
     multimodal_review_queue: safeEnvelope.value.multimodal_review_queue,
     multimodal_repeat_stability: safeEnvelope.value.multimodal_repeat_stability,
+    multimodal_provider_readiness: safeEnvelope.value.multimodal_provider_readiness,
     markdown_report: safeEnvelope.value.markdown_report,
     report_center: {
       json_available: true,
@@ -200,6 +202,9 @@ export function renderShareableReportHtml(report = {}) {
   const multimodalReviewQueue = report.multimodal_review_queue || payload.multimodal_review_queue || {};
   const multimodalRepeatStability = report.multimodal_repeat_stability
     || payload.multimodal_repeat_stability
+    || {};
+  const multimodalProviderReadiness = report.multimodal_provider_readiness
+    || payload.multimodal_provider_readiness
     || {};
   const cases = Array.isArray(payload.cases) ? payload.cases.slice(0, 12) : [];
   const status = report.status || "unknown";
@@ -263,6 +268,8 @@ export function renderShareableReportHtml(report = {}) {
     ${renderReleaseEvidenceHtml(releaseEvidence)}
 
     ${renderMultimodalRepeatStabilityHtml(multimodalRepeatStability)}
+
+    ${renderMultimodalProviderReadinessHtml(multimodalProviderReadiness)}
 
     ${renderMultimodalEvidenceRequestsHtml(multimodalReviewQueue)}
 
@@ -447,6 +454,47 @@ function renderMultimodalRepeatStabilityHtml(stability = {}) {
         <tbody>${metricRows}</tbody>
       </table>` : ""}
       <p class="muted">Human review: ${escapeHtml(humanReview.collection_state || "unknown")} / pending queue ${escapeHtml(humanReview.pending_queue_receipt_count || 0)}. Shared candidate verified: ${candidate.verified ? "yes" : "no"}. Release authority: no.</p>
+    </section>`;
+}
+
+function renderMultimodalProviderReadinessHtml(readiness = {}) {
+  if (readiness.available !== true) return "";
+  const summary = readiness.summary || {};
+  const latency = readiness.latency_diagnostic || {};
+  const providers = Array.isArray(readiness.providers) ? readiness.providers : [];
+  const profiles = Array.isArray(latency.profiles) ? latency.profiles : [];
+  return `<section class="card" style="margin-top: 20px;">
+      <h2>Multimodal Provider Readiness</h2>
+      <p class="blocked">${escapeHtml(readiness.interpretation || "Provider diagnostics are blocked.")}</p>
+      <p class="muted">This is evaluation availability evidence, not production routing, capacity, operational health, quality comparison, or release authority.</p>
+      <div class="grid" aria-label="Provider readiness metrics">
+        ${metric("Attempts", summary.attempted_count || 0)}
+        ${metric("Completed", summary.completed_count || 0)}
+        ${metric("Timeouts", summary.timeout_case_count || 0)}
+        ${metric("Eligible", summary.eligible_count || 0)}
+      </div>
+      ${providers.length ? `<table>
+        <thead><tr><th>Model</th><th>Qualification</th><th>Completed</th><th>Timeout</th><th>Eligible</th><th>P95</th></tr></thead>
+        <tbody>${providers.map((provider) => `<tr>
+          <td>${escapeHtml(provider.model_id || "model")}</td>
+          <td>${escapeHtml(provider.qualification_state || "unknown")}</td>
+          <td>${escapeHtml(`${provider.completed_count || 0}/${provider.attempted_count || 0}`)}</td>
+          <td>${escapeHtml(provider.timeout_case_count || 0)}</td>
+          <td>${escapeHtml(provider.eligible_count || 0)}</td>
+          <td>${escapeHtml(provider.latency_seconds?.p95_nearest_rank ?? "unavailable")}s</td>
+        </tr>`).join("")}</tbody>
+      </table>` : ""}
+      ${profiles.length ? `<table style="margin-top: 12px;">
+        <thead><tr><th>Profile</th><th>State</th><th>Parse</th><th>Wall time</th><th>Diagnosis</th></tr></thead>
+        <tbody>${profiles.map((profile) => `<tr>
+          <td>${escapeHtml(profile.profile || "profile")}</td>
+          <td>${escapeHtml(profile.state || "unknown")}</td>
+          <td>${escapeHtml(profile.parse_state || "unknown")}</td>
+          <td>${escapeHtml(profile.phase_seconds?.caller_wall_seconds ?? "unavailable")}s</td>
+          <td>${escapeHtml(profile.error_class || "none")}</td>
+        </tr>`).join("")}</tbody>
+      </table>` : ""}
+      <p class="muted">Cold wall ${escapeHtml(latency.cold_wall_seconds ?? "unavailable")}s; fastest warm wall ${escapeHtml(latency.fastest_warm_wall_seconds ?? "unavailable")}s. Valid structured profiles ${escapeHtml(summary.valid_structured_profile_count || 0)}/${escapeHtml(summary.profile_count || 0)}. Release authority: no.</p>
     </section>`;
 }
 

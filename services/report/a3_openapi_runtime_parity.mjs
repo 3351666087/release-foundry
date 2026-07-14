@@ -88,6 +88,7 @@ export function synchronizeA3OpenApiRuntimeParity(spec = {}) {
   }
   synchronizeDeploymentReceiptOperations(next);
   synchronizeMultimodalReviewOperations(next);
+  synchronizeMultimodalProviderReadinessOperations(next);
   synchronizeSelfHostSandboxOperation(next);
   return next;
 }
@@ -129,13 +130,15 @@ function synchronizeDeliveryHandoffSchemas(schemas) {
       "deployment_handoff",
       "deployment_receipt_inbox",
       "deployment_acceptance_projection",
-      "multimodal_repeat_stability"
+      "multimodal_repeat_stability",
+      "multimodal_provider_readiness"
     ]);
     dashboard.properties ||= {};
     dashboard.properties.deployment_handoff = { $ref: "#/components/schemas/DeploymentHandoff" };
     dashboard.properties.deployment_receipt_inbox = { $ref: "#/components/schemas/DeploymentReceiptInbox" };
     dashboard.properties.deployment_acceptance_projection = { $ref: "#/components/schemas/DeploymentAcceptanceProjection" };
     dashboard.properties.multimodal_repeat_stability = { $ref: "#/components/schemas/MultimodalRepeatStability" };
+    dashboard.properties.multimodal_provider_readiness = { $ref: "#/components/schemas/MultimodalProviderReadiness" };
   }
 
   const comparison = schemas.ReleaseComparison;
@@ -184,6 +187,10 @@ function synchronizeDeliveryHandoffSchemas(schemas) {
   schemas.MultimodalRepeatStabilityImportRequest = multimodalRepeatStabilityImportRequestSchema();
   schemas.MultimodalRepeatStabilityIngestReceipt = multimodalRepeatStabilityIngestReceiptSchema();
   schemas.MultimodalRepeatStability = multimodalRepeatStabilitySchema();
+  schemas.A2MultimodalProviderReadinessEnvelope = a2MultimodalProviderReadinessEnvelopeSchema();
+  schemas.MultimodalProviderReadinessImportRequest = multimodalProviderReadinessImportRequestSchema();
+  schemas.MultimodalProviderReadinessIngestReceipt = multimodalProviderReadinessIngestReceiptSchema();
+  schemas.MultimodalProviderReadiness = multimodalProviderReadinessSchema();
   schemas.MultimodalReviewAssignmentRequest = multimodalReviewAssignmentRequestSchema();
   schemas.MultimodalReviewAssignmentReceipt = multimodalReviewAssignmentReceiptSchema();
   schemas.MultimodalReviewOperationalState = multimodalReviewOperationalStateSchema();
@@ -1157,6 +1164,66 @@ function synchronizeMultimodalReviewOperations(spec) {
   }
 }
 
+function synchronizeMultimodalProviderReadinessOperations(spec) {
+  const importOperation = spec.paths?.["/api/a3/import/a2-multimodal-provider-readiness"]?.post;
+  const readOperation = spec.paths?.["/api/a3/providers/multimodal-readiness"]?.get;
+  const authorityBoundary = {
+    production_routing_capacity_and_operational_health_authority: "A1",
+    evaluation_and_qualification_authority: "A2",
+    display_export_and_workflow_owner: "A3",
+    installed_model_is_operationally_ready: false,
+    faster_warm_latency_is_quality_pass: false,
+    provider_is_truth: false,
+    quality_comparison_performed: false,
+    release_authority: false,
+    a2_decision_recomputed: false,
+    production_ready: false
+  };
+  const evidenceBoundary = {
+    atomic_availability_and_latency_envelope_required: true,
+    hashes_counts_states_reason_codes_and_phase_timings_only: true,
+    raw_provider_payload_forbidden: true,
+    raw_response_forbidden: true,
+    endpoint_url_forbidden: true,
+    credentials_forbidden: true,
+    private_media_forbidden: true
+  };
+
+  if (importOperation) {
+    importOperation.operationId = "a3ImportA2MultimodalProviderReadiness";
+    importOperation.summary = "Import public-safe A2 provider availability and phase-latency diagnostics atomically.";
+    importOperation.tags = ["Review", "Evidence", "Operations"];
+    importOperation["x-schema-version"] = "a3.a2_multimodal_provider_readiness_ingest.v1";
+    importOperation.parameters = withIdempotencyHeader(importOperation.parameters);
+    importOperation.requestBody = typedJsonRequest("MultimodalProviderReadinessImportRequest");
+    delete importOperation.responses["202"];
+    importOperation.responses["201"] = typedJsonResponse(
+      "Provider readiness diagnostic accepted without promoting health, quality, or release authority.",
+      "MultimodalProviderReadinessIngestReceipt"
+    );
+    importOperation.responses["409"] = typedJsonResponse("Idempotency conflict.", "DeploymentReceiptConflict");
+    importOperation["x-audit"] = {
+      events: ["a2.multimodal_provider_readiness_imported"],
+      payload_policy: "hashes_counts_states_reason_codes_and_phase_timings_only"
+    };
+    importOperation["x-evidence-boundary"] = evidenceBoundary;
+    importOperation["x-authority-boundary"] = authorityBoundary;
+  }
+
+  if (readOperation) {
+    readOperation.operationId = "a3ReadMultimodalProviderReadiness";
+    readOperation.summary = "Read tenant-scoped multimodal provider readiness diagnostics.";
+    readOperation.tags = ["Review", "Evidence", "Operations"];
+    readOperation["x-schema-version"] = "a3.multimodal_provider_readiness.v1";
+    readOperation.responses["200"] = typedJsonResponse(
+      "Public-safe availability and phase-latency projection without production-health or release authority.",
+      "MultimodalProviderReadiness"
+    );
+    readOperation["x-evidence-boundary"] = evidenceBoundary;
+    readOperation["x-authority-boundary"] = authorityBoundary;
+  }
+}
+
 function configureEvidenceRequestMutation(operation, options) {
   operation.operationId = options.operationId;
   operation.summary = options.summary;
@@ -1191,6 +1258,431 @@ function configureEvidenceRequestMutation(operation, options) {
     free_text_forbidden: true
   };
   operation["x-authority-boundary"] = multimodalEvidenceRequestAuthorityBoundary();
+}
+
+function a2MultimodalProviderReadinessEnvelopeSchema() {
+  const availabilityCountFields = [
+    "attempted_count", "completed_count", "eligible_count", "failed_count", "timeout_case_count"
+  ];
+  const phaseFields = [
+    "image_read_and_base64_seconds", "caller_wall_seconds", "provider_total_seconds",
+    "model_load_seconds", "prompt_eval_seconds", "token_eval_seconds",
+    "transport_and_client_residual_seconds"
+  ];
+  const latencySummary = {
+    type: "object",
+    required: ["count", "median", "p95_nearest_rank", "maximum"],
+    properties: {
+      count: { type: "integer", minimum: 0 },
+      median: { type: ["number", "null"], minimum: 0 },
+      p95_nearest_rank: { type: ["number", "null"], minimum: 0 },
+      maximum: { type: ["number", "null"], minimum: 0 }
+    },
+    additionalProperties: false
+  };
+  const provider = {
+    type: "object",
+    required: [
+      "artifact_hash", ...availabilityCountFields, "latency_seconds", "qualification_state"
+    ],
+    properties: {
+      artifact_hash: sha256Schema(),
+      ...Object.fromEntries(availabilityCountFields.map((field) => [field, { type: "integer", minimum: 0 }])),
+      latency_seconds: latencySummary,
+      qualification_state: {
+        type: "string",
+        enum: ["qualified", "blocked", "diagnostic_only", "unavailable"]
+      }
+    },
+    additionalProperties: false
+  };
+  const phaseReceipt = {
+    type: "object",
+    required: phaseFields,
+    properties: Object.fromEntries(phaseFields.map((field) => [field, { type: "number", minimum: 0 }])),
+    additionalProperties: false
+  };
+  const profile = {
+    type: "object",
+    required: [
+      "profile", "num_predict", "format_mode", "state", "parse_state", "error_class",
+      "phase_receipt", "response_hash", "raw_response_included", "release_authority", "public_safe"
+    ],
+    properties: {
+      profile: safeProviderIdentifierSchema(),
+      num_predict: { type: "integer", minimum: 1, maximum: 4096 },
+      format_mode: { type: "string", enum: ["plain", "json_schema"] },
+      state: { type: "string", enum: ["completed", "failed"] },
+      parse_state: { type: "string", enum: ["valid_json", "invalid_structured_output", "unavailable"] },
+      error_class: { type: "string", pattern: "^(?:|[A-Za-z0-9][A-Za-z0-9._:-]{0,159})$" },
+      phase_receipt: phaseReceipt,
+      response_hash: { anyOf: [sha256Schema(), { type: "null" }] },
+      raw_response_included: { type: "boolean", const: false },
+      release_authority: { type: "boolean", const: false },
+      public_safe: { type: "boolean", const: true }
+    },
+    additionalProperties: false
+  };
+
+  return {
+    type: "object",
+    required: [
+      "schema_version", "source_commit_alias", "availability_comparison", "latency_probe",
+      "release_authority", "public_safe", "raw_provider_payload_included"
+    ],
+    properties: {
+      schema_version: { type: "string", const: "a3.a2_multimodal_provider_readiness_intake.v1" },
+      source_commit_alias: { type: "string", pattern: "^[a-f0-9]{7,40}$" },
+      availability_comparison: {
+        type: "object",
+        required: [
+          "schema_version", "same_case_set", "case_set_hash", "providers", "blockers",
+          "comparison_state", "quality_comparison_performed", "provider_is_truth",
+          "release_authority", "raw_provider_text_included", "public_safe"
+        ],
+        properties: {
+          schema_version: { type: "string", const: "a2.local_multimodal_availability_comparison.v1" },
+          same_case_set: { type: "boolean" },
+          case_set_hash: { anyOf: [sha256Schema(), { type: "null" }] },
+          providers: {
+            type: "object",
+            minProperties: 2,
+            maxProperties: 20,
+            propertyNames: safeProviderIdentifierSchema(),
+            additionalProperties: provider
+          },
+          blockers: providerReasonCodeArraySchema(true),
+          comparison_state: { type: "string", enum: ["complete", "blocked"] },
+          quality_comparison_performed: { type: "boolean", const: false },
+          provider_is_truth: { type: "boolean", const: false },
+          release_authority: { type: "boolean", const: false },
+          raw_provider_text_included: { type: "boolean", const: false },
+          public_safe: { type: "boolean", const: true }
+        },
+        additionalProperties: false
+      },
+      latency_probe: {
+        type: "object",
+        required: [
+          "schema_version", "generated_at", "provider_id", "base_url_class", "model_id",
+          "model_digest", "artifact_hash", "prompt_hash", "output_schema_hash", "unload_state",
+          "timeout_seconds", "profiles", "diagnosis", "completed_profile_count",
+          "qualification_state", "provider_is_truth", "secret_included", "release_authority", "public_safe"
+        ],
+        properties: {
+          schema_version: { type: "string", const: "a2.ollama_multimodal_latency_probe.v1" },
+          generated_at: { type: "string", format: "date-time" },
+          provider_id: { type: "string", const: "ollama-local" },
+          base_url_class: { type: "string", const: "loopback" },
+          model_id: safeProviderIdentifierSchema(),
+          model_digest: sha256Schema(),
+          artifact_hash: sha256Schema(),
+          prompt_hash: sha256Schema(),
+          output_schema_hash: sha256Schema(),
+          unload_state: { type: "string", enum: ["requested", "unconfirmed"] },
+          timeout_seconds: { type: "number", exclusiveMinimum: 0 },
+          profiles: { type: "array", minItems: 4, maxItems: 4, items: profile },
+          diagnosis: providerReasonCodeArraySchema(false),
+          completed_profile_count: { type: "integer", minimum: 0, maximum: 4 },
+          qualification_state: { type: "string", enum: ["diagnostic_only", "blocked"] },
+          provider_is_truth: { type: "boolean", const: false },
+          secret_included: { type: "boolean", const: false },
+          release_authority: { type: "boolean", const: false },
+          public_safe: { type: "boolean", const: true }
+        },
+        additionalProperties: false
+      },
+      release_authority: { type: "boolean", const: false },
+      public_safe: { type: "boolean", const: true },
+      raw_provider_payload_included: { type: "boolean", const: false }
+    },
+    additionalProperties: false,
+    description: "Atomic public-safe A2 availability and phase-latency evidence. Installation and warm latency do not prove health, quality, or release readiness."
+  };
+}
+
+function multimodalProviderReadinessImportRequestSchema() {
+  const scopeProperties = Object.fromEntries(TENANT_SCOPE_CONTRACT.required.map((field) => [field, {
+    type: "string", minLength: 1, maxLength: 160
+  }]));
+  return {
+    type: "object",
+    required: ["source", "provider_readiness_evidence"],
+    properties: {
+      source: { type: "string", minLength: 1, maxLength: 160 },
+      source_label: { type: "string", minLength: 1, maxLength: 160 },
+      sourceLabel: { type: "string", minLength: 1, maxLength: 160 },
+      ...scopeProperties,
+      imported_at: { type: "string", deprecated: true, description: "Ignored. The server assigns imported_at from its own clock." },
+      idempotency_key: { type: "string", deprecated: true, description: "Ignored. Use the required Idempotency-Key header." },
+      idempotencyKey: { type: "string", deprecated: true, description: "Ignored. Use the required Idempotency-Key header." },
+      provider_readiness_evidence: { $ref: "#/components/schemas/A2MultimodalProviderReadinessEnvelope" }
+    },
+    additionalProperties: false,
+    description: "Header-only idempotency; availability and latency evidence are accepted atomically under a server-verified five-level tenant scope."
+  };
+}
+
+function multimodalProviderReadinessIngestReceiptSchema() {
+  const countFields = [
+    "provider_count", "attempted_count", "completed_count", "failed_count", "timeout_case_count",
+    "eligible_count", "completed_profile_count", "valid_structured_profile_count"
+  ];
+  return {
+    type: "object",
+    required: [
+      "schema_version", "source", ...TENANT_SCOPE_CONTRACT.required, "storage_mode", "db_ready",
+      "payload_hash", ...countFields, "upstream_release_authority", "quality_comparison_performed",
+      "operational_health_verified", "a2_decision_recomputed", "release_decision_changed",
+      "imported_at", "idempotency"
+    ],
+    properties: {
+      schema_version: { type: "string", const: "a3.a2_multimodal_provider_readiness_ingest.v1" },
+      source: { type: "string" },
+      ...Object.fromEntries(TENANT_SCOPE_CONTRACT.required.map((field) => [field, { type: "string" }])),
+      storage_mode: { type: "string" },
+      db_ready: { type: "boolean" },
+      payload_hash: { type: "string", pattern: "^[a-f0-9]{64}$" },
+      ...Object.fromEntries(countFields.map((field) => [field, { type: "integer", minimum: 0 }])),
+      upstream_release_authority: { type: "boolean", const: false },
+      quality_comparison_performed: { type: "boolean", const: false },
+      operational_health_verified: { type: "boolean", const: false },
+      a2_decision_recomputed: { type: "boolean", const: false },
+      release_decision_changed: { type: "boolean", const: false },
+      imported_at: { type: "string", format: "date-time" },
+      idempotency: {
+        type: "object",
+        required: ["key_present", "duplicate", "status"],
+        properties: {
+          key_present: { type: "boolean", const: true },
+          duplicate: { type: "boolean" },
+          status: { type: "string", enum: ["recorded", "replayed"] }
+        },
+        additionalProperties: false
+      },
+      event_envelope: { type: "object", additionalProperties: true }
+    },
+    additionalProperties: false
+  };
+}
+
+function multimodalProviderReadinessSchema() {
+  const summaryCountFields = [
+    "provider_count", "attempted_count", "completed_count", "failed_count", "timeout_case_count",
+    "eligible_count", "qualified_provider_count", "blocked_provider_count", "profile_count",
+    "completed_profile_count", "valid_structured_profile_count"
+  ];
+  const phaseFields = [
+    "image_read_and_base64_seconds", "caller_wall_seconds", "provider_total_seconds",
+    "model_load_seconds", "prompt_eval_seconds", "token_eval_seconds",
+    "transport_and_client_residual_seconds"
+  ];
+  const ratioSchema = { type: ["number", "null"], minimum: 0, maximum: 1 };
+  const providerProjection = {
+    type: "object",
+    required: [
+      "model_id", "artifact_hash", "qualification_state", "attempted_count", "completed_count",
+      "failed_count", "timeout_case_count", "eligible_count", "completion_rate", "timeout_rate",
+      "eligible_rate", "latency_seconds"
+    ],
+    properties: {
+      model_id: safeProviderIdentifierSchema(),
+      artifact_hash: sha256Schema(),
+      qualification_state: { type: "string", enum: ["qualified", "blocked", "diagnostic_only", "unavailable"] },
+      attempted_count: { type: "integer", minimum: 0 },
+      completed_count: { type: "integer", minimum: 0 },
+      failed_count: { type: "integer", minimum: 0 },
+      timeout_case_count: { type: "integer", minimum: 0 },
+      eligible_count: { type: "integer", minimum: 0 },
+      completion_rate: ratioSchema,
+      timeout_rate: ratioSchema,
+      eligible_rate: ratioSchema,
+      latency_seconds: {
+        type: "object",
+        required: ["count", "median", "p95_nearest_rank", "maximum"],
+        properties: {
+          count: { type: "integer", minimum: 0 },
+          median: { type: ["number", "null"], minimum: 0 },
+          p95_nearest_rank: { type: ["number", "null"], minimum: 0 },
+          maximum: { type: ["number", "null"], minimum: 0 }
+        },
+        additionalProperties: false
+      }
+    },
+    additionalProperties: false
+  };
+  const profileProjection = {
+    type: "object",
+    required: ["profile", "state", "parse_state", "error_class", "format_mode", "num_predict", "response_hash", "phase_seconds"],
+    properties: {
+      profile: safeProviderIdentifierSchema(),
+      state: { type: "string", enum: ["completed", "failed"] },
+      parse_state: { type: "string", enum: ["valid_json", "invalid_structured_output", "unavailable"] },
+      error_class: { type: "string" },
+      format_mode: { type: "string", enum: ["plain", "json_schema"] },
+      num_predict: { type: "integer", minimum: 1, maximum: 4096 },
+      response_hash: { anyOf: [sha256Schema(), { type: "null" }] },
+      phase_seconds: {
+        type: "object",
+        required: phaseFields,
+        properties: Object.fromEntries(phaseFields.map((field) => [field, { type: "number", minimum: 0 }])),
+        additionalProperties: false
+      }
+    },
+    additionalProperties: false
+  };
+  return {
+    type: "object",
+    required: [
+      "schema_version", "source", "source_commit_alias", "source_contracts", "tenant_scope",
+      "release_authority", "a2_decision_recomputed", "production_ready", "available", "status",
+      "integrity", "authority_boundary", "safety", "recommendation_code"
+    ],
+    properties: {
+      schema_version: { type: "string", const: "a3.multimodal_provider_readiness.v1" },
+      source: { type: "string" },
+      source_commit_alias: { type: ["string", "null"], pattern: "^[a-f0-9]{7,40}$" },
+      source_contracts: { type: "array", minItems: 2, maxItems: 2, items: { type: "string" } },
+      tenant_scope: multimodalTenantScopeSchema(),
+      release_authority: { type: "boolean", const: false },
+      a2_decision_recomputed: { type: "boolean", const: false },
+      production_ready: { type: "boolean", const: false },
+      available: { type: "boolean" },
+      status: { type: "string", enum: ["invalid_upstream_contract", "blocked_provider_readiness", "diagnostic_ready_non_authoritative"] },
+      capability_state: { type: "string" },
+      integrity: {
+        type: "object",
+        required: ["status", "finding_count", "findings"],
+        properties: {
+          status: { type: "string", enum: ["passed", "failed"] },
+          finding_count: { type: "integer", minimum: 0 },
+          findings: {
+            type: "array",
+            items: {
+              type: "object",
+              required: ["field", "issue"],
+              properties: {
+                field: { type: "string" },
+                issue: { type: "string" }
+              },
+              additionalProperties: false
+            }
+          },
+          a3_computed_payload_hash: sha256Schema()
+        },
+        additionalProperties: false
+      },
+      summary: {
+        type: "object",
+        required: [
+          ...summaryCountFields, "quality_comparison_performed", "operational_health_verified",
+          "routing_ready", "capacity_verified"
+        ],
+        properties: {
+          ...Object.fromEntries(summaryCountFields.map((field) => [field, { type: "integer", minimum: 0 }])),
+          quality_comparison_performed: { type: "boolean", const: false },
+          operational_health_verified: { type: "boolean", const: false },
+          routing_ready: { type: "boolean", const: false },
+          capacity_verified: { type: "boolean", const: false }
+        },
+        additionalProperties: false
+      },
+      availability: {
+        type: "object",
+        required: ["comparison_state", "same_case_set", "case_set_hash", "blockers", "providers"],
+        properties: {
+          comparison_state: { type: "string", enum: ["complete", "blocked"] },
+          same_case_set: { type: "boolean" },
+          case_set_hash: { anyOf: [sha256Schema(), { type: "null" }] },
+          blockers: providerReasonCodeArraySchema(true),
+          providers: { type: "array", minItems: 2, maxItems: 20, items: providerProjection }
+        },
+        additionalProperties: false
+      },
+      latency_diagnostic: {
+        type: "object",
+        required: [
+          "provider_id", "model_id", "model_digest", "artifact_hash", "prompt_hash",
+          "output_schema_hash", "base_url_class", "generated_at", "timeout_seconds", "unload_state",
+          "qualification_state", "diagnosis", "cold_wall_seconds", "fastest_warm_wall_seconds", "profiles"
+        ],
+        properties: {
+          provider_id: { type: "string", const: "ollama-local" },
+          model_id: safeProviderIdentifierSchema(),
+          model_digest: sha256Schema(),
+          artifact_hash: sha256Schema(),
+          prompt_hash: sha256Schema(),
+          output_schema_hash: sha256Schema(),
+          base_url_class: { type: "string", const: "loopback" },
+          generated_at: { type: "string", format: "date-time" },
+          timeout_seconds: { type: "number", exclusiveMinimum: 0 },
+          unload_state: { type: "string", enum: ["requested", "unconfirmed"] },
+          qualification_state: { type: "string", enum: ["diagnostic_only", "blocked"] },
+          diagnosis: providerReasonCodeArraySchema(false),
+          cold_wall_seconds: { type: ["number", "null"], minimum: 0 },
+          fastest_warm_wall_seconds: { type: ["number", "null"], minimum: 0 },
+          profiles: { type: "array", minItems: 4, maxItems: 4, items: profileProjection }
+        },
+        additionalProperties: false
+      },
+      authority_boundary: {
+        type: "object",
+        required: [
+          "provider_is_truth", "quality_comparison_performed", "operational_health_verified",
+          "routing_or_capacity_authority", "evaluation_and_qualification_authority",
+          "display_and_workflow_owner", "release_authority", "a2_decision_recomputed",
+          "release_decision_changed", "production_ready"
+        ],
+        properties: {
+          provider_is_truth: { type: "boolean", const: false },
+          quality_comparison_performed: { type: "boolean", const: false },
+          operational_health_verified: { type: "boolean", const: false },
+          routing_or_capacity_authority: { type: "string", const: "A1" },
+          evaluation_and_qualification_authority: { type: "string", const: "A2" },
+          display_and_workflow_owner: { type: "string", const: "A3" },
+          release_authority: { type: "boolean", const: false },
+          a2_decision_recomputed: { type: "boolean", const: false },
+          release_decision_changed: { type: "boolean", const: false },
+          production_ready: { type: "boolean", const: false }
+        },
+        additionalProperties: false
+      },
+      safety: {
+        type: "object",
+        required: [
+          "public_safe", "raw_provider_payload_included", "secret_included", "endpoint_url_included",
+          "model_binary_included", "private_media_included", "hash_and_aggregate_metadata_only"
+        ],
+        properties: {
+          public_safe: { type: "boolean", const: true },
+          raw_provider_payload_included: { type: "boolean", const: false },
+          secret_included: { type: "boolean", const: false },
+          endpoint_url_included: { type: "boolean", const: false },
+          model_binary_included: { type: "boolean", const: false },
+          private_media_included: { type: "boolean", const: false },
+          hash_and_aggregate_metadata_only: { type: "boolean", const: true }
+        },
+        additionalProperties: false
+      },
+      recommendation_code: safeProviderIdentifierSchema()
+    },
+    additionalProperties: false,
+    description: "Tenant-scoped A3 projection. Faster warm latency or installed models never imply operational health, qualified quality, or production readiness."
+  };
+}
+
+function safeProviderIdentifierSchema() {
+  return { type: "string", pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$" };
+}
+
+function providerReasonCodeArraySchema(allowEmpty) {
+  return {
+    type: "array",
+    minItems: allowEmpty ? 0 : 1,
+    maxItems: 50,
+    uniqueItems: true,
+    items: safeProviderIdentifierSchema()
+  };
 }
 
 function a2MultimodalComparisonEnvelopeSchema() {

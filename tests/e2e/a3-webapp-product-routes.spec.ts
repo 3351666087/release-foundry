@@ -146,6 +146,58 @@ test.describe("A3 Next.js product console", () => {
     await page.screenshot({ path: "docs/screenshots/a3-webapp-delivery-golden-path-mobile-390x844.png", fullPage: false });
   });
 
+  test("shows blocked multimodal provider readiness without promoting speed to quality", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto(`${base}/delivery/?source=p3-a2-round51`);
+    await expect(page.getByRole("heading", { name: "交付闭环" })).toBeVisible();
+    await expect(page.locator(".source-control select")).toHaveValue("p3-a2-round51");
+
+    const section = page.locator("section.provider-readiness-section");
+    const panel = section.locator('.provider-readiness[data-status="blocked_provider_readiness"]');
+    await expect(section.getByRole("heading", { name: "多模态 Provider 就绪度" })).toBeVisible();
+    await expect(panel).toContainText("变快不等于可用，安装成功不等于质量合格");
+    await expect(panel.locator(".provider-readiness-metrics")).toContainText("30");
+    await expect(panel.locator(".provider-readiness-metrics")).toContainText("29");
+    await expect(panel.locator(".provider-readiness-metrics")).toContainText("0/4");
+    await expect(panel.locator(".provider-readiness-model-list article")).toHaveCount(2);
+    await expect(panel.locator(".provider-readiness-profile-list article")).toHaveCount(4);
+    await expect(panel.locator(".provider-readiness-latency-compare")).toContainText("74.3s");
+    await expect(panel.locator(".provider-readiness-latency-compare")).toContainText("1.64s");
+    await expect(panel.locator(".provider-readiness-boundary")).toContainText("这不是生产健康证明，也不是质量比较");
+
+    await panel.scrollIntoViewIfNeeded();
+    const desktopLayout = await page.evaluate(providerReadinessLayout);
+    expect(desktopLayout.documentScrollWidth).toBeLessThanOrEqual(desktopLayout.viewport);
+    expect(desktopLayout.panelRight).toBeLessThanOrEqual(desktopLayout.viewport);
+    expect(desktopLayout.heroOverlap).toBe(false);
+    await page.screenshot({
+      path: "docs/screenshots/a3-webapp-provider-readiness-round51-desktop.png",
+      fullPage: false,
+      animations: "disabled"
+    });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.reload();
+    const mobilePanel = page.locator('.provider-readiness[data-status="blocked_provider_readiness"]');
+    await expect(mobilePanel).toContainText("0/4");
+    await mobilePanel.evaluate((element) => {
+      document.documentElement.style.scrollBehavior = "auto";
+      const top = element.getBoundingClientRect().top + window.scrollY - 62;
+      window.scrollTo({ top: Math.max(0, top), behavior: "auto" });
+    });
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(400);
+    const mobileLayout = await page.evaluate(providerReadinessLayout);
+    expect(mobileLayout.documentScrollWidth).toBeLessThanOrEqual(mobileLayout.viewport);
+    expect(mobileLayout.bodyScrollWidth).toBeLessThanOrEqual(mobileLayout.viewport);
+    expect(mobileLayout.panelRight).toBeLessThanOrEqual(mobileLayout.viewport);
+    expect(mobileLayout.heroOverlap).toBe(false);
+    await page.screenshot({
+      path: "docs/screenshots/a3-webapp-provider-readiness-round51-mobile-390x844.png",
+      fullPage: false,
+      animations: "disabled"
+    });
+  });
+
   test("shows rc.2 repair while sealed A2 block and current candidate integrity stay separate", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto(`${base}/delivery/?source=a3-golden-path-rc2`);
@@ -1058,6 +1110,28 @@ function collectConsoleErrors(page: Page) {
     }
   });
   return errors;
+}
+
+function providerReadinessLayout() {
+  const panel = document.querySelector<HTMLElement>(".provider-readiness")!;
+  const heading = document.querySelector<HTMLElement>(".provider-readiness-heading")!;
+  const verdict = document.querySelector<HTMLElement>(".provider-readiness-verdict")!;
+  const panelRect = panel.getBoundingClientRect();
+  const headingRect = heading.getBoundingClientRect();
+  const verdictRect = verdict.getBoundingClientRect();
+  const heroOverlap = !(
+    headingRect.right <= verdictRect.left
+    || verdictRect.right <= headingRect.left
+    || headingRect.bottom <= verdictRect.top
+    || verdictRect.bottom <= headingRect.top
+  );
+  return {
+    viewport: document.documentElement.clientWidth,
+    documentScrollWidth: document.documentElement.scrollWidth,
+    bodyScrollWidth: document.body.scrollWidth,
+    panelRight: panelRect.right,
+    heroOverlap
+  };
 }
 
 function receiptApiHeaders(role: string) {

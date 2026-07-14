@@ -24,7 +24,7 @@ export type ApiEndpoint = {
 };
 
 export const apiReferenceMeta = {
-  schemaVersion: "a3.api_reference.v14",
+  schemaVersion: "a3.api_reference.v15",
   calibratedAt: "2026-07-14",
   mainSha: "ccf6ce5",
   a1Sha: "c784163",
@@ -33,8 +33,11 @@ export const apiReferenceMeta = {
   a2SourceState: "merged_to_main",
   a1IdentityPeerSha: "6a985b8",
   a1IdentityPeerState: "peer_branch_identity_authority_readiness_not_merged",
-  a1LatestPeerSha: "81f7e9e",
-  a1LatestPeerState: "peer_branch_dedicated_identity_registration_not_merged",
+  a1LatestPeerSha: "f3071aa",
+  a1LatestPeerState: "peer_branch_atomic_credential_link_contract_proposed_not_client_callable",
+  a1AtomicCredentialLinkContract: "IdentityCredentialLinkCoordinator",
+  a1AtomicCredentialLinkRouteLifecycle: "proposed",
+  a1AtomicCredentialLinkClientCallable: false,
   a2MultimodalPeerSha: "bb3bcfe",
   a2MultimodalPeerState: "peer_branch_contract_not_merged",
   a2LatestPeerSha: "7504680",
@@ -113,7 +116,8 @@ export const apiEndpoints: ApiEndpoint[] = [
     notes: [
       { zh: "该账号绑定能力已随 A1 c784163 合并到 main；它仍不等于首次 Google 登录。", en: "This account-linking capability entered main with A1 c784163; it is still not initial Google sign-in." },
       { zh: "这是账号绑定接口，不是首次 Google 登录入口；A3 登录页保持关闭。", en: "This is account linking, not an initial Google sign-in endpoint; A3 keeps it disabled on the login page." },
-      { zh: "A3 不接收或保存 client secret、authorization code、token。", en: "A3 never receives or stores client secrets, authorization codes, or tokens." }
+      { zh: "A3 不接收或保存 client secret、authorization code、token。", en: "A3 never receives or stores client secrets, authorization codes, or tokens." },
+      { zh: "A1 peer f3071aa 定义了 IdentityCredentialLinkCoordinator 原子事务契约，但统一 identity 的 link_start/link_complete 仍是 proposed 且 client_callable=false；A3 不会把契约误写成已上线接口。", en: "A1 peer f3071aa defines the IdentityCredentialLinkCoordinator atomic transaction contract, but unified-identity link_start/link_complete remain proposed and client_callable=false; A3 does not present that contract as a live route." }
     ]
   },
   {
@@ -494,6 +498,111 @@ export const apiEndpoints: ApiEndpoint[] = [
       { zh: "产品结论是“完整且稳定，但质量未达标”，而不是通过。", en: "The product conclusion is complete and stable, but quality is not qualified, never a pass." },
       { zh: "该接口不能创建真人处置、重算评分或改变发布决定。", en: "This endpoint cannot create a human disposition, recompute grading, or change release state." },
       { zh: "跨租户读取返回 404，不泄露指标、哈希或阻塞原因。", en: "Cross-tenant reads return 404 without exposing metrics, hashes, or blocker reasons." }
+    ]
+  },
+  {
+    id: "a3-multimodal-provider-readiness-import",
+    group: "judge",
+    owner: "A1/A2/A3",
+    method: "POST",
+    path: "/api/a3/import/a2-multimodal-provider-readiness",
+    title: { zh: "导入多模态 Provider 就绪度诊断", en: "Import multimodal provider readiness diagnostics" },
+    description: {
+      zh: "原子接收 A2 的模型可用性比较和阶段延迟诊断，并生成公开安全、租户隔离的产品投影。",
+      en: "Atomically ingest A2 model-availability comparison and phase-latency diagnostics into a public-safe, tenant-scoped product projection."
+    },
+    auth: { zh: "服务端验证身份 + project:ingest + Idempotency-Key", en: "Server-verified principal, project:ingest, and Idempotency-Key" },
+    status: "implemented",
+    source: "评测服务 Round 51 Provider 证据源 7504680 / 产品 OpenAPI",
+    request: {
+      source: "api-ingest",
+      provider_readiness_evidence: {
+        schema_version: "a3.a2_multimodal_provider_readiness_intake.v1",
+        source_commit_alias: "7504680",
+        availability_comparison: {
+          schema_version: "a2.local_multimodal_availability_comparison.v1",
+          same_case_set: true,
+          providers: {
+            "llava:7b": { attempted_count: 15, completed_count: 1, failed_count: 14, timeout_case_count: 14, eligible_count: 0, qualification_state: "blocked" },
+            "qwen3-vl:4b": { attempted_count: 15, completed_count: 0, failed_count: 15, timeout_case_count: 15, eligible_count: 0, qualification_state: "blocked" }
+          },
+          quality_comparison_performed: false,
+          provider_is_truth: false,
+          release_authority: false
+        },
+        latency_probe: {
+          schema_version: "a2.ollama_multimodal_latency_probe.v1",
+          provider_id: "ollama-local",
+          model_id: "qwen3-vl:4b",
+          completed_profile_count: 0,
+          qualification_state: "blocked",
+          release_authority: false
+        },
+        release_authority: false,
+        public_safe: true,
+        raw_provider_payload_included: false
+      }
+    },
+    response: {
+      schema_version: "a3.a2_multimodal_provider_readiness_ingest.v1",
+      provider_count: 2,
+      attempted_count: 30,
+      completed_count: 1,
+      failed_count: 29,
+      timeout_case_count: 29,
+      eligible_count: 0,
+      completed_profile_count: 0,
+      valid_structured_profile_count: 0,
+      upstream_release_authority: false,
+      quality_comparison_performed: false,
+      operational_health_verified: false,
+      release_decision_changed: false
+    },
+    notes: [
+      { zh: "可用性比较和阶段延迟必须作为一个原子信封导入；任一部分不合法都会整包拒绝。", en: "Availability and phase latency must arrive in one atomic envelope; any invalid part rejects the whole import." },
+      { zh: "安装成功、偶尔完成或 warm 延迟变快都不等于运行健康、质量合格或发布批准。", en: "Installation, an occasional completion, or faster warm latency does not prove operational health, qualified quality, or release approval." },
+      { zh: "A1 继续拥有生产路由、容量和运行健康；A2 拥有评测与资格；A3 只验证、展示、导出和协调。", en: "A1 retains production routing, capacity, and health; A2 owns evaluation and qualification; A3 validates, displays, exports, and coordinates." }
+    ]
+  },
+  {
+    id: "a3-multimodal-provider-readiness-read",
+    group: "judge",
+    owner: "A3",
+    method: "GET",
+    path: "/api/a3/providers/multimodal-readiness",
+    title: { zh: "读取多模态 Provider 就绪度", en: "Read multimodal provider readiness" },
+    description: {
+      zh: "返回模型尝试、完成、失败、超时、合格输出和阶段延迟的租户范围诊断。",
+      en: "Return tenant-scoped model attempts, completions, failures, timeouts, eligible outputs, and phase-latency diagnostics."
+    },
+    auth: { zh: "服务端验证身份 + release:review + 五层租户范围", en: "Server-verified principal, release:review, and five-level tenant scope" },
+    status: "implemented",
+    source: "docs/a3/openapi/a3_commercial_api.openapi.json",
+    response: {
+      schema_version: "a3.multimodal_provider_readiness.v1",
+      status: "blocked_provider_readiness",
+      summary: {
+        provider_count: 2,
+        attempted_count: 30,
+        completed_count: 1,
+        failed_count: 29,
+        timeout_case_count: 29,
+        eligible_count: 0,
+        profile_count: 4,
+        completed_profile_count: 0,
+        valid_structured_profile_count: 0,
+        quality_comparison_performed: false,
+        operational_health_verified: false,
+        routing_ready: false,
+        capacity_verified: false
+      },
+      latency_diagnostic: { cold_wall_seconds: 74.299641, fastest_warm_wall_seconds: 1.64026 },
+      authority_boundary: { routing_or_capacity_authority: "A1", evaluation_and_qualification_authority: "A2", release_authority: false, production_ready: false }
+    },
+    notes: [
+      { zh: "当前真实校准结论是 blocked_provider_readiness：30 次尝试只有 1 次完成、29 次失败或超时、0 个合格输出。", en: "The current real calibration is blocked_provider_readiness: 1 completion, 29 failures or timeouts, and 0 eligible outputs across 30 attempts." },
+      { zh: "四个阶段诊断档位都没有通过结构化输出校验，因此冷启动与 warm 延迟差异只能用于排障。", en: "All four phase profiles failed structured-output validation, so cold versus warm latency is diagnostic only." },
+      { zh: "响应不含 endpoint URL、Secret、原始回复、模型二进制或私有媒体。", en: "The response excludes endpoint URLs, secrets, raw responses, model binaries, and private media." }
     ]
   },
   {

@@ -98,6 +98,10 @@ import {
   buildA3MultimodalRepeatStability,
   validateA2MultimodalRepeatStabilityEnvelope
 } from "./a3_multimodal_repeat_stability.mjs";
+import {
+  buildA3MultimodalProviderReadiness,
+  validateA2MultimodalProviderReadinessEnvelope
+} from "./a3_multimodal_provider_readiness.mjs";
 
 export const A3_STORE_SCHEMA_VERSION = "a3.store.v1";
 
@@ -171,7 +175,7 @@ export const A3_SOURCE_FIXTURES = {
     a2MultimodalComparisonCapability: "peer_branch_contract_not_merged"
   },
   "p3-a2-round51": {
-    label: "Multi-repeat Stability - Round 51",
+    label: "Multimodal Stability & Readiness - Round 51",
     ashrRunSample: "fixtures/a3/p3/ashr_run_detail_sample.redacted.json",
     datasetSample: "fixtures/a3/p3/ashr_dataset_detail_sample.redacted.json",
     fixtureId: "p3_a2_round51_repeat_stability_dashboard_sample",
@@ -187,7 +191,10 @@ export const A3_SOURCE_FIXTURES = {
     a2MultimodalComparisonCapability: "round50_queue_with_round51_stability_peer_only",
     a2MultimodalRepeatStability: "fixtures/a3/p3/a2_multimodal_repeat_stability_round51_7504680.redacted.json",
     a2MultimodalRepeatStabilitySourceCommit: "7504680",
-    a2MultimodalRepeatStabilityCapability: "peer_branch_contract_not_merged"
+    a2MultimodalRepeatStabilityCapability: "peer_branch_contract_not_merged",
+    a2MultimodalProviderReadiness: "fixtures/a3/p3/a2_multimodal_provider_readiness_round51_7504680.redacted.json",
+    a2MultimodalProviderReadinessSourceCommit: "7504680",
+    a2MultimodalProviderReadinessCapability: "peer_branch_diagnostic_contract_not_merged"
   },
   "p3-official-demo": {
     label: "P3 Official Demo 884/11926",
@@ -315,6 +322,7 @@ export const A3_DB_CONTRACT = {
     "POST /api/a3/import/a2-grade-result",
     "POST /api/a3/import/a2-multimodal-comparison",
     "POST /api/a3/import/a2-multimodal-repeat-stability",
+    "POST /api/a3/import/a2-multimodal-provider-readiness",
     "POST /api/a3/reports/share",
     "GET /api/a3/reports/:reportId",
     "GET /reports/:reportId",
@@ -331,6 +339,7 @@ export const A3_DB_CONTRACT = {
     "GET /api/a3/review/workflow",
     "GET /api/a3/review/multimodal-queue",
     "GET /api/a3/review/multimodal-repeat-stability",
+    "GET /api/a3/providers/multimodal-readiness",
     "POST /api/a3/review/multimodal-queue/:queueId/assignment",
     "GET /api/a3/review/multimodal-queue/:queueId/evidence-requests",
     "POST /api/a3/review/multimodal-queue/:queueId/evidence-requests",
@@ -440,6 +449,14 @@ export async function loadA3SourceSnapshot(source = "mock", options = {}) {
           ingest_mode: "peer_branch_redacted_sample",
           source_commit_alias: config.a2MultimodalRepeatStabilitySourceCommit || null,
           capability_state: config.a2MultimodalRepeatStabilityCapability || "contract_supported_not_production_verified"
+        }
+      : {},
+    a2MultimodalProviderReadiness: await readOptionalJson(root, config.a2MultimodalProviderReadiness),
+    a2MultimodalProviderReadinessMeta: config.a2MultimodalProviderReadiness
+      ? {
+          ingest_mode: "peer_branch_redacted_sample",
+          source_commit_alias: config.a2MultimodalProviderReadinessSourceCommit || null,
+          capability_state: config.a2MultimodalProviderReadinessCapability || "contract_supported_not_production_verified"
         }
       : {},
     a2GradeResults: await readOptionalJson(root, config.a2GradeResults),
@@ -1078,9 +1095,115 @@ export function createMemoryA3Store(seed = {}) {
       return receiptWithEvent;
     },
 
+    async importA2MultimodalProviderReadiness(readinessEvidence, options = {}) {
+      const source = normalizeSourceKey(options.source || "api-ingest");
+      requireMutationIdempotencyKey(options, "a2_multimodal_provider_readiness_import", source);
+      const existing = findSnapshotForMutation(snapshots, source, options);
+      const tenantScope = tenantScopeRecordFields(options, existing || {});
+      const validation = validateA2MultimodalProviderReadinessEnvelope(readinessEvidence);
+      if (!validation.valid) {
+        throw new A3StoreValidationError("A2 multimodal provider readiness import failed validation.", validation.details, {
+          requestType: "a2_multimodal_provider_readiness_import",
+          source
+        });
+      }
+      const payloadHash = String(validation.payload_hash || "").replace(/^sha256:/, "");
+      const idempotencySource = scopedIdempotencySource(source, options, existing || tenantScope);
+      const replay = getIdempotentReplay(
+        idempotencyReceipts,
+        "a2_multimodal_provider_readiness_import",
+        idempotencySource,
+        options.idempotencyKey,
+        payloadHash
+      );
+      if (replay) return replay;
+
+      const importedAt = options.importedAt || new Date().toISOString();
+      const normalized = normalizeSnapshot({
+        ...(existing || {}),
+        source,
+        source_label: options.sourceLabel || existing?.source_label || "A2 Multimodal Provider Readiness API Ingest",
+        ...tenantScope,
+        runFixture: existing?.runFixture || {},
+        gradeFixture: existing?.gradeFixture || {},
+        a2MultimodalProviderReadiness: readinessEvidence,
+        a2MultimodalProviderReadinessMeta: {
+          ingest_mode: "tenant_scoped_api",
+          source_commit_alias: readinessEvidence.source_commit_alias,
+          capability_state: "contract_supported_diagnostic_only",
+          imported_at: importedAt,
+          payload_hash: payloadHash
+        },
+        storage: {
+          mode: this.storage_mode || "memory",
+          db_ready: this.db_ready === true,
+          ingest_source: "a2_multimodal_provider_readiness_api"
+        }
+      });
+      storeSnapshotByScope(snapshots, normalized);
+      const projection = buildMultimodalProviderReadinessForSnapshot(normalized);
+      const receipt = {
+        schema_version: "a3.a2_multimodal_provider_readiness_ingest.v1",
+        source,
+        ...tenantScope,
+        storage_mode: normalized.storage.mode,
+        db_ready: normalized.storage.db_ready === true,
+        payload_hash: payloadHash,
+        provider_count: projection.summary.provider_count,
+        attempted_count: projection.summary.attempted_count,
+        completed_count: projection.summary.completed_count,
+        failed_count: projection.summary.failed_count,
+        timeout_case_count: projection.summary.timeout_case_count,
+        eligible_count: projection.summary.eligible_count,
+        completed_profile_count: projection.summary.completed_profile_count,
+        valid_structured_profile_count: projection.summary.valid_structured_profile_count,
+        upstream_release_authority: false,
+        quality_comparison_performed: false,
+        operational_health_verified: false,
+        a2_decision_recomputed: false,
+        release_decision_changed: false,
+        imported_at: importedAt,
+        idempotency: {
+          key_present: true,
+          duplicate: false,
+          status: "recorded"
+        }
+      };
+      auditEvents.push(multimodalProviderReadinessAuditEvent(receipt, auditEvents.length));
+      const outboxRow = recordEventOutbox(eventOutbox, {
+        source,
+        eventType: "a2.multimodal_provider_readiness_imported",
+        resourceType: "multimodal_provider_readiness",
+        resourceId: payloadHash,
+        tenantScope,
+        actorHash: options.actorHash || options.actor,
+        createdAt: importedAt,
+        payload: receipt,
+        usageMeter: {
+          meter: "a2_multimodal_provider_readiness_imports",
+          quantity: 1
+        }
+      });
+      const receiptWithEvent = attachEventEnvelopeReceipt(receipt, outboxRow);
+      rememberIdempotentReceipt(
+        idempotencyReceipts,
+        "a2_multimodal_provider_readiness_import",
+        idempotencySource,
+        options.idempotencyKey,
+        payloadHash,
+        receiptWithEvent
+      );
+      return receiptWithEvent;
+    },
+
     async getMultimodalRepeatStability(options = {}) {
       const snapshot = selectSnapshot(snapshots, options.source, options);
       return buildMultimodalRepeatStabilityForSnapshot(snapshot);
+    },
+
+    async getMultimodalProviderReadiness(options = {}) {
+      const snapshot = selectSnapshot(snapshots, options.source, options);
+      return buildMultimodalProviderReadinessForSnapshot(snapshot);
     },
 
     async getMultimodalReviewQueue(options = {}) {
@@ -3206,6 +3329,11 @@ export async function createFileBackedA3Store(options = {}) {
       await persist();
       return result;
     },
+    async importA2MultimodalProviderReadiness(readinessEvidence, options = {}) {
+      const result = await store.importA2MultimodalProviderReadiness(readinessEvidence, options);
+      await persist();
+      return result;
+    },
     async mutateMultimodalReviewAssignment(queueId, input, options = {}) {
       const result = await store.mutateMultimodalReviewAssignment(queueId, input, options);
       await persist();
@@ -3329,6 +3457,8 @@ function normalizeSnapshot(snapshot = {}) {
     a2MultimodalComparisonMeta: snapshot.a2MultimodalComparisonMeta || snapshot.a2_multimodal_comparison_meta || {},
     a2MultimodalRepeatStability: snapshot.a2MultimodalRepeatStability || snapshot.a2_multimodal_repeat_stability || {},
     a2MultimodalRepeatStabilityMeta: snapshot.a2MultimodalRepeatStabilityMeta || snapshot.a2_multimodal_repeat_stability_meta || {},
+    a2MultimodalProviderReadiness: snapshot.a2MultimodalProviderReadiness || snapshot.a2_multimodal_provider_readiness || {},
+    a2MultimodalProviderReadinessMeta: snapshot.a2MultimodalProviderReadinessMeta || snapshot.a2_multimodal_provider_readiness_meta || {},
     releaseEvidence: snapshot.releaseEvidence || snapshot.release_evidence || {},
     a2GradeResults: snapshot.a2GradeResults || snapshot.a2_grade_results || {},
     a2ReleaseGate: snapshot.a2ReleaseGate || snapshot.a2_release_gate || {},
@@ -3615,6 +3745,7 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     peer_branch_calibration: peerBranchCalibration,
     multimodal_review_queue: multimodalReviewQueue,
     multimodal_repeat_stability: multimodalReviewQueue.repeat_stability,
+    multimodal_provider_readiness: multimodalReviewQueue.provider_readiness,
     release_evidence: releaseEvidenceForDashboard,
     release_evidence_summary: releaseEvidenceForDashboard,
     release_evidence_readbacks: releaseEvidenceReadbackHistory,
@@ -5208,6 +5339,35 @@ function multimodalRepeatStabilityAuditEvent(receipt = {}, index = 0) {
   };
 }
 
+function multimodalProviderReadinessAuditEvent(receipt = {}, index = 0) {
+  return {
+    event_id: `mmpr_evt_${sha256(`${receipt.payload_hash || "missing"}:${index}`).slice(0, 12)}`,
+    source: receipt.source,
+    ...tenantScopeRecordFields(receipt),
+    event_type: "a2_multimodal_provider_readiness_imported",
+    subject_id: receipt.payload_hash,
+    payload: {
+      schema_version: receipt.schema_version,
+      payload_hash: receipt.payload_hash,
+      provider_count: receipt.provider_count,
+      attempted_count: receipt.attempted_count,
+      completed_count: receipt.completed_count,
+      failed_count: receipt.failed_count,
+      timeout_case_count: receipt.timeout_case_count,
+      eligible_count: receipt.eligible_count,
+      completed_profile_count: receipt.completed_profile_count,
+      valid_structured_profile_count: receipt.valid_structured_profile_count,
+      quality_comparison_performed: false,
+      operational_health_verified: false,
+      upstream_release_authority: false,
+      a2_decision_recomputed: false,
+      release_decision_changed: false
+    },
+    created_at: receipt.imported_at,
+    redacted: true
+  };
+}
+
 function multimodalReviewAssignmentAuditEvent(event = {}, index = 0) {
   return {
     event_id: `mmra_evt_${sha256(`${event.event_id || "missing"}:${index}`).slice(0, 12)}`,
@@ -5280,6 +5440,19 @@ function buildMultimodalRepeatStabilityForSnapshot(snapshot = {}) {
   );
 }
 
+function buildMultimodalProviderReadinessForSnapshot(snapshot = {}) {
+  const metadata = snapshot.a2MultimodalProviderReadinessMeta || {};
+  return buildA3MultimodalProviderReadiness(
+    snapshot.a2MultimodalProviderReadiness || {},
+    {
+      source: snapshot.source,
+      tenantScope: snapshot.tenant_scope || tenantScopeRecordFields(snapshot).tenant_scope,
+      sourceCommitAlias: metadata.source_commit_alias,
+      capabilityState: metadata.capability_state
+    }
+  );
+}
+
 function buildMultimodalQueueForSnapshot(snapshot = {}, assignmentEvents = [], options = {}) {
   const metadata = snapshot.a2MultimodalComparisonMeta || {};
   const queue = buildA3MultimodalReviewQueue(snapshot.a2MultimodalComparison || {}, {
@@ -5296,9 +5469,11 @@ function buildMultimodalQueueForSnapshot(snapshot = {}, assignmentEvents = [], o
     options
   );
   const repeatStability = buildMultimodalRepeatStabilityForSnapshot(snapshot);
+  const providerReadiness = buildMultimodalProviderReadinessForSnapshot(snapshot);
   return {
     ...projection,
     repeat_stability: repeatStability,
+    provider_readiness: providerReadiness,
     review_packet: buildA3MultimodalReviewAssignmentPacket(projection, {
       generatedAt: options.now || "queue-read"
     })

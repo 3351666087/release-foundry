@@ -5340,6 +5340,9 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
   const multimodalRepeatStability = summarizeMultimodalRepeatStabilityExport(
     multimodalReviewQueueFixture.repeat_stability || {}
   );
+  const multimodalProviderReadiness = summarizeMultimodalProviderReadinessExport(
+    multimodalReviewQueueFixture.provider_readiness || {}
+  );
   const clusters = clusterFailures(runFixture, gradeFixture);
   const cases = normalizeCases(runFixture, gradeFixture);
   const lines = [
@@ -5743,6 +5746,35 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
       ...multimodalRepeatStability.candidate_binding.blockers
     ]) {
       lines.push(`- ${blocker}`);
+    }
+    lines.push("");
+  }
+
+  if (multimodalProviderReadiness.available) {
+    lines.push(
+      "## Multimodal Provider Readiness",
+      "",
+      `- Status: ${multimodalProviderReadiness.status}`,
+      `- Interpretation: ${multimodalProviderReadiness.interpretation}`,
+      `- Providers: ${multimodalProviderReadiness.summary.provider_count}`,
+      `- Attempts: ${multimodalProviderReadiness.summary.attempted_count}`,
+      `- Completed: ${multimodalProviderReadiness.summary.completed_count}`,
+      `- Failed: ${multimodalProviderReadiness.summary.failed_count}`,
+      `- Timeout cases: ${multimodalProviderReadiness.summary.timeout_case_count}`,
+      `- Eligible outputs: ${multimodalProviderReadiness.summary.eligible_count}`,
+      `- Structured profiles valid: ${multimodalProviderReadiness.summary.valid_structured_profile_count}/${multimodalProviderReadiness.summary.profile_count}`,
+      `- Quality comparison performed: ${multimodalProviderReadiness.summary.quality_comparison_performed ? "yes" : "no"}`,
+      `- Operational health verified: ${multimodalProviderReadiness.summary.operational_health_verified ? "yes" : "no"}`,
+      `- Release authority: ${multimodalProviderReadiness.authority_boundary.release_authority ? "yes" : "no"}`,
+      ""
+    );
+    lines.push("### Provider Availability", "");
+    for (const provider of multimodalProviderReadiness.providers) {
+      lines.push(`- ${provider.model_id}: ${provider.qualification_state} / ${provider.completed_count}/${provider.attempted_count} completed / ${provider.timeout_case_count} timeout / ${provider.eligible_count} eligible / p95 ${provider.latency_seconds.p95_nearest_rank ?? "unavailable"}s`);
+    }
+    lines.push("", "### Phase Diagnostics", "");
+    for (const profile of multimodalProviderReadiness.latency_diagnostic.profiles) {
+      lines.push(`- ${profile.profile}: ${profile.state} / ${profile.parse_state} / wall ${profile.phase_seconds.caller_wall_seconds ?? "unavailable"}s / ${profile.error_class}`);
     }
     lines.push("");
   }
@@ -6709,6 +6741,118 @@ export function summarizeMultimodalRepeatStabilityExport(stability = {}) {
   };
 }
 
+export function summarizeMultimodalProviderReadinessExport(readiness = {}) {
+  const available = readiness?.schema_version === "a3.multimodal_provider_readiness.v1"
+    && readiness.available === true;
+  if (!available) {
+    return {
+      schema_version: "a3.multimodal_provider_readiness_export.v1",
+      available: false,
+      status: readiness?.status || "missing",
+      recommendation: "Import an A2 availability comparison and phase-latency probe before exporting provider diagnostics."
+    };
+  }
+  const summary = objectOr(readiness.summary);
+  const availability = objectOr(readiness.availability);
+  const latency = objectOr(readiness.latency_diagnostic);
+  const authority = objectOr(readiness.authority_boundary);
+  const safety = objectOr(readiness.safety);
+  return {
+    schema_version: "a3.multimodal_provider_readiness_export.v1",
+    available: true,
+    status: readiness.status || "unknown",
+    capability_state: readiness.capability_state || "unknown",
+    source_contracts: Array.isArray(readiness.source_contracts) ? [...readiness.source_contracts] : [],
+    source_commit_alias: readiness.source_commit_alias || null,
+    tenant_scope: objectOr(readiness.tenant_scope),
+    summary: {
+      provider_count: numberOrDefault(summary.provider_count, 0),
+      attempted_count: numberOrDefault(summary.attempted_count, 0),
+      completed_count: numberOrDefault(summary.completed_count, 0),
+      failed_count: numberOrDefault(summary.failed_count, 0),
+      timeout_case_count: numberOrDefault(summary.timeout_case_count, 0),
+      eligible_count: numberOrDefault(summary.eligible_count, 0),
+      qualified_provider_count: numberOrDefault(summary.qualified_provider_count, 0),
+      blocked_provider_count: numberOrDefault(summary.blocked_provider_count, 0),
+      profile_count: numberOrDefault(summary.profile_count, 0),
+      completed_profile_count: numberOrDefault(summary.completed_profile_count, 0),
+      valid_structured_profile_count: numberOrDefault(summary.valid_structured_profile_count, 0),
+      quality_comparison_performed: false,
+      operational_health_verified: false,
+      routing_ready: false,
+      capacity_verified: false
+    },
+    availability: {
+      comparison_state: availability.comparison_state || "unknown",
+      same_case_set: availability.same_case_set === true,
+      case_set_hash: availability.case_set_hash || null,
+      blockers: Array.isArray(availability.blockers) ? [...availability.blockers] : []
+    },
+    providers: (Array.isArray(availability.providers) ? availability.providers : []).map((provider) => ({
+      model_id: provider.model_id,
+      artifact_hash: provider.artifact_hash,
+      qualification_state: provider.qualification_state,
+      attempted_count: numberOrDefault(provider.attempted_count, 0),
+      completed_count: numberOrDefault(provider.completed_count, 0),
+      failed_count: numberOrDefault(provider.failed_count, 0),
+      timeout_case_count: numberOrDefault(provider.timeout_case_count, 0),
+      eligible_count: numberOrDefault(provider.eligible_count, 0),
+      completion_rate: typeof provider.completion_rate === "number" ? provider.completion_rate : null,
+      timeout_rate: typeof provider.timeout_rate === "number" ? provider.timeout_rate : null,
+      eligible_rate: typeof provider.eligible_rate === "number" ? provider.eligible_rate : null,
+      latency_seconds: objectOr(provider.latency_seconds)
+    })),
+    latency_diagnostic: {
+      provider_id: latency.provider_id || "unknown",
+      model_id: latency.model_id || "unknown",
+      model_digest: latency.model_digest || null,
+      artifact_hash: latency.artifact_hash || null,
+      prompt_hash: latency.prompt_hash || null,
+      output_schema_hash: latency.output_schema_hash || null,
+      base_url_class: latency.base_url_class || "unknown",
+      generated_at: latency.generated_at || null,
+      timeout_seconds: typeof latency.timeout_seconds === "number" ? latency.timeout_seconds : null,
+      unload_state: latency.unload_state || "unknown",
+      qualification_state: latency.qualification_state || "unknown",
+      diagnosis: Array.isArray(latency.diagnosis) ? [...latency.diagnosis] : [],
+      cold_wall_seconds: typeof latency.cold_wall_seconds === "number" ? latency.cold_wall_seconds : null,
+      fastest_warm_wall_seconds: typeof latency.fastest_warm_wall_seconds === "number" ? latency.fastest_warm_wall_seconds : null,
+      profiles: (Array.isArray(latency.profiles) ? latency.profiles : []).map((profile) => ({
+        profile: profile.profile,
+        state: profile.state,
+        parse_state: profile.parse_state,
+        error_class: profile.error_class,
+        format_mode: profile.format_mode,
+        num_predict: numberOrDefault(profile.num_predict, 0),
+        response_hash: profile.response_hash || null,
+        phase_seconds: objectOr(profile.phase_seconds)
+      }))
+    },
+    authority_boundary: {
+      provider_is_truth: false,
+      quality_comparison_performed: false,
+      operational_health_verified: false,
+      routing_or_capacity_authority: authority.routing_or_capacity_authority || "A1",
+      evaluation_and_qualification_authority: authority.evaluation_and_qualification_authority || "A2",
+      release_authority: false,
+      a2_decision_recomputed: false,
+      release_decision_changed: false,
+      production_ready: false
+    },
+    safety: {
+      public_safe: safety.public_safe === true,
+      raw_provider_payload_included: false,
+      secret_included: false,
+      endpoint_url_included: false,
+      model_binary_included: false,
+      private_media_included: false,
+      hash_and_aggregate_metadata_only: safety.hash_and_aggregate_metadata_only === true
+    },
+    interpretation: "Local provider diagnostics are blocked: availability is insufficient and every phase profile failed structured-output validation.",
+    recommendation: "Repair structured output and availability, then obtain A1 operational health/capacity evidence and a fresh A2 qualification before release."
+  };
+}
+
 export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}, productConsoleFixture = {}, saasAdminFixture = {}, a2ReadinessBundle = {}, artifactRegistryFixture = {}, reviewWorkflowFixture = {}, releaseEvidenceFixture = {}, githubPublishEvidenceFixture = {}, peerBranchCalibrationFixture = {}, billingMigrationReadinessFixture = {}, notificationControlPlaneFixture = {}, multimodalReviewQueueFixture = {}) {
   if (isArtifactRegistryFixture(a2ReadinessBundle) && !isArtifactRegistryFixture(artifactRegistryFixture)) {
     artifactRegistryFixture = a2ReadinessBundle;
@@ -6762,6 +6906,9 @@ export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixt
     multimodal_review_queue: summarizeMultimodalReviewQueueExport(multimodalReviewQueueFixture),
     multimodal_repeat_stability: summarizeMultimodalRepeatStabilityExport(
       multimodalReviewQueueFixture.repeat_stability || {}
+    ),
+    multimodal_provider_readiness: summarizeMultimodalProviderReadinessExport(
+      multimodalReviewQueueFixture.provider_readiness || {}
     ),
     release_evidence_summary: summarizeReleaseEvidenceSummary(releaseEvidenceFixture),
     github_publish_evidence: summarizeGithubPublishEvidence(githubPublishEvidenceFixture),

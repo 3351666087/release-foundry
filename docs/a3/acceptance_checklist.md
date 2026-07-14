@@ -1616,3 +1616,39 @@
 - [ ] Import and validate a real non-empty A2 human-review receipt and terminal disposition.
 - [ ] Bind the exact candidate across current A1 evidence, A2 Decision Ledger and A3 artifact.
 - [ ] Run the complete workflow with hosted identity, target PostgreSQL, object storage, tenant KMS and authorized staging/VPC deployment.
+
+## A2 Round 51 Multimodal Provider Readiness Intake - 2026-07-14
+
+- [x] Re-check authoritative main `ccf6ce5`, A1 peer `f3071aa`, A2 peer/source `7504680` and the enterprise strategy.
+- [x] Keep A1 atomic credential-link routes proposed and non-client-callable in product documentation.
+- [x] Build one atomic availability and phase-latency intake envelope.
+- [x] Preserve 30 attempts, 1 completion, 29 failures, 29 timeouts and 0 eligible outputs.
+- [x] Preserve 0 qualified Providers and 0/4 valid structured-output profiles.
+- [x] Preserve cold `74.299641s` and fastest warm `1.64026s` as diagnostic-only values.
+- [x] Add exact top-level and nested allowlists.
+- [x] Validate count conservation, latency order, phase residuals, hashes and model binding.
+- [x] Reject release promotion, Provider truth and operational-health overclaims.
+- [x] Reject secrets, tokens, cookies, URLs, email, DSNs, raw payloads, private media and local paths.
+- [x] Add `blocked_provider_readiness` without changing score, pass/fail, failure class or A2 decision.
+- [x] Persist and restore the projection through Memory, JSON-file and SQLite stores.
+- [x] Add protected import/read APIs with five-level scope and sanitized denials.
+- [x] Add header-only idempotency, audit, Event Outbox and usage metering.
+- [x] Add Provider readiness to Dashboard, Review queue, JSON, Markdown and Hosted Report.
+- [x] Increase commercial endpoint coverage from 46 to 48.
+- [x] Add strict OpenAPI schemas and increase runtime parity from `67/67` to `69/69`.
+- [x] Upgrade API Reference to v15 and document both Provider routes.
+- [x] Add a Chinese-first standalone Delivery component with honest empty and blocked states.
+- [x] Keep customer-facing UI free of prominent internal lane badges.
+- [x] Save and visually inspect desktop and 390 x 844 screenshots without overflow.
+- [x] Add implementation evidence and Growth Auditor Round 26 with 26 executable next steps.
+- [x] Pass focused Provider/OpenAPI/API Reference tests `28/28`.
+- [x] Pass A3 Node `513` runnable tests with one explicit target-PostgreSQL opt-in skip and zero failures.
+- [x] Pass current-main A2 `186/186` without changing A2 semantics.
+- [x] Pass Next.js TypeScript/build with 15 pages and full Playwright `46/46`.
+- [x] Pass both CL guards and both production dependency audits.
+- [x] Keep `.env.local` ignored and exclude credentials, identity, signed URLs, raw Provider payloads and private media.
+- [x] Keep Golden Path `7/11`, Deployment Acceptance `8/17`, production receipts `0`, current authority `integrity_invalid`, current A2 decision `unknown`, historical A2 `block`, and production ready false.
+- [ ] Obtain A1 production Provider health, routing, capacity and failover receipts.
+- [ ] Obtain A2-qualified structured outputs and a real non-empty human-review disposition.
+- [ ] Bind the exact current candidate across A1 evidence, A2 Decision Ledger and A3 artifact.
+- [ ] Deploy with hosted identity, target PostgreSQL, object storage, tenant KMS and authorized staging/VPC receipts.

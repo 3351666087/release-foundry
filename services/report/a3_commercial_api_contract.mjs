@@ -489,6 +489,26 @@ const COMMERCIAL_ENDPOINTS = [
     dependencies: ["A1 trusted reviewer identity and five-level scope", "A2 aggregate calibration metrics", "A3 hash-only report projection"],
     notes: "Returns aggregate repeat metrics, review pending state, and candidate blockers without raw provider payloads, identities, URLs, or release authority."
   }),
+  endpoint("POST /v1/providers/multimodal/readiness", "A1/A2/A3", "release_gate", "POST /api/a3/import/a2-multimodal-provider-readiness", {
+    status: "implemented",
+    rbac: "project:ingest",
+    db: ["dashboard_snapshots", "idempotency_keys", "audit_events", "event_outbox"],
+    events: ["a2.multimodal_provider_readiness_imported"],
+    artifacts: ["multimodal_provider_readiness_projection", "multimodal_provider_readiness_export"],
+    usage: ["api_requests", "a2_multimodal_provider_readiness_imports"],
+    dependencies: ["A1 trusted ingest principal and five-level scope", "A1 retains production routing/capacity authority", "A2 availability comparison and phase-latency diagnostic", "A3 strict public-safe projection"],
+    notes: "Imports availability and phase-latency diagnostics atomically. Faster warm latency, model installation, or an occasional completion cannot become operational health, quality comparison, or release authority."
+  }),
+  endpoint("GET /v1/providers/multimodal/readiness", "A1/A2/A3", "release_gate", "GET /api/a3/providers/multimodal-readiness", {
+    status: "read_only",
+    rbac: "release:review",
+    db: ["dashboard_snapshots", "audit_events"],
+    events: ["provider.multimodal_readiness_read"],
+    artifacts: ["multimodal_provider_readiness_projection", "hosted_release_report"],
+    usage: ["api_requests"],
+    dependencies: ["A1 trusted reviewer identity and five-level scope", "A2 provider diagnostics and qualification state", "A3 hash-only report projection"],
+    notes: "Returns aggregate attempts, failures, timeouts, eligible outputs, phase timings, and diagnosis codes without endpoint URLs, secrets, raw responses, model binaries, private media, or release authority."
+  }),
   endpoint("POST /v1/review-queues/multimodal/{queue_id}/assignment", "A1/A2/A3", "review_workflow", "POST /api/a3/review/multimodal-queue/:queueId/assignment", {
     status: "implemented",
     rbac: "release:review",
