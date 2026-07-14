@@ -259,7 +259,10 @@ BEGIN
     v_credential_id,p_request_digest,
     p_metadata || jsonb_build_object('event_digest',p_event_digest)
   );
-  RETURN QUERY SELECT v_credential_id,NOT v_credential_existed,v_now;
+  RETURN QUERY
+  SELECT c.id,NOT v_credential_existed,c.created_at
+    FROM identity_credentials AS c
+   WHERE c.id=v_credential_id;
 END
 $$;
 
