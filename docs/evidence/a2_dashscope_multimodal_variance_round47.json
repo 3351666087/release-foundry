@@ -1,0 +1,63 @@
+{
+  "blockers_by_run": {
+    "run1": [
+      "dashscope_sensitivity_review_threshold_not_met",
+      "dashscope_sensitivity_wilson_lower_threshold_not_met",
+      "dashscope_pricing_unavailable"
+    ],
+    "run2": [
+      "dashscope_sensitivity_review_threshold_not_met",
+      "dashscope_sensitivity_wilson_lower_threshold_not_met",
+      "dashscope_pricing_unavailable"
+    ]
+  },
+  "endpoint_region": "beijing",
+  "generated_at": "2026-07-13T22:54:33.246870Z",
+  "interpretation": {
+    "promotion_permitted": false,
+    "reason": "Both independent runs remain blocked; repetition measures provider variance only and does not establish truth.",
+    "repeated_provider_outputs_are_ground_truth": false
+  },
+  "metrics": {
+    "balanced_accuracy": {
+      "absolute_range": 0.025,
+      "run1": 0.8166666666666667,
+      "run2": 0.7916666666666667
+    },
+    "p95_latency_seconds": {
+      "absolute_range": 0.292,
+      "run1": 1.249,
+      "run2": 0.957
+    },
+    "sensitivity": {
+      "absolute_range": 0.05,
+      "run1": 0.7,
+      "run2": 0.65
+    },
+    "specificity": {
+      "absolute_range": 0.0,
+      "run1": 0.9333333333333333,
+      "run2": 0.9333333333333333
+    },
+    "usage_total_tokens": {
+      "absolute_range": 10,
+      "run1": 6250,
+      "run2": 6260
+    }
+  },
+  "model_id": "qwen-vl-plus",
+  "provider_id": "dashscope",
+  "public_safe": true,
+  "qualification_states": [
+    "blocked",
+    "blocked"
+  ],
+  "raw_provider_payload_included": false,
+  "release_authority": false,
+  "run_evidence_hashes": {
+    "run1": "sha256:0180b7fe76c095ba5d98578ef928745bf5b110109895126a578631c43528c9c4",
+    "run2": "sha256:47f4ae46a232e4c1ee1c51d8ea473849fc86ffe55414cde78870528c0e32bcbc"
+  },
+  "schema_version": "a2.dashscope_multimodal_variance_summary.v1",
+  "secret_included": false
+}

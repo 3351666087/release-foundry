@@ -1,0 +1,29 @@
+{
+  "blockers": [
+    "postgres_dsn_missing",
+    "psql_client_missing",
+    "docker_runtime_missing"
+  ],
+  "claims": {
+    "postgresql_capability_implemented": true,
+    "same_round_real_postgresql_verified": false
+  },
+  "environment": {
+    "docker_present": false,
+    "postgres_dsn_present": false,
+    "psql_present": false
+  },
+  "observed_at": "2026-07-14T05:43:03.108631Z",
+  "offline_substitute": {
+    "file_fsync_tested": true,
+    "jsonl_atomic_replace_tested": true,
+    "manifest_reopen_verification_tested": true,
+    "replay_rollback_and_fork_detection_tested": true,
+    "sql_store_contract_tested": true,
+    "test_result": "39 passed, 163 subtests passed"
+  },
+  "public_safe": true,
+  "real_postgresql_proof_state": "blocked",
+  "release_authority": false,
+  "schema_version": "a2.postgresql_persistence_qualification.v1"
+}

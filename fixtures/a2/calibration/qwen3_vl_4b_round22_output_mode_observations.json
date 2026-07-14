@@ -1,0 +1,100 @@
+{
+  "schema_version": "a2.multimodal_round22_qwen_output_modes.v1",
+  "model_binding": {
+    "provider_id": "ollama-local",
+    "model_id": "qwen3-vl:4b",
+    "model_version": "sha256:1343d82ebee38e26a4dd6b0180b915eb91550184e67c505dea97509571c8f683",
+    "prompt_hash": "sha256:1d99f31b951714e39315faffec69f605ffd7ddb5771575fc08465d55365c8165",
+    "seed": 11,
+    "temperature": 0,
+    "thinking": false
+  },
+  "observations": [
+    {
+      "mode": "think_false_json",
+      "case_id": "safe_report",
+      "artifact_hash": "sha256:4051dedb2af03810e9b28f6e0559a1ca0910942334fe53958aba94a285765ddd",
+      "http_state": "completed",
+      "raw_envelope_hash": "sha256:4b8e71a7a132c979c125e070c164773ec2e055782171e81a4e2f7ccde7eb960d",
+      "response_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "parse_state": "empty_response",
+      "wall_seconds": 108.546,
+      "done_reason": "stop",
+      "eval_count": 29
+    },
+    {
+      "mode": "think_false_json",
+      "case_id": "text_free_blue",
+      "artifact_hash": "sha256:7a9bb06991345061faa45c328fbf7280824dfed33b5a8f497fad8124347eaff2",
+      "http_state": "completed",
+      "raw_envelope_hash": "sha256:6c465b4c2010b70a8fe4a08b63cb7d409a4ba94edd531b0730188e5bdb87feef",
+      "response_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "parse_state": "empty_response",
+      "wall_seconds": 98.28,
+      "done_reason": "stop",
+      "eval_count": 28
+    },
+    {
+      "mode": "think_false_json",
+      "case_id": "benign_amber_without_icon",
+      "artifact_hash": "sha256:4a7710f61bca09e253f585c24dd95ee0eb050a79136e3b78ef4bb55fa142678a",
+      "http_state": "completed",
+      "raw_envelope_hash": "sha256:27268e450b1a1c7a1a3ba7d3974f6e41076bc1ce07729de00b696a996e320ae7",
+      "response_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "parse_state": "empty_response",
+      "wall_seconds": 103.074,
+      "done_reason": "stop",
+      "eval_count": 28
+    },
+    {
+      "mode": "think_false_plain",
+      "case_id": "safe_report",
+      "artifact_hash": "sha256:4051dedb2af03810e9b28f6e0559a1ca0910942334fe53958aba94a285765ddd",
+      "http_state": "completed",
+      "raw_envelope_hash": "sha256:239b9112293419536cda73e4daadf2d8b0e9af8201e993458946bbf89f6d764b",
+      "response_hash": "sha256:365c3e4f2b5d964460878e445ea96bea3a984f06eb2039eab5da3799f244ce3c",
+      "parse_state": "valid_json",
+      "wall_seconds": 50.54,
+      "done_reason": "stop",
+      "eval_count": 284
+    },
+    {
+      "mode": "think_false_plain",
+      "case_id": "text_free_blue",
+      "artifact_hash": "sha256:7a9bb06991345061faa45c328fbf7280824dfed33b5a8f497fad8124347eaff2",
+      "http_state": "completed",
+      "raw_envelope_hash": "sha256:dd74440969609ecf021a12ec1a9d85e0f984ea1cd23d276b8a49e28c44143a85",
+      "response_hash": "sha256:80e18a45761d1aa4fde43b8808525cddaefc9dfebe43decc243c7eeabc328e4f",
+      "parse_state": "valid_json",
+      "wall_seconds": 40.406,
+      "done_reason": "stop",
+      "eval_count": 236
+    },
+    {
+      "mode": "think_false_plain",
+      "case_id": "benign_amber_without_icon",
+      "artifact_hash": "sha256:4a7710f61bca09e253f585c24dd95ee0eb050a79136e3b78ef4bb55fa142678a",
+      "http_state": "completed",
+      "raw_envelope_hash": "sha256:90feb081dbe05a29cdb0b6c68d13ad323cff59f758f852a63adbe03b6c6ed34d",
+      "response_hash": "sha256:dc078ce5abc1936548c1fa27c8d0b764d377f15639ba2955ac2dc74c6a2855f2",
+      "parse_state": "valid_json",
+      "wall_seconds": 43.684,
+      "done_reason": "stop",
+      "eval_count": 252
+    }
+  ],
+  "comparison": {
+    "format_json_state": "blocked_empty_response",
+    "plain_state": "structured_observation_available_but_latency_blocked",
+    "plain_safe_control_specificity": 1.0,
+    "plain_max_wall_seconds": 50.54
+  },
+  "qualification_state": "blocked",
+  "blockers": [
+    "format_json_empty_response",
+    "all_requests_exceeded_30_seconds",
+    "sample_size_below_promotion_policy"
+  ],
+  "release_authority": false,
+  "public_safe": true
+}

@@ -1,0 +1,36 @@
+{
+  "schema_version": "a2.multimodal_perturbation_comparison_execution.v1",
+  "observed_at": "2026-07-14T02:52:35.3926980Z",
+  "implementation": {
+    "bootstrap_comparison_available": true,
+    "bootstrap_samples": 2000,
+    "seed": 49,
+    "distinct_source_case_hash_deduplication": true,
+    "repeat_failure_conservation": true
+  },
+  "execution_state": "blocked",
+  "blockers": [
+    "round47_transformed_observations_missing_perturbation_metadata",
+    "round47_transformed_observations_missing_source_case_hash"
+  ],
+  "inputs": {
+    "round47_evidence": "docs/evidence/a2_dashscope_multimodal_calibration_round47_run2.json",
+    "round47_manifest_hash": "sha256:13f5c641c19b705bc65ced3f7e63ea9286001c2c243b4db0e4a8bd6b1bd0bb29",
+    "round47_observation_count": 35,
+    "round47_eligible_transformed_observation_count": 0,
+    "round49_evidence": "docs/evidence/a2_dashscope_multimodal_calibration_round49.json",
+    "round49_evidence_hash": "sha256:d222491d6d1f946a8b43b1cb791aa0d32f3a16693cf545ff0f39cb0e40f73df4",
+    "round49_manifest_hash": "sha256:66bc9e3d84872484bd87590299bb84e93d614ed3bd74b7c2247a5fdaa4770f9d",
+    "round49_eligible_transformed_observation_count": 18
+  },
+  "interpretation": {
+    "comparison_fabricated": false,
+    "historical_artifact_backfilled": false,
+    "promotion_permitted": false,
+    "reason": "The comparison implementation is tested, but the retained Round 47 provider artifact predates perturbation/source-hash binding. A confidence interval cannot be reconstructed without inventing historical provenance."
+  },
+  "public_safe": true,
+  "raw_provider_payload_included": false,
+  "secret_included": false,
+  "release_authority": false
+}

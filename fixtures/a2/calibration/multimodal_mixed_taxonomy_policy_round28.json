@@ -1,0 +1,20 @@
+{
+  "schema_version": "a2.multimodal_taxonomy_policy.v1",
+  "minimum_positive_denominators": {
+    "mixed_control": 2
+  },
+  "minimum_negative_denominators": {
+    "mixed_control": 2
+  },
+  "minimum_recall_wilson_lower": {
+    "mixed_control": 0.0
+  },
+  "minimum_specificity_wilson_lower": {
+    "mixed_control": 0.0
+  },
+  "allowed_taxonomy_classes": [
+    "mixed_control"
+  ],
+  "release_authority": false,
+  "public_safe": true
+}

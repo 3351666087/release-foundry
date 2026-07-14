@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.local/schemas/a2/multimodal_review_chain_verification.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "receipt_count",
+    "terminal_receipt_hash",
+    "verification_state",
+    "errors",
+    "release_authority",
+    "public_safe"
+  ],
+  "properties": {
+    "schema_version": {"const": "a2.multimodal_review_chain_verification.v1"},
+    "receipt_count": {"type": "integer", "minimum": 0},
+    "terminal_receipt_hash": {
+      "type": "string",
+      "pattern": "^(|sha256:[a-f0-9]{64})$"
+    },
+    "verification_state": {"enum": ["verified", "rejected"]},
+    "errors": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "duplicate_receipt",
+          "duplicate_disposition",
+          "noncontiguous_review_sequence",
+          "predecessor_receipt_hash_mismatch"
+        ]
+      }
+    },
+    "release_authority": {"const": false},
+    "public_safe": {"const": true}
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {"verification_state": {"const": "verified"}},
+        "required": ["verification_state"]
+      },
+      "then": {"properties": {"errors": {"maxItems": 0}}}
+    },
+    {
+      "if": {
+        "properties": {"verification_state": {"const": "rejected"}},
+        "required": ["verification_state"]
+      },
+      "then": {"properties": {"errors": {"minItems": 1}}}
+    }
+  ]
+}

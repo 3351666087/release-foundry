@@ -7,8 +7,13 @@ import base64
 import hashlib
 import json
 import math
+import sys
 import time
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from services.judge.provider_gateway import OllamaAdapter, ProviderDefinition, ProviderGateway
 from services.judge.provider_runtime import build_local_smoke_evidence

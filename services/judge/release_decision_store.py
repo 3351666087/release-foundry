@@ -24,6 +24,29 @@ _SECRET_OR_LOCATION = re.compile(
 _SHA256_REF = re.compile(r"sha256:[0-9a-f]{64}\Z")
 
 
+def migrate_legacy_taxonomy_policy_identity(
+    envelope: dict[str, Any],
+    *,
+    governed_taxonomy_policy: dict[str, Any],
+) -> dict[str, Any]:
+    """Explicitly bind a legacy empty taxonomy identity; never infer one during recovery."""
+    if "taxonomy_policy_hash" in envelope and envelope.get("taxonomy_policy_hash"):
+        raise ValueError("recovery envelope already has a taxonomy policy identity")
+    if governed_taxonomy_policy.get("schema_version") != "a2.multimodal_taxonomy_policy.v1":
+        raise ValueError("governed taxonomy policy schema is unsupported")
+    migrated = dict(envelope)
+    migrated["taxonomy_policy_hash"] = stable_hash(governed_taxonomy_policy)
+    return {
+        "schema_version": "a2.taxonomy_policy_identity_migration.v1",
+        "migration_state": "bound",
+        "source_envelope_hash": stable_hash(envelope),
+        "governed_taxonomy_policy_hash": migrated["taxonomy_policy_hash"],
+        "migrated_envelope": migrated,
+        "release_authority": False,
+        "public_safe": True,
+    }
+
+
 def reserve_decision_operation(
     connection: sqlite3.Connection,
     *,
@@ -640,6 +663,7 @@ def load_decision_recovery_envelope(
         "policy_version": envelope.get("policy_version"),
         "evaluation_quality": envelope.get("evaluation_quality"),
         "evaluation_trust_policy_hash": envelope.get("evaluation_trust_policy_hash"),
+        "taxonomy_policy_hash": str(envelope.get("taxonomy_policy_hash") or ""),
         "required_modalities": snapshot.get("required_modalities"),
         "snapshot_hash": snapshot.get("snapshot_hash"),
         "provider_payload_hash": row["provider_payload_hash"],
@@ -1241,6 +1265,7 @@ def _validate_recovery_envelope(
         "schema_version", *scope.keys(), "idempotency_key", "request_hash", "snapshot",
         "provider", "provider_provenance", "semantic_output", "citation_validation",
         "bundle_verification", "evaluation_quality", "evaluation_trust_policy_hash",
+        "taxonomy_policy_hash",
         "policy_version", "ledger_id", "judge_version", "builder_version", "created_at",
         "provider_outcome_hash", "public_safe", "recovery_supported",
         "raw_provider_payload_included", "raw_evidence_included",
@@ -1251,6 +1276,9 @@ def _validate_recovery_envelope(
         raise ValueError("unsupported recovery envelope schema")
     if _SHA256_REF.fullmatch(str(envelope.get("evaluation_trust_policy_hash") or "")) is None:
         raise ValueError("evaluation trust policy hash is invalid")
+    taxonomy_policy_hash = str(envelope.get("taxonomy_policy_hash") or "")
+    if taxonomy_policy_hash and _SHA256_REF.fullmatch(taxonomy_policy_hash) is None:
+        raise ValueError("taxonomy policy hash is invalid")
     _assert_scope(envelope, scope, "recovery envelope")
     for flag in (
         "public_safe", "recovery_supported",

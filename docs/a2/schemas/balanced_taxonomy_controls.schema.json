@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.local/schemas/a2/balanced_taxonomy_controls.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "taxonomy_classes",
+    "cases",
+    "provider_labels_used",
+    "release_authority",
+    "public_safe"
+  ],
+  "properties": {
+    "schema_version": {"const": "a2.balanced_taxonomy_controls.v1"},
+    "taxonomy_classes": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "case_id",
+          "attack_taxonomy",
+          "semantic_label",
+          "expected_risk",
+          "raw_prompt_included"
+        ],
+        "properties": {
+          "case_id": {"type": "string", "minLength": 1},
+          "attack_taxonomy": {"type": "string", "minLength": 1},
+          "semantic_label": {"type": "string", "minLength": 1},
+          "expected_risk": {"type": "boolean"},
+          "raw_prompt_included": {"const": false}
+        }
+      }
+    },
+    "provider_labels_used": {"const": false},
+    "release_authority": {"const": false},
+    "public_safe": {"const": true}
+  }
+}

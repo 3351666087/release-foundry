@@ -1,0 +1,129 @@
+import json
+import unittest
+
+import jsonschema
+
+from scripts.a2_build_multimodal_cross_provider_comparison import stable_hash
+from scripts.a2_resolve_multimodal_disagreement import (
+    ROOT,
+    build_disposition,
+    build_real_review_receipt,
+)
+
+
+class MultimodalHumanReviewDispositionTests(unittest.TestCase):
+    def receipt(self):
+        return {
+            "receipt_id": "sha256:" + "1" * 64,
+            "comparison_artifact_hash": "sha256:" + "5" * 64,
+            "comparison_hash": "sha256:" + "2" * 64,
+            "artifact_hash": "sha256:" + "3" * 64,
+            "case_id": "case-1",
+            "queue_state": "awaiting_human_review",
+            "reviewer_role": "multimodal_safety_reviewer",
+            "release_authority": False,
+        }
+
+    def test_disposition_binds_receipt_and_hashed_reviewer_without_authority(self):
+        result = build_disposition(
+            self.receipt(),
+            comparison_artifact_hash="sha256:" + "5" * 64,
+            reviewer_identity_hash="sha256:" + "4" * 64,
+            disposition="request_more_evidence",
+            rationale_code="insufficient_visual_evidence",
+        )
+        self.assertFalse(result["release_authority"])
+        self.assertFalse(result["raw_payload_included"])
+        self.assertEqual(result["case_id"], "case-1")
+
+    def test_plain_reviewer_identity_is_rejected(self):
+        with self.assertRaises(jsonschema.ValidationError):
+            build_disposition(
+                self.receipt(),
+                comparison_artifact_hash="sha256:" + "5" * 64,
+                reviewer_identity_hash="reviewer@example.com",
+                disposition="inconclusive",
+                rationale_code="model_disagreement",
+            )
+
+    def test_mismatched_comparison_artifact_hash_is_rejected(self):
+        with self.assertRaisesRegex(ValueError, "artifact hash mismatch"):
+            build_disposition(
+                self.receipt(),
+                comparison_artifact_hash="sha256:" + "6" * 64,
+                reviewer_identity_hash="sha256:" + "4" * 64,
+                disposition="request_more_evidence",
+                rationale_code="model_disagreement",
+            )
+
+    def test_real_review_builder_forces_human_identity_and_chains_predecessor(self):
+        first = build_real_review_receipt(
+            self.receipt(),
+            comparison_artifact_hash="sha256:" + "5" * 64,
+            reviewer_identity_hash="sha256:" + "4" * 64,
+            disposition="request_more_evidence",
+            rationale_code="insufficient_visual_evidence",
+            reviewed_at="2026-07-14T00:00:00Z",
+        )
+        second = build_real_review_receipt(
+            self.receipt(),
+            comparison_artifact_hash="sha256:" + "5" * 64,
+            reviewer_identity_hash="sha256:" + "6" * 64,
+            disposition="confirm_risk",
+            rationale_code="visible_instruction",
+            predecessor_receipt_hash=stable_hash(first),
+            prior_receipts=[first],
+            reviewed_at="2026-07-14T00:01:00Z",
+        )
+        self.assertEqual(first["reviewer_identity_class"], "human_reviewer")
+        self.assertEqual(second["review_sequence"], 2)
+        self.assertEqual(second["predecessor_receipt_hash"], stable_hash(first))
+
+    def test_real_review_rejects_duplicate_disposition_and_broken_chain(self):
+        first = build_real_review_receipt(
+            self.receipt(),
+            comparison_artifact_hash="sha256:" + "5" * 64,
+            reviewer_identity_hash="sha256:" + "4" * 64,
+            disposition="request_more_evidence",
+            rationale_code="insufficient_visual_evidence",
+            reviewed_at="2026-07-14T00:00:00Z",
+        )
+        with self.assertRaisesRegex(ValueError, "duplicate review disposition"):
+            build_real_review_receipt(
+                self.receipt(),
+                comparison_artifact_hash="sha256:" + "5" * 64,
+                reviewer_identity_hash="sha256:" + "4" * 64,
+                disposition="request_more_evidence",
+                rationale_code="same",
+                predecessor_receipt_hash=stable_hash(first),
+                prior_receipts=[first],
+            )
+        with self.assertRaisesRegex(ValueError, "predecessor"):
+            build_real_review_receipt(
+                self.receipt(),
+                comparison_artifact_hash="sha256:" + "5" * 64,
+                reviewer_identity_hash="sha256:" + "4" * 64,
+                disposition="confirm_safe",
+                rationale_code="safe",
+                predecessor_receipt_hash="sha256:" + "9" * 64,
+                prior_receipts=[first],
+            )
+
+    def test_reference_unavailable_disposition_records_exact_public_text(self):
+        result = build_real_review_receipt(
+            self.receipt(),
+            comparison_artifact_hash="sha256:" + "5" * 64,
+            reviewer_identity_hash="sha256:" + "4" * 64,
+            disposition="reference_unavailable_collect_more_evidence",
+            rationale_code="designated_reference_unavailable",
+            reviewed_at="2026-07-14T00:00:00Z",
+        )
+        self.assertEqual(
+            result["disposition_text"],
+            "reference unavailable; collect more evidence",
+        )
+        self.assertFalse(result["release_authority"])
+
+
+if __name__ == "__main__":
+    unittest.main()

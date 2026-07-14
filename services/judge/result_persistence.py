@@ -7,6 +7,7 @@ import hashlib
 import json
 from datetime import datetime, timezone
 from pathlib import Path
+import os
 import re
 from typing import Any
 
@@ -241,17 +242,277 @@ def build_result_record(
     }
 
 
-def write_jsonl(path: str | Path, records: list[dict[str, Any]]) -> dict[str, Any]:
+def write_jsonl(
+    path: str | Path,
+    records: list[dict[str, Any]],
+    *,
+    previous_manifest_hash: str = "",
+    sequence_number: int = 1,
+    previous_sequence_number: int = 0,
+    writer_version: str = "a2.result_persistence.v1",
+    writer_build_hash: str = "",
+    created_at: str | None = None,
+    replace_function: Any | None = None,
+    filesystem_volume_id_hash: str = "",
+    post_replace_hook: Any | None = None,
+    replay_set_snapshot: dict[str, Any] | None = None,
+    parent_directory_flush_evidence: dict[str, Any] | None = None,
+    crash_injector: Any | None = None,
+) -> dict[str, Any]:
+    if sequence_number < 1:
+        raise ValueError("sequence_number must be positive")
+    if previous_sequence_number != sequence_number - 1:
+        raise ValueError("previous_sequence_number must immediately precede sequence_number")
+    if filesystem_volume_id_hash and not re.fullmatch(r"sha256:[a-f0-9]{64}", filesystem_volume_id_hash):
+        raise ValueError("filesystem_volume_id_hash must be empty or a sha256 reference")
     destination = Path(path)
     destination.parent.mkdir(parents=True, exist_ok=True)
     text = "".join(json.dumps(record, sort_keys=True) + "\n" for record in records)
-    destination.write_text(text, encoding="utf-8")
+    temporary = destination.with_name(destination.name + ".tmp")
+    injector = crash_injector or (lambda _: None)
+    with temporary.open("wb") as temporary_file:
+        temporary_file.write(text.encode("utf-8"))
+        temporary_file.flush()
+        os.fsync(temporary_file.fileno())
+    injector("after_file_fsync")
+    try:
+        (replace_function or Path.replace)(temporary, destination)
+    except Exception:
+        temporary.unlink(missing_ok=True)
+        raise
+    injector("after_atomic_replace")
+    if post_replace_hook:
+        post_replace_hook(destination)
+    reopened_hash = hashlib.sha256(destination.read_bytes()).hexdigest()
+    expected_file_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    if reopened_hash != expected_file_hash:
+        raise OSError("post-replace JSONL hash mismatch")
+    record_hashes = [stable_hash(record) for record in records]
+    chain_hash = stable_hash(
+        {
+            "previous_manifest_hash": previous_manifest_hash,
+            "sequence_number": sequence_number,
+            "previous_sequence_number": previous_sequence_number,
+            "file_sha256": expected_file_hash,
+            "record_hashes": record_hashes,
+        }
+    )
+    durability_receipt = {
+        "file_write_state": "completed",
+        "file_fsync_state": "verified",
+        "atomic_replace_state": "verified",
+        "post_replace_reopen_state": "verified",
+        "parent_directory_flush_state": (
+            "verified"
+            if parent_directory_flush_evidence
+            and parent_directory_flush_evidence.get("flush_succeeded") is True
+            else "unavailable"
+        ),
+    }
     return {
         "schema_version": "a2.result_persistence_jsonl_manifest.v1",
         "path": destination.as_posix(),
         "record_count": len(records),
-        "file_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
-        "record_hashes": [stable_hash(record) for record in records],
+        "file_sha256": expected_file_hash,
+        "record_hashes": record_hashes,
+        "previous_manifest_hash": previous_manifest_hash,
+        "sequence_number": sequence_number,
+        "previous_sequence_number": previous_sequence_number,
+        "writer_version": writer_version,
+        "writer_build_hash": writer_build_hash,
+        "created_at": created_at or datetime.now(timezone.utc).replace(microsecond=0).isoformat(),
+        "directory_fsync_state": "not_exposed",
+        "filesystem_volume_id_hash": filesystem_volume_id_hash,
+        "post_replace_reopen_state": "verified",
+        "durability_qualification_state": "atomic_replace_verified_durability_unproven",
+        "durability_receipt": durability_receipt,
+        "durability_receipt_hash": stable_hash(durability_receipt),
+        "replay_set_snapshot_hash": stable_hash(replay_set_snapshot) if replay_set_snapshot else "",
+        "chain_hash": chain_hash,
+        "public_safe": True,
+    }
+
+
+def _classify_windows_volume_error(error: BaseException) -> str:
+    """Return a stable public-safe class without exposing OS error text or identifiers."""
+    if isinstance(error, PermissionError):
+        return "permission_denied"
+    if isinstance(error, FileNotFoundError):
+        return "volume_root_not_found"
+    if isinstance(error, TimeoutError):
+        return "volume_api_timeout"
+    if isinstance(error, OSError):
+        return "volume_api_os_error"
+    if isinstance(error, AttributeError):
+        return "volume_api_unavailable"
+    return "volume_api_unexpected_error"
+
+
+def observe_filesystem_volume_hash(
+    path: str | Path,
+    *,
+    windows_volume_observer: Any | None = None,
+    platform_name: str | None = None,
+) -> dict[str, Any]:
+    """Hash an OS volume observation; never return the raw identifier."""
+    resolved = Path(path).resolve()
+    drive = resolved.drive or resolved.anchor
+    observed_platform = platform_name or os.name
+    observation = {"platform": observed_platform, "drive": drive.upper()}
+    observation_method = "resolved_drive_hash"
+    observation_state = "fallback"
+    error_class = "not_applicable"
+    if observed_platform == "nt" and drive:
+        try:
+            if windows_volume_observer is None:
+                import ctypes
+
+                serial = ctypes.c_uint32()
+                succeeded = ctypes.windll.kernel32.GetVolumeInformationW(
+                    drive + "\\", None, 0, ctypes.byref(serial), None, None, None, 0
+                )
+                if not succeeded:
+                    raise ctypes.WinError()
+                serial_value = int(serial.value)
+            else:
+                serial_value = windows_volume_observer(drive + "\\")
+                if serial_value is False or serial_value is None:
+                    raise OSError("windows volume observer returned false")
+                if not isinstance(serial_value, int) or isinstance(serial_value, bool):
+                    raise TypeError("windows volume observer returned invalid serial")
+            if serial_value >= 0:
+                observation["volume_serial"] = serial_value
+                observation_method = "windows_volume_api_hashed"
+                observation_state = "observed"
+                error_class = "none"
+        except (AttributeError, OSError, TypeError) as error:
+            error_class = _classify_windows_volume_error(error)
+    return {
+        "filesystem_volume_id_hash": stable_hash(observation),
+        "observation_method": observation_method,
+        "observation_state": observation_state,
+        "error_class": error_class,
+        "raw_identifier_exposed": False,
+        "public_safe": True,
+    }
+
+
+def discover_directory_flush_capability() -> dict[str, Any]:
+    supported = os.name != "nt" and hasattr(os, "fsync")
+    return {
+        "platform": os.name,
+        "directory_flush_state": "supported" if supported else "not_exposed",
+        "durability_claim_allowed": supported,
+        "public_safe": True,
+    }
+
+
+def observe_parent_directory_durability(path: str | Path) -> dict[str, Any]:
+    capability = discover_directory_flush_capability()
+    parent = Path(path).resolve().parent
+    attempted = False
+    succeeded = False
+    if capability["directory_flush_state"] == "supported":
+        attempted = True
+        descriptor = os.open(parent, os.O_RDONLY)
+        try:
+            os.fsync(descriptor)
+            succeeded = True
+        finally:
+            os.close(descriptor)
+    return {
+        "parent_path_hash": stable_hash(str(parent)),
+        "flush_attempted": attempted,
+        "flush_succeeded": succeeded,
+        "durability_claim_allowed": succeeded,
+        "blockers": [] if succeeded else ["parent_directory_flush_evidence_unavailable"],
+        "public_safe": True,
+    }
+
+
+def verify_jsonl_manifest_predecessor(
+    *, manifest: dict[str, Any], previous_manifest: dict[str, Any] | None
+) -> dict[str, Any]:
+    blockers: list[str] = []
+    if manifest.get("sequence_number") == 1:
+        if previous_manifest is not None or manifest.get("previous_manifest_hash"):
+            blockers.append("jsonl_unexpected_predecessor")
+    elif previous_manifest is None:
+        blockers.append("jsonl_predecessor_missing")
+    else:
+        if manifest.get("previous_sequence_number") != previous_manifest.get("sequence_number"):
+            blockers.append("jsonl_predecessor_sequence_mismatch")
+        if manifest.get("previous_manifest_hash") != stable_hash(previous_manifest):
+            blockers.append("jsonl_predecessor_hash_mismatch")
+    return {
+        "schema_version": "a2.result_persistence_predecessor_verification.v1",
+        "state": "verified" if not blockers else "blocked",
+        "release_authority": False,
+        "blockers": blockers,
+        "public_safe": True,
+    }
+
+
+def verify_jsonl_manifest(
+    path: str | Path,
+    manifest: dict[str, Any],
+    *,
+    expected_sequence_number: int | None = None,
+    pinned_chain_hash: str = "",
+) -> dict[str, Any]:
+    """Verify exact JSONL bytes and ordered record hashes without trusting the file."""
+    source = Path(path)
+    if not source.is_file():
+        return {
+            "state": "blocked",
+            "blockers": ["jsonl_file_missing"],
+            "public_safe": True,
+        }
+    text = source.read_text(encoding="utf-8")
+    blockers: list[str] = []
+    if expected_sequence_number is not None and manifest.get("sequence_number") != expected_sequence_number:
+        blockers.append("jsonl_sequence_gap_or_replay")
+    if manifest.get("previous_sequence_number") != manifest.get("sequence_number", 0) - 1:
+        blockers.append("jsonl_previous_sequence_mismatch")
+    if pinned_chain_hash and manifest.get("chain_hash") != pinned_chain_hash:
+        blockers.append("jsonl_chain_head_pin_mismatch")
+    durability_receipt = manifest.get("durability_receipt")
+    if (
+        not isinstance(durability_receipt, dict)
+        or manifest.get("durability_receipt_hash") != stable_hash(durability_receipt)
+    ):
+        blockers.append("jsonl_durability_receipt_hash_mismatch")
+    observed_file_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
+    if observed_file_hash != manifest.get("file_sha256"):
+        blockers.append("jsonl_file_hash_mismatch")
+    try:
+        records = [json.loads(line) for line in text.splitlines() if line.strip()]
+    except json.JSONDecodeError:
+        records = []
+        blockers.append("jsonl_parse_failure")
+    if len(records) != manifest.get("record_count"):
+        blockers.append("jsonl_record_count_mismatch")
+    observed_record_hashes = [stable_hash(record) for record in records]
+    if observed_record_hashes != manifest.get("record_hashes"):
+        blockers.append("jsonl_record_hash_mismatch")
+    expected_chain_hash = stable_hash(
+        {
+            "previous_manifest_hash": manifest.get("previous_manifest_hash", ""),
+            "sequence_number": manifest.get("sequence_number"),
+            "previous_sequence_number": manifest.get("previous_sequence_number"),
+            "file_sha256": observed_file_hash,
+            "record_hashes": observed_record_hashes,
+        }
+    )
+    if expected_chain_hash != manifest.get("chain_hash"):
+        blockers.append("jsonl_chain_hash_mismatch")
+    return {
+        "state": "verified" if not blockers else "blocked",
+        "record_count": len(records),
+        "file_sha256": observed_file_hash,
+        "record_hashes": observed_record_hashes,
+        "chain_hash": expected_chain_hash,
+        "blockers": blockers,
         "public_safe": True,
     }
 
@@ -764,6 +1025,8 @@ def _release_unblock_checklist_record(
         "source_release_gate": checklist.get("source_release_gate"),
         "review_workflow": checklist.get("review_workflow", {}),
     }
+
+
     input_payload = {
         "release_gate_decision": checklist.get("release_gate_decision"),
         "release_gate_exit_code": checklist.get("release_gate_exit_code"),
@@ -806,6 +1069,142 @@ def _release_unblock_checklist_record(
         },
     )
 
+
+def build_structured_output_failure_record(
+    failure_receipt: dict[str, Any],
+    *,
+    org_id: str,
+    project_id: str,
+    run_id: str,
+    case_id: str,
+    created_at: str,
+) -> dict[str, Any]:
+    """Persist only hashes and classification for malformed/provider-failed model output."""
+    state = str(failure_receipt.get("state") or "")
+    if state in {"", "valid"}:
+        raise ValueError("failure persistence requires a failed structured-output receipt")
+    public_payload = {
+        "state": state,
+        "provider_status": str(failure_receipt.get("provider_status") or ""),
+        "raw_response_hash": str(failure_receipt.get("raw_response_hash") or ""),
+        "parsed_output_hash": str(failure_receipt.get("parsed_output_hash") or ""),
+        "blockers": list(failure_receipt.get("blockers") or []),
+    }
+    return build_result_record(
+        public_payload,
+        org_id=org_id,
+        project_id=project_id,
+        run_id=run_id,
+        case_id=case_id,
+        kind="structured_output_failure",
+        input_payload={"failure_receipt_hash": stable_hash(failure_receipt)},
+        created_at=created_at,
+    )
+
+
+def build_ocr_vision_disagreement_record(
+    disagreement: dict[str, Any],
+    *,
+    org_id: str,
+    project_id: str,
+    run_id: str,
+    case_id: str,
+    created_at: str,
+) -> dict[str, Any]:
+    """Persist an OCR/vision disagreement using only public-safe hashes and reason codes."""
+    if disagreement.get("state") != "disagreement":
+        raise ValueError("disagreement persistence requires disagreement state")
+    payload = {
+        key: disagreement.get(key)
+        for key in (
+            "artifact_hash",
+            "ocr_observation_hash",
+            "vision_output_hash",
+            "reason_code",
+            "review_packet_hash",
+            "blockers",
+        )
+    }
+    return build_result_record(
+        payload,
+        org_id=org_id,
+        project_id=project_id,
+        run_id=run_id,
+        case_id=case_id,
+        kind="ocr_vision_disagreement",
+        input_payload={"disagreement_hash": stable_hash(disagreement)},
+        created_at=created_at,
+    )
+
+
+def build_multimodal_runtime_record(
+    runtime_summary: dict[str, Any],
+    *,
+    org_id: str,
+    project_id: str,
+    run_id: str,
+    case_id: str,
+    judge_version: str,
+    created_at: str | None = None,
+) -> dict[str, Any]:
+    """Persist runtime governance without raw responses or cancellation details."""
+    safe_payload = {
+        key: runtime_summary.get(key)
+        for key in (
+            "schema_version",
+            "observation_count",
+            "timeout_count",
+            "failure_counts",
+            "provider_timeout_rate",
+            "completed_count",
+            "completed_semantic_count",
+            "empty_response_count",
+            "empty_response_rate",
+            "invalid_structured_output_count",
+            "invalid_structured_output_rate",
+            "valid_semantic_output_rate",
+            "qualification_state",
+            "blockers",
+            "queue_telemetry",
+            "cancellation_receipt_hashes",
+            "public_safe",
+        )
+        if key in runtime_summary
+    }
+    return build_result_record(
+        safe_payload,
+        org_id=org_id,
+        project_id=project_id,
+        run_id=run_id,
+        case_id=case_id,
+        kind="multimodal_runtime",
+        judge_version=judge_version,
+        policy_hash=stable_hash(
+            {
+                "maximum_latency_seconds": runtime_summary.get("maximum_latency_seconds"),
+                "maximum_completion_tokens": runtime_summary.get("maximum_completion_tokens"),
+                "maximum_provider_timeout_rate": runtime_summary.get(
+                    "maximum_provider_timeout_rate"
+                ),
+                "minimum_valid_semantic_output_rate": runtime_summary.get(
+                    "minimum_valid_semantic_output_rate"
+                ),
+                "maximum_empty_response_rate": runtime_summary.get(
+                    "maximum_empty_response_rate"
+                ),
+                "maximum_invalid_structured_output_rate": runtime_summary.get(
+                    "maximum_invalid_structured_output_rate"
+                ),
+            }
+        ),
+        input_payload={
+            "observation_count": runtime_summary.get("observation_count"),
+            "cancellation_receipt_hashes": runtime_summary.get(
+                "cancellation_receipt_hashes", []
+            ),
+        },
+        created_at=created_at,
+    )
 
 def _judge_policy_payload(scenario: dict[str, Any], judge_id: str, judge_version: str) -> dict[str, Any]:
     return {

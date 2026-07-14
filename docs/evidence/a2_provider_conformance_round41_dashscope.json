@@ -1,0 +1,27 @@
+{
+  "adapter_class": "OpenAICompatibleMultimodalAdapter",
+  "blockers": [],
+  "capability_hash": "sha256:690ccadffb83a55141063b775390b85ad286c2b6d2382d136f40228494494f0a",
+  "checks": {
+    "capability_hash_bound": true,
+    "credential_boundary_enforced": true,
+    "generic_endpoint_live_verified": true,
+    "jpeg_mime_preserved": true,
+    "provider_failure_fail_closed": true,
+    "structured_output_contract": true
+  },
+  "generated_at": "2026-07-13T17:02:39.564325Z",
+  "observed_states": [
+    "blocked_by_calibration_policy",
+    "valid_json"
+  ],
+  "protocol": "openai_compatible",
+  "provider_id": "dashscope",
+  "public_safe": true,
+  "qualification_state": "conformant",
+  "raw_payload_included": false,
+  "receipt_id": "sha256:38e931c924594a50670f8874ef627accbd8e56d84dc2004d3ffe0c7657ef097a",
+  "release_authority": false,
+  "schema_version": "a2.provider_conformance_receipt.v1",
+  "secret_included": false
+}

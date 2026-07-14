@@ -13,6 +13,8 @@ from services.judge.trusted_spine import (
     build_decision_record,
     build_evidence_snapshot,
     build_trusted_spine_handoff,
+    build_trusted_spine_candidate_manifest,
+    validate_trusted_spine_candidate,
 )
 
 
@@ -38,6 +40,69 @@ def load_json(path: Path) -> dict:
 
 
 class A2TrustedSpineTests(unittest.TestCase):
+    def assert_schema(self, name, value):
+        jsonschema.Draft202012Validator(
+            load_json(ROOT / "docs/a2/schemas" / name),
+            format_checker=jsonschema.FormatChecker(),
+        ).validate(value)
+
+    def test_candidate_rejects_stale_a2_and_decision_binding(self):
+        candidate = build_trusted_spine_candidate_manifest(
+            a1_sha="1" * 40,
+            a2_sha="2" * 40,
+            a3_sha="3" * 40,
+            decision_hash="sha256:" + "4" * 64,
+            grades_hash="sha256:" + "5" * 64,
+            created_at="2026-07-13T00:00:00Z",
+        )
+        result = validate_trusted_spine_candidate(
+            candidate,
+            expected_a2_sha="6" * 40,
+            expected_decision_hash="sha256:" + "7" * 64,
+        )
+        self.assertEqual(result["status"], "rejected")
+        self.assertIn("trusted_spine_candidate_a2_sha_stale", result["blockers"])
+        self.assert_schema("trusted_spine_candidate.schema.json", candidate)
+        self.assert_schema("trusted_spine_candidate_validation.schema.json", result)
+
+    def test_round49_candidate_rejects_prior_round_refs_and_grades_hash(self):
+        candidate = build_trusted_spine_candidate_manifest(
+            a1_sha="1" * 40,
+            a2_sha="2" * 40,
+            a3_sha="3" * 40,
+            decision_hash="sha256:" + "4" * 64,
+            grades_hash="sha256:" + "5" * 64,
+            created_at="2026-07-14T00:00:00Z",
+        )
+        result = validate_trusted_spine_candidate(
+            candidate,
+            expected_a1_sha="6" * 40,
+            expected_a2_sha="7" * 40,
+            expected_a3_sha="8" * 40,
+            expected_decision_hash="sha256:" + "9" * 64,
+            expected_grades_hash="sha256:" + "a" * 64,
+        )
+        self.assertEqual(result["status"], "rejected")
+        self.assertIn("trusted_spine_candidate_a1_sha_stale", result["blockers"])
+        self.assertIn("trusted_spine_candidate_a2_sha_stale", result["blockers"])
+        self.assertIn("trusted_spine_candidate_a3_sha_stale", result["blockers"])
+        self.assertIn(
+            "trusted_spine_candidate_decision_hash_stale", result["blockers"]
+        )
+        self.assertIn(
+            "trusted_spine_candidate_grades_hash_stale", result["blockers"]
+        )
+
+    def test_round24_candidate_binds_exact_implementation_sha(self):
+        bundle = load_json(ROOT / "fixtures/a2/results/a2_round24_trusted_spine_candidate.json")
+        candidate = bundle["candidate"]
+        self.assertEqual(candidate["a2_sha"], "bedbdd9dccf44f1066da2bfa4dde4147a789cdc5")
+        self.assertEqual(bundle["validation"]["status"], "accepted")
+        self.assertFalse(bundle["authoritative"])
+        self.assert_schema("trusted_spine_candidate.schema.json", candidate)
+        self.assert_schema("trusted_spine_candidate_validation.schema.json", bundle["validation"])
+
+
     def test_handoff_fixture_matches_builder(self):
         actual = build_trusted_spine_handoff(
             load_json(RUN_FIXTURE),

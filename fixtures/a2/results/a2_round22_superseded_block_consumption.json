@@ -1,0 +1,17 @@
+{
+  "schema_version": "a2.round22_superseded_block_consumption.v1",
+  "a2_decision": {
+    "status": "BLOCK",
+    "decision_hash": "sha256:c49a55b0a3915db3a9f35b7aa3fd0ea9d45397f42bc40901733427438c5737ec",
+    "prompt_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+    "superseded_by_prompt_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+    "specificity": 0.0
+  },
+  "a3_consumption": {
+    "display_status": "BLOCK",
+    "decision_hash": "sha256:c49a55b0a3915db3a9f35b7aa3fd0ea9d45397f42bc40901733427438c5737ec",
+    "specificity_recomputation_allowed": false
+  },
+  "release_authority": false,
+  "public_safe": true
+}

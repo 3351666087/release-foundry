@@ -1,0 +1,27 @@
+{
+  "schema_version": "a2.provider_cancellation_acknowledgement.v1",
+  "acknowledgement_state": "acknowledged",
+  "provider_endpoint_hash": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+  "runtime_version_hash": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+  "provider_receipt_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+  "request_cancellation_proven": true,
+  "release_authority": false,
+  "blockers": [],
+  "public_safe": true,
+  "receipt_issuer": "ollama-local-test-adapter",
+  "signature_algorithm": "sha256-bound-observation",
+  "issued_at": "2026-07-13T10:00:00+08:00",
+  "observed_at": "2026-07-13T10:00:01+08:00",
+  "maximum_age_seconds": 300,
+  "receipt_nonce_hash": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+  "signature_verification": {
+    "schema_version": "a2.provider_receipt_signature_verification.v1",
+    "receipt_hash": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+    "issuer": "ollama-local-test-adapter",
+    "signature_algorithm": "sha256-bound-observation",
+    "verification_state": "verified",
+    "release_authority": false,
+    "blockers": [],
+    "public_safe": true
+  }
+}

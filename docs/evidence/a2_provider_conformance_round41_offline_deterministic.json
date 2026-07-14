@@ -1,0 +1,29 @@
+{
+  "adapter_class": "OfflineDeterministicMultimodalAdapter",
+  "blockers": [],
+  "capability_hash": "sha256:e623dac0f027dbff7b6e7df43348d7cba619ad1e5c04d274303f15b91d7d7819",
+  "checks": {
+    "invalid_output_observed": true,
+    "provider_failure_fail_closed": true,
+    "rate_limit_observed": true,
+    "structured_output_contract": true,
+    "timeout_observed": true,
+    "valid_output_observed": true
+  },
+  "generated_at": "2026-07-13T17:02:39.564325Z",
+  "observed_states": [
+    "invalid",
+    "rate_limited",
+    "timeout",
+    "valid"
+  ],
+  "protocol": "offline_deterministic",
+  "provider_id": "offline-deterministic",
+  "public_safe": true,
+  "qualification_state": "conformant",
+  "raw_payload_included": false,
+  "receipt_id": "sha256:4b7209aff9f8b02219b03a49899376ed71253aded3cbb0db474b838d1d362346",
+  "release_authority": false,
+  "schema_version": "a2.provider_conformance_receipt.v1",
+  "secret_included": false
+}

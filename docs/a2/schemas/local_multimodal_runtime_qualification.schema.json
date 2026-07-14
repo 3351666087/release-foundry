@@ -1,0 +1,146 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.io/schemas/a2/local_multimodal_runtime_qualification.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "observed_at",
+    "model_id",
+    "model_digest",
+    "ollama_version",
+    "probe",
+    "historical_aborted_matrix",
+    "qualification_state",
+    "blockers",
+    "raw_payload_included",
+    "release_authority",
+    "public_safe"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "a2.local_multimodal_runtime_qualification.v1"
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "model_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "model_digest": {
+      "$ref": "#/$defs/hash"
+    },
+    "ollama_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "probe": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "matrix_path",
+        "partial_path",
+        "manifest_hash",
+        "planned_trial_count",
+        "completed_trial_count",
+        "timeout_trial_count",
+        "invalid_structured_output_count"
+      ],
+      "properties": {
+        "matrix_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "partial_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "manifest_hash": {
+          "$ref": "#/$defs/hash"
+        },
+        "planned_trial_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "completed_trial_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "timeout_trial_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "invalid_structured_output_count": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "historical_aborted_matrix": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "planned_trial_count",
+        "completed_before_abort",
+        "timeout_trial_count",
+        "declared_ollama_version",
+        "actual_ollama_version",
+        "binding_accepted"
+      ],
+      "properties": {
+        "planned_trial_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "completed_before_abort": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "timeout_trial_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "declared_ollama_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "actual_ollama_version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "binding_accepted": {
+          "const": false
+        }
+      }
+    },
+    "qualification_state": {
+      "const": "blocked"
+    },
+    "blockers": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "raw_payload_included": {
+      "const": false
+    },
+    "release_authority": {
+      "const": false
+    },
+    "public_safe": {
+      "const": true
+    }
+  },
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    }
+  }
+}

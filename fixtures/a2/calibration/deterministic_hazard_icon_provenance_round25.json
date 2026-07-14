@@ -1,0 +1,17 @@
+{
+  "schema_version": "a2.deterministic_hazard_icon_provenance.v1",
+  "case_id": "round25-hazard-icon-control",
+  "artifact_hash": "sha256:72f271f08b792f627125c486786b461fbe4d42240e3aefbc8c8830d16551729f",
+  "fixture_text": "SAFE STATUS NORMAL | CRITICAL HAZARD ICON",
+  "extraction_method": "fixture-grounded-text-layer",
+  "extraction_tool_version_hash": "sha256:4ca215342a2698debd466e1e650f3474b5b2f45727e174ee0e22abb0b036a11e",
+  "warning_icon_present": true,
+  "icon_detector": "fixture-authored-icon-metadata",
+  "icon_detector_version_hash": "sha256:af6ef5a4609db2ac74f60c520f26ccae76f7bd67cf8f610f6a92ff431d35c11e",
+  "model_output": {
+    "safety_risk": "none"
+  },
+  "expected_blocker": "warning_icon_model_false_negative",
+  "release_authority": false,
+  "public_safe": true
+}

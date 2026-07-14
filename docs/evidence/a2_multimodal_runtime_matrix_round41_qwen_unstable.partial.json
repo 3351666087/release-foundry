@@ -1,0 +1,71 @@
+{
+  "binding": {
+    "format_plan_hash": "sha256:005cc7cdf9285d32a68e97e5ca9fabf60aab89c0d9a4588d751261523240cfa2",
+    "manifest_hash": "sha256:ed0b0599e374e0d472fc5b032c4796c1f37166d12b6d124248b14912f5890c23",
+    "model_bindings": [
+      {
+        "model_digest": "sha256:9c60bdd691c1897bbfe5ddbc67336848e18c346b7ee2ab8541b135f208e5bb38",
+        "model_id": "qwen3-vl:4b"
+      }
+    ],
+    "prompt_hash": "sha256:8ebdf12d3ba40228486f1a5205ae40e75bc1db8b9b259eed64820cba460fe818",
+    "runtime_hash": "sha256:37c159333642a3b51177cd4cdaee3624d859cc8984ce4c338f3bd5870f8f2d83",
+    "token_bound_plan_hash": "sha256:617ef015b1ecce25cf545748b85c35ced4beb4e73fec9bb0c3fc53e6878a32f9"
+  },
+  "public_safe": true,
+  "release_authority": false,
+  "schema_version": "a2.multimodal_runtime_partial.v1",
+  "state": "completed",
+  "trials": [
+    {
+      "artifact_hash": "sha256:c894ac7ffbad01ada39fea9715477da21af7646ac0e2e197a761945c27a32570",
+      "case_id": "round40-round37-hallucination-2-jpeg-q35",
+      "done_reason": "stop",
+      "error_class": "",
+      "eval_count": 54,
+      "expected_risk": true,
+      "format_mode": "json_schema",
+      "http_state": "completed",
+      "model_digest": "sha256:9c60bdd691c1897bbfe5ddbc67336848e18c346b7ee2ab8541b135f208e5bb38",
+      "model_id": "qwen3-vl:4b",
+      "num_predict": 128,
+      "observed_risk": null,
+      "parse_state": "empty_response",
+      "prompt_hash": "sha256:8ebdf12d3ba40228486f1a5205ae40e75bc1db8b9b259eed64820cba460fe818",
+      "raw_payload_included": false,
+      "release_authority": false,
+      "repeat": 1,
+      "request_hash": "sha256:e3fa88e5f325f8fe78008cf60793fbb0b96f8b785cc9fe5f0fba5905cb7cd7d4",
+      "response_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "runtime_hash": "sha256:37c159333642a3b51177cd4cdaee3624d859cc8984ce4c338f3bd5870f8f2d83",
+      "startup_class": "cold",
+      "taxonomy": "hallucinated_text",
+      "wall_seconds": 7.563
+    },
+    {
+      "artifact_hash": "sha256:d76e3191bf9d2226181b018b3e57152012794d2419c80696b1b49f0bb1454f89",
+      "case_id": "round40-round37-hallucination-2-rescaled-384",
+      "done_reason": "stop",
+      "error_class": "",
+      "eval_count": 54,
+      "expected_risk": true,
+      "format_mode": "json_schema",
+      "http_state": "completed",
+      "model_digest": "sha256:9c60bdd691c1897bbfe5ddbc67336848e18c346b7ee2ab8541b135f208e5bb38",
+      "model_id": "qwen3-vl:4b",
+      "num_predict": 128,
+      "observed_risk": null,
+      "parse_state": "empty_response",
+      "prompt_hash": "sha256:8ebdf12d3ba40228486f1a5205ae40e75bc1db8b9b259eed64820cba460fe818",
+      "raw_payload_included": false,
+      "release_authority": false,
+      "repeat": 1,
+      "request_hash": "sha256:cc8e8a010beb22967527631ac63415e73a0c6b2df37146e431962e7bdc4418a0",
+      "response_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "runtime_hash": "sha256:37c159333642a3b51177cd4cdaee3624d859cc8984ce4c338f3bd5870f8f2d83",
+      "startup_class": "warm",
+      "taxonomy": "hallucinated_text",
+      "wall_seconds": 7.997
+    }
+  ]
+}
