@@ -414,6 +414,114 @@ func TestPostgresIdentityVerificationStoreHonorsParentDeadline(t *testing.T) {
 	}
 }
 
+func TestPostgresIdentityVerificationBindingUsesAuthorizedAuthority(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 7, 14, 9, 0, 0, 0, time.UTC)
+	db, mock, store := newPostgresVerificationMock(t)
+	defer db.Close()
+	coordinator, err := NewPostgresIdentityVerificationTransactionCoordinator(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	command := validPostgresSessionCompletionCommand(now, IdentityVerificationBinding)
+	command.ActorID = command.AccountID
+	command.SessionDigest = strings.Repeat("c", 64)
+	command.MutationTicketID = strings.Repeat("d", 64)
+	command.StepUpReceiptID = strings.Repeat("e", 64)
+
+	expectPostgresVerificationScope(mock)
+	metadata := `{"source":"go_identity_verification_transaction_coordinator"}`
+	mock.ExpectQuery("FROM a1_verify_identity_verification_attempt").
+		WillReturnRows(sqlmock.NewRows([]string{
+			"outcome_code", "challenge_id", "receipt_id", "principal_id",
+			"channel", "purpose", "attempts_remaining",
+		}).AddRow(
+			"verified",
+			postgresVerificationChallengeUUID,
+			postgresVerificationReceiptUUID,
+			postgresVerificationPrincipalID,
+			"email",
+			"credential_binding",
+			3,
+		))
+	mock.ExpectQuery("SELECT a1_bind_verified_identity_credential_authorized").
+		WithArgs(
+			postgresVerificationOrganizationID,
+			postgresVerificationProjectID,
+			sqlmock.AnyArg(),
+			command.AccountID,
+			command.SessionDigest,
+			command.MutationTicketID,
+			command.StepUpReceiptID,
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+			metadata,
+		).
+		WillReturnRows(sqlmock.NewRows([]string{"credential_id"}).AddRow(postgresVerificationChallengeUUID))
+	mock.ExpectCommit()
+
+	result, err := coordinator.CompleteIdentityVerification(context.Background(), command)
+	if err != nil {
+		t.Fatalf("complete authorized binding: %v", err)
+	}
+	if result.Account.AccountID != command.AccountID ||
+		result.Credential.CredentialID != postgresVerificationChallengeUUID {
+		t.Fatalf("unexpected binding result: %#v", result)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPostgresIdentityVerificationBindingRejectsMissingTrustedAuthorizationBeforeSQL(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 7, 14, 9, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name   string
+		mutate func(*IdentityVerificationCompletionCommand)
+	}{
+		{name: "actor", mutate: func(command *IdentityVerificationCompletionCommand) {
+			command.ActorID = ""
+		}},
+		{name: "session digest", mutate: func(command *IdentityVerificationCompletionCommand) {
+			command.SessionDigest = ""
+		}},
+		{name: "mutation ticket", mutate: func(command *IdentityVerificationCompletionCommand) {
+			command.MutationTicketID = ""
+		}},
+		{name: "step-up receipt", mutate: func(command *IdentityVerificationCompletionCommand) {
+			command.StepUpReceiptID = ""
+		}},
+	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			db, mock, store := newPostgresVerificationMock(t)
+			defer db.Close()
+			coordinator, err := NewPostgresIdentityVerificationTransactionCoordinator(store)
+			if err != nil {
+				t.Fatal(err)
+			}
+			command := validPostgresSessionCompletionCommand(now, IdentityVerificationBinding)
+			command.ActorID = command.AccountID
+			command.SessionDigest = strings.Repeat("c", 64)
+			command.MutationTicketID = strings.Repeat("d", 64)
+			command.StepUpReceiptID = strings.Repeat("e", 64)
+			testCase.mutate(&command)
+
+			_, err = coordinator.CompleteIdentityVerification(context.Background(), command)
+			if verificationErrorCode(err) != "credential_binding_authorization_required" {
+				t.Fatalf("missing %s returned %v", testCase.name, err)
+			}
+			if err := mock.ExpectationsWereMet(); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
 func TestPostgresIdentityVerificationIssuesOneTimeBearerWithResolverDigestLineage(t *testing.T) {
 	t.Parallel()
 
@@ -579,7 +687,8 @@ func TestPostgresIdentityVerificationIssuesOneTimeBearerWithResolverDigestLineag
 	httpRequest, _ := http.NewRequest(http.MethodGet, "https://api.example.test", nil)
 	httpRequest.Header.Set("Authorization", "Bearer "+bearer)
 	resolved, err := productionStore.ResolveIdentityHTTPSession(context.Background(), httpRequest)
-	if err != nil || resolved.SessionID != postgresVerificationSessionUUID {
+	if err != nil || resolved.SessionID != postgresVerificationSessionUUID ||
+		resolved.SessionDigest != expectedSessionDigest {
 		t.Fatalf("resolve issued bearer: session=%#v err=%v", resolved, err)
 	}
 	refreshRequest, _ := http.NewRequest(http.MethodGet, "https://api.example.test", nil)

@@ -147,6 +147,9 @@ type IdentityVerificationCompletionCommand struct {
 	TenantID            string
 	AccountID           string
 	ActorID             string
+	SessionDigest       string
+	MutationTicketID    string
+	StepUpReceiptID     string
 	DisplayName         string
 	VerifiedAt          time.Time
 	SessionExpiresAt    time.Time
@@ -277,15 +280,18 @@ type IdentityVerificationChallengeDTO struct {
 }
 
 type IdentityVerificationCompleteRequest struct {
-	ChallengeID string
-	Code        string
-	Channel     IdentityVerificationChannel
-	Identifier  string
-	Purpose     IdentityVerificationPurpose
-	TenantID    string
-	AccountID   string
-	ActorID     string
-	DisplayName string
+	ChallengeID      string
+	Code             string
+	Channel          IdentityVerificationChannel
+	Identifier       string
+	Purpose          IdentityVerificationPurpose
+	TenantID         string
+	AccountID        string
+	ActorID          string
+	SessionDigest    string
+	MutationTicketID string
+	StepUpReceiptID  string
+	DisplayName      string
 }
 
 type IdentityVerificationResultDTO struct {
@@ -852,6 +858,9 @@ func (service *IdentityVerificationService) complete(
 		TenantID:            tenantID,
 		AccountID:           accountID,
 		ActorID:             strings.TrimSpace(request.ActorID),
+		SessionDigest:       strings.TrimSpace(request.SessionDigest),
+		MutationTicketID:    strings.TrimSpace(request.MutationTicketID),
+		StepUpReceiptID:     strings.TrimSpace(request.StepUpReceiptID),
 		DisplayName:         strings.TrimSpace(request.DisplayName),
 		VerifiedAt:          now,
 		SessionExpiresAt:    now.Add(defaultIdentityAccessSessionTTL),

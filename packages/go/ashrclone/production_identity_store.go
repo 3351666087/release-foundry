@@ -75,6 +75,9 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
      'public.a1_bind_verified_identity_credential(uuid,uuid,text,uuid,text,text,text,jsonb)'
    ) IS NOT NULL
    AND to_regprocedure(
+     'public.a1_bind_verified_identity_credential_authorized(uuid,uuid,text,uuid,text,text,text,text,text,text,jsonb)'
+   ) IS NOT NULL
+   AND to_regprocedure(
      'public.a1_assert_recent_identity_authentication(uuid,uuid,uuid,text,integer,text)'
    ) IS NOT NULL
    AND to_regprocedure(
@@ -172,6 +175,16 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
    AND has_function_privilege(
      current_user,
      'public.a1_project_account_security(uuid)',
+     'EXECUTE'
+   )
+   AND has_function_privilege(
+     current_user,
+     'public.a1_bind_verified_identity_credential_authorized(uuid,uuid,text,uuid,text,text,text,text,text,text,jsonb)',
+     'EXECUTE'
+   )
+   AND NOT has_function_privilege(
+     current_user,
+     'public.a1_bind_verified_identity_credential(uuid,uuid,text,uuid,text,text,text,jsonb)',
      'EXECUTE'
    )
    AND NOT has_function_privilege(
@@ -306,7 +319,13 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
          to_regprocedure(
            'public.a1_execute_identity_security_mutation(text,text,text)'
          ),
-         to_regprocedure('public.a1_project_account_security(uuid)')
+         to_regprocedure('public.a1_project_account_security(uuid)'),
+         to_regprocedure(
+           'public.a1_bind_verified_identity_credential_authorized(uuid,uuid,text,uuid,text,text,text,text,text,text,jsonb)'
+         ),
+         to_regprocedure(
+           'public.a1_bind_verified_identity_credential(uuid,uuid,text,uuid,text,text,text,jsonb)'
+         )
        ]) function_oid
       WHERE function_oid IS NULL
          OR has_function_privilege('public', function_oid, 'EXECUTE')
@@ -340,7 +359,7 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
         )
    )
    AND (
-     SELECT count(*) = 4
+     SELECT count(*) = 5
        FROM pg_catalog.pg_proc p
       WHERE p.oid IN (
         to_regprocedure(
@@ -352,7 +371,10 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
         to_regprocedure(
           'public.a1_execute_identity_security_mutation(text,text,text)'
         ),
-        to_regprocedure('public.a1_project_account_security(uuid)')
+        to_regprocedure('public.a1_project_account_security(uuid)'),
+        to_regprocedure(
+          'public.a1_bind_verified_identity_credential_authorized(uuid,uuid,text,uuid,text,text,text,text,text,text,jsonb)'
+        )
         )
         AND p.prosecdef
         AND pg_catalog.pg_get_userbyid(p.proowner) <> current_user
@@ -963,7 +985,7 @@ func (store *ProductionIdentityStore) Ready(ctx context.Context) error {
 		return fmt.Errorf("verify production identity schema: %w", err)
 	}
 	if !ready {
-		return fmt.Errorf("production identity PostgreSQL schema is incomplete; migration 018 identity security authority and runtime grants are required")
+		return fmt.Errorf("production identity PostgreSQL schema is incomplete; migration 020 verified credential mutation authority and runtime grants are required")
 	}
 	return nil
 }
@@ -1013,13 +1035,14 @@ func (store *ProductionIdentityStore) NewIdentityVerificationTransactionCoordina
 }
 
 type postgresIdentitySession struct {
-	AccountID string
-	ActorID   string
-	SessionID string
-	TenantID  string
-	ProjectID string
-	UserID    string
-	Revoked   bool
+	AccountID     string
+	ActorID       string
+	SessionID     string
+	SessionDigest string
+	TenantID      string
+	ProjectID     string
+	UserID        string
+	Revoked       bool
 }
 
 func (store *ProductionIdentityStore) resolveSession(ctx context.Context, request *http.Request) (postgresIdentitySession, error) {
@@ -1057,6 +1080,7 @@ SELECT authenticated.principal_id::text,
 	if err != nil {
 		return postgresIdentitySession{}, fmt.Errorf("resolve identity session: %w", err)
 	}
+	session.SessionDigest = digest
 	return session, nil
 }
 
@@ -1344,10 +1368,11 @@ func (store *ProductionIdentityStore) ResolveIdentityHTTPSession(
 		return IdentityHTTPSession{}, err
 	}
 	return IdentityHTTPSession{
-		AccountID: session.AccountID,
-		ActorID:   session.ActorID,
-		SessionID: session.SessionID,
-		Revoked:   session.Revoked,
+		AccountID:     session.AccountID,
+		ActorID:       session.ActorID,
+		SessionID:     session.SessionID,
+		SessionDigest: session.SessionDigest,
+		Revoked:       session.Revoked,
 	}, nil
 }
 

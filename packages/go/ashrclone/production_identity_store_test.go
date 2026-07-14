@@ -567,6 +567,10 @@ func TestProductionIdentityReadinessEnforcesSecurityAuthorityLeastPrivilege(t *t
 		"search_path=pg_catalog,public,pg_temp",
 		"timestamp with time zone,timestamp with time zone)'",
 		"a1_execute_identity_security_mutation(text,text,text,timestamp with time zone)'",
+		"a1_bind_verified_identity_credential_authorized",
+		"AND NOT has_function_privilege(\n     current_user,\n     'public.a1_bind_verified_identity_credential(",
+		"OR has_function_privilege('public', function_oid, 'EXECUTE')",
+		"count(*) = 5",
 	} {
 		if !strings.Contains(productionIdentityReadinessQuery, required) {
 			t.Fatalf("security readiness omitted %s", required)
@@ -601,7 +605,8 @@ func TestProductionIdentityStoreResolvesOneTrustedSessionForAllInterfaces(t *tes
 	request, _ := http.NewRequest(http.MethodGet, "https://api.example.test/v1/accounts/principal-1", nil)
 	request.Header.Set("Authorization", "Bearer "+token)
 	identitySession, err := store.ResolveIdentityHTTPSession(context.Background(), request)
-	if err != nil || identitySession.AccountID != "principal-1" {
+	if err != nil || identitySession.AccountID != "principal-1" ||
+		identitySession.SessionDigest != digest {
 		t.Fatalf("identity session: %#v, %v", identitySession, err)
 	}
 	oauthSession, err := store.ResolveOAuthSession(context.Background(), request)
@@ -705,7 +710,8 @@ func TestProductionIdentityStoreSessionKeyRotationResolvesVersionedAndLegacyBear
 		request, _ := http.NewRequest(http.MethodGet, "https://api.example.test", nil)
 		request.Header.Set("Authorization", "Bearer "+test.bearer)
 		resolved, resolveErr := store.ResolveIdentityHTTPSession(context.Background(), request)
-		if resolveErr != nil || resolved.SessionID != fmt.Sprintf("session-%d", index) {
+		if resolveErr != nil || resolved.SessionID != fmt.Sprintf("session-%d", index) ||
+			resolved.SessionDigest != test.digest {
 			t.Fatalf("resolve rotation case %d: session=%#v err=%v", index, resolved, resolveErr)
 		}
 	}

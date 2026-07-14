@@ -45,7 +45,7 @@ func (store *ProductionIdentityStore) ResolveIdentitySecurityMutationTicket(
 	operation = strings.TrimSpace(operation)
 	if !validIdentitySecurityDigest(ticketID) ||
 		!validIdentitySecurityDigest(stepUpReceiptID) ||
-		!validIdentitySecurityOperation(operation) {
+		!validIdentitySecurityTicketOperation(operation) {
 		return IdentitySecurityMutationTicket{}, ErrIdentitySecurityRejected
 	}
 	queryCtx, cancel := context.WithTimeout(ctx, store.sqlTimeout)
@@ -217,16 +217,20 @@ func validIdentitySecurityMutation(mutation IdentitySecurityMutation, now time.T
 		ticket.ExpiresAt.IsZero() {
 		return false
 	}
-	return validIdentitySecurityOperation(mutation.Operation)
+	return validIdentitySecurityExecutableOperation(mutation.Operation)
 }
 
-func validIdentitySecurityOperation(operation string) bool {
+func validIdentitySecurityTicketOperation(operation string) bool {
 	switch operation {
-	case "password_enroll", "password_change", "password_recovery", "mfa_enroll", "mfa_confirm":
+	case "password_enroll", "password_change", "password_recovery", "mfa_enroll", "mfa_confirm", "credential_bind":
 		return true
 	default:
 		return false
 	}
+}
+
+func validIdentitySecurityExecutableOperation(operation string) bool {
+	return operation != "credential_bind" && validIdentitySecurityTicketOperation(operation)
 }
 
 func validIdentitySecurityIdempotencyKey(value string) bool {
