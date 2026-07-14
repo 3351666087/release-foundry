@@ -105,6 +105,12 @@
             "type": ["string", "null"],
             "minLength": 1
           },
+          "source_case_hash": {
+            "anyOf": [
+              {"type": "null"},
+              {"$ref": "#/$defs/hash"}
+            ]
+          },
           "user_text_present": {
             "type": "boolean"
           },
@@ -274,6 +280,10 @@
         "minimum_perturbation_samples": {
           "type": "integer",
           "minimum": 1
+        },
+        "minimum_distinct_perturbation_source_hashes": {
+          "type": "integer",
+          "minimum": 3
         },
         "maximum_p95_seconds": {
           "type": "number",
@@ -580,14 +590,26 @@
         "type": "object",
         "additionalProperties": false,
         "required": [
+          "raw_observation_count",
           "eligible_count",
           "detected_count",
+          "distinct_source_case_hash_count",
+          "duplicate_source_case_count",
           "sensitivity",
           "sensitivity_wilson_95"
         ],
         "properties": {
+          "raw_observation_count": {"type": "integer", "minimum": 1},
           "eligible_count": {"type": "integer", "minimum": 1},
           "detected_count": {"type": "integer", "minimum": 0},
+          "distinct_source_case_hash_count": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "duplicate_source_case_count": {
+            "type": "integer",
+            "minimum": 0
+          },
           "sensitivity": {"type": "number", "minimum": 0, "maximum": 1},
           "sensitivity_wilson_95": {"$ref": "#/$defs/optionalInterval"}
         }

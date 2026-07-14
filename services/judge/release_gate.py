@@ -167,6 +167,29 @@ def _multimodal_qualification_blockers(
             or usage.get("within_cost_budget") is not True
         ):
             reasons.append("multimodal usage or pricing qualification is incomplete")
+        if artifact.get("designated_reference_review_pending") is True:
+            latest_receipt_hash = artifact.get("latest_human_review_receipt_hash")
+            if not (
+                isinstance(latest_receipt_hash, str)
+                and len(latest_receipt_hash) == 71
+                and latest_receipt_hash.startswith("sha256:")
+                and all(
+                    character in "0123456789abcdef"
+                    for character in latest_receipt_hash[7:]
+                )
+            ):
+                reasons.append(
+                    "latest human-review receipt is missing for pending "
+                    "designated-reference review"
+                )
+            elif not isinstance(expected_bindings, dict) or (
+                expected_bindings.get("latest_human_review_receipt_hash")
+                != latest_receipt_hash
+            ):
+                reasons.append(
+                    "latest human-review receipt binding mismatch for pending "
+                    "designated-reference review"
+                )
     if not reasons:
         return []
     return [{

@@ -25,6 +25,7 @@ from services.judge.multimodal_provider import (
     parse_ollama_response,
     parse_openai_compatible_response,
     read_bounded_json_response,
+    read_bounded_response_bytes,
     request_provider_cancellation,
 )
 from services.judge.provider_runtime import EnvironmentCredentialResolver
@@ -72,10 +73,14 @@ class MultimodalProviderTests(unittest.TestCase):
         self.assertEqual(capability["image_mime_types"], ["image/jpeg", "image/png"])
         self.assertTrue(capability["structured_output"])
         self.assertEqual(capability["retry_classes"], ["parse", "transport"])
+        self.assertEqual(capability["response_encodings"], ["gzip", "identity"])
         self.assertNotIn("credential", str(capability))
 
     def test_generic_adapter_preserves_jpeg_mime_and_structured_output(self):
         class Response:
+            def __init__(self):
+                self.body = b'{"model":"qwen-vl-plus","choices":[{"message":{"content":"{}"}}]}'
+
             def __enter__(self):
                 return self
 
@@ -83,8 +88,9 @@ class MultimodalProviderTests(unittest.TestCase):
                 return False
 
             def read(self, maximum_bytes=-1):
-                value = b'{"model":"qwen-vl-plus","choices":[{"message":{"content":"{}"}}]}'
-                return value if maximum_bytes < 0 else value[:maximum_bytes]
+                value = self.body if maximum_bytes < 0 else self.body[:maximum_bytes]
+                self.body = self.body[len(value) :]
+                return value
 
         registry = default_multimodal_provider_registry()
         provider = registry.require("dashscope")
@@ -129,7 +135,9 @@ class MultimodalProviderTests(unittest.TestCase):
                 return self.headers.get(name)
 
             def read(self, maximum_bytes=-1):
-                return self.body if maximum_bytes < 0 else self.body[:maximum_bytes]
+                value = self.body if maximum_bytes < 0 else self.body[:maximum_bytes]
+                self.body = self.body[len(value) :]
+                return value
 
         oversized = Response(b'{"value":"' + b"x" * 100 + b'"}')
         with self.assertRaises(ClassifiedProviderTransportError) as observed:
@@ -159,6 +167,105 @@ class MultimodalProviderTests(unittest.TestCase):
         with self.assertRaises(ClassifiedProviderTransportError) as observed:
             read_bounded_json_response(malformed, 64)
         self.assertEqual(observed.exception.error_class, "response_json_malformed")
+
+    def test_round49_streaming_reader_never_uses_unbounded_read(self):
+        class StreamingResponse:
+            def __init__(self, chunks):
+                self.chunks = list(chunks)
+                self.read_sizes = []
+
+            def read(self, size):
+                self.read_sizes.append(size)
+                if not self.chunks:
+                    return b""
+                return self.chunks.pop(0)
+
+        response = StreamingResponse([b'{"va', b'lue":', b'true}', b""])
+        raw = read_bounded_response_bytes(
+            response, maximum_response_bytes=64, read_chunk_bytes=5
+        )
+        self.assertEqual(raw, b'{"value":true}')
+        self.assertTrue(response.read_sizes)
+        self.assertTrue(all(isinstance(size, int) and size > 0 for size in response.read_sizes))
+
+    def test_round49_streaming_reader_rejects_incremental_overflow(self):
+        class StreamingResponse:
+            def __init__(self):
+                self.calls = 0
+
+            def read(self, size):
+                self.calls += 1
+                return b"x" * min(size, 3) if self.calls <= 4 else b""
+
+        with self.assertRaises(ClassifiedProviderTransportError) as observed:
+            read_bounded_response_bytes(
+                StreamingResponse(), maximum_response_bytes=8, read_chunk_bytes=3
+            )
+        self.assertEqual(observed.exception.error_class, "response_body_too_large")
+
+    def test_round49_brotli_requires_an_advertised_bounded_decoder(self):
+        class Response:
+            def getheader(self, name):
+                return "br" if name == "Content-Encoding" else None
+
+            def read(self, size):
+                raise AssertionError("unsupported encoding must fail before body read")
+
+        with self.assertRaises(ClassifiedProviderTransportError) as observed:
+            read_bounded_json_response(Response(), 64)
+        self.assertEqual(observed.exception.error_class, "response_encoding_unsupported")
+        with self.assertRaisesRegex(ValueError, "bounded tested decoder"):
+            read_bounded_json_response(
+                Response(), 64, allowed_response_encodings=frozenset({"identity", "br"})
+            )
+
+    def test_round49_adapter_hashes_request_ids_and_removes_raw_values(self):
+        class Response:
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_):
+                return False
+
+            def getheader(self, name):
+                headers = {
+                    "Content-Length": str(len(self.body)),
+                    "X-DashScope-Request-Id": "raw-dashscope-request-id",
+                }
+                return headers.get(name)
+
+            body = json.dumps(
+                {
+                    "id": "raw-envelope-id",
+                    "request_id": "raw-envelope-request-id",
+                    "_a2_transport_metadata": {"request_id": "provider-controlled"},
+                    "model": "qwen-vl-plus",
+                    "choices": [{"message": {"content": "{}"}}],
+                }
+            ).encode()
+
+            def read(self, size):
+                if not self.body:
+                    return b""
+                chunk, self.body = self.body[:size], self.body[size:]
+                return chunk
+
+        provider = default_multimodal_provider_registry().require("dashscope")
+        adapter = OpenAICompatibleMultimodalAdapter(
+            EnvironmentCredentialResolver({provider.credential_ref: "unit-key"})
+        )
+        with patch(
+            "services.judge.multimodal_provider.request.urlopen",
+            return_value=Response(),
+        ):
+            result = adapter.invoke(provider, {}, 1)
+        self.assertNotIn("id", result)
+        self.assertNotIn("request_id", result)
+        metadata = result["_a2_transport_metadata"]
+        self.assertTrue(metadata["request_id_hash"].startswith("sha256:"))
+        self.assertEqual(metadata["request_id_source"], "dashscope_response_header")
+        self.assertFalse(metadata["raw_request_id_included"])
+        self.assertNotIn("raw-dashscope-request-id", str(result))
 
     def test_openai_compatible_adapter_emits_provider_neutral_transport_receipts(self):
         registry = default_multimodal_provider_registry()

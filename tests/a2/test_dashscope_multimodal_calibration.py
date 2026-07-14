@@ -130,7 +130,8 @@ class DashScopeMultimodalCalibrationTests(unittest.TestCase):
                     "artifact_hash": sha256_ref(artifact.read_bytes()),
                 }
                 if perturbation:
-                    case["source_case_id"] = f"source-{case_id}"
+                    case["source_case_id"] = case_id
+                    case["source_case_hash"] = case["artifact_hash"]
                     case["perturbation"] = perturbation
                 cases.append(case)
             responses = iter((False, True, False))
@@ -209,6 +210,94 @@ class DashScopeMultimodalCalibrationTests(unittest.TestCase):
             result["blockers"],
         )
         self.assertEqual(result["sample_policy"]["minimum_perturbation_samples"], 2)
+
+    def test_duplicate_source_hash_cannot_inflate_perturbation_denominator(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            base = Path(directory)
+            source_path = base / "source.png"
+            first_path = base / "first.png"
+            second_path = base / "second.png"
+            Image.new("RGB", (2, 2), (10, 20, 30)).save(source_path)
+            Image.new("RGB", (2, 2), (40, 50, 60)).save(first_path)
+            Image.new("RGB", (2, 2), (70, 80, 90)).save(second_path)
+            source_hash = sha256_ref(source_path.read_bytes())
+            perturbation = {
+                "kind": "rotation",
+                "rotation_degrees": 6,
+                "jpeg_quality": None,
+                "width": 2,
+                "height": 2,
+            }
+            cases = [
+                {
+                    "case_id": "source",
+                    "taxonomy": "visual_prompt_injection",
+                    "expected_risk": True,
+                    "artifact_path": source_path.relative_to(ROOT).as_posix(),
+                    "artifact_hash": source_hash,
+                },
+                {
+                    "case_id": "first-transform",
+                    "taxonomy": "visual_prompt_injection",
+                    "expected_risk": True,
+                    "artifact_path": first_path.relative_to(ROOT).as_posix(),
+                    "artifact_hash": sha256_ref(first_path.read_bytes()),
+                    "source_case_id": "source",
+                    "source_case_hash": source_hash,
+                    "perturbation": perturbation,
+                },
+                {
+                    "case_id": "second-transform",
+                    "taxonomy": "visual_prompt_injection",
+                    "expected_risk": True,
+                    "artifact_path": second_path.relative_to(ROOT).as_posix(),
+                    "artifact_hash": sha256_ref(second_path.read_bytes()),
+                    "source_case_id": "source",
+                    "source_case_hash": source_hash,
+                    "perturbation": perturbation,
+                },
+            ]
+
+            def invoke(*_):
+                return {
+                    "model": "qwen-vl-plus",
+                    "choices": [{"message": {"content": json.dumps({
+                        "risk_present": True,
+                        "taxonomy_classes": ["visual_prompt_injection"],
+                        "summary": "result",
+                    })}}],
+                    "usage": {
+                        "prompt_tokens": 10,
+                        "completion_tokens": 2,
+                        "total_tokens": 12,
+                    },
+                }
+
+            result = build_calibration(
+                cases=cases,
+                model_id="qwen-vl-plus",
+                endpoint_region="beijing",
+                invoke=invoke,
+                minimum_safe_samples=1,
+                minimum_attack_samples=1,
+                minimum_taxonomy_samples=1,
+                minimum_perturbation_samples=1,
+            )
+
+        bucket = result["metrics"]["perturbation_metrics"]["rotation_degrees"]["6"]
+        self.assertEqual(bucket["raw_observation_count"], 2)
+        self.assertEqual(bucket["eligible_count"], 1)
+        self.assertEqual(bucket["distinct_source_case_hash_count"], 1)
+        self.assertEqual(bucket["duplicate_source_case_count"], 1)
+        self.assertIn(
+            "dashscope_duplicate_source_perturbation_inflation:rotation_degrees:6",
+            result["blockers"],
+        )
+        self.assertIn(
+            "dashscope_perturbation_distinct_source_minimum_not_met:"
+            "rotation_degrees:6",
+            result["blockers"],
+        )
 
     def test_round47_perturbation_minimum_must_be_positive(self):
         with self.assertRaisesRegex(

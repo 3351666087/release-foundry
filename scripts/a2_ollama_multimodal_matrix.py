@@ -8,8 +8,10 @@ import json
 import math
 import multiprocessing
 import os
+import signal
 import socket
 import statistics
+import subprocess
 import sys
 import threading
 import time
@@ -185,11 +187,7 @@ def _invoke_with_worker_deadline(
                 if state == "ok":
                     return value, "subprocess_completed"
                 raise classified_transport_error(value)
-            process.terminate()
-            process.join(timeout=1)
-            if process.is_alive():
-                process.kill()
-                process.join(timeout=1)
+            _terminate_worker_process_tree(process)
             raise classified_transport_error("capability_probe_worker_timeout")
         finally:
             parent.close()
@@ -235,12 +233,57 @@ def _pid_is_running(pid: int) -> bool:
     return True
 
 
+def _terminate_worker_process_tree(
+    process: multiprocessing.Process,
+    *,
+    graceful_seconds: float = 1.0,
+) -> bool:
+    """Terminate one local worker tree without claiming remote request abortion."""
+
+    pid = process.pid
+    if pid is None:
+        return True
+    if os.name == "nt":
+        try:
+            subprocess.run(
+                ["taskkill", "/PID", str(pid), "/T", "/F"],
+                check=False,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                timeout=max(graceful_seconds, 0.1) + 4,
+            )
+        except (OSError, subprocess.SubprocessError):
+            process.terminate()
+    else:
+        try:
+            os.killpg(pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        except (OSError, PermissionError):
+            process.terminate()
+    process.join(timeout=graceful_seconds)
+    if process.is_alive():
+        if os.name != "nt":
+            try:
+                os.killpg(pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+            except (OSError, PermissionError):
+                process.kill()
+        else:
+            process.kill()
+        process.join(timeout=graceful_seconds)
+    return not process.is_alive() and not _pid_is_running(pid)
+
+
 def _ollama_probe_subprocess(
     connection: Any,
     base_url: str,
     payload: dict[str, Any],
     timeout_seconds: float,
 ) -> None:
+    if os.name != "nt":
+        os.setsid()
     try:
         envelope = ollama_invoke(base_url)("", payload, timeout_seconds)
         connection.send(("ok", envelope))
@@ -349,13 +392,30 @@ def _cancellation_receipt(
     *,
     reason: str = "model_run_budget_exhausted",
     network_call_started: bool = False,
+    cancellation_stage: str,
     request_correlation_hash: str,
 ) -> dict[str, Any]:
+    allowed_stages = {
+        "pre_invoke_budget_expiry",
+        "in_flight_local_worker_termination",
+        "caller_wait_detached",
+    }
+    if cancellation_stage not in allowed_stages:
+        raise ValueError("unsupported cancellation stage")
+    if cancellation_stage == "pre_invoke_budget_expiry" and network_call_started:
+        raise ValueError("pre-invoke cancellation cannot follow a network call")
+    if cancellation_stage != "pre_invoke_budget_expiry" and not network_call_started:
+        raise ValueError("post-invoke cancellation requires a started call")
     return {
         "schema_version": "a2.model_run_cancellation_receipt.v1",
         "reason": reason,
         "configured_budget_seconds": configured_budget_seconds,
         "network_call_started": network_call_started,
+        "cancellation_stage": cancellation_stage,
+        "local_worker_tree_termination_proven": (
+            cancellation_stage == "in_flight_local_worker_termination"
+        ),
+        "remote_request_termination_proven": False,
         "request_correlation_hash": request_correlation_hash,
         "raw_request_id_included": False,
         "promotion_eligible": False,
@@ -430,6 +490,7 @@ def _budget_exhausted_trial(
         "error_class": error_class,
         "cancellation_receipt": _cancellation_receipt(
             maximum_model_run_seconds,
+            cancellation_stage="pre_invoke_budget_expiry",
             request_correlation_hash=sha256_ref(
                 canonical({"request_hash": request_hash, "attempt": 0})
             ),
@@ -1051,6 +1112,11 @@ def build_matrix(
                                         else maximum_case_wall_seconds,
                                         reason=error_class,
                                         network_call_started=bool(attempts),
+                                        cancellation_stage=(
+                                            "caller_wait_detached"
+                                            if attempts
+                                            else "pre_invoke_budget_expiry"
+                                        ),
                                         request_correlation_hash=final_attempt[
                                             "request_id_hash"
                                         ],

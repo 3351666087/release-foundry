@@ -1,6 +1,11 @@
 import json
 import http.server
+import multiprocessing
+import os
+import subprocess
+import sys
 import tempfile
+import time
 import unittest
 import socket
 from pathlib import Path
@@ -20,6 +25,7 @@ from scripts.a2_ollama_multimodal_matrix import (
     load_partial,
     _invoke_with_worker_deadline,
     _pid_is_running,
+    _terminate_worker_process_tree,
     ollama_invoke,
     ollama_schema_capability_probe,
     partial_binding,
@@ -33,7 +39,43 @@ from services.judge.multimodal_provider import (
 from scripts.a2_generate_round36_multimodal_controls import generate
 
 
+def _spawn_descendant_and_wait(pid_file: str) -> None:
+    if os.name != "nt":
+        os.setsid()
+    child = subprocess.Popen(
+        [sys.executable, "-c", "import time; time.sleep(60)"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    Path(pid_file).write_text(str(child.pid), encoding="utf-8")
+    time.sleep(60)
+
+
 class OllamaMultimodalMatrixTests(unittest.TestCase):
+    def test_round49_worker_tree_termination_removes_descendant(self):
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            pid_file = Path(directory) / "descendant.pid"
+            process = multiprocessing.get_context("spawn").Process(
+                target=_spawn_descendant_and_wait,
+                args=(str(pid_file),),
+            )
+            process.start()
+            deadline = time.monotonic() + 10
+            while not pid_file.exists() and time.monotonic() < deadline:
+                time.sleep(0.05)
+            self.assertTrue(pid_file.exists())
+            descendant_pid = int(pid_file.read_text(encoding="utf-8"))
+            parent_pid = process.pid
+            self.assertIsNotNone(parent_pid)
+            self.assertTrue(_pid_is_running(descendant_pid))
+            self.assertTrue(_terminate_worker_process_tree(process))
+            for _ in range(40):
+                if not _pid_is_running(descendant_pid):
+                    break
+                time.sleep(0.05)
+            self.assertFalse(_pid_is_running(parent_pid))
+            self.assertFalse(_pid_is_running(descendant_pid))
+
     def test_round48_subprocess_deadline_removes_recorded_child_pid(self):
         class SlowHandler(http.server.BaseHTTPRequestHandler):
             def do_POST(self):
@@ -592,6 +634,18 @@ class OllamaMultimodalMatrixTests(unittest.TestCase):
             self.assertFalse(trial["promotion_eligible"])
             self.assertIsNone(trial["observed_risk"])
             self.assertFalse(trial["cancellation_receipt"]["network_call_started"])
+            self.assertEqual(
+                trial["cancellation_receipt"]["cancellation_stage"],
+                "pre_invoke_budget_expiry",
+            )
+            self.assertFalse(
+                trial["cancellation_receipt"][
+                    "local_worker_tree_termination_proven"
+                ]
+            )
+            self.assertFalse(
+                trial["cancellation_receipt"]["remote_request_termination_proven"]
+            )
             self.assertRegex(
                 trial["cancellation_receipt"]["request_correlation_hash"],
                 r"^sha256:[a-f0-9]{64}$",
@@ -668,6 +722,16 @@ class OllamaMultimodalMatrixTests(unittest.TestCase):
             trial["attempt_receipts"][-1]["request_id_hash"],
         )
         self.assertFalse(trial["cancellation_receipt"]["raw_request_id_included"])
+        self.assertEqual(
+            trial["cancellation_receipt"]["cancellation_stage"],
+            "caller_wait_detached",
+        )
+        self.assertFalse(
+            trial["cancellation_receipt"]["local_worker_tree_termination_proven"]
+        )
+        self.assertFalse(
+            trial["cancellation_receipt"]["remote_request_termination_proven"]
+        )
         self.assertFalse(trial["promotion_eligible"])
 
     def test_round44_schema_rejects_failed_attempt_without_error_hash(self):

@@ -5,7 +5,7 @@
   "additionalProperties": false,
   "required": [
     "schema_version", "comparison_artifact_hash", "evidence_hashes",
-    "partial_journal_hashes", "comparisons", "summary", "pairwise_summaries",
+    "partial_journal_hashes", "provider_bindings", "comparisons", "summary", "pairwise_summaries",
     "human_review_queue_receipts", "release_authority",
     "raw_payload_included", "public_safe"
   ],
@@ -14,6 +14,11 @@
     "comparison_artifact_hash": {"$ref": "#/$defs/hash"},
     "evidence_hashes": {"$ref": "#/$defs/providerHashes"},
     "partial_journal_hashes": {"$ref": "#/$defs/providerOptionalHashes"},
+    "provider_bindings": {
+      "type": "object", "minProperties": 4, "maxProperties": 4,
+      "propertyNames": {"pattern": "^(?!\\s)(?!.*\\s$)(?!.*::).+$"},
+      "additionalProperties": {"$ref": "#/$defs/providerBinding"}
+    },
     "comparisons": {"type": "array", "items": {"$ref": "#/$defs/comparison"}},
     "summary": {"$ref": "#/$defs/summary"},
     "pairwise_summaries": {
@@ -51,6 +56,17 @@
         "eligible": {"type": "boolean"},
         "parse_state": {"type": "string", "minLength": 1},
         "observed_risk": {"type": ["boolean", "null"]}
+      }
+    },
+    "providerBinding": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "prompt_hash", "output_schema_hash", "provider_capability_hash"
+      ],
+      "properties": {
+        "prompt_hash": {"$ref": "#/$defs/hash"},
+        "output_schema_hash": {"$ref": "#/$defs/hash"},
+        "provider_capability_hash": {"$ref": "#/$defs/hash"}
       }
     },
     "summary": {

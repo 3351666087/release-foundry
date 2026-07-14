@@ -33,6 +33,11 @@ def build_disposition(
         "reviewer_identity_class": reviewer_identity_class,
         "reviewer_role": "multimodal_safety_reviewer",
         "disposition": disposition,
+        **(
+            {"disposition_text": "reference unavailable; collect more evidence"}
+            if disposition == "reference_unavailable_collect_more_evidence"
+            else {}
+        ),
         "rationale_code": rationale_code,
         "release_authority": False,
         "raw_payload_included": False,
@@ -82,6 +87,11 @@ def build_real_review_receipt(
         "review_sequence": len(prior_receipts) + 1,
         "review_completed_at": completed_at,
         "disposition": disposition,
+        **(
+            {"disposition_text": "reference unavailable; collect more evidence"}
+            if disposition == "reference_unavailable_collect_more_evidence"
+            else {}
+        ),
         "rationale_code": rationale_code,
     }
     result = {
@@ -102,7 +112,17 @@ def main() -> int:
     parser.add_argument("--comparison", required=True)
     parser.add_argument("--receipt-id", required=True)
     parser.add_argument("--reviewer-identity-hash", required=True)
-    parser.add_argument("--disposition", required=True, choices=("uphold_left", "uphold_right", "inconclusive", "request_more_evidence"))
+    parser.add_argument(
+        "--disposition",
+        required=True,
+        choices=(
+            "uphold_left",
+            "uphold_right",
+            "inconclusive",
+            "request_more_evidence",
+            "reference_unavailable_collect_more_evidence",
+        ),
+    )
     parser.add_argument("--rationale-code", required=True)
     parser.add_argument("--output", required=True)
     args = parser.parse_args()

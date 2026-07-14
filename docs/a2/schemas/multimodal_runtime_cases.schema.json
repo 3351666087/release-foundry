@@ -39,6 +39,10 @@
             "type": "string",
             "minLength": 1
           },
+          "source_case_hash": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
           "perturbation": {
             "type": "object",
             "additionalProperties": false,
@@ -72,7 +76,21 @@
               }
             ]
           }
-        }
+        },
+        "allOf": [
+          {
+            "if": {
+              "required": ["source_case_hash"]
+            },
+            "then": {
+              "required": [
+                "source_case_id",
+                "source_case_hash",
+                "perturbation"
+              ]
+            }
+          }
+        ]
       }
     },
     "provider_labels_used": {"const": false},

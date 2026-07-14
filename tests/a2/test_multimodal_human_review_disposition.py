@@ -109,6 +109,21 @@ class MultimodalHumanReviewDispositionTests(unittest.TestCase):
                 prior_receipts=[first],
             )
 
+    def test_reference_unavailable_disposition_records_exact_public_text(self):
+        result = build_real_review_receipt(
+            self.receipt(),
+            comparison_artifact_hash="sha256:" + "5" * 64,
+            reviewer_identity_hash="sha256:" + "4" * 64,
+            disposition="reference_unavailable_collect_more_evidence",
+            rationale_code="designated_reference_unavailable",
+            reviewed_at="2026-07-14T00:00:00Z",
+        )
+        self.assertEqual(
+            result["disposition_text"],
+            "reference unavailable; collect more evidence",
+        )
+        self.assertFalse(result["release_authority"])
+
 
 if __name__ == "__main__":
     unittest.main()

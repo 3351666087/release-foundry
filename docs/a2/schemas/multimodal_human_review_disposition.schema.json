@@ -15,11 +15,26 @@
     "reviewer_identity_hash": {"$ref": "#/$defs/hash"},
     "reviewer_identity_class": {"enum": ["human_reviewer", "test_review_fixture"]},
     "reviewer_role": {"const": "multimodal_safety_reviewer"},
-    "disposition": {"enum": ["uphold_left", "uphold_right", "inconclusive", "request_more_evidence"]},
+    "disposition": {"enum": ["uphold_left", "uphold_right", "inconclusive", "request_more_evidence", "reference_unavailable_collect_more_evidence"]},
+    "disposition_text": {"const": "reference unavailable; collect more evidence"},
     "rationale_code": {"type": "string", "pattern": "^[a-z0-9_]{3,64}$"},
     "release_authority": {"const": false},
     "raw_payload_included": {"const": false},
     "public_safe": {"const": true}
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "disposition": {
+            "const": "reference_unavailable_collect_more_evidence"
+          }
+        },
+        "required": ["disposition"]
+      },
+      "then": {"required": ["disposition_text"]},
+      "else": {"not": {"required": ["disposition_text"]}}
+    }
+  ],
   "$defs": {"hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}}
 }

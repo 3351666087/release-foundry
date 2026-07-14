@@ -179,3 +179,62 @@ class ReleaseGateMultimodalTests(unittest.TestCase):
                 candidate_sha=None,
                 dataset_manifest_hash="sha256:" + "e" * 64,
             )
+
+    def test_pending_designated_reference_review_requires_latest_receipt(self):
+        artifact = {
+            "qualification_state": "qualified_for_review",
+            "blockers": [],
+            "candidate_sha": "a" * 40,
+            "manifest_hash": "sha256:" + "a" * 64,
+            "designated_reference_review_pending": True,
+            "release_authority": False,
+        }
+        report = build_release_gate_report(
+            *self._inputs(),
+            modality_scope=["image"],
+            multimodal_qualification=artifact,
+            multimodal_expected_bindings={
+                "candidate_sha": artifact["candidate_sha"],
+                "manifest_hash": artifact["manifest_hash"],
+            },
+        )
+        blocker = next(
+            item
+            for item in report["blockers"]
+            if item["type"] == "multimodal_qualification_gate"
+        )
+        self.assertIn(
+            "latest human-review receipt is missing for pending "
+            "designated-reference review",
+            blocker["gaps"],
+        )
+
+    def test_pending_designated_reference_review_binds_latest_receipt(self):
+        latest = "sha256:" + "f" * 64
+        artifact = {
+            "qualification_state": "qualified_for_review",
+            "blockers": [],
+            "candidate_sha": "a" * 40,
+            "manifest_hash": "sha256:" + "a" * 64,
+            "designated_reference_review_pending": True,
+            "latest_human_review_receipt_hash": latest,
+            "release_authority": False,
+        }
+        report = build_release_gate_report(
+            *self._inputs(),
+            modality_scope=["image"],
+            multimodal_qualification=artifact,
+            multimodal_expected_bindings={
+                "candidate_sha": artifact["candidate_sha"],
+                "manifest_hash": artifact["manifest_hash"],
+                "latest_human_review_receipt_hash": latest,
+            },
+        )
+        self.assertFalse(
+            any(
+                "latest human-review receipt" in gap
+                for blocker in report["blockers"]
+                if blocker["type"] == "multimodal_qualification_gate"
+                for gap in blocker["gaps"]
+            )
+        )

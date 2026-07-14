@@ -34,6 +34,10 @@
       "type": "integer",
       "minimum": 1
     },
+    "minimum_distinct_perturbation_source_hashes": {
+      "type": "integer",
+      "minimum": 3
+    },
     "minimum_perturbation_bucket_sensitivity": {
       "type": "object",
       "propertyNames": {"pattern": "^(rotation_degrees|jpeg_quality):.+$"},

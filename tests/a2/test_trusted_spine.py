@@ -65,6 +65,34 @@ class A2TrustedSpineTests(unittest.TestCase):
         self.assert_schema("trusted_spine_candidate.schema.json", candidate)
         self.assert_schema("trusted_spine_candidate_validation.schema.json", result)
 
+    def test_round49_candidate_rejects_prior_round_refs_and_grades_hash(self):
+        candidate = build_trusted_spine_candidate_manifest(
+            a1_sha="1" * 40,
+            a2_sha="2" * 40,
+            a3_sha="3" * 40,
+            decision_hash="sha256:" + "4" * 64,
+            grades_hash="sha256:" + "5" * 64,
+            created_at="2026-07-14T00:00:00Z",
+        )
+        result = validate_trusted_spine_candidate(
+            candidate,
+            expected_a1_sha="6" * 40,
+            expected_a2_sha="7" * 40,
+            expected_a3_sha="8" * 40,
+            expected_decision_hash="sha256:" + "9" * 64,
+            expected_grades_hash="sha256:" + "a" * 64,
+        )
+        self.assertEqual(result["status"], "rejected")
+        self.assertIn("trusted_spine_candidate_a1_sha_stale", result["blockers"])
+        self.assertIn("trusted_spine_candidate_a2_sha_stale", result["blockers"])
+        self.assertIn("trusted_spine_candidate_a3_sha_stale", result["blockers"])
+        self.assertIn(
+            "trusted_spine_candidate_decision_hash_stale", result["blockers"]
+        )
+        self.assertIn(
+            "trusted_spine_candidate_grades_hash_stale", result["blockers"]
+        )
+
     def test_round24_candidate_binds_exact_implementation_sha(self):
         bundle = load_json(ROOT / "fixtures/a2/results/a2_round24_trusted_spine_candidate.json")
         candidate = bundle["candidate"]

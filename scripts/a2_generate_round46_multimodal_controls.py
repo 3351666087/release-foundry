@@ -114,6 +114,7 @@ def generate() -> dict:
             expected_risk=True,
             image=transformed,
             source_case_id=source["case_id"],
+            source_case_hash=source["artifact_hash"],
             perturbation=perturbation,
         )
 

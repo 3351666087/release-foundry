@@ -558,6 +558,9 @@ def validate_trusted_spine_candidate(
     *,
     expected_a2_sha: str,
     expected_decision_hash: str,
+    expected_a1_sha: str | None = None,
+    expected_a3_sha: str | None = None,
+    expected_grades_hash: str | None = None,
 ) -> dict[str, Any]:
     blockers = []
     core = {key: value for key, value in candidate.items() if key != "candidate_hash"}
@@ -567,8 +570,17 @@ def validate_trusted_spine_candidate(
         blockers.append("trusted_spine_candidate_hash_invalid")
     if candidate.get("a2_sha") != expected_a2_sha:
         blockers.append("trusted_spine_candidate_a2_sha_stale")
+    if expected_a1_sha is not None and candidate.get("a1_sha") != expected_a1_sha:
+        blockers.append("trusted_spine_candidate_a1_sha_stale")
+    if expected_a3_sha is not None and candidate.get("a3_sha") != expected_a3_sha:
+        blockers.append("trusted_spine_candidate_a3_sha_stale")
     if candidate.get("decision_hash") != expected_decision_hash:
         blockers.append("trusted_spine_candidate_decision_hash_stale")
+    if (
+        expected_grades_hash is not None
+        and candidate.get("grades_hash") != expected_grades_hash
+    ):
+        blockers.append("trusted_spine_candidate_grades_hash_stale")
     return {
         "status": "accepted" if not blockers else "rejected",
         "release_authority": False,

@@ -76,6 +76,7 @@ def generate() -> dict:
             "artifact_path": output.relative_to(ROOT).as_posix(),
             "artifact_hash": sha256_ref(output),
             "source_case_id": source["case_id"],
+            "source_case_hash": source["artifact_hash"],
             "perturbation": perturbation,
         })
 

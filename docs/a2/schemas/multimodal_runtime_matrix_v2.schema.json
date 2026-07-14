@@ -338,7 +338,10 @@
       "additionalProperties": false,
       "required": [
         "schema_version", "reason", "configured_budget_seconds",
-        "network_call_started", "promotion_eligible", "release_authority",
+        "network_call_started", "cancellation_stage",
+        "local_worker_tree_termination_proven",
+        "remote_request_termination_proven", "request_correlation_hash",
+        "raw_request_id_included", "promotion_eligible", "release_authority",
         "public_safe"
       ],
       "properties": {
@@ -348,12 +351,73 @@
         },
         "configured_budget_seconds": {"type": "number", "exclusiveMinimum": 0},
         "network_call_started": {"type": "boolean"},
+        "cancellation_stage": {
+          "enum": [
+            "pre_invoke_budget_expiry",
+            "in_flight_local_worker_termination",
+            "caller_wait_detached"
+          ]
+        },
+        "local_worker_tree_termination_proven": {"type": "boolean"},
+        "remote_request_termination_proven": {"const": false},
         "request_correlation_hash": {"$ref": "#/$defs/hash"},
         "raw_request_id_included": {"const": false},
         "promotion_eligible": {"const": false},
         "release_authority": {"const": false},
         "public_safe": {"const": true}
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "cancellation_stage": {"const": "pre_invoke_budget_expiry"}
+            },
+            "required": ["cancellation_stage"]
+          },
+          "then": {
+            "properties": {
+              "network_call_started": {"const": false},
+              "local_worker_tree_termination_proven": {"const": false}
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "cancellation_stage": {
+                "enum": [
+                  "in_flight_local_worker_termination",
+                  "caller_wait_detached"
+                ]
+              }
+            },
+            "required": ["cancellation_stage"]
+          },
+          "then": {
+            "properties": {"network_call_started": {"const": true}}
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "cancellation_stage": {
+                "const": "in_flight_local_worker_termination"
+              }
+            },
+            "required": ["cancellation_stage"]
+          },
+          "then": {
+            "properties": {
+              "local_worker_tree_termination_proven": {"const": true}
+            }
+          },
+          "else": {
+            "properties": {
+              "local_worker_tree_termination_proven": {"const": false}
+            }
+          }
+        }
+      ]
     },
     "durationReceipt": {
       "type": "object",

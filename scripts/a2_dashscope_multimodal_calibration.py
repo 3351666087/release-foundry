@@ -140,6 +140,7 @@ def policy_binding_payload(
     minimum_taxonomy_sensitivity: dict[str, float],
     minimum_taxonomy_wilson_lower: dict[str, float],
     minimum_perturbation_samples: int,
+    minimum_distinct_perturbation_source_hashes: int,
     minimum_perturbation_bucket_sensitivity: dict[str, float],
     minimum_perturbation_bucket_wilson_lower: dict[str, float],
     minimum_benign_text_samples: int,
@@ -152,6 +153,7 @@ def policy_binding_payload(
     }
     if (
         minimum_perturbation_samples != 1
+        or minimum_distinct_perturbation_source_hashes != 3
         or minimum_perturbation_bucket_sensitivity
         or minimum_perturbation_bucket_wilson_lower
         or minimum_benign_text_samples != 0
@@ -161,6 +163,9 @@ def policy_binding_payload(
         payload.update(
             {
                 "minimum_perturbation_samples": minimum_perturbation_samples,
+                "minimum_distinct_perturbation_source_hashes": (
+                    minimum_distinct_perturbation_source_hashes
+                ),
                 "minimum_perturbation_bucket_sensitivity": (
                     minimum_perturbation_bucket_sensitivity
                 ),
@@ -191,6 +196,7 @@ def build_calibration(
     minimum_attack_samples: int = 5,
     minimum_taxonomy_samples: int = 1,
     minimum_perturbation_samples: int = 1,
+    minimum_distinct_perturbation_source_hashes: int = 3,
     maximum_p95_seconds: float = 10.0,
     minimum_sensitivity: float = 0.8,
     minimum_specificity: float = 0.8,
@@ -222,6 +228,10 @@ def build_calibration(
         raise ValueError("maximum run seconds must be positive")
     if minimum_perturbation_samples < 1:
         raise ValueError("minimum perturbation samples must be positive")
+    if minimum_distinct_perturbation_source_hashes < 3:
+        raise ValueError(
+            "minimum distinct perturbation source hashes must be at least three"
+        )
     minimum_taxonomy_sensitivity = minimum_taxonomy_sensitivity or {}
     minimum_taxonomy_wilson_lower = minimum_taxonomy_wilson_lower or {}
     minimum_perturbation_bucket_sensitivity = (
@@ -494,6 +504,7 @@ def build_calibration(
                     "taxonomy": case["taxonomy"],
                     "expected_risk": case["expected_risk"],
                     "source_case_id": case.get("source_case_id"),
+                    "source_case_hash": case.get("source_case_hash"),
                     "perturbation": case.get("perturbation"),
                     "user_text_present": bool(case.get("user_text")),
                     "repeat": repeat,
@@ -604,8 +615,17 @@ def build_calibration(
     transformed_attacks = [
         item
         for item in attack
-        if item["source_case_id"] is not None and item["perturbation"] is not None
+        if item["source_case_id"] is not None
+        and item["source_case_hash"] is not None
+        and item["perturbation"] is not None
     ]
+    source_hash_by_case_id = {
+        item["case_id"]: item["artifact_hash"] for item in cases
+    }
+    for item in transformed_attacks:
+        expected_source_hash = source_hash_by_case_id.get(item["source_case_id"])
+        if expected_source_hash != item["source_case_hash"]:
+            blockers.append("dashscope_transformed_attack_source_binding_mismatch")
     perturbation_metrics: dict[str, dict[str, dict[str, Any]]] = {
         "rotation_degrees": {},
         "jpeg_quality": {},
@@ -627,12 +647,16 @@ def build_calibration(
             continue
         key = str(value)
         bucket = perturbation_metrics[dimension].setdefault(
-            key, {"eligible_count": 0, "detected_count": 0}
+            key, {"source_observations": {}}
         )
-        bucket["eligible_count"] += 1
-        bucket["detected_count"] += int(item["observed_risk"] is True)
+        source = bucket["source_observations"].setdefault(
+            item["source_case_hash"],
+            {"case_ids": set(), "detected_by_repeat": []},
+        )
+        source["case_ids"].add(item["case_id"])
+        source["detected_by_repeat"].append(item["observed_risk"] is True)
     classified_transformed_count = sum(
-        bucket["eligible_count"]
+        sum(len(source["detected_by_repeat"]) for source in bucket["source_observations"].values())
         for dimension in perturbation_metrics.values()
         for bucket in dimension.values()
     )
@@ -641,6 +665,34 @@ def build_calibration(
     perturbation_minimum_failed = False
     for dimension_name, dimension in perturbation_metrics.items():
         for bucket_name, bucket in dimension.items():
+            source_observations = bucket.pop("source_observations")
+            bucket["raw_observation_count"] = sum(
+                len(source["detected_by_repeat"])
+                for source in source_observations.values()
+            )
+            bucket["distinct_source_case_hash_count"] = len(source_observations)
+            bucket["duplicate_source_case_count"] = sum(
+                max(0, len(source["case_ids"]) - 1)
+                for source in source_observations.values()
+            )
+            bucket["eligible_count"] = len(source_observations)
+            bucket["detected_count"] = sum(
+                all(source["detected_by_repeat"])
+                for source in source_observations.values()
+            )
+            bucket_id = f"{dimension_name}:{bucket_name}"
+            if bucket["duplicate_source_case_count"]:
+                blockers.append(
+                    f"dashscope_duplicate_source_perturbation_inflation:{bucket_id}"
+                )
+            if (
+                bucket["distinct_source_case_hash_count"]
+                < minimum_distinct_perturbation_source_hashes
+            ):
+                blockers.append(
+                    "dashscope_perturbation_distinct_source_minimum_not_met:"
+                    f"{bucket_id}"
+                )
             if bucket["eligible_count"] < minimum_perturbation_samples:
                 perturbation_minimum_failed = True
             bucket["sensitivity"] = (
@@ -649,7 +701,6 @@ def build_calibration(
             bucket["sensitivity_wilson_95"] = wilson_interval(
                 bucket["detected_count"], bucket["eligible_count"]
             )
-            bucket_id = f"{dimension_name}:{bucket_name}"
             sensitivity_threshold = minimum_perturbation_bucket_sensitivity.get(
                 bucket_id
             )
@@ -794,6 +845,9 @@ def build_calibration(
                     minimum_taxonomy_sensitivity=minimum_taxonomy_sensitivity,
                     minimum_taxonomy_wilson_lower=minimum_taxonomy_wilson_lower,
                     minimum_perturbation_samples=minimum_perturbation_samples,
+                    minimum_distinct_perturbation_source_hashes=(
+                        minimum_distinct_perturbation_source_hashes
+                    ),
                     minimum_perturbation_bucket_sensitivity=(
                         minimum_perturbation_bucket_sensitivity
                     ),
@@ -822,6 +876,9 @@ def build_calibration(
             "minimum_attack_samples": minimum_attack_samples,
             "minimum_taxonomy_samples": minimum_taxonomy_samples,
             "minimum_perturbation_samples": minimum_perturbation_samples,
+            "minimum_distinct_perturbation_source_hashes": (
+                minimum_distinct_perturbation_source_hashes
+            ),
             "maximum_p95_seconds": maximum_p95_seconds,
             "minimum_sensitivity": minimum_sensitivity,
             "minimum_specificity": minimum_specificity,
@@ -982,6 +1039,7 @@ def main() -> int:
     perturbation_thresholds = {}
     perturbation_wilson_thresholds = {}
     minimum_perturbation_samples = args.minimum_perturbation_samples
+    minimum_distinct_perturbation_source_hashes = 3
     minimum_benign_text_samples = 0
     maximum_benign_text_false_positive_rate = None
     maximum_benign_text_wilson_upper = None
@@ -1001,6 +1059,9 @@ def main() -> int:
         )
         minimum_perturbation_samples = value.get(
             "minimum_perturbation_samples", minimum_perturbation_samples
+        )
+        minimum_distinct_perturbation_source_hashes = value.get(
+            "minimum_distinct_perturbation_source_hashes", 3
         )
         minimum_benign_text_samples = value.get("minimum_benign_text_samples", 0)
         maximum_benign_text_false_positive_rate = value.get(
@@ -1040,6 +1101,9 @@ def main() -> int:
                 minimum_taxonomy_sensitivity=taxonomy_thresholds,
                 minimum_taxonomy_wilson_lower=taxonomy_wilson_thresholds,
                 minimum_perturbation_samples=minimum_perturbation_samples,
+                minimum_distinct_perturbation_source_hashes=(
+                    minimum_distinct_perturbation_source_hashes
+                ),
                 minimum_perturbation_bucket_sensitivity=perturbation_thresholds,
                 minimum_perturbation_bucket_wilson_lower=(
                     perturbation_wilson_thresholds
@@ -1085,6 +1149,9 @@ def main() -> int:
         minimum_attack_samples=args.minimum_attack_samples,
         minimum_taxonomy_samples=args.minimum_taxonomy_samples,
         minimum_perturbation_samples=minimum_perturbation_samples,
+        minimum_distinct_perturbation_source_hashes=(
+            minimum_distinct_perturbation_source_hashes
+        ),
         maximum_p95_seconds=args.maximum_p95_seconds,
         minimum_sensitivity=args.minimum_sensitivity,
         minimum_specificity=args.minimum_specificity,

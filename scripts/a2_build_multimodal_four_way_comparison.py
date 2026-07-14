@@ -23,6 +23,36 @@ from scripts.a2_build_multimodal_three_way_comparison import (
 SCHEMA = ROOT / "docs/a2/schemas/multimodal_four_way_comparison_v1.schema.json"
 
 
+def _binding(provider: str, evidence: dict[str, Any]) -> dict[str, str]:
+    observations = list(evidence.get("observations") or evidence.get("trials") or [])
+    first = observations[0] if observations else {}
+    runtime_binding = evidence.get("binding") or {}
+    values = {
+        "prompt_hash": (
+            evidence.get("prompt_hash")
+            or runtime_binding.get("prompt_hash")
+            or first.get("prompt_hash")
+        ),
+        "output_schema_hash": (
+            evidence.get("output_schema_hash")
+            or runtime_binding.get("output_schema_hash")
+            or first.get("output_schema_hash")
+        ),
+        "provider_capability_hash": (
+            evidence.get("provider_capability_hash")
+            or evidence.get("capability_hash")
+            or runtime_binding.get("provider_capability_hash")
+            or first.get("provider_capability_hash")
+        ),
+    }
+    for field, value in values.items():
+        if not isinstance(value, str) or not value.startswith("sha256:"):
+            raise ValueError(
+                f"four-way provider {provider} lacks required {field} binding"
+            )
+    return {field: str(value) for field, value in values.items()}
+
+
 def build_four_way_comparison(
     providers: dict[str, dict[str, Any]],
     *,
@@ -41,10 +71,20 @@ def build_four_way_comparison(
     ):
         raise ValueError("designated high-quality reference must match provider labels")
 
-    indexes = {
-        provider: _index_observations(provider, evidence)
+    provider_bindings = {
+        provider: _binding(provider, evidence)
         for provider, evidence in providers.items()
     }
+    indexes = {}
+    for provider, evidence in providers.items():
+        final_index = _index_observations(provider, evidence)
+        partial = partial_journals.get(provider)
+        partial_index = (
+            _index_observations(f"{provider} partial journal", partial)
+            if partial is not None
+            else {}
+        )
+        indexes[provider] = {**partial_index, **final_index}
     all_keys = sorted(set().union(*(set(index) for index in indexes.values())))
     summary = {
         "four_way_agreement": 0,
@@ -139,6 +179,7 @@ def build_four_way_comparison(
     comparison_artifact_hash = stable_hash({
         "evidence_hashes": evidence_hashes,
         "partial_journal_hashes": partial_hashes,
+        "provider_bindings": provider_bindings,
         "comparisons": comparisons,
     })
     receipts = []
@@ -195,6 +236,7 @@ def build_four_way_comparison(
         "comparison_artifact_hash": comparison_artifact_hash,
         "evidence_hashes": evidence_hashes,
         "partial_journal_hashes": partial_hashes,
+        "provider_bindings": provider_bindings,
         "comparisons": comparisons,
         "summary": summary,
         "pairwise_summaries": pairwise_summaries,

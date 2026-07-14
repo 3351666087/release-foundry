@@ -222,6 +222,7 @@
         "rotation_degrees": 2,
         "width": 384
       },
+      "source_case_hash": "sha256:fa293b7ef9b263e64a7e81d6136b7586f4ad07e94f1acb2c9a1245a4e0590be8",
       "source_case_id": "round45-attack-visual_prompt_injection-01",
       "taxonomy": "visual_prompt_injection"
     },
@@ -237,6 +238,7 @@
         "rotation_degrees": null,
         "width": 384
       },
+      "source_case_hash": "sha256:86a18efaa6b03d9e09a26c99db7c35aae1d2282bb9bf8c6d5a88895b3b6b385c",
       "source_case_id": "round45-attack-visual_prompt_injection-02",
       "taxonomy": "visual_prompt_injection"
     },
@@ -252,6 +254,7 @@
         "rotation_degrees": 6,
         "width": 384
       },
+      "source_case_hash": "sha256:8961437cefad156953b1ad57c45a6ddba2b75ea743c7e537b597a8e6f2d52168",
       "source_case_id": "round45-attack-visual_prompt_injection-03",
       "taxonomy": "visual_prompt_injection"
     },
@@ -267,6 +270,7 @@
         "rotation_degrees": null,
         "width": 384
       },
+      "source_case_hash": "sha256:bee438222d2ed1811028670d6831669781b17b402833011d550b99b8a4d87901",
       "source_case_id": "round45-attack-visual_prompt_injection-04",
       "taxonomy": "visual_prompt_injection"
     },
@@ -282,6 +286,7 @@
         "rotation_degrees": 10,
         "width": 384
       },
+      "source_case_hash": "sha256:dfce85215fb7e4771afdc1262a1e957c3d94b8a279ac762b7bb25b4d2712e344",
       "source_case_id": "round45-attack-visual_prompt_injection-05",
       "taxonomy": "visual_prompt_injection"
     }

@@ -1,0 +1,27 @@
+{
+  "schema_version": "a2.postgresql_persistence_qualification.v1",
+  "observed_at": "2026-07-14T02:52:35.3926980Z",
+  "environment": {
+    "postgres_dsn_present": false,
+    "psql_present": false,
+    "docker_present": false
+  },
+  "real_postgresql_proof_state": "blocked",
+  "blockers": [
+    "postgres_dsn_missing",
+    "psql_client_missing",
+    "docker_runtime_missing"
+  ],
+  "offline_substitute": {
+    "file_fsync_tested": true,
+    "jsonl_atomic_replace_tested": true,
+    "manifest_reopen_verification_tested": true,
+    "replay_rollback_and_fork_detection_tested": true
+  },
+  "claims": {
+    "postgresql_capability_implemented": true,
+    "same_round_real_postgresql_verified": false
+  },
+  "public_safe": true,
+  "release_authority": false
+}

@@ -27,6 +27,8 @@ CANCELLATION_HANDLE_RECEIPT_SCHEMA_VERSION = (
     "a2.provider_cancellation_handle_receipt.v1"
 )
 DEFAULT_MAXIMUM_RESPONSE_BYTES = 1024 * 1024
+DEFAULT_RESPONSE_READ_CHUNK_BYTES = 64 * 1024
+SUPPORTED_RESPONSE_ENCODINGS = frozenset({"identity", "gzip"})
 
 
 @runtime_checkable
@@ -168,18 +170,54 @@ def classified_transport_error(
     )
 
 
+def read_bounded_response_bytes(
+    response: Any,
+    maximum_response_bytes: int = DEFAULT_MAXIMUM_RESPONSE_BYTES,
+    *,
+    read_chunk_bytes: int = DEFAULT_RESPONSE_READ_CHUNK_BYTES,
+) -> bytes:
+    """Read a streaming response without an unbounded read or accumulation."""
+
+    if maximum_response_bytes < 1:
+        raise ValueError("maximum response bytes must be positive")
+    if read_chunk_bytes < 1:
+        raise ValueError("response read chunk bytes must be positive")
+
+    chunks: list[bytes] = []
+    total = 0
+    while total <= maximum_response_bytes:
+        remaining = maximum_response_bytes + 1 - total
+        chunk = response.read(min(read_chunk_bytes, remaining))
+        if not chunk:
+            break
+        if not isinstance(chunk, bytes):
+            raise classified_transport_error("response_body_invalid")
+        chunks.append(chunk)
+        total += len(chunk)
+    if total > maximum_response_bytes:
+        raise classified_transport_error("response_body_too_large")
+    return b"".join(chunks)
+
+
 def read_bounded_json_response(
     response: Any,
     maximum_response_bytes: int = DEFAULT_MAXIMUM_RESPONSE_BYTES,
+    *,
+    allowed_response_encodings: frozenset[str] = SUPPORTED_RESPONSE_ENCODINGS,
 ) -> dict[str, Any]:
     """Read one provider JSON envelope without retaining an unbounded body."""
 
     if maximum_response_bytes < 1:
         raise ValueError("maximum response bytes must be positive")
+    if not allowed_response_encodings <= SUPPORTED_RESPONSE_ENCODINGS:
+        raise ValueError("response encoding lacks a bounded tested decoder")
 
     getheader = getattr(response, "getheader", None)
     content_length_text = getheader("Content-Length") if callable(getheader) else None
     content_encoding = getheader("Content-Encoding") if callable(getheader) else None
+    normalized_encoding = str(content_encoding or "identity").lower().strip()
+    if normalized_encoding not in allowed_response_encodings:
+        raise classified_transport_error("response_encoding_unsupported")
     if content_length_text:
         try:
             content_length = int(content_length_text)
@@ -192,13 +230,11 @@ def read_bounded_json_response(
     else:
         content_length = None
 
-    raw = response.read(maximum_response_bytes + 1)
-    if len(raw) > maximum_response_bytes:
-        raise classified_transport_error("response_body_too_large")
+    raw = read_bounded_response_bytes(response, maximum_response_bytes)
     if content_length is not None and len(raw) < content_length:
         raise classified_transport_error("response_body_truncated")
 
-    if str(content_encoding or "").lower().strip() == "gzip":
+    if normalized_encoding == "gzip":
         try:
             with gzip.GzipFile(fileobj=io.BytesIO(raw)) as compressed:
                 decoded = compressed.read(maximum_response_bytes + 1)
@@ -207,9 +243,6 @@ def read_bounded_json_response(
         if len(decoded) > maximum_response_bytes:
             raise classified_transport_error("response_decompression_limit_exceeded")
         raw = decoded
-    elif content_encoding not in {None, "", "identity"}:
-        raise classified_transport_error("response_encoding_unsupported")
-
     try:
         value = json.loads(raw.decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
@@ -591,6 +624,7 @@ class MultimodalProviderDefinition:
     retry_classes: frozenset[str]
     token_bound: int
     local: bool = False
+    response_encodings: frozenset[str] = SUPPORTED_RESPONSE_ENCODINGS
 
     def __post_init__(self) -> None:
         if self.protocol not in {"openai_compatible", "offline_deterministic", "ollama"}:
@@ -601,6 +635,10 @@ class MultimodalProviderDefinition:
             raise ValueError("unsupported provider retry class")
         if self.token_bound < 1:
             raise ValueError("provider token bound must be positive")
+        if not self.response_encodings <= SUPPORTED_RESPONSE_ENCODINGS:
+            raise ValueError("provider response encoding lacks bounded decoder")
+        if "identity" not in self.response_encodings:
+            raise ValueError("provider must support identity response encoding")
 
     @property
     def capability_hash(self) -> str:
@@ -613,6 +651,7 @@ class MultimodalProviderDefinition:
                 "retry_classes": sorted(self.retry_classes),
                 "token_bound": self.token_bound,
                 "local": self.local,
+                "response_encodings": sorted(self.response_encodings),
             }
         )
 
@@ -637,6 +676,7 @@ class MultimodalProviderRegistry:
             "retry_classes": sorted(provider.retry_classes),
             "token_bound": provider.token_bound,
             "local": provider.local,
+            "response_encodings": sorted(provider.response_encodings),
             "capability_hash": provider.capability_hash,
         }
 
@@ -674,8 +714,44 @@ class OpenAICompatibleMultimodalAdapter:
         try:
             with request.urlopen(call, timeout=timeout_seconds) as response:
                 value = read_bounded_json_response(
-                    response, self.maximum_response_bytes
+                    response,
+                    self.maximum_response_bytes,
+                    allowed_response_encodings=provider.response_encodings,
                 )
+                request_id = None
+                request_id_source = ""
+                getheader = getattr(response, "getheader", None)
+                if callable(getheader):
+                    for header_name in (
+                        "X-DashScope-Request-Id",
+                        "X-Request-Id",
+                        "Request-Id",
+                    ):
+                        candidate = getheader(header_name)
+                        if isinstance(candidate, str) and candidate.strip():
+                            request_id = candidate.strip()
+                            request_id_source = (
+                                "dashscope_response_header"
+                                if header_name.lower() == "x-dashscope-request-id"
+                                else "response_header"
+                            )
+                            break
+                if request_id is None:
+                    for envelope_name in ("request_id", "id"):
+                        candidate = value.get(envelope_name)
+                        if isinstance(candidate, str) and candidate.strip():
+                            request_id = candidate.strip()
+                            request_id_source = f"response_envelope_{envelope_name}"
+                            break
+                value.pop("request_id", None)
+                value.pop("id", None)
+                value.pop("_a2_transport_metadata", None)
+                if request_id is not None:
+                    value["_a2_transport_metadata"] = {
+                        "request_id_hash": stable_hash(request_id),
+                        "request_id_source": request_id_source,
+                        "raw_request_id_included": False,
+                    }
         except error.HTTPError as exc:
             status_class = f"{exc.code // 100}xx"
             if exc.code in {401, 403}:

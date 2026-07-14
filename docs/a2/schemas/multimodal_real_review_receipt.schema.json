@@ -59,8 +59,12 @@
         "confirm_risk",
         "confirm_safe",
         "request_more_evidence",
-        "abstain"
+        "abstain",
+        "reference_unavailable_collect_more_evidence"
       ]
+    },
+    "disposition_text": {
+      "const": "reference unavailable; collect more evidence"
     },
     "rationale_code": {
       "type": "string",
@@ -81,6 +85,20 @@
       "minimum": 1
     }
   },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "disposition": {
+            "const": "reference_unavailable_collect_more_evidence"
+          }
+        },
+        "required": ["disposition"]
+      },
+      "then": {"required": ["disposition_text"]},
+      "else": {"not": {"required": ["disposition_text"]}}
+    }
+  ],
   "$defs": {
     "hash": {
       "type": "string",
