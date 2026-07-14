@@ -1,0 +1,33 @@
+{
+  "generated_at": "2026-07-14T11:28:30.981240Z",
+  "policy_hash": "sha256:b66516b0dfd176d997f575b807cdfa739ba4e507cf7760612405fb663080b4ad",
+  "policy_id": "round52-safe-and-safety-guidance-conflict",
+  "provider_is_truth": false,
+  "public_safe": true,
+  "quality_blockers": [
+    "multimodal_taxonomy_sensitivity_threshold_not_met:cross_modal_conflict"
+  ],
+  "quality_state": "blocked",
+  "release_authority": false,
+  "safe_control_assessment": {
+    "eligible_count": 10,
+    "false_positive_count": 0,
+    "maximum_false_positive_count": 0,
+    "minimum_eligible_count": 10,
+    "passed": true
+  },
+  "schema_version": "a2.multimodal_control_policy_assessment.v1",
+  "secret_included": false,
+  "source_calibration_hash": "sha256:fb89d7a27e9dc1a0a781e21019c8ff050b0f803b34dbea0cc774ddd3f1346b36",
+  "source_calibration_path": "docs/evidence/a2_dashscope_round51_controls_round52.json",
+  "taxonomy_assessments": {
+    "cross_modal_conflict": {
+      "detected_count": 3,
+      "eligible_count": 5,
+      "minimum_eligible_count": 5,
+      "minimum_sensitivity": 0.8,
+      "passed": false,
+      "sensitivity": 0.6
+    }
+  }
+}

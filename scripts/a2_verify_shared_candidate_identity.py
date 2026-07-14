@@ -9,12 +9,22 @@ import jsonschema
 
 
 ROOT = Path(__file__).resolve().parents[1]
-SCHEMA = ROOT / "docs/a2/schemas/shared_candidate_identity_v1.schema.json"
+SCHEMAS = {
+    "a2.shared_candidate_identity.v1": (
+        ROOT / "docs/a2/schemas/shared_candidate_identity_v1.schema.json"
+    ),
+    "a2.shared_candidate_identity.v2": (
+        ROOT / "docs/a2/schemas/shared_candidate_identity_v2.schema.json"
+    ),
+}
 
 
 def verify_shared_candidate_identity(value: dict[str, Any]) -> list[str]:
+    schema_path = SCHEMAS.get(str(value.get("schema_version") or ""))
+    if schema_path is None:
+        raise ValueError("unsupported shared candidate identity schema")
     jsonschema.Draft202012Validator(
-        json.loads(SCHEMA.read_text(encoding="utf-8"))
+        json.loads(schema_path.read_text(encoding="utf-8"))
     ).validate(value)
     blockers = list(value.get("blockers", []))
     candidate_ids = {

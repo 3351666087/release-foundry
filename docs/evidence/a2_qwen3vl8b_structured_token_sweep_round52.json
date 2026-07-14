@@ -1,0 +1,111 @@
+{
+  "artifact_hash": "sha256:0c3784b94b67513473df7de26b5897e40380340ccdcc77e86e432cad2f3e8eab",
+  "base_url_class": "loopback",
+  "completed_profile_count": 0,
+  "diagnosis": [
+    "model_warmup_material",
+    "token_generation_material",
+    "image_preprocessing_not_material",
+    "structured_output_validation_failed_all_profiles"
+  ],
+  "generated_at": "2026-07-14T12:15:40.955254Z",
+  "model_digest": "sha256:901cae73216286ea8c5aba8b46d307ff7188f737285ec500c795a12f05225d28",
+  "model_id": "qwen3-vl:8b",
+  "output_schema_hash": "sha256:6b95c1668537a8cc00fe8b9af981ce4a7594f35f62fd9e6c67435f6202c4d69a",
+  "profiles": [
+    {
+      "error_class": "invalid_structured_output",
+      "format_mode": "json_schema",
+      "num_predict": 16,
+      "parse_state": "invalid_structured_output",
+      "phase_receipt": {
+        "caller_wall_seconds": 177.768206,
+        "image_read_and_base64_seconds": 0.000759,
+        "model_load_seconds": 27.4074,
+        "prompt_eval_seconds": 145.412777,
+        "provider_total_seconds": 177.565933,
+        "token_eval_seconds": 4.557819,
+        "transport_and_client_residual_seconds": 0.202273
+      },
+      "profile": "cold_json_schema_16",
+      "public_safe": true,
+      "raw_response_included": false,
+      "release_authority": false,
+      "response_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "state": "failed"
+    },
+    {
+      "error_class": "invalid_structured_output",
+      "format_mode": "json_schema",
+      "num_predict": 16,
+      "parse_state": "invalid_structured_output",
+      "phase_receipt": {
+        "caller_wall_seconds": 5.430345,
+        "image_read_and_base64_seconds": 0.004104,
+        "model_load_seconds": 0.865189,
+        "prompt_eval_seconds": 0.271941,
+        "provider_total_seconds": 5.39331,
+        "token_eval_seconds": 4.191475,
+        "transport_and_client_residual_seconds": 0.037035
+      },
+      "profile": "warm_json_schema_16",
+      "public_safe": true,
+      "raw_response_included": false,
+      "release_authority": false,
+      "response_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "state": "failed"
+    },
+    {
+      "error_class": "invalid_structured_output",
+      "format_mode": "json_schema",
+      "num_predict": 32,
+      "parse_state": "invalid_structured_output",
+      "phase_receipt": {
+        "caller_wall_seconds": 10.32176,
+        "image_read_and_base64_seconds": 0.000609,
+        "model_load_seconds": 1.076266,
+        "prompt_eval_seconds": 0.379097,
+        "provider_total_seconds": 10.281853,
+        "token_eval_seconds": 8.773592,
+        "transport_and_client_residual_seconds": 0.039907
+      },
+      "profile": "warm_json_schema_32",
+      "public_safe": true,
+      "raw_response_included": false,
+      "release_authority": false,
+      "response_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "state": "failed"
+    },
+    {
+      "error_class": "invalid_structured_output",
+      "format_mode": "json_schema",
+      "num_predict": 64,
+      "parse_state": "invalid_structured_output",
+      "phase_receipt": {
+        "caller_wall_seconds": 9.535996,
+        "image_read_and_base64_seconds": 0.000644,
+        "model_load_seconds": 1.204859,
+        "prompt_eval_seconds": 0.261345,
+        "provider_total_seconds": 9.530356,
+        "token_eval_seconds": 8.005029,
+        "transport_and_client_residual_seconds": 0.00564
+      },
+      "profile": "warm_json_schema_64",
+      "public_safe": true,
+      "raw_response_included": false,
+      "release_authority": false,
+      "response_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "state": "failed"
+    }
+  ],
+  "prompt_hash": "sha256:90bead48b4911445a10e7dc8eda5569019d299d8b0e7ab4d85856f01df6196f1",
+  "provider_id": "ollama-local",
+  "provider_is_truth": false,
+  "public_safe": true,
+  "qualification_state": "blocked",
+  "release_authority": false,
+  "schema_version": "a2.ollama_multimodal_latency_probe.v1",
+  "secret_included": false,
+  "timeout_seconds": 300.0,
+  "unload_state": "requested"
+}

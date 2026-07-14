@@ -1,0 +1,1 @@
+{"blockers": ["a1_release_receipt_git_sha_stale", "a2_exact_shared_candidate_binding_absent", "a3_candidate_id_differs_from_a1", "a3_consumed_decision_hash_mismatch", "a3_consumed_grades_hash_mismatch", "a3_consumes_round51_repeat_stability_not_round52_release_decision", "shared_candidate_id_mismatch"], "verified": false}

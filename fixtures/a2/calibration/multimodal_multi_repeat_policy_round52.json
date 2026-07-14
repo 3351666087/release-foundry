@@ -1,0 +1,19 @@
+{
+  "schema_version": "a2.multimodal_multi_repeat_policy.v1",
+  "policy_id": "round52-three-retained-repeat-stability",
+  "retained_calibration_hash_allowlist": [
+    "sha256:a9ca51283ec3541e5a16765286989816bdd558665f91a83b63d59fb7edaee6e7",
+    "sha256:3a670e091af4805a0bae227ace9cceb48e3308cdf000c8026a1037752eb561ea",
+    "sha256:a59437f26ab98abd0f451230f62c5f23f468dd97a9f85f460590be6f4246a7d1"
+  ],
+  "maximum_repeat_age_hours": 72.0,
+  "maximum_allowed_spread": {
+    "specificity": 0.2,
+    "benign_text_false_positive_rate": 0.2,
+    "cross_modal_conflict": 0.2,
+    "visual_prompt_injection": 0.2
+  },
+  "provider_is_truth": false,
+  "release_authority": false,
+  "public_safe": true
+}

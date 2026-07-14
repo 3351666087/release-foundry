@@ -6,11 +6,20 @@ from unittest.mock import patch
 from scripts.a2_ollama_multimodal_latency_probe import ROOT, build_probe
 
 
-def receipt(profile, *, load, prompt, token, completed=False):
+def receipt(
+    profile,
+    *,
+    load,
+    prompt,
+    token,
+    completed=False,
+    num_predict=8,
+    format_mode="plain",
+):
     return {
         "profile": profile,
-        "num_predict": 8,
-        "format_mode": "plain",
+        "num_predict": num_predict,
+        "format_mode": format_mode,
         "state": "completed" if completed else "failed",
         "parse_state": "valid_json" if completed else "invalid_structured_output",
         "error_class": "" if completed else "invalid_structured_output",
@@ -60,6 +69,62 @@ class OllamaLatencyProbeTests(unittest.TestCase):
         self.assertNotIn(
             "bounded_timeout_or_failure_prevents_phase_attribution",
             result["diagnosis"],
+        )
+        self.assertEqual(result["qualification_state"], "blocked")
+
+    def test_custom_json_schema_token_sweep_is_supported(self):
+        values = [
+            receipt(
+                "warm_json_schema_16",
+                load=0.1,
+                prompt=0.1,
+                token=1,
+                num_predict=16,
+                format_mode="json_schema",
+            ),
+            receipt(
+                "warm_json_schema_32",
+                load=0.1,
+                prompt=0.1,
+                token=2,
+                num_predict=32,
+                format_mode="json_schema",
+            ),
+            receipt(
+                "warm_json_schema_64",
+                load=0.1,
+                prompt=0.1,
+                token=4,
+                num_predict=64,
+                format_mode="json_schema",
+            ),
+        ]
+        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+            image = Path(directory) / "safe.png"
+            image.write_bytes(b"safe")
+            with patch(
+                "scripts.a2_ollama_multimodal_latency_probe._unload",
+                return_value="requested",
+            ), patch(
+                "scripts.a2_ollama_multimodal_latency_probe._probe",
+                side_effect=values,
+            ):
+                result = build_probe(
+                    base_url="http://127.0.0.1:11434",
+                    model_id="qwen",
+                    model_digest="sha256:" + "b" * 64,
+                    image_path=image,
+                    timeout_seconds=90,
+                    profiles=(
+                        ("warm_json_schema_16", 16, "json_schema"),
+                        ("warm_json_schema_32", 32, "json_schema"),
+                        ("warm_json_schema_64", 64, "json_schema"),
+                    ),
+                )
+        self.assertEqual(len(result["profiles"]), 3)
+        self.assertEqual(
+            [item["num_predict"] for item in result["profiles"]],
+            [16, 32, 64],
         )
         self.assertEqual(result["qualification_state"], "blocked")
 

@@ -166,14 +166,23 @@ def build_probe(
     model_digest: str,
     image_path: Path,
     timeout_seconds: float,
+    profiles: tuple[tuple[str, int, str], ...] | None = None,
 ) -> dict[str, Any]:
     unload_state = _unload(base_url, model_id)
-    profiles = (
+    profiles = profiles or (
         ("cold_plain_32", 32, "plain"),
         ("warm_plain_32", 32, "plain"),
         ("warm_plain_8", 8, "plain"),
         ("warm_json_schema_8", 8, "json_schema"),
     )
+    if not profiles:
+        raise ValueError("at least one latency profile is required")
+    if len({name for name, _, _ in profiles}) != len(profiles):
+        raise ValueError("latency profile names must be unique")
+    if any(num_predict < 1 for _, num_predict, _ in profiles):
+        raise ValueError("num_predict must be positive")
+    if any(mode not in {"plain", "json_schema"} for _, _, mode in profiles):
+        raise ValueError("format mode must be plain or json_schema")
     receipts = [
         _probe(
             base_url=base_url,
@@ -196,10 +205,18 @@ def build_probe(
     if not timed:
         diagnosis.append("bounded_timeout_or_failure_prevents_phase_attribution")
     else:
-        cold = receipts[0]["phase_receipt"]
-        warm = receipts[1]["phase_receipt"]
+        cold = next(
+            (item["phase_receipt"] for item in receipts if item["profile"].startswith("cold_")),
+            None,
+        )
+        warm = next(
+            (item["phase_receipt"] for item in receipts if item["profile"].startswith("warm_")),
+            None,
+        )
         if (
-            cold["model_load_seconds"] is not None
+            cold is not None
+            and warm is not None
+            and cold["model_load_seconds"] is not None
             and warm["model_load_seconds"] is not None
             and cold["model_load_seconds"] > warm["model_load_seconds"] + 1
         ):
@@ -223,6 +240,8 @@ def build_probe(
             diagnosis.append("image_preprocessing_not_material")
         if not completed:
             diagnosis.append("structured_output_validation_failed_all_profiles")
+        elif len(completed) != len(receipts):
+            diagnosis.append("structured_output_validation_failed_some_profiles")
     result = {
         "schema_version": "a2.ollama_multimodal_latency_probe.v1",
         "generated_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
@@ -262,16 +281,36 @@ def main() -> int:
     parser.add_argument("--image", required=True)
     parser.add_argument("--timeout-seconds", type=float, default=90)
     parser.add_argument("--output", required=True)
+    parser.add_argument(
+        "--profile",
+        action="append",
+        default=[],
+        metavar="NAME:NUM_PREDICT:FORMAT",
+        help="Override the default probe profiles; FORMAT is plain or json_schema.",
+    )
     parser.add_argument("--execute-live", action="store_true")
     args = parser.parse_args()
     if not args.execute_live:
         raise SystemExit("--execute-live is required")
+    profiles = None
+    if args.profile:
+        parsed_profiles = []
+        for value in args.profile:
+            try:
+                name, num_predict, format_mode = value.split(":", 2)
+                parsed_profiles.append((name, int(num_predict), format_mode))
+            except ValueError as exc:
+                raise SystemExit(
+                    f"invalid --profile {value!r}; expected NAME:NUM_PREDICT:FORMAT"
+                ) from exc
+        profiles = tuple(parsed_profiles)
     result = build_probe(
         base_url=args.base_url,
         model_id=args.model,
         model_digest=args.model_digest,
         image_path=ROOT / args.image,
         timeout_seconds=args.timeout_seconds,
+        profiles=profiles,
     )
     (ROOT / args.output).write_text(
         json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8"
