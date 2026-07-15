@@ -66,8 +66,7 @@
     },
     "profiles": {
       "type": "array",
-      "minItems": 4,
-      "maxItems": 4,
+      "minItems": 1,
       "items": {
         "$ref": "#/$defs/profile"
       }
@@ -81,8 +80,7 @@
     },
     "completed_profile_count": {
       "type": "integer",
-      "minimum": 0,
-      "maximum": 4
+      "minimum": 0
     },
     "qualification_state": {
       "enum": [

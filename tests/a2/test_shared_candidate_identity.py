@@ -17,6 +17,11 @@ SCHEMA = json.loads(
         ROOT / "docs/a2/schemas/shared_candidate_identity_v1.schema.json"
     ).read_text(encoding="utf-8")
 )
+SCHEMA_V2 = json.loads(
+    (
+        ROOT / "docs/a2/schemas/shared_candidate_identity_v2.schema.json"
+    ).read_text(encoding="utf-8")
+)
 
 
 def exact_identity() -> dict:
@@ -59,6 +64,16 @@ class SharedCandidateIdentityTests(unittest.TestCase):
         with self.assertRaises(jsonschema.ValidationError):
             jsonschema.Draft202012Validator(SCHEMA).validate(value)
 
+    def test_v2_requires_review_collection_and_conservation_hashes(self):
+        value = exact_identity()
+        value["schema_version"] = "a2.shared_candidate_identity.v2"
+        value["a2"]["review_collection_hash"] = "sha256:" + "2" * 64
+        jsonschema.Draft202012Validator(SCHEMA_V2).validate(value)
+        self.assertEqual(verify_shared_candidate_identity(value), [])
+        del value["a2"]["review_collection_hash"]
+        with self.assertRaises(jsonschema.ValidationError):
+            jsonschema.Draft202012Validator(SCHEMA_V2).validate(value)
+
     def test_blocked_identity_requires_at_least_one_explicit_blocker(self):
         value = exact_identity()
         value["binding_state"] = "blocked"
@@ -82,6 +97,22 @@ class SharedCandidateIdentityTests(unittest.TestCase):
             [
                 "a3_consumed_decision_hash_mismatch",
                 "a3_consumed_grades_hash_mismatch",
+            ],
+        )
+
+    def test_v2_rejects_collection_and_conservation_hash_mismatch(self):
+        value = exact_identity()
+        value["schema_version"] = "a2.shared_candidate_identity.v2"
+        value["a2"]["review_collection_hash"] = "sha256:" + "2" * 64
+        self.assertEqual(
+            verify_shared_candidate_identity(
+                value,
+                actual_review_collection_hash="sha256:" + "3" * 64,
+                actual_review_conservation_hash="sha256:" + "4" * 64,
+            ),
+            [
+                "a2_review_collection_hash_mismatch",
+                "a2_review_conservation_hash_mismatch",
             ],
         )
 

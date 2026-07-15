@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.io/schemas/a2/multimodal_repeat_comparison_public_projection_v1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "source_comparison_path", "source_comparison_hash",
+    "policy_id", "policy_hash", "repeat_count", "binding_fields",
+    "mismatched_binding_fields", "quality_state", "quality_blockers",
+    "stability_state", "stability_blockers", "maximum_allowed_spread",
+    "observed_spread_upper", "freshness_policy", "promotion_eligible",
+    "provider_is_truth", "raw_provider_text_included", "release_authority",
+    "public_safe"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "a2.multimodal_repeat_comparison_public_projection.v1"
+    },
+    "source_comparison_path": {"type": "string", "minLength": 1},
+    "source_comparison_hash": {"$ref": "#/$defs/hash"},
+    "policy_id": {"type": "string", "minLength": 1},
+    "policy_hash": {"$ref": "#/$defs/hash"},
+    "repeat_count": {"type": "integer", "minimum": 3},
+    "binding_fields": {"type": "object"},
+    "mismatched_binding_fields": {
+      "type": "array", "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "quality_state": {"enum": ["qualified", "blocked"]},
+    "quality_blockers": {
+      "type": "array", "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "stability_state": {"enum": ["qualified", "blocked", "incomplete"]},
+    "stability_blockers": {
+      "type": "array", "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "maximum_allowed_spread": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "number", "minimum": 0, "maximum": 1
+      }
+    },
+    "observed_spread_upper": {
+      "type": "object",
+      "additionalProperties": {
+        "type": ["number", "null"], "minimum": 0, "maximum": 1
+      }
+    },
+    "freshness_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "as_of", "maximum_repeat_age_hours", "repeat_ages_hours",
+        "all_repeats_fresh"
+      ],
+      "properties": {
+        "as_of": {"type": "string", "format": "date-time"},
+        "maximum_repeat_age_hours": {"type": "number", "exclusiveMinimum": 0},
+        "repeat_ages_hours": {
+          "type": "array",
+          "items": {"type": ["number", "null"], "minimum": 0}
+        },
+        "all_repeats_fresh": {"type": "boolean"}
+      }
+    },
+    "promotion_eligible": {"type": "boolean"},
+    "provider_is_truth": {"const": false},
+    "raw_provider_text_included": {"const": false},
+    "release_authority": {"const": false},
+    "public_safe": {"const": true}
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {"quality_state": {"const": "qualified"}},
+        "required": ["quality_state"]
+      },
+      "then": {"properties": {"quality_blockers": {"maxItems": 0}}},
+      "else": {"properties": {"quality_blockers": {"minItems": 1}}}
+    },
+    {
+      "if": {
+        "properties": {"stability_state": {"const": "qualified"}},
+        "required": ["stability_state"]
+      },
+      "then": {"properties": {"stability_blockers": {"maxItems": 0}}},
+      "else": {"properties": {"stability_blockers": {"minItems": 1}}}
+    },
+    {
+      "if": {
+        "properties": {"promotion_eligible": {"const": true}},
+        "required": ["promotion_eligible"]
+      },
+      "then": {
+        "properties": {
+          "quality_state": {"const": "qualified"},
+          "quality_blockers": {"maxItems": 0},
+          "stability_state": {"const": "qualified"},
+          "stability_blockers": {"maxItems": 0}
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+  }
+}

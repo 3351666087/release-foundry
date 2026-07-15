@@ -1,0 +1,25 @@
+{
+  "blockers": [],
+  "claims": {
+    "postgresql_capability_implemented": true,
+    "same_round_real_postgresql_verified": true
+  },
+  "environment": {
+    "docker_present": false,
+    "postgres_dsn_present": true,
+    "psql_present": true
+  },
+  "observed_at": "2026-07-15T02:01:11.845815Z",
+  "offline_substitute": {
+    "file_fsync_tested": true,
+    "jsonl_atomic_replace_tested": true,
+    "manifest_reopen_verification_tested": true,
+    "replay_rollback_and_fork_detection_tested": true,
+    "sql_store_contract_tested": true,
+    "test_result": "49 offline persistence tests passed; 2 same-round PostgreSQL tests passed"
+  },
+  "public_safe": true,
+  "real_postgresql_proof_state": "verified",
+  "release_authority": false,
+  "schema_version": "a2.postgresql_persistence_qualification.v1"
+}

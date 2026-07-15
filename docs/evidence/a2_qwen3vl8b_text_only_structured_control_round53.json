@@ -1,0 +1,76 @@
+{
+  "artifact_hash": null,
+  "base_url_class": "loopback",
+  "completed_profile_count": 0,
+  "diagnosis": [
+    "image_preprocessing_not_material",
+    "structured_output_validation_failed_all_profiles"
+  ],
+  "generated_at": "2026-07-14T15:33:26.431785Z",
+  "input_mode": "text_only_control",
+  "model_digest": "sha256:901cae73216286ea8c5aba8b46d307ff7188f737285ec500c795a12f05225d28",
+  "model_id": "qwen3-vl:8b",
+  "output_schema_hash": "sha256:e04c960b08e0c1369afa167ed2a8a30982918c37bcd39ee3863d8019f3271aa9",
+  "profiles": [
+    {
+      "error_class": "invalid_structured_output",
+      "first_nonempty_character_class": "empty",
+      "format_mode": "json_schema",
+      "input_mode": "text_only_control",
+      "num_predict": 96,
+      "parse_state": "invalid_structured_output",
+      "phase_receipt": {
+        "caller_wall_seconds": 18.812282,
+        "image_read_and_base64_seconds": 0.0,
+        "model_load_seconds": 11.787199,
+        "prompt_eval_seconds": 2.677724,
+        "provider_total_seconds": 18.808024,
+        "token_eval_seconds": 4.314765,
+        "transport_and_client_residual_seconds": 0.004258
+      },
+      "profile": "warm_json_schema_96",
+      "public_safe": true,
+      "raw_response_included": false,
+      "release_authority": false,
+      "response_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "response_length_bytes": 0,
+      "schema_mode": "full",
+      "state": "failed"
+    },
+    {
+      "error_class": "invalid_structured_output",
+      "first_nonempty_character_class": "empty",
+      "format_mode": "json_schema",
+      "input_mode": "text_only_control",
+      "num_predict": 32,
+      "parse_state": "invalid_structured_output",
+      "phase_receipt": {
+        "caller_wall_seconds": 2.601147,
+        "image_read_and_base64_seconds": 1e-06,
+        "model_load_seconds": 0.773971,
+        "prompt_eval_seconds": 0.178775,
+        "provider_total_seconds": 2.579646,
+        "token_eval_seconds": 1.615807,
+        "transport_and_client_residual_seconds": 0.021501
+      },
+      "profile": "warm_minimal_enum_32",
+      "public_safe": true,
+      "raw_response_included": false,
+      "release_authority": false,
+      "response_hash": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "response_length_bytes": 0,
+      "schema_mode": "minimal_enum",
+      "state": "failed"
+    }
+  ],
+  "prompt_hash": "sha256:90bead48b4911445a10e7dc8eda5569019d299d8b0e7ab4d85856f01df6196f1",
+  "provider_id": "ollama-local",
+  "provider_is_truth": false,
+  "public_safe": true,
+  "qualification_state": "blocked",
+  "release_authority": false,
+  "schema_version": "a2.ollama_multimodal_latency_probe.v2",
+  "secret_included": false,
+  "timeout_seconds": 120.0,
+  "unload_state": "requested"
+}
