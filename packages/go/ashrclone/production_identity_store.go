@@ -14,11 +14,13 @@ import (
 	"io"
 	"net/http"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
-	_ "github.com/lib/pq"
+	"github.com/lib/pq"
 )
 
 const (
@@ -52,6 +54,24 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
    AND to_regclass('public.identity_verification_delivery_redrive_audit') IS NOT NULL
    AND to_regclass('public.identity_lifecycle_receipts') IS NOT NULL
    AND to_regclass('public.identity_lifecycle_receipt_audit') IS NOT NULL
+   AND to_regclass(
+     'public.identity_credential_link_replay_purge_audit'
+   ) IS NOT NULL
+   AND EXISTS (
+     SELECT 1
+     FROM pg_catalog.pg_attribute
+     WHERE attrelid='public.identity_lifecycle_receipts'::regclass
+       AND attname='lookup_key_version'
+       AND attnotnull
+       AND NOT attisdropped
+   )
+   AND EXISTS (
+     SELECT 1
+     FROM pg_catalog.pg_attribute
+     WHERE attrelid='public.identity_lifecycle_receipts'::regclass
+       AND attname='replay_retain_until'
+       AND NOT attisdropped
+   )
    AND to_regclass('public.identity_account_security') IS NOT NULL
    AND to_regclass('public.identity_security_receipts') IS NOT NULL
    AND to_regclass('public.identity_security_mutation_tickets') IS NOT NULL
@@ -123,6 +143,15 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
      'public.a1_project_identity_lifecycle_account(uuid)'
    ) IS NOT NULL
    AND to_regprocedure(
+     'public.a1_issue_identity_lifecycle_receipt(text,text,text,text,text,bytea,text,text,bytea,timestamp with time zone)'
+   ) IS NOT NULL
+   AND to_regprocedure(
+     'public.a1_identity_lifecycle_lookup_retirement_readiness(text,text[],timestamp with time zone)'
+   ) IS NOT NULL
+   AND to_regprocedure(
+     'public.a1_purge_identity_credential_link_replays(timestamp with time zone,integer,text,text,text,text,timestamp with time zone)'
+   ) IS NOT NULL
+   AND to_regprocedure(
      'public.a1_mutate_account_password(uuid,text,text,text,text,text,uuid,timestamp with time zone)'
    ) IS NOT NULL
    AND to_regprocedure(
@@ -137,12 +166,18 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
    AND to_regprocedure(
      'public.a1_issue_identity_security_mutation_ticket(text,text,uuid,uuid,text,text,text,text,text,integer,timestamp with time zone)'
    ) IS NOT NULL
-   AND to_regprocedure(
-     'public.a1_resolve_identity_security_mutation_ticket(text,text,text,timestamp with time zone)'
-   ) IS NOT NULL
-   AND to_regprocedure(
-     'public.a1_execute_identity_security_mutation(text,text,text)'
-   ) IS NOT NULL
+    AND to_regprocedure(
+      'public.a1_resolve_identity_security_mutation_ticket(text,text,text,timestamp with time zone)'
+    ) IS NOT NULL
+    AND to_regprocedure(
+      'public.a1_execute_identity_security_mutation(text,text,text)'
+    ) IS NOT NULL
+    AND to_regprocedure(
+      'public.a1_resolve_identity_security_mutation_ticket(text,text,text,uuid,timestamp with time zone)'
+    ) IS NOT NULL
+    AND to_regprocedure(
+      'public.a1_execute_identity_security_mutation(text,text,text,uuid)'
+    ) IS NOT NULL
    AND to_regprocedure(
      'public.a1_issue_identity_security_mutation_ticket(text,text,uuid,uuid,text,text,text,text,text,integer,timestamp with time zone,timestamp with time zone)'
    ) IS NULL
@@ -162,16 +197,26 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
      'public.a1_issue_identity_security_mutation_ticket(text,text,uuid,uuid,text,text,text,text,text,integer,timestamp with time zone)',
      'EXECUTE'
    )
-   AND has_function_privilege(
-     current_user,
-     'public.a1_resolve_identity_security_mutation_ticket(text,text,text,timestamp with time zone)',
-     'EXECUTE'
-   )
-   AND has_function_privilege(
-     current_user,
-     'public.a1_execute_identity_security_mutation(text,text,text)',
-     'EXECUTE'
-   )
+    AND NOT has_function_privilege(
+      current_user,
+      'public.a1_resolve_identity_security_mutation_ticket(text,text,text,timestamp with time zone)',
+      'EXECUTE'
+    )
+    AND NOT has_function_privilege(
+      current_user,
+      'public.a1_execute_identity_security_mutation(text,text,text)',
+      'EXECUTE'
+    )
+    AND has_function_privilege(
+      current_user,
+      'public.a1_resolve_identity_security_mutation_ticket(text,text,text,uuid,timestamp with time zone)',
+      'EXECUTE'
+    )
+    AND has_function_privilege(
+      current_user,
+      'public.a1_execute_identity_security_mutation(text,text,text,uuid)',
+      'EXECUTE'
+    )
    AND has_function_privilege(
      current_user,
      'public.a1_project_account_security(uuid)',
@@ -211,6 +256,57 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
      current_user,
      'public.a1_set_account_two_factor(uuid,boolean,uuid,timestamp with time zone,boolean)',
      'EXECUTE'
+   )
+   AND has_function_privilege(
+     current_user,
+     'public.a1_purge_identity_credential_link_replays(timestamp with time zone,integer,text,text,text,text,timestamp with time zone)',
+     'EXECUTE'
+   )
+   AND NOT has_table_privilege(
+     current_user,
+     'public.identity_lifecycle_receipts',
+     'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+   )
+   AND NOT has_table_privilege(
+     current_user,
+     'public.identity_credential_link_replay_purge_audit',
+     'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+   )
+   AND NOT has_any_column_privilege(
+     current_user,
+     'public.identity_credential_link_replay_purge_audit',
+     'SELECT,INSERT,UPDATE,REFERENCES'
+   )
+   AND NOT has_table_privilege(
+     'public',
+     'public.identity_credential_link_replay_purge_audit',
+     'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+   )
+   AND NOT has_any_column_privilege(
+     'public',
+     'public.identity_credential_link_replay_purge_audit',
+     'SELECT,INSERT,UPDATE,REFERENCES'
+   )
+   AND (
+     SELECT c.relrowsecurity AND c.relforcerowsecurity
+     FROM pg_catalog.pg_class c
+     WHERE c.oid=
+       'public.identity_credential_link_replay_purge_audit'::regclass
+   )
+   AND (
+     SELECT p.prosecdef
+       AND pg_catalog.pg_get_userbyid(p.proowner) <> current_user
+       AND NOT pg_catalog.pg_has_role(current_user,p.proowner,'MEMBER')
+       AND EXISTS (
+         SELECT 1
+         FROM unnest(COALESCE(p.proconfig,ARRAY[]::TEXT[])) setting
+         WHERE regexp_replace(setting,'\s','','g')=
+           'search_path=pg_catalog,public,pg_temp'
+       )
+     FROM pg_catalog.pg_proc p
+     WHERE p.oid=to_regprocedure(
+       'public.a1_purge_identity_credential_link_replays(timestamp with time zone,integer,text,text,text,text,timestamp with time zone)'
+     )
    )
    AND NOT has_table_privilege(
      current_user,
@@ -316,9 +412,15 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
          to_regprocedure(
            'public.a1_resolve_identity_security_mutation_ticket(text,text,text,timestamp with time zone)'
          ),
-         to_regprocedure(
-           'public.a1_execute_identity_security_mutation(text,text,text)'
-         ),
+          to_regprocedure(
+            'public.a1_execute_identity_security_mutation(text,text,text)'
+          ),
+          to_regprocedure(
+            'public.a1_resolve_identity_security_mutation_ticket(text,text,text,uuid,timestamp with time zone)'
+          ),
+          to_regprocedure(
+            'public.a1_execute_identity_security_mutation(text,text,text,uuid)'
+          ),
          to_regprocedure('public.a1_project_account_security(uuid)'),
          to_regprocedure(
            'public.a1_bind_verified_identity_credential_authorized(uuid,uuid,text,uuid,text,text,text,text,text,text,jsonb)'
@@ -365,11 +467,11 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
         to_regprocedure(
           'public.a1_issue_identity_security_mutation_ticket(text,text,uuid,uuid,text,text,text,text,text,integer,timestamp with time zone)'
         ),
-        to_regprocedure(
-          'public.a1_resolve_identity_security_mutation_ticket(text,text,text,timestamp with time zone)'
-        ),
-        to_regprocedure(
-          'public.a1_execute_identity_security_mutation(text,text,text)'
+          to_regprocedure(
+            'public.a1_resolve_identity_security_mutation_ticket(text,text,text,uuid,timestamp with time zone)'
+          ),
+          to_regprocedure(
+            'public.a1_execute_identity_security_mutation(text,text,text,uuid)'
         ),
         to_regprocedure('public.a1_project_account_security(uuid)'),
         to_regprocedure(
@@ -437,6 +539,45 @@ type IdentityLifecycleEncryptionKey struct {
 type IdentityLifecycleLookupKey struct {
 	Version string
 	Key     []byte
+}
+
+type IdentityLifecycleLookupRetirementReadiness struct {
+	SchemaVersion                  string     `json:"schema_version"`
+	ActiveVersion                  string     `json:"active_version"`
+	RetiringVersion                string     `json:"retiring_version"`
+	Ready                          bool       `json:"ready"`
+	LegacyUnversionedLiveReceipts  int64      `json:"legacy_unversioned_live_receipts"`
+	LegacyUnversionedReplayRecords int64      `json:"legacy_unversioned_replay_records"`
+	RetiringLiveReceipts           int64      `json:"retiring_live_receipts"`
+	RetiringReplayRecords          int64      `json:"retiring_replay_records"`
+	UnreachableLiveReceipts        int64      `json:"unreachable_live_receipts"`
+	UnreachableReplayRecords       int64      `json:"unreachable_replay_records"`
+	LiveReceiptsRequiredUntil      *time.Time `json:"live_receipts_required_until"`
+	ReplayRetentionRequired        bool       `json:"replay_retention_required"`
+}
+
+// IdentityCredentialLinkReplayPurgeRequest is the A3-safe maintenance
+// contract for deleting completed credential-link replay rows after their
+// fixed retention deadline. The idempotency key is keyed before PostgreSQL.
+type IdentityCredentialLinkReplayPurgeRequest struct {
+	Cutoff         time.Time
+	MaxRows        int
+	Actor          string
+	Reason         string
+	IdempotencyKey string
+}
+
+// IdentityCredentialLinkReplayPurgeReceipt exposes only aggregate maintenance
+// evidence. It intentionally contains no receipt, proof, subject, credential,
+// session, ticket, email, or key material.
+type IdentityCredentialLinkReplayPurgeReceipt struct {
+	SchemaVersion       string           `json:"schema_version"`
+	PurgeID             string           `json:"purge_id"`
+	Cutoff              time.Time        `json:"cutoff"`
+	MaxRows             int              `json:"max_rows"`
+	PurgedRows          int64            `json:"purged_rows"`
+	LookupVersionCounts map[string]int64 `json:"lookup_version_counts"`
+	CompletedAt         time.Time        `json:"completed_at"`
 }
 
 type IdentitySessionKeyRetirement struct {
@@ -955,6 +1096,174 @@ func (store *ProductionIdentityStore) SessionKeyringReadiness() IdentitySessionK
 	return store.sessionTokens.readiness(store.now())
 }
 
+// LifecycleReceiptLookupRetirementReadiness performs a database-backed,
+// aggregate-only preflight before a previous receipt lookup key is removed.
+// It never exposes receipt digests, proof material, ciphertext, or key bytes.
+func (store *ProductionIdentityStore) LifecycleReceiptLookupRetirementReadiness(
+	ctx context.Context,
+	retiringVersion string,
+) (IdentityLifecycleLookupRetirementReadiness, error) {
+	if store == nil || store.db == nil || store.lifecycleKeys == nil {
+		return IdentityLifecycleLookupRetirementReadiness{},
+			fmt.Errorf("production identity lifecycle lookup keyring is unavailable")
+	}
+	retiringVersion = strings.TrimSpace(retiringVersion)
+	if !validIdentitySessionKeyVersion(retiringVersion) {
+		return IdentityLifecycleLookupRetirementReadiness{},
+			fmt.Errorf("lifecycle receipt lookup key version is invalid")
+	}
+	retained, err := store.lifecycleKeys.lookupVersionsExcept(retiringVersion)
+	if err != nil {
+		return IdentityLifecycleLookupRetirementReadiness{}, err
+	}
+	queryCtx, cancel := context.WithTimeout(ctx, store.sqlTimeout)
+	defer cancel()
+	var raw []byte
+	err = store.db.QueryRowContext(queryCtx, `
+SELECT a1_identity_lifecycle_lookup_retirement_readiness($1,$2,$3)
+`, retiringVersion, pq.Array(retained), store.now().UTC()).Scan(&raw)
+	if err != nil {
+		return IdentityLifecycleLookupRetirementReadiness{},
+			fmt.Errorf("check lifecycle receipt lookup key retirement: %w", err)
+	}
+	var readiness IdentityLifecycleLookupRetirementReadiness
+	if err = json.Unmarshal(raw, &readiness); err != nil {
+		return IdentityLifecycleLookupRetirementReadiness{},
+			fmt.Errorf("decode lifecycle receipt lookup key retirement readiness: %w", err)
+	}
+	readiness.ActiveVersion = store.lifecycleKeys.lookupActive
+	if readiness.SchemaVersion != "a1.identity.lifecycle.lookup-readiness.v1" ||
+		readiness.RetiringVersion != retiringVersion {
+		return IdentityLifecycleLookupRetirementReadiness{},
+			fmt.Errorf("lifecycle receipt lookup key retirement readiness is invalid")
+	}
+	return readiness, nil
+}
+
+// PurgeExpiredCredentialLinkReplays invokes the audited PostgreSQL purge
+// authority after validating and keying every caller-controlled identifier.
+// The returned receipt is aggregate-only and safe to pass across the A3
+// boundary.
+func (store *ProductionIdentityStore) PurgeExpiredCredentialLinkReplays(
+	ctx context.Context,
+	request IdentityCredentialLinkReplayPurgeRequest,
+) (IdentityCredentialLinkReplayPurgeReceipt, error) {
+	if store == nil || store.db == nil || store.lifecycleKeys == nil ||
+		store.now == nil {
+		return IdentityCredentialLinkReplayPurgeReceipt{},
+			fmt.Errorf("production identity lifecycle lookup keyring is unavailable")
+	}
+	now := store.now().UTC().Truncate(time.Microsecond)
+	cutoff := request.Cutoff.UTC().Truncate(time.Microsecond)
+	actor := strings.TrimSpace(request.Actor)
+	reason := strings.TrimSpace(request.Reason)
+	idempotencyKey := strings.TrimSpace(request.IdempotencyKey)
+	if request.Cutoff.IsZero() || cutoff.After(now) {
+		return IdentityCredentialLinkReplayPurgeReceipt{},
+			fmt.Errorf("credential-link replay purge cutoff must not be in the future")
+	}
+	if request.MaxRows < 1 || request.MaxRows > 1000 {
+		return IdentityCredentialLinkReplayPurgeReceipt{},
+			fmt.Errorf("credential-link replay purge max rows must be between 1 and 1000")
+	}
+	if !validIdentityMaintenanceLabel(actor, 128) {
+		return IdentityCredentialLinkReplayPurgeReceipt{},
+			fmt.Errorf("credential-link replay purge actor is invalid")
+	}
+	if !validIdentityMaintenanceLabel(reason, 512) {
+		return IdentityCredentialLinkReplayPurgeReceipt{},
+			fmt.Errorf("credential-link replay purge reason is invalid")
+	}
+	if !validIdentityMaintenanceLabel(idempotencyKey, 256) {
+		return IdentityCredentialLinkReplayPurgeReceipt{},
+			fmt.Errorf("credential-link replay purge idempotency key is invalid")
+	}
+
+	idempotencyDigest := store.lifecycleKeys.receiptDigest(
+		"maintenance:credential-link-replay-purge:idempotency:" +
+			idempotencyKey,
+	)
+	requestDigest := store.lifecycleKeys.receiptDigest(strings.Join([]string{
+		"maintenance:credential-link-replay-purge:v1",
+		cutoff.Format(time.RFC3339Nano),
+		strconv.Itoa(request.MaxRows),
+		actor,
+		reason,
+	}, "\x00"))
+	queryCtx, cancel := context.WithTimeout(ctx, store.sqlTimeout)
+	defer cancel()
+	var raw []byte
+	err := store.db.QueryRowContext(queryCtx, `
+SELECT a1_purge_identity_credential_link_replays($1,$2,$3,$4,$5,$6,$7)
+`, cutoff, request.MaxRows, actor, reason, idempotencyDigest,
+		requestDigest, now).Scan(&raw)
+	if err != nil {
+		return IdentityCredentialLinkReplayPurgeReceipt{},
+			fmt.Errorf("purge expired credential-link replays: %w", err)
+	}
+	var receipt IdentityCredentialLinkReplayPurgeReceipt
+	if err = json.Unmarshal(raw, &receipt); err != nil {
+		return IdentityCredentialLinkReplayPurgeReceipt{},
+			fmt.Errorf("decode credential-link replay purge receipt: %w", err)
+	}
+	if err = validateIdentityCredentialLinkReplayPurgeReceipt(
+		receipt, cutoff, request.MaxRows, now,
+	); err != nil {
+		return IdentityCredentialLinkReplayPurgeReceipt{}, err
+	}
+	return receipt, nil
+}
+
+func validIdentityMaintenanceLabel(value string, maxLength int) bool {
+	if value == "" || len([]rune(value)) > maxLength {
+		return false
+	}
+	for _, item := range value {
+		if unicode.IsControl(item) {
+			return false
+		}
+	}
+	return true
+}
+
+func validateIdentityCredentialLinkReplayPurgeReceipt(
+	receipt IdentityCredentialLinkReplayPurgeReceipt,
+	cutoff time.Time,
+	maxRows int,
+	now time.Time,
+) error {
+	if receipt.SchemaVersion !=
+		"a1.identity.credential-link.replay-purge.v1" ||
+		receipt.PurgeID == "" ||
+		!receipt.Cutoff.Equal(cutoff) ||
+		receipt.MaxRows != maxRows ||
+		receipt.PurgedRows < 0 ||
+		receipt.PurgedRows > int64(maxRows) ||
+		receipt.CompletedAt.IsZero() ||
+		receipt.CompletedAt.After(now.Add(5*time.Minute)) ||
+		receipt.LookupVersionCounts == nil {
+		return fmt.Errorf("credential-link replay purge receipt is invalid")
+	}
+	purgeID, err := strconv.ParseInt(receipt.PurgeID, 10, 64)
+	if err != nil || purgeID < 1 {
+		return fmt.Errorf("credential-link replay purge receipt is invalid")
+	}
+	var total int64
+	for version, count := range receipt.LookupVersionCounts {
+		if !validIdentitySessionKeyVersion(version) ||
+			version == "legacy-unversioned" || count < 1 ||
+			total > receipt.PurgedRows ||
+			count > receipt.PurgedRows-total {
+			return fmt.Errorf("credential-link replay purge receipt is invalid")
+		}
+		total += count
+	}
+	if total != receipt.PurgedRows {
+		return fmt.Errorf("credential-link replay purge receipt is invalid")
+	}
+	return nil
+}
+
 func OpenProductionIdentityStore(dsn string, sessionKey []byte) (*ProductionIdentityStore, error) {
 	dsn = strings.TrimSpace(dsn)
 	if dsn == "" {
@@ -999,7 +1308,7 @@ func (store *ProductionIdentityStore) Ready(ctx context.Context) error {
 		return fmt.Errorf("verify production identity schema: %w", err)
 	}
 	if !ready {
-		return fmt.Errorf("production identity PostgreSQL schema is incomplete; migration 020 verified credential mutation authority and runtime grants are required")
+		return fmt.Errorf("production identity PostgreSQL schema is incomplete; migrations through 024 credential-link replay retention are required")
 	}
 	return nil
 }

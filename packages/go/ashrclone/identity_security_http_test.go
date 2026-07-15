@@ -15,7 +15,7 @@ type identitySecurityTestResolver struct {
 	err    error
 }
 
-func (r identitySecurityTestResolver) ResolveIdentitySecurityMutationTicket(context.Context, string, string, string) (IdentitySecurityMutationTicket, error) {
+func (r identitySecurityTestResolver) ResolveIdentitySecurityMutationTicket(context.Context, string, string, string, string) (IdentitySecurityMutationTicket, error) {
 	return r.ticket, r.err
 }
 

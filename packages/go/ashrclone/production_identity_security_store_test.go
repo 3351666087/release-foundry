@@ -38,7 +38,9 @@ func newProductionIdentitySecurityTestStore(
 
 func expectIdentitySecurityTransaction(mock sqlmock.Sqlmock) {
 	mock.ExpectBegin()
-	mock.ExpectExec("SELECT set_config").WithArgs("800ms", "200ms").
+	mock.ExpectExec("SELECT set_config").WithArgs(
+		"800ms", "200ms", identitySecurityTestAccountID,
+	).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 }
 
@@ -100,12 +102,13 @@ func TestProductionIdentitySecurityStoreResolvesPublicTicketEnvelope(t *testing.
 	}`
 	expectIdentitySecurityTransaction(mock)
 	mock.ExpectQuery("SELECT a1_resolve_identity_security_mutation_ticket").
-		WithArgs(ticketID, stepUpID, "password_enroll", now).
+		WithArgs(ticketID, stepUpID, "password_enroll", identitySecurityTestAccountID, now).
 		WillReturnRows(sqlmock.NewRows([]string{"ticket"}).AddRow(raw))
 	mock.ExpectCommit()
 
 	ticket, err := store.ResolveIdentitySecurityMutationTicket(
-		context.Background(), ticketID, stepUpID, "password_enroll",
+		context.Background(), identitySecurityTestAccountID,
+		ticketID, stepUpID, "password_enroll",
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -143,12 +146,13 @@ func TestProductionIdentitySecurityStoreResolvesCredentialBindTicket(t *testing.
 	}`
 	expectIdentitySecurityTransaction(mock)
 	mock.ExpectQuery("SELECT a1_resolve_identity_security_mutation_ticket").
-		WithArgs(ticketID, stepUpID, "credential_bind", now).
+		WithArgs(ticketID, stepUpID, "credential_bind", identitySecurityTestAccountID, now).
 		WillReturnRows(sqlmock.NewRows([]string{"ticket"}).AddRow(raw))
 	mock.ExpectCommit()
 
 	ticket, err := store.ResolveIdentitySecurityMutationTicket(
-		context.Background(), ticketID, stepUpID, "credential_bind",
+		context.Background(), identitySecurityTestAccountID,
+		ticketID, stepUpID, "credential_bind",
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -224,7 +228,8 @@ func TestProductionIdentitySecurityStoreRoutesAtomicMigration018Authority(t *tes
 			expectIdentitySecurityTransaction(mock)
 			mock.ExpectQuery("SELECT a1_execute_identity_security_mutation").
 				WithArgs(ticket.TicketID, mutation.IdempotencyKey,
-					identitySecurityRequestFingerprint(mutation)).
+					identitySecurityRequestFingerprint(mutation),
+					identitySecurityTestAccountID).
 				WillReturnRows(sqlmock.NewRows([]string{"result"}).AddRow(testCase.resultJSON))
 			mock.ExpectCommit()
 

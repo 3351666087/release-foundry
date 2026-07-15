@@ -7,6 +7,7 @@ import (
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"database/sql"
 	"encoding/hex"
 	"encoding/json"
@@ -191,6 +192,65 @@ func (ring *identityLifecycleKeyring) receiptDigest(raw string) string {
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
+func (ring *identityLifecycleKeyring) receiptDigestForVersion(
+	raw string,
+	version string,
+) (string, error) {
+	ring.mu.RLock()
+	defer ring.mu.RUnlock()
+	key := ring.lookupKeys[strings.TrimSpace(version)]
+	if len(key) < 32 {
+		return "", ErrIdentityProofKeyUnavailable
+	}
+	mac := hmac.New(sha256.New, key)
+	_, _ = mac.Write([]byte(strings.TrimSpace(raw)))
+	return hex.EncodeToString(mac.Sum(nil)), nil
+}
+
+func (ring *identityLifecycleKeyring) lookupVersionForDigest(
+	raw string,
+	digest string,
+) (string, error) {
+	ring.mu.RLock()
+	defer ring.mu.RUnlock()
+	raw = strings.TrimSpace(raw)
+	expected, err := hex.DecodeString(strings.TrimSpace(digest))
+	if err != nil || len(expected) != sha256.Size {
+		return "", ErrIdentityProofReceiptNotFound
+	}
+	for version, key := range ring.lookupKeys {
+		mac := hmac.New(sha256.New, key)
+		_, _ = mac.Write([]byte(raw))
+		if subtle.ConstantTimeCompare(mac.Sum(nil), expected) == 1 {
+			return version, nil
+		}
+	}
+	return "", ErrIdentityProofReceiptNotFound
+}
+
+func (ring *identityLifecycleKeyring) lookupVersionsExcept(retiring string) ([]string, error) {
+	if ring == nil {
+		return nil, fmt.Errorf("production identity lifecycle lookup keyring is unavailable")
+	}
+	retiring = strings.TrimSpace(retiring)
+	ring.mu.RLock()
+	defer ring.mu.RUnlock()
+	if retiring == ring.lookupActive {
+		return nil, fmt.Errorf("active lifecycle receipt lookup key cannot be retired")
+	}
+	if _, exists := ring.lookupKeys[retiring]; !exists {
+		return nil, fmt.Errorf("lifecycle receipt lookup key version is not configured")
+	}
+	versions := make([]string, 0, len(ring.lookupKeys)-1)
+	for version := range ring.lookupKeys {
+		if version != retiring {
+			versions = append(versions, version)
+		}
+	}
+	sort.Strings(versions)
+	return versions, nil
+}
+
 func (ring *identityLifecycleKeyring) receiptDigests(raw string) []string {
 	ring.mu.RLock()
 	defer ring.mu.RUnlock()
@@ -319,9 +379,10 @@ func (store *postgresIdentityLifecycleReceiptStore) Issue(
 	operationCtx, cancel := context.WithTimeout(ctx, store.sqlTimeout)
 	defer cancel()
 	_, err = store.db.ExecContext(operationCtx, `
-SELECT a1_issue_identity_lifecycle_receipt($1,$2,$3,$4,$5,$6,$7,$8,$9)
+SELECT a1_issue_identity_lifecycle_receipt($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
 `, metadata.Digest, metadata.Operation, metadata.Provider, metadata.TenantScope,
-		metadata.ProjectScope, nonce, metadata.KeyVersion, ciphertext, metadata.ExpiresAt)
+		metadata.ProjectScope, nonce, metadata.KeyVersion, store.keys.lookupActive,
+		ciphertext, metadata.ExpiresAt)
 	if err != nil {
 		return fmt.Errorf("persist identity lifecycle receipt: %w", err)
 	}
@@ -358,8 +419,9 @@ func (store *postgresIdentityLifecycleReceiptStore) Consume(
 }
 
 type lockedIdentityLifecycleReceipt struct {
-	metadata identityLifecycleReceiptMetadata
-	proof    TrustedIdentityProof
+	metadata         identityLifecycleReceiptMetadata
+	proof            TrustedIdentityProof
+	lookupKeyVersion string
 }
 
 func (store *postgresIdentityLifecycleReceiptStore) lockReceipt(

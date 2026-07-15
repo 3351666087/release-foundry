@@ -3234,3 +3234,152 @@ Python/TypeScript/parity/commercial gates, then implement a typed
 PostgreSQL-backed `IdentitySecurityHTTPStore` that routes all password/MFA
 mutations through migration 018 while keeping unsafe split-memory stores fail
 closed.
+
+## Round 64: Independent Lifecycle Receipt Lookup Keys
+
+Date: 2026-07-14
+
+- Separated lifecycle proof-encryption keys from keyed receipt-lookup keys.
+- Added optional production lookup-key environment configuration with strict
+  version, length, duplicate, JSON-shape, and no-secret-error validation.
+- Preserved compatibility when no explicit lookup keyring is configured.
+- Added byte clearing for active and previous lookup keys in runtime config,
+  cloned keyrings, constructor failures, and keyring shutdown.
+- Added live PostgreSQL proof that a completed credential-link replay survives
+  retirement of the old encryption key when the stable lookup key remains.
+- Added fail-closed proof that an unconsumed old-key receipt is locatable but
+  cannot decrypt, does not leak internal key details, and does not consume
+  proof, mutation-ticket, or step-up authorization state.
+- Verification passed: full Go tests, Go vet, live PostgreSQL identity
+  lifecycle integration, six atomic migration tests, and `git diff --check`.
+- Published A1 commit:
+  `6d4ba9c9c1c463267fa734c0589b509d46c96b0f`.
+- Evidence:
+  `docs/a1/evidence/round64_identity_receipt_lookup_key_rotation.md`.
+
+Next: add an explicit legacy receipt-digest migration/retention readiness
+report, then continue the typed PostgreSQL-backed password/MFA HTTP store
+without weakening the current fail-closed split-store guard.
+
+## Round 65: Canonical-Account Scoped Identity-Security Runtime
+
+Date: 2026-07-14
+
+- Added migration 022 principal-scoped PostgreSQL authorities for password/MFA
+  posture, mutation-ticket resolution, and mutation execution.
+- The A3-facing ticket resolver now requires the authenticated session's
+  canonical account ID explicitly; returned ticket envelopes must match it.
+- Every production security-store transaction installs transaction-local
+  `app.a1_principal_id` before calling the scoped database authority.
+- Revoked `a1_runtime` access to migration 018's old unscoped resolver and
+  executor; only the scoped overloads remain executable by the runtime.
+- Preserved the public-safe optional/recommended 2FA posture without exposing
+  password/TOTP secret references, keyed digests, recovery batches, or session
+  digests.
+- Added Docker/PostgreSQL proof that a foreign canonical account cannot read
+  posture, resolve a ticket, or execute a mutation and that every rejected
+  attempt leaves the target ticket and receipt unconsumed.
+- Proved own-account mutation succeeds and exact idempotent replay is stable.
+- Updated readiness and the live lifecycle harness to require migrations
+  001-022 and scoped runtime grants.
+- Verification passed: full Go tests, live PostgreSQL lifecycle integration,
+  31 focused PostgreSQL/RLS migration tests, and `git diff --check`.
+- Evidence:
+  `docs/a1/evidence/round65_scoped_identity_security_runtime.md`.
+
+Next: publish this scoped authority, add explicit legacy receipt-digest
+migration/retention readiness, then continue cross-language identity-security
+client parity and production key-rotation drills.
+
+## Round 66: Lifecycle Receipt Lookup-Key Retirement Readiness
+
+Date: 2026-07-14
+
+- Added migration 023 with explicit per-receipt `lookup_key_version`; existing
+  rows are conservatively labeled `legacy-unversioned` because raw opaque
+  receipt IDs are intentionally unavailable for re-keying.
+- New receipt issuance requires an explicit nonlegacy lookup-key version, and
+  the old nine-argument runtime authority is revoked.
+- Added an aggregate-only, pinned-search-path PostgreSQL retirement preflight
+  that exposes safe version labels, counts, a live-receipt deadline, and
+  readiness booleans without exposing digests, proof material, replay payloads,
+  or key bytes.
+- Active, invalid, and unconfigured key retirement requests fail before any
+  database query.
+- Retirement remains blocked by unexpired unconsumed receipts, completed exact
+  replay rows, legacy-unversioned rows, or rows outside the retained key set.
+- Closed a live rotation bug by deriving credential-link idempotency, request,
+  event, subject, and email fingerprints with the lookup key that actually
+  matched the locked receipt rather than blindly using the new active key.
+- Docker/PostgreSQL proves lookup-v1 rows are explicitly versioned, lookup-v2
+  plus retained lookup-v1 preserves exact replay, and the retirement preflight
+  blocks both a pending live receipt and a completed replay row.
+- Verification passed: focused Go identity/lookup/credential-link tests,
+  14 migration tests, full Go module tests, Go vet, command API tests, and the
+  full live PostgreSQL identity lifecycle integration.
+- Evidence:
+  `docs/a1/evidence/round66_lifecycle_receipt_lookup_readiness.md`.
+
+Next: define bounded credential-link replay retention and an audited purge
+authority so old lookup keys can eventually retire safely, then continue
+cross-language identity-security client parity.
+
+## Round 67: Credential-Link Replay Retention and Audited Purge
+
+Date: 2026-07-14
+
+- Added migration 024 with an immutable 30-day replay-retention deadline for
+  completed credential-link lifecycle receipts.
+- Added a bounded, advisory-lock-serialized, idempotent `SECURITY DEFINER`
+  purge authority using `FOR UPDATE SKIP LOCKED`.
+- Added a forced-RLS durable purge audit that contains aggregate counts by safe
+  lookup-key version only; direct runtime access to receipt and audit tables
+  remains revoked.
+- Excluded `legacy-unversioned` rows from deletion and preserved exact replay
+  for the full retention window.
+- Added an A3-safe typed Go purge API with HMAC-keyed request fingerprints,
+  strict aggregate receipt validation, Unicode Chinese actor/reason support,
+  and fail-closed readiness checks.
+- Docker/PostgreSQL proves a lookup-v1 replay blocks retirement before expiry,
+  purges after expiry, replays idempotently, rejects changed requests, and
+  leaves no direct runtime deletion authority.
+- Verification passed: 18 focused migration tests, focused and complete Go
+  module tests, Go vet, live PostgreSQL lifecycle integration, and
+  `git diff --check`.
+- The full Python A1 suite produced `1393 passed, 2 skipped, 1 failed`; the
+  isolated failure reproduces an existing test that calls migration 017's old
+  binding function after migration 020 intentionally revoked it.
+- Evidence:
+  `docs/a1/evidence/round67_credential_link_replay_retention.md`.
+
+Next: continue cross-language identity-security/client parity and production
+lookup-key rotation drills after publishing bounded replay retention.
+
+## Round 68: Authorized Credential-Binding Regression
+
+Date: 2026-07-14
+
+- Migrated the complete-suite PostgreSQL verification regression from
+  migration 017's revoked direct credential-binding function to migration
+  020's authorized wrapper.
+- The live test now provisions a recent canonical-account session, a
+  request-bound `credential_bind` step-up receipt, and a secret-free mutation
+  ticket issued through the dedicated ticket authority.
+- Explicitly proves `a1_runtime` can execute the authorized wrapper but cannot
+  execute the old direct function.
+- Injected credential insertion failure now proves atomic rollback preserves
+  the verification receipt, step-up receipt, and mutation ticket for retry.
+- Concurrent independently authorized requests still produce exactly one
+  credential; the winner consumes its authority while the losing transaction
+  leaves its own authority unconsumed.
+- Exact replay, changed-request rejection, cross-scope denial, forced-RLS
+  direct-mutation denial, durable outbox, and abuse-budget assertions remain
+  covered.
+- Verification passed: the previously failing test is green, 20 related
+  PostgreSQL/RLS/authority tests pass, and the complete Python A1 suite is
+  green with `1394 passed, 2 skipped`.
+- Evidence:
+  `docs/a1/evidence/round68_authorized_credential_binding_regression.md`.
+
+Next: publish this authority regression, then continue production lookup-key
+rotation drills and cross-language identity-security/client parity.

@@ -360,6 +360,7 @@ SELECT
 		oldEncryption := []byte("old-link-encryption-0123456789012345")
 		newEncryption := []byte("new-link-encryption-0123456789012345")
 		stableLookup := []byte("stable-link-lookup-012345678901234567")
+		newLookup := []byte("new-link-lookup-012345678901234567890")
 		old := h.newInstanceWithLifecycleKeys(
 			t, oldEncryption, "enc-old", nil,
 			stableLookup, "lookup-v1", nil,
@@ -400,7 +401,9 @@ SELECT
 
 		retired := h.newInstanceWithLifecycleKeys(
 			t, newEncryption, "enc-new", nil,
-			stableLookup, "lookup-v1", nil,
+			newLookup, "lookup-v2", []IdentityLifecycleLookupKey{{
+				Version: "lookup-v1", Key: stableLookup,
+			}},
 		)
 		replay, err := retired.credentialLinkService.Complete(context.Background(), command)
 		if err != nil {
@@ -422,6 +425,42 @@ SELECT
 			t, old, account.AccountID, sessionID, sessionDigest,
 			orgID, projectID, pendingProof, "credential-link-pending-retirement", h.now,
 		)
+		readiness, err := retired.store.LifecycleReceiptLookupRetirementReadiness(
+			context.Background(), "lookup-v1",
+		)
+		if err != nil {
+			t.Fatalf("lookup retirement preflight failed: %v", err)
+		}
+		if readiness.Ready ||
+			readiness.ActiveVersion != "lookup-v2" ||
+			readiness.RetiringVersion != "lookup-v1" ||
+			readiness.RetiringLiveReceipts == 0 ||
+			readiness.RetiringReplayRecords == 0 ||
+			readiness.UnreachableLiveReceipts == 0 ||
+			readiness.UnreachableReplayRecords == 0 ||
+			readiness.LiveReceiptsRequiredUntil == nil ||
+			!readiness.ReplayRetentionRequired {
+			t.Fatalf("unsafe lookup retirement was not blocked: %#v", readiness)
+		}
+		var completedLookupVersion, pendingLookupVersion string
+		if err := old.adminDB.QueryRow(`
+SELECT
+  (SELECT lookup_key_version FROM identity_lifecycle_receipts
+    WHERE receipt_digest=$1),
+  (SELECT lookup_key_version FROM identity_lifecycle_receipts
+    WHERE receipt_digest=$2)
+`, old.receipts.receiptDigest(proof.ReceiptID),
+			old.receipts.receiptDigest(pendingProof.ReceiptID)).
+			Scan(&completedLookupVersion, &pendingLookupVersion); err != nil {
+			t.Fatal(err)
+		}
+		if completedLookupVersion != "lookup-v1" ||
+			pendingLookupVersion != "lookup-v1" {
+			t.Fatalf(
+				"receipt lookup versions completed=%q pending=%q",
+				completedLookupVersion, pendingLookupVersion,
+			)
+		}
 		_, err = retired.credentialLinkService.Complete(context.Background(), pendingCommand)
 		var domain IdentityDomainError
 		if !errors.As(err, &domain) || domain.Code != "identity_credential_link_unavailable" {
@@ -449,6 +488,144 @@ SELECT
 				"retired-key replay duplicated state credentials=%d completed_events=%d",
 				credentials, completedEvents,
 			)
+		}
+	})
+
+	t.Run("credential link replay purge is bounded idempotent and aggregate only", func(t *testing.T) {
+		h := newPostgresLifecycleHarness(t, adminDSN)
+		instance := h.newInstanceWithLifecycleKeys(
+			t, []byte("purge-encryption-0123456789012345678"), "enc-v1", nil,
+			[]byte("purge-new-lookup-012345678901234567890"), "lookup-v2",
+			[]IdentityLifecycleLookupKey{{
+				Version: "lookup-v1",
+				Key:     []byte("purge-old-lookup-012345678901234567890"),
+			}},
+		)
+		registration := issueLifecycleProof(t, instance.service, TrustedIdentityProof{
+			Operation: IdentityOperationRegistration, Kind: IdentityCredentialEmail,
+			Provider: IdentityProviderLocal, Identifier: "replay-purge@example.cn",
+			VerifiedEmail: "replay-purge@example.cn", DisplayName: "Replay Purge Owner",
+		})
+		account, err := instance.service.CompleteRegistration(completionFor(registration))
+		if err != nil {
+			t.Fatal(err)
+		}
+		historicalConsumedAt := h.now.Add(-31 * 24 * time.Hour)
+		historicalExpiresAt := historicalConsumedAt.Add(-time.Minute)
+		mustExecArgs(t, instance.adminDB, `
+INSERT INTO identity_lifecycle_receipts(
+  receipt_digest,operation,provider,tenant_scope,project_scope,
+  proof_nonce,proof_key_version,lookup_key_version,proof_ciphertext,
+  expires_at,consumed_at,consume_outcome,
+  link_idempotency_digest,link_request_digest,link_result_id
+) VALUES (
+  $1,'credential_link','google','','',
+  decode($2,'hex'),'enc-v1','lookup-v1',decode($3,'hex'),
+  $4,$5,'success',$6,$7,$8::uuid
+)
+`, strings.Repeat("1", 64), strings.Repeat("ab", 12),
+			strings.Repeat("cd", 32), historicalExpiresAt,
+			historicalConsumedAt, strings.Repeat("2", 64),
+			strings.Repeat("3", 64), account.Credentials[0].CredentialID)
+
+		readiness, err := instance.store.LifecycleReceiptLookupRetirementReadiness(
+			context.Background(), "lookup-v1",
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if readiness.Ready || readiness.RetiringReplayRecords != 1 ||
+			!readiness.ReplayRetentionRequired {
+			t.Fatalf("historical replay did not block retirement: %#v", readiness)
+		}
+
+		beforeDeadline, err := instance.store.PurgeExpiredCredentialLinkReplays(
+			context.Background(), IdentityCredentialLinkReplayPurgeRequest{
+				Cutoff:  historicalConsumedAt.Add(29 * 24 * time.Hour),
+				MaxRows: 1, Actor: "中国区身份运维",
+				Reason: "保留期前验证", IdempotencyKey: "before-retention",
+			},
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if beforeDeadline.PurgedRows != 0 ||
+			len(beforeDeadline.LookupVersionCounts) != 0 {
+			t.Fatalf("pre-retention purge removed replay: %#v", beforeDeadline)
+		}
+
+		request := IdentityCredentialLinkReplayPurgeRequest{
+			Cutoff: h.now, MaxRows: 1, Actor: "中国区身份运维",
+			Reason: "已过保留期且密钥轮换", IdempotencyKey: "retire-lookup-v1",
+		}
+		first, err := instance.store.PurgeExpiredCredentialLinkReplays(
+			context.Background(), request,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if first.PurgedRows != 1 ||
+			first.LookupVersionCounts["lookup-v1"] != 1 {
+			t.Fatalf("eligible replay was not purged: %#v", first)
+		}
+		replay, err := instance.store.PurgeExpiredCredentialLinkReplays(
+			context.Background(), request,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if replay.PurgeID != first.PurgeID ||
+			replay.PurgedRows != first.PurgedRows ||
+			!replay.CompletedAt.Equal(first.CompletedAt) {
+			t.Fatalf("purge replay changed receipt: first=%#v replay=%#v", first, replay)
+		}
+		conflict := request
+		conflict.Reason = "changed request"
+		if _, err := instance.store.PurgeExpiredCredentialLinkReplays(
+			context.Background(), conflict,
+		); err == nil || !strings.Contains(err.Error(), "idempotency") {
+			t.Fatalf("changed purge request did not conflict: %v", err)
+		}
+
+		readiness, err = instance.store.LifecycleReceiptLookupRetirementReadiness(
+			context.Background(), "lookup-v1",
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !readiness.Ready || readiness.RetiringReplayRecords != 0 ||
+			readiness.ReplayRetentionRequired {
+			t.Fatalf("purge did not unblock lookup retirement: %#v", readiness)
+		}
+
+		var auditRows int
+		var auditText string
+		if err := instance.adminDB.QueryRow(`
+SELECT count(*),string_agg(to_jsonb(a)::text,'')
+FROM identity_credential_link_replay_purge_audit AS a
+`).Scan(&auditRows, &auditText); err != nil {
+			t.Fatal(err)
+		}
+		if auditRows != 2 {
+			t.Fatalf("purge audit rows=%d want=2", auditRows)
+		}
+		for _, forbidden := range []string{
+			"proof_nonce", "proof_ciphertext", "receipt_digest",
+			"link_result_id", account.Credentials[0].CredentialID,
+		} {
+			if strings.Contains(auditText, forbidden) {
+				t.Fatalf("purge audit leaked %q: %s", forbidden, auditText)
+			}
+		}
+		if _, err := instance.db.Exec(
+			`DELETE FROM identity_credential_link_replay_purge_audit`,
+		); err == nil {
+			t.Fatal("runtime directly deleted purge audit")
+		}
+		if _, err := instance.db.Exec(
+			`DELETE FROM identity_lifecycle_receipts`,
+		); err == nil {
+			t.Fatal("runtime directly deleted lifecycle receipts")
 		}
 	})
 
@@ -985,15 +1162,17 @@ $$`); err != nil {
 		t.Fatal(err)
 	}
 	for _, signature := range []string{
-		"a1_issue_identity_lifecycle_receipt(TEXT,TEXT,TEXT,TEXT,TEXT,BYTEA,TEXT,BYTEA,TIMESTAMPTZ)",
+		"a1_issue_identity_lifecycle_receipt(TEXT,TEXT,TEXT,TEXT,TEXT,BYTEA,TEXT,TEXT,BYTEA,TIMESTAMPTZ)",
+		"a1_identity_lifecycle_lookup_retirement_readiness(TEXT,TEXT[],TIMESTAMPTZ)",
+		"a1_purge_identity_credential_link_replays(TIMESTAMPTZ,INTEGER,TEXT,TEXT,TEXT,TEXT,TIMESTAMPTZ)",
 		"a1_lock_identity_lifecycle_receipt(TEXT[])",
 		"a1_consume_identity_lifecycle_receipt(TEXT,TEXT,TEXT,TEXT,TEXT,TIMESTAMPTZ)",
 		"a1_register_identity_lifecycle_credential(TEXT,TEXT,TEXT[],TEXT,TEXT,TEXT,TEXT,TIMESTAMPTZ)",
 		"a1_authenticate_identity_lifecycle_credential(TEXT,TEXT[],TIMESTAMPTZ)",
 		"a1_project_identity_lifecycle_account(UUID)",
 		"a1_issue_identity_session(UUID,UUID,TEXT,TEXT,TIMESTAMPTZ,UUID,UUID,TEXT,TEXT,JSONB)",
-		"a1_resolve_identity_security_mutation_ticket(TEXT,TEXT,TEXT,TIMESTAMPTZ)",
-		"a1_execute_identity_security_mutation(TEXT,TEXT,TEXT)",
+		"a1_resolve_identity_security_mutation_ticket(TEXT,TEXT,TEXT,UUID,TIMESTAMPTZ)",
+		"a1_execute_identity_security_mutation(TEXT,TEXT,TEXT,UUID)",
 		"a1_project_account_security(UUID)",
 		"a1_bind_verified_identity_credential_authorized(UUID,UUID,TEXT,UUID,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,JSONB)",
 		"a1_lock_identity_credential_link_receipt(TEXT[])",
@@ -1145,7 +1324,7 @@ func applyIdentityLifecycleMigrations(t *testing.T, db *sql.DB) {
 	applied := 0
 	for _, path := range entries {
 		base := filepath.Base(path)
-		if len(base) < 3 || base[:3] < "001" || base[:3] > "021" {
+		if len(base) < 3 || base[:3] < "001" || base[:3] > "024" {
 			continue
 		}
 		sqlBytes, err := os.ReadFile(path)
@@ -1157,8 +1336,8 @@ func applyIdentityLifecycleMigrations(t *testing.T, db *sql.DB) {
 		}
 		applied++
 	}
-	if applied != 21 {
-		t.Fatalf("expected migrations 001-021, applied %d from %s", applied, migrationsDir)
+	if applied != 24 {
+		t.Fatalf("expected migrations 001-024, applied %d from %s", applied, migrationsDir)
 	}
 }
 
@@ -1422,7 +1601,8 @@ SELECT a1_issue_identity_security_mutation_ticket(
 			t.Fatalf("issue %s security mutation ticket returned false", operation)
 		}
 		ticket, err := instance.store.ResolveIdentitySecurityMutationTicket(
-			context.Background(), ticketDigest, receiptDigest, operation,
+			context.Background(), principalID,
+			ticketDigest, receiptDigest, operation,
 		)
 		if err != nil {
 			t.Fatalf("resolve %s security mutation ticket: %v", operation, err)
