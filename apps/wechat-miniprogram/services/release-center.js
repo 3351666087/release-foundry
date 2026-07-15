@@ -82,6 +82,10 @@ function normalizeDashboardPayload(payload = {}) {
   const goldenPath = record(payload.delivery_golden_path);
   const spine = record(payload.a1_a2_evidence_spine);
   const spineSummary = record(spine.summary);
+  const multimodalReadiness = record(payload.multimodal_release_readiness);
+  const multimodalSummary = record(multimodalReadiness.summary);
+  const multimodalLocal = record(multimodalReadiness.local_runtime);
+  const multimodalReview = record(multimodalReadiness.human_review);
   const scope = record(provenance.tenant_scope);
   const release = snapshot.release;
   const status = string(provenance.status, string(evidence.status, "unknown"));
@@ -114,6 +118,29 @@ function normalizeDashboardPayload(payload = {}) {
   release.review.reason = release.status === "ready" ? "可发起服务端权限预检。" : "发布授权仍为阻断状态。";
   release.tenantScope = normalizeScope(scope);
   release.blockers = normalizeBlockers(provenance.blockers || handoff.blockers, []);
+  if (multimodalReadiness.schema_version === "a3.multimodal_release_readiness.v1") {
+    release.multimodalReadiness = {
+      available: multimodalReadiness.available === true,
+      status: string(multimodalReadiness.status, "blocked_multimodal_release_readiness"),
+      statusLabel: "多模态晋级受阻",
+      tone: "danger",
+      safeControlLabel: `${number(multimodalSummary.safe_control_false_positive_count)} / ${number(multimodalSummary.safe_control_count)}`,
+      attackDetectionLabel: `${number(multimodalSummary.taxonomy_detected_count)} / ${number(multimodalSummary.taxonomy_eligible_count)}`,
+      sensitivityLabel: `${Math.round(number(multimodalSummary.sensitivity) * 100)}%`,
+      localProfileLabel: String(number(multimodalSummary.local_completed_profile_count)),
+      localModelLabel: string(multimodalLocal.model_id, "本地候选模型"),
+      qualityLabel: string(multimodalSummary.repeat_quality_state, "unknown"),
+      stabilityLabel: string(multimodalSummary.repeat_stability_state, "unknown"),
+      reviewLabel: string(multimodalReview.collection_state, "unknown"),
+      sourceCommitAlias: string(multimodalReadiness.source_commit_alias, "unbound")
+    };
+    release.blockers.unshift({
+      id: "multimodal_release_readiness",
+      title: "多模态攻击检出与结构化输出未达标",
+      owner: "评测负责人",
+      detail: `攻击样本识别 ${release.multimodalReadiness.attackDetectionLabel}，本地结构化档位完成 ${release.multimodalReadiness.localProfileLabel}。`
+    });
+  }
   release.nextAction = release.blockers[0]?.detail || "等待服务端提供完整发布依据。";
   release.evidenceStages = normalizeSpineStages(spine.stages, release.status, spineSummary);
   snapshot.incidents = normalizeIncidents(payload.incident_replay_queue, []);

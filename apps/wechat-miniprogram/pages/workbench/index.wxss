@@ -80,6 +80,81 @@
   line-height: 62rpx;
 }
 
+.multimodal-readiness-panel {
+  padding: 24rpx;
+  border: 1rpx solid #d4d4d8;
+  border-left: 7rpx solid #ef4c32;
+  border-radius: 8rpx;
+  background: #ffffff;
+}
+
+.multimodal-readiness-head,
+.multimodal-readiness-foot {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18rpx;
+}
+
+.multimodal-readiness-head > view {
+  min-width: 0;
+  flex: 1;
+}
+
+.multimodal-readiness-title,
+.multimodal-readiness-copy {
+  display: block;
+}
+
+.multimodal-readiness-title {
+  font-size: 26rpx;
+  font-weight: 750;
+}
+
+.multimodal-readiness-copy {
+  margin-top: 8rpx;
+  color: #71717a;
+  font-size: 21rpx;
+  line-height: 1.55;
+}
+
+.multimodal-readiness-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-top: 22rpx;
+  border: solid #e4e4e7;
+  border-width: 1rpx 0 0 1rpx;
+}
+
+.multimodal-readiness-grid > view {
+  min-height: 92rpx;
+  padding: 16rpx;
+  border: solid #e4e4e7;
+  border-width: 0 1rpx 1rpx 0;
+}
+
+.multimodal-readiness-grid text,
+.multimodal-readiness-grid small {
+  display: block;
+}
+
+.multimodal-readiness-grid text {
+  font-size: 30rpx;
+  font-weight: 760;
+}
+
+.multimodal-readiness-grid small {
+  margin-top: 6rpx;
+  color: #71717a;
+  font-size: 19rpx;
+}
+
+.multimodal-readiness-foot {
+  margin-top: 18rpx;
+  color: #52525b;
+  font-size: 20rpx;
+}
+
 .evidence-row {
   display: flex;
   gap: 22rpx;

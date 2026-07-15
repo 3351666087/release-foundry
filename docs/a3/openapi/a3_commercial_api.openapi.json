@@ -9134,6 +9134,333 @@
           "production_ready": false
         }
       }
+    },
+    "/api/a3/import/a2-multimodal-provider-readiness": {
+      "post": {
+        "operationId": "a3ImportA2MultimodalProviderReadiness",
+        "summary": "Import public-safe A2 provider availability and phase-latency diagnostics atomically.",
+        "tags": [
+          "Review",
+          "Evidence",
+          "Operations"
+        ],
+        "x-schema-version": "a3.a2_multimodal_provider_readiness_ingest.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
+          ],
+          "source": "server_verified_a1_principal",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true,
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "contract_only_fail_closed",
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
+        },
+        "x-rbac": {
+          "operation_id": "import_a2_multimodal_provider_readiness",
+          "permission": "project:ingest",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger; A3 only emits a metering intent."
+        },
+        "x-audit": {
+          "events": [
+            "a2.multimodal_provider_readiness_imported"
+          ],
+          "payload_policy": "hashes_counts_states_reason_codes_and_phase_timings_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "verified principal",
+            "tenant scope",
+            "usage and audit execution"
+          ],
+          "a2": [
+            "GradeResult and release decision authority remain unchanged"
+          ],
+          "a3_rule": "A3 orchestrates product workflow and must not reinterpret A1 runtime facts or A2 decision semantics."
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_write",
+        "responses": {
+          "201": {
+            "description": "Provider readiness diagnostic accepted without promoting health, quality, or release authority.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MultimodalProviderReadinessIngestReceipt"
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "408": {
+            "$ref": "#/components/responses/RequestTimeout"
+          },
+          "409": {
+            "description": "Idempotency conflict.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeploymentReceiptConflict"
+                }
+              }
+            }
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/UnsupportedMediaType"
+          },
+          "422": {
+            "$ref": "#/components/responses/UnprocessableEntity"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "x-secret-policy": "raw_secret_values_forbidden",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MultimodalProviderReadinessImportRequest"
+              }
+            }
+          }
+        },
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        },
+        "x-request-validation": {
+          "malformed_json": "sanitized_400_after_authentication_and_authorization",
+          "body_read_timeout": "sanitized_408_after_authentication_and_authorization",
+          "maximum_body_bytes_default": 1048576,
+          "payload_too_large": "sanitized_413_after_authentication_and_authorization",
+          "required_media_type": "application/json",
+          "unsupported_media_type": "sanitized_415_after_authentication_and_authorization",
+          "required_top_level_shape": "object",
+          "invalid_json_shape": "sanitized_422_after_authentication_and_authorization",
+          "unauthorized_precedence": "401",
+          "forbidden_precedence": "403",
+          "raw_body_echoed": false,
+          "metadata_only_denial_audit_required": true
+        },
+        "parameters": [
+          {
+            "name": "Idempotency-Key",
+            "in": "header",
+            "required": true,
+            "description": "Opaque caller-generated retry key. The raw value is never persisted.",
+            "schema": {
+              "type": "string",
+              "minLength": 8,
+              "maxLength": 160
+            }
+          }
+        ],
+        "x-evidence-boundary": {
+          "atomic_availability_and_latency_envelope_required": true,
+          "hashes_counts_states_reason_codes_and_phase_timings_only": true,
+          "raw_provider_payload_forbidden": true,
+          "raw_response_forbidden": true,
+          "endpoint_url_forbidden": true,
+          "credentials_forbidden": true,
+          "private_media_forbidden": true
+        },
+        "x-authority-boundary": {
+          "production_routing_capacity_and_operational_health_authority": "A1",
+          "evaluation_and_qualification_authority": "A2",
+          "display_export_and_workflow_owner": "A3",
+          "installed_model_is_operationally_ready": false,
+          "faster_warm_latency_is_quality_pass": false,
+          "provider_is_truth": false,
+          "quality_comparison_performed": false,
+          "release_authority": false,
+          "a2_decision_recomputed": false,
+          "production_ready": false
+        }
+      }
+    },
+    "/api/a3/providers/multimodal-readiness": {
+      "get": {
+        "operationId": "a3ReadMultimodalProviderReadiness",
+        "summary": "Read tenant-scoped multimodal provider readiness diagnostics.",
+        "tags": [
+          "Review",
+          "Evidence",
+          "Operations"
+        ],
+        "x-schema-version": "a3.multimodal_provider_readiness.v1",
+        "x-tenant-scope": {
+          "required": [
+            "organization_id",
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "environment_id"
+          ],
+          "source": "server_verified_a1_principal",
+          "client_declared_scope_authoritative": false,
+          "scope_match_required": true,
+          "cross_tenant_default": "sanitized_403_or_404"
+        },
+        "x-auth": {
+          "required_for_hosted_saas": true,
+          "current_local_state": "contract_only_fail_closed",
+          "backend_owner": "A1",
+          "enforcement_owner": "A3 hosted API or same-origin BFF",
+          "principal_authority": "A1 server-side verifier",
+          "principal_source": "server_verified_a1_principal",
+          "accepted_principal_kinds": [
+            "browser_session",
+            "service_account"
+          ],
+          "client_declared_identity_authoritative": false,
+          "client_declared_role_authoritative": false,
+          "hosted_contract_only_not_production_proof": true
+        },
+        "x-rbac": {
+          "operation_id": "read_multimodal_provider_readiness",
+          "permission": "release:review",
+          "denied_state_required": true,
+          "evaluation": "server_side_against_verified_principal",
+          "client_declared_role_authoritative": false
+        },
+        "x-usage": {
+          "meters": [
+            "api_requests"
+          ],
+          "source_of_truth": "A1 usage ledger; A3 only emits a metering intent."
+        },
+        "x-audit": {
+          "events": [
+            "read_multimodal_provider_readiness.requested"
+          ],
+          "payload_policy": "ids_hashes_refs_status_counts_only"
+        },
+        "x-a1-a2-contract": {
+          "a1": [
+            "verified principal",
+            "tenant scope",
+            "usage and audit execution"
+          ],
+          "a2": [
+            "GradeResult and release decision authority remain unchanged"
+          ],
+          "a3_rule": "A3 orchestrates product workflow and must not reinterpret A1 runtime facts or A2 decision semantics."
+        },
+        "security": [
+          {
+            "A1VerifiedSession": []
+          },
+          {
+            "A1ServiceAccount": []
+          }
+        ],
+        "x-access-class": "tenant_sensitive_read",
+        "responses": {
+          "200": {
+            "description": "Public-safe availability and phase-latency projection without production-health or release authority.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MultimodalProviderReadiness"
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
+          }
+        },
+        "x-protected-options": {
+          "target_method_header": "Access-Control-Request-Method",
+          "target_route_authorization_required": true,
+          "a1_verified_principal_required_for_protected_route": true,
+          "metadata_only_access_audit_required": true,
+          "unregistered_or_unsupported_target_fails_closed": true,
+          "cors_enablement_claimed": false
+        },
+        "x-evidence-boundary": {
+          "atomic_availability_and_latency_envelope_required": true,
+          "hashes_counts_states_reason_codes_and_phase_timings_only": true,
+          "raw_provider_payload_forbidden": true,
+          "raw_response_forbidden": true,
+          "endpoint_url_forbidden": true,
+          "credentials_forbidden": true,
+          "private_media_forbidden": true
+        },
+        "x-authority-boundary": {
+          "production_routing_capacity_and_operational_health_authority": "A1",
+          "evaluation_and_qualification_authority": "A2",
+          "display_export_and_workflow_owner": "A3",
+          "installed_model_is_operationally_ready": false,
+          "faster_warm_latency_is_quality_pass": false,
+          "provider_is_truth": false,
+          "quality_comparison_performed": false,
+          "release_authority": false,
+          "a2_decision_recomputed": false,
+          "production_ready": false
+        }
+      }
     }
   },
   "components": {
@@ -9514,7 +9841,9 @@
           "deployment_handoff",
           "deployment_receipt_inbox",
           "deployment_acceptance_projection",
-          "multimodal_repeat_stability"
+          "multimodal_repeat_stability",
+          "multimodal_provider_readiness",
+          "multimodal_release_readiness"
         ],
         "properties": {
           "schema_version": {
@@ -9555,6 +9884,12 @@
           },
           "multimodal_repeat_stability": {
             "$ref": "#/components/schemas/MultimodalRepeatStability"
+          },
+          "multimodal_provider_readiness": {
+            "$ref": "#/components/schemas/MultimodalProviderReadiness"
+          },
+          "multimodal_release_readiness": {
+            "$ref": "#/components/schemas/MultimodalReleaseReadiness"
           }
         },
         "additionalProperties": true
@@ -16231,6 +16566,1522 @@
         },
         "additionalProperties": true,
         "description": "Aggregate stability evidence. Stable blocked repeats remain blocked and never become release authority."
+      },
+      "A2MultimodalProviderReadinessEnvelope": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "source_commit_alias",
+          "availability_comparison",
+          "latency_probe",
+          "release_authority",
+          "public_safe",
+          "raw_provider_payload_included"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.a2_multimodal_provider_readiness_intake.v1"
+          },
+          "source_commit_alias": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{7,40}$"
+          },
+          "availability_comparison": {
+            "type": "object",
+            "required": [
+              "schema_version",
+              "same_case_set",
+              "case_set_hash",
+              "providers",
+              "blockers",
+              "comparison_state",
+              "quality_comparison_performed",
+              "provider_is_truth",
+              "release_authority",
+              "raw_provider_text_included",
+              "public_safe"
+            ],
+            "properties": {
+              "schema_version": {
+                "type": "string",
+                "const": "a2.local_multimodal_availability_comparison.v1"
+              },
+              "same_case_set": {
+                "type": "boolean"
+              },
+              "case_set_hash": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^sha256:[a-f0-9]{64}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "providers": {
+                "type": "object",
+                "minProperties": 2,
+                "maxProperties": 20,
+                "propertyNames": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+                },
+                "additionalProperties": {
+                  "type": "object",
+                  "required": [
+                    "artifact_hash",
+                    "attempted_count",
+                    "completed_count",
+                    "eligible_count",
+                    "failed_count",
+                    "timeout_case_count",
+                    "latency_seconds",
+                    "qualification_state"
+                  ],
+                  "properties": {
+                    "artifact_hash": {
+                      "type": "string",
+                      "pattern": "^sha256:[a-f0-9]{64}$"
+                    },
+                    "attempted_count": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "completed_count": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "eligible_count": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "failed_count": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "timeout_case_count": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "latency_seconds": {
+                      "type": "object",
+                      "required": [
+                        "count",
+                        "median",
+                        "p95_nearest_rank",
+                        "maximum"
+                      ],
+                      "properties": {
+                        "count": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "median": {
+                          "type": [
+                            "number",
+                            "null"
+                          ],
+                          "minimum": 0
+                        },
+                        "p95_nearest_rank": {
+                          "type": [
+                            "number",
+                            "null"
+                          ],
+                          "minimum": 0
+                        },
+                        "maximum": {
+                          "type": [
+                            "number",
+                            "null"
+                          ],
+                          "minimum": 0
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "qualification_state": {
+                      "type": "string",
+                      "enum": [
+                        "qualified",
+                        "blocked",
+                        "diagnostic_only",
+                        "unavailable"
+                      ]
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "blockers": {
+                "type": "array",
+                "minItems": 0,
+                "maxItems": 50,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+                }
+              },
+              "comparison_state": {
+                "type": "string",
+                "enum": [
+                  "complete",
+                  "blocked"
+                ]
+              },
+              "quality_comparison_performed": {
+                "type": "boolean",
+                "const": false
+              },
+              "provider_is_truth": {
+                "type": "boolean",
+                "const": false
+              },
+              "release_authority": {
+                "type": "boolean",
+                "const": false
+              },
+              "raw_provider_text_included": {
+                "type": "boolean",
+                "const": false
+              },
+              "public_safe": {
+                "type": "boolean",
+                "const": true
+              }
+            },
+            "additionalProperties": false
+          },
+          "latency_probe": {
+            "type": "object",
+            "required": [
+              "schema_version",
+              "generated_at",
+              "provider_id",
+              "base_url_class",
+              "model_id",
+              "model_digest",
+              "artifact_hash",
+              "prompt_hash",
+              "output_schema_hash",
+              "unload_state",
+              "timeout_seconds",
+              "profiles",
+              "diagnosis",
+              "completed_profile_count",
+              "qualification_state",
+              "provider_is_truth",
+              "secret_included",
+              "release_authority",
+              "public_safe"
+            ],
+            "properties": {
+              "schema_version": {
+                "type": "string",
+                "const": "a2.ollama_multimodal_latency_probe.v1"
+              },
+              "generated_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "provider_id": {
+                "type": "string",
+                "const": "ollama-local"
+              },
+              "base_url_class": {
+                "type": "string",
+                "const": "loopback"
+              },
+              "model_id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+              },
+              "model_digest": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              },
+              "artifact_hash": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              },
+              "prompt_hash": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              },
+              "output_schema_hash": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              },
+              "unload_state": {
+                "type": "string",
+                "enum": [
+                  "requested",
+                  "unconfirmed"
+                ]
+              },
+              "timeout_seconds": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "profiles": {
+                "type": "array",
+                "minItems": 4,
+                "maxItems": 4,
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "profile",
+                    "num_predict",
+                    "format_mode",
+                    "state",
+                    "parse_state",
+                    "error_class",
+                    "phase_receipt",
+                    "response_hash",
+                    "raw_response_included",
+                    "release_authority",
+                    "public_safe"
+                  ],
+                  "properties": {
+                    "profile": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+                    },
+                    "num_predict": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 4096
+                    },
+                    "format_mode": {
+                      "type": "string",
+                      "enum": [
+                        "plain",
+                        "json_schema"
+                      ]
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "completed",
+                        "failed"
+                      ]
+                    },
+                    "parse_state": {
+                      "type": "string",
+                      "enum": [
+                        "valid_json",
+                        "invalid_structured_output",
+                        "unavailable"
+                      ]
+                    },
+                    "error_class": {
+                      "type": "string",
+                      "pattern": "^(?:|[A-Za-z0-9][A-Za-z0-9._:-]{0,159})$"
+                    },
+                    "phase_receipt": {
+                      "type": "object",
+                      "required": [
+                        "image_read_and_base64_seconds",
+                        "caller_wall_seconds",
+                        "provider_total_seconds",
+                        "model_load_seconds",
+                        "prompt_eval_seconds",
+                        "token_eval_seconds",
+                        "transport_and_client_residual_seconds"
+                      ],
+                      "properties": {
+                        "image_read_and_base64_seconds": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "caller_wall_seconds": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "provider_total_seconds": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "model_load_seconds": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "prompt_eval_seconds": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "token_eval_seconds": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "transport_and_client_residual_seconds": {
+                          "type": "number",
+                          "minimum": 0
+                        }
+                      },
+                      "additionalProperties": false
+                    },
+                    "response_hash": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^sha256:[a-f0-9]{64}$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "raw_response_included": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "release_authority": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "public_safe": {
+                      "type": "boolean",
+                      "const": true
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "diagnosis": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 50,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+                }
+              },
+              "completed_profile_count": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 4
+              },
+              "qualification_state": {
+                "type": "string",
+                "enum": [
+                  "diagnostic_only",
+                  "blocked"
+                ]
+              },
+              "provider_is_truth": {
+                "type": "boolean",
+                "const": false
+              },
+              "secret_included": {
+                "type": "boolean",
+                "const": false
+              },
+              "release_authority": {
+                "type": "boolean",
+                "const": false
+              },
+              "public_safe": {
+                "type": "boolean",
+                "const": true
+              }
+            },
+            "additionalProperties": false
+          },
+          "release_authority": {
+            "type": "boolean",
+            "const": false
+          },
+          "public_safe": {
+            "type": "boolean",
+            "const": true
+          },
+          "raw_provider_payload_included": {
+            "type": "boolean",
+            "const": false
+          }
+        },
+        "additionalProperties": false,
+        "description": "Atomic public-safe A2 availability and phase-latency evidence. Installation and warm latency do not prove health, quality, or release readiness."
+      },
+      "MultimodalProviderReadinessImportRequest": {
+        "type": "object",
+        "required": [
+          "source",
+          "provider_readiness_evidence"
+        ],
+        "properties": {
+          "source": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "source_label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "sourceLabel": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "organization_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "tenant_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "workspace_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "project_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "environment_id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "imported_at": {
+            "type": "string",
+            "deprecated": true,
+            "description": "Ignored. The server assigns imported_at from its own clock."
+          },
+          "idempotency_key": {
+            "type": "string",
+            "deprecated": true,
+            "description": "Ignored. Use the required Idempotency-Key header."
+          },
+          "idempotencyKey": {
+            "type": "string",
+            "deprecated": true,
+            "description": "Ignored. Use the required Idempotency-Key header."
+          },
+          "provider_readiness_evidence": {
+            "$ref": "#/components/schemas/A2MultimodalProviderReadinessEnvelope"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Header-only idempotency; availability and latency evidence are accepted atomically under a server-verified five-level tenant scope."
+      },
+      "MultimodalProviderReadinessIngestReceipt": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "source",
+          "organization_id",
+          "tenant_id",
+          "workspace_id",
+          "project_id",
+          "environment_id",
+          "storage_mode",
+          "db_ready",
+          "payload_hash",
+          "provider_count",
+          "attempted_count",
+          "completed_count",
+          "failed_count",
+          "timeout_case_count",
+          "eligible_count",
+          "completed_profile_count",
+          "valid_structured_profile_count",
+          "upstream_release_authority",
+          "quality_comparison_performed",
+          "operational_health_verified",
+          "a2_decision_recomputed",
+          "release_decision_changed",
+          "imported_at",
+          "idempotency"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.a2_multimodal_provider_readiness_ingest.v1"
+          },
+          "source": {
+            "type": "string"
+          },
+          "organization_id": {
+            "type": "string"
+          },
+          "tenant_id": {
+            "type": "string"
+          },
+          "workspace_id": {
+            "type": "string"
+          },
+          "project_id": {
+            "type": "string"
+          },
+          "environment_id": {
+            "type": "string"
+          },
+          "storage_mode": {
+            "type": "string"
+          },
+          "db_ready": {
+            "type": "boolean"
+          },
+          "payload_hash": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "provider_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "attempted_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "completed_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "failed_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "timeout_case_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "eligible_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "completed_profile_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "valid_structured_profile_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "upstream_release_authority": {
+            "type": "boolean",
+            "const": false
+          },
+          "quality_comparison_performed": {
+            "type": "boolean",
+            "const": false
+          },
+          "operational_health_verified": {
+            "type": "boolean",
+            "const": false
+          },
+          "a2_decision_recomputed": {
+            "type": "boolean",
+            "const": false
+          },
+          "release_decision_changed": {
+            "type": "boolean",
+            "const": false
+          },
+          "imported_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "idempotency": {
+            "type": "object",
+            "required": [
+              "key_present",
+              "duplicate",
+              "status"
+            ],
+            "properties": {
+              "key_present": {
+                "type": "boolean",
+                "const": true
+              },
+              "duplicate": {
+                "type": "boolean"
+              },
+              "status": {
+                "type": "string",
+                "enum": [
+                  "recorded",
+                  "replayed"
+                ]
+              }
+            },
+            "additionalProperties": false
+          },
+          "event_envelope": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "MultimodalProviderReadiness": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "source",
+          "source_commit_alias",
+          "source_contracts",
+          "tenant_scope",
+          "release_authority",
+          "a2_decision_recomputed",
+          "production_ready",
+          "available",
+          "status",
+          "integrity",
+          "authority_boundary",
+          "safety",
+          "recommendation_code"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.multimodal_provider_readiness.v1"
+          },
+          "source": {
+            "type": "string"
+          },
+          "source_commit_alias": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "pattern": "^[a-f0-9]{7,40}$"
+          },
+          "source_contracts": {
+            "type": "array",
+            "minItems": 2,
+            "maxItems": 2,
+            "items": {
+              "type": "string"
+            }
+          },
+          "tenant_scope": {
+            "type": "object",
+            "required": [
+              "organization_id",
+              "tenant_id",
+              "workspace_id",
+              "project_id",
+              "environment_id"
+            ],
+            "properties": {
+              "organization_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "tenant_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "workspace_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "project_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "environment_id": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "additionalProperties": false
+          },
+          "release_authority": {
+            "type": "boolean",
+            "const": false
+          },
+          "a2_decision_recomputed": {
+            "type": "boolean",
+            "const": false
+          },
+          "production_ready": {
+            "type": "boolean",
+            "const": false
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "invalid_upstream_contract",
+              "blocked_provider_readiness",
+              "diagnostic_ready_non_authoritative"
+            ]
+          },
+          "capability_state": {
+            "type": "string"
+          },
+          "integrity": {
+            "type": "object",
+            "required": [
+              "status",
+              "finding_count",
+              "findings"
+            ],
+            "properties": {
+              "status": {
+                "type": "string",
+                "enum": [
+                  "passed",
+                  "failed"
+                ]
+              },
+              "finding_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "findings": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "field",
+                    "issue"
+                  ],
+                  "properties": {
+                    "field": {
+                      "type": "string"
+                    },
+                    "issue": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "a3_computed_payload_hash": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              }
+            },
+            "additionalProperties": false
+          },
+          "summary": {
+            "type": "object",
+            "required": [
+              "provider_count",
+              "attempted_count",
+              "completed_count",
+              "failed_count",
+              "timeout_case_count",
+              "eligible_count",
+              "qualified_provider_count",
+              "blocked_provider_count",
+              "profile_count",
+              "completed_profile_count",
+              "valid_structured_profile_count",
+              "quality_comparison_performed",
+              "operational_health_verified",
+              "routing_ready",
+              "capacity_verified"
+            ],
+            "properties": {
+              "provider_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "attempted_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "completed_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "failed_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "timeout_case_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "eligible_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "qualified_provider_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "blocked_provider_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "profile_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "completed_profile_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "valid_structured_profile_count": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "quality_comparison_performed": {
+                "type": "boolean",
+                "const": false
+              },
+              "operational_health_verified": {
+                "type": "boolean",
+                "const": false
+              },
+              "routing_ready": {
+                "type": "boolean",
+                "const": false
+              },
+              "capacity_verified": {
+                "type": "boolean",
+                "const": false
+              }
+            },
+            "additionalProperties": false
+          },
+          "availability": {
+            "type": "object",
+            "required": [
+              "comparison_state",
+              "same_case_set",
+              "case_set_hash",
+              "blockers",
+              "providers"
+            ],
+            "properties": {
+              "comparison_state": {
+                "type": "string",
+                "enum": [
+                  "complete",
+                  "blocked"
+                ]
+              },
+              "same_case_set": {
+                "type": "boolean"
+              },
+              "case_set_hash": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "pattern": "^sha256:[a-f0-9]{64}$"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "blockers": {
+                "type": "array",
+                "minItems": 0,
+                "maxItems": 50,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+                }
+              },
+              "providers": {
+                "type": "array",
+                "minItems": 2,
+                "maxItems": 20,
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "model_id",
+                    "artifact_hash",
+                    "qualification_state",
+                    "attempted_count",
+                    "completed_count",
+                    "failed_count",
+                    "timeout_case_count",
+                    "eligible_count",
+                    "completion_rate",
+                    "timeout_rate",
+                    "eligible_rate",
+                    "latency_seconds"
+                  ],
+                  "properties": {
+                    "model_id": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+                    },
+                    "artifact_hash": {
+                      "type": "string",
+                      "pattern": "^sha256:[a-f0-9]{64}$"
+                    },
+                    "qualification_state": {
+                      "type": "string",
+                      "enum": [
+                        "qualified",
+                        "blocked",
+                        "diagnostic_only",
+                        "unavailable"
+                      ]
+                    },
+                    "attempted_count": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "completed_count": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "failed_count": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "timeout_case_count": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "eligible_count": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "completion_rate": {
+                      "type": [
+                        "number",
+                        "null"
+                      ],
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "timeout_rate": {
+                      "type": [
+                        "number",
+                        "null"
+                      ],
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "eligible_rate": {
+                      "type": [
+                        "number",
+                        "null"
+                      ],
+                      "minimum": 0,
+                      "maximum": 1
+                    },
+                    "latency_seconds": {
+                      "type": "object",
+                      "required": [
+                        "count",
+                        "median",
+                        "p95_nearest_rank",
+                        "maximum"
+                      ],
+                      "properties": {
+                        "count": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "median": {
+                          "type": [
+                            "number",
+                            "null"
+                          ],
+                          "minimum": 0
+                        },
+                        "p95_nearest_rank": {
+                          "type": [
+                            "number",
+                            "null"
+                          ],
+                          "minimum": 0
+                        },
+                        "maximum": {
+                          "type": [
+                            "number",
+                            "null"
+                          ],
+                          "minimum": 0
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          "latency_diagnostic": {
+            "type": "object",
+            "required": [
+              "provider_id",
+              "model_id",
+              "model_digest",
+              "artifact_hash",
+              "prompt_hash",
+              "output_schema_hash",
+              "base_url_class",
+              "generated_at",
+              "timeout_seconds",
+              "unload_state",
+              "qualification_state",
+              "diagnosis",
+              "cold_wall_seconds",
+              "fastest_warm_wall_seconds",
+              "profiles"
+            ],
+            "properties": {
+              "provider_id": {
+                "type": "string",
+                "const": "ollama-local"
+              },
+              "model_id": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+              },
+              "model_digest": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              },
+              "artifact_hash": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              },
+              "prompt_hash": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              },
+              "output_schema_hash": {
+                "type": "string",
+                "pattern": "^sha256:[a-f0-9]{64}$"
+              },
+              "base_url_class": {
+                "type": "string",
+                "const": "loopback"
+              },
+              "generated_at": {
+                "type": "string",
+                "format": "date-time"
+              },
+              "timeout_seconds": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              },
+              "unload_state": {
+                "type": "string",
+                "enum": [
+                  "requested",
+                  "unconfirmed"
+                ]
+              },
+              "qualification_state": {
+                "type": "string",
+                "enum": [
+                  "diagnostic_only",
+                  "blocked"
+                ]
+              },
+              "diagnosis": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 50,
+                "uniqueItems": true,
+                "items": {
+                  "type": "string",
+                  "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+                }
+              },
+              "cold_wall_seconds": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0
+              },
+              "fastest_warm_wall_seconds": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0
+              },
+              "profiles": {
+                "type": "array",
+                "minItems": 4,
+                "maxItems": 4,
+                "items": {
+                  "type": "object",
+                  "required": [
+                    "profile",
+                    "state",
+                    "parse_state",
+                    "error_class",
+                    "format_mode",
+                    "num_predict",
+                    "response_hash",
+                    "phase_seconds"
+                  ],
+                  "properties": {
+                    "profile": {
+                      "type": "string",
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+                    },
+                    "state": {
+                      "type": "string",
+                      "enum": [
+                        "completed",
+                        "failed"
+                      ]
+                    },
+                    "parse_state": {
+                      "type": "string",
+                      "enum": [
+                        "valid_json",
+                        "invalid_structured_output",
+                        "unavailable"
+                      ]
+                    },
+                    "error_class": {
+                      "type": "string"
+                    },
+                    "format_mode": {
+                      "type": "string",
+                      "enum": [
+                        "plain",
+                        "json_schema"
+                      ]
+                    },
+                    "num_predict": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 4096
+                    },
+                    "response_hash": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "pattern": "^sha256:[a-f0-9]{64}$"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "phase_seconds": {
+                      "type": "object",
+                      "required": [
+                        "image_read_and_base64_seconds",
+                        "caller_wall_seconds",
+                        "provider_total_seconds",
+                        "model_load_seconds",
+                        "prompt_eval_seconds",
+                        "token_eval_seconds",
+                        "transport_and_client_residual_seconds"
+                      ],
+                      "properties": {
+                        "image_read_and_base64_seconds": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "caller_wall_seconds": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "provider_total_seconds": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "model_load_seconds": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "prompt_eval_seconds": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "token_eval_seconds": {
+                          "type": "number",
+                          "minimum": 0
+                        },
+                        "transport_and_client_residual_seconds": {
+                          "type": "number",
+                          "minimum": 0
+                        }
+                      },
+                      "additionalProperties": false
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "additionalProperties": false
+          },
+          "authority_boundary": {
+            "type": "object",
+            "required": [
+              "provider_is_truth",
+              "quality_comparison_performed",
+              "operational_health_verified",
+              "routing_or_capacity_authority",
+              "evaluation_and_qualification_authority",
+              "display_and_workflow_owner",
+              "release_authority",
+              "a2_decision_recomputed",
+              "release_decision_changed",
+              "production_ready"
+            ],
+            "properties": {
+              "provider_is_truth": {
+                "type": "boolean",
+                "const": false
+              },
+              "quality_comparison_performed": {
+                "type": "boolean",
+                "const": false
+              },
+              "operational_health_verified": {
+                "type": "boolean",
+                "const": false
+              },
+              "routing_or_capacity_authority": {
+                "type": "string",
+                "const": "A1"
+              },
+              "evaluation_and_qualification_authority": {
+                "type": "string",
+                "const": "A2"
+              },
+              "display_and_workflow_owner": {
+                "type": "string",
+                "const": "A3"
+              },
+              "release_authority": {
+                "type": "boolean",
+                "const": false
+              },
+              "a2_decision_recomputed": {
+                "type": "boolean",
+                "const": false
+              },
+              "release_decision_changed": {
+                "type": "boolean",
+                "const": false
+              },
+              "production_ready": {
+                "type": "boolean",
+                "const": false
+              }
+            },
+            "additionalProperties": false
+          },
+          "safety": {
+            "type": "object",
+            "required": [
+              "public_safe",
+              "raw_provider_payload_included",
+              "secret_included",
+              "endpoint_url_included",
+              "model_binary_included",
+              "private_media_included",
+              "hash_and_aggregate_metadata_only"
+            ],
+            "properties": {
+              "public_safe": {
+                "type": "boolean",
+                "const": true
+              },
+              "raw_provider_payload_included": {
+                "type": "boolean",
+                "const": false
+              },
+              "secret_included": {
+                "type": "boolean",
+                "const": false
+              },
+              "endpoint_url_included": {
+                "type": "boolean",
+                "const": false
+              },
+              "model_binary_included": {
+                "type": "boolean",
+                "const": false
+              },
+              "private_media_included": {
+                "type": "boolean",
+                "const": false
+              },
+              "hash_and_aggregate_metadata_only": {
+                "type": "boolean",
+                "const": true
+              }
+            },
+            "additionalProperties": false
+          },
+          "recommendation_code": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Tenant-scoped A3 projection. Faster warm latency or installed models never imply operational health, qualified quality, or production readiness."
+      },
+      "MultimodalReleaseReadiness": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "source",
+          "source_commit_alias",
+          "a1_peer_commit_alias",
+          "source_contract",
+          "tenant_scope",
+          "release_authority",
+          "a2_decision_recomputed",
+          "release_decision_changed",
+          "production_ready",
+          "available",
+          "status",
+          "integrity",
+          "authority_boundary",
+          "safety",
+          "recommendation_code"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.multimodal_release_readiness.v1"
+          },
+          "source": {
+            "type": "string"
+          },
+          "source_commit_alias": {
+            "type": ["string", "null"],
+            "pattern": "^[a-f0-9]{7,40}$"
+          },
+          "a1_peer_commit_alias": {
+            "type": ["string", "null"],
+            "pattern": "^[a-f0-9]{7,40}$"
+          },
+          "source_contract": {
+            "type": "string"
+          },
+          "tenant_scope": {
+            "$ref": "#/components/schemas/TenantScope"
+          },
+          "release_authority": {
+            "type": "boolean",
+            "const": false
+          },
+          "a2_decision_recomputed": {
+            "type": "boolean",
+            "const": false
+          },
+          "release_decision_changed": {
+            "type": "boolean",
+            "const": false
+          },
+          "production_ready": {
+            "type": "boolean",
+            "const": false
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "invalid_upstream_contract",
+              "blocked_multimodal_release_readiness",
+              "qualified_evidence_non_authoritative"
+            ]
+          },
+          "capability_state": {
+            "type": "string"
+          },
+          "integrity": {
+            "type": "object",
+            "additionalProperties": true
+          },
+          "summary": {
+            "type": "object",
+            "required": [
+              "cloud_eligible_count",
+              "specificity",
+              "sensitivity",
+              "balanced_accuracy",
+              "safe_control_count",
+              "safe_control_false_positive_count",
+              "taxonomy_count",
+              "taxonomy_eligible_count",
+              "taxonomy_detected_count",
+              "local_completed_profile_count",
+              "repeat_quality_state",
+              "repeat_stability_state",
+              "human_review_state",
+              "real_postgresql_verified",
+              "candidate_verified",
+              "promotion_permitted"
+            ],
+            "properties": {
+              "cloud_eligible_count": { "type": "integer", "minimum": 0 },
+              "specificity": { "type": "number", "minimum": 0, "maximum": 1 },
+              "sensitivity": { "type": "number", "minimum": 0, "maximum": 1 },
+              "balanced_accuracy": { "type": "number", "minimum": 0, "maximum": 1 },
+              "safe_control_count": { "type": "integer", "minimum": 0 },
+              "safe_control_false_positive_count": { "type": "integer", "minimum": 0 },
+              "taxonomy_count": { "type": "integer", "minimum": 0 },
+              "taxonomy_eligible_count": { "type": "integer", "minimum": 0 },
+              "taxonomy_detected_count": { "type": "integer", "minimum": 0 },
+              "local_completed_profile_count": { "type": "integer", "minimum": 0 },
+              "repeat_quality_state": { "type": "string", "enum": ["qualified", "blocked", "incomplete"] },
+              "repeat_stability_state": { "type": "string", "enum": ["qualified", "blocked", "incomplete"] },
+              "human_review_state": { "type": "string", "enum": ["pending", "partially_reviewed", "reviewed"] },
+              "real_postgresql_verified": { "type": "boolean" },
+              "candidate_verified": { "type": "boolean" },
+              "promotion_permitted": { "type": "boolean", "const": false }
+            },
+            "additionalProperties": false
+          },
+          "cloud_control": { "type": "object", "additionalProperties": true },
+          "control_policy": { "type": "object", "additionalProperties": true },
+          "local_runtime": { "type": "object", "additionalProperties": true },
+          "repeat_evidence": { "type": "object", "additionalProperties": true },
+          "human_review": { "type": "object", "additionalProperties": true },
+          "persistence": { "type": "object", "additionalProperties": true },
+          "candidate_binding": { "type": "object", "additionalProperties": true },
+          "identity_boundary": { "type": "object", "additionalProperties": true },
+          "interpretation": { "type": "object", "additionalProperties": true },
+          "authority_boundary": { "type": "object", "additionalProperties": true },
+          "safety": { "type": "object", "additionalProperties": true },
+          "recommendation_code": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,239}$"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Read-only A3 projection of the public-safe A2 Round 52 controls/runtime summary and the latest non-client-callable A1 identity boundary. Stability never overrides blocked quality."
       }
     }
   },

@@ -225,6 +225,51 @@ test("A1/A2 dashboard projections become customer-facing release evidence withou
   assert.doesNotMatch(JSON.stringify(snapshot.release.evidenceStages), /\bA[123]\b/);
 });
 
+test("Round 52 multimodal readiness becomes a mobile blocker without promoting stable quality", () => {
+  const snapshot = releaseCenter.normalizeDashboardPayload({
+    release_decision_provenance: {
+      status: "blocked",
+      release_decision: "block",
+      tenant_scope: {
+        organization_id: "org-acme",
+        tenant_id: "tenant-acme",
+        workspace_id: "workspace-main",
+        project_id: "project-refund",
+        environment_id: "staging"
+      },
+      blockers: []
+    },
+    multimodal_release_readiness: {
+      schema_version: "a3.multimodal_release_readiness.v1",
+      source_commit_alias: "850b39a",
+      available: true,
+      status: "blocked_multimodal_release_readiness",
+      summary: {
+        safe_control_false_positive_count: 0,
+        safe_control_count: 10,
+        taxonomy_detected_count: 3,
+        taxonomy_eligible_count: 5,
+        sensitivity: 0.6,
+        local_completed_profile_count: 0,
+        repeat_quality_state: "blocked",
+        repeat_stability_state: "qualified"
+      },
+      local_runtime: { model_id: "qwen3-vl:8b" },
+      human_review: { collection_state: "pending" }
+    },
+    incident_replay_queue: { queue: [] }
+  });
+
+  assert.equal(snapshot.release.status, "blocked");
+  assert.equal(snapshot.release.multimodalReadiness.safeControlLabel, "0 / 10");
+  assert.equal(snapshot.release.multimodalReadiness.attackDetectionLabel, "3 / 5");
+  assert.equal(snapshot.release.multimodalReadiness.sensitivityLabel, "60%");
+  assert.equal(snapshot.release.multimodalReadiness.qualityLabel, "blocked");
+  assert.equal(snapshot.release.multimodalReadiness.stabilityLabel, "qualified");
+  assert.equal(snapshot.release.blockers[0].id, "multimodal_release_readiness");
+  assert.match(snapshot.release.nextAction, /3 \/ 5/);
+});
+
 test("v2 release evidence maps source artifact hashes into preflight references", () => {
   const snapshot = releaseCenter.normalizeReleasePayload({
     release_id: "release-refund-01",

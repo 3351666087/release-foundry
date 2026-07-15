@@ -46,6 +46,8 @@ test("A3 commercial API contract maps SaaS /v1 routes to product surfaces", asyn
     "POST /v1/release-gates/{release_gate_id}/denials",
     "POST /v1/review-queues/multimodal/repeat-stability",
     "GET /v1/review-queues/multimodal/repeat-stability",
+    "POST /v1/providers/multimodal/readiness",
+    "GET /v1/providers/multimodal/readiness",
     "POST /v1/review-queues/multimodal/{queue_id}/assignment",
     "GET /v1/review-queues/multimodal/{queue_id}/evidence-requests",
     "POST /v1/review-queues/multimodal/{queue_id}/evidence-requests",
@@ -79,6 +81,16 @@ test("A3 commercial API contract maps SaaS /v1 routes to product surfaces", asyn
   assert.equal(repeatRead.local_a3_route, "GET /api/a3/review/multimodal-repeat-stability");
   assert.equal(repeatRead.rbac, "release:review");
   assert.equal(repeatRead.a3_status, "read_only_local_a3");
+
+  const providerImport = contract.endpoint_matrix.find((endpoint) => endpoint.route === "POST /v1/providers/multimodal/readiness");
+  const providerRead = contract.endpoint_matrix.find((endpoint) => endpoint.route === "GET /v1/providers/multimodal/readiness");
+  assert.equal(providerImport.local_a3_route, "POST /api/a3/import/a2-multimodal-provider-readiness");
+  assert.equal(providerImport.rbac, "project:ingest");
+  assert.equal(providerImport.events.includes("a2.multimodal_provider_readiness_imported"), true);
+  assert.match(providerImport.notes, /cannot become operational health, quality comparison, or release authority/);
+  assert.equal(providerRead.local_a3_route, "GET /api/a3/providers/multimodal-readiness");
+  assert.equal(providerRead.rbac, "release:review");
+  assert.equal(providerRead.a3_status, "read_only_local_a3");
 
   assert.equal(contract.source_authority.a1.must_not_change.includes("does not mutate A1"), true);
   assert.equal(contract.source_authority.a2.must_not_change.includes("does not change judge"), true);

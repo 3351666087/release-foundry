@@ -1616,3 +1616,58 @@
 - [ ] Import and validate a real non-empty A2 human-review receipt and terminal disposition.
 - [ ] Bind the exact candidate across current A1 evidence, A2 Decision Ledger and A3 artifact.
 - [ ] Run the complete workflow with hosted identity, target PostgreSQL, object storage, tenant KMS and authorized staging/VPC deployment.
+
+## A2 Round 51 Multimodal Provider Readiness Intake - 2026-07-14
+
+- [x] Re-check authoritative main `ccf6ce5`, A1 peer `f3071aa`, A2 peer/source `7504680` and the enterprise strategy.
+- [x] Keep A1 atomic credential-link routes proposed and non-client-callable in product documentation.
+- [x] Build one atomic availability and phase-latency intake envelope.
+- [x] Preserve 30 attempts, 1 completion, 29 failures, 29 timeouts and 0 eligible outputs.
+- [x] Preserve 0 qualified Providers and 0/4 valid structured-output profiles.
+- [x] Preserve cold `74.299641s` and fastest warm `1.64026s` as diagnostic-only values.
+- [x] Add exact top-level and nested allowlists.
+- [x] Validate count conservation, latency order, phase residuals, hashes and model binding.
+- [x] Reject release promotion, Provider truth and operational-health overclaims.
+- [x] Reject secrets, tokens, cookies, URLs, email, DSNs, raw payloads, private media and local paths.
+- [x] Add `blocked_provider_readiness` without changing score, pass/fail, failure class or A2 decision.
+- [x] Persist and restore the projection through Memory, JSON-file and SQLite stores.
+- [x] Add protected import/read APIs with five-level scope and sanitized denials.
+- [x] Add header-only idempotency, audit, Event Outbox and usage metering.
+- [x] Add Provider readiness to Dashboard, Review queue, JSON, Markdown and Hosted Report.
+- [x] Increase commercial endpoint coverage from 46 to 48.
+- [x] Add strict OpenAPI schemas and increase runtime parity from `67/67` to `69/69`.
+- [x] Upgrade API Reference to v15 and document both Provider routes.
+- [x] Add a Chinese-first standalone Delivery component with honest empty and blocked states.
+- [x] Keep customer-facing UI free of prominent internal lane badges.
+- [x] Save and visually inspect desktop and 390 x 844 screenshots without overflow.
+- [x] Add implementation evidence and Growth Auditor Round 26 with 26 executable next steps.
+- [x] Pass focused Provider/OpenAPI/API Reference tests `28/28`.
+- [x] Pass A3 Node `513` runnable tests with one explicit target-PostgreSQL opt-in skip and zero failures.
+- [x] Pass current-main A2 `186/186` without changing A2 semantics.
+- [x] Pass Next.js TypeScript/build with 15 pages and full Playwright `46/46`.
+- [x] Pass both CL guards and both production dependency audits.
+- [x] Keep `.env.local` ignored and exclude credentials, identity, signed URLs, raw Provider payloads and private media.
+- [x] Keep Golden Path `7/11`, Deployment Acceptance `8/17`, production receipts `0`, current authority `integrity_invalid`, current A2 decision `unknown`, historical A2 `block`, and production ready false.
+- [x] Publish feature commit `1809513` and confirm GitHub Actions run `29338036122` passes every applicable check.
+- [ ] Obtain A1 production Provider health, routing, capacity and failover receipts.
+- [ ] Obtain A2-qualified structured outputs and a real non-empty human-review disposition.
+- [ ] Bind the exact current candidate across A1 evidence, A2 Decision Ledger and A3 artifact.
+- [ ] Deploy with hosted identity, target PostgreSQL, object storage, tenant KMS and authorized staging/VPC receipts.
+
+## Round 27 - A1 Round 68 / A2 Round 52 / WeChat alignment
+
+- [x] Fetch and inspect latest A1 `566a13d` and A2 `850b39a` without merging peer branches.
+- [x] Consume only A2 Round 52 public-safe aggregate facts and hashes.
+- [x] Record A1 replay-retention and authorized credential-binding regression without exposing receipts or claiming a client route.
+- [x] Validate exact fields, count conservation, metric ratios, quality/stability separation and authority flags.
+- [x] Reject URL, DSN, token, cookie, email, local account path, Secret and raw identity receipt material.
+- [x] Add `p3-a2-round52` to the Dashboard API and product source selector.
+- [x] Add Web Delivery panel with controls, runtime, review, persistence and candidate gates.
+- [x] Add Round 52 JSON, Markdown and Hosted Report projection.
+- [x] Add OpenAPI DashboardSnapshot field and API Reference v16 metadata.
+- [x] Add WeChat workbench summary without internal lane labels or local credential persistence.
+- [x] Fix assignment service-clock propagation exposed by the date boundary.
+- [x] Verify desktop and 390 x 844 layouts without horizontal overflow.
+- [x] Pass 519 A3 Node tests, 186 current-main A2 tests, TypeScript, 15-page build and 47 Playwright tests.
+- [x] Pass CL hygiene, commercial gate, diff check and production dependency audits.
+- [x] Keep A2 quality blocked, candidate invalid, production receipts 0 and `production_ready=false`.

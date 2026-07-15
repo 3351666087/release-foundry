@@ -7152,3 +7152,56 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
 - `.env.local` remains ignored. No key, token, cookie, email, account identity, signed URL, raw Provider payload, private media or local account path was added.
 - Golden Path remains `7/11`, Deployment Acceptance remains `8/17`, current authority remains `integrity_invalid`, current A2 decision remains `unknown`, historical A2 remains `block`, production receipts remain `0`, and production ready remains false.
 - Published feature commit `456a193` to Draft PR #35. GitHub Actions CL Gate run `29329313569` passed Plan/Hygiene, A3 contracts, Next.js/Playwright, Python A1/A2 contracts, pinned evidence, Golden Path artifact and the final summary. TypeScript SDK, Go SDK and Rust verifier were path-plan skipped, not failed.
+
+## 2026-07-14 - A2 Round 51 Multimodal Provider Readiness Intake
+
+- Re-checked authoritative main `ccf6ce5`, latest A1 peer `f3071aa`, exact A2 Round 51 source `7504680`, the enterprise strategy and Draft PR #35 before implementation.
+- Inspected A1's atomic credential-link coordinator contract and kept unified-identity link routes `proposed` and `client_callable=false` in API Reference instead of enabling peer-only behavior.
+- Built one public-safe atomic envelope from A2 local multimodal availability comparison and Ollama phase-latency diagnostics.
+- Preserved the real A2 facts: 30 attempts, 1 completion, 29 failures, 29 timeouts, 0 eligible outputs, 0 qualified Providers and 0/4 valid structured profiles.
+- Preserved cold wall time `74.299641s` and fastest warm wall time `1.64026s` as diagnostics only; no health, quality or release promotion was derived.
+- Added exact nested field allowlists, count conservation, latency ordering, phase residual, model binding, hash, release-boundary and sensitive-material validation.
+- Rejected raw Provider payloads, raw responses, endpoints, URLs, signed URLs, credentials, email, DSNs, local account paths, model binaries and private media.
+- Added `a3.multimodal_provider_readiness.v1` with `blocked_provider_readiness`, `operational_health_verified=false`, `release_authority=false` and `production_ready=false`.
+- Extended `p3-a2-round51` plus Memory, JSON-file and SQLite persistence/restart support.
+- Added protected import/read APIs with `project:ingest` and `release:review`, five-level scope, header-only idempotency, sanitized cross-tenant 404, metadata-only audit, Event Outbox and usage metering.
+- Added Provider readiness to Dashboard, Review queue, JSON, Markdown and Hosted Report without exposing private evidence.
+- Added two commercial `/v1/providers/multimodal/readiness` endpoints, taking commercial endpoint coverage from 46 to 48.
+- Added strict OpenAPI request/envelope/receipt/projection schemas and raised runtime parity from `67/67` to `69/69`.
+- Upgraded API Reference to v15 with A1 peer `f3071aa`, A2 source `7504680`, both Provider routes and explicit authority boundaries.
+- Added a Chinese-first standalone Delivery React component with empty state, 30/1/29/29/0 metrics, 0/4 profiles, two model rows, cold/warm latency and authority explanation.
+- Kept customer-facing UI free of internal lane badges and explicitly rendered “变快不等于可用，安装成功不等于质量合格”.
+- Saved and visually inspected desktop and 390 x 844 screenshots; no text overlap or document/body horizontal overflow was found.
+- Added the Round 26 implementation record and Growth Auditor Round 26 with 26 executable next steps.
+- Focused Provider/OpenAPI/API Reference suite passed `28/28`.
+- Final A3 Node regression passed `513` runnable tests with `1` explicit target-PostgreSQL opt-in skip and `0` failures.
+- Current-main A2 passed `186/186`; A3 did not change or recompute A2 judgement semantics.
+- Next.js TypeScript/build passed with `15` pages; full single-worker Playwright passed `46/46`.
+- CL hygiene passed with `0` findings; Commercial CL passed with `0` blockers and `0` advisories.
+- Root and Webapp production dependency audits each reported `0` vulnerabilities.
+- `.env.local` remains ignored. No key, token, cookie, email, account identity, signed URL, raw Provider payload, private media or local account path was added.
+- Golden Path remains `7/11`, Deployment Acceptance remains `8/17`, current authority remains `integrity_invalid`, current A2 decision remains `unknown`, historical A2 remains `block`, production receipts remain `0`, and production ready remains false.
+- Published feature commit `1809513` to Draft PR #35. GitHub Actions CL Gate run `29338036122` passed Plan/Hygiene, A3 Node, Next.js/Playwright, Python A1/A2, pinned evidence, Golden Path artifact and final summary. TypeScript SDK, Go SDK and Rust verifier were changed-path skipped, not failed. GitHub action Node 20 deprecation notices remain a non-blocking workflow maintenance item.
+
+## 2026-07-15 - Round 27 multimodal release readiness
+
+- Fetched latest peers without merging them:
+  - A1 `566a13d`
+  - A2 `850b39a`
+  - main `ccf6ce5`
+- Added strict `a3.a2_multimodal_release_readiness_intake.v1` validation and `a3.multimodal_release_readiness.v1` projection.
+- Added public-safe Round 52 fixture and `p3-a2-round52` Dashboard source.
+- Preserved exact facts: 15 controls, specificity 1.0, sensitivity 0.6, balanced accuracy 0.8, 0/10 safe false positives, 3/5 attack detections, 0 local structured profiles, blocked quality, qualified stability, pending review, blocked PostgreSQL proof and invalid candidate binding.
+- Added A1 Round 68 boundary metadata after inspecting its authorized credential-binding regression; retained the Round 67 replay-retention fact without raw identity receipt material or a false client-route claim.
+- Added JSON, Markdown, Hosted Report, OpenAPI DashboardSnapshot, API Reference v16, Delivery React panel and WeChat workbench projection.
+- Fixed Dashboard service-clock propagation so assignment writes and reads use the same injected server time.
+- Saved desktop, mobile and WeChat screenshots.
+- Verification:
+  - focused Node: 137 passed
+  - full A3 Node: 519 passed, 0 failed, 1 explicit PostgreSQL opt-in skip
+  - current-main A2: 186/186 passed, 1050 subtests passed
+  - TypeScript and 15-page Next.js build passed
+  - Playwright: 47/47
+  - CL hygiene and commercial gate passed with zero findings
+  - root/Webapp audits: 0 vulnerabilities
+- Truth state unchanged: Golden Path 7/11, Deployment Acceptance 8/17, authority `integrity_invalid`, current A2 decision `unknown`, historical A2 decision `block`, production receipts 0, production_ready false.

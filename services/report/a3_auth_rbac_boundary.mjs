@@ -274,6 +274,12 @@ export const A3_AUTHZ_OPERATION_POLICIES = [
     a1: ["verified ingest principal", "five-level tenant scope", "audit and usage execution"],
     a2: ["MultiRepeatComparison", "real-review collection", "review conservation", "shared-candidate verification"]
   }),
+  operation("import_a2_multimodal_provider_readiness", "POST /api/a3/import/a2-multimodal-provider-readiness", "project:ingest", "local_write", {
+    event: "a2.multimodal_provider_readiness_imported",
+    resourceType: "multimodal_provider_readiness",
+    a1: ["verified ingest principal", "five-level tenant scope", "audit and usage execution"],
+    a2: ["local multimodal availability comparison", "Ollama phase-latency diagnostic"]
+  }),
   operation("read_multimodal_review_queue", "GET /api/a3/review/multimodal-queue", "release:review", "read_only", {
     event: "review.multimodal_queue_read",
     resourceType: "multimodal_review_queue",
@@ -283,6 +289,12 @@ export const A3_AUTHZ_OPERATION_POLICIES = [
     event: "review.multimodal_repeat_stability_read",
     resourceType: "multimodal_repeat_stability",
     a2: ["repeat stability is read-only evidence and never becomes a release decision"]
+  }),
+  operation("read_multimodal_provider_readiness", "GET /api/a3/providers/multimodal-readiness", "release:review", "read_only", {
+    event: "provider.multimodal_readiness_read",
+    resourceType: "multimodal_provider_readiness",
+    a1: ["production routing, capacity, and operational health remain A1 authority"],
+    a2: ["availability and latency diagnostics remain non-release-authoritative"]
   }),
   operation("manage_multimodal_review_assignment", "POST /api/a3/review/multimodal-queue/:queueId/assignment", "release:review", "local_write", {
     event: "review.multimodal_assignment_changed",

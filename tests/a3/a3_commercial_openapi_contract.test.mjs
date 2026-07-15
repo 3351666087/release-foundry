@@ -118,8 +118,8 @@ test("every runtime RBAC route has an OpenAPI operation with the same permission
   ]));
 
   assert.equal(parity.complete, true);
-  assert.equal(parity.runtime_operation_count, 67);
-  assert.equal(parity.documented_runtime_operation_count, 67);
+  assert.equal(parity.runtime_operation_count, 69);
+  assert.equal(parity.documented_runtime_operation_count, 69);
   assert.deepEqual(parity.missing, []);
   for (const route of A3_SENSITIVE_ROUTE_PATTERNS) {
     const key = `${route.method} ${normalizeContractPath(route.path_pattern)}`;
@@ -254,6 +254,51 @@ test("multimodal OpenAPI matches the header-only import and non-authoritative re
   assert.equal(repeatProjection.properties.authority_boundary.properties.production_ready.const, false);
   assert.equal(repeatProjection.properties.safety.properties.hashes_and_aggregate_metrics_only.const, true);
   assert.equal(repeatProjection.properties.safety.properties.signed_url_included.const, false);
+});
+
+test("provider readiness OpenAPI is strict, atomic, and non-authoritative", async () => {
+  const spec = await readOpenApi();
+  const importOperation = spec.paths["/api/a3/import/a2-multimodal-provider-readiness"].post;
+  const readOperation = spec.paths["/api/a3/providers/multimodal-readiness"].get;
+  const envelope = spec.components.schemas.A2MultimodalProviderReadinessEnvelope;
+  const request = spec.components.schemas.MultimodalProviderReadinessImportRequest;
+  const receipt = spec.components.schemas.MultimodalProviderReadinessIngestReceipt;
+  const projection = spec.components.schemas.MultimodalProviderReadiness;
+
+  assert.equal(importOperation["x-rbac"].permission, "project:ingest");
+  assert.equal(importOperation.parameters.find((item) => item.name === "Idempotency-Key").required, true);
+  assert.equal(importOperation.requestBody.content["application/json"].schema.$ref, "#/components/schemas/MultimodalProviderReadinessImportRequest");
+  assert.equal(importOperation.responses["201"].content["application/json"].schema.$ref, "#/components/schemas/MultimodalProviderReadinessIngestReceipt");
+  assert.equal(importOperation.responses["202"], undefined);
+  assert.equal(importOperation["x-evidence-boundary"].atomic_availability_and_latency_envelope_required, true);
+  assert.equal(importOperation["x-authority-boundary"].faster_warm_latency_is_quality_pass, false);
+  assert.equal(importOperation["x-authority-boundary"].production_routing_capacity_and_operational_health_authority, "A1");
+  assert.equal(importOperation["x-authority-boundary"].evaluation_and_qualification_authority, "A2");
+  assert.equal(readOperation["x-rbac"].permission, "release:review");
+  assert.equal(readOperation.responses["200"].content["application/json"].schema.$ref, "#/components/schemas/MultimodalProviderReadiness");
+  assert.equal(readOperation["x-authority-boundary"].release_authority, false);
+
+  assert.equal(envelope.additionalProperties, false);
+  assert.equal(envelope.properties.schema_version.const, "a3.a2_multimodal_provider_readiness_intake.v1");
+  assert.equal(envelope.properties.availability_comparison.additionalProperties, false);
+  assert.equal(envelope.properties.availability_comparison.properties.providers.additionalProperties.additionalProperties, false);
+  assert.equal(envelope.properties.availability_comparison.properties.quality_comparison_performed.const, false);
+  assert.equal(envelope.properties.latency_probe.additionalProperties, false);
+  assert.equal(envelope.properties.latency_probe.properties.profiles.minItems, 4);
+  assert.equal(envelope.properties.latency_probe.properties.profiles.maxItems, 4);
+  assert.equal(envelope.properties.latency_probe.properties.secret_included.const, false);
+  assert.equal(request.properties.provider_readiness_evidence.$ref, "#/components/schemas/A2MultimodalProviderReadinessEnvelope");
+  assert.match(request.description, /Header-only idempotency/);
+  assert.equal(receipt.additionalProperties, false);
+  assert.equal(receipt.properties.upstream_release_authority.const, false);
+  assert.equal(receipt.properties.operational_health_verified.const, false);
+  assert.equal(projection.properties.status.enum.includes("blocked_provider_readiness"), true);
+  assert.deepEqual(projection.properties.integrity.properties.findings.items.required, ["field", "issue"]);
+  assert.equal(projection.properties.integrity.properties.findings.items.additionalProperties, false);
+  assert.equal(projection.properties.summary.properties.routing_ready.const, false);
+  assert.equal(projection.properties.authority_boundary.properties.release_authority.const, false);
+  assert.equal(projection.properties.safety.properties.endpoint_url_included.const, false);
+  assert.equal(spec.components.schemas.DashboardSnapshot.properties.multimodal_provider_readiness.$ref, "#/components/schemas/MultimodalProviderReadiness");
 });
 
 test("self-host sandbox OpenAPI keeps local evidence separate from production acceptance", async () => {
@@ -455,7 +500,7 @@ test("OpenAPI documents sanitized malformed JSON and protected OPTIONS behavior"
 
   const operations = collectOperations(spec).filter((operation) => operation["x-rbac"]);
   const mutations = operations.filter((operation) => !["get", "head"].includes(operation.method));
-  assert.equal(operations.length, 67);
+  assert.equal(operations.length, 69);
   assert.ok(mutations.length > 0);
   for (const operation of operations) {
     const optionsPolicy = operation["x-protected-options"];

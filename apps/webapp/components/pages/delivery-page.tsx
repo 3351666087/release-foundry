@@ -27,6 +27,8 @@ import { array, number, record, string } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
 import { DataBoundary, DataTable, EvidenceDetails, MetricStrip, PageHeader, Section, StatusBadge } from "../ui";
 import { DeploymentReceiptInbox } from "../deployment-receipt-inbox";
+import { MultimodalProviderReadinessPanel } from "../multimodal-provider-readiness-panel";
+import { MultimodalReleaseReadinessPanel } from "../multimodal-release-readiness-panel";
 import { SelfHostSandboxPanel } from "../self-host-sandbox-panel";
 
 export function DeliveryPage() {
@@ -64,6 +66,8 @@ export function DeliveryPage() {
     const handoff = record(model.raw.deployment_handoff);
     const deploymentReceiptInbox = record(model.raw.deployment_receipt_inbox);
     const deploymentAcceptanceProjection = record(model.raw.deployment_acceptance_projection);
+    const multimodalProviderReadiness = record(model.raw.multimodal_provider_readiness);
+    const multimodalReleaseReadiness = record(model.raw.multimodal_release_readiness);
     const handoffSummary = record(handoff.summary);
     const candidateBinding = record(handoff.candidate_binding);
     const expectedBinding = record(candidateBinding.expected);
@@ -145,6 +149,28 @@ export function DeliveryPage() {
             <div><span>{zh ? "当前权威决策" : "Current decision"}</span><strong>{currentDecision}</strong></div>
           </div>
         </Section>
+
+        <Section
+          className="provider-readiness-section"
+          title={zh ? "多模态 Provider 就绪度" : "Multimodal provider readiness"}
+          description={zh
+            ? "把同批模型可用性和阶段延迟放在一起排障；任何速度改善都不会越权变成质量通过或发布批准。"
+            : "Diagnose same-batch availability and phase latency together; speed improvements never become quality or release approval."}
+        >
+          <MultimodalProviderReadinessPanel readiness={multimodalProviderReadiness} zh={zh} />
+        </Section>
+
+        {multimodalReleaseReadiness.schema_version === "a3.multimodal_release_readiness.v1" && (
+          <Section
+            className="release-readiness-section"
+            title={zh ? "多模态发布校准" : "Multimodal release calibration"}
+            description={zh
+              ? "把安全控制、攻击检出、本地结构化输出、重复质量、人审、数据库证明和候选绑定拆成独立门槛。"
+              : "Separate safe controls, attack sensitivity, local structured output, repeat quality, review, database proof, and candidate binding into independent gates."}
+          >
+            <MultimodalReleaseReadinessPanel readiness={multimodalReleaseReadiness} zh={zh} />
+          </Section>
+        )}
 
         {hasDeploymentHandoff && (
           <Section

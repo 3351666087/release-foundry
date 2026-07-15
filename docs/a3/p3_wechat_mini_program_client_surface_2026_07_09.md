@@ -83,6 +83,12 @@ A3 does not alter A1 runner semantics or A2 judge semantics。页面不根据通
 
 服务端 `source_artifacts` 中合法的 SHA-256 会映射为审批预检的 `a1` / `a2` evidence refs；缺少有效哈希时不伪造引用，预检保持阻断。
 
+### 2026-07-15 最新 peer 校准
+
+- A1 peer 已从 `f3071aa` 前进到 `566a13d`。Round 67 增加账号凭据回放的 30 天保留、旧 lookup key 退役预检与审计清理能力；Round 68 证明凭据绑定必须经过近期会话、step-up receipt 与 mutation ticket 保护的授权包装器。它仍没有提供小程序可调用的统一身份就绪路由，小程序继续显示“待服务端接入”，不读取原始 receipt、digest、proof 或 key material。
+- A2 peer 已从 `7504680` 前进到 `850b39a`。Round 52 的公开安全摘要通过 `multimodal_release_readiness` 进入 Dashboard：安全样本 10 个、误报 0 个，攻击样本检出 3/5、灵敏度 0.6，本地候选结构化档位完成 0 个，repeat quality 为 blocked、stability 为 qualified，人审 pending、同轮 PostgreSQL proof blocked、shared candidate 未验证。
+- 工作台把上述事实显示为“多模态晋级受阻”。稳定性合格不会覆盖质量阻断；小程序不重算 A2 决策，也不把 peer branch 证据提升为 main 或生产权威。
+
 ## 已实现状态
 
 - 加载、ready、partial、empty、error 和 retry。

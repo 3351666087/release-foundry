@@ -146,6 +146,121 @@ test.describe("A3 Next.js product console", () => {
     await page.screenshot({ path: "docs/screenshots/a3-webapp-delivery-golden-path-mobile-390x844.png", fullPage: false });
   });
 
+  test("shows blocked multimodal provider readiness without promoting speed to quality", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto(`${base}/delivery/?source=p3-a2-round51`);
+    await expect(page.getByRole("heading", { name: "交付闭环" })).toBeVisible();
+    await expect(page.locator(".source-control select")).toHaveValue("p3-a2-round51");
+
+    const section = page.locator("section.provider-readiness-section");
+    const panel = section.locator('.provider-readiness[data-status="blocked_provider_readiness"]');
+    await expect(section.getByRole("heading", { name: "多模态 Provider 就绪度" })).toBeVisible();
+    await expect(panel).toContainText("变快不等于可用，安装成功不等于质量合格");
+    await expect(panel.locator(".provider-readiness-metrics")).toContainText("30");
+    await expect(panel.locator(".provider-readiness-metrics")).toContainText("29");
+    await expect(panel.locator(".provider-readiness-metrics")).toContainText("0/4");
+    await expect(panel.locator(".provider-readiness-model-list article")).toHaveCount(2);
+    await expect(panel.locator(".provider-readiness-profile-list article")).toHaveCount(4);
+    await expect(panel.locator(".provider-readiness-latency-compare")).toContainText("74.3s");
+    await expect(panel.locator(".provider-readiness-latency-compare")).toContainText("1.64s");
+    await expect(panel.locator(".provider-readiness-boundary")).toContainText("这不是生产健康证明，也不是质量比较");
+
+    await panel.scrollIntoViewIfNeeded();
+    const desktopLayout = await page.evaluate(providerReadinessLayout);
+    expect(desktopLayout.documentScrollWidth).toBeLessThanOrEqual(desktopLayout.viewport);
+    expect(desktopLayout.panelRight).toBeLessThanOrEqual(desktopLayout.viewport);
+    expect(desktopLayout.heroOverlap).toBe(false);
+    await page.screenshot({
+      path: "docs/screenshots/a3-webapp-provider-readiness-round51-desktop.png",
+      fullPage: false,
+      animations: "disabled"
+    });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.reload();
+    const mobilePanel = page.locator('.provider-readiness[data-status="blocked_provider_readiness"]');
+    await expect(mobilePanel).toContainText("0/4");
+    await mobilePanel.evaluate((element) => {
+      document.documentElement.style.scrollBehavior = "auto";
+      const top = element.getBoundingClientRect().top + window.scrollY - 62;
+      window.scrollTo({ top: Math.max(0, top), behavior: "auto" });
+    });
+    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(400);
+    const mobileLayout = await page.evaluate(providerReadinessLayout);
+    expect(mobileLayout.documentScrollWidth).toBeLessThanOrEqual(mobileLayout.viewport);
+    expect(mobileLayout.bodyScrollWidth).toBeLessThanOrEqual(mobileLayout.viewport);
+    expect(mobileLayout.panelRight).toBeLessThanOrEqual(mobileLayout.viewport);
+    expect(mobileLayout.heroOverlap).toBe(false);
+    await page.screenshot({
+      path: "docs/screenshots/a3-webapp-provider-readiness-round51-mobile-390x844.png",
+      fullPage: false,
+      animations: "disabled"
+    });
+  });
+
+  test("shows Round 52 safe controls separately from blocked attack sensitivity and runtime promotion", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.goto(`${base}/delivery/?source=p3-a2-round52`);
+    await expect(page.getByRole("heading", { name: "交付闭环" })).toBeVisible();
+    await expect(page.locator(".source-control select")).toHaveValue("p3-a2-round52");
+
+    const section = page.locator("section.release-readiness-section");
+    const panel = section.locator('.release-readiness[data-status="blocked_multimodal_release_readiness"]');
+    await expect(section.getByRole("heading", { name: "多模态发布校准" })).toBeVisible();
+    await expect(panel).toContainText("安全控制部分通过，但整体仍不可晋级");
+    await expect(panel).toContainText("没有安全误报不等于攻击识别合格");
+    await expect(panel.locator(".release-readiness-metrics")).toContainText("0/10");
+    await expect(panel.locator(".release-readiness-metrics")).toContainText("3/5");
+    await expect(panel.locator(".release-readiness-metrics")).toContainText("60%");
+    await expect(panel.locator(".release-readiness-control-card")).toContainText("跨模态冲突");
+    await expect(panel.locator(".release-readiness-runtime-card")).toContainText("qwen3-vl:8b");
+    await expect(panel.locator(".release-readiness-runtime-card")).toContainText("质量状态blocked");
+    await expect(panel.locator(".release-readiness-runtime-card")).toContainText("稳定性qualified");
+    await expect(panel.locator(".release-readiness-gates article")).toHaveCount(6);
+    await expect(panel).toContainText("同轮 PostgreSQL 证明");
+    await expect(panel).toContainText("企业身份客户端路由");
+    await expect(panel.locator(".release-readiness-hero")).not.toContainText(/\bA[123]\b/);
+
+    await panel.evaluate((node) => {
+      document.documentElement.style.scrollBehavior = "auto";
+      const top = node.getBoundingClientRect().top + window.scrollY - 74;
+      window.scrollTo({ top: Math.max(0, top), behavior: "auto" });
+    });
+    const desktop = await panel.evaluate((node) => ({
+      viewport: document.documentElement.clientWidth,
+      documentWidth: document.documentElement.scrollWidth,
+      panelRight: node.getBoundingClientRect().right,
+      panelWidth: node.getBoundingClientRect().width,
+      metricsWidth: node.querySelector(".release-readiness-metrics")?.getBoundingClientRect().width || 0
+    }));
+    expect(desktop.documentWidth).toBeLessThanOrEqual(desktop.viewport + 1);
+    expect(desktop.panelRight).toBeLessThanOrEqual(desktop.viewport + 1);
+    expect(desktop.metricsWidth).toBeLessThanOrEqual(desktop.panelWidth + 1);
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-multimodal-release-readiness-round52-desktop.png", fullPage: false, animations: "disabled" });
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.reload();
+    const mobilePanel = page.locator('.release-readiness[data-status="blocked_multimodal_release_readiness"]');
+    await expect(mobilePanel).toContainText("3/5");
+    await mobilePanel.evaluate((node) => {
+      document.documentElement.style.scrollBehavior = "auto";
+      const top = node.getBoundingClientRect().top + window.scrollY - 64;
+      window.scrollTo({ top: Math.max(0, top), behavior: "auto" });
+    });
+    const mobile = await mobilePanel.evaluate((node) => ({
+      viewport: document.documentElement.clientWidth,
+      documentWidth: document.documentElement.scrollWidth,
+      bodyWidth: document.body.scrollWidth,
+      panelRight: node.getBoundingClientRect().right,
+      panelLeft: node.getBoundingClientRect().left
+    }));
+    expect(mobile.documentWidth).toBeLessThanOrEqual(mobile.viewport + 1);
+    expect(mobile.bodyWidth).toBeLessThanOrEqual(mobile.viewport + 1);
+    expect(mobile.panelRight).toBeLessThanOrEqual(mobile.viewport + 1);
+    expect(mobile.panelLeft).toBeGreaterThanOrEqual(0);
+    await page.screenshot({ path: "docs/screenshots/a3-webapp-multimodal-release-readiness-round52-mobile-390x844.png", fullPage: false, animations: "disabled" });
+  });
+
   test("shows rc.2 repair while sealed A2 block and current candidate integrity stay separate", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto(`${base}/delivery/?source=a3-golden-path-rc2`);
@@ -1058,6 +1173,28 @@ function collectConsoleErrors(page: Page) {
     }
   });
   return errors;
+}
+
+function providerReadinessLayout() {
+  const panel = document.querySelector<HTMLElement>(".provider-readiness")!;
+  const heading = document.querySelector<HTMLElement>(".provider-readiness-heading")!;
+  const verdict = document.querySelector<HTMLElement>(".provider-readiness-verdict")!;
+  const panelRect = panel.getBoundingClientRect();
+  const headingRect = heading.getBoundingClientRect();
+  const verdictRect = verdict.getBoundingClientRect();
+  const heroOverlap = !(
+    headingRect.right <= verdictRect.left
+    || verdictRect.right <= headingRect.left
+    || headingRect.bottom <= verdictRect.top
+    || verdictRect.bottom <= headingRect.top
+  );
+  return {
+    viewport: document.documentElement.clientWidth,
+    documentScrollWidth: document.documentElement.scrollWidth,
+    bodyScrollWidth: document.body.scrollWidth,
+    panelRight: panelRect.right,
+    heroOverlap
+  };
 }
 
 function receiptApiHeaders(role: string) {
