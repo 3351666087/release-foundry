@@ -100,6 +100,22 @@ class SharedCandidateIdentityTests(unittest.TestCase):
             ],
         )
 
+    def test_v2_rejects_collection_and_conservation_hash_mismatch(self):
+        value = exact_identity()
+        value["schema_version"] = "a2.shared_candidate_identity.v2"
+        value["a2"]["review_collection_hash"] = "sha256:" + "2" * 64
+        self.assertEqual(
+            verify_shared_candidate_identity(
+                value,
+                actual_review_collection_hash="sha256:" + "3" * 64,
+                actual_review_conservation_hash="sha256:" + "4" * 64,
+            ),
+            [
+                "a2_review_collection_hash_mismatch",
+                "a2_review_conservation_hash_mismatch",
+            ],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

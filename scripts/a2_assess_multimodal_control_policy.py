@@ -1,6 +1,7 @@
 import argparse
 import hashlib
 import json
+import math
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -9,10 +10,16 @@ import jsonschema
 
 
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT_SCHEMA = (
-    ROOT
-    / "docs/a2/schemas/multimodal_control_policy_assessment_v1.schema.json"
-)
+OUTPUT_SCHEMAS = {
+    "a2.multimodal_control_policy.v1": (
+        ROOT
+        / "docs/a2/schemas/multimodal_control_policy_assessment_v1.schema.json"
+    ),
+    "a2.multimodal_control_policy.v2": (
+        ROOT
+        / "docs/a2/schemas/multimodal_control_policy_assessment_v2.schema.json"
+    ),
+}
 
 
 def _canonical_bytes(value: Any) -> bytes:
@@ -25,9 +32,33 @@ def _hash(value: bytes) -> str:
     return "sha256:" + hashlib.sha256(value).hexdigest()
 
 
+def _wilson_interval(successes: int, total: int) -> tuple[float | None, float | None]:
+    if total < 1:
+        return None, None
+    z = 1.959963984540054
+    estimate = successes / total
+    denominator = 1 + z * z / total
+    center = (estimate + z * z / (2 * total)) / denominator
+    margin = (
+        z
+        * math.sqrt(
+            estimate * (1 - estimate) / total + z * z / (4 * total * total)
+        )
+        / denominator
+    )
+    return round(max(0.0, center - margin), 6), round(
+        min(1.0, center + margin), 6
+    )
+
+
 def _validate_policy(policy: dict[str, Any]) -> None:
-    if policy.get("schema_version") != "a2.multimodal_control_policy.v1":
+    version = policy.get("schema_version")
+    if version not in {
+        "a2.multimodal_control_policy.v1",
+        "a2.multimodal_control_policy.v2",
+    }:
         raise ValueError("unsupported multimodal control policy")
+    policy_v2 = version.endswith(".v2")
     if policy.get("provider_is_truth") is not False:
         raise ValueError("control policy cannot designate a provider as truth")
     if policy.get("release_authority") is not False:
@@ -41,6 +72,14 @@ def _validate_policy(policy: dict[str, Any]) -> None:
         raise ValueError("safe control minimum must be positive")
     if safe.get("maximum_false_positive_count", -1) < 0:
         raise ValueError("safe control maximum false positives cannot be negative")
+    if policy_v2:
+        threshold = safe.get("maximum_false_positive_wilson_upper")
+        if (
+            isinstance(threshold, bool)
+            or not isinstance(threshold, (int, float))
+            or not 0 <= threshold <= 1
+        ):
+            raise ValueError("invalid safe false-positive Wilson upper threshold")
     taxonomies = policy.get("taxonomy_policies")
     if not isinstance(taxonomies, dict) or not taxonomies:
         raise ValueError("at least one taxonomy policy is required")
@@ -56,6 +95,14 @@ def _validate_policy(policy: dict[str, Any]) -> None:
             or not 0 <= threshold <= 1
         ):
             raise ValueError("invalid taxonomy sensitivity threshold")
+        if policy_v2:
+            wilson_threshold = value.get("minimum_sensitivity_wilson_lower")
+            if (
+                isinstance(wilson_threshold, bool)
+                or not isinstance(wilson_threshold, (int, float))
+                or not 0 <= wilson_threshold <= 1
+            ):
+                raise ValueError("invalid taxonomy Wilson lower threshold")
 
 
 def build_assessment(
@@ -66,6 +113,7 @@ def build_assessment(
     policy: dict[str, Any],
 ) -> dict[str, Any]:
     _validate_policy(policy)
+    policy_v2 = policy["schema_version"].endswith(".v2")
     blockers: list[str] = []
     source_usable = (
         calibration.get("schema_version")
@@ -92,10 +140,29 @@ def build_assessment(
         safe_complete
         and false_positive_count <= safe_policy["maximum_false_positive_count"]
     )
+    _, false_positive_wilson_upper = _wilson_interval(
+        false_positive_count, len(safe)
+    )
+    safe_wilson_passed = (
+        not policy_v2
+        or (
+            false_positive_wilson_upper is not None
+            and false_positive_wilson_upper
+            <= safe_policy["maximum_false_positive_wilson_upper"]
+        )
+    )
+    safe_passed = bool(safe_passed and safe_wilson_passed)
     if not safe_complete:
         blockers.append("multimodal_safe_control_minimum_not_met")
     elif not safe_passed:
-        blockers.append("multimodal_safe_control_false_positive_count_exceeded")
+        if false_positive_count > safe_policy["maximum_false_positive_count"]:
+            blockers.append(
+                "multimodal_safe_control_false_positive_count_exceeded"
+            )
+        if not safe_wilson_passed:
+            blockers.append(
+                "multimodal_safe_control_false_positive_wilson_upper_exceeded"
+            )
     safe_assessment = {
         "eligible_count": len(safe),
         "minimum_eligible_count": safe_policy["minimum_eligible_count"],
@@ -103,6 +170,16 @@ def build_assessment(
         "maximum_false_positive_count": safe_policy[
             "maximum_false_positive_count"
         ],
+        **(
+            {
+                "false_positive_wilson_upper": false_positive_wilson_upper,
+                "maximum_false_positive_wilson_upper": safe_policy[
+                    "maximum_false_positive_wilson_upper"
+                ],
+            }
+            if policy_v2
+            else {}
+        ),
         "passed": safe_passed,
     }
 
@@ -118,19 +195,44 @@ def build_assessment(
         count = len(matching)
         detected = sum(item["observed_risk"] is True for item in matching)
         sensitivity = detected / count if count else None
+        sensitivity_wilson_lower, _ = _wilson_interval(detected, count)
         complete = count >= taxonomy_policy["minimum_eligible_count"]
         passed = bool(
             complete
             and sensitivity is not None
             and sensitivity >= taxonomy_policy["minimum_sensitivity"]
+            and (
+                not policy_v2
+                or (
+                    sensitivity_wilson_lower is not None
+                    and sensitivity_wilson_lower
+                    >= taxonomy_policy["minimum_sensitivity_wilson_lower"]
+                )
+            )
         )
         if not complete:
             incomplete = True
             blockers.append(f"multimodal_taxonomy_minimum_not_met:{taxonomy}")
         elif not passed:
-            blockers.append(
-                f"multimodal_taxonomy_sensitivity_threshold_not_met:{taxonomy}"
-            )
+            if (
+                sensitivity is None
+                or sensitivity < taxonomy_policy["minimum_sensitivity"]
+            ):
+                blockers.append(
+                    f"multimodal_taxonomy_sensitivity_threshold_not_met:{taxonomy}"
+                )
+            if (
+                policy_v2
+                and (
+                    sensitivity_wilson_lower is None
+                    or sensitivity_wilson_lower
+                    < taxonomy_policy["minimum_sensitivity_wilson_lower"]
+                )
+            ):
+                blockers.append(
+                    "multimodal_taxonomy_sensitivity_wilson_lower_not_met:"
+                    f"{taxonomy}"
+                )
         taxonomy_assessments[taxonomy] = {
             "eligible_count": count,
             "minimum_eligible_count": taxonomy_policy[
@@ -139,12 +241,26 @@ def build_assessment(
             "detected_count": detected,
             "sensitivity": sensitivity,
             "minimum_sensitivity": taxonomy_policy["minimum_sensitivity"],
+            **(
+                {
+                    "sensitivity_wilson_lower": sensitivity_wilson_lower,
+                    "minimum_sensitivity_wilson_lower": taxonomy_policy[
+                        "minimum_sensitivity_wilson_lower"
+                    ],
+                }
+                if policy_v2
+                else {}
+            ),
             "passed": passed,
         }
     blockers = sorted(set(blockers))
     quality_state = "incomplete" if incomplete else ("blocked" if blockers else "qualified")
     result = {
-        "schema_version": "a2.multimodal_control_policy_assessment.v1",
+        "schema_version": (
+            "a2.multimodal_control_policy_assessment.v2"
+            if policy_v2
+            else "a2.multimodal_control_policy_assessment.v1"
+        ),
         "generated_at": datetime.now(timezone.utc)
         .isoformat()
         .replace("+00:00", "Z"),
@@ -161,7 +277,9 @@ def build_assessment(
         "release_authority": False,
         "public_safe": True,
     }
-    schema = json.loads(OUTPUT_SCHEMA.read_text(encoding="utf-8"))
+    schema = json.loads(
+        OUTPUT_SCHEMAS[policy["schema_version"]].read_text(encoding="utf-8")
+    )
     jsonschema.Draft202012Validator(schema).validate(result)
     return result
 

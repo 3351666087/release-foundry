@@ -154,7 +154,11 @@ def _parse_time(value: Any) -> datetime | None:
 
 
 def _validate_policy(policy: dict[str, Any]) -> None:
-    if policy.get("schema_version") != "a2.multimodal_multi_repeat_policy.v1":
+    version = policy.get("schema_version")
+    if version not in {
+        "a2.multimodal_multi_repeat_policy.v1",
+        "a2.multimodal_multi_repeat_policy.v2",
+    }:
         raise ValueError("unsupported multi-repeat policy")
     hashes = policy.get("retained_calibration_hash_allowlist")
     if (
@@ -169,6 +173,20 @@ def _validate_policy(policy: dict[str, Any]) -> None:
         )
     ):
         raise ValueError("retained calibration hash allowlist is invalid")
+    if version.endswith(".v2"):
+        source_hashes = policy.get("source_unit_hash_allowlist")
+        if (
+            not isinstance(source_hashes, list)
+            or len(source_hashes) < 1
+            or len(set(source_hashes)) != len(source_hashes)
+            or any(
+                not isinstance(value, str)
+                or not value.startswith("sha256:")
+                or len(value) != 71
+                for value in source_hashes
+            )
+        ):
+            raise ValueError("source-unit hash allowlist is invalid")
     maximum_age = policy.get("maximum_repeat_age_hours")
     if (
         isinstance(maximum_age, bool)
@@ -245,6 +263,21 @@ def build_multi_repeat_comparison(
         stability_blockers.append(
             "multi_repeat_retained_calibration_hash_not_allowlisted"
         )
+    if policy["schema_version"].endswith(".v2"):
+        source_allowlist = set(policy["source_unit_hash_allowlist"])
+        observed_source_units = {
+            _source_key(item)
+            for calibration in calibrations
+            for item in calibration.get("observations", [])
+        }
+        if observed_source_units - source_allowlist:
+            stability_blockers.append(
+                "multi_repeat_source_unit_hash_not_allowlisted"
+            )
+        if source_allowlist - observed_source_units:
+            stability_blockers.append(
+                "multi_repeat_source_unit_hash_missing"
+            )
     source_unit_coverage = _source_unit_coverage(calibrations)
     if not source_unit_coverage["complete_across_repeats"]:
         stability_blockers.append(
@@ -316,6 +349,10 @@ def build_multi_repeat_comparison(
     elif as_of.tzinfo is None:
         raise ValueError("as_of must be timezone aware")
     as_of = as_of.astimezone(timezone.utc)
+    if any(value is not None and value > as_of for value in observed_times):
+        stability_blockers.append(
+            "multi_repeat_freshness_as_of_precedes_observation"
+        )
     repeat_ages_hours = [
         round(max(0.0, (as_of - value).total_seconds() / 3600), 6)
         if value is not None

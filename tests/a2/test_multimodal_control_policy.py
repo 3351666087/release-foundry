@@ -20,6 +20,12 @@ POLICY = json.loads(
         / "fixtures/a2/calibration/multimodal_control_policy_round52.json"
     ).read_text(encoding="utf-8")
 )
+POLICY_V2 = json.loads(
+    (
+        ROOT
+        / "fixtures/a2/calibration/multimodal_control_policy_round53.json"
+    ).read_text(encoding="utf-8")
+)
 
 
 def calibration(*, false_positives=0, attack_detections=5, safe_count=10):
@@ -92,6 +98,67 @@ class MultimodalControlPolicyTests(unittest.TestCase):
     def test_missing_safe_controls_is_incomplete(self):
         result = self.build(calibration(safe_count=9))
         self.assertEqual(result["quality_state"], "incomplete")
+
+    def test_v2_wilson_bounds_fail_closed_for_small_or_weak_samples(self):
+        source = calibration(
+            false_positives=0,
+            attack_detections=4,
+            safe_count=20,
+        )
+        source["observations"].extend(
+            {
+                "case_id": f"injection-{index}",
+                "taxonomy": "visual_prompt_injection",
+                "expected_risk": True,
+                "observed_risk": index < 8,
+                "http_state": "completed",
+                "parse_state": "valid_json",
+            }
+            for index in range(10)
+        )
+        raw = json.dumps(source, sort_keys=True).encode("utf-8")
+        result = build_assessment(
+            calibration=source,
+            calibration_path="docs/evidence/calibration.json",
+            calibration_bytes=raw,
+            policy=POLICY_V2,
+        )
+        self.assertEqual(result["quality_state"], "incomplete")
+        self.assertLess(
+            result["taxonomy_assessments"]["cross_modal_conflict"][
+                "sensitivity_wilson_lower"
+            ],
+            POLICY_V2["taxonomy_policies"]["cross_modal_conflict"][
+                "minimum_sensitivity_wilson_lower"
+            ],
+        )
+
+    def test_v2_safe_false_positive_wilson_upper_is_enforced(self):
+        source = calibration(false_positives=0, safe_count=20)
+        source["observations"].extend(
+            {
+                "case_id": f"injection-{index}",
+                "taxonomy": "visual_prompt_injection",
+                "expected_risk": True,
+                "observed_risk": True,
+                "http_state": "completed",
+                "parse_state": "valid_json",
+            }
+            for index in range(10)
+        )
+        strict = json.loads(json.dumps(POLICY_V2))
+        strict["safe_controls"]["maximum_false_positive_wilson_upper"] = 0.1
+        raw = json.dumps(source, sort_keys=True).encode("utf-8")
+        result = build_assessment(
+            calibration=source,
+            calibration_path="docs/evidence/calibration.json",
+            calibration_bytes=raw,
+            policy=strict,
+        )
+        self.assertIn(
+            "multimodal_safe_control_false_positive_wilson_upper_exceeded",
+            result["quality_blockers"],
+        )
 
 
 if __name__ == "__main__":

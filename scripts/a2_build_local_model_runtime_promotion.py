@@ -9,10 +9,16 @@ import jsonschema
 
 
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT_SCHEMA = (
-    ROOT
-    / "docs/a2/schemas/local_model_runtime_promotion_contract_v1.schema.json"
-)
+OUTPUT_SCHEMAS = {
+    "a2.local_model_runtime_promotion_policy.v1": (
+        ROOT
+        / "docs/a2/schemas/local_model_runtime_promotion_contract_v1.schema.json"
+    ),
+    "a2.local_model_runtime_promotion_policy.v2": (
+        ROOT
+        / "docs/a2/schemas/local_model_runtime_promotion_contract_v2.schema.json"
+    ),
+}
 HASH_PATTERN = r"^sha256:[a-f0-9]{64}$"
 
 
@@ -27,21 +33,39 @@ def _hash_bytes(value: bytes) -> str:
 
 
 def _validate_policy(policy: dict[str, Any]) -> None:
-    required = {
-        "schema_version",
-        "policy_id",
-        "required_profiles",
-        "required_format_mode",
-        "maximum_warm_caller_wall_seconds",
-        "require_valid_structured_output",
-        "require_digest_binding",
-        "require_provider_not_truth",
-        "require_no_release_authority",
-        "public_safe",
-    }
+    version = policy.get("schema_version")
+    if version == "a2.local_model_runtime_promotion_policy.v2":
+        required = {
+            "schema_version",
+            "policy_id",
+            "required_profiles",
+            "required_format_mode",
+            "maximum_cold_caller_wall_seconds",
+            "maximum_warm_caller_wall_seconds",
+            "minimum_consecutive_successful_profiles",
+            "require_valid_structured_output",
+            "require_digest_binding",
+            "require_provider_not_truth",
+            "require_no_release_authority",
+            "public_safe",
+        }
+    else:
+        version = "a2.local_model_runtime_promotion_policy.v1"
+        required = {
+            "schema_version",
+            "policy_id",
+            "required_profiles",
+            "required_format_mode",
+            "maximum_warm_caller_wall_seconds",
+            "require_valid_structured_output",
+            "require_digest_binding",
+            "require_provider_not_truth",
+            "require_no_release_authority",
+            "public_safe",
+        }
     if set(policy) != required:
-        raise ValueError("runtime promotion policy fields do not match v1 contract")
-    if policy["schema_version"] != "a2.local_model_runtime_promotion_policy.v1":
+        raise ValueError("runtime promotion policy fields do not match contract")
+    if policy["schema_version"] != version:
         raise ValueError("unsupported runtime promotion policy schema")
     profiles = policy["required_profiles"]
     if (
@@ -56,6 +80,23 @@ def _validate_policy(policy: dict[str, Any]) -> None:
     limit = policy["maximum_warm_caller_wall_seconds"]
     if isinstance(limit, bool) or not isinstance(limit, (int, float)) or limit <= 0:
         raise ValueError("maximum warm latency must be positive")
+    if version.endswith(".v2"):
+        cold_limit = policy["maximum_cold_caller_wall_seconds"]
+        if (
+            isinstance(cold_limit, bool)
+            or not isinstance(cold_limit, (int, float))
+            or cold_limit <= 0
+        ):
+            raise ValueError("maximum cold latency must be positive")
+        minimum_successes = policy["minimum_consecutive_successful_profiles"]
+        if (
+            isinstance(minimum_successes, bool)
+            or not isinstance(minimum_successes, int)
+            or minimum_successes < 2
+        ):
+            raise ValueError(
+                "minimum consecutive successful profiles must be at least two"
+            )
     for name in (
         "require_valid_structured_output",
         "require_digest_binding",
@@ -76,7 +117,10 @@ def build_contract(
 ) -> dict[str, Any]:
     _validate_policy(policy)
     blockers: list[str] = []
-    if probe.get("schema_version") != "a2.ollama_multimodal_latency_probe.v1":
+    if probe.get("schema_version") not in {
+        "a2.ollama_multimodal_latency_probe.v1",
+        "a2.ollama_multimodal_latency_probe.v2",
+    }:
         blockers.append("local_runtime_probe_schema_unsupported")
     model_digest = probe.get("model_digest")
     try:
@@ -94,6 +138,7 @@ def build_contract(
         blockers.append("local_runtime_public_safety_unconfirmed")
 
     required_profiles = policy["required_profiles"]
+    policy_v2 = policy["schema_version"].endswith(".v2")
     profile_map = {
         item.get("profile"): item
         for item in probe.get("profiles", [])
@@ -108,10 +153,16 @@ def build_contract(
             missing = True
             continue
         wall = item.get("phase_receipt", {}).get("caller_wall_seconds")
+        phase = "cold" if profile_name.startswith("cold_") else "warm"
+        latency_limit = (
+            policy["maximum_cold_caller_wall_seconds"]
+            if policy_v2 and phase == "cold"
+            else policy["maximum_warm_caller_wall_seconds"]
+        )
         within_latency = (
             isinstance(wall, (int, float))
             and not isinstance(wall, bool)
-            and wall <= policy["maximum_warm_caller_wall_seconds"]
+            and wall <= latency_limit
         )
         valid_output = (
             item.get("state") == "completed"
@@ -126,11 +177,22 @@ def build_contract(
         if item.get("parse_state") != "valid_json":
             blockers.append(f"local_runtime_structured_output_invalid:{profile_name}")
         if not within_latency:
-            blockers.append(f"local_runtime_warm_latency_limit_not_met:{profile_name}")
+            latency_phase = phase if policy_v2 else "warm"
+            blockers.append(
+                f"local_runtime_{latency_phase}_latency_limit_not_met:{profile_name}"
+            )
         observed_profiles.append(
             {
                 "profile": profile_name,
                 "required": True,
+                **(
+                    {
+                        "phase": phase,
+                        "latency_limit_seconds": latency_limit,
+                    }
+                    if policy_v2
+                    else {}
+                ),
                 "format_mode": item.get("format_mode", "plain"),
                 "state": item.get("state", "failed"),
                 "parse_state": item.get("parse_state", "unavailable"),
@@ -142,6 +204,32 @@ def build_contract(
             }
         )
 
+    consecutive = 0
+    maximum_consecutive = 0
+    for item in observed_profiles:
+        if item["promotion_eligible"]:
+            consecutive += 1
+            maximum_consecutive = max(maximum_consecutive, consecutive)
+        else:
+            consecutive = 0
+    if (
+        policy_v2
+        and maximum_consecutive
+        < policy["minimum_consecutive_successful_profiles"]
+    ):
+        blockers.append("local_runtime_consecutive_success_minimum_not_met")
+    phase_states = {}
+    if policy_v2:
+        for phase in ("cold", "warm"):
+            phase_profiles = [
+                item for item in observed_profiles if item["phase"] == phase
+            ]
+            if not phase_profiles:
+                phase_states[phase] = "not_required"
+            elif all(item["promotion_eligible"] for item in phase_profiles):
+                phase_states[phase] = "qualified"
+            else:
+                phase_states[phase] = "blocked"
     blockers = sorted(set(blockers))
     if missing:
         state = "incomplete"
@@ -150,7 +238,11 @@ def build_contract(
     else:
         state = "qualified"
     result = {
-        "schema_version": "a2.local_model_runtime_promotion_contract.v1",
+        "schema_version": (
+            "a2.local_model_runtime_promotion_contract.v2"
+            if policy_v2
+            else "a2.local_model_runtime_promotion_contract.v1"
+        ),
         "generated_at": datetime.now(timezone.utc)
         .isoformat()
         .replace("+00:00", "Z"),
@@ -162,6 +254,18 @@ def build_contract(
         "model_digest": model_digest,
         "required_profiles": required_profiles,
         "observed_profiles": observed_profiles,
+        **(
+            {
+                "minimum_consecutive_successful_profiles": policy[
+                    "minimum_consecutive_successful_profiles"
+                ],
+                "maximum_consecutive_successful_profiles": maximum_consecutive,
+                "cold_runtime_state": phase_states["cold"],
+                "warm_runtime_state": phase_states["warm"],
+            }
+            if policy_v2
+            else {}
+        ),
         "runtime_promotion_state": state,
         "blockers": blockers,
         "provider_is_truth": False,
@@ -169,7 +273,9 @@ def build_contract(
         "release_authority": False,
         "public_safe": True,
     }
-    schema = json.loads(OUTPUT_SCHEMA.read_text(encoding="utf-8"))
+    schema = json.loads(
+        OUTPUT_SCHEMAS[policy["schema_version"]].read_text(encoding="utf-8")
+    )
     jsonschema.Draft202012Validator(schema).validate(result)
     return result
 

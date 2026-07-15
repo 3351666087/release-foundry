@@ -20,6 +20,8 @@ def receipt(
         "profile": profile,
         "num_predict": num_predict,
         "format_mode": format_mode,
+        "schema_mode": "full",
+        "input_mode": "image",
         "state": "completed" if completed else "failed",
         "parse_state": "valid_json" if completed else "invalid_structured_output",
         "error_class": "" if completed else "invalid_structured_output",
@@ -33,6 +35,8 @@ def receipt(
             "transport_and_client_residual_seconds": 0.0,
         },
         "response_hash": "sha256:" + "a" * 64,
+        "response_length_bytes": 32,
+        "first_nonempty_character_class": "object_open",
         "raw_response_included": False,
         "release_authority": False,
         "public_safe": True,
@@ -71,6 +75,48 @@ class OllamaLatencyProbeTests(unittest.TestCase):
             result["diagnosis"],
         )
         self.assertEqual(result["qualification_state"], "blocked")
+
+    def test_text_only_minimal_schema_profile_is_public_safe(self):
+        values = [
+            {
+                **receipt(
+                    "warm_minimal_enum_32",
+                    load=0.1,
+                    prompt=0.1,
+                    token=0.3,
+                    completed=True,
+                    num_predict=32,
+                    format_mode="json_schema",
+                ),
+                "schema_mode": "minimal_enum",
+                "input_mode": "text_only_control",
+            }
+        ]
+        with patch(
+            "scripts.a2_ollama_multimodal_latency_probe._unload",
+            return_value="requested",
+        ), patch(
+            "scripts.a2_ollama_multimodal_latency_probe._probe",
+            side_effect=values,
+        ):
+            result = build_probe(
+                base_url="http://127.0.0.1:11434",
+                model_id="qwen",
+                model_digest="sha256:" + "b" * 64,
+                image_path=None,
+                timeout_seconds=90,
+                profiles=(
+                    (
+                        "warm_minimal_enum_32",
+                        32,
+                        "json_schema",
+                        "minimal_enum",
+                    ),
+                ),
+            )
+        self.assertEqual(result["input_mode"], "text_only_control")
+        self.assertIsNone(result["artifact_hash"])
+        self.assertEqual(result["completed_profile_count"], 1)
 
     def test_custom_json_schema_token_sweep_is_supported(self):
         values = [

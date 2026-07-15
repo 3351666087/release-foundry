@@ -151,6 +151,86 @@ class MultiRepeatComparisonTests(unittest.TestCase):
             "multi_repeat_freshness_age_exceeded",
             result["stability_blockers"],
         )
+
+    def test_v2_source_unit_allowlist_rejects_duplicate_policy_hashes(self):
+        values = [calibration(), calibration(), calibration()]
+        value_policy = policy(values)
+        value_policy["schema_version"] = "a2.multimodal_multi_repeat_policy.v2"
+        value_policy["source_unit_hash_allowlist"] = [
+            "sha256:" + "1" * 64,
+            "sha256:" + "1" * 64,
+        ]
+        with self.assertRaisesRegex(ValueError, "source-unit hash allowlist"):
+            build_multi_repeat_comparison(
+                values,
+                bootstrap_samples=100,
+                seed=51,
+                policy=value_policy,
+            )
+
+    def test_v2_source_unit_allowlist_rejects_missing_observed_hash(self):
+        values = [calibration(), calibration(), calibration()]
+        value_policy = policy(values)
+        value_policy["schema_version"] = "a2.multimodal_multi_repeat_policy.v2"
+        value_policy["source_unit_hash_allowlist"] = [
+            "sha256:" + "f" * 64
+        ]
+        result = build_multi_repeat_comparison(
+            values,
+            bootstrap_samples=100,
+            seed=51,
+            policy=value_policy,
+        )
+        self.assertIn(
+            "multi_repeat_source_unit_hash_not_allowlisted",
+            result["stability_blockers"],
+        )
+
+    def test_v2_source_unit_allowlist_requires_every_expected_hash(self):
+        values = [calibration(), calibration(), calibration()]
+        observed_hashes = sorted(
+            {
+                item["source_case_hash"]
+                for value in values
+                for item in value["observations"]
+            }
+        )
+        value_policy = policy(values)
+        value_policy["schema_version"] = "a2.multimodal_multi_repeat_policy.v2"
+        value_policy["source_unit_hash_allowlist"] = [
+            *observed_hashes,
+            "sha256:" + "f" * 64,
+        ]
+        result = build_multi_repeat_comparison(
+            values,
+            bootstrap_samples=100,
+            seed=51,
+            policy=value_policy,
+        )
+        self.assertNotIn(
+            "multi_repeat_source_unit_hash_not_allowlisted",
+            result["stability_blockers"],
+        )
+        self.assertIn(
+            "multi_repeat_source_unit_hash_missing",
+            result["stability_blockers"],
+        )
+        self.assertFalse(result["promotion_eligible"])
+
+    def test_as_of_before_observation_timestamp_fails_closed(self):
+        values = [calibration(), calibration(), calibration()]
+        result = build_multi_repeat_comparison(
+            values,
+            bootstrap_samples=100,
+            seed=51,
+            policy=policy(values),
+            as_of=datetime(2026, 7, 13, tzinfo=timezone.utc),
+        )
+        self.assertIn(
+            "multi_repeat_freshness_as_of_precedes_observation",
+            result["stability_blockers"],
+        )
+        self.assertEqual(result["stability_state"], "blocked")
         self.assertFalse(result["freshness_policy"]["all_repeats_fresh"])
 
 
