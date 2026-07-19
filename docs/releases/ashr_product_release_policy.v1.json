@@ -74,6 +74,7 @@
     "supply_chain.sbom",
     "supply_chain.signature",
     "supply_chain.provenance",
+    "web.production_surface",
     "web.registration_login",
     "web.sdk_quickstart",
     "web.report_review",

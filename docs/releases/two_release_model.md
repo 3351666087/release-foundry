@@ -2,6 +2,13 @@
 
 Ashr 有两个完全不同的发布对象。它们必须独立编号、独立生成证据、独立测试，并分别给出 `GO / NO-GO`。
 
+这不是“同一个 Release 的两个阶段”，而是两个不同的可交付物：
+
+| 发布域 | 谁发布 | 交付给谁 | 交付物 |
+| --- | --- | --- | --- |
+| Ashr Product Release | Ashr 产品团队 | 部署/采购 Ashr 的企业 | OCI 镜像、Docker 安装器、Web、SDK、策略、迁移、运维手册、SBOM、签名、provenance 和 Product receipts |
+| Customer Agent Release | 使用 Ashr 的客户组织 | 该组织的 Agent 上线审批方和业务使用方 | 指定 Agent 版本、A1 执行证据、A2 评测证据、人工审批、A3 报告/门禁/回写、签名证据包和 Agent receipts |
+
 ## 1. Ashr Product Release
 
 发布对象是 **Ashr 产品本身**，规范 ID：
@@ -27,6 +34,7 @@ Product Release 证明的是：
 - 多租户隔离和 RBAC；
 - 备份/恢复、升级、回滚、日志/指标/审计；
 - Web 注册登录、SDK quickstart、报告和审核；
+- Web 生产界面的 UTF-8、字号、控件尺寸和禁止 mock/fixture/只读预览回退静态门禁；
 - A1/A2/A3 的产品级真实集成 smoke；
 - 多模态、安全策略和签名报告导出；
 - OCI 镜像 digest、SBOM、签名和 provenance。
@@ -73,6 +81,11 @@ Customer Agent Release 证明的是：
 product_release_id
 product_release_manifest_sha256
 ```
+
+绑定关系是单向的：Customer Agent Release 必须依赖一个已经 `GO` 的
+Product Release；Product Release 不依赖任何单个客户 Agent 的评测结果。
+若产品发布不存在、不是 `GO`、ID 不匹配或 manifest 摘要不匹配，Customer
+Agent Release 必须直接 `NO-GO`。
 
 因此，不能用“某个客户 Agent 通过评测”证明 Ashr 产品可以发布；也不能用“Ashr 安装和单测通过”证明某个客户 Agent 可以上线。
 
