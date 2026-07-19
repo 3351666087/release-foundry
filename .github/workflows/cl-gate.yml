@@ -89,6 +89,23 @@ jobs:
       - name: Run Python contracts
         run: python -B -m pytest tests/a1 tests/a2 tests/integration/test_a1_large_saas_migration.py -q -p no:cacheprovider
 
+  product-release:
+    name: Product release contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: plan
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install release test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest jsonschema
+      - name: Run product release contracts
+        run: python -B -m pytest tests/release -q -p no:cacheprovider
+
   a3-node:
     name: A3 dashboard/report/evidence contracts
     runs-on: ubuntu-latest
@@ -282,6 +299,7 @@ jobs:
     needs:
       - plan
       - python-a1-a2
+      - product-release
       - a3-node
       - a3-webapp
       - typescript-sdk
@@ -296,6 +314,7 @@ jobs:
           set -euo pipefail
           echo "plan=${{ needs.plan.result }}"
           echo "python-a1-a2=${{ needs.python-a1-a2.result }}"
+          echo "product-release=${{ needs.product-release.result }}"
           echo "a3-node=${{ needs.a3-node.result }}"
           echo "a3-webapp=${{ needs.a3-webapp.result }}"
           echo "typescript-sdk=${{ needs.typescript-sdk.result }}"
@@ -306,6 +325,7 @@ jobs:
           for result in \
             "${{ needs.plan.result }}" \
             "${{ needs.python-a1-a2.result }}" \
+            "${{ needs.product-release.result }}" \
             "${{ needs.a3-node.result }}" \
             "${{ needs.a3-webapp.result }}" \
             "${{ needs.typescript-sdk.result }}" \
