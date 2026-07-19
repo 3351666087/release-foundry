@@ -1,0 +1,85 @@
+{
+  "schema_version": "ashr.product_release_policy.v1",
+  "policy_id": "ashr.product_release.enterprise.v1",
+  "required_service_roles": [
+    "web",
+    "api",
+    "worker",
+    "migration",
+    "database",
+    "cache",
+    "object_store"
+  ],
+  "required_sdk_languages": [
+    "python",
+    "typescript",
+    "go"
+  ],
+  "required_runbooks": [
+    "install",
+    "configuration",
+    "backup_restore",
+    "upgrade",
+    "rollback",
+    "incident_response"
+  ],
+  "receipt_environment_fields": {
+    "default": [
+      "os",
+      "arch"
+    ],
+    "prefix:docker.": [
+      "docker_server_version",
+      "docker_compose_version"
+    ],
+    "prefix:install.": [
+      "docker_server_version",
+      "docker_compose_version"
+    ]
+  },
+  "required_receipts": [
+    "docker.compose_config",
+    "docker.image_build",
+    "install.fresh_linux",
+    "install.fresh_windows",
+    "install.admin_bootstrap",
+    "install.fresh_migration",
+    "install.full_stack_health",
+    "install.restart_persistence",
+    "identity.email_registration",
+    "identity.email_verification",
+    "identity.password_login",
+    "identity.password_reset",
+    "identity.password_change",
+    "identity.oauth_google",
+    "identity.oauth_github",
+    "identity.account_linking",
+    "identity.totp_2fa",
+    "identity.recovery_codes",
+    "identity.session_device_revoke",
+    "billing.stripe_test_mode",
+    "billing.china_provider_contract",
+    "billing.entitlement_enforcement",
+    "sdk.python_hosted",
+    "sdk.typescript_hosted",
+    "sdk.go_hosted",
+    "tenancy.isolation",
+    "tenancy.rbac",
+    "operations.backup_restore",
+    "operations.upgrade",
+    "operations.rollback",
+    "operations.observability",
+    "security.secret_scan",
+    "security.vulnerability_scan",
+    "supply_chain.sbom",
+    "supply_chain.signature",
+    "supply_chain.provenance",
+    "web.registration_login",
+    "web.sdk_quickstart",
+    "web.report_review",
+    "evaluation.multimodal_live",
+    "evaluation.security_policy",
+    "reporting.signed_export",
+    "integration.a1_a2_a3_product_smoke"
+  ]
+}
