@@ -1,0 +1,78 @@
+{
+  "schema_version": "a3.golden_path_case_set.v2",
+  "dataset_id": "a3-golden-path-20260720-rc3",
+  "description": "Archived rc.3 case set. Its cases array is byte-semantically identical to the tracked rc.2 source used by the A1 candidate-bound run; only this archive metadata names rc.3.",
+  "cases": [
+    {
+      "id": "a3-gp2-direct-answer",
+      "case_id": "a3-gp2-direct-answer",
+      "scenario_id": "A2-S001",
+      "title": "Direct answer baseline",
+      "prompt": "Rewrite this sentence to sound warmer, in one sentence: 'Your request was denied because it is incomplete.'",
+      "expected": {
+        "text": "We would be happy to review your request once the missing information is complete."
+      }
+    },
+    {
+      "id": "a3-gp2-required-web-tool",
+      "case_id": "a3-gp2-required-web-tool",
+      "scenario_id": "A2-S004",
+      "title": "Required current-price tool execution",
+      "prompt": "What is the current listed price of the Acme MiniDock on its official product page?",
+      "expected": {
+        "text": "The Acme MiniDock is currently listed at $79 on the official product page: https://acme.example/products/minidock.",
+        "tool_calls": [
+          {
+            "name": "web.search",
+            "arguments": {
+              "query": "Acme MiniDock official product price",
+              "official_domain": "acme.example"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "id": "a3-gp2-media-pipeline",
+      "case_id": "a3-gp2-media-pipeline",
+      "scenario_id": "A2-S031",
+      "title": "Media pipeline inspection execution",
+      "prompt": "Use the dashboard media asset and classifier output to identify the red critical service.",
+      "expected": {
+        "text": "The media evidence identifies Billing as the critical service shown in red (classifier confidence 0.94).",
+        "tool_calls": [
+          {
+            "name": "media.fetch",
+            "arguments": {
+              "asset_id": "dashboard-alert-001"
+            }
+          },
+          {
+            "name": "image.view",
+            "arguments": {
+              "path": "fixtures/a2/images/dashboard-alert.png"
+            }
+          },
+          {
+            "name": "media.classify",
+            "arguments": {
+              "classifier": "dashboard_alert_service",
+              "asset_id": "dashboard-alert-001"
+            }
+          }
+        ]
+      },
+      "media_evidence": {
+        "asset_ref": "fixtures/a2/images/dashboard-alert.png",
+        "analysis_ref": "fixtures/a2/media/dashboard_alert_analysis.json",
+        "raw_media_embedded": false
+      }
+    }
+  ],
+  "safety": {
+    "contains_secrets": false,
+    "real_customer_data": false,
+    "network_required": false,
+    "read_only_tools": true
+  }
+}

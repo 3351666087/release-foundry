@@ -1,0 +1,67 @@
+{
+  "schema_version": "ashr.clone.a1_candidate_run_receipt.v1",
+  "generated_at": "2026-07-20T12:17:15.359Z",
+  "candidate_binding": {
+    "schema_version": "ashr.clone.a1_candidate_binding.v1",
+    "candidate_id": "a3-golden-agent@0.2.0-rc.3",
+    "git_sha": "1d292047e991995fdf52f0545ffff410ee19a171",
+    "candidate_source_commit": "1d292047e991995fdf52f0545ffff410ee19a171",
+    "evidence_release_version": "0.2.0-rc.3",
+    "source_tree_clean": true,
+    "source_tree_sha": "5f7152bb0f0e380d433600ec43bd7ddd80dabd66",
+    "case_set_sha256": "sha256:eadfadb8233ae2d81affec5c62436973a8086119aecee4a2445ba3475fd4109c"
+  },
+  "run": {
+    "run_id": "a3-golden-20260720-003",
+    "dataset_id": "a3-golden-path-20260720-rc3",
+    "runner_id": "a3-golden-agent-v3",
+    "status": "passed",
+    "total_cases": 3,
+    "passed": 3,
+    "failed": 0,
+    "errored": 0,
+    "timed_out": 0,
+    "trace_completeness": 1,
+    "total_tool_calls": 4
+  },
+  "case_set": {
+    "source_path": "fixtures/a3/golden-path/rc2/a3_new_run_cases.json",
+    "archived_path": "fixtures/a3/golden-path/rc3/a3_new_run_cases.json",
+    "cases_array_unchanged": true,
+    "sha256": "sha256:eadfadb8233ae2d81affec5c62436973a8086119aecee4a2445ba3475fd4109c"
+  },
+  "evidence": {
+    "run_result": {
+      "path": "fixtures/a3/golden-path/rc3/a3_new_run_result.redacted.json",
+      "sha256": "sha256:74c6d5b61220ee94703194d1ca70c54a2129b9ea6a13c1e33aca9e2fade7623e"
+    },
+    "run_fixture": {
+      "path": "fixtures/a3/golden-path/rc3/a1_run_fixture.redacted.json",
+      "sha256": "sha256:48ee2dd80b12957fbb6610b2af87a03bb34ab5e961aca95cc176b8dbeb8fb009"
+    }
+  },
+  "hash_payload": {
+    "schema_version": "ashr.clone.a1_candidate_evidence_payload.v1",
+    "candidate_id": "a3-golden-agent@0.2.0-rc.3",
+    "git_sha": "1d292047e991995fdf52f0545ffff410ee19a171",
+    "run_id": "a3-golden-20260720-003",
+    "run_result_sha256": "sha256:74c6d5b61220ee94703194d1ca70c54a2129b9ea6a13c1e33aca9e2fade7623e",
+    "run_fixture_sha256": "sha256:48ee2dd80b12957fbb6610b2af87a03bb34ab5e961aca95cc176b8dbeb8fb009",
+    "case_set_sha256": "sha256:eadfadb8233ae2d81affec5c62436973a8086119aecee4a2445ba3475fd4109c"
+  },
+  "evidence_bundle_hash": "sha256:0b4fb982ccc5a25a54c8c8ea8744285296502bb6be3113d5220af7f3340e3d6b",
+  "authority": {
+    "release_authority": false,
+    "a2_decision_generated": false,
+    "a3_delivery_generated": false,
+    "next_owner": "A2",
+    "next_action": "Generate a Trusted Spine and Decision Ledger for this exact candidate, run, source commit, and evidence bundle hash."
+  },
+  "safety": {
+    "public_safe": true,
+    "contains_secrets": false,
+    "contains_real_customer_data": false,
+    "raw_media_embedded": false,
+    "ashr_api_used": false
+  }
+}
