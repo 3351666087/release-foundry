@@ -1,0 +1,139 @@
+{
+  "schema_version": "a3.a2_multimodal_release_readiness_intake.v1",
+  "source_commit_alias": "850b39a",
+  "a1_peer_boundary": {
+    "source_commit_alias": "566a13d",
+    "capability": "authorized_credential_binding_regression",
+    "a3_client_route_status": "not_exposed_in_peer_evidence",
+    "aggregate_readiness_available": false,
+    "raw_identity_receipt_included": false,
+    "production_identity_verified": false
+  },
+  "public_summary": {
+    "binding": {
+      "manifest_hash": "sha256:9bdfd0068675877d7346fe00c44d576c9dfdc112013495682273d6b1815b34f8",
+      "ordered_case_plan_hash": "sha256:658cc0bc2b6bdedd8b28f0aeabc4a8b851e1a44cab88e167eddd71a3c8f574d0",
+      "output_schema_hash": "sha256:6b95c1668537a8cc00fe8b9af981ce4a7594f35f62fd9e6c67435f6202c4d69a",
+      "policy_hash": "sha256:75c02b6a721fe41617faa348bfd79b5b6dce543ad240bbcaf8b454d9abb94a52",
+      "prompt_hash": "sha256:8ebdf12d3ba40228486f1a5205ae40e75bc1db8b9b259eed64820cba460fe818",
+      "provider_capability_hash": "sha256:07fe02f2c2e44af140b6d59cf1eba5c125213cea20c42370009c81732cc88606"
+    },
+    "cloud_control_run": {
+      "blockers": [
+        "dashscope_sensitivity_review_threshold_not_met",
+        "dashscope_taxonomy_sensitivity_review_threshold_not_met:cross_modal_conflict",
+        "dashscope_pricing_unavailable"
+      ],
+      "eligible_count": 15,
+      "evidence_hash": "sha256:c0511a7dc97d17b1c9bf613c5de4ed85d8632b4551571b84ab4a98004619ce79",
+      "latency_seconds": {
+        "count": 15,
+        "max": 6.154,
+        "median": 1.008,
+        "min": 0.649,
+        "p95_nearest_rank": 6.154
+      },
+      "qualification_state": "blocked",
+      "quality": {
+        "balanced_accuracy": 0.8,
+        "sensitivity": 0.6,
+        "specificity": 1.0
+      }
+    },
+    "control_policy": {
+      "evidence_hash": "sha256:5b21abe132af69b3fe6ff044092682db58b13679494cde398e6d49d312a2d30c",
+      "quality_blockers": [
+        "multimodal_taxonomy_sensitivity_threshold_not_met:cross_modal_conflict"
+      ],
+      "quality_state": "blocked",
+      "safe_control_assessment": {
+        "eligible_count": 10,
+        "false_positive_count": 0,
+        "maximum_false_positive_count": 0,
+        "minimum_eligible_count": 10,
+        "passed": true
+      },
+      "taxonomy_assessments": {
+        "cross_modal_conflict": {
+          "detected_count": 3,
+          "eligible_count": 5,
+          "minimum_eligible_count": 5,
+          "minimum_sensitivity": 0.8,
+          "passed": false,
+          "sensitivity": 0.6
+        }
+      }
+    },
+    "endpoint_region": "beijing",
+    "generated_at": "2026-07-14T13:42:54.640982Z",
+    "high_quality_local_candidate": {
+      "blockers": [
+        "local_runtime_profile_not_completed:warm_json_schema_16",
+        "local_runtime_profile_not_completed:warm_json_schema_32",
+        "local_runtime_structured_output_invalid:warm_json_schema_16",
+        "local_runtime_structured_output_invalid:warm_json_schema_32"
+      ],
+      "completed_profile_count": 0,
+      "model_digest": "sha256:901cae73216286ea8c5aba8b46d307ff7188f737285ec500c795a12f05225d28",
+      "model_id": "qwen3-vl:8b",
+      "probe_evidence_hash": "sha256:3d1dc706a033d6c070613212edf59139327ed1c038a124812e9e7ba09225e12a",
+      "promotion_evidence_hash": "sha256:1aa1ac2c96d2c1cc8303b3a8725b52484e301fcfaac5605526f7393d62834057",
+      "qualification_state": "blocked",
+      "runtime_promotion_state": "blocked"
+    },
+    "interpretation": {
+      "promotion_permitted": false,
+      "provider_failure_or_invalid_output_can_pass": false,
+      "reason": "The real cloud control run misses attack-sensitivity policy, the high-quality local candidate fails structured-output validation, human review is pending, and same-round real PostgreSQL proof is absent. Stability evidence cannot override blocked quality."
+    },
+    "model_id": "qwen-vl-plus",
+    "multi_repeat": {
+      "all_repeats_fresh": true,
+      "evidence_hash": "sha256:b2efce1f5ac8e7336397d0de1912df624e8e0b166999d59f928c7931c210b983",
+      "promotion_eligible": false,
+      "quality_blockers": [
+        "multi_repeat_retained_calibration_not_qualified"
+      ],
+      "quality_state": "blocked",
+      "schema_version": "a2.multimodal_multi_repeat_comparison.v2",
+      "stability_blockers": [],
+      "stability_state": "qualified"
+    },
+    "persistence": {
+      "evidence_hash": "sha256:966868ebde046b35f0779fb9bdf1b5a1b1ac3e909616d248c0870129a91c7b69",
+      "real_postgresql_proof_state": "blocked",
+      "same_round_real_postgresql_verified": false
+    },
+    "provider_id": "dashscope",
+    "public_safe": true,
+    "raw_provider_payload_included": false,
+    "raw_provider_text_included": false,
+    "raw_request_id_included": false,
+    "release_authority": false,
+    "review_binding": {
+      "collection_hash": "sha256:3e482b25052625f573002999f9b10fdc6bf8856602cce3b44982df249ebf687c",
+      "collection_state": "pending",
+      "conservation_hash": "sha256:57dcff674292085b5a835a9f70ebb78ff980cf3349ae010ee76b67b5e43ae3a2",
+      "pending_queue_receipt_count": 1,
+      "verification_state": "verified"
+    },
+    "schema_version": "a2.multimodal_public_summary.round52.v1",
+    "secret_included": false
+  },
+  "shared_candidate_verification": {
+    "blockers": [
+      "a1_release_receipt_git_sha_stale",
+      "a2_exact_shared_candidate_binding_absent",
+      "a3_candidate_id_differs_from_a1",
+      "a3_consumed_decision_hash_mismatch",
+      "a3_consumed_grades_hash_mismatch",
+      "a3_consumes_round51_repeat_stability_not_round52_release_decision",
+      "shared_candidate_id_mismatch"
+    ],
+    "verified": false
+  },
+  "release_authority": false,
+  "public_safe": true,
+  "raw_provider_payload_included": false,
+  "raw_identity_receipt_included": false
+}

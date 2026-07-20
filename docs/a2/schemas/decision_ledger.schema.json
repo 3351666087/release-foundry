@@ -83,6 +83,8 @@
         "model_versions",
         "judge_versions",
         "judge_result_hashes",
+        "provider_provenance_hashes",
+        "provider_summary",
         "judge_summary",
         "release_gate_hash",
         "hard_blockers",
@@ -116,6 +118,21 @@
         "judge_result_hashes": {
           "type": "array",
           "items": { "$ref": "#/$defs/hash" }
+        },
+        "provider_provenance_hashes": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/hash" }
+        },
+        "provider_summary": {
+          "type": "object",
+          "required": ["call_count", "providers", "models", "blocked_call_count"],
+          "properties": {
+            "call_count": { "type": "integer", "minimum": 0 },
+            "providers": { "$ref": "#/$defs/string_array" },
+            "models": { "$ref": "#/$defs/string_array" },
+            "blocked_call_count": { "type": "integer", "minimum": 0 }
+          },
+          "additionalProperties": false
         },
         "judge_summary": { "type": "object" },
         "release_gate_hash": { "$ref": "#/$defs/hash" },

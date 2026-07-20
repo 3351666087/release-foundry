@@ -1,0 +1,47 @@
+{
+  "blockers": [
+    "local_runtime_profile_not_completed:warm_json_schema_16",
+    "local_runtime_profile_not_completed:warm_json_schema_32",
+    "local_runtime_structured_output_invalid:warm_json_schema_16",
+    "local_runtime_structured_output_invalid:warm_json_schema_32"
+  ],
+  "generated_at": "2026-07-14T11:16:18.188662Z",
+  "model_digest": "sha256:1343d82ebee38e26a4dd6b0180b915eb91550184e67c505dea97509571c8f683",
+  "model_id": "qwen3-vl:4b",
+  "observed_profiles": [
+    {
+      "caller_wall_seconds": 4.460262,
+      "format_mode": "json_schema",
+      "parse_state": "invalid_structured_output",
+      "profile": "warm_json_schema_16",
+      "promotion_eligible": false,
+      "required": true,
+      "state": "failed",
+      "within_latency_limit": true
+    },
+    {
+      "caller_wall_seconds": 7.355907,
+      "format_mode": "json_schema",
+      "parse_state": "invalid_structured_output",
+      "profile": "warm_json_schema_32",
+      "promotion_eligible": false,
+      "required": true,
+      "state": "failed",
+      "within_latency_limit": true
+    }
+  ],
+  "policy_hash": "sha256:9cb7403e061ed8e9d2fd96c7cc41f4b26a87e0290aca31ea839182e5908c9857",
+  "policy_id": "a2-local-runtime-round52",
+  "provider_is_truth": false,
+  "public_safe": true,
+  "release_authority": false,
+  "required_profiles": [
+    "warm_json_schema_16",
+    "warm_json_schema_32"
+  ],
+  "runtime_promotion_state": "blocked",
+  "schema_version": "a2.local_model_runtime_promotion_contract.v1",
+  "secret_included": false,
+  "source_probe_hash": "sha256:b6669ddb801cdc6c21f3426cab07e141ba27abf04b06da4a1e9974a65a40d629",
+  "source_probe_path": "docs/evidence/a2_qwen3vl_structured_token_sweep_round52.json"
+}

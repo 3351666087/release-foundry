@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.local/schemas/a2/multimodal_runtime_diagnostic_receipt.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "provider_id",
+    "model_id",
+    "model_version",
+    "request_hash",
+    "runtime_binding_hash",
+    "runtime_environment_hash",
+    "request_started_at",
+    "client_terminated_at",
+    "server_recovered_at",
+    "termination_state",
+    "post_termination_health_state",
+    "semantic_output_observed",
+    "release_authority",
+    "blockers",
+    "public_safe",
+    "ollama_version_observation_hash",
+    "ollama_binary_hash"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "a2.multimodal_runtime_diagnostic_receipt.v1"
+    },
+    "provider_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "model_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "model_version": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "request_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "request_started_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "client_terminated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "server_recovered_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "termination_state": {
+      "enum": [
+        "client_process_killed",
+        "client_timeout",
+        "completed"
+      ]
+    },
+    "post_termination_health_state": {
+      "enum": [
+        "healthy",
+        "unhealthy",
+        "not_observed"
+      ]
+    },
+    "semantic_output_observed": {
+      "type": "boolean"
+    },
+    "release_authority": {
+      "const": false
+    },
+    "blockers": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "public_safe": {
+      "const": true
+    },
+    "runtime_binding_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "runtime_environment_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "ollama_version_observation_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "ollama_binary_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    }
+  }
+}

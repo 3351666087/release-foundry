@@ -1,0 +1,213 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ashr.componentName" (dict "root" . "component" "queue-worker") }}
+  labels:
+    {{- include "ashr.commonLabels" . | nindent 4 }}
+    app.kubernetes.io/component: queue-worker
+  annotations:
+    {{- include "ashr.supplyChainAnnotations" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.queueWorker.replicaCount }}
+  revisionHistoryLimit: 5
+  minReadySeconds: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "ashr.selectorLabels" (dict "root" . "component" "queue-worker") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ashr.selectorLabels" (dict "root" . "component" "queue-worker") | nindent 8 }}
+      annotations:
+        checksum/runtime-config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- include "ashr.supplyChainAnnotations" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "ashr.componentName" (dict "root" . "component" "queue-worker") }}
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      terminationGracePeriodSeconds: 45
+      securityContext:
+        {{- include "ashr.podSecurityContext" . | nindent 8 }}
+      topologySpreadConstraints:
+        {{- include "ashr.topologySpread" (dict "root" . "component" "queue-worker") | nindent 8 }}
+      {{- with .Values.scheduling.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.scheduling.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: queue-worker
+          image: {{ include "ashr.image" .Values.images.worker | quote }}
+          imagePullPolicy: {{ .Values.images.worker.pullPolicy }}
+          command: ["/bin/sh", "/app/services/runner/commercial-worker-entrypoint.sh", "/usr/local/bin/ashr-worker"]
+          env:
+            - name: ASHR_GO_BACKEND
+              value: postgres
+            - name: ASHR_POSTGRES_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.runtime.secrets.runtime.name }}
+                  key: {{ .Values.runtime.secrets.runtime.postgresDsnKey }}
+            - name: ASHR_REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.runtime.secrets.runtime.name }}
+                  key: {{ .Values.runtime.secrets.runtime.queueUrlKey }}
+            - name: ASHR_OBJECT_STORE_ENDPOINT
+              value: {{ .Values.runtime.objectStorage.endpoint | quote }}
+            - name: ASHR_OBJECT_STORE_BUCKET
+              value: {{ .Values.runtime.objectStorage.bucket | quote }}
+            - name: ASHR_OBJECT_EVIDENCE_PREFIX
+              value: {{ .Values.runtime.objectStorage.evidencePrefix | quote }}
+            - name: ASHR_WORKER_MODE
+              value: daemon
+            - name: ASHR_WORKER_DAEMON
+              value: "true"
+            - name: ASHR_WORKER_QUEUE
+              value: ashr_worker_jobs
+            - name: ASHR_WORKER_JOB_TYPE
+              value: {{ .Values.queueWorker.jobType | quote }}
+            - name: ASHR_WORKER_TENANT_ID
+              value: {{ .Values.runtime.tenantId | quote }}
+            - name: ASHR_WORKER_PROJECT_ID
+              value: {{ .Values.runtime.projectId | quote }}
+            - name: ASHR_WORKER_LEASE_OWNER_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: ASHR_WORKER_LEASE_SECONDS
+              value: {{ .Values.queueWorker.leaseSeconds | quote }}
+            - name: ASHR_WORKER_HEARTBEAT_INTERVAL
+              value: {{ .Values.queueWorker.heartbeatInterval | quote }}
+            - name: ASHR_WORKER_MAX_JOBS
+              value: {{ .Values.queueWorker.maxJobs | quote }}
+            - name: ASHR_WORKER_MAX_IDLE_LEASES
+              value: {{ .Values.queueWorker.maxIdleLeases | quote }}
+            - name: ASHR_WORKER_MAX_ATTEMPTS
+              value: {{ .Values.queueWorker.maxAttempts | quote }}
+            - name: ASHR_WORKER_HEARTBEAT_PATH
+              value: /runtime/worker/heartbeat
+            - name: ASHR_WORKER_HEALTHCHECK_PATH
+              value: /runtime/worker/heartbeat
+            - name: ASHR_WORKER_SUMMARY_OUTPUT
+              value: /runtime/worker/summary.json
+            - name: ASHR_WORKER_RESTART_DELAY_SECONDS
+              value: {{ .Values.queueWorker.restartDelaySeconds | quote }}
+            - name: ASHR_WORKER_EVIDENCE_WRITES
+              value: object-store
+            - name: ASHR_EVIDENCE_VERIFIER_INBOX
+              value: /var/lib/ashr/verification/inbox
+          securityContext:
+            {{- include "ashr.containerSecurityContext" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.queueWorker.resources | nindent 12 }}
+          startupProbe:
+            exec:
+              command: ["/bin/sh", "-c", "test -s /runtime/worker/heartbeat"]
+            failureThreshold: 60
+            periodSeconds: 2
+            timeoutSeconds: 1
+          readinessProbe:
+            exec:
+              command: ["/bin/sh", "-c", "test -s /runtime/worker/heartbeat && find /runtime/worker/heartbeat -mmin -2 -type f | grep -q ."]
+            failureThreshold: 3
+            periodSeconds: 10
+            timeoutSeconds: 2
+          livenessProbe:
+            exec:
+              command: ["/bin/sh", "-c", "test -s /runtime/worker/heartbeat && find /runtime/worker/heartbeat -mmin -3 -type f | grep -q ."]
+            failureThreshold: 3
+            periodSeconds: 30
+            timeoutSeconds: 2
+          volumeMounts:
+            - name: worker-runtime
+              mountPath: /runtime/worker
+            - name: verification-queue
+              mountPath: /var/lib/ashr/verification
+            - name: runtime-tmp
+              mountPath: /tmp
+        {{- if .Values.queueWorker.verifier.enabled }}
+        - name: runtime-verifier
+          image: {{ include "ashr.image" .Values.images.verifier | quote }}
+          imagePullPolicy: {{ .Values.images.verifier.pullPolicy }}
+          command: ["/usr/local/bin/ashr-verifier-sidecar"]
+          env:
+            - name: ASHR_VERIFIER_KEY_ENV
+              value: ASHR_EVIDENCE_HMAC_KEY
+            - name: ASHR_EVIDENCE_HMAC_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.runtime.secrets.runtime.name }}
+                  key: {{ .Values.runtime.secrets.runtime.evidenceHmacKey }}
+            - name: ASHR_VERIFIER_QUEUE_ROOT
+              value: /var/lib/ashr/verification
+            - name: ASHR_VERIFIER_OBJECT_ROOT
+              value: /var/lib/ashr/verification/objects
+            - name: ASHR_VERIFIER_POLL_SECONDS
+              value: {{ .Values.queueWorker.verifier.pollSeconds | quote }}
+            - name: ASHR_VERIFIER_STALE_CLAIM_SECONDS
+              value: {{ .Values.queueWorker.verifier.staleClaimSeconds | quote }}
+            - name: ASHR_VERIFIER_MAX_OBJECT_BYTES
+              value: {{ .Values.queueWorker.verifier.maxObjectBytes | quote }}
+            - name: ASHR_VERIFIER_MAX_TOTAL_BYTES
+              value: {{ .Values.queueWorker.verifier.maxTotalBytes | quote }}
+          securityContext:
+            {{- include "ashr.containerSecurityContext" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.queueWorker.verifier.resources | nindent 12 }}
+          startupProbe:
+            exec:
+              command: ["/bin/sh", "-c", "test -s /var/lib/ashr/verification/status/ready"]
+            failureThreshold: 30
+            periodSeconds: 2
+            timeoutSeconds: 1
+          readinessProbe:
+            exec:
+              command: ["/bin/sh", "-c", "test -s /var/lib/ashr/verification/status/heartbeat && find /var/lib/ashr/verification/status/heartbeat -mmin -2 -type f | grep -q ."]
+            failureThreshold: 3
+            periodSeconds: 10
+            timeoutSeconds: 2
+          livenessProbe:
+            exec:
+              command: ["/bin/sh", "-c", "test -s /var/lib/ashr/verification/status/heartbeat && find /var/lib/ashr/verification/status/heartbeat -mmin -3 -type f | grep -q ."]
+            failureThreshold: 3
+            periodSeconds: 30
+            timeoutSeconds: 2
+          volumeMounts:
+            - name: verification-queue
+              mountPath: /var/lib/ashr/verification
+            - name: runtime-tmp
+              mountPath: /tmp
+        {{- end }}
+      volumes:
+        - name: worker-runtime
+          emptyDir:
+            sizeLimit: 128Mi
+        - name: verification-queue
+          emptyDir:
+            sizeLimit: 2Gi
+        - name: runtime-tmp
+          emptyDir:
+            sizeLimit: 128Mi
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "ashr.componentName" (dict "root" . "component" "queue-worker") }}
+  labels:
+    {{- include "ashr.commonLabels" . | nindent 4 }}
+    app.kubernetes.io/component: queue-worker
+spec:
+  minAvailable: {{ .Values.queueWorker.pdb.minAvailable }}
+  unhealthyPodEvictionPolicy: IfHealthyBudget
+  selector:
+    matchLabels:
+      {{- include "ashr.selectorLabels" (dict "root" . "component" "queue-worker") | nindent 6 }}

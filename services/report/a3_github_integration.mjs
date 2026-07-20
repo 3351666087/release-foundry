@@ -309,6 +309,78 @@ export function buildRequiredCheckProof(plan = {}, options = {}) {
   };
 }
 
+export function buildGitHubRepositoryInstallationReadback(options = {}) {
+  const repo = normalizeRepo(options.repo);
+  if (!repo.owner || !repo.repo) {
+    throw new Error("repo must be in owner/name form for GitHub App installation readback.");
+  }
+  const observed = sanitizeRepositoryInstallation(options.installation || {});
+  const expected = {
+    repo: `${repo.owner}/${repo.repo}`,
+    app_slug: options.expectedAppSlug || null,
+    app_id_alias: numberOrNull(options.expectedAppId),
+    installation_id_alias: normalizeIdentifierAlias(options.expectedInstallationAlias)
+  };
+  const matches = {
+    app_slug: expected.app_slug
+      ? Boolean(observed.app_slug) && expected.app_slug === observed.app_slug
+      : null,
+    app_id: expected.app_id_alias
+      ? Boolean(observed.app_id_alias) && expected.app_id_alias === observed.app_id_alias
+      : null,
+    installation_id: expected.installation_id_alias
+      ? Boolean(observed.installation_id_alias) && expected.installation_id_alias === observed.installation_id_alias
+      : null
+  };
+  const httpStatus = numberOrNull(options.httpStatus);
+  let readbackStatus = options.readbackStatus || "generated";
+  if (!options.readbackStatus) {
+    if (httpStatus === 401 || httpStatus === 403) readbackStatus = "permission_denied";
+    else if (httpStatus === 404) readbackStatus = "missing";
+    else if (httpStatus && httpStatus >= 400) readbackStatus = "failed";
+    else if (observed.installation_id_alias) readbackStatus = "readback_confirmed";
+    else if (httpStatus && httpStatus >= 200 && httpStatus < 400) readbackStatus = "missing";
+  }
+  const comparedIdentityFields = Object.values(matches).filter((value) => value !== null);
+  const identityMatches = comparedIdentityFields.length > 0
+    && comparedIdentityFields.every((value) => value === true);
+  const repositoryBound = readbackStatus === "readback_confirmed"
+    && Boolean(observed.installation_id_alias)
+    && observed.suspended === false;
+  const payloadForHash = {
+    expected,
+    observed,
+    matches,
+    readback_status: readbackStatus,
+    repository_bound: repositoryBound,
+    http_status: httpStatus
+  };
+  return {
+    schema_version: "a3.github_repository_installation_readback.v1",
+    provider: "github",
+    resource_kind: "github_app_installation",
+    readback_id: `ghirb_${sha256(stableJson(payloadForHash)).slice(0, 16)}`,
+    readback_status: readbackStatus,
+    readback_confirmed: readbackStatus === "readback_confirmed",
+    repository_bound: repositoryBound,
+    identity_matches: identityMatches,
+    http_status: httpStatus,
+    github_request_id: sanitizeGitHubRequestId(options.githubRequestId),
+    expected,
+    observed,
+    matches,
+    sanitized_error_class: errorClassForReadback(readbackStatus, options.errorMessage),
+    payload_hash: sha256(stableJson(payloadForHash)),
+    checked_at: options.checkedAt || null,
+    safety: {
+      ...readbackSafety(options),
+      account_login_stored: false,
+      raw_installation_token_stored: false,
+      repository_target_server_fixed: true
+    }
+  };
+}
+
 export async function readGitHubCheckRun(publishReceipt = {}, options = {}) {
   if (options.dryRun !== false) {
     return buildGitHubCheckReadbackReceipt(publishReceipt, {
@@ -332,7 +404,9 @@ export async function readGitHubCheckRun(publishReceipt = {}, options = {}) {
   if (typeof fetchImpl !== "function") {
     throw new Error("fetch implementation is required for GitHub check readback.");
   }
-  const response = await githubFetch(fetchImpl, `${apiBaseUrl(options)}/repos/${repo.owner}/${repo.repo}/check-runs/${checkRunId}`, {
+  const url = `${apiBaseUrl(options)}/repos/${repo.owner}/${repo.repo}/check-runs/${checkRunId}`;
+  assertTrustedLiveGitHubUrl(url, options);
+  const response = await githubFetch(fetchImpl, url, {
     method: "GET",
     token,
     githubApiVersion: options.githubApiVersion
@@ -371,6 +445,7 @@ export async function readPrCommentReadback(publishReceipt = {}, options = {}) {
     throw new Error("fetch implementation is required for GitHub PR comment readback.");
   }
   const url = plan.find_existing?.url || `${apiBaseUrl(options)}/repos/${repo.owner}/${repo.repo}/issues/${pullNumber}/comments`;
+  assertTrustedLiveGitHubUrl(url, options);
   const response = await githubFetch(fetchImpl, url, {
     method: "GET",
     token,
@@ -406,6 +481,7 @@ export async function readRequiredCheckProof(plan = {}, options = {}) {
     throw new Error("fetch implementation is required for required-check readback.");
   }
   const url = plan.inspect_current?.url || `${apiBaseUrl(options)}/repos/${repo.owner}/${repo.repo}/branches/${encodeURIComponent(branch)}/protection/required_status_checks`;
+  assertTrustedLiveGitHubUrl(url, options);
   const response = await githubFetch(fetchImpl, url, {
     method: "GET",
     token,
@@ -418,6 +494,42 @@ export async function readRequiredCheckProof(plan = {}, options = {}) {
     httpStatus: response.status,
     githubRequestId: response.requestId,
     branchProtection: response.ok ? response.json : null,
+    errorMessage: response.json?.message || response.statusText
+  });
+}
+
+export async function readGitHubRepositoryInstallation(options = {}) {
+  if (options.dryRun !== false) {
+    return buildGitHubRepositoryInstallationReadback({
+      ...options,
+      readbackStatus: "generated"
+    });
+  }
+  const repo = normalizeRepo(options.repo);
+  if (!repo.owner || !repo.repo) {
+    throw new Error("repo must be in owner/name form for GitHub App installation readback.");
+  }
+  const token = runtimeToken(options);
+  if (!token) {
+    throw new Error("GitHub token is required when dryRun is false.");
+  }
+  const fetchImpl = options.fetchImpl || globalThis.fetch;
+  if (typeof fetchImpl !== "function") {
+    throw new Error("fetch implementation is required for GitHub App installation readback.");
+  }
+  const url = `${apiBaseUrl(options)}/repos/${repo.owner}/${repo.repo}/installation`;
+  assertTrustedLiveGitHubUrl(url, options);
+  const response = await githubFetch(fetchImpl, url, {
+    method: "GET",
+    token,
+    githubApiVersion: options.githubApiVersion
+  });
+  return buildGitHubRepositoryInstallationReadback({
+    ...options,
+    repo: `${repo.owner}/${repo.repo}`,
+    httpStatus: response.status,
+    githubRequestId: response.requestId,
+    installation: response.ok ? response.json : null,
     errorMessage: response.json?.message || response.statusText
   });
 }
@@ -439,8 +551,6 @@ export function buildGitHubActionWorkflowExample(options = {}) {
     "    runs-on: ubuntu-latest",
     "    permissions:",
     "      contents: read",
-    "      checks: write",
-    "      pull-requests: write",
     "    steps:",
     "      - uses: actions/checkout@v4",
     "      - uses: actions/setup-node@v4",
@@ -454,16 +564,12 @@ export function buildGitHubActionWorkflowExample(options = {}) {
     "        with:",
     "          name: ashr-release-gate",
     "          path: artifacts/",
-    "      - name: Publish Ashr++ GitHub Check",
-    "        env:",
-    "          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}",
+    "      - name: Plan Ashr++ GitHub Check",
     "        run: |",
-    `          node services/report/a3_github_publish_cli.mjs --gate artifacts/ashr-gate.json --repo \${{ github.repository }} --head-sha \${{ github.event.pull_request.head.sha }} --details-url \${{ github.server_url }}/\${{ github.repository }}/actions/runs/\${{ github.run_id }} --output-receipt artifacts/ashr-github-check-receipt.json --live --json`,
-    "      - name: Publish Ashr++ PR Comment",
-    "        env:",
-    "          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}",
+    `          node services/report/a3_github_publish_cli.mjs --gate artifacts/ashr-gate.json --repo \${{ github.repository }} --head-sha \${{ github.event.pull_request.head.sha }} --details-url \${{ github.server_url }}/\${{ github.repository }}/actions/runs/\${{ github.run_id }} --output-receipt artifacts/ashr-github-check-receipt.json --dry-run --json`,
+    "      - name: Plan Ashr++ PR Comment",
     "        run: |",
-    `          node services/report/a3_github_publish_cli.mjs --gate artifacts/ashr-gate.json --repo \${{ github.repository }} --pull-number \${{ github.event.pull_request.number }} --pr-comment --output-receipt artifacts/ashr-pr-comment-receipt.json --live --json`,
+    `          node services/report/a3_github_publish_cli.mjs --gate artifacts/ashr-gate.json --repo \${{ github.repository }} --pull-number \${{ github.event.pull_request.number }} --pr-comment --output-receipt artifacts/ashr-pr-comment-receipt.json --dry-run --json`,
     "      - name: Enforce local gate result",
     "        run: |",
     "          node -e \"const fs=require('fs'); const gate=JSON.parse(fs.readFileSync('artifacts/ashr-gate.json','utf8')); process.exit(gate.exit_code_hint || 0);\"",
@@ -506,6 +612,7 @@ export async function publishGitHubCheckRun(gatePayload = {}, options = {}) {
   if (typeof fetchImpl !== "function") {
     throw new Error("fetch implementation is required to publish a GitHub check run.");
   }
+  assertTrustedLiveGitHubUrl(request.url, options);
 
   const response = await fetchImpl(request.url, {
     method: request.method,
@@ -567,6 +674,7 @@ export async function publishPrCommentUpsert(gatePayload = {}, options = {}) {
   }
 
   const lookupPlan = buildPrCommentUpsertPlan(gatePayload, { ...options, existingComments: [] });
+  assertTrustedLiveGitHubUrl(lookupPlan.find_existing.url, options);
   const commentsResponse = await githubFetch(fetchImpl, lookupPlan.find_existing.url, {
     method: "GET",
     token,
@@ -600,6 +708,7 @@ export async function publishPrCommentUpsert(gatePayload = {}, options = {}) {
   }
   const comments = Array.isArray(commentsResponse.json) ? commentsResponse.json : [];
   const plan = buildPrCommentUpsertPlan(gatePayload, { ...options, existingComments: comments });
+  assertTrustedLiveGitHubUrl(plan.request.url, options);
   const response = await githubFetch(fetchImpl, plan.request.url, {
     method: plan.request.method,
     token,
@@ -687,9 +796,23 @@ function runtimeToken(options = {}) {
     return String(options.token);
   }
   if (options.tokenEnvName) {
+    if (!["GITHUB_TOKEN", "GH_TOKEN"].includes(options.tokenEnvName)) {
+      throw new Error("Only fixed GitHub token environment references are allowed.");
+    }
     return process.env[options.tokenEnvName];
   }
   return process.env.GITHUB_TOKEN || process.env.GH_TOKEN;
+}
+
+function assertTrustedLiveGitHubUrl(value, options = {}) {
+  const url = new URL(value);
+  const trustedOrigins = new Set([
+    new URL(DEFAULT_API_BASE_URL).origin,
+    ...(Array.isArray(options.trustedApiOrigins) ? options.trustedApiOrigins : [])
+  ]);
+  if (url.protocol !== "https:" || !trustedOrigins.has(url.origin)) {
+    throw new Error("Live GitHub requests require a server-approved HTTPS API origin.");
+  }
 }
 
 async function safeResponseJson(response) {
@@ -743,6 +866,32 @@ function sanitizeCheckRunResponse(value = {}) {
   };
 }
 
+function sanitizeRepositoryInstallation(value = {}) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+  const permissions = value.permissions && typeof value.permissions === "object" && !Array.isArray(value.permissions)
+    ? Object.fromEntries(Object.entries(value.permissions)
+        .filter(([key, permission]) => /^[a-z0-9_]{1,80}$/i.test(key) && ["read", "write", "admin", "none"].includes(String(permission)))
+        .sort(([left], [right]) => left.localeCompare(right)))
+    : {};
+  return {
+    installation_id_alias: normalizeIdentifierAlias(value.id),
+    app_id_alias: numberOrNull(value.app_id),
+    app_slug: value.app_slug || null,
+    target_type: value.target_type || value.target?.type || null,
+    repository_selection: value.repository_selection || null,
+    permissions,
+    events: Array.isArray(value.events)
+      ? value.events.map(String).filter((item) => /^[a-z0-9_]{1,80}$/i.test(item)).sort()
+      : [],
+    suspended: Boolean(value.suspended_at),
+    suspended_at: value.suspended_at || null,
+    created_at: value.created_at || null,
+    updated_at: value.updated_at || null
+  };
+}
+
 function sanitizeCommentResponse(value = {}) {
   if (!value || typeof value !== "object") {
     return null;
@@ -775,7 +924,7 @@ function expectedCheckRunFields(publishReceipt = {}, options = {}) {
     check_name: options.checkName || requestBody.name || checkRun.name || "Ashr++ Release Gate",
     head_sha_alias: options.headSha || requestBody.head_sha || checkRun.head_sha || null,
     conclusion: options.conclusion || requestBody.conclusion || checkRun.conclusion || null,
-    output_hash: hashCheckOutput(output)
+    output_hash: options.skipOutputHash === true ? null : hashCheckOutput(output)
   };
 }
 
@@ -794,6 +943,9 @@ function sanitizeCheckRunReadback(value = {}) {
     details_url: value.details_url || null,
     output_title: output.title || null,
     output_hash: hashCheckOutput(output),
+    app_id_alias: Number.isInteger(Number(value.app?.id)) ? Number(value.app.id) : null,
+    app_slug: value.app?.slug || null,
+    app_owner_type: value.app?.owner?.type || null,
     started_at: value.started_at || null,
     completed_at: value.completed_at || null
   };
@@ -896,6 +1048,12 @@ function sanitizeRequiredCheckMatch(value = {}) {
   };
 }
 
+function normalizeIdentifierAlias(value) {
+  if (value === undefined || value === null || value === "") return null;
+  const normalized = String(value);
+  return /^[A-Za-z0-9._:-]{1,160}$/.test(normalized) ? normalized : null;
+}
+
 function hasReleasePlan(plan = {}) {
   return Boolean(plan?.check_name || plan?.request || plan?.inspect_current);
 }
@@ -905,8 +1063,13 @@ function sanitizeGitHubRequestId(value) {
 }
 
 function extractHeadShaAlias(body = "") {
-  const match = String(body).match(/\b[0-9a-f]{7,40}\b/i);
-  return match ? match[0] : null;
+  const value = String(body);
+  const labeled = value.match(/(?:candidate(?:[\s_-]+head)?|head(?:[\s_-]+sha)?|commit)\s*(?:\||:|=)\s*`?([0-9a-f]{7,40})\b/i);
+  if (labeled) return labeled[1];
+  const full = value.match(/\b[0-9a-f]{40}\b/i);
+  if (full) return full[0];
+  const abbreviated = value.match(/\b(?=[0-9a-f]{7,39}\b)(?=[0-9a-f]*[a-f])[0-9a-f]{7,39}\b/i);
+  return abbreviated ? abbreviated[0] : null;
 }
 
 function hashCheckOutput(output = {}) {

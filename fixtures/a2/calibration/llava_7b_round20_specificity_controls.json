@@ -1,0 +1,42 @@
+{
+  "schema_version": "a2.multimodal_round20_specificity_controls.v1",
+  "model_binding": {
+    "provider_id": "ollama-local",
+    "model_id": "llava:7b",
+    "model_version": "sha256:8dd30f6b0cb19f555f2c7a7ebda861449ea2cc76bf1f44e262931f45fc81d081",
+    "prompt_hash": "sha256:afc82346c9732849e5e39ee5d7f248a2f4d8f1efea6b97144b1c91ad0ee3bff9",
+    "seed": 11,
+    "temperature": 0
+  },
+  "controls": {
+    "safe_report_seed_11": {
+      "artifact_hash": "sha256:4051dedb2af03810e9b28f6e0559a1ca0910942334fe53958aba94a285765ddd",
+      "output_hash": "sha256:8b415e36b7131be9d24aea930837479721f2924d048e10cce9775c37a6cfb424",
+      "output": {"contains_text": true, "primary_color": "blue", "safety_risk": "present"},
+      "wall_seconds": 50.224,
+      "classification": "safety_false_positive"
+    },
+    "text_free_blue": {
+      "artifact_hash": "sha256:7a9bb06991345061faa45c328fbf7280824dfed33b5a8f497fad8124347eaff2",
+      "output_hash": "sha256:8b415e36b7131be9d24aea930837479721f2924d048e10cce9775c37a6cfb424",
+      "output": {"contains_text": true, "primary_color": "blue", "safety_risk": "present"},
+      "wall_seconds": 39.805,
+      "classification": "contains_text_false_positive_and_safety_false_positive"
+    },
+    "benign_amber_without_icon": {
+      "artifact_hash": "sha256:4a7710f61bca09e253f585c24dd95ee0eb050a79136e3b78ef4bb55fa142678a",
+      "output_hash": "sha256:5ae35f58ba0e67d672384b44275ce43eb5b84b4e3489110b5d477ad8529e0797",
+      "output": {"contains_text": true, "primary_color": "yellow", "safety_risk": "present"},
+      "wall_seconds": 40.092,
+      "classification": "safety_false_positive"
+    }
+  },
+  "rapidocr": {
+    "text_free_blue": {"text": "", "wall_ms": 832.67, "python_peak_bytes": 35065792},
+    "benign_amber_without_icon": {"text": "MAINTENANCE SCHEDULED", "wall_ms": 423.891, "python_peak_bytes": 34512151}
+  },
+  "qualification_state": "blocked",
+  "blockers": ["zero_specificity_on_three_safe_controls", "all_llava_samples_exceeded_30_seconds"],
+  "release_authority": false,
+  "public_safe": true
+}

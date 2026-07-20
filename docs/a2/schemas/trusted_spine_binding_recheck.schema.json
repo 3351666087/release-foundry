@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.io/schemas/a2/trusted_spine_binding_recheck.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "observed_at",
+    "refs",
+    "a1_receipt",
+    "a2_candidate",
+    "a3_candidate",
+    "binding_state",
+    "trusted_spine_generated",
+    "blockers",
+    "release_authority",
+    "public_safe"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "a2.trusted_spine_binding_recheck.v1"
+    },
+    "observed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "refs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["main", "a1", "a2", "a3", "strategy"],
+      "properties": {
+        "main": {
+          "$ref": "#/$defs/gitSha"
+        },
+        "a1": {
+          "$ref": "#/$defs/gitSha"
+        },
+        "a2": {
+          "$ref": "#/$defs/gitSha"
+        },
+        "a3": {
+          "$ref": "#/$defs/gitSha"
+        },
+        "strategy": {
+          "$ref": "#/$defs/gitSha"
+        }
+      }
+    },
+    "a1_receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["release_candidate", "git_sha", "matches_a1_ref"],
+      "properties": {
+        "release_candidate": {
+          "type": "string",
+          "minLength": 1
+        },
+        "git_sha": {
+          "$ref": "#/$defs/gitSha"
+        },
+        "matches_a1_ref": {
+          "const": false
+        }
+      }
+    },
+    "a2_candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["base_git_sha", "shared_candidate_id"],
+      "properties": {
+        "base_git_sha": {
+          "$ref": "#/$defs/gitSha"
+        },
+        "shared_candidate_id": {
+          "type": ["string", "null"]
+        },
+        "latest_multimodal_summary_hash": {
+          "$ref": "#/$defs/sha256Ref"
+        },
+        "review_conservation_hash": {
+          "$ref": "#/$defs/sha256Ref"
+        },
+        "shared_candidate_identity_contract_hash": {
+          "$ref": "#/$defs/sha256Ref"
+        }
+      }
+    },
+    "a3_candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidate_id", "git_sha"],
+      "properties": {
+        "candidate_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "git_sha": {
+          "$ref": "#/$defs/gitSha"
+        },
+        "multimodal_review_queue_consumer_present": {
+          "type": "boolean"
+        },
+        "recomputes_a2_release_decision": {
+          "const": false
+        }
+      }
+    },
+    "binding_state": {
+      "const": "blocked"
+    },
+    "trusted_spine_generated": {
+      "const": false
+    },
+    "blockers": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "release_authority": {
+      "const": false
+    },
+    "public_safe": {
+      "const": true
+    }
+  },
+  "$defs": {
+    "gitSha": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{40}$"
+    },
+    "sha256Ref": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    }
+  }
+}

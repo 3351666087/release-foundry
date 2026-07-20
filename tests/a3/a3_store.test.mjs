@@ -17,14 +17,14 @@ async function importJson(path) {
   return JSON.parse(await readFile(new URL(path, import.meta.url), "utf8"));
 }
 
-test("A3 store loads fixture sources through a DB-ready dashboard snapshot", async () => {
+test("A3 store loads fixture sources without claiming database readiness", async () => {
   const snapshot = await loadA3SourceSnapshot("mock");
 
   assert.equal(snapshot.schema_version, "a3.dashboard_snapshot.v1");
   assert.equal(snapshot.source, "mock");
   assert.equal(snapshot.summary.totalRuns, 1);
   assert.equal(snapshot.summary.totalCases, 32);
-  assert.equal(snapshot.storage.db_ready, true);
+  assert.equal(snapshot.storage.db_ready, false);
   assert.equal(snapshot.a2GradeResults.schema_version, "a2.grade_results.v1");
   assert.equal(snapshot.a2ReleaseGate.schema_version, "a2.release_gate.v1");
 });

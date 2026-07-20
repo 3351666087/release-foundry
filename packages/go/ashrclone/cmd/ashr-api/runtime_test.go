@@ -8,6 +8,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"database/sql"
 	"encoding/pem"
 	"fmt"
 	"math/big"
@@ -19,6 +20,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/ashr-labs/ashr/packages/go/ashrclone"
 )
 
@@ -33,6 +35,63 @@ func TestIdentityRuntimeDefaultsToPostgresAndFailsClosedWithoutDSN(t *testing.T)
 	_, err := newIdentityRuntimeFromEnv(context.Background(), lookup(map[string]string{}))
 	if err == nil || !strings.Contains(err.Error(), "ASHR_POSTGRES_DSN") {
 		t.Fatalf("expected missing postgres DSN error, got %v", err)
+	}
+}
+
+func TestProductionIdentityRuntimeUsesPostgresAsSoleIdentityAuthority(t *testing.T) {
+	db, mock, err := sqlmock.New(sqlmock.MonitorPingsOption(true))
+	if err != nil {
+		t.Fatal(err)
+	}
+	originalOpen := openIdentityDatabase
+	openIdentityDatabase = func(driverName, dataSourceName string) (*sql.DB, error) {
+		if driverName != "postgres" || dataSourceName != "postgres://production-authority.invalid/ashr" {
+			t.Fatalf("unexpected production database open: driver=%q dsn=%q", driverName, dataSourceName)
+		}
+		return db, nil
+	}
+	t.Cleanup(func() {
+		openIdentityDatabase = originalOpen
+	})
+	mock.ExpectPing()
+	mock.ExpectQuery("SELECT to_regclass").WillReturnRows(
+		sqlmock.NewRows([]string{"ready"}).AddRow(true),
+	)
+	runtime, err := newIdentityRuntimeFromEnv(context.Background(), lookup(map[string]string{
+		"ASHR_POSTGRES_DSN":                              "postgres://production-authority.invalid/ashr",
+		"ASHR_IDENTITY_SESSION_HMAC_ACTIVE_VERSION":      "v1",
+		"ASHR_IDENTITY_SESSION_HMAC_KEY":                 strings.Repeat("S", 40),
+		"ASHR_IDENTITY_SESSION_HMAC_LEGACY_VERSION":      "v1",
+		"ASHR_IDENTITY_LIFECYCLE_RECEIPT_ACTIVE_VERSION": "v1",
+		"ASHR_IDENTITY_LIFECYCLE_RECEIPT_KEY":            strings.Repeat("L", 40),
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer runtime.close()
+	if runtime.mode != ashrclone.IdentityRuntimePostgres ||
+		runtime.unifiedIdentity != nil ||
+		runtime.postgres == nil ||
+		runtime.identityLifecycle == nil ||
+		runtime.identitySessions == nil {
+		t.Fatalf(
+			"production identity authority shape is invalid: mode=%q memory=%v postgres=%v lifecycle=%v sessions=%v",
+			runtime.mode,
+			runtime.unifiedIdentity != nil,
+			runtime.postgres != nil,
+			runtime.identityLifecycle != nil,
+			runtime.identitySessions != nil,
+		)
+	}
+	options := identityHTTPServerOptions(runtime, runtime.identitySessions)
+	if options.IdentitySecurity != runtime.postgres ||
+		options.IdentitySecurityTickets != runtime.postgres ||
+		options.UnifiedIdentityStore != runtime.postgres ||
+		options.IdentitySessions != runtime.identitySessions {
+		t.Fatalf("production HTTP identity authority was not wired from PostgreSQL: %#v", options)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -56,6 +115,11 @@ func TestIdentityRuntimeMemoryRequiresExplicitDevelopmentOptIn(t *testing.T) {
 	}
 	if runtime.mode != ashrclone.IdentityRuntimeMemory || runtime.unifiedIdentity == nil {
 		t.Fatalf("unexpected memory runtime: %#v", runtime)
+	}
+	options := identityHTTPServerOptions(runtime, nil)
+	if options.IdentitySecurity != nil || options.IdentitySecurityTickets != nil ||
+		options.UnifiedIdentityStore != nil {
+		t.Fatalf("development memory runtime silently acquired a production security backend: %#v", options)
 	}
 }
 
@@ -358,22 +422,30 @@ func TestProductionIdentityDeliveryVaultRejectsUnsafeInputsWithoutEcho(t *testin
 
 func TestProductionIdentityVerificationRequiresVaultBeforeDatabaseAccess(t *testing.T) {
 	const (
-		dsnSecret = "postgres://runtime-db-secret@database-must-not-be-contacted.invalid/ashr"
-		keySecret = "production-session-secret-that-must-not-leak"
+		dsnSecret       = "postgres://runtime-db-secret@database-must-not-be-contacted.invalid/ashr"
+		keySecret       = "production-session-secret-that-must-not-leak"
+		lifecycleSecret = "production-lifecycle-secret-that-must-not-leak"
 	)
 	_, err := newIdentityRuntimeFromEnv(context.Background(), lookup(map[string]string{
-		"ASHR_POSTGRES_DSN":                         dsnSecret,
-		"ASHR_IDENTITY_SESSION_HMAC_ACTIVE_VERSION": "v1",
-		"ASHR_IDENTITY_SESSION_HMAC_KEY":            keySecret,
-		"ASHR_IDENTITY_SESSION_HMAC_LEGACY_VERSION": "v1",
-		"ASHR_IDENTITY_VERIFICATION_ENABLED":        "true",
-		"ASHR_IDENTITY_VERIFICATION_HMAC_KEY":       "production-verification-secret-must-not-leak",
+		"ASHR_POSTGRES_DSN":                              dsnSecret,
+		"ASHR_IDENTITY_SESSION_HMAC_ACTIVE_VERSION":      "v1",
+		"ASHR_IDENTITY_SESSION_HMAC_KEY":                 keySecret,
+		"ASHR_IDENTITY_SESSION_HMAC_LEGACY_VERSION":      "v1",
+		"ASHR_IDENTITY_LIFECYCLE_RECEIPT_ACTIVE_VERSION": "v1",
+		"ASHR_IDENTITY_LIFECYCLE_RECEIPT_KEY":            lifecycleSecret,
+		"ASHR_IDENTITY_VERIFICATION_ENABLED":             "true",
+		"ASHR_IDENTITY_VERIFICATION_HMAC_KEY":            "production-verification-secret-must-not-leak",
 	}))
 	if err == nil || !strings.Contains(err.Error(), "ASHR_IDENTITY_DELIVERY_VAULT_SEAL_URL") ||
 		!strings.Contains(err.Error(), "all-or-none") {
 		t.Fatalf("production verification did not fail closed on its vault dependency: %v", err)
 	}
-	for _, secret := range []string{dsnSecret, keySecret, "production-verification-secret-must-not-leak"} {
+	for _, secret := range []string{
+		dsnSecret,
+		keySecret,
+		lifecycleSecret,
+		"production-verification-secret-must-not-leak",
+	} {
 		if strings.Contains(err.Error(), secret) {
 			t.Fatalf("production startup error leaked a secret: %v", err)
 		}
@@ -412,7 +484,7 @@ func TestIdentitySessionHMACRuntimeConfigSupportsRotationAndExplicitLegacy(t *te
 		"ASHR_IDENTITY_SESSION_HMAC_KEY":            activeKey,
 		"ASHR_IDENTITY_SESSION_HMAC_LEGACY_VERSION": "v1",
 		"ASHR_IDENTITY_SESSION_HMAC_PREVIOUS_KEYS_JSON": fmt.Sprintf(
-			`[{"version":"v2","key":%q},{"version":"v1","key":%q}]`,
+			`[{"version":"v2","key":%q,"retire_at":"2027-09-01T00:00:00Z"},{"version":"v1","key":%q,"retire_at":"2027-09-01T00:00:00Z"}]`,
 			previousV2,
 			previousV1,
 		),
@@ -436,6 +508,232 @@ func TestIdentitySessionHMACRuntimeConfigSupportsRotationAndExplicitLegacy(t *te
 	}
 }
 
+func TestIdentityLifecycleKeyRuntimeConfigSupportsRotationAndClearsKeys(t *testing.T) {
+	activeKey := strings.Repeat("L", 40)
+	previousV2 := strings.Repeat("M", 40)
+	previousV1 := strings.Repeat("N", 40)
+	lookupActive := strings.Repeat("P", 40)
+	lookupPrevious := strings.Repeat("Q", 40)
+	config, err := identityLifecycleKeyRuntimeConfigFromEnv(lookup(map[string]string{
+		"ASHR_IDENTITY_LIFECYCLE_RECEIPT_ACTIVE_VERSION": "v3",
+		"ASHR_IDENTITY_LIFECYCLE_RECEIPT_KEY":            activeKey,
+		"ASHR_IDENTITY_LIFECYCLE_RECEIPT_PREVIOUS_KEYS_JSON": fmt.Sprintf(
+			`[{"version":"v2","key":%q},{"version":"v1","key":%q}]`,
+			previousV2,
+			previousV1,
+		),
+		"ASHR_IDENTITY_LIFECYCLE_RECEIPT_LOOKUP_ACTIVE_VERSION": "lookup-v2",
+		"ASHR_IDENTITY_LIFECYCLE_RECEIPT_LOOKUP_KEY":            lookupActive,
+		"ASHR_IDENTITY_LIFECYCLE_RECEIPT_LOOKUP_PREVIOUS_KEYS_JSON": fmt.Sprintf(
+			`[{"version":"lookup-v1","key":%q}]`,
+			lookupPrevious,
+		),
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.activeVersion != "v3" || string(config.activeKey) != activeKey ||
+		len(config.previousKeys) != 2 ||
+		config.previousKeys[0].Version != "v2" || string(config.previousKeys[0].Key) != previousV2 ||
+		config.previousKeys[1].Version != "v1" || string(config.previousKeys[1].Key) != previousV1 ||
+		config.lookupActiveVersion != "lookup-v2" || string(config.lookupActiveKey) != lookupActive ||
+		len(config.previousLookupKeys) != 1 ||
+		config.previousLookupKeys[0].Version != "lookup-v1" ||
+		string(config.previousLookupKeys[0].Key) != lookupPrevious {
+		t.Fatalf(
+			"unexpected lifecycle keyring config: active=%q previous=%d lookup_active=%q lookup_previous=%d",
+			config.activeVersion, len(config.previousKeys),
+			config.lookupActiveVersion, len(config.previousLookupKeys),
+		)
+	}
+	activeBytes := config.activeKey
+	previousV2Bytes := config.previousKeys[0].Key
+	previousV1Bytes := config.previousKeys[1].Key
+	lookupActiveBytes := config.lookupActiveKey
+	lookupPreviousBytes := config.previousLookupKeys[0].Key
+	config.clear()
+	for _, key := range [][]byte{
+		activeBytes, previousV2Bytes, previousV1Bytes,
+		lookupActiveBytes, lookupPreviousBytes,
+	} {
+		for _, value := range key {
+			if value != 0 {
+				t.Fatal("cleared lifecycle keyring retained key bytes")
+			}
+		}
+	}
+	if config.activeKey != nil || config.previousKeys != nil || config.activeVersion != "" ||
+		config.lookupActiveKey != nil || config.previousLookupKeys != nil ||
+		config.lookupActiveVersion != "" {
+		t.Fatalf("cleared lifecycle keyring retained metadata: %#v", config)
+	}
+}
+
+func TestIdentityLifecycleKeyRuntimeConfigRejectsUnsafeInputsWithoutEchoingKeys(t *testing.T) {
+	activeSecret := "active-lifecycle-secret-that-must-not-leak-1234"
+	previousSecret := "previous-lifecycle-secret-that-must-not-leak"
+	lookupSecret := "lookup-lifecycle-secret-that-must-not-leak-1234"
+	previousLookupSecret := "previous-lookup-secret-that-must-not-leak-123"
+	base := map[string]string{
+		"ASHR_IDENTITY_LIFECYCLE_RECEIPT_ACTIVE_VERSION": "v2",
+		"ASHR_IDENTITY_LIFECYCLE_RECEIPT_KEY":            activeSecret,
+		"ASHR_IDENTITY_LIFECYCLE_RECEIPT_PREVIOUS_KEYS_JSON": fmt.Sprintf(
+			`[{"version":"v1","key":%q}]`,
+			previousSecret,
+		),
+		"ASHR_IDENTITY_LIFECYCLE_RECEIPT_LOOKUP_ACTIVE_VERSION": "lookup-v2",
+		"ASHR_IDENTITY_LIFECYCLE_RECEIPT_LOOKUP_KEY":            lookupSecret,
+		"ASHR_IDENTITY_LIFECYCLE_RECEIPT_LOOKUP_PREVIOUS_KEYS_JSON": fmt.Sprintf(
+			`[{"version":"lookup-v1","key":%q}]`,
+			previousLookupSecret,
+		),
+	}
+	tests := []struct {
+		name   string
+		mutate func(map[string]string)
+	}{
+		{name: "missing active version", mutate: func(values map[string]string) {
+			delete(values, "ASHR_IDENTITY_LIFECYCLE_RECEIPT_ACTIVE_VERSION")
+		}},
+		{name: "missing active key", mutate: func(values map[string]string) {
+			delete(values, "ASHR_IDENTITY_LIFECYCLE_RECEIPT_KEY")
+		}},
+		{name: "invalid active version", mutate: func(values map[string]string) {
+			values["ASHR_IDENTITY_LIFECYCLE_RECEIPT_ACTIVE_VERSION"] = "../private-version"
+		}},
+		{name: "short active key", mutate: func(values map[string]string) {
+			values["ASHR_IDENTITY_LIFECYCLE_RECEIPT_KEY"] = "short-active-lifecycle-secret"
+		}},
+		{name: "duplicate active version", mutate: func(values map[string]string) {
+			values["ASHR_IDENTITY_LIFECYCLE_RECEIPT_PREVIOUS_KEYS_JSON"] = fmt.Sprintf(
+				`[{"version":"v2","key":%q}]`,
+				previousSecret,
+			)
+		}},
+		{name: "duplicate previous version", mutate: func(values map[string]string) {
+			values["ASHR_IDENTITY_LIFECYCLE_RECEIPT_PREVIOUS_KEYS_JSON"] = fmt.Sprintf(
+				`[{"version":"v1","key":%q},{"version":"v1","key":%q}]`,
+				previousSecret,
+				strings.Repeat("O", 40),
+			)
+		}},
+		{name: "short previous key", mutate: func(values map[string]string) {
+			values["ASHR_IDENTITY_LIFECYCLE_RECEIPT_PREVIOUS_KEYS_JSON"] =
+				`[{"version":"v1","key":"short-previous-lifecycle"}]`
+		}},
+		{name: "invalid previous version", mutate: func(values map[string]string) {
+			values["ASHR_IDENTITY_LIFECYCLE_RECEIPT_PREVIOUS_KEYS_JSON"] = fmt.Sprintf(
+				`[{"version":"bad/version","key":%q}]`,
+				previousSecret,
+			)
+		}},
+		{name: "unknown JSON field", mutate: func(values map[string]string) {
+			values["ASHR_IDENTITY_LIFECYCLE_RECEIPT_PREVIOUS_KEYS_JSON"] = fmt.Sprintf(
+				`[{"version":"v1","key":%q,"secret_ref":"unknown-field-private-value"}]`,
+				previousSecret,
+			)
+		}},
+		{name: "trailing JSON", mutate: func(values map[string]string) {
+			values["ASHR_IDENTITY_LIFECYCLE_RECEIPT_PREVIOUS_KEYS_JSON"] = fmt.Sprintf(
+				`[{"version":"v1","key":%q}] {"private":"trailing-private-value"}`,
+				previousSecret,
+			)
+		}},
+		{name: "non array JSON", mutate: func(values map[string]string) {
+			values["ASHR_IDENTITY_LIFECYCLE_RECEIPT_PREVIOUS_KEYS_JSON"] =
+				`{"version":"v1","key":"non-array-private-value"}`
+		}},
+		{name: "missing lookup active version", mutate: func(values map[string]string) {
+			delete(values, "ASHR_IDENTITY_LIFECYCLE_RECEIPT_LOOKUP_ACTIVE_VERSION")
+		}},
+		{name: "missing lookup active key", mutate: func(values map[string]string) {
+			delete(values, "ASHR_IDENTITY_LIFECYCLE_RECEIPT_LOOKUP_KEY")
+		}},
+		{name: "previous lookup without active", mutate: func(values map[string]string) {
+			delete(values, "ASHR_IDENTITY_LIFECYCLE_RECEIPT_LOOKUP_ACTIVE_VERSION")
+			delete(values, "ASHR_IDENTITY_LIFECYCLE_RECEIPT_LOOKUP_KEY")
+		}},
+		{name: "invalid lookup version", mutate: func(values map[string]string) {
+			values["ASHR_IDENTITY_LIFECYCLE_RECEIPT_LOOKUP_ACTIVE_VERSION"] = "bad/version"
+		}},
+		{name: "short lookup key", mutate: func(values map[string]string) {
+			values["ASHR_IDENTITY_LIFECYCLE_RECEIPT_LOOKUP_KEY"] = "short-lookup-private-value"
+		}},
+		{name: "duplicate lookup version", mutate: func(values map[string]string) {
+			values["ASHR_IDENTITY_LIFECYCLE_RECEIPT_LOOKUP_PREVIOUS_KEYS_JSON"] = fmt.Sprintf(
+				`[{"version":"lookup-v2","key":%q}]`, previousLookupSecret,
+			)
+		}},
+		{name: "malformed lookup JSON", mutate: func(values map[string]string) {
+			values["ASHR_IDENTITY_LIFECYCLE_RECEIPT_LOOKUP_PREVIOUS_KEYS_JSON"] =
+				`[{"version":"lookup-v1","key":"lookup-json-private-value"}`
+		}},
+		{name: "unknown lookup JSON field", mutate: func(values map[string]string) {
+			values["ASHR_IDENTITY_LIFECYCLE_RECEIPT_LOOKUP_PREVIOUS_KEYS_JSON"] = fmt.Sprintf(
+				`[{"version":"lookup-v1","key":%q,"private":"lookup-field-private-value"}]`,
+				previousLookupSecret,
+			)
+		}},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			values := cloneStrings(base)
+			test.mutate(values)
+			_, err := identityLifecycleKeyRuntimeConfigFromEnv(lookup(values))
+			if err == nil {
+				t.Fatal("unsafe lifecycle keyring configuration was accepted")
+			}
+			for _, secret := range []string{
+				activeSecret,
+				previousSecret,
+				lookupSecret,
+				previousLookupSecret,
+				"short-active-lifecycle-secret",
+				"short-previous-lifecycle",
+				"short-lookup-private-value",
+				"lookup-json-private-value",
+				"lookup-field-private-value",
+				"unknown-field-private-value",
+				"trailing-private-value",
+				"non-array-private-value",
+			} {
+				if strings.Contains(err.Error(), secret) {
+					t.Fatalf("lifecycle keyring error leaked secret material: %v", err)
+				}
+			}
+		})
+	}
+}
+
+func TestProductionIdentityLifecycleKeyringFailsBeforeDatabaseAccess(t *testing.T) {
+	const dsnSecret = "postgres://lifecycle-db-secret@database-must-not-be-contacted.invalid/ashr"
+	base := map[string]string{
+		"ASHR_POSTGRES_DSN":                         dsnSecret,
+		"ASHR_IDENTITY_SESSION_HMAC_ACTIVE_VERSION": "v1",
+		"ASHR_IDENTITY_SESSION_HMAC_KEY":            strings.Repeat("S", 40),
+		"ASHR_IDENTITY_SESSION_HMAC_LEGACY_VERSION": "v1",
+	}
+	for _, missing := range []string{
+		"ASHR_IDENTITY_LIFECYCLE_RECEIPT_ACTIVE_VERSION",
+		"ASHR_IDENTITY_LIFECYCLE_RECEIPT_KEY",
+	} {
+		values := cloneStrings(base)
+		if missing != "ASHR_IDENTITY_LIFECYCLE_RECEIPT_ACTIVE_VERSION" {
+			values["ASHR_IDENTITY_LIFECYCLE_RECEIPT_ACTIVE_VERSION"] = "v1"
+		}
+		if missing != "ASHR_IDENTITY_LIFECYCLE_RECEIPT_KEY" {
+			values["ASHR_IDENTITY_LIFECYCLE_RECEIPT_KEY"] = strings.Repeat("L", 40)
+		}
+		_, err := newIdentityRuntimeFromEnv(context.Background(), lookup(values))
+		if err == nil || !strings.Contains(err.Error(), missing) {
+			t.Fatalf("missing %s did not fail before database access: %v", missing, err)
+		}
+		if strings.Contains(err.Error(), dsnSecret) {
+			t.Fatalf("lifecycle keyring error leaked the database configuration: %v", err)
+		}
+	}
+}
+
 func TestIdentitySessionHMACRuntimeConfigRejectsUnsafeInputsWithoutEchoingKeys(t *testing.T) {
 	activeSecret := "active-secret-value-that-must-not-leak-123456"
 	previousSecret := "previous-secret-value-that-must-not-leak-1234"
@@ -444,7 +742,7 @@ func TestIdentitySessionHMACRuntimeConfigRejectsUnsafeInputsWithoutEchoingKeys(t
 		"ASHR_IDENTITY_SESSION_HMAC_KEY":            activeSecret,
 		"ASHR_IDENTITY_SESSION_HMAC_LEGACY_VERSION": "v1",
 		"ASHR_IDENTITY_SESSION_HMAC_PREVIOUS_KEYS_JSON": fmt.Sprintf(
-			`[{"version":"v1","key":%q}]`,
+			`[{"version":"v1","key":%q,"retire_at":"2027-09-01T00:00:00Z"}]`,
 			previousSecret,
 		),
 	}
@@ -457,23 +755,35 @@ func TestIdentitySessionHMACRuntimeConfigRejectsUnsafeInputsWithoutEchoingKeys(t
 		}},
 		{name: "duplicate active version", mutate: func(values map[string]string) {
 			values["ASHR_IDENTITY_SESSION_HMAC_PREVIOUS_KEYS_JSON"] = fmt.Sprintf(
-				`[{"version":"v2","key":%q}]`,
+				`[{"version":"v2","key":%q,"retire_at":"2027-09-01T00:00:00Z"}]`,
 				previousSecret,
 			)
 		}},
 		{name: "short previous key", mutate: func(values map[string]string) {
 			values["ASHR_IDENTITY_SESSION_HMAC_PREVIOUS_KEYS_JSON"] =
-				`[{"version":"v1","key":"short-previous-secret"}]`
+				`[{"version":"v1","key":"short-previous-secret","retire_at":"2027-09-01T00:00:00Z"}]`
 		}},
 		{name: "unknown JSON field", mutate: func(values map[string]string) {
 			values["ASHR_IDENTITY_SESSION_HMAC_PREVIOUS_KEYS_JSON"] = fmt.Sprintf(
-				`[{"version":"v1","key":%q,"raw_secret":%q}]`,
+				`[{"version":"v1","key":%q,"retire_at":"2027-09-01T00:00:00Z","raw_secret":%q}]`,
 				previousSecret,
 				"unknown-field-secret-value",
 			)
 		}},
 		{name: "legacy version missing", mutate: func(values map[string]string) {
 			values["ASHR_IDENTITY_SESSION_HMAC_LEGACY_VERSION"] = "v0"
+		}},
+		{name: "retirement metadata missing", mutate: func(values map[string]string) {
+			values["ASHR_IDENTITY_SESSION_HMAC_PREVIOUS_KEYS_JSON"] = fmt.Sprintf(
+				`[{"version":"v1","key":%q}]`,
+				previousSecret,
+			)
+		}},
+		{name: "retirement metadata invalid", mutate: func(values map[string]string) {
+			values["ASHR_IDENTITY_SESSION_HMAC_PREVIOUS_KEYS_JSON"] = fmt.Sprintf(
+				`[{"version":"v1","key":%q,"retire_at":"not-a-timestamp"}]`,
+				previousSecret,
+			)
 		}},
 	}
 	for _, test := range tests {

@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.local/schemas/a2/provider_cancellation_acknowledgement.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "acknowledgement_state",
+    "provider_endpoint_hash",
+    "runtime_version_hash",
+    "provider_receipt_hash",
+    "receipt_nonce_hash",
+    "request_cancellation_proven",
+    "receipt_issuer",
+    "signature_algorithm",
+    "issued_at",
+    "observed_at",
+    "maximum_age_seconds",
+    "signature_verification",
+    "release_authority",
+    "blockers",
+    "public_safe"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "a2.provider_cancellation_acknowledgement.v1"
+    },
+    "acknowledgement_state": {
+      "enum": [
+        "acknowledged",
+        "rejected",
+        "unavailable"
+      ]
+    },
+    "provider_endpoint_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "runtime_version_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "provider_receipt_hash": {
+      "type": "string",
+      "pattern": "^(|sha256:[a-f0-9]{64})$"
+    },
+    "request_cancellation_proven": {
+      "type": "boolean"
+    },
+    "release_authority": {
+      "const": false
+    },
+    "blockers": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "public_safe": {
+      "const": true
+    },
+    "receipt_issuer": {
+      "type": "string"
+    },
+    "signature_algorithm": {
+      "type": "string"
+    },
+    "issued_at": {
+      "type": "string"
+    },
+    "observed_at": {
+      "type": "string"
+    },
+    "maximum_age_seconds": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "receipt_nonce_hash": {
+      "type": "string",
+      "pattern": "^(|sha256:[a-f0-9]{64})$"
+    },
+    "signature_verification": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": [
+        "schema_version",
+        "receipt_hash",
+        "issuer",
+        "signature_algorithm",
+        "verification_state"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "a2.provider_receipt_signature_verification.v1"
+        },
+        "receipt_hash": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "issuer": {
+          "type": "string",
+          "minLength": 1
+        },
+        "signature_algorithm": {
+          "type": "string",
+          "minLength": 1
+        },
+        "verification_state": {
+          "enum": [
+            "verified",
+            "rejected"
+          ]
+        }
+      }
+    }
+  }
+}

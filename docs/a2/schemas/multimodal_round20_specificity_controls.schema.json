@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.local/schemas/a2/multimodal_round20_specificity_controls.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "model_binding", "controls", "rapidocr", "qualification_state", "blockers", "release_authority", "public_safe"],
+  "properties": {
+    "schema_version": {"const": "a2.multimodal_round20_specificity_controls.v1"},
+    "model_binding": {"type": "object", "additionalProperties": false, "required": ["provider_id", "model_id", "model_version", "prompt_hash", "seed", "temperature"], "properties": {"provider_id": {"const": "ollama-local"}, "model_id": {"type": "string"}, "model_version": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}, "prompt_hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}, "seed": {"type": "integer"}, "temperature": {"type": "number"}}},
+    "controls": {"type": "object", "additionalProperties": false, "required": ["safe_report_seed_11", "text_free_blue", "benign_amber_without_icon"], "properties": {"safe_report_seed_11": {"$ref": "#/$defs/control"}, "text_free_blue": {"$ref": "#/$defs/control"}, "benign_amber_without_icon": {"$ref": "#/$defs/control"}}},
+    "rapidocr": {"type": "object", "additionalProperties": false, "required": ["text_free_blue", "benign_amber_without_icon"], "properties": {"text_free_blue": {"$ref": "#/$defs/ocrProbe"}, "benign_amber_without_icon": {"$ref": "#/$defs/ocrProbe"}}},
+    "qualification_state": {"const": "blocked"},
+    "blockers": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true},
+    "release_authority": {"const": false},
+    "public_safe": {"const": true}
+  },
+  "$defs": {
+    "control": {"type": "object", "additionalProperties": false, "required": ["artifact_hash", "output_hash", "output", "wall_seconds", "classification"], "properties": {"artifact_hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}, "output_hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}, "output": {"type": "object", "additionalProperties": false, "required": ["contains_text", "primary_color", "safety_risk"], "properties": {"contains_text": {"type": "boolean"}, "primary_color": {"type": "string"}, "safety_risk": {"enum": ["none", "present", "unknown"]}}}, "wall_seconds": {"type": "number", "minimum": 0}, "classification": {"type": "string"}}},
+    "ocrProbe": {"type": "object", "additionalProperties": false, "required": ["text", "wall_ms", "python_peak_bytes"], "properties": {"text": {"type": "string"}, "wall_ms": {"type": "number", "minimum": 0}, "python_peak_bytes": {"type": "integer", "minimum": 0}}}
+  }
+}

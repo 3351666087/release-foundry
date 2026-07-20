@@ -204,6 +204,7 @@ pub struct VerificationPolicy {
     pub max_lifetime_ms: u64,
     pub expected_tenant_digest: Option<String>,
     pub expected_project_digest: Option<String>,
+    pub expected_bundle_id_digest: Option<String>,
 }
 
 impl VerificationPolicy {
@@ -213,6 +214,7 @@ impl VerificationPolicy {
             max_lifetime_ms: 15 * 60 * 1000,
             expected_tenant_digest: None,
             expected_project_digest: None,
+            expected_bundle_id_digest: None,
         }
     }
 }
@@ -1063,6 +1065,16 @@ fn validate_bundle_policy(
             != 1
         {
             return Err(VerifyError::ScopeMismatch("project_digest"));
+        }
+    }
+    if let Some(expected) = policy.expected_bundle_id_digest.as_deref() {
+        if expected
+            .as_bytes()
+            .ct_eq(bundle.bundle_id_digest.as_bytes())
+            .unwrap_u8()
+            != 1
+        {
+            return Err(VerifyError::ScopeMismatch("bundle_id_digest"));
         }
     }
     Ok(())

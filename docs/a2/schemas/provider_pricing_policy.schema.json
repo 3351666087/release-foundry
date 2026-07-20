@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.local/schemas/a2/provider_pricing_policy.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "provider_id", "model_id", "currency",
+    "input_usd_per_million_tokens", "output_usd_per_million_tokens",
+    "effective_at", "retrieved_at", "source_class", "source_uri_hash",
+    "content_hash", "release_authority", "public_safe"
+  ],
+  "properties": {
+    "schema_version": {"const": "a2.provider_pricing_policy.v1"},
+    "provider_id": {"type": "string", "minLength": 1},
+    "model_id": {"type": "string", "minLength": 1},
+    "region": {"type": "string", "minLength": 1},
+    "currency": {"const": "USD"},
+    "input_usd_per_million_tokens": {"type": "number", "minimum": 0},
+    "output_usd_per_million_tokens": {"type": "number", "minimum": 0},
+    "effective_at": {"type": "string", "format": "date-time"},
+    "expires_at": {"type": "string", "format": "date-time"},
+    "retrieved_at": {"type": "string", "format": "date-time"},
+    "source_class": {"type": "string", "minLength": 1},
+    "source_uri_hash": {
+      "type": "string", "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "content_hash": {
+      "type": "string", "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "release_authority": {"const": false},
+    "public_safe": {"const": true}
+  }
+}

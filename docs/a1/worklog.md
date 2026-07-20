@@ -327,6 +327,129 @@ Real API calibration addendum:
 - Private evidence path is ignored and must not be staged: `docs/evidence/private_refs/a1_round_ts316_go_key_quota_readonly_20260709_131208.json`.
 - Raw key remained env-only; no desktop key file was read.
 
+## 2026-07-14 - Durable provider request journal and fenced recovery
+
+Round goal:
+- Add Python and TypeScript provider-call journals for non-idempotent commercial
+  operations.
+- Fail closed after restart, stale leases, ambiguous completion, or partial
+  streaming.
+- Prevent same-process duplicate TypeScript execution and stale-owner
+  completion overwrite.
+- Persist only bounded, public-safe five-modality evidence.
+
+Implemented / integrated files:
+- `packages/sdk/ashr_clone/provider_journal.py`
+- `packages/sdk/ashr_clone/__init__.py`
+- `packages/ts/ashr-clone/src/provider-request-journal.ts`
+- `packages/ts/ashr-clone/src/index.ts`
+- `tests/a1/test_provider_journal.py`
+- `tests/a1/test_provider_journal_adversarial_round58.py`
+- `packages/ts/ashr-clone/test/provider-request-journal.test.mjs`
+- `packages/ts/ashr-clone/test/provider-request-journal-adversarial-round58.test.mjs`
+- `tests/a1/docs/a1/ts_python_gap_matrix.json`
+- `docs/a1/evidence/round58_provider_request_journal.md`
+
+Validation:
+- Focused Python provider-journal tests: `24 passed`.
+- Full TypeScript SDK suite after fencing fixes: `329 passed`, no failures,
+  skips, or TODO tests.
+- Full Python A1 suite reached `336 passed`, `1 skipped`; the only failure was
+  the expected generated TS/Python parity artifact drift caused by the new
+  exports. The artifact was regenerated and its focused test passed.
+
+Safety and recovery:
+- Persisted active Python requests recover as `indeterminate`, with lease owner
+  and expiry removed and restart evidence recorded.
+- Stream-observed requests cannot enter automatic retry through either normal
+  scheduling or reconciliation.
+- TypeScript coordinates active executions per journal key, waits for the
+  current owner to settle before rejecting a duplicate, and uses token identity
+  so an obsolete owner cannot remove or overwrite a newer fence.
+- Persisted evidence excludes raw idempotency keys, prompts, media, provider
+  URLs, credentials, and lease owners.
+- Python and TypeScript behavioral guarantees are aligned, but their current
+  local snapshot layouts are explicitly implementation-private and not claimed
+  as cross-language wire-compatible.
+
+## 2026-07-14 - Canonical identity, OAuth security, and SDK client parity
+
+Round goal:
+- Separate registration from login across the Go authority and A3-facing
+  Python/TypeScript clients.
+- Establish one canonical account with explicit multi-credential binding,
+  domestic email-first defaults, optional/recommended MFA, and retained
+  QQ/WeChat OAuth capability surfaces.
+- Add rotation-aware identity schema/RLS foundations and complete cross-language
+  contract validation without exposing credentials or OAuth artifacts.
+
+Implemented / integrated files:
+- `packages/go/ashrclone/identity.go`
+- `packages/go/ashrclone/identity_http.go`
+- `packages/go/ashrclone/identity_oauth.go`
+- `packages/go/ashrclone/identity_test.go`
+- `packages/go/ashrclone/identity_http_test.go`
+- `packages/go/ashrclone/identity_oauth_test.go`
+- `packages/go/ashrclone/server.go`
+- `packages/sdk/ashr_clone/identity_client.py`
+- `packages/sdk/ashr_clone/__init__.py`
+- `tests/a1/test_identity_client.py`
+- `packages/ts/ashr-clone/src/identity-client.ts`
+- `packages/ts/ashr-clone/src/index.ts`
+- `packages/ts/ashr-clone/test/identity-client.test.mjs`
+- `docs/a1/schemas/a1_control_plane_postgres_migration.sql`
+- `packages/go/ashrclone/postgres.go`
+- `packages/go/ashrclone/postgres_test.go`
+- `tests/a1/test_a1_control_plane_postgres_migration.py`
+- `tests/integration/test_a1_control_plane_identity_migration_live.py`
+- `tests/a1/ts_python_parity_matrix.py`
+- `tests/a1/test_ts_python_gap_matrix.py`
+- `tests/a1/docs/a1/ts_python_gap_matrix.json`
+- `docs/a1/evidence/go_python_ts_route_parity_snapshot.json`
+- `docs/a1/evidence/round60_identity_client_oauth_parity.md`
+
+Security / contract results:
+- Registration and login use separate routes and challenge purposes.
+- OAuth login and explicit link are separate; verified-email equality never
+  silently links or merges canonical accounts.
+- Link mode requires an authenticated session; credential binding additionally
+  requires an opaque account-bound proof and explicit consent.
+- QQ/WeChat capability metadata is typed while PKCE S256, one-time HMAC state,
+  exact redirect allowlists, no-store responses, and authority mismatch checks
+  fail closed.
+- Python and TypeScript safe serialization excludes session tokens, binding
+  proofs, and OAuth authorization URLs while transports can still use them.
+- PostgreSQL schema/RLS foundations store only ciphertext or keyed hashes for
+  delivery targets, challenge secrets, sessions, and provider subjects.
+
+Validation:
+- `python -B tests/a1/ts_python_parity_matrix.py --check` -> passed.
+- Go/Python/TS route evidence test -> `8 passed`.
+- Full Python A1 suite -> `343 passed`, `1 skipped`.
+- Full TypeScript SDK suite -> `333 passed`, no failures/skips/TODOs.
+- `go test ./...` in `packages/go/ashrclone` -> passed.
+- Live PostgreSQL identity migration/RLS test -> `1 skipped` because
+  `A1_POSTGRES_TEST_DSN` was not configured; no live database pass is claimed.
+- `git diff --check` -> passed with line-ending warnings only.
+- Go race validation remains blocked: CGO is disabled by default, and
+  `CGO_ENABLED=1 go test -race ./...` cannot build because `gcc` is absent.
+
+Known gaps:
+1. The identity authority still uses in-memory runtime state; implement and wire
+   the PostgreSQL identity repository.
+2. Complete production delivery-target encryption and key-provider-backed
+   rotation/migration, not only rotation-ready schema fields and in-memory HMAC
+   lifecycle.
+3. Run live PostgreSQL migration idempotency and RLS isolation with
+   `A1_POSTGRES_TEST_DSN`.
+4. Add database concurrency tests for one-time challenge/session/binding use and
+   credential uniqueness.
+5. Add compiled-Go HTTP smoke from both Python and TypeScript identity clients.
+6. Install a supported C compiler and run the Go race suite.
+7. Add production QQ/WeChat provider adapters while retaining current redirect,
+   PKCE, state, explicit-link, and redaction guardrails.
+8. Overall A1 remains in progress.
+
 ## 2026-07-09 - Worker-Evidence-API public-safe WSL/API evidence
 
 Round goal:
@@ -2560,3 +2683,826 @@ Next commercial A1 growth points from the first audit:
 22. Require changed quota evidence before another controlled mutation.
 23. Produce SBOM and provenance artifacts.
 24. Bind validation attestation to the published commit.
+
+## Round 54: Multi-Instance Session Safety, Trusted Ingestion, And Deployability
+
+Date: 2026-07-11
+
+Round status at start: active. Round 53 is published at `c7841635`; hosted CL
+Gate run `29155743153` is fully green, including Linux Python, Go, TypeScript,
+Rust, plan/hygiene, and summary jobs. The long-running commercial A1 goal
+remains active.
+
+Start-of-round repository and peer calibration:
+
+- Repository: `3351666087/ashr-codex-factory`; local branch
+  `codex/a1-local-sdk-runner-clean`; publication ref
+  `origin/codex/a1-local-sdk-runner`; draft PR `#31` is `CLEAN`.
+- `git fetch origin '+refs/heads/*:refs/remotes/origin/*' --prune --tags`,
+  `git status -sb`, `gh repo view`, and `gh pr list --state all` completed.
+- `origin/main` is `5dbf4ee2`; the A1 publication branch is 15 commits ahead.
+- A2 advanced from `97141b4b` to `47c05e5a`. The reviewed peer impact is an
+  A2-owned trusted evidence snapshot and append-only decision-ledger spine.
+  A1 must supply tenant/project/run/case/scenario facts and public-safe hashes,
+  while A2 remains authoritative for evaluation semantics and release decisions.
+- A3 advanced from `f33144cf` to `2250254b`. The reviewed peer impact is a
+  unified identity entry flow and API-reference contract request. A1 must make
+  browser verification completable using a server-owned, non-secret context;
+  no A3 file will be modified or staged by this round.
+- Five peer-owned `fixtures/a2/results/*.json` files contain CRLF-only working
+  tree noise. They remain unstaged and are excluded from every A1 manifest.
+- Official-product fallback is fixed as in-app Browser, then Chrome, then the
+  static frontend mirror at
+  `C:\Users\33516\Desktop\Ashr_frontend_mirror_20260707_125507.zip`.
+  Controller failure is evidence, not permission to guess official behavior.
+
+Round 54 executable growth points and ownership:
+
+1. Enforce minimum previous-session-key retention against live token lifetime.
+2. Reject duplicate, active-key, and unsafe legacy key-version configurations.
+3. Expose public-safe session-key retirement readiness and bounded metrics.
+4. Add refresh SQL statement, transaction, and row-lock deadlines.
+5. Prove identical-retry and conflicting-reuse behavior across independent DB clients.
+6. Define a Go-to-Rust authenticated streaming verifier process contract.
+7. Stream artifact bytes without loading the evidence bundle into memory.
+8. Bind verifier input to tenant/project/run, manifest hash, mutation anchor, and size caps.
+9. Fail closed on verifier timeout, malformed output, symlink/path escape, and digest mismatch.
+10. Add Python browser-session login, refresh, logout, and revoke-all client surfaces.
+11. Add executable TypeScript parity for the same browser-session surfaces.
+12. Preserve exact replacement cookie expiry and Max-Age under custom configured caps.
+13. Generate a browser-session OpenAPI security contract with stable error envelopes.
+14. Add Python/TypeScript/Go route and capability drift gates.
+15. Add production Kubernetes resources for API, worker, delivery, migration, and verifier.
+16. Add network policies, pod security, disruption budgets, and topology spreading.
+17. Add Terraform/Kubernetes configuration validation and immutable image inputs.
+18. Add multi-instance Postgres/worker failover and readiness smoke coverage.
+19. Add SBOM/provenance generation plus published-commit binding.
+20. Add an A1 trusted evidence producer for A2 `a2.evidence_snapshot.v1` inputs.
+21. Preserve equal text/image/audio/file/video modality handling in that producer.
+22. Add A3 identity-contract compatibility fixtures without importing A3 business logic.
+23. Run official read-only calibration and gate mutations on changed quota evidence.
+24. Produce a redacted, auditable Round 54 command/test/evidence ledger.
+
+Parallel assignment:
+
+- Worker-Session owns points 1-5 in Go/PostgreSQL session runtime and tests.
+- Worker-Verifier owns points 6-9 in Rust/Go ingestion and security tests.
+- Worker-SDK owns points 10-14 in Python/TypeScript/OpenAPI parity and tests.
+- Worker-Infra owns points 15-19 in deploy/runtime infrastructure and validation.
+- Worker-Integration owns points 20-24 in A1 contract adapters, compatibility tests,
+  and public-safe evidence, without changing A2 judge or A3 dashboard semantics.
+- Growth-Auditor performs an initial money-grade boundary audit and a mandatory
+  post-integration re-audit; it does not own ordinary product implementation.
+
+Round 54 identity lifecycle closure, 2026-07-12:
+
+- Re-read `origin/main:docs/strategy/large-saas-a1-a2-a3-full-plan.md`.
+  The implementation remains aligned with its `user`/`identity` separation,
+  explicit reauthentication for linking, provider-subject uniqueness, complete
+  audit, and fail-closed domestic-provider requirements.
+- Fixed two over-broad static assertions in
+  `tests/a1/test_identity_lifecycle_receipt_postgres_migration.py`. The test
+  now rejects raw email parameters/columns without rejecting safe
+  `invalid_verified_email_material` error text, and recognizes that exact
+  login may read the canonical principal while remaining write-free.
+- Focused Python identity contract command from repository root passed:
+  `29 passed in 0.34s`.
+- One intermediate Python invocation was run from
+  `packages/go/ashrclone` and therefore found no `tests/a1` path. This was a
+  command working-directory error, not a product failure; the corrected root
+  invocation passed.
+- PostgreSQL integration command passed every subtest in 12.173 seconds:
+  24-way exactly-once registration, unknown-login non-creation, duplicate
+  registration rejection, scope mismatch without consumption, rollback and
+  bounded retry, exact credential login, OAuth-first password absence, safe
+  A3 projection, receipt key rotation, and ciphertext/nonce/scope/key-version
+  tamper rejection.
+- Official Google and GitHub documentation was used to calibrate separate
+  registration, authentication, OAuth consent, explicit account linking,
+  verified email establishment, optional password enrollment, recovery, and
+  recommended 2FA/passkeys. Ashr clone remains intentionally stricter:
+  matching email never auto-links or auto-merges accounts.
+- A3 receives only safe account, credential, membership, security-posture, and
+  provider-readiness projections. Email material, provider subjects, secrets,
+  receipt material, encrypted proofs, and provider tokens remain private.
+- WeChat, QQ, Alipay, and phone remain first-class capability entries. Without
+  required business qualification or provider configuration they fail closed
+  with an explicit readiness reason rather than pretending to be usable.
+- Five A2-owned fixture changes remain peer-owned, read-only, and excluded from
+  the A1 staging manifest.
+- Mandatory Bus-Auditor spawn was retried after implementation and tests but
+  failed with `agent thread limit reached`. No review result is fabricated.
+  The next available agent slot must be used for the post-integration audit.
+
+Round 54 final identity-lifecycle and parity closure, 2026-07-12:
+
+- Registration and login remain separate executable state machines.
+  Registration creates one canonical account plus one verified initial
+  credential. Login authenticates only an exact credential already attached
+  to that account and cannot create, infer, bind, merge, or mutate identity
+  ownership.
+- Domestic email registration is the preferred currently deployable entry
+  route. OAuth-first registration may copy only provider-verified email,
+  creates no password, and requires a later explicit password-enrollment
+  action. Optional 2FA remains recommended in the public security posture.
+- Matching email is never account-linking proof. GitHub, Google, email, phone,
+  and future WeChat, QQ, and Alipay credentials bind only through an
+  authenticated, recent-reauthenticated, explicit linking flow. Domestic
+  providers remain represented in capability contracts but fail closed while
+  business qualification or provider configuration is unavailable.
+- The A3 projection exposes only canonical account state, credential kinds,
+  membership, security posture, and provider readiness. It excludes raw or
+  digested email, provider subjects, secret references and fingerprints,
+  verification receipt material, encrypted proof material, and provider
+  tokens.
+- `python tests/a1/ts_python_parity_matrix.py --write` regenerated the parity
+  matrix. The focused gap and Linux clean-build gates passed `2 passed`.
+  Three Python-compatible acronym exports were completed in TypeScript:
+  `IdentityLifecycleHTTPClient`, `IdentityLifecycleHTTPError`, and
+  `IdentityLifecycleHTTPResponse`.
+- Full A1 Python validation passed `1240 passed, 2 skipped in 300.53s`.
+  TypeScript package validation and a clean rebuild passed `598/598`.
+- `go test -count=1 ./...` passed all Go packages and `go vet ./...` passed.
+  `cargo test` passed all Rust verifier unit, authenticated-envelope,
+  authenticated-evidence-bundle, and streaming-object tests.
+- PostgreSQL identity-lifecycle integration passed in 9.83 seconds, including
+  24-way exactly-once registration, unknown-login non-creation, duplicate
+  registration rejection, scope mismatch without receipt consumption,
+  rollback and bounded transaction retry, exact credential login,
+  OAuth-first password absence, safe A3 projection, key rotation, and
+  ciphertext/nonce/scope/key-version tamper rejection.
+- Two earlier parity follow-up commands failed only because they were launched
+  from `packages/ts/ashr-clone` with repository-root-relative test paths.
+  Corrected root commands passed and no product defect remained.
+- Five peer-owned A2 fixture changes remain excluded from the A1 staging
+  manifest. No A3-owned file was modified or staged.
+- The mandatory post-integration Bus-Auditor spawn was attempted again and
+  still failed with `agent thread limit reached`. This environmental limit is
+  recorded without fabricating an audit result.
+
+Round 54 hosted CI repair, 2026-07-12:
+
+- Re-ran the repository, branch, remote, PR, peer, strategy, and worklog
+  baseline before modifying files. PR `#36` had one substantive Python job
+  failure: the public evidence scanner treated `tp_` fragments embedded in
+  ordinary identifiers as credentials. The same over-broad matcher existed
+  in Python and TypeScript.
+- Tightened only the `tp_` credential matcher to require a non-identifier
+  left boundary. Actual `tp_...` credential-shaped values remain blocked,
+  while `http_status`, `http_test`, `trusted_proof`, and `otp_present` are
+  accepted as ordinary schema identifiers.
+- Added Python and TypeScript parity regressions for both the blocked token
+  shape and allowed identifier fragments.
+- `python -m pytest -q tests/a1/test_evidence_index.py` passed `21 passed`.
+- TypeScript `npm test` passed `599 passed, 0 failed` after a clean build.
+- Full `python -m pytest -q tests/a1` passed `1242 passed, 2 skipped in
+  318.40s`.
+- The remaining hosted Python failures are A2 generated-fixture drift caused
+  by the five newly documented A1 identity routes. No judge semantic failure
+  was observed. The A2 snapshot will be regenerated in an isolated A2
+  worktree and committed to the A2 branch; it is excluded from this A1 commit.
+- The Bus-Auditor spawn was retried before this repair and again failed with
+  `agent thread limit reached`. No audit result is fabricated.
+## Round 55: Production Password And MFA Lifecycle
+
+Date: 2026-07-12
+
+Repository baseline: clean `codex/a1-round54-publish`, tracking
+`origin/codex/a1-local-sdk-runner`; draft PR `#36` remains open. Re-read the
+current `origin/main` strategy and reviewed A2/A3 peer branches read-only.
+
+Commercial enhancement score (5 is highest value; effort is cost):
+
+| Candidate | Demo | Risk reduction | Contract impact | Effort | API evidence |
+|---|---:|---:|---:|---:|---:|
+| PostgreSQL password recovery/change and MFA lifecycle | 5 | 5 | 3 | 4 | 5 |
+| Enterprise OIDC/SAML adapter and explicit linking | 4 | 4 | 4 | 5 | 4 |
+| Full identity RBAC enforcement across API/RLS/workers | 4 | 5 | 5 | 5 | 3 |
+
+Selected the first candidate. Registration and login are already separate
+executable state machines; this round closes the post-registration security
+lifecycle without allowing login to create, infer, bind, or merge an account.
+Domestic email remains the preferred deployable registration credential.
+WeChat/QQ/Alipay remain fail-closed capability entries until qualification and
+configuration exist. A3 receives only safe posture, readiness and action state.
+
+The mandatory Bus-Auditor slot is still unavailable because the existing agent
+thread limit is reached. No audit result is fabricated; retry remains required
+before publication closure.
+
+Round 55 password/MFA executable closure, 2026-07-12:
+
+- Registration and login remain separate state machines. Registration creates
+  a canonical account and verified initial credential; login only authenticates
+  an exact existing credential and cannot create, infer, link, or merge.
+  Domestic email remains the preferred deployable registration route. GitHub,
+  Google, phone, WeChat, QQ, and Alipay remain explicit credentials; matching
+  email is never linking proof, and unqualified domestic providers fail closed.
+- Added migration `018_a1_password_mfa_lifecycle.sql` for scoped, expiring,
+  single-use security receipts, password enrollment/change/recovery, session
+  revocation, TOTP pending/confirmation, recovery-code posture, RLS, and a
+  secret-safe A3 projection. A3 receives no password, TOTP, recovery-code,
+  vault-reference, digest, or receipt material.
+- Real PostgreSQL 16 validation exposed and closed two compatibility hazards:
+  migration 018 now drops the v016 status/posture constraints before admitting
+  `pending`, and the old boolean `a1_set_account_two_factor` signature is
+  preserved but fails closed so it cannot bypass TOTP possession proof.
+- `python -m pytest -q tests/a1/test_password_mfa_lifecycle_migration.py`
+  passed `8 passed in 15.55s`. The fixture loaded every migration from 001
+  through 018 into a temporary PostgreSQL database and proved wrong-purpose
+  receipt non-consumption, replay rejection, password state transitions,
+  recovery-version increment, active-session revocation, TOTP pending/confirm,
+  expired enrollment rejection, secret-safe projection, and 16-client
+  concurrent exactly-once receipt consumption.
+- Final `python -m pytest -q tests/a1` passed `1247 passed, 2 skipped in
+  324.87s`. TypeScript `npm test` passed `599 passed, 0 failed`; Go `go test
+  -count=1 ./...` and `go vet ./...` passed. Python and TypeScript expose equal
+  `get_security_posture`, `mutate_password`, and `mutate_two_factor` methods.
+- `python scripts/cl_guard.py hygiene` returned no findings. An earlier attempt
+  used nonexistent `python scripts/cl_gate.py --mode hygiene`; the corrected
+  repository command is recorded here so the failed invocation is not hidden.
+- The new security routes remain honestly `proposed`: trusted Go mutation-ticket
+  resolution and production HTTP handlers are not connected. SDK mutations send
+  only mutation ticket, step-up receipt, and idempotency identifiers; no private
+  credential material crosses public or A3 JSON.
+- `git fetch` observed a new peer A2 head on `origin/dev/g3-a2-calibration`.
+  It has no A1 contract impact and was not merged or modified. No A2 judge or A3
+  dashboard business file is included in this round.
+- The required Bus-Auditor retry remains blocked by the existing agent-thread
+  limit. No audit output is fabricated. Next top three: connect the trusted Go
+  ticket resolver and activate handlers; add explicit enterprise OIDC/SAML
+  linking; enforce identity RBAC through API, worker, and PostgreSQL RLS.
+
+## Round 56: Trusted Identity Security HTTP Boundary
+
+Date: 2026-07-12
+
+- Re-read `origin/main:docs/strategy/large-saas-a1-a2-a3-full-plan.md` and
+  preserved separate registration and login state machines. Login still cannot
+  create, infer, link, or merge an account; matching email is never linking
+  proof. Domestic email remains the preferred deployable registration path.
+- Added an injectable Go HTTP boundary for password enrollment/change/recovery and TOTP
+  enrollment/confirmation. Public bodies accept only `mutation_ticket_id`,
+  `step_up_receipt_id`, and an `Idempotency-Key`-matching identifier. Password,
+  OTP/TOTP, recovery-code, secret reference, digest, actor, and account fields
+  are rejected before a trusted resolver or store can run.
+- Tickets are resolved server-side and must match the authenticated canonical
+  account, exact operation, and expiration. Public failures intentionally do
+  not reveal account, ticket, receipt, or backend existence.
+- Added a secret-safe security posture route and narrowed Go redaction so only
+  public posture booleans/statuses survive; raw password and secret material
+  remains redacted.
+- The new routes remain absent from the unconditional Go route manifest until
+  the PostgreSQL store and production runtime wiring are executable. This is
+  deliberately contract support, not a production-availability claim.
+- Go full suite passed. Two command-entry failures were environmental and are
+  retained here: repository-root `go test` had no module, and Git Bash could
+  not find the Codex-local `apply_patch`; corrected module-local tests passed.
+- Mandatory next-round hard acceptance chain: fresh user SDK install -> wrap a
+  real Agent -> invoke a local real Ollama model -> submit one run -> query the
+  run, trace, tool calls, and artifact through API -> restart services -> prove
+  PostgreSQL/object persistence -> fetch authenticated A2 evidence by stable
+  IDs. Mock/fake model substitution is forbidden.
+- Local model inventory found no Windows/WSL Ollama CLI or user model manifest,
+  but Docker already contains `ollama/ollama:latest` (8.06 GB). Inspect Docker
+  volumes before pulling a model; download only when no reusable model exists.
+- Next top three: (1) real Ollama durable SDK-to-A2 evidence acceptance chain,
+  (2) production PostgreSQL mutation-ticket issuance/consumption and HTTP store,
+  (3) enterprise OIDC/SAML explicit credential binding and conflict controls.
+
+## Round 57: Provider-Neutral Model Runtime
+
+Date: 2026-07-12
+
+Commercial enhancement candidates were scored before implementation:
+
+| Candidate | Demo | Risk reduction | Contract impact | Effort | API evidence |
+|---|---:|---:|---:|---:|---:|
+| Python/TypeScript provider-neutral execution parity | 5 | 5 | 2 | 4 | 5 |
+| Durable idempotent model request journal | 4 | 5 | 3 | 5 | 3 |
+| Real five-modality model matrix | 5 | 4 | 3 | 5 | 5 |
+
+The first candidate had the highest immediate ROI and was selected.
+
+- Added provider-neutral Python and TypeScript execution adapters for local
+  Ollama and OpenAI-compatible providers. Both implementations cover bounded
+  retries, timeouts, safe errors, streaming, tool calls, usage, finish reason,
+  and provider-local text/image/audio/file/video envelopes.
+- Capability discovery separates protocol support from verified model
+  callability. Text defaults to callable; image, audio, file, and video remain
+  discovered until each exact model/request combination succeeds.
+- TypeScript publishes the reusable `./provider-adapter` subpath. The complete
+  TypeScript suite passed `610 passed, 0 failed` after the audit follow-up.
+- Python provider, adapter, runner, and trace focused tests passed
+  `56 passed in 2.33s`.
+- Bounded real calibration used the actual Python and TypeScript SDK adapters
+  against local Ollama `qwen2.5:1.5b`, XJTLU `gpt-5.6-sol`, and Qwen official
+  `qwen-plus`. Non-stream text, streamed text, one tool call, usage, and finish
+  reason passed in both languages for all three endpoints.
+- Ollama truthfully returned a tool call with finish reason `stop`; XJTLU and
+  Qwen returned `tool_calls`. The adapter preserves this provider difference
+  instead of leaking a fabricated shared-contract rule.
+- Public-safe calibration evidence is recorded at
+  `docs/a1/evidence/round57_provider_neutral_runtime_calibration_20260712.md`.
+  No secret value, authorization header, raw provider response, or signed URL
+  was persisted.
+- No A2 judge or A3 dashboard/report business semantics were modified.
+- Full A1 Python validation passed `1265 passed, 2 skipped in 415.52s`.
+- Audit follow-up added runtime validation of terminal capability values in
+  TypeScript, empty-evidence and timezone-aware timestamp checks in both
+  languages, and immutable Python capability maps. Focused Python validation
+  passed `54 passed`; the complete TypeScript suite then passed `610/610`.
+- Hosted one-time API key secret restoration now permits only an explicit
+  `create_api_key` reveal response with a top-level non-empty string and an
+  exact true display marker. Operation mismatch, missing/false markers, empty
+  or non-string values, nested values, and malformed results remain redacted.
+  Exact secret occurrences elsewhere in the response are scrubbed before the
+  single allowed field is restored.
+- The public calibration summary cannot be bound to private source records
+  because no such records were persisted for the completed probes. Hashes,
+  timestamps, and private paths were not fabricated; the evidence document
+  records this gap explicitly.
+- Bus-Auditor received the implementation, real calibration, and verification
+  checkpoint and identified the follow-up items above. Final full-suite and
+  packaging revalidation follows before publication.
+
+Next top three: durable idempotent request journaling across restart; real
+model-by-modality capability probes without false claims; Ollama-to-Go-to-
+PostgreSQL/object-storage acceptance with stable authenticated evidence IDs.
+
+## Round 58: Restart-Persistent Provider Dispatch And Stream Integrity
+
+Date: 2026-07-12
+
+Commercial enhancement candidates:
+
+| Candidate | Demo | Risk reduction | Contract impact | Effort | API evidence |
+|---|---:|---:|---:|---:|---:|
+| Restart-persistent local provider journal and stream integrity | 5 | 5 | 2 | 4 | 4 |
+| Real five-modality capability expansion | 5 | 4 | 3 | 5 | 5 |
+| PostgreSQL multi-host provider dispatch coordinator | 4 | 5 | 4 | 5 | 3 |
+
+The first candidate had the highest bounded ROI. It closes the most dangerous
+provider failure mode: silently issuing a second paid request after dispatch
+acceptance becomes uncertain.
+
+- Added Python and TypeScript restart-persistent local JSON request journals scoped by tenant,
+  project, provider, model, operation, and idempotency key. Claims carry lease
+  ownership and fencing tokens. Conflicting fingerprints fail closed.
+- Restarted or lease-expired in-flight work becomes `indeterminate`; timeout,
+  disconnect, process loss, response loss, or any observed stream frame cannot
+  trigger an automatic provider retry. Explicit reconciliation is required.
+- Added the shared `ashr.clone.provider_stream.v1` protocol in Python and
+  TypeScript. It records monotonic sequence numbers, content digests, a
+  previous-frame digest chain, terminal state, and a final stream digest while
+  persisting no raw text or media content.
+- Duplicate sequence/same-content frames are idempotent. Sequence conflicts,
+  gaps, out-of-order frames, post-terminal frames, missing terminal frames, and
+  tampered snapshots fail closed.
+- A pytest-managed real Node subprocess now validates Python stream snapshots,
+  emits a TypeScript stream snapshot, and verifies it in Python. Canonical JSON
+  and digest chains for `ashr.clone.provider_stream.v1` are cross-language
+  compatible, including Unicode input, and raw chunk content is absent from
+  both fixtures. Journal persistence is intentionally language-specific:
+  `ashr.clone.provider_request_journal.python.v1` and
+  `ashr.clone.provider_request_journal.typescript.v1` are not claimed to be
+  mutually readable.
+- TypeScript publishes `./provider-request-journal` and `./provider-stream`.
+  Final `npm test` passed `623/623`; `npm pack --dry-run` passed with 111 files
+  and included both JavaScript and declaration artifacts.
+- Focused Python journal/stream validation passed `39 passed`. The full
+  A1 Python suite passed `1320 passed, 2 skipped in 283.94s`; the earlier
+  isolated wheel import anomaly did not reproduce.
+- Audit follow-up binds stream snapshots to the active journal entry and fence,
+  rejects stale or mismatched bindings, and requires a terminal stream proof
+  before success. Python also proves exactly one same-process threaded claimant.
+- TypeScript persisted-entry loading now rejects non-canonical fields,
+  malformed digests, unsafe counters, invalid timestamps/evidence, incomplete
+  modality or persistence capability metadata, and inconsistent
+  state/lease/terminal combinations. Its in-process persistence write chain
+  also recovers after a reported transient write failure instead of remaining
+  permanently rejected.
+- This round proves unit behavior, process-level Python/TypeScript
+  interoperability, file-backed restart semantics, and content-free stream
+  integrity. It does not prove PostgreSQL coordination, multi-host consensus,
+  distributed locking, or provider-native idempotency.
+- No real provider call was needed to prove these deterministic failure
+  semantics, and no paid call was made merely to increase call volume. Round 57
+  remains the real-provider evidence for Ollama, XJTLU, and Qwen.
+- Remote inventory after fetch contains exactly one A1 branch:
+  `origin/codex/a1-local-sdk-runner`. The local
+  `codex/a1-round54-publish` worktree branch is only a staging worktree and must
+  be pushed exclusively to that canonical remote ref.
+- Final CL hygiene passed with zero findings. These file-backed journals remain
+  explicitly single-process and restart-persistent only: they provide no
+  cross-instance/process claim lock, multi-worker safety, multi-host safety, or
+  proven power-loss durability.
+
+Next top three: run a bounded real Ollama partial-stream process-loss probe;
+add PostgreSQL-backed multi-worker journal coordination; expand verified
+model-by-modality coverage without promoting discovery to callability.
+
+## Round 59: CL Fresh-Checkout Repair
+
+Date: 2026-07-12
+
+- GitHub PR 36 run `29191539967` exposed a fresh-checkout defect in the Round
+  58 cross-language stream test. The Python job did not build the ignored
+  TypeScript `dist/provider-stream.js` module before importing it.
+- The earlier local full-suite result was not valid fresh-setup evidence
+  because a generated local `dist/` directory masked the missing build step.
+- The Python CL job now installs Node 24, runs locked TypeScript dependency
+  installation, and builds the SDK before Python contracts.
+- The test itself also performs the build when the required generated module
+  is absent, so direct pytest execution remains deterministic after locked
+  TypeScript dependencies are installed.
+- Added ignore protection for Python SDK `build/` and `*.egg-info/` output.
+- After deleting TypeScript `dist/`, focused validation passed `10 passed`.
+- The exact GitHub Python contract command passed `1515 passed, 2 skipped in
+  277.89s`; `git diff --check` passed.
+- Peer changes observed at round start: A3 contract-alignment and A2
+  calibration remote branches advanced. They were inspected only as remote
+  state and were not merged or modified.
+- Bus-Auditor correctly held new feature work until PR 36 is green and then
+  directs the next commercial slice toward PostgreSQL-backed multi-worker
+  dispatch plus durable Ollama acceptance proof.
+- Publication remains restricted to the single canonical remote branch
+  `codex/a1-local-sdk-runner`; the local staging branch is not publishable.
+
+Next top three: PostgreSQL multi-worker provider dispatch coordination with
+fencing and reconciliation; durable Ollama SDK-to-run acceptance across
+service restart; verified five-modality provider capability expansion.
+
+## Round 60: PostgreSQL Provider Dispatch Coordination
+
+Date: 2026-07-12
+
+Commercial enhancement candidates:
+
+| Candidate | Demo | Risk reduction | Contract impact | Effort | API evidence |
+|---|---:|---:|---:|---:|---:|
+| PostgreSQL provider-dispatch coordinator | 4 | 5 | 3 | 4 | 3 |
+| Go provider-dispatch HTTP and cross-language clients | 5 | 4 | 3 | 4 | 4 |
+| Five-modality real-provider matrix expansion | 5 | 4 | 3 | 5 | 5 |
+
+The PostgreSQL coordinator was the highest bounded ROI because the existing
+file journal could not safely coordinate several service instances.
+
+- Added a Go provider-dispatch state machine and PostgreSQL repository with
+  idempotent submit, lease claim, fencing, heartbeat, stream observation,
+  terminal proof, indeterminate state, and explicit reconciliation.
+- Claim runs at `READ COMMITTED`, uses `FOR UPDATE SKIP LOCKED`, retries
+  PostgreSQL `40001` and `40P01` up to four attempts, honors cancellation and
+  deadlines, and never retries an ambiguous commit.
+- Added stable public operational errors. Driver, SQL, table, host, and
+  credential detail are not returned through claim failures.
+- Added transaction-local A1 organization/project scope to submit, claim,
+  lease mutations, and completion replay.
+- Migration 019 and the embedded Go schema now enable and force fail-closed
+  RLS using `app.a1_organization_id` and `app.a1_project_id` in both `USING`
+  and `WITH CHECK`.
+- A real `NOSUPERUSER NOBYPASSRLS` role proves missing-scope invisibility,
+  tenant/project isolation, correct-scope writes, rejected cross-scope writes,
+  idempotent migration, and legacy upgrade without data loss.
+- Python focused provider-dispatch and migration verification passed
+  `22 passed`; Go `go test ./...` passed; TypeScript build and all `629` tests
+  passed.
+- The live PostgreSQL 16-client claim test passed ten consecutive repetitions.
+  Each repetition had exactly one fenced winner and no claim errors.
+- The PostgreSQL container was actually restarted. Durable dispatch fields
+  before and after restart were identical; the public-safe record digest is
+  recorded in `docs/a1/evidence/round60_provider_dispatch_postgres.md`.
+- Latest remote CL before this dirty round is green at SHA `f9562494` (run
+  `29191978911`). The new provider-dispatch files require a new CL after push.
+- Peer changes observed: remote A2/A3 branches exist but no peer file was
+  merged into or modified by this A1 round.
+
+Next top three: publish provider-dispatch through the Go HTTP server and drive
+it from Python/TypeScript; run durable local Ollama SDK-to-run acceptance;
+expand verified five-modality provider capability evidence.
+
+### Round 60 release closure
+
+- Rebuilt `services/runner/docker-compose.a1.yml` from scratch through
+  `infra/docker/Dockerfile.go-runtime`. The final container executes compiled
+  `/usr/local/bin/ashr-api`; PostgreSQL was healthy, the BusyBox filesystem
+  object-store placeholder was running, and `/health` reported `ready=true`,
+  `backend_ready=true`, and `backend=postgres_repository_v0`.
+- The Python SDK to real Go control-plane vertical test passed `1 passed`.
+  The deployment scaffold acceptance contract was deliberately upgraded from
+  the obsolete Python/dependency-free assumptions and passed `5/5`.
+- Provider dispatch is now published through Go HTTP and represented in both
+  Python and TypeScript. The previous evidence statement that HTTP publication
+  remained future work was obsolete and was corrected.
+- TypeScript passed `634/634`; `npm pack --dry-run` contained 114 files and
+  1.7 MB unpacked. The generated TS/Python gap matrix check passed.
+- Full A1 plus integration Python verification passed `1329 passed, 37
+  skipped in 110.86s`. The CL A2 plus large-SaaS migration supplement passed
+  `195 passed`.
+- Go package and Go integration `go test -count=1 ./...` and `go vet ./...`
+  passed. The live PostgreSQL dispatch claim proof passed ten consecutive
+  repetitions with one fenced winner each.
+- `python scripts/cl_guard.py hygiene`, `python scripts/cl_guard.py
+  commercial`, `git diff --check`, and `git diff --cached --check` passed.
+- A direct local `compileall` traversed ignored build products and encountered
+  read-only stale `__pycache__` files because this publishing worktree has
+  unusual ACLs. Source syntax was then verified without bytecode writes by
+  parsing all 174 Python files with `ast.parse`.
+- The Rust bundle verifier passed all suites with `CARGO_TARGET_DIR` redirected
+  to a writable temporary directory. A3 passed `334/334` with `TEMP` and `TMP`
+  redirected to the same writable area, and the pinned audit bundle verifier
+  passed. These ACL workarounds did not change product code or release
+  behavior.
+- The first earlier Docker dependency download encountered a transient
+  `proxy.golang.org` EOF. The later retry and final no-cache build succeeded.
+  One combined command also sent a Node test to pytest and another fresh
+  PowerShell process saw Docker pipe/config warnings; authoritative commands
+  were rerun independently and passed.
+- Peer branches `origin/codex/a3-main-contract-alignment-v2` and
+  `origin/dev/g3-a2-calibration` advanced. No peer files were merged into or
+  modified by this A1 round.
+- Known boundary: quickstart `object-store` remains a BusyBox local filesystem
+  placeholder. MinIO belongs to the separate commercial self-host Compose.
+- Bus-Auditor keeps publication at NO-GO until this Round 60 snapshot is
+  committed, pushed, and its new CL Gate is green.
+
+Next top three: durable Ollama SDK-to-run acceptance across service restart;
+verified five-modality provider capability expansion; production-grade
+object-store acceptance for trace/artifact evidence.
+
+### Round 60 CL publication correction
+
+- GitHub Actions run `29197725997` evaluated commit `365d5cdf`. Plan and
+  hygiene, TypeScript SDK parity, Rust verifier, and Go SDK and integration
+  all passed.
+- Python A1/A2 contracts reported `2 failed, 1494 passed, 50 skipped, 1056
+  subtests passed`. Both failures had one publication root cause:
+  `docs/a1/ts_python_gap_matrix.json` was generated by the repository-root
+  parity script but omitted from the Round 60 commit.
+- Regenerated the public-safe artifact with
+  `python tests/a1/ts_python_parity_matrix.py --write`; its freshness check
+  passed with `--check`.
+- Focused reproduction of the two CL failures passed `2 passed in 6.35s`:
+  `tests/a1/test_ts_python_gap_matrix.py` and
+  `test_typescript_clean_build_and_typed_subpath_parity`.
+- No product implementation or shared contract changed in this correction.
+  Peer A2 advanced from `7e70c234` to `e7c1ff18`; no peer file was merged or
+  modified.
+
+Next: publish the generated artifact, require the new SHA's CL Gate summary
+to pass, and return the result to Bus-Auditor for final GO/NO-GO.
+
+## Round 61: PostgreSQL-Only Canonical Identity Authority
+
+Date: 2026-07-12
+
+Commercial enhancement candidates:
+
+| Candidate | Demo | Risk reduction | Contract impact | Effort | API evidence |
+|---|---:|---:|---:|---:|---:|
+| PostgreSQL-only canonical identity reads | 4 | 5 | 2 | 3 | 2 |
+| Go browser-session lifecycle parity | 4 | 4 | 3 | 4 | 2 |
+| Hash-bound provider execution receipts | 5 | 5 | 3 | 4 | 5 |
+
+- Completed the bounded PostgreSQL authority slice already in progress.
+- Production Go runtime now injects `ProductionIdentityStore` explicitly and
+  does not construct the process-memory unified identity service.
+- Canonical account projection is read through migration 017 in a read-only
+  `READ COMMITTED` transaction with local timeouts, strict decode, and
+  commit-before-return.
+- Invalid UUID, begin, timeout, projection, NULL/malformed JSON, and commit
+  failures are covered. There is no implicit backend discovery or memory
+  fallback.
+- Missing authority returns stable `503 identity_store_unavailable`.
+- Production readiness requires migration 017 account projection.
+- Go tests and vet passed. TypeScript build, 634 tests, and package dry-run
+  passed. TS/Python parity, CL hygiene, CL commercial, and diff checks passed.
+- The first full Python attempt collected 1366 tests and reached roughly 39%
+  without failure before Docker CLI calls hung. Docker Desktop was restarted;
+  its backend reported the daemon ready, while the earlier `docker` resolution
+  remained a hanging shim. Prepending
+  `C:\Program Files\Docker\Docker\resources\bin` returned server `29.6.1`.
+- The authoritative rerun of `python -m pytest tests/a1 tests/integration`
+  completed: `1326 passed, 40 skipped in 107.51s`. This included the real Go
+  server to Python SDK integration path.
+- Evidence:
+  `docs/a1/evidence/round61_postgres_identity_authority.md`.
+- Peer state: `origin/dev/g3-a2-calibration` advanced to `6b62f978`; no peer
+  file was merged or modified.
+- Security deferrals: keep split password/MFA stores fail closed until a single
+  transactional SQL operation can atomically consume tickets, mutate
+  credentials, revoke sessions, enforce idempotency, and audit.
+
+Required next-round top three:
+
+1. Hash-bound provider records for XJTLU `gpt-5.6-sol`, Qwen official
+   `qwen-plus`, and local Ollama with `endpoint_sha256`, `evidence_sha256`,
+   invocation timestamp, and response binding.
+2. Successful target-endpoint calibration for image/audio/file/video; accepted
+   requests ending in `request_status=failed` remain `discovered`.
+3. One authoritative A1 release receipt binding latest A1 SHA, provider
+   records, PostgreSQL/RLS, concurrent claim/lease/fencing, and restart
+   persistence evidence.
+
+No secret, private prompt, raw private response, or credential-bearing endpoint
+may enter public evidence.
+
+## Round 62: Hash-Bound Provider And Release Receipts
+
+Date: 2026-07-13
+
+Baseline: clean `5dd6a898`; canonical publication remains `origin/codex/a1-local-sdk-runner`. Peer A2 advanced to `53e79b5e`; no peer files were merged or modified. Ollama HTTP was unavailable at round start. `apply_patch` was denied by the worktree ACL, so controlled PowerShell writes are used and verified by Git diff.
+
+Commercial candidates (1-5): provider receipt chain 5/5/3/4/5; successful five-modality calibration 5/4/3/5/5; unified release receipt 5/5/2/3/5. All three are required as one trusted release chain. Real probes remain dry-run -> small batch -> bounded batch. Failed terminal media calls remain failed/discovered, never callable.
+### Round 62 implementation and calibration closure
+
+- Added Python, TypeScript, and Go chained provider receipts and a unified release receipt with canonical UTF-8 JSON, atomic stores, hash bindings, and failed-call capability suppression.
+- Successful real execution now covers text/image/audio/file/video. Audio uses local open-source Whisper `tiny`; provider identity is explicit and is not represented as official Qwen success.
+- XJTLU is confirmed callable by successful `gpt-5.6-sol` evidence and a five-model 200 matrix. Intermittent 502 and failed `gpt-image-2` routes remain accurately recorded.
+- Public fixtures contain 17 chained receipts and no raw endpoint, prompt, response, request ID, key, or private evidence.
+- Focused Python `12/12`, TypeScript `639/639`, Go tests/vet, and stable package dry-run (117 files) passed.
+- Peer A2 advanced to `42dfff82`; no peer file was merged or modified.
+- Evidence: `docs/a1/evidence/round62_provider_release_receipts.md`.- Final authoritative verification: Python A1/integration `1338 passed, 40 skipped in 93.29s`; TypeScript `639/639`; Go module tests and vet passed; TS/Python generated parity passed with zero Python-only exports; CL hygiene and commercial guards passed; public secret scan and owned-directory audit passed.
+- Bus-Auditor follow-up capability was unavailable in this resumed tool surface: no subagent creation/message tool was exposed for the three listed agents. The main agent therefore executed the required goal, contract, owned-directory, peer-change, evidence, secret, toolchain, and release-gate audit locally and records this limitation rather than inventing a subagent result.
+- Bus-equivalent decision: GO for commit/push, contingent on the new GitHub CL Gate becoming green. Next top three: provider-specific successful official audio calibration; XJTLU image-route protocol discovery; PostgreSQL-backed durable provider receipt ingestion and A3 retrieval API.
+
+## Round 63: Live PostgreSQL Identity Security Lifecycle
+
+Date: 2026-07-14
+
+- Corrected the live integration harness to use the disposable PostgreSQL
+  database's `clock_timestamp()` instead of a stale July 12 application clock.
+  Strict session-expiry and ten-minute recent-auth validation were not weakened.
+- Fresh-cluster setup now idempotently creates migration role `a1_runtime`,
+  applies migrations 001 through 018, and converts only the generated
+  password-authenticated runtime DSN from a Unix socket to `127.0.0.1` to avoid
+  peer-auth mismatch.
+- Replaced an invalid direct `two_factor_status='enabled'` fixture mutation
+  with migration 018's authoritative password enrollment, TOTP begin, and TOTP
+  confirmation operations.
+- The live test proves three scoped security receipts are consumed and existing
+  sessions are revoked after credential-security mutations.
+- Added real `identity_account_security` RLS verification through a disposable
+  `NOSUPERUSER NOBYPASSRLS` runtime role: one own row is visible and zero
+  foreign rows are visible.
+- Receipt signing-key rotation and fail-closed tamper rejection remain covered
+  for ciphertext, nonce, tenant scope, and proof key version.
+- Authoritative WSL/PostgreSQL 16.14 result:
+  `PASS; ok github.com/ashr-labs/ashr/packages/go/ashrclone 6.954s`.
+- Evidence:
+  `docs/a1/evidence/round63_identity_lifecycle_live_postgres.md`.
+
+Next: publish this focused regression slice, run Go race/vet plus complete
+Python/TypeScript/parity/commercial gates, then implement a typed
+PostgreSQL-backed `IdentitySecurityHTTPStore` that routes all password/MFA
+mutations through migration 018 while keeping unsafe split-memory stores fail
+closed.
+
+## Round 64: Independent Lifecycle Receipt Lookup Keys
+
+Date: 2026-07-14
+
+- Separated lifecycle proof-encryption keys from keyed receipt-lookup keys.
+- Added optional production lookup-key environment configuration with strict
+  version, length, duplicate, JSON-shape, and no-secret-error validation.
+- Preserved compatibility when no explicit lookup keyring is configured.
+- Added byte clearing for active and previous lookup keys in runtime config,
+  cloned keyrings, constructor failures, and keyring shutdown.
+- Added live PostgreSQL proof that a completed credential-link replay survives
+  retirement of the old encryption key when the stable lookup key remains.
+- Added fail-closed proof that an unconsumed old-key receipt is locatable but
+  cannot decrypt, does not leak internal key details, and does not consume
+  proof, mutation-ticket, or step-up authorization state.
+- Verification passed: full Go tests, Go vet, live PostgreSQL identity
+  lifecycle integration, six atomic migration tests, and `git diff --check`.
+- Published A1 commit:
+  `6d4ba9c9c1c463267fa734c0589b509d46c96b0f`.
+- Evidence:
+  `docs/a1/evidence/round64_identity_receipt_lookup_key_rotation.md`.
+
+Next: add an explicit legacy receipt-digest migration/retention readiness
+report, then continue the typed PostgreSQL-backed password/MFA HTTP store
+without weakening the current fail-closed split-store guard.
+
+## Round 65: Canonical-Account Scoped Identity-Security Runtime
+
+Date: 2026-07-14
+
+- Added migration 022 principal-scoped PostgreSQL authorities for password/MFA
+  posture, mutation-ticket resolution, and mutation execution.
+- The A3-facing ticket resolver now requires the authenticated session's
+  canonical account ID explicitly; returned ticket envelopes must match it.
+- Every production security-store transaction installs transaction-local
+  `app.a1_principal_id` before calling the scoped database authority.
+- Revoked `a1_runtime` access to migration 018's old unscoped resolver and
+  executor; only the scoped overloads remain executable by the runtime.
+- Preserved the public-safe optional/recommended 2FA posture without exposing
+  password/TOTP secret references, keyed digests, recovery batches, or session
+  digests.
+- Added Docker/PostgreSQL proof that a foreign canonical account cannot read
+  posture, resolve a ticket, or execute a mutation and that every rejected
+  attempt leaves the target ticket and receipt unconsumed.
+- Proved own-account mutation succeeds and exact idempotent replay is stable.
+- Updated readiness and the live lifecycle harness to require migrations
+  001-022 and scoped runtime grants.
+- Verification passed: full Go tests, live PostgreSQL lifecycle integration,
+  31 focused PostgreSQL/RLS migration tests, and `git diff --check`.
+- Evidence:
+  `docs/a1/evidence/round65_scoped_identity_security_runtime.md`.
+
+Next: publish this scoped authority, add explicit legacy receipt-digest
+migration/retention readiness, then continue cross-language identity-security
+client parity and production key-rotation drills.
+
+## Round 66: Lifecycle Receipt Lookup-Key Retirement Readiness
+
+Date: 2026-07-14
+
+- Added migration 023 with explicit per-receipt `lookup_key_version`; existing
+  rows are conservatively labeled `legacy-unversioned` because raw opaque
+  receipt IDs are intentionally unavailable for re-keying.
+- New receipt issuance requires an explicit nonlegacy lookup-key version, and
+  the old nine-argument runtime authority is revoked.
+- Added an aggregate-only, pinned-search-path PostgreSQL retirement preflight
+  that exposes safe version labels, counts, a live-receipt deadline, and
+  readiness booleans without exposing digests, proof material, replay payloads,
+  or key bytes.
+- Active, invalid, and unconfigured key retirement requests fail before any
+  database query.
+- Retirement remains blocked by unexpired unconsumed receipts, completed exact
+  replay rows, legacy-unversioned rows, or rows outside the retained key set.
+- Closed a live rotation bug by deriving credential-link idempotency, request,
+  event, subject, and email fingerprints with the lookup key that actually
+  matched the locked receipt rather than blindly using the new active key.
+- Docker/PostgreSQL proves lookup-v1 rows are explicitly versioned, lookup-v2
+  plus retained lookup-v1 preserves exact replay, and the retirement preflight
+  blocks both a pending live receipt and a completed replay row.
+- Verification passed: focused Go identity/lookup/credential-link tests,
+  14 migration tests, full Go module tests, Go vet, command API tests, and the
+  full live PostgreSQL identity lifecycle integration.
+- Evidence:
+  `docs/a1/evidence/round66_lifecycle_receipt_lookup_readiness.md`.
+
+Next: define bounded credential-link replay retention and an audited purge
+authority so old lookup keys can eventually retire safely, then continue
+cross-language identity-security client parity.
+
+## Round 67: Credential-Link Replay Retention and Audited Purge
+
+Date: 2026-07-14
+
+- Added migration 024 with an immutable 30-day replay-retention deadline for
+  completed credential-link lifecycle receipts.
+- Added a bounded, advisory-lock-serialized, idempotent `SECURITY DEFINER`
+  purge authority using `FOR UPDATE SKIP LOCKED`.
+- Added a forced-RLS durable purge audit that contains aggregate counts by safe
+  lookup-key version only; direct runtime access to receipt and audit tables
+  remains revoked.
+- Excluded `legacy-unversioned` rows from deletion and preserved exact replay
+  for the full retention window.
+- Added an A3-safe typed Go purge API with HMAC-keyed request fingerprints,
+  strict aggregate receipt validation, Unicode Chinese actor/reason support,
+  and fail-closed readiness checks.
+- Docker/PostgreSQL proves a lookup-v1 replay blocks retirement before expiry,
+  purges after expiry, replays idempotently, rejects changed requests, and
+  leaves no direct runtime deletion authority.
+- Verification passed: 18 focused migration tests, focused and complete Go
+  module tests, Go vet, live PostgreSQL lifecycle integration, and
+  `git diff --check`.
+- The full Python A1 suite produced `1393 passed, 2 skipped, 1 failed`; the
+  isolated failure reproduces an existing test that calls migration 017's old
+  binding function after migration 020 intentionally revoked it.
+- Evidence:
+  `docs/a1/evidence/round67_credential_link_replay_retention.md`.
+
+Next: continue cross-language identity-security/client parity and production
+lookup-key rotation drills after publishing bounded replay retention.
+
+## Round 68: Authorized Credential-Binding Regression
+
+Date: 2026-07-14
+
+- Migrated the complete-suite PostgreSQL verification regression from
+  migration 017's revoked direct credential-binding function to migration
+  020's authorized wrapper.
+- The live test now provisions a recent canonical-account session, a
+  request-bound `credential_bind` step-up receipt, and a secret-free mutation
+  ticket issued through the dedicated ticket authority.
+- Explicitly proves `a1_runtime` can execute the authorized wrapper but cannot
+  execute the old direct function.
+- Injected credential insertion failure now proves atomic rollback preserves
+  the verification receipt, step-up receipt, and mutation ticket for retry.
+- Concurrent independently authorized requests still produce exactly one
+  credential; the winner consumes its authority while the losing transaction
+  leaves its own authority unconsumed.
+- Exact replay, changed-request rejection, cross-scope denial, forced-RLS
+  direct-mutation denial, durable outbox, and abuse-budget assertions remain
+  covered.
+- Verification passed: the previously failing test is green, 20 related
+  PostgreSQL/RLS/authority tests pass, and the complete Python A1 suite is
+  green with `1394 passed, 2 skipped`.
+- Evidence:
+  `docs/a1/evidence/round68_authorized_credential_binding_regression.md`.
+
+Next: publish this authority regression, then continue production lookup-key
+rotation drills and cross-language identity-security/client parity.

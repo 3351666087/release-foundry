@@ -1,4 +1,6 @@
 {
-  "navigationBarTitleText": "Release Approval",
+  "navigationBarTitleText": "发布审批",
+  "enablePullDownRefresh": true,
+  "backgroundColor": "#f3f4f6",
   "usingComponents": {}
 }

@@ -23,9 +23,12 @@ const (
 	productionIdentityDeliveryVaultRequestTimeout   = 10 * time.Second
 )
 
+var openIdentityDatabase = sql.Open
+
 type identityRuntime struct {
 	mode                       string
 	unifiedIdentity            *ashrclone.UnifiedIdentityService
+	identityLifecycle          *ashrclone.IdentityLifecycleService
 	identitySessions           ashrclone.IdentityHTTPSessionResolver
 	postgres                   *ashrclone.ProductionIdentityStore
 	outbox                     ashrclone.OAuthRevocationOutboxStore
@@ -36,8 +39,9 @@ type identityRuntime struct {
 }
 
 type identitySessionPreviousKeyEnv struct {
-	Version string `json:"version"`
-	Key     string `json:"key"`
+	Version  string `json:"version"`
+	Key      string `json:"key"`
+	RetireAt string `json:"retire_at"`
 }
 
 type identitySessionHMACRuntimeConfig struct {
@@ -45,6 +49,20 @@ type identitySessionHMACRuntimeConfig struct {
 	activeKey     []byte
 	previousKeys  []ashrclone.IdentitySessionHMACKey
 	legacyVersion string
+}
+
+type identityLifecyclePreviousKeyEnv struct {
+	Version string `json:"version"`
+	Key     string `json:"key"`
+}
+
+type identityLifecycleKeyRuntimeConfig struct {
+	activeVersion       string
+	activeKey           []byte
+	previousKeys        []ashrclone.IdentityLifecycleEncryptionKey
+	lookupActiveVersion string
+	lookupActiveKey     []byte
+	previousLookupKeys  []ashrclone.IdentityLifecycleLookupKey
 }
 
 type productionIdentityDeliveryVaultConfig struct {
@@ -110,6 +128,27 @@ func newIdentityRuntimeFromEnv(ctx context.Context, lookup func(string) (string,
 			_ = closeResources()
 			return identityRuntime{}, err
 		}
+		receiptStore, err := store.NewIdentityLifecycleReceiptStore()
+		if err != nil {
+			_ = closeResources()
+			return identityRuntime{}, fmt.Errorf("configure production identity lifecycle receipt store: %w", err)
+		}
+		coordinator, err := ashrclone.NewPostgresIdentityLifecycleTransactionCoordinator(store, receiptStore)
+		if err != nil {
+			_ = closeResources()
+			return identityRuntime{}, fmt.Errorf("configure production identity lifecycle coordinator: %w", err)
+		}
+		lifecycle, err := ashrclone.NewIdentityLifecycleService(nil, ashrclone.IdentityLifecycleOptions{
+			ReceiptStore:  receiptStore,
+			Coordinator:   coordinator,
+			Environment:   environment,
+			GitHubEnabled: false,
+			GoogleEnabled: false,
+		})
+		if err != nil {
+			_ = closeResources()
+			return identityRuntime{}, fmt.Errorf("configure production identity lifecycle service: %w", err)
+		}
 		outbox, err := store.NewOAuthRevocationOutboxStore()
 		if err != nil {
 			_ = closeResources()
@@ -120,11 +159,12 @@ func newIdentityRuntimeFromEnv(ctx context.Context, lookup func(string) (string,
 			return identityRuntime{}, fmt.Errorf("production OAuth requires an injected external opaque vault; refusing memory or plaintext token storage")
 		}
 		runtime := identityRuntime{
-			mode:             mode,
-			identitySessions: store,
-			postgres:         store,
-			outbox:           outbox,
-			close:            closeResources,
+			mode:              mode,
+			identityLifecycle: lifecycle,
+			identitySessions:  store,
+			postgres:          store,
+			outbox:            outbox,
+			close:             closeResources,
 		}
 		if verificationEnabled {
 			digestKey := envRaw(lookup, "ASHR_IDENTITY_VERIFICATION_HMAC_KEY")
@@ -335,22 +375,214 @@ func openProductionIdentityStoreFromEnv(
 		return nil, err
 	}
 	defer config.clear()
-	db, err := sql.Open("postgres", dsn)
+	lifecycle, err := identityLifecycleKeyRuntimeConfigFromEnv(lookup)
+	if err != nil {
+		return nil, err
+	}
+	defer lifecycle.clear()
+	db, err := openIdentityDatabase("postgres", dsn)
 	if err != nil {
 		return nil, fmt.Errorf("open production identity postgres: invalid database configuration")
 	}
 	store, err := ashrclone.NewProductionIdentityStore(ashrclone.ProductionIdentityStoreOptions{
-		DB:                      db,
-		SessionKey:              config.activeKey,
-		SessionKeyVersion:       config.activeVersion,
-		PreviousSessionKeys:     config.previousKeys,
-		LegacySessionKeyVersion: config.legacyVersion,
+		DB:                                 db,
+		SessionKey:                         config.activeKey,
+		SessionKeyVersion:                  config.activeVersion,
+		PreviousSessionKeys:                config.previousKeys,
+		LegacySessionKeyVersion:            config.legacyVersion,
+		RequirePreviousKeyRetention:        true,
+		LifecycleReceiptKey:                lifecycle.activeKey,
+		LifecycleReceiptKeyVersion:         lifecycle.activeVersion,
+		PreviousLifecycleReceiptKeys:       lifecycle.previousKeys,
+		LifecycleReceiptLookupKey:          lifecycle.lookupActiveKey,
+		LifecycleReceiptLookupKeyVersion:   lifecycle.lookupActiveVersion,
+		PreviousLifecycleReceiptLookupKeys: lifecycle.previousLookupKeys,
 	})
 	if err != nil {
 		_ = db.Close()
 		return nil, err
 	}
 	return store, nil
+}
+
+func identityLifecycleKeyRuntimeConfigFromEnv(
+	lookup func(string) (string, bool),
+) (identityLifecycleKeyRuntimeConfig, error) {
+	config := identityLifecycleKeyRuntimeConfig{}
+	keep := false
+	defer func() {
+		if !keep {
+			config.clear()
+		}
+	}()
+
+	activeVersion := env(lookup, "ASHR_IDENTITY_LIFECYCLE_RECEIPT_ACTIVE_VERSION")
+	activeKey := envRaw(lookup, "ASHR_IDENTITY_LIFECYCLE_RECEIPT_KEY")
+	missing := make([]string, 0, 2)
+	if activeVersion == "" {
+		missing = append(missing, "ASHR_IDENTITY_LIFECYCLE_RECEIPT_ACTIVE_VERSION")
+	}
+	if activeKey == "" {
+		missing = append(missing, "ASHR_IDENTITY_LIFECYCLE_RECEIPT_KEY")
+	}
+	if len(missing) != 0 {
+		return identityLifecycleKeyRuntimeConfig{}, fmt.Errorf(
+			"production identity lifecycle keyring requires %s", strings.Join(missing, ", "),
+		)
+	}
+	if !validIdentitySessionKeyVersion(activeVersion) {
+		return identityLifecycleKeyRuntimeConfig{}, fmt.Errorf("production identity lifecycle keyring contains an invalid version")
+	}
+	if len(activeKey) < 32 {
+		return identityLifecycleKeyRuntimeConfig{}, fmt.Errorf("ASHR_IDENTITY_LIFECYCLE_RECEIPT_KEY must contain at least 32 bytes")
+	}
+	entries, err := decodeIdentityLifecyclePreviousKeys(
+		envRaw(lookup, "ASHR_IDENTITY_LIFECYCLE_RECEIPT_PREVIOUS_KEYS_JSON"),
+		"ASHR_IDENTITY_LIFECYCLE_RECEIPT_PREVIOUS_KEYS_JSON",
+	)
+	if err != nil {
+		return identityLifecycleKeyRuntimeConfig{}, err
+	}
+	defer func() {
+		for index := range entries {
+			entries[index].Key = ""
+		}
+	}()
+	config.activeVersion = activeVersion
+	config.activeKey = []byte(activeKey)
+	versions := map[string]struct{}{activeVersion: {}}
+	config.previousKeys = make([]ashrclone.IdentityLifecycleEncryptionKey, 0, len(entries))
+	for index, entry := range entries {
+		version := strings.TrimSpace(entry.Version)
+		if !validIdentitySessionKeyVersion(version) {
+			return identityLifecycleKeyRuntimeConfig{}, fmt.Errorf(
+				"ASHR_IDENTITY_LIFECYCLE_RECEIPT_PREVIOUS_KEYS_JSON entry %d has an invalid version", index,
+			)
+		}
+		if len(entry.Key) < 32 {
+			return identityLifecycleKeyRuntimeConfig{}, fmt.Errorf(
+				"ASHR_IDENTITY_LIFECYCLE_RECEIPT_PREVIOUS_KEYS_JSON entry %d has a key shorter than 32 bytes", index,
+			)
+		}
+		if _, duplicate := versions[version]; duplicate {
+			return identityLifecycleKeyRuntimeConfig{}, fmt.Errorf(
+				"ASHR_IDENTITY_LIFECYCLE_RECEIPT_PREVIOUS_KEYS_JSON entry %d duplicates a key version", index,
+			)
+		}
+		versions[version] = struct{}{}
+		config.previousKeys = append(config.previousKeys, ashrclone.IdentityLifecycleEncryptionKey{
+			Version: version, Key: []byte(entry.Key),
+		})
+	}
+	lookupActiveVersion := env(
+		lookup, "ASHR_IDENTITY_LIFECYCLE_RECEIPT_LOOKUP_ACTIVE_VERSION",
+	)
+	lookupActiveKey := envRaw(
+		lookup, "ASHR_IDENTITY_LIFECYCLE_RECEIPT_LOOKUP_KEY",
+	)
+	lookupPreviousRaw := envRaw(
+		lookup, "ASHR_IDENTITY_LIFECYCLE_RECEIPT_LOOKUP_PREVIOUS_KEYS_JSON",
+	)
+	if (lookupActiveVersion == "") != (lookupActiveKey == "") ||
+		(lookupActiveVersion == "" && strings.TrimSpace(lookupPreviousRaw) != "") {
+		return identityLifecycleKeyRuntimeConfig{}, fmt.Errorf(
+			"production identity lifecycle lookup keyring requires active version and key together",
+		)
+	}
+	if lookupActiveVersion != "" {
+		if !validIdentitySessionKeyVersion(lookupActiveVersion) {
+			return identityLifecycleKeyRuntimeConfig{}, fmt.Errorf(
+				"production identity lifecycle lookup keyring contains an invalid version",
+			)
+		}
+		if len(lookupActiveKey) < 32 {
+			return identityLifecycleKeyRuntimeConfig{}, fmt.Errorf(
+				"ASHR_IDENTITY_LIFECYCLE_RECEIPT_LOOKUP_KEY must contain at least 32 bytes",
+			)
+		}
+		lookupEntries, lookupErr := decodeIdentityLifecyclePreviousKeys(
+			lookupPreviousRaw,
+			"ASHR_IDENTITY_LIFECYCLE_RECEIPT_LOOKUP_PREVIOUS_KEYS_JSON",
+		)
+		if lookupErr != nil {
+			return identityLifecycleKeyRuntimeConfig{}, lookupErr
+		}
+		defer func() {
+			for index := range lookupEntries {
+				lookupEntries[index].Key = ""
+			}
+		}()
+		config.lookupActiveVersion = lookupActiveVersion
+		config.lookupActiveKey = []byte(lookupActiveKey)
+		lookupVersions := map[string]struct{}{lookupActiveVersion: {}}
+		config.previousLookupKeys = make(
+			[]ashrclone.IdentityLifecycleLookupKey, 0, len(lookupEntries),
+		)
+		for index, entry := range lookupEntries {
+			version := strings.TrimSpace(entry.Version)
+			if !validIdentitySessionKeyVersion(version) {
+				return identityLifecycleKeyRuntimeConfig{}, fmt.Errorf(
+					"ASHR_IDENTITY_LIFECYCLE_RECEIPT_LOOKUP_PREVIOUS_KEYS_JSON entry %d has an invalid version", index,
+				)
+			}
+			if len(entry.Key) < 32 {
+				return identityLifecycleKeyRuntimeConfig{}, fmt.Errorf(
+					"ASHR_IDENTITY_LIFECYCLE_RECEIPT_LOOKUP_PREVIOUS_KEYS_JSON entry %d has a key shorter than 32 bytes", index,
+				)
+			}
+			if _, duplicate := lookupVersions[version]; duplicate {
+				return identityLifecycleKeyRuntimeConfig{}, fmt.Errorf(
+					"ASHR_IDENTITY_LIFECYCLE_RECEIPT_LOOKUP_PREVIOUS_KEYS_JSON entry %d duplicates a key version", index,
+				)
+			}
+			lookupVersions[version] = struct{}{}
+			config.previousLookupKeys = append(config.previousLookupKeys, ashrclone.IdentityLifecycleLookupKey{
+				Version: version, Key: []byte(entry.Key),
+			})
+		}
+	}
+	keep = true
+	return config, nil
+}
+
+func decodeIdentityLifecyclePreviousKeys(
+	raw string,
+	environmentName string,
+) ([]identityLifecyclePreviousKeyEnv, error) {
+	if strings.TrimSpace(raw) == "" {
+		return []identityLifecyclePreviousKeyEnv{}, nil
+	}
+	decoder := json.NewDecoder(strings.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	var entries []identityLifecyclePreviousKeyEnv
+	if err := decoder.Decode(&entries); err != nil || entries == nil {
+		return nil, fmt.Errorf("%s must be a JSON array of version and key objects", environmentName)
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		return nil, fmt.Errorf("%s must contain exactly one JSON array", environmentName)
+	}
+	return entries, nil
+}
+
+func (config *identityLifecycleKeyRuntimeConfig) clear() {
+	if config == nil {
+		return
+	}
+	zeroBytes(config.activeKey)
+	for index := range config.previousKeys {
+		zeroBytes(config.previousKeys[index].Key)
+	}
+	zeroBytes(config.lookupActiveKey)
+	for index := range config.previousLookupKeys {
+		zeroBytes(config.previousLookupKeys[index].Key)
+	}
+	config.activeKey = nil
+	config.previousKeys = nil
+	config.activeVersion = ""
+	config.lookupActiveKey = nil
+	config.previousLookupKeys = nil
+	config.lookupActiveVersion = ""
 }
 
 func identitySessionHMACRuntimeConfigFromEnv(
@@ -424,10 +656,18 @@ func identitySessionHMACRuntimeConfigFromEnv(
 				index,
 			)
 		}
+		retireAt, parseErr := time.Parse(time.RFC3339, strings.TrimSpace(entry.RetireAt))
+		if parseErr != nil {
+			return identitySessionHMACRuntimeConfig{}, fmt.Errorf(
+				"ASHR_IDENTITY_SESSION_HMAC_PREVIOUS_KEYS_JSON entry %d has an invalid retire_at",
+				index,
+			)
+		}
 		configuredVersions[version] = struct{}{}
 		previousKeys = append(previousKeys, ashrclone.IdentitySessionHMACKey{
-			Version: version,
-			Key:     []byte(entry.Key),
+			Version:  version,
+			Key:      []byte(entry.Key),
+			RetireAt: retireAt,
 		})
 	}
 	if _, ok := configuredVersions[legacyVersion]; !ok {

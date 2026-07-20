@@ -122,6 +122,14 @@ export const HOSTED_ROUTE_SCOPE_REQUIREMENTS: Record<string, string[]> = {
 };
 
 export const UNSUPPORTED_GO_ROUTE_GAPS: Record<string, { reason: string; replacement_route?: string; consumer_action: string }> = {
+  "GET /v1/identity/providers": {
+    reason: "Go exposes the A3-facing identity provider deployment capability surface; the hosted SaaS client does not yet own identity lifecycle transport.",
+    consumer_action: "consume through the unified identity SDK until the generated hosted client adopts the typed provider capability DTO",
+  },
+  "GET /v1/me": {
+    reason: "Go exposes the authenticated canonical identity view through the dedicated identity client; the generic hosted SaaS route client does not own session credentials.",
+    consumer_action: "consume through IdentityClient.me with an explicit session and keep bearer material outside generic hosted route manifests",
+  },
   "GET /health": {
     reason: "Go exposes a root health alias; the hosted TS client uses scoped SaaS/OpenAPI helpers instead of consuming this alias.",
     replacement_route: "GET /healthz",
@@ -157,6 +165,58 @@ export const UNSUPPORTED_GO_ROUTE_GAPS: Record<string, { reason: string; replace
     reason: "Go keeps a root bootstrap alias; hosted clients consume the versioned bootstrap route.",
     replacement_route: "POST /v1/bootstrap",
     consumer_action: "keep unsupported until root bootstrap aliases are part of generated SDK contracts",
+  },
+  "POST /v1/identity/login/complete": {
+    reason: "Go owns receipt-backed login completion; the hosted SaaS client intentionally cannot create, merge, or link accounts during login.",
+    consumer_action: "consume through the unified identity SDK after obtaining a server-issued proof receipt",
+  },
+  "POST /v1/identity/login/email/begin": {
+    reason: "Go starts canonical email login through the dedicated identity client rather than the generic hosted SaaS client.",
+    consumer_action: "consume through IdentityClient.beginEmailLogin and preserve strict separation between login and registration",
+  },
+  "POST /v1/identity/login/email/complete": {
+    reason: "Go completes canonical email login through the dedicated identity client and may return an MFA challenge.",
+    consumer_action: "consume through IdentityClient.completeEmailLogin and handle the typed session-or-MFA result",
+  },
+  "POST /v1/identity/login/start": {
+    reason: "Go owns login proof issuance for existing credentials; the hosted SaaS client does not accept caller-asserted verification.",
+    consumer_action: "consume through the unified identity SDK and preserve strict registration/login separation",
+  },
+  "POST /v1/identity/mfa/complete": {
+    reason: "Go completes a canonical MFA challenge through the dedicated identity client; generic hosted route scope manifests do not carry proof material.",
+    consumer_action: "consume through IdentityClient.completeMfa and keep challenge proofs out of logs and generic SaaS payloads",
+  },
+  "POST /v1/identity/oauth/begin": {
+    reason: "Go starts registration, login, or linking OAuth flows through the dedicated canonical identity client.",
+    consumer_action: "consume through IdentityClient.beginOAuth and require an authenticated session for link intent",
+  },
+  "POST /v1/identity/oauth/complete": {
+    reason: "Go completes canonical OAuth identity flows through a typed union that the generic hosted SaaS route client does not model.",
+    consumer_action: "consume through IdentityClient.completeOAuth and handle registration, authentication, MFA, or binding-ticket outcomes explicitly",
+  },
+  "POST /v1/identity/registration/complete": {
+    reason: "Go owns receipt-backed account creation; the hosted SaaS client does not yet expose identity registration transport.",
+    consumer_action: "consume through the unified identity SDK after obtaining a server-issued proof receipt",
+  },
+  "POST /v1/identity/registration/email/begin": {
+    reason: "Go starts canonical email registration through the dedicated identity client rather than the generic hosted SaaS client.",
+    consumer_action: "consume through IdentityClient.beginEmailRegistration and keep registration explicit",
+  },
+  "POST /v1/identity/registration/email/complete": {
+    reason: "Go completes canonical email registration through the dedicated identity client rather than the generic hosted SaaS client.",
+    consumer_action: "consume through IdentityClient.completeEmailRegistration and treat the resulting account identity as a registration outcome only",
+  },
+  "POST /v1/identity/registration/start": {
+    reason: "Go owns registration proof issuance; the hosted SaaS client does not accept caller-asserted verification.",
+    consumer_action: "consume through the unified identity SDK and preserve strict registration/login separation",
+  },
+  "POST /v1/identity/credentials/bind": {
+    reason: "Go binds a verified credential to an authenticated canonical account through the dedicated identity client.",
+    consumer_action: "consume through IdentityClient.bindCredential with an explicit session, binding-ticket proof, and affirmative consent",
+  },
+  "POST /v1/identity/sessions/revoke": {
+    reason: "Go revokes the active canonical identity session through the dedicated identity client; the generic hosted SaaS client does not own bearer sessions.",
+    consumer_action: "consume through IdentityClient.revokeSession and avoid persisting or logging the session token",
   },
   "POST /v1/projects/{project_id}/accounts/{account_id}/browser-sessions/refresh": {
     reason: "Go owns the same-origin HttpOnly cookie refresh boundary; the hosted JSON client intentionally accepts neither raw refresh cookies nor digest payloads for this browser-only route.",

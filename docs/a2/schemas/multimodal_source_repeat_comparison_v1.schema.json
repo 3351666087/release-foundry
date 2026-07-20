@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.io/schemas/a2/multimodal_source_repeat_comparison_v1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "baseline_calibration_hash",
+    "repeat_calibration_hash",
+    "binding_fields",
+    "mismatched_binding_fields",
+    "bootstrap_samples",
+    "seed",
+    "baseline",
+    "repeat",
+    "sensitivity_delta_repeat_minus_baseline",
+    "paired_delta_bootstrap_ci_95",
+    "missing_unit_counts",
+    "blockers",
+    "promotion_eligible",
+    "release_authority",
+    "raw_provider_text_included",
+    "public_safe"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "a2.multimodal_source_repeat_comparison.v1"
+    },
+    "baseline_calibration_hash": {
+      "$ref": "#/$defs/hash"
+    },
+    "repeat_calibration_hash": {
+      "$ref": "#/$defs/hash"
+    },
+    "binding_fields": {
+      "type": "object",
+      "additionalProperties": {
+        "type": ["string", "null"]
+      }
+    },
+    "mismatched_binding_fields": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string"
+      }
+    },
+    "bootstrap_samples": {
+      "type": "integer",
+      "minimum": 100
+    },
+    "seed": {
+      "type": "integer"
+    },
+    "baseline": {
+      "$ref": "#/$defs/summary"
+    },
+    "repeat": {
+      "$ref": "#/$defs/summary"
+    },
+    "sensitivity_delta_repeat_minus_baseline": {
+      "type": ["number", "null"],
+      "minimum": -1,
+      "maximum": 1
+    },
+    "paired_delta_bootstrap_ci_95": {
+      "$ref": "#/$defs/interval"
+    },
+    "missing_unit_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["from_baseline", "from_repeat"],
+      "properties": {
+        "from_baseline": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "from_repeat": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "blockers": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string"
+      }
+    },
+    "promotion_eligible": {
+      "type": "boolean"
+    },
+    "release_authority": {
+      "const": false
+    },
+    "raw_provider_text_included": {
+      "const": false
+    },
+    "public_safe": {
+      "const": true
+    }
+  },
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "interval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lower", "upper"],
+      "properties": {
+        "lower": {
+          "type": ["number", "null"],
+          "minimum": -1,
+          "maximum": 1
+        },
+        "upper": {
+          "type": ["number", "null"],
+          "minimum": -1,
+          "maximum": 1
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "matched_distinct_bucket_source_count",
+        "detected_count",
+        "sensitivity",
+        "bootstrap_ci_95"
+      ],
+      "properties": {
+        "matched_distinct_bucket_source_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "detected_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sensitivity": {
+          "type": ["number", "null"],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "bootstrap_ci_95": {
+          "$ref": "#/$defs/interval"
+        }
+      }
+    }
+  }
+}

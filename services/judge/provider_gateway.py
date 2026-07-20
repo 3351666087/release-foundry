@@ -7,12 +7,29 @@ from dataclasses import dataclass
 from typing import Any, Callable, Protocol
 from urllib import request
 
-from .provider_runtime import CircuitBreaker, ProviderRateLimited, ProviderUnavailable, RetryPolicy
+from .provider_runtime import (
+    CircuitBreaker,
+    ProviderAuthenticationFailed,
+    ProviderRateLimited,
+    ProviderUnavailable,
+    RetryPolicy,
+)
 from .result_persistence import stable_hash
 
 
 SCHEMA_VERSION = "a2.provider_gateway.v1"
+RECONCILIATION_SCHEMA_VERSION = "a2.provider_reconciliation.v1"
+RECONCILIATION_MODES = frozenset({"unsupported", "provider_status_lookup"})
 MODALITIES = frozenset({"text", "image", "audio", "file", "video"})
+RECONCILIATION_STATUSES = frozenset(
+    {
+        "remote_completed",
+        "remote_pending",
+        "remote_not_found",
+        "remote_unknown",
+        "reconciliation_unsupported",
+    }
+)
 TERMINAL_FAILURES = frozenset(
     {
         "blocked",
@@ -22,9 +39,36 @@ TERMINAL_FAILURES = frozenset(
         "rate_limited",
         "timeout",
         "invalid_response",
+        "authentication_failed",
         "unsupported",
     }
 )
+MODEL_OPTION_ALLOWLISTS = {
+    "ollama": frozenset({"temperature", "num_predict", "seed", "top_p", "top_k"}),
+    "openai_compatible": frozenset({"temperature", "max_tokens", "seed", "top_p"}),
+}
+
+
+def validate_model_options(protocol: str, options: dict[str, Any]) -> dict[str, Any]:
+    allowed = MODEL_OPTION_ALLOWLISTS.get(protocol)
+    if allowed is None:
+        return dict(options)
+    unsupported = sorted(set(options) - allowed)
+    if unsupported:
+        label = "Ollama" if protocol == "ollama" else protocol
+        raise ValueError(f"unsupported {label} model options: {','.join(unsupported)}")
+    validators = {
+        "temperature": lambda value: isinstance(value, (int, float)) and not isinstance(value, bool) and 0 <= value <= 2,
+        "top_p": lambda value: isinstance(value, (int, float)) and not isinstance(value, bool) and 0 < value <= 1,
+        "top_k": lambda value: isinstance(value, int) and not isinstance(value, bool) and value >= 1,
+        "seed": lambda value: isinstance(value, int) and not isinstance(value, bool),
+        "num_predict": lambda value: isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= 32768,
+        "max_tokens": lambda value: isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= 32768,
+    }
+    invalid = sorted(name for name, value in options.items() if not validators[name](value))
+    if invalid:
+        raise ValueError(f"invalid {protocol} model option values: {','.join(invalid)}")
+    return dict(options)
 
 
 class ProviderAdapter(Protocol):
@@ -41,6 +85,11 @@ class ProviderDefinition:
     allowed_tenants: frozenset[str]
     enabled: bool = True
     data_residency: str = "unspecified"
+    reconciliation_mode: str = "unsupported"
+
+    def __post_init__(self) -> None:
+        if self.reconciliation_mode not in RECONCILIATION_MODES:
+            raise ValueError("unsupported Provider reconciliation mode")
 
 
 class StrictFakeAdapter:
@@ -58,10 +107,34 @@ class StrictFakeAdapter:
         return dict(self.response)
 
 
+class StrictFakeReconciliationAdapter(StrictFakeAdapter):
+    """Deterministic reconciliation adapter for governed recovery tests."""
+
+    def __init__(
+        self,
+        response: dict[str, Any] | None = None,
+        *,
+        reconciliation_response: dict[str, Any] | None = None,
+    ) -> None:
+        super().__init__(response)
+        self.reconciliation_response = reconciliation_response or {"status": "remote_unknown"}
+        self.reconciliation_calls = 0
+
+    def reconcile(
+        self,
+        model: dict[str, Any],
+        reconciliation_request: dict[str, Any],
+        timeout_seconds: float,
+    ) -> dict[str, Any]:
+        self.reconciliation_calls += 1
+        return dict(self.reconciliation_response)
+
+
 class OllamaAdapter:
     """Minimal Ollama /api/chat adapter; credentials are intentionally unsupported."""
 
     def invoke(self, model: dict[str, Any], payload: dict[str, Any], timeout_seconds: float) -> dict[str, Any]:
+        options = validate_model_options("ollama", dict(model.get("options") or {}))
         content = "\n".join(
             str(part.get("text") or "")
             for part in payload.get("parts", [])
@@ -81,15 +154,20 @@ class OllamaAdapter:
                 "messages": [message],
                 "stream": False,
                 "format": model.get("response_format", "json"),
-                "options": model.get("options", {}),
+                "options": options,
             }
         ).encode("utf-8")
         endpoint = str(model["base_url"]).rstrip("/") + "/api/chat"
         call = request.Request(endpoint, data=body, headers={"Content-Type": "application/json"}, method="POST")
         with request.urlopen(call, timeout=timeout_seconds) as response:
             parsed = json.loads(response.read().decode("utf-8"))
+        output_text = str(parsed.get("message", {}).get("content") or "")
+        if not output_text.strip():
+            # A private reasoning channel is not governed Judge output and
+            # must not be promoted when the public assistant content is empty.
+            raise ValueError("Ollama response message content is empty")
         return {
-            "output_text": str(parsed.get("message", {}).get("content") or ""),
+            "output_text": output_text,
             "usage": {
                 "input_tokens": int(parsed.get("prompt_eval_count") or 0),
                 "output_tokens": int(parsed.get("eval_count") or 0),
@@ -132,7 +210,19 @@ class ProviderGateway:
         idempotency_key: str,
         timeout_seconds: float = 30,
         max_cost_usd: float = 0,
+        model_options: dict[str, Any] | None = None,
+        credential_generation_marker: str = "",
     ) -> dict[str, Any]:
+        if credential_generation_marker and not (
+            credential_generation_marker.startswith("hmac-sha256:")
+            and len(credential_generation_marker) == 76
+            and all(char in "0123456789abcdef" for char in credential_generation_marker[12:])
+        ):
+            raise ValueError("credential_generation_marker must be empty or canonical hmac-sha256")
+        normalized_options = validate_model_options(
+            self.providers[provider_id].protocol if provider_id in self.providers else "",
+            dict(model_options or {}),
+        )
         request_core = {
             "schema_version": SCHEMA_VERSION,
             "tenant_id": tenant_id,
@@ -143,6 +233,8 @@ class ProviderGateway:
             "modalities": sorted({str(part.get("modality") or "") for part in parts}),
             "payload_hash": stable_hash(parts),
             "idempotency_key": idempotency_key,
+            "model_options_hash": stable_hash(normalized_options),
+            "credential_generation_marker": credential_generation_marker,
         }
         logical_call_id = stable_hash(request_core)
         if logical_call_id in self._results:
@@ -190,6 +282,7 @@ class ProviderGateway:
             "provider_id": provider_id,
             "model_id": model_id,
             "credential_ref": provider.credential_ref,
+            "credential_generation_marker": credential_generation_marker,
         }
         try:
             self.audit_writer(audit_event)
@@ -210,6 +303,7 @@ class ProviderGateway:
                         "base_url": provider.base_url,
                         "credential_ref": provider.credential_ref,
                         "response_format": "json",
+                        "options": normalized_options,
                     },
                     {"parts": parts},
                     timeout_seconds,
@@ -229,17 +323,26 @@ class ProviderGateway:
                 break
             except TimeoutError:
                 status = "timeout"
+            except ProviderAuthenticationFailed:
+                status = "authentication_failed"
             except ProviderRateLimited:
                 status = "rate_limited"
             except ProviderUnavailable:
                 status = "provider_unavailable"
-            except (ValueError, TypeError):
+            except (ValueError, TypeError) as exc:
                 status = "invalid_response"
+                failure_detail = (
+                    "empty_public_content"
+                    if "message content is empty" in str(exc)
+                    else "malformed_or_invalid_output"
+                )
             except Exception:
                 status = "provider_error"
             attempt["status"] = status
             if not self.retry_policy.should_retry(status, attempt_number):
                 result = self._result(request_core, logical_call_id, status, attempts=attempts)
+                if status == "invalid_response":
+                    result["failure_detail"] = failure_detail
                 if breaker is not None:
                     breaker.record(False)
                 break
@@ -255,6 +358,61 @@ class ProviderGateway:
             and required <= item.allowed_modalities
             and (not item.allowed_tenants or tenant_id in item.allowed_tenants)
         )
+
+    def reconcile(
+        self,
+        *,
+        scope: dict[str, str],
+        operation_id: str,
+        provider_call_id: str,
+        logical_call_id: str,
+        provider_id: str,
+        model_id: str,
+        snapshot_hash: str,
+        payload_hash: str,
+        idempotency_key_hash: str,
+        provider_endpoint_hash: str,
+        provider_generation: int,
+        timeout_seconds: float = 30,
+    ) -> dict[str, Any]:
+        """Query an explicitly capable Provider without authorizing blind replay."""
+        request_core = {
+            "schema_version": RECONCILIATION_SCHEMA_VERSION,
+            "scope": dict(scope),
+            "operation_id": operation_id,
+            "provider_call_id": provider_call_id,
+            "logical_call_id": logical_call_id,
+            "provider_id": provider_id,
+            "model_id": model_id,
+            "snapshot_hash": snapshot_hash,
+            "payload_hash": payload_hash,
+            "idempotency_key_hash": idempotency_key_hash,
+            "provider_endpoint_hash": provider_endpoint_hash,
+            "provider_generation": provider_generation,
+        }
+        blocker = self._reconciliation_preflight(request_core)
+        if blocker:
+            return self._reconciliation_result(request_core, blocker)
+        provider = self.providers.get(provider_id)
+        adapter = self.adapters.get(provider.protocol) if provider else None
+        if provider is None or provider.reconciliation_mode != "provider_status_lookup":
+            return self._reconciliation_result(request_core, "reconciliation_unsupported")
+        reconcile = getattr(adapter, "reconcile", None)
+        if not callable(reconcile):
+            return self._reconciliation_result(request_core, "reconciliation_unsupported")
+        try:
+            response = reconcile(
+                {
+                    "model_id": model_id,
+                    "base_url": provider.base_url,
+                    "credential_ref": provider.credential_ref,
+                },
+                dict(request_core),
+                timeout_seconds,
+            )
+            return self._normalize_reconciliation_response(request_core, response)
+        except Exception:
+            return self._reconciliation_result(request_core, "remote_unknown")
 
     def _preflight(
         self,
@@ -277,11 +435,97 @@ class ProviderGateway:
         requested = {str(part.get("modality") or "") for part in parts}
         if not requested or not requested <= MODALITIES or not requested <= provider.allowed_modalities:
             return "unsupported"
-        if any("data" in part and part.get("modality") != "text" and not part.get("content_hash") for part in parts):
-            return "blocked"
+        for part in parts:
+            modality = str(part.get("modality") or "")
+            if modality == "text":
+                if not isinstance(part.get("text"), str) or not part["text"].strip():
+                    return "blocked"
+                continue
+            if not isinstance(part.get("data"), str) or not part["data"]:
+                return "blocked"
+            if not part.get("content_hash"):
+                return "blocked"
         if max_cost_usd < 0:
             return "budget_blocked"
         return ""
+
+    def _reconciliation_preflight(self, request_core: dict[str, Any]) -> str:
+        scope = request_core.get("scope")
+        if not isinstance(scope, dict) or set(scope) != {
+            "organization_id", "tenant_id", "workspace_id", "project_id", "environment_id",
+        }:
+            return "remote_unknown"
+        if any(not isinstance(value, str) or not value for value in scope.values()):
+            return "remote_unknown"
+        provider = self.providers.get(str(request_core.get("provider_id") or ""))
+        if (
+            provider is None
+            or not provider.enabled
+            or (provider.allowed_tenants and scope["tenant_id"] not in provider.allowed_tenants)
+        ):
+            return "reconciliation_unsupported"
+        required_strings = (
+            "operation_id", "provider_call_id", "logical_call_id", "model_id",
+            "snapshot_hash", "payload_hash", "idempotency_key_hash", "provider_endpoint_hash",
+        )
+        if any(not isinstance(request_core.get(field), str) or not request_core[field] for field in required_strings):
+            return "remote_unknown"
+        generation = request_core.get("provider_generation")
+        if isinstance(generation, bool) or not isinstance(generation, int) or generation <= 0:
+            return "remote_unknown"
+        return ""
+
+    def _normalize_reconciliation_response(
+        self,
+        request_core: dict[str, Any],
+        response: Any,
+    ) -> dict[str, Any]:
+        if not isinstance(response, dict) or set(response) - {
+            "status", "provider_call_id", "logical_call_id", "provider_id", "model_id",
+            "snapshot_hash", "payload_hash", "idempotency_key_hash",
+            "provider_endpoint_hash", "scope", "operation_id", "provider_generation", "output",
+        }:
+            return self._reconciliation_result(request_core, "remote_unknown")
+        status = response.get("status")
+        if status not in RECONCILIATION_STATUSES:
+            return self._reconciliation_result(request_core, "remote_unknown")
+        if status != "remote_completed":
+            return self._reconciliation_result(request_core, str(status))
+        bindings = (
+            "provider_call_id", "logical_call_id", "provider_id", "model_id",
+            "snapshot_hash", "payload_hash", "idempotency_key_hash",
+            "provider_endpoint_hash", "scope", "operation_id", "provider_generation",
+        )
+        if any(response.get(field) != request_core.get(field) for field in bindings):
+            return self._reconciliation_result(request_core, "remote_unknown")
+        output = response.get("output")
+        if (
+            not isinstance(output, dict)
+            or not isinstance(output.get("output_text"), str)
+            or self.response_validator is None
+        ):
+            return self._reconciliation_result(request_core, "remote_unknown")
+        try:
+            normalized_output = self.response_validator(output["output_text"])
+        except (TypeError, ValueError):
+            return self._reconciliation_result(request_core, "remote_unknown")
+        result = self._reconciliation_result(request_core, "remote_completed")
+        result["normalized_output"] = normalized_output
+        result["output_hash"] = stable_hash(output)
+        return result
+
+    @staticmethod
+    def _reconciliation_result(request_core: dict[str, Any], status: str) -> dict[str, Any]:
+        return {
+            **request_core,
+            "status": status,
+            "evaluation_eligible": status == "remote_completed",
+            "retry_authorized": False,
+            "release_authority": False,
+            "public_safe": True,
+            "raw_response_included": False,
+            "blockers": [] if status == "remote_completed" else [status],
+        }
 
     @staticmethod
     def _result(

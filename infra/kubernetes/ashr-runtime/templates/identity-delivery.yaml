@@ -1,0 +1,190 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ashr.componentName" (dict "root" . "component" "identity-delivery") }}
+  labels:
+    {{- include "ashr.commonLabels" . | nindent 4 }}
+    app.kubernetes.io/component: identity-delivery
+  annotations:
+    {{- include "ashr.supplyChainAnnotations" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.identityDelivery.replicaCount }}
+  revisionHistoryLimit: 5
+  minReadySeconds: 10
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  selector:
+    matchLabels:
+      {{- include "ashr.selectorLabels" (dict "root" . "component" "identity-delivery") | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "ashr.selectorLabels" (dict "root" . "component" "identity-delivery") | nindent 8 }}
+      annotations:
+        checksum/runtime-config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- include "ashr.supplyChainAnnotations" . | nindent 8 }}
+    spec:
+      serviceAccountName: {{ include "ashr.componentName" (dict "root" . "component" "identity-delivery") }}
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      terminationGracePeriodSeconds: 45
+      securityContext:
+        {{- include "ashr.podSecurityContext" . | nindent 8 }}
+      topologySpreadConstraints:
+        {{- include "ashr.topologySpread" (dict "root" . "component" "identity-delivery") | nindent 8 }}
+      {{- with .Values.scheduling.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.scheduling.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: identity-delivery
+          image: {{ include "ashr.image" .Values.images.identityDelivery | quote }}
+          imagePullPolicy: {{ .Values.images.identityDelivery.pullPolicy }}
+          command: ["/usr/local/bin/ashr-identity-delivery"]
+          ports:
+            - name: health
+              containerPort: {{ .Values.identityDelivery.healthPort }}
+              protocol: TCP
+          env:
+            - name: ASHR_IDENTITY_DELIVERY_POSTGRES_DSN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.runtime.secrets.runtime.name }}
+                  key: {{ .Values.runtime.secrets.runtime.postgresDsnKey }}
+            - name: ASHR_IDENTITY_DELIVERY_TENANT_ID
+              value: {{ .Values.runtime.tenantId | quote }}
+            - name: ASHR_IDENTITY_DELIVERY_PROJECT_ID
+              value: {{ .Values.runtime.projectId | quote }}
+            - name: ASHR_IDENTITY_DELIVERY_LEASE_OWNER
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: ASHR_IDENTITY_DELIVERY_VAULT_URL
+              value: {{ .Values.identityDelivery.vaultUrl | quote }}
+            - name: ASHR_IDENTITY_DELIVERY_EMAIL_RELAY_URL
+              value: {{ .Values.identityDelivery.emailRelayUrl | quote }}
+            - name: ASHR_IDENTITY_DELIVERY_SMS_RELAY_URL
+              value: {{ .Values.identityDelivery.smsRelayUrl | quote }}
+            - name: ASHR_IDENTITY_DELIVERY_MTLS_PROFILE_MODE
+              value: shared
+            - name: ASHR_IDENTITY_DELIVERY_SHARED_MTLS_CA_FILE
+              value: /var/run/secrets/ashr/identity-mtls/ca.pem
+            - name: ASHR_IDENTITY_DELIVERY_SHARED_MTLS_CLIENT_CERT_FILE
+              value: /var/run/secrets/ashr/identity-mtls/client-cert.pem
+            - name: ASHR_IDENTITY_DELIVERY_SHARED_MTLS_CLIENT_KEY_FILE
+              value: /var/run/secrets/ashr/identity-mtls/client-key.pem
+            - name: ASHR_IDENTITY_DELIVERY_VAULT_MTLS_SERVER_NAME
+              value: {{ .Values.identityDelivery.mtlsServerName | quote }}
+            - name: ASHR_IDENTITY_DELIVERY_RELAY_MTLS_SERVER_NAME
+              value: {{ .Values.identityDelivery.mtlsServerName | quote }}
+            - name: ASHR_IDENTITY_DELIVERY_HEALTH_ADDRESS
+              value: {{ printf "0.0.0.0:%v" .Values.identityDelivery.healthPort | quote }}
+            - name: ASHR_IDENTITY_DELIVERY_BATCH_SIZE
+              value: {{ .Values.identityDelivery.batchSize | quote }}
+            - name: ASHR_IDENTITY_DELIVERY_MAX_OPEN_CONNECTIONS
+              value: {{ .Values.identityDelivery.maxOpenConnections | quote }}
+            - name: ASHR_IDENTITY_DELIVERY_MAX_ATTEMPTS
+              value: {{ .Values.identityDelivery.maxAttempts | quote }}
+            - name: ASHR_IDENTITY_DELIVERY_POLL_INTERVAL
+              value: {{ .Values.identityDelivery.pollInterval | quote }}
+            - name: ASHR_IDENTITY_DELIVERY_LEASE_DURATION
+              value: {{ .Values.identityDelivery.leaseDuration | quote }}
+            - name: ASHR_IDENTITY_DELIVERY_HEARTBEAT_INTERVAL
+              value: {{ .Values.identityDelivery.heartbeatInterval | quote }}
+            - name: ASHR_IDENTITY_DELIVERY_PROVIDER_TIMEOUT
+              value: {{ .Values.identityDelivery.providerTimeout | quote }}
+            - name: ASHR_IDENTITY_DELIVERY_VAULT_TIMEOUT
+              value: {{ .Values.identityDelivery.vaultTimeout | quote }}
+            - name: ASHR_IDENTITY_DELIVERY_STORE_TIMEOUT
+              value: {{ .Values.identityDelivery.storeTimeout | quote }}
+            - name: ASHR_IDENTITY_DELIVERY_TELEMETRY_TIMEOUT
+              value: {{ .Values.identityDelivery.telemetryTimeout | quote }}
+            - name: ASHR_IDENTITY_DELIVERY_READINESS_TIMEOUT
+              value: {{ .Values.identityDelivery.readinessTimeout | quote }}
+            - name: ASHR_IDENTITY_DELIVERY_SHUTDOWN_TIMEOUT
+              value: {{ .Values.identityDelivery.shutdownTimeout | quote }}
+          securityContext:
+            {{- include "ashr.containerSecurityContext" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.identityDelivery.resources | nindent 12 }}
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            failureThreshold: 30
+            periodSeconds: 2
+            timeoutSeconds: 1
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: health
+            failureThreshold: 3
+            periodSeconds: 5
+            timeoutSeconds: 2
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: health
+            failureThreshold: 3
+            periodSeconds: 15
+            timeoutSeconds: 2
+          volumeMounts:
+            - name: identity-mtls
+              mountPath: /var/run/secrets/ashr/identity-mtls
+              readOnly: true
+            - name: runtime-tmp
+              mountPath: /tmp
+      volumes:
+        - name: identity-mtls
+          secret:
+            secretName: {{ .Values.runtime.secrets.identityMtls.name }}
+            defaultMode: 0440
+            items:
+              - key: {{ .Values.runtime.secrets.identityMtls.caKey }}
+                path: ca.pem
+              - key: {{ .Values.runtime.secrets.identityMtls.certificateKey }}
+                path: client-cert.pem
+              - key: {{ .Values.runtime.secrets.identityMtls.privateKeyKey }}
+                path: client-key.pem
+        - name: runtime-tmp
+          emptyDir:
+            sizeLimit: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "ashr.componentName" (dict "root" . "component" "identity-delivery") }}
+  labels:
+    {{- include "ashr.commonLabels" . | nindent 4 }}
+    app.kubernetes.io/component: identity-delivery
+spec:
+  type: ClusterIP
+  selector:
+    {{- include "ashr.selectorLabels" (dict "root" . "component" "identity-delivery") | nindent 4 }}
+  ports:
+    - name: health
+      port: {{ .Values.identityDelivery.healthPort }}
+      targetPort: health
+      protocol: TCP
+  internalTrafficPolicy: Cluster
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ include "ashr.componentName" (dict "root" . "component" "identity-delivery") }}
+  labels:
+    {{- include "ashr.commonLabels" . | nindent 4 }}
+    app.kubernetes.io/component: identity-delivery
+spec:
+  minAvailable: {{ .Values.identityDelivery.pdb.minAvailable }}
+  unhealthyPodEvictionPolicy: IfHealthyBudget
+  selector:
+    matchLabels:
+      {{- include "ashr.selectorLabels" (dict "root" . "component" "identity-delivery") | nindent 6 }}

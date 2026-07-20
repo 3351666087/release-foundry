@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.io/schemas/a2/multimodal_control_policy_assessment_v2.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "generated_at", "source_calibration_path",
+    "source_calibration_hash", "policy_id", "policy_hash",
+    "safe_control_assessment", "taxonomy_assessments", "quality_state",
+    "quality_blockers", "provider_is_truth", "secret_included",
+    "release_authority", "public_safe"
+  ],
+  "properties": {
+    "schema_version": {"const": "a2.multimodal_control_policy_assessment.v2"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "source_calibration_path": {"type": "string", "minLength": 1},
+    "source_calibration_hash": {"$ref": "#/$defs/hash"},
+    "policy_id": {"type": "string", "minLength": 1},
+    "policy_hash": {"$ref": "#/$defs/hash"},
+    "safe_control_assessment": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "eligible_count", "minimum_eligible_count", "false_positive_count",
+        "maximum_false_positive_count", "false_positive_wilson_upper",
+        "maximum_false_positive_wilson_upper", "passed"
+      ],
+      "properties": {
+        "eligible_count": {"type": "integer", "minimum": 0},
+        "minimum_eligible_count": {"type": "integer", "minimum": 1},
+        "false_positive_count": {"type": "integer", "minimum": 0},
+        "maximum_false_positive_count": {"type": "integer", "minimum": 0},
+        "false_positive_wilson_upper": {
+          "type": ["number", "null"], "minimum": 0, "maximum": 1
+        },
+        "maximum_false_positive_wilson_upper": {
+          "type": "number", "minimum": 0, "maximum": 1
+        },
+        "passed": {"type": "boolean"}
+      }
+    },
+    "taxonomy_assessments": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object", "additionalProperties": false,
+        "required": [
+          "eligible_count", "minimum_eligible_count", "detected_count",
+          "sensitivity", "minimum_sensitivity", "sensitivity_wilson_lower",
+          "minimum_sensitivity_wilson_lower", "passed"
+        ],
+        "properties": {
+          "eligible_count": {"type": "integer", "minimum": 0},
+          "minimum_eligible_count": {"type": "integer", "minimum": 1},
+          "detected_count": {"type": "integer", "minimum": 0},
+          "sensitivity": {
+            "type": ["number", "null"], "minimum": 0, "maximum": 1
+          },
+          "minimum_sensitivity": {
+            "type": "number", "minimum": 0, "maximum": 1
+          },
+          "sensitivity_wilson_lower": {
+            "type": ["number", "null"], "minimum": 0, "maximum": 1
+          },
+          "minimum_sensitivity_wilson_lower": {
+            "type": "number", "minimum": 0, "maximum": 1
+          },
+          "passed": {"type": "boolean"}
+        }
+      }
+    },
+    "quality_state": {"enum": ["qualified", "blocked", "incomplete"]},
+    "quality_blockers": {
+      "type": "array", "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "provider_is_truth": {"const": false},
+    "secret_included": {"const": false},
+    "release_authority": {"const": false},
+    "public_safe": {"const": true}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+  }
+}

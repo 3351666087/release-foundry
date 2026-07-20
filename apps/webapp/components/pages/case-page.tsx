@@ -34,9 +34,9 @@ export function CasePage() {
         />
 
         <MetricStrip items={[
-          { label: zh ? "分数" : "Score", value: item.score, tone: item.passed ? "pass" : "fail", detail: "A2 GradeResult" },
+          { label: zh ? "分数" : "Score", value: item.score, tone: item.passed ? "pass" : "fail", detail: zh ? "评测结论" : "evaluation result" },
           { label: zh ? "严重程度" : "Severity", value: item.severity, tone: "warn" },
-          { label: zh ? "Trace 事件" : "Trace events", value: timeline.length, tone: "info", detail: "A1 evidence" },
+          { label: zh ? "Trace 事件" : "Trace events", value: timeline.length, tone: "info", detail: zh ? "执行证据" : "execution evidence" },
           { label: "Tool calls", value: item.toolCalls.length, tone: "cobalt" }
         ]} />
 
@@ -56,12 +56,12 @@ export function CasePage() {
         </div>
 
         <div className="content-grid two-one">
-          <Section title={zh ? "Trace 时间线" : "Trace timeline"} description={zh ? "A1 记录的消息、工具和执行事件" : "Messages, tools, and execution events captured by A1"}>
+          <Section title={zh ? "Trace 时间线" : "Trace timeline"} description={zh ? "运行平台记录的消息、工具和执行事件" : "Messages, tools, and execution events captured by the runtime"}>
             <div className="trace-list">
               {timeline.map((event, index) => {
                 const kind = string(event.event_type, string(event.type, "event"));
                 const Icon = kind.includes("tool") ? Wrench : kind.includes("agent") ? Bot : MessageSquareText;
-                return <article key={`${kind}-${index}`}><span>{String(index + 1).padStart(2, "0")}</span><Icon size={17} /><div><strong>{kind}</strong><p>{string(event.content, string(event.name, string(event.status)))}</p></div><small>{string(event.role, string(event.timestamp, "A1"))}</small></article>;
+                return <article key={`${kind}-${index}`}><span>{String(index + 1).padStart(2, "0")}</span><Icon size={17} /><div><strong>{kind}</strong><p>{string(event.content, string(event.name, string(event.status)))}</p></div><small>{string(event.role, string(event.timestamp, zh ? "运行平台" : "runtime"))}</small></article>;
               })}
             </div>
           </Section>
@@ -71,7 +71,7 @@ export function CasePage() {
           </Section>
         </div>
 
-        <Section title={zh ? "Judge 判定" : "Judge decisions"} description={zh ? "A2 的各评测模式与失败分析" : "A2 judge modes and failure analysis"}>
+        <Section title={zh ? "Judge 判定" : "Judge decisions"} description={zh ? "评测服务的各评测模式与失败分析" : "Evaluation modes and failure analysis"}>
           <div className="judge-grid">
             {item.judgeResults.map((judge, index) => {
               const analysis = record(judge.failure_analysis);

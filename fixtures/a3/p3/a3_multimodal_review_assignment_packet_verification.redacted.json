@@ -1,0 +1,21 @@
+{
+  "schema_version": "a3.multimodal_review_assignment_packet_verification.v1",
+  "verified_at": "2026-07-14T12:05:01.000Z",
+  "packet_id": "mmrp_39c3b8be913bf862ccba",
+  "status": "passed",
+  "root_hash": {
+    "expected": "sha256:19f612211d2fa4ae0dde1c3ebfe180985c556bfc37047c68368c450757b38066",
+    "actual": "sha256:19f612211d2fa4ae0dde1c3ebfe180985c556bfc37047c68368c450757b38066",
+    "passed": true
+  },
+  "item_count": 4,
+  "event_count": 3,
+  "archive_signature": {
+    "required": true,
+    "verified_here": false,
+    "verifier": "a3_audit_archive"
+  },
+  "authority_boundary_preserved": true,
+  "findings": [],
+  "process_exit_code": 0
+}

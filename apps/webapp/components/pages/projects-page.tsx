@@ -31,7 +31,7 @@ export function ProjectsPage() {
           <div>
             <span className="eyebrow">{string(tenant.organization_id, "org-local")}</span>
             <h2>{string(tenant.project_id, "project-local")}</h2>
-            <p>{zh ? "已接入 A1 执行证据和 A2 判定结果的演示项目。" : "Demo project connected to A1 execution evidence and A2 decisions."}</p>
+            <p>{zh ? "已接入执行证据和权威评测结果的演示项目。" : "Demo project connected to execution evidence and authoritative decisions."}</p>
           </div>
           <StatusBadge value={string(project.status)} />
           <Link className="signal-action light" href="/runs">{zh ? "查看运行" : "View runs"}<ArrowRight size={17} /></Link>

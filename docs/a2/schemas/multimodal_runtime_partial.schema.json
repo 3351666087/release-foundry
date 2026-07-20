@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.io/schemas/a2/multimodal_runtime_partial.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "state",
+    "trials",
+    "release_authority",
+    "public_safe"
+  ],
+  "properties": {
+    "schema_version": {"const": "a2.multimodal_runtime_partial.v1"},
+    "state": {"enum": ["in_progress", "completed"]},
+    "binding": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+       "required": [
+         "manifest_hash",
+         "prompt_hash",
+         "runtime_hash",
+         "format_plan_hash",
+         "token_bound_plan_hash",
+         "model_bindings"
+       ],
+      "properties": {
+        "manifest_hash": {"$ref": "#/$defs/hash"},
+        "prompt_hash": {"$ref": "#/$defs/hash"},
+         "runtime_hash": {"$ref": "#/$defs/hash"},
+         "format_plan_hash": {"$ref": "#/$defs/hash"},
+         "token_bound_plan_hash": {"$ref": "#/$defs/hash"},
+        "model_bindings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["model_id", "model_digest"],
+            "properties": {
+              "model_id": {"type": "string", "minLength": 1},
+              "model_digest": {"$ref": "#/$defs/hash"}
+            }
+          }
+        }
+      }
+    },
+    "trials": {"type": "array", "items": {"type": "object"}},
+    "release_authority": {"const": false},
+    "public_safe": {"const": true}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+  }
+}

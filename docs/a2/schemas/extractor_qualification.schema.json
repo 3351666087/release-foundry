@@ -1,0 +1,163 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A2ExtractorQualification",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "record_id",
+    "extractor",
+    "runtime",
+    "artifact_digest",
+    "license",
+    "supported_media_types",
+    "supported_languages",
+    "quality_thresholds",
+    "security_checks",
+    "offline_checks",
+    "promotion_status",
+    "valid_from",
+    "valid_until",
+    "issuer",
+    "issuer_attestation",
+    "record_hash"
+  ],
+  "properties": {
+    "schema_version": { "const": "a2.extractor_qualification.v1" },
+    "record_id": { "$ref": "#/$defs/id" },
+    "extractor": {
+      "type": "object",
+      "required": ["id", "version"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "version": { "$ref": "#/$defs/version" }
+      },
+      "additionalProperties": false
+    },
+    "runtime": {
+      "type": "object",
+      "required": ["id", "version", "platform"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "version": { "$ref": "#/$defs/id" },
+        "platform": { "$ref": "#/$defs/id" }
+      },
+      "additionalProperties": false
+    },
+    "artifact_digest": { "$ref": "#/$defs/digest" },
+    "license": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9-.+ ]{0,127}$"
+    },
+    "supported_media_types": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z0-9!#$&^_.+-]+/[a-z0-9!#$&^_.+-]+$"
+      }
+    },
+    "supported_languages": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Za-z]{2,8}(?:-[A-Za-z0-9]{1,8})*$"
+      }
+    },
+    "quality_thresholds": {
+      "type": "object",
+      "required": [
+        "minimum_precision",
+        "minimum_recall",
+        "minimum_content_coverage"
+      ],
+      "properties": {
+        "minimum_precision": { "$ref": "#/$defs/score" },
+        "minimum_recall": { "$ref": "#/$defs/score" },
+        "minimum_content_coverage": { "$ref": "#/$defs/score" }
+      },
+      "additionalProperties": false
+    },
+    "security_checks": {
+      "type": "object",
+      "required": [
+        "malformed_input",
+        "resource_limits",
+        "path_isolation",
+        "active_content_disabled"
+      ],
+      "properties": {
+        "malformed_input": { "const": true },
+        "resource_limits": { "const": true },
+        "path_isolation": { "const": true },
+        "active_content_disabled": { "const": true }
+      },
+      "additionalProperties": false
+    },
+    "offline_checks": {
+      "type": "object",
+      "required": [
+        "network_disabled",
+        "model_artifacts_pinned",
+        "dependency_lock_verified"
+      ],
+      "properties": {
+        "network_disabled": { "const": true },
+        "model_artifacts_pinned": { "const": true },
+        "dependency_lock_verified": { "const": true }
+      },
+      "additionalProperties": false
+    },
+    "promotion_status": {
+      "enum": ["candidate", "qualified", "suspended", "revoked"]
+    },
+    "valid_from": { "type": "string", "format": "date-time" },
+    "valid_until": { "type": "string", "format": "date-time" },
+    "issuer": {
+      "type": "object",
+      "required": ["id", "authority"],
+      "properties": {
+        "id": { "$ref": "#/$defs/id" },
+        "authority": { "$ref": "#/$defs/id" }
+      },
+      "additionalProperties": false
+    },
+    "issuer_attestation": {
+      "description": "External issuer assertion metadata; not a cryptographic signature.",
+      "type": "object",
+      "required": ["method", "reference", "issued_at"],
+      "properties": {
+        "method": { "const": "external-record" },
+        "reference": { "$ref": "#/$defs/id" },
+        "issued_at": { "type": "string", "format": "date-time" }
+      },
+      "additionalProperties": false
+    },
+    "record_hash": {
+      "description": "Canonical record integrity hash; not proof of issuer identity.",
+      "$ref": "#/$defs/digest"
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.+-]{0,127}$"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    }
+  },
+  "additionalProperties": false
+}

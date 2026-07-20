@@ -176,6 +176,28 @@ def test_public_evidence_linter_scans_raw_secret_like_values_before_redaction():
     assert [issue["kind"] for issue in issues].count("secret_like_text") == 4
 
 
+def test_public_evidence_linter_distinguishes_tp_credentials_from_identifier_fragments():
+    credential_issues = validate_public_evidence_index(
+        {"records": [{"path": "public.json", "note": "credential=tp_actualCredentialShape"}]}
+    )
+    benign_issues = validate_public_evidence_index(
+        {
+            "records": [
+                {
+                    "path": "public.json",
+                    "http_status": "ok",
+                    "http_test": "passed",
+                    "trusted_proof": "verified",
+                    "otp_present": True,
+                }
+            ]
+        }
+    )
+
+    assert any(issue["kind"] == "secret_like_text" for issue in credential_issues)
+    assert not any(issue["kind"] == "secret_like_text" for issue in benign_issues)
+
+
 def test_public_evidence_artifact_scanner_catches_secret_and_payload_markers():
     text = "\n".join(
         [
@@ -191,6 +213,12 @@ def test_public_evidence_artifact_scanner_catches_secret_and_payload_markers():
     kinds = {issue["kind"] for issue in issues}
     assert kinds >= {"secret_like_text", "authorization_header", "api_key_header", "raw_private_payload_included", "private_key_block"}
     assert all(issue["path"] == "docs/a1/evidence/example.md" for issue in issues)
+
+
+def test_public_evidence_artifact_scanner_allows_tp_fragments_inside_identifiers():
+    text = "http_status http_test trusted_proof otp_present"
+
+    assert scan_public_evidence_artifact_text(text, path="docs/a1/evidence/example.json") == []
 
 
 def test_tracked_public_evidence_artifact_scanner_ignores_untracked_private_refs(tmp_path: Path):

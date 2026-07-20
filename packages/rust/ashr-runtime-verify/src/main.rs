@@ -98,6 +98,7 @@ fn verify_authenticated_bundle(
         now_unix_ms,
         expected_tenant_digest,
         expected_project_digest,
+        expected_bundle_id_digest,
         object_root,
         object_policy,
     } = parse_verification_arguments(
@@ -121,6 +122,7 @@ fn verify_authenticated_bundle(
         VerificationPolicy::at(now_unix_ms.unwrap_or_else(current_unix_ms));
     verification_policy.expected_tenant_digest = expected_tenant_digest;
     verification_policy.expected_project_digest = expected_project_digest;
+    verification_policy.expected_bundle_id_digest = expected_bundle_id_digest;
     let verified = bundle
         .verify(&verifier, &verification_policy)
         .map_err(|error| error.to_string())?;
@@ -164,6 +166,7 @@ fn verify_authenticated_envelope(
         now_unix_ms,
         expected_tenant_digest,
         expected_project_digest,
+        expected_bundle_id_digest: _,
         object_root: _,
         object_policy: _,
     } = parse_verification_arguments(args, "verify-envelope", false)?;
@@ -198,6 +201,7 @@ struct VerificationArguments {
     now_unix_ms: Option<u64>,
     expected_tenant_digest: Option<String>,
     expected_project_digest: Option<String>,
+    expected_bundle_id_digest: Option<String>,
     object_root: Option<PathBuf>,
     object_policy: EvidenceObjectVerificationPolicy,
 }
@@ -211,6 +215,7 @@ fn parse_verification_arguments(
     let mut now_unix_ms = None;
     let mut expected_tenant_digest = None;
     let mut expected_project_digest = None;
+    let mut expected_bundle_id_digest = None;
     let mut object_root = None;
     let mut max_object_bytes = None;
     let mut max_total_bytes = None;
@@ -230,6 +235,11 @@ fn parse_verification_arguments(
                 &mut expected_project_digest,
                 parse_digest_argument(args.next(), "--expected-project-digest")?,
                 "--expected-project-digest",
+            )?,
+            "--expected-bundle-id-digest" => set_once(
+                &mut expected_bundle_id_digest,
+                parse_digest_argument(args.next(), "--expected-bundle-id-digest")?,
+                "--expected-bundle-id-digest",
             )?,
             "--object-root" if allow_object_root => {
                 let value = args.next().ok_or_else(usage)?;
@@ -260,6 +270,7 @@ fn parse_verification_arguments(
         now_unix_ms,
         expected_tenant_digest,
         expected_project_digest,
+        expected_bundle_id_digest,
         object_root,
         object_policy: EvidenceObjectVerificationPolicy {
             max_object_bytes: max_object_bytes.unwrap_or(defaults.max_object_bytes),
@@ -501,7 +512,7 @@ fn brackets_are_balanced(input: &str) -> bool {
 }
 
 fn usage() -> String {
-    "usage: ashr-runtime-verify <verify|replay-plan|verify-bundle|canonicalize> <json-path>\n       ashr-runtime-verify verify-envelope <json-path> --key-env <NAME> [--now-ms <MILLISECONDS>] [--expected-tenant-digest <SHA256>] [--expected-project-digest <SHA256>]\n       ashr-runtime-verify verify-signed-bundle <json-path> --key-env <NAME> [--now-ms <MILLISECONDS>] [--expected-tenant-digest <SHA256>] [--expected-project-digest <SHA256>]\n       ashr-runtime-verify verify-signed-bundle-objects <json-path> --key-env <NAME> --object-root <PATH> [--max-object-bytes <BYTES>] [--max-total-bytes <BYTES>] [--now-ms <MILLISECONDS>] [--expected-tenant-digest <SHA256>] [--expected-project-digest <SHA256>]".to_string()
+    "usage: ashr-runtime-verify <verify|replay-plan|verify-bundle|canonicalize> <json-path>\n       ashr-runtime-verify verify-envelope <json-path> --key-env <NAME> [--now-ms <MILLISECONDS>] [--expected-tenant-digest <SHA256>] [--expected-project-digest <SHA256>]\n       ashr-runtime-verify verify-signed-bundle <json-path> --key-env <NAME> [--now-ms <MILLISECONDS>] [--expected-tenant-digest <SHA256>] [--expected-project-digest <SHA256>] [--expected-bundle-id-digest <SHA256>]\n       ashr-runtime-verify verify-signed-bundle-objects <json-path> --key-env <NAME> --object-root <PATH> [--max-object-bytes <BYTES>] [--max-total-bytes <BYTES>] [--now-ms <MILLISECONDS>] [--expected-tenant-digest <SHA256>] [--expected-project-digest <SHA256>] [--expected-bundle-id-digest <SHA256>]".to_string()
 }
 
 #[cfg(test)]

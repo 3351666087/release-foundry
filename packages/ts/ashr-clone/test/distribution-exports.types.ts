@@ -3,6 +3,12 @@ import { AccountConnectionHttpClient } from "@ashr-clone/sdk/account-connections
 import { build_receipt_template } from "@ashr-clone/sdk/account-readiness";
 import { AshrApiClient } from "@ashr-clone/sdk/api-client";
 import { BillingLedger } from "@ashr-clone/sdk/billing";
+import {
+  BrowserHTTPResponse,
+  BrowserSessionClient,
+  type BrowserHTTPResponseBody,
+  type BrowserHTTPResponseHeaders,
+} from "@ashr-clone/sdk/browser-session";
 import { runCalibration } from "@ashr-clone/sdk/calibrate";
 import { buildCapabilityMatrix } from "@ashr-clone/sdk/capability-matrix";
 import { buildCnyTradePlan } from "@ashr-clone/sdk/china-payments";
@@ -12,7 +18,9 @@ import { datasetSourceToCases } from "@ashr-clone/sdk/dataset-adapter";
 import { identityDeliveryProtocolContractManifest } from "@ashr-clone/sdk/delivery-protocol";
 import { buildPrivateEvidenceIndex } from "@ashr-clone/sdk/evidence";
 import { GitHubOAuthHttpClient } from "@ashr-clone/sdk/github-oauth";
+import { IdentityClient } from "@ashr-clone/sdk/identity-client";
 import { buildAuthorizationEnvelope } from "@ashr-clone/sdk/oauth";
+import { ProviderDispatchClient } from "@ashr-clone/sdk/provider-dispatch";
 import { stable_id } from "@ashr-clone/sdk/python-parity";
 import { AgentAdapter } from "@ashr-clone/sdk/runner";
 import { SaaSIngestionClient } from "@ashr-clone/sdk/saas";
@@ -28,6 +36,8 @@ export const typedDistributionImports: readonly unknown[] = [
   build_receipt_template,
   AshrApiClient,
   BillingLedger,
+  BrowserSessionClient,
+  BrowserHTTPResponse,
   runCalibration,
   buildCapabilityMatrix,
   buildCnyTradePlan,
@@ -37,7 +47,9 @@ export const typedDistributionImports: readonly unknown[] = [
   identityDeliveryProtocolContractManifest,
   buildPrivateEvidenceIndex,
   GitHubOAuthHttpClient,
+  IdentityClient,
   buildAuthorizationEnvelope,
+  ProviderDispatchClient,
   stable_id,
   AgentAdapter,
   SaaSIngestionClient,
@@ -47,3 +59,14 @@ export const typedDistributionImports: readonly unknown[] = [
   TraceRecorder,
   UnifiedIdentityHttpClient,
 ];
+
+const browserResponseBody: BrowserHTTPResponseBody = { status: "ok" };
+const browserResponseHeaders: BrowserHTTPResponseHeaders = {
+  "x-request-id": "request_types",
+  "set-cookie": ["a=one", "b=two"],
+};
+const browserResponse = BrowserHTTPResponse.create(200, {
+  headers: browserResponseHeaders,
+  body: browserResponseBody,
+});
+browserResponse.headerValues("x-request-id");

@@ -44,6 +44,18 @@ test("A3 commercial API contract maps SaaS /v1 routes to product surfaces", asyn
     "POST /v1/release-gates/evaluate",
     "POST /v1/release-gates/{release_gate_id}/approvals",
     "POST /v1/release-gates/{release_gate_id}/denials",
+    "POST /v1/review-queues/multimodal/repeat-stability",
+    "GET /v1/review-queues/multimodal/repeat-stability",
+    "POST /v1/providers/multimodal/readiness",
+    "GET /v1/providers/multimodal/readiness",
+    "POST /v1/review-queues/multimodal/{queue_id}/assignment",
+    "GET /v1/review-queues/multimodal/{queue_id}/evidence-requests",
+    "POST /v1/review-queues/multimodal/{queue_id}/evidence-requests",
+    "POST /v1/review-queues/multimodal/{queue_id}/evidence-requests/{request_id}/submissions",
+    "POST /v1/review-queues/multimodal/{queue_id}/evidence-requests/{request_id}/reviews",
+    "POST /v1/releases/{release_id}/deployment-receipts",
+    "POST /v1/releases/{release_id}/deployment-receipts/{receipt_id}/reviews",
+    "POST /internal/v1/releases/{release_id}/deployment-receipts/{receipt_id}/verify",
     "POST /v1/reports/{report_id}/share",
     "GET /v1/usage",
     "GET /v1/billing/migration-readiness",
@@ -59,6 +71,26 @@ test("A3 commercial API contract maps SaaS /v1 routes to product surfaces", asyn
   assert.equal(migrationReadiness.db_tables.includes("billing_migration_readiness"), true);
   assert.equal(migrationReadiness.events.includes("billing.migration_readiness_read"), true);
   assert.match(migrationReadiness.notes, /A3 remains read-only/);
+
+  const repeatImport = contract.endpoint_matrix.find((endpoint) => endpoint.route === "POST /v1/review-queues/multimodal/repeat-stability");
+  const repeatRead = contract.endpoint_matrix.find((endpoint) => endpoint.route === "GET /v1/review-queues/multimodal/repeat-stability");
+  assert.equal(repeatImport.local_a3_route, "POST /api/a3/import/a2-multimodal-repeat-stability");
+  assert.equal(repeatImport.rbac, "project:ingest");
+  assert.equal(repeatImport.events.includes("a2.multimodal_repeat_stability_imported"), true);
+  assert.match(repeatImport.notes, /cannot rewrite A2 quality or release state/);
+  assert.equal(repeatRead.local_a3_route, "GET /api/a3/review/multimodal-repeat-stability");
+  assert.equal(repeatRead.rbac, "release:review");
+  assert.equal(repeatRead.a3_status, "read_only_local_a3");
+
+  const providerImport = contract.endpoint_matrix.find((endpoint) => endpoint.route === "POST /v1/providers/multimodal/readiness");
+  const providerRead = contract.endpoint_matrix.find((endpoint) => endpoint.route === "GET /v1/providers/multimodal/readiness");
+  assert.equal(providerImport.local_a3_route, "POST /api/a3/import/a2-multimodal-provider-readiness");
+  assert.equal(providerImport.rbac, "project:ingest");
+  assert.equal(providerImport.events.includes("a2.multimodal_provider_readiness_imported"), true);
+  assert.match(providerImport.notes, /cannot become operational health, quality comparison, or release authority/);
+  assert.equal(providerRead.local_a3_route, "GET /api/a3/providers/multimodal-readiness");
+  assert.equal(providerRead.rbac, "release:review");
+  assert.equal(providerRead.a3_status, "read_only_local_a3");
 
   assert.equal(contract.source_authority.a1.must_not_change.includes("does not mutate A1"), true);
   assert.equal(contract.source_authority.a2.must_not_change.includes("does not change judge"), true);
@@ -114,7 +146,7 @@ test("A3 commercial API contract fixture and docs are generated and secret-free"
 
 test("A3 API exposes commercial API contract and DB migration coverage", async () => {
   const store = await createFixtureBackedA3Store({ sources: ["mock"] });
-  const { server, url } = await startA3ApiServer({ store });
+  const { server, url } = await startA3ApiServer({ store, routeAccessMode: "demo_contract" });
   try {
     const response = await fetch(`${url}/api/a3/commercial-api/contract?source=mock&environment_id=staging`);
     assert.equal(response.status, 200);
@@ -133,6 +165,15 @@ test("A3 API exposes commercial API contract and DB migration coverage", async (
     )), true);
     assert.equal(payload.endpoint_matrix.some((endpoint) => endpoint.local_a3_route === "POST /api/a3/review/denials"), true);
     assert.equal(payload.endpoint_matrix.some((endpoint) => endpoint.local_a3_route === "GET /api/a3/billing/readiness"), true);
+    assert.equal(payload.endpoint_matrix.some((endpoint) => endpoint.local_a3_route === "GET /api/a3/deployment/receipts"), true);
+    assert.equal(payload.endpoint_matrix.some((endpoint) => endpoint.local_a3_route === "POST /api/a3/import/a2-multimodal-repeat-stability"), true);
+    assert.equal(payload.endpoint_matrix.some((endpoint) => endpoint.local_a3_route === "GET /api/a3/review/multimodal-repeat-stability"), true);
+    assert.equal(payload.endpoint_matrix.some((endpoint) => endpoint.local_a3_route === "POST /api/a3/deployment/receipts/:receiptId/review"), true);
+    assert.equal(payload.endpoint_matrix.some((endpoint) => (
+      endpoint.local_a3_route === "POST /internal/a3/deployment/receipts/:receiptId/verify"
+      && endpoint.rbac === "deployment:verify service_account_only"
+      && endpoint.db_tables.includes("deployment_receipt_readbacks")
+    )), true);
     assert.equal(payload.event_envelope_contract.required_fields.includes("payload_hash"), true);
     assert.equal(payload.event_envelope_contract.required_fields.includes("tenant_id"), true);
     assert.equal(payload.event_envelope_contract.durable_outbox_table, "event_outbox");
@@ -142,8 +183,18 @@ test("A3 API exposes commercial API contract and DB migration coverage", async (
   }
 
   assert.equal(A3_DB_CONTRACT.tables.includes("commercial_api_contracts"), true);
+  assert.equal(A3_DB_CONTRACT.tables.includes("multimodal_review_assignment_events"), true);
+  assert.equal(A3_DB_CONTRACT.tables.includes("multimodal_review_evidence_request_events"), true);
   assert.equal(A3_DB_CONTRACT.api_surfaces.includes("GET /api/a3/commercial-api/contract"), true);
+  assert.equal(A3_DB_CONTRACT.api_surfaces.includes("POST /api/a3/review/multimodal-queue/:queueId/assignment"), true);
+  assert.equal(A3_DB_CONTRACT.api_surfaces.includes("POST /api/a3/import/a2-multimodal-repeat-stability"), true);
+  assert.equal(A3_DB_CONTRACT.api_surfaces.includes("GET /api/a3/review/multimodal-repeat-stability"), true);
+  assert.equal(A3_DB_CONTRACT.api_surfaces.includes("POST /api/a3/review/multimodal-queue/:queueId/evidence-requests/:requestId/review"), true);
   const migrations = buildA3SqlMigrationPlan();
   assert.equal(migrations.statements.some((statement) => statement.tables.includes("commercial_api_contracts")), true);
   assert.equal(migrations.statements.some((statement) => statement.tables.includes("billing_migration_readiness")), true);
+  assert.equal(migrations.statements.some((statement) => statement.tables.includes("deployment_receipts")), true);
+  assert.equal(migrations.statements.some((statement) => statement.tables.includes("deployment_receipt_readbacks")), true);
+  assert.equal(migrations.statements.some((statement) => statement.tables.includes("multimodal_review_assignment_events")), true);
+  assert.equal(migrations.statements.some((statement) => statement.tables.includes("multimodal_review_evidence_request_events")), true);
 });

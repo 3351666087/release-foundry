@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.local/schemas/a2/deterministic_visual_sidecar.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "artifact_hash", "extraction_method", "extraction_tool_version_hash", "extraction_available", "extracted_text_hash", "injection_markers", "warning_icon_present", "icon_detector", "icon_detector_version_hash", "model_output_hash", "model_safety_risk", "disagreement_state", "release_authority", "human_review_required", "blockers", "public_safe"],
+  "properties": {
+    "schema_version": {"const": "a2.deterministic_visual_sidecar.v2"},
+    "artifact_hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "extraction_method": {"type": "string", "minLength": 1},
+    "extraction_tool_version_hash": {"type": "string", "pattern": "^(|sha256:[a-f0-9]{64})$"},
+    "extraction_available": {"type": "boolean"},
+    "extracted_text_hash": {"type": "string", "pattern": "^(|sha256:[a-f0-9]{64})$"},
+    "injection_markers": {"type": "array", "items": {"enum": ["ignore schema", "return pass", "release_authority"]}, "uniqueItems": true},
+    "warning_icon_present": {"type": ["boolean", "null"]},
+    "icon_detector": {"type": "string", "minLength": 1},
+    "icon_detector_version_hash": {"type": "string", "pattern": "^(|sha256:[a-f0-9]{64})$"},
+    "model_output_hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "model_safety_risk": {"type": "string"},
+    "disagreement_state": {"enum": ["model_sidecar_disagreement", "no_detected_disagreement"]},
+    "release_authority": {"const": false},
+    "human_review_required": {"type": "boolean"},
+    "blockers": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "public_safe": {"const": true}
+  }
+}

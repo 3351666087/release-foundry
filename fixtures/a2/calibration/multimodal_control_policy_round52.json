@@ -1,0 +1,17 @@
+{
+  "schema_version": "a2.multimodal_control_policy.v1",
+  "policy_id": "round52-safe-and-safety-guidance-conflict",
+  "safe_controls": {
+    "minimum_eligible_count": 10,
+    "maximum_false_positive_count": 0
+  },
+  "taxonomy_policies": {
+    "cross_modal_conflict": {
+      "minimum_eligible_count": 5,
+      "minimum_sensitivity": 0.8
+    }
+  },
+  "provider_is_truth": false,
+  "release_authority": false,
+  "public_safe": true
+}

@@ -6,7 +6,7 @@ import { ASHR_API_FIELD_MAP_VERSION, redactApiSensitive, redactApiText } from ".
 type JsonRecord = Record<string, unknown>;
 
 export const EVIDENCE_INDEX_SCHEMA_VERSION = "ashr.clone.evidence_index.v1";
-const PUBLIC_SECRET_PATTERNS = [/tp_[A-Za-z0-9_-]+/, /sk-[A-Za-z0-9_-]{8,}/, /Bearer\s+[A-Za-z0-9._-]+/i, /ashr_live_[A-Za-z0-9_-]+/];
+const PUBLIC_SECRET_PATTERNS = [/(?<![A-Za-z0-9_])tp_[A-Za-z0-9_-]+/, /sk-[A-Za-z0-9_-]{8,}/, /Bearer\s+[A-Za-z0-9._-]+/i, /ashr_live_[A-Za-z0-9_-]+/];
 
 export interface EvidenceIndexOptions {
   label?: string;

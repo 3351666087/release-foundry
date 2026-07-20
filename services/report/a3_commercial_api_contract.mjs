@@ -469,6 +469,143 @@ const COMMERCIAL_ENDPOINTS = [
     usage: ["api_requests"],
     dependencies: ["A2 release policy", "A3 reviewer workflow"]
   }),
+  endpoint("POST /v1/review-queues/multimodal/repeat-stability", "A1/A2/A3", "review_workflow", "POST /api/a3/import/a2-multimodal-repeat-stability", {
+    status: "implemented",
+    rbac: "project:ingest",
+    db: ["dashboard_snapshots", "idempotency_keys", "audit_events", "event_outbox"],
+    events: ["a2.multimodal_repeat_stability_imported"],
+    artifacts: ["multimodal_repeat_stability_projection", "multimodal_repeat_stability_export"],
+    usage: ["api_requests", "a2_multimodal_repeat_stability_imports"],
+    dependencies: ["A1 trusted ingest principal and five-level scope", "A2 multi-repeat comparison and review conservation", "A3 strict public-safe projection"],
+    notes: "Imports one atomic comparison/review/candidate envelope using header-only idempotency. Stable repeats remain non-authoritative and cannot rewrite A2 quality or release state."
+  }),
+  endpoint("GET /v1/review-queues/multimodal/repeat-stability", "A1/A2/A3", "review_workflow", "GET /api/a3/review/multimodal-repeat-stability", {
+    status: "read_only",
+    rbac: "release:review",
+    db: ["dashboard_snapshots", "audit_events"],
+    events: ["review.multimodal_repeat_stability_read"],
+    artifacts: ["multimodal_repeat_stability_projection", "hosted_review_report"],
+    usage: ["api_requests"],
+    dependencies: ["A1 trusted reviewer identity and five-level scope", "A2 aggregate calibration metrics", "A3 hash-only report projection"],
+    notes: "Returns aggregate repeat metrics, review pending state, and candidate blockers without raw provider payloads, identities, URLs, or release authority."
+  }),
+  endpoint("POST /v1/providers/multimodal/readiness", "A1/A2/A3", "release_gate", "POST /api/a3/import/a2-multimodal-provider-readiness", {
+    status: "implemented",
+    rbac: "project:ingest",
+    db: ["dashboard_snapshots", "idempotency_keys", "audit_events", "event_outbox"],
+    events: ["a2.multimodal_provider_readiness_imported"],
+    artifacts: ["multimodal_provider_readiness_projection", "multimodal_provider_readiness_export"],
+    usage: ["api_requests", "a2_multimodal_provider_readiness_imports"],
+    dependencies: ["A1 trusted ingest principal and five-level scope", "A1 retains production routing/capacity authority", "A2 availability comparison and phase-latency diagnostic", "A3 strict public-safe projection"],
+    notes: "Imports availability and phase-latency diagnostics atomically. Faster warm latency, model installation, or an occasional completion cannot become operational health, quality comparison, or release authority."
+  }),
+  endpoint("GET /v1/providers/multimodal/readiness", "A1/A2/A3", "release_gate", "GET /api/a3/providers/multimodal-readiness", {
+    status: "read_only",
+    rbac: "release:review",
+    db: ["dashboard_snapshots", "audit_events"],
+    events: ["provider.multimodal_readiness_read"],
+    artifacts: ["multimodal_provider_readiness_projection", "hosted_release_report"],
+    usage: ["api_requests"],
+    dependencies: ["A1 trusted reviewer identity and five-level scope", "A2 provider diagnostics and qualification state", "A3 hash-only report projection"],
+    notes: "Returns aggregate attempts, failures, timeouts, eligible outputs, phase timings, and diagnosis codes without endpoint URLs, secrets, raw responses, model binaries, private media, or release authority."
+  }),
+  endpoint("POST /v1/review-queues/multimodal/{queue_id}/assignment", "A1/A2/A3", "review_workflow", "POST /api/a3/review/multimodal-queue/:queueId/assignment", {
+    status: "implemented",
+    rbac: "release:review",
+    db: ["multimodal_review_assignment_events", "audit_events", "event_outbox", "idempotency_keys"],
+    events: ["review.multimodal_assignment.claimed", "review.multimodal_assignment.transferred", "review.multimodal_assignment.released"],
+    artifacts: ["multimodal_review_assignment_receipt", "multimodal_review_queue_export", "multimodal_review_assignment_packet"],
+    usage: ["api_requests", "multimodal_review_assignment_actions"],
+    dependencies: ["A1 trusted reviewer identity and tenant scope", "A2 two-way or three-way non-authoritative multimodal queue receipt", "A3 reviewer lease workflow"],
+    notes: "Append-only assignment leases consume validated A2 two-way v1/v3 or three-way v2 queue receipts, use expected_version, and never alter A2 risk, score, disposition, or release authority. Metadata-only history can enter the signed Audit Archive only after packet integrity verification."
+  }),
+  endpoint("GET /v1/review-queues/multimodal/{queue_id}/evidence-requests", "A1/A2/A3", "review_workflow", "GET /api/a3/review/multimodal-queue/:queueId/evidence-requests", {
+    status: "read_only",
+    rbac: "release:review",
+    db: ["multimodal_review_evidence_request_events", "audit_events"],
+    events: ["review.multimodal_evidence_requests_read"],
+    artifacts: ["multimodal_review_evidence_request_list"],
+    usage: ["api_requests"],
+    dependencies: ["A1 trusted reviewer identity and five-level scope", "A2 non-authoritative multimodal queue receipt", "A3 evidence-request projection"],
+    notes: "Returns request lifecycle metadata and allowlisted SHA-256 references only; raw evidence, URLs, identities, dispositions, and release authority remain excluded."
+  }),
+  endpoint("POST /v1/review-queues/multimodal/{queue_id}/evidence-requests", "A1/A2/A3", "review_workflow", "POST /api/a3/review/multimodal-queue/:queueId/evidence-requests", {
+    status: "implemented",
+    rbac: "release:review active_assignment_owner",
+    db: ["multimodal_review_evidence_request_events", "idempotency_keys", "audit_events", "event_outbox"],
+    events: ["review.multimodal_evidence_request.requested"],
+    artifacts: ["multimodal_review_evidence_request_receipt", "hosted_review_report"],
+    usage: ["api_requests", "multimodal_review_evidence_request_actions"],
+    dependencies: ["A1 trusted reviewer identity and durable event execution", "A2 evidence-kind ownership boundaries", "A3 active assignment lease"],
+    notes: "The active assignment owner requests allowlisted execution, evaluation, media, provider, or candidate-binding evidence with expected_version=0 and a bounded deadline."
+  }),
+  endpoint("POST /v1/review-queues/multimodal/{queue_id}/evidence-requests/{request_id}/submissions", "A1/A2/A3", "review_workflow", "POST /api/a3/review/multimodal-queue/:queueId/evidence-requests/:requestId/submissions", {
+    status: "implemented",
+    rbac: "project:ingest",
+    db: ["multimodal_review_evidence_request_events", "idempotency_keys", "audit_events", "event_outbox"],
+    events: ["review.multimodal_evidence_request.submitted"],
+    artifacts: ["multimodal_review_evidence_request_receipt", "hash_only_evidence_reference_set"],
+    usage: ["api_requests", "multimodal_review_evidence_request_actions"],
+    dependencies: ["A1 or A2 tenant-scoped ingest principal", "A1/A2 hash-addressed evidence", "A3 evidence-request lifecycle"],
+    notes: "Submission must cover every requested evidence kind using SHA-256 evidence and optional binding hashes; raw evidence, URLs, signed media URLs, local paths, and free text are rejected."
+  }),
+  endpoint("POST /v1/review-queues/multimodal/{queue_id}/evidence-requests/{request_id}/reviews", "A1/A2/A3", "review_workflow", "POST /api/a3/review/multimodal-queue/:queueId/evidence-requests/:requestId/review", {
+    status: "implemented",
+    rbac: "release:review active_assignment_owner",
+    db: ["multimodal_review_evidence_request_events", "idempotency_keys", "audit_events", "event_outbox"],
+    events: ["review.multimodal_evidence_request.accepted", "review.multimodal_evidence_request.rejected", "review.multimodal_evidence_request.cancelled"],
+    artifacts: ["multimodal_review_evidence_request_receipt", "hosted_review_report"],
+    usage: ["api_requests", "multimodal_review_evidence_request_actions"],
+    dependencies: ["A1 active reviewer lease and durable audit", "A2 authoritative human disposition service remains separate", "A3 optimistic request version"],
+    notes: "Accepting evidence closes a coordination request only. It never creates an A2 human-review disposition, changes score or pass/fail, or grants release authority."
+  }),
+  endpoint("GET /v1/deployments/sandbox-calibration", "A1/A3", "deployment_operations", "GET /api/a3/deployment/sandbox-calibration", {
+    status: "implemented_local_sandbox",
+    rbac: "deployment:read",
+    db: ["self_host_sandbox_calibrations", "audit_events", "event_outbox"],
+    events: ["deployment.sandbox_calibration_read"],
+    artifacts: ["a1_self_host_sandbox_calibration"],
+    usage: ["api_requests"],
+    dependencies: ["A1 local control-plane", "A1 worker queue", "A1 local object storage"],
+    notes: "Local A1-backed evidence only. Never production verification and never mutates A2 or deployment acceptance."
+  }),
+  endpoint("GET /v1/releases/{release_id}/deployment-receipts", "A1/A2/A3", "release_gate", "GET /api/a3/deployment/receipts", {
+    status: "read_only",
+    rbac: "deployment:read",
+    db: ["deployment_receipts", "audit_events", "event_outbox"],
+    events: ["deployment.receipts_read"],
+    artifacts: ["deployment_receipt_inbox"],
+    usage: ["api_requests"],
+    dependencies: ["A1 deployment receipts", "A2 same-candidate Trusted Spine", "A3 deployment handoff"]
+  }),
+  endpoint("POST /v1/releases/{release_id}/deployment-receipts", "A1/A3", "release_gate", "POST /api/a3/deployment/receipts", {
+    status: "implemented",
+    rbac: "deployment:submit",
+    db: ["deployment_receipts", "idempotency_keys", "audit_events", "event_outbox"],
+    events: ["deployment.receipt_submitted"],
+    artifacts: ["deployment_receipt_metadata"],
+    usage: ["api_requests", "deployment_receipt_submissions"],
+    dependencies: ["A1 external verifier receipt", "A2 candidate and run selectors", "A3 metadata redaction boundary"]
+  }),
+  endpoint("POST /v1/releases/{release_id}/deployment-receipts/{receipt_id}/reviews", "A3", "review_workflow", "POST /api/a3/deployment/receipts/:receiptId/review", {
+    status: "implemented",
+    rbac: "deployment:review",
+    db: ["deployment_receipts", "idempotency_keys", "audit_events", "event_outbox"],
+    events: ["deployment.receipt_acknowledged", "deployment.receipt_rejected", "deployment.receipt_superseded"],
+    artifacts: ["deployment_receipt_review"],
+    usage: ["api_requests", "deployment_receipt_reviews"],
+    dependencies: ["A1 authoritative verifier readback", "A2 Release Ready remains immutable", "A3 optimistic concurrency"]
+  }),
+  endpoint("POST /internal/v1/releases/{release_id}/deployment-receipts/{receipt_id}/verify", "A1/A2/A3", "release_gate", "POST /internal/a3/deployment/receipts/:receiptId/verify", {
+    status: "implemented",
+    rbac: "deployment:verify service_account_only",
+    db: ["deployment_receipts", "deployment_receipt_readbacks", "idempotency_keys", "audit_events", "event_outbox"],
+    events: ["deployment.receipt_authoritatively_verified", "deployment.receipt_authoritatively_rejected"],
+    artifacts: ["deployment_receipt_authoritative_readback", "deployment_acceptance_projection"],
+    usage: ["api_requests", "deployment_receipt_authoritative_verifications"],
+    dependencies: ["A1 trusted service-account principal", "server-only authoritative resolver", "A2 same-candidate decision authority", "A3 hash-chain and acceptance projection"],
+    notes: "Trigger-only internal route. Client-supplied verification status, claims, evidence, authority, and attestation are rejected."
+  }),
   endpoint("GET /v1/evidence-bundles/{bundle_id}", "A1/A3", "audit_export", "GET /api/a3/artifacts/registry", {
     status: "read_only",
     rbac: "auditor",

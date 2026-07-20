@@ -52,7 +52,7 @@ export function TrustPage() {
         <Section title={zh ? "审计与契约" : "Audit and contracts"} description={zh ? "保持来源、租户范围和判定权可追踪" : "Keep source, tenant scope, and decision authority traceable"}>
           <div className="audit-grid">
             <article><Archive size={20} /><div><span>{zh ? "审计包" : "Audit bundle"}</span><strong>{compliance.audit_export_ready ? "ready" : "not ready"}</strong><p>{string(record(trust.audit_log_policy).retention_policy, "tenant-scoped / redacted")}</p></div></article>
-            <article><ShieldCheck size={20} /><div><span>{zh ? "判定权" : "Decision authority"}</span><strong>{string(provenance.decision_authority, "A2")}</strong><p>{string(provenance.release_decision)}</p></div></article>
+            <article><ShieldCheck size={20} /><div><span>{zh ? "判定权" : "Decision authority"}</span><strong>{zh ? "评测与决策服务" : "Evaluation authority"}</strong><p>{string(provenance.release_decision)}</p></div></article>
           </div>
           <EvidenceDetails summary={zh ? "查看缺失契约和企业阻塞项" : "View missing contracts and enterprise blockers"}><pre>{JSON.stringify({ missing_contracts: missingContracts, enterprise_blockers: enterprise.blockers, a1_a2_compatibility: enterprise.a1_a2_compatibility_notes }, null, 2)}</pre></EvidenceDetails>
         </Section>

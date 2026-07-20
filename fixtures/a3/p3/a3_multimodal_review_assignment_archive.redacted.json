@@ -1,0 +1,130 @@
+{
+  "schema_version": "a3.audit_archive_manifest.v1",
+  "generated_at": "2026-07-14T12:08:00.000Z",
+  "source": "p3-media-review-assignment",
+  "archive_id": "a3-archive-a3-bundle-0-2-0-review-packet-1-run-a3-generated-from--2c279732b480",
+  "archive_format": {
+    "format": "portable-directory-or-zip-manifest",
+    "zip_compatible": true,
+    "compression_required": false,
+    "canonical_order": "archive_entries sorted by archive_role:id:path",
+    "manifest_self_hash": "excluded_to_avoid_self_reference"
+  },
+  "archive_file": null,
+  "bundle": {
+    "bundle_id": "a3-bundle-0-2-0-review-packet-1-run-a3-generated-from-a2-g-8698ede68838",
+    "bundle_root_hash": "2c279732b4808ae5a6ab11ac2ca84050c8bc8544163bd2e6ae20e5b3d3cc77fa",
+    "bundle_index_file": "fixtures/a3/p3/a3_multimodal_review_assignment_bundle.redacted.json",
+    "release": {
+      "run_id": "run_a3_generated_from_a2_g3",
+      "release_version": "0.2.0-review-packet.1",
+      "environment": "staging",
+      "owner": "Release owner",
+      "decision": "block_release",
+      "decision_label": "Block release",
+      "risk_score": 100,
+      "pass_rate": 6.3,
+      "average_score": 67.6,
+      "blocks_merge": true,
+      "github_check_conclusion": "failure",
+      "decision_authority": "A3 triage summary only",
+      "a2_integrity_verified": false,
+      "a2_upstream_decision": "not-attached",
+      "a2_release_ready": false,
+      "a2_decision_ledger_head_hash": null,
+      "a2_decision_record_id": null,
+      "a3_recomputed_a2_decision": false,
+      "failed_checks": [
+        "pass_rate",
+        "critical_failures",
+        "policy_failures",
+        "required_tool_coverage"
+      ]
+    },
+    "artifact_count": 4
+  },
+  "immutable_policy": {
+    "overwrite_allowed": false,
+    "append_only_after_seal": true,
+    "private_key_persisted": false,
+    "intended_storage": "local-filesystem-or-self-host-object-storage",
+    "retention_class": "release_evidence_legal_hold_ready"
+  },
+  "archive_entries": [
+    {
+      "id": "audit_bundle_index",
+      "path": "fixtures/a3/p3/a3_multimodal_review_assignment_bundle.redacted.json",
+      "archive_role": "bundle_index",
+      "content_type": "application/json",
+      "required": true,
+      "sha256": "05276abe52f3d64aae2df674024359a9f55f742d9849993493b76347b1bad1bf",
+      "byte_size": 6099,
+      "created_by": "ashr gate audit bundle index",
+      "redaction_status": "redacted_or_safe_for_audit",
+      "workspace_relative": true
+    },
+    {
+      "id": "multimodal_review_assignment_packet",
+      "path": "fixtures/a3/p3/a3_multimodal_review_assignment_packet.redacted.json",
+      "archive_role": "review_record",
+      "content_type": "application/json",
+      "required": true,
+      "sha256": "92bffbedc1b3e31f78fb05fcb1787297b8297f2666eb310fab85fee75c7a6c8e",
+      "byte_size": 10995,
+      "created_by": "ashr gate output writer",
+      "origin": "a3_review_assignment_evidence",
+      "redaction_status": "redacted_or_safe_for_audit",
+      "workspace_relative": true
+    },
+    {
+      "id": "grades",
+      "path": "fixtures/a3/mock_grade_results.json",
+      "archive_role": "source_input",
+      "content_type": "application/json",
+      "required": true,
+      "sha256": "35697adaff20fdfa71f0339aae55b3b5c237c7ca52a46cb6653bf796e3250086",
+      "byte_size": 338646,
+      "created_by": "ashr gate input manifest",
+      "redaction_status": "redacted_or_safe_for_audit",
+      "workspace_relative": true
+    },
+    {
+      "id": "runs",
+      "path": "fixtures/a3/mock_run_results.json",
+      "archive_role": "source_input",
+      "content_type": "application/json",
+      "required": true,
+      "sha256": "7319e52307fdd55f97baad6f8cea12180055bc20e526a29231971f3bd18709a2",
+      "byte_size": 171560,
+      "created_by": "ashr gate input manifest",
+      "redaction_status": "redacted_or_safe_for_audit",
+      "workspace_relative": true
+    }
+  ],
+  "verification": {
+    "command_shape": "ashr archive verify --manifest <archive-manifest.json>",
+    "verifies_bundle_root_hash": true,
+    "verifies_artifact_hashes": true,
+    "verifies_archive_signature": true
+  },
+  "safety": {
+    "contains_secret_values": false,
+    "local_absolute_paths_allowed": false,
+    "raw_private_key_stored": false,
+    "dry_run_compatible": true
+  },
+  "archive_root_hash": "550ac9fab547be9536acec671dcff12597957c8d6c0f81cb573d21603a826bcd",
+  "signature": {
+    "schema_version": "a3.audit_archive_signature.v1",
+    "signature_status": "signed",
+    "algorithm": "ed25519",
+    "signed_payload": "canonical_archive_manifest_with_archive_root_hash",
+    "signed_payload_sha256": "1e45cdfaf78d867fac8078edc3e8c94a01f6e45208b33926cc9a3d05eb8435bb",
+    "signer": {
+      "signer_type": "local-a3-gate-cli",
+      "identity_binding": "self_signed_local_key_not_sso_bound",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA027ZZPf77xJAEsJMuYG0lVQ0DW2YnLUlgQJ2MwWq51k=\n-----END PUBLIC KEY-----\n"
+    },
+    "signature_base64": "5sc3QO85RkuzGbCLXkKOTssrmv/PVB/iT+7BUuXr3F0z36EC9iHRbFYy0xrDEvvMfKjDSCR2fRdZbL0OIxkzCQ=="
+  }
+}

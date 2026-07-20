@@ -24,7 +24,7 @@ export function BillingPage() {
         <PageHeader
           eyebrow="ADMIN / USAGE & BILLING"
           title={zh ? "用量与计费" : "Usage and billing"}
-          summary={zh ? "用 A1 计量事件解释账单，用 A2 风险状态解释发布影响。" : "Explain billing with A1 usage events and release impact with A2 risk state."}
+          summary={zh ? "用平台计量事件解释账单，用评测风险状态解释发布影响。" : "Explain billing with platform usage events and release impact with evaluation risk state."}
           meta={<><span>{string(plan.name, string(plan.tier, "local-readonly"))}</span><StatusBadge value={string(readiness.status)} /></>}
           actions={<button type="button" className="command-button" disabled title={zh ? "等待真实支付后端" : "Requires live payment backend"}><CreditCard size={15} />{zh ? "管理套餐" : "Manage plan"}</button>}
         />
@@ -43,7 +43,7 @@ export function BillingPage() {
 
         <div className="content-grid equal">
           <Section title={zh ? "用量明细" : "Usage meters"} description={zh ? "来自租户范围内的只读 usage ledger" : "Read-only usage ledger scoped to the tenant"}>
-            <DataTable headers={[zh ? "计量项" : "Meter", zh ? "数量" : "Quantity", zh ? "计费" : "Billable", zh ? "来源" : "Source"]} label="Usage meters">{meters.map((meter, index) => <tr key={`${string(meter.meter)}-${index}`}><td><strong>{string(meter.meter, string(meter.name))}</strong></td><td>{number(meter.quantity)}</td><td><StatusBadge value={string(meter.billable, "read_only")} /></td><td>{string(meter.source, "A1/A2")}</td></tr>)}</DataTable>
+            <DataTable headers={[zh ? "计量项" : "Meter", zh ? "数量" : "Quantity", zh ? "计费" : "Billable", zh ? "来源" : "Source"]} label="Usage meters">{meters.map((meter, index) => <tr key={`${string(meter.meter)}-${index}`}><td><strong>{string(meter.meter, string(meter.name))}</strong></td><td>{number(meter.quantity)}</td><td><StatusBadge value={string(meter.billable, "read_only")} /></td><td>{zh ? "平台计量" : "Platform usage"}</td></tr>)}</DataTable>
           </Section>
           <Section title={zh ? "账单预览" : "Invoice preview"} description={zh ? "CNY 只读预估，不代表已结算金额" : "Read-only CNY estimate, not a settled invoice"}>
             <div className="invoice-sheet"><header><ReceiptText size={20} /><div><span>{string(invoice.invoice_id, "preview")}</span><strong>{string(invoice.total_label, string(invoice.subtotal_label, "CNY 0.00"))}</strong></div></header>{lineItems.map((item, index) => <div key={`${string(item.meter)}-${index}`}><span>{string(item.meter)}</span><b>{string(item.subtotal_label, String(number(item.quantity)))}</b></div>)}<footer><Landmark size={16} />{zh ? "未连接 provider settlement" : "Provider settlement not connected"}</footer></div>

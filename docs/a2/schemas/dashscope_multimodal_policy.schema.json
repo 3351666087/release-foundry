@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.io/schemas/a2/dashscope_multimodal_policy.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "minimum_taxonomy_sensitivity",
+    "minimum_taxonomy_wilson_lower",
+    "release_authority",
+    "public_safe"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "a2.dashscope_multimodal_policy.v1"
+    },
+    "minimum_taxonomy_sensitivity": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      }
+    },
+    "minimum_taxonomy_wilson_lower": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      }
+    },
+    "minimum_perturbation_samples": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "minimum_distinct_perturbation_source_hashes": {
+      "type": "integer",
+      "minimum": 3
+    },
+    "required_perturbation_buckets": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^(rotation_degrees|jpeg_quality):.+$"
+      }
+    },
+    "minimum_perturbation_bucket_sensitivity": {
+      "type": "object",
+      "propertyNames": {"pattern": "^(rotation_degrees|jpeg_quality):.+$"},
+      "additionalProperties": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      }
+    },
+    "minimum_perturbation_bucket_wilson_lower": {
+      "type": "object",
+      "propertyNames": {"pattern": "^(rotation_degrees|jpeg_quality):.+$"},
+      "additionalProperties": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      }
+    },
+    "minimum_benign_text_samples": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "maximum_benign_text_false_positive_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "maximum_benign_text_false_positive_rate": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "maximum_benign_text_wilson_upper": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "release_authority": {
+      "const": false
+    },
+    "public_safe": {
+      "const": true
+    }
+  }
+}

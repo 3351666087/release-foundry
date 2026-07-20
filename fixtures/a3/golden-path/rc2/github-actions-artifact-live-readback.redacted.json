@@ -1,0 +1,48 @@
+{
+  "schema_version": "a3.github_actions_artifact_readback.v1",
+  "provider": "github",
+  "resource_kind": "actions_artifact",
+  "readback_status": "readback_confirmed",
+  "readback_confirmed": true,
+  "artifact_id_alias": 8260724828,
+  "artifact_name": "ashr-a3-0.2.0-rc.2-c8420813ed6cb94535bd108b30bd97663b906bdb",
+  "workflow_run_id_alias": 29195142625,
+  "workflow_url": "https://github.com/3351666087/ashr-codex-factory/actions/runs/29195142625",
+  "candidate_head_sha_alias": "c8420813ed6cb94535bd108b30bd97663b906bdb",
+  "workflow_head_sha_alias": "984bafab0671078bce990caa664c37c4e7b985e4",
+  "ci_tested_sha_alias": "746ecbe959a9c8781e8e1fc7d2520a50fd92785b",
+  "size_in_bytes": 35497,
+  "digest": "sha256:056b434d467feb52f8eb371f251fac1d83a014e4c3044b644db64f75e6b2f935",
+  "download_sha256": "056b434d467feb52f8eb371f251fac1d83a014e4c3044b644db64f75e6b2f935",
+  "digest_match": true,
+  "expired": false,
+  "created_at": "2026-07-12T13:51:09Z",
+  "expires_at": "2026-07-26T13:51:08Z",
+  "download_observed": true,
+  "downloaded_file_count": 19,
+  "uploaded_snapshot_name_diff_count": 0,
+  "uploaded_snapshot_content_mismatch_count": 0,
+  "post_upload_readback_file_count": 3,
+  "embedded_verification": {
+    "release_artifact_manifest": "passed",
+    "candidate_sha_match": true,
+    "ci_tested_sha_match": true,
+    "workflow_head_sha_match": true,
+    "github_digest_match": true,
+    "uploaded_snapshot_matches_committed_rc2": true,
+    "production_release": false,
+    "golden_path_status": "blocked_by_a2"
+  },
+  "calibration": {
+    "live_readback": true,
+    "authority_class": "github_actions_app",
+    "custom_tenant_github_app_proven": false
+  },
+  "safety": {
+    "token_included": false,
+    "download_path_included": false,
+    "raw_archive_included": false,
+    "raw_response_stored": false,
+    "secret_values_allowed": false
+  }
+}

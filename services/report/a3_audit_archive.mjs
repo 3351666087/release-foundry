@@ -546,6 +546,11 @@ async function main(argv = []) {
     const output = options.format === "markdown"
       ? renderArchiveVerificationMarkdown(verification)
       : `${JSON.stringify(verification, null, 2)}\n`;
+    if (options.output) {
+      const resolvedOutput = resolve(options.output);
+      await mkdir(dirname(resolvedOutput), { recursive: true });
+      await writeFile(resolvedOutput, output, "utf8");
+    }
     process.stdout.write(output);
     return verification.process_exit_code;
   }

@@ -1,0 +1,166 @@
+{
+  "schema_version": "ashr.clone.a1_a3_identity_verification_compatibility.v1",
+  "calibrated_at": "2026-07-11T00:00:00Z",
+  "latest_change_request": {
+    "ref": "origin/codex/a3-commercial-growth-round4",
+    "commit_sha": "2250254bfeeb8d9c24008c997296bf62b2e846a3",
+    "document_path": "docs/a3/a1_identity_verification_contract_change_request_2026_07_11.md",
+    "document_blob_sha": "1e552e0ed4db405451e3e9838cc00c855ca94989",
+    "a3_code_imported": false
+  },
+  "a1_baseline": {
+    "ref": "origin/codex/a1-local-sdk-runner",
+    "commit_sha": "c784163588e9e0839fe17c604f3285c42efe3661",
+    "source_blobs": {
+      "packages/go/ashrclone/identity_session_browser_http_test.go": "d37a0bf289fe2e783398a998517009447b435905",
+      "packages/go/ashrclone/identity_verification_http.go": "ee83d55f7963a79aa4cba414548fbf75b1a77172",
+      "packages/go/ashrclone/identity_verification_http_session_test.go": "18eee8bf92fdafea570a535e8b4eae88f6f0ce7e",
+      "packages/go/ashrclone/server.go": "87c18ada60b35a0ddab029c84fbb0de8e16372aa"
+    }
+  },
+  "authority_boundary": {
+    "a1": "identity backend, session transport, verification delivery, route facts",
+    "a3": "capability-aware product UI and public API reference",
+    "judge_semantics_changed": false,
+    "dashboard_business_changed": false
+  },
+  "route_compatibility": [
+    {
+      "method": "POST",
+      "path": "/v1/identity-verification/challenges",
+      "implemented_dispatch": true,
+      "public_manifest_advertised": false,
+      "source": "packages/go/ashrclone/server.go"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/identity-verification/verify",
+      "implemented_dispatch": true,
+      "public_manifest_advertised": false,
+      "source": "packages/go/ashrclone/server.go"
+    },
+    {
+      "method": "POST",
+      "path": "/v1/projects/{project_id}/accounts/{account_id}/browser-sessions/refresh",
+      "implemented_dispatch": true,
+      "public_manifest_advertised": true,
+      "source": "packages/go/ashrclone/server.go"
+    }
+  ],
+  "capabilities": [
+    {
+      "id": "uniform_challenge_start_response",
+      "status": "supported",
+      "request_requirement": "Challenge start remains indistinguishable across eligible, unknown, blocked, unavailable, and exhausted outcomes.",
+      "current_fact": "A1 returns the same accepted public envelope and does not include challenge context.",
+      "source_evidence": [
+        "packages/go/ashrclone/identity_verification_security.go",
+        "packages/go/ashrclone/identity_verification_security_test.go"
+      ]
+    },
+    {
+      "id": "browser_safe_verification_context",
+      "status": "blocked",
+      "request_requirement": "The browser receives a mailbox-bound short-lived context without raw identity scope.",
+      "current_fact": "Challenge start still omits challenge_id and no opaque verification context is issued to the browser.",
+      "source_evidence": [
+        "packages/go/ashrclone/identity_verification_security.go",
+        "packages/go/ashrclone/identity_verification_test.go"
+      ]
+    },
+    {
+      "id": "server_owned_verification_scope",
+      "status": "blocked",
+      "request_requirement": "Verification resolves challenge, channel, identifier, purpose, and tenant from server-owned context.",
+      "current_fact": "The verify request still requires caller-provided challenge_id, channel, identifier, purpose, and tenant_id.",
+      "source_evidence": [
+        "packages/go/ashrclone/identity_verification_http.go",
+        "packages/go/ashrclone/identity_verification.go"
+      ]
+    },
+    {
+      "id": "mailbox_signed_single_use_link",
+      "status": "blocked",
+      "request_requirement": "Email may carry a short-lived signed single-use verification link or an equivalent secure flow cookie.",
+      "current_fact": "No verification_token or mailbox-link route is implemented in the current A1 baseline.",
+      "source_evidence": [
+        "packages/go/ashrclone/identity_verification.go",
+        "packages/go/ashrclone/identity_verification_http.go"
+      ]
+    },
+    {
+      "id": "secure_session_after_login_or_recovery_verify",
+      "status": "supported",
+      "request_requirement": "Successful login or recovery verification creates or rotates a secure browser session.",
+      "current_fact": "A1 atomically completes verification, issues one-use access and refresh receipts, and writes Secure HttpOnly SameSite Strict cookies over trusted HTTPS.",
+      "source_evidence": [
+        "packages/go/ashrclone/identity_verification_http.go",
+        "packages/go/ashrclone/identity_verification_http_session_test.go"
+      ]
+    },
+    {
+      "id": "same_origin_refresh_rotation",
+      "status": "supported",
+      "request_requirement": "Browser sessions can rotate without exposing authorization material to A3.",
+      "current_fact": "The project-scoped refresh route requires HTTPS, same-origin browser context, idempotency, and paired cookie replacement.",
+      "source_evidence": [
+        "packages/go/ashrclone/identity_session_browser_http_test.go",
+        "packages/go/ashrclone/identity_verification_http.go"
+      ]
+    },
+    {
+      "id": "allowlisted_post_verify_redirect",
+      "status": "blocked",
+      "request_requirement": "Successful verification returns a 303 redirect to an exact allowlisted webapp path.",
+      "current_fact": "Verification currently returns a 200 JSON result and has no allowlisted post-verify redirect contract.",
+      "source_evidence": [
+        "packages/go/ashrclone/identity_verification_http.go",
+        "packages/go/ashrclone/identity_verification_http_session_test.go"
+      ]
+    },
+    {
+      "id": "oauth_callback_hosted_session_redirect",
+      "status": "blocked",
+      "request_requirement": "OAuth callback establishes the hosted browser session and redirects without exposing provider material.",
+      "current_fact": "The current compatibility baseline does not advertise an OAuth hosted-session redirect capability.",
+      "source_evidence": [
+        "packages/go/ashrclone/oauth_provider_http.go",
+        "packages/go/ashrclone/server.go"
+      ]
+    },
+    {
+      "id": "verification_routes_in_public_manifest",
+      "status": "blocked",
+      "request_requirement": "A3 public API reference can rely on advertised A1 route facts.",
+      "current_fact": "The challenge and verify handlers dispatch, but neither route is listed in GoRouteManifestEntries.",
+      "source_evidence": [
+        "packages/go/ashrclone/server.go"
+      ]
+    }
+  ],
+  "disposition": {
+    "change_request_resolved": false,
+    "newly_supported_since_request": [
+      "same_origin_refresh_rotation",
+      "secure_session_after_login_or_recovery_verify"
+    ],
+    "blocking_capability_ids": [
+      "allowlisted_post_verify_redirect",
+      "browser_safe_verification_context",
+      "mailbox_signed_single_use_link",
+      "oauth_callback_hosted_session_redirect",
+      "server_owned_verification_scope",
+      "verification_routes_in_public_manifest"
+    ],
+    "a3_should_fail_closed": true,
+    "unsupported_routes_claimed": false
+  },
+  "safety": {
+    "public_safe": true,
+    "secret_values_included": false,
+    "raw_identifiers_included": false,
+    "tokens_or_codes_included": false,
+    "a3_runtime_imported": false,
+    "a2_judge_imported": false
+  }
+}

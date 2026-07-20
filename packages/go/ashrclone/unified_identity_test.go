@@ -98,6 +98,121 @@ func TestUnifiedIdentitySupportsEveryProviderAndCredentialKind(t *testing.T) {
 	}
 }
 
+func TestUnifiedIdentityCanonicalAccountSecurityClosure(t *testing.T) {
+	service, now := newIdentityTestService(t)
+	account, err := service.CreateAccount(CreateIdentityAccountRequest{
+		DisplayName: "Canonical User",
+		InitialCredential: &IdentityCredentialInput{
+			Kind: IdentityCredentialOAuth, Provider: IdentityProviderGoogle,
+			Identifier: "google-subject", Verified: true, VerifiedEmail: "Owner@Example.com",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !account.SecurityPosture.PrimaryEmail.Present || account.SecurityPosture.PrimaryEmail.Source != IdentityProviderGoogle ||
+		account.SecurityPosture.Password.Status != "absent" || !account.SecurityPosture.TwoFactor.Recommended {
+		t.Fatalf("unexpected oauth-first posture: %#v", account.SecurityPosture)
+	}
+	if _, err := service.LinkCredential(account.AccountID, LinkIdentityCredentialRequest{
+		ActorID: account.AccountID,
+		Credential: IdentityCredentialInput{Kind: IdentityCredentialOAuth, Provider: IdentityProviderGitHub,
+			Identifier: "github-subject", Verified: true, VerifiedEmail: "owner@example.com"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	proof := IdentityStepUpProof{ActorID: account.AccountID, AuthenticatedAt: *now, CSRFValidated: true}
+	password, err := service.EnrollPassword(account.AccountID, "vault://identity/password/version/1", proof)
+	if err != nil || password.SecurityPosture.Password.Status != "set" || !password.SessionsRevoked {
+		t.Fatalf("password enrollment failed: %#v %v", password, err)
+	}
+	mfa, err := service.SetTwoFactor(account.AccountID, true, proof)
+	if err != nil || mfa.SecurityPosture.TwoFactor.Status != "enabled" || !mfa.TwoFactorRecommended {
+		t.Fatalf("two factor enrollment failed: %#v %v", mfa, err)
+	}
+	events, encoded := service.AuditEvents(), ""
+	payload, _ := json.Marshal(events)
+	encoded = strings.ToLower(string(payload))
+	for _, forbidden := range []string{"owner@example.com", "vault://", "passwordrefdigest", "primaryemaildigest"} {
+		if strings.Contains(encoded, forbidden) {
+			t.Fatalf("audit leaked private identity material: %s", forbidden)
+		}
+	}
+}
+
+func TestUnifiedIdentityVerifiedEmailConflictFailsClosed(t *testing.T) {
+	service, now := newIdentityTestService(t)
+	first, err := service.CreateAccount(CreateIdentityAccountRequest{InitialCredential: &IdentityCredentialInput{
+		Kind: IdentityCredentialOAuth, Provider: IdentityProviderGoogle, Identifier: "google-1",
+		Verified: true, VerifiedEmail: "same@example.com",
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = service.CreateAccount(CreateIdentityAccountRequest{InitialCredential: &IdentityCredentialInput{
+		Kind: IdentityCredentialOAuth, Provider: IdentityProviderGitHub, Identifier: "github-2",
+		Verified: true, VerifiedEmail: "SAME@example.com",
+	}})
+	requireIdentityCode(t, err, "canonical_email_conflict")
+	*now = now.Add(11 * time.Minute)
+	_, err = service.EnrollPassword(first.AccountID, "vault://identity/password/version/1", IdentityStepUpProof{
+		ActorID: first.AccountID, AuthenticatedAt: now.Add(-11 * time.Minute), CSRFValidated: true,
+	})
+	requireIdentityCode(t, err, "step_up_expired")
+}
+
+func TestUnifiedIdentityMergeTransfersCanonicalEmailAndRejectsMismatch(t *testing.T) {
+	service, _ := newIdentityTestService(t)
+	source, err := service.CreateAccount(CreateIdentityAccountRequest{
+		InitialCredential: &IdentityCredentialInput{
+			Kind: IdentityCredentialOAuth, Provider: IdentityProviderGoogle,
+			Identifier: "google-source", Verified: true, VerifiedEmail: "owner@example.com",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	target := createIdentityTestAccount(t, service, IdentityProviderGitHub, "github-target")
+	plan, err := service.PlanMerge(IdentityMergeRequest{
+		SourceAccountID: source.AccountID, TargetAccountID: target.AccountID,
+		ActorID: target.AccountID,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := service.ExecuteMerge(plan.PlanID, target.AccountID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.TargetAccount.SecurityPosture.PrimaryEmail.Present ||
+		result.TargetAccount.SecurityPosture.PrimaryEmail.Source != IdentityProviderGoogle {
+		t.Fatalf("canonical email posture was not transferred: %#v", result.TargetAccount.SecurityPosture)
+	}
+
+	left, err := service.CreateAccount(CreateIdentityAccountRequest{
+		InitialCredential: &IdentityCredentialInput{
+			Kind: IdentityCredentialOAuth, Provider: IdentityProviderGoogle,
+			Identifier: "google-left", Verified: true, VerifiedEmail: "left@example.com",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	right, err := service.CreateAccount(CreateIdentityAccountRequest{
+		InitialCredential: &IdentityCredentialInput{
+			Kind: IdentityCredentialOAuth, Provider: IdentityProviderGitHub,
+			Identifier: "github-right", Verified: true, VerifiedEmail: "right@example.com",
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = service.PlanMerge(IdentityMergeRequest{
+		SourceAccountID: left.AccountID, TargetAccountID: right.AccountID,
+	})
+	requireIdentityCode(t, err, "canonical_email_merge_conflict")
+}
+
 func TestUnifiedIdentityVerifiedOnlyLinkingAndValidation(t *testing.T) {
 	service, _ := newIdentityTestService(t)
 	account, err := service.CreateAccount(CreateIdentityAccountRequest{DisplayName: "No credential"})

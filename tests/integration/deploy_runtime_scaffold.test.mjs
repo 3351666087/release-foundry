@@ -4,7 +4,7 @@ import { test } from "node:test";
 
 const ROOT = new URL("../../", import.meta.url);
 const COMPOSE_PATH = new URL("../../infra/docker/docker-compose.self-host.yml", import.meta.url);
-const DOCKERFILE_PATH = new URL("../../infra/docker/Dockerfile.python-runtime", import.meta.url);
+const DOCKERFILE_PATH = new URL("../../infra/docker/Dockerfile.go-runtime", import.meta.url);
 const TERRAFORM_FILES = [
   "../../infra/terraform/self-host/versions.tf",
   "../../infra/terraform/self-host/variables.tf",
@@ -19,24 +19,20 @@ test("self-host compose wires api worker and local backing services", async () =
   const compose = await readFile(COMPOSE_PATH, "utf8");
   const dockerfile = await readFile(DOCKERFILE_PATH, "utf8");
 
-  for (const service of ["api", "worker", "postgres", "redis", "object-store"]) {
+  for (const service of ["api", "worker", "postgres", "redis", "minio", "minio-init"]) {
     assert.match(compose, new RegExp(`\\n  ${escapeRegExp(service)}:\\n`), `missing compose service: ${service}`);
   }
 
   for (const term of [
-    "infra/docker/Dockerfile.python-runtime",
+    "infra/docker/Dockerfile.go-runtime",
     "ASHR_DATABASE_URL",
     "ASHR_REDIS_URL",
     "ASHR_OBJECT_STORE_URL",
-    "services.api.control_plane",
-    "services.api.cli",
-    "replay-queued",
-    "--state-input",
-    "--state-output",
-    "--agent",
-    "examples.agents.mock_agent:RespondingMockAgent",
-    "--max-runs",
-    "--queue-workers",
+    "ashr/a1-go-runtime:local",
+    "/usr/local/bin/ashr-api",
+    "/usr/local/bin/ashr-worker",
+    "postgres-migrate",
+    "minio-init",
     "service_healthy",
     "ashr-object-store"
   ]) {
@@ -44,8 +40,9 @@ test("self-host compose wires api worker and local backing services", async () =
   }
   assert.ok(!compose.includes("--help"), "worker command must execute a bounded replay path, not help output");
 
-  assert.ok(dockerfile.includes("python:3.12-slim"), "Dockerfile should use a slim Python runtime");
-  assert.ok(dockerfile.includes("serve_control_plane_http"), "Dockerfile should default to the stdlib control plane");
+  assert.ok(dockerfile.includes("golang:1.22-bookworm"), "Dockerfile should use the pinned Go build runtime");
+  assert.ok(dockerfile.includes("debian:bookworm-slim"), "Dockerfile should use a slim compiled runtime");
+  assert.ok(dockerfile.includes("USER 65532:65532"), "Dockerfile should run as an unprivileged user");
   assert.ok(dockerfile.includes("HEALTHCHECK"), "Dockerfile should include a local healthcheck");
 });
 
@@ -56,15 +53,19 @@ test("terraform self-host skeleton is provider-neutral and secret-free", async (
     "required_version",
     "hashicorp/null",
     "deployment_contract",
-    "ashr.a1.self_host.runtime.v1",
+    "ashr.a1.self_host.commercial_runtime.v2",
     "api_image",
     "worker_image",
     "postgres_storage_gb",
     "object_store_bucket",
     "enable_public_ingress",
     "runtime_environment",
-    "postgres_connection_from_secret_manager",
-    "redis_connection_from_secret_manager"
+    "postgres_dsn_secret_ref",
+    "ASHR_DATABASE_URL_REF",
+    "ASHR_REDIS_URL_REF",
+    "object_store_endpoint_ref",
+    "object_store_access_key_ref",
+    "object_store_secret_key_ref"
   ]) {
     assert.ok(terraform.includes(term), `terraform missing ${term}`);
   }
@@ -80,7 +81,14 @@ test("rust runtime verifier crate exposes verify and replay-plan commands", asyn
   assert.ok(manifest.includes('name = "ashr-runtime-verify"'));
   assert.ok(manifest.includes('edition = "2021"'));
   assert.ok(manifest.includes("publish = false"));
-  assert.doesNotMatch(manifest, /^\[dependencies\]/m, "crate should stay dependency-free for locked-down hosts");
+  for (const dependency of ["hmac", "serde", "serde_json", "sha2", "subtle", "zeroize"]) {
+    assert.match(
+      manifest,
+      new RegExp(`^${escapeRegExp(dependency)}\\s*=`, "m"),
+      `verifier missing approved security dependency: ${dependency}`
+    );
+  }
+  assert.ok(manifest.includes("publish = false"), "verifier must remain non-publishable");
 
   for (const term of [
     "MAX_INPUT_BYTES",

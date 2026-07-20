@@ -10,12 +10,14 @@ import {
   buildGitHubActionWorkflowExample,
   buildGitHubCheckRunRequest,
   buildGitHubCheckReadbackReceipt,
+  buildGitHubRepositoryInstallationReadback,
   buildPrCommentUpsertPlan,
   buildPrCommentReadbackReceipt,
   buildRequiredCheckProof,
   publishGitHubCheckRun,
   publishPrCommentUpsert,
   readGitHubCheckRun,
+  readGitHubRepositoryInstallation,
   readPrCommentReadback,
   readRequiredCheckProof
 } from "../../services/report/a3_github_integration.mjs";
@@ -102,8 +104,7 @@ test("A3 GitHub Action workflow example keeps the integration in docs-owned scop
   const workflow = buildGitHubActionWorkflowExample();
 
   assert.match(workflow, /name: Ashr\+\+ Release Gate/);
-  assert.match(workflow, /checks: write/);
-  assert.match(workflow, /pull-requests: write/);
+  assert.doesNotMatch(workflow, /checks: write|pull-requests: write/);
   assert.match(workflow, /services\/report\/a3_gate_cli\.mjs/);
   assert.match(workflow, /services\/report\/a3_github_publish_cli\.mjs/);
   assert.match(workflow, /--output-check artifacts\/ashr-check\.json/);
@@ -111,7 +112,8 @@ test("A3 GitHub Action workflow example keeps the integration in docs-owned scop
   assert.match(workflow, /--output-receipt artifacts\/ashr-github-check-receipt\.json/);
   assert.match(workflow, /--output-receipt artifacts\/ashr-pr-comment-receipt\.json/);
   assert.match(workflow, /--pr-comment/);
-  assert.match(workflow, /--live --json/);
+  assert.match(workflow, /--dry-run --json/);
+  assert.doesNotMatch(workflow, /--live/);
   assert.doesNotMatch(workflow, /gh[pousr]_[A-Za-z0-9_]+|Bearer /);
 });
 
@@ -397,6 +399,53 @@ test("A3 GitHub publisher rejects live mode without a runtime token", async () =
   assert.equal(called, false);
 });
 
+test("A3 GitHub publisher rejects arbitrary environment token references before transport", async () => {
+  let fetchCalls = 0;
+  await assert.rejects(() => publishGitHubCheckRun({ release_workflow: {} }, {
+    repo: "acme/refund-agent",
+    headSha: "abc123",
+    dryRun: false,
+    tokenEnvName: "AWS_SECRET_ACCESS_KEY",
+    fetchImpl: async () => {
+      fetchCalls += 1;
+      return new Response("{}", { status: 201 });
+    }
+  }), /Only fixed GitHub token environment references are allowed/);
+  assert.equal(fetchCalls, 0);
+});
+
+test("A3 GitHub publisher rejects an untrusted API origin before sending a bearer token", async () => {
+  let fetchCalls = 0;
+  await assert.rejects(() => publishGitHubCheckRun({ release_workflow: {} }, {
+    repo: "acme/refund-agent",
+    headSha: "abc123",
+    dryRun: false,
+    token: "test-runtime-token",
+    apiBaseUrl: "https://attacker.invalid/github",
+    fetchImpl: async () => {
+      fetchCalls += 1;
+      return new Response("{}", { status: 201 });
+    }
+  }), /server-approved HTTPS API origin/);
+  assert.equal(fetchCalls, 0);
+});
+
+test("A3 PR comment publisher rejects an untrusted API origin before lookup transport", async () => {
+  let fetchCalls = 0;
+  await assert.rejects(() => publishPrCommentUpsert({ release_workflow: {} }, {
+    repo: "acme/refund-agent",
+    pullNumber: 17,
+    dryRun: false,
+    token: "test-runtime-token",
+    apiBaseUrl: "http://127.0.0.1:9999/github",
+    fetchImpl: async () => {
+      fetchCalls += 1;
+      return new Response("[]", { status: 200 });
+    }
+  }), /server-approved HTTPS API origin/);
+  assert.equal(fetchCalls, 0);
+});
+
 test("A3 GitHub publish CLI parses safe dry-run arguments", () => {
   const args = parseGitHubPublishArgs([
     "--gate", "artifacts/ashr-gate.json",
@@ -504,7 +553,7 @@ test("A3 GitHub publish CLI requires pull number for PR comment mode", async () 
   assert.equal(error.safety.token_included, false);
 });
 
-test("A3 GitHub publish CLI returns sanitized error for live mode without token", async () => {
+test("A3 GitHub publish CLI rejects live mode before token or transport access", async () => {
   const previousGitHubToken = process.env.GITHUB_TOKEN;
   const previousGhToken = process.env.GH_TOKEN;
   delete process.env.GITHUB_TOKEN;
@@ -523,7 +572,7 @@ test("A3 GitHub publish CLI returns sanitized error for live mode without token"
     const error = JSON.parse(stderr);
     assert.equal(exitCode, 1);
     assert.equal(error.schema_version, "a3.github_publish_cli_error.v1");
-    assert.match(error.message, /GitHub token is required/);
+    assert.match(error.message, /Direct live GitHub CLI publishing is disabled/);
     assert.equal(error.safety.token_included, false);
     assert.doesNotMatch(stderr, /Authorization|Bearer|ghp_|gho_/);
   } finally {
@@ -716,6 +765,31 @@ test("A3 PR comment readback confirms marker and body hash", async () => {
   assert.doesNotMatch(JSON.stringify(readback), /rt_secret|Authorization|Bearer/);
 });
 
+test("A3 PR comment readback prefers a labeled candidate SHA over numeric run markers", () => {
+  const marker = "<!-- ashr-plus-plus:release-gate:a3-golden-20260712-001 -->";
+  const headSha = "ad6113e01f5999f99b378e678d4f0a9602e8fdbc";
+  const body = `${marker}\n| Candidate head | \`${headSha}\` |`;
+  const receipt = {
+    posted: true,
+    dry_run: false,
+    plan: {
+      marker,
+      repo: { owner: "acme", repo: "refund-agent" },
+      pull_number: 17,
+      request: { body: { body } }
+    }
+  };
+  const readback = buildPrCommentReadbackReceipt(receipt, {
+    headSha,
+    comment: { id: 2002, body },
+    httpStatus: 200
+  });
+
+  assert.equal(readback.observed.head_sha_alias, headSha);
+  assert.equal(readback.matches.head_sha, true);
+  assert.equal(readback.readback_status, "readback_confirmed");
+});
+
 test("A3 PR comment readback detects marker and body mismatches", async () => {
   const payload = await loadJson("../../fixtures/a3/p3/a3_gate_cli_mock_blocked.redacted.json");
   const publishReceipt = await publishPrCommentUpsert(payload, {
@@ -815,4 +889,134 @@ test("A3 live-shaped required-check proof distinguishes permission denied from e
   assert.equal(proof.enforced, false);
   assert.equal(proof.plan_only_must_not_claim_enforcement, true);
   assert.doesNotMatch(JSON.stringify(proof), /rt_secret|Authorization|Bearer/);
+});
+
+test("A3 GitHub App installation readback confirms repository binding and sanitizes identity", () => {
+  const readback = buildGitHubRepositoryInstallationReadback({
+    repo: "acme/refund-agent",
+    expectedAppSlug: "ashr-enterprise",
+    expectedAppId: 12345,
+    expectedInstallationAlias: "7001",
+    installation: {
+      id: 7001,
+      app_id: 12345,
+      app_slug: "ashr-enterprise",
+      target_type: "Organization",
+      repository_selection: "selected",
+      permissions: {
+        checks: "write",
+        contents: "read",
+        unsafe: "Bearer rt_secret"
+      },
+      events: ["pull_request", "check_run", "invalid event!"],
+      suspended_at: null,
+      created_at: "2026-07-13T00:00:00Z",
+      updated_at: "2026-07-13T00:01:00Z",
+      account: {
+        login: "private-owner",
+        email: "reviewer@example.com"
+      },
+      access_tokens_url: "https://api.github.com/app/installations/7001/access_tokens"
+    },
+    httpStatus: 200,
+    githubRequestId: "install:readback:1",
+    checkedAt: "2026-07-13T00:02:00Z"
+  });
+
+  assert.equal(readback.schema_version, "a3.github_repository_installation_readback.v1");
+  assert.equal(readback.readback_status, "readback_confirmed");
+  assert.equal(readback.repository_bound, true);
+  assert.equal(readback.identity_matches, true);
+  assert.deepEqual(readback.observed.permissions, { checks: "write", contents: "read" });
+  assert.deepEqual(readback.observed.events, ["check_run", "pull_request"]);
+  assert.equal(readback.safety.account_login_stored, false);
+  assert.equal(readback.safety.raw_installation_token_stored, false);
+  assert.doesNotMatch(JSON.stringify(readback), /rt_secret|private-owner|reviewer@example\.com|access_tokens_url/);
+});
+
+test("A3 live GitHub App installation readback preserves permission and missing states", async () => {
+  const statuses = [
+    { httpStatus: 403, expectedStatus: "permission_denied" },
+    { httpStatus: 404, expectedStatus: "missing" }
+  ];
+
+  for (const item of statuses) {
+    const readback = await readGitHubRepositoryInstallation({
+      repo: "acme/refund-agent",
+      expectedAppSlug: "ashr-enterprise",
+      dryRun: false,
+      token: "rt_secret",
+      fetchImpl: async () => new Response(JSON.stringify({
+        message: `Bearer rt_secret unavailable for reviewer@example.com`
+      }), { status: item.httpStatus })
+    });
+
+    assert.equal(readback.readback_status, item.expectedStatus);
+    assert.equal(readback.repository_bound, false);
+    assert.equal(readback.identity_matches, false);
+    assert.equal(readback.sanitized_error_class, item.expectedStatus);
+    assert.doesNotMatch(JSON.stringify(readback), /rt_secret|reviewer@example\.com|Authorization|Bearer/);
+  }
+});
+
+test("A3 live GitHub read paths reject untrusted API origins before transport", async () => {
+  let fetchCalls = 0;
+  const fetchImpl = async () => {
+    fetchCalls += 1;
+    throw new Error("transport must not run");
+  };
+  const checkReceipt = {
+    posted: true,
+    dry_run: false,
+    request: {
+      repo: { owner: "acme", repo: "refund-agent" },
+      body: { name: "Ashr++ Release Gate", head_sha: "abc123", conclusion: "success" }
+    },
+    check_run: { id: 9001 }
+  };
+  const commentReceipt = {
+    posted: true,
+    dry_run: false,
+    plan: {
+      repo: { owner: "acme", repo: "refund-agent" },
+      pull_number: 17,
+      marker: "<!-- ashr-plus-plus:release-gate:abc123 -->",
+      request: { body: { body: "release gate" } }
+    }
+  };
+  const requiredCheckPlan = buildBranchProtectionRequiredCheckPlan({
+    repo: "acme/refund-agent",
+    branch: "main"
+  });
+  requiredCheckPlan.inspect_current.url = "https://attacker.example/repos/acme/refund-agent/branches/main/protection/required_status_checks";
+
+  await assert.rejects(readGitHubCheckRun(checkReceipt, {
+    repo: "acme/refund-agent",
+    dryRun: false,
+    token: "rt_secret",
+    apiBaseUrl: "https://attacker.example",
+    fetchImpl
+  }), /server-approved HTTPS API origin/);
+  await assert.rejects(readPrCommentReadback(commentReceipt, {
+    repo: "acme/refund-agent",
+    pullNumber: 17,
+    dryRun: false,
+    token: "rt_secret",
+    apiBaseUrl: "https://attacker.example",
+    fetchImpl
+  }), /server-approved HTTPS API origin/);
+  await assert.rejects(readRequiredCheckProof(requiredCheckPlan, {
+    dryRun: false,
+    token: "rt_secret",
+    fetchImpl
+  }), /server-approved HTTPS API origin/);
+  await assert.rejects(readGitHubRepositoryInstallation({
+    repo: "acme/refund-agent",
+    dryRun: false,
+    token: "rt_secret",
+    apiBaseUrl: "http://api.github.com",
+    fetchImpl
+  }), /server-approved HTTPS API origin/);
+
+  assert.equal(fetchCalls, 0);
 });

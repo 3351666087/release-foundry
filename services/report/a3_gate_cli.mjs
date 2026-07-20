@@ -10,24 +10,41 @@ import {
   summarizeReleaseWorkflow
 } from "./report_builder.mjs";
 import { redactExport } from "./export_redaction_firewall.mjs";
+import { normalizeA2GradeReport } from "./a3_release_delivery.mjs";
+import { evaluateA2TrustedReleaseAuthority } from "./a3_trusted_release_authority.mjs";
+import { verifyA3MultimodalReviewAssignmentPacket } from "./a3_multimodal_review_assignment.mjs";
 
 export async function buildGateCliPayload(options = {}) {
   const workspaceRoot = resolve(options.workspaceRoot || process.cwd());
   const runs = await loadJsonRequired(options.runs, "runs");
-  const grades = await loadJsonRequired(options.grades, "grades");
+  const gradesInput = await loadJsonRequired(options.grades, "grades");
+  const grades = normalizeA2GradeReport(gradesInput);
   const coverage = await loadJsonOptional(options.coverage);
   const mediaSignedUrlCoverage = await loadJsonOptional(options.mediaSignedUrlCoverage);
   const thresholds = await loadJsonOptional(options.thresholds);
   const waiver = await loadJsonOptional(options.waiver);
   const approval = await loadJsonOptional(options.approval);
+  const a2TrustedSpine = await loadJsonOptional(options.a2TrustedSpine);
+  const trustedReleaseAuthority = a2TrustedSpine.schema_version === "a2.trusted_spine_handoff.v1"
+    ? evaluateA2TrustedReleaseAuthority(a2TrustedSpine)
+    : null;
   const summary = buildDashboardSummary(runs, grades);
-  const gate = summarizeReleaseGate(runs, grades, coverage, mediaSignedUrlCoverage, { thresholds });
-  const workflow = summarizeReleaseWorkflow(runs, grades, coverage, mediaSignedUrlCoverage, {
+  const localQualityGate = summarizeReleaseGate(runs, grades, coverage, mediaSignedUrlCoverage, { thresholds });
+  const localWorkflow = summarizeReleaseWorkflow(runs, grades, coverage, mediaSignedUrlCoverage, {
     thresholds,
     release_version: options.releaseVersion,
     environment: options.environment,
     owner: options.owner
   });
+  const authoritativeBlock = trustedReleaseAuthority && trustedReleaseAuthority.allowed !== true;
+  const gate = authoritativeBlock
+    ? projectTrustedAuthorityBlock(localQualityGate, trustedReleaseAuthority)
+    : localQualityGate;
+  const workflow = authoritativeBlock
+    ? projectTrustedAuthorityWorkflow(localWorkflow, localQualityGate, trustedReleaseAuthority, summary, {
+      headSha: options.headSha
+    })
+    : localWorkflow;
   const inputFiles = [
     inputArtifact("runs", options.runs, true, workspaceRoot),
     inputArtifact("grades", options.grades, true, workspaceRoot),
@@ -46,12 +63,20 @@ export async function buildGateCliPayload(options = {}) {
     byte_size: await byteSizeFile(artifact.resolved_path)
   })));
 
+  const githubCheckRun = buildGithubCheckRunPayload(workflow, gate, summary, options);
+  if (authoritativeBlock) {
+    githubCheckRun.conclusion = "failure";
+    githubCheckRun.output.title = `A2 blocked: ${summary.lastRunId || "unknown-run"}`;
+    githubCheckRun.output.summary = `${githubCheckRun.output.summary}\n\nAuthoritative A2 status: ${trustedReleaseAuthority.status}; reason: ${trustedReleaseAuthority.reason_code}.`;
+  }
+  const blocksMerge = Boolean(gate.pr_gate.blocks_merge || authoritativeBlock);
   const rawPayload = {
     schema_version: "a3.gate_cli.v1",
     generated_at: options.generatedAt || "runtime",
     source: options.source || "local-fixtures",
     command_shape: "ashr gate --json",
     summary,
+    local_quality_gate: localQualityGate,
     release_gate: gate,
     release_workflow: workflow,
     waiver_review: validateWaiverRequest(waiver, gate, workflow, summary, {
@@ -67,7 +92,8 @@ export async function buildGateCliPayload(options = {}) {
       environment: options.environment,
       headSha: options.headSha
     }),
-    github_check_run: buildGithubCheckRunPayload(workflow, gate, summary, options),
+    trusted_release_authority: trustedReleaseAuthority,
+    github_check_run: githubCheckRun,
     pr_comment_markdown: workflow.pr_comment_markdown,
     audit_manifest: {
       schema_version: "a3.gate_cli.audit_manifest.v1",
@@ -75,8 +101,8 @@ export async function buildGateCliPayload(options = {}) {
       artifacts
     },
     exit_mode: options.noFail ? "no-fail" : "strict-exit",
-    exit_code_hint: gate.pr_gate.blocks_merge ? 1 : 0,
-    process_exit_code: options.noFail ? 0 : gate.pr_gate.blocks_merge ? 1 : 0
+    exit_code_hint: blocksMerge ? 1 : 0,
+    process_exit_code: options.noFail ? 0 : blocksMerge ? 1 : 0
   };
   const { value, replacement_count: replacementCount, findings, status } = redactExport(rawPayload, { surface: "gate_cli_payload" });
   return {
@@ -92,6 +118,144 @@ export async function buildGateCliPayload(options = {}) {
   };
 }
 
+function projectTrustedAuthorityBlock(localGate = {}, authority = {}) {
+  const authorityCheck = {
+    id: "a2_release_authority",
+    passed: false,
+    observed: `${authority.upstream_decision || "unknown"}; release_ready=${authority.release_ready === true}`,
+    detail: `A2 Decision Ledger blocks release (${authority.reason_code || "authority_not_ready"}).`
+  };
+  const checks = [...arrayOf(localGate.checks).filter((item) => item?.id !== authorityCheck.id), authorityCheck];
+  const failedChecks = [...new Set([...arrayOf(localGate.failed_checks), authorityCheck.id])];
+  return {
+    ...localGate,
+    decision: "block_release",
+    decision_label: "Block release",
+    summary: `Local case-quality checks passed, but A2 Decision Ledger blocks release: ${authority.reason_code || "authority_not_ready"}.`,
+    local_quality_decision: localGate.decision || "unknown",
+    local_quality_decision_label: localGate.decision_label || "unknown",
+    decision_authority: "A2 Decision Ledger",
+    a2_upstream_decision: authority.upstream_decision || "unknown",
+    a2_release_ready: authority.release_ready === true,
+    checks,
+    failed_check_count: failedChecks.length,
+    failed_checks: failedChecks,
+    required_approvers: [...new Set([...arrayOf(localGate.required_approvers), "A2 release authority owner"])],
+    pr_gate: {
+      ...localGate.pr_gate,
+      status: "block_release",
+      blocks_merge: true,
+      warning_only: false
+    }
+  };
+}
+
+function projectTrustedAuthorityWorkflow(localWorkflow = {}, localGate = {}, authority = {}, summary = {}, options = {}) {
+  const nextAction = `Do not merge or publish until A2 issues an allow Decision Ledger record for ${summary.lastRunId || "this run"}.`;
+  const localCheck = localWorkflow.github_check || {};
+  const localOutput = localCheck.output || {};
+  const blockedRisk = {
+    ...(localWorkflow.reviewer_workflow?.sign_off_risk || {}),
+    level: "blocked",
+    can_sign_off: false,
+    risk_acceptance_required: false,
+    executive_exception_required: false,
+    reasons: [...new Set([
+      ...arrayOf(localWorkflow.reviewer_workflow?.sign_off_risk?.reasons),
+      authority.reason_code || "a2_release_authority_not_ready"
+    ])],
+    required_before_sign_off: [nextAction]
+  };
+  const prComment = renderTrustedAuthorityPrComment(localWorkflow, localGate, authority, summary, nextAction, options);
+  return {
+    ...localWorkflow,
+    github_check: {
+      ...localCheck,
+      conclusion: "failure",
+      blocks_merge: true,
+      output: {
+        ...localOutput,
+        title: `A2 blocked: ${summary.lastRunId || "unknown-run"}`,
+        summary: `Local case-quality gate: ${localGate.decision_label || localGate.decision || "unknown"}. Authoritative A2 decision: ${authority.upstream_decision || "unknown"}; release_ready=${authority.release_ready === true}.`,
+        text: `${localOutput.text || ""}\n\nA2 Decision Ledger: ${authority.upstream_decision || "unknown"}\nA2 release_ready: ${authority.release_ready === true}\nNext action: ${nextAction}`.trim()
+      }
+    },
+    pr_comment_markdown: prComment,
+    waiver_policy: {
+      ...(localWorkflow.waiver_policy || {}),
+      required: false,
+      allowed: false,
+      exceptional_only: false,
+      guidance: "A3 waiver and approval records cannot override an A2 Decision Ledger block."
+    },
+    reviewer_workflow: {
+      ...(localWorkflow.reviewer_workflow || {}),
+      state: "blocked_by_a2",
+      next_actions: [nextAction],
+      pr_gate_next_action: nextAction,
+      sign_off_risk: blockedRisk,
+      a2_release_gate: {
+        schema_version: authority.schema_version || "a3.trusted_release_authority.v1",
+        available: true,
+        decision: authority.upstream_decision || "unknown",
+        blocks_release: true,
+        release_ready: authority.release_ready === true,
+        blocker_types: arrayOf(authority.blockers),
+        evidence_refs: [authority.decision_ledger?.head_hash, authority.decision_ledger?.record_id].filter(Boolean)
+      }
+    },
+    reviewer_gate: {
+      ...(localWorkflow.reviewer_gate || {}),
+      pr_gate_next_action: nextAction,
+      sign_off_risk: blockedRisk,
+      a2_release_gate: {
+        schema_version: authority.schema_version || "a3.trusted_release_authority.v1",
+        available: true,
+        decision: authority.upstream_decision || "unknown",
+        blocks_release: true,
+        release_ready: authority.release_ready === true,
+        blocker_types: arrayOf(authority.blockers),
+        evidence_refs: [authority.decision_ledger?.head_hash, authority.decision_ledger?.record_id].filter(Boolean)
+      }
+    }
+  };
+}
+
+function renderTrustedAuthorityPrComment(localWorkflow = {}, localGate = {}, authority = {}, summary = {}, nextAction = "", options = {}) {
+  const workflow = localWorkflow || {};
+  return [
+    `<!-- ashr-plus-plus:release-gate:${summary.lastRunId || "unknown-run"} -->`,
+    "## Ashr++ Release Gate",
+    "",
+    "Decision: **Block release**",
+    "Authority: **A2 Decision Ledger**",
+    `Release: \`${workflow.release_version || "unknown-release"}\``,
+    `Environment: \`${workflow.environment || "unknown"}\``,
+    `Candidate SHA: \`${options.headSha || "not-bound"}\``,
+    "",
+    "| Signal | Value |",
+    "|---|---|",
+    `| Run | \`${summary.lastRunId || "unknown-run"}\` |`,
+    `| A1/A2 case pass rate | ${summary.passRate ?? 0}% |`,
+    `| Local quality gate | ${localGate.decision_label || localGate.decision || "unknown"} |`,
+    `| Local quality risk score | ${localGate.risk_score ?? "unknown"} |`,
+    `| Authoritative A2 decision | ${authority.upstream_decision || "unknown"} |`,
+    `| A2 release ready | ${authority.release_ready === true ? "yes" : "no"} |`,
+    `| Merge blocked | yes |`,
+    "",
+    "### Why blocked",
+    "",
+    ...arrayOf(authority.blockers).map((item) => `- \`${item}\``),
+    "",
+    "### Required action",
+    "",
+    `- ${nextAction}`,
+    "- A3 did not recompute A2 scores, pass/fail, failure classes, or release authority.",
+    "- An A3 waiver cannot convert this A2 block into approval.",
+    ""
+  ].join("\n");
+}
+
 export function renderGateCliMarkdown(payload = {}) {
   const gate = payload.release_gate || {};
   const workflow = payload.release_workflow || {};
@@ -99,6 +263,7 @@ export function renderGateCliMarkdown(payload = {}) {
   const artifacts = payload.audit_manifest?.artifacts || [];
   const waiverReview = payload.waiver_review || {};
   const approvalReview = payload.approval_review || {};
+  const trustedAuthority = payload.trusted_release_authority || {};
   const lines = [
     "# Ashr++ Gate CLI Report",
     "",
@@ -108,7 +273,10 @@ export function renderGateCliMarkdown(payload = {}) {
     `- Decision: ${gate.decision_label || "unknown"}`,
     `- Risk score: ${gate.risk_score ?? "unknown"}`,
     `- Check conclusion: ${workflow.github_check?.conclusion || "unknown"}`,
-    `- Blocks merge: ${workflow.github_check?.blocks_merge ? "yes" : "no"}`,
+    `- Blocks merge: ${gate.pr_gate?.blocks_merge || (trustedAuthority.schema_version && trustedAuthority.allowed !== true) ? "yes" : "no"}`,
+    `- A2 authority: ${trustedAuthority.status || "not-attached"}`,
+    `- A2 upstream decision: ${trustedAuthority.upstream_decision || "unknown"}`,
+    `- A2 release ready: ${trustedAuthority.release_ready === true ? "yes" : "no"}`,
     `- Waiver: ${workflow.waiver_policy?.guidance || "unknown"}`,
     "",
     "## Audit Manifest",
@@ -155,8 +323,12 @@ export function buildGeneratedArtifactManifest(payload = {}, generatedArtifacts 
       decision: gate.decision || "unknown",
       decision_label: gate.decision_label || "unknown",
       risk_score: gate.risk_score ?? null,
-      blocks_merge: Boolean(gate.pr_gate?.blocks_merge),
-      github_check_conclusion: workflow.github_check?.conclusion || "unknown"
+      blocks_merge: Boolean(gate.pr_gate?.blocks_merge || (payload.trusted_release_authority && payload.trusted_release_authority.allowed !== true)),
+      github_check_conclusion: payload.github_check_run?.conclusion || workflow.github_check?.conclusion || "unknown",
+      decision_authority: payload.trusted_release_authority ? "A2 Decision Ledger" : "A3 triage summary only",
+      a2_upstream_decision: payload.trusted_release_authority?.upstream_decision || "not-attached",
+      a2_release_ready: payload.trusted_release_authority?.release_ready === true,
+      a3_recomputed_a2_decision: false
     },
     redaction_policy: payload.audit_manifest?.redaction_policy
       || "No API keys, cookies, tokens, emails, or live signed media URLs are allowed in generated artifacts.",
@@ -167,6 +339,7 @@ export function buildGeneratedArtifactManifest(payload = {}, generatedArtifacts 
       sha256: artifact.sha256,
       byte_size: artifact.byte_size,
       required: artifact.required !== false,
+      ...(artifact.bundle_role ? { bundle_role: artifact.bundle_role } : {}),
       ...(artifact.origin ? { origin: artifact.origin } : {})
     })),
     safety: {
@@ -193,17 +366,10 @@ export function buildAuditBundleIndex(payload = {}, generatedArtifacts = [], opt
   }, workspaceRoot));
   const outputArtifacts = arrayOf(generatedArtifacts).map((artifact) => {
     const isManifest = artifact.id === "generated_artifact_manifest";
-    const isExternalGithubEvidence = artifact.origin === "external_github_publish_evidence";
     return normalizeBundleArtifact({
       ...artifact,
       bundle_role: artifact.bundle_role || (isManifest ? "custody_record" : "generated_output"),
-      created_by: artifact.created_by || (
-        isManifest
-          ? "ashr gate generated artifact manifest"
-          : isExternalGithubEvidence
-            ? "ashr gate external GitHub publish evidence reader"
-            : "ashr gate output writer"
-      )
+      created_by: artifact.created_by || externalArtifactCreator(artifact, isManifest)
     }, workspaceRoot);
   });
   const bundleArtifacts = dedupeBundleArtifacts([...sourceArtifacts, ...outputArtifacts])
@@ -239,8 +405,15 @@ export function buildAuditBundleIndex(payload = {}, generatedArtifacts = [], opt
       risk_score: gate.risk_score ?? null,
       pass_rate: summary.passRate ?? null,
       average_score: summary.avgScore ?? null,
-      blocks_merge: Boolean(gate.pr_gate?.blocks_merge),
-      github_check_conclusion: workflow.github_check?.conclusion || "unknown",
+      blocks_merge: Boolean(gate.pr_gate?.blocks_merge || (payload.trusted_release_authority && payload.trusted_release_authority.allowed !== true)),
+      github_check_conclusion: payload.github_check_run?.conclusion || workflow.github_check?.conclusion || "unknown",
+      decision_authority: payload.trusted_release_authority ? "A2 Decision Ledger" : "A3 triage summary only",
+      a2_integrity_verified: payload.trusted_release_authority?.integrity_verified === true,
+      a2_upstream_decision: payload.trusted_release_authority?.upstream_decision || "not-attached",
+      a2_release_ready: payload.trusted_release_authority?.release_ready === true,
+      a2_decision_ledger_head_hash: payload.trusted_release_authority?.decision_ledger?.head_hash || null,
+      a2_decision_record_id: payload.trusted_release_authority?.decision_ledger?.record_id || null,
+      a3_recomputed_a2_decision: false,
       failed_checks: gate.failed_checks || []
     },
     governance: {
@@ -255,7 +428,10 @@ export function buildAuditBundleIndex(payload = {}, generatedArtifacts = [], opt
       source_inputs: bundleArtifacts.filter((artifact) => artifact.bundle_role === "source_input").map((artifact) => artifact.id),
       generated_outputs: bundleArtifacts.filter((artifact) => artifact.bundle_role === "generated_output").map((artifact) => artifact.id),
       governance_records: bundleArtifacts.filter((artifact) => artifact.bundle_role === "governance_record").map((artifact) => artifact.id),
-      custody_records: bundleArtifacts.filter((artifact) => artifact.bundle_role === "custody_record").map((artifact) => artifact.id)
+      custody_records: bundleArtifacts.filter((artifact) => artifact.bundle_role === "custody_record").map((artifact) => artifact.id),
+      authority_records: bundleArtifacts.filter((artifact) => artifact.bundle_role === "authority_record").map((artifact) => artifact.id),
+      readback_records: bundleArtifacts.filter((artifact) => artifact.bundle_role === "readback_record").map((artifact) => artifact.id),
+      deployment_records: bundleArtifacts.filter((artifact) => artifact.bundle_role === "deployment_record").map((artifact) => artifact.id)
     },
     bundle_artifacts: bundleArtifacts,
     completeness: {
@@ -573,7 +749,11 @@ export function validateApprovalRecord(approval = {}, gate = {}, workflow = {}, 
   }
 
   const waiver = options.waiver || {};
-  if (approval.waiver_id && waiver.waiver_id && approval.waiver_id !== waiver.waiver_id) {
+  const hasWaiverEvidence = waiver && typeof waiver === "object" && Object.keys(waiver).length > 0;
+  if (gate.decision !== "approve_release" && !hasWaiverEvidence) {
+    findings.push(approvalFinding("missing_waiver_evidence", "blocking", "Exception approvals must resolve a waiver record in the same tenant scope."));
+  }
+  if (approval.waiver_id && approval.waiver_id !== waiver.waiver_id) {
     findings.push(approvalFinding("waiver_id_mismatch", "blocking", "Approval waiver_id does not match the provided waiver."));
   }
   if (gate.decision !== "approve_release" && isBlank(approval.waiver_id)) {
@@ -719,6 +899,9 @@ function parseArgs(argv = []) {
     } else if (arg === "--approval") {
       options.approval = next;
       index += 1;
+    } else if (arg === "--a2-trusted-spine") {
+      options.a2TrustedSpine = next;
+      index += 1;
     } else if (arg === "--release-version") {
       options.releaseVersion = next;
       index += 1;
@@ -764,6 +947,24 @@ function parseArgs(argv = []) {
     } else if (arg === "--github-required-check-plan") {
       options.githubRequiredCheckPlan = next;
       index += 1;
+    } else if (arg === "--github-check-readback") {
+      options.githubCheckReadback = next;
+      index += 1;
+    } else if (arg === "--github-pr-comment-readback") {
+      options.githubPrCommentReadback = next;
+      index += 1;
+    } else if (arg === "--github-required-check-proof") {
+      options.githubRequiredCheckProof = next;
+      index += 1;
+    } else if (arg === "--github-actions-artifact-readback") {
+      options.githubActionsArtifactReadback = next;
+      index += 1;
+    } else if (arg === "--deployment-probe") {
+      options.deploymentProbe = next;
+      index += 1;
+    } else if (arg === "--multimodal-review-packet") {
+      options.multimodalReviewPacket = next;
+      index += 1;
     } else if (arg === "--verify-index") {
       options.verifyIndex = next;
       index += 1;
@@ -804,7 +1005,7 @@ function parseArgs(argv = []) {
 }
 
 function helpText() {
-  return `Usage: node services/report/a3_gate_cli.mjs --runs fixtures/a3/mock_run_results.json --grades fixtures/a3/mock_grade_results.json --coverage fixtures/a2/results/a2_g3_coverage_report.json --thresholds fixtures/a3/release_gate_thresholds.json --json [--waiver path] [--approval path] [--generated-at ISO] [--strict-exit|--no-fail] [--output-json path] [--output-md path] [--output-check path] [--output-pr-comment path] [--output-manifest path] [--output-bundle path] [--github-check-publish-receipt path] [--github-pr-comment-publish-receipt path] [--github-required-check-plan path]\n       node services/report/a3_gate_cli.mjs --verify-index fixtures/a3/p3/a3_audit_bundle_index_blocked_exception.redacted.json --json [--output-json path] [--output-md path] [--strict-exit|--no-fail]\n`;
+  return `Usage: node services/report/a3_gate_cli.mjs --runs fixtures/a3/mock_run_results.json --grades fixtures/a3/mock_grade_results.json --coverage fixtures/a2/results/a2_g3_coverage_report.json --thresholds fixtures/a3/release_gate_thresholds.json --json [--a2-trusted-spine path] [--waiver path] [--approval path] [--generated-at ISO] [--strict-exit|--no-fail] [--output-json path] [--output-md path] [--output-check path] [--output-pr-comment path] [--output-manifest path] [--output-bundle path] [--github-check-publish-receipt path] [--github-pr-comment-publish-receipt path] [--github-required-check-plan path] [--github-check-readback path] [--github-pr-comment-readback path] [--github-required-check-proof path] [--github-actions-artifact-readback path] [--deployment-probe path] [--multimodal-review-packet path]\n       node services/report/a3_gate_cli.mjs --verify-index fixtures/a3/p3/a3_audit_bundle_index_blocked_exception.redacted.json --json [--output-json path] [--output-md path] [--strict-exit|--no-fail]\n`;
 }
 
 async function loadJsonRequired(path, label) {
@@ -957,23 +1158,68 @@ async function readExternalEvidenceArtifacts(options = {}, workspaceRoot) {
     externalEvidenceArtifactInput(
       "github_check_publish_receipt",
       options.githubCheckPublishReceipt,
-      workspaceRoot
+      workspaceRoot,
+      { origin: "external_github_publish_evidence", bundleRole: "generated_output" }
     ),
     externalEvidenceArtifactInput(
       "github_pr_comment_publish_receipt",
       options.githubPrCommentPublishReceipt,
-      workspaceRoot
+      workspaceRoot,
+      { origin: "external_github_publish_evidence", bundleRole: "generated_output" }
     ),
     externalEvidenceArtifactInput(
       "github_required_check_plan",
       options.githubRequiredCheckPlan,
-      workspaceRoot
+      workspaceRoot,
+      { origin: "external_github_publish_evidence", bundleRole: "generated_output" }
+    ),
+    externalEvidenceArtifactInput(
+      "a2_trusted_spine",
+      options.a2TrustedSpine,
+      workspaceRoot,
+      { origin: "a2_authoritative_evidence", bundleRole: "authority_record" }
+    ),
+    externalEvidenceArtifactInput(
+      "github_check_readback",
+      options.githubCheckReadback,
+      workspaceRoot,
+      { origin: "external_github_live_readback", bundleRole: "readback_record" }
+    ),
+    externalEvidenceArtifactInput(
+      "github_pr_comment_readback",
+      options.githubPrCommentReadback,
+      workspaceRoot,
+      { origin: "external_github_live_readback", bundleRole: "readback_record" }
+    ),
+    externalEvidenceArtifactInput(
+      "github_required_check_proof",
+      options.githubRequiredCheckProof,
+      workspaceRoot,
+      { origin: "external_github_live_readback", bundleRole: "readback_record" }
+    ),
+    externalEvidenceArtifactInput(
+      "github_actions_artifact_readback",
+      options.githubActionsArtifactReadback,
+      workspaceRoot,
+      { origin: "external_github_live_readback", bundleRole: "readback_record" }
+    ),
+    externalEvidenceArtifactInput(
+      "deployment_probe",
+      options.deploymentProbe,
+      workspaceRoot,
+      { origin: "deployment_acceptance_input", bundleRole: "deployment_record" }
+    ),
+    externalEvidenceArtifactInput(
+      "multimodal_review_assignment_packet",
+      options.multimodalReviewPacket,
+      workspaceRoot,
+      { origin: "a3_review_assignment_evidence", bundleRole: "review_record" }
     )
   ].filter(Boolean);
   return Promise.all(candidates.map(readExternalEvidenceArtifact));
 }
 
-function externalEvidenceArtifactInput(id, path, workspaceRoot) {
+function externalEvidenceArtifactInput(id, path, workspaceRoot, options = {}) {
   if (!path) {
     return null;
   }
@@ -984,20 +1230,38 @@ function externalEvidenceArtifactInput(id, path, workspaceRoot) {
     resolved_path: resolvedPath,
     content_type: contentTypeForPath(path),
     required: true,
-    origin: "external_github_publish_evidence"
+    origin: options.origin || "external_evidence",
+    bundle_role: options.bundleRole || "generated_output"
   };
 }
 
 async function readExternalEvidenceArtifact(artifact) {
+  if (artifact.id === "multimodal_review_assignment_packet") {
+    const packet = JSON.parse(await readFile(artifact.resolved_path, "utf8"));
+    const verification = verifyA3MultimodalReviewAssignmentPacket(packet, { noFail: true });
+    if (verification.status !== "passed") {
+      throw new Error("Multimodal review assignment packet failed integrity verification.");
+    }
+  }
   return {
     id: artifact.id,
     path: artifact.path,
     content_type: artifact.content_type,
     required: artifact.required,
     origin: artifact.origin,
+    bundle_role: artifact.bundle_role,
     sha256: await sha256File(artifact.resolved_path),
     byte_size: await byteSizeFile(artifact.resolved_path)
   };
+}
+
+function externalArtifactCreator(artifact, isManifest) {
+  if (isManifest) return "ashr gate generated artifact manifest";
+  if (artifact.origin === "external_github_publish_evidence") return "ashr gate external GitHub publish evidence reader";
+  if (artifact.origin === "a2_authoritative_evidence") return "A2 trusted release authority reader";
+  if (artifact.origin === "external_github_live_readback") return "A3 GitHub live readback observer";
+  if (artifact.origin === "deployment_acceptance_input") return "A3 deployment acceptance probe reader";
+  return "ashr gate output writer";
 }
 
 function waiverFinding(id, severity, message) {
@@ -1105,6 +1369,39 @@ function buildChainOfCustodyEvents({ payload = {}, bundleId, bundleArtifacts = [
       hasExternalGithubEvidence
         ? "Generated report/check/comment and GitHub publish evidence artifacts hashed."
         : "Generated report/check/comment artifacts hashed."
+    ));
+  }
+  const authorityArtifactIds = bundleArtifacts
+    .filter((artifact) => artifact.bundle_role === "authority_record")
+    .map((artifact) => artifact.id);
+  if (authorityArtifactIds.length) {
+    events.push(custodyEvent(
+      "a2_authority_hashed",
+      "completed",
+      authorityArtifactIds,
+      "A2 trusted release authority evidence hashed without recomputing its decision."
+    ));
+  }
+  const readbackArtifactIds = bundleArtifacts
+    .filter((artifact) => artifact.bundle_role === "readback_record")
+    .map((artifact) => artifact.id);
+  if (readbackArtifactIds.length) {
+    events.push(custodyEvent(
+      "github_readbacks_hashed",
+      "completed",
+      readbackArtifactIds,
+      "Sanitized GitHub readback receipts hashed."
+    ));
+  }
+  const deploymentArtifactIds = bundleArtifacts
+    .filter((artifact) => artifact.bundle_role === "deployment_record")
+    .map((artifact) => artifact.id);
+  if (deploymentArtifactIds.length) {
+    events.push(custodyEvent(
+      "deployment_probe_hashed",
+      "completed",
+      deploymentArtifactIds,
+      "Deployment acceptance probe evidence hashed."
     ));
   }
   if (payload.waiver_review?.available) {

@@ -1,0 +1,128 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.local/schemas/a3_identity_registration_login_contract.schema.json",
+  "title": "A3 Identity Registration and Login Response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "operation", "status", "provider", "account", "next_action", "security"],
+  "properties": {
+    "schema_version": {"const": "ashr.clone.a3_identity.v1"},
+    "operation": {
+      "enum": [
+        "provider_status", "register_start", "register_complete", "login_start",
+        "login_complete", "link_start", "link_complete", "unlink", "password_set",
+        "password_change", "two_factor_enroll", "two_factor_verify",
+        "two_factor_recovery", "two_factor_disable", "security_posture",
+        "password_recover"
+      ]
+    },
+    "status": {
+      "enum": [
+        "pending", "verification_required", "authenticated", "completed",
+        "conflict", "merge_required", "unavailable", "failed"
+      ]
+    },
+    "provider": {
+      "enum": ["email", "github", "google", "wechat", "qq", "alipay", "phone"]
+    },
+    "account": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["account_id", "password_status", "two_factor"],
+          "properties": {
+            "account_id": {"type": "string", "minLength": 1},
+            "password_status": {"enum": ["absent", "set"]},
+            "two_factor": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["status", "optional", "recommended"],
+              "properties": {
+                "status": {"enum": ["disabled", "pending", "enabled", "recovery_required"]},
+                "optional": {"const": true},
+                "recommended": {"const": true}
+              }
+            }
+          }
+        }
+      ]
+    },
+    "next_action": {
+      "enum": [
+        "verify_email", "complete_provider", "reauthenticate", "enroll_two_factor",
+        "resolve_conflict", "contact_support", "none"
+      ]
+    },
+    "receipt_id": {"type": "string", "pattern": "^ipr_[A-Za-z0-9_-]+$"},
+    "expires_at": {"type": "string", "format": "date-time"},
+    "authenticated_at": {"type": "string", "format": "date-time"},
+    "error": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code", "http_status", "anti_enumeration", "retryable", "public_safe"],
+          "properties": {
+            "code": {
+              "enum": [
+                "authentication_failed", "provider_unavailable",
+                "verified_proof_required", "verified_proof_expired",
+                "verified_proof_replayed", "verified_proof_scope_mismatch",
+                "recent_reauthentication_required", "csrf_validation_failed"
+              ]
+            },
+            "http_status": {"type": "integer", "minimum": 400, "maximum": 599},
+            "anti_enumeration": {"type": "boolean"},
+            "retryable": {"type": "boolean"},
+            "public_safe": {"const": true}
+          }
+        }
+      ]
+    },
+    "conflict": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code", "merge_required", "next_action", "public_safe"],
+          "properties": {
+            "code": {
+              "enum": [
+                "canonical_email_conflict", "credential_already_linked",
+                "last_login_method", "business_qualification_required"
+              ]
+            },
+            "merge_required": {"type": "boolean"},
+            "next_action": {
+              "enum": [
+                "reauthenticate", "resolve_conflict", "contact_support",
+                "retry_verification", "none"
+              ]
+            },
+            "public_safe": {"const": true}
+          }
+        }
+      ]
+    },
+    "security": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "server_verified_proof_required",
+        "recent_reauthentication_required",
+        "csrf_required",
+        "account_enumeration_safe"
+      ],
+      "properties": {
+        "server_verified_proof_required": {"type": "boolean"},
+        "recent_reauthentication_required": {"type": "boolean"},
+        "csrf_required": {"type": "boolean"},
+        "account_enumeration_safe": {"type": "boolean"}
+      }
+    }
+  }
+}

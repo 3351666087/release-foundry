@@ -1,0 +1,62 @@
+{
+  "cache_key": "sha256:4b1b5b940ef985e516337d58bac50773602587be763c12ef261ec5006d078c49",
+  "created_at_epoch_seconds": 1783977627.1519482,
+  "public_safe": true,
+  "receipt": {
+    "attempt_receipts": [
+      {
+        "configured_timeout_seconds": 90.0,
+        "error_hash": "sha256:74ba44bcaac24915a44a2f43fbf503c86ca3978511ad1b2c8aa104d6efb567cb",
+        "format_mode": "object_schema",
+        "network_call_started": true,
+        "remaining_budget_at_start_seconds": 89.999997,
+        "state": "unsupported",
+        "timeout_enforcement": "provider_side",
+        "wall_seconds": 70.236781
+      },
+      {
+        "configured_timeout_seconds": 90.0,
+        "error_hash": "sha256:74ba44bcaac24915a44a2f43fbf503c86ca3978511ad1b2c8aa104d6efb567cb",
+        "format_mode": "plain_json",
+        "network_call_started": true,
+        "remaining_budget_at_start_seconds": 19.762757,
+        "state": "unsupported",
+        "timeout_enforcement": "provider_side",
+        "wall_seconds": 3.976509
+      }
+    ],
+    "cache_key": "sha256:4b1b5b940ef985e516337d58bac50773602587be763c12ef261ec5006d078c49",
+    "capability_layers": {
+      "object_schema": {
+        "envelope_valid": true,
+        "json_valid": false,
+        "schema_semantics_valid": false,
+        "transport_supported": true
+      },
+      "plain_json": {
+        "envelope_valid": true,
+        "json_valid": false,
+        "schema_semantics_valid": false,
+        "transport_supported": true
+      }
+    },
+    "configured_probe_budget_seconds": 90.0,
+    "model_digest": "sha256:1343d82ebee38e26a4dd6b0180b915eb91550184e67c505dea97509571c8f683",
+    "model_id_hash": "sha256:84d825ae8c4b75272ea4b503528819fd3113d819be092797d27a72a437ee3acd",
+    "object_schema_error_hash": "sha256:74ba44bcaac24915a44a2f43fbf503c86ca3978511ad1b2c8aa104d6efb567cb",
+    "object_schema_supported": false,
+    "output_schema_hash": "sha256:6b95c1668537a8cc00fe8b9af981ce4a7594f35f62fd9e6c67435f6202c4d69a",
+    "plain_json_error_hash": "sha256:74ba44bcaac24915a44a2f43fbf503c86ca3978511ad1b2c8aa104d6efb567cb",
+    "plain_json_supported": false,
+    "probe_state": "unsupported",
+    "prompt_hash": "sha256:8ebdf12d3ba40228486f1a5205ae40e75bc1db8b9b259eed64820cba460fe818",
+    "public_safe": true,
+    "raw_payload_included": false,
+    "release_authority": false,
+    "runtime_version_hash": "sha256:37c159333642a3b51177cd4cdaee3624d859cc8984ce4c338f3bd5870f8f2d83",
+    "schema_version": "a2.ollama_schema_capability_probe.v1",
+    "wall_seconds": 74.213865
+  },
+  "release_authority": false,
+  "schema_version": "a2.ollama_capability_cache.v1"
+}

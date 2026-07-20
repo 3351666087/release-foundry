@@ -1,0 +1,210 @@
+environment: development
+
+namespace:
+  create: true
+  labels: {}
+
+nameOverride: ""
+fullnameOverride: ""
+
+images:
+  api:
+    repository: registry.invalid/ashr/a1-go-runtime
+    digest: sha256:d11aa1b5a977de20a601f45500420e543f3be22fbee21b4c19254165a45d77b9
+    pullPolicy: IfNotPresent
+  worker:
+    repository: registry.invalid/ashr/a1-go-runtime
+    digest: sha256:75973ade13ec20d39b2d175be0b467351a7a5a93e5540580817318f89b38bdfb
+    pullPolicy: IfNotPresent
+  identityDelivery:
+    repository: registry.invalid/ashr/a1-go-runtime
+    digest: sha256:880482f0bcdcec25c5e7fada9aadf2d15824412f4553aceaa73f30885ccc5841
+    pullPolicy: IfNotPresent
+  migration:
+    repository: registry.invalid/ashr/a1-postgres-migrations
+    digest: sha256:bc71da90a0577f2f441783c0292e871947f36df46df948c727c1019992632a17
+    pullPolicy: IfNotPresent
+  verifier:
+    repository: registry.invalid/ashr/a1-runtime-verifier
+    digest: sha256:5b6c85334c7950eb5d9a1290246a06e6d5e590eece41253953df6d57b37d9919
+    pullPolicy: IfNotPresent
+
+supplyChain:
+  allowPlaceholderDigests: true
+  sourceRepository: https://github.com/3351666087/ashr-codex-factory
+  sourceRevision: "0000000000000000000000000000000000000000"
+  sourceTree: "0000000000000000000000000000000000000000"
+  sbom:
+    uri: urn:ashr:sbom:development-placeholder
+    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+  provenance:
+    uri: urn:ashr:provenance:development-placeholder
+    sha256: "0000000000000000000000000000000000000000000000000000000000000000"
+
+serviceAccounts:
+  annotations: {}
+
+runtime:
+  tenantId: 8a4f2f66-a87c-4c06-8e7f-89db4a25bf20
+  projectId: a39af72c-21b5-4aa9-86e5-52aa6c895365
+  postgres:
+    host: postgres.database.svc.cluster.local
+    port: 5432
+    database: ashr
+    user: ashr_runtime
+  queue:
+    endpoint: redis://redis.queue.svc.cluster.local:6379/0
+  objectStorage:
+    endpoint: https://objects.storage.svc.cluster.local
+    bucket: ashr-artifacts
+    evidencePrefix: evidence/a1
+  secrets:
+    runtime:
+      name: ashr-runtime-secrets
+      postgresDsnKey: postgres-dsn
+      postgresPasswordKey: postgres-password
+      queueUrlKey: queue-url
+      sessionHmacKey: identity-session-hmac-key
+      previousSessionKeysKey: identity-session-previous-keys-json
+      evidenceHmacKey: evidence-hmac-key
+    identityMtls:
+      name: ashr-identity-delivery-mtls
+      caKey: ca.pem
+      certificateKey: client-cert.pem
+      privateKeyKey: client-key.pem
+
+api:
+  replicaCount: 2
+  service:
+    port: 8787
+  identity:
+    activeSessionKeyVersion: v1
+    legacySessionKeyVersion: v1
+    verificationEnabled: false
+    vaultSealUrl: https://identity-vault.identity.svc.cluster.local/v1/seal
+    vaultDeleteUrl: https://identity-vault.identity.svc.cluster.local/v1/delete
+    cookieMaxAgeSeconds: 3600
+    refreshCookieMaxAgeSeconds: 2592000
+    trustedProxyCidrs: ""
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: "2"
+      memory: 1Gi
+  pdb:
+    minAvailable: 1
+
+queueWorker:
+  replicaCount: 2
+  jobType: release_gate
+  leaseSeconds: 300
+  heartbeatInterval: 30s
+  maxJobs: 50
+  maxIdleLeases: 3
+  maxAttempts: 5
+  restartDelaySeconds: 5
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: "2"
+      memory: 1Gi
+  verifier:
+    enabled: true
+    pollSeconds: 2
+    staleClaimSeconds: 300
+    maxObjectBytes: 1073741824
+    maxTotalBytes: 4294967296
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 500m
+        memory: 256Mi
+  pdb:
+    minAvailable: 1
+
+identityDelivery:
+  replicaCount: 2
+  healthPort: 8081
+  vaultUrl: https://identity-vault.identity.svc.cluster.local/v1/payload
+  emailRelayUrl: https://email-relay.identity.svc.cluster.local/v1/send
+  smsRelayUrl: https://sms-relay.identity.svc.cluster.local/v1/send
+  mtlsServerName: identity-relay.internal
+  batchSize: 50
+  maxOpenConnections: 8
+  maxAttempts: 8
+  pollInterval: 1s
+  leaseDuration: 30s
+  heartbeatInterval: 10s
+  providerTimeout: 10s
+  vaultTimeout: 5s
+  storeTimeout: 5s
+  telemetryTimeout: 1s
+  readinessTimeout: 2s
+  shutdownTimeout: 20s
+  resources:
+    requests:
+      cpu: 200m
+      memory: 192Mi
+    limits:
+      cpu: "1"
+      memory: 768Mi
+  pdb:
+    minAvailable: 1
+
+migration:
+  backoffLimit: 3
+  activeDeadlineSeconds: 900
+  ttlSecondsAfterFinished: 3600
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+
+scheduling:
+  nodeSelector: {}
+  tolerations: []
+  topology:
+    zoneKey: topology.kubernetes.io/zone
+    hostnameKey: kubernetes.io/hostname
+    zoneWhenUnsatisfiable: ScheduleAnyway
+    hostnameWhenUnsatisfiable: DoNotSchedule
+
+networkPolicy:
+  enabled: true
+  dns:
+    namespaceSelector:
+      kubernetes.io/metadata.name: kube-system
+    podSelector:
+      k8s-app: kube-dns
+  apiIngress:
+    namespaceSelector:
+      networking.ashr.io/api-access: "true"
+    podSelector:
+      networking.ashr.io/api-client: "true"
+  monitoringIngress:
+    namespaceSelector:
+      networking.ashr.io/monitoring-access: "true"
+    podSelector:
+      networking.ashr.io/probe-client: "true"
+  egress:
+    postgres:
+      cidrs: [10.20.0.0/24]
+      port: 5432
+    queue:
+      cidrs: [10.20.1.0/24]
+      port: 6379
+    objectStorage:
+      cidrs: [10.20.2.0/24]
+      port: 443
+    identityProviders:
+      cidrs: [10.20.3.0/24]
+      port: 443

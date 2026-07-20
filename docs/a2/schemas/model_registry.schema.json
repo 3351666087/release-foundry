@@ -2,23 +2,104 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "A2ModelRegistry",
   "type": "object",
-  "required": ["schema_version", "models"],
+  "required": [
+    "schema_version",
+    "models"
+  ],
   "properties": {
-    "schema_version": { "const": "a2.model_registry.v1" },
+    "schema_version": {
+      "const": "a2.model_registry.v1"
+    },
     "models": {
       "type": "array",
       "items": {
         "type": "object",
-        "required": ["record_id", "provider_id", "model_id", "version", "modalities", "lifecycle", "context_window", "local"],
+        "required": [
+          "record_id",
+          "provider_id",
+          "model_id",
+          "version",
+          "modalities",
+          "lifecycle",
+          "context_window",
+          "local",
+          "image_mime_types",
+          "structured_output",
+          "retry_classes",
+          "token_bound"
+        ],
         "properties": {
-          "record_id": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
-          "provider_id": { "type": "string", "minLength": 1 },
-          "model_id": { "type": "string", "minLength": 1 },
-          "version": { "type": "string", "minLength": 1 },
-          "modalities": { "type": "array", "uniqueItems": true, "items": { "enum": ["text", "image", "audio", "file", "video"] } },
-          "lifecycle": { "enum": ["active", "preview", "deprecated", "disabled"] },
-          "context_window": { "type": "integer", "minimum": 0 },
-          "local": { "type": "boolean" }
+          "record_id": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
+          "provider_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "model_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "version": {
+            "type": "string",
+            "minLength": 1
+          },
+          "modalities": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "text",
+                "image",
+                "audio",
+                "file",
+                "video"
+              ]
+            }
+          },
+          "lifecycle": {
+            "enum": [
+              "active",
+              "preview",
+              "deprecated",
+              "disabled"
+            ]
+          },
+          "context_window": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "local": {
+            "type": "boolean"
+          },
+          "image_mime_types": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "image/png",
+                "image/jpeg"
+              ]
+            }
+          },
+          "structured_output": {
+            "type": "boolean"
+          },
+          "retry_classes": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": {
+              "enum": [
+                "parse",
+                "transport"
+              ]
+            }
+          },
+          "token_bound": {
+            "type": "integer",
+            "minimum": 0
+          }
         },
         "additionalProperties": false
       }

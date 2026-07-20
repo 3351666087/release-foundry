@@ -1,0 +1,40 @@
+{
+  "evidence_refs": [
+    {
+      "name": "docs/a1/evidence/round57_provider_neutral_runtime_calibration_20260712.md",
+      "sha256": "ac91853f66fff160d7da632f7e210f9c2a01ca23646f288bfcee33374d041ea1"
+    },
+    {
+      "name": "docs/a1/evidence/round60_provider_dispatch_postgres.md",
+      "sha256": "419944817e40f56264e73aed66374cc269d47225e314c9b6a3a9fb02c5dad392"
+    },
+    {
+      "name": "docs/a1/evidence/round61_postgres_identity_authority.md",
+      "sha256": "637de80fd1875983a06b064295e88ba4e11a78cb6e353d858527925b12314c3e"
+    }
+  ],
+  "generated_at": "2026-07-13T02:00:00Z",
+  "git_sha": "5dd6a898a6771eaf67bf39246f256b579b4d2211",
+  "provider_receipt_sha256s": [
+    "23caf27a5006d2f049219a697dd8c00836601bb741e14fcf765c6b7661c97cdf",
+    "2954fe59df17aed4ebe9838de3da9f53d7b3c16a5a9c81ab865edd9d8bd57b6e",
+    "321371d27baa72062b4844f3e8ea71d24b9fa10f8518331f13026016cb369bdf",
+    "3294d00e8a001422bbfa8ac842a9a51360584b8b85cf9ab2923bc5de37ae22a9",
+    "3e5bc6a80d7ac119a6960ca2181291754b159b8038e2ea2a6b913ccd5ec151bc",
+    "477973850dd3a41abb053f0b8b424de489c6cce86bd77e328aca28b43c17c988",
+    "5236331c76ca60629354c3479f44f7209c0f9cb993c1beb635a204f8845ab40f",
+    "581b4320ce7d416577279710b7e49c3a8f6c23fadca4f41ad15e9c34f161d86c",
+    "5feb7f013668d871ac0deae14e04280657dbec1530508dc050aee892dc1032e1",
+    "8bd15d0f365200529a019d4a169cff5f9e48f07151b7017c6b389aad3a552878",
+    "96a752b9252eda39cb64af9c6b50333b1e20f59d1e322a1245343a81a67e0f62",
+    "a3c98b3db56dbdedb8a0828049e78003a42c3a85535a10809fb1ee89a984e698",
+    "b2e4ff7cd994fae1082b6fa0bfd0e77c0b3493c8ec25f0f8f515b3d5af2badcb",
+    "b3520cf0807d1d46c577896db93ccf12ee9739ed45ca55f4a814f52f04cfbcc0",
+    "cc6083633ae3b4a17c2e0dbc043021f16b595d4ee6aa3f7049c77484c069b535",
+    "d0d95ee270ef512da9dae38c2603f64edaf9b14f578ad4a8213fa866e710a908",
+    "ed6a12583fcb151b0a02300a5eade8f282baf00802767f2307b12b9d98a4df31"
+  ],
+  "release_candidate": "round62-source-candidate",
+  "release_receipt_sha256": "deabef6aadc682e4acf6df6accbc6b871318703f825e97f7220a540df450f509",
+  "schema_version": "ashr.a1.release_receipt.v1"
+}

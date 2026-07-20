@@ -1,0 +1,44 @@
+{
+  "blockers": [],
+  "case_set_hash": "sha256:571b9cbc860f77ff7be717b26d603f427518861eab9f1411bdfb7e70dfcad89a",
+  "comparison_state": "complete",
+  "provider_is_truth": false,
+  "providers": {
+    "llava:7b": {
+      "artifact_hash": "sha256:4930935e5ee48e6cab31f737e5151b9a806f5eff720de3e5e19e50d430847254",
+      "attempted_count": 15,
+      "completed_count": 1,
+      "eligible_count": 0,
+      "failed_count": 14,
+      "latency_seconds": {
+        "count": 15,
+        "maximum": 40.025,
+        "median": 40.013,
+        "p95_nearest_rank": 40.025
+      },
+      "qualification_state": "blocked",
+      "timeout_case_count": 14
+    },
+    "qwen3-vl:4b": {
+      "artifact_hash": "sha256:7a593e7a71c859c20e17c6331d6a72fe99f6e9b266b7c3adeb0fbe4363ea20ae",
+      "attempted_count": 15,
+      "completed_count": 0,
+      "eligible_count": 0,
+      "failed_count": 15,
+      "latency_seconds": {
+        "count": 15,
+        "maximum": 40.029,
+        "median": 40.008,
+        "p95_nearest_rank": 40.029
+      },
+      "qualification_state": "blocked",
+      "timeout_case_count": 15
+    }
+  },
+  "public_safe": true,
+  "quality_comparison_performed": false,
+  "raw_provider_text_included": false,
+  "release_authority": false,
+  "same_case_set": true,
+  "schema_version": "a2.local_multimodal_availability_comparison.v1"
+}

@@ -19,6 +19,7 @@ type BackendConfig struct {
 
 type BackendSelection struct {
 	Backend               ControlPlaneBackend
+	ProviderDispatch      ProviderDispatchBackend
 	PaymentReconciliation *PaymentReconciliationService
 	PaymentDomain         *PaymentDomainService
 	Name                  string
@@ -76,7 +77,7 @@ func NewBackend(config BackendConfig) (BackendSelection, error) {
 			}
 			return repository.MigratePaymentDomain(ctx)
 		}
-		return BackendSelection{Backend: repository, PaymentReconciliation: reconciliation, PaymentDomain: payments, Name: "postgres_repository_v0", Close: repository.Close, Migrate: migrate}, nil
+		return BackendSelection{Backend: repository, ProviderDispatch: repository, PaymentReconciliation: reconciliation, PaymentDomain: payments, Name: "postgres_repository_v0", Close: repository.Close, Migrate: migrate}, nil
 	default:
 		return BackendSelection{}, fmt.Errorf("unsupported backend %q", config.Kind)
 	}

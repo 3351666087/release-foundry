@@ -59,6 +59,49 @@ type IdentityCredentialInput struct {
 	Provider   IdentityProvider
 	Identifier string
 	Verified   bool
+	// VerifiedEmail is private provider evidence. It is normalized and digested
+	// immediately and is never returned or written to audit details.
+	VerifiedEmail string
+}
+
+type IdentityEmailPostureDTO struct {
+	Present  bool             `json:"present"`
+	Verified bool             `json:"verified"`
+	Source   IdentityProvider `json:"source,omitempty"`
+}
+
+type IdentityPasswordPostureDTO struct {
+	Status   string `json:"status"`
+	Settable bool   `json:"settable"`
+}
+
+type IdentityTwoFactorPostureDTO struct {
+	Status      string `json:"status"`
+	Optional    bool   `json:"optional"`
+	Recommended bool   `json:"recommended"`
+}
+
+type IdentitySecurityPostureDTO struct {
+	PrimaryEmail IdentityEmailPostureDTO     `json:"primary_email"`
+	Password     IdentityPasswordPostureDTO  `json:"password"`
+	TwoFactor    IdentityTwoFactorPostureDTO `json:"two_factor"`
+}
+
+type IdentityStepUpProof struct {
+	ActorID         string
+	AuthenticatedAt time.Time
+	CSRFValidated   bool
+}
+
+type IdentitySecurityMutationReceiptDTO struct {
+	SchemaVersion        string                     `json:"schema_version"`
+	AccountID            string                     `json:"account_id"`
+	Action               string                     `json:"action"`
+	Changed              bool                       `json:"changed"`
+	SessionsRevoked      bool                       `json:"sessions_revoked"`
+	TwoFactorRecommended bool                       `json:"two_factor_recommended"`
+	SecurityPosture      IdentitySecurityPostureDTO `json:"security_posture"`
+	CompletedAt          time.Time                  `json:"completed_at"`
 }
 
 type CreateIdentityAccountRequest struct {
@@ -86,17 +129,18 @@ type IdentityMergeRequest struct {
 }
 
 type IdentityAccountDTO struct {
-	SchemaVersion   string                  `json:"schema_version"`
-	AccountID       string                  `json:"account_id"`
-	PrimaryID       string                  `json:"primary_principal_id"`
-	DisplayName     string                  `json:"display_name,omitempty"`
-	Status          string                  `json:"status"`
-	Credentials     []IdentityCredentialDTO `json:"credentials"`
-	Memberships     []IdentityMembershipDTO `json:"memberships"`
-	CredentialCount int                     `json:"credential_count"`
-	MembershipCount int                     `json:"membership_count"`
-	CreatedAt       time.Time               `json:"created_at"`
-	UpdatedAt       time.Time               `json:"updated_at"`
+	SchemaVersion   string                     `json:"schema_version"`
+	AccountID       string                     `json:"account_id"`
+	PrimaryID       string                     `json:"primary_principal_id"`
+	DisplayName     string                     `json:"display_name,omitempty"`
+	Status          string                     `json:"status"`
+	Credentials     []IdentityCredentialDTO    `json:"credentials"`
+	Memberships     []IdentityMembershipDTO    `json:"memberships"`
+	CredentialCount int                        `json:"credential_count"`
+	MembershipCount int                        `json:"membership_count"`
+	SecurityPosture IdentitySecurityPostureDTO `json:"security_posture"`
+	CreatedAt       time.Time                  `json:"created_at"`
+	UpdatedAt       time.Time                  `json:"updated_at"`
 }
 
 type IdentityCredentialDTO struct {
@@ -190,15 +234,19 @@ type UnifiedIdentityServiceOptions struct {
 }
 
 type identityAccount struct {
-	id            string
-	primaryID     string
-	displayName   string
-	status        string
-	credentialIDs map[string]struct{}
-	membershipIDs map[string]struct{}
-	revision      uint64
-	createdAt     time.Time
-	updatedAt     time.Time
+	id                 string
+	primaryID          string
+	displayName        string
+	status             string
+	credentialIDs      map[string]struct{}
+	membershipIDs      map[string]struct{}
+	revision           uint64
+	createdAt          time.Time
+	updatedAt          time.Time
+	primaryEmailDigest string
+	primaryEmailSource IdentityProvider
+	passwordRefDigest  string
+	twoFactorEnabled   bool
 }
 
 type identityPrincipal struct {
@@ -246,6 +294,7 @@ type UnifiedIdentityService struct {
 	principals       map[string]*identityPrincipal
 	credentials      map[string]*identityCredential
 	credentialOwners map[string]string
+	emailOwners      map[string]string
 	memberships      map[string]*identityMembership
 	mergePlans       map[string]*identityMergePlan
 	auditEvents      []IdentityAuditEventDTO
@@ -279,6 +328,7 @@ func NewUnifiedIdentityService(options UnifiedIdentityServiceOptions) (*UnifiedI
 	return &UnifiedIdentityService{
 		accounts: make(map[string]*identityAccount), principals: make(map[string]*identityPrincipal),
 		credentials: make(map[string]*identityCredential), credentialOwners: make(map[string]string),
+		emailOwners: make(map[string]string),
 		memberships: make(map[string]*identityMembership), mergePlans: make(map[string]*identityMergePlan),
 		auditEvents: []IdentityAuditEventDTO{}, now: options.Now, random: options.Random,
 		fingerprintKey: key, mergePlanTTL: options.MergePlanTTL,
@@ -386,6 +436,72 @@ func (service *UnifiedIdentityService) LinkCredentialWithStatus(accountID string
 		"verified": credential.verified, "created": created,
 	}, now)
 	return identityCredentialDTO(credential), created, nil
+}
+
+func (service *UnifiedIdentityService) EnrollPassword(accountID, passwordSecretRef string, proof IdentityStepUpProof) (IdentitySecurityMutationReceiptDTO, error) {
+	return service.setPassword(accountID, passwordSecretRef, proof, false)
+}
+
+func (service *UnifiedIdentityService) ChangePassword(accountID, passwordSecretRef string, proof IdentityStepUpProof) (IdentitySecurityMutationReceiptDTO, error) {
+	return service.setPassword(accountID, passwordSecretRef, proof, true)
+}
+
+func (service *UnifiedIdentityService) setPassword(accountID, passwordSecretRef string, proof IdentityStepUpProof, requireExisting bool) (IdentitySecurityMutationReceiptDTO, error) {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	account, err := service.activeAccountLocked(accountID)
+	if err != nil {
+		return IdentitySecurityMutationReceiptDTO{}, err
+	}
+	now := service.now().UTC()
+	if err := validateIdentityStepUp(proof, account.id, now); err != nil {
+		service.appendAuditLocked("identity.password.change", proof.ActorID, "account", account.id, "rejected", map[string]any{"reason": identityErrorCode(err)}, now)
+		return IdentitySecurityMutationReceiptDTO{}, err
+	}
+	if requireExisting != (account.passwordRefDigest != "") {
+		code := "password_already_enrolled"
+		if requireExisting {
+			code = "password_not_enrolled"
+		}
+		err := IdentityDomainError{Code: code, Message: "password credential state does not permit this operation"}
+		service.appendAuditLocked("identity.password.change", proof.ActorID, "account", account.id, "rejected", map[string]any{"reason": code}, now)
+		return IdentitySecurityMutationReceiptDTO{}, err
+	}
+	secretRef := strings.TrimSpace(passwordSecretRef)
+	if len(secretRef) < 16 || len(secretRef) > 2048 {
+		return IdentitySecurityMutationReceiptDTO{}, IdentityDomainError{Code: "invalid_password_secret_ref", Message: "password secret reference is invalid"}
+	}
+	newDigest := service.privateDigest(secretRef)
+	changed := newDigest != account.passwordRefDigest
+	account.passwordRefDigest = newDigest
+	account.updatedAt = now
+	account.revision++
+	action := "identity.password.enrolled"
+	if requireExisting {
+		action = "identity.password.changed"
+	}
+	service.appendAuditLocked(action, proof.ActorID, "account", account.id, "success", map[string]any{"sessions_revoked": true, "changed": changed}, now)
+	return service.securityReceiptLocked(account, action, changed, true, now), nil
+}
+
+func (service *UnifiedIdentityService) SetTwoFactor(accountID string, enabled bool, proof IdentityStepUpProof) (IdentitySecurityMutationReceiptDTO, error) {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	account, err := service.activeAccountLocked(accountID)
+	if err != nil {
+		return IdentitySecurityMutationReceiptDTO{}, err
+	}
+	now := service.now().UTC()
+	if err := validateIdentityStepUp(proof, account.id, now); err != nil {
+		service.appendAuditLocked("identity.two_factor.change", proof.ActorID, "account", account.id, "rejected", map[string]any{"reason": identityErrorCode(err)}, now)
+		return IdentitySecurityMutationReceiptDTO{}, err
+	}
+	changed := account.twoFactorEnabled != enabled
+	account.twoFactorEnabled = enabled
+	account.updatedAt = now
+	account.revision++
+	service.appendAuditLocked("identity.two_factor.change", proof.ActorID, "account", account.id, "success", map[string]any{"enabled": enabled, "sessions_revoked": changed}, now)
+	return service.securityReceiptLocked(account, "identity.two_factor.change", changed, changed, now), nil
 }
 
 func (service *UnifiedIdentityService) Authenticate(input IdentityCredentialInput) (IdentityAuthenticationDTO, error) {
@@ -522,6 +638,13 @@ func (service *UnifiedIdentityService) PlanMerge(request IdentityMergeRequest) (
 	if source.id == target.id {
 		return IdentityMergePlanDTO{}, IdentityDomainError{Code: "same_account_merge", Message: "source and target accounts must differ"}
 	}
+	if source.primaryEmailDigest != "" && target.primaryEmailDigest != "" &&
+		source.primaryEmailDigest != target.primaryEmailDigest {
+		return IdentityMergePlanDTO{}, IdentityDomainError{
+			Code:    "canonical_email_merge_conflict",
+			Message: "canonical accounts have different verified emails",
+		}
+	}
 	planID, err := service.newID("merge")
 	if err != nil {
 		return IdentityMergePlanDTO{}, err
@@ -593,6 +716,13 @@ func (service *UnifiedIdentityService) ExecuteMerge(planID, actorID string) (Ide
 	if source.revision != plan.sourceRevision || target.revision != plan.targetRevision {
 		return IdentityMergeResultDTO{}, IdentityDomainError{Code: "stale_merge_plan", Message: "account state changed after the merge plan was created"}
 	}
+	if source.primaryEmailDigest != "" && target.primaryEmailDigest != "" &&
+		source.primaryEmailDigest != target.primaryEmailDigest {
+		return IdentityMergeResultDTO{}, IdentityDomainError{
+			Code:    "canonical_email_merge_conflict",
+			Message: "canonical accounts have different verified emails",
+		}
+	}
 
 	movedCredentials := 0
 	for credentialID := range source.credentialIDs {
@@ -602,6 +732,15 @@ func (service *UnifiedIdentityService) ExecuteMerge(planID, actorID string) (Ide
 		target.credentialIDs[credentialID] = struct{}{}
 		delete(source.credentialIDs, credentialID)
 		movedCredentials++
+	}
+	if source.primaryEmailDigest != "" {
+		if target.primaryEmailDigest == "" {
+			target.primaryEmailDigest = source.primaryEmailDigest
+			target.primaryEmailSource = source.primaryEmailSource
+		}
+		service.emailOwners[source.primaryEmailDigest] = target.id
+		source.primaryEmailDigest = ""
+		source.primaryEmailSource = ""
 	}
 	movedMemberships, resolvedConflicts := 0, 0
 	for membershipID := range source.membershipIDs {
@@ -672,6 +811,20 @@ func (service *UnifiedIdentityService) linkCredentialLockedWithStatus(account *i
 		}
 		return existing, false, nil
 	}
+	emailDigest := ""
+	if kind == IdentityCredentialOAuth && strings.TrimSpace(input.VerifiedEmail) != "" {
+		normalizedEmail, emailErr := normalizeVerifiedEmail(input.VerifiedEmail)
+		if emailErr != nil {
+			return nil, false, emailErr
+		}
+		emailDigest = service.privateDigest(normalizedEmail)
+		if owner, exists := service.emailOwners[emailDigest]; exists && owner != account.id {
+			return nil, false, IdentityDomainError{Code: "canonical_email_conflict", Message: "verified email belongs to another canonical account"}
+		}
+		if account.primaryEmailDigest != "" && account.primaryEmailDigest != emailDigest {
+			return nil, false, IdentityDomainError{Code: "canonical_email_mismatch", Message: "verified provider email conflicts with the canonical account email"}
+		}
+	}
 	credentialID, err := service.newID("cred")
 	if err != nil {
 		return nil, false, err
@@ -685,8 +838,34 @@ func (service *UnifiedIdentityService) linkCredentialLockedWithStatus(account *i
 	account.credentialIDs[credentialID] = struct{}{}
 	account.revision++
 	account.updatedAt = now
+	if emailDigest != "" && account.primaryEmailDigest == "" {
+		account.primaryEmailDigest = emailDigest
+		account.primaryEmailSource = provider
+		service.emailOwners[emailDigest] = account.id
+		service.appendAuditLocked("identity.primary_email.synced", actorID, "account", account.id, "success", map[string]any{"provider": provider, "verified": true}, now)
+	}
 	_ = actorID
 	return credential, true, nil
+}
+
+func normalizeVerifiedEmail(value string) (string, error) {
+	email := strings.ToLower(strings.TrimSpace(value))
+	at := strings.LastIndex(email, "@")
+	if at <= 0 || at == len(email)-1 || strings.ContainsAny(email, " \t\r\n") {
+		return "", IdentityDomainError{Code: "invalid_verified_email", Message: "verified provider email is invalid"}
+	}
+	return email, nil
+}
+
+func validateIdentityStepUp(proof IdentityStepUpProof, accountID string, now time.Time) error {
+	if strings.TrimSpace(proof.ActorID) == "" || proof.ActorID != accountID || !proof.CSRFValidated {
+		return IdentityDomainError{Code: "step_up_required", Message: "recent reauthentication and CSRF validation are required"}
+	}
+	age := now.Sub(proof.AuthenticatedAt.UTC())
+	if proof.AuthenticatedAt.IsZero() || age < 0 || age > 10*time.Minute {
+		return IdentityDomainError{Code: "step_up_expired", Message: "recent reauthentication is required"}
+	}
+	return nil
 }
 
 func normalizeIdentityCredential(input IdentityCredentialInput) (IdentityCredentialKind, IdentityProvider, string, error) {
@@ -765,7 +944,31 @@ func (service *UnifiedIdentityService) accountDTOLocked(account *identityAccount
 	return IdentityAccountDTO{
 		SchemaVersion: UnifiedIdentitySchemaVersion, AccountID: account.id, PrimaryID: account.primaryID,
 		DisplayName: account.displayName, Status: account.status, Credentials: credentials, Memberships: memberships,
-		CredentialCount: len(credentials), MembershipCount: len(memberships), CreatedAt: account.createdAt, UpdatedAt: account.updatedAt,
+		CredentialCount: len(credentials), MembershipCount: len(memberships), SecurityPosture: identitySecurityPosture(account),
+		CreatedAt: account.createdAt, UpdatedAt: account.updatedAt,
+	}
+}
+
+func identitySecurityPosture(account *identityAccount) IdentitySecurityPostureDTO {
+	passwordStatus := "absent"
+	if account.passwordRefDigest != "" {
+		passwordStatus = "set"
+	}
+	twoFactorStatus := "disabled"
+	if account.twoFactorEnabled {
+		twoFactorStatus = "enabled"
+	}
+	return IdentitySecurityPostureDTO{
+		PrimaryEmail: IdentityEmailPostureDTO{Present: account.primaryEmailDigest != "", Verified: account.primaryEmailDigest != "", Source: account.primaryEmailSource},
+		Password:     IdentityPasswordPostureDTO{Status: passwordStatus, Settable: true},
+		TwoFactor:    IdentityTwoFactorPostureDTO{Status: twoFactorStatus, Optional: true, Recommended: true},
+	}
+}
+
+func (service *UnifiedIdentityService) securityReceiptLocked(account *identityAccount, action string, changed, sessionsRevoked bool, now time.Time) IdentitySecurityMutationReceiptDTO {
+	return IdentitySecurityMutationReceiptDTO{
+		SchemaVersion: UnifiedIdentitySchemaVersion, AccountID: account.id, Action: action, Changed: changed,
+		SessionsRevoked: sessionsRevoked, TwoFactorRecommended: true, SecurityPosture: identitySecurityPosture(account), CompletedAt: now,
 	}
 }
 
@@ -998,6 +1201,10 @@ func isPrivateIdentityMetadataKey(key string) bool {
 		"state",
 		"nonce",
 		"email",
+		"verifiedemail",
+		"primaryemaildigest",
+		"passwordref",
+		"passwordrefdigest",
 		"phone",
 		"revocationoutboxid":
 		return true

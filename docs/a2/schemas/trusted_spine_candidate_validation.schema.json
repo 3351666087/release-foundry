@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "status",
+    "release_authority",
+    "blockers",
+    "public_safe"
+  ],
+  "properties": {
+    "status": {
+      "enum": [
+        "accepted",
+        "rejected"
+      ]
+    },
+    "release_authority": {
+      "const": false
+    },
+    "blockers": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "public_safe": {
+      "const": true
+    }
+  }
+}

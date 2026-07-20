@@ -32,6 +32,7 @@ export function buildA3UsageLedger(inputs = {}, options = {}) {
     meter("report_views", auditEvents.filter((item) => item.event_type === "report_view" || item.event_type === "report_share_link_viewed").length, "Hosted report view and share-link access events"),
     meter("report_revocations", auditEvents.filter((item) => item.event_type === "report_revoke").length, "Hosted report revocation events"),
     meter("release_evidence_readbacks", releaseEvidenceReadbacks.length || auditEvents.filter((item) => item.event_type === "release_evidence.readback_captured").length, "GitHub Check, PR comment, and required-check readback receipts"),
+    meter("multimodal_review_evidence_request_actions", auditEvents.filter((item) => String(item.event_type || "").startsWith("multimodal_review_evidence_request_")).length, "Hash-only request, submission, acceptance, rejection, and cancellation events"),
     meter("api_imports", importReceipts.length, "A1/A2 API import receipts")
   ];
   const billingUsageSummary = summarizeBillingUsage(runFixture, gradeFixture, usageFixture, usageApiProbe, {
@@ -65,7 +66,7 @@ export function buildA3UsageLedger(inputs = {}, options = {}) {
     evidence_counts: billingUsageSummary.evidence_counts,
     billing_usage_summary: billingUsageSummary,
     high_value_meters: meters
-      .filter((item) => ["failed_cases", "judge_results", "shareable_reports", "report_views", "release_evidence_readbacks", "api_imports"].includes(item.meter))
+      .filter((item) => ["failed_cases", "judge_results", "shareable_reports", "report_views", "release_evidence_readbacks", "multimodal_review_evidence_request_actions", "api_imports"].includes(item.meter))
       .map((item) => item.meter),
     burn_summary: buildBurnSummary(billingUsageSummary, meters),
     commercial_note: "Usage ledger is read-only until hosted billing, RBAC, customer plan controls, and quota enforcement exist."

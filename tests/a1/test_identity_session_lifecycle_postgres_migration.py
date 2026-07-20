@@ -1274,6 +1274,8 @@ def test_browser_refresh_bootstrap_is_digest_only_scoped_and_narrowly_granted() 
         "security definer",
         "perform a1_assert_role_nobypassrls(session_user)",
         "where session_row.refresh_digest = p_refresh_digest",
+        "from identity_principals as principal",
+        "where principal.id = current_session.principal_id for update",
         "current_session.project_id <> p_project_id",
         "current_session.principal_id <> p_principal_id",
         "from a1_rotate_identity_session_refresh(",
@@ -1477,3 +1479,78 @@ def test_live_browser_refresh_bootstrap_rotates_and_reuse_revokes_family(
         )
     )
     assert family_state == ["2|t|t"]
+
+
+def test_live_browser_refresh_independent_clients_replay_and_conflict(
+    session_lifecycle_database: str,
+) -> None:
+    account = _seed_account(session_lifecycle_database, projects=1)
+    project = account["projects"][0]
+    old_session_id, old = _issue_session(
+        session_lifecycle_database,
+        account,
+        project,
+        "browser-refresh-concurrent-old",
+    )
+    replacement = {
+        name: _digest(f"browser-refresh-concurrent-{name}")
+        for name in ("session", "refresh", "idempotency", "request")
+    }
+
+    def rotate(request_digest: str = replacement["request"]) -> list[str]:
+        return _rows(
+            _psql(
+                session_lifecycle_database,
+                f"""
+                  SELECT pg_backend_pid(), COALESCE(session_id::TEXT, ''),
+                         rotation_generation, outcome_code, affected_count,
+                         access_expires_at::TEXT, refresh_expires_at::TEXT
+                    FROM a1_rotate_identity_session_refresh_from_digest(
+                      '{project}', '{account['principal']}',
+                      '{old['refresh']}', '{replacement['session']}',
+                      '{replacement['refresh']}',
+                      clock_timestamp() + interval '15 minutes',
+                      '{replacement['idempotency']}', '{request_digest}',
+                      '{{}}'::jsonb
+                    );
+                """,
+                user=RUNTIME_ROLE,
+            )
+        )
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        concurrent = list(pool.map(lambda _: rotate(), range(4)))
+
+    assert all(len(rows) == 1 for rows in concurrent)
+    parsed = [rows[0].split("|") for rows in concurrent]
+    assert len({row[0] for row in parsed}) == 4
+    assert all(row[1:] == parsed[0][1:] for row in parsed)
+    assert parsed[0][2:5] == ["1", "rotated", "1"]
+
+    replay = rotate()
+    assert replay[0].split("|")[1:] == parsed[0][1:]
+
+    conflict = rotate(_digest("browser-refresh-concurrent-conflict"))
+    conflict_parts = conflict[0].split("|")
+    assert conflict_parts[1] == ""
+    assert conflict_parts[3] == "refresh_reuse_detected"
+    assert int(conflict_parts[4]) >= 1
+
+    family_state = _rows(
+        _psql(
+            session_lifecycle_database,
+            f"""
+              SELECT count(*), bool_and(status = 'revoked'),
+                     count(*) FILTER (
+                       WHERE revoke_reason_code = 'refresh_reuse_detected'
+                     )
+                FROM identity_sessions
+               WHERE id = '{old_session_id}'
+                  OR rotation_family_digest = '{old['family']}';
+            """,
+        )
+    )
+    count, all_revoked, reuse_revoked = family_state[0].split("|")
+    assert int(count) == 2
+    assert all_revoked == "t"
+    assert int(reuse_revoked) == 2

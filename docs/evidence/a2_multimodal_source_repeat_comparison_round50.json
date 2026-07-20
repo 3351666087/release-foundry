@@ -1,0 +1,53 @@
+{
+  "baseline": {
+    "bootstrap_ci_95": {
+      "lower": 0.35714285714285715,
+      "upper": 0.7142857142857143
+    },
+    "detected_count": 15,
+    "matched_distinct_bucket_source_count": 28,
+    "sensitivity": 0.5357142857142857
+  },
+  "baseline_calibration_hash": "sha256:a9ca51283ec3541e5a16765286989816bdd558665f91a83b63d59fb7edaee6e7",
+  "binding_fields": {
+    "endpoint_region": "beijing",
+    "manifest_hash": "sha256:0e9068015708e3b254eb75bda2734f49226a275eca72e04f421700b935e8f2cc",
+    "model_id": "qwen-vl-plus",
+    "ordered_case_plan_hash": "sha256:e669dca7683b5a59394a2902502e6582e451abb4e8c419ce8b39336e68038c84",
+    "output_schema_hash": "sha256:6b95c1668537a8cc00fe8b9af981ce4a7594f35f62fd9e6c67435f6202c4d69a",
+    "policy_hash": "sha256:7d5feb80c81ee63fcd0376c3eaf5bea5b26c5cd0964b56e697a1b19dd2dabd23",
+    "prompt_hash": "sha256:8ebdf12d3ba40228486f1a5205ae40e75bc1db8b9b259eed64820cba460fe818",
+    "provider_capability_hash": "sha256:07fe02f2c2e44af140b6d59cf1eba5c125213cea20c42370009c81732cc88606",
+    "provider_id": "dashscope"
+  },
+  "blockers": [
+    "source_repeat_units_missing_from_repeat"
+  ],
+  "bootstrap_samples": 4000,
+  "mismatched_binding_fields": [],
+  "missing_unit_counts": {
+    "from_baseline": 0,
+    "from_repeat": 1
+  },
+  "paired_delta_bootstrap_ci_95": {
+    "lower": 0.0,
+    "upper": 0.0
+  },
+  "promotion_eligible": false,
+  "public_safe": true,
+  "raw_provider_text_included": false,
+  "release_authority": false,
+  "repeat": {
+    "bootstrap_ci_95": {
+      "lower": 0.35714285714285715,
+      "upper": 0.7142857142857143
+    },
+    "detected_count": 15,
+    "matched_distinct_bucket_source_count": 28,
+    "sensitivity": 0.5357142857142857
+  },
+  "repeat_calibration_hash": "sha256:3a670e091af4805a0bae227ace9cceb48e3308cdf000c8026a1037752eb561ea",
+  "schema_version": "a2.multimodal_source_repeat_comparison.v1",
+  "seed": 50,
+  "sensitivity_delta_repeat_minus_baseline": 0.0
+}

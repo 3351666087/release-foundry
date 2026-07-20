@@ -9,7 +9,7 @@ const workspaceRoot = resolve(process.cwd());
 const fallbackRoot = resolve(fileURLToPath(new URL("../..", import.meta.url)));
 const root = workspaceRoot.endsWith("ashr-codex-factory") ? workspaceRoot : fallbackRoot;
 const port = parsePort(process.argv, process.env.A3_DASHBOARD_E2E_PORT || "4173");
-const apiHandler = createA3ApiHandler({ repoRoot: root });
+const apiHandler = createA3ApiHandler({ repoRoot: root, routeAccessMode: "demo_contract" });
 
 const contentTypes = new Map([
   [".html", "text/html; charset=utf-8"],

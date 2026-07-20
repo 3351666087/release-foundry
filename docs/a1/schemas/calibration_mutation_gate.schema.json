@@ -1,0 +1,187 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.clone.local/schemas/a1/calibration_mutation_gate.schema.json",
+  "title": "A1 Public-Safe Official Calibration Mutation Gate",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "operation",
+    "phase",
+    "modalities",
+    "estimated_calls",
+    "dry_run",
+    "quota_evidence",
+    "phase_prerequisite",
+    "gate",
+    "public_safety"
+  ],
+  "properties": {
+    "schema_version": { "const": "ashr.clone.calibration_mutation_plan.v1" },
+    "operation": { "type": "string", "pattern": "^[a-z][a-z0-9_.-]{0,63}$" },
+    "phase": { "enum": ["small_batch", "batch"] },
+    "modalities": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "enum": ["text", "image", "audio", "file", "video"] }
+    },
+    "estimated_calls": { "type": "integer", "minimum": 1, "maximum": 80 },
+    "dry_run": {
+      "type": "object",
+      "required": ["reviewed"],
+      "properties": { "reviewed": { "type": "boolean" } },
+      "additionalProperties": false
+    },
+    "quota_evidence": {
+      "type": "object",
+      "required": [
+        "previous",
+        "current",
+        "changed",
+        "changed_boolean_fields",
+        "private_reference_changed"
+      ],
+      "properties": {
+        "previous": { "$ref": "#/$defs/observation" },
+        "current": { "$ref": "#/$defs/observation" },
+        "changed": { "type": "boolean" },
+        "changed_boolean_fields": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/quotaBooleanField" }
+        },
+        "private_reference_changed": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "phase_prerequisite": {
+      "type": "object",
+      "required": ["small_batch_receipt_required", "small_batch_receipt"],
+      "properties": {
+        "small_batch_receipt_required": { "type": "boolean" },
+        "small_batch_receipt": {
+          "oneOf": [
+            { "type": "null" },
+            { "$ref": "#/$defs/observation" }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "gate": {
+      "type": "object",
+      "required": [
+        "decision",
+        "reasons",
+        "mutation_authorized",
+        "override_permitted",
+        "network_called"
+      ],
+      "properties": {
+        "decision": { "enum": ["go", "stop"] },
+        "reasons": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string" }
+        },
+        "mutation_authorized": { "type": "boolean" },
+        "override_permitted": { "const": false },
+        "network_called": { "const": false }
+      },
+      "additionalProperties": false
+    },
+    "public_safety": {
+      "type": "object",
+      "required": [
+        "raw_request_included",
+        "raw_response_included",
+        "response_values_included",
+        "headers_included",
+        "secret_values_included",
+        "private_evidence_contents_included",
+        "private_evidence_references_only"
+      ],
+      "properties": {
+        "raw_request_included": { "const": false },
+        "raw_response_included": { "const": false },
+        "response_values_included": { "const": false },
+        "headers_included": { "const": false },
+        "secret_values_included": { "const": false },
+        "private_evidence_contents_included": { "const": false },
+        "private_evidence_references_only": { "const": true }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "quotaBooleanField": {
+      "enum": [
+        "blocked",
+        "limit_present",
+        "used_present",
+        "requested_present",
+        "remaining_present",
+        "reset_present",
+        "resource_present"
+      ]
+    },
+    "quota": {
+      "type": "object",
+      "required": [
+        "blocked",
+        "limit_present",
+        "used_present",
+        "requested_present",
+        "remaining_present",
+        "reset_present",
+        "resource_present"
+      ],
+      "properties": {
+        "blocked": { "type": "boolean" },
+        "limit_present": { "type": "boolean" },
+        "used_present": { "type": "boolean" },
+        "requested_present": { "type": "boolean" },
+        "remaining_present": { "type": "boolean" },
+        "reset_present": { "type": "boolean" },
+        "resource_present": { "type": "boolean" }
+      },
+      "additionalProperties": false
+    },
+    "observation": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "operation",
+        "status",
+        "status_code",
+        "response_keys",
+        "quota",
+        "private_evidence_ref"
+      ],
+      "properties": {
+        "schema_version": { "const": "ashr.clone.public_calibration_observation.v1" },
+        "operation": { "type": "string", "pattern": "^[a-z][a-z0-9_.-]{0,63}$" },
+        "status": { "type": "string", "pattern": "^[a-z][a-z0-9_.-]{0,63}$" },
+        "status_code": {
+          "oneOf": [
+            { "type": "null" },
+            { "type": "integer", "minimum": 100, "maximum": 599 }
+          ]
+        },
+        "response_keys": {
+          "type": "array",
+          "maxItems": 256,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[_A-Za-z][_A-Za-z0-9.-]{0,127}$" }
+        },
+        "quota": { "$ref": "#/$defs/quota" },
+        "private_evidence_ref": {
+          "type": "string",
+          "pattern": "^docs/evidence/private_refs/[A-Za-z0-9][A-Za-z0-9_.-]{0,191}\\.json$"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

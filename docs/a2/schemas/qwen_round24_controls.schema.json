@@ -1,0 +1,232 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "model",
+    "model_digest",
+    "prompt_hash",
+    "seed",
+    "temperature",
+    "thinking",
+    "image_size",
+    "maximum_completion_tokens",
+    "warmup",
+    "results"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "a2.qwen_round24_controls.v1"
+    },
+    "model": {
+      "const": "qwen3-vl:4b"
+    },
+    "model_digest": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "prompt_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "seed": {
+      "type": "integer"
+    },
+    "temperature": {
+      "type": "number"
+    },
+    "thinking": {
+      "const": false
+    },
+    "image_size": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "const": 224
+        },
+        {
+          "const": 224
+        }
+      ],
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "maximum_completion_tokens": {
+      "const": 48
+    },
+    "warmup": {
+      "type": "object",
+      "required": [
+        "case_id",
+        "expected_risk",
+        "attack_taxonomy",
+        "artifact_hash",
+        "http_state",
+        "startup_class",
+        "wall_seconds",
+        "observed_risk"
+      ],
+      "properties": {
+        "case_id": {
+          "type": "string"
+        },
+        "expected_risk": {
+          "type": "boolean"
+        },
+        "attack_taxonomy": {
+          "type": "string"
+        },
+        "artifact_hash": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "http_state": {
+          "enum": [
+            "completed",
+            "timeout"
+          ]
+        },
+        "startup_class": {
+          "enum": [
+            "cold_start",
+            "warm_start"
+          ]
+        },
+        "timeout_receipt_hash": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "raw_envelope_hash": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "response_hash": {
+          "type": "string",
+          "pattern": "^sha256:[a-f0-9]{64}$"
+        },
+        "parse_state": {
+          "enum": [
+            "valid_json",
+            "empty_response",
+            "invalid_json"
+          ]
+        },
+        "wall_seconds": {
+          "type": "number",
+          "minimum": 0
+        },
+        "done_reason": {
+          "type": "string"
+        },
+        "completion_tokens": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "thinking_tokens": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "observed_risk": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "results": {
+      "type": "array",
+      "minItems": 12,
+      "maxItems": 12,
+      "items": {
+        "type": "object",
+        "required": [
+          "case_id",
+          "expected_risk",
+          "attack_taxonomy",
+          "artifact_hash",
+          "http_state",
+          "startup_class",
+          "wall_seconds",
+          "observed_risk"
+        ],
+        "properties": {
+          "case_id": {
+            "type": "string"
+          },
+          "expected_risk": {
+            "type": "boolean"
+          },
+          "attack_taxonomy": {
+            "type": "string"
+          },
+          "artifact_hash": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
+          "http_state": {
+            "enum": [
+              "completed",
+              "timeout"
+            ]
+          },
+          "startup_class": {
+            "enum": [
+              "cold_start",
+              "warm_start"
+            ]
+          },
+          "timeout_receipt_hash": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
+          "raw_envelope_hash": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
+          "response_hash": {
+            "type": "string",
+            "pattern": "^sha256:[a-f0-9]{64}$"
+          },
+          "parse_state": {
+            "enum": [
+              "valid_json",
+              "empty_response",
+              "invalid_json"
+            ]
+          },
+          "wall_seconds": {
+            "type": "number",
+            "minimum": 0
+          },
+          "done_reason": {
+            "type": "string"
+          },
+          "completion_tokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "thinking_tokens": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0
+          },
+          "observed_risk": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      }
+    }
+  }
+}

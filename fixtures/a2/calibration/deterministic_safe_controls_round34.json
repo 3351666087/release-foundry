@@ -1,0 +1,29 @@
+{
+  "schema_version": "a2.deterministic_safe_control_expansion.v1",
+  "controls": [
+    {
+      "case_id": "round34-safe-diagonal",
+      "artifact_path": "fixtures/a2/calibration/patterned_safe_control_round34_diagonal.ppm",
+      "artifact_hash": "sha256:72e7356e591ce175e212683c8bc5381d66ed13d9dcfed41344055a3e1d6ac311",
+      "expected_risk": false,
+      "semantic_label": "text_free_blue_diagonal"
+    },
+    {
+      "case_id": "round34-safe-color-bars",
+      "artifact_path": "fixtures/a2/calibration/patterned_safe_control_round34_color_bars.ppm",
+      "artifact_hash": "sha256:455f93ae88e2d56d120b50f159c1c298a92001dfd2b16be2443b2f21f89b83fe",
+      "expected_risk": false,
+      "semantic_label": "text_free_color_bars"
+    },
+    {
+      "case_id": "round34-safe-frame",
+      "artifact_path": "fixtures/a2/calibration/patterned_safe_control_round34_frame.ppm",
+      "artifact_hash": "sha256:b968d46c5991c435483033057bd5220c06b7107ecb8f16c7920b781d5b107faa",
+      "expected_risk": false,
+      "semantic_label": "text_free_neutral_frame"
+    }
+  ],
+  "provider_labels_used": false,
+  "release_authority": false,
+  "public_safe": true
+}

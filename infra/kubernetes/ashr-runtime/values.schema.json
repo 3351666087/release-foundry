@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["environment", "images", "supplyChain", "runtime", "api", "queueWorker", "identityDelivery", "migration", "networkPolicy"],
+  "properties": {
+    "environment": {"enum": ["development", "staging", "production"]},
+    "images": {
+      "type": "object",
+      "required": ["api", "worker", "identityDelivery", "migration", "verifier"],
+      "additionalProperties": false,
+      "properties": {
+        "api": {"$ref": "#/$defs/image"},
+        "worker": {"$ref": "#/$defs/image"},
+        "identityDelivery": {"$ref": "#/$defs/image"},
+        "migration": {"$ref": "#/$defs/image"},
+        "verifier": {"$ref": "#/$defs/image"}
+      }
+    },
+    "supplyChain": {
+      "type": "object",
+      "required": ["allowPlaceholderDigests", "sourceRepository", "sourceRevision", "sourceTree", "sbom", "provenance"],
+      "properties": {
+        "allowPlaceholderDigests": {"type": "boolean"},
+        "sourceRepository": {"type": "string", "pattern": "^https://[^[:space:]]+$"},
+        "sourceRevision": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "sourceTree": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "sbom": {"$ref": "#/$defs/evidenceReference"},
+        "provenance": {"$ref": "#/$defs/evidenceReference"}
+      }
+    },
+    "runtime": {
+      "type": "object",
+      "required": ["tenantId", "projectId", "postgres", "queue", "objectStorage", "secrets"],
+      "properties": {
+        "tenantId": {"$ref": "#/$defs/uuid"},
+        "projectId": {"$ref": "#/$defs/uuid"},
+        "postgres": {
+          "type": "object",
+          "required": ["host", "port", "database", "user"],
+          "properties": {
+            "host": {"$ref": "#/$defs/dnsName"},
+            "port": {"type": "integer", "minimum": 1, "maximum": 65535},
+            "database": {"$ref": "#/$defs/identifier"},
+            "user": {"$ref": "#/$defs/identifier"}
+          }
+        },
+        "queue": {"type": "object", "required": ["endpoint"], "properties": {"endpoint": {"type": "string", "pattern": "^rediss?://[^@[:space:]]+$"}}},
+        "objectStorage": {
+          "type": "object",
+          "required": ["endpoint", "bucket", "evidencePrefix"],
+          "properties": {
+            "endpoint": {"type": "string", "pattern": "^https?://[^@[:space:]]+$"},
+            "bucket": {"type": "string", "pattern": "^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$"},
+            "evidencePrefix": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._/-]{0,255}$"}
+          }
+        },
+        "secrets": {"type": "object"}
+      }
+    },
+    "api": {"$ref": "#/$defs/scalableWorkload"},
+    "queueWorker": {"$ref": "#/$defs/scalableWorkload"},
+    "identityDelivery": {"$ref": "#/$defs/scalableWorkload"},
+    "migration": {"type": "object"},
+    "scheduling": {
+      "type": "object",
+      "required": ["topology"],
+      "properties": {
+        "topology": {
+          "type": "object",
+          "required": ["zoneKey", "hostnameKey", "zoneWhenUnsatisfiable", "hostnameWhenUnsatisfiable"],
+          "properties": {
+            "zoneKey": {"$ref": "#/$defs/labelKey"},
+            "hostnameKey": {"$ref": "#/$defs/labelKey"},
+            "zoneWhenUnsatisfiable": {"enum": ["DoNotSchedule", "ScheduleAnyway"]},
+            "hostnameWhenUnsatisfiable": {"enum": ["DoNotSchedule", "ScheduleAnyway"]}
+          }
+        }
+      }
+    },
+    "networkPolicy": {"type": "object", "required": ["enabled", "egress"], "properties": {"enabled": {"type": "boolean"}, "egress": {"type": "object"}}}
+  },
+  "$defs": {
+    "image": {
+      "type": "object",
+      "required": ["repository", "digest", "pullPolicy"],
+      "additionalProperties": false,
+      "properties": {
+        "repository": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]+$"},
+        "digest": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+        "pullPolicy": {"enum": ["Always", "IfNotPresent", "Never"]}
+      }
+    },
+    "evidenceReference": {
+      "type": "object",
+      "required": ["uri", "sha256"],
+      "properties": {
+        "uri": {"type": "string", "minLength": 1, "maxLength": 512},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "uuid": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},
+    "dnsName": {"type": "string", "pattern": "^[A-Za-z0-9](?:[A-Za-z0-9.-]{0,251}[A-Za-z0-9])?$"},
+    "identifier": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,62}$"},
+    "labelKey": {"type": "string", "pattern": "^([a-z0-9]([-a-z0-9.]*[a-z0-9])?/)?[A-Za-z0-9]([-A-Za-z0-9_.]*[A-Za-z0-9])?$"},
+    "scalableWorkload": {
+      "type": "object",
+      "required": ["replicaCount", "resources", "pdb"],
+      "properties": {
+        "replicaCount": {"type": "integer", "minimum": 2, "maximum": 100},
+        "resources": {"type": "object", "required": ["requests", "limits"]},
+        "pdb": {"type": "object", "required": ["minAvailable"], "properties": {"minAvailable": {"type": "integer", "minimum": 1}}}
+      }
+    }
+  }
+}

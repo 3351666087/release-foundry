@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.local/schemas/a2/result_persistence_durability_qualification.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "atomic_replace_verified",
+    "post_replace_reopen_verified",
+    "directory_fsync_state",
+    "qualification_state",
+    "release_authority",
+    "public_safe"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "a2.result_persistence_durability_qualification.v1"
+    },
+    "atomic_replace_verified": {
+      "type": "boolean"
+    },
+    "post_replace_reopen_verified": {
+      "type": "boolean"
+    },
+    "directory_fsync_state": {
+      "enum": [
+        "completed",
+        "not_exposed",
+        "failed"
+      ]
+    },
+    "qualification_state": {
+      "enum": [
+        "durability_verified",
+        "atomic_replace_verified_durability_unproven",
+        "blocked"
+      ]
+    },
+    "release_authority": {
+      "const": false
+    },
+    "public_safe": {
+      "const": true
+    }
+  }
+}

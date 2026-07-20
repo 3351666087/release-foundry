@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"sort"
 	"strconv"
@@ -16,12 +17,22 @@ type HTTPServer struct {
 	paymentReconciliation              *PaymentReconciliationService
 	paymentDomain                      *PaymentDomainService
 	unifiedIdentity                    *UnifiedIdentityService
+	unifiedIdentityStore               UnifiedIdentityHTTPStore
+	identityLifecycle                  *IdentityLifecycleService
 	identitySessions                   IdentityHTTPSessionResolver
+	identitySecurityTickets            IdentitySecurityTicketResolver
+	identitySecurity                   IdentitySecurityHTTPStore
 	identityVerification               *IdentityVerificationService
 	identityVerificationResponsePolicy *IdentityVerificationResponsePolicy
 	identitySessionReceiptTransport    IdentitySessionReceiptTransport
 	oauthProviders                     map[string]*OAuthService
 	githubOAuth                        *GitHubOAuthService
+	providerDispatch                   ProviderDispatchBackend
+	identity                           *IdentityService
+	identityDelivery                   IdentityChallengeDeliverer
+	identityRateLimiter                IdentityRateLimiter
+	identityAudit                      IdentityAuditSink
+	oauth                              *OAuthFlowCoordinator
 	backendName                        string
 	backendReady                       bool
 }
@@ -65,12 +76,22 @@ type HTTPServerOptions struct {
 	PaymentReconciliation              *PaymentReconciliationService
 	PaymentDomain                      *PaymentDomainService
 	UnifiedIdentity                    *UnifiedIdentityService
+	UnifiedIdentityStore               UnifiedIdentityHTTPStore
+	IdentityLifecycle                  *IdentityLifecycleService
 	IdentitySessions                   IdentityHTTPSessionResolver
+	IdentitySecurityTickets            IdentitySecurityTicketResolver
+	IdentitySecurity                   IdentitySecurityHTTPStore
 	IdentityVerification               *IdentityVerificationService
 	IdentityVerificationResponsePolicy *IdentityVerificationResponsePolicy
 	IdentitySessionReceiptTransport    IdentitySessionReceiptTransport
 	OAuthProviders                     map[string]*OAuthService
 	GitHubOAuth                        *GitHubOAuthService
+	ProviderDispatch                   ProviderDispatchBackend
+	IdentityService                    *IdentityService
+	IdentityDelivery                   IdentityChallengeDeliverer
+	IdentityRateLimiter                IdentityRateLimiter
+	IdentityAudit                      IdentityAuditSink
+	OAuthCoordinator                   *OAuthFlowCoordinator
 }
 
 func NewHTTPServer(service ControlPlaneBackend) http.Handler {
@@ -93,17 +114,53 @@ func NewHTTPServerWithOptions(service ControlPlaneBackend, options HTTPServerOpt
 		}
 		oauthProviders[normalizedProvider] = oauthService
 	}
+	identity := options.IdentityService
+	oauth := options.OAuthCoordinator
+	if identity == nil && oauth != nil {
+		identity = oauth.identity
+	}
+	if identity == nil {
+		identity = NewIdentityService()
+	}
+	// OAuth validation and canonical-account mutation must share one identity
+	// authority. A mismatched coordinator is disabled rather than allowing
+	// tickets or sessions to cross service instances.
+	if oauth != nil && oauth.identity != identity {
+		oauth = nil
+	}
+	delivery := options.IdentityDelivery
+	if delivery == nil {
+		delivery = unavailableIdentityDeliverer{}
+	}
+	rateLimiter := options.IdentityRateLimiter
+	if rateLimiter == nil {
+		rateLimiter = allowIdentityRateLimiter{}
+	}
+	audit := options.IdentityAudit
+	if audit == nil {
+		audit = discardIdentityAuditSink{}
+	}
 	return &HTTPServer{
 		service:                            service,
 		paymentReconciliation:              options.PaymentReconciliation,
 		paymentDomain:                      options.PaymentDomain,
 		unifiedIdentity:                    options.UnifiedIdentity,
+		unifiedIdentityStore:               options.UnifiedIdentityStore,
+		identityLifecycle:                  options.IdentityLifecycle,
 		identitySessions:                   options.IdentitySessions,
+		identitySecurityTickets:            options.IdentitySecurityTickets,
+		identitySecurity:                   options.IdentitySecurity,
 		identityVerification:               options.IdentityVerification,
 		identityVerificationResponsePolicy: options.IdentityVerificationResponsePolicy,
 		identitySessionReceiptTransport:    options.IdentitySessionReceiptTransport,
 		oauthProviders:                     oauthProviders,
 		githubOAuth:                        options.GitHubOAuth,
+		providerDispatch:                   options.ProviderDispatch,
+		identity:                           identity,
+		identityDelivery:                   delivery,
+		identityRateLimiter:                rateLimiter,
+		identityAudit:                      audit,
+		oauth:                              oauth,
 		backendName:                        backendName,
 		backendReady:                       options.BackendReady,
 	}
@@ -116,7 +173,7 @@ func NewHTTPHandler(service ControlPlaneBackend) http.Handler {
 func (server *HTTPServer) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 	writer.Header().Set("Content-Type", "application/json")
 	if request.Method == http.MethodGet && (request.URL.Path == "/health" || request.URL.Path == "/healthz" || request.URL.Path == "/v1/healthz") {
-		writeJSON(writer, http.StatusOK, JSONMap{"schema_version": ControlPlaneSchemaVersion, "status": "ok", "service": "ashr-go-control-plane", "backend": server.backendName, "backend_ready": server.backendReady, "backend_mode": backendMode(server.backendName), "local_only": server.backendName == "memory_service_v0", "ashr_api_used": false})
+		writeJSON(writer, http.StatusOK, JSONMap{"schema_version": ControlPlaneSchemaVersion, "status": "ok", "service": "ashr-go-control-plane", "backend": server.backendName, "ready": server.backendReady, "backend_ready": server.backendReady, "backend_mode": backendMode(server.backendName), "local_only": server.backendName == "memory_service_v0", "ashr_api_used": false})
 		return
 	}
 	if request.Method == http.MethodGet && (request.URL.Path == "/openapi.json" || request.URL.Path == "/v1/openapi.json") {
@@ -139,12 +196,24 @@ func (server *HTTPServer) ServeHTTP(writer http.ResponseWriter, request *http.Re
 		}
 	}
 	parts := pathParts(request.URL.Path)
+	if server.handleIdentityRoute(writer, request, parts) {
+		return
+	}
+	if len(parts) >= 2 && parts[0] == "v1" && parts[1] == "identity" {
+		server.handleIdentityLifecycle(writer, request, parts[2:])
+		return
+	}
 	if len(parts) == 3 && parts[0] == "v1" && parts[1] == "identity-verification" {
 		server.handleIdentityVerification(writer, request, parts[2])
 		return
 	}
 	if len(parts) >= 3 && parts[0] == "v1" && parts[1] == "accounts" {
 		server.handleUnifiedIdentityAccount(writer, request, parts[2], parts[3:])
+		return
+	}
+	if len(parts) >= 6 && parts[0] == "v1" && parts[1] == "tenants" &&
+		parts[3] == "projects" && parts[5] == "provider-dispatches" {
+		server.handleProviderDispatch(writer, request, parts[2], parts[4], parts[6:])
 		return
 	}
 	if len(parts) == 7 && parts[0] == "v1" && parts[1] == "projects" &&
@@ -946,6 +1015,21 @@ func GoRouteManifestEntries() []RouteManifestEntry {
 		goPublicRoute("GET", "/v1/healthz", "health", "system"),
 		goPublicRoute("GET", "/openapi.json", "openapi", "system"),
 		goPublicRoute("GET", "/v1/openapi.json", "openapi", "system"),
+		goPublicRoute("GET", "/v1/identity/providers", "identity.providers.list", "identity"),
+		goPublicRoute("POST", "/v1/identity/registration/start", "identity.registration.start", "identity"),
+		goPublicRoute("POST", "/v1/identity/registration/complete", "identity.registration.complete", "identity"),
+		goPublicRoute("POST", "/v1/identity/login/start", "identity.login.start", "identity"),
+		goPublicRoute("POST", "/v1/identity/login/complete", "identity.login.complete", "identity"),
+		goPublicRoute("POST", "/v1/identity/registration/email/begin", "identity.registration.email.begin", "identity"),
+		goPublicRoute("POST", "/v1/identity/registration/email/complete", "identity.registration.email.complete", "identity"),
+		goPublicRoute("POST", "/v1/identity/login/email/begin", "identity.login.email.begin", "identity"),
+		goPublicRoute("POST", "/v1/identity/login/email/complete", "identity.login.email.complete", "identity"),
+		goPublicRoute("POST", "/v1/identity/oauth/begin", "identity.oauth.begin", "identity"),
+		goPublicRoute("POST", "/v1/identity/oauth/complete", "identity.oauth.complete", "identity"),
+		goPublicRoute("POST", "/v1/identity/mfa/complete", "identity.mfa.complete", "identity"),
+		goPublicRoute("POST", "/v1/identity/credentials/bind", "identity.credentials.bind", "identity"),
+		goPublicRoute("POST", "/v1/identity/sessions/revoke", "identity.sessions.revoke", "identity"),
+		goPublicRoute("GET", "/v1/me", "identity.me", "identity"),
 		goScopedRoute("GET", "/v1/accounts/{account_id}", "identity.account.get", "identity"),
 		goScopedRoute("GET", "/v1/accounts/{account_id}/credentials", "identity.credentials.list", "identity"),
 		goScopedRoute("GET", "/v1/accounts/{account_id}/memberships", "identity.memberships.list", "identity"),
@@ -1182,6 +1266,11 @@ func decodeJSONBody(writer http.ResponseWriter, request *http.Request) (JSONMap,
 	decoder.UseNumber()
 	if err := decoder.Decode(&body); err != nil {
 		writeError(writer, http.StatusBadRequest, "invalid_json", "request body must be a JSON object")
+		return nil, false
+	}
+	var trailing any
+	if err := decoder.Decode(&trailing); !errors.Is(err, io.EOF) {
+		writeError(writer, http.StatusBadRequest, "invalid_json", "request body must contain exactly one JSON object")
 		return nil, false
 	}
 	return body, true

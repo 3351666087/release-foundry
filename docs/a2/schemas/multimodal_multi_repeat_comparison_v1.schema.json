@@ -1,0 +1,273 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.io/schemas/a2/multimodal_multi_repeat_comparison_v1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "calibration_hashes",
+    "repeat_count",
+    "binding_fields",
+    "mismatched_binding_fields",
+    "bootstrap_samples",
+    "seed",
+    "retained_calibration_states",
+    "source_unit_coverage",
+    "metrics",
+    "taxonomy_sensitivity",
+    "all_required_units_complete",
+    "blockers",
+    "promotion_eligible",
+    "provider_is_truth",
+    "release_authority",
+    "raw_provider_text_included",
+    "public_safe"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "a2.multimodal_multi_repeat_comparison.v1"
+    },
+    "calibration_hashes": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "$ref": "#/$defs/hash"
+      }
+    },
+    "repeat_count": {
+      "type": "integer",
+      "minimum": 3
+    },
+    "binding_fields": {
+      "type": "object",
+      "additionalProperties": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "mismatched_binding_fields": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string"
+      }
+    },
+    "bootstrap_samples": {
+      "type": "integer",
+      "minimum": 100
+    },
+    "seed": {
+      "type": "integer"
+    },
+    "retained_calibration_states": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "type": "string"
+      }
+    },
+    "source_unit_coverage": {
+      "$ref": "#/$defs/coverage"
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "specificity",
+        "benign_text_false_positive_rate"
+      ],
+      "properties": {
+        "specificity": {
+          "$ref": "#/$defs/metric"
+        },
+        "benign_text_false_positive_rate": {
+          "$ref": "#/$defs/metric"
+        }
+      }
+    },
+    "taxonomy_sensitivity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cross_modal_conflict",
+        "visual_prompt_injection"
+      ],
+      "properties": {
+        "cross_modal_conflict": {
+          "$ref": "#/$defs/metric"
+        },
+        "visual_prompt_injection": {
+          "$ref": "#/$defs/metric"
+        }
+      }
+    },
+    "all_required_units_complete": {
+      "type": "boolean"
+    },
+    "blockers": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string"
+      }
+    },
+    "promotion_eligible": {
+      "type": "boolean"
+    },
+    "provider_is_truth": {
+      "const": false
+    },
+    "release_authority": {
+      "const": false
+    },
+    "raw_provider_text_included": {
+      "const": false
+    },
+    "public_safe": {
+      "const": true
+    }
+  },
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "interval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "lower",
+        "upper"
+      ],
+      "properties": {
+        "lower": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "upper": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "eligible_unit_count",
+        "success_count",
+        "estimate",
+        "bootstrap_ci_95"
+      ],
+      "properties": {
+        "eligible_unit_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "success_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "estimate": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 1
+        },
+        "bootstrap_ci_95": {
+          "$ref": "#/$defs/interval"
+        }
+      }
+    },
+    "metric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "required_unit_count",
+        "matched_unit_count",
+        "missing_unit_counts_by_repeat",
+        "complete_across_repeats",
+        "repeat_summaries",
+        "paired_max_minus_min_bootstrap_ci_95"
+      ],
+      "properties": {
+        "required_unit_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "matched_unit_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "missing_unit_counts_by_repeat": {
+          "type": "array",
+          "minItems": 3,
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "complete_across_repeats": {
+          "type": "boolean"
+        },
+        "repeat_summaries": {
+          "type": "array",
+          "minItems": 3,
+          "items": {
+            "$ref": "#/$defs/summary"
+          }
+        },
+        "paired_max_minus_min_bootstrap_ci_95": {
+          "$ref": "#/$defs/interval"
+        }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "required_unit_count",
+        "eligible_unit_counts_by_repeat",
+        "missing_unit_counts_by_repeat",
+        "complete_across_repeats"
+      ],
+      "properties": {
+        "required_unit_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "eligible_unit_counts_by_repeat": {
+          "type": "array",
+          "minItems": 3,
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "missing_unit_counts_by_repeat": {
+          "type": "array",
+          "minItems": 3,
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "complete_across_repeats": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

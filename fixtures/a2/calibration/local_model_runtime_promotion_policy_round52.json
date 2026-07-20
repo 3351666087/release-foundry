@@ -1,0 +1,15 @@
+{
+  "schema_version": "a2.local_model_runtime_promotion_policy.v1",
+  "policy_id": "a2-local-runtime-round52",
+  "required_profiles": [
+    "warm_json_schema_16",
+    "warm_json_schema_32"
+  ],
+  "required_format_mode": "json_schema",
+  "maximum_warm_caller_wall_seconds": 15.0,
+  "require_valid_structured_output": true,
+  "require_digest_binding": true,
+  "require_provider_not_truth": true,
+  "require_no_release_authority": true,
+  "public_safe": true
+}

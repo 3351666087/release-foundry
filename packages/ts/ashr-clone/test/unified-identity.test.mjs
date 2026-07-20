@@ -2,6 +2,13 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  A3_IDENTITY_CONTRACT_SCHEMA_VERSION,
+  IdentityLifecycleHttpClient,
+  IdentityLifecycleHttpError,
+  IdentityLifecycleHTTPClient,
+  IdentityLifecycleHTTPError,
+  IdentityLifecycleHTTPResponse,
+  IdentityLifecycleTransportError,
   UNIFIED_IDENTITY_ACCOUNT_STATUSES,
   UNIFIED_IDENTITY_CREDENTIAL_STATUSES,
   UNIFIED_IDENTITY_ERROR_CODES,
@@ -12,6 +19,7 @@ import {
   UNIFIED_IDENTITY_SCHEMA_VERSION,
   UnifiedIdentityContractError,
   UnifiedIdentityHttpClient,
+  a3IdentityContractManifest,
   assertPublicUnifiedIdentityPayload,
   identityAccountRoute,
   identityCredentialsRoute,
@@ -23,16 +31,416 @@ import {
   identityUnlinkRoute,
   normalizeUnifiedIdentityProvider,
   parseIdentityCredential,
+  parseIdentityLoginCompleteRequest,
+  parseIdentityLoginStartRequest,
+  parseIdentityLifecycleEnvelope,
   parseIdentityLink,
   parseIdentityMembership,
   parseIdentityMerge,
   parseIdentityRecovery,
+  parseIdentityRegistrationCompleteRequest,
+  parseIdentityRegistrationStartRequest,
+  parseA3IdentityProviderCapability,
   parseIdentityUnlink,
   parseUnifiedAccount,
   parseUnifiedIdentityError,
   toCliSafeIdentityOutput,
   unifiedIdentityContractManifest,
 } from "../dist/unified-identity.js";
+
+test("Python-compatible identity lifecycle HTTP exports remain usable", () => {
+  assert.equal(IdentityLifecycleHTTPClient, IdentityLifecycleHttpClient);
+  assert.equal(IdentityLifecycleHTTPError, IdentityLifecycleHttpError);
+  const response = new IdentityLifecycleHTTPResponse(200, providerCapabilities());
+  assert.equal(response.status, 200);
+  assert.equal(response.payload.schema_version, A3_IDENTITY_CONTRACT_SCHEMA_VERSION);
+  assert.throws(
+    () => new IdentityLifecycleHTTPResponse(99, {}),
+    UnifiedIdentityContractError,
+  );
+});
+
+function lifecycleEnvelope(operation, overrides = {}) {
+  return {
+    schema_version: A3_IDENTITY_CONTRACT_SCHEMA_VERSION,
+    operation,
+    status: operation.endsWith("_start") ? "verification_required" : "completed",
+    provider: "email",
+    account: operation.endsWith("_start") ? null : {
+      account_id: "account_01",
+      password_status: "set",
+      two_factor: { status: "disabled", optional: true, recommended: true },
+    },
+    next_action: operation.endsWith("_start") ? "verify_email" : "none",
+    security: {
+      server_verified_proof_required: true,
+      recent_reauthentication_required: false,
+      csrf_required: false,
+      account_enumeration_safe: true,
+    },
+    receipt_id: operation.endsWith("_start") ? "receipt_01" : null,
+    expires_at: operation.endsWith("_start") ? "2026-07-12T01:00:00Z" : null,
+    authenticated_at: operation === "login_complete" ? "2026-07-12T00:00:00Z" : null,
+    ...overrides,
+  };
+}
+
+function providerCapabilities() {
+  return {
+    schema_version: A3_IDENTITY_CONTRACT_SCHEMA_VERSION,
+    providers: [{
+      provider: "email",
+      preferred: true,
+      enabled: true,
+      code_capability: "implemented",
+      deployment_readiness: "ready",
+      deployment_status_source: "runtime_configuration",
+      environment: "production",
+      qualification_status: "not_required",
+      requires_business_qualification: false,
+      registration_status: "available",
+      login_status: "available",
+      linking_status: "available",
+      reason_code: null,
+    }, {
+      provider: "wechat",
+      preferred: false,
+      enabled: false,
+      code_capability: "contract_only",
+      deployment_readiness: "blocked",
+      deployment_status_source: "business_qualification",
+      environment: "production",
+      qualification_status: "required",
+      requires_business_qualification: true,
+      registration_status: "unavailable",
+      login_status: "unavailable",
+      linking_status: "unavailable",
+      reason_code: "business_qualification_required",
+    }],
+  };
+}
+
+test("lifecycle HTTP client executes provider, registration, and login routes", async () => {
+  const calls = [];
+  const replies = [
+    response(providerCapabilities()),
+    response(lifecycleEnvelope("register_start")),
+    response(lifecycleEnvelope("register_complete")),
+    response(lifecycleEnvelope("login_start")),
+    response(lifecycleEnvelope("login_complete", { status: "authenticated" })),
+  ];
+  const client = new IdentityLifecycleHttpClient({
+    baseUrl: "http://127.0.0.1:8787",
+    fetch: async (url, init) => {
+      calls.push({
+        url: String(url),
+        method: init.method,
+        body: init.body ? JSON.parse(init.body) : null,
+      });
+      return replies.shift();
+    },
+  });
+
+  const capabilities = await client.providerCapabilities();
+  assert.equal(capabilities.providers[0].code_capability, "implemented");
+  assert.equal(capabilities.providers[1].qualification_status, "required");
+  await client.registrationStart({
+    provider: "email", tenant_id: "tenant_01", project_id: "project_01",
+  });
+  await client.registrationComplete({
+    proof_receipt_id: "receipt_register",
+    tenant_id: "tenant_01",
+    project_id: "project_01",
+  });
+  await client.loginStart({
+    provider: "email", tenant_id: "tenant_01", project_id: "project_01",
+  });
+  await client.loginComplete({
+    proof_receipt_id: "receipt_login",
+    tenant_id: "tenant_01",
+    project_id: "project_01",
+  });
+
+  assert.deepEqual(calls.map(({ method, url }) => [method, new URL(url).pathname]), [
+    ["GET", "/v1/identity/providers"],
+    ["POST", "/v1/identity/registration/start"],
+    ["POST", "/v1/identity/registration/complete"],
+    ["POST", "/v1/identity/login/start"],
+    ["POST", "/v1/identity/login/complete"],
+  ]);
+  assert.deepEqual(calls[2].body, {
+    receipt_id: "receipt_register", tenant_id: "tenant_01", project_id: "project_01",
+  });
+  assert.deepEqual(calls[4].body, {
+    receipt_id: "receipt_login", tenant_id: "tenant_01", project_id: "project_01",
+  });
+  for (const call of calls.slice(1)) {
+    assert.equal("create_account" in call.body, false);
+    assert.equal("bind_credential" in call.body, false);
+    assert.equal("merge_accounts" in call.body, false);
+    assert.equal("match_by_email" in call.body, false);
+  }
+});
+
+test("unknown identity and invalid credential share one anti-enumeration error", async () => {
+  const failures = ["unknown", "invalid"];
+  for (const failure of failures) {
+    const client = new IdentityLifecycleHttpClient({
+      baseUrl: "http://127.0.0.1:8787",
+      fetch: async () => response(lifecycleEnvelope("login_complete", {
+        status: "failed",
+        account: null,
+        next_action: "none",
+        receipt_id: null,
+        expires_at: null,
+        authenticated_at: null,
+        error: {
+          code: "authentication_failed",
+          http_status: 401,
+          anti_enumeration: true,
+          retryable: false,
+          public_safe: true,
+        },
+      }), 401),
+    });
+    await assert.rejects(
+      client.loginComplete({
+        proof_receipt_id: `receipt_${failure}`,
+        tenant_id: "tenant_01",
+        project_id: "project_01",
+      }),
+      (error) => error instanceof IdentityLifecycleHttpError
+        && error.code === "authentication_failed"
+        && error.httpStatus === 401
+        && error.antiEnumeration === true
+        && !error.message.includes(failure),
+    );
+  }
+});
+
+test("provider GET retries bounded transient failures but lifecycle POST never retries", async () => {
+  const delays = [];
+  let gets = 0;
+  const getClient = new IdentityLifecycleHttpClient({
+    baseUrl: "http://127.0.0.1:8787",
+    maxRetries: 2,
+    retryBackoffMs: 5,
+    sleep: async (delay) => delays.push(delay),
+    fetch: async () => {
+      gets += 1;
+      return gets < 3
+        ? response({ error: { code: "service_unavailable" } }, 503)
+        : response(providerCapabilities());
+    },
+  });
+  assert.equal((await getClient.providerCapabilities()).providers.length, 2);
+  assert.equal(gets, 3);
+  assert.deepEqual(delays, [5, 10]);
+
+  let posts = 0;
+  const postClient = new IdentityLifecycleHttpClient({
+    baseUrl: "http://127.0.0.1:8787",
+    maxRetries: 9,
+    fetch: async () => {
+      posts += 1;
+      throw new TypeError("network unavailable");
+    },
+  });
+  await assert.rejects(
+    postClient.loginStart({
+      provider: "email", tenant_id: "tenant_01", project_id: "project_01",
+    }),
+    (error) => error instanceof IdentityLifecycleTransportError
+      && error.retryable === false
+      && error.publicSafe === true,
+  );
+  assert.equal(posts, 1);
+});
+
+test("lifecycle parser rejects unsafe errors and operation mismatch", async () => {
+  assert.throws(
+    () => parseIdentityLifecycleEnvelope(lifecycleEnvelope("login_complete", {
+      status: "failed",
+      account: null,
+      error: {
+        code: "authentication_failed",
+        http_status: 401,
+        anti_enumeration: true,
+        retryable: false,
+        public_safe: false,
+      },
+    })),
+    /public-safe/u,
+  );
+  const client = new IdentityLifecycleHttpClient({
+    baseUrl: "http://127.0.0.1:8787",
+    fetch: async () => response(lifecycleEnvelope("register_start")),
+  });
+  await assert.rejects(
+    client.loginStart({
+      provider: "email", tenant_id: "tenant_01", project_id: "project_01",
+    }),
+    /operation mismatch/u,
+  );
+});
+
+test("A3 registration and login contract is explicit and fail closed", () => {
+  const contract = a3IdentityContractManifest();
+  const routes = new Map(contract.routes.map((route) => [route.operation, route]));
+  const providers = new Map(contract.providers.map((provider) => [provider.provider, provider]));
+
+  assert.equal(contract.schema_version, A3_IDENTITY_CONTRACT_SCHEMA_VERSION);
+  assert.notEqual(routes.get("register_start").path, routes.get("login_start").path);
+  assert.equal(contract.registration.may_create_account, true);
+  assert.equal(contract.login.may_create_account, false);
+  assert.equal(contract.login.may_merge_accounts, false);
+  assert.equal(contract.login.may_link_credentials, false);
+  assert.equal(contract.login.existing_verified_credential_required, true);
+  assert.equal(contract.login.unknown_identity_status, "failed");
+  assert.equal(contract.login.verified_email_conflict_status, "merge_required");
+  assert.equal(contract.login.public_failure_code, "authentication_failed");
+  assert.equal(contract.login.public_failure_http_status, 401);
+  assert.equal(contract.login.account_enumeration_safe, true);
+  assert.equal(contract.login.unknown_and_invalid_secret_share_public_failure, true);
+  assert.equal(contract.login.unknown_identity_next_action, null);
+  for (const name of ["public_registration", "public_login"]) {
+    const security = contract.operation_security[name];
+    assert.equal(security.authenticated_actor_required, false);
+    assert.equal(security.matching_authenticated_actor_required, false);
+    assert.equal(security.recent_reauthentication_required, false);
+    assert.equal(security.csrf_required, false);
+    assert.equal(security.verified_assertion_required, true);
+    assert.equal(security.verified_assertion_source, "server_owned_single_use_proof_receipt");
+    if (name === "public_registration") {
+      assert.equal(security.legacy_accountless_binding_http_rejected, true);
+    }
+    assert.equal(security.route_lifecycle, "active");
+    assert.equal(security.client_callable, true);
+  }
+  const bindingSecurity = contract.operation_security.existing_account_binding;
+  assert.equal(bindingSecurity.explicit_user_action_required, true);
+  assert.equal(bindingSecurity.authenticated_actor_required, true);
+  assert.equal(bindingSecurity.matching_authenticated_actor_required, true);
+  assert.equal(bindingSecurity.recent_reauthentication_required, true);
+  assert.equal(bindingSecurity.csrf_required, true);
+  assert.equal(bindingSecurity.verified_assertion_required, true);
+  assert.equal(bindingSecurity.atomic_completion_required, true);
+  assert.equal(bindingSecurity.proof_receipt_consumed_with_mutation, true);
+  assert.equal(bindingSecurity.mutation_ticket_consumed_with_step_up, true);
+  assert.equal(bindingSecurity.activation_requires_postgres_coordinator, true);
+  assert.equal(
+    bindingSecurity.go_atomic_coordinator_contract,
+    "IdentityCredentialLinkCoordinator",
+  );
+  assert.equal(bindingSecurity.route_lifecycle, "proposed");
+  assert.equal(bindingSecurity.client_callable, false);
+  for (const route of contract.routes) {
+    assert.equal(["active", "proposed", "non_routable", "unavailable"].includes(route.lifecycle), true);
+    assert.equal(route.client_callable, route.lifecycle === "active");
+  }
+  for (const operation of [
+    "link_start", "link_complete", "unlink", "password_set", "password_change",
+    "two_factor_enroll", "two_factor_verify", "two_factor_recovery", "two_factor_disable",
+  ]) {
+    assert.equal(routes.get(operation).lifecycle, "proposed");
+    assert.equal(routes.get(operation).client_callable, false);
+  }
+  assert.equal(contract.preferred_registration_provider, "email");
+  assert.equal(providers.get("email").preferred_registration, true);
+  assert.equal(providers.get("github").login, "runtime_configuration_required");
+  assert.equal(providers.get("google").login, "runtime_configuration_required");
+  for (const name of ["github", "google"]) {
+    assert.equal(providers.get(name).code_capability, "route_and_handler_implemented");
+    assert.equal(providers.get(name).deployment_readiness, "runtime_configuration_required");
+    assert.equal(providers.get(name).deployment_status_source, "runtime_configuration");
+    assert.equal(providers.get(name).reason_code, "provider_not_configured");
+  }
+  for (const name of ["email", "github", "google"]) {
+    assert.equal(providers.get(name).linking, "proposed");
+  }
+  for (const name of ["wechat", "qq", "alipay"]) {
+    assert.equal(providers.get(name).login, "unavailable");
+    assert.equal(providers.get(name).linking, "unavailable");
+    assert.equal(providers.get(name).requires_business_qualification, true);
+    assert.equal(providers.get(name).deployment_readiness, "business_qualification_required");
+    assert.equal(providers.get(name).deployment_status_source, "business_qualification");
+  }
+  assert.equal(providers.get("phone").linking, "unavailable");
+  assert.equal(contract.account_mutations.two_factor_optional, true);
+  assert.equal(contract.account_mutations.two_factor_recommended, true);
+});
+
+test("provider capability parser rejects contradictory machine status fields", () => {
+  const github = a3IdentityContractManifest().providers.find((item) => item.provider === "github");
+  assert.deepEqual(parseA3IdentityProviderCapability(github), github);
+  assert.throws(
+    () => parseA3IdentityProviderCapability({
+      ...github,
+      deployment_readiness: "ready",
+    }),
+    (error) => error instanceof UnifiedIdentityContractError,
+  );
+  assert.throws(
+    () => parseA3IdentityProviderCapability({
+      ...github,
+      deployment_status_source: "business_qualification",
+    }),
+    (error) => error instanceof UnifiedIdentityContractError,
+  );
+});
+
+test("registration and login public DTOs are distinct and receipt driven", () => {
+  const scope = { tenant_id: "tenant_contract", project_id: "project_contract" };
+  assert.deepEqual(
+    parseIdentityRegistrationStartRequest({ ...scope, provider: "email" }),
+    { ...scope, provider: "email" },
+  );
+  assert.deepEqual(
+    parseIdentityLoginStartRequest({ ...scope, provider: "github" }),
+    { ...scope, provider: "github" },
+  );
+  assert.deepEqual(
+    parseIdentityRegistrationCompleteRequest({ ...scope, proof_receipt_id: "receipt_register" }),
+    { ...scope, proof_receipt_id: "receipt_register" },
+  );
+  assert.deepEqual(
+    parseIdentityLoginCompleteRequest({ ...scope, proof_receipt_id: "receipt_login" }),
+    { ...scope, proof_receipt_id: "receipt_login" },
+  );
+  for (const parser of [
+    parseIdentityRegistrationStartRequest,
+    parseIdentityRegistrationCompleteRequest,
+    parseIdentityLoginStartRequest,
+    parseIdentityLoginCompleteRequest,
+  ]) {
+    assert.throws(
+      () => parser({ ...scope, provider: "email", proof_receipt_id: "receipt", verified: true }),
+      (error) => error instanceof UnifiedIdentityContractError,
+    );
+  }
+});
+
+test("canonical account parses OAuth email, absent password, and recommended 2FA posture", () => {
+  const account = parseUnifiedAccount({
+    account_id: "acct_canonical",
+    status: "active",
+    display_name: "Owner",
+    created_at: "2026-07-12T00:00:00Z",
+    updated_at: "2026-07-12T00:00:00Z",
+    credentials: [],
+    memberships: [],
+    security_posture: {
+      primary_email: { present: true, verified: true, source: "google" },
+      password: { status: "absent", settable: true },
+      two_factor: { status: "disabled", optional: true, recommended: true },
+    },
+  });
+  assert.deepEqual(account.security_posture, {
+    primary_email: { present: true, verified: true, source: "google" },
+    password: { status: "absent", settable: true },
+    two_factor: { status: "disabled", optional: true, recommended: true },
+  });
+});
 
 import * as sdk from "../dist/index.js";
 

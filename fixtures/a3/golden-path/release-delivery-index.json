@@ -1,0 +1,29 @@
+{
+  "schema_version": "a3.release_delivery_index.v1",
+  "generated_at": "2026-07-12T11:40:04.000Z",
+  "release_version": "0.2.0-rc.1",
+  "git_sha_alias": "ad6113e01f5999f99b378e678d4f0a9602e8fdbc",
+  "ci_tested_sha_alias": "e07c5f6e3cb8c44e8d75ea781feeec778bb5ccb8",
+  "status": "blocked_by_a2",
+  "production_ready": false,
+  "files": {
+    "release_artifact_manifest": "release-artifact-manifest.json",
+    "release_artifact_verification": "release-artifact-verification.json",
+    "deployment_acceptance": "deployment-acceptance.json",
+    "golden_path_status": "golden-path-status.json",
+    "golden_path_summary": "golden-path-summary.md"
+  },
+  "authority": {
+    "a1_run_ids": [
+      "a3-golden-20260712-001"
+    ],
+    "a2_upstream_decision": "block",
+    "a2_release_ready": false,
+    "a3_recomputed_decision": false
+  },
+  "safety": {
+    "token_included": false,
+    "raw_secret_values_allowed": false,
+    "production_claim_requires_acceptance": true
+  }
+}

@@ -1,0 +1,185 @@
+{
+  "schema_version": "a2.dashscope_multimodal_public_summary.v1",
+  "generated_at": "2026-07-14T02:33:53.706442Z",
+  "provider_id": "dashscope",
+  "model_id": "qwen-vl-plus",
+  "endpoint_region": "beijing",
+  "endpoint_class": "openai_compatible_chat_completions",
+  "calibration_evidence_hash": "sha256:d222491d6d1f946a8b43b1cb791aa0d32f3a16693cf545ff0f39cb0e40f73df4",
+  "manifest_hash": "sha256:66bc9e3d84872484bd87590299bb84e93d614ed3bd74b7c2247a5fdaa4770f9d",
+  "ordered_case_plan_hash": "sha256:808110ff480ff22df4ae3f0043ec0d8e95251b531a438f23ce33c4203f42665b",
+  "prompt_hash": "sha256:8ebdf12d3ba40228486f1a5205ae40e75bc1db8b9b259eed64820cba460fe818",
+  "output_schema_hash": "sha256:6b95c1668537a8cc00fe8b9af981ce4a7594f35f62fd9e6c67435f6202c4d69a",
+  "provider_capability_hash": "sha256:07fe02f2c2e44af140b6d59cf1eba5c125213cea20c42370009c81732cc88606",
+  "qualification_state": "blocked",
+  "blockers": [
+    "dashscope_invalid_structured_output_observed",
+    "dashscope_provider_failure_observed",
+    "dashscope_latency_qualification_not_met",
+    "dashscope_sensitivity_review_threshold_not_met",
+    "dashscope_perturbation_distinct_source_minimum_not_met:rotation_degrees:2",
+    "dashscope_perturbation_distinct_source_minimum_not_met:rotation_degrees:6",
+    "dashscope_duplicate_source_perturbation_inflation:rotation_degrees:10",
+    "dashscope_perturbation_distinct_source_minimum_not_met:jpeg_quality:53",
+    "dashscope_perturbation_distinct_source_minimum_not_met:jpeg_quality:60",
+    "dashscope_perturbation_sample_minimum_not_met",
+    "dashscope_pricing_unavailable"
+  ],
+  "counts": {
+    "requested": 50,
+    "completed": 49,
+    "failed": 1,
+    "eligible": 48,
+    "safe": 15,
+    "attack": 33,
+    "transformed_attack": 18,
+    "classified_transformed_attack": 18
+  },
+  "quality": {
+    "sensitivity": 0.6363636363636364,
+    "sensitivity_wilson_95": [
+      0.466159,
+      0.77813
+    ],
+    "specificity": 0.9333333333333333,
+    "specificity_wilson_95": [
+      0.701829,
+      0.988133
+    ],
+    "balanced_accuracy": 0.7848484848484849,
+    "balanced_accuracy_interval_95": [
+      0.583994,
+      0.883131
+    ]
+  },
+  "latency_seconds": {
+    "count": 50,
+    "min": 1.27,
+    "median": 2.585,
+    "p95_nearest_rank": 10.373,
+    "max": 17.184
+  },
+  "perturbation_buckets": {
+    "rotation_degrees": {
+      "2": {
+        "raw_observation_count": 1,
+        "distinct_source_case_hash_count": 1,
+        "duplicate_source_case_count": 0,
+        "eligible_count": 1,
+        "detected_count": 0,
+        "sensitivity": 0.0,
+        "sensitivity_wilson_95": [
+          0.0,
+          0.793457
+        ]
+      },
+      "5": {
+        "raw_observation_count": 3,
+        "distinct_source_case_hash_count": 3,
+        "duplicate_source_case_count": 0,
+        "eligible_count": 3,
+        "detected_count": 1,
+        "sensitivity": 0.3333333333333333,
+        "sensitivity_wilson_95": [
+          0.06149,
+          0.792345
+        ]
+      },
+      "6": {
+        "raw_observation_count": 1,
+        "distinct_source_case_hash_count": 1,
+        "duplicate_source_case_count": 0,
+        "eligible_count": 1,
+        "detected_count": 0,
+        "sensitivity": 0.0,
+        "sensitivity_wilson_95": [
+          0.0,
+          0.793457
+        ]
+      },
+      "10": {
+        "raw_observation_count": 4,
+        "distinct_source_case_hash_count": 3,
+        "duplicate_source_case_count": 1,
+        "eligible_count": 3,
+        "detected_count": 2,
+        "sensitivity": 0.6666666666666666,
+        "sensitivity_wilson_95": [
+          0.207655,
+          0.93851
+        ]
+      }
+    },
+    "jpeg_quality": {
+      "40": {
+        "raw_observation_count": 3,
+        "distinct_source_case_hash_count": 3,
+        "duplicate_source_case_count": 0,
+        "eligible_count": 3,
+        "detected_count": 3,
+        "sensitivity": 1.0,
+        "sensitivity_wilson_95": [
+          0.438494,
+          1.0
+        ]
+      },
+      "53": {
+        "raw_observation_count": 1,
+        "distinct_source_case_hash_count": 1,
+        "duplicate_source_case_count": 0,
+        "eligible_count": 1,
+        "detected_count": 1,
+        "sensitivity": 1.0,
+        "sensitivity_wilson_95": [
+          0.206543,
+          1.0
+        ]
+      },
+      "60": {
+        "raw_observation_count": 2,
+        "distinct_source_case_hash_count": 2,
+        "duplicate_source_case_count": 0,
+        "eligible_count": 2,
+        "detected_count": 1,
+        "sensitivity": 0.5,
+        "sensitivity_wilson_95": [
+          0.094529,
+          0.905471
+        ]
+      },
+      "80": {
+        "raw_observation_count": 3,
+        "distinct_source_case_hash_count": 3,
+        "duplicate_source_case_count": 0,
+        "eligible_count": 3,
+        "detected_count": 2,
+        "sensitivity": 0.6666666666666666,
+        "sensitivity_wilson_95": [
+          0.207655,
+          0.93851
+        ]
+      }
+    }
+  },
+  "usage": {
+    "usage_accounting_state": "complete",
+    "prompt_tokens": 6909,
+    "completion_tokens": 2210,
+    "total_tokens": 9119,
+    "pricing_state": "unavailable",
+    "estimated_cost_usd": null,
+    "within_cost_budget": false
+  },
+  "interpretation": {
+    "connectivity_proves_promotion": false,
+    "promotion_permitted": false,
+    "provider_failure_can_pass": false,
+    "reason": "The real 50-case run is useful calibration evidence, but sensitivity, latency, structured-output reliability, distinct-source coverage, duplicate-source inflation, and authoritative pricing remain blocking."
+  },
+  "public_safe": true,
+  "raw_provider_payload_included": false,
+  "raw_provider_text_included": false,
+  "raw_request_id_included": false,
+  "secret_included": false,
+  "release_authority": false
+}

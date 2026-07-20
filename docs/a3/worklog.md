@@ -1,5 +1,373 @@
 ﻿# A3 Worklog
 
+## 2026-07-12 - Round 12 Request Boundary and Next Golden Path
+
+### Main and A1/A2 calibration
+
+- Fetched `origin` and confirmed the branch contains current `origin/main`
+  `ccf6ce5` with no behind commits.
+- Re-read the unified Release OS strategy, the new A3 Lane goal, A1 identity
+  public surface, and A2 Evidence Snapshot / Decision Ledger handoff.
+- Preserved A1 identity/session/runtime/deploy/GitHub-worker authority and A2
+  evidence/judge/Decision-Ledger/Release-Decision authority.
+- Did not change A1 runtime or A2 judge/decision semantics.
+
+### Request-boundary implementation
+
+- Removed the unconditional pre-authorization `OPTIONS -> 204` path.
+- Protected `OPTIONS` now resolves the allowlisted
+  `Access-Control-Request-Method`, matches the canonical runtime route, and
+  applies A1 principal, five-level tenant scope, and A3 RBAC checks.
+- Unknown or unsupported preflight targets fail closed with sanitized audit
+  evidence; public health remains a distinct public preflight.
+- Hosted protected mutations now authenticate and authorize before consuming
+  the request body. Missing identity remains `401`; missing permission/scope
+  remains `403` without reading the body.
+- Added fixed sanitized request-body outcomes:
+  - malformed JSON -> `400 invalid_json`;
+  - body read timeout -> `408 request_timeout`;
+  - body over the default 1 MiB limit -> `413 payload_too_large`;
+  - media type other than `application/json` -> `415`;
+  - JSON null/array/string/number -> `422 invalid_json_shape`.
+- Access events now persist only allowlisted metadata including decision,
+  status, canonical operation/permission, transport method, preflight target,
+  `request_body_state`, hashes, and trusted/sentinel scope.
+- Fixed access-audit source to `hosted-access`; client query input cannot
+  choose the persisted audit source.
+- Raw body, identity, email, token, cookie, origin, path parameters, parser
+  text, and secret-looking values are never echoed or persisted.
+
+### Contract, test, and evidence
+
+- Extended the runtime/OpenAPI synchronizer and committed commercial OpenAPI
+  with exact `53/53` route parity.
+- Added closed sanitized `400/408/413/415/422/503` responses and per-operation
+  request-validation/protected-OPTIONS metadata.
+- Added hosted HTTP integration coverage for status precedence, no-read auth
+  denial, content type, JSON shape, streaming byte limit, read deadline,
+  preflight authorization, audit persistence, and secret non-persistence.
+- Added the HTTP checks to the existing CI-executed
+  `a3-webapp-product-routes.spec.ts` instead of leaving an unexecuted E2E file.
+- Added a tested redacted behavior matrix and explicitly documented that it is
+  not an automatically captured production receipt.
+- Added `docs/a3/a3_request_boundary_audit_2026_07_12.md`.
+
+### Independent Money-Grade audit
+
+- An independent read-only Growth-Auditor initially returned NO-GO and found
+  accepted `text/plain`, invalid top-level JSON shapes, unbounded body reads,
+  missing body-state audit, non-browser CORS evidence, static evidence, and
+  non-production SQLite custody.
+- The first four local implementation defects were remediated before commit.
+- True dual-Origin browser/ingress proof, generated signed receipts,
+  PostgreSQL/RLS custody, and customer-VPC validation remain open.
+- Added `docs/a3/growth_auditor_money_grade_round12_2026_07_12.md` with 24
+  next-round growth points centered on the user-requested GitHub golden path,
+  deployment acceptance, GitHub App/Check readback, Release Artifact/version,
+  and a new-run Audit Bundle.
+
+### Verification
+
+- Focused request-boundary Node: `44 pass / 0 fail`.
+- Full A3 Node: `397 pass / 0 fail`.
+- CI-mainline Webapp/HTTP Playwright spec: `10 pass / 0 fail`.
+- Full fresh-port Playwright, one worker: `35 pass / 0 fail`.
+- The first parallel full Playwright run was `34/35` because an existing hover
+  assertion missed its transient CSS state; the test passed alone and the
+  deterministic one-worker full rerun passed all 35.
+- Next.js TypeScript and production build: passed, 14 generated pages.
+- A1 TypeScript session lifecycle: `35 pass / 0 fail`.
+- A2 trusted spine: `7 pass / 0 fail`.
+- Commercial CL: passed, 0 blockers and 0 advisories.
+- Hygiene CL: passed, 0 findings.
+
+### Capability boundary
+
+- **Implemented:** local request-boundary state machine, sanitized failures,
+  protected OPTIONS authorization/audit, OpenAPI, integration/E2E, and
+  memory/SQLite-compatible metadata events.
+- **Contract supported:** deployed A1 verifier, production audit sink,
+  origin/CSRF gateway, and tenant GitHub worker authority.
+- **Production validated:** none in this round.
+- Next implementation starts the real GitHub golden-path CLI/page,
+  deployment acceptance, Release Artifact/version, and new-run Audit Bundle.
+
+## 2026-07-12 - New A3 Lane Goal Alignment And Trusted Resource Isolation
+
+### Goal and strategy check
+
+- Read the new A3 Lane Goal as the continuing enterprise Product / Workflow /
+  Commercial UI mandate.
+- Confirmed through the official GitHub connector that remote `main` remains
+  `ccf6ce5` after direct Git HTTPS was reset.
+- Confirmed both local and GitHub `main` use strategy blob
+  `575b31b80981542fc96f9a9310e66a9318974abb` at
+  `docs/strategy/large-saas-a1-a2-a3-full-plan.md`.
+- Recorded the responsibility and non-claim boundary in
+  `docs/a3/a3_lane_goal_alignment_2026_07_12.md`.
+
+### Security defects closed
+
+- Completed the previously interrupted hosted-read patch.
+- Hosted source lookup is exact and never falls back to the first snapshot.
+- Hosted reads validate organization, tenant, workspace, project, and
+  environment against stored data instead of relabeling it.
+- Report matching now compares source and all five scope fields.
+- The memory/file reference store uses a scope-aware report key, so two
+  tenants can safely have the same public `report_id`.
+- Added black-box collision coverage with identical `run_id`, `case_id`, and
+  `report_id` in two tenants.
+- Public share-token HTTP access ignores client `viewed_at` and uses the
+  server clock; a backdated expired-token request remains `410`.
+- Hosted principals require explicit trusted/authenticated flags, active
+  state, expiry, effective permissions, and an actor/subject reference.
+- Hosted API setup requires a per-request A1 principal resolver; a static
+  principal object is rejected.
+- Unknown hosted routes persist a metadata-only denial audit.
+- Runtime 401/403 bodies exactly match the closed OpenAPI denial schemas.
+- Demo mode is incapable of live GitHub mutation even when a caller forges
+  hosted-session/service-account flags. Dry-run behavior remains available.
+- Direct server startup now defaults to `hosted_enforced` in every
+  `NODE_ENV`; `demo_contract` requires an explicit operator setting.
+- The standalone GitHub publish CLI is permanently dry-run. Its former
+  `--live` path fails before token lookup or network transport, and the
+  example GitHub Action no longer requests check/comment write permission.
+- Live GitHub publication now requires the current A2 Trusted Spine, verified
+  append-only Decision Ledger, matching Evidence Snapshot, exact five-level
+  scope, `release_ready=true`, an exact `allow` decision, and current ledger-head
+  and decision-record selectors. The merged-main fixture is still blocked.
+- A hosted live request additionally requires a server-side A2 trusted
+  authority resolver, an A1 trusted GitHub worker, and a tenant-bound A1
+  GitHub installation/repository resolver. A self-consistent local A2 JSON
+  document is integrity evidence only and cannot authorize a mutation.
+- Exception approval now requires a real waiver record in the same source and
+  five-level scope. A foreign-only waiver with the same public ID is rejected.
+- Dashboard, usage, review, admin, readback, GitHub, report, and import
+  aggregates now exclude foreign-source, foreign-scope, and legacy unscoped
+  records in hosted mode.
+- New import, admin, review, GitHub, readback, report-view, report-revoke, and
+  access-audit records persist source plus organization, tenant, workspace,
+  project, and environment fields.
+- Excluded legacy/foreign aggregate records produce an explicit
+  `a3.aggregate_scope_status.v1` `partial` state instead of disappearing behind
+  a false green summary.
+- The typed Next.js client renders a Chinese-first, retryable Partial banner;
+  desktop and 390 x 844 screenshots prove bounded rendering.
+- A same-source aggregate collision test injects foreign audit, admin, review,
+  readback, GitHub, and import records and proves none enter tenant A totals.
+- Snapshot storage now uses source plus five-level scope identity when the
+  same source name appears in multiple tenants. Two tenants can independently
+  import the same run/case IDs and even reuse the same client idempotency key.
+- SQLite now writes GitHub publish receipts and metadata-only event-outbox
+  rows into dedicated SQL tables; restart tests query those tables directly
+  instead of treating the all-state JSON blob as the durability proof.
+- The runtime/OpenAPI synchronizer covers all `53/53` protected RBAC routes
+  and corrects permission drift from the canonical runtime registry.
+- Fixture-backed health now reports `db_ready=false`; only the SQLite adapter
+  reports a database ready. Partial-scope warnings render before empty state.
+
+### A1/A2 authority
+
+- A1 remains authoritative for identity/session membership, run, trace,
+  tool-call, usage, billing-ledger, deployment, and external executor facts.
+- A2 remains authoritative for GradeResult, score, pass/fail, failure class,
+  Evidence Snapshot, Decision Ledger, and Release Decision.
+- A3 did not recalculate a score or release decision. The merged-main A2
+  trusted spine remains `release_ready=false` and `decision=block`.
+- Read-only peer calibration found A2 draft `a1cdc00` adds durable provider
+  provenance, release-decision persistence, and independent high-risk review.
+  It is not merged and therefore remains a compatibility watch signal only.
+
+### Verification
+
+- Full A3 Node suite: `387 pass / 0 fail`.
+- Webapp TypeScript typecheck and Next.js production build: passed.
+- Fresh-port Playwright with one worker: `33 pass / 0 fail`.
+- A1 TypeScript session lifecycle: `35 pass / 0 fail`.
+- A2 trusted spine: `7 pass / 0 fail`.
+- CL hygiene: passed, 0 findings.
+- CL commercial: passed, 0 blockers and 0 advisories.
+- Changed-file real-format long token/key scan: 0 matches. Deliberate
+  `Bearer`/`Cookie`/`ASHR_API_KEY` negative-test strings remain redacted test
+  inputs, not credentials.
+- `.env.local` remains ignored by `.gitignore`.
+- `git diff --check`: passed.
+
+### Honest remaining boundary
+
+This is an implemented and tested local/contract security increment, not a
+production multi-tenant claim. A deployed A1 verifier, authoritative A3
+PostgreSQL store, forced RLS, multi-instance transactions, KMS/object custody,
+customer IdP, durable GitHub worker/readback, and VPC deployment/recovery proof
+remain open enterprise Release work.
+
+The local memory/SQLite reference path now proves same-source five-level
+snapshot coexistence, structured GitHub/outbox rows, and exact runtime/OpenAPI
+route parity. It is still not an authoritative production datastore:
+PostgreSQL/RLS, transactional multi-instance writes, complete five-level
+columns and policies across every production table, malformed JSON/OPTIONS
+audit coverage, and deployed A1/A2/GitHub resolvers remain explicit blockers.
+
+### Visual evidence
+
+- `docs/screenshots/a3-webapp-partial-data-desktop.png`
+- `docs/screenshots/a3-webapp-partial-data-mobile-390x844.png`
+
+## 2026-07-12 - Merged-main Identity And Trusted-Spine Recalibration
+
+### Goal
+
+Replace stale draft-only product claims after A1 `c784163` and A2 `8cd1d4f`
+entered `main` through `7dd14d7`, then replay the repair on current `main`
+`ccf6ce5` while keeping initial OAuth login, browser email completion, and A2
+release readiness fail-closed.
+
+### Upstream evidence
+
+- Standard `git fetch origin --prune` was retried twice and failed because the
+  local network reset or could not connect to `github.com:443`.
+- Authenticated official GitHub API access remained healthy and initially
+  confirmed `7dd14d7`, its integration parents, and the merged A1/A2 commits.
+- A binary-safe official GitHub archive of `7dd14d7` was downloaded to a
+  temporary directory, validated as ZIP, and used as a full latest-main test
+  sandbox. No third-party Git proxy was used.
+- Latest A2 contracts require `organization_id`, `tenant_id`, `workspace_id`,
+  `project_id`, and `environment_id`; they expose `scope_complete` and
+  `validation_errors` and directly validate A1 RunResult cases.
+- Git HTTPS later recovered. Current `origin/main` is `ccf6ce5`; the A3 repair
+  commits replayed without conflict on that base.
+- The strategy merged at `ccf6ce5` makes Ashr an optional calibration provider
+  and the enterprise Release path provider-neutral. A3 still owns the typed
+  Next.js product surface and consumes internal A1/A2 authority.
+- A2 peer ref `2a87e16` contains newer durable provider-reconciliation work.
+  It remains a read-only watch signal until merged into main.
+
+### A3 changes
+
+- API Reference now reports main `ccf6ce5`, A1 `c784163`, and A2 `8cd1d4f`.
+- A1 account linking, challenge start, callback, and browser-session refresh
+  are labeled implemented and merged, not draft.
+- Initial Google/GitHub login remains unavailable, and email verification
+  completion remains blocked without mailbox-bound challenge context.
+- The upstream panel displays all three A2 trusted-spine schema IDs and the
+  five required scope fields.
+- The public-safe auth fixture is now `a3.auth_contract_snapshot.v3`, includes
+  `scope_complete`, empty `validation_errors`, direct RunResult validation,
+  and `release_ready=false`, and removes `a1_auth_not_in_main`.
+- A3 still does not recompute scores, failure classes, or release decisions.
+
+### Verification
+
+- Focused A3 auth/reference and Webapp contracts: `9 pass / 0 fail` locally
+  and `9 pass / 0 fail` on the latest-main sandbox.
+- A3 full Node suite on latest main: `334 pass / 0 fail`.
+- A2 full suite on current main: `186 pass / 0 fail`, `1050 subtests pass`.
+- A2 trusted-spine focus: `7 pass / 0 fail`.
+- TypeScript typecheck and Next.js static production build: passed locally and
+  on the latest-main sandbox.
+- Full Playwright suite: `31 pass / 0 fail` with one worker, including Webapp
+  product routes `6/6`; desktop/mobile API Reference screenshots refreshed.
+- Latest-main Webapp dependency install audit: `0 vulnerabilities`.
+- A broad Python attempt reached `1230 pass`, `12 skip`, and `1042` passing
+  subtests. The remaining `26` setup errors require Docker/Postgres; two tests
+  require missing Go/Cargo; one archive-only check requires `.git`. These are
+  recorded environment gaps, not claimed as passes.
+- `git diff --check` passed apart from the existing CRLF normalization warning.
+
+### Safety
+
+- `.env.local` was not read or staged.
+- No key, token, cookie, OTP, real email, account data, provider payload, or
+  signed URL was written to source, fixtures, docs, screenshots, or logs.
+- No OAuth redirect, email delivery, account mutation, Ashr mutation, billing
+  mutation, or cloud mutation was executed.
+- All repository edits remain inside A3-owned directories.
+
+## 2026-07-11 - Upstream Identity + Trusted Spine Alignment Repair
+
+### Goal and correction
+
+Recalibrate the route-level A3 Webapp after A1 and A2 advanced their draft
+branches. The prior login surface could be read as if A1's Google/GitHub start
+routes supported initial sign-in. Source inspection confirmed that they are
+credential-linking routes for an account that already has a trusted A1
+session, so A3 removed that false login path.
+
+### Upstream calibration
+
+- `git fetch origin --prune` succeeded.
+- This branch contains current `origin/main` `5dbf4ee`.
+- A1 read-only calibration: `origin/codex/a1-local-sdk-runner` at `c784163`.
+- A2 read-only calibration: `origin/dev/g3-a2-calibration` at `47c05e5`.
+- A final 2026-07-12 pre-push fetch advanced A1 from `350fb22` to
+  `c784163`; the delta only repairs Linux TypeScript test dependency copying
+  and leaves the identity/session contract unchanged. Its changed clean-build
+  parity test passed in a detached temporary worktree.
+- Neither draft branch was merged, cherry-picked, or modified.
+- A1 source confirms Secure, HttpOnly, SameSite=Strict access/refresh cookies,
+  same-origin refresh rotation, idempotent replay, and refresh-reuse detection
+  for email `login` / `recovery` sessions.
+- A1 source also confirms that initial Google/GitHub sign-in, registration
+  session handoff, and browser-safe email challenge context remain incomplete.
+- A2 source confirms `a2.evidence_snapshot.v1`,
+  `a2.decision_ledger.v1`, and `a2.trusted_spine_handoff.v1`. A3 remains a
+  display-only consumer and does not recompute grades or rewrite decisions.
+
+### A3 changes
+
+- Added explicit identity capability metadata and renamed the provider adapter
+  to `startOAuthAccountLinking`.
+- Disabled Google and GitHub login buttons even when the public A1 base is
+  configured; the current A1 route is account linking only.
+- Added a typed same-origin browser-session refresh adapter with included
+  credentials and a generated idempotency key. A3 never reads HttpOnly cookie
+  values.
+- Added the refresh route, latest A1/A2 draft SHAs, trusted-spine summary, and
+  exact A2 schema IDs to API Reference.
+- Upgraded the redacted auth fixture to `a3.auth_contract_snapshot.v2`.
+- Added a follow-up to the A1 contract request while preserving its historical
+  `ac960bd` calibration record.
+- Updated desktop/mobile API Reference, login, and email-registration visual
+  evidence.
+
+### Verification
+
+- Next.js TypeScript check and production static build: passed.
+- Focused auth/reference and Webapp contracts: `9 pass / 0 fail`.
+- Full A3 Node suite: `334 pass / 0 fail`.
+- Full Playwright suite, isolated to one worker: `31 pass / 0 fail`.
+- Current-main A1/A2 Python contracts: `562 pass / 5 skip`, `1013 subtests
+  pass`.
+- Latest A1 draft Go module: all four packages passed.
+- Latest A1 draft TypeScript SDK: `574 pass / 0 fail`.
+- Latest A1 draft session HMAC/rotation Python check: `1 pass / 0 fail`.
+- Latest A1 draft TypeScript clean-build parity check: `1 pass / 0 fail`.
+- Latest A2 trusted-spine draft tests: `11 pass / 0 fail`, `29 subtests pass`.
+- Commercial CL: passed with no blockers or advisories.
+- Hygiene CL: passed with no findings.
+- Webapp dependency audit: `0 vulnerabilities`.
+- High-confidence changed-file secret scan: passed.
+- `git diff --check`: passed; only the existing CRLF-to-LF warning remains.
+
+The first default-parallel Playwright run reported one existing visual-system
+test failure while multiple suites shared local resources. That same spec then
+passed `3/3`, and the deterministic full one-worker rerun passed `31/31`.
+
+The A1 draft-only Rust authenticated-bundle verifier was not executed because
+Cargo is not installed. This A3 patch does not consume that Rust surface; the
+gap is recorded instead of being presented as a pass.
+
+### Safety and scope
+
+- `.env.local`, Webapp dependencies/build output, and Playwright transient
+  artifacts remain ignored.
+- No API key, OAuth/SMTP secret, cookie value, token, code, real email, or
+  account payload was read or written.
+- No real OAuth redirect, email delivery, identity mutation, Ashr mutation, or
+  cloud mutation was executed.
+- Every changed source, test, fixture, document, and screenshot is in an A3
+  owned directory.
+
 ## 2026-07-11 - API Reference, OAuth Adapter, And Email Verification UX
 
 ### Goal
@@ -6397,3 +6765,443 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
 - Bundle impact: no sealed bundle inputs changed; screenshots remain public-safe development evidence and are not yet registered as signed bundle artifacts.
 - Detailed record: docs/a3/a3_next_product_webapp_2026_07_11.md.
 - CI follow-up: the first Ubuntu route E2E exposed an OS-specific Next export layout. The static server now checks the direct RSC path first and falls back to the Windows nested alias; local route E2E remains green and the fix is covered by the same GitHub job.
+
+## 2026-07-12 - Release Delivery Golden Path and New-run Audit Bundle
+
+- Rechecked `docs/strategy/large-saas-a1-a2-a3-full-plan.md`, current A1 TypeScript Runner, A2 judge service, A2 Trusted Spine, existing GitHub readback, Gate CLI, Audit Bundle, archive, Store, and Next.js contracts.
+- Confirmed the branch contains current known `origin/main` `ccf6ce5`; a fresh `git fetch` hit a transient GitHub 443 timeout, while `gh` confirmed PR #35 and all five existing A3 checks were green.
+- Added `services/report/a3_release_delivery.mjs` with Deployment Acceptance, versioned Release Artifact, verifier, and 11-stage Golden Path contracts.
+- Added `services/report/a3_release_delivery_cli.mjs`; it consumes A1/A2 evidence and writes a blocked packet without converting a block into a pass.
+- Added `services/report/a3_github_observe_cli.mjs`; it performs read-only Check/comment/branch-protection readback and never prints or stores its runtime token.
+- Extended Gate CLI to unwrap `a2.judge_service.run_response.v1`, attach the merged A2 Trusted Spine, block on A2 authority, and hash authority/readback/deployment records into the bundle.
+- Ran A1 TypeScript Runner to create `a3-golden-20260712-001`: 3/3 executed, no errors/timeouts, 100% trace completeness.
+- Ran the existing A2 internal judge service against that exact RunResult: 1/3 pass and 2/3 fail; both failures are `missing_required_tool`, including media scenario `A2-S031`.
+- Generated and verified a run-specific Audit Bundle: 14 artifacts passed, root hash passed, and 7 custody events passed.
+- Generated and verified a signed archive: 15 entries passed, root hash passed, and Ed25519 signature passed; signer remains explicitly self-signed/local.
+- Generated and verified candidate `0.2.0-rc.1`; it remains `production_release=false` and `blocked_by_a2`.
+- Added `/delivery`, the `a3-golden-path` source, Chinese-first delivery status, 11-stage timeline, 16 deployment checks, authority boundary, and artifact facts.
+- Added the `A3 golden path release artifact` CI job to regenerate and upload the blocked candidate packet as a GitHub Actions artifact.
+- Added version notes, implementation guide, and Growth Auditor Round 13 with 30 ranked growth points.
+- Initial focused verification passed: 51 Node contract tests, A3 TypeScript typecheck, A1 TypeScript build, source-load smoke, gate/archive tests, and `git diff --check`.
+- Final local verification before the first GitHub publish passed: full A3 Node `405/405`; A2 `186/186` plus `1050` subtests; Next.js typecheck and production build with 15 pages; route-level Playwright `11/11`; commercial CL with 0 blockers/advisories; hygiene CL with 0 findings; root and Webapp npm audits with 0 vulnerabilities; workflow YAML parse; 16 golden-path JSON files; redacted evidence secret/path scan; and `git diff --check`.
+- The broad A1/A2 Python run reached `1232` passes plus `1050` subtests and the A1 TypeScript SDK reached `573/574`. The remaining local checks require Docker/PostgreSQL, Go, or Cargo, which are not installed in this Windows environment; they are recorded as environment gaps and are not claimed as green A3 evidence.
+- Published commit `01f8707` to PR #35. Standard Git HTTPS was reset repeatedly, so the fallback uploaded all 59 exact Git objects through GitHub's authenticated Git Data API and updated the ref only after the server commit SHA matched the local SHA; no force push was used.
+- GitHub workflow run `29190601539` passed the new `A3 golden path release artifact` Check (`86644503081`), A3 Node, Next.js/Playwright, pinned evidence, CL plan, and final summary.
+- GitHub Actions artifact `8259384802` was created and downloaded for verification. It is 28,815 bytes, carries a server SHA-256 digest, is not expired, and is retained through 2026-07-26.
+- The first real artifact exposed a provenance ambiguity: pull-request `${{ github.sha }}` is the tested merge commit, not the candidate head. The workflow, CLI, manifest, Deployment Acceptance, API Reference, page, and tests now keep `git_sha_alias` for the candidate head and `ci_tested_sha_alias` for the merge commit.
+- The corrected workflow run `29190953806` passed all applicable checks and uploaded artifact `8259493055` under the candidate-head name. The downloaded packet binds candidate `ad6113e` and CI-tested merge `e07c5f6` separately.
+- Published operator calibration comment `4951021915` on PR #35 and read it back by marker, body hash, and candidate SHA. The observer remains explicit that operator OAuth is not a tenant custom GitHub App.
+- Fixed a real readback parser bug where numeric run marker `20260712` could be mistaken for a short commit SHA; labeled/full SHA values now take precedence. Focused GitHub and delivery tests passed `41/41`.
+- Resealed the new-run Audit Bundle with live Check/comment/policy receipts: 14/14 artifacts, 7/7 custody events, and root hash passed. The signed archive passed 15/15 entries, root hash, and Ed25519 signature.
+- The final packet reaches Golden Path `7/11` and Deployment Acceptance `8/17`; the Actions artifact readback passes while A2, custom GitHub App, required-check enforcement, and deployed infrastructure remain blocked.
+- Final post-readback verification passed: A3 Node `406/406`, A2 `186/186` plus `1050` subtests, Next.js typecheck/build with 15 pages, Playwright `11/11`, both CL guards, both npm audits, workflow YAML, 20 JSON fixtures, secret/path scan, and `git diff --check`.
+- Replaced CI's recursive current-head regeneration with two-phase custody. The release job now reads the sealed candidate identity, independently verifies the committed bundle, signed archive, and Release Artifact manifest, then uploads that exact packet under its candidate SHA.
+- Added Release CLI `--verify-manifest` mode so CI can fail closed on manifest/artifact hash drift without rebuilding or rewriting the packet. Local workflow emulation passed all three independent verifiers.
+- GitHub run `29191772100` then failed the new sealed-packet Check exactly as intended: the A2 grade fixture had been generated with CRLF bytes in the Windows working tree while Git stored and Linux checked out LF bytes. The bundle verifier reported `grades: Artifact SHA-256 does not match bundle index`.
+- Kept the verifier strict. Normalized the one runtime-generated grade fixture to the repository's existing LF policy, then regenerated and reverified the Gate, 14-artifact bundle, 15-entry archive, and Release Artifact hash chain.
+- Current true blockers: A2 Decision Ledger says block; no tenant custom GitHub App; no branch protection; no deployed identity/Postgres/queue/object-storage/rollback receipts.
+- Detailed record: `docs/a3/a3_release_delivery_golden_path_2026_07_12.md`.
+
+## 2026-07-12 - Golden Agent Tool-chain Repair and rc.2
+
+- Re-fetched GitHub and confirmed authoritative `origin/main` remains `ccf6ce5`; current A1 peer ref is `f956249` and A2 peer ref is `db12d21`. Peer changes were inspected but not merged or presented as main contracts.
+- Traced the rc.1 `missing_required_tool` failures to the Echo-only sample Agent rather than A1 Runner or A2 Judge defects.
+- Added `services/report/a3_golden_path_demo_agent.mjs`, a deterministic read-only Agent that executes the A2-required price and media tools against public local fixtures.
+- Created independent case set and A1 RunResult under `fixtures/a3/golden-path/rc2` rather than mutating sealed rc.1 evidence.
+- A1 run `a3-golden-20260712-002` completed 3/3 cases with 100% Trace completeness and four Tool Calls.
+- The unchanged A2 internal Judge graded the same RunResult 3/3, each score 100 with failure class `none`. A second judge execution produced an identical normalized JSON SHA-256.
+- Kept A2 Trusted Spine authoritative. Its merged-main Decision Ledger still reports `block`, so A3 leaves rc.2 `blocked_by_a2` despite passing case grades.
+- Fixed a provenance bug that copied candidate SHA into `ci_tested_sha_alias` before CI existed. Manifest, Deployment Acceptance, and delivery index now preserve `null` until real CI readback.
+- Generated and verified an rc.2 Audit Bundle with 11/11 artifacts and 6/6 custody events, plus an archive with 12/12 entries, root hash, and Ed25519 signature.
+- Generated locally verified `0.2.0-rc.2`; before GitHub readback it reports Golden Path 5/11 and Deployment Acceptance 5/17, with `production_release=false`.
+- Added release-document hashing to the Release Delivery CLI so `--doc` files become required SHA-256 artifacts instead of unverified names.
+- Added `a3-golden-path-rc2` to Store/API/Webapp and kept rc.1 selectable as history.
+- Added a New-run Evidence band showing A1 3/3, A2 3/3, Trace 100%, Tool Calls 4, and Decision Ledger block.
+- Fixed UI Tool Call double-counting by consuming A1 `aggregate_metrics.total_tool_calls` rather than summing duplicate normalized representations.
+- Added desktop/mobile E2E and final-frame screenshots. Pixel verification confirmed the mobile delivery hero is the intended `#20272c`; Playwright animation disabling prevents mid-transition baselines.
+- Candidate commit `c842081` was created. The first Git push timed out; a normal retry succeeded without force push or credential workaround.
+- GitHub Actions run `29193799075` passed all applicable checks for candidate `c842081`. The PR merge ref inspected by CI was `746ecbe`; the candidate and CI-tested SHA are stored separately.
+- The candidate run still used the previously committed rc.1 artifact-upload workflow. Artifact `8260336831` is explicitly rc.1 and is not counted as rc.2 artifact readback.
+- Security: `.env.local` was not read, no network/API key was needed by the Agent, and no token, cookie, email, signed URL, private path, or customer data was added.
+- Detailed record: `docs/a3/a3_golden_agent_tool_chain_2026_07_12.md`.
+- Release notes: `docs/a3/releases/a3-0.2.0-rc.2.md`.
+- Growth audit: `docs/a3/growth_auditor_money_grade_round14_2026_07_12.md`.
+
+## 2026-07-12 - rc.2 GitHub Readback and Distribution Closure
+
+- Published evidence commit `984bafa` to Draft PR #35 without force push. Git smart-HTTP was unavailable, so a one-time Git Data API fallback uploaded exact Git blobs, verified the tree hash, and fast-forwarded the branch; the temporary script was deleted.
+- GitHub Actions run `29195142625` passed Plan/Hygiene, A3 Node, pinned evidence, rc.1 + rc.2 bundle/archive/manifest verification, Next.js/Playwright, and CL summary. Unchanged-language jobs were correctly skipped by the selective plan.
+- Read back GitHub Actions Check `86656698704`: completed/success, exact name and head `984bafa`, app slug `github-actions`. This is real CI evidence but not a tenant custom GitHub App.
+- Published operator OAuth PR block comment `4951428174`. Marker, body SHA-256, candidate `c842081`, and the explicit A2 Decision Ledger `block` all matched on readback.
+- Read main required status checks and received HTTP `404`; the receipt preserves `enforced=false`. No branch-protection mutation was attempted.
+- Read back Actions artifact `8260724828`, name `ashr-a3-0.2.0-rc.2-c8420813ed6cb94535bd108b30bd97663b906bdb`, size 35,497 bytes, and GitHub digest `sha256:056b434d467feb52f8eb371f251fac1d83a014e4c3044b644db64f75e6b2f935`.
+- Downloaded the artifact ZIP to an unrecorded temporary path. Its SHA-256 matched GitHub, all 19 uploaded rc.2 files matched the committed snapshot, and no raw archive/path/token was retained in the public receipt.
+- Extended Gate CLI so the Actions artifact readback is a hashed `readback_record` in the new-run Audit Bundle, with focused tests passing 31/31.
+- Final expected posture remains blocked: Golden Path 7/11, Deployment Acceptance 8/17, A2 Decision Ledger `block`, tenant GitHub App absent, required check absent, and staging/PostgreSQL/RLS/queue/object-storage/recovery proof absent.
+
+## 2026-07-12 - GitHub Readback Product Surface
+
+- Promoted the sealed rc.1/rc.2 GitHub Check, PR comment, required-check, and Actions-artifact receipts from raw bundle-only evidence into source-configured Store and Dashboard API fields.
+- Added a Chinese-first Delivery section with four evidence cards showing provider/authority, IDs, SHA or digest, conclusion, and enforcement state.
+- Preserved the crucial distinction between successful GitHub Actions packet verification and the authoritative A2 Decision Ledger `block`.
+- Marked the operator OAuth comment as calibration rather than a tenant GitHub App, and kept main HTTP 404 as `not enforced` rather than a green plan.
+- Added an HTTPS `github.com` allowlist before rendering Check, comment, or workflow links; no browser token or direct GitHub fetch was introduced.
+- Added Node source assertions and Playwright checks for all four live receipt IDs, authority text, three safe external links, desktop layout, and 390 x 844 layout.
+- Added `docs/a3/a3_github_readback_ui_2026_07_12.md` and dedicated desktop/mobile screenshots.
+- This is a post-seal UI increment. It did not rewrite the signed rc.2 release manifest or its hashed release documentation.
+
+## 2026-07-12 - rc.1 vs rc.2 Release Comparison
+
+- Re-read the rc.1 and rc.2 A1 RunResults, unchanged-A2 judge responses, Golden Path status, Deployment Acceptance, Release Artifact manifests, and merged-main Trusted Spine before editing.
+- Added `a3.release_comparison.v1` as an A3 display contract generated from the two source snapshots.
+- Preserved the exact distinction that A1 executed 3/3 in both runs while A2 grades improved from 1/3 to 3/3.
+- Exposed A1 Tool Calls `0 -> 4`, A2 `missing_required_tool` `2 -> 0`, and Release Artifact entries `12 -> 16`.
+- Preserved Golden Path `7/11`, Deployment Acceptance `8/17`, A2 decision `block`, and `release_ready=false` as unchanged facts.
+- Added Store/API wiring and an OpenAPI `ReleaseComparison` schema with explicit no-recomputation safety fields.
+- Added a Chinese-first, bilingual comparison section to `/delivery`, including a prominent `BLOCK -> BLOCK` authority explanation and raw-contract disclosure.
+- Added focused Node, API/OpenAPI, and Playwright assertions plus desktop and 390 x 844 visual evidence.
+- Final verification passed A3 Node `419/419`, current-main A2 `186/186` plus `1050` subtests, Next.js 15-page typecheck/build, Playwright `37/37`, both CL guards, sealed rc.2 manifest verification, and `git diff --check`.
+- Re-fetched `origin`; main remained `ccf6ce5`. A1 `2307231` and A2 `8eb57a4` peer updates were inspected as drafts and were not promoted into main authority.
+- Kept the sealed rc.2 manifest and its hashed strategy, Golden Agent record, release note, and Round 14 audit unchanged.
+- Detailed record: `docs/a3/a3_release_comparison_ui_2026_07_12.md`.
+
+## 2026-07-13 - Candidate Integrity and Deployment Handoff
+
+- Revalidated rc.2 through the current backend A2 Trusted Spine verifier instead of trusting the sealed packet's historical integrity marker.
+- Confirmed the current candidate is `integrity_invalid`: A3 expects run `a3-golden-20260712-002`, while merged-main A2 evidence and decision records bind `a2_trusted_spine_demo` under a different five-level scope.
+- Added runtime authority attachment to `a3.release_comparison.v1`; historical `block` remains visible, while current `upstream_decision` fails closed to `unknown`.
+- Added `a3.deployment_handoff.v1` with 17 checks, 5 owner groups, 9 blockers, explicit next actions, and required receipt descriptions.
+- Added candidate-binding checks for tenant scope, A1/A2 run, Release Artifact run, Golden Path run, and backend A2 integrity.
+- Updated Store and Dashboard API wiring without changing A1 runtime logic or A2 judge semantics.
+- Updated OpenAPI and API Reference with Deployment Handoff and current-vs-historical authority contracts.
+- Rebuilt the Chinese-first bilingual Delivery page with current authority, candidate binding, owner handoff, blocker receipts, sealed history, and raw audit contracts.
+- Added focused Node, OpenAPI, API Reference, bilingual E2E, desktop, and 390 x 844 coverage.
+- Visual inspection confirmed long run/scope text wraps, owner cards remain readable, local table scrolling does not create page-level overflow, and no controls overlap.
+- Kept the rc.2 sealed manifest and its hashed inputs unchanged; this is a post-seal product/API correction, not a new production Release.
+- Detailed record: `docs/a3/a3_candidate_integrity_deployment_handoff_2026_07_13.md`.
+- Growth audit: `docs/a3/growth_auditor_money_grade_round15_2026_07_13.md`.
+- Final validation passed A3 Node `421/421`, current-main A2 `186/186` plus `1050` subtests, Next.js typecheck and 15-page production export, Playwright `37/37`, CL hygiene with 0 findings, Commercial CL with 0 blockers/advisories, and rc.2 bundle/archive/manifest verification.
+- The broader Python run reached `1239` passes plus `1050` subtests, but this Windows environment has no Docker, Go, or Cargo. Therefore 26 live PostgreSQL tests were environment errors and 2 A1 toolchain-presence contracts failed; these are not presented as green A3 evidence and no A1 source was changed.
+- A final `git fetch origin --prune` attempt failed on GitHub port 443 after 21 seconds. The branch remains based on the last successfully observed authoritative `origin/main` `ccf6ce5`; publication must recheck remote state when GitHub connectivity returns.
+
+## 2026-07-13 - Deployment Receipt Inbox
+
+- Converted the nine static Deployment Handoff blockers into `a3.deployment_receipt_inbox.v1` without changing their blocked/not-proven states.
+- Added typed receipt submission and review with candidate/run binding, five-level tenant scope, allowlisted selectors, SHA-256 validation, secret/signed-URL/path rejection, optimistic concurrency, and mandatory idempotency.
+- Added Store, RBAC, HTTP, audit-event, event-outbox, JSON-file, and SQLite persistence wiring.
+- Added migration `017_deployment_receipts`; restart coverage preserves acknowledgement and version while `production_verified` remains false.
+- Added `GET/POST /api/a3/deployment/receipts` and `POST /api/a3/deployment/receipts/:receiptId/review` with `deployment:read`, `deployment:submit`, and `deployment:review` permissions.
+- Added OpenAPI schemas, 56/56 runtime route parity, API Reference examples, and commercial API mapping.
+- Added a Chinese-first Delivery inbox with metadata submission, receipt slots, reviewer actions, and loading/success/rejected/conflict/denied/failed states.
+- Browser E2E submitted metadata, observed a simulated 409, proved developer review denial, completed reviewer acknowledgement, and confirmed Deployment Acceptance stayed 8/17.
+- Saved desktop and 390 x 844 screenshots and visually checked wrapping, local table scrolling, and document-level overflow.
+- Kept current authority `integrity_invalid`, current A2 decision `unknown`, historical decision `block`, and production verification count 0.
+- Detailed record: `docs/a3/a3_deployment_receipt_inbox_2026_07_13.md`.
+- Growth audit: `docs/a3/growth_auditor_money_grade_round16_2026_07_13.md`.
+- Final validation passed A3 Node `429/429`, current-main A2 `186/186` plus `1050` subtests, Next.js typecheck and 15-page production export, Playwright `38/38`, CL hygiene with 0 findings, Commercial CL with 0 blockers/advisories, and both npm production audits with 0 vulnerabilities.
+- Reverified the sealed rc.2 Audit Bundle `15/15` with `7/7` custody events, signed archive `16/16`, and Release Artifact manifest hash `8f84c5e3d4f064ae5d042b0f8ef72f2a3fb4d7ae06eb0a7d4dea01dc113d5a2f` without rewriting any sealed input.
+- The broader Python command reached `1239` passes and `5` skips plus `1050` subtests. Its remaining `2` failures and `26` setup errors require Go, Cargo, and Docker/PostgreSQL, which are unavailable in this Windows environment; no A1 source was changed and these are not reported as passing evidence.
+- Retried `git fetch origin --prune` successfully. Authoritative `origin/main` remains `ccf6ce5`, this branch is not behind main, and PR #35 remains open, clean, and Draft; A1 PR #36 and the newer A2 development branch were not promoted into main authority.
+
+## 2026-07-13 - Server-only Authoritative Deployment Receipt Verification
+
+- Re-read the enterprise Release strategy, current-main authority boundaries, Deployment Handoff, receipt inbox, A1 identity/RBAC contracts, and A2 Trusted Spine rules before editing.
+- Added `a3.deployment_receipt_authoritative_readback.v1` with strict receipt/blocker/candidate/run/five-level-scope/evidence-hash/verifier/authority binding.
+- Added blocker-specific required claims; a resolver cannot return `verified` when any required claim is missing, non-boolean, or false.
+- Added `POST /internal/a3/deployment/receipts/:receiptId/verify`, restricted to A1-verified hosted service accounts with `deployment:verify` and an injected server resolver.
+- Rejected browser/demo-forged service accounts and all client-supplied verification status, claims, evidence, authority, or attestation fields.
+- Kept resolver execution inside the idempotency boundary; duplicate replay returns the first result without calling the resolver again.
+- Added immutable readback sequence/hash chaining, trusted rejection persistence, audit events, event outbox, and the `deployment_receipt_authoritative_verifications` usage meter.
+- Added migration `018_deployment_receipt_readbacks` and Memory/JSON/SQLite persistence with restart coverage.
+- Added `a3.deployment_acceptance_projection.v1`; a synthetic trusted readback can project `8/17 -> 9/17` while the source acceptance remains `8/17`, but no projection is treated as sealed acceptance.
+- Updated Dashboard, OpenAPI, API Reference, DB/commercial contracts, and runtime parity from `56/56` to `57/57`.
+- Updated the Chinese-first Delivery inbox to separate intake, reviewer state, server authority, source acceptance, and projection. The browser has no authoritative verify action.
+- Preserved the default factual posture: Golden Path `7/11`, source/projection `8/17`, current authority `integrity_invalid`, current A2 decision `unknown`, historical sealed decision `block`, and real production-verified receipt count `0`.
+- Added the design record `docs/a3/a3_authoritative_deployment_receipt_verifier_2026_07_13.md` and Growth Auditor Round 17.
+- Focused verification passed `42/42` Node tests and Webapp TypeScript typecheck.
+- Final regression passed A3 Node `436/436`, current-main A2 `186/186` plus `1050` subtests, Next.js typecheck/build with 15 static pages, and Playwright `38/38`; the strengthened receipt projection/no-browser-verifier E2E also passed independently `1/1`.
+- CL hygiene passed with no findings; Commercial CL passed with 0 blockers and 0 advisories; root and Webapp production npm audits reported 0 vulnerabilities; `git diff --check` passed.
+- Reverified sealed rc.2 Audit Bundle `15/15` plus `7/7` custody events, signed archive `16/16` with valid Ed25519 signature, and Release Artifact manifest hash `8f84c5e3d4f064ae5d042b0f8ef72f2a3fb4d7ae06eb0a7d4dea01dc113d5a2f`.
+- Refreshed GitHub references successfully. `origin/main` remains `ccf6ce5` and is an ancestor of this branch; A1 Draft remains `2307231`; A2 development moved to `19e6880` but was inspected only as non-main calibration evidence and was not promoted into current authority.
+- The sealed rc.2 bundle, signed archive, Release Artifact manifest, and hashed release inputs were not rewritten.
+
+## 2026-07-13 - GitHub App And Required-check Resolver Closure
+
+- Added a sanitized repository installation readback and protected every live GitHub read path with a server-approved HTTPS origin check.
+- Added `a3_github_deployment_receipt_resolver.mjs` for the GitHub App and required-check Deployment Handoff blockers.
+- Bound resolver output to server-fixed repo/branch/check/App/candidate/Run/five-level scope and canonical evidence SHA-256.
+- A GitHub App can pass only with provider installation readback, matching Check App identity, and a hash-valid A1 tenant binding receipt.
+- Required-check enforcement can pass only with branch-policy readback, a hash-valid failing-merge denial, and a hash-valid maintainer approval receipt.
+- Real read-only calibration of PR #35 head `8d82fd4` confirmed Check `86746616300` is successful but owned by `github-actions`; installation readback returned HTTP 401; main required-check returned HTTP 404.
+- Those facts remain rejected/not proven. Golden Path stays `7/11`, Deployment Acceptance stays `8/17`, current authority stays `integrity_invalid`, current A2 decision stays `unknown`, historical decision stays `block`, and production verified receipt count stays `0`.
+- Focused resolver, integration, observer, Store, API, and release tests passed before the final regression run.
+- No token, cookie, email, account login, raw response, local path, or secret was persisted; no GitHub mutation or sealed rc.2 rewrite occurred.
+- Final A3 Node regression passed `449/449`; merged-main A2 passed `186/186` plus `1050` subtests.
+- Next.js TypeScript and production build passed with 15 static pages. The full 38-test Playwright command completed successfully; its one retried visual case then passed independently `1/1`.
+- CL hygiene passed with no findings; Commercial CL passed with 0 blockers and 0 advisories; root and Webapp production npm audits reported 0 vulnerabilities.
+- Pinned evidence passed `11/11`; sealed rc.2 bundle passed `15/15` plus custody `7/7`; archive passed `16/16` with valid Ed25519 signature; release manifest hash remained `8f84c5e3d4f064ae5d042b0f8ef72f2a3fb4d7ae06eb0a7d4dea01dc113d5a2f`.
+- Final fetch kept authoritative `origin/main` at `ccf6ce5` and A1 Draft at `2307231`. A2 development advanced to `d31aaab`; its multimodal runtime, provider receipt, JSONL, and PostgreSQL qualification additions were inspected as non-main calibration only. That branch still defers a same-candidate Trusted Spine, so A3 did not merge it or change current authority.
+
+## 2026-07-13 - A1-backed Self-host Sandbox Calibration
+
+- Re-read the enterprise strategy, latest known main, A1 Draft `2307231`, A2 development `d31aaab`, current A3 deployment contracts, PR #35, and green CI before editing.
+- A fresh `git fetch origin --prune` timed out on GitHub port 443, while `gh pr list` still confirmed PR #35 is clean with its previous CI green. No non-main peer ref was promoted to authority.
+- Added a real local A1 probe covering control-plane health, worker retry/heartbeat/dead-letter, expired-lease recovery, object write/readback, and tamper detection.
+- Added a Node child-process boundary with no shell, an allowlisted environment, execution timeout, output limit, schema validation, SHA-256, and secret/path scans.
+- Generated `fixtures/a3/p3/a3_self_host_sandbox_calibration_20260713.redacted.json`; it records `4/4` sandbox checks and five explicit production gaps.
+- Added tenant-scoped Store access and SQLite migration `019_self_host_sandbox_calibrations`; restart verification preserves the record with all production authority flags false.
+- Added protected `GET /api/a3/deployment/sandbox-calibration`, `deployment:read`, hosted access audit/outbox, cross-scope denial, OpenAPI runtime parity `58/58`, commercial contract mapping, DB contract, and API Reference v7.
+- Added a Chinese-first bilingual self-host operations panel with loading, ready, partial, empty, failed, denied, and retry states.
+- The UI states prominently that sandbox `4/4` does not change Deployment Acceptance `8/17` and cannot recompute A2.
+- Focused Python passed `2/2`; sandbox Node passed `4/4`; Store/API/SQLite and adjacent contracts passed; Webapp TypeScript passed; Next.js produced 15 static pages.
+- Focused Playwright passed `2/2`, including desktop/mobile rendering and partial/denied/empty/failed/retry behavior.
+- Saved and visually inspected desktop and 390 x 844 screenshots. The page has no document-level overflow; the mobile screenshot centers the sandbox-vs-production boundary.
+- Added the implementation record and Growth Auditor Round 18 with 24 executable next steps.
+- `.env.local`, Ashr API, external network credentials, cookies, emails, signed URLs, raw object bytes, and temporary paths were not used or persisted.
+- Current truth remains Golden Path `7/11`, Deployment Acceptance `8/17`, authority `integrity_invalid`, current A2 decision `unknown`, historical A2 decision `block`, production receipts `0`, and production ready `false`.
+- The sealed rc.2 bundle, archive, Release Artifact manifest, and hashed release inputs were not rewritten.
+- Final regression passed A3 Node `458/458`, current-main A2 `186/186` plus `1050` subtests, Next.js typecheck/build with 15 static pages, and full Playwright `40/40`.
+- CL hygiene passed with no findings; Commercial CL passed with 0 blockers and 0 advisories; root and Webapp production npm audits both reported 0 vulnerabilities.
+- Sealed rc.2 revalidation passed Audit Bundle `15/15`, custody `7/7`, signed archive `16/16`, and Release Artifact manifest hash `8f84c5e3d4f064ae5d042b0f8ef72f2a3fb4d7ae06eb0a7d4dea01dc113d5a2f` without rewriting any sealed input.
+- Git HTTPS fetch remained unavailable, but authenticated GitHub API readback confirmed `main=ccf6ce5`, PR #35 remote head `19476d4`, A1 Draft `2307231`, and A2 development `d31aaab`; this branch is 0 commits behind current main.
+
+## 2026-07-13 - Live Local PostgreSQL RLS Qualification
+
+- Re-read the enterprise Release strategy, current main, A1/A2 peer refs, Deployment Acceptance gaps, and Growth Auditor Round 18 before selecting the next task.
+- Found a real local PostgreSQL 17.9 service and client binaries. The installed service required unknown SCRAM credentials, so no authentication file, password, or existing database was modified.
+- Started an isolated loopback-only PostgreSQL test instance in ignored workspace runtime storage and kept it separate from the user's installed database data.
+- Kept published migration `019_self_host_sandbox_calibrations` unchanged and added `020_self_host_sandbox_scope_hardening` with a five-level composite primary key upgrade, scope-first digest uniqueness, `ENABLE ROW LEVEL SECURITY`, `FORCE ROW LEVEL SECURITY`, and exact five-setting `USING`/`WITH CHECK` policy.
+- Added `a3_postgres_rls_probe.mjs` and CLI with no shell, allowlisted environment, timeout/output limits, no password/DSN CLI arguments, safe error classes, and mandatory cleanup.
+- Applied the migration 019-to-020 chain twice on PostgreSQL 17.9 and proved same-scope read/write, cross-scope zero-row read, RLS-denied write, missing-scope zero-row read, forced policy state, and a non-superuser/non-bypass runtime role.
+- Generated `fixtures/a3/p3/a3_postgres_rls_qualification_20260713.redacted.json` and attached it to the existing self-host calibration fixture.
+- Independently queried the database after the probe: remaining probe rows were `0` and the temporary probe role did not exist.
+- Added Store/API/SQLite payload integration, OpenAPI schema, API Reference v8, Chinese-first Delivery UI, focused tests, E2E assertions, and desktop/mobile evidence.
+- Added the implementation record and Growth Auditor Round 19 with 24 executable next steps.
+- Preserved Golden Path `7/11`, Deployment Acceptance `8/17`, current authority `integrity_invalid`, current A2 decision `unknown`, historical A2 `block`, production receipts `0`, and production ready `false`.
+- No existing PostgreSQL authentication, database, Ashr key, LLM key, token, cookie, email, DSN, host, username, raw SQL output, or local path was written to public evidence.
+- Final A3 Node regression passed `463` runnable tests with one explicit target-PostgreSQL live opt-in skip; current-main A2 passed `186/186` plus `1050` subtests; A3 Python passed `2/2` outside the restricted temporary-directory boundary.
+- Next.js typecheck and production build passed with 15 static pages; full Playwright passed `40/40`, including desktop/mobile PostgreSQL qualification rendering.
+- OpenAPI runtime parity remained `58/58`; Commercial CL passed with 0 blockers/advisories, hygiene CL had no findings, and root/Webapp production npm audits found 0 vulnerabilities.
+- Sealed rc.2 revalidation passed Bundle `15/15`, custody `7/7`, signed archive `16/16`, and Release Artifact manifest hash `8f84c5e3d4f064ae5d042b0f8ef72f2a3fb4d7ae06eb0a7d4dea01dc113d5a2f` without rewriting sealed inputs.
+- Final synchronization kept authoritative `origin/main` at `ccf6ce5` and A1 Draft at `2307231`. A2 development advanced to `b778e11`; its additive multimodal runtime and composite-agent receipt schemas were inspected as non-main compatibility evidence, with `qualified_for_review` kept distinct from PASS and A2 release authority.
+## 2026-07-13 - WeChat Enterprise Release Center
+
+- Re-read the enterprise Release strategy and current A1/A2 product projections before changing the client surface.
+- Replaced the two-page static WeChat shell with four Chinese-first pages: 发布工作台、发布审批、风险告警、账户与连接.
+- Added explicit `preview` and `connected` modes; preview data is labeled and cannot perform a production mutation.
+- Added an HTTPS-only, route-allowlisted API client with no embedded Authorization header or persistent credential storage.
+- Added fail-closed request and response screening for tokens, cookies, passwords, API keys, signed URLs, bearer material, GitHub tokens, OpenAI-like keys, and PostgreSQL DSNs.
+- Mapped real `/api/a3/health` `ok: true`, Dashboard evidence spine, Release Evidence v2, readbacks, and UI-action preflight into the mobile product model.
+- Preserved A1/A2 provenance internally while rendering customer terms: execution evidence, evaluation result, release decision, and human review.
+- Mapped valid A1/A2 source-artifact SHA-256 references into preflight evidence; missing hashes remain missing and cannot be inferred.
+- Kept approval and denial as `reviewer.approve` / `reviewer.deny` preflight only; no release decision write is performed.
+- Added loading, ready, partial, empty, error, retry, pull-to-refresh, alert filtering, detail timeline, blocker, and connection diagnostic states.
+- Removed prominent internal lane badges from the Webapp brand, source selector, Overview, Login, Delivery, API Reference, and adjacent customer-facing copy while keeping internal contracts unchanged.
+- Productized the remaining customer-visible loading text, identity errors, and API Reference descriptions, authentication notes, sources, and boundaries; internal owner keys and provenance remain unchanged for integration.
+- Kept `touristappid`; real WeChat identity, payment, subscription messages, review mutation, upload, audit, and publication remain explicitly unimplemented.
+- Added focused Node contract/security/normalization tests and updated the mini-program implementation record.
+- Added a static browser layout preview and four 390 x 844 screenshots for workbench, approval, incidents, and account; the preview is explicitly not WeChat Developer Tools or device publication proof.
+- Visually inspected all four final-frame screenshots after correcting a preview-only inherited button color and waiting for route animations to finish.
+- Final A3 Node regression passed `468` tests with `1` explicit live-target PostgreSQL skip and `0` failures.
+- Full Playwright passed `41/41`, including the new four-page mini-program preview, existing dashboard, and Next.js product routes.
+- Webapp TypeScript and the production build passed; Next.js generated `15` static pages.
+- CL hygiene passed with no findings. Commercial CL passed with `0` blockers and `0` advisories. `git diff --check` passed.
+- `.env.local` remains ignored and absent from Git status. No key, token, cookie, email, account identity, signed URL, or real customer data was added.
+- `origin/main` at the last successful fetch remains `ccf6ce5` and is an ancestor of this branch. A final `git fetch origin --prune` attempt was reset by the GitHub connection, so no newer remote state is claimed.
+
+## 2026-07-14 - Multimodal Disagreement Review Queue
+
+- Re-fetched authoritative `origin/main=ccf6ce5`, A1 development `2307231`, and A2 development `564d4b0`; this branch remains 0 commits behind main before publication.
+- Inspected A2 Rounds 38-48, including two-way v3 repeats/aggregates, real-review receipts, three-way v2, four-way v1, bounded provider execution, and exact candidate binding.
+- Preserved backward-compatible A2 two-way v1 ingestion and added strict two-way v3 repeat/aggregate validation.
+- Copied the real A2 public-safe Round 41 unstable comparison into `fixtures/a3/p3` without raw model payloads or media.
+- Added review-receipt conservation, comparison-artifact binding, repeat identity, aggregate instability, SHA-256 checks, five-level tenant scope, and fail-closed sensitive-material screening.
+- Kept three-way v2 and four-way v1 pending because no generated public-safe artifact using those exact schema versions was found at the inspected peer ref.
+- Added protected import/read APIs with idempotency, RBAC, cross-tenant 404 behavior, metadata-only audit, event outbox, and Memory/JSON/SQLite durability.
+- Added the multimodal queue to Dashboard, JSON, Markdown, shareable report payload, report redaction, OpenAPI runtime parity, and API Reference v9.
+- Updated the Chinese-first Review page with repeat versus aggregate labels, unstable-repeat language, localized queue/capability states, and no internal lane badges.
+- Saved and visually inspected desktop and 390 x 844 screenshots; no overlap or document-level horizontal overflow was found.
+- Added `docs/a3/a3_multimodal_disagreement_review_2026_07_14.md` and Growth Auditor Round 20 with 24 executable next steps.
+- Preserved Golden Path `7/11`, Deployment Acceptance `8/17`, current authority `integrity_invalid`, current A2 decision `unknown`, historical A2 decision `block`, production receipts `0`, and production ready `false`.
+- Final A3 Node regression passed `476` tests with one explicit target-PostgreSQL opt-in skip and zero failures; current-main A2 passed `186/186`.
+- Next.js TypeScript/build passed with 15 static pages; full Playwright passed `42/42`; OpenAPI runtime parity passed `60/60`.
+- CL hygiene passed with zero findings; Commercial CL passed with zero blockers/advisories; root and Webapp production npm audits found zero vulnerabilities; `git diff --check` passed.
+- `.env.local` remains ignored. No key, token, cookie, email, account identity, signed URL, raw provider payload, private media, or local account path was added.
+- The sealed rc.2 bundle, archive, release artifact, Deployment Acceptance, and A2 Decision Ledger were not rewritten.
+
+## 2026-07-14 - Multimodal Reviewer Assignment and Lease Workflow
+
+- Re-checked `origin/main=ccf6ce5`, A1 peer `2307231`, and latest A2 peer `1553562` before implementation.
+- Inspected A2 Round 49 real DashScope calibration, perturbation comparison, review conservation schema, human-review schemas, PostgreSQL qualification, and Trusted Spine binding recheck.
+- Recorded exact public-safe measurements: 50 requested, 49 completed, 48 eligible, sensitivity `0.6364`, specificity `0.9333`, P95 `10.373s`, and qualification `blocked`.
+- Confirmed that A2 exposes only a `test_review_fixture` disposition artifact, not a public-safe real human-review receipt; no human result was fabricated.
+- Added append-only multimodal review assignment events with claim, renew, release, transfer, expiry, and reclaim transitions.
+- Added `expected_version` optimistic concurrency and header-only idempotency; stale or competing writes return sanitized conflicts.
+- Added protected assignment API, `release:review` RBAC, five-level scope, cross-tenant 404, metadata-only audit, outbox and usage metering.
+- Added Memory, JSON-file, and SQLite persistence plus SQL migrations 021 and 022 with a PostgreSQL forced-RLS contract.
+- Added assignment status to Dashboard, JSON, Markdown, Hosted Report, OpenAPI runtime parity, commercial API contract, API Reference v10, and the Chinese-first Review page.
+- Preserved all authority boundaries: assignment is not disposition; A3 did not change risk, score, pass/fail, failure class, Decision Ledger or release readiness.
+- Added implementation evidence, exact peer calibration fixture, focused unit/API/store tests, and Growth Auditor Round 21 with 22 executable next steps.
+- Final A3 Node regression passed `479` runnable tests with one explicit live-target PostgreSQL opt-in skip and zero failures; current-main A2 passed `186/186`.
+- Next.js TypeScript/build passed with 15 static pages; full Playwright passed `42/42`; OpenAPI runtime parity passed `61/61`.
+- CL hygiene passed with zero findings; Commercial CL passed with zero blockers/advisories; root and Webapp production npm audits found zero vulnerabilities; `git diff --check` passed.
+- Saved and visually inspected desktop and 390 x 844 review-queue screenshots; both have no document-level horizontal overflow.
+- `.env.local` remains ignored. No key, token, cookie, email, account identity, signed URL, raw provider payload, private media, or local account path was added.
+- GitHub CI remains pending publication; no remote result is claimed in this local validation entry.
+
+## 2026-07-14 - Signed Multimodal Review Assignment Packet
+
+- Re-fetched `origin/main=ccf6ce5`, A1 peer `2307231`, and A2 peer `1553562`; the branch was 0 commits behind main before implementation.
+- Re-read the authoritative enterprise strategy and confirmed A3 owns review workflow, report, artifact, UI and audit projection while A2 retains disposition and release authority.
+- Confirmed A1 still lacks the complete hosted browser identity/CSRF path and A2 still lacks a public-safe real human disposition; neither was fabricated.
+- Strengthened assignment event validation with exact field allowlisting, event id/hash recomputation, tenant/subject binding, secret screening and fail-closed invalid-event exclusion.
+- Added `a3.multimodal_review_assignment_packet.v1` with contiguous version, reviewer transition, timestamp, scope, queue/case/comparison and packet-root verification.
+- Added a standalone packet build/verify CLI and a Gate CLI `--multimodal-review-packet` input that accepts only internally verified packets as `review_record` artifacts.
+- Generated a new review packet, Audit Bundle and Ed25519 Audit Archive without rewriting the historical rc.2 bundle.
+- Verified the packet root, all three bundle artifacts, custody chain, archive root and Ed25519 signature; signer identity remains explicitly `self_signed_local_key_not_sso_bound`.
+- Added packet and metadata-only assignment history to Dashboard, JSON/Markdown/Hosted Report, Artifact Registry and the new `multimodal_review_packet` preset.
+- Upgraded API Reference to v11 and documented the signed-archive boundary in the commercial API contract.
+- Added a Chinese-first audit-evidence panel and native keyboard-expandable assignment history to the Review page.
+- Playwright now performs a protected assignment API claim before rendering, checks keyboard expansion and captures desktop/mobile evidence without horizontal overflow.
+- Added five committed redacted evidence fixtures plus packet, bundle, archive, tamper, CLI, report, registry and API tests.
+- Preserved Golden Path `7/11`, Deployment Acceptance `8/17`, current authority `integrity_invalid`, current A2 decision `unknown`, historical A2 decision `block`, production receipts `0`, and production ready `false`.
+- Final A3 Node regression passed `486` runnable tests with `1` explicit live-target PostgreSQL skip and `0` failures.
+- Current-main A2 passed `186/186` test files with `1050` subtests; A3 did not alter or recompute A2 judgement semantics.
+- Next.js TypeScript and production build passed with `15` pages; full Playwright passed `42/42`.
+- CL hygiene passed with `0` findings; Commercial CL passed with `0` blockers and `0` advisories.
+- Root and Webapp production dependency audits each reported `0` vulnerabilities.
+- Offline packet verification passed; the new Audit Bundle verified `3/3` artifacts and its custody chain; the Audit Archive root and Ed25519 signature verified.
+- GitHub CI remains pending publication; no remote result is claimed in this local validation entry.
+
+## 2026-07-14 - A2 Round 50 Three-provider Review Intake
+
+- Started from clean A3 head `a13e9ae`, authoritative main `ccf6ce5`, and zero commits behind main.
+- `git fetch origin --prune` stalled in Git HTTPS transport; terminated only the hung fetch processes and used authenticated GitHub API readback instead of treating stale local refs as current.
+- Confirmed A1 peer `770ccc8` adds live PostgreSQL identity lifecycle evidence and A2 peer `bb3bcfe` adds a real public-safe three-way v2 artifact, review conservation and shared-candidate schema.
+- Confirmed A2 Round 50 has 74 three-provider comparisons, one semantic disagreement, one queue receipt, zero real human-review receipts, blocked candidate binding and release authority false.
+- Added a documented three-case redacted representative projection preserving real hashes, provider states and the queue receipt while recomputing subset summaries.
+- Validated the same adapter against the complete 74-case upstream artifact fetched into OS temp storage: `valid=true`, zero errors, three providers, one required review and one queue item; deleted the temporary file afterward.
+- Extended the multimodal adapter with exact three-provider key matching, state/eligible-count derivation, four-state summary, three pairwise summaries, receipt conservation and sensitive-material rejection.
+- Added `p3-a2-round50` to fixture Store, API defaults, Next.js source selector, customer labels and legacy source compatibility.
+- Preserved import RBAC, five-level tenant scope, Idempotency-Key, audit/outbox, assignment leases, optimistic concurrency and cross-tenant fail-closed behavior.
+- Proved the new schema survives API import, reviewer claim, Dashboard projection and SQLite restart without changing A2 decision or release authority.
+- Extended JSON, Markdown and Hosted Report with provider-set and provider-observation fields.
+- Generalized the Review page from a fixed left/right pair to dynamic two/three-provider observations and did not infer missing provider/model identity.
+- Extended OpenAPI to three-way v2 while keeping runtime parity `61/61`; upgraded API Reference to v12 and calibrated A1/A2 peer SHAs.
+- Saved and visually inspected desktop and 390 x 844 three-provider screenshots; the focused Playwright flow passed and reported no document-level horizontal overflow.
+- Added the implementation record and Growth Auditor Round 23 with 23 executable follow-ups.
+- Preserved Golden Path `7/11`, Deployment Acceptance `8/17`, current authority `integrity_invalid`, current A2 decision `unknown`, historical A2 `block`, production receipts `0`, and production ready `false`.
+- Final A3 Node regression passed `489` runnable tests with `1` explicit live-target PostgreSQL skip and `0` failures.
+- Current-main A2 passed `186/186` test files with `1050` subtests; A3 did not change A2 judgement semantics.
+- Next.js TypeScript/build passed with `15` pages; full Playwright passed `43/43`.
+- OpenAPI runtime parity passed `61/61`; CL hygiene had `0` findings and Commercial CL had `0` blockers/advisories.
+- Root and Webapp production dependency audits each reported `0` vulnerabilities; `git diff --check` passed.
+- `.env.local` remains ignored. No key, token, cookie, email, account identity, signed URL, raw provider payload, private media, or local account path was added.
+- GitHub CI remains pending publication; no remote result is claimed in this local validation entry.
+
+## 2026-07-14 - Multimodal Review Evidence Request Workflow
+
+- Authenticated GitHub readback confirmed main `ccf6ce5`, A1 peer `6a985b8`, latest A2 peer `7504680`, and PR #35 open, Draft, clean; the exact consumed A2 Round 50 source remains `bb3bcfe`.
+- Inspected A1 `6a985b8` identity-authority readiness hardening; kept it peer-only and preserved A3's non-production reviewer-identity boundary.
+- Inspected A2 Round 51 multi-repeat and review-collection evidence: three retained calibrations remain blocked, review collection is pending with zero receipts, shared-candidate verification is false, and the new schema remains peer-only/not ingested.
+- Continued from A2 Round 50 three-provider intake and the existing A3 reviewer assignment lease; no new A2 disposition was invented.
+- Added a hash-only evidence-request state machine: request, submit, accept, reject/reopen, cancel, and time-derived overdue.
+- Allowed only controlled A1 execution/tool/artifact, A2 Judge/review, media, provider-identity, and candidate-binding SHA-256 references.
+- Rejected raw media, raw payloads, URLs, signed URLs, local paths, email, identity, secrets, free text, unknown fields, and incomplete submissions.
+- Required active assignment ownership for create/review, `project:ingest` for submit, header-only idempotency, and optimistic `expected_version`.
+- Added full event-chain validation for hashes, versions, predecessor, lifecycle, time, five-level scope, queue/case/comparison/request binding, and immutable fields.
+- Added four protected API routes with sanitized denial/conflict behavior, metadata-only audit, Event Outbox, and `multimodal_review_evidence_request_actions` usage metering.
+- Added Memory, JSON-file, and SQLite restart persistence plus PostgreSQL migrations 023/024 with forced-RLS contract tests.
+- Added request lifecycle data to Dashboard, JSON, Markdown and Hosted Report while keeping raw evidence and signed media URLs excluded.
+- Added a Chinese-first Review panel with create, accept, reject, cancel, loading, success, denied, conflict, failed, retry, empty and deadline states.
+- Upgraded API Reference to v13, commercial endpoint coverage to 44, and OpenAPI runtime parity from `61/61` to `65/65`.
+- Fixed the tenant-resource-isolation regression expectation to include the new scoped event collection; no foreign record exposure occurred.
+- Saved and visually inspected desktop and 390 x 844 screenshots with no text overlap or document-level horizontal overflow.
+- Added the Round 24 implementation record and Growth Auditor Round 24 with 24 executable next steps.
+- Preserved Golden Path `7/11`, Deployment Acceptance `8/17`, current authority `integrity_invalid`, current A2 decision `unknown`, historical A2 decision `block`, production receipts `0`, and production ready `false`.
+- Final A3 Node regression passed `498` runnable tests with `1` explicit target-PostgreSQL opt-in skip and `0` failures.
+- Current-main A2 passed `186/186` test files plus `1050` subtests; A3 did not alter or recompute A2 judgement semantics.
+- Next.js TypeScript and production build passed with `15` pages; full Playwright passed `44/44`.
+- OpenAPI runtime parity passed `65/65`; CL hygiene had `0` findings and Commercial CL had `0` blockers/advisories.
+- Root and Webapp production dependency audits each reported `0` vulnerabilities.
+- `.env.local` remains ignored. No key, token, cookie, email, account identity, signed URL, raw provider payload, private media, or local account path was added.
+- Published feature commit `565cec7` to Draft PR #35; GitHub Actions run `29322903320` passed every applicable check. TypeScript SDK, Go SDK and Rust verifier were path-plan skipped, not failed.
+
+## 2026-07-14 - A2 Round 51 Multi-repeat Stability Intake
+
+- Re-fetched remote state successfully: authoritative main remains `ccf6ce5`, current A1 peer is `81f7e9e`, current A2 peer and exact Round 51 source are `7504680`, and Draft PR #35 remains open and clean before publication.
+- Inspected A1's dedicated registration/login and verified-proof hardening as peer-only evidence; updated API Reference metadata without enabling non-main identity behavior.
+- Ingested one public-safe atomic envelope combining A2 multi-repeat comparison, real-review collection, review conservation and shared-candidate verification.
+- Preserved the exact A2 facts: three complete 45-unit repeats, three blocked retained calibrations, zero qualified repeats, one pending review queue receipt, zero human dispositions and unverified shared-candidate binding.
+- Added exact allowlists, count/ratio/hash conservation, binding validation and secret/URL/email/path rejection.
+- Deliberately fail closed on non-empty human-review receipts until A2 publishes their exact authoritative object schema.
+- Added `a3.multimodal_repeat_stability.v1` with `blocked_stable_repeat`, `stable_observation=true`, `quality_qualified=false`, `release_authority=false` and `production_ready=false`.
+- Added `p3-a2-round51` fixture source plus Memory, JSON-file and SQLite persistence/restart support.
+- Added protected import/read APIs with `project:ingest` and `release:review`, five-level scope, header-only idempotency, sanitized cross-tenant 404, metadata-only audit, Event Outbox and usage metering.
+- Added repeat stability to Dashboard snapshot, JSON, Markdown and Hosted Report while excluding raw Provider payloads, identity, URLs, signed media links and private media.
+- Added a Chinese-first responsive Review panel with 3 repeats, 45 required units, 3 blocked repeats, 0 human dispositions and metric rows for 95%, 20%, 30% and 60%.
+- Kept customer-facing UI free of A1/A2/A3 internal lane badges and explicitly stated that stable evidence does not change release authority.
+- Upgraded API Reference to v14, commercial contract coverage from 44 to 46 endpoints and OpenAPI runtime parity from `65/65` to `67/67`.
+- Saved and visually inspected desktop and 390 x 844 screenshots; no overlap or document-level horizontal overflow was found.
+- Added the Round 25 implementation record and Growth Auditor Round 25 with 25 executable follow-ups.
+- Final A3 Node regression passed `505` runnable tests with `1` explicit target-PostgreSQL opt-in skip and `0` failures.
+- Current-main A2 passed `186` tests plus `1050` subtests; A3 did not change or recompute A2 judgement semantics.
+- Next.js TypeScript/build passed with `15` pages; full single-worker Playwright passed `45/45`.
+- CL hygiene passed with `0` findings; Commercial CL passed with `0` blockers and `0` advisories.
+- Root and Webapp production dependency audits each reported `0` vulnerabilities.
+- `.env.local` remains ignored. No key, token, cookie, email, account identity, signed URL, raw Provider payload, private media or local account path was added.
+- Golden Path remains `7/11`, Deployment Acceptance remains `8/17`, current authority remains `integrity_invalid`, current A2 decision remains `unknown`, historical A2 remains `block`, production receipts remain `0`, and production ready remains false.
+- Published feature commit `456a193` to Draft PR #35. GitHub Actions CL Gate run `29329313569` passed Plan/Hygiene, A3 contracts, Next.js/Playwright, Python A1/A2 contracts, pinned evidence, Golden Path artifact and the final summary. TypeScript SDK, Go SDK and Rust verifier were path-plan skipped, not failed.
+
+## 2026-07-14 - A2 Round 51 Multimodal Provider Readiness Intake
+
+- Re-checked authoritative main `ccf6ce5`, latest A1 peer `f3071aa`, exact A2 Round 51 source `7504680`, the enterprise strategy and Draft PR #35 before implementation.
+- Inspected A1's atomic credential-link coordinator contract and kept unified-identity link routes `proposed` and `client_callable=false` in API Reference instead of enabling peer-only behavior.
+- Built one public-safe atomic envelope from A2 local multimodal availability comparison and Ollama phase-latency diagnostics.
+- Preserved the real A2 facts: 30 attempts, 1 completion, 29 failures, 29 timeouts, 0 eligible outputs, 0 qualified Providers and 0/4 valid structured profiles.
+- Preserved cold wall time `74.299641s` and fastest warm wall time `1.64026s` as diagnostics only; no health, quality or release promotion was derived.
+- Added exact nested field allowlists, count conservation, latency ordering, phase residual, model binding, hash, release-boundary and sensitive-material validation.
+- Rejected raw Provider payloads, raw responses, endpoints, URLs, signed URLs, credentials, email, DSNs, local account paths, model binaries and private media.
+- Added `a3.multimodal_provider_readiness.v1` with `blocked_provider_readiness`, `operational_health_verified=false`, `release_authority=false` and `production_ready=false`.
+- Extended `p3-a2-round51` plus Memory, JSON-file and SQLite persistence/restart support.
+- Added protected import/read APIs with `project:ingest` and `release:review`, five-level scope, header-only idempotency, sanitized cross-tenant 404, metadata-only audit, Event Outbox and usage metering.
+- Added Provider readiness to Dashboard, Review queue, JSON, Markdown and Hosted Report without exposing private evidence.
+- Added two commercial `/v1/providers/multimodal/readiness` endpoints, taking commercial endpoint coverage from 46 to 48.
+- Added strict OpenAPI request/envelope/receipt/projection schemas and raised runtime parity from `67/67` to `69/69`.
+- Upgraded API Reference to v15 with A1 peer `f3071aa`, A2 source `7504680`, both Provider routes and explicit authority boundaries.
+- Added a Chinese-first standalone Delivery React component with empty state, 30/1/29/29/0 metrics, 0/4 profiles, two model rows, cold/warm latency and authority explanation.
+- Kept customer-facing UI free of internal lane badges and explicitly rendered “变快不等于可用，安装成功不等于质量合格”.
+- Saved and visually inspected desktop and 390 x 844 screenshots; no text overlap or document/body horizontal overflow was found.
+- Added the Round 26 implementation record and Growth Auditor Round 26 with 26 executable next steps.
+- Focused Provider/OpenAPI/API Reference suite passed `28/28`.
+- Final A3 Node regression passed `513` runnable tests with `1` explicit target-PostgreSQL opt-in skip and `0` failures.
+- Current-main A2 passed `186/186`; A3 did not change or recompute A2 judgement semantics.
+- Next.js TypeScript/build passed with `15` pages; full single-worker Playwright passed `46/46`.
+- CL hygiene passed with `0` findings; Commercial CL passed with `0` blockers and `0` advisories.
+- Root and Webapp production dependency audits each reported `0` vulnerabilities.
+- `.env.local` remains ignored. No key, token, cookie, email, account identity, signed URL, raw Provider payload, private media or local account path was added.
+- Golden Path remains `7/11`, Deployment Acceptance remains `8/17`, current authority remains `integrity_invalid`, current A2 decision remains `unknown`, historical A2 remains `block`, production receipts remain `0`, and production ready remains false.
+- Published feature commit `1809513` to Draft PR #35. GitHub Actions CL Gate run `29338036122` passed Plan/Hygiene, A3 Node, Next.js/Playwright, Python A1/A2, pinned evidence, Golden Path artifact and final summary. TypeScript SDK, Go SDK and Rust verifier were changed-path skipped, not failed. GitHub action Node 20 deprecation notices remain a non-blocking workflow maintenance item.
+
+## 2026-07-15 - Round 27 multimodal release readiness
+
+- Fetched latest peers without merging them:
+  - A1 `566a13d`
+  - A2 `850b39a`
+  - main `ccf6ce5`
+- Added strict `a3.a2_multimodal_release_readiness_intake.v1` validation and `a3.multimodal_release_readiness.v1` projection.
+- Added public-safe Round 52 fixture and `p3-a2-round52` Dashboard source.
+- Preserved exact facts: 15 controls, specificity 1.0, sensitivity 0.6, balanced accuracy 0.8, 0/10 safe false positives, 3/5 attack detections, 0 local structured profiles, blocked quality, qualified stability, pending review, blocked PostgreSQL proof and invalid candidate binding.
+- Added A1 Round 68 boundary metadata after inspecting its authorized credential-binding regression; retained the Round 67 replay-retention fact without raw identity receipt material or a false client-route claim.
+- Added JSON, Markdown, Hosted Report, OpenAPI DashboardSnapshot, API Reference v16, Delivery React panel and WeChat workbench projection.
+- Fixed Dashboard service-clock propagation so assignment writes and reads use the same injected server time.
+- Saved desktop, mobile and WeChat screenshots.
+- Verification:
+  - focused Node: 137 passed
+  - full A3 Node: 519 passed, 0 failed, 1 explicit PostgreSQL opt-in skip
+  - current-main A2: 186/186 passed, 1050 subtests passed
+  - TypeScript and 15-page Next.js build passed
+  - Playwright: 47/47
+  - CL hygiene and commercial gate passed with zero findings
+  - root/Webapp audits: 0 vulnerabilities
+- Truth state unchanged: Golden Path 7/11, Deployment Acceptance 8/17, authority `integrity_invalid`, current A2 decision `unknown`, historical A2 decision `block`, production receipts 0, production_ready false.

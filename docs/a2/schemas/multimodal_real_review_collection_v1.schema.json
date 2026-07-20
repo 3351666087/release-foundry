@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.io/schemas/a2/multimodal_real_review_collection_v1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "collection_state",
+    "receipts",
+    "note",
+    "release_authority",
+    "public_safe"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "a2.multimodal_real_review_collection.v1"
+    },
+    "collection_state": {
+      "enum": [
+        "pending",
+        "partially_reviewed",
+        "reviewed"
+      ]
+    },
+    "receipts": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "note": {
+      "type": "string",
+      "minLength": 1
+    },
+    "release_authority": {
+      "const": false
+    },
+    "public_safe": {
+      "const": true
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "collection_state": {
+            "const": "pending"
+          }
+        },
+        "required": [
+          "collection_state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "receipts": {
+            "maxItems": 0
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "collection_state": {
+            "const": "reviewed"
+          }
+        },
+        "required": [
+          "collection_state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "receipts": {
+            "minItems": 1
+          }
+        }
+      }
+    }
+  ]
+}

@@ -92,7 +92,7 @@ test("A3 schema drift radar fails closed when critical A1/A2 fields disappear", 
 
 test("A3 API exposes schema drift radar behind audit RBAC", async () => {
   const store = await createFixtureBackedA3Store({ sources: ["mock"] });
-  const { server, url } = await startA3ApiServer({ store });
+  const { server, url } = await startA3ApiServer({ store, routeAccessMode: "demo_contract" });
   try {
     const denied = await fetch(`${url}/api/a3/a1-a2/schema-drift?source=mock`, {
       headers: { "x-a3-role": "viewer" }

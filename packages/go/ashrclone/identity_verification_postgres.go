@@ -698,14 +698,20 @@ func (coordinator *PostgresIdentityVerificationTransactionCoordinator) applyIden
 	var resultID string
 	switch command.Purpose {
 	case IdentityVerificationBinding:
+		if !validPostgresIdentityVerificationDigest(command.SessionDigest) ||
+			!validPostgresIdentityVerificationDigest(command.MutationTicketID) ||
+			!validPostgresIdentityVerificationDigest(command.StepUpReceiptID) {
+			return "", invalidPostgresIdentityVerificationProof()
+		}
 		err := tx.QueryRowContext(ctx, `
-SELECT a1_bind_verified_identity_credential(
-  $1::uuid, $2::uuid, $3, $4::uuid, $5, $6, $7, $8::jsonb
+SELECT a1_bind_verified_identity_credential_authorized(
+  $1::uuid, $2::uuid, $3, $4::uuid, $5, $6, $7, $8, $9, $10, $11::jsonb
 )::text
 `,
 			store.organizationID, store.projectID, receiptDigest,
-			command.AccountID, idempotencyDigest, requestDigest, eventDigest,
-			string(metadata),
+			command.AccountID, command.SessionDigest, command.MutationTicketID,
+			command.StepUpReceiptID, idempotencyDigest, requestDigest,
+			eventDigest, string(metadata),
 		).Scan(&resultID)
 		if err != nil {
 			return "", mapPostgresIdentityVerificationMutationError(err)
@@ -764,6 +770,15 @@ func validatePostgresIdentityVerificationCompletion(
 			return IdentityVerificationError{
 				Code:    "account_binding_required",
 				Message: "production credential binding requires an existing account_id",
+			}
+		}
+		if command.ActorID != command.AccountID ||
+			!validPostgresIdentityVerificationDigest(command.SessionDigest) ||
+			!validPostgresIdentityVerificationDigest(command.MutationTicketID) ||
+			!validPostgresIdentityVerificationDigest(command.StepUpReceiptID) {
+			return IdentityVerificationError{
+				Code:    "credential_binding_authorization_required",
+				Message: "production credential binding requires trusted recent authentication and step-up authorization",
 			}
 		}
 	} else if command.Purpose != IdentityVerificationLogin &&

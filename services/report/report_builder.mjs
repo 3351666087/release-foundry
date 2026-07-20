@@ -4130,6 +4130,10 @@ function objectOr(value) {
   return isObject(value) ? value : {};
 }
 
+function arrayOr(value) {
+  return Array.isArray(value) ? [...value] : [];
+}
+
 function isObject(value) {
   return value && typeof value === "object" && !Array.isArray(value);
 }
@@ -5275,7 +5279,7 @@ export function summarizeReleaseEvidenceSummary(releaseEvidenceFixture = {}) {
   };
 }
 
-export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}, productConsoleFixture = {}, saasAdminFixture = {}, a2ReadinessBundle = {}, artifactRegistryFixture = {}, releaseEvidenceFixture = {}, githubPublishEvidenceFixture = {}, peerBranchCalibrationFixture = {}, billingMigrationReadinessFixture = {}, notificationControlPlaneFixture = {}) {
+export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}, productConsoleFixture = {}, saasAdminFixture = {}, a2ReadinessBundle = {}, artifactRegistryFixture = {}, releaseEvidenceFixture = {}, githubPublishEvidenceFixture = {}, peerBranchCalibrationFixture = {}, billingMigrationReadinessFixture = {}, notificationControlPlaneFixture = {}, multimodalReviewQueueFixture = {}) {
   if (isArtifactRegistryFixture(a2ReadinessBundle) && !isArtifactRegistryFixture(artifactRegistryFixture)) {
     artifactRegistryFixture = a2ReadinessBundle;
     a2ReadinessBundle = {};
@@ -5336,6 +5340,16 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
   const notificationControlPlane = summarizeNotificationControlPlane(notificationControlPlaneFixture);
   const liveOpsControlPlane = summarizeLiveOpsControlPlaneExport(notificationControlPlaneFixture.live_ops_control_plane || {});
   const peerBranchCalibration = summarizeA3PeerBranchCalibration(peerBranchCalibrationFixture);
+  const multimodalReviewQueue = summarizeMultimodalReviewQueueExport(multimodalReviewQueueFixture);
+  const multimodalRepeatStability = summarizeMultimodalRepeatStabilityExport(
+    multimodalReviewQueueFixture.repeat_stability || {}
+  );
+  const multimodalProviderReadiness = summarizeMultimodalProviderReadinessExport(
+    multimodalReviewQueueFixture.provider_readiness || {}
+  );
+  const multimodalReleaseReadiness = summarizeMultimodalReleaseReadinessExport(
+    multimodalReviewQueueFixture.release_readiness || {}
+  );
   const clusters = clusterFailures(runFixture, gradeFixture);
   const cases = normalizeCases(runFixture, gradeFixture);
   const lines = [
@@ -5659,6 +5673,141 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
     for (const item of reviewerWorkflowBoard.items) {
       lines.push(`- ${item.case_id}: ${item.review_state} / ${item.owner_lane} / missing ${item.missing_artifacts.join(", ") || "none"} - ${item.next_action}`);
     }
+    lines.push("");
+  }
+
+  if (multimodalReviewQueue.available) {
+    lines.push(
+      "## Multimodal Disagreement Review",
+      "",
+      `- Status: ${multimodalReviewQueue.status}`,
+      `- Capability state: ${multimodalReviewQueue.capability_state}`,
+      `- Compared cases: ${multimodalReviewQueue.summary.comparison_count}`,
+      `- Providers per comparison: ${multimodalReviewQueue.summary.provider_count}`,
+      `- Repeat comparisons: ${multimodalReviewQueue.summary.repeat_comparison_count}`,
+      `- Aggregate comparisons: ${multimodalReviewQueue.summary.aggregate_comparison_count}`,
+      `- Three-way agreements: ${multimodalReviewQueue.summary.three_way_agreement}`,
+      `- Pairwise agreements with unavailable provider: ${multimodalReviewQueue.summary.pairwise_agreement_with_unavailable}`,
+      `- Semantic disagreements: ${multimodalReviewQueue.summary.semantic_disagreement}`,
+      `- Internally unstable aggregates: ${multimodalReviewQueue.summary.internally_unstable}`,
+      `- Awaiting human review: ${multimodalReviewQueue.summary.review_required_count}`,
+      `- Actively assigned: ${multimodalReviewQueue.summary.assignment_active_count}`,
+      `- Unassigned: ${multimodalReviewQueue.summary.assignment_unassigned_count}`,
+      `- Expired leases: ${multimodalReviewQueue.summary.assignment_expired_count}`,
+      `- Assignment events: ${multimodalReviewQueue.summary.assignment_event_count}`,
+      `- Evidence requests: ${multimodalReviewQueue.summary.evidence_request_count}`,
+      `- Evidence requests open: ${multimodalReviewQueue.summary.evidence_request_open_count}`,
+      `- Evidence requests overdue: ${multimodalReviewQueue.summary.evidence_request_overdue_count}`,
+      `- Evidence submitted for review: ${multimodalReviewQueue.summary.evidence_request_submitted_count}`,
+      `- Evidence requests accepted: ${multimodalReviewQueue.summary.evidence_request_accepted_count}`,
+      `- Can change release decision: ${multimodalReviewQueue.authority_boundary.can_change_release_decision ? "yes" : "no"}`,
+      `- Candidate binding verified: ${multimodalReviewQueue.authority_boundary.candidate_binding_verified ? "yes" : "no"}`,
+      ""
+    );
+    lines.push("### Disagreement Queue", "");
+    for (const item of multimodalReviewQueue.items) {
+      const providerComparison = item.provider_observations?.length
+        ? item.provider_observations.map((provider) => {
+            const observation = provider.observed_risk === true
+              ? "risk observed"
+              : provider.observed_risk === false
+                ? "no risk observed"
+                : "unavailable";
+            return `${provider.provider_key}=${observation}`;
+          }).join(" vs ")
+        : `${item.left_model}=${item.left_observed_risk} vs ${item.right_model}=${item.right_observed_risk}`;
+      const evidenceRequestState = item.evidence_requests?.length
+        ? item.evidence_requests.map((request) => `${request.status} v${request.version}`).join(", ")
+        : "none";
+      lines.push(`- ${item.case_id}: ${item.comparison_scope}${item.repeat ? ` #${item.repeat}` : ""} / ${providerComparison} / ${item.queue_state} / assignment ${item.assignment_status} v${item.assignment_version} / evidence requests ${evidenceRequestState} / release authority no`);
+    }
+    lines.push("");
+  }
+
+  if (multimodalRepeatStability.available) {
+    lines.push(
+      "## Multimodal Repeat Stability",
+      "",
+      `- Status: ${multimodalRepeatStability.status}`,
+      `- Interpretation: ${multimodalRepeatStability.interpretation}`,
+      `- Repeats: ${multimodalRepeatStability.summary.repeat_count}`,
+      `- Required source units per repeat: ${multimodalRepeatStability.summary.required_source_unit_count}`,
+      `- All required units complete: ${multimodalRepeatStability.summary.all_required_units_complete ? "yes" : "no"}`,
+      `- Stable observation: ${multimodalRepeatStability.summary.stable_observation ? "yes" : "no"}`,
+      `- Retained blocked repeats: ${multimodalRepeatStability.summary.retained_blocked_count}`,
+      `- Quality qualified: ${multimodalRepeatStability.summary.quality_qualified ? "yes" : "no"}`,
+      `- Promotion eligible: ${multimodalRepeatStability.summary.promotion_eligible ? "yes" : "no"}`,
+      `- Human review: ${multimodalRepeatStability.human_review.collection_state} / ${multimodalRepeatStability.human_review.receipt_count} authoritative receipt(s)`,
+      `- Pending queue receipts: ${multimodalRepeatStability.human_review.pending_queue_receipt_count}`,
+      `- Shared candidate verified: ${multimodalRepeatStability.candidate_binding.verified ? "yes" : "no"}`,
+      `- Release authority: ${multimodalRepeatStability.authority_boundary.release_authority ? "yes" : "no"}`,
+      ""
+    );
+    lines.push("### Repeat Metrics", "");
+    for (const metric of multimodalRepeatStability.metrics) {
+      lines.push(`- ${metric.metric_id}: ${metric.repeat_estimates.join(" / ")} / complete ${metric.complete_across_repeats ? "yes" : "no"}`);
+    }
+    lines.push("", "### Blocking Conditions", "");
+    for (const blocker of [
+      ...multimodalRepeatStability.blockers,
+      ...multimodalRepeatStability.candidate_binding.blockers
+    ]) {
+      lines.push(`- ${blocker}`);
+    }
+    lines.push("");
+  }
+
+  if (multimodalProviderReadiness.available) {
+    lines.push(
+      "## Multimodal Provider Readiness",
+      "",
+      `- Status: ${multimodalProviderReadiness.status}`,
+      `- Interpretation: ${multimodalProviderReadiness.interpretation}`,
+      `- Providers: ${multimodalProviderReadiness.summary.provider_count}`,
+      `- Attempts: ${multimodalProviderReadiness.summary.attempted_count}`,
+      `- Completed: ${multimodalProviderReadiness.summary.completed_count}`,
+      `- Failed: ${multimodalProviderReadiness.summary.failed_count}`,
+      `- Timeout cases: ${multimodalProviderReadiness.summary.timeout_case_count}`,
+      `- Eligible outputs: ${multimodalProviderReadiness.summary.eligible_count}`,
+      `- Structured profiles valid: ${multimodalProviderReadiness.summary.valid_structured_profile_count}/${multimodalProviderReadiness.summary.profile_count}`,
+      `- Quality comparison performed: ${multimodalProviderReadiness.summary.quality_comparison_performed ? "yes" : "no"}`,
+      `- Operational health verified: ${multimodalProviderReadiness.summary.operational_health_verified ? "yes" : "no"}`,
+      `- Release authority: ${multimodalProviderReadiness.authority_boundary.release_authority ? "yes" : "no"}`,
+      ""
+    );
+    lines.push("### Provider Availability", "");
+    for (const provider of multimodalProviderReadiness.providers) {
+      lines.push(`- ${provider.model_id}: ${provider.qualification_state} / ${provider.completed_count}/${provider.attempted_count} completed / ${provider.timeout_case_count} timeout / ${provider.eligible_count} eligible / p95 ${provider.latency_seconds.p95_nearest_rank ?? "unavailable"}s`);
+    }
+    lines.push("", "### Phase Diagnostics", "");
+    for (const profile of multimodalProviderReadiness.latency_diagnostic.profiles) {
+      lines.push(`- ${profile.profile}: ${profile.state} / ${profile.parse_state} / wall ${profile.phase_seconds.caller_wall_seconds ?? "unavailable"}s / ${profile.error_class}`);
+    }
+    lines.push("");
+  }
+
+  if (multimodalReleaseReadiness.available) {
+    lines.push(
+      "## Multimodal Release Readiness",
+      "",
+      `- Status: ${multimodalReleaseReadiness.status}`,
+      `- Interpretation: ${multimodalReleaseReadiness.interpretation}`,
+      `- Cloud controls: ${multimodalReleaseReadiness.summary.cloud_eligible_count}`,
+      `- Specificity / sensitivity / balanced accuracy: ${multimodalReleaseReadiness.summary.specificity} / ${multimodalReleaseReadiness.summary.sensitivity} / ${multimodalReleaseReadiness.summary.balanced_accuracy}`,
+      `- Safe-control false positives: ${multimodalReleaseReadiness.summary.safe_control_false_positive_count}/${multimodalReleaseReadiness.summary.safe_control_count}`,
+      `- Attack detections: ${multimodalReleaseReadiness.summary.taxonomy_detected_count}/${multimodalReleaseReadiness.summary.taxonomy_eligible_count}`,
+      `- Local structured profiles completed: ${multimodalReleaseReadiness.summary.local_completed_profile_count}`,
+      `- Repeat quality / stability: ${multimodalReleaseReadiness.summary.repeat_quality_state} / ${multimodalReleaseReadiness.summary.repeat_stability_state}`,
+      `- Human review: ${multimodalReleaseReadiness.summary.human_review_state}`,
+      `- Same-round PostgreSQL verified: ${multimodalReleaseReadiness.summary.real_postgresql_verified ? "yes" : "no"}`,
+      `- Shared candidate verified: ${multimodalReleaseReadiness.summary.candidate_verified ? "yes" : "no"}`,
+      `- A1 identity client route: ${multimodalReleaseReadiness.identity_boundary.a3_client_route_status}`,
+      `- Release authority: ${multimodalReleaseReadiness.authority_boundary.release_authority ? "yes" : "no"}`,
+      "",
+      "### Blocking Conditions",
+      ""
+    );
+    for (const blocker of multimodalReleaseReadiness.blockers) lines.push(`- ${blocker}`);
     lines.push("");
   }
 
@@ -6328,7 +6477,557 @@ export function summarizeReviewWorkflowExport(reviewWorkflowFixture = {}) {
   };
 }
 
-export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}, productConsoleFixture = {}, saasAdminFixture = {}, a2ReadinessBundle = {}, artifactRegistryFixture = {}, reviewWorkflowFixture = {}, releaseEvidenceFixture = {}, githubPublishEvidenceFixture = {}, peerBranchCalibrationFixture = {}, billingMigrationReadinessFixture = {}, notificationControlPlaneFixture = {}) {
+export function summarizeMultimodalReviewQueueExport(queue = {}) {
+  const available = queue?.schema_version === "a3.multimodal_review_queue.v1"
+    && queue.available === true;
+  if (!available) {
+    return {
+      schema_version: "a3.multimodal_review_queue_export.v1",
+      available: false,
+      status: queue?.status || "missing",
+      recommendation: "Ingest a public-safe, tenant-scoped multimodal comparison before exporting reviewer evidence."
+    };
+  }
+  const summary = objectOr(queue.summary);
+  const authority = objectOr(queue.authority_boundary);
+  const items = Array.isArray(queue.items) ? queue.items : [];
+  const providerSet = objectOr(queue.provider_set);
+  const providerSetItems = Array.isArray(providerSet.providers) ? providerSet.providers : [];
+  const reviewPacket = objectOr(queue.review_packet);
+  const reviewPacketAvailable = reviewPacket.schema_version === "a3.multimodal_review_assignment_packet.v1";
+  return {
+    schema_version: "a3.multimodal_review_queue_export.v1",
+    available: true,
+    status: queue.status || "unknown",
+    capability_state: queue.capability_state || "unknown",
+    source_contract: queue.source_contract || "unknown",
+    source_commit_alias: queue.source_commit_alias || null,
+    tenant_scope: objectOr(queue.tenant_scope),
+    provider_pair: objectOr(queue.provider_pair),
+    provider_set: {
+      provider_count: numberOrDefault(providerSet.provider_count, providerSetItems.length),
+      providers: providerSetItems.map((provider) => ({
+        provider_key: provider.provider_key,
+        evidence_hash: provider.evidence_hash,
+        partial_journal_hash: provider.partial_journal_hash || null,
+        provider_identity_included: provider.provider_identity_included === true,
+        model_identity_included: provider.model_identity_included === true
+      })),
+      pairwise_summaries: objectOr(providerSet.pairwise_summaries),
+      designated_high_quality_reference: providerSet.designated_high_quality_reference || null
+    },
+    summary: {
+      comparison_count: numberOrDefault(summary.comparison_count, 0),
+      repeat_comparison_count: numberOrDefault(summary.repeat_comparison_count, 0),
+      aggregate_comparison_count: numberOrDefault(summary.aggregate_comparison_count, 0),
+      agreement: numberOrDefault(summary.agreement, 0),
+      three_way_agreement: numberOrDefault(summary.three_way_agreement, 0),
+      pairwise_agreement_with_unavailable: numberOrDefault(summary.pairwise_agreement_with_unavailable, 0),
+      semantic_disagreement: numberOrDefault(summary.semantic_disagreement, 0),
+      unavailable: numberOrDefault(summary.unavailable, 0),
+      internally_unstable: numberOrDefault(summary.internally_unstable, 0),
+      provider_count: numberOrDefault(summary.provider_count, providerSetItems.length),
+      review_required_count: numberOrDefault(summary.review_required_count, 0),
+      queue_receipt_count: numberOrDefault(summary.queue_receipt_count, 0),
+      assignment_active_count: numberOrDefault(summary.assignment_active_count, 0),
+      assignment_expired_count: numberOrDefault(summary.assignment_expired_count, 0),
+      assignment_unassigned_count: numberOrDefault(summary.assignment_unassigned_count, 0),
+      assignment_event_count: numberOrDefault(summary.assignment_event_count, 0),
+      assignment_invalid_event_count: numberOrDefault(summary.assignment_invalid_event_count, 0),
+      evidence_request_count: numberOrDefault(summary.evidence_request_count, 0),
+      evidence_request_open_count: numberOrDefault(summary.evidence_request_open_count, 0),
+      evidence_request_overdue_count: numberOrDefault(summary.evidence_request_overdue_count, 0),
+      evidence_request_submitted_count: numberOrDefault(summary.evidence_request_submitted_count, 0),
+      evidence_request_accepted_count: numberOrDefault(summary.evidence_request_accepted_count, 0),
+      evidence_request_cancelled_count: numberOrDefault(summary.evidence_request_cancelled_count, 0),
+      evidence_request_event_count: numberOrDefault(summary.evidence_request_event_count, 0),
+      evidence_request_invalid_event_count: numberOrDefault(summary.evidence_request_invalid_event_count, 0)
+    },
+    authority_boundary: {
+      upstream_release_authority: authority.upstream_release_authority === true,
+      queue_receipts_release_authority: authority.queue_receipts_release_authority === true,
+      a3_recomputed_risk: authority.a3_recomputed_risk === true,
+      a3_recomputed_release_decision: authority.a3_recomputed_release_decision === true,
+      candidate_binding_verified: authority.candidate_binding_verified === true,
+      can_change_release_decision: authority.can_change_release_decision === true,
+      assignment_events_release_authority: authority.assignment_events_release_authority === true,
+      assignment_events_change_a2_decision: authority.assignment_events_change_a2_decision === true,
+      evidence_request_acceptance_is_human_disposition: authority.evidence_request_acceptance_is_human_disposition === true,
+      evidence_requests_release_authority: authority.evidence_requests_release_authority === true,
+      evidence_requests_change_a2_decision: authority.evidence_requests_change_a2_decision === true
+    },
+    review_packet: {
+      available: reviewPacketAvailable,
+      schema_version: reviewPacket.schema_version || "none",
+      packet_id: reviewPacket.packet_id || null,
+      packet_root_hash: reviewPacket.packet_root_hash || null,
+      integrity_status: reviewPacket.integrity?.status || "not_generated",
+      item_count: numberOrDefault(reviewPacket.item_count, 0),
+      event_count: numberOrDefault(reviewPacket.event_count, 0),
+      audit_archive_signature_required: true,
+      audit_archive_signature_verified: false,
+      bundle_artifact_id: reviewPacket.archive_binding?.bundle_artifact_id || "multimodal_review_assignment_packet",
+      authoritative_human_review_included: false,
+      release_authority: false
+    },
+    items: items.slice(0, 100).map((item) => {
+      const operational = objectOr(item.operational_state);
+      const history = Array.isArray(item.assignment_history) ? item.assignment_history : [];
+      const evidenceRequestSummary = objectOr(item.evidence_request_summary);
+      const evidenceRequests = Array.isArray(item.evidence_requests) ? item.evidence_requests : [];
+      return ({
+      queue_id: item.queue_id,
+      case_id: item.case_id,
+      artifact_hash: item.artifact_hash,
+      comparison_hash: item.comparison_hash,
+      comparison_state: item.comparison_state,
+      comparison_scope: item.comparison_scope || "case",
+      repeat: Number.isInteger(item.repeat) ? item.repeat : null,
+      queue_state: item.queue_state,
+      reviewer_role: item.reviewer_role,
+      left_provider: item.left?.provider_id,
+      left_model: item.left?.model_id,
+      left_model_version: item.left?.model_version,
+      left_observed_risk: item.left?.observed_risk,
+      left_valid_risks: Array.isArray(item.left?.valid_risks)
+        ? item.left.valid_risks.filter((value) => typeof value === "boolean")
+        : [],
+      right_provider: item.right?.provider_id,
+      right_model: item.right?.model_id,
+      right_model_version: item.right?.model_version,
+      right_observed_risk: item.right?.observed_risk,
+      right_valid_risks: Array.isArray(item.right?.valid_risks)
+        ? item.right.valid_risks.filter((value) => typeof value === "boolean")
+        : [],
+      provider_observations: (Array.isArray(item.providers) ? item.providers : []).map((provider) => ({
+        provider_key: provider.provider_key,
+        evidence_hash: provider.evidence_hash,
+        partial_journal_hash: provider.partial_journal_hash || null,
+        eligible: provider.eligible === true,
+        observation_state: provider.observation_state,
+        observed_risk: [true, false, null].includes(provider.observed_risk) ? provider.observed_risk : null,
+        provider_identity_included: provider.provider_identity_included === true,
+        model_identity_included: provider.model_identity_included === true
+      })),
+      assignment_status: operational.status || "unassigned",
+      assignment_version: numberOrDefault(operational.version, 0),
+      assigned_reviewer_hash: operational.assigned_reviewer_hash || null,
+      lease_expires_at: operational.lease_expires_at || null,
+      assignment_last_action: operational.last_action || null,
+      assignment_event_count: numberOrDefault(operational.event_count, 0),
+      assignment_history: history.slice(0, 100).map((event) => ({
+        event_id: event.event_id,
+        event_hash: event.event_hash,
+        event_type: event.event_type,
+        version: event.version,
+        actor_role: event.actor_role,
+        actor_hash: event.actor_hash,
+        previous_reviewer_hash: event.previous_reviewer_hash || null,
+        assigned_reviewer_hash: event.assigned_reviewer_hash || null,
+        lease_started_at: event.lease_started_at || null,
+        lease_expires_at: event.lease_expires_at || null,
+        reason_code: event.reason_code,
+        created_at: event.created_at,
+        release_authority: false,
+        a2_decision_recomputed: false
+      })),
+      evidence_request_summary: {
+        total_count: numberOrDefault(evidenceRequestSummary.total_count, evidenceRequests.length),
+        open_count: numberOrDefault(evidenceRequestSummary.open_count, 0),
+        overdue_count: numberOrDefault(evidenceRequestSummary.overdue_count, 0),
+        submitted_count: numberOrDefault(evidenceRequestSummary.submitted_count, 0),
+        accepted_count: numberOrDefault(evidenceRequestSummary.accepted_count, 0),
+        cancelled_count: numberOrDefault(evidenceRequestSummary.cancelled_count, 0),
+        integrity_failed_count: numberOrDefault(evidenceRequestSummary.integrity_failed_count, 0)
+      },
+      evidence_requests: evidenceRequests.slice(0, 50).map((request) => ({
+        request_id: request.request_id,
+        status: request.status,
+        version: numberOrDefault(request.version, 0),
+        owner_lane: request.owner_lane,
+        required_evidence_kinds: Array.isArray(request.required_evidence_kinds) ? request.required_evidence_kinds : [],
+        submitted_evidence_kinds: Array.isArray(request.submitted_evidence_kinds) ? request.submitted_evidence_kinds : [],
+        evidence_refs: (Array.isArray(request.evidence_refs) ? request.evidence_refs : []).slice(0, 24).map((reference) => ({
+          kind: reference.kind,
+          evidence_hash: reference.evidence_hash,
+          ...(reference.binding_hash ? { binding_hash: reference.binding_hash } : {})
+        })),
+        due_at: request.due_at || null,
+        overdue: request.overdue === true,
+        last_action: request.last_action || null,
+        last_action_at: request.last_action_at || null,
+        last_reason_code: request.last_reason_code || null,
+        event_count: numberOrDefault(request.event_count, 0),
+        terminal_event_hash: request.terminal_event_hash || null,
+        integrity_status: request.integrity?.status || "unknown",
+        evidence_accepted: request.authority_boundary?.evidence_accepted === true,
+        authoritative_human_disposition_recorded: false,
+        release_authority: false,
+        a2_decision_recomputed: false,
+        release_decision_changed: false
+      })),
+      authoritative_disposition_recorded: false,
+      release_authority: false
+    });
+    }),
+    safety: {
+      raw_model_payload_included: false,
+      raw_media_included: false,
+      signed_url_included: false,
+      raw_reviewer_identity_included: false,
+      assignment_history_metadata_only: true,
+      evidence_request_hash_references_only: true,
+      raw_evidence_included: false,
+      evidence_request_acceptance_is_human_disposition: false,
+      release_decision_recomputed: false
+    },
+    recommendation: "Require an authoritative human-review resolution and same-candidate Decision Ledger before any release-state change."
+  };
+}
+
+export function summarizeMultimodalRepeatStabilityExport(stability = {}) {
+  const available = stability?.schema_version === "a3.multimodal_repeat_stability.v1"
+    && stability.available === true;
+  if (!available) {
+    return {
+      schema_version: "a3.multimodal_repeat_stability_export.v1",
+      available: false,
+      status: stability?.status || "missing",
+      recommendation: "Import an A2 multi-repeat comparison envelope before exporting stability evidence."
+    };
+  }
+  const summary = objectOr(stability.summary);
+  const humanReview = objectOr(stability.human_review);
+  const candidateBinding = objectOr(stability.candidate_binding);
+  const authority = objectOr(stability.authority_boundary);
+  const safety = objectOr(stability.safety);
+  return {
+    schema_version: "a3.multimodal_repeat_stability_export.v1",
+    available: true,
+    status: stability.status || "unknown",
+    capability_state: stability.capability_state || "unknown",
+    source_contract: stability.source_contract || "unknown",
+    source_commit_alias: stability.source_commit_alias || null,
+    tenant_scope: objectOr(stability.tenant_scope),
+    summary: {
+      repeat_count: numberOrDefault(summary.repeat_count, 0),
+      retained_blocked_count: numberOrDefault(summary.retained_blocked_count, 0),
+      retained_qualified_count: numberOrDefault(summary.retained_qualified_count, 0),
+      required_source_unit_count: numberOrDefault(summary.required_source_unit_count, 0),
+      bootstrap_samples: numberOrDefault(summary.bootstrap_samples, 0),
+      blocker_count: numberOrDefault(summary.blocker_count, 0),
+      all_required_units_complete: summary.all_required_units_complete === true,
+      stable_observation: summary.stable_observation === true,
+      quality_qualified: summary.quality_qualified === true,
+      promotion_eligible: summary.promotion_eligible === true
+    },
+    metrics: (Array.isArray(stability.metrics) ? stability.metrics : []).map((metric) => ({
+      metric_id: metric.metric_id,
+      required_unit_count: numberOrDefault(metric.required_unit_count, 0),
+      matched_unit_count: numberOrDefault(metric.matched_unit_count, 0),
+      complete_across_repeats: metric.complete_across_repeats === true,
+      repeat_estimates: Array.isArray(metric.repeat_estimates)
+        ? metric.repeat_estimates.filter((value) => typeof value === "number")
+        : [],
+      paired_max_minus_min_bootstrap_ci_95: objectOr(metric.paired_max_minus_min_bootstrap_ci_95)
+    })),
+    blockers: Array.isArray(stability.blockers) ? [...stability.blockers] : [],
+    human_review: {
+      collection_state: humanReview.collection_state || "unknown",
+      receipt_count: numberOrDefault(humanReview.receipt_count, 0),
+      queue_receipt_count: numberOrDefault(humanReview.queue_receipt_count, 0),
+      pending_queue_receipt_count: numberOrDefault(humanReview.pending_queue_receipt_count, 0),
+      reviewed_queue_receipt_count: numberOrDefault(humanReview.reviewed_queue_receipt_count, 0),
+      conservation_state: humanReview.conservation_state || "unknown",
+      conservation_holds: humanReview.conservation_holds === true,
+      authoritative_human_disposition_recorded: false
+    },
+    candidate_binding: {
+      verified: candidateBinding.verified === true,
+      blockers: Array.isArray(candidateBinding.blockers) ? [...candidateBinding.blockers] : []
+    },
+    authority_boundary: {
+      provider_is_truth: false,
+      authoritative_human_disposition_recorded: false,
+      candidate_binding_verified: authority.candidate_binding_verified === true,
+      a2_decision_recomputed: false,
+      release_authority: false,
+      release_decision_changed: false,
+      production_ready: false
+    },
+    safety: {
+      public_safe: safety.public_safe === true,
+      hashes_and_aggregate_metrics_only: safety.hashes_and_aggregate_metrics_only === true,
+      raw_provider_payload_included: false,
+      raw_provider_text_included: false,
+      raw_reviewer_identity_included: false,
+      signed_url_included: false,
+      secret_values_included: false
+    },
+    interpretation: summary.all_required_units_complete === true
+      && summary.stable_observation === true
+      && summary.quality_qualified !== true
+      ? "Complete and stable, but quality is not qualified."
+      : "Repeat stability is evidence only and does not determine release authority.",
+    recommendation: "Require qualified repeats, an authoritative human disposition, and same-candidate verification before any release-state change."
+  };
+}
+
+export function summarizeMultimodalProviderReadinessExport(readiness = {}) {
+  const available = readiness?.schema_version === "a3.multimodal_provider_readiness.v1"
+    && readiness.available === true;
+  if (!available) {
+    return {
+      schema_version: "a3.multimodal_provider_readiness_export.v1",
+      available: false,
+      status: readiness?.status || "missing",
+      recommendation: "Import an A2 availability comparison and phase-latency probe before exporting provider diagnostics."
+    };
+  }
+  const summary = objectOr(readiness.summary);
+  const availability = objectOr(readiness.availability);
+  const latency = objectOr(readiness.latency_diagnostic);
+  const authority = objectOr(readiness.authority_boundary);
+  const safety = objectOr(readiness.safety);
+  return {
+    schema_version: "a3.multimodal_provider_readiness_export.v1",
+    available: true,
+    status: readiness.status || "unknown",
+    capability_state: readiness.capability_state || "unknown",
+    source_contracts: Array.isArray(readiness.source_contracts) ? [...readiness.source_contracts] : [],
+    source_commit_alias: readiness.source_commit_alias || null,
+    tenant_scope: objectOr(readiness.tenant_scope),
+    summary: {
+      provider_count: numberOrDefault(summary.provider_count, 0),
+      attempted_count: numberOrDefault(summary.attempted_count, 0),
+      completed_count: numberOrDefault(summary.completed_count, 0),
+      failed_count: numberOrDefault(summary.failed_count, 0),
+      timeout_case_count: numberOrDefault(summary.timeout_case_count, 0),
+      eligible_count: numberOrDefault(summary.eligible_count, 0),
+      qualified_provider_count: numberOrDefault(summary.qualified_provider_count, 0),
+      blocked_provider_count: numberOrDefault(summary.blocked_provider_count, 0),
+      profile_count: numberOrDefault(summary.profile_count, 0),
+      completed_profile_count: numberOrDefault(summary.completed_profile_count, 0),
+      valid_structured_profile_count: numberOrDefault(summary.valid_structured_profile_count, 0),
+      quality_comparison_performed: false,
+      operational_health_verified: false,
+      routing_ready: false,
+      capacity_verified: false
+    },
+    availability: {
+      comparison_state: availability.comparison_state || "unknown",
+      same_case_set: availability.same_case_set === true,
+      case_set_hash: availability.case_set_hash || null,
+      blockers: Array.isArray(availability.blockers) ? [...availability.blockers] : []
+    },
+    providers: (Array.isArray(availability.providers) ? availability.providers : []).map((provider) => ({
+      model_id: provider.model_id,
+      artifact_hash: provider.artifact_hash,
+      qualification_state: provider.qualification_state,
+      attempted_count: numberOrDefault(provider.attempted_count, 0),
+      completed_count: numberOrDefault(provider.completed_count, 0),
+      failed_count: numberOrDefault(provider.failed_count, 0),
+      timeout_case_count: numberOrDefault(provider.timeout_case_count, 0),
+      eligible_count: numberOrDefault(provider.eligible_count, 0),
+      completion_rate: typeof provider.completion_rate === "number" ? provider.completion_rate : null,
+      timeout_rate: typeof provider.timeout_rate === "number" ? provider.timeout_rate : null,
+      eligible_rate: typeof provider.eligible_rate === "number" ? provider.eligible_rate : null,
+      latency_seconds: objectOr(provider.latency_seconds)
+    })),
+    latency_diagnostic: {
+      provider_id: latency.provider_id || "unknown",
+      model_id: latency.model_id || "unknown",
+      model_digest: latency.model_digest || null,
+      artifact_hash: latency.artifact_hash || null,
+      prompt_hash: latency.prompt_hash || null,
+      output_schema_hash: latency.output_schema_hash || null,
+      base_url_class: latency.base_url_class || "unknown",
+      generated_at: latency.generated_at || null,
+      timeout_seconds: typeof latency.timeout_seconds === "number" ? latency.timeout_seconds : null,
+      unload_state: latency.unload_state || "unknown",
+      qualification_state: latency.qualification_state || "unknown",
+      diagnosis: Array.isArray(latency.diagnosis) ? [...latency.diagnosis] : [],
+      cold_wall_seconds: typeof latency.cold_wall_seconds === "number" ? latency.cold_wall_seconds : null,
+      fastest_warm_wall_seconds: typeof latency.fastest_warm_wall_seconds === "number" ? latency.fastest_warm_wall_seconds : null,
+      profiles: (Array.isArray(latency.profiles) ? latency.profiles : []).map((profile) => ({
+        profile: profile.profile,
+        state: profile.state,
+        parse_state: profile.parse_state,
+        error_class: profile.error_class,
+        format_mode: profile.format_mode,
+        num_predict: numberOrDefault(profile.num_predict, 0),
+        response_hash: profile.response_hash || null,
+        phase_seconds: objectOr(profile.phase_seconds)
+      }))
+    },
+    authority_boundary: {
+      provider_is_truth: false,
+      quality_comparison_performed: false,
+      operational_health_verified: false,
+      routing_or_capacity_authority: authority.routing_or_capacity_authority || "A1",
+      evaluation_and_qualification_authority: authority.evaluation_and_qualification_authority || "A2",
+      release_authority: false,
+      a2_decision_recomputed: false,
+      release_decision_changed: false,
+      production_ready: false
+    },
+    safety: {
+      public_safe: safety.public_safe === true,
+      raw_provider_payload_included: false,
+      secret_included: false,
+      endpoint_url_included: false,
+      model_binary_included: false,
+      private_media_included: false,
+      hash_and_aggregate_metadata_only: safety.hash_and_aggregate_metadata_only === true
+    },
+    interpretation: "Local provider diagnostics are blocked: availability is insufficient and every phase profile failed structured-output validation.",
+    recommendation: "Repair structured output and availability, then obtain A1 operational health/capacity evidence and a fresh A2 qualification before release."
+  };
+}
+
+export function summarizeMultimodalReleaseReadinessExport(readiness = {}) {
+  const available = readiness?.schema_version === "a3.multimodal_release_readiness.v1"
+    && readiness.available === true;
+  if (!available) {
+    return {
+      schema_version: "a3.multimodal_release_readiness_export.v1",
+      available: false,
+      status: readiness?.status || "missing",
+      recommendation: "Import a public-safe A2 multimodal release-readiness summary before exporting controls and runtime evidence."
+    };
+  }
+  const summary = objectOr(readiness.summary);
+  const cloud = objectOr(readiness.cloud_control);
+  const controls = objectOr(readiness.control_policy);
+  const local = objectOr(readiness.local_runtime);
+  const repeat = objectOr(readiness.repeat_evidence);
+  const review = objectOr(readiness.human_review);
+  const persistence = objectOr(readiness.persistence);
+  const candidate = objectOr(readiness.candidate_binding);
+  const identity = objectOr(readiness.identity_boundary);
+  const authority = objectOr(readiness.authority_boundary);
+  const blockers = [
+    ...arrayOr(cloud.blockers),
+    ...arrayOr(controls.blockers),
+    ...arrayOr(local.blockers),
+    ...arrayOr(repeat.quality_blockers),
+    ...arrayOr(repeat.stability_blockers),
+    ...arrayOr(candidate.blockers)
+  ];
+  return {
+    schema_version: "a3.multimodal_release_readiness_export.v1",
+    available: true,
+    status: readiness.status || "unknown",
+    capability_state: readiness.capability_state || "unknown",
+    source_contract: readiness.source_contract || "unknown",
+    source_commit_alias: readiness.source_commit_alias || null,
+    a1_peer_commit_alias: readiness.a1_peer_commit_alias || null,
+    tenant_scope: objectOr(readiness.tenant_scope),
+    summary: {
+      cloud_eligible_count: numberOrDefault(summary.cloud_eligible_count, 0),
+      specificity: numberOrDefault(summary.specificity, 0),
+      sensitivity: numberOrDefault(summary.sensitivity, 0),
+      balanced_accuracy: numberOrDefault(summary.balanced_accuracy, 0),
+      safe_control_count: numberOrDefault(summary.safe_control_count, 0),
+      safe_control_false_positive_count: numberOrDefault(summary.safe_control_false_positive_count, 0),
+      taxonomy_count: numberOrDefault(summary.taxonomy_count, 0),
+      taxonomy_eligible_count: numberOrDefault(summary.taxonomy_eligible_count, 0),
+      taxonomy_detected_count: numberOrDefault(summary.taxonomy_detected_count, 0),
+      local_completed_profile_count: numberOrDefault(summary.local_completed_profile_count, 0),
+      repeat_quality_state: summary.repeat_quality_state || "unknown",
+      repeat_stability_state: summary.repeat_stability_state || "unknown",
+      human_review_state: summary.human_review_state || "unknown",
+      real_postgresql_verified: summary.real_postgresql_verified === true,
+      candidate_verified: summary.candidate_verified === true,
+      promotion_permitted: false
+    },
+    cloud_control: {
+      provider_id: cloud.provider_id || "unknown",
+      model_id: cloud.model_id || "unknown",
+      endpoint_region: cloud.endpoint_region || "unknown",
+      qualification_state: cloud.qualification_state || "unknown",
+      evidence_hash: cloud.evidence_hash || null,
+      blockers: arrayOr(cloud.blockers),
+      quality: objectOr(cloud.quality),
+      latency_seconds: objectOr(cloud.latency_seconds)
+    },
+    control_policy: {
+      quality_state: controls.quality_state || "unknown",
+      evidence_hash: controls.evidence_hash || null,
+      blockers: arrayOr(controls.blockers),
+      safe_controls: objectOr(controls.safe_controls),
+      taxonomy_assessments: arrayOr(controls.taxonomy_assessments).map((item) => objectOr(item))
+    },
+    local_runtime: {
+      model_id: local.model_id || "unknown",
+      model_digest: local.model_digest || null,
+      qualification_state: local.qualification_state || "unknown",
+      runtime_promotion_state: local.runtime_promotion_state || "unknown",
+      completed_profile_count: numberOrDefault(local.completed_profile_count, 0),
+      probe_evidence_hash: local.probe_evidence_hash || null,
+      promotion_evidence_hash: local.promotion_evidence_hash || null,
+      blockers: arrayOr(local.blockers)
+    },
+    repeat_evidence: {
+      schema_version: repeat.schema_version || "unknown",
+      quality_state: repeat.quality_state || "unknown",
+      stability_state: repeat.stability_state || "unknown",
+      all_repeats_fresh: repeat.all_repeats_fresh === true,
+      promotion_eligible: false,
+      evidence_hash: repeat.evidence_hash || null,
+      quality_blockers: arrayOr(repeat.quality_blockers),
+      stability_blockers: arrayOr(repeat.stability_blockers)
+    },
+    human_review: {
+      collection_state: review.collection_state || "unknown",
+      verification_state: review.verification_state || "unknown",
+      pending_queue_receipt_count: numberOrDefault(review.pending_queue_receipt_count, 0),
+      collection_hash: review.collection_hash || null,
+      conservation_hash: review.conservation_hash || null,
+      authoritative_human_disposition_recorded: false
+    },
+    persistence: {
+      proof_state: persistence.proof_state || "unknown",
+      same_round_real_postgresql_verified: false,
+      evidence_hash: persistence.evidence_hash || null
+    },
+    candidate_binding: {
+      verified: false,
+      blockers: arrayOr(candidate.blockers)
+    },
+    identity_boundary: {
+      source_commit_alias: identity.source_commit_alias || null,
+      capability: identity.capability || "unknown",
+      a3_client_route_status: identity.a3_client_route_status || "unknown",
+      aggregate_readiness_available: identity.aggregate_readiness_available === true,
+      raw_identity_receipt_included: false,
+      production_identity_verified: false
+    },
+    blockers: [...new Set(blockers)],
+    authority_boundary: {
+      a1_runtime_identity_authority: authority.a1_runtime_identity_authority || "A1",
+      a2_evaluation_qualification_authority: authority.a2_evaluation_qualification_authority || "A2",
+      a3_product_projection_authority: authority.a3_product_projection_authority || "A3",
+      release_authority: false,
+      a2_decision_recomputed: false,
+      release_decision_changed: false,
+      production_ready: false
+    },
+    safety: {
+      public_safe: true,
+      aggregate_metrics_and_hashes_only: true,
+      raw_provider_payload_included: false,
+      raw_provider_text_included: false,
+      raw_identity_receipt_included: false,
+      endpoint_url_included: false,
+      secret_values_included: false
+    },
+    interpretation: "Safe controls passed, but attack sensitivity, local structured output, human review, same-round PostgreSQL proof, and shared candidate binding remain blocked.",
+    recommendation: "Repair A2 attack sensitivity and local structured output, complete real review and PostgreSQL proof, then bind one exact A1/A2/A3 candidate before release."
+  };
+}
+
+export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}, productConsoleFixture = {}, saasAdminFixture = {}, a2ReadinessBundle = {}, artifactRegistryFixture = {}, reviewWorkflowFixture = {}, releaseEvidenceFixture = {}, githubPublishEvidenceFixture = {}, peerBranchCalibrationFixture = {}, billingMigrationReadinessFixture = {}, notificationControlPlaneFixture = {}, multimodalReviewQueueFixture = {}) {
   if (isArtifactRegistryFixture(a2ReadinessBundle) && !isArtifactRegistryFixture(artifactRegistryFixture)) {
     artifactRegistryFixture = a2ReadinessBundle;
     a2ReadinessBundle = {};
@@ -6378,6 +7077,16 @@ export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixt
     export_audience_governance: summarizeExportAudienceGovernance(saasAdminFixture.export_governance || {}),
     artifact_registry: summarizeArtifactRegistryExport(artifactRegistryFixture),
     review_workflow: summarizeReviewWorkflowExport(reviewWorkflowFixture),
+    multimodal_review_queue: summarizeMultimodalReviewQueueExport(multimodalReviewQueueFixture),
+    multimodal_repeat_stability: summarizeMultimodalRepeatStabilityExport(
+      multimodalReviewQueueFixture.repeat_stability || {}
+    ),
+    multimodal_provider_readiness: summarizeMultimodalProviderReadinessExport(
+      multimodalReviewQueueFixture.provider_readiness || {}
+    ),
+    multimodal_release_readiness: summarizeMultimodalReleaseReadinessExport(
+      multimodalReviewQueueFixture.release_readiness || {}
+    ),
     release_evidence_summary: summarizeReleaseEvidenceSummary(releaseEvidenceFixture),
     github_publish_evidence: summarizeGithubPublishEvidence(githubPublishEvidenceFixture),
     notification_control_plane: summarizeNotificationControlPlane(notificationControlPlaneFixture),

@@ -1,0 +1,101 @@
+{
+  "schema_version": "ashr.a1.official_api_extended_readonly_summary.v1",
+  "generated_at": "2026-07-11T14:30:00Z",
+  "mode": "real-read-only-small-batch",
+  "max_retries": 0,
+  "status": "ok",
+  "operations": [
+    {
+      "function": "list_runs",
+      "status": "ok",
+      "status_code": 200,
+      "attempts": 1,
+      "response_keys": ["_user", "runs", "status"],
+      "collection_counts": {"runs": 4},
+      "quota_or_reset_header_present": false
+    },
+    {
+      "function": "get_request",
+      "status": "ok",
+      "status_code": 200,
+      "attempts": 1,
+      "response_keys": ["_user", "request", "status"],
+      "object_fields": [
+        "actual_duration_s",
+        "completed_at",
+        "created_at",
+        "estimated_duration_s",
+        "id",
+        "prompt_version_id",
+        "request",
+        "request_input_schema",
+        "request_name",
+        "request_status",
+        "requestor_id",
+        "requestor_tenant"
+      ],
+      "quota_or_reset_header_present": false
+    },
+    {
+      "function": "get_dataset",
+      "status": "ok",
+      "status_code": 200,
+      "attempts": 1,
+      "response_keys": ["_user", "dataset", "status"],
+      "object_fields": [
+        "agent_id",
+        "created_at",
+        "creator",
+        "dataset_source",
+        "description",
+        "id",
+        "name",
+        "repo_id",
+        "request_id",
+        "tenant"
+      ],
+      "quota_or_reset_header_present": false
+    },
+    {
+      "function": "get_run",
+      "status": "ok",
+      "status_code": 200,
+      "attempts": 1,
+      "response_keys": ["_user", "run", "status"],
+      "object_fields": ["created_at", "dataset", "id", "result", "runner", "tenant"],
+      "result_fields": [
+        "aggregate_metrics",
+        "completed_at",
+        "diagnosis",
+        "metadata",
+        "regressions",
+        "started_at",
+        "status",
+        "tests"
+      ],
+      "quota_or_reset_header_present": false
+    }
+  ],
+  "quota_evidence": {
+    "changed_since_last_block": false,
+    "latest_read_only_quota_or_reset_header_present": false,
+    "text_mutation_gate": "blocked",
+    "mutation_executed": false,
+    "reason": "No changed quota or reset evidence after the prior quota-blocked text control."
+  },
+  "public_safety": {
+    "credential_values_included": false,
+    "object_ids_included": false,
+    "raw_payloads_included": false,
+    "header_values_included": false,
+    "exact_quota_values_included": false,
+    "private_records_git_ignored": true
+  },
+  "private_evidence_paths": [
+    "docs/evidence/private_refs/a1_round54_list_runs_real_20260711.json",
+    "docs/evidence/private_refs/a1_round54_get_request_real_20260711.json",
+    "docs/evidence/private_refs/a1_round54_get_dataset_real_20260711.json",
+    "docs/evidence/private_refs/a1_round54_get_run_real_20260711.json",
+    "docs/evidence/private_refs/a1_round54_text_plan_gate_20260711.json"
+  ]
+}

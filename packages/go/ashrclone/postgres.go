@@ -198,6 +198,94 @@ CREATE INDEX IF NOT EXISTS ashr_quota_ledger_run_idx ON ashr_quota_ledger (tenan
 CREATE INDEX IF NOT EXISTS ashr_audit_events_scope_idx ON ashr_audit_events (tenant_id, project_id, action, created_at);
 CREATE INDEX IF NOT EXISTS ashr_audit_events_target_idx ON ashr_audit_events (tenant_id, project_id, target_id, created_at);
 
+CREATE TABLE IF NOT EXISTS ashr_accounts (
+    account_id TEXT PRIMARY KEY,
+    primary_email_normalized TEXT NOT NULL,
+    display_name TEXT NOT NULL DEFAULT '',
+    locale TEXT NOT NULL DEFAULT 'zh-CN',
+    region TEXT NOT NULL DEFAULT 'cn',
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'suspended', 'deleted')),
+    two_factor_enabled BOOLEAN NOT NULL DEFAULT false,
+    two_factor_methods TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS ashr_identity_credentials (
+    credential_id TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL REFERENCES ashr_accounts(account_id) ON DELETE CASCADE,
+    provider TEXT NOT NULL,
+    provider_kind TEXT NOT NULL,
+    provider_subject_fingerprint TEXT NOT NULL CHECK (provider_subject_fingerprint ~ '^[0-9a-f]{64}$'),
+    provider_union_fingerprint TEXT NOT NULL DEFAULT '' CHECK (provider_union_fingerprint = '' OR provider_union_fingerprint ~ '^[0-9a-f]{64}$'),
+    verified_email_normalized TEXT NOT NULL DEFAULT '',
+    verified_phone_e164 TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_login_at TIMESTAMPTZ,
+    UNIQUE (provider, provider_subject_fingerprint)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ashr_identity_credentials_union_idx
+ON ashr_identity_credentials (provider, provider_union_fingerprint)
+WHERE provider_union_fingerprint <> '';
+CREATE INDEX IF NOT EXISTS ashr_identity_credentials_account_idx
+ON ashr_identity_credentials (account_id, provider, created_at);
+
+CREATE TABLE IF NOT EXISTS ashr_identity_challenges (
+    challenge_id TEXT PRIMARY KEY,
+    purpose TEXT NOT NULL CHECK (purpose IN ('register', 'login', 'mfa', 'bind')),
+    account_id TEXT REFERENCES ashr_accounts(account_id) ON DELETE CASCADE,
+    delivery_method TEXT NOT NULL,
+    delivery_target_fingerprint TEXT NOT NULL CHECK (delivery_target_fingerprint ~ '^[0-9a-f]{64}$'),
+    delivery_target_ciphertext BYTEA NOT NULL,
+    delivery_target_key_id TEXT NOT NULL,
+    secret_hash TEXT NOT NULL CHECK (secret_hash ~ '^[0-9a-f]{64}$'),
+    secret_hash_key_id TEXT NOT NULL,
+    locale TEXT NOT NULL DEFAULT '',
+    region TEXT NOT NULL DEFAULT '',
+    expires_at TIMESTAMPTZ NOT NULL,
+    consumed_at TIMESTAMPTZ,
+    attempt_count INTEGER NOT NULL DEFAULT 0 CHECK (attempt_count >= 0),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS ashr_identity_challenges_expiry_idx
+ON ashr_identity_challenges (expires_at)
+WHERE consumed_at IS NULL;
+CREATE INDEX IF NOT EXISTS ashr_identity_challenges_account_idx
+ON ashr_identity_challenges (account_id, purpose, created_at);
+
+CREATE TABLE IF NOT EXISTS ashr_identity_sessions (
+    session_id TEXT PRIMARY KEY,
+    account_id TEXT NOT NULL REFERENCES ashr_accounts(account_id) ON DELETE CASCADE,
+    token_hash TEXT NOT NULL CHECK (token_hash ~ '^[0-9a-f]{64}$'),
+    token_hash_key_id TEXT NOT NULL,
+    auth_methods TEXT[] NOT NULL DEFAULT ARRAY[]::TEXT[],
+    expires_at TIMESTAMPTZ NOT NULL,
+    revoked_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    last_seen_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS ashr_identity_sessions_account_idx
+ON ashr_identity_sessions (account_id, created_at);
+CREATE INDEX IF NOT EXISTS ashr_identity_sessions_expiry_idx
+ON ashr_identity_sessions (expires_at)
+WHERE revoked_at IS NULL;
+
+CREATE TABLE IF NOT EXISTS ashr_account_organization_memberships (
+    account_id TEXT NOT NULL REFERENCES ashr_accounts(account_id) ON DELETE CASCADE,
+    tenant_id TEXT NOT NULL REFERENCES ashr_tenants(tenant_id) ON DELETE CASCADE,
+    role TEXT NOT NULL CHECK (role IN ('owner', 'admin', 'member', 'viewer')),
+    status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('invited', 'active', 'suspended')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (account_id, tenant_id)
+);
+
+CREATE INDEX IF NOT EXISTS ashr_account_organization_memberships_tenant_idx
+ON ashr_account_organization_memberships (tenant_id, status, role, account_id);
+
 CREATE TABLE IF NOT EXISTS ashr_usage_quota_policies (
     tenant_id TEXT NOT NULL,
     project_id TEXT NOT NULL,
@@ -272,6 +360,77 @@ CREATE TABLE IF NOT EXISTS ashr_billing_portal_plans (
 
 CREATE INDEX IF NOT EXISTS ashr_billing_checkout_scope_idx ON ashr_billing_checkout_plans (tenant_id, project_id, provider, mode, created_at);
 CREATE INDEX IF NOT EXISTS ashr_billing_portal_scope_idx ON ashr_billing_portal_plans (tenant_id, project_id, provider, mode, created_at);
+
+CREATE TABLE IF NOT EXISTS ashr_provider_dispatches (
+    tenant_id TEXT NOT NULL,
+    project_id TEXT NOT NULL,
+    dispatch_id TEXT NOT NULL,
+    provider TEXT NOT NULL,
+    operation TEXT NOT NULL,
+    request_fingerprint TEXT NOT NULL CHECK (length(request_fingerprint) = 64),
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending','claimed','indeterminate','reconciling','completed','failed','cancelled')),
+    attempts INTEGER NOT NULL DEFAULT 0 CHECK (attempts >= 0),
+    fencing_token BIGINT NOT NULL DEFAULT 0 CHECK (fencing_token >= 0),
+    lease_owner_id TEXT NOT NULL DEFAULT '',
+    lease_expires_at TIMESTAMPTZ,
+    provider_request_id TEXT NOT NULL DEFAULT '',
+    stream_observed BOOLEAN NOT NULL DEFAULT false,
+    stream_observed_sha256 TEXT NOT NULL DEFAULT '',
+    stream_observed_fencing_token BIGINT,
+    stream_observed_at TIMESTAMPTZ,
+    terminal_proof_sha256 TEXT NOT NULL DEFAULT '',
+    terminal_response_sha256 TEXT NOT NULL DEFAULT '',
+    reconciliation_reason TEXT NOT NULL DEFAULT '',
+    reconciliation_attempts INTEGER NOT NULL DEFAULT 0 CHECK (reconciliation_attempts >= 0),
+    next_reconcile_at TIMESTAMPTZ,
+    last_error_sha256 TEXT NOT NULL DEFAULT '',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    claimed_at TIMESTAMPTZ,
+    completed_at TIMESTAMPTZ,
+    failed_at TIMESTAMPTZ,
+    PRIMARY KEY (tenant_id, project_id, dispatch_id),
+    FOREIGN KEY (tenant_id, project_id) REFERENCES ashr_projects(tenant_id, project_id) ON DELETE CASCADE,
+    CONSTRAINT ashr_provider_dispatch_lease_shape CHECK (
+        (status IN ('claimed','reconciling') AND lease_owner_id <> '' AND lease_expires_at IS NOT NULL)
+        OR (status NOT IN ('claimed','reconciling') AND lease_owner_id = '' AND lease_expires_at IS NULL)
+    ),
+    CONSTRAINT ashr_provider_dispatch_terminal_proof CHECK (
+        (status = 'completed' AND length(terminal_proof_sha256) = 64
+          AND length(terminal_response_sha256) = 64 AND completed_at IS NOT NULL
+          AND stream_observed = true
+          AND stream_observed_fencing_token = fencing_token
+          AND stream_observed_sha256 = terminal_proof_sha256)
+        OR status <> 'completed'
+    ),
+    CONSTRAINT ashr_provider_dispatch_stream_observation CHECK (
+        (stream_observed = true AND length(stream_observed_sha256) = 64
+          AND stream_observed_fencing_token IS NOT NULL AND stream_observed_at IS NOT NULL)
+        OR (stream_observed = false AND stream_observed_sha256 = ''
+          AND stream_observed_fencing_token IS NULL AND stream_observed_at IS NULL)
+    )
+);
+
+CREATE INDEX IF NOT EXISTS ashr_provider_dispatch_claim_idx ON ashr_provider_dispatches
+    (tenant_id, project_id, status, provider, operation, next_reconcile_at, created_at);
+CREATE INDEX IF NOT EXISTS ashr_provider_dispatch_lease_idx ON ashr_provider_dispatches
+    (tenant_id, project_id, status, lease_expires_at);
+CREATE UNIQUE INDEX IF NOT EXISTS ashr_provider_dispatch_provider_request_idx ON ashr_provider_dispatches
+    (tenant_id, project_id, provider, provider_request_id) WHERE provider_request_id <> '';
+
+ALTER TABLE ashr_provider_dispatches ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ashr_provider_dispatches FORCE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS ashr_provider_dispatch_tenant_policy ON ashr_provider_dispatches;
+DROP POLICY IF EXISTS ashr_provider_dispatch_scope_policy ON ashr_provider_dispatches;
+CREATE POLICY ashr_provider_dispatch_scope_policy ON ashr_provider_dispatches
+    USING (
+        tenant_id = NULLIF(current_setting('app.a1_organization_id', true), '')
+        AND project_id = NULLIF(current_setting('app.a1_project_id', true), '')
+    )
+    WITH CHECK (
+        tenant_id = NULLIF(current_setting('app.a1_organization_id', true), '')
+        AND project_id = NULLIF(current_setting('app.a1_project_id', true), '')
+    );
 `
 
 type PostgresRepository struct {

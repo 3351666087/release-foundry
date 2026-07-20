@@ -1,0 +1,76 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_hash",
+    "ocr_observation_hash",
+    "vision_output_hash",
+    "ocr_contains_text",
+    "vision_contains_text",
+    "state",
+    "reason_code",
+    "release_authority",
+    "human_review_required",
+    "blockers",
+    "public_safe",
+    "review_packet_hash"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "a2.ocr_vision_disagreement.v1"
+    },
+    "artifact_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "ocr_observation_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "vision_output_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "ocr_contains_text": {
+      "type": "boolean"
+    },
+    "vision_contains_text": {
+      "type": "boolean"
+    },
+    "state": {
+      "enum": [
+        "agreement",
+        "disagreement"
+      ]
+    },
+    "reason_code": {
+      "enum": [
+        "vision_hallucinated_text",
+        "vision_missed_ocr_text",
+        "text_presence_agreement"
+      ]
+    },
+    "release_authority": {
+      "const": false
+    },
+    "human_review_required": {
+      "type": "boolean"
+    },
+    "blockers": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "public_safe": {
+      "const": true
+    },
+    "review_packet_hash": {
+      "type": "string",
+      "pattern": "^(|sha256:[a-f0-9]{64})$"
+    }
+  }
+}

@@ -12,10 +12,11 @@ import (
 // IdentityHTTPSession is trusted server-side authentication context. AccountID
 // is authoritative; an account ID in a URL is only an ownership assertion.
 type IdentityHTTPSession struct {
-	AccountID string
-	ActorID   string
-	SessionID string
-	Revoked   bool
+	AccountID     string
+	ActorID       string
+	SessionID     string
+	SessionDigest string
+	Revoked       bool
 }
 
 type IdentityHTTPSessionResolver interface {
@@ -25,6 +26,7 @@ type IdentityHTTPSessionResolver interface {
 var (
 	ErrIdentitySessionRefreshInvalid = errors.New("identity session refresh is unavailable")
 	ErrIdentitySessionRefreshReused  = errors.New("identity session refresh credential was reused")
+	ErrIdentityStoreUnavailable      = errors.New("identity store unavailable")
 )
 
 type IdentityHTTPSessionRefresher interface {
@@ -47,11 +49,12 @@ type UnifiedIdentityHTTPStore interface {
 // loopback requests and fixed server configuration. It never reads identity
 // ownership from request headers, query parameters, or bodies.
 type LocalhostDevIdentityHTTPSessionResolver struct {
-	Enabled   bool
-	AccountID string
-	ActorID   string
-	SessionID string
-	Revoked   func(context.Context, string) (bool, error)
+	Enabled       bool
+	AccountID     string
+	ActorID       string
+	SessionID     string
+	SessionDigest string
+	Revoked       func(context.Context, string) (bool, error)
 }
 
 func (resolver LocalhostDevIdentityHTTPSessionResolver) ResolveIdentityHTTPSession(_ context.Context, request *http.Request) (IdentityHTTPSession, error) {
@@ -62,9 +65,10 @@ func (resolver LocalhostDevIdentityHTTPSessionResolver) ResolveIdentityHTTPSessi
 		return IdentityHTTPSession{}, fmt.Errorf("localhost identity session resolver rejected a non-loopback request")
 	}
 	session := IdentityHTTPSession{
-		AccountID: strings.TrimSpace(resolver.AccountID),
-		ActorID:   strings.TrimSpace(resolver.ActorID),
-		SessionID: strings.TrimSpace(resolver.SessionID),
+		AccountID:     strings.TrimSpace(resolver.AccountID),
+		ActorID:       strings.TrimSpace(resolver.ActorID),
+		SessionID:     strings.TrimSpace(resolver.SessionID),
+		SessionDigest: strings.TrimSpace(resolver.SessionDigest),
 	}
 	if session.AccountID == "" || session.ActorID == "" || session.SessionID == "" {
 		return IdentityHTTPSession{}, fmt.Errorf("localhost identity session is incomplete")
@@ -83,13 +87,17 @@ func (server *HTTPServer) handleUnifiedIdentityAccount(writer http.ResponseWrite
 	writer.Header().Set("Cache-Control", "no-store")
 	writer.Header().Set("Pragma", "no-cache")
 	writer.Header().Set("X-Content-Type-Options", "nosniff")
-	identity := server.unifiedIdentityHTTPStore()
-	if identity == nil {
-		writeError(writer, http.StatusNotFound, "not_found", "route not found")
-		return
-	}
 	session, ok := server.resolveIdentityHTTPSession(writer, request, assertedAccountID)
 	if !ok {
+		return
+	}
+	if len(parts) >= 1 && (parts[0] == "security" || parts[0] == "password" || parts[0] == "two-factor") {
+		server.handleIdentitySecurity(writer, request, session, parts)
+		return
+	}
+	identity := server.unifiedIdentityHTTPStore()
+	if identity == nil {
+		writeIdentityHTTPError(writer, ErrIdentityStoreUnavailable)
 		return
 	}
 
@@ -148,27 +156,13 @@ func (server *HTTPServer) handleUnifiedIdentityAccount(writer http.ResponseWrite
 }
 
 func (server *HTTPServer) unifiedIdentityHTTPStore() UnifiedIdentityHTTPStore {
-	if identity, ok := server.service.(UnifiedIdentityHTTPStore); ok && identity != nil {
-		return identity
-	}
-	if server.identityVerification != nil && server.identityVerification.identity != nil {
-		return identityVerificationHTTPStoreAdapter{store: server.identityVerification.identity}
+	if server.unifiedIdentityStore != nil {
+		return server.unifiedIdentityStore
 	}
 	if server.unifiedIdentity != nil {
 		return unifiedIdentityHTTPServiceAdapter{service: server.unifiedIdentity}
 	}
 	return nil
-}
-
-type identityVerificationHTTPStoreAdapter struct {
-	store IdentityVerificationIdentityStore
-}
-
-func (adapter identityVerificationHTTPStoreAdapter) GetIdentityAccount(
-	ctx context.Context,
-	accountID string,
-) (IdentityAccountDTO, error) {
-	return adapter.store.GetAccount(ctx, accountID)
 }
 
 type unifiedIdentityHTTPServiceAdapter struct {
@@ -202,6 +196,7 @@ func (server *HTTPServer) resolveIdentityHTTPSession(writer http.ResponseWriter,
 	session.AccountID = strings.TrimSpace(session.AccountID)
 	session.ActorID = strings.TrimSpace(session.ActorID)
 	session.SessionID = strings.TrimSpace(session.SessionID)
+	session.SessionDigest = strings.TrimSpace(session.SessionDigest)
 	if session.Revoked || session.AccountID == "" || session.ActorID == "" || session.SessionID == "" {
 		writeError(writer, http.StatusUnauthorized, "identity_session_invalid", "identity session could not be authenticated")
 		return IdentityHTTPSession{}, false
@@ -235,6 +230,7 @@ type publicIdentityAccountView struct {
 	Memberships     []publicIdentityMembershipView `json:"memberships"`
 	CredentialCount int                            `json:"credential_count"`
 	MembershipCount int                            `json:"membership_count"`
+	SecurityPosture IdentitySecurityPostureDTO     `json:"security_posture"`
 	CreatedAt       time.Time                      `json:"created_at"`
 	UpdatedAt       time.Time                      `json:"updated_at"`
 }
@@ -272,6 +268,7 @@ func publicIdentityAccount(account IdentityAccountDTO) publicIdentityAccountView
 		Memberships:     publicIdentityMemberships(account.Memberships),
 		CredentialCount: account.CredentialCount,
 		MembershipCount: account.MembershipCount,
+		SecurityPosture: account.SecurityPosture,
 		CreatedAt:       account.CreatedAt,
 		UpdatedAt:       account.UpdatedAt,
 	}
@@ -322,6 +319,8 @@ func writeIdentityHTTPResult(writer http.ResponseWriter, result publicIdentityAc
 func writeIdentityHTTPError(writer http.ResponseWriter, err error) {
 	var domainError IdentityDomainError
 	switch {
+	case errors.Is(err, ErrIdentityStoreUnavailable):
+		writeError(writer, http.StatusServiceUnavailable, "identity_store_unavailable", "identity store is unavailable")
 	case errors.Is(err, ErrIdentityAccountNotFound):
 		writeError(writer, http.StatusNotFound, "identity_account_not_found", "identity account not found")
 	case errors.As(err, &domainError):

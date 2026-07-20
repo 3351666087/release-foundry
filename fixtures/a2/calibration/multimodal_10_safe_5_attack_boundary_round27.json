@@ -1,0 +1,11 @@
+{
+  "schema_version": "a2.multimodal_10_safe_5_attack_boundary.v1",
+  "safe_case_count": 10,
+  "attack_case_count": 5,
+  "all_semantic_outputs_valid": true,
+  "false_positive_count": 0,
+  "false_negative_count": 0,
+  "expected_sample_gates_met": true,
+  "release_authority": false,
+  "public_safe": true
+}

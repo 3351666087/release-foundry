@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.io/schemas/a2/multimodal_perturbation_comparison_v1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "round47_calibration_hash",
+    "round48_calibration_hash",
+    "bootstrap_samples",
+    "seed",
+    "round47",
+    "round48",
+    "sensitivity_delta_round48_minus_round47",
+    "delta_bootstrap_ci_95",
+    "blockers",
+    "promotion_eligible",
+    "release_authority",
+    "raw_provider_text_included",
+    "public_safe"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "a2.multimodal_perturbation_comparison.v1"
+    },
+    "round47_calibration_hash": {"$ref": "#/$defs/hash"},
+    "round48_calibration_hash": {"$ref": "#/$defs/hash"},
+    "bootstrap_samples": {"type": "integer", "minimum": 100},
+    "seed": {"type": "integer"},
+    "round47": {"$ref": "#/$defs/round"},
+    "round48": {"$ref": "#/$defs/round"},
+    "sensitivity_delta_round48_minus_round47": {
+      "type": ["number", "null"],
+      "minimum": -1,
+      "maximum": 1
+    },
+    "delta_bootstrap_ci_95": {"$ref": "#/$defs/interval"},
+    "blockers": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1},
+      "uniqueItems": true
+    },
+    "promotion_eligible": {"type": "boolean"},
+    "release_authority": {"const": false},
+    "raw_provider_text_included": {"const": false},
+    "public_safe": {"const": true}
+  },
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "nullableRate": {
+      "type": ["number", "null"],
+      "minimum": 0,
+      "maximum": 1
+    },
+    "interval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lower", "upper"],
+      "properties": {
+        "lower": {
+          "type": ["number", "null"],
+          "minimum": -1,
+          "maximum": 1
+        },
+        "upper": {
+          "type": ["number", "null"],
+          "minimum": -1,
+          "maximum": 1
+        }
+      }
+    },
+    "round": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "distinct_source_count",
+        "detected_source_count",
+        "sensitivity",
+        "bootstrap_ci_95"
+      ],
+      "properties": {
+        "distinct_source_count": {"type": "integer", "minimum": 0},
+        "detected_source_count": {"type": "integer", "minimum": 0},
+        "sensitivity": {"$ref": "#/$defs/nullableRate"},
+        "bootstrap_ci_95": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["lower", "upper"],
+          "properties": {
+            "lower": {"$ref": "#/$defs/nullableRate"},
+            "upper": {"$ref": "#/$defs/nullableRate"}
+          }
+        }
+      }
+    }
+  }
+}

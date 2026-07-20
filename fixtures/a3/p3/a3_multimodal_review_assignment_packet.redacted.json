@@ -1,0 +1,276 @@
+{
+  "schema_version": "a3.multimodal_review_assignment_packet.v1",
+  "generated_at": "2026-07-14T12:05:00.000Z",
+  "source": "p3-media",
+  "packet_id": "mmrp_39c3b8be913bf862ccba",
+  "tenant_scope": {
+    "organization_id": "org-assignment",
+    "tenant_id": "tenant-assignment",
+    "workspace_id": "workspace-assignment",
+    "project_id": "project-assignment",
+    "environment_id": "staging"
+  },
+  "source_contract": "a2.multimodal_cross_provider_comparison.v3",
+  "source_commit_alias": "1553562",
+  "item_count": 4,
+  "event_count": 3,
+  "items": [
+    {
+      "queue_id": "sha256:8dcea91b3f52427cb10db1e8e7f0f49edd9e1317ffa5d312e72fe3a4109d07a6",
+      "case_id": "round40-round37-hallucination-2-jpeg-q35",
+      "comparison_hash": "sha256:432c6e85b0c0585083583a3ae9262d736014b627ec103e3b2d2da600dc466218",
+      "comparison_scope": "repeat",
+      "queue_state": "awaiting_human_review",
+      "operational_state": {
+        "status": "unassigned",
+        "version": 3,
+        "assigned_reviewer_hash": null,
+        "lease_expires_at": null,
+        "last_action": "released",
+        "event_count": 3,
+        "authoritative_disposition_recorded": false,
+        "release_authority": false,
+        "a2_decision_recomputed": false
+      },
+      "history": [
+        {
+          "schema_version": "a3.multimodal_review_assignment_event.v1",
+          "source": "p3-media",
+          "organization_id": "org-assignment",
+          "tenant_id": "tenant-assignment",
+          "workspace_id": "workspace-assignment",
+          "project_id": "project-assignment",
+          "environment_id": "staging",
+          "tenant_scope": {
+            "organization_id": "org-assignment",
+            "tenant_id": "tenant-assignment",
+            "workspace_id": "workspace-assignment",
+            "project_id": "project-assignment",
+            "environment_id": "staging"
+          },
+          "queue_id": "sha256:8dcea91b3f52427cb10db1e8e7f0f49edd9e1317ffa5d312e72fe3a4109d07a6",
+          "case_id": "round40-round37-hallucination-2-jpeg-q35",
+          "comparison_hash": "sha256:432c6e85b0c0585083583a3ae9262d736014b627ec103e3b2d2da600dc466218",
+          "event_type": "claimed",
+          "version": 1,
+          "actor_hash": "reviewer_hash_alpha",
+          "actor_role": "reviewer",
+          "previous_reviewer_hash": null,
+          "assigned_reviewer_hash": "reviewer_hash_alpha",
+          "lease_started_at": "2026-07-14T12:00:00.000Z",
+          "lease_expires_at": "2026-07-14T12:05:00.000Z",
+          "reason_code": "manual_review_claim",
+          "created_at": "2026-07-14T12:00:00.000Z",
+          "release_authority": false,
+          "a2_decision_recomputed": false,
+          "safety": {
+            "raw_reviewer_identity_included": false,
+            "raw_model_payload_included": false,
+            "raw_media_included": false,
+            "signed_url_included": false,
+            "secret_values_included": false
+          },
+          "event_id": "mmra_d741a851a245fcdde639",
+          "event_hash": "sha256:d741a851a245fcdde639b1a2553f3b9ed93391881a40fc997c1f487dfc6bc0f0"
+        },
+        {
+          "schema_version": "a3.multimodal_review_assignment_event.v1",
+          "source": "p3-media",
+          "organization_id": "org-assignment",
+          "tenant_id": "tenant-assignment",
+          "workspace_id": "workspace-assignment",
+          "project_id": "project-assignment",
+          "environment_id": "staging",
+          "tenant_scope": {
+            "organization_id": "org-assignment",
+            "tenant_id": "tenant-assignment",
+            "workspace_id": "workspace-assignment",
+            "project_id": "project-assignment",
+            "environment_id": "staging"
+          },
+          "queue_id": "sha256:8dcea91b3f52427cb10db1e8e7f0f49edd9e1317ffa5d312e72fe3a4109d07a6",
+          "case_id": "round40-round37-hallucination-2-jpeg-q35",
+          "comparison_hash": "sha256:432c6e85b0c0585083583a3ae9262d736014b627ec103e3b2d2da600dc466218",
+          "event_type": "transferred",
+          "version": 2,
+          "actor_hash": "reviewer_hash_alpha",
+          "actor_role": "reviewer",
+          "previous_reviewer_hash": "reviewer_hash_alpha",
+          "assigned_reviewer_hash": "reviewer_hash_beta",
+          "lease_started_at": "2026-07-14T12:02:00.000Z",
+          "lease_expires_at": "2026-07-14T12:17:00.000Z",
+          "reason_code": "specialist_handoff",
+          "created_at": "2026-07-14T12:02:00.000Z",
+          "release_authority": false,
+          "a2_decision_recomputed": false,
+          "safety": {
+            "raw_reviewer_identity_included": false,
+            "raw_model_payload_included": false,
+            "raw_media_included": false,
+            "signed_url_included": false,
+            "secret_values_included": false
+          },
+          "event_id": "mmra_89a50c8d70e06819760a",
+          "event_hash": "sha256:89a50c8d70e06819760a9bd2b04b5c6870dd1d7a733537f919cc9f0620caf0ab"
+        },
+        {
+          "schema_version": "a3.multimodal_review_assignment_event.v1",
+          "source": "p3-media",
+          "organization_id": "org-assignment",
+          "tenant_id": "tenant-assignment",
+          "workspace_id": "workspace-assignment",
+          "project_id": "project-assignment",
+          "environment_id": "staging",
+          "tenant_scope": {
+            "organization_id": "org-assignment",
+            "tenant_id": "tenant-assignment",
+            "workspace_id": "workspace-assignment",
+            "project_id": "project-assignment",
+            "environment_id": "staging"
+          },
+          "queue_id": "sha256:8dcea91b3f52427cb10db1e8e7f0f49edd9e1317ffa5d312e72fe3a4109d07a6",
+          "case_id": "round40-round37-hallucination-2-jpeg-q35",
+          "comparison_hash": "sha256:432c6e85b0c0585083583a3ae9262d736014b627ec103e3b2d2da600dc466218",
+          "event_type": "released",
+          "version": 3,
+          "actor_hash": "reviewer_hash_beta",
+          "actor_role": "reviewer",
+          "previous_reviewer_hash": "reviewer_hash_beta",
+          "assigned_reviewer_hash": null,
+          "lease_started_at": null,
+          "lease_expires_at": null,
+          "reason_code": "review_work_complete",
+          "created_at": "2026-07-14T12:04:00.000Z",
+          "release_authority": false,
+          "a2_decision_recomputed": false,
+          "safety": {
+            "raw_reviewer_identity_included": false,
+            "raw_model_payload_included": false,
+            "raw_media_included": false,
+            "signed_url_included": false,
+            "secret_values_included": false
+          },
+          "event_id": "mmra_302d097af88e97d17b54",
+          "event_hash": "sha256:302d097af88e97d17b54f224acd10ae18a42fa05819e79cbae1f2e02eb779832"
+        }
+      ],
+      "integrity": {
+        "status": "passed",
+        "event_count": 3,
+        "first_event_hash": "sha256:d741a851a245fcdde639b1a2553f3b9ed93391881a40fc997c1f487dfc6bc0f0",
+        "terminal_event_hash": "sha256:302d097af88e97d17b54f224acd10ae18a42fa05819e79cbae1f2e02eb779832",
+        "findings": []
+      }
+    },
+    {
+      "queue_id": "sha256:6cb1e30ebd15c08faf5316581660de0148ee63e8fe76f5ff620f3717d474bed1",
+      "case_id": "round40-round37-hallucination-2-rescaled-384",
+      "comparison_hash": "sha256:bde47dbfeba5dc8602548e19ad796a31d5a25982fdb7efa9bcd2e5ea95e2ed68",
+      "comparison_scope": "repeat",
+      "queue_state": "awaiting_human_review",
+      "operational_state": {
+        "status": "unassigned",
+        "version": 0,
+        "assigned_reviewer_hash": null,
+        "lease_expires_at": null,
+        "last_action": null,
+        "event_count": 0,
+        "authoritative_disposition_recorded": false,
+        "release_authority": false,
+        "a2_decision_recomputed": false
+      },
+      "history": [],
+      "integrity": {
+        "status": "passed",
+        "event_count": 0,
+        "first_event_hash": null,
+        "terminal_event_hash": null,
+        "findings": []
+      }
+    },
+    {
+      "queue_id": "sha256:79e6f7a5739eb04694611ed22d23d0a2af5b690f0f96033bdc19776effd5c67f",
+      "case_id": "round40-round37-hallucination-2-jpeg-q35",
+      "comparison_hash": "sha256:cfafb99ad500b3a93b53b107c601ae497eda2f6fdec7ed86028631df647c9213",
+      "comparison_scope": "aggregate",
+      "queue_state": "awaiting_human_review",
+      "operational_state": {
+        "status": "unassigned",
+        "version": 0,
+        "assigned_reviewer_hash": null,
+        "lease_expires_at": null,
+        "last_action": null,
+        "event_count": 0,
+        "authoritative_disposition_recorded": false,
+        "release_authority": false,
+        "a2_decision_recomputed": false
+      },
+      "history": [],
+      "integrity": {
+        "status": "passed",
+        "event_count": 0,
+        "first_event_hash": null,
+        "terminal_event_hash": null,
+        "findings": []
+      }
+    },
+    {
+      "queue_id": "sha256:2a8ecc379e8f962a686568c976bb611eba945467cdd03aae73e4345ce99540c6",
+      "case_id": "round40-round37-hallucination-2-rescaled-384",
+      "comparison_hash": "sha256:dcb4446d93d5f729de778f9b4d89e4123a7cf6868cbea2d92a245f6ed6f3cc81",
+      "comparison_scope": "aggregate",
+      "queue_state": "awaiting_human_review",
+      "operational_state": {
+        "status": "unassigned",
+        "version": 0,
+        "assigned_reviewer_hash": null,
+        "lease_expires_at": null,
+        "last_action": null,
+        "event_count": 0,
+        "authoritative_disposition_recorded": false,
+        "release_authority": false,
+        "a2_decision_recomputed": false
+      },
+      "history": [],
+      "integrity": {
+        "status": "passed",
+        "event_count": 0,
+        "first_event_hash": null,
+        "terminal_event_hash": null,
+        "findings": []
+      }
+    }
+  ],
+  "integrity": {
+    "status": "passed",
+    "item_count": 4,
+    "event_count": 3,
+    "invalid_event_count": 0,
+    "finding_count": 0,
+    "findings": []
+  },
+  "archive_binding": {
+    "bundle_artifact_id": "multimodal_review_assignment_packet",
+    "bundle_role": "review_record",
+    "audit_archive_signature_required": true,
+    "audit_archive_signature_verified": false,
+    "verification_note": "This packet becomes signed evidence only after an Audit Archive manifest includes its exact file hash and passes Ed25519 verification."
+  },
+  "authority_boundary": {
+    "assignment_is_human_disposition": false,
+    "authoritative_human_review_included": false,
+    "release_authority": false,
+    "a2_decision_recomputed": false,
+    "release_decision_changed": false
+  },
+  "safety": {
+    "raw_reviewer_identity_included": false,
+    "raw_model_payload_included": false,
+    "raw_media_included": false,
+    "signed_url_included": false,
+    "secret_values_included": false,
+    "local_absolute_paths_included": false,
+    "reviewer_hash_aliases_only": true
+  },
+  "packet_root_hash": "sha256:19f612211d2fa4ae0dde1c3ebfe180985c556bfc37047c68368c450757b38066"
+}

@@ -90,7 +90,7 @@ test.describe("A3 API-backed dashboard E2E", () => {
 
     await page.screenshot({
       path: "docs/screenshots/a3-billing-migration-readiness-api-backed-2026-07-09.png",
-      fullPage: true
+      fullPage: false
     });
 
     expect(consoleErrors, "billing migration readiness dashboard evidence should not emit browser console errors").toEqual([]);
@@ -400,7 +400,7 @@ test.describe("A3 API-backed dashboard E2E", () => {
 
     await page.screenshot({
       path: "docs/screenshots/a3-export-governance-enterprise-packets-api-backed-2026-07-10.png",
-      fullPage: true
+      fullPage: false
     });
 
     expect(consoleErrors, "export governance and enterprise decision packets should not emit browser console errors").toEqual([]);

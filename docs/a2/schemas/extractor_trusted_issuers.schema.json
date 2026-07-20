@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A2ExtractorTrustedIssuers",
+  "type": "object",
+  "required": ["schema_version", "config_id", "generation", "valid_from", "issuers"],
+  "properties": {
+    "schema_version": {"const": "a2.extractor_trusted_issuers.v1"},
+    "config_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$"},
+    "generation": {"type": "integer", "minimum": 1},
+    "valid_from": {"type": "string", "format": "date-time"},
+    "issuers": {
+      "type": "array", "minItems": 1, "uniqueItems": true,
+      "items": {
+        "type": "object", "required": ["id", "authorities"],
+        "properties": {
+          "id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$"},
+          "authorities": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,255}$"}}
+        }, "additionalProperties": false
+      }
+    }
+  }, "additionalProperties": false
+}

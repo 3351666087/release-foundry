@@ -3,6 +3,7 @@ export * from "./account-readiness.js";
 export * from "./account-connections.js";
 export * from "./account-connections-cli.js";
 export * from "./billing.js";
+export * from "./browser-session.js";
 export * from "./calibrate.js";
 export * from "./capability-matrix.js";
 export * from "./china-payments.js";
@@ -31,6 +32,7 @@ export {
 } from "./oauth.js";
 export * from "./runner.js";
 export * from "./python-parity.js";
+export * from "./provider-adapter.js";
 export * from "./saas.js";
 export * from "./session-lifecycle.js";
 export * from "./stripe-executor.js";
@@ -1669,3 +1671,10 @@ export const build_default_request_input_schema = buildDefaultRequestInputSchema
 export const coerce_agent_input = coerceAgentInput;
 export const redact_sensitive = redactSensitive;
 export const redact_text = redactText;
+
+export * from "./provider-request-journal.js";
+export * from "./provider-dispatch.js";
+export * from "./provider-stream.js";
+export * from "./identity-client.js";
+
+export * from "./provider-evidence.js";

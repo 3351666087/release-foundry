@@ -1,0 +1,42 @@
+{
+  "a1_receipt": {
+    "git_sha": "5dd6a898a6771eaf67bf39246f256b579b4d2211",
+    "matches_a1_ref": false,
+    "release_candidate": "round62-source-candidate"
+  },
+  "a2_candidate": {
+    "base_git_sha": "1553562bdd1505f4bf7f17a6252c88a9faea6638",
+    "latest_multimodal_summary_hash": "sha256:334ad4103703b340992846747e2de7ddc428234b5b0595a94c3991aa23d605b3",
+    "review_conservation_hash": "sha256:57dcff674292085b5a835a9f70ebb78ff980cf3349ae010ee76b67b5e43ae3a2",
+    "shared_candidate_id": null,
+    "shared_candidate_identity_contract_hash": "sha256:76d1358b1f6909f969de8be8c11dcbb8680a2f2385828bcd83463936de485b95"
+  },
+  "a3_candidate": {
+    "candidate_id": "a3-golden-20260712-002",
+    "git_sha": "cf29d9f0d054ad51b9727b7782e16a8167f6eeae",
+    "multimodal_review_queue_consumer_present": true,
+    "recomputes_a2_release_decision": false
+  },
+  "binding_state": "blocked",
+  "blockers": [
+    "a1_receipt_git_sha_does_not_match_current_a1_ref",
+    "a2_has_no_exact_shared_candidate_id",
+    "a3_candidate_does_not_match_a1_release_candidate",
+    "exact_a1_a2_a3_candidate_binding_absent",
+    "same_round_real_postgresql_proof_absent",
+    "latest_multimodal_calibration_blocked",
+    "pending_multimodal_human_review"
+  ],
+  "observed_at": "2026-07-14T05:46:40.291187Z",
+  "public_safe": true,
+  "refs": {
+    "a1": "23072311c80395989adaba1bd164265bd67517b1",
+    "a2": "1553562bdd1505f4bf7f17a6252c88a9faea6638",
+    "a3": "cf29d9f0d054ad51b9727b7782e16a8167f6eeae",
+    "main": "ccf6ce57890aaceabcb627c14d2e078674bd50ad",
+    "strategy": "d0d5d4f25e5f11ff0ef64fac2f8de0cfbf96eb3a"
+  },
+  "release_authority": false,
+  "schema_version": "a2.trusted_spine_binding_recheck.v1",
+  "trusted_spine_generated": false
+}

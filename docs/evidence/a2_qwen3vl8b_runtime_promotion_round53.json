@@ -1,0 +1,86 @@
+{
+  "blockers": [
+    "local_runtime_consecutive_success_minimum_not_met",
+    "local_runtime_profile_not_completed:cold_json_schema_96",
+    "local_runtime_profile_not_completed:warm_json_schema_128",
+    "local_runtime_profile_not_completed:warm_json_schema_96",
+    "local_runtime_profile_not_completed:warm_minimal_enum_32",
+    "local_runtime_structured_output_invalid:cold_json_schema_96",
+    "local_runtime_structured_output_invalid:warm_json_schema_128",
+    "local_runtime_structured_output_invalid:warm_json_schema_96",
+    "local_runtime_structured_output_invalid:warm_minimal_enum_32"
+  ],
+  "cold_runtime_state": "blocked",
+  "generated_at": "2026-07-14T15:37:59.445687Z",
+  "maximum_consecutive_successful_profiles": 0,
+  "minimum_consecutive_successful_profiles": 2,
+  "model_digest": "sha256:901cae73216286ea8c5aba8b46d307ff7188f737285ec500c795a12f05225d28",
+  "model_id": "qwen3-vl:8b",
+  "observed_profiles": [
+    {
+      "caller_wall_seconds": 117.436384,
+      "format_mode": "json_schema",
+      "latency_limit_seconds": 240.0,
+      "parse_state": "invalid_structured_output",
+      "phase": "cold",
+      "profile": "cold_json_schema_96",
+      "promotion_eligible": false,
+      "required": true,
+      "state": "failed",
+      "within_latency_limit": true
+    },
+    {
+      "caller_wall_seconds": 6.33145,
+      "format_mode": "json_schema",
+      "latency_limit_seconds": 30.0,
+      "parse_state": "invalid_structured_output",
+      "phase": "warm",
+      "profile": "warm_json_schema_96",
+      "promotion_eligible": false,
+      "required": true,
+      "state": "failed",
+      "within_latency_limit": true
+    },
+    {
+      "caller_wall_seconds": 6.074852,
+      "format_mode": "json_schema",
+      "latency_limit_seconds": 30.0,
+      "parse_state": "invalid_structured_output",
+      "phase": "warm",
+      "profile": "warm_json_schema_128",
+      "promotion_eligible": false,
+      "required": true,
+      "state": "failed",
+      "within_latency_limit": true
+    },
+    {
+      "caller_wall_seconds": 2.517963,
+      "format_mode": "json_schema",
+      "latency_limit_seconds": 30.0,
+      "parse_state": "invalid_structured_output",
+      "phase": "warm",
+      "profile": "warm_minimal_enum_32",
+      "promotion_eligible": false,
+      "required": true,
+      "state": "failed",
+      "within_latency_limit": true
+    }
+  ],
+  "policy_hash": "sha256:699465db8f812247295c60d8b56d30a417fd71c0942e487b84834dbe2c373115",
+  "policy_id": "round53-cold-warm-consecutive-structured",
+  "provider_is_truth": false,
+  "public_safe": true,
+  "release_authority": false,
+  "required_profiles": [
+    "cold_json_schema_96",
+    "warm_json_schema_96",
+    "warm_json_schema_128",
+    "warm_minimal_enum_32"
+  ],
+  "runtime_promotion_state": "blocked",
+  "schema_version": "a2.local_model_runtime_promotion_contract.v2",
+  "secret_included": false,
+  "source_probe_hash": "sha256:530c391365fb7dc99ba0dfd8db8994cc0d70143a53666631eb0efdcf6b39e0ee",
+  "source_probe_path": "docs/evidence/a2_qwen3vl8b_structured_token_sweep_round53.json",
+  "warm_runtime_state": "blocked"
+}

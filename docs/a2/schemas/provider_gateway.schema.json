@@ -4,7 +4,7 @@
   "type": "object",
   "required": [
     "schema_version", "logical_call_id", "tenant_id", "snapshot_id", "snapshot_hash",
-    "provider_id", "model_id", "modalities", "payload_hash", "idempotency_key", "status",
+    "provider_id", "model_id", "modalities", "payload_hash", "idempotency_key", "model_options_hash", "credential_generation_marker", "status",
     "evaluation_eligible", "release_authority", "attempts", "blockers", "raw_request_included",
     "raw_response_included", "secret_included"
   ],
@@ -19,7 +19,14 @@
     "modalities": { "type": "array", "uniqueItems": true, "items": { "enum": ["text", "image", "audio", "file", "video"] } },
     "payload_hash": { "$ref": "#/$defs/hash" },
     "idempotency_key": { "type": "string", "minLength": 1 },
-    "status": { "enum": ["completed", "blocked", "budget_blocked", "provider_error", "provider_unavailable", "rate_limited", "timeout", "invalid_response", "unsupported"] },
+    "model_options_hash": { "$ref": "#/$defs/hash" },
+    "credential_generation_marker": {
+      "anyOf": [
+        {"const": ""},
+        {"type": "string", "pattern": "^hmac-sha256:[a-f0-9]{64}$"}
+      ]
+    },
+    "status": { "enum": ["completed", "blocked", "budget_blocked", "provider_error", "provider_unavailable", "authentication_failed", "rate_limited", "timeout", "invalid_response", "unsupported"] },
     "evaluation_eligible": { "type": "boolean" },
     "release_authority": { "const": false },
     "attempts": { "type": "array", "items": { "type": "object" } },
@@ -27,6 +34,7 @@
     "response_hash": { "$ref": "#/$defs/hash" },
     "structured_output_hash": { "$ref": "#/$defs/hash" },
     "output_text": { "type": "string" },
+    "failure_detail": { "enum": ["empty_public_content", "malformed_or_invalid_output"] },
     "raw_request_included": { "const": false },
     "raw_response_included": { "const": false },
     "secret_included": { "const": false }

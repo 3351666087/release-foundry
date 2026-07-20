@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.io/schemas/a2/local_multimodal_golden_result.schema.json",
+  "title": "A2 Local Multimodal Golden Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "case_id", "golden_case_hash", "structured_output_hash",
+    "field_results", "regression_status", "calibration_state",
+    "release_authority", "human_review_required", "blockers", "public_safe"
+  ],
+  "properties": {
+    "schema_version": {"const": "a2.local_multimodal_golden_result.v1"},
+    "case_id": {"type": "string", "minLength": 1},
+    "golden_case_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "structured_output_hash": {
+      "anyOf": [{"const": ""}, {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}]
+    },
+    "field_results": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["present", "matched", "severity"],
+        "properties": {
+          "present": {"type": "boolean"},
+          "matched": {"type": "boolean"},
+          "severity": {"enum": ["semantic", "safety"]}
+        }
+      }
+    },
+    "regression_status": {"enum": ["passed", "blocked"]},
+    "calibration_state": {"enum": ["golden_passed", "uncalibrated"]},
+    "release_authority": {"const": false},
+    "human_review_required": {"type": "boolean"},
+    "blockers": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "public_safe": {"const": true}
+  }
+}

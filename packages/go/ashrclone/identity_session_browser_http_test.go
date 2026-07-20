@@ -89,6 +89,7 @@ func TestBrowserLoginCookieRefreshAndProtectedRouteLifecycle(t *testing.T) {
 		account:       account,
 	}
 	handler := NewHTTPServerWithOptions(backend, HTTPServerOptions{
+		UnifiedIdentityStore:            backend,
 		IdentitySessions:                store,
 		IdentityVerification:            verification,
 		IdentitySessionReceiptTransport: transport,
@@ -212,6 +213,7 @@ func TestBrowserLoginCookieRefreshAndProtectedRouteLifecycle(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	expectIdentitySessionRefreshTransaction(mock)
 	mock.ExpectQuery("FROM a1_rotate_identity_session_refresh_from_digest").
 		WithArgs(
 			browserSessionProjectID,
@@ -239,6 +241,7 @@ func TestBrowserLoginCookieRefreshAndProtectedRouteLifecycle(t *testing.T) {
 			requestedAccessExpiresAt,
 			refreshExpiresAt,
 		))
+	mock.ExpectCommit()
 	refreshRequest := browserRefreshRequest(oldAccess, oldRefresh, idempotencyKey)
 	refreshResponse := httptest.NewRecorder()
 	handler.ServeHTTP(refreshResponse, refreshRequest)
@@ -296,6 +299,7 @@ func TestBrowserLoginCookieRefreshAndProtectedRouteLifecycle(t *testing.T) {
 
 	now = now.Add(30 * time.Second)
 	replayRequestedAccessExpiresAt := now.Add(defaultIdentityAccessSessionTTL)
+	expectIdentitySessionRefreshTransaction(restartMock)
 	restartMock.ExpectQuery("FROM a1_rotate_identity_session_refresh_from_digest").
 		WithArgs(
 			browserSessionProjectID,
@@ -323,6 +327,7 @@ func TestBrowserLoginCookieRefreshAndProtectedRouteLifecycle(t *testing.T) {
 			requestedAccessExpiresAt,
 			refreshExpiresAt,
 		))
+	restartMock.ExpectCommit()
 	replayRequest := browserRefreshRequest(oldAccess, oldRefresh, idempotencyKey)
 	replayResponse := httptest.NewRecorder()
 	restartHandler.ServeHTTP(replayResponse, replayRequest)
@@ -407,6 +412,7 @@ func TestBrowserLoginCookieRefreshAndProtectedRouteLifecycle(t *testing.T) {
 		reuseAccessDigest,
 		reuseRefreshDigest,
 	)
+	expectIdentitySessionRefreshTransaction(mock)
 	mock.ExpectQuery("FROM a1_rotate_identity_session_refresh_from_digest").
 		WithArgs(
 			browserSessionProjectID,
@@ -434,6 +440,7 @@ func TestBrowserLoginCookieRefreshAndProtectedRouteLifecycle(t *testing.T) {
 			requestedAccessExpiresAt,
 			refreshExpiresAt,
 		))
+	mock.ExpectRollback()
 	reuseRequest := browserRefreshRequest(oldAccess, oldRefresh, reuseIdempotencyKey)
 	reuseResponse := httptest.NewRecorder()
 	handler.ServeHTTP(reuseResponse, reuseRequest)
@@ -484,6 +491,13 @@ func browserSessionRows(sessionID string) *sqlmock.Rows {
 		browserSessionProjectID,
 		browserSessionAccountID,
 	)
+}
+
+func expectIdentitySessionRefreshTransaction(mock sqlmock.Sqlmock) {
+	mock.ExpectBegin()
+	mock.ExpectExec("SELECT set_config").
+		WithArgs("5000ms", "2000ms").
+		WillReturnResult(sqlmock.NewResult(0, 1))
 }
 
 func cookiesByName(cookies []*http.Cookie) map[string]*http.Cookie {

@@ -11,6 +11,7 @@ import { RunsPage } from "./pages/runs-page";
 import { CasePage } from "./pages/case-page";
 import { ReviewPage } from "./pages/review-page";
 import { ReportsPage } from "./pages/reports-page";
+import { DeliveryPage } from "./pages/delivery-page";
 import { ApiReferencePage } from "./pages/api-reference-page";
 import { TeamPage } from "./pages/team-page";
 import { BillingPage } from "./pages/billing-page";
@@ -23,6 +24,7 @@ const pages = {
   case: CasePage,
   review: ReviewPage,
   reports: ReportsPage,
+  delivery: DeliveryPage,
   "api-reference": ApiReferencePage,
   team: TeamPage,
   billing: BillingPage,

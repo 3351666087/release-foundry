@@ -19,7 +19,9 @@ export async function createSqliteA3Store(options = {}) {
   const seed = existingState || options.seed || {};
   const store = createMemoryA3Store({
     ...seed,
-    storageMode: "sqlite"
+    storageMode: "sqlite",
+    dbReady: true,
+    githubExecutorAuthority: options.githubExecutorAuthority
   });
 
   const persist = async () => {
@@ -48,6 +50,48 @@ export async function createSqliteA3Store(options = {}) {
 
     async importA2GradeResult(gradeResult, options = {}) {
       const result = await store.importA2GradeResult(gradeResult, options);
+      await persist();
+      return result;
+    },
+
+    async importA2MultimodalComparison(comparison, options = {}) {
+      const result = await store.importA2MultimodalComparison(comparison, options);
+      await persist();
+      return result;
+    },
+
+    async importA2MultimodalRepeatStability(stabilityEvidence, options = {}) {
+      const result = await store.importA2MultimodalRepeatStability(stabilityEvidence, options);
+      await persist();
+      return result;
+    },
+
+    async importA2MultimodalProviderReadiness(readinessEvidence, options = {}) {
+      const result = await store.importA2MultimodalProviderReadiness(readinessEvidence, options);
+      await persist();
+      return result;
+    },
+
+    async mutateMultimodalReviewAssignment(queueId, input, options = {}) {
+      const result = await store.mutateMultimodalReviewAssignment(queueId, input, options);
+      await persist();
+      return result;
+    },
+
+    async createMultimodalReviewEvidenceRequest(queueId, input, options = {}) {
+      const result = await store.createMultimodalReviewEvidenceRequest(queueId, input, options);
+      await persist();
+      return result;
+    },
+
+    async submitMultimodalReviewEvidenceRequest(queueId, requestId, input, options = {}) {
+      const result = await store.submitMultimodalReviewEvidenceRequest(queueId, requestId, input, options);
+      await persist();
+      return result;
+    },
+
+    async reviewMultimodalReviewEvidenceRequest(queueId, requestId, input, options = {}) {
+      const result = await store.reviewMultimodalReviewEvidenceRequest(queueId, requestId, input, options);
       await persist();
       return result;
     },
@@ -106,6 +150,45 @@ export async function createSqliteA3Store(options = {}) {
       return result;
     },
 
+    async submitDeploymentReceipt(input, options = {}) {
+      const result = await store.submitDeploymentReceipt(input, options);
+      await persist();
+      return result;
+    },
+
+    async reviewDeploymentReceipt(receiptId, review, options = {}) {
+      const result = await store.reviewDeploymentReceipt(receiptId, review, options);
+      await persist();
+      return result;
+    },
+
+    async verifyDeploymentReceiptAuthoritatively(receiptId, resolver, options = {}) {
+      const result = await store.verifyDeploymentReceiptAuthoritatively(receiptId, resolver, options);
+      await persist();
+      return result;
+    },
+
+    async publishGitHubCheckRun(options = {}) {
+      const result = await store.publishGitHubCheckRun(options);
+      await persist();
+      return result;
+    },
+
+    async publishGitHubPrComment(options = {}) {
+      const result = await store.publishGitHubPrComment(options);
+      await persist();
+      return result;
+    },
+
+    async recordAccessDecision(decision, options = {}) {
+      const result = await store.recordAccessDecision(decision, options);
+      await persist();
+      return {
+        ...result,
+        storage_mode: "sqlite"
+      };
+    },
+
     async persist() {
       await persist();
     },
@@ -138,11 +221,18 @@ export function inspectSqliteA3Store(db) {
       api_import_receipts: countRows(db, "api_import_receipts"),
       saas_admin_action_requests: countRows(db, "saas_admin_action_requests"),
       review_workflow_records: countRows(db, "review_workflow_records"),
+      multimodal_review_assignment_events: countRows(db, "multimodal_review_assignment_events"),
+      multimodal_review_evidence_request_events: countRows(db, "multimodal_review_evidence_request_events"),
       release_evidence_summaries: countRows(db, "release_evidence_summaries"),
       release_evidence_snapshots: countRows(db, "release_evidence_snapshots"),
       release_evidence_diffs: countRows(db, "release_evidence_diffs"),
       release_evidence_readbacks: countRows(db, "release_evidence_readbacks"),
       audit_events: countRows(db, "audit_events"),
+      event_outbox: countRows(db, "event_outbox"),
+      github_publish_receipts: countRows(db, "github_publish_receipts"),
+      deployment_receipts: countRows(db, "deployment_receipts"),
+      deployment_receipt_readbacks: countRows(db, "deployment_receipt_readbacks"),
+      self_host_sandbox_calibrations: countRows(db, "self_host_sandbox_calibrations"),
       usage_ledger: countRows(db, "usage_ledger")
     },
     safety: {
@@ -197,7 +287,14 @@ async function persistSqliteState(db, store) {
     persistIdempotencyReceipts(db, state, updatedAt);
     persistSaasAdminActionRequests(db, state, updatedAt);
     persistReviewWorkflowRecords(db, state, updatedAt);
+    persistMultimodalReviewAssignmentEvents(db, state, updatedAt);
+    persistMultimodalReviewEvidenceRequestEvents(db, state, updatedAt);
     persistAuditEvents(db, state, updatedAt);
+    persistEventOutbox(db, state, updatedAt);
+    persistGitHubPublishReceipts(db, state, updatedAt);
+    persistDeploymentReceipts(db, state, updatedAt);
+    persistDeploymentReceiptReadbacks(db, state, updatedAt);
+    persistSelfHostSandboxCalibrations(db, state, updatedAt);
     await persistUsageLedger(db, store, state, updatedAt);
     db.exec("COMMIT");
   } catch (error) {
@@ -220,6 +317,11 @@ function clearOperationalRows(db) {
     "report_revocations",
     "report_view_events",
     "audit_events",
+    "event_outbox",
+    "github_publish_receipts",
+    "deployment_receipt_readbacks",
+    "deployment_receipts",
+    "self_host_sandbox_calibrations",
     "artifact_lifecycle_events",
     "artifact_registry_entries",
     "release_evidence_readbacks",
@@ -228,6 +330,8 @@ function clearOperationalRows(db) {
     "release_evidence_summaries",
     "saas_admin_action_requests",
     "review_workflow_records",
+    "multimodal_review_assignment_events",
+    "multimodal_review_evidence_request_events",
     "api_import_receipts",
     "idempotency_keys",
     "report_share_links",
@@ -275,13 +379,15 @@ VALUES (?, ?, ?, ?, ?)
 }
 
 async function persistSnapshots(db, store, state, updatedAt) {
-  for (const [source, snapshot] of Object.entries(state.sources || {})) {
-    const dashboard = await store.getDashboardSnapshot(source);
+  for (const [storageKey, snapshot] of Object.entries(state.sources || {})) {
+    const canonicalSource = snapshot.source || storageKey;
+    const scopeOptions = sqliteSnapshotScopeOptions(snapshot, canonicalSource);
+    const dashboard = await store.getDashboardSnapshot(canonicalSource, scopeOptions);
     db.prepare(`
 INSERT INTO dashboard_snapshots (source, organization_id, project_id, case_count, total_runs, pass_rate, payload_json, updated_at)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 `).run(
-      source,
+      storageKey,
       snapshot.organizationId || "org-local",
       snapshot.projectId || "project-local",
       dashboard.cases.length,
@@ -290,12 +396,15 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?)
       JSON.stringify(dashboard),
       updatedAt
     );
-    for (const run of await store.listRuns({ source })) {
+    const runIdMap = new Map();
+    for (const run of await store.listRuns(scopeOptions)) {
+      const scopedRunId = sqliteScopedEntityId("run", snapshot, run.run_id);
+      runIdMap.set(run.run_id, scopedRunId);
       db.prepare(`
 INSERT INTO runs (id, organization_id, project_id, dataset_id, runner_id, status, trace_completeness, raw_payload_hash, created_at)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 `).run(
-        run.run_id,
+        scopedRunId,
         snapshot.organizationId || "org-local",
         snapshot.projectId || "project-local",
         run.dataset_id || "local-dataset",
@@ -307,14 +416,16 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       );
     }
     for (const item of dashboard.cases) {
+      const scopedCaseId = sqliteScopedEntityId("case", snapshot, item.case_id);
+      const scopedRunId = runIdMap.get(item.run_id) || sqliteScopedEntityId("run", snapshot, item.run_id);
       db.prepare(`
 INSERT INTO cases (id, organization_id, project_id, run_id, scenario_id, status, score, primary_failure_class, payload)
 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 `).run(
-        item.case_id,
+        scopedCaseId,
         snapshot.organizationId || "org-local",
         snapshot.projectId || "project-local",
-        item.run_id,
+        scopedRunId,
         item.scenario_id || null,
         item.status || "unknown",
         item.score ?? null,
@@ -324,13 +435,13 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     }
     const releaseEvidenceSummary = dashboard.release_evidence_summary || {};
     if (releaseEvidenceSummary.available === true) {
-      const releaseId = dashboard.release_evidence_api?.release_id || `${source}-release`;
+      const releaseId = dashboard.release_evidence_api?.release_id || `${canonicalSource}-release`;
       const summaryHash = sha256(JSON.stringify(releaseEvidenceSummary));
       let authority = null;
       let authorityDiff = null;
       try {
-        authority = await store.getReleaseEvidenceSummary(releaseId, { source, version: "2" });
-        authorityDiff = await store.getReleaseEvidenceDiff(releaseId, { source });
+        authority = await store.getReleaseEvidenceSummary(releaseId, { ...scopeOptions, version: "2" });
+        authorityDiff = await store.getReleaseEvidenceDiff(releaseId, scopeOptions);
       } catch {
         authority = null;
         authorityDiff = null;
@@ -343,7 +454,7 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         snapshot.organizationId || "org-local",
         snapshot.projectId || "project-local",
         releaseId,
-        source,
+        canonicalSource,
         releaseEvidenceSummary.schema_version || "unknown",
         releaseEvidenceSummary.overall_status || "unknown",
         summaryHash,
@@ -378,7 +489,7 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ["required_check", payload.required_check_proof],
           ...((state.releaseEvidenceReadbacks || [])
             .filter((item) => (
-              (item.source || source) === source
+              (item.source || canonicalSource) === canonicalSource
               && (item.release_id || releaseId) === releaseId
               && (item.organization_id || "org-local") === (snapshot.organizationId || "org-local")
               && (item.project_id || "project-local") === (snapshot.projectId || "project-local")
@@ -559,6 +670,81 @@ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   }
 }
 
+function persistMultimodalReviewAssignmentEvents(db, state, updatedAt) {
+  for (const event of state.multimodalReviewAssignmentEvents || []) {
+    db.prepare(`
+INSERT INTO multimodal_review_assignment_events (
+  id, organization_id, tenant_id, workspace_id, project_id, environment_id,
+  source, queue_id, case_id, comparison_hash, event_type, version,
+  actor_hash, actor_role, previous_reviewer_hash, assigned_reviewer_hash,
+  lease_expires_at, reason_code, event_hash, payload, created_at
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`).run(
+      event.event_id,
+      event.organization_id,
+      event.tenant_id,
+      event.workspace_id,
+      event.project_id,
+      event.environment_id,
+      event.source,
+      event.queue_id,
+      event.case_id,
+      event.comparison_hash,
+      event.event_type,
+      event.version,
+      event.actor_hash,
+      event.actor_role,
+      event.previous_reviewer_hash,
+      event.assigned_reviewer_hash,
+      event.lease_expires_at,
+      event.reason_code,
+      event.event_hash,
+      JSON.stringify(event),
+      event.created_at || updatedAt
+    );
+  }
+}
+
+function persistMultimodalReviewEvidenceRequestEvents(db, state, updatedAt) {
+  for (const event of state.multimodalReviewEvidenceRequestEvents || []) {
+    db.prepare(`
+INSERT INTO multimodal_review_evidence_request_events (
+  id, organization_id, tenant_id, workspace_id, project_id, environment_id,
+  source, queue_id, request_id, case_id, comparison_hash, event_type, version,
+  actor_hash, actor_role, owner_lane, required_evidence_kinds, evidence_refs,
+  due_at, reason_code, previous_event_hash, event_hash, payload, created_at
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`).run(
+      event.event_id,
+      event.organization_id,
+      event.tenant_id,
+      event.workspace_id,
+      event.project_id,
+      event.environment_id,
+      event.source,
+      event.queue_id,
+      event.request_id,
+      event.case_id,
+      event.comparison_hash,
+      event.event_type,
+      event.version,
+      event.actor_hash,
+      event.actor_role,
+      event.owner_lane,
+      JSON.stringify(event.required_evidence_kinds || []),
+      JSON.stringify(event.evidence_refs || []),
+      event.due_at,
+      event.reason_code,
+      event.previous_event_hash,
+      event.event_hash,
+      JSON.stringify(event),
+      event.created_at || updatedAt
+    );
+  }
+}
+
 function persistAuditEvents(db, state, updatedAt) {
   for (const event of state.auditEvents || []) {
     const id = event.event_id || sha256(JSON.stringify(event)).slice(0, 16);
@@ -607,9 +793,179 @@ VALUES (?, ?, ?, ?, ?, ?)
   }
 }
 
+function persistEventOutbox(db, state, updatedAt) {
+  for (const row of state.eventOutbox || []) {
+    db.prepare(`
+INSERT INTO event_outbox (
+  id, event_type, event_schema_version, organization_id, tenant_id, workspace_id,
+  project_id, environment_id, actor_id, request_id, trace_id, resource_type,
+  resource_id, payload_ref, payload_hash, redaction_status, delivery_status, created_at
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`).run(
+      row.event_id || row.id,
+      row.event_type || "unknown.event",
+      row.event_schema_version || "a3.event_envelope.v1",
+      row.organization_id || "org-local",
+      row.tenant_id || "tenant-local",
+      row.workspace_id || "workspace-local",
+      row.project_id || "project-local",
+      row.environment_id || "staging",
+      row.actor_id || "actor_[REDACTED_HASH]",
+      row.request_id || "req_unknown",
+      row.trace_id || "trace_unknown",
+      row.resource_type || "unknown",
+      row.resource_id || "unknown",
+      row.payload_ref || null,
+      row.payload_hash || sha256(JSON.stringify(row)),
+      row.redaction_status || "metadata_only",
+      row.delivery_status || "pending",
+      row.created_at || updatedAt
+    );
+  }
+}
+
+function persistGitHubPublishReceipts(db, state, updatedAt) {
+  for (const receipt of state.githubPublishReceipts || []) {
+    db.prepare(`
+INSERT INTO github_publish_receipts (
+  id, organization_id, tenant_id, workspace_id, project_id, environment_id,
+  source, release_id, resource_kind, repo_alias, external_id_alias,
+  publish_status, dry_run, posted, payload_hash, payload, created_at
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`).run(
+      receipt.publish_id,
+      receipt.organization_id || "org-local",
+      receipt.tenant_id || "tenant-local",
+      receipt.workspace_id || "workspace-local",
+      receipt.project_id || "project-local",
+      receipt.environment_id || "staging",
+      receipt.source || "mock",
+      receipt.release_id || "current",
+      receipt.resource_kind || "unknown",
+      typeof receipt.repo === "string" ? receipt.repo : null,
+      receipt.external_id_alias == null ? null : String(receipt.external_id_alias),
+      receipt.status || "unknown",
+      receipt.dry_run !== false ? 1 : 0,
+      receipt.posted === true ? 1 : 0,
+      receipt.payload_hash || sha256(JSON.stringify(receipt)),
+      JSON.stringify(receipt),
+      receipt.published_at || updatedAt
+    );
+  }
+}
+
+function persistDeploymentReceipts(db, state, updatedAt) {
+  for (const receipt of state.deploymentReceipts || []) {
+    db.prepare(`
+INSERT INTO deployment_receipts (
+  id, organization_id, tenant_id, workspace_id, project_id, environment_id,
+  source, blocker_id, candidate_id, run_id, status, version, evidence_kind,
+  verifier_class, evidence_ref, evidence_sha256, production_verified,
+  payload_hash, payload, created_at, reviewed_at
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`).run(
+      receipt.receipt_id,
+      receipt.organization_id || "org-local",
+      receipt.tenant_id || "tenant-local",
+      receipt.workspace_id || "workspace-local",
+      receipt.project_id || "project-local",
+      receipt.environment_id || "staging",
+      receipt.source || "unknown",
+      receipt.blocker_id || "unknown",
+      receipt.candidate_id || "unknown",
+      receipt.run_id || "unknown",
+      receipt.status || "submitted",
+      Number(receipt.version || 1),
+      receipt.evidence_kind || "unknown",
+      receipt.verifier_class || "unknown",
+      receipt.evidence_ref || "[REDACTED_UNSAFE_REF]",
+      receipt.evidence_sha256 || `sha256:${sha256(JSON.stringify(receipt))}`,
+      0,
+      receipt.metadata_validation?.payload_hash || sha256(JSON.stringify(receipt)),
+      JSON.stringify(receipt),
+      receipt.submitted_at || updatedAt,
+      receipt.reviewed_at || null
+    );
+  }
+}
+
+function persistDeploymentReceiptReadbacks(db, state, updatedAt) {
+  for (const readback of state.deploymentReceiptReadbacks || []) {
+    db.prepare(`
+INSERT INTO deployment_receipt_readbacks (
+  id, receipt_id, organization_id, tenant_id, workspace_id, project_id,
+  environment_id, source, blocker_id, candidate_id, run_id,
+  verification_status, production_verified, verifier_class, verifier_authority,
+  evidence_sha256, attestation_sha256, sequence, previous_readback_hash,
+  readback_hash, payload, created_at
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`).run(
+      readback.readback_id,
+      readback.receipt_id,
+      readback.organization_id || "org-local",
+      readback.tenant_id || "tenant-local",
+      readback.workspace_id || "workspace-local",
+      readback.project_id || "project-local",
+      readback.environment_id || "staging",
+      readback.source || "unknown",
+      readback.blocker_id || "unknown",
+      readback.candidate_id || "unknown",
+      readback.run_id || "unknown",
+      readback.verification_status || "rejected",
+      readback.production_verified === true ? 1 : 0,
+      readback.verifier_class || "unknown",
+      readback.verifier_authority || "unknown",
+      readback.evidence_sha256,
+      readback.attestation_sha256,
+      Number(readback.sequence || 1),
+      readback.previous_readback_hash || null,
+      readback.readback_hash,
+      JSON.stringify(readback),
+      readback.verified_at || updatedAt
+    );
+  }
+}
+
+function persistSelfHostSandboxCalibrations(db, state, updatedAt) {
+  for (const calibration of state.selfHostSandboxCalibrations || []) {
+    const scope = calibration.tenant_scope || {};
+    db.prepare(`
+INSERT INTO self_host_sandbox_calibrations (
+  id, organization_id, tenant_id, workspace_id, project_id, environment_id,
+  source, status, evidence_level, production_verified,
+  deployment_acceptance_mutated, a2_decision_recomputed, probe_payload_sha256,
+  payload, observed_at, created_at
+)
+VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+`).run(
+      calibration.calibration_id,
+      scope.organization_id || "org-local",
+      scope.tenant_id || "tenant-local",
+      scope.workspace_id || "workspace-local",
+      scope.project_id || "project-local",
+      scope.environment_id || "staging",
+      calibration.source || "a1_local_runtime_probe",
+      calibration.status || "sandbox_failed",
+      calibration.authority_boundary?.evidence_level || "sandbox_failed",
+      0,
+      0,
+      0,
+      calibration.evidence_integrity?.probe_payload_sha256 || `sha256:${sha256(JSON.stringify(calibration))}`,
+      JSON.stringify(calibration),
+      calibration.observed_at || updatedAt,
+      updatedAt
+    );
+  }
+}
+
 async function persistUsageLedger(db, store, state, updatedAt) {
-  for (const source of Object.keys(state.sources || {})) {
-    const ledger = await store.getUsageLedger({ source });
+  for (const [storageKey, snapshot] of Object.entries(state.sources || {})) {
+    const source = snapshot.source || storageKey;
+    const ledger = await store.getUsageLedger(sqliteSnapshotScopeOptions(snapshot, source));
     for (const meter of ledger.meters || []) {
       db.prepare(`
 INSERT INTO usage_ledger (organization_id, project_id, meter, quantity, source, period_start, period_end)
@@ -625,6 +981,26 @@ VALUES (?, ?, ?, ?, ?, ?, ?)
       );
     }
   }
+}
+
+function sqliteSnapshotScopeOptions(snapshot = {}, source = "mock") {
+  const nested = snapshot.tenant_scope || {};
+  return {
+    source,
+    organizationId: snapshot.organizationId || snapshot.organization_id || nested.organization_id || "org-local",
+    tenantId: snapshot.tenantId || snapshot.tenant_id || nested.tenant_id || "tenant-local",
+    workspaceId: snapshot.workspaceId || snapshot.workspace_id || nested.workspace_id || "workspace-local",
+    projectId: snapshot.projectId || snapshot.project_id || nested.project_id || "project-local",
+    environmentId: snapshot.environmentId || snapshot.environment_id || nested.environment_id || "staging",
+    enforceScope: true
+  };
+}
+
+function sqliteScopedEntityId(kind, snapshot = {}, externalId = "unknown") {
+  return `${kind}_${sha256(JSON.stringify({
+    scope: sqliteSnapshotScopeOptions(snapshot, snapshot.source || "mock"),
+    external_id: externalId
+  })).slice(0, 24)}`;
 }
 
 function countRows(db, table) {

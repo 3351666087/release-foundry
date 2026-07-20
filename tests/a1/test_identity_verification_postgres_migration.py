@@ -420,11 +420,13 @@ def test_live_retryable_proof_outbox_budget_and_runtime_boundary(
     project = str(uuid.uuid4())
     principal = str(uuid.uuid4())
     org_membership = str(uuid.uuid4())
+    login_credential = str(uuid.uuid4())
     digest_names = (
         "subject", "challenge", "code", "context", "issue_event",
         "receipt", "verify_event", "idempotency", "request",
         "bind_event", "idempotency_competitor", "request_competitor",
-        "bind_event_competitor",
+        "bind_event_competitor", "login_subject", "session", "rotation",
+        "step_up", "ticket", "step_up_competitor", "ticket_competitor",
     )
     digests = {
         name: hashlib.sha256(name.encode("ascii")).hexdigest()
@@ -454,6 +456,23 @@ def test_live_retryable_proof_outbox_budget_and_runtime_boundary(
       ) VALUES (
         '{organization}', '{project}', '{principal}',
         '{org_membership}', 'active', clock_timestamp()
+      );
+      INSERT INTO identity_credentials (
+        id, principal_id, provider, credential_kind, subject_digest,
+        status, login_enabled, verified_at, last_authenticated_at
+      ) VALUES (
+        '{login_credential}', '{principal}', 'email', 'email_otp',
+        '{digests["login_subject"]}', 'active', TRUE,
+        clock_timestamp(), clock_timestamp()
+      );
+      INSERT INTO identity_sessions (
+        principal_id, credential_id, organization_id, project_id,
+        session_digest, rotation_family_digest, status, assurance_level,
+        authenticated_at, expires_at
+      ) VALUES (
+        '{principal}', '{login_credential}', '{organization}', '{project}',
+        '{digests["session"]}', '{digests["rotation"]}', 'active', 'aal1',
+        clock_timestamp(), clock_timestamp() + interval '30 minutes'
       );
     """
     _psql(verification_database, setup, tuples=False)
@@ -516,6 +535,70 @@ def test_live_retryable_proof_outbox_budget_and_runtime_boundary(
     ))
     assert len(verified) == 1 and verified[0].startswith("verified|")
 
+    binding_authorities = (
+        (
+            digests["idempotency"],
+            digests["request"],
+            digests["bind_event"],
+            digests["step_up"],
+            digests["ticket"],
+        ),
+        (
+            digests["idempotency_competitor"],
+            digests["request_competitor"],
+            digests["bind_event_competitor"],
+            digests["step_up_competitor"],
+            digests["ticket_competitor"],
+        ),
+    )
+    for _, request_digest, _, step_up_digest, ticket_digest in (
+        binding_authorities
+    ):
+        _psql(
+            verification_database,
+            f"""
+              INSERT INTO identity_security_receipts (
+                receipt_digest, principal_id, purpose, context_digest,
+                expires_at
+              ) VALUES (
+                '{step_up_digest}', '{principal}', 'credential_bind',
+                '{request_digest}', clock_timestamp() + interval '10 minutes'
+              );
+            """,
+            tuples=False,
+        )
+        issued = _rows(_psql(
+            verification_database,
+            f"""
+              SET ROLE a1_security_ticket_issuer;
+              SELECT a1_issue_identity_security_mutation_ticket(
+                '{ticket_digest}', '{step_up_digest}', '{principal}',
+                '{principal}', 'credential_bind', '{request_digest}',
+                NULL, NULL, NULL, NULL,
+                clock_timestamp() + interval '5 minutes'
+              );
+            """,
+        ))
+        assert issued == ["t"]
+
+    binding_privileges = _rows(_psql(
+        verification_database,
+        """
+          SELECT
+            has_function_privilege(
+              'a1_runtime',
+              'a1_bind_verified_identity_credential_authorized(uuid,uuid,text,uuid,text,text,text,text,text,text,jsonb)',
+              'EXECUTE'
+            ),
+            has_function_privilege(
+              'a1_runtime',
+              'a1_bind_verified_identity_credential(uuid,uuid,text,uuid,text,text,text,jsonb)',
+              'EXECUTE'
+            );
+        """,
+    ))
+    assert binding_privileges == ["t|f"]
+
     _psql(
         verification_database,
         """
@@ -536,11 +619,11 @@ def test_live_retryable_proof_outbox_budget_and_runtime_boundary(
     failed = _psql(
         verification_database,
         runtime_scope + f"""
-          SELECT a1_bind_verified_identity_credential(
+          SELECT a1_bind_verified_identity_credential_authorized(
             '{organization}', '{project}', '{digests["receipt"]}',
-            '{principal}', '{digests["idempotency"]}',
-            '{digests["request"]}', '{digests["bind_event"]}',
-            '{{}}'::jsonb
+            '{principal}', '{digests["session"]}', '{digests["ticket"]}',
+            '{digests["step_up"]}', '{digests["idempotency"]}',
+            '{digests["request"]}', '{digests["bind_event"]}', '{{}}'::jsonb
           );
         """,
         user="a1_runtime",
@@ -551,12 +634,19 @@ def test_live_retryable_proof_outbox_budget_and_runtime_boundary(
     retryable = _rows(_psql(
         verification_database,
         f"""
-          SELECT status, consumed_at IS NULL
-            FROM identity_verification_receipts
-           WHERE receipt_digest = '{digests["receipt"]}';
+          SELECT
+            (SELECT status = 'verified' AND consumed_at IS NULL
+               FROM identity_verification_receipts
+              WHERE receipt_digest = '{digests["receipt"]}'),
+            (SELECT consumed_at IS NULL
+               FROM identity_security_receipts
+              WHERE receipt_digest = '{digests["step_up"]}'),
+            (SELECT consumed_at IS NULL
+               FROM identity_security_mutation_tickets
+              WHERE ticket_digest = '{digests["ticket"]}');
         """,
     ))
-    assert retryable == ["verified|t"]
+    assert retryable == ["t|t|t"]
     _psql(
         verification_database,
         """
@@ -567,31 +657,24 @@ def test_live_retryable_proof_outbox_budget_and_runtime_boundary(
         tuples=False,
     )
 
-    competing_requests = (
-        (
-            digests["idempotency"],
-            digests["request"],
-            digests["bind_event"],
-        ),
-        (
-            digests["idempotency_competitor"],
-            digests["request_competitor"],
-            digests["bind_event_competitor"],
-        ),
-    )
-
     def bind_with_independent_connection(
-        request: tuple[str, str, str],
+        request: tuple[str, str, str, str, str],
     ) -> subprocess.CompletedProcess[str]:
-        idempotency_digest, request_digest, event_digest = request
+        (
+            idempotency_digest,
+            request_digest,
+            event_digest,
+            step_up_digest,
+            ticket_digest,
+        ) = request
         return _psql(
             verification_database,
             runtime_scope + f"""
-              SELECT a1_bind_verified_identity_credential(
+              SELECT a1_bind_verified_identity_credential_authorized(
                 '{organization}', '{project}', '{digests["receipt"]}',
-                '{principal}', '{idempotency_digest}',
-                '{request_digest}', '{event_digest}',
-                '{{}}'::jsonb
+                '{principal}', '{digests["session"]}', '{ticket_digest}',
+                '{step_up_digest}', '{idempotency_digest}',
+                '{request_digest}', '{event_digest}', '{{}}'::jsonb
               );
             """,
             user="a1_runtime",
@@ -600,18 +683,22 @@ def test_live_retryable_proof_outbox_budget_and_runtime_boundary(
 
     with ThreadPoolExecutor(max_workers=2) as executor:
         concurrent_results = list(
-            executor.map(bind_with_independent_connection, competing_requests)
+            executor.map(bind_with_independent_connection, binding_authorities)
         )
 
     winners = [
         (request, result)
         for request, result in zip(
-            competing_requests, concurrent_results, strict=True
+            binding_authorities, concurrent_results, strict=True
         )
         if result.returncode == 0
     ]
     losers = [
-        result for result in concurrent_results if result.returncode != 0
+        (request, result)
+        for request, result in zip(
+            binding_authorities, concurrent_results, strict=True
+        )
+        if result.returncode != 0
     ]
     assert len(winners) == 1
     assert len(losers) == 1
@@ -619,7 +706,7 @@ def test_live_retryable_proof_outbox_budget_and_runtime_boundary(
     assert len(credential_rows) == 1
     credential_id = credential_rows[0]
     assert uuid.UUID(credential_id)
-    loser_error = losers[0].stderr.lower()
+    loser_error = losers[0][1].stderr.lower()
     assert (
         "consumed" in loser_error
         or "idempotency_conflict" in loser_error
@@ -649,22 +736,48 @@ def test_live_retryable_proof_outbox_budget_and_runtime_boundary(
            WHERE receipt_digest = '{digests["receipt"]}';
         """,
     ))
-    winner_idempotency, winner_request, winner_event = winners[0][0]
+    (
+        winner_idempotency,
+        winner_request,
+        winner_event,
+        winner_step_up,
+        winner_ticket,
+    ) = winners[0][0]
+    _, _, _, loser_step_up, loser_ticket = losers[0][0]
     assert receipt_state == [
         (
             f"consumed|t|bind|{credential_id}|"
             f"{winner_idempotency}|{winner_request}"
         )
     ]
+    authorization_state = _rows(_psql(
+        verification_database,
+        f"""
+          SELECT
+            (SELECT consumed_at IS NOT NULL
+               FROM identity_security_receipts
+              WHERE receipt_digest = '{winner_step_up}'),
+            (SELECT consumed_at IS NOT NULL
+               FROM identity_security_mutation_tickets
+              WHERE ticket_digest = '{winner_ticket}'),
+            (SELECT consumed_at IS NULL
+               FROM identity_security_receipts
+              WHERE receipt_digest = '{loser_step_up}'),
+            (SELECT consumed_at IS NULL
+               FROM identity_security_mutation_tickets
+              WHERE ticket_digest = '{loser_ticket}');
+        """,
+    ))
+    assert authorization_state == ["t|t|t|t"]
 
     replay = _rows(_psql(
         verification_database,
         runtime_scope + f"""
-          SELECT a1_bind_verified_identity_credential(
+          SELECT a1_bind_verified_identity_credential_authorized(
             '{organization}', '{project}', '{digests["receipt"]}',
-            '{principal}', '{winner_idempotency}',
-            '{winner_request}', '{winner_event}',
-            '{{}}'::jsonb
+            '{principal}', '{digests["session"]}', '{winner_ticket}',
+            '{winner_step_up}', '{winner_idempotency}',
+            '{winner_request}', '{winner_event}', '{{}}'::jsonb
           );
         """,
         user="a1_runtime",
@@ -684,9 +797,10 @@ def test_live_retryable_proof_outbox_budget_and_runtime_boundary(
     idempotency_conflict = _psql(
         verification_database,
         runtime_scope + f"""
-          SELECT a1_bind_verified_identity_credential(
+          SELECT a1_bind_verified_identity_credential_authorized(
             '{organization}', '{project}', '{digests["receipt"]}',
-            '{principal}', '{winner_idempotency}',
+            '{principal}', '{digests["session"]}', '{winner_ticket}',
+            '{winner_step_up}', '{winner_idempotency}',
             '{conflicting_request}', '{conflicting_event}', '{{}}'::jsonb
           );
         """,
@@ -694,7 +808,10 @@ def test_live_retryable_proof_outbox_budget_and_runtime_boundary(
         check=False,
     )
     assert idempotency_conflict.returncode != 0
-    assert "idempotency_conflict" in idempotency_conflict.stderr.lower()
+    assert (
+        "authorization_rejected" in idempotency_conflict.stderr.lower()
+        or "idempotency_conflict" in idempotency_conflict.stderr.lower()
+    )
 
     wrong_organization = str(uuid.uuid4())
     cross_scope = _psql(
@@ -704,9 +821,10 @@ def test_live_retryable_proof_outbox_budget_and_runtime_boundary(
             f"SET app.a1_project_id = '{project}';"
             f"SET app.a1_principal_id = '{principal}';"
             f"""
-              SELECT a1_bind_verified_identity_credential(
+              SELECT a1_bind_verified_identity_credential_authorized(
                 '{organization}', '{project}', '{digests["receipt"]}',
-                '{principal}', '{winner_idempotency}',
+                '{principal}', '{digests["session"]}', '{winner_ticket}',
+                '{winner_step_up}', '{winner_idempotency}',
                 '{winner_request}', '{winner_event}', '{{}}'::jsonb
               );
             """

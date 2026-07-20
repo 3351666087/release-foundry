@@ -32,6 +32,10 @@
       "types": "./dist/billing.d.ts",
       "import": "./dist/billing.js"
     },
+    "./browser-session": {
+      "types": "./dist/browser-session.d.ts",
+      "import": "./dist/browser-session.js"
+    },
     "./calibrate": {
       "types": "./dist/calibrate.d.ts",
       "import": "./dist/calibrate.js"
@@ -68,6 +72,10 @@
       "types": "./dist/github-oauth.d.ts",
       "import": "./dist/github-oauth.js"
     },
+    "./identity-client": {
+      "types": "./dist/identity-client.d.ts",
+      "import": "./dist/identity-client.js"
+    },
     "./oauth": {
       "types": "./dist/oauth.d.ts",
       "import": "./dist/oauth.js"
@@ -75,6 +83,26 @@
     "./python-parity": {
       "types": "./dist/python-parity.d.ts",
       "import": "./dist/python-parity.js"
+    },
+    "./provider-adapter": {
+      "types": "./dist/provider-adapter.d.ts",
+      "import": "./dist/provider-adapter.js"
+    },
+    "./provider-dispatch": {
+      "types": "./dist/provider-dispatch.d.ts",
+      "import": "./dist/provider-dispatch.js"
+    },
+    "./provider-evidence": {
+      "types": "./dist/provider-evidence.d.ts",
+      "import": "./dist/provider-evidence.js"
+    },
+    "./provider-request-journal": {
+      "types": "./dist/provider-request-journal.d.ts",
+      "import": "./dist/provider-request-journal.js"
+    },
+    "./provider-stream": {
+      "types": "./dist/provider-stream.d.ts",
+      "import": "./dist/provider-stream.js"
     },
     "./runner": {
       "types": "./dist/runner.d.ts",
@@ -106,6 +134,7 @@
     }
   },
   "bin": {
+    "ashr-clone-browser-session": "./dist/browser-session-cli.js",
     "ashr-clone-account-readiness": "./dist/account-readiness-cli.js",
     "ashr-clone-account-connections": "./dist/account-connections-cli.js",
     "ashr-clone-api-probe": "./dist/probe.js",

@@ -1,0 +1,89 @@
+<view class="screen">
+  <view class="product-header">
+    <view class="brand-mark">企</view>
+    <view class="product-copy">
+      <text class="product-name">账户与连接</text>
+      <text class="product-context">企业身份、环境和客户端安全状态</text>
+    </view>
+  </view>
+
+  <view wx:if="{{viewState === 'loading'}}" class="state-panel">
+    <view class="loading-mark"></view>
+    <text class="state-title">正在检查连接</text>
+    <text class="state-copy">不会读取或展示 API Key、Cookie 和登录 Token。</text>
+  </view>
+
+  <view wx:elif="{{viewState === 'error'}}" class="state-panel">
+    <view class="state-mark">!</view>
+    <text class="state-title">账户诊断不可用</text>
+    <text class="state-copy">{{errorText}}</text>
+    <button class="secondary-button state-action" bindtap="retry" hover-class="button-pressed">重新检查</button>
+  </view>
+
+  <block wx:else>
+    <view wx:if="{{viewState === 'partial'}}" class="notice is-warning">
+      <text class="notice-title">部分诊断未完成</text>
+      <text class="notice-copy">{{errorText}}</text>
+    </view>
+
+    <view class="identity-panel">
+      <view class="identity-avatar">企</view>
+      <view class="identity-copy">
+        <text class="identity-name">{{meta.organization || '示例企业'}}</text>
+        <text class="identity-scope">{{account.tenantLabel || '尚未选择企业环境'}}</text>
+      </view>
+      <text class="status-pill is-warning">{{account.identityLabel || '身份未连接'}}</text>
+    </view>
+
+    <text class="section-label">服务连接</text>
+    <view class="connection-panel">
+      <view class="connection-head">
+        <view class="connection-indicator is-{{connection.status}}"></view>
+        <view class="connection-copy">
+          <text class="connection-title">{{connection.statusLabel}}</text>
+          <text class="connection-detail">{{connection.detail}}</text>
+        </view>
+      </view>
+      <view class="connection-facts">
+        <view class="key-value">
+          <text class="key-value-label">客户端配置</text>
+          <text class="key-value-value">{{account.appIdLabel || '游客调试 AppID'}}</text>
+        </view>
+        <view class="key-value">
+          <text class="key-value-label">数据接口</text>
+          <text class="key-value-value">{{account.apiLabel || '未配置 HTTPS API'}}</text>
+        </view>
+        <view class="key-value">
+          <text class="key-value-label">当前权限</text>
+          <text class="key-value-value">{{account.roleLabel || '只读'}}</text>
+        </view>
+      </view>
+      <button class="secondary-button diagnostic-button" bindtap="checkAgain" loading="{{checking}}" disabled="{{checking}}" hover-class="button-pressed">重新检查连接</button>
+    </view>
+
+    <text class="section-label">客户端安全</text>
+    <view class="panel security-list">
+      <view wx:for="{{securityItems}}" wx:key="label" class="security-row">
+        <text class="security-label">{{item.label}}</text>
+        <text class="status-pill is-{{item.tone}}">{{item.value}}</text>
+      </view>
+    </view>
+
+    <text class="section-label">生产能力状态</text>
+    <view class="capability-list">
+      <view wx:for="{{capabilities}}" wx:key="id" class="capability-card">
+        <view class="capability-head">
+          <text class="capability-label">{{item.label}}</text>
+          <text class="status-pill is-{{item.tone}}">{{item.value}}</text>
+        </view>
+        <text class="capability-detail">{{item.detail}}</text>
+      </view>
+    </view>
+
+    <view class="security-note">
+      <text class="security-note-title">安全边界</text>
+      <text class="security-note-copy">小程序仅展示服务端脱敏摘要。正式登录、授权与审批必须在具备主体资质的企业后端完成。</text>
+    </view>
+    <view class="safe-bottom"></view>
+  </block>
+</view>

@@ -1,0 +1,39 @@
+{
+  "schema_version": "a2.trusted_spine_candidate_bundle.v1",
+  "candidate": {
+    "schema_version": "a2.trusted_spine_candidate.v1",
+    "a1_sha": "5dd6a898a6771eaf67bf39246f256b579b4d2211",
+    "a2_sha": "bedbdd9dccf44f1066da2bfa4dde4147a789cdc5",
+    "a3_sha": "c3c3c9ea127e12e38a2cc2a7d05543a9fa49e9c0",
+    "decision_hash": "sha256:cbdb42e333382e50f5f2a7bddb06e04df0c638308e46f9d4ce087206b457dcb2",
+    "grades_hash": "sha256:e5faecd7c3c153a22c57e91fe2f5d777435efc201740526c709eca7657cc0a1d",
+    "created_at": "2026-07-13T00:00:00Z",
+    "authoritative": false,
+    "release_authority": false,
+    "public_safe": true,
+    "candidate_hash": "sha256:d451707059e26ba87b833900c6f5565f6eed105039fec520bff82ccaecd35dcc"
+  },
+  "validation": {
+    "status": "accepted",
+    "release_authority": false,
+    "blockers": [],
+    "public_safe": true
+  },
+  "decision_summary": {
+    "decision": "block",
+    "reason_codes": [
+      "multimodal_runtime_provider_timeout",
+      "structured_output_empty_response",
+      "minimum_valid_semantic_samples_not_met"
+    ],
+    "fixture_hash": "sha256:6ed0a127f9ecb5182638415ab76ff45e0d0e9a4783ed0fe447b43def25e1edd3"
+  },
+  "grades_summary": {
+    "valid_semantic_observations": 0,
+    "labeled_attempts": 12,
+    "timeouts": 11,
+    "empty_responses": 1
+  },
+  "authoritative": false,
+  "public_safe": true
+}

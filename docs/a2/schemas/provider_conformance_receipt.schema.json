@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.io/schemas/a2/provider_conformance_receipt.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "generated_at",
+    "provider_id",
+    "protocol",
+    "adapter_class",
+    "capability_hash",
+    "checks",
+    "observed_states",
+    "receipt_id",
+    "qualification_state",
+    "blockers",
+    "raw_payload_included",
+    "secret_included",
+    "release_authority",
+    "public_safe"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "a2.provider_conformance_receipt.v1"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "provider_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "protocol": {
+      "enum": [
+        "openai_compatible",
+        "offline_deterministic",
+        "ollama"
+      ]
+    },
+    "adapter_class": {
+      "type": "string",
+      "minLength": 1
+    },
+    "capability_hash": {
+      "$ref": "#/$defs/hash"
+    },
+    "checks": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "boolean"
+      }
+    },
+    "observed_states": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "source_evidence_hashes": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/hash"
+      }
+    },
+    "predecessor_receipt_id": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/hash"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "receipt_id": {
+      "$ref": "#/$defs/hash"
+    },
+    "qualification_state": {
+      "enum": [
+        "conformant",
+        "blocked"
+      ]
+    },
+    "blockers": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "raw_payload_included": {
+      "const": false
+    },
+    "secret_included": {
+      "const": false
+    },
+    "release_authority": {
+      "const": false
+    },
+    "public_safe": {
+      "const": true
+    }
+  },
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    }
+  }
+}

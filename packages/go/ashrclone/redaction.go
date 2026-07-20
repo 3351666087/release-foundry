@@ -18,6 +18,12 @@ var sensitiveExactKeys = map[string]struct{}{
 
 var sensitiveKeyParts = []string{"api_key", "apikey", "secret", "token", "password", "authorization", "bearer"}
 
+var publicSecurityPostureKeys = map[string]struct{}{
+	"password_status":             {},
+	"password_change_available":   {},
+	"password_recovery_available": {},
+}
+
 var sensitiveAssignmentPattern = regexp.MustCompile(`(?i)(api[_-]?key|authorization|bearer|password|secret|token)\s*[:=]\s*[^\s,;]+`)
 
 func RedactSensitive(value any) any {
@@ -71,6 +77,9 @@ func redactMap(input map[string]any) map[string]any {
 
 func isSensitiveKey(key string) bool {
 	normalized := strings.ToLower(strings.ReplaceAll(key, "-", "_"))
+	if _, ok := publicSecurityPostureKeys[normalized]; ok {
+		return false
+	}
 	if _, ok := sensitiveExactKeys[normalized]; ok {
 		return true
 	}

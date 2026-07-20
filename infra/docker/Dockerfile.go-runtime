@@ -1,18 +1,42 @@
-FROM golang:1.22-bookworm AS runtime
+ARG GO_BUILD_IMAGE=golang:1.22-bookworm@sha256:3d699e4d15d0f8f13c9195c0632a16702b8cbdece2955af1c23b37ae5d55a253
+ARG DEBIAN_RUNTIME_IMAGE=debian:bookworm-slim@sha256:60eac759739651111db372c07be67863818726f754804b8707c90979bda511df
 
-ENV CGO_ENABLED=0 \
-    ASHR_RUNTIME_ENV=self-host
+FROM ${GO_BUILD_IMAGE} AS build
 
-WORKDIR /app/packages/go/ashrclone
+ENV CGO_ENABLED=0
+WORKDIR /src/packages/go/ashrclone
+COPY . /src
+RUN go test ./...
+RUN go build -trimpath -ldflags="-s -w -buildid=" -o /out/ashr-api ./cmd/ashr-api \
+ && go build -trimpath -ldflags="-s -w -buildid=" -o /out/ashr-worker ./cmd/ashr-worker \
+ && go build -trimpath -ldflags="-s -w -buildid=" -o /out/ashr-identity-delivery ./cmd/ashr-identity-delivery \
+ && go build -trimpath -ldflags="-s -w -buildid=" -o /out/ashr-healthcheck /src/services/runner/a1_docker_healthcheck.go
 
-COPY . /app
+FROM ${DEBIAN_RUNTIME_IMAGE} AS runtime
 
-RUN go test ./... && go build -o /usr/local/bin/ashr-api ./cmd/ashr-api && go build -o /usr/local/bin/ashr-worker ./cmd/ashr-worker
-RUN go build -o /usr/local/bin/ashr-healthcheck /app/services/runner/a1_docker_healthcheck.go
+ARG VCS_REF=unknown
+ARG VCS_TREE=unknown
+ARG SOURCE_REPOSITORY=https://github.com/3351666087/ashr-codex-factory
+LABEL org.opencontainers.image.source=$SOURCE_REPOSITORY \
+      org.opencontainers.image.revision=$VCS_REF \
+      io.ashr.source.tree=$VCS_TREE
 
-EXPOSE 8787
+ENV ASHR_RUNTIME_ENV=self-host
+WORKDIR /app
+RUN apt-get update \
+ && apt-get install --yes --no-install-recommends ca-certificates findutils \
+ && rm -rf /var/lib/apt/lists/* \
+ && mkdir -p /runtime/worker /runtime/payment-webhook /runtime/payment-reconciliation \
+      /runtime/china-bank-acquirer /runtime/stripe-payment /tmp \
+ && chown -R 65532:65532 /runtime /tmp
+COPY --from=build /out/ashr-api /out/ashr-worker /out/ashr-identity-delivery /out/ashr-healthcheck /usr/local/bin/
+COPY services/runner/*.sh /app/services/runner/
+RUN chmod 0555 /usr/local/bin/ashr-api /usr/local/bin/ashr-worker \
+      /usr/local/bin/ashr-identity-delivery /usr/local/bin/ashr-healthcheck \
+      /app/services/runner/*.sh
 
+USER 65532:65532
+EXPOSE 8787 8081
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD /usr/local/bin/ashr-healthcheck http://127.0.0.1:8787/healthz postgres_repository_v0
-
 CMD ["/usr/local/bin/ashr-api"]

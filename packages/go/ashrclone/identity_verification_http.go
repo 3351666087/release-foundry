@@ -328,12 +328,26 @@ func (server *HTTPServer) handleIdentityVerification(writer http.ResponseWriter,
 	purpose := IdentityVerificationPurpose(stringValue(body, "purpose"))
 	accountID := stringValue(body, "account_id")
 	actorID := ""
-	if purpose == IdentityVerificationBinding && accountID != "" {
+	var bindingSession IdentityHTTPSession
+	if purpose == IdentityVerificationBinding {
+		if accountID == "" {
+			writeError(writer, http.StatusBadRequest, "identity_registration_route_required", "new accounts must use the dedicated registration flow")
+			return
+		}
+		if validateIdentityVerificationBindingBody(body, action) != nil {
+			writeError(writer, http.StatusBadRequest, "identity_binding_request_invalid", "credential binding accepts only explicit public verification and trusted authorization identifiers")
+			return
+		}
 		session, authenticated := server.resolveIdentityHTTPSession(writer, request, accountID)
 		if !authenticated {
 			return
 		}
+		if err := validateIdentitySessionRefreshBrowserRequest(request); err != nil {
+			writeError(writer, http.StatusForbidden, "identity_binding_origin_rejected", "credential binding origin was rejected")
+			return
+		}
 		actorID = session.ActorID
+		bindingSession = session
 	}
 	switch action {
 	case "challenges":
@@ -372,11 +386,42 @@ func (server *HTTPServer) handleIdentityVerification(writer http.ResponseWriter,
 		}
 		writeJSON(writer, http.StatusAccepted, result)
 	case "verify":
+		mutationTicketID := ""
+		stepUpReceiptID := ""
+		if purpose == IdentityVerificationBinding && accountID != "" {
+			if server.identitySecurityTickets == nil {
+				writeError(writer, http.StatusServiceUnavailable, "identity_binding_authority_unavailable", "credential binding authorization is not configured")
+				return
+			}
+			mutationTicketID = stringValue(body, "mutation_ticket_id")
+			stepUpReceiptID = stringValue(body, "step_up_receipt_id")
+			if !validIdentitySecurityDigest(bindingSession.SessionDigest) ||
+				!validIdentitySecurityDigest(mutationTicketID) ||
+				!validIdentitySecurityDigest(stepUpReceiptID) {
+				writeError(writer, http.StatusBadRequest, "identity_binding_authorization_required", "recent authentication, a mutation ticket, and a step-up receipt are required")
+				return
+			}
+			ticket, err := server.identitySecurityTickets.ResolveIdentitySecurityMutationTicket(
+				request.Context(), bindingSession.AccountID,
+				mutationTicketID, stepUpReceiptID, "credential_bind",
+			)
+			if err != nil || ticket.AccountID != bindingSession.AccountID ||
+				ticket.Operation != "credential_bind" ||
+				ticket.TicketID != mutationTicketID ||
+				ticket.ReceiptDigest != stepUpReceiptID {
+				writeError(writer, http.StatusForbidden, "identity_binding_authorization_rejected", "credential binding could not be authorized")
+				return
+			}
+			mutationTicketID = ticket.TicketID
+			stepUpReceiptID = ticket.ReceiptDigest
+		}
 		completion := IdentityVerificationCompleteRequest{
 			ChallengeID: stringValue(body, "challenge_id"), Code: stringValue(body, "code"),
 			Channel: channel, Identifier: stringValue(body, "identifier"), Purpose: purpose,
 			TenantID: stringValue(body, "tenant_id"), AccountID: accountID,
-			ActorID: actorID, DisplayName: stringValue(body, "display_name"),
+			ActorID: actorID, SessionDigest: bindingSession.SessionDigest,
+			MutationTicketID: mutationTicketID, StepUpReceiptID: stepUpReceiptID,
+			DisplayName: stringValue(body, "display_name"),
 		}
 		issueSession := purpose == IdentityVerificationLogin || purpose == IdentityVerificationRecovery
 		if issueSession {
@@ -411,6 +456,27 @@ func (server *HTTPServer) handleIdentityVerification(writer http.ResponseWriter,
 	default:
 		writeError(writer, http.StatusNotFound, "not_found", "route not found")
 	}
+}
+
+func validateIdentityVerificationBindingBody(body JSONMap, action string) error {
+	allowed := map[string]bool{
+		"channel": true, "identifier": true, "purpose": true,
+		"tenant_id": true, "account_id": true,
+	}
+	if action == "verify" {
+		for _, key := range []string{
+			"challenge_id", "code", "display_name",
+			"mutation_ticket_id", "step_up_receipt_id",
+		} {
+			allowed[key] = true
+		}
+	}
+	for key := range body {
+		if !allowed[key] {
+			return ErrIdentitySecurityRejected
+		}
+	}
+	return nil
 }
 
 func publicIdentityVerificationResult(result IdentityVerificationResultDTO) JSONMap {

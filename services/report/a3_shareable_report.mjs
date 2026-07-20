@@ -26,6 +26,7 @@ export function buildShareableReportPayload(inputs = {}, options = {}) {
   const a2ReadinessBundle = inputs.a2ReadinessBundle || inputs.a2_readiness_bundle || {};
   const artifactRegistryFixture = inputs.artifactRegistry || inputs.artifact_registry || {};
   const reviewWorkflowFixture = inputs.reviewWorkflow || inputs.review_workflow || {};
+  const multimodalReviewQueueFixture = inputs.multimodalReviewQueue || inputs.multimodal_review_queue || {};
   const releaseEvidenceFixture = inputs.releaseEvidence
     || inputs.release_evidence
     || inputs.releaseEvidenceSummary
@@ -50,7 +51,12 @@ export function buildShareableReportPayload(inputs = {}, options = {}) {
     a2ReadinessBundle,
     artifactRegistryFixture,
     reviewWorkflowFixture,
-    releaseEvidenceFixture
+    releaseEvidenceFixture,
+    {},
+    {},
+    {},
+    {},
+    multimodalReviewQueueFixture
   );
   const markdownReport = buildMarkdownReport(
     runFixture,
@@ -69,7 +75,12 @@ export function buildShareableReportPayload(inputs = {}, options = {}) {
     saasAdminFixture,
     a2ReadinessBundle,
     artifactRegistryFixture,
-    releaseEvidenceFixture
+    releaseEvidenceFixture,
+    {},
+    {},
+    {},
+    {},
+    multimodalReviewQueueFixture
   );
 
   const safeEnvelope = redactExport({
@@ -85,6 +96,10 @@ export function buildShareableReportPayload(inputs = {}, options = {}) {
     regression_factory: jsonReport.regression_factory,
     export_redaction_firewall: jsonReport.export_redaction_firewall,
     release_evidence_summary: jsonReport.release_evidence_summary,
+    multimodal_review_queue: jsonReport.multimodal_review_queue,
+    multimodal_repeat_stability: jsonReport.multimodal_repeat_stability,
+    multimodal_provider_readiness: jsonReport.multimodal_provider_readiness,
+    multimodal_release_readiness: jsonReport.multimodal_release_readiness,
     cases: jsonReport.cases,
     markdown_report: markdownReport
   }, { surface: "shareable_report" });
@@ -142,6 +157,11 @@ export function buildShareableReportPayload(inputs = {}, options = {}) {
     },
     summary: safeEnvelope.value.summary,
     release_gate: safeEnvelope.value.release_gate,
+    multimodal_review_queue: safeEnvelope.value.multimodal_review_queue,
+    multimodal_repeat_stability: safeEnvelope.value.multimodal_repeat_stability,
+    multimodal_provider_readiness: safeEnvelope.value.multimodal_provider_readiness,
+    multimodal_release_readiness: safeEnvelope.value.multimodal_release_readiness,
+    markdown_report: safeEnvelope.value.markdown_report,
     report_center: {
       json_available: true,
       markdown_available: true,
@@ -181,12 +201,24 @@ export function renderShareableReportHtml(report = {}) {
   const summary = report.summary || payload.summary || {};
   const releaseGate = report.release_gate || payload.release_gate || {};
   const releaseEvidence = report.release_evidence_summary || payload.release_evidence_summary || {};
+  const multimodalReviewQueue = report.multimodal_review_queue || payload.multimodal_review_queue || {};
+  const multimodalRepeatStability = report.multimodal_repeat_stability
+    || payload.multimodal_repeat_stability
+    || {};
+  const multimodalProviderReadiness = report.multimodal_provider_readiness
+    || payload.multimodal_provider_readiness
+    || {};
+  const multimodalReleaseReadiness = report.multimodal_release_readiness
+    || payload.multimodal_release_readiness
+    || {};
   const cases = Array.isArray(payload.cases) ? payload.cases.slice(0, 12) : [];
   const status = report.status || "unknown";
 
   if (status !== "shareable") {
     return renderDeniedReportHtml(report, status);
   }
+
+  const gateBlocked = releaseGate.decision === "block_release";
 
   return `<!doctype html>
 <html lang="en">
@@ -195,24 +227,76 @@ export function renderShareableReportHtml(report = {}) {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>${escapeHtml(report.title || payload.title || "A3 Shareable Report")}</title>
   <style>
-    :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-    body { margin: 0; background: #f7f8fb; color: #172033; }
-    main { max-width: 1120px; margin: 0 auto; padding: 32px 20px 48px; }
-    header { display: flex; justify-content: space-between; gap: 16px; align-items: flex-start; border-bottom: 1px solid #d9dee8; padding-bottom: 18px; }
-    h1 { margin: 0; font-size: 28px; line-height: 1.2; }
-    h2 { margin: 0 0 12px; font-size: 16px; }
-    .muted { color: #667085; font-size: 13px; }
-    .pill { display: inline-flex; border: 1px solid #c9d3e5; border-radius: 999px; padding: 5px 10px; font-size: 12px; font-weight: 700; background: #fff; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin: 20px 0; }
-    .card { background: #fff; border: 1px solid #d9dee8; border-radius: 8px; padding: 16px; }
-    .metric strong { display: block; font-size: 24px; }
-    table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid #d9dee8; border-radius: 8px; overflow: hidden; }
-    th, td { text-align: left; border-bottom: 1px solid #edf0f5; padding: 10px 12px; font-size: 13px; vertical-align: top; }
-    th { background: #f1f4f9; color: #465367; }
+    :root {
+      color-scheme: light;
+      --bg: #eef1f8;
+      --bg-deep: #e5e9f4;
+      --panel: #ffffff;
+      --line: rgba(23, 32, 58, 0.1);
+      --text: #141a2e;
+      --muted: #6b7690;
+      --brand: #6366f1;
+      --accent: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #38bdf8 100%);
+      --shadow: 0 18px 46px -18px rgba(20, 26, 46, 0.35), 0 2px 6px -2px rgba(20, 26, 46, 0.12);
+      font-family: "Inter var", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; color: var(--text);
+      background:
+        radial-gradient(1100px 620px at 12% -8%, rgba(124, 92, 255, 0.16), transparent 60%),
+        radial-gradient(980px 560px at 105% 0%, rgba(56, 189, 248, 0.16), transparent 55%),
+        linear-gradient(180deg, var(--bg), var(--bg-deep));
+      background-attachment: fixed;
+    }
+    main { max-width: 1120px; margin: 0 auto; padding: 40px 24px 56px; }
+    header {
+      position: relative; overflow: hidden;
+      background: linear-gradient(135deg, rgba(255,255,255,0.96), rgba(255,255,255,0.82));
+      border: 1px solid var(--line); border-radius: 18px; box-shadow: var(--shadow);
+      display: flex; justify-content: space-between; gap: 18px; align-items: flex-start;
+      padding: 26px 28px;
+    }
+    header::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 4px; background: var(--accent); }
+    h1 {
+      margin: 0; font-size: 30px; line-height: 1.15; font-weight: 800; letter-spacing: -0.02em;
+      background: linear-gradient(120deg, #141a2e 20%, #4b3fd6 60%, #2b8fd6 100%);
+      -webkit-background-clip: text; background-clip: text; color: transparent;
+    }
+    h2 { margin: 0 0 14px; font-size: 15px; font-weight: 750; letter-spacing: -0.01em; }
+    .muted { color: var(--muted); font-size: 13px; line-height: 1.5; margin-top: 8px; }
+    .pill {
+      display: inline-flex; align-items: center; gap: 6px; border: 1px solid rgba(99,102,241,0.24);
+      border-radius: 999px; padding: 6px 14px; font-size: 12px; font-weight: 800; letter-spacing: 0.03em;
+      text-transform: uppercase; color: #4b3fd6; background: linear-gradient(135deg, rgba(99,102,241,0.14), rgba(56,189,248,0.12));
+    }
+    .pill::before { content: ""; width: 7px; height: 7px; border-radius: 999px; background: currentColor; box-shadow: 0 0 0 3px rgba(99,102,241,0.16); }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin: 24px 0; }
+    .card {
+      background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 20px;
+      box-shadow: var(--shadow);
+    }
+    .metric { position: relative; overflow: hidden; }
+    .metric::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 5px; background: var(--accent); }
+    .metric strong { display: block; font-size: 30px; font-weight: 800; letter-spacing: -0.02em; }
+    .metric span { color: var(--muted); font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+    table { width: 100%; border-collapse: collapse; background: var(--panel); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; box-shadow: var(--shadow); }
+    th, td { text-align: left; border-bottom: 1px solid #eef1f7; padding: 12px 14px; font-size: 13px; vertical-align: top; }
+    th { background: #f5f7fc; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; font-size: 11px; }
+    tbody tr:nth-child(even) td { background: rgba(99,102,241,0.03); }
     tr:last-child td { border-bottom: 0; }
-    .blocked { color: #b42318; }
-    .passed { color: #067647; }
-    pre { white-space: pre-wrap; background: #101828; color: #f8fafc; border-radius: 8px; padding: 12px; overflow: auto; }
+    .tag { display: inline-flex; align-items: center; border-radius: 999px; padding: 2px 10px; font-size: 11.5px; font-weight: 700; border: 1px solid transparent; }
+    .tag.passed { color: #0f8a54; background: #dff5e9; border-color: rgba(15,138,84,0.2); }
+    .tag.failed { color: #d92d20; background: #fdeceb; border-color: rgba(217,45,32,0.2); }
+    .blocked { color: #d92d20; font-weight: 800; font-size: 18px; margin: 0; }
+    .passed { color: #0f8a54; font-weight: 800; font-size: 18px; margin: 0; }
+    pre {
+      white-space: pre-wrap; background: linear-gradient(160deg, #171b2e, #0d1020); color: #e6ebff;
+      border-radius: 12px; padding: 16px; overflow: auto; font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12.5px; line-height: 1.6; border: 1px solid rgba(124,92,255,0.24);
+    }
+    @media (max-width: 640px) { header { flex-direction: column; } h1 { font-size: 24px; } }
   </style>
 </head>
 <body>
@@ -220,7 +304,7 @@ export function renderShareableReportHtml(report = {}) {
     <header>
       <div>
         <h1>${escapeHtml(report.title || payload.title || "A3 Shareable Report")}</h1>
-        <div class="muted">${escapeHtml(report.report_id || "local-report")} / ${escapeHtml(report.created_at || "")} / expires ${escapeHtml(report.expires_at || "unknown")}</div>
+        <div class="muted">${escapeHtml(report.report_id || "local-report")} &middot; ${escapeHtml(report.created_at || "")} &middot; expires ${escapeHtml(report.expires_at || "unknown")}</div>
       </div>
       <span class="pill">${escapeHtml(status)}</span>
     </header>
@@ -234,7 +318,7 @@ export function renderShareableReportHtml(report = {}) {
 
     <section class="card">
       <h2>Release Gate</h2>
-      <p class="${releaseGate.decision === "block_release" ? "blocked" : "passed"}">
+      <p class="${gateBlocked ? "blocked" : "passed"}">
         ${escapeHtml(releaseGate.decision_label || releaseGate.decision || "unknown")}
       </p>
       <p class="muted">${escapeHtml(releaseGate.summary || releaseGate.reason || "No release gate summary available.")}</p>
@@ -242,14 +326,21 @@ export function renderShareableReportHtml(report = {}) {
 
     ${renderReleaseEvidenceHtml(releaseEvidence)}
 
-    <section style="margin-top: 20px;">
+    ${renderMultimodalRepeatStabilityHtml(multimodalRepeatStability)}
+
+    ${renderMultimodalProviderReadinessHtml(multimodalProviderReadiness)}
+    ${renderMultimodalReleaseReadinessHtml(multimodalReleaseReadiness)}
+
+    ${renderMultimodalEvidenceRequestsHtml(multimodalReviewQueue)}
+
+    <section style="margin-top: 24px;">
       <h2>Case Evidence</h2>
       <table>
         <thead><tr><th>Case</th><th>Status</th><th>Score</th><th>Failure Class</th><th>Summary</th></tr></thead>
         <tbody>
           ${cases.map((item) => `<tr>
             <td>${escapeHtml(item.case_id || item.title || "case")}</td>
-            <td>${escapeHtml(item.passed ? "passed" : "failed")}</td>
+            <td><span class="tag ${item.passed ? "passed" : "failed"}">${escapeHtml(item.passed ? "passed" : "failed")}</span></td>
             <td>${escapeHtml(item.score ?? "")}</td>
             <td>${escapeHtml(item.primary_failure_class || "none")}</td>
             <td>${escapeHtml(item.failure_summary || "")}</td>
@@ -258,7 +349,7 @@ export function renderShareableReportHtml(report = {}) {
       </table>
     </section>
 
-    <section class="card" style="margin-top: 20px;">
+    <section class="card" style="margin-top: 24px;">
       <h2>Sealed Evidence</h2>
       <pre>${escapeHtml(JSON.stringify(report.sealed_evidence || {}, null, 2))}</pre>
     </section>
@@ -276,13 +367,41 @@ function renderDeniedReportHtml(report, status) {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>A3 Report Unavailable</title>
   <style>
-    :root { color-scheme: light; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-    body { margin: 0; background: #f7f8fb; color: #172033; }
-    main { max-width: 760px; margin: 0 auto; padding: 48px 20px; }
-    .card { background: #fff; border: 1px solid #d9dee8; border-radius: 8px; padding: 20px; }
-    .pill { display: inline-flex; border: 1px solid #c9d3e5; border-radius: 999px; padding: 5px 10px; font-size: 12px; font-weight: 700; background: #fff; }
-    .muted { color: #667085; font-size: 13px; line-height: 1.5; }
-    pre { white-space: pre-wrap; background: #101828; color: #f8fafc; border-radius: 8px; padding: 12px; overflow: auto; }
+    :root {
+      color-scheme: light;
+      --line: rgba(23, 32, 58, 0.1);
+      --muted: #6b7690;
+      --shadow: 0 18px 46px -18px rgba(20, 26, 46, 0.35), 0 2px 6px -2px rgba(20, 26, 46, 0.12);
+      font-family: "Inter var", Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; color: #141a2e; min-height: 100vh; display: grid; place-items: center;
+      background:
+        radial-gradient(900px 520px at 20% -10%, rgba(124, 92, 255, 0.16), transparent 60%),
+        radial-gradient(820px 480px at 108% 0%, rgba(56, 189, 248, 0.16), transparent 55%),
+        linear-gradient(180deg, #eef1f8, #e5e9f4);
+    }
+    main { max-width: 620px; margin: 0 auto; padding: 40px 24px; width: 100%; }
+    .card {
+      position: relative; overflow: hidden; text-align: center;
+      background: linear-gradient(160deg, #ffffff, #f5f7fc);
+      border: 1px solid var(--line); border-radius: 20px; padding: 40px 32px; box-shadow: var(--shadow);
+    }
+    .card::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 4px; background: linear-gradient(135deg, #f97066, #f59e0b); }
+    .pill {
+      display: inline-flex; align-items: center; gap: 6px; border: 1px solid rgba(180,83,9,0.28);
+      border-radius: 999px; padding: 6px 14px; font-size: 12px; font-weight: 800; letter-spacing: 0.03em;
+      text-transform: uppercase; color: #b45309; background: #fdf1dc;
+    }
+    h1 { margin: 20px 0 10px; font-size: 26px; font-weight: 800; letter-spacing: -0.02em; }
+    .muted { color: var(--muted); font-size: 13.5px; line-height: 1.6; max-width: 440px; margin: 0 auto 20px; }
+    pre {
+      text-align: left; white-space: pre-wrap; background: linear-gradient(160deg, #171b2e, #0d1020); color: #e6ebff;
+      border-radius: 12px; padding: 16px; overflow: auto; border: 1px solid rgba(124,92,255,0.24);
+      font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; line-height: 1.6;
+    }
   </style>
 </head>
 <body>
@@ -353,6 +472,157 @@ function renderReleaseEvidenceHtml(releaseEvidence = {}) {
         </tbody>
       </table>
     </section>`;
+}
+
+function renderMultimodalEvidenceRequestsHtml(queue = {}) {
+  if (queue.available !== true) return "";
+  const summary = queue.summary || {};
+  const rows = (Array.isArray(queue.items) ? queue.items : []).flatMap((item) => (
+    (Array.isArray(item.evidence_requests) ? item.evidence_requests : []).map((request) => ({
+      case_id: item.case_id || "unknown",
+      status: request.status || "unknown",
+      owner_lane: request.owner_lane || "unknown",
+      required_kinds: Array.isArray(request.required_evidence_kinds) ? request.required_evidence_kinds.join(", ") : "none",
+      submitted_hashes: (Array.isArray(request.evidence_refs) ? request.evidence_refs : [])
+        .map((reference) => `${reference.kind || "evidence"}:${hashPrefix(reference.evidence_hash)}`)
+        .join(", ") || "pending",
+      due_at: request.due_at || "unknown",
+      event_count: request.event_count || 0
+    }))
+  ));
+  return `<section class="card" style="margin-top: 20px;">
+      <h2>Multimodal Review Evidence Requests</h2>
+      <p class="muted">Hash-only coordination records. Evidence acceptance is not a human disposition and cannot change A2 grading or release authority.</p>
+      <div class="grid" aria-label="Evidence request metrics">
+        ${metric("Requests", summary.evidence_request_count || 0)}
+        ${metric("Open", summary.evidence_request_open_count || 0)}
+        ${metric("Overdue", summary.evidence_request_overdue_count || 0)}
+        ${metric("Submitted", summary.evidence_request_submitted_count || 0)}
+        ${metric("Accepted", summary.evidence_request_accepted_count || 0)}
+      </div>
+      ${rows.length ? `<table>
+        <thead><tr><th>Case</th><th>Status</th><th>Owner</th><th>Required evidence</th><th>Submitted hashes</th><th>Due</th></tr></thead>
+        <tbody>${rows.map((row) => `<tr>
+          <td>${escapeHtml(row.case_id)}</td>
+          <td>${escapeHtml(row.status)}</td>
+          <td>${escapeHtml(row.owner_lane)}</td>
+          <td>${escapeHtml(row.required_kinds)}</td>
+          <td>${escapeHtml(row.submitted_hashes)}</td>
+          <td>${escapeHtml(row.due_at)} / ${escapeHtml(row.event_count)} event(s)</td>
+        </tr>`).join("")}</tbody>
+      </table>` : `<p class="muted">No evidence requests are recorded for this report snapshot.</p>`}
+    </section>`;
+}
+
+function renderMultimodalRepeatStabilityHtml(stability = {}) {
+  if (stability.available !== true) return "";
+  const summary = stability.summary || {};
+  const humanReview = stability.human_review || {};
+  const candidate = stability.candidate_binding || {};
+  const metrics = Array.isArray(stability.metrics) ? stability.metrics : [];
+  const metricRows = metrics.map((item) => `<tr>
+            <th>${escapeHtml(item.metric_id || "metric")}</th>
+            <td>${escapeHtml((item.repeat_estimates || []).join(" / ") || "unavailable")}</td>
+            <td>${item.complete_across_repeats ? "complete" : "incomplete"}</td>
+          </tr>`).join("");
+  return `<section class="card" style="margin-top: 20px;">
+      <h2>Multimodal Repeat Stability</h2>
+      <p class="${summary.quality_qualified ? "passed" : "blocked"}">${escapeHtml(
+        stability.interpretation || "Repeat stability is evidence only."
+      )}</p>
+      <p class="muted">Stable repetition does not mean qualified quality. This evidence cannot change A2 grading or release authority.</p>
+      <div class="grid" aria-label="Repeat stability metrics">
+        ${metric("Repeats", summary.repeat_count || 0)}
+        ${metric("Required units", summary.required_source_unit_count || 0)}
+        ${metric("Blocked repeats", summary.retained_blocked_count || 0)}
+        ${metric("Human receipts", humanReview.receipt_count || 0)}
+      </div>
+      ${metricRows ? `<table>
+        <thead><tr><th>Metric</th><th>Repeat estimates</th><th>Coverage</th></tr></thead>
+        <tbody>${metricRows}</tbody>
+      </table>` : ""}
+      <p class="muted">Human review: ${escapeHtml(humanReview.collection_state || "unknown")} / pending queue ${escapeHtml(humanReview.pending_queue_receipt_count || 0)}. Shared candidate verified: ${candidate.verified ? "yes" : "no"}. Release authority: no.</p>
+    </section>`;
+}
+
+function renderMultimodalProviderReadinessHtml(readiness = {}) {
+  if (readiness.available !== true) return "";
+  const summary = readiness.summary || {};
+  const latency = readiness.latency_diagnostic || {};
+  const providers = Array.isArray(readiness.providers) ? readiness.providers : [];
+  const profiles = Array.isArray(latency.profiles) ? latency.profiles : [];
+  return `<section class="card" style="margin-top: 20px;">
+      <h2>Multimodal Provider Readiness</h2>
+      <p class="blocked">${escapeHtml(readiness.interpretation || "Provider diagnostics are blocked.")}</p>
+      <p class="muted">This is evaluation availability evidence, not production routing, capacity, operational health, quality comparison, or release authority.</p>
+      <div class="grid" aria-label="Provider readiness metrics">
+        ${metric("Attempts", summary.attempted_count || 0)}
+        ${metric("Completed", summary.completed_count || 0)}
+        ${metric("Timeouts", summary.timeout_case_count || 0)}
+        ${metric("Eligible", summary.eligible_count || 0)}
+      </div>
+      ${providers.length ? `<table>
+        <thead><tr><th>Model</th><th>Qualification</th><th>Completed</th><th>Timeout</th><th>Eligible</th><th>P95</th></tr></thead>
+        <tbody>${providers.map((provider) => `<tr>
+          <td>${escapeHtml(provider.model_id || "model")}</td>
+          <td>${escapeHtml(provider.qualification_state || "unknown")}</td>
+          <td>${escapeHtml(`${provider.completed_count || 0}/${provider.attempted_count || 0}`)}</td>
+          <td>${escapeHtml(provider.timeout_case_count || 0)}</td>
+          <td>${escapeHtml(provider.eligible_count || 0)}</td>
+          <td>${escapeHtml(provider.latency_seconds?.p95_nearest_rank ?? "unavailable")}s</td>
+        </tr>`).join("")}</tbody>
+      </table>` : ""}
+      ${profiles.length ? `<table style="margin-top: 12px;">
+        <thead><tr><th>Profile</th><th>State</th><th>Parse</th><th>Wall time</th><th>Diagnosis</th></tr></thead>
+        <tbody>${profiles.map((profile) => `<tr>
+          <td>${escapeHtml(profile.profile || "profile")}</td>
+          <td>${escapeHtml(profile.state || "unknown")}</td>
+          <td>${escapeHtml(profile.parse_state || "unknown")}</td>
+          <td>${escapeHtml(profile.phase_seconds?.caller_wall_seconds ?? "unavailable")}s</td>
+          <td>${escapeHtml(profile.error_class || "none")}</td>
+        </tr>`).join("")}</tbody>
+      </table>` : ""}
+      <p class="muted">Cold wall ${escapeHtml(latency.cold_wall_seconds ?? "unavailable")}s; fastest warm wall ${escapeHtml(latency.fastest_warm_wall_seconds ?? "unavailable")}s. Valid structured profiles ${escapeHtml(summary.valid_structured_profile_count || 0)}/${escapeHtml(summary.profile_count || 0)}. Release authority: no.</p>
+    </section>`;
+}
+
+function renderMultimodalReleaseReadinessHtml(readiness = {}) {
+  if (readiness.available !== true) return "";
+  const summary = readiness.summary || {};
+  const controls = readiness.control_policy || {};
+  const local = readiness.local_runtime || {};
+  const repeat = readiness.repeat_evidence || {};
+  const review = readiness.human_review || {};
+  const persistence = readiness.persistence || {};
+  const candidate = readiness.candidate_binding || {};
+  const taxonomy = Array.isArray(controls.taxonomy_assessments) ? controls.taxonomy_assessments : [];
+  return `<section class="card" style="margin-top: 20px;">
+      <h2>Multimodal Release Readiness</h2>
+      <p class="blocked">${escapeHtml(readiness.interpretation || "Multimodal release readiness remains blocked.")}</p>
+      <p class="muted">Safe controls, attack sensitivity, runtime structure, repeat quality, human review, persistence, and candidate binding are independent gates. A3 does not recompute A2 qualification.</p>
+      <div class="grid" aria-label="Multimodal release readiness metrics">
+        ${metric("Cloud controls", summary.cloud_eligible_count || 0)}
+        ${metric("Safe false positives", `${summary.safe_control_false_positive_count || 0}/${summary.safe_control_count || 0}`)}
+        ${metric("Attack detections", `${summary.taxonomy_detected_count || 0}/${summary.taxonomy_eligible_count || 0}`)}
+        ${metric("Structured profiles", summary.local_completed_profile_count || 0)}
+      </div>
+      ${taxonomy.length ? `<table>
+        <thead><tr><th>Control</th><th>Detected</th><th>Sensitivity</th><th>Minimum</th><th>Result</th></tr></thead>
+        <tbody>${taxonomy.map((item) => `<tr>
+          <td>${escapeHtml(item.taxonomy_id || "taxonomy")}</td>
+          <td>${escapeHtml(`${item.detected_count || 0}/${item.eligible_count || 0}`)}</td>
+          <td>${escapeHtml(item.sensitivity ?? "unavailable")}</td>
+          <td>${escapeHtml(item.minimum_sensitivity ?? "unavailable")}</td>
+          <td>${item.passed ? "passed" : "blocked"}</td>
+        </tr>`).join("")}</tbody>
+      </table>` : ""}
+      <p class="muted">Local candidate ${escapeHtml(local.model_id || "unknown")}: ${escapeHtml(local.runtime_promotion_state || "unknown")}. Repeat quality/stability: ${escapeHtml(repeat.quality_state || "unknown")} / ${escapeHtml(repeat.stability_state || "unknown")}. Human review: ${escapeHtml(review.collection_state || "unknown")}. PostgreSQL: ${escapeHtml(persistence.proof_state || "unknown")}. Shared candidate verified: ${candidate.verified ? "yes" : "no"}. Release authority: no.</p>
+    </section>`;
+}
+
+function hashPrefix(value) {
+  const text = String(value || "missing");
+  return text.length > 22 ? `${text.slice(0, 18)}...` : text;
 }
 
 function normalizeVisibility(value) {

@@ -9,6 +9,8 @@ docs/evidence/private_refs/
 # Python runtime cache
 __pycache__/
 *.py[cod]
+packages/sdk/build/
+packages/sdk/*.egg-info/
 
 # Node / browser test runtime cache
 node_modules/

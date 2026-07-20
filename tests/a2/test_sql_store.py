@@ -48,8 +48,50 @@ class A2SqlStoreTests(unittest.TestCase):
             "a2_golden_cases",
             "a2_regression_history",
             "a2_sql_ingest_log",
+            "a2_release_decisions",
+            "a2_decision_operations",
+            "a2_decision_operation_audit",
+            "a2_provider_outcomes",
+            "a2_release_decision_audit",
+            "a2_decision_outbox",
         ):
             self.assertIn(f"CREATE TABLE IF NOT EXISTS {table}", ddl)
+
+    def test_operation_idempotency_is_isolated_by_full_scope(self):
+        connection = sqlite3.connect(":memory:")
+        try:
+            initialize_sql_store(connection)
+            columns = (
+                "operation_id", "idempotency_key", "organization_id", "tenant_id",
+                "workspace_id", "project_id", "environment_id", "request_hash",
+                "snapshot_id", "snapshot_hash", "provider_id", "model_id", "status",
+                "created_at", "updated_at",
+            )
+            values = [
+                "op-a", "shared-key", "org-a", "tenant-a", "workspace-a", "project-a",
+                "test", "request-a", "snapshot-a", "snapshot-hash-a", "unit",
+                "semantic-1", "reserved", "2026-07-12T00:00:00Z", "2026-07-12T00:00:00Z",
+            ]
+            placeholders = ", ".join("?" for _ in columns)
+            connection.execute(
+                f"INSERT INTO a2_decision_operations ({', '.join(columns)}) VALUES ({placeholders})",
+                values,
+            )
+            values[0] = "op-b"
+            values[4] = "workspace-b"
+            values[7] = "request-b"
+            values[8] = "snapshot-b"
+            values[9] = "snapshot-hash-b"
+            connection.execute(
+                f"INSERT INTO a2_decision_operations ({', '.join(columns)}) VALUES ({placeholders})",
+                values,
+            )
+            self.assertEqual(
+                connection.execute("SELECT COUNT(*) FROM a2_decision_operations").fetchone()[0],
+                2,
+            )
+        finally:
+            connection.close()
 
     def test_sql_store_writes_and_reads_a2_core_artifacts(self):
         grade_report = load_json(GRADE_REPORT)

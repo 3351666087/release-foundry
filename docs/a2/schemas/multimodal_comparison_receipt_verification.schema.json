@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ashr.io/schemas/a2/multimodal_comparison_receipt_verification.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "comparison_path",
+    "comparison_artifact_hash",
+    "verification_state",
+    "expected_receipt_count",
+    "verified_receipt_count",
+    "errors",
+    "release_authority",
+    "raw_payload_included",
+    "public_safe"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "a2.multimodal_comparison_receipt_verification.v1"
+    },
+    "comparison_path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "comparison_artifact_hash": {
+      "$ref": "#/$defs/hash"
+    },
+    "verification_state": {
+      "enum": [
+        "verified",
+        "rejected"
+      ]
+    },
+    "expected_receipt_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "verified_receipt_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "errors": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "release_authority": {
+      "const": false
+    },
+    "raw_payload_included": {
+      "const": false
+    },
+    "public_safe": {
+      "const": true
+    }
+  },
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    }
+  }
+}
