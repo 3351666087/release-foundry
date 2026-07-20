@@ -64,7 +64,7 @@ test("rc.2 comparison preserves A1 execution, A2 grades, and A2 release authorit
   assert.equal(comparison.candidate.delivery.deployment_checks_passed, 8);
   assert.equal(comparison.authority_boundary.delivery_progress_changed, false);
 
-  assert.equal(comparison.baseline.artifact_count, 12);
+  assert.equal(comparison.baseline.artifact_count, 15);
   assert.equal(comparison.candidate.artifact_count, 16);
   assert.equal(comparison.safety.a2_scores_recomputed, false);
   assert.equal(comparison.safety.a2_pass_fail_recomputed, false);

@@ -10,7 +10,7 @@
 - A2 authority: blocked
 - A2 upstream decision: block
 - A2 release ready: no
-- Waiver: Blocked releases require an explicit executive exception and a one-day expiry.
+- Waiver: A3 waiver and approval records cannot override an A2 Decision Ledger block.
 
 ## Audit Manifest
 
@@ -21,10 +21,10 @@
 
 ## Waiver Review
 
-- Status: missing_required_waiver
-- Accepted: no
+- Status: not_required
+- Accepted: yes
 - Automatic unblock: no
-- Reason: Release requires waiver evidence, but no waiver file was provided.
+- Reason: Release does not require waiver evidence.
 
 ## Approval Review
 
@@ -35,43 +35,33 @@
 
 ## PR Comment
 
+<!-- ashr-plus-plus:release-gate:a3-golden-20260712-001 -->
 ## Ashr++ Release Gate
 
 Decision: **Block release**
-Risk score: **87**
+Authority: **A2 Decision Ledger**
 Release: `0.2.0-rc.1`
 Environment: `staging`
-Owner: Release owner
+Candidate SHA: `not-bound`
 
 | Signal | Value |
 |---|---|
 | Run | `a3-golden-20260712-001` |
-| Pass rate | 33.3% |
-| Average score | 80.7 |
-| Trace completeness | 100% |
-| Failed checks | pass_rate, required_tool_coverage |
-| PR gate next action | Block merge: resolve A3 failed check(s) pass_rate, required_tool_coverage before sign-off. |
-| Sign-off risk | blocked |
+| A1/A2 case pass rate | 33.3% |
+| Local quality gate | Block release |
+| Local quality risk score | 87 |
+| Authoritative A2 decision | block |
+| A2 release ready | no |
+| Merge blocked | yes |
 
-### Required Reviewers
+### Why blocked
 
-- Release owner
-- A3 triage owner
-- A1 runner/tooling owner
+- `a2_decision_blocks_release`
+- `a2_release_not_ready`
+- `a2_hard_blockers_present`
 
-### Top Risk Cases
+### Required action
 
-- `a3-gp-required-web-tool`: missing_required_tool / major / 71 - Required tool missing: web.search
-- `a3-gp-media-pipeline`: missing_required_tool / major / 71 - Required tool missing: media.fetch; Required tool missing: image.view; Required tool missing: media.classify; Tool order violated: media.fetch before image.view; Tool order violated: image.view before media.classify
-
-### Reviewer Gate
-
-- Next action: Block merge: resolve A3 failed check(s) pass_rate, required_tool_coverage before sign-off.
-- Sign-off risk: blocked (87)
-- A2 blockers: none
-- A1 trace/tool-call evidence: trace 2, tool diffs 0
-
-### Reviewer Lanes
-
-- A1 trace/tool-call evidence: ready / A1 API/runtime owner - Replay 2 A1 trace-ready case(s) and inspect 0 tool-call diff packet(s).
-- A3 PR gate action: blocked / A3 dashboard/report owner - Publish the PR gate next action with the report, then require reviewer disposition before merge.
+- Do not merge or publish until A2 issues an allow Decision Ledger record for a3-golden-20260712-001.
+- A3 did not recompute A2 scores, pass/fail, failure classes, or release authority.
+- An A3 waiver cannot convert this A2 block into approval.

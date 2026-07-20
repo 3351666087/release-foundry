@@ -235,7 +235,7 @@ test("release delivery CLI builds a blocked but verifiable packet from A1/A2 evi
     const result = await buildReleaseDeliveryOutputs({
       runs: join(ROOT, "fixtures/a3/mock_run_results.json"),
       grades: join(ROOT, "fixtures/a3/mock_grade_results.json"),
-      trustedSpine: join(ROOT, "fixtures/a2/results/a2_trusted_spine_handoff.json"),
+      trustedSpine: join(ROOT, "fixtures/a3/golden-path/a2_trusted_spine_handoff.snapshot.json"),
       auditBundle: join(ROOT, "fixtures/a3/p3/a3_audit_bundle_index_blocked_exception.redacted.json"),
       auditBundleVerification: join(ROOT, "fixtures/a3/p3/a3_audit_bundle_verification_passed.redacted.json"),
       auditArchive: join(ROOT, "fixtures/a3/p3/a3_audit_archive_manifest.redacted.json"),
@@ -350,7 +350,7 @@ test("Gate CLI consumes wrapped A2 judge-service output and preserves trusted-sp
     const payload = await buildGateCliPayload({
       runs: join(ROOT, "fixtures/a3/mock_run_results.json"),
       grades: wrapperPath,
-      a2TrustedSpine: join(ROOT, "fixtures/a2/results/a2_trusted_spine_handoff.json"),
+      a2TrustedSpine: join(ROOT, "fixtures/a3/golden-path/a2_trusted_spine_handoff.snapshot.json"),
       releaseVersion: "0.2.0-rc.1",
       source: "a2-wrapper-test",
       headSha: "abc123",

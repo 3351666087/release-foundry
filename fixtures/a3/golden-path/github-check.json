@@ -1,16 +1,16 @@
 {
   "name": "Ashr++ Release Gate",
-  "head_sha": "ad6113e01f5999f99b378e678d4f0a9602e8fdbc",
+  "head_sha": "[set-by-ci]",
   "status": "completed",
   "conclusion": "failure",
-  "details_url": "https://github.com/3351666087/ashr-codex-factory/actions/runs/29190953806",
+  "details_url": "",
   "output": {
     "title": "A2 blocked: a3-golden-20260712-001",
-    "summary": "Block release with risk score 87 and 2 failed check(s).\n\nAuthoritative A2 status: blocked; reason: a2_decision_blocks_release.",
-    "text": "Run: a3-golden-20260712-001\nRelease: 0.2.0-rc.1\nEnvironment: staging\nPass rate: 33.3%\nAverage score: 80.7\nTrace completeness: 100%\nFailed checks: pass_rate, required_tool_coverage\nPR gate next action: Block merge: resolve A3 failed check(s) pass_rate, required_tool_coverage before sign-off.\nSign-off risk: blocked\n\nTop risk cases:\n- a3-gp-required-web-tool: missing_required_tool / major / 71\n- a3-gp-media-pipeline: missing_required_tool / major / 71",
+    "summary": "Local case-quality gate: Block release. Authoritative A2 decision: block; release_ready=false.\n\nAuthoritative A2 status: blocked; reason: a2_decision_blocks_release.",
+    "text": "Run: a3-golden-20260712-001\nRelease: 0.2.0-rc.1\nEnvironment: staging\nPass rate: 33.3%\nAverage score: 80.7\nTrace completeness: 100%\nFailed checks: pass_rate, required_tool_coverage\nPR gate next action: Block merge: resolve A3 failed check(s) pass_rate, required_tool_coverage before sign-off.\nSign-off risk: blocked\n\nTop risk cases:\n- a3-gp-required-web-tool: missing_required_tool / major / 71\n- a3-gp-media-pipeline: missing_required_tool / major / 71\n\nA2 Decision Ledger: block\nA2 release_ready: false\nNext action: Do not merge or publish until A2 issues an allow Decision Ledger record for a3-golden-20260712-001.",
     "annotations": [
       {
-        "path": "docs/a3/a3_release_delivery_golden_path_2026_07_12.md",
+        "path": "ashr-gate-report.md",
         "start_line": 1,
         "end_line": 1,
         "annotation_level": "failure",
@@ -19,7 +19,7 @@
         "raw_details": "{\"case_id\":\"a3-gp-required-web-tool\",\"severity\":\"major\",\"primary_failure_class\":\"missing_required_tool\",\"run_id\":\"a3-golden-20260712-001\"}"
       },
       {
-        "path": "docs/a3/a3_release_delivery_golden_path_2026_07_12.md",
+        "path": "ashr-gate-report.md",
         "start_line": 1,
         "end_line": 1,
         "annotation_level": "failure",

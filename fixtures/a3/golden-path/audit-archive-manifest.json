@@ -2,7 +2,7 @@
   "schema_version": "a3.audit_archive_manifest.v1",
   "generated_at": "2026-07-12T11:40:02.000Z",
   "source": "github-live-readback",
-  "archive_id": "a3-archive-a3-bundle-0-2-0-rc-1-a3-golden-20260712-001-560a41530d-96e64c7ac4c0",
+  "archive_id": "a3-archive-a3-bundle-0-2-0-rc-1-a3-golden-20260712-001-560a41530d-ecb5ab0d638a",
   "archive_format": {
     "format": "portable-directory-or-zip-manifest",
     "zip_compatible": true,
@@ -13,7 +13,7 @@
   "archive_file": null,
   "bundle": {
     "bundle_id": "a3-bundle-0-2-0-rc-1-a3-golden-20260712-001-560a41530dd4",
-    "bundle_root_hash": "96e64c7ac4c042cd415ca9a54bec50a6e29ecf0b6b7e0aefb5583df9935c6957",
+    "bundle_root_hash": "ecb5ab0d638ad2d8f8f9a3b4d04fbfda2fb8955d2837fb2b801be904583871df",
     "bundle_index_file": "fixtures/a3/golden-path/audit-bundle-index.json",
     "release": {
       "run_id": "a3-golden-20260712-001",
@@ -36,10 +36,11 @@
       "a3_recomputed_a2_decision": false,
       "failed_checks": [
         "pass_rate",
-        "required_tool_coverage"
+        "required_tool_coverage",
+        "a2_release_authority"
       ]
     },
-    "artifact_count": 15
+    "artifact_count": 16
   },
   "immutable_policy": {
     "overwrite_allowed": false,
@@ -51,7 +52,7 @@
   "archive_entries": [
     {
       "id": "a2_trusted_spine",
-      "path": "fixtures/a2/results/a2_trusted_spine_handoff.json",
+      "path": "fixtures/a3/golden-path/a2_trusted_spine_handoff.snapshot.json",
       "archive_role": "authority_record",
       "content_type": "application/json",
       "required": true,
@@ -68,8 +69,8 @@
       "archive_role": "bundle_index",
       "content_type": "application/json",
       "required": true,
-      "sha256": "75275cdc70f5aafd03ef2944290c9a98fa11043d57913535abce01610cd5f246",
-      "byte_size": 14272,
+      "sha256": "61a4d89675658424f801d8e7b36533b3d2944a8ffd05a75034efda48341f1e5d",
+      "byte_size": 14953,
       "created_by": "ashr gate audit bundle index",
       "redaction_status": "redacted_or_safe_for_audit",
       "workspace_relative": true
@@ -80,8 +81,8 @@
       "archive_role": "custody_record",
       "content_type": "application/json",
       "required": false,
-      "sha256": "8b0b7eb007e0eff49a14ed3d6f15caf9458e3f75269a0810b8e4b70b88b558d7",
-      "byte_size": 4063,
+      "sha256": "9e6c749a7ad3c5846ea60c8c86c3447fa77a49debf9fc68413b2c78c0c9e59b9",
+      "byte_size": 4492,
       "created_by": "ashr gate generated artifact manifest",
       "redaction_status": "redacted_or_safe_for_audit",
       "workspace_relative": true
@@ -105,8 +106,8 @@
       "archive_role": "generated_output",
       "content_type": "application/json",
       "required": true,
-      "sha256": "4534eb4663c37517f03d707bbfa3f5cde1ddd0e8d9d3cacb9bef6b57ee4b656b",
-      "byte_size": 2193,
+      "sha256": "79ef95a5391c6375500569b54e742c3c0268e5f6f2d30c87d11bf3032fd53399",
+      "byte_size": 2230,
       "created_by": "ashr gate output writer",
       "redaction_status": "redacted_or_safe_for_audit",
       "workspace_relative": true
@@ -117,8 +118,8 @@
       "archive_role": "generated_output",
       "content_type": "application/json",
       "required": true,
-      "sha256": "3dbe02f346e2f0238ff2b31cadcf6900c1e94b8b57f32089267d2677a2bcccbf",
-      "byte_size": 23747,
+      "sha256": "e6b34113417ecaf5e3af7ceb384aebb8de4739fcb79a036f2ddc89630c15dd51",
+      "byte_size": 26177,
       "created_by": "ashr gate output writer",
       "redaction_status": "redacted_or_safe_for_audit",
       "workspace_relative": true
@@ -129,8 +130,8 @@
       "archive_role": "generated_output",
       "content_type": "text/markdown",
       "required": true,
-      "sha256": "b63b26b32e69547e38811e820b6c850e2200f4982db29c88a8371977cb581b28",
-      "byte_size": 2777,
+      "sha256": "610fa3919995519d6c43cb205460cff58b4e5b5949cd0e7a7c145211c5aca09d",
+      "byte_size": 2083,
       "created_by": "ashr gate output writer",
       "redaction_status": "redacted_or_safe_for_audit",
       "workspace_relative": true
@@ -141,9 +142,22 @@
       "archive_role": "generated_output",
       "content_type": "text/markdown",
       "required": true,
-      "sha256": "6039e5e7972d358e80044b57a993863cfa4461abc4b6372f1728dfca60fb3957",
-      "byte_size": 1503,
+      "sha256": "ba0090b045628104c996fbb4aa7d6e49e6fdda65ec476fd8322531012219dabc",
+      "byte_size": 847,
       "created_by": "ashr gate output writer",
+      "redaction_status": "redacted_or_safe_for_audit",
+      "workspace_relative": true
+    },
+    {
+      "id": "github_actions_artifact_readback",
+      "path": "fixtures/a3/golden-path/github-actions-artifact-live-readback.redacted.json",
+      "archive_role": "readback_record",
+      "content_type": "application/json",
+      "required": true,
+      "sha256": "83616b7a014e1c722e1e978d91d57b2461800933904678e194dcb11f24b9cb53",
+      "byte_size": 1386,
+      "created_by": "A3 GitHub live readback observer",
+      "origin": "external_github_live_readback",
       "redaction_status": "redacted_or_safe_for_audit",
       "workspace_relative": true
     },
@@ -247,18 +261,18 @@
     "raw_private_key_stored": false,
     "dry_run_compatible": true
   },
-  "archive_root_hash": "d7743959b0f84da68fb03b927958bc6e58250cacbef1f581105599b19bd8fd7c",
+  "archive_root_hash": "e736e584628a5f5eff13406cffca733299fef591ead796105a428a85ba40661b",
   "signature": {
     "schema_version": "a3.audit_archive_signature.v1",
     "signature_status": "signed",
     "algorithm": "ed25519",
     "signed_payload": "canonical_archive_manifest_with_archive_root_hash",
-    "signed_payload_sha256": "fe71b3dd8acb96d66be7d29faa6dc9cf494e305d52e583aac1b2b146a031273d",
+    "signed_payload_sha256": "e444eceab3dcad130550dd5bd63f18a21d7b2b42720bf3019b575e0857bfeccd",
     "signer": {
       "signer_type": "local-a3-gate-cli",
       "identity_binding": "self_signed_local_key_not_sso_bound",
-      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAXLLTazJGWmvGNp/iGlNvq6O2iIvQMmFpcGLbf2UbTuI=\n-----END PUBLIC KEY-----\n"
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAxb4NS23cr7rcrwjn0MKokcoe+FwsmoaUoW72is1rzfs=\n-----END PUBLIC KEY-----\n"
     },
-    "signature_base64": "dS5nHQ+bVEPgHqaGvxUQasmrjKV6L+7o+9AGYY6j75CU7wHK2jrxxL/gAAuK464gA+quFdXql3CwqK2GiPnRCQ=="
+    "signature_base64": "g9xQ4uhMdMBmoPAp4w145F3/P/7OuLbm3A5dDo8/Lrd3ow7J70vWsKpITZs8E5Pw4taljf6700nvjUGaf/UMBg=="
   }
 }

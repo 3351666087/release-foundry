@@ -235,7 +235,7 @@ export const A3_SOURCE_FIXTURES = {
     label: "A3 Golden Path 20260712",
     runFixture: "fixtures/a3/golden-path/a3_new_run_result.redacted.json",
     gradeFixture: "fixtures/a3/golden-path/a2_new_run_judge_response.redacted.json",
-    a2TrustedSpine: "fixtures/a2/results/a2_trusted_spine_handoff.json",
+    a2TrustedSpine: "fixtures/a3/golden-path/a2_trusted_spine_handoff.snapshot.json",
     deploymentProbe: "fixtures/a3/golden-path/deployment_probe.redacted.json",
     deploymentAcceptance: "fixtures/a3/golden-path/deployment-acceptance.json",
     releaseArtifactManifest: "fixtures/a3/golden-path/release-artifact-manifest.json",
