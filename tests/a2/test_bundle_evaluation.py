@@ -1,5 +1,6 @@
 import json
 import os
+import shutil
 import sqlite3
 import subprocess
 import sys
@@ -790,6 +791,10 @@ class BundleEvaluationTests(unittest.TestCase):
     @unittest.skipUnless(os.name == "nt", "PowerShell installer is Windows-only")
     def test_ollama_installer_checksum_mismatch_removes_download(self):
         root = Path("D:/Ashr/a2-checksum-test")
+        if not Path("D:/").exists():
+            self.skipTest("Ollama installer test requires a D: drive")
+        if shutil.disk_usage("D:/").free < 20 * 1024**3:
+            self.skipTest("Ollama installer test requires at least 20 GiB free on D:")
         if root.exists():
             self.skipTest("reserved checksum test root already exists")
         try:

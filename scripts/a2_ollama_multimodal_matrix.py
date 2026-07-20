@@ -66,6 +66,23 @@ OUTPUT_SCHEMA = {
 _MODEL_LOCKS: dict[str, threading.Lock] = {}
 _MODEL_LOCKS_GUARD = threading.Lock()
 CAPABILITY_CACHE_SCHEMA_VERSION = "a2.ollama_capability_cache.v1"
+NANOSECONDS_PER_SECOND = 1_000_000_000
+MINIMUM_ENFORCEABLE_BUDGET_NS = 1_000_000
+
+
+def _budget_duration_ns(seconds: float) -> int:
+    duration_ns = max(0, int(seconds * NANOSECONDS_PER_SECOND))
+    # Sub-millisecond provider deadlines cannot be enforced consistently across
+    # supported platforms, so fail closed instead of allowing an unbounded call.
+    return duration_ns if duration_ns >= MINIMUM_ENFORCEABLE_BUDGET_NS else 0
+
+
+def _remaining_budget_seconds(deadline_ns: int) -> float:
+    return (deadline_ns - time.monotonic_ns()) / NANOSECONDS_PER_SECOND
+
+
+def _elapsed_seconds(started_ns: int) -> float:
+    return (time.monotonic_ns() - started_ns) / NANOSECONDS_PER_SECOND
 
 
 def _model_lock(model_id: str) -> threading.Lock:
@@ -713,7 +730,12 @@ def build_matrix(
     prompt_hash = sha256_ref(PROMPT)
     runtime_hash = sha256_ref(canonical(runtime))
     invocation_index: dict[str, int] = {}
-    model_started = {model["model_id"]: time.monotonic() for model in models}
+    model_deadlines_ns = {
+        model["model_id"]: (
+            time.monotonic_ns() + _budget_duration_ns(maximum_model_run_seconds)
+        )
+        for model in models
+    }
     capability_by_model_hash = {
         receipt["model_id_hash"]: receipt
         for receipt in (capability_probe_receipts or [])
@@ -773,7 +795,10 @@ def build_matrix(
                         elif format_mode == "json_schema":
                             payload["format"] = OUTPUT_SCHEMA
                         request_hash = sha256_ref(canonical(payload))
-                        started = time.monotonic()
+                        started_ns = time.monotonic_ns()
+                        case_deadline_ns = (
+                            started_ns + _budget_duration_ns(maximum_case_wall_seconds)
+                        )
                         attempts = []
                         done_reason = ""
                         eval_count = None
@@ -870,8 +895,8 @@ def build_matrix(
                             # Plain JSON is an independent production mode. It never
                             # inherits native-schema capability or promotion status.
                             capability = None
-                        remaining_budget = maximum_model_run_seconds - (
-                            time.monotonic() - model_started[model["model_id"]]
+                        remaining_budget = _remaining_budget_seconds(
+                            model_deadlines_ns[model["model_id"]]
                         )
                         if remaining_budget <= 0:
                             trial = _budget_exhausted_trial(
@@ -915,7 +940,7 @@ def build_matrix(
                                 "thinking_present": False,
                                 "raw_payload_included": False,
                             }
-                            attempt_started = time.monotonic()
+                            attempt_started_ns = time.monotonic_ns()
                             fallback_probe = attempt > 1 and format_mode == "json_schema"
                             attempt_payload = payload
                             if fallback_probe:
@@ -932,11 +957,11 @@ def build_matrix(
                             http_status_class = ""
                             transport_receipt = None
                             try:
-                                remaining_budget = maximum_model_run_seconds - (
-                                    time.monotonic() - model_started[model["model_id"]]
+                                remaining_budget = _remaining_budget_seconds(
+                                    model_deadlines_ns[model["model_id"]]
                                 )
-                                remaining_case_budget = maximum_case_wall_seconds - (
-                                    time.monotonic() - started
+                                remaining_case_budget = _remaining_budget_seconds(
+                                    case_deadline_ns
                                 )
                                 if remaining_case_budget <= 0:
                                     raise classified_transport_error(
@@ -1002,7 +1027,7 @@ def build_matrix(
                                     "parse_state": parse_state,
                                     "error_class": error_class,
                                     "wall_seconds": round(
-                                        time.monotonic() - attempt_started, 3
+                                        _elapsed_seconds(attempt_started_ns), 3
                                     ),
                                     "content_hash": parsed_receipt["content_hash"],
                                     "thinking_hash": parsed_receipt["thinking_hash"],
@@ -1011,7 +1036,7 @@ def build_matrix(
                                     "parse_source": parsed_receipt["parse_source"],
                                     "provider_durations_seconds": provider_durations,
                                     "duration_receipt": _duration_receipt(
-                                        round(time.monotonic() - attempt_started, 3),
+                                        round(_elapsed_seconds(attempt_started_ns), 3),
                                         provider_durations["provider_total_seconds"],
                                     ),
                                     "fallback_probe": fallback_probe,
@@ -1050,7 +1075,7 @@ def build_matrix(
                             if parse_state == "valid_json"
                             else None
                         )
-                        wall_seconds = round(time.monotonic() - started, 3)
+                        wall_seconds = round(_elapsed_seconds(started_ns), 3)
                         index = invocation_index.get(model["model_id"], 0)
                         invocation_index[model["model_id"]] = index + 1
                         trial = {
