@@ -15,6 +15,7 @@ import {
   verifyReleaseArtifactManifest
 } from "./a3_release_delivery.mjs";
 import { evaluateA2TrustedReleaseAuthority } from "./a3_trusted_release_authority.mjs";
+import { verifyA3CandidateDeliveryArtifacts } from "./a3_candidate_delivery_binding.mjs";
 
 const DEFAULT_OUTPUT_NAMES = Object.freeze({
   manifest: "release-artifact-manifest.json",
@@ -39,6 +40,10 @@ export function parseReleaseDeliveryArgs(argv = []) {
     if (item === "--runs") options.runs = next();
     else if (item === "--grades") options.grades = next();
     else if (item === "--trusted-spine") options.trustedSpine = next();
+    else if (item === "--a2-shared-candidate-identity") options.a2SharedCandidateIdentity = next();
+    else if (item === "--a3-shared-candidate-identity") options.a3SharedCandidateIdentity = next();
+    else if (item === "--candidate-delivery-binding") options.candidateDeliveryBinding = next();
+    else if (item === "--a3-implementation-commit") options.a3ImplementationCommit = next();
     else if (item === "--audit-bundle") options.auditBundle = next();
     else if (item === "--audit-bundle-verification") options.auditBundleVerification = next();
     else if (item === "--audit-archive") options.auditArchive = next();
@@ -105,11 +110,43 @@ export async function buildReleaseDeliveryOutputs(options = {}) {
   const trustedReleaseAuthority = evaluateA2TrustedReleaseAuthority(a2TrustedSpine);
   const a1RunSummary = summarizeA1RunEvidence(runFixture);
   const a2GradeSummary = summarizeA2GradeEvidence(gradeFixture);
+  const candidateArtifactPaths = [
+    options.a2SharedCandidateIdentity,
+    options.a3SharedCandidateIdentity,
+    options.candidateDeliveryBinding
+  ];
+  const candidateArtifactsProvided = candidateArtifactPaths.some(Boolean);
+  let candidateBindingVerification = null;
+  let candidateDeliveryBindingInput = {};
+  if (candidateArtifactsProvided) {
+    if (candidateArtifactPaths.some((path) => !path)) {
+      throw new Error("Candidate delivery verification requires A2 identity, A3 identity, and delivery binding.");
+    }
+    const a2SharedIdentity = await readJson(options.a2SharedCandidateIdentity);
+    const a3SharedIdentity = await readJson(options.a3SharedCandidateIdentity);
+    candidateDeliveryBindingInput = await readJson(options.candidateDeliveryBinding);
+    candidateBindingVerification = verifyA3CandidateDeliveryArtifacts({
+      a2SharedIdentity,
+      a3SharedIdentity,
+      candidateDeliveryBinding: candidateDeliveryBindingInput,
+      a2TrustedSpine,
+      runFixture
+    }, {
+      a3GitSha: options.a3ImplementationCommit,
+      releaseVersion: options.releaseVersion
+    });
+    if (!candidateBindingVerification.verified) {
+      throw new Error(`Candidate delivery artifacts failed verification: ${candidateBindingVerification.blockers.join(", ")}`);
+    }
+  }
 
   const artifactInputs = [
     ["a1_run_result", options.runs, "runtime_evidence", "A1"],
     ["a2_judge_service_response", options.grades, "judge_evidence", "A2"],
     ["a2_trusted_spine", options.trustedSpine, "release_authority", "A2"],
+    ["a2_shared_candidate_identity", options.a2SharedCandidateIdentity, "candidate_identity_source", "A2"],
+    ["a3_shared_candidate_identity", options.a3SharedCandidateIdentity, "candidate_identity_consumption", "A3"],
+    ["a3_candidate_delivery_binding", options.candidateDeliveryBinding, "candidate_delivery_binding", "A3"],
     ["audit_bundle_index", options.auditBundle, "audit_bundle", "A3"],
     ["audit_bundle_verification", options.auditBundleVerification, "verification_receipt", "A3"],
     ["audit_archive_manifest", options.auditArchive, "signed_archive", "A3"],
@@ -136,6 +173,7 @@ export async function buildReleaseDeliveryOutputs(options = {}) {
     a1RunSummary,
     a2GradeSummary,
     trustedReleaseAuthority,
+    candidateBindingVerification,
     artifacts,
     documentation: options.documentation,
     releaseVersion: options.releaseVersion,
@@ -191,6 +229,8 @@ export async function buildReleaseDeliveryOutputs(options = {}) {
     schema_version: "a3.release_delivery_index.v1",
     generated_at: generatedAt,
     release_version: options.releaseVersion,
+    candidate_id: candidateBindingVerification?.candidate_id || null,
+    run_id: candidateBindingVerification?.run_id || a1RunSummary.run_ids[0] || null,
     git_sha_alias: options.gitSha || null,
     ci_tested_sha_alias: options.ciTestedSha || null,
     status: goldenPath.status,
@@ -202,10 +242,28 @@ export async function buildReleaseDeliveryOutputs(options = {}) {
       golden_path_status: DEFAULT_OUTPUT_NAMES.goldenPath,
       golden_path_summary: DEFAULT_OUTPUT_NAMES.markdown
     },
+    candidate_binding: {
+      attached: candidateBindingVerification !== null,
+      verified: candidateBindingVerification?.verified === true,
+      binding_state: candidateBindingVerification?.binding_state || "not-attached",
+      candidate_id: candidateBindingVerification?.candidate_id || null,
+      run_id: candidateBindingVerification?.run_id || a1RunSummary.run_ids[0] || null,
+      release_version: candidateBindingVerification?.release_version || options.releaseVersion,
+      a1_source_commit: candidateBindingVerification
+        ? candidateDeliveryBindingInput.upstream?.a1_source_commit || null
+        : null,
+      a2_decision_ledger_head_hash: candidateBindingVerification?.a2_decision_ledger_head_hash || trustedReleaseAuthority.decision_ledger?.head_hash || null,
+      a2_grades_hash: candidateBindingVerification?.a2_grades_hash || null,
+      a3_implementation_commit: candidateBindingVerification?.a3_implementation_commit || null,
+      delivery_status: candidateBindingVerification?.delivery_status || "not-attached",
+      production_ready: false
+    },
     authority: {
       a1_run_ids: a1RunSummary.run_ids,
       a2_upstream_decision: trustedReleaseAuthority.upstream_decision,
       a2_release_ready: trustedReleaseAuthority.release_ready,
+      a2_decision_ledger_head_hash: trustedReleaseAuthority.decision_ledger?.head_hash || null,
+      a2_grades_hash: candidateBindingVerification?.a2_grades_hash || null,
       a3_recomputed_decision: false
     },
     safety: {
@@ -221,6 +279,7 @@ export async function buildReleaseDeliveryOutputs(options = {}) {
     releaseArtifactVerification,
     deploymentAcceptance,
     goldenPath,
+    candidateBindingVerification,
     outputDir
   };
 }
@@ -255,9 +314,14 @@ export async function runReleaseDeliveryCli(argv = process.argv.slice(2), io = {
       production_ready: result.goldenPath.production_ready,
       deployment_accepted: result.deploymentAcceptance.production_accepted,
       release_version: result.index.release_version,
+      candidate_id: result.index.candidate_id,
       git_sha_alias: result.index.git_sha_alias,
       ci_tested_sha_alias: result.index.ci_tested_sha_alias,
       run_ids: result.index.authority.a1_run_ids,
+      candidate_binding_verified: result.index.candidate_binding?.verified === true,
+      a2_decision_ledger_head_hash: result.index.authority.a2_decision_ledger_head_hash,
+      a2_grades_hash: result.index.authority.a2_grades_hash,
+      a3_implementation_commit: result.index.candidate_binding?.a3_implementation_commit || null,
       output_dir: portableOutputDir(result.outputDir),
       safety: {
         token_included: false,
@@ -282,7 +346,7 @@ export async function runReleaseDeliveryCli(argv = process.argv.slice(2), io = {
 function usageReceipt() {
   return {
     schema_version: "a3.release_delivery_cli_usage.v1",
-    command: "node services/report/a3_release_delivery_cli.mjs --runs <a1-run.json> --grades <a2-service-response.json> --trusted-spine <a2-trusted-spine.json> --audit-bundle <bundle.json> --audit-bundle-verification <bundle-verification.json> --audit-archive <archive.json> --audit-archive-verification <archive-verification.json> --deployment-probe <probe.json> --github-actions-artifact-readback <artifact.json> --release-version 0.2.0-rc.1 --git-sha <candidate-sha> --ci-tested-sha <tested-sha> --output-dir artifacts/a3-release-delivery --no-fail --json",
+    command: "node services/report/a3_release_delivery_cli.mjs --runs <a1-run.json> --grades <a2-service-response.json> --trusted-spine <a2-trusted-spine.json> [--a2-shared-candidate-identity <a2-identity.json> --a3-shared-candidate-identity <a3-identity.json> --candidate-delivery-binding <binding.json> --a3-implementation-commit <sha>] --audit-bundle <bundle.json> --audit-bundle-verification <bundle-verification.json> --audit-archive <archive.json> --audit-archive-verification <archive-verification.json> --deployment-probe <probe.json> --github-actions-artifact-readback <artifact.json> --release-version 0.2.0-rc.1 --git-sha <candidate-sha> --ci-tested-sha <tested-sha> --output-dir artifacts/a3-release-delivery --no-fail --json",
     verify_command: "node services/report/a3_release_delivery_cli.mjs --verify-manifest <release-artifact-manifest.json> --strict-exit --json",
     notes: [
       "The CLI consumes A1/A2 evidence and never recomputes A2 score, pass/fail, or release authority.",

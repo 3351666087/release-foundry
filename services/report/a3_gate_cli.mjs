@@ -12,7 +12,13 @@ import {
 import { redactExport } from "./export_redaction_firewall.mjs";
 import { normalizeA2GradeReport } from "./a3_release_delivery.mjs";
 import { evaluateA2TrustedReleaseAuthority } from "./a3_trusted_release_authority.mjs";
+import { verifyA3CandidateDeliveryArtifacts } from "./a3_candidate_delivery_binding.mjs";
 import { verifyA3MultimodalReviewAssignmentPacket } from "./a3_multimodal_review_assignment.mjs";
+
+const A2_TRUSTED_SPINE_SCHEMAS = new Set([
+  "a2.trusted_spine_handoff.v1",
+  "a2.candidate_trusted_spine.v1"
+]);
 
 export async function buildGateCliPayload(options = {}) {
   const workspaceRoot = resolve(options.workspaceRoot || process.cwd());
@@ -25,9 +31,37 @@ export async function buildGateCliPayload(options = {}) {
   const waiver = await loadJsonOptional(options.waiver);
   const approval = await loadJsonOptional(options.approval);
   const a2TrustedSpine = await loadJsonOptional(options.a2TrustedSpine);
-  const trustedReleaseAuthority = a2TrustedSpine.schema_version === "a2.trusted_spine_handoff.v1"
+  const trustedReleaseAuthority = A2_TRUSTED_SPINE_SCHEMAS.has(a2TrustedSpine.schema_version)
     ? evaluateA2TrustedReleaseAuthority(a2TrustedSpine)
     : null;
+  const candidateArtifactPaths = [
+    options.a2SharedCandidateIdentity,
+    options.a3SharedCandidateIdentity,
+    options.candidateDeliveryBinding
+  ];
+  const candidateArtifactsProvided = candidateArtifactPaths.some(Boolean);
+  let candidateBindingVerification = null;
+  if (candidateArtifactsProvided) {
+    if (candidateArtifactPaths.some((path) => !path) || !options.a2TrustedSpine) {
+      throw new Error("Candidate delivery verification requires A2 identity, A3 identity, delivery binding, and Trusted Spine.");
+    }
+    const a2SharedIdentity = await loadJsonRequired(options.a2SharedCandidateIdentity, "A2 shared candidate identity");
+    const a3SharedIdentity = await loadJsonRequired(options.a3SharedCandidateIdentity, "A3 shared candidate identity");
+    const candidateDeliveryBinding = await loadJsonRequired(options.candidateDeliveryBinding, "candidate delivery binding");
+    candidateBindingVerification = verifyA3CandidateDeliveryArtifacts({
+      a2SharedIdentity,
+      a3SharedIdentity,
+      candidateDeliveryBinding,
+      a2TrustedSpine,
+      runFixture: runs
+    }, {
+      a3GitSha: options.a3ImplementationCommit,
+      releaseVersion: options.releaseVersion
+    });
+    if (!candidateBindingVerification.verified) {
+      throw new Error(`Candidate delivery artifacts failed verification: ${candidateBindingVerification.blockers.join(", ")}`);
+    }
+  }
   const summary = buildDashboardSummary(runs, grades);
   const localQualityGate = summarizeReleaseGate(runs, grades, coverage, mediaSignedUrlCoverage, { thresholds });
   const localWorkflow = summarizeReleaseWorkflow(runs, grades, coverage, mediaSignedUrlCoverage, {
@@ -93,6 +127,7 @@ export async function buildGateCliPayload(options = {}) {
       headSha: options.headSha
     }),
     trusted_release_authority: trustedReleaseAuthority,
+    candidate_binding_verification: candidateBindingVerification,
     github_check_run: githubCheckRun,
     pr_comment_markdown: workflow.pr_comment_markdown,
     audit_manifest: {
@@ -413,6 +448,11 @@ export function buildAuditBundleIndex(payload = {}, generatedArtifacts = [], opt
       a2_release_ready: payload.trusted_release_authority?.release_ready === true,
       a2_decision_ledger_head_hash: payload.trusted_release_authority?.decision_ledger?.head_hash || null,
       a2_decision_record_id: payload.trusted_release_authority?.decision_ledger?.record_id || null,
+      candidate_id: payload.candidate_binding_verification?.candidate_id || null,
+      candidate_binding_state: payload.candidate_binding_verification?.binding_state || "not-attached",
+      candidate_binding_verified: payload.candidate_binding_verification?.verified === true,
+      a2_grades_hash: payload.candidate_binding_verification?.a2_grades_hash || null,
+      a3_implementation_commit: payload.candidate_binding_verification?.a3_implementation_commit || null,
       a3_recomputed_a2_decision: false,
       failed_checks: gate.failed_checks || []
     },
@@ -902,6 +942,18 @@ function parseArgs(argv = []) {
     } else if (arg === "--a2-trusted-spine") {
       options.a2TrustedSpine = next;
       index += 1;
+    } else if (arg === "--a2-shared-candidate-identity") {
+      options.a2SharedCandidateIdentity = next;
+      index += 1;
+    } else if (arg === "--a3-shared-candidate-identity") {
+      options.a3SharedCandidateIdentity = next;
+      index += 1;
+    } else if (arg === "--candidate-delivery-binding") {
+      options.candidateDeliveryBinding = next;
+      index += 1;
+    } else if (arg === "--a3-implementation-commit") {
+      options.a3ImplementationCommit = next;
+      index += 1;
     } else if (arg === "--release-version") {
       options.releaseVersion = next;
       index += 1;
@@ -1005,7 +1057,7 @@ function parseArgs(argv = []) {
 }
 
 function helpText() {
-  return `Usage: node services/report/a3_gate_cli.mjs --runs fixtures/a3/mock_run_results.json --grades fixtures/a3/mock_grade_results.json --coverage fixtures/a2/results/a2_g3_coverage_report.json --thresholds fixtures/a3/release_gate_thresholds.json --json [--a2-trusted-spine path] [--waiver path] [--approval path] [--generated-at ISO] [--strict-exit|--no-fail] [--output-json path] [--output-md path] [--output-check path] [--output-pr-comment path] [--output-manifest path] [--output-bundle path] [--github-check-publish-receipt path] [--github-pr-comment-publish-receipt path] [--github-required-check-plan path] [--github-check-readback path] [--github-pr-comment-readback path] [--github-required-check-proof path] [--github-actions-artifact-readback path] [--deployment-probe path] [--multimodal-review-packet path]\n       node services/report/a3_gate_cli.mjs --verify-index fixtures/a3/p3/a3_audit_bundle_index_blocked_exception.redacted.json --json [--output-json path] [--output-md path] [--strict-exit|--no-fail]\n`;
+  return `Usage: node services/report/a3_gate_cli.mjs --runs fixtures/a3/mock_run_results.json --grades fixtures/a3/mock_grade_results.json --coverage fixtures/a2/results/a2_g3_coverage_report.json --thresholds fixtures/a3/release_gate_thresholds.json --json [--a2-trusted-spine path] [--a2-shared-candidate-identity path --a3-shared-candidate-identity path --candidate-delivery-binding path --a3-implementation-commit sha] [--waiver path] [--approval path] [--generated-at ISO] [--strict-exit|--no-fail] [--output-json path] [--output-md path] [--output-check path] [--output-pr-comment path] [--output-manifest path] [--output-bundle path] [--github-check-publish-receipt path] [--github-pr-comment-publish-receipt path] [--github-required-check-plan path] [--github-check-readback path] [--github-pr-comment-readback path] [--github-required-check-proof path] [--github-actions-artifact-readback path] [--deployment-probe path] [--multimodal-review-packet path]\n       node services/report/a3_gate_cli.mjs --verify-index fixtures/a3/p3/a3_audit_bundle_index_blocked_exception.redacted.json --json [--output-json path] [--output-md path] [--strict-exit|--no-fail]\n`;
 }
 
 async function loadJsonRequired(path, label) {
@@ -1178,6 +1230,24 @@ async function readExternalEvidenceArtifacts(options = {}, workspaceRoot) {
       options.a2TrustedSpine,
       workspaceRoot,
       { origin: "a2_authoritative_evidence", bundleRole: "authority_record" }
+    ),
+    externalEvidenceArtifactInput(
+      "a2_shared_candidate_identity",
+      options.a2SharedCandidateIdentity,
+      workspaceRoot,
+      { origin: "a2_authoritative_evidence", bundleRole: "authority_record" }
+    ),
+    externalEvidenceArtifactInput(
+      "a3_shared_candidate_identity",
+      options.a3SharedCandidateIdentity,
+      workspaceRoot,
+      { origin: "a3_candidate_binding", bundleRole: "custody_record" }
+    ),
+    externalEvidenceArtifactInput(
+      "a3_candidate_delivery_binding",
+      options.candidateDeliveryBinding,
+      workspaceRoot,
+      { origin: "a3_candidate_binding", bundleRole: "custody_record" }
     ),
     externalEvidenceArtifactInput(
       "github_check_readback",

@@ -8,7 +8,7 @@ This is the current module. Its purpose is to bind A1 execution, A2 authority an
 - [x] `M40-02` Customer verifier rejects stale A2 run IDs and stale A3 tested/source SHAs.
 - [x] `M40-03` Generate a fresh A1 run bound to the latest candidate ID and latest `main` SHA.
 - [x] `M40-04` Generate A2 Trusted Spine and Decision Ledger for that exact A1 run.
-- [ ] `M40-05` Regenerate A3 gate, delivery index, audit bundle and archive for the same run, SHA and version.
+- [x] `M40-05` Regenerate A3 gate, delivery index, audit bundle and archive for the same run, SHA and version.
 - [ ] `M40-06` Recompute Customer verification with no candidate/run/SHA/version mismatch findings.
 - [ ] `M40-07` Preserve authoritative NO-GO unless Product, A2, A3 delivery and human approval all independently pass.
 
@@ -49,3 +49,11 @@ python scripts/build_dual_release_candidates.py --verify-index dist/releases/dua
 - `2026-07-20`: A2 authority implementation commit `d3529c356e49ce8502c050f0dad44020031ee0dd` is preserved separately from evidence commit `629d0bbb7b9634b92c59dd35852ecefab44bd657`. Recompute, schema and release tests passed locally (`22 passed`) and GitHub CL Gate run `29745811494` passed.
 - `2026-07-20`: A2's authoritative result remains `block`: latest multimodal control/repeat/cloud/local-runtime evidence is blocked and human review is pending. Round 53 PostgreSQL proof is verified and is not a blocker.
 - `2026-07-20`: `M40-04` is complete. `M40-05` must consume the exact A2 ledger head and grades hash without recomputation; A3 delivery, human approval and production authority remain absent.
+- `2026-07-20`: A3 implementation anchor `a0b427257c5cd80fbe3394b4a406fa21f50bae37` contains candidate-spine verification, exact A3 identity consumption, fail-closed delivery binding, the rc.3 build/check command and shallow-checkout-safe CI verification; core commit `cbc66462a419d9441dfb77b602851454893be016` remains its preserved ancestor.
+- `2026-07-20`: the regenerated rc.3 A3 packet binds candidate `a3-golden-agent@0.2.0-rc.3`, run `a3-golden-20260720-003`, version `0.2.0-rc.3`, A1 source `1d292047e991995fdf52f0545ffff410ee19a171`, A2 ledger head `sha256:af84d7e9e3143f4da06341f2e20f3402c8f44ed5efc8221b18c8ef2869747a4e` and A2 grades `sha256:ffeba9ab8d7a2ccfb26ca8e135448cc9a2e6c8ead5b49837f77e5e73606a5304` without recalculation.
+- `2026-07-20`: local Audit Bundle, ephemeral local-signature Audit Archive and release artifact verification passed. `tests/release` passed `25/25`; focused A3 authority/gate/delivery/archive tests passed `43/43`.
+- `2026-07-20`: A3 preserves A2 `block`, emits `blocked_by_a2` and keeps `production_ready=false`. No rc.2 live GitHub readback, tenant GitHub App identity, human approval, hosted deployment or production authority was reused or invented.
+- `2026-07-20`: `M40-05` remains unchecked until its GitHub PR CL Gate passes; local evidence is documented in `docs/a3/m40_05_rc3_candidate_delivery_handoff.md`.
+- `2026-07-20`: draft PR `#45` preserved the two-phase implementation/evidence history. Its first CL Gate exposed and rejected a mutable-checklist hash and depth-one checkout assumption; A3 corrected both without weakening candidate or artifact verification.
+- `2026-07-20`: updated GitHub CL Gate run `29751886773` passed Product release contracts, Python A1/A2 contracts, A3 dashboard/report/evidence contracts, A3 Next.js and Playwright, Golden Path artifact verification, pinned evidence verification, plan hygiene and the aggregate summary.
+- `2026-07-20`: `M40-05` is complete. The exact rc.3 candidate binding is verified and locally reproducible, while A2 still authoritatively blocks release and all production-only acceptance claims remain false. Current work moves to `M40-06` Customer verification recomputation.
