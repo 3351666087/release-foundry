@@ -127,8 +127,8 @@ async function build(options = {}) {
     outputDir: RC3,
     workspaceRoot: ROOT,
     documentation: [
-      "docs/strategy/execution/M40-cross-lane-trusted-release.md",
-      "docs/a2/m40_04_rc3_candidate_authority_handoff.md"
+      "docs/a2/m40_04_rc3_candidate_authority_handoff.md",
+      "docs/a3/m40_05_rc3_candidate_delivery_handoff.md"
     ],
     noFail: true
   });
