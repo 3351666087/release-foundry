@@ -9,6 +9,7 @@ const app = require("../../apps/wechat-miniprogram/app.json");
 const contract = require("../../apps/wechat-miniprogram/contracts/a3-client-surface.contract.js");
 const apiClient = require("../../apps/wechat-miniprogram/utils/api-client.js");
 const releaseCenter = require("../../apps/wechat-miniprogram/services/release-center.js");
+const previewData = require("../../apps/wechat-miniprogram/data/preview.js");
 
 const ROOT = new URL("../../apps/wechat-miniprogram/", import.meta.url);
 const DOC_PATH = new URL("../../docs/a3/p3_wechat_mini_program_client_surface_2026_07_09.md", import.meta.url);
@@ -63,6 +64,7 @@ test("customer-facing mini program templates expose no internal lane labels", as
   assert.doesNotMatch(appText, /\bA[123]\b|Release Approval|Incident Alert/);
   assert.match(await readFile(new URL("pages/workbench/index.wxml", ROOT), "utf8"), /执行证据/);
   assert.match(await readFile(new URL("pages/release-approval/index.wxml", ROOT), "utf8"), /发布决策/);
+  assert.match(await readFile(new URL("pages/release-approval/index.wxml", ROOT), "utf8"), /漏检案例与媒体哈希/);
   assert.match(await readFile(new URL("pages/incident-alert/index.wxml", ROOT), "utf8"), /事件时间线/);
   assert.match(await readFile(new URL("pages/account/index.wxml", ROOT), "utf8"), /生产能力状态/);
 
@@ -268,6 +270,69 @@ test("Round 52 multimodal readiness becomes a mobile blocker without promoting s
   assert.equal(snapshot.release.multimodalReadiness.stabilityLabel, "qualified");
   assert.equal(snapshot.release.blockers[0].id, "multimodal_release_readiness");
   assert.match(snapshot.release.nextAction, /3 \/ 5/);
+});
+
+test("Round 52 case evidence exposes five hash-bound cases and two missed cases without raw media", () => {
+  const affectedCases = Array.from({ length: 5 }, (_, index) => {
+    const number = index + 1;
+    const missed = number === 1 || number === 5;
+    return {
+      case_id: `round51-attack-safety-guidance-conflict-0${number}`,
+      outcome: missed ? "missed" : "detected",
+      latency_seconds: number / 10,
+      media_evidence: {
+        media_type: "image/png",
+        artifact_hash: `sha256:${String(number).repeat(64)}`,
+        raw_media_available: false,
+        signed_url_available: false,
+        media_url: "https://must-not-render.example/image.png"
+      },
+      response_evidence: {
+        response_hash: `sha256:${String(number + 4).repeat(64)}`,
+        raw_response_available: false,
+        token: "must-not-render"
+      },
+      source_lane: "A2"
+    };
+  });
+  const snapshot = releaseCenter.normalizeDashboardPayload({
+    release_decision_provenance: { status: "blocked", blockers: [] },
+    multimodal_release_case_evidence: {
+      schema_version: "a3.multimodal_release_case_evidence.v1",
+      available: true,
+      status: "attention_required",
+      summary: { eligible_count: 5, detected_count: 3, missed_count: 2, sensitivity: 0.6 },
+      affected_cases: affectedCases
+    },
+    incident_replay_queue: { queue: [] }
+  });
+
+  const evidence = snapshot.release.multimodalCaseEvidence;
+  assert.equal(evidence.eligibleLabel, "5");
+  assert.equal(evidence.detectedLabel, "3");
+  assert.equal(evidence.missedLabel, "2");
+  assert.equal(evidence.cases.length, 5);
+  assert.deepEqual(evidence.missedCases.map((item) => item.caseId), [
+    "round51-attack-safety-guidance-conflict-01",
+    "round51-attack-safety-guidance-conflict-05"
+  ]);
+  assert.deepEqual(evidence.cases.slice(0, 2).map((item) => item.outcome), ["missed", "missed"]);
+  assert.ok(evidence.cases.every((item) => /^sha256:[a-f0-9]{64}$/.test(item.artifactHash)));
+  assert.doesNotMatch(
+    JSON.stringify(evidence),
+    /raw_media|raw_response|signed_url|media_url|https?:\/\/|data:image|token|source_lane|\bA[123]\b/
+  );
+
+  const preview = previewData.buildPreviewSnapshot().release.multimodalCaseEvidence;
+  assert.deepEqual(
+    [preview.eligibleLabel, preview.detectedLabel, preview.missedLabel],
+    ["5", "3", "2"]
+  );
+  assert.deepEqual(preview.missedCases.map((item) => item.caseId), [
+    "round51-attack-safety-guidance-conflict-01",
+    "round51-attack-safety-guidance-conflict-05"
+  ]);
+  assert.ok(preview.missedCases.every((item) => /^sha256:[a-f0-9]{12,}\.\.\.$/.test(item.artifactHashLabel)));
 });
 
 test("v2 release evidence maps source artifact hashes into preflight references", () => {

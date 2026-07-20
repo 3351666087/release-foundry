@@ -69,6 +69,35 @@
       <text class="panel-copy">仍需由授权人员完成最终审批，系统不会自动代替人工决策。</text>
     </view>
 
+    <block wx:if="{{release.multimodalCaseEvidence.available}}">
+      <text class="section-label">漏检案例与媒体哈希</text>
+      <view class="panel media-case-panel">
+        <view class="media-case-summary">
+          <view>
+            <text class="media-case-title">{{release.multimodalCaseEvidence.statusLabel}}</text>
+            <text class="media-case-copy">攻击案例 {{release.multimodalCaseEvidence.eligibleLabel}} · 已识别 {{release.multimodalCaseEvidence.detectedLabel}} · 灵敏度 {{release.multimodalCaseEvidence.sensitivityLabel}}</text>
+          </view>
+          <text class="status-pill is-{{release.multimodalCaseEvidence.tone}}">仅哈希</text>
+        </view>
+        <view wx:for="{{release.multimodalCaseEvidence.missedCases}}" wx:key="caseId" class="media-case-item">
+          <view class="media-case-item-head">
+            <text class="media-case-id">{{item.caseId}}</text>
+            <text class="status-pill is-{{item.tone}}">{{item.outcomeLabel}}</text>
+          </view>
+          <text class="media-case-meta">{{item.mediaType}} · {{item.latencyLabel}}</text>
+          <view class="media-hash-row">
+            <text>媒体</text>
+            <text selectable="true">{{item.artifactHashLabel}}</text>
+          </view>
+          <view class="media-hash-row">
+            <text>响应</text>
+            <text selectable="true">{{item.responseHashLabel}}</text>
+          </view>
+        </view>
+        <text class="media-case-boundary">只显示公开安全哈希；原图、模型原文和临时访问链接均不进入小程序。{{release.multimodalCaseEvidence.authorityLabel}}。</text>
+      </view>
+    </block>
+
     <text class="section-label">下一步</text>
     <view class="panel panel-body">
       <text class="panel-title">{{release.nextAction}}</text>

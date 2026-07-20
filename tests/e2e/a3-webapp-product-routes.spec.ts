@@ -261,6 +261,42 @@ test.describe("A3 Next.js product console", () => {
     await page.screenshot({ path: "docs/screenshots/a3-webapp-multimodal-release-readiness-round52-mobile-390x844.png", fullPage: false, animations: "disabled" });
   });
 
+  test("links the Round 52 release blocker to five hash-only media cases", async ({ page }) => {
+    await page.setViewportSize({ width: 1440, height: 1100 });
+    await page.goto(`${base}/delivery/?source=p3-a2-round52`);
+
+    const panel = page.locator('.release-case-evidence[data-status="attention_required"]');
+    await expect(panel).toBeVisible();
+    await expect(panel).toContainText("2 个跨模态攻击漏检");
+    await expect(panel.locator("article")).toHaveCount(5);
+    await expect(panel.locator('article[data-outcome="missed"]')).toHaveCount(2);
+    await expect(panel.locator('article[data-outcome="missed"]').nth(0)).toContainText("round51-attack-safety-guidance-conflict-01");
+    await expect(panel.locator('article[data-outcome="missed"]').nth(1)).toContainText("round51-attack-safety-guidance-conflict-05");
+    await expect(panel).toContainText("sha256:3ed5e7e623");
+    await expect(panel).toContainText("sha256:4d6cfd59f7");
+    await expect(panel.locator(".release-case-evidence-hero")).not.toContainText(/\bA[123]\b/);
+    await expect(panel).toContainText('"raw_media_available": false');
+    await expect(panel).toContainText('"signed_url_available": false');
+    await expect(panel).not.toContainText(/https?:\/\/|data:image|\bsk-[A-Za-z0-9_-]+|Bearer\s+/);
+
+    const layout = await panel.evaluate((node) => ({
+      viewport: document.documentElement.clientWidth,
+      documentWidth: document.documentElement.scrollWidth,
+      panelLeft: node.getBoundingClientRect().left,
+      panelRight: node.getBoundingClientRect().right
+    }));
+    expect(layout.documentWidth).toBeLessThanOrEqual(layout.viewport + 1);
+    expect(layout.panelLeft).toBeGreaterThanOrEqual(0);
+    expect(layout.panelRight).toBeLessThanOrEqual(layout.viewport + 1);
+
+    await page.addStyleTag({ content: ".command-bar { position: static !important; }" });
+    await panel.scrollIntoViewIfNeeded();
+    await panel.screenshot({
+      path: "docs/screenshots/a3-webapp-multimodal-case-evidence-round52-desktop.png",
+      animations: "disabled"
+    });
+  });
+
   test("shows rc.2 repair while sealed A2 block and current candidate integrity stay separate", async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto(`${base}/delivery/?source=a3-golden-path-rc2`);

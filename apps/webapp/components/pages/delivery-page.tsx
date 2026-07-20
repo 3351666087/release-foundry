@@ -28,6 +28,7 @@ import { useI18n } from "@/lib/i18n";
 import { DataBoundary, DataTable, EvidenceDetails, MetricStrip, PageHeader, Section, StatusBadge } from "../ui";
 import { DeploymentReceiptInbox } from "../deployment-receipt-inbox";
 import { MultimodalProviderReadinessPanel } from "../multimodal-provider-readiness-panel";
+import { MultimodalReleaseCaseEvidencePanel } from "../multimodal-release-case-evidence-panel";
 import { MultimodalReleaseReadinessPanel } from "../multimodal-release-readiness-panel";
 import { SelfHostSandboxPanel } from "../self-host-sandbox-panel";
 
@@ -68,6 +69,7 @@ export function DeliveryPage() {
     const deploymentAcceptanceProjection = record(model.raw.deployment_acceptance_projection);
     const multimodalProviderReadiness = record(model.raw.multimodal_provider_readiness);
     const multimodalReleaseReadiness = record(model.raw.multimodal_release_readiness);
+    const multimodalReleaseCaseEvidence = record(model.raw.multimodal_release_case_evidence);
     const handoffSummary = record(handoff.summary);
     const candidateBinding = record(handoff.candidate_binding);
     const expectedBinding = record(candidateBinding.expected);
@@ -169,6 +171,18 @@ export function DeliveryPage() {
               : "Separate safe controls, attack sensitivity, local structured output, repeat quality, review, database proof, and candidate binding into independent gates."}
           >
             <MultimodalReleaseReadinessPanel readiness={multimodalReleaseReadiness} zh={zh} />
+          </Section>
+        )}
+
+        {multimodalReleaseCaseEvidence.schema_version === "a3.multimodal_release_case_evidence.v1" && (
+          <Section
+            className="release-case-evidence-section"
+            title={zh ? "受影响案例与媒体证据" : "Affected cases and media evidence"}
+            description={zh
+              ? "把攻击灵敏度阻断追溯到具体案例、图片哈希和响应哈希，不把原图或模型原文暴露给控制台。"
+              : "Trace the attack-sensitivity blocker to case, image, and response hashes without exposing raw media or model text."}
+          >
+            <MultimodalReleaseCaseEvidencePanel evidence={multimodalReleaseCaseEvidence} zh={zh} />
           </Section>
         )}
 
