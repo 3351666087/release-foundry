@@ -384,6 +384,7 @@ Evidence 是产品能力，不是开发副产物。
 | [PR #37 integration audit](docs/releases/pr37-local-a1-a2-a3-integration-audit-2026-07-20.md) | 分支、提交、测试与发布审计 |
 | [Environment variable audit](docs/security/environment-variable-audit-2026-07-20.md) | Name-only 环境变量清单与 secret 处理规则 |
 | [Two release model](docs/releases/two_release_model.md) | Product Release 与 Customer Agent Release 边界 |
+| [GitHub dual release runbook](docs/releases/github_dual_release_runbook.md) | 两套 RC 的构建、判定、上传与下载回读流程 |
 | [A1 documentation](docs/a1/README.md) | Runtime、SDK、API、Evidence 与 self-host |
 | [A1 evidence discipline](docs/a1/evidence/README.md) | Public-safe Evidence 与校准流程 |
 | [A2 documentation](docs/a2/README.md) | Scenario、Judge、Calibration 与 Regression |
