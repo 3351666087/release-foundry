@@ -3,17 +3,17 @@
     "decision_record_required": true,
     "delivery_generated": false,
     "display_decision": "block",
-    "display_provenance_hash": "sha256:db3a1b7cbc0a4fda91d2ac22caedd1dda33e923e33772426bf27dbe91cabc911",
+    "display_provenance_hash": "sha256:af84d7e9e3143f4da06341f2e20f3402c8f44ed5efc8221b18c8ef2869747a4e",
     "may_override_decision": false,
     "may_recompute_grade": false,
     "release_ready": false,
     "review_queue_status": "blocked"
   },
-  "bundle_hash": "sha256:58d4716a45d745ef93a4e57ba606b6b9edda43ea2c4a633dec6fe5bc08c4e610",
+  "bundle_hash": "sha256:48bba3c6a956fa4d771e69667f2b75597f828ea96fe036a18671b158c4bbc9d6",
   "candidate_binding": {
     "a1_evidence_bundle_hash": "sha256:0b4fb982ccc5a25a54c8c8ea8744285296502bb6be3113d5220af7f3340e3d6b",
     "a1_source_commit": "1d292047e991995fdf52f0545ffff410ee19a171",
-    "a2_authority_commit": "bad647acae613f372053771a0eb7219798c4cc20",
+    "a2_authority_commit": "d3529c356e49ce8502c050f0dad44020031ee0dd",
     "candidate_id": "a3-golden-agent@0.2.0-rc.3",
     "evidence_release_version": "0.2.0-rc.3",
     "run_id": "a3-golden-20260720-003"
@@ -22,8 +22,8 @@
     "created_at": "2026-07-20T13:00:22Z",
     "environment_id": "staging",
     "genesis_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-    "head_hash": "sha256:db3a1b7cbc0a4fda91d2ac22caedd1dda33e923e33772426bf27dbe91cabc911",
-    "ledger_hash": "sha256:1e129591c1395f70d7d2bb4b4e7f42c3c9421de137d2b31bb3083639bc976dfd",
+    "head_hash": "sha256:af84d7e9e3143f4da06341f2e20f3402c8f44ed5efc8221b18c8ef2869747a4e",
+    "ledger_hash": "sha256:5755f8f1dc03b1b09e43acac60a38a6b5f629cf1b8ba830c54b77e994bca9672",
     "ledger_id": "a2-a3-golden-20260720-003-ledger",
     "metadata": {
       "append_only": true,
@@ -77,7 +77,7 @@
           "deterministic:a2-local-judges"
         ],
         "organization_id": "org_local_demo",
-        "policy_hash": "sha256:e7ae7b4e91de9d6dc8cd8690bd726a43ce4eaed091835a1b3c22732e6907dafb",
+        "policy_hash": "sha256:73e1b22400b3215cb9468e013bfe93c0ddd0e7686100890f402a4d0fba68859f",
         "policy_version": "a2.candidate_release_policy.v1",
         "previous_record_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
         "project_id": "ashr_plus_plus_golden_path",
@@ -89,8 +89,8 @@
           "providers": []
         },
         "public_safe": true,
-        "record_hash": "sha256:2f357df7ecbc83baf52fc30304a2d6d6a72a1ae20d1ed67f6f00afaf05a78bfc",
-        "record_id": "sha256:9715bc07198acd81fb057bb713bf9dde978198d30828cc33c19062c29e16c08f",
+        "record_hash": "sha256:a8ee01cad6712172f79e175a67d7cdec0c5b3d994cdfc4044d87ee29ede22b28",
+        "record_id": "sha256:fccba68c03ae706748416d9a6777da34167fb222369ba6c962dde479104e5048",
         "release_gate_hash": "sha256:f21bb7af90667154769fb29034ebce8ebc2b2852144c3bc987e992ca9a4719f6",
         "review_required": false,
         "run_id": "a3-golden-20260720-003",
@@ -141,9 +141,9 @@
           "deterministic:a2-local-judges"
         ],
         "organization_id": "org_local_demo",
-        "policy_hash": "sha256:e7ae7b4e91de9d6dc8cd8690bd726a43ce4eaed091835a1b3c22732e6907dafb",
+        "policy_hash": "sha256:73e1b22400b3215cb9468e013bfe93c0ddd0e7686100890f402a4d0fba68859f",
         "policy_version": "a2.candidate_release_policy.v1",
-        "previous_record_hash": "sha256:2f357df7ecbc83baf52fc30304a2d6d6a72a1ae20d1ed67f6f00afaf05a78bfc",
+        "previous_record_hash": "sha256:a8ee01cad6712172f79e175a67d7cdec0c5b3d994cdfc4044d87ee29ede22b28",
         "project_id": "ashr_plus_plus_golden_path",
         "provider_provenance_hashes": [],
         "provider_summary": {
@@ -153,8 +153,8 @@
           "providers": []
         },
         "public_safe": true,
-        "record_hash": "sha256:e3736cecaa7f3d9c8a6f4969bc94637728acf6597a59b975156944980881ef6b",
-        "record_id": "sha256:79a201dc8181a97f52473cb8a06a85bd165a38d2cf2e08b64b3bc66216098606",
+        "record_hash": "sha256:30e086f72fdc5a36db62fba2d4c3f9e63754f0d8a133b741fd241e3ef85364e0",
+        "record_id": "sha256:5344440b87247e68ef7d7835f2cd53b7249910ea8e13fa869d7e5b380f88b195",
         "release_gate_hash": "sha256:f21bb7af90667154769fb29034ebce8ebc2b2852144c3bc987e992ca9a4719f6",
         "review_required": false,
         "run_id": "a3-golden-20260720-003",
@@ -205,9 +205,9 @@
           "deterministic:a2-local-judges"
         ],
         "organization_id": "org_local_demo",
-        "policy_hash": "sha256:e7ae7b4e91de9d6dc8cd8690bd726a43ce4eaed091835a1b3c22732e6907dafb",
+        "policy_hash": "sha256:73e1b22400b3215cb9468e013bfe93c0ddd0e7686100890f402a4d0fba68859f",
         "policy_version": "a2.candidate_release_policy.v1",
-        "previous_record_hash": "sha256:e3736cecaa7f3d9c8a6f4969bc94637728acf6597a59b975156944980881ef6b",
+        "previous_record_hash": "sha256:30e086f72fdc5a36db62fba2d4c3f9e63754f0d8a133b741fd241e3ef85364e0",
         "project_id": "ashr_plus_plus_golden_path",
         "provider_provenance_hashes": [],
         "provider_summary": {
@@ -217,8 +217,8 @@
           "providers": []
         },
         "public_safe": true,
-        "record_hash": "sha256:db3a1b7cbc0a4fda91d2ac22caedd1dda33e923e33772426bf27dbe91cabc911",
-        "record_id": "sha256:12b1d42c5bb13887905dd191c2c51b6862e5f6bbdc16f7b5897c5f4449bded47",
+        "record_hash": "sha256:af84d7e9e3143f4da06341f2e20f3402c8f44ed5efc8221b18c8ef2869747a4e",
+        "record_id": "sha256:241a87bddeea85869d1bf2aa70eded64ed260a8694e85cfb9e02bf563b1a89e2",
         "release_gate_hash": "sha256:f21bb7af90667154769fb29034ebce8ebc2b2852144c3bc987e992ca9a4719f6",
         "review_required": false,
         "run_id": "a3-golden-20260720-003",
@@ -473,7 +473,7 @@
       "a3_consumed_grades_hash_mismatch",
       "a3_rc3_delivery_not_generated"
     ],
-    "hash": "sha256:d2b2d586435af29122b1fe37fb4900096d947d936df7cbd40b563faae6c4b854",
+    "hash": "sha256:ef4f932cc66c77a84c287fd8e9b5b5877c088047f49f811b638792ab2ec1e2e3",
     "path": "fixtures/a3/golden-path/rc3/a2_shared_candidate_identity.json"
   },
   "source_evidence": {

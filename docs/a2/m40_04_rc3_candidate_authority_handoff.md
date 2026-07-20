@@ -4,13 +4,15 @@
 
 - Candidate: `a3-golden-agent@0.2.0-rc.3`
 - A1 source commit: `1d292047e991995fdf52f0545ffff410ee19a171`
-- A2 authority baseline: `bad647acae613f372053771a0eb7219798c4cc20`
+- A2 authority implementation: `d3529c356e49ce8502c050f0dad44020031ee0dd`
 - A1 run: `a3-golden-20260720-003`
 - Evidence release version: `0.2.0-rc.3`
 - A1 evidence bundle: `sha256:0b4fb982ccc5a25a54c8c8ea8744285296502bb6be3113d5220af7f3340e3d6b`
 
-The A2 baseline identifies the latest remote `main` whose tree was used for
-this recomputation. It does not replace the A1 source commit recorded by the
+The A2 authority SHA identifies the first PR commit containing the candidate
+authority builder. The evidence is regenerated in the following commit and
+the PR must use a merge commit so this implementation SHA remains reachable
+from `main`. It does not replace the A1 source commit recorded by the
 candidate-bound Runner.
 
 ## A2 Regrade
@@ -35,9 +37,9 @@ Decision Records into one append-only ledger.
 - Direct-answer snapshot: `complete`
 - Required-web-tool snapshot: `complete`
 - Media-pipeline snapshot: `evidence_missing`
-- Decision Ledger head: `sha256:db3a1b7cbc0a4fda91d2ac22caedd1dda33e923e33772426bf27dbe91cabc911`
-- Decision Ledger hash: `sha256:1e129591c1395f70d7d2bb4b4e7f42c3c9421de137d2b31bb3083639bc976dfd`
-- Trusted Spine bundle hash: `sha256:58d4716a45d745ef93a4e57ba606b6b9edda43ea2c4a633dec6fe5bc08c4e610`
+- Decision Ledger head: `sha256:af84d7e9e3143f4da06341f2e20f3402c8f44ed5efc8221b18c8ef2869747a4e`
+- Decision Ledger hash: `sha256:5755f8f1dc03b1b09e43acac60a38a6b5f629cf1b8ba830c54b77e994bca9672`
+- Trusted Spine bundle hash: `sha256:48bba3c6a956fa4d771e69667f2b75597f828ea96fe036a18671b158c4bbc9d6`
 - Authoritative A2 decision: `block`
 
 The media case contains hashed image artifacts and the expected Tool Calls,
@@ -73,7 +75,7 @@ A3 must consume these exact A2 values without recalculating them:
 | --- | --- |
 | `candidate_id` | `a3-golden-agent@0.2.0-rc.3` |
 | `run_id` | `a3-golden-20260720-003` |
-| `consumed_decision_hash` | `sha256:db3a1b7cbc0a4fda91d2ac22caedd1dda33e923e33772426bf27dbe91cabc911` |
+| `consumed_decision_hash` | `sha256:af84d7e9e3143f4da06341f2e20f3402c8f44ed5efc8221b18c8ef2869747a4e` |
 | `consumed_grades_hash` | `sha256:ffeba9ab8d7a2ccfb26ca8e135448cc9a2e6c8ead5b49837f77e5e73606a5304` |
 
 The current shared identity intentionally remains `blocked` with
