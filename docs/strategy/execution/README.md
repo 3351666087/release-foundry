@@ -6,9 +6,11 @@
 ## Current Pointer
 
 - Current module: `M40 Cross-lane Trusted Release`
-- Current item: `M40-03`
+- Current item: `M40-04`
 - Checklist: `docs/strategy/execution/M40-cross-lane-trusted-release.md`
-- Baseline commit: `c32d635ecb100a585369188f86f5c184c8645775`
+- Baseline commit: `1d292047e991995fdf52f0545ffff410ee19a171`
+- Current candidate: `a3-golden-agent@0.2.0-rc.3`
+- Current A1 run: `a3-golden-20260720-003`
 - Last audit date: `2026-07-20`
 
 每完成一项，必须先更新对应模块中的证据，再把 `[ ]` 改成 `[x]`。完成当前模块后，才允许修改这里的 Current Pointer。
