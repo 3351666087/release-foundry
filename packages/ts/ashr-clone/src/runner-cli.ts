@@ -2,6 +2,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, resolve } from "node:path";
 
+import { buildA1CandidateBinding, type A1CandidateBinding } from "./candidate-binding.js";
 import { buildRunFixture, loadAgentTarget, runAgentBatch } from "./runner.js";
 
 type CliOptions = Record<string, string | boolean | string[]>;
@@ -20,6 +21,7 @@ async function main(): Promise<number> {
   if (!cases) {
     throw new Error("input JSON must be a case list or object with cases");
   }
+  const candidateBinding = await candidateBindingOption(options, cases);
   const agent = await loadAgentTarget(agentTarget);
   const result = await runAgentBatch(agent, cases, {
     datasetId: stringOption(options, "dataset-id", false) ?? "local-dataset",
@@ -28,12 +30,22 @@ async function main(): Promise<number> {
     maxWorkers: numberOption(options, "max-workers", 4),
     timeoutSeconds: numberOption(options, "timeout", 30),
     inputStyle: inputStyleOption(options),
-    metadata: { cli: "ashr-clone-runner", local_only: true, ashr_api_used: false },
+    metadata: {
+      cli: "ashr-clone-runner",
+      local_only: true,
+      ashr_api_used: false,
+      ...(candidateBinding ? { candidate_binding: candidateBinding } : {}),
+    },
   });
   await writeJson(outputPath, result);
   const fixtureOutput = stringOption(options, "fixture-output", false);
   if (fixtureOutput) {
-    await writeJson(fixtureOutput, buildRunFixture(result, { metadata: { cli: "ashr-clone-runner" } }));
+    await writeJson(fixtureOutput, buildRunFixture(result, {
+      metadata: {
+        cli: "ashr-clone-runner",
+        ...(candidateBinding ? { candidate_binding: candidateBinding } : {}),
+      },
+    }));
   }
   const summary = {
     status: result.status,
@@ -47,12 +59,43 @@ async function main(): Promise<number> {
     max_workers: result.max_workers,
     output: resolve(outputPath),
     fixture: fixtureOutput ? resolve(fixtureOutput) : undefined,
+    candidate_binding: candidateBinding
+      ? {
+          schema_version: candidateBinding.schema_version,
+          candidate_id: candidateBinding.candidate_id,
+          git_sha: candidateBinding.git_sha,
+          evidence_release_version: candidateBinding.evidence_release_version,
+          case_set_sha256: candidateBinding.case_set_sha256,
+        }
+      : undefined,
   };
   process.stdout.write(`${JSON.stringify(summary)}\n`);
   if (options["fail-on-case-failure"] && ((result.failed as number) || (result.errored as number) || (result.timed_out as number))) {
     return 1;
   }
   return 0;
+}
+
+async function candidateBindingOption(options: CliOptions, cases: unknown[]): Promise<A1CandidateBinding | undefined> {
+  const requiredNames = ["candidate-id", "candidate-source-commit", "evidence-release-version"];
+  const suppliedNames = requiredNames.filter((name) => options[name] !== undefined);
+  const repoRootSupplied = options["repo-root"] !== undefined;
+  if (suppliedNames.length === 0) {
+    if (repoRootSupplied) {
+      throw new Error("--repo-root requires all candidate-binding options");
+    }
+    return undefined;
+  }
+  if (suppliedNames.length !== requiredNames.length) {
+    throw new Error("--candidate-id, --candidate-source-commit, and --evidence-release-version must be supplied together");
+  }
+  return buildA1CandidateBinding({
+    candidateId: stringOption(options, "candidate-id", true),
+    candidateSourceCommit: stringOption(options, "candidate-source-commit", true),
+    evidenceReleaseVersion: stringOption(options, "evidence-release-version", true),
+    caseSet: cases,
+    repoRoot: repoRootSupplied ? stringOption(options, "repo-root", true) : undefined,
+  });
 }
 
 function parseArgs(args: string[]): CliOptions {
@@ -140,6 +183,12 @@ Options:
   --input-style <text|request|keyword>
   --fixture-output <run-fixture.json>
   --fail-on-case-failure
+
+Candidate evidence (identity options are all-or-none and fail closed):
+  --candidate-id <agent@semver>
+  --candidate-source-commit <40-char-git-sha>
+  --evidence-release-version <semver>
+  --repo-root <clean-git-worktree>   optional; defaults to current directory
 `);
 }
 

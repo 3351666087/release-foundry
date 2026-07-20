@@ -73,6 +73,15 @@ npm run build --prefix packages/ts/ashr-clone
 node packages/ts/ashr-clone/dist/runner-cli.js --input docs/a1/evidence/local_agent_cases_30.json --output docs/evidence/private_refs/a1_ts_runner_run_30_smoke.json --agent examples/agents/mock_agent_ts.mjs:default --dataset-id a2-local-scenarios-ts --runner-id a1-ts-local-runner --run-id run_a1_ts_runner_30_smoke --max-workers 4 --timeout 5 --fixture-output docs/evidence/private_refs/a1_ts_runner_fixture_30_smoke.json --fail-on-case-failure
 ```
 
+Release-candidate evidence requires the three identity options below together; `--repo-root` is optional and defaults to the current directory. The CLI rejects a mismatched commit, dirty worktree, malformed candidate/version, or a partial identity option set before executing the Agent:
+
+```powershell
+$candidateSha = git rev-parse HEAD
+node packages/ts/ashr-clone/dist/runner-cli.js --input fixtures/a3/golden-path/rc2/a3_new_run_cases.json --output docs/evidence/private_refs/candidate-run.json --agent services/report/a3_golden_path_demo_agent.mjs:default --candidate-id a3-golden-agent@0.2.0-rc.3 --candidate-source-commit $candidateSha --evidence-release-version 0.2.0-rc.3 --repo-root .
+```
+
+The resulting `RunResult.metadata.candidate_binding` records the exact candidate ID, source commit, source tree SHA, canonical case-set SHA-256, release version, and clean-tree assertion. Ordinary local runs may omit these options for backward compatibility.
+
 Dataset-source adapter CLI:
 
 ```powershell

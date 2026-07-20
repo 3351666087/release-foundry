@@ -10,6 +10,7 @@ import {
   type BrowserHTTPResponseHeaders,
 } from "@ashr-clone/sdk/browser-session";
 import { runCalibration } from "@ashr-clone/sdk/calibrate";
+import { buildA1CandidateBinding } from "@ashr-clone/sdk/candidate-binding";
 import { buildCapabilityMatrix } from "@ashr-clone/sdk/capability-matrix";
 import { buildCnyTradePlan } from "@ashr-clone/sdk/china-payments";
 import { CloudQueueWorker } from "@ashr-clone/sdk/cloud-queue";
@@ -39,6 +40,7 @@ export const typedDistributionImports: readonly unknown[] = [
   BrowserSessionClient,
   BrowserHTTPResponse,
   runCalibration,
+  buildA1CandidateBinding,
   buildCapabilityMatrix,
   buildCnyTradePlan,
   CloudQueueWorker,

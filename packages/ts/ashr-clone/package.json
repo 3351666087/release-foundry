@@ -44,6 +44,10 @@
       "types": "./dist/capability-matrix.d.ts",
       "import": "./dist/capability-matrix.js"
     },
+    "./candidate-binding": {
+      "types": "./dist/candidate-binding.d.ts",
+      "import": "./dist/candidate-binding.js"
+    },
     "./china-payments": {
       "types": "./dist/china-payments.d.ts",
       "import": "./dist/china-payments.js"
