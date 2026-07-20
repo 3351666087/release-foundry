@@ -2,20 +2,31 @@
 
 # Ashr++
 
-### Agent Release Intelligence Platform
+<p><strong>Agent Release Intelligence Platform</strong></p>
 
-**让 Agent 的每一次上线，都经过可重放、可评测、可审核、可签字的发布门禁。**
+**把 Agent 的运行事实转化为可重放的证据、可解释的判断与可签字的发布决定。**
 
 <p>
-  <img alt="A1 Runtime" src="https://img.shields.io/badge/A1-Runtime%20%26%20Evidence-7c3aed?style=for-the-badge">
-  <img alt="A2 Intelligence" src="https://img.shields.io/badge/A2-Evaluation%20%26%20Gate-0891b2?style=for-the-badge">
-  <img alt="A3 Product" src="https://img.shields.io/badge/A3-Review%20%26%20Audit-f59e0b?style=for-the-badge">
+  <a href="https://github.com/3351666087/ashr-codex-factory/actions/workflows/cl-gate.yml">
+    <img alt="CL Gate" src="https://github.com/3351666087/ashr-codex-factory/actions/workflows/cl-gate.yml/badge.svg?branch=main">
+  </a>
+  <img alt="Python 3.12" src="https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white">
+  <img alt="Node.js 24" src="https://img.shields.io/badge/Node.js-24-339933?logo=nodedotjs&logoColor=white">
+  <img alt="Self-hosted" src="https://img.shields.io/badge/Deployment-Self--hosted-0F766E">
+  <img alt="Provider-neutral" src="https://img.shields.io/badge/Models-Provider--neutral-2563EB">
+  <img alt="Fail-closed" src="https://img.shields.io/badge/Release-Fail--closed-DC2626">
 </p>
+
 <p>
-  <img alt="Self-host" src="https://img.shields.io/badge/Enterprise-Self--hosted-10b981?style=flat-square">
-  <img alt="Provider neutral" src="https://img.shields.io/badge/Models-Provider--neutral-3b82f6?style=flat-square">
-  <img alt="Fail closed" src="https://img.shields.io/badge/Release-Fail--closed-ef4444?style=flat-square">
-  <img alt="Evidence" src="https://img.shields.io/badge/Evidence-Auditable-8b5cf6?style=flat-square">
+  <a href="#quickstart"><strong>Quickstart</strong></a>
+  ·
+  <a href="#architecture"><strong>Architecture</strong></a>
+  ·
+  <a href="#verification-status"><strong>Verification</strong></a>
+  ·
+  <a href="docs/strategy/large-saas-a1-a2-a3-full-plan.md"><strong>Strategy</strong></a>
+  ·
+  <a href="docs/releases/pr37-local-a1-a2-a3-integration-audit-2026-07-20.md"><strong>Audit</strong></a>
 </p>
 
 > **没有经过 Replay、Judge、Evidence、Review 与 Release Gate 的 Agent，不应该上线。**
@@ -24,277 +35,245 @@
 
 ---
 
-## 产品定位
+## Why Ashr
 
-Ashr++ 不是通用聊天壳、工作流搭建器、评测脚本集合或只展示分数的 Dashboard。它面向需要把 Agent 放进正式生产流程的团队，解决五个直接影响采购决策的问题：
+Agent 上线不是一次普通的软件发布。模型、Prompt、工具调用、运行环境、策略和人工判断共同决定结果；只看一个最终分数，无法回答事故能否复现、结论由谁产生、例外由谁批准，以及上线决定是否可信。
 
-1. **上线前阻断风险**：把错误工具调用、越权、幻觉、敏感信息泄露和业务规则违背变成可执行发布门禁。
-2. **线上事故可复现**：保存 Trace、Tool Call、Artifact、模型、Prompt、Policy 和构建版本，重放事故并比较修复前后行为。
-3. **回归资产可沉淀**：把事故、人工修正、Override 和 Waiver 转化为有 Lineage 的 Golden、Regression 与 Learning Dataset。
-4. **审核结论可签字**：机器判断、人工审核、例外审批和发布决定进入同一条不可抵赖证据链。
-5. **企业环境可交付**：部署到客户自有云、专有云、VPC 或受限网络，并支持升级、回滚、备份、恢复、审计与诊断。
+Ashr++ 将这些问题收敛为一条可验证的发布链：
 
-唯一战略总线：
+| 企业问题 | Ashr++ 的回答 |
+| --- | --- |
+| **这次运行到底发生了什么？** | 保存 Trace、Tool Call、Artifact、模型、Prompt、Policy 与版本身份。 |
+| **失败能否稳定复现？** | 对固定 Evidence 进行 Replay、Diff 与回归重测。 |
+| **为什么通过或阻断？** | 由 A2 Judge、Calibration、Policy 与 Decision Ledger 给出可追溯结论。 |
+| **人工例外是否可审计？** | Review、Override、Waiver 与 Approval 只追加记录，不覆盖机器原始判断。 |
+| **企业能否独立部署？** | 面向自有云、VPC、专有云和受限网络设计，不绑定单一模型 Provider。 |
 
-[`docs/strategy/large-saas-a1-a2-a3-full-plan.md`](docs/strategy/large-saas-a1-a2-a3-full-plan.md)
+Ashr++ 不是聊天壳、Prompt 集合、通用工作流搭建器，也不是只展示分数的 Dashboard。它的目标是成为 **Agent Release OS**：在候选版本进入生产前，建立统一的事实、证据、责任和发布权威。
 
----
+## Architecture
 
-## 三条产品 Lane
+```mermaid
+flowchart LR
+    Source["Agent · SDK · CI · Production Trace"]
+    A1["A1<br/>Runtime & Evidence"]
+    A2["A2<br/>Evaluation & Decision"]
+    A3["A3<br/>Review & Release"]
+    Gate{"Release Gate"}
+    Ship["Signed release"]
+    Block["Block · Fix · Replay"]
 
-| Lane | 权责 | 交付价值 |
-|---|---|---|
-| **A1 · Runtime & Evidence Platform** | SDK、运行接入、Trace、Artifact、身份、租户、队列、存储、Usage、Billing Ledger、自托管基础设施 | 把真实 Agent 执行变成可信、可持久化、可重放的运行事实 |
-| **A2 · Evaluation & Release Intelligence** | 多模态提取、Provider、模型、Judge、校准、审核语义、回归、学习数据、Decision Ledger、Release Gate | 判断一个版本能否上线，并用 Evidence 解释为什么 |
-| **A3 · Enterprise Product & Workflow** | 控制台、Evidence Explorer、Review、Release War Room、报告、管理后台、集成、License 与运维体验 | 让研发、安全、合规、Reviewer 和负责人完成审核与签字 |
+    Source --> A1
+    A1 -->|"Trace · Tool Call · Artifact · Provenance"| A2
+    A2 -->|"Evidence Snapshot · Decision Ledger"| A3
+    A3 --> Gate
+    Gate -->|"PASS"| Ship
+    Gate -->|"BLOCK / REVIEW"| Block
+    Block -.->|"Regression case"| A2
+```
 
-### 权威边界
+### A1 / A2 / A3 authority
+
+| Lane | 输入 | 核心责任 | 权威输出 |
+| --- | --- | --- | --- |
+| **A1 · Runtime & Evidence** | SDK 调用、Agent Run、Tool Call、Artifact、生产或批量 Trace | 接入、持久化、身份与租户、队列、重试、Replay、Usage、审计基础 | **可信运行事实与版本化 Evidence** |
+| **A2 · Evaluation & Release Intelligence** | A1 Evidence、Scenario、Golden、Judge 配置、Release Policy | 提取、Judge、校准、回归、失败分类、人工审核语义、学习数据 Lineage | **Evidence Snapshot 与 Decision Ledger** |
+| **A3 · Enterprise Product & Workflow** | A1/A2 权威数据、审批上下文、发布候选身份 | Evidence Explorer、Reviewer Queue、Release War Room、报告、GitHub 回写、Admin | **可审核的签字流程与发布制品** |
+
+**不可跨越的边界：**
 
 - A1 运行成功不等于 A2 评测通过。
-- A2 是评测语义和 Release Decision 的权威。
-- A3 不得在浏览器中重算分数或自行拼装 `Release Ready`。
-- 没有有效 Decision Ledger，不得允许发布。
-- Override 与 Waiver 只能追加审计记录，不能覆盖机器原始结论。
+- A2 是评分、风险语义和 Release Decision 的权威来源。
+- A3 展示和编排权威结果，不在浏览器中重算分数或自行拼装 `Release Ready`。
+- 没有有效 Evidence Snapshot 与 Decision Ledger，不得允许发布。
+- Provider 超时、限流、额度、付款或容量异常必须 fail closed，不能转化为假 `Pass`。
 
----
+Ashr 同时区分两种完全不同的发布对象：**Ashr Product Release** 与 **Customer Agent Release**。二者必须独立编号、独立取证、独立测试并分别给出 `GO / NO-GO`。详见 [`docs/releases/two_release_model.md`](docs/releases/two_release_model.md)。
 
-## 从运行事实到发布决定
+## Product capabilities
 
-```mermaid
-%%{init: {"theme": "base", "themeVariables": {"background": "transparent", "primaryTextColor": "#e2e8f0", "lineColor": "#22d3ee", "fontFamily": "Inter, ui-sans-serif, system-ui"}}}%%
-flowchart LR
-  classDef source fill:#111827,stroke:#64748b,color:#f8fafc,stroke-width:1.5px
-  classDef a1 fill:#312e81,stroke:#a78bfa,color:#f8fafc,stroke-width:2px
-  classDef a2 fill:#164e63,stroke:#67e8f9,color:#ecfeff,stroke-width:2px
-  classDef a3 fill:#78350f,stroke:#fbbf24,color:#fff7ed,stroke-width:2px
-  classDef pass fill:#064e3b,stroke:#34d399,color:#ecfdf5,stroke-width:2px
-  classDef block fill:#7f1d1d,stroke:#fb7185,color:#fff1f2,stroke-width:2px
+<table>
+  <thead>
+    <tr>
+      <th width="33%">A1 · Runtime & Evidence</th>
+      <th width="34%">A2 · Evaluation & Decision</th>
+      <th width="33%">A3 · Review & Release</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td valign="top">
+        <ul>
+          <li>Python、TypeScript、Go 接入与跨语言契约</li>
+          <li>Run、Trace、Tool Call、Artifact 与失败分类</li>
+          <li>本地/队列执行、重试、Dead Letter、Worker 恢复</li>
+          <li>API Key、Scope、Quota、Usage、Billing Ledger</li>
+          <li>Replay、幂等、审计与 Evidence 完整性</li>
+          <li>PostgreSQL、对象存储、Compose、Terraform 交付切片</li>
+        </ul>
+      </td>
+      <td valign="top">
+        <ul>
+          <li>确定性、语义、安全、Trace、Grounding Judge</li>
+          <li>Golden、Scenario Pack、Regression 与失败 Taxonomy</li>
+          <li>Calibration、Review Semantics 与 Release Policy</li>
+          <li>Evidence Snapshot、Decision Ledger、持久化合同</li>
+          <li>多模态提取、Dataset Lineage 与受治理学习边界</li>
+          <li>Ollama、vLLM、OpenAI-compatible、Customer Endpoint</li>
+        </ul>
+      </td>
+      <td valign="top">
+        <ul>
+          <li>Run、Case、Evidence、Report、Reviewer、Admin 页面</li>
+          <li>Release War Room、PR Gate、Notification、Audit Bundle</li>
+          <li>Hosted Report、Share、Revoke、Expiry 与导出合同</li>
+          <li>RBAC 元数据、Fail-closed 写路径与 Event Outbox</li>
+          <li>Artifact Registry、Verifier 与 Deployment Receipt</li>
+          <li>面向研发、安全、合规和发布负责人的产品工作流</li>
+        </ul>
+      </td>
+    </tr>
+  </tbody>
+</table>
 
-  Agent["Agent / SDK / CI / Production Trace"]:::source
-  A1["A1<br/>Ingest · Persist · Replay · Diff"]:::a1
-  Evidence["Versioned Trace<br/>Tool Calls · Artifacts · Provenance"]:::source
-  A2["A2<br/>Extract · Judge · Calibrate · Decide"]:::a2
-  Ledger["Evidence Snapshot<br/>Decision Ledger · Regression"]:::source
-  A3["A3<br/>Review · War Room · Report · Audit"]:::a3
-  Decision{"Release Decision"}:::source
-  Ship["签字上线<br/>持续监测"]:::pass
-  Stop["阻断发布<br/>复现 · 修复 · 重测"]:::block
+> [!IMPORTANT]
+> 仓库中的代码、测试、Fixture 和契约代表**可验证的工程基础**，不自动等同于生产认证。生产承诺仍需真实部署、容量、故障、恢复、安全和合规证据支持。
 
-  Agent --> A1 --> Evidence --> A2 --> Ledger --> A3 --> Decision
-  Decision -->|"通过"| Ship
-  Decision -->|"阻断 / 审核"| Stop
-  Stop -. "事故与修正进入回归" .-> A2
-```
+<a id="verification-status"></a>
 
----
+## Verification status
 
-## 系统架构
+截至 **2026-07-20**，合并后的 [PR #37](https://github.com/3351666087/ashr-codex-factory/pull/37) 已通过完整 CL Gate；`main`、`a1`、`a2`、`a3` 长期分支统一到合并提交 `5a2d44f`。完整命令、提交覆盖和结果见 [PR #37 本地集成审计](docs/releases/pr37-local-a1-a2-a3-integration-audit-2026-07-20.md)。
 
-```mermaid
-%%{init: {"theme": "base", "themeVariables": {"background": "transparent", "primaryTextColor": "#e2e8f0", "lineColor": "#a78bfa", "clusterBkg": "#0f172a", "clusterBorder": "#475569", "fontFamily": "Inter, ui-sans-serif, system-ui"}}}%%
-flowchart TB
-  subgraph Sources["企业 Agent 与交付链"]
-    SDK["Python / TypeScript SDK"]
-    CI["GitHub / GitLab / Webhook"]
-    Trace["Production Trace / Batch / Stream"]
-    Media["Text / Image / Audio / File / Video"]
-  end
+| 验证域 | 已记录结果 |
+| --- | ---: |
+| Python A1 / A2 / integration | **2050 passed · 56 skipped** |
+| A3 Node contracts | **519 passed · 1 skipped** |
+| A3 Playwright route E2E | **21 passed** |
+| TypeScript SDK | **650 passed** |
+| Go SDK / integration | **passed** |
+| Rust verifier | **passed** |
+| Next.js typecheck / build | **passed** |
+| JSON parse / Python compileall | **passed** |
 
-  subgraph A1["A1 · Runtime & Evidence Platform"]
-    Ingress["Ingress / Runtime / Replay"]
-    Identity["Identity / Tenant / RBAC / Service Account"]
-    Durable["PostgreSQL / Queue / Object Storage"]
-    Platform["Usage / Ledger / Audit / Observability"]
-  end
+验证结论有明确边界：
 
-  subgraph A2["A2 · Evaluation & Release Intelligence"]
-    Extract["Normalization / OCR / ASR / Keyframes"]
-    Provider["Ollama / vLLM / OpenAI-compatible / Customer Endpoint"]
-    Judge["Deterministic / Semantic / Safety / Multimodal Judges"]
-    Decision["Calibration / Review Semantics / Decision Ledger / Gate"]
-    Learning["Golden / Regression / Preference / Training Lineage"]
-  end
+- 上表是固定提交与固定日期的审计快照，不是未来提交的永久保证；最新状态以 [`CL Gate`](.github/workflows/cl-gate.yml) 为准。
+- 环境变量审计只记录名称、分类和存在状态，从不读取或提交 secret 值。详见 [Environment Variable Audit](docs/security/environment-variable-audit-2026-07-20.md)。
+- 当前审计没有配置可用于资格声明的 live PostgreSQL DSN，因此**不得声称 live database 已验证**。
+- Mock、Fixture、静态控制台和 API-backed local preview 必须与真实生产路径明确区分。
 
-  subgraph A3["A3 · Enterprise Product"]
-    Console["Run / Trace / Evidence / Replay / Diff"]
-    Review["Reviewer Queue / Override / Waiver / Approval"]
-    Release["Release War Room / PR Gate / Notifications"]
-    Report["Incident / Audit / Compliance Reports"]
-    Admin["SSO / License / Deploy / Backup / Support Bundle"]
-  end
+<a id="quickstart"></a>
 
-  SDK & CI & Trace & Media --> Ingress
-  Ingress --> Durable
-  Identity --> Ingress
-  Durable --> Platform
-  Durable --> Extract
-  Extract --> Judge
-  Provider --> Judge
-  Judge --> Decision
-  Decision --> Learning
-  Learning -. "候选版本重新过门禁" .-> Judge
-  Platform --> Console
-  Decision --> Console
-  Decision --> Review --> Release --> Report
-  Identity --> Admin
-  Platform --> Admin
-```
+## Quickstart
 
----
+### Prerequisites
 
-## 核心能力
+与 CL Gate 对齐的推荐环境：
 
-### A1 · 生产接入与可信运行事实
+| Required | Optional by scope |
+| --- | --- |
+| Git、Python **3.12**、Node.js **24**、npm | Go **1.22**、Rust stable、Docker、Chromium |
 
-- Python、TypeScript 与 Go 接入骨架；
-- Run、Trace、Tool Call、Artifact 与失败分类；
-- 本地与队列执行、重试、Dead Letter 和 Worker 恢复；
-- API Key、路由 Scope、Quota、Usage 与 Billing Ledger 契约；
-- PostgreSQL、对象存储和自托管基础设施切片；
-- Replay、幂等、审计和 Evidence 完整性基础；
-- Docker Compose 与 Terraform 参考资产。
-
-### A2 · 独立评测与发布智能
-
-- 确定性、语义、安全、Trace 与 Grounding Judge；
-- Golden Case、失败分类、回归重放和 Release Policy；
-- Evidence Snapshot、Decision Ledger 和持久化合同；
-- Provider-neutral Gateway，支持 Ollama、vLLM、OpenAI-compatible 与客户自建端点；
-- 校准、误报/漏报、人工一致率与漂移治理方向；
-- 多模态提取、人工审核、Dataset Lineage 与受治理学习边界。
-
-### A3 · 企业审核与商业工作流
-
-- Run、Case、Report、Reviewer、Admin 与 Release 页面；
-- Hosted Report、Share、Revoke、Expiry 与导出合同；
-- RBAC 元数据、Fail-closed 写路径和 Event Outbox；
-- GitHub Check、PR Comment、Waiver、Approval 与 Audit Bundle；
-- Artifact Registry、Verifier、通知控制面和运维状态入口；
-- 面向企业管理员、Reviewer、安全与合规角色的产品壳。
-
-> 仓库中的代码、测试和契约代表可验证基础；它们不自动等同于生产验证。对外承诺必须经过部署、负载、故障、恢复和安全证据证明。
-
----
-
-## Provider-neutral 模型路线
-
-Ashr 官方 API 只作为**可选校准 Provider**，不是开发、CI、Release Gate 或企业运行的必需依赖。
-
-```text
-Ollama                开发、小型部署与离线 Profile
-vLLM                  高吞吐自托管参考后端
-OpenAI-compatible     标准化云端或私有 Endpoint
-Customer Endpoint     客户自建模型服务
-Ashr API              可选行为与字段校准来源
-```
-
-Provider 超时、限流、额度耗尽、付款异常、容量不足或响应不完整，都不能产生假 `Pass`。禁用任意单一 Provider 后，Evidence、Judge、Review 和 Release Gate 仍应保持可运行。
-
----
-
-## 企业交付形态
-
-| 档位 | 适用场景 | 交付重点 |
-|---|---|---|
-| **Developer** | 本地开发与契约验证 | Compose、可选 Ollama、Seeded Smoke |
-| **Evaluation** | 小型 Kubernetes / VPC 验证 | PostgreSQL、对象存储、Queue、受治理模型后端 |
-| **Enterprise HA** | 企业生产环境 | 多实例、SSO、KMS、扩缩容、完整观测与恢复 |
-| **Restricted / Offline** | 受限网络、专有云、隔离环境 | 离线镜像与模型、私有 Registry、受控升级包 |
-
-企业 Release 的目标制品包括：
-
-- 签名 OCI 镜像；
-- Helm Chart 与 Terraform 模块；
-- Migration、兼容矩阵、升级与回滚工具；
-- 备份、PITR、恢复和灾难演练说明；
-- SBOM、Provenance、漏洞与许可证报告；
-- 离线镜像/模型包；
-- 自动脱敏 Support Bundle；
-- 中文 Operator、Admin、Reviewer、SDK、API 与安全手册。
-
----
-
-## 国内企业优先
-
-产品优先考虑中文界面、中文错误、国内云/VPC、受限网络、企业微信、钉钉、飞书、GitHub/GitLab，以及企业合同与 License 交付。
-
-在项目主体不具备营业执照及相应平台资质的条件下，以下能力不得标记为生产可用：
-
-- 微信开放平台登录；
-- QQ 互联登录；
-- 支付宝登录；
-- 微信支付商户收款；
-- 支付宝商户收款。
-
-这不阻碍企业私有化交付。身份优先采用客户 OIDC/SAML/LDAP、本地管理员、邮箱、MFA、服务账号和 Scoped API Key；商业交付优先采用合同、License、人工账单与对账。具备主体资质和平台审批后，在线支付以微信支付和支付宝为主要路线。
-
----
-
-## 快速开始
+### 1. Clone and install
 
 ```bash
 git clone https://github.com/3351666087/ashr-codex-factory.git
 cd ashr-codex-factory
+
+python -m venv .venv
+# Windows PowerShell: .\.venv\Scripts\Activate.ps1
+# macOS / Linux:     source .venv/bin/activate
+
+python -m pip install --upgrade pip
+python -m pip install -r requirements-ci.txt
+npm ci
+npm ci --prefix apps/webapp
+npm ci --prefix packages/ts/ashr-clone
 ```
 
-### Python 合同与评测
+### 2. Run the shortest deterministic smoke
+
+这条路径不需要 Hosted API Key，也不会访问客户数据：
 
 ```bash
-python -B -m pytest tests/a1 tests/a2 -q
-python -B scripts/a2_regenerate_fixtures.py --check
+# A1: fresh-install SDK / runner smoke
+python scripts/a1_fresh_setup_smoke.py
+
+# A2: confirm committed deterministic fixtures are reproducible
+python scripts/a2_regenerate_fixtures.py --check
+
+# A3: verify the sealed rc.2 release manifest
+node services/report/a3_release_delivery_cli.mjs \
+  --verify-manifest fixtures/a3/golden-path/rc2/release-artifact-manifest.json \
+  --verified-at 2026-07-12T14:02:06.000Z \
+  --strict-exit \
+  --json
 ```
 
-### A3 Node 合同
+### 3. Open the product surface
+
+#### Next.js product webapp
 
 ```bash
-node --test tests/a3/*.mjs
+npm run dev --prefix apps/webapp
 ```
 
-### TypeScript SDK
+打开 `http://127.0.0.1:3000`。
 
-```bash
-npm install --prefix packages/ts/ashr-clone
-npm test --prefix packages/ts/ashr-clone
-```
-
-### Go Runtime / API
-
-```bash
-cd packages/go/ashrclone
-go test ./...
-```
-
-### A3 本地控制台
+#### Static A3 dashboard
 
 ```bash
 python -m http.server 5173
 ```
 
-打开：
+打开 `http://127.0.0.1:5173/apps/dashboard/index.html`。API-backed local preview 和数据来源见 [`apps/dashboard/README.md`](apps/dashboard/README.md)。
 
-```text
-http://127.0.0.1:5173/apps/dashboard/index.html
-```
-
-### 自托管配置校验
+<details>
+<summary><strong>Run the full local contract matrix</strong></summary>
 
 ```bash
-docker compose -f services/runner/docker-compose.a1.yml config --quiet
-docker compose --env-file infra/docker/self-host.env.example \
-  -f infra/docker/docker-compose.self-host.yml \
-  --profile commercial config --quiet
+# Python A1 / A2 / integration
+python -B -m pytest \
+  tests/a1 \
+  tests/a2 \
+  tests/integration/test_a1_large_saas_migration.py \
+  -q -p no:cacheprovider
+
+# Product release contracts
+python -B -m pytest tests/release -q -p no:cacheprovider
+
+# A3 Node contracts
+node --test tests/a3/*.mjs
+
+# TypeScript SDK
+npm test --prefix packages/ts/ashr-clone
+
+# Go SDK and integration
+(cd packages/go/ashrclone && go test ./...)
+(cd tests/integration/go && go test ./...)
+
+# Rust verifier
+(cd packages/rust/ashr-runtime-verify && cargo test --quiet)
+
+# Next.js typecheck and production build
+npm run check --prefix apps/webapp
+
+# Playwright route-level E2E
+npx playwright install chromium
+npx playwright test tests/e2e/a3-webapp-product-routes.spec.ts
 ```
 
----
+</details>
 
-## 常用工作流
+## Common workflows
 
-### 运行 Agent 并生成 Trace
+### Generate an A1 trace
 
 ```bash
 python -B -m services.runner.cli \
   --input docs/a1/evidence/local_agent_cases_30.json \
-  --output /tmp/ashr_local_run.json \
+  --output artifacts/a1-local-run.json \
   --agent examples.agents.mock_agent:RespondingMockAgent \
   --dataset-id a2-local-scenarios \
   --runner-id local-smoke \
@@ -303,14 +282,14 @@ python -B -m services.runner.cli \
   --fail-on-case-failure
 ```
 
-### 执行 A2 Judge 与 Release Policy
+### Evaluate with A2 Judge and Release Policy
 
 ```bash
 python scripts/a2_judge_service.py /internal/judge/case --input payload.json
 python scripts/a2_judge_service.py /internal/release-policy/evaluate --input payload.json
 ```
 
-### 生成 A3 Release Gate 结果
+### Produce an A3 Release Gate decision
 
 ```bash
 node services/report/a3_gate_cli.mjs \
@@ -322,77 +301,112 @@ node services/report/a3_gate_cli.mjs \
   --no-fail
 ```
 
----
+`--no-fail` 适用于“即使发布被阻断，也必须生成并上传审计包”的证据型 CI；真正阻断发布时使用 `--strict-exit`。
 
-## 仓库地图
+### Validate self-host configuration
 
-```text
-apps/dashboard/                    A3 控制台与产品工作流
-apps/webapp/                       Web 应用边界
-services/runner/                   A1 Runner、数据适配与 API 校准
-services/api/                      A1 API、Queue、Control Plane、Usage/Billing
-services/judge/                    A2 Judge、Policy、Calibration、Persistence
-services/report/                   A3 Report、Gate、Review、Audit 与 Admin 服务
-packages/sdk/ashr_clone/           Python SDK 与 Evidence 辅助能力
-packages/ts/ashr-clone/            TypeScript SDK、Runtime 与 API parity
-packages/go/ashrclone/             Go Runtime/API、PostgreSQL、Auth、Quota、Worker
-packages/rust/ashr-runtime-verify/ Rust Evidence/Runtime Verifier
-packages/scenarios/                A2 Scenario Packs
-fixtures/a2/                       A2 Grade、Coverage、Calibration、Regression Fixture
-fixtures/a3/                       A3 Gate、Report、Review、Audit、Admin Fixture
-docs/a1/                           A1 Schema、API 校准与运行证据
-docs/a2/                           A2 Taxonomy、Contract 与评测证据
-docs/a3/                           A3 Product、Report、Audit 与商业工作流证据
-docs/strategy/                     唯一 A1/A2/A3 企业 Release 战略
-infra/docker/                      Self-host Compose
-infra/terraform/                   Self-host Infrastructure Contract
-tests/a1/                          A1 Python Tests
-tests/a2/                          A2 Python Tests
-tests/a3/                          A3 Node Tests
+```bash
+docker compose \
+  -f services/runner/docker-compose.a1.yml \
+  config --quiet
+
+docker compose \
+  --env-file infra/docker/self-host.env.example \
+  -f infra/docker/docker-compose.self-host.yml \
+  --profile commercial \
+  config --quiet
 ```
 
----
+## Repository map
 
-## Evidence Discipline
+| Path | Responsibility |
+| --- | --- |
+| [`apps/dashboard/`](apps/dashboard/) | A3 静态控制台、Evidence 与审核工作流 |
+| [`apps/webapp/`](apps/webapp/) | Next.js 企业产品边界与路由级 E2E |
+| [`services/runner/`](services/runner/) | A1 Runner、Replay、数据适配与本地运行 |
+| [`services/api/`](services/api/) | A1 API、Queue、Control Plane、Usage / Billing |
+| [`services/judge/`](services/judge/) | A2 Judge、Policy、Calibration 与 Persistence |
+| [`services/report/`](services/report/) | A3 Gate、Report、Review、Audit、GitHub 与 Admin |
+| [`packages/sdk/ashr_clone/`](packages/sdk/ashr_clone/) | Python SDK 与 Evidence 辅助能力 |
+| [`packages/ts/ashr-clone/`](packages/ts/ashr-clone/) | TypeScript SDK、Runtime 与 API parity |
+| [`packages/go/ashrclone/`](packages/go/ashrclone/) | Go Runtime/API、PostgreSQL、Auth、Quota、Worker |
+| [`packages/rust/ashr-runtime-verify/`](packages/rust/ashr-runtime-verify/) | Rust Evidence / Runtime Verifier |
+| [`packages/scenarios/`](packages/scenarios/) | A2 Scenario Packs |
+| [`fixtures/a2/`](fixtures/a2/) · [`fixtures/a3/`](fixtures/a3/) | 确定性评测、Gate、Review 与 Release Fixture |
+| [`infra/docker/`](infra/docker/) · [`infra/terraform/`](infra/terraform/) | Self-host Compose 与 Infrastructure Contract |
+| [`tests/`](tests/) | A1、A2、A3、release、integration 与 E2E contracts |
+
+## Deployment and provider model
+
+Ashr 官方 API 是**可选校准 Provider**，不是开发、CI、Release Gate 或企业运行的必需依赖。
+
+| Model path | Intended use |
+| --- | --- |
+| **Ollama** | 本地开发、小型部署与离线 Profile |
+| **vLLM** | 高吞吐自托管参考后端 |
+| **OpenAI-compatible endpoint** | 标准化云端或私有模型服务 |
+| **Customer endpoint** | 客户自建、受治理的模型基础设施 |
+| **Ashr API** | 可选行为与字段校准来源 |
+
+企业交付面向四类环境：
+
+- **Developer** — Compose、可选 Ollama、Seeded Smoke；
+- **Evaluation** — 小型 Kubernetes / VPC、PostgreSQL、对象存储与 Queue；
+- **Enterprise HA** — 多实例、SSO、KMS、扩缩容、观测、备份与恢复；
+- **Restricted / Offline** — 离线镜像、私有 Registry、受控模型与升级包。
+
+国内企业场景优先考虑中文界面与错误、国内云/VPC、受限网络、企业微信、钉钉、飞书、GitHub/GitLab，以及合同与 License 交付。在主体资质和平台审批完成前，微信/QQ/支付宝登录及微信支付/支付宝商户收款不得标记为生产可用。
+
+## Evidence & security
 
 Evidence 是产品能力，不是开发副产物。
 
-仓库可以跟踪：
+**可以进入仓库：**
 
-- Schema 与字段名；
-- 脱敏状态摘要；
-- Fixture 结构；
-- 可公开的 Readiness 与 Calibration 报告；
-- Hash、Manifest 与 Provenance；
-- 确定性测试输出；
-- 指向私有证据的无敏感信息引用。
+- Schema、字段名、Fixture 结构和确定性测试输出；
+- 脱敏状态摘要、Readiness / Calibration 报告；
+- Hash、Manifest、Provenance 与无敏感信息的私有证据引用。
 
-仓库不得包含：
+**不得进入仓库：**
 
-- API Key、Bearer Token、Cookie 或原始 Share Token；
-- 私有 Prompt、Response 或客户 Payload；
-- 未脱敏账号、Quota、支付或 Provider 数据；
-- 私有截图与仍然有效的 Signed URL；
-- 跨租户 Evidence 或未经授权的 Learning Data。
+- API Key、Bearer Token、Cookie、原始 Share Token；
+- 私有 Prompt、Response、客户 Payload 或未脱敏账号数据；
+- 仍有效的 Signed URL、私有截图、跨租户 Evidence；
+- 未经授权的 Learning Data。
 
-真实 API 密钥只能从环境变量读取。真实校准必须记录目的、请求类型、响应字段、状态、Quota/Error、成本、私有证据位置和脱敏摘要。
+真实凭证只能从环境变量或企业 Secret Manager 读取。环境审计只记录变量名和存在状态；任何值都不得写入 Git、测试输出或发布证据。
+
+## Documentation
+
+| Start here | Contents |
+| --- | --- |
+| [A1 / A2 / A3 enterprise strategy](docs/strategy/large-saas-a1-a2-a3-full-plan.md) | 唯一产品与工程战略总线 |
+| [PR #37 integration audit](docs/releases/pr37-local-a1-a2-a3-integration-audit-2026-07-20.md) | 分支、提交、测试与发布审计 |
+| [Environment variable audit](docs/security/environment-variable-audit-2026-07-20.md) | Name-only 环境变量清单与 secret 处理规则 |
+| [Two release model](docs/releases/two_release_model.md) | Product Release 与 Customer Agent Release 边界 |
+| [A1 documentation](docs/a1/README.md) | Runtime、SDK、API、Evidence 与 self-host |
+| [A1 evidence discipline](docs/a1/evidence/README.md) | Public-safe Evidence 与校准流程 |
+| [A2 documentation](docs/a2/README.md) | Scenario、Judge、Calibration 与 Regression |
+| [Dashboard guide](apps/dashboard/README.md) | 静态与 API-backed 本地预览 |
+| [TypeScript SDK](packages/ts/ashr-clone/README.md) | TypeScript Runtime 与 API 使用方式 |
+| [Rust verifier](packages/rust/ashr-runtime-verify/README.md) | Evidence / Runtime verification |
+
+## Release invariants
+
+```text
+NO Evidence Snapshot  → NO Release Decision
+NO Decision Ledger    → NO Release Ready
+Provider failure      → NEVER becomes Pass
+Human override        → NEVER deletes the machine decision
+Customer data         → NEVER crosses tenants or enters training by default
+Every write           → MUST carry Actor · Request · Trace · Audit
+Enterprise artifacts  → MUST be installable · upgradeable · rollbackable · recoverable
+```
 
 ---
 
-## Release 不变量
-
-```text
-没有 Evidence Snapshot，不得形成 Release Decision
-没有 Decision Ledger，不得显示 Release Ready
-Provider Failure 不得转化为 Pass
-人工 Override 不得删除机器原始决定
-客户数据默认不得跨租户或用于训练
-所有写操作必须具备 Actor、Request、Trace 与 Audit
-所有企业制品必须可安装、可升级、可回滚、可恢复
-```
-
 <div align="center">
 
-### Replay the facts. Judge the risk. Preserve the evidence. Gate the release.
+**Replay the facts. Judge the risk. Preserve the evidence. Gate the release.**
 
 </div>
