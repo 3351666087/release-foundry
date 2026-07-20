@@ -1,0 +1,544 @@
+{
+  "schema_version": "a3.gate_cli.v1",
+  "generated_at": "2026-07-20T14:18:41.109Z",
+  "source": "m40-05-rc3-local-candidate-binding",
+  "command_shape": "ashr gate --json",
+  "summary": {
+    "totalRuns": 1,
+    "totalCases": 3,
+    "passed": 3,
+    "failed": 0,
+    "passRate": 100,
+    "avgScore": 100,
+    "traceCompleteness": 100,
+    "mediaEvidenceCases": 0,
+    "vmStreamCases": 0,
+    "lastRunId": "a3-golden-20260720-003"
+  },
+  "local_quality_gate": {
+    "available": true,
+    "decision": "approve_release",
+    "decision_label": "Approve release",
+    "risk_score": 0,
+    "summary": "Release gate passed for the loaded evidence package.",
+    "checks": [
+      {
+        "id": "pass_rate",
+        "passed": true,
+        "observed": "100% pass rate",
+        "detail": "Minimum commercial gate is 95% before release sign-off."
+      },
+      {
+        "id": "critical_failures",
+        "passed": true,
+        "observed": "0 critical/blocker case(s)",
+        "detail": "Critical or blocker failures stop release."
+      },
+      {
+        "id": "policy_failures",
+        "passed": true,
+        "observed": "0 safety/policy case(s)",
+        "detail": "Unsafe or forbidden-tool failures require safety review."
+      },
+      {
+        "id": "required_tool_coverage",
+        "passed": true,
+        "observed": "0 missing required tool case(s)",
+        "detail": "Missing required tools can hide production incident risk."
+      },
+      {
+        "id": "trace_evidence",
+        "passed": true,
+        "observed": "100% trace completeness",
+        "detail": "Release evidence needs at least 90% trace coverage for replay and audit."
+      },
+      {
+        "id": "coverage_minimums",
+        "passed": true,
+        "observed": "A2 coverage minimums met",
+        "detail": "A2 scenario coverage must be healthy when available."
+      },
+      {
+        "id": "media_safety",
+        "passed": true,
+        "observed": "no media evidence",
+        "detail": "A3 must not render live signed media until URL safety is confirmed."
+      }
+    ],
+    "failed_check_count": 0,
+    "failed_checks": [],
+    "thresholds": {
+      "pass_rate_min": 95,
+      "trace_completeness_min": 90,
+      "hard_block_pass_rate_min": 80,
+      "hard_block_trace_completeness_min": 70
+    },
+    "required_approvers": [
+      "Release owner"
+    ],
+    "top_risk_cases": [],
+    "pr_gate": {
+      "status": "approve_release",
+      "github_check_name": "Ashr++ Release Gate",
+      "blocks_merge": false,
+      "warning_only": false,
+      "audit_artifacts": [
+        "json_report",
+        "markdown_report",
+        "print_pdf",
+        "case_evidence"
+      ]
+    },
+    "commercial_value": "Blocks risky agent releases, creates reviewer sign-off evidence, and gives enterprise buyers a concrete release-control artifact."
+  },
+  "release_gate": {
+    "available": true,
+    "decision": "block_release",
+    "decision_label": "Block release",
+    "risk_score": 0,
+    "summary": "Local case-quality checks passed, but A2 Decision Ledger blocks release: a2_decision_blocks_release.",
+    "checks": [
+      {
+        "id": "pass_rate",
+        "passed": true,
+        "observed": "100% pass rate",
+        "detail": "Minimum commercial gate is 95% before release sign-off."
+      },
+      {
+        "id": "critical_failures",
+        "passed": true,
+        "observed": "0 critical/blocker case(s)",
+        "detail": "Critical or blocker failures stop release."
+      },
+      {
+        "id": "policy_failures",
+        "passed": true,
+        "observed": "0 safety/policy case(s)",
+        "detail": "Unsafe or forbidden-tool failures require safety review."
+      },
+      {
+        "id": "required_tool_coverage",
+        "passed": true,
+        "observed": "0 missing required tool case(s)",
+        "detail": "Missing required tools can hide production incident risk."
+      },
+      {
+        "id": "trace_evidence",
+        "passed": true,
+        "observed": "100% trace completeness",
+        "detail": "Release evidence needs at least 90% trace coverage for replay and audit."
+      },
+      {
+        "id": "coverage_minimums",
+        "passed": true,
+        "observed": "A2 coverage minimums met",
+        "detail": "A2 scenario coverage must be healthy when available."
+      },
+      {
+        "id": "media_safety",
+        "passed": true,
+        "observed": "no media evidence",
+        "detail": "A3 must not render live signed media until URL safety is confirmed."
+      },
+      {
+        "id": "a2_release_authority",
+        "passed": false,
+        "observed": "block; release_ready=false",
+        "detail": "A2 Decision Ledger blocks release (a2_decision_blocks_release)."
+      }
+    ],
+    "failed_check_count": 1,
+    "failed_checks": [
+      "a2_release_authority"
+    ],
+    "thresholds": {
+      "pass_rate_min": 95,
+      "trace_completeness_min": 90,
+      "hard_block_pass_rate_min": 80,
+      "hard_block_trace_completeness_min": 70
+    },
+    "required_approvers": [
+      "Release owner",
+      "A2 release authority owner"
+    ],
+    "top_risk_cases": [],
+    "pr_gate": {
+      "status": "block_release",
+      "github_check_name": "Ashr++ Release Gate",
+      "blocks_merge": true,
+      "warning_only": false,
+      "audit_artifacts": [
+        "json_report",
+        "markdown_report",
+        "print_pdf",
+        "case_evidence"
+      ]
+    },
+    "commercial_value": "Blocks risky agent releases, creates reviewer sign-off evidence, and gives enterprise buyers a concrete release-control artifact.",
+    "local_quality_decision": "approve_release",
+    "local_quality_decision_label": "Approve release",
+    "decision_authority": "A2 Decision Ledger",
+    "a2_upstream_decision": "block",
+    "a2_release_ready": false
+  },
+  "release_workflow": {
+    "available": true,
+    "release_version": "0.2.0-rc.3",
+    "environment": "staging",
+    "owner": "A3 release owner",
+    "github_check": {
+      "name": "Ashr++ Release Gate",
+      "status": "completed",
+      "conclusion": "failure",
+      "blocks_merge": true,
+      "output": {
+        "title": "A2 blocked: a3-golden-20260720-003",
+        "summary": "Local case-quality gate: Approve release. Authoritative A2 decision: block; release_ready=false.",
+        "text": "Run: a3-golden-20260720-003\nRelease: 0.2.0-rc.3\nEnvironment: staging\nPass rate: 100%\nAverage score: 100\nTrace completeness: 100%\nFailed checks: none\nPR gate next action: Merge may proceed after JSON, Markdown, and audit artifacts are attached to the release record.\nSign-off risk: low\n\nTop risk cases:\n- none\n\nA2 Decision Ledger: block\nA2 release_ready: false\nNext action: Do not merge or publish until A2 issues an allow Decision Ledger record for a3-golden-20260720-003."
+      }
+    },
+    "pr_comment_markdown": "<!-- ashr-plus-plus:release-gate:a3-golden-20260720-003 -->\n## Ashr++ Release Gate\n\nDecision: **Block release**\nAuthority: **A2 Decision Ledger**\nRelease: `0.2.0-rc.3`\nEnvironment: `staging`\nCandidate SHA: `1d292047e991995fdf52f0545ffff410ee19a171`\n\n| Signal | Value |\n|---|---|\n| Run | `a3-golden-20260720-003` |\n| A1/A2 case pass rate | 100% |\n| Local quality gate | Approve release |\n| Local quality risk score | 0 |\n| Authoritative A2 decision | block |\n| A2 release ready | no |\n| Merge blocked | yes |\n\n### Why blocked\n\n- `a2_decision_blocks_release`\n- `a2_release_not_ready`\n- `evidence_incomplete`\n- `a2_hard_blockers_present`\n\n### Required action\n\n- Do not merge or publish until A2 issues an allow Decision Ledger record for a3-golden-20260720-003.\n- A3 did not recompute A2 scores, pass/fail, failure classes, or release authority.\n- An A3 waiver cannot convert this A2 block into approval.\n",
+    "waiver_policy": {
+      "required": false,
+      "allowed": false,
+      "exceptional_only": false,
+      "expiry_max_days": 0,
+      "required_fields": [
+        "waiver_owner",
+        "business_reason",
+        "risk_acceptance",
+        "expiry_date",
+        "follow_up_issue"
+      ],
+      "blocked_checks": [],
+      "guidance": "A3 waiver and approval records cannot override an A2 Decision Ledger block."
+    },
+    "reviewer_workflow": {
+      "state": "blocked_by_a2",
+      "required_approvers": [
+        "Release owner"
+      ],
+      "review_lanes": [
+        "Release owner",
+        "A3 triage owner",
+        "A1 trace/tool-call evidence",
+        "A3 PR gate action"
+      ],
+      "next_actions": [
+        "Do not merge or publish until A2 issues an allow Decision Ledger record for a3-golden-20260720-003."
+      ],
+      "pr_gate_next_action": "Do not merge or publish until A2 issues an allow Decision Ledger record for a3-golden-20260720-003.",
+      "sign_off_risk": {
+        "level": "blocked",
+        "score": 0,
+        "can_sign_off": false,
+        "risk_acceptance_required": false,
+        "executive_exception_required": false,
+        "reasons": [
+          "a2_decision_blocks_release"
+        ],
+        "required_before_sign_off": [
+          "Do not merge or publish until A2 issues an allow Decision Ledger record for a3-golden-20260720-003."
+        ]
+      },
+      "a1_evidence": {
+        "source": "a1.normalized_trace_and_tool_call_evidence",
+        "top_risk_case_count": 0,
+        "trace_ready_count": 0,
+        "missing_trace_count": 0,
+        "tool_diff_ready_count": 0,
+        "judge_evidence_ready_count": 0,
+        "media_evidence_ready_count": 0,
+        "release_blocker_case_count": 0,
+        "evidence_cases": []
+      },
+      "a2_release_gate": {
+        "schema_version": "a3.trusted_release_authority.v1",
+        "available": true,
+        "decision": "block",
+        "blocks_release": true,
+        "release_ready": false,
+        "blocker_types": [
+          "a2_decision_blocks_release",
+          "a2_release_not_ready",
+          "evidence_incomplete",
+          "a2_hard_blockers_present"
+        ],
+        "evidence_refs": [
+          "sha256:af84d7e9e3143f4da06341f2e20f3402c8f44ed5efc8221b18c8ef2869747a4e",
+          "sha256:241a87bddeea85869d1bf2aa70eded64ed260a8694e85cfb9e02bf563b1a89e2"
+        ]
+      }
+    },
+    "reviewer_gate": {
+      "schema_version": "a3.pr_gate_reviewer_projection.v1",
+      "available": true,
+      "source_semantics_preserved": true,
+      "source_mutation_performed": false,
+      "pr_gate_next_action": "Do not merge or publish until A2 issues an allow Decision Ledger record for a3-golden-20260720-003.",
+      "sign_off_risk": {
+        "level": "blocked",
+        "score": 0,
+        "can_sign_off": false,
+        "risk_acceptance_required": false,
+        "executive_exception_required": false,
+        "reasons": [
+          "a2_decision_blocks_release"
+        ],
+        "required_before_sign_off": [
+          "Do not merge or publish until A2 issues an allow Decision Ledger record for a3-golden-20260720-003."
+        ]
+      },
+      "reviewer_lanes": [
+        {
+          "lane": "A1 trace/tool-call evidence",
+          "owner": "A1 API/runtime owner",
+          "source": "a1.trace_tool_call_evidence",
+          "status": "standby",
+          "item_count": 0,
+          "blocker_count": 0,
+          "trace_ready_count": 0,
+          "tool_diff_ready_count": 0,
+          "next_action": "Stand by for A1 trace/tool-call evidence when the PR gate has failed cases."
+        },
+        {
+          "lane": "A3 PR gate action",
+          "owner": "A3 dashboard/report owner",
+          "source": "a3.release_workflow",
+          "status": "ready",
+          "item_count": 1,
+          "blocker_count": 0,
+          "next_action": "Publish the PR gate next action with the report, then require reviewer disposition before merge."
+        }
+      ],
+      "a2_release_gate": {
+        "schema_version": "a3.trusted_release_authority.v1",
+        "available": true,
+        "decision": "block",
+        "blocks_release": true,
+        "release_ready": false,
+        "blocker_types": [
+          "a2_decision_blocks_release",
+          "a2_release_not_ready",
+          "evidence_incomplete",
+          "a2_hard_blockers_present"
+        ],
+        "evidence_refs": [
+          "sha256:af84d7e9e3143f4da06341f2e20f3402c8f44ed5efc8221b18c8ef2869747a4e",
+          "sha256:241a87bddeea85869d1bf2aa70eded64ed260a8694e85cfb9e02bf563b1a89e2"
+        ]
+      },
+      "a1_evidence": {
+        "source": "a1.normalized_trace_and_tool_call_evidence",
+        "top_risk_case_count": 0,
+        "trace_ready_count": 0,
+        "missing_trace_count": 0,
+        "tool_diff_ready_count": 0,
+        "judge_evidence_ready_count": 0,
+        "media_evidence_ready_count": 0,
+        "release_blocker_case_count": 0,
+        "evidence_cases": []
+      },
+      "safety": {
+        "secret_values_included": false,
+        "private_evidence_values_included": false,
+        "private_input_refs_exposed": false,
+        "raw_a1_trace_payloads_mutated": false,
+        "raw_a2_gate_semantics_mutated": false,
+        "real_cloud_mutation_performed": false
+      },
+      "commercial_value": "Turns A2 release blockers and A1 trace/tool-call evidence into owned reviewer lanes, PR gate next action, and explicit sign-off risk."
+    },
+    "audit_bundle": {
+      "manifest_version": "a3.audit_bundle.v1",
+      "redaction_policy": "No API keys, cookies, tokens, emails, or live signed media URLs are allowed in exported artifacts.",
+      "artifacts": [
+        {
+          "id": "json_report",
+          "path": "a3-dashboard-report.json",
+          "required": true,
+          "purpose": "Machine-readable release gate, cases, tool diffs, media readiness, and cloud safety evidence."
+        },
+        {
+          "id": "markdown_report",
+          "path": "a3-dashboard-report.md",
+          "required": true,
+          "purpose": "Human PR/release note summary with failed checks and top risks."
+        },
+        {
+          "id": "print_pdf",
+          "path": "browser-print-report.pdf",
+          "required": true,
+          "purpose": "Executive sign-off packet generated from the local print view."
+        },
+        {
+          "id": "case_evidence",
+          "path": "normalized_cases[].tool_call_diffs",
+          "required": true,
+          "purpose": "Case-level expected vs actual, tool-call comparison, and judge evidence."
+        },
+        {
+          "id": "redacted_fixtures",
+          "path": "fixtures/a3/p3/*.redacted.json",
+          "required": true,
+          "purpose": "Sanitized Ashr API/frontend calibration evidence."
+        },
+        {
+          "id": "screenshots",
+          "path": "docs/screenshots/a3-dashboard-*.png",
+          "required": false,
+          "purpose": "Visual QA evidence with sensitive account details avoided."
+        }
+      ]
+    },
+    "incident_replay": {
+      "enabled": false,
+      "case_ids": [],
+      "replay_mode": "failed_cases_first",
+      "purpose": "Let reviewers reproduce the highest-risk failures before approving a release."
+    },
+    "commercial_value": "Turns A3 output into a PR gate, reviewer workflow, waiver policy, and audit bundle that can sit in an enterprise release process."
+  },
+  "waiver_review": {
+    "schema_version": "a3.waiver_review.v1",
+    "available": false,
+    "status": "not_required",
+    "accepted": true,
+    "automatic_unblock": false,
+    "reason": "Release does not require waiver evidence.",
+    "findings": []
+  },
+  "approval_review": {
+    "schema_version": "a3.approval_review.v1",
+    "available": false,
+    "status": "missing_required_approval",
+    "accepted": false,
+    "automatic_unblock": false,
+    "reason": "Release requires approval evidence, but no approval file was provided.",
+    "findings": [
+      {
+        "id": "missing_approval",
+        "severity": "blocking",
+        "message": "No approval file was provided."
+      }
+    ]
+  },
+  "trusted_release_authority": {
+    "schema_version": "a3.trusted_release_authority.v1",
+    "integrity_verified": true,
+    "allowed": false,
+    "status": "blocked",
+    "decision": "denied_by_a2_decision_ledger",
+    "reason_code": "a2_decision_blocks_release",
+    "blockers": [
+      "a2_decision_blocks_release",
+      "a2_release_not_ready",
+      "evidence_incomplete",
+      "a2_hard_blockers_present"
+    ],
+    "integrity_blockers": [],
+    "release_ready": false,
+    "upstream_decision": "block",
+    "decision_ledger": {
+      "schema_version": "a2.decision_ledger.v1",
+      "ledger_id": "a2-a3-golden-20260720-003-ledger",
+      "head_hash": "sha256:af84d7e9e3143f4da06341f2e20f3402c8f44ed5efc8221b18c8ef2869747a4e",
+      "ledger_hash": "sha256:5755f8f1dc03b1b09e43acac60a38a6b5f629cf1b8ba830c54b77e994bca9672",
+      "record_count": 3,
+      "record_id": "sha256:241a87bddeea85869d1bf2aa70eded64ed260a8694e85cfb9e02bf563b1a89e2",
+      "record_hash": "sha256:af84d7e9e3143f4da06341f2e20f3402c8f44ed5efc8221b18c8ef2869747a4e",
+      "chain_verified": true
+    },
+    "evidence_snapshot": {
+      "schema_version": "a2.evidence_snapshot.v1",
+      "snapshot_id": "sha256:88835358d5c48fe2216c766f3d3ceda10663b28c3083891603ef825ef57d9396",
+      "snapshot_hash": "sha256:69795d4006101c16d0b7d7c8c2484b9d7e0d17d1a74671b962e15db5aa798a54",
+      "completeness": "evidence_missing"
+    },
+    "safety": {
+      "a2_authority_preserved": true,
+      "a3_score_recomputed": false,
+      "a3_release_ready_recomputed": false,
+      "client_chain_verified_flag_trusted_without_recalculation": false,
+      "raw_evidence_included": false,
+      "secret_values_allowed": false
+    }
+  },
+  "candidate_binding_verification": {
+    "schema_version": "a3.candidate_delivery_artifacts_verification.v1",
+    "verified": true,
+    "binding_state": "exact",
+    "candidate_id": "a3-golden-agent@0.2.0-rc.3",
+    "run_id": "a3-golden-20260720-003",
+    "release_version": "0.2.0-rc.3",
+    "a2_decision_ledger_head_hash": "sha256:af84d7e9e3143f4da06341f2e20f3402c8f44ed5efc8221b18c8ef2869747a4e",
+    "a2_grades_hash": "sha256:ffeba9ab8d7a2ccfb26ca8e135448cc9a2e6c8ead5b49837f77e5e73606a5304",
+    "a3_implementation_commit": "cbc66462a419d9441dfb77b602851454893be016",
+    "delivery_status": "blocked_by_a2",
+    "production_ready": false,
+    "blockers": []
+  },
+  "github_check_run": {
+    "name": "Ashr++ Release Gate",
+    "head_sha": "1d292047e991995fdf52f0545ffff410ee19a171",
+    "status": "completed",
+    "conclusion": "failure",
+    "details_url": "",
+    "output": {
+      "title": "A2 blocked: a3-golden-20260720-003",
+      "summary": "Local case-quality gate: Approve release. Authoritative A2 decision: block; release_ready=false.\n\nAuthoritative A2 status: blocked; reason: a2_decision_blocks_release.",
+      "text": "Run: a3-golden-20260720-003\nRelease: 0.2.0-rc.3\nEnvironment: staging\nPass rate: 100%\nAverage score: 100\nTrace completeness: 100%\nFailed checks: none\nPR gate next action: Merge may proceed after JSON, Markdown, and audit artifacts are attached to the release record.\nSign-off risk: low\n\nTop risk cases:\n- none\n\nA2 Decision Ledger: block\nA2 release_ready: false\nNext action: Do not merge or publish until A2 issues an allow Decision Ledger record for a3-golden-20260720-003.",
+      "annotations": []
+    }
+  },
+  "pr_comment_markdown": "<!-- ashr-plus-plus:release-gate:a3-golden-20260720-003 -->\n## Ashr++ Release Gate\n\nDecision: **Block release**\nAuthority: **A2 Decision Ledger**\nRelease: `0.2.0-rc.3`\nEnvironment: `staging`\nCandidate SHA: `1d292047e991995fdf52f0545ffff410ee19a171`\n\n| Signal | Value |\n|---|---|\n| Run | `a3-golden-20260720-003` |\n| A1/A2 case pass rate | 100% |\n| Local quality gate | Approve release |\n| Local quality risk score | 0 |\n| Authoritative A2 decision | block |\n| A2 release ready | no |\n| Merge blocked | yes |\n\n### Why blocked\n\n- `a2_decision_blocks_release`\n- `a2_release_not_ready`\n- `evidence_incomplete`\n- `a2_hard_blockers_present`\n\n### Required action\n\n- Do not merge or publish until A2 issues an allow Decision Ledger record for a3-golden-20260720-003.\n- A3 did not recompute A2 scores, pass/fail, failure classes, or release authority.\n- An A3 waiver cannot convert this A2 block into approval.\n",
+  "audit_manifest": {
+    "schema_version": "a3.gate_cli.audit_manifest.v1",
+    "redaction_policy": "No API keys, cookies, tokens, emails, or live signed media URLs are allowed in CLI output.",
+    "artifacts": [
+      {
+        "id": "runs",
+        "path": "fixtures/a3/golden-path/rc3/a3_new_run_result.redacted.json",
+        "required": true,
+        "content_type": "application/json",
+        "sha256": "74c6d5b61220ee94703194d1ca70c54a2129b9ea6a13c1e33aca9e2fade7623e",
+        "byte_size": 28983
+      },
+      {
+        "id": "grades",
+        "path": "fixtures/a3/golden-path/rc3/a2_grade_results.json",
+        "required": true,
+        "content_type": "application/json",
+        "sha256": "260834b3c5e0c05a5cef7f0275070083f926ddca31aafafb92877c4699e83eb5",
+        "byte_size": 31593
+      },
+      {
+        "id": "coverage",
+        "path": "fixtures/a2/results/a2_g3_coverage_report.json",
+        "required": true,
+        "content_type": "application/json",
+        "sha256": "3e5f8c572056c38c38d93361c64ef6e76850a1e8a5716947c48be6b0cc19d14f",
+        "byte_size": 49867
+      },
+      {
+        "id": "thresholds",
+        "path": "fixtures/a3/release_gate_thresholds.json",
+        "required": true,
+        "content_type": "application/json",
+        "sha256": "fb4360ed42e60a4d8123ccb432bf968cb200f7fe22554e158b1b8a5ac3426729",
+        "byte_size": 425
+      }
+    ]
+  },
+  "exit_mode": "no-fail",
+  "exit_code_hint": 1,
+  "process_exit_code": 0,
+  "redaction_log": {
+    "applied": true,
+    "status": "passed",
+    "replacement_count": 0,
+    "finding_count": 0,
+    "rules_triggered": [],
+    "policy": "Scrub emails, bearer tokens, API key assignments, generic secret tokens, cookies, and signed media URLs from CLI output."
+  }
+}

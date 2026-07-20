@@ -1,0 +1,44 @@
+{
+  "schema_version": "a3.candidate_delivery_binding.v1",
+  "generated_at": "2026-07-20T14:18:41.109Z",
+  "candidate": {
+    "candidate_id": "a3-golden-agent@0.2.0-rc.3",
+    "run_id": "a3-golden-20260720-003",
+    "release_version": "0.2.0-rc.3"
+  },
+  "upstream": {
+    "a1_source_commit": "1d292047e991995fdf52f0545ffff410ee19a171",
+    "a1_evidence_bundle_hash": "sha256:0b4fb982ccc5a25a54c8c8ea8744285296502bb6be3113d5220af7f3340e3d6b",
+    "a2_authority_commit": "d3529c356e49ce8502c050f0dad44020031ee0dd",
+    "a2_decision_ledger_head_hash": "sha256:af84d7e9e3143f4da06341f2e20f3402c8f44ed5efc8221b18c8ef2869747a4e",
+    "a2_grades_hash": "sha256:ffeba9ab8d7a2ccfb26ca8e135448cc9a2e6c8ead5b49837f77e5e73606a5304",
+    "a2_upstream_decision": "block",
+    "a2_release_ready": false
+  },
+  "a3": {
+    "implementation_commit": "cbc66462a419d9441dfb77b602851454893be016",
+    "consumed_decision_ledger_head_hash": "sha256:af84d7e9e3143f4da06341f2e20f3402c8f44ed5efc8221b18c8ef2869747a4e",
+    "consumed_grades_hash": "sha256:ffeba9ab8d7a2ccfb26ca8e135448cc9a2e6c8ead5b49837f77e5e73606a5304",
+    "delivery_status": "blocked_by_a2",
+    "production_ready": false,
+    "a2_decision_recomputed": false
+  },
+  "shared_identity_hash": "sha256:8199b149f097b73ff6e22c8acc175ac41cafaf7ede42f678f8e560a5b3d4d89a",
+  "binding_state": "exact",
+  "blockers": [],
+  "release_blockers": [
+    "a2_decision_blocks_release",
+    "a2_release_not_ready",
+    "evidence_incomplete",
+    "a2_hard_blockers_present"
+  ],
+  "safety": {
+    "a2_authority_preserved": true,
+    "a3_release_authority_claimed": false,
+    "human_approval_claimed": false,
+    "production_authority_claimed": false,
+    "secrets_included": false,
+    "public_safe": true
+  },
+  "binding_hash": "sha256:c945f78978a657154e509a5c676a0340b73cc01124605ba66c2daf8cf8d5b747"
+}

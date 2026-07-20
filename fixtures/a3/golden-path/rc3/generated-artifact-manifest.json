@@ -1,0 +1,111 @@
+{
+  "schema_version": "a3.generated_artifact_manifest.v1",
+  "generated_at": "2026-07-20T14:18:41.109Z",
+  "source": "m40-05-rc3-local-candidate-binding",
+  "command_shape": "ashr gate --json",
+  "manifest_file": "fixtures/a3/golden-path/rc3/generated-artifact-manifest.json",
+  "manifest_self_hash": "excluded_to_avoid_self_reference",
+  "release": {
+    "run_id": "a3-golden-20260720-003",
+    "decision": "block_release",
+    "decision_label": "Block release",
+    "risk_score": 0,
+    "blocks_merge": true,
+    "github_check_conclusion": "failure",
+    "decision_authority": "A2 Decision Ledger",
+    "a2_upstream_decision": "block",
+    "a2_release_ready": false,
+    "a3_recomputed_a2_decision": false
+  },
+  "redaction_policy": "No API keys, cookies, tokens, emails, or live signed media URLs are allowed in CLI output.",
+  "generated_artifacts": [
+    {
+      "id": "json_report",
+      "path": "fixtures/a3/golden-path/rc3/gate-report.json",
+      "content_type": "application/json",
+      "sha256": "922dbc64f9b43476b9bcef0334086dc36d4193eb296c7722b4978ee024e89364",
+      "byte_size": 21926,
+      "required": true
+    },
+    {
+      "id": "markdown_report",
+      "path": "fixtures/a3/golden-path/rc3/gate-report.md",
+      "content_type": "text/markdown",
+      "sha256": "a612ab9c158f7078ec74e2c27d5738d49affbe06ce0f532dae577f16d9ac6b7f",
+      "byte_size": 2147,
+      "required": true
+    },
+    {
+      "id": "github_check_run",
+      "path": "fixtures/a3/golden-path/rc3/github-check.json",
+      "content_type": "application/json",
+      "sha256": "dac064b49ef44cc06281cdcc91a65c310bbaafdf6f67cf5fc9cfc073a4b06150",
+      "byte_size": 950,
+      "required": true
+    },
+    {
+      "id": "pr_comment_markdown",
+      "path": "fixtures/a3/golden-path/rc3/pr-comment.md",
+      "content_type": "text/markdown",
+      "sha256": "cbf97bce8bb8e79ba163c85818b5962f1d94f3add86b811b88744e167addcc7b",
+      "byte_size": 902,
+      "required": true
+    },
+    {
+      "id": "a2_trusted_spine",
+      "path": "fixtures/a3/golden-path/rc3/a2_trusted_spine_handoff.snapshot.json",
+      "content_type": "application/json",
+      "sha256": "b315c537c6ba24a1b3b4cc87f03f04d609c387b5e197fd4db8398d4440bebde8",
+      "byte_size": 22082,
+      "required": true,
+      "bundle_role": "authority_record",
+      "origin": "a2_authoritative_evidence"
+    },
+    {
+      "id": "a2_shared_candidate_identity",
+      "path": "fixtures/a3/golden-path/rc3/a2_shared_candidate_identity.json",
+      "content_type": "application/json",
+      "sha256": "9f4d695ae6abc2c9a8f5b3a25a28dde2e9c3f4b069dc037200d8a37dc85ce3d1",
+      "byte_size": 1410,
+      "required": true,
+      "bundle_role": "authority_record",
+      "origin": "a2_authoritative_evidence"
+    },
+    {
+      "id": "a3_shared_candidate_identity",
+      "path": "fixtures/a3/golden-path/rc3/a3_shared_candidate_identity.json",
+      "content_type": "application/json",
+      "sha256": "180c14275e1d2e903f185b2374f206aa374728ca982c1233f1facf91ce48f4ff",
+      "byte_size": 1287,
+      "required": true,
+      "bundle_role": "custody_record",
+      "origin": "a3_candidate_binding"
+    },
+    {
+      "id": "a3_candidate_delivery_binding",
+      "path": "fixtures/a3/golden-path/rc3/a3_candidate_delivery_binding.json",
+      "content_type": "application/json",
+      "sha256": "d14ff2c3713402a6d01f02fea248fc260fdd1d19fd6849112336b17463ba7e6b",
+      "byte_size": 1831,
+      "required": true,
+      "bundle_role": "custody_record",
+      "origin": "a3_candidate_binding"
+    },
+    {
+      "id": "deployment_probe",
+      "path": "fixtures/a3/golden-path/rc3/deployment_probe.redacted.json",
+      "content_type": "application/json",
+      "sha256": "5679ad4654bc931b4aa04d2c3f982e93030e7c742682bf3e0a7e9cd4259c16ad",
+      "byte_size": 1980,
+      "required": true,
+      "bundle_role": "deployment_record",
+      "origin": "deployment_acceptance_input"
+    }
+  ],
+  "safety": {
+    "dry_run_compatible": true,
+    "contains_secret_values": false,
+    "local_absolute_paths_allowed": false,
+    "manifest_hashes_itself": false
+  }
+}
