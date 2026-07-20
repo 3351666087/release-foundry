@@ -1,6 +1,6 @@
 {
   "schema_version": "a3.deployment_acceptance.v1",
-  "acceptance_id": "dpa_b3ce00f9ea8dfa6be9b8",
+  "acceptance_id": "dpa_55903b28603e5a4cd181",
   "generated_at": "2026-07-12T14:02:04.000Z",
   "status": "blocked",
   "production_accepted": false,
@@ -244,7 +244,7 @@
       "required": true,
       "status": "passed",
       "evidence_class": "local_verification",
-      "evidence_ref": "a3-archive-a3-bundle-0-2-0-rc-2-a3-golden-20260712-002-cc22b9f0dd-f0bf4b2a8145",
+      "evidence_ref": "a3-archive-a3-bundle-0-2-0-rc-2-a3-golden-20260712-002-cc22b9f0dd-04e34b9c52e9",
       "blocked_reason": null,
       "details": {},
       "production_proof": false
@@ -256,7 +256,7 @@
       "required": true,
       "status": "passed",
       "evidence_class": "local_verification",
-      "evidence_ref": "8f84c5e3d4f064ae5d042b0f8ef72f2a3fb4d7ae06eb0a7d4dea01dc113d5a2f",
+      "evidence_ref": "04ba2da57fed18f3fcd3456b63cd4f1d19aa67f14f4ae8046a05867f0684a6cd",
       "blocked_reason": null,
       "details": {},
       "production_proof": false

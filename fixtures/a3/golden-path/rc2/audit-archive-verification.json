@@ -2,17 +2,17 @@
   "schema_version": "a3.audit_archive_verification.v1",
   "verified_at": "2026-07-12T14:02:03.000Z",
   "manifest_path": "fixtures/a3/golden-path/rc2/audit-archive-manifest.json",
-  "archive_id": "a3-archive-a3-bundle-0-2-0-rc-2-a3-golden-20260712-002-cc22b9f0dd-f0bf4b2a8145",
+  "archive_id": "a3-archive-a3-bundle-0-2-0-rc-2-a3-golden-20260712-002-cc22b9f0dd-04e34b9c52e9",
   "status": "passed",
   "root_hash": {
-    "expected": "844177e9c927a69a6854d0020f19a7c3eb1ba9dd15aacf40e512b37f44f594ac",
-    "actual": "844177e9c927a69a6854d0020f19a7c3eb1ba9dd15aacf40e512b37f44f594ac",
+    "expected": "78a259521bc9d264a7a4da523f1d4fae0448a46ddd5680205b5c869303ac6d20",
+    "actual": "78a259521bc9d264a7a4da523f1d4fae0448a46ddd5680205b5c869303ac6d20",
     "passed": true
   },
   "signature": {
     "passed": true,
     "algorithm": "ed25519",
-    "signed_payload_sha256": "8da87614e2d14e2b657e2f3879fb92ba2e92944f3557e1f9215e70b4309daa4a",
+    "signed_payload_sha256": "e28aee60a4decfc99a08721015514e08fec160000775079ed856b0c51626367c",
     "signer_type": "local-a3-gate-cli",
     "identity_binding": "self_signed_local_key_not_sso_bound",
     "message": "Archive signature is valid."
@@ -26,7 +26,7 @@
     "results": [
       {
         "id": "a2_trusted_spine",
-        "path": "fixtures/a2/results/a2_trusted_spine_handoff.json",
+        "path": "fixtures/a3/golden-path/rc2/a2_trusted_spine_handoff.snapshot.json",
         "status": "passed",
         "expected_sha256": "bfc30d38dea81f68daf18c4a43061c70b310183e130a4677a40a7f932cc86949",
         "actual_sha256": "bfc30d38dea81f68daf18c4a43061c70b310183e130a4677a40a7f932cc86949",
@@ -40,10 +40,10 @@
         "id": "audit_bundle_index",
         "path": "fixtures/a3/golden-path/rc2/audit-bundle-index.json",
         "status": "passed",
-        "expected_sha256": "0a9addfca419c7631574e355bcbc34a0fbedab6cf4473eeda64348b717e0fa1b",
-        "actual_sha256": "0a9addfca419c7631574e355bcbc34a0fbedab6cf4473eeda64348b717e0fa1b",
-        "expected_byte_size": 14901,
-        "actual_byte_size": 14901,
+        "expected_sha256": "68a5b33fcaa9397d6a4f08f08bdbed1a2703fdd72e5ae110ef7128336da18344",
+        "actual_sha256": "68a5b33fcaa9397d6a4f08f08bdbed1a2703fdd72e5ae110ef7128336da18344",
+        "expected_byte_size": 14918,
+        "actual_byte_size": 14918,
         "path_is_absolute": false,
         "path_includes_user_home": false,
         "message": "Archive entry hash and byte size match."
@@ -52,10 +52,10 @@
         "id": "generated_artifact_manifest",
         "path": "fixtures/a3/golden-path/rc2/generated-artifact-manifest.json",
         "status": "passed",
-        "expected_sha256": "948da42b2b4b688c49985c14a272168c55b512457f0c5e796d0171cfb18fd075",
-        "actual_sha256": "948da42b2b4b688c49985c14a272168c55b512457f0c5e796d0171cfb18fd075",
-        "expected_byte_size": 4528,
-        "actual_byte_size": 4528,
+        "expected_sha256": "7e8b1ad0372b44617a548cad0b0ba4fb5f29403761619df1deffbf402620dbe9",
+        "actual_sha256": "7e8b1ad0372b44617a548cad0b0ba4fb5f29403761619df1deffbf402620dbe9",
+        "expected_byte_size": 4545,
+        "actual_byte_size": 4545,
         "path_is_absolute": false,
         "path_includes_user_home": false,
         "message": "Archive entry hash and byte size match."

@@ -5,8 +5,8 @@
   "bundle_id": "a3-bundle-0-2-0-rc-2-a3-golden-20260712-002-cc22b9f0ddf7",
   "status": "passed",
   "root_hash": {
-    "expected": "f0bf4b2a8145cb91090da7597abab71a1d7c3e853d665a68a44c8e3694d3e923",
-    "actual": "f0bf4b2a8145cb91090da7597abab71a1d7c3e853d665a68a44c8e3694d3e923",
+    "expected": "04e34b9c52e9183564fcf9bfeb52d73b455cca73ec04a6242570c172d8c4d2c1",
+    "actual": "04e34b9c52e9183564fcf9bfeb52d73b455cca73ec04a6242570c172d8c4d2c1",
     "passed": true
   },
   "artifacts": {
@@ -18,7 +18,7 @@
     "results": [
       {
         "id": "a2_trusted_spine",
-        "path": "fixtures/a2/results/a2_trusted_spine_handoff.json",
+        "path": "fixtures/a3/golden-path/rc2/a2_trusted_spine_handoff.snapshot.json",
         "status": "passed",
         "expected_sha256": "bfc30d38dea81f68daf18c4a43061c70b310183e130a4677a40a7f932cc86949",
         "actual_sha256": "bfc30d38dea81f68daf18c4a43061c70b310183e130a4677a40a7f932cc86949",
@@ -32,10 +32,10 @@
         "id": "generated_artifact_manifest",
         "path": "fixtures/a3/golden-path/rc2/generated-artifact-manifest.json",
         "status": "passed",
-        "expected_sha256": "948da42b2b4b688c49985c14a272168c55b512457f0c5e796d0171cfb18fd075",
-        "actual_sha256": "948da42b2b4b688c49985c14a272168c55b512457f0c5e796d0171cfb18fd075",
-        "expected_byte_size": 4528,
-        "actual_byte_size": 4528,
+        "expected_sha256": "7e8b1ad0372b44617a548cad0b0ba4fb5f29403761619df1deffbf402620dbe9",
+        "actual_sha256": "7e8b1ad0372b44617a548cad0b0ba4fb5f29403761619df1deffbf402620dbe9",
+        "expected_byte_size": 4545,
+        "actual_byte_size": 4545,
         "path_is_absolute": false,
         "path_includes_user_home": false,
         "message": "Artifact hash and byte size match."

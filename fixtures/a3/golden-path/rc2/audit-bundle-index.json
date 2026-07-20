@@ -75,7 +75,7 @@
   "bundle_artifacts": [
     {
       "id": "a2_trusted_spine",
-      "path": "fixtures/a2/results/a2_trusted_spine_handoff.json",
+      "path": "fixtures/a3/golden-path/rc2/a2_trusted_spine_handoff.snapshot.json",
       "bundle_role": "authority_record",
       "content_type": "application/json",
       "required": true,
@@ -91,8 +91,8 @@
       "bundle_role": "custody_record",
       "content_type": "application/json",
       "required": false,
-      "sha256": "948da42b2b4b688c49985c14a272168c55b512457f0c5e796d0171cfb18fd075",
-      "byte_size": 4528,
+      "sha256": "7e8b1ad0372b44617a548cad0b0ba4fb5f29403761619df1deffbf402620dbe9",
+      "byte_size": 4545,
       "created_by": "ashr gate generated artifact manifest",
       "redaction_status": "redacted_or_safe_for_audit"
     },
@@ -383,5 +383,5 @@
     "dry_run_compatible": true,
     "redaction_policy": "No API keys, cookies, tokens, emails, or live signed media URLs are allowed in CLI output."
   },
-  "bundle_root_hash": "f0bf4b2a8145cb91090da7597abab71a1d7c3e853d665a68a44c8e3694d3e923"
+  "bundle_root_hash": "04e34b9c52e9183564fcf9bfeb52d73b455cca73ec04a6242570c172d8c4d2c1"
 }

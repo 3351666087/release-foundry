@@ -53,7 +53,7 @@
     },
     {
       "id": "a2_trusted_spine",
-      "path": "fixtures/a2/results/a2_trusted_spine_handoff.json",
+      "path": "fixtures/a3/golden-path/rc2/a2_trusted_spine_handoff.snapshot.json",
       "content_type": "application/json",
       "sha256": "bfc30d38dea81f68daf18c4a43061c70b310183e130a4677a40a7f932cc86949",
       "byte_size": 6186,

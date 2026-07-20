@@ -57,8 +57,8 @@
         "required": true,
         "content_type": "application/json",
         "schema_version": "a3.audit_bundle_index.v1",
-        "sha256": "0a9addfca419c7631574e355bcbc34a0fbedab6cf4473eeda64348b717e0fa1b",
-        "byte_size": 14901
+        "sha256": "68a5b33fcaa9397d6a4f08f08bdbed1a2703fdd72e5ae110ef7128336da18344",
+        "byte_size": 14918
       },
       {
         "id": "deployment_probe",
@@ -106,7 +106,7 @@
       },
       {
         "id": "a2_trusted_spine",
-        "path": "fixtures/a2/results/a2_trusted_spine_handoff.json",
+        "path": "fixtures/a3/golden-path/rc2/a2_trusted_spine_handoff.snapshot.json",
         "role": "release_authority",
         "source_lane": "A2",
         "required": true,
@@ -200,8 +200,8 @@
         "required": true,
         "content_type": "application/json",
         "schema_version": "a3.audit_archive_manifest.v1",
-        "sha256": "946017eada4ae3ba82b4547e5d23fe1a9e7ada9831d60aec52b11539dc8bc0f6",
-        "byte_size": 11096
+        "sha256": "94c67e2ef6eb61bce612e090cc2e47e5f505ec61a822e03ea90815451b5c70d1",
+        "byte_size": 11113
       },
       {
         "id": "audit_archive_verification",
@@ -211,8 +211,8 @@
         "required": true,
         "content_type": "application/json",
         "schema_version": "a3.audit_archive_verification.v1",
-        "sha256": "1bbd07c8b7c470b27822f435917c38e13a6d0fc5d8f3ef9225432aecbd845b10",
-        "byte_size": 10003
+        "sha256": "a1574c97cfc7a2188fe6fd7aad934ef1db148fed09bbe6a309e9463dc23e7902",
+        "byte_size": 10020
       },
       {
         "id": "audit_bundle_verification",
@@ -222,8 +222,8 @@
         "required": true,
         "content_type": "application/json",
         "schema_version": "a3.audit_bundle_verification.v1",
-        "sha256": "35800e174f12dfc0cf4e4e602dfd16ce58532c34180a790693b6005996cd68a4",
-        "byte_size": 11957
+        "sha256": "d7de1561b254d2a3ca76107707bea9abb7e778d02d2ad451ab7e07ff295ca7a2",
+        "byte_size": 11974
       }
     ]
   },
@@ -247,6 +247,6 @@
     "private_key_included": false,
     "fixture_claimed_as_production": false
   },
-  "artifact_set_hash": "ca56301a78832cf9f3196b76c1e7dca8c9364de5fbc8312fc6cbd7b5b164bd9e",
-  "manifest_hash": "8f84c5e3d4f064ae5d042b0f8ef72f2a3fb4d7ae06eb0a7d4dea01dc113d5a2f"
+  "artifact_set_hash": "bb267abd27530717b4c4db0e80cd13ccdcbb130b4f5e83626af48b0003db0315",
+  "manifest_hash": "04ba2da57fed18f3fcd3456b63cd4f1d19aa67f14f4ae8046a05867f0684a6cd"
 }
