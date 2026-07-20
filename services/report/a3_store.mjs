@@ -105,6 +105,9 @@ import {
 import {
   buildA3MultimodalReleaseReadiness
 } from "./a3_multimodal_release_readiness.mjs";
+import {
+  buildA3MultimodalReleaseCaseEvidence
+} from "./a3_multimodal_release_case_evidence.mjs";
 
 export const A3_STORE_SCHEMA_VERSION = "a3.store.v1";
 
@@ -216,7 +219,10 @@ export const A3_SOURCE_FIXTURES = {
     a2MultimodalComparisonCapability: "round50_review_queue_with_round52_public_readiness",
     a2MultimodalReleaseReadiness: "fixtures/a3/p3/a2_multimodal_release_readiness_round52_850b39a.redacted.json",
     a2MultimodalReleaseReadinessSourceCommit: "850b39a",
-    a2MultimodalReleaseReadinessCapability: "peer_branch_round52_public_summary_not_merged"
+    a2MultimodalReleaseReadinessCapability: "peer_branch_round52_public_summary_not_merged",
+    a2MultimodalReleaseCaseEvidence: "fixtures/a3/p3/a2_multimodal_release_case_evidence_round52_850b39a.redacted.json",
+    a2MultimodalReleaseCaseEvidenceSourceCommit: "850b39a",
+    a2MultimodalReleaseCaseEvidenceCapability: "peer_branch_round52_hash_bound_case_evidence_not_merged"
   },
   "p3-official-demo": {
     label: "P3 Official Demo 884/11926",
@@ -487,6 +493,14 @@ export async function loadA3SourceSnapshot(source = "mock", options = {}) {
           ingest_mode: "peer_branch_redacted_public_summary",
           source_commit_alias: config.a2MultimodalReleaseReadinessSourceCommit || null,
           capability_state: config.a2MultimodalReleaseReadinessCapability || "contract_supported_not_production_verified"
+        }
+      : {},
+    a2MultimodalReleaseCaseEvidence: await readOptionalJson(root, config.a2MultimodalReleaseCaseEvidence),
+    a2MultimodalReleaseCaseEvidenceMeta: config.a2MultimodalReleaseCaseEvidence
+      ? {
+          ingest_mode: "peer_branch_redacted_hash_only_case_evidence",
+          source_commit_alias: config.a2MultimodalReleaseCaseEvidenceSourceCommit || null,
+          capability_state: config.a2MultimodalReleaseCaseEvidenceCapability || "contract_supported_not_production_verified"
         }
       : {},
     a2GradeResults: await readOptionalJson(root, config.a2GradeResults),
@@ -3492,6 +3506,8 @@ function normalizeSnapshot(snapshot = {}) {
     a2MultimodalProviderReadinessMeta: snapshot.a2MultimodalProviderReadinessMeta || snapshot.a2_multimodal_provider_readiness_meta || {},
     a2MultimodalReleaseReadiness: snapshot.a2MultimodalReleaseReadiness || snapshot.a2_multimodal_release_readiness || {},
     a2MultimodalReleaseReadinessMeta: snapshot.a2MultimodalReleaseReadinessMeta || snapshot.a2_multimodal_release_readiness_meta || {},
+    a2MultimodalReleaseCaseEvidence: snapshot.a2MultimodalReleaseCaseEvidence || snapshot.a2_multimodal_release_case_evidence || {},
+    a2MultimodalReleaseCaseEvidenceMeta: snapshot.a2MultimodalReleaseCaseEvidenceMeta || snapshot.a2_multimodal_release_case_evidence_meta || {},
     releaseEvidence: snapshot.releaseEvidence || snapshot.release_evidence || {},
     a2GradeResults: snapshot.a2GradeResults || snapshot.a2_grade_results || {},
     a2ReleaseGate: snapshot.a2ReleaseGate || snapshot.a2_release_gate || {},
@@ -3780,6 +3796,7 @@ function buildDashboardPayload(snapshot, storageMode, options = {}) {
     multimodal_repeat_stability: multimodalReviewQueue.repeat_stability,
     multimodal_provider_readiness: multimodalReviewQueue.provider_readiness,
     multimodal_release_readiness: multimodalReviewQueue.release_readiness,
+    multimodal_release_case_evidence: multimodalReviewQueue.release_case_evidence,
     release_evidence: releaseEvidenceForDashboard,
     release_evidence_summary: releaseEvidenceForDashboard,
     release_evidence_readbacks: releaseEvidenceReadbackHistory,
@@ -5500,6 +5517,19 @@ function buildMultimodalReleaseReadinessForSnapshot(snapshot = {}) {
   );
 }
 
+function buildMultimodalReleaseCaseEvidenceForSnapshot(snapshot = {}) {
+  const metadata = snapshot.a2MultimodalReleaseCaseEvidenceMeta || {};
+  return buildA3MultimodalReleaseCaseEvidence(
+    snapshot.a2MultimodalReleaseCaseEvidence || {},
+    {
+      source: snapshot.source,
+      tenantScope: snapshot.tenant_scope || tenantScopeRecordFields(snapshot).tenant_scope,
+      sourceCommitAlias: metadata.source_commit_alias,
+      capabilityState: metadata.capability_state
+    }
+  );
+}
+
 function buildMultimodalQueueForSnapshot(snapshot = {}, assignmentEvents = [], options = {}) {
   const metadata = snapshot.a2MultimodalComparisonMeta || {};
   const queue = buildA3MultimodalReviewQueue(snapshot.a2MultimodalComparison || {}, {
@@ -5518,11 +5548,13 @@ function buildMultimodalQueueForSnapshot(snapshot = {}, assignmentEvents = [], o
   const repeatStability = buildMultimodalRepeatStabilityForSnapshot(snapshot);
   const providerReadiness = buildMultimodalProviderReadinessForSnapshot(snapshot);
   const releaseReadiness = buildMultimodalReleaseReadinessForSnapshot(snapshot);
+  const releaseCaseEvidence = buildMultimodalReleaseCaseEvidenceForSnapshot(snapshot);
   return {
     ...projection,
     repeat_stability: repeatStability,
     provider_readiness: providerReadiness,
     release_readiness: releaseReadiness,
+    release_case_evidence: releaseCaseEvidence,
     review_packet: buildA3MultimodalReviewAssignmentPacket(projection, {
       generatedAt: options.now || "queue-read"
     })

@@ -100,6 +100,7 @@ export function buildShareableReportPayload(inputs = {}, options = {}) {
     multimodal_repeat_stability: jsonReport.multimodal_repeat_stability,
     multimodal_provider_readiness: jsonReport.multimodal_provider_readiness,
     multimodal_release_readiness: jsonReport.multimodal_release_readiness,
+    multimodal_release_case_evidence: jsonReport.multimodal_release_case_evidence,
     cases: jsonReport.cases,
     markdown_report: markdownReport
   }, { surface: "shareable_report" });
@@ -161,6 +162,7 @@ export function buildShareableReportPayload(inputs = {}, options = {}) {
     multimodal_repeat_stability: safeEnvelope.value.multimodal_repeat_stability,
     multimodal_provider_readiness: safeEnvelope.value.multimodal_provider_readiness,
     multimodal_release_readiness: safeEnvelope.value.multimodal_release_readiness,
+    multimodal_release_case_evidence: safeEnvelope.value.multimodal_release_case_evidence,
     markdown_report: safeEnvelope.value.markdown_report,
     report_center: {
       json_available: true,
@@ -210,6 +212,9 @@ export function renderShareableReportHtml(report = {}) {
     || {};
   const multimodalReleaseReadiness = report.multimodal_release_readiness
     || payload.multimodal_release_readiness
+    || {};
+  const multimodalReleaseCaseEvidence = report.multimodal_release_case_evidence
+    || payload.multimodal_release_case_evidence
     || {};
   const cases = Array.isArray(payload.cases) ? payload.cases.slice(0, 12) : [];
   const status = report.status || "unknown";
@@ -330,6 +335,7 @@ export function renderShareableReportHtml(report = {}) {
 
     ${renderMultimodalProviderReadinessHtml(multimodalProviderReadiness)}
     ${renderMultimodalReleaseReadinessHtml(multimodalReleaseReadiness)}
+    ${renderMultimodalReleaseCaseEvidenceHtml(multimodalReleaseCaseEvidence)}
 
     ${renderMultimodalEvidenceRequestsHtml(multimodalReviewQueue)}
 
@@ -617,6 +623,34 @@ function renderMultimodalReleaseReadinessHtml(readiness = {}) {
         </tr>`).join("")}</tbody>
       </table>` : ""}
       <p class="muted">Local candidate ${escapeHtml(local.model_id || "unknown")}: ${escapeHtml(local.runtime_promotion_state || "unknown")}. Repeat quality/stability: ${escapeHtml(repeat.quality_state || "unknown")} / ${escapeHtml(repeat.stability_state || "unknown")}. Human review: ${escapeHtml(review.collection_state || "unknown")}. PostgreSQL: ${escapeHtml(persistence.proof_state || "unknown")}. Shared candidate verified: ${candidate.verified ? "yes" : "no"}. Release authority: no.</p>
+    </section>`;
+}
+
+function renderMultimodalReleaseCaseEvidenceHtml(evidence = {}) {
+  if (evidence.available !== true) return "";
+  const summary = evidence.summary || {};
+  const cases = Array.isArray(evidence.affected_cases) ? evidence.affected_cases : [];
+  return `<section class="card" style="margin-top: 20px;">
+      <h2>Multimodal Case and Media Evidence</h2>
+      <p class="blocked">${escapeHtml(`${summary.missed_count || 0} of ${summary.eligible_count || 0} attack cases were missed.`)}</p>
+      <p class="muted">Cases contain hash-only media and response references. Raw media, provider payloads, signed URLs, and release authority are excluded.</p>
+      <div class="grid" aria-label="Multimodal case evidence metrics">
+        ${metric("Attack cases", summary.eligible_count || 0)}
+        ${metric("Detected", summary.detected_count || 0)}
+        ${metric("Missed", summary.missed_count || 0)}
+        ${metric("Sensitivity", `${Math.round(Number(summary.sensitivity || 0) * 100)}%`)}
+      </div>
+      ${cases.length ? `<table>
+        <thead><tr><th>Case</th><th>Outcome</th><th>Media</th><th>Artifact</th><th>Response</th></tr></thead>
+        <tbody>${cases.map((item) => `<tr>
+          <td>${escapeHtml(item.case_id || "unknown")}</td>
+          <td>${escapeHtml(item.outcome || "unknown")}</td>
+          <td>${escapeHtml(item.media_type || "unknown")}</td>
+          <td>${escapeHtml(hashPrefix(item.artifact_hash))}</td>
+          <td>${escapeHtml(hashPrefix(item.response_hash))}</td>
+        </tr>`).join("")}</tbody>
+      </table>` : ""}
+      <p class="muted">Evidence mode: hash only. Authorized media retrieval must be handled by the runtime data plane and audited separately. Release authority: no.</p>
     </section>`;
 }
 

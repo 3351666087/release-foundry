@@ -86,6 +86,7 @@ function normalizeDashboardPayload(payload = {}) {
   const multimodalSummary = record(multimodalReadiness.summary);
   const multimodalLocal = record(multimodalReadiness.local_runtime);
   const multimodalReview = record(multimodalReadiness.human_review);
+  const multimodalCaseEvidence = record(payload.multimodal_release_case_evidence);
   const scope = record(provenance.tenant_scope);
   const release = snapshot.release;
   const status = string(provenance.status, string(evidence.status, "unknown"));
@@ -141,6 +142,7 @@ function normalizeDashboardPayload(payload = {}) {
       detail: `攻击样本识别 ${release.multimodalReadiness.attackDetectionLabel}，本地结构化档位完成 ${release.multimodalReadiness.localProfileLabel}。`
     });
   }
+  release.multimodalCaseEvidence = normalizeMultimodalCaseEvidence(multimodalCaseEvidence);
   release.nextAction = release.blockers[0]?.detail || "等待服务端提供完整发布依据。";
   release.evidenceStages = normalizeSpineStages(spine.stages, release.status, spineSummary);
   snapshot.incidents = normalizeIncidents(payload.incident_replay_queue, []);
@@ -192,6 +194,9 @@ function normalizeReleasePayload(summaryPayload, readbackPayload, releaseId) {
   release.passRateLabel = caseCount ? `${Math.max(0, caseCount - number(a2Evidence.failed_case_count, 0))} / ${caseCount}` : "待同步";
   release.traceLabel = number(a1Evidence.run_count, 0) > 0 ? "已接入" : "待同步";
   release.evidenceRefs = normalizeEvidenceRefs(summary.source_artifacts);
+  release.multimodalCaseEvidence = normalizeMultimodalCaseEvidence(
+    envelope.multimodal_release_case_evidence || summary.multimodal_release_case_evidence
+  );
   snapshot.meta = {
     ...snapshot.meta,
     mode: "connected",
@@ -216,6 +221,65 @@ function normalizeBlockers(value, fallback) {
     };
   });
   return blockers.length ? blockers : fallback;
+}
+
+function normalizeMultimodalCaseEvidence(value) {
+  const evidence = record(value);
+  const summary = record(evidence.summary);
+  const available = evidence.schema_version === "a3.multimodal_release_case_evidence.v1"
+    && evidence.available === true;
+  if (!available) {
+    return {
+      available: false,
+      status: string(evidence.status, "missing"),
+      statusLabel: "案例证据未接入",
+      tone: "warning",
+      eligibleLabel: "0",
+      detectedLabel: "0",
+      missedLabel: "0",
+      sensitivityLabel: "0%",
+      cases: [],
+      missedCases: []
+    };
+  }
+
+  const cases = array(evidence.affected_cases).map((item) => {
+    const entry = record(item);
+    const media = record(entry.media_evidence);
+    const response = record(entry.response_evidence);
+    const outcome = string(entry.outcome, "unknown");
+    const artifactHash = sha256Hash(media.artifact_hash);
+    const responseHash = sha256Hash(response.response_hash);
+    return {
+      caseId: string(entry.case_id, "unknown-case"),
+      outcome,
+      outcomeLabel: outcome === "missed" ? "漏检" : "已识别",
+      tone: outcome === "missed" ? "danger" : "success",
+      mediaType: string(media.media_type, "unknown"),
+      artifactHash,
+      artifactHashLabel: hashPrefix(artifactHash),
+      responseHash,
+      responseHashLabel: hashPrefix(responseHash),
+      latencyLabel: `${number(entry.latency_seconds).toFixed(3)} 秒`
+    };
+  }).sort((left, right) => Number(left.outcome !== "missed") - Number(right.outcome !== "missed"));
+  const missedCases = cases.filter((item) => item.outcome === "missed");
+  const missedCount = number(summary.missed_count, missedCases.length);
+
+  return {
+    available: true,
+    status: string(evidence.status, missedCount ? "attention_required" : "recorded"),
+    statusLabel: missedCount ? `${missedCount} 个案例漏检` : "案例证据已记录",
+    tone: missedCount ? "danger" : "success",
+    eligibleLabel: String(number(summary.eligible_count, cases.length)),
+    detectedLabel: String(number(summary.detected_count)),
+    missedLabel: String(missedCount),
+    sensitivityLabel: `${Math.round(number(summary.sensitivity) * 100)}%`,
+    cases,
+    missedCases,
+    evidenceModeLabel: "仅哈希证据",
+    authorityLabel: "仅供排查，不改变评测与发布结论"
+  };
 }
 
 function normalizeIncidents(value, fallback) {
@@ -421,6 +485,8 @@ function record(value) { return value && typeof value === "object" && !Array.isA
 function array(value) { return Array.isArray(value) ? value : []; }
 function string(value, fallback = "") { return typeof value === "string" && value ? value : fallback; }
 function number(value, fallback = 0) { const result = Number(value); return Number.isFinite(result) ? result : fallback; }
+function sha256Hash(value) { return /^sha256:[a-f0-9]{64}$/.test(String(value || "")) ? String(value) : ""; }
+function hashPrefix(value) { return value ? `${value.slice(0, 19)}...` : "未提供"; }
 function ratio(value, passedKey, totalKey, fallback) {
   const passed = number(value[passedKey], -1);
   const total = number(value[totalKey], -1);

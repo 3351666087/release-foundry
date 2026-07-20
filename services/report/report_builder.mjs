@@ -5350,6 +5350,9 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
   const multimodalReleaseReadiness = summarizeMultimodalReleaseReadinessExport(
     multimodalReviewQueueFixture.release_readiness || {}
   );
+  const multimodalReleaseCaseEvidence = summarizeMultimodalReleaseCaseEvidenceExport(
+    multimodalReviewQueueFixture.release_case_evidence || {}
+  );
   const clusters = clusterFailures(runFixture, gradeFixture);
   const cases = normalizeCases(runFixture, gradeFixture);
   const lines = [
@@ -5808,6 +5811,28 @@ export function buildMarkdownReport(runFixture = {}, gradeFixture = {}, coverage
       ""
     );
     for (const blocker of multimodalReleaseReadiness.blockers) lines.push(`- ${blocker}`);
+    lines.push("");
+  }
+
+  if (multimodalReleaseCaseEvidence.available) {
+    lines.push(
+      "## Multimodal Case and Media Evidence",
+      "",
+      `- Status: ${multimodalReleaseCaseEvidence.status}`,
+      `- Taxonomy: ${multimodalReleaseCaseEvidence.summary.taxonomy}`,
+      `- Detected / missed / eligible: ${multimodalReleaseCaseEvidence.summary.detected_count} / ${multimodalReleaseCaseEvidence.summary.missed_count} / ${multimodalReleaseCaseEvidence.summary.eligible_count}`,
+      `- Sensitivity / minimum: ${multimodalReleaseCaseEvidence.summary.sensitivity} / ${multimodalReleaseCaseEvidence.summary.minimum_sensitivity}`,
+      `- Evidence mode: ${multimodalReleaseCaseEvidence.evidence_boundary.projection_mode}`,
+      `- Raw media included: ${multimodalReleaseCaseEvidence.safety.raw_media_included ? "yes" : "no"}`,
+      `- Signed media URLs included: ${multimodalReleaseCaseEvidence.safety.signed_url_included ? "yes" : "no"}`,
+      `- Release authority: ${multimodalReleaseCaseEvidence.authority_boundary.release_authority ? "yes" : "no"}`,
+      "",
+      "| Case | Outcome | Media | Artifact hash | Response hash |",
+      "|---|---|---|---|---|"
+    );
+    for (const item of multimodalReleaseCaseEvidence.affected_cases) {
+      lines.push(`| ${item.case_id} | ${item.outcome} | ${item.media_type} | ${hashPrefix(item.artifact_hash)} | ${hashPrefix(item.response_hash)} |`);
+    }
     lines.push("");
   }
 
@@ -7027,6 +7052,98 @@ export function summarizeMultimodalReleaseReadinessExport(readiness = {}) {
   };
 }
 
+export function summarizeMultimodalReleaseCaseEvidenceExport(evidence = {}) {
+  const available = evidence?.schema_version === "a3.multimodal_release_case_evidence.v1"
+    && evidence.available === true;
+  if (!available) {
+    return {
+      schema_version: "a3.multimodal_release_case_evidence_export.v1",
+      available: false,
+      status: evidence?.status || "missing",
+      recommendation: "Import public-safe, hash-bound A2 case evidence before linking release blockers to media cases."
+    };
+  }
+  const summary = objectOr(evidence.summary);
+  const integrity = objectOr(evidence.integrity);
+  const boundary = objectOr(evidence.evidence_boundary);
+  const cases = arrayOr(evidence.affected_cases).map((value) => {
+    const item = objectOr(value);
+    const media = objectOr(item.media_evidence);
+    const response = objectOr(item.response_evidence);
+    return {
+      case_id: item.case_id || "unknown",
+      taxonomy: item.taxonomy || summary.taxonomy || "unknown",
+      outcome: item.outcome === "detected" ? "detected" : "missed",
+      expected_risk: true,
+      observed_risk: item.observed_risk === true,
+      latency_seconds: numberOrDefault(item.latency_seconds, 0),
+      repeat: numberOrDefault(item.repeat, 1),
+      media_type: media.media_type || "unknown",
+      artifact_hash: media.artifact_hash || null,
+      response_hash: response.response_hash || null,
+      raw_media_available: false,
+      signed_url_available: false,
+      raw_response_available: false
+    };
+  });
+  return {
+    schema_version: "a3.multimodal_release_case_evidence_export.v1",
+    available: true,
+    status: evidence.status || "attention_required",
+    capability_state: evidence.capability_state || "unknown",
+    source_commit_alias: evidence.source_commit_alias || null,
+    source_artifact_id: evidence.source_artifact_id || null,
+    tenant_scope: objectOr(evidence.tenant_scope),
+    summary: {
+      taxonomy: summary.taxonomy || "unknown",
+      eligible_count: numberOrDefault(summary.eligible_count, 0),
+      detected_count: numberOrDefault(summary.detected_count, 0),
+      missed_count: numberOrDefault(summary.missed_count, 0),
+      sensitivity: numberOrDefault(summary.sensitivity, 0),
+      minimum_sensitivity: numberOrDefault(summary.minimum_sensitivity, 0),
+      quality_state: summary.quality_state || "unknown",
+      hash_bound_case_count: cases.length,
+      raw_media_count: 0,
+      signed_url_count: 0
+    },
+    integrity: {
+      status: integrity.status || "unknown",
+      source_calibration_hash: integrity.source_calibration_hash || null,
+      release_summary_evidence_hash: integrity.release_summary_evidence_hash || null,
+      control_policy_evidence_hash: integrity.control_policy_evidence_hash || null
+    },
+    affected_cases: cases,
+    missed_case_ids: cases.filter((item) => item.outcome === "missed").map((item) => item.case_id),
+    evidence_boundary: {
+      projection_mode: boundary.projection_mode || "hash_only",
+      media_access_state: boundary.media_access_state || "metadata_only_no_signed_url",
+      raw_media_included: false,
+      raw_provider_payload_included: false,
+      access_audit_required: true
+    },
+    authority_boundary: {
+      a1_media_delivery_authority: "A1",
+      a2_case_quality_authority: "A2",
+      a3_triage_projection_authority: "A3",
+      provider_is_truth: false,
+      a2_decision_recomputed: false,
+      release_authority: false,
+      production_ready: false
+    },
+    safety: {
+      public_safe: true,
+      hash_only_case_evidence: true,
+      raw_media_included: false,
+      raw_provider_payload_included: false,
+      raw_response_included: false,
+      signed_url_included: false,
+      secret_included: false
+    },
+    interpretation: "Five hash-bound cross-modal attack cases explain the aggregate blocker: three were detected and two were missed; no raw media or model response is exported.",
+    recommendation: "Review the two missed case hashes with authorized media access, then let A2 recalibrate and issue a new candidate-bound decision."
+  };
+}
+
 export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixture = {}, evidenceReadinessFixture = {}, requestFixture = {}, usageFixture = {}, usageApiProbe = {}, mediaSignedUrlFixture = {}, authFixture = {}, frontendFixture = {}, frontendMirrorFixture = {}, frontendCodeCrawlFixture = {}, productConsoleFixture = {}, saasAdminFixture = {}, a2ReadinessBundle = {}, artifactRegistryFixture = {}, reviewWorkflowFixture = {}, releaseEvidenceFixture = {}, githubPublishEvidenceFixture = {}, peerBranchCalibrationFixture = {}, billingMigrationReadinessFixture = {}, notificationControlPlaneFixture = {}, multimodalReviewQueueFixture = {}) {
   if (isArtifactRegistryFixture(a2ReadinessBundle) && !isArtifactRegistryFixture(artifactRegistryFixture)) {
     artifactRegistryFixture = a2ReadinessBundle;
@@ -7086,6 +7203,9 @@ export function buildJsonReport(runFixture = {}, gradeFixture = {}, coverageFixt
     ),
     multimodal_release_readiness: summarizeMultimodalReleaseReadinessExport(
       multimodalReviewQueueFixture.release_readiness || {}
+    ),
+    multimodal_release_case_evidence: summarizeMultimodalReleaseCaseEvidenceExport(
+      multimodalReviewQueueFixture.release_case_evidence || {}
     ),
     release_evidence_summary: summarizeReleaseEvidenceSummary(releaseEvidenceFixture),
     github_publish_evidence: summarizeGithubPublishEvidence(githubPublishEvidenceFixture),

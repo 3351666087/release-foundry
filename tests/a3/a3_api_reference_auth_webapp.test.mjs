@@ -23,7 +23,7 @@ test("API Reference is a typed route grounded in A1, A2, and A3 contracts", asyn
   assert.match(page, /Request example/);
   assert.match(page, /Response example/);
   assert.match(reference, /mainSha: "ccf6ce5"/);
-  assert.match(reference, /schemaVersion: "a3\.api_reference\.v16"/);
+  assert.match(reference, /schemaVersion: "a3\.api_reference\.v17"/);
   assert.match(reference, /a1Sha: "c784163"/);
   assert.match(reference, /a2Sha: "8cd1d4f"/);
   assert.match(reference, /a1SourceState: "merged_to_main"/);
@@ -51,6 +51,9 @@ test("API Reference is a typed route grounded in A1, A2, and A3 contracts", asyn
   assert.match(reference, /a2\.multimodal_multi_repeat_comparison\.v2/);
   assert.match(reference, /a2\.multimodal_public_summary\.round52\.v1/);
   assert.match(reference, /a3\.multimodal_release_readiness\.v1/);
+  assert.match(reference, /a3\.multimodal_release_case_evidence\.v1/);
+  assert.match(reference, /hash_only_no_signed_url/);
+  assert.match(reference, /round51-attack-safety-guidance-conflict-01/);
   assert.match(reference, /a3\.multimodal_repeat_stability\.v1/);
   assert.match(reference, /a3\.a2_multimodal_provider_readiness_intake\.v1/);
   assert.match(reference, /a3\.multimodal_provider_readiness\.v1/);

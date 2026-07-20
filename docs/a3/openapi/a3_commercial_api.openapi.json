@@ -9843,7 +9843,8 @@
           "deployment_acceptance_projection",
           "multimodal_repeat_stability",
           "multimodal_provider_readiness",
-          "multimodal_release_readiness"
+          "multimodal_release_readiness",
+          "multimodal_release_case_evidence"
         ],
         "properties": {
           "schema_version": {
@@ -9890,6 +9891,9 @@
           },
           "multimodal_release_readiness": {
             "$ref": "#/components/schemas/MultimodalReleaseReadiness"
+          },
+          "multimodal_release_case_evidence": {
+            "$ref": "#/components/schemas/MultimodalReleaseCaseEvidence"
           }
         },
         "additionalProperties": true
@@ -18082,6 +18086,230 @@
         },
         "additionalProperties": false,
         "description": "Read-only A3 projection of the public-safe A2 Round 52 controls/runtime summary and the latest non-client-callable A1 identity boundary. Stability never overrides blocked quality."
+      },
+      "Sha256Hash": {
+        "type": "string",
+        "pattern": "^sha256:[a-f0-9]{64}$"
+      },
+      "MultimodalReleaseCaseEvidence": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "source",
+          "source_commit_alias",
+          "source_artifact_id",
+          "tenant_scope",
+          "release_authority",
+          "a2_decision_recomputed",
+          "release_decision_changed",
+          "production_ready",
+          "available",
+          "status",
+          "integrity",
+          "summary",
+          "affected_cases",
+          "missed_case_ids",
+          "evidence_boundary",
+          "authority_boundary",
+          "safety",
+          "recommendation_code"
+        ],
+        "properties": {
+          "schema_version": {
+            "type": "string",
+            "const": "a3.multimodal_release_case_evidence.v1"
+          },
+          "source": {
+            "type": "string"
+          },
+          "source_commit_alias": {
+            "type": ["string", "null"],
+            "pattern": "^[a-f0-9]{7,40}$"
+          },
+          "source_artifact_id": {
+            "type": ["string", "null"],
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,239}$"
+          },
+          "tenant_scope": {
+            "$ref": "#/components/schemas/TenantScope"
+          },
+          "release_authority": {
+            "type": "boolean",
+            "const": false
+          },
+          "a2_decision_recomputed": {
+            "type": "boolean",
+            "const": false
+          },
+          "release_decision_changed": {
+            "type": "boolean",
+            "const": false
+          },
+          "production_ready": {
+            "type": "boolean",
+            "const": false
+          },
+          "available": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "invalid_upstream_case_evidence",
+              "attention_required",
+              "case_evidence_complete_non_authoritative"
+            ]
+          },
+          "capability_state": {
+            "type": "string"
+          },
+          "integrity": {
+            "type": "object",
+            "required": [
+              "status",
+              "finding_count",
+              "findings"
+            ],
+            "properties": {
+              "status": { "type": "string", "enum": ["passed", "failed"] },
+              "finding_count": { "type": "integer", "minimum": 0 },
+              "findings": { "type": "array", "items": { "type": "object" } },
+              "a3_computed_payload_hash": { "$ref": "#/components/schemas/Sha256Hash" },
+              "source_calibration_hash": { "$ref": "#/components/schemas/Sha256Hash" },
+              "release_summary_evidence_hash": { "$ref": "#/components/schemas/Sha256Hash" },
+              "control_policy_evidence_hash": { "$ref": "#/components/schemas/Sha256Hash" }
+            },
+            "additionalProperties": false
+          },
+          "summary": {
+            "type": "object",
+            "required": [
+              "taxonomy",
+              "eligible_count",
+              "detected_count",
+              "missed_count",
+              "sensitivity",
+              "minimum_sensitivity",
+              "quality_state",
+              "hash_bound_case_count",
+              "raw_media_count",
+              "signed_url_count"
+            ],
+            "properties": {
+              "taxonomy": { "type": "string", "const": "cross_modal_conflict" },
+              "eligible_count": { "type": "integer", "minimum": 0 },
+              "detected_count": { "type": "integer", "minimum": 0 },
+              "missed_count": { "type": "integer", "minimum": 0 },
+              "sensitivity": { "type": "number", "minimum": 0, "maximum": 1 },
+              "minimum_sensitivity": { "type": "number", "minimum": 0, "maximum": 1 },
+              "quality_state": { "type": "string", "enum": ["qualified", "blocked"] },
+              "hash_bound_case_count": { "type": "integer", "minimum": 0 },
+              "raw_media_count": { "type": "integer", "const": 0 },
+              "signed_url_count": { "type": "integer", "const": 0 }
+            },
+            "additionalProperties": false
+          },
+          "affected_cases": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "type": "object",
+              "required": [
+                "case_id",
+                "taxonomy",
+                "outcome",
+                "expected_risk",
+                "observed_risk",
+                "latency_seconds",
+                "repeat",
+                "media_evidence",
+                "response_evidence"
+              ],
+              "properties": {
+                "case_id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,239}$" },
+                "taxonomy": { "type": "string", "const": "cross_modal_conflict" },
+                "outcome": { "type": "string", "enum": ["detected", "missed"] },
+                "expected_risk": { "type": "boolean", "const": true },
+                "observed_risk": { "type": "boolean" },
+                "latency_seconds": { "type": "number", "minimum": 0, "maximum": 900 },
+                "repeat": { "type": "integer", "minimum": 1, "maximum": 100 },
+                "media_evidence": {
+                  "type": "object",
+                  "required": ["media_type", "artifact_hash", "raw_media_available", "signed_url_available", "access_audit_required"],
+                  "properties": {
+                    "media_type": { "type": "string", "enum": ["image/png", "image/jpeg", "image/webp"] },
+                    "artifact_hash": { "$ref": "#/components/schemas/Sha256Hash" },
+                    "raw_media_available": { "type": "boolean", "const": false },
+                    "signed_url_available": { "type": "boolean", "const": false },
+                    "access_audit_required": { "type": "boolean", "const": true }
+                  },
+                  "additionalProperties": false
+                },
+                "response_evidence": {
+                  "type": "object",
+                  "required": ["response_hash", "raw_response_available"],
+                  "properties": {
+                    "response_hash": { "$ref": "#/components/schemas/Sha256Hash" },
+                    "raw_response_available": { "type": "boolean", "const": false }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "missed_case_ids": {
+            "type": "array",
+            "uniqueItems": true,
+            "items": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,239}$" }
+          },
+          "evidence_boundary": {
+            "type": "object",
+            "required": ["projection_mode", "media_access_state", "raw_media_included", "raw_provider_payload_included", "access_audit_required"],
+            "properties": {
+              "projection_mode": { "type": "string", "const": "hash_only" },
+              "media_access_state": { "type": "string", "const": "metadata_only_no_signed_url" },
+              "raw_media_included": { "type": "boolean", "const": false },
+              "raw_provider_payload_included": { "type": "boolean", "const": false },
+              "access_audit_required": { "type": "boolean", "const": true }
+            },
+            "additionalProperties": false
+          },
+          "authority_boundary": {
+            "type": "object",
+            "required": ["a1_media_delivery_authority", "a2_case_quality_authority", "a3_triage_projection_authority", "provider_is_truth", "a2_decision_recomputed", "release_authority", "production_ready"],
+            "properties": {
+              "a1_media_delivery_authority": { "type": "string", "const": "A1" },
+              "a2_case_quality_authority": { "type": "string", "const": "A2" },
+              "a3_triage_projection_authority": { "type": "string", "const": "A3" },
+              "provider_is_truth": { "type": "boolean", "const": false },
+              "a2_decision_recomputed": { "type": "boolean", "const": false },
+              "release_authority": { "type": "boolean", "const": false },
+              "production_ready": { "type": "boolean", "const": false }
+            },
+            "additionalProperties": false
+          },
+          "safety": {
+            "type": "object",
+            "required": ["public_safe", "hash_only_case_evidence", "raw_media_included", "raw_provider_payload_included", "raw_response_included", "signed_url_included", "secret_included"],
+            "properties": {
+              "public_safe": { "type": "boolean", "const": true },
+              "hash_only_case_evidence": { "type": "boolean", "const": true },
+              "raw_media_included": { "type": "boolean", "const": false },
+              "raw_provider_payload_included": { "type": "boolean", "const": false },
+              "raw_response_included": { "type": "boolean", "const": false },
+              "signed_url_included": { "type": "boolean", "const": false },
+              "secret_included": { "type": "boolean", "const": false }
+            },
+            "additionalProperties": false
+          },
+          "recommendation_code": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,239}$"
+          }
+        },
+        "additionalProperties": false,
+        "description": "Hash-only, public-safe linkage from the A2 Round 52 aggregate attack-sensitivity blocker to affected cases. It contains no raw media, model text, signed URL, or release authority."
       }
     }
   },
