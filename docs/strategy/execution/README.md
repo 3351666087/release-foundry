@@ -6,11 +6,14 @@
 ## Current Pointer
 
 - Current module: `M40 Cross-lane Trusted Release`
-- Current item: `M40-04`
+- Current item: `M40-05`
 - Checklist: `docs/strategy/execution/M40-cross-lane-trusted-release.md`
 - Baseline commit: `1d292047e991995fdf52f0545ffff410ee19a171`
 - Current candidate: `a3-golden-agent@0.2.0-rc.3`
 - Current A1 run: `a3-golden-20260720-003`
+- Current A2 authority: `d3529c356e49ce8502c050f0dad44020031ee0dd`
+- Current A2 decision: `block` at `sha256:af84d7e9e3143f4da06341f2e20f3402c8f44ed5efc8221b18c8ef2869747a4e`
+- Current A2 grades: `sha256:ffeba9ab8d7a2ccfb26ca8e135448cc9a2e6c8ead5b49837f77e5e73606a5304`
 - Last audit date: `2026-07-20`
 
 每完成一项，必须先更新对应模块中的证据，再把 `[ ]` 改成 `[x]`。完成当前模块后，才允许修改这里的 Current Pointer。
