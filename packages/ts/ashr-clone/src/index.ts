@@ -6,6 +6,7 @@ export * from "./billing.js";
 export * from "./browser-session.js";
 export * from "./calibrate.js";
 export * from "./capability-matrix.js";
+export * from "./candidate-binding.js";
 export * from "./china-payments.js";
 export * from "./cloud-queue.js";
 export * from "./commercial.js";

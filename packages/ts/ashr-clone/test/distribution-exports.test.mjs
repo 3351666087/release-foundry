@@ -26,6 +26,7 @@ const runtimeMarkers = {
   billing: "BillingLedger",
   "browser-session": "BrowserSessionClient",
   calibrate: "runCalibration",
+  "candidate-binding": "buildA1CandidateBinding",
   "capability-matrix": "buildCapabilityMatrix",
   "china-payments": "buildCnyTradePlan",
   "cloud-queue": "CloudQueueWorker",
