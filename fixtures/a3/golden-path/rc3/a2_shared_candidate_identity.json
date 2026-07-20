@@ -1,0 +1,31 @@
+{
+  "a1": {
+    "candidate_id": "a3-golden-agent@0.2.0-rc.3",
+    "evidence_bundle_hash": "sha256:0b4fb982ccc5a25a54c8c8ea8744285296502bb6be3113d5220af7f3340e3d6b",
+    "git_sha": "1d292047e991995fdf52f0545ffff410ee19a171"
+  },
+  "a2": {
+    "candidate_id": "a3-golden-agent@0.2.0-rc.3",
+    "decision_hash": "sha256:db3a1b7cbc0a4fda91d2ac22caedd1dda33e923e33772426bf27dbe91cabc911",
+    "git_sha": "bad647acae613f372053771a0eb7219798c4cc20",
+    "grades_hash": "sha256:ffeba9ab8d7a2ccfb26ca8e135448cc9a2e6c8ead5b49837f77e5e73606a5304",
+    "review_collection_hash": "sha256:3e482b25052625f573002999f9b10fdc6bf8856602cce3b44982df249ebf687c",
+    "review_conservation_hash": "sha256:57dcff674292085b5a835a9f70ebb78ff980cf3349ae010ee76b67b5e43ae3a2"
+  },
+  "a3": {
+    "candidate_id": "a3-golden-agent@0.2.0-rc.3",
+    "consumed_decision_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "consumed_grades_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+    "git_sha": "bad647acae613f372053771a0eb7219798c4cc20"
+  },
+  "binding_state": "blocked",
+  "blockers": [
+    "a3_consumed_decision_hash_mismatch",
+    "a3_consumed_grades_hash_mismatch",
+    "a3_rc3_delivery_not_generated"
+  ],
+  "candidate_id": "a3-golden-agent@0.2.0-rc.3",
+  "public_safe": true,
+  "release_authority": false,
+  "schema_version": "a2.shared_candidate_identity.v2"
+}
