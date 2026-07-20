@@ -99,3 +99,28 @@ Customer Agent Release: GO / NO-GO
 ```
 
 其中任一通过都不会自动改变另一项的结论。
+
+## 4. 双制品构建与验证
+
+从同一个已测试且干净的提交生成两套候选制品：
+
+```powershell
+python scripts/build_dual_release_candidates.py
+```
+
+重新验证上传索引：
+
+```powershell
+python scripts/build_dual_release_candidates.py `
+  --verify-index dist/releases/dual-release-index.json
+```
+
+单独验证 Customer Agent Release：
+
+```powershell
+python scripts/verify_customer_agent_release.py `
+  --manifest dist/releases/agent-release-demo-a3-golden-agent-0.2.0-rc.2/manifest.json `
+  --release-root dist/releases/agent-release-demo-a3-golden-agent-0.2.0-rc.2
+```
+
+构建成功只证明资产完整、摘要一致，不等于 `GO`。GitHub 上传和 Product/Customer 发布判定彼此独立；任何 `NO-GO` 候选只能作为 prerelease，并必须保留阻断原因。完整发布和下载回读步骤见 `docs/releases/github_dual_release_runbook.md`。

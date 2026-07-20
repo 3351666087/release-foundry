@@ -15,3 +15,6 @@ packages/sdk/*.egg-info/
 # Node / browser test runtime cache
 node_modules/
 docs/screenshots/playwright-results/
+
+# Local release build output
+dist/
