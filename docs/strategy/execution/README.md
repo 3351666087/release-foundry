@@ -6,7 +6,7 @@
 ## Current Pointer
 
 - Current module: `M40 Cross-lane Trusted Release`
-- Current item: `M40-05`
+- Current item: `M40-06`
 - Checklist: `docs/strategy/execution/M40-cross-lane-trusted-release.md`
 - Baseline commit: `1d292047e991995fdf52f0545ffff410ee19a171`
 - Current candidate: `a3-golden-agent@0.2.0-rc.3`

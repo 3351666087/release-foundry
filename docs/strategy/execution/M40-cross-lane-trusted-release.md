@@ -8,7 +8,7 @@ This is the current module. Its purpose is to bind A1 execution, A2 authority an
 - [x] `M40-02` Customer verifier rejects stale A2 run IDs and stale A3 tested/source SHAs.
 - [x] `M40-03` Generate a fresh A1 run bound to the latest candidate ID and latest `main` SHA.
 - [x] `M40-04` Generate A2 Trusted Spine and Decision Ledger for that exact A1 run.
-- [ ] `M40-05` Regenerate A3 gate, delivery index, audit bundle and archive for the same run, SHA and version.
+- [x] `M40-05` Regenerate A3 gate, delivery index, audit bundle and archive for the same run, SHA and version.
 - [ ] `M40-06` Recompute Customer verification with no candidate/run/SHA/version mismatch findings.
 - [ ] `M40-07` Preserve authoritative NO-GO unless Product, A2, A3 delivery and human approval all independently pass.
 
@@ -54,3 +54,6 @@ python scripts/build_dual_release_candidates.py --verify-index dist/releases/dua
 - `2026-07-20`: local Audit Bundle, ephemeral local-signature Audit Archive and release artifact verification passed. `tests/release` passed `25/25`; focused A3 authority/gate/delivery/archive tests passed `43/43`.
 - `2026-07-20`: A3 preserves A2 `block`, emits `blocked_by_a2` and keeps `production_ready=false`. No rc.2 live GitHub readback, tenant GitHub App identity, human approval, hosted deployment or production authority was reused or invented.
 - `2026-07-20`: `M40-05` remains unchecked until its GitHub PR CL Gate passes; local evidence is documented in `docs/a3/m40_05_rc3_candidate_delivery_handoff.md`.
+- `2026-07-20`: draft PR `#45` preserved the two-phase implementation/evidence history. Its first CL Gate exposed and rejected a mutable-checklist hash and depth-one checkout assumption; A3 corrected both without weakening candidate or artifact verification.
+- `2026-07-20`: updated GitHub CL Gate run `29751886773` passed Product release contracts, Python A1/A2 contracts, A3 dashboard/report/evidence contracts, A3 Next.js and Playwright, Golden Path artifact verification, pinned evidence verification, plan hygiene and the aggregate summary.
+- `2026-07-20`: `M40-05` is complete. The exact rc.3 candidate binding is verified and locally reproducible, while A2 still authoritatively blocks release and all production-only acceptance claims remain false. Current work moves to `M40-06` Customer verification recomputation.
