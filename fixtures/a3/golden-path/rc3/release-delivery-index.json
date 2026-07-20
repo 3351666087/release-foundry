@@ -1,6 +1,6 @@
 {
   "schema_version": "a3.release_delivery_index.v1",
-  "generated_at": "2026-07-20T14:18:41.109Z",
+  "generated_at": "2026-07-20T14:39:32.963Z",
   "release_version": "0.2.0-rc.3",
   "candidate_id": "a3-golden-agent@0.2.0-rc.3",
   "run_id": "a3-golden-20260720-003",
@@ -25,7 +25,7 @@
     "a1_source_commit": "1d292047e991995fdf52f0545ffff410ee19a171",
     "a2_decision_ledger_head_hash": "sha256:af84d7e9e3143f4da06341f2e20f3402c8f44ed5efc8221b18c8ef2869747a4e",
     "a2_grades_hash": "sha256:ffeba9ab8d7a2ccfb26ca8e135448cc9a2e6c8ead5b49837f77e5e73606a5304",
-    "a3_implementation_commit": "cbc66462a419d9441dfb77b602851454893be016",
+    "a3_implementation_commit": "a0b427257c5cd80fbe3394b4a406fa21f50bae37",
     "delivery_status": "blocked_by_a2",
     "production_ready": false
   },

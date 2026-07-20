@@ -1,7 +1,7 @@
 {
   "schema_version": "a3.deployment_acceptance.v1",
-  "acceptance_id": "dpa_4ddbc04ec4cacbe577fb",
-  "generated_at": "2026-07-20T14:18:41.109Z",
+  "acceptance_id": "dpa_c74241b6580608491e55",
+  "generated_at": "2026-07-20T14:39:32.963Z",
   "status": "blocked",
   "production_accepted": false,
   "release_identity": {
@@ -232,7 +232,7 @@
       "required": true,
       "status": "passed",
       "evidence_class": "local_verification",
-      "evidence_ref": "a3-bundle-0-2-0-rc-3-a3-golden-20260720-003-14124e0f7901",
+      "evidence_ref": "a3-bundle-0-2-0-rc-3-a3-golden-20260720-003-60c1e04d61b0",
       "blocked_reason": null,
       "details": {},
       "production_proof": false
@@ -244,7 +244,7 @@
       "required": true,
       "status": "passed",
       "evidence_class": "local_verification",
-      "evidence_ref": "a3-archive-a3-bundle-0-2-0-rc-3-a3-golden-20260720-003-14124e0f79-7865b75ab3bb",
+      "evidence_ref": "a3-archive-a3-bundle-0-2-0-rc-3-a3-golden-20260720-003-60c1e04d61-ec4ea8193d48",
       "blocked_reason": null,
       "details": {},
       "production_proof": false
@@ -256,7 +256,7 @@
       "required": true,
       "status": "passed",
       "evidence_class": "local_verification",
-      "evidence_ref": "b5fe60612aea73c69cee3a70668c533ed1b6b6e8f7fa32d30f8dd6a67adc45b6",
+      "evidence_ref": "bba6e3c6951925f5ed684585630885e91c5818ef99bd3c9a3f45b5fabbff3c59",
       "blocked_reason": null,
       "details": {},
       "production_proof": false

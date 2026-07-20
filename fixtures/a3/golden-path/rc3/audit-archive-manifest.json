@@ -1,8 +1,8 @@
 {
   "schema_version": "a3.audit_archive_manifest.v1",
-  "generated_at": "2026-07-20T14:18:41.109Z",
+  "generated_at": "2026-07-20T14:39:32.963Z",
   "source": "m40-05-rc3-local-candidate-binding",
-  "archive_id": "a3-archive-a3-bundle-0-2-0-rc-3-a3-golden-20260720-003-14124e0f79-7865b75ab3bb",
+  "archive_id": "a3-archive-a3-bundle-0-2-0-rc-3-a3-golden-20260720-003-60c1e04d61-ec4ea8193d48",
   "archive_format": {
     "format": "portable-directory-or-zip-manifest",
     "zip_compatible": true,
@@ -12,8 +12,8 @@
   },
   "archive_file": null,
   "bundle": {
-    "bundle_id": "a3-bundle-0-2-0-rc-3-a3-golden-20260720-003-14124e0f7901",
-    "bundle_root_hash": "7865b75ab3bb1d0aa63690c16526da0c29f246d93ade4d276c4361d451482abd",
+    "bundle_id": "a3-bundle-0-2-0-rc-3-a3-golden-20260720-003-60c1e04d61b0",
+    "bundle_root_hash": "ec4ea8193d484cca35be86f027151e4876109c26f55ad63b2baff2da49b8f40d",
     "bundle_index_file": "fixtures/a3/golden-path/rc3/audit-bundle-index.json",
     "release": {
       "run_id": "a3-golden-20260720-003",
@@ -37,7 +37,7 @@
       "candidate_binding_state": "exact",
       "candidate_binding_verified": true,
       "a2_grades_hash": "sha256:ffeba9ab8d7a2ccfb26ca8e135448cc9a2e6c8ead5b49837f77e5e73606a5304",
-      "a3_implementation_commit": "cbc66462a419d9441dfb77b602851454893be016",
+      "a3_implementation_commit": "a0b427257c5cd80fbe3394b4a406fa21f50bae37",
       "a3_recomputed_a2_decision": false,
       "failed_checks": [
         "a2_release_authority"
@@ -85,7 +85,7 @@
       "archive_role": "bundle_index",
       "content_type": "application/json",
       "required": true,
-      "sha256": "574d9e301bfda444b0a97137b5df849dda2296c9bf2d4cfdd8ffe7582e786339",
+      "sha256": "e90fa0e50436ae679cf8f4910e262fa9ce7df7cdb1c8b9ec4ee7c5d769502897",
       "byte_size": 13930,
       "created_by": "ashr gate audit bundle index",
       "redaction_status": "redacted_or_safe_for_audit",
@@ -97,7 +97,7 @@
       "archive_role": "custody_record",
       "content_type": "application/json",
       "required": true,
-      "sha256": "d14ff2c3713402a6d01f02fea248fc260fdd1d19fd6849112336b17463ba7e6b",
+      "sha256": "1d52f85e95703f49359dd24871a598f3241b1888b8f1b0840b03e0562f3cf666",
       "byte_size": 1831,
       "created_by": "ashr gate output writer",
       "origin": "a3_candidate_binding",
@@ -110,7 +110,7 @@
       "archive_role": "custody_record",
       "content_type": "application/json",
       "required": true,
-      "sha256": "180c14275e1d2e903f185b2374f206aa374728ca982c1233f1facf91ce48f4ff",
+      "sha256": "8a39671fec3d6d6042896387a40e69bf4467096d1710a8f9005645eb9702ce57",
       "byte_size": 1287,
       "created_by": "ashr gate output writer",
       "origin": "a3_candidate_binding",
@@ -123,7 +123,7 @@
       "archive_role": "custody_record",
       "content_type": "application/json",
       "required": false,
-      "sha256": "3627d91691840b2899fd3a235feb17efb8b45df54fff632befc7c19c60135a28",
+      "sha256": "ff3e10ec40cd01621d0965cff321a652901cbfb684fae5776273f4ec084da0cb",
       "byte_size": 4088,
       "created_by": "ashr gate generated artifact manifest",
       "redaction_status": "redacted_or_safe_for_audit",
@@ -135,7 +135,7 @@
       "archive_role": "deployment_record",
       "content_type": "application/json",
       "required": true,
-      "sha256": "5679ad4654bc931b4aa04d2c3f982e93030e7c742682bf3e0a7e9cd4259c16ad",
+      "sha256": "4dc9d1316a2c3ad3e1d979a7b730659f2f077dbb65f14b4a2d1098a88b2be64c",
       "byte_size": 1980,
       "created_by": "A3 deployment acceptance probe reader",
       "origin": "deployment_acceptance_input",
@@ -160,7 +160,7 @@
       "archive_role": "generated_output",
       "content_type": "application/json",
       "required": true,
-      "sha256": "922dbc64f9b43476b9bcef0334086dc36d4193eb296c7722b4978ee024e89364",
+      "sha256": "45cca2323e0f013ca748bbc3802bdd8c3cfe4debe81b4bff408e89701682cbad",
       "byte_size": 21926,
       "created_by": "ashr gate output writer",
       "redaction_status": "redacted_or_safe_for_audit",
@@ -251,18 +251,18 @@
     "raw_private_key_stored": false,
     "dry_run_compatible": true
   },
-  "archive_root_hash": "bc1d6e183f8b9d4bd51795e44765859279892bede6f515b2d3e010be2baa945b",
+  "archive_root_hash": "8479ba7dfc2128e9f486a334c5743d564d4e9b94691ca154f366b88732c72da7",
   "signature": {
     "schema_version": "a3.audit_archive_signature.v1",
     "signature_status": "signed",
     "algorithm": "ed25519",
     "signed_payload": "canonical_archive_manifest_with_archive_root_hash",
-    "signed_payload_sha256": "159d128d670f90d0434093c16f556c21f18227f7a59610e634b494f1518e2d18",
+    "signed_payload_sha256": "493c6955e7681bd946f04d60f88e23c0d5375ab52efd1ba15051f06dcc966b75",
     "signer": {
       "signer_type": "local-a3-gate-cli",
       "identity_binding": "self_signed_local_key_not_sso_bound",
-      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEA9SzZdXCkTrGGY+MTbWLt7Yb/fjgLaTRqUIdqTnv0t8E=\n-----END PUBLIC KEY-----\n"
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAY6MmuUqfNb2EF7+/b3tLGzbux1Y8rhs7bMuxIkpLW60=\n-----END PUBLIC KEY-----\n"
     },
-    "signature_base64": "1k6qAyXcUG+lfnFMfwr+hMOskFlEM3QhOV09Lxom0Qfim0EzdZ+pGu2BEhgaLWl4kYeHsP7rbC4keSCPy3FABA=="
+    "signature_base64": "dH9oxspA1VhV2opoNmtbrb3aEvqYML7K1lPi8fwPc0q9p5Oi7siBd8qKA6vE6ST3bESuwf9cSFqnB0P5Csy0DA=="
   }
 }
