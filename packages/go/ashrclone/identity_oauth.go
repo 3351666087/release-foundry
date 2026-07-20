@@ -38,7 +38,7 @@ func (err *OAuthFlowError) Error() string {
 	return string(err.Code)
 }
 
-type OAuthAuthorizationRequest struct {
+type IdentityOAuthAuthorizationRequest struct {
 	Provider            string
 	Intent              OAuthIntent
 	RedirectURI         string
@@ -55,10 +55,10 @@ type OAuthTokenExchangeRequest struct {
 	PKCEVerifier string
 }
 
-// OAuthProviderIdentity is trusted adapter output. Raw provider identifiers and
+// IdentityOAuthProviderIdentity is trusted adapter output. Raw provider identifiers and
 // contact claims are intentionally excluded from JSON and must never be sent to
 // A3 clients or logs.
-type OAuthProviderIdentity struct {
+type IdentityOAuthProviderIdentity struct {
 	Provider        string `json:"-"`
 	ProviderSubject string `json:"-"`
 	ProviderUnionID string `json:"-"`
@@ -66,9 +66,9 @@ type OAuthProviderIdentity struct {
 	VerifiedPhone   string `json:"-"`
 }
 
-type OAuthProviderAdapter interface {
-	BuildAuthorizationURL(context.Context, OAuthAuthorizationRequest) (string, error)
-	ExchangeAuthorizationCode(context.Context, OAuthTokenExchangeRequest) (OAuthProviderIdentity, error)
+type IdentityOAuthProviderAdapter interface {
+	BuildAuthorizationURL(context.Context, IdentityOAuthAuthorizationRequest) (string, error)
+	ExchangeAuthorizationCode(context.Context, OAuthTokenExchangeRequest) (IdentityOAuthProviderIdentity, error)
 }
 
 type OAuthBeginResult struct {
@@ -86,7 +86,7 @@ type OAuthCompletionResult struct {
 	Provider      string
 	Intent        OAuthIntent
 	AccountID     string
-	Identity      OAuthProviderIdentity
+	Identity      IdentityOAuthProviderIdentity
 }
 
 type OAuthLinkCompletion struct {
@@ -116,14 +116,14 @@ type OAuthFlowCoordinator struct {
 	secret            func() (string, error)
 	stateHMACKey      []byte
 	identity          *IdentityService
-	adapters          map[string]OAuthProviderAdapter
+	adapters          map[string]IdentityOAuthProviderAdapter
 	redirectAllowlist map[string]map[string]struct{}
 	flows             map[string]oauthFlowRecord
 }
 
 func NewOAuthFlowCoordinator(
 	identity *IdentityService,
-	adapters map[string]OAuthProviderAdapter,
+	adapters map[string]IdentityOAuthProviderAdapter,
 	redirectAllowlist map[string][]string,
 ) (*OAuthFlowCoordinator, error) {
 	key := make([]byte, 32)
@@ -135,7 +135,7 @@ func NewOAuthFlowCoordinator(
 
 func newOAuthFlowCoordinatorWithClockAndKey(
 	identity *IdentityService,
-	adapters map[string]OAuthProviderAdapter,
+	adapters map[string]IdentityOAuthProviderAdapter,
 	redirectAllowlist map[string][]string,
 	now func() time.Time,
 	stateHMACKey []byte,
@@ -148,7 +148,7 @@ func newOAuthFlowCoordinatorWithClockAndKey(
 		secret:            identitySecret,
 		stateHMACKey:      append([]byte(nil), stateHMACKey...),
 		identity:          identity,
-		adapters:          map[string]OAuthProviderAdapter{},
+		adapters:          map[string]IdentityOAuthProviderAdapter{},
 		redirectAllowlist: map[string]map[string]struct{}{},
 		flows:             map[string]oauthFlowRecord{},
 	}
@@ -217,7 +217,7 @@ func (coordinator *OAuthFlowCoordinator) Begin(
 	}
 	challengeDigest := sha256.Sum256([]byte(verifier))
 	codeChallenge := base64.RawURLEncoding.EncodeToString(challengeDigest[:])
-	authorizationURL, err := adapter.BuildAuthorizationURL(ctx, OAuthAuthorizationRequest{
+	authorizationURL, err := adapter.BuildAuthorizationURL(ctx, IdentityOAuthAuthorizationRequest{
 		Provider:            provider,
 		Intent:              intent,
 		RedirectURI:         redirectURI,

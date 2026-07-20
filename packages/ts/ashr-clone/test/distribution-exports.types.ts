@@ -18,6 +18,7 @@ import { datasetSourceToCases } from "@ashr-clone/sdk/dataset-adapter";
 import { identityDeliveryProtocolContractManifest } from "@ashr-clone/sdk/delivery-protocol";
 import { buildPrivateEvidenceIndex } from "@ashr-clone/sdk/evidence";
 import { GitHubOAuthHttpClient } from "@ashr-clone/sdk/github-oauth";
+import { IdentityClient } from "@ashr-clone/sdk/identity-client";
 import { buildAuthorizationEnvelope } from "@ashr-clone/sdk/oauth";
 import { ProviderDispatchClient } from "@ashr-clone/sdk/provider-dispatch";
 import { stable_id } from "@ashr-clone/sdk/python-parity";
@@ -46,6 +47,7 @@ export const typedDistributionImports: readonly unknown[] = [
   identityDeliveryProtocolContractManifest,
   buildPrivateEvidenceIndex,
   GitHubOAuthHttpClient,
+  IdentityClient,
   buildAuthorizationEnvelope,
   ProviderDispatchClient,
   stable_id,

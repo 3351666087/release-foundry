@@ -11,14 +11,14 @@ import (
 )
 
 type oauthAdapterStub struct {
-	authorizationRequest OAuthAuthorizationRequest
+	authorizationRequest IdentityOAuthAuthorizationRequest
 	exchangeRequest      OAuthTokenExchangeRequest
-	identity             OAuthProviderIdentity
+	identity             IdentityOAuthProviderIdentity
 	authorizationErr     error
 	exchangeErr          error
 }
 
-func (adapter *oauthAdapterStub) BuildAuthorizationURL(_ context.Context, request OAuthAuthorizationRequest) (string, error) {
+func (adapter *oauthAdapterStub) BuildAuthorizationURL(_ context.Context, request IdentityOAuthAuthorizationRequest) (string, error) {
 	adapter.authorizationRequest = request
 	if adapter.authorizationErr != nil {
 		return "", adapter.authorizationErr
@@ -32,10 +32,10 @@ func (adapter *oauthAdapterStub) BuildAuthorizationURL(_ context.Context, reques
 	return "https://provider.example/authorize?" + values.Encode(), nil
 }
 
-func (adapter *oauthAdapterStub) ExchangeAuthorizationCode(_ context.Context, request OAuthTokenExchangeRequest) (OAuthProviderIdentity, error) {
+func (adapter *oauthAdapterStub) ExchangeAuthorizationCode(_ context.Context, request OAuthTokenExchangeRequest) (IdentityOAuthProviderIdentity, error) {
 	adapter.exchangeRequest = request
 	if adapter.exchangeErr != nil {
-		return OAuthProviderIdentity{}, adapter.exchangeErr
+		return IdentityOAuthProviderIdentity{}, adapter.exchangeErr
 	}
 	return adapter.identity, nil
 }
@@ -44,7 +44,7 @@ func newOAuthCoordinatorForTest(
 	t *testing.T,
 	now func() time.Time,
 	identity *IdentityService,
-	adapters map[string]OAuthProviderAdapter,
+	adapters map[string]IdentityOAuthProviderAdapter,
 	redirects map[string][]string,
 ) *OAuthFlowCoordinator {
 	t.Helper()
@@ -65,7 +65,7 @@ func TestOAuthFlowRequiresExactRedirectStateAndPKCE(t *testing.T) {
 	now := time.Date(2026, 7, 14, 0, 0, 0, 0, time.UTC)
 	identity := NewIdentityServiceWithClock(func() time.Time { return now })
 	account := registerIdentityAccount(t, identity, "owner@qq.com")
-	adapter := &oauthAdapterStub{identity: OAuthProviderIdentity{
+	adapter := &oauthAdapterStub{identity: IdentityOAuthProviderIdentity{
 		Provider:        "qq",
 		ProviderSubject: "qq-private-subject",
 	}}
@@ -73,7 +73,7 @@ func TestOAuthFlowRequiresExactRedirectStateAndPKCE(t *testing.T) {
 		t,
 		func() time.Time { return now },
 		identity,
-		map[string]OAuthProviderAdapter{"qq": adapter},
+		map[string]IdentityOAuthProviderAdapter{"qq": adapter},
 		map[string][]string{"qq": {"https://console.ashr.example/oauth/callback"}},
 	)
 
@@ -161,7 +161,7 @@ func TestOAuthExchangeFailureIsSanitizedAndConsumesFlow(t *testing.T) {
 		t,
 		func() time.Time { return now },
 		identity,
-		map[string]OAuthProviderAdapter{"wechat_open": adapter},
+		map[string]IdentityOAuthProviderAdapter{"wechat_open": adapter},
 		map[string][]string{"wechat_open": {"https://console.ashr.example/oauth/callback"}},
 	)
 	begin, err := coordinator.Begin(
@@ -201,7 +201,7 @@ func TestOAuthLinkIssuesOnlyOpaqueAccountBoundBindingTicket(t *testing.T) {
 	identity := NewIdentityServiceWithClock(func() time.Time { return now })
 	first := registerIdentityAccount(t, identity, "first@163.com")
 	second := registerIdentityAccount(t, identity, "second@126.com")
-	adapter := &oauthAdapterStub{identity: OAuthProviderIdentity{
+	adapter := &oauthAdapterStub{identity: IdentityOAuthProviderIdentity{
 		Provider:        "wechat_open",
 		ProviderSubject: "wechat-private-subject",
 		ProviderUnionID: "wechat-private-union",
@@ -211,7 +211,7 @@ func TestOAuthLinkIssuesOnlyOpaqueAccountBoundBindingTicket(t *testing.T) {
 		t,
 		func() time.Time { return now },
 		identity,
-		map[string]OAuthProviderAdapter{"wechat_open": adapter},
+		map[string]IdentityOAuthProviderAdapter{"wechat_open": adapter},
 		map[string][]string{"wechat_open": {"https://console.ashr.example/oauth/callback"}},
 	)
 	begin, err := coordinator.Begin(
@@ -277,13 +277,13 @@ func TestOAuthLinkIssuesOnlyOpaqueAccountBoundBindingTicket(t *testing.T) {
 func TestOAuthRegistrationAndLoginIntentsDoNotMutateCanonicalAccounts(t *testing.T) {
 	now := time.Date(2026, 7, 14, 0, 0, 0, 0, time.UTC)
 	identity := NewIdentityServiceWithClock(func() time.Time { return now })
-	adapters := map[string]OAuthProviderAdapter{
-		"qq": &oauthAdapterStub{identity: OAuthProviderIdentity{
+	adapters := map[string]IdentityOAuthProviderAdapter{
+		"qq": &oauthAdapterStub{identity: IdentityOAuthProviderIdentity{
 			Provider:        "qq",
 			ProviderSubject: "qq-registration-subject",
 			VerifiedEmail:   "owner@163.com",
 		}},
-		"wechat_open": &oauthAdapterStub{identity: OAuthProviderIdentity{
+		"wechat_open": &oauthAdapterStub{identity: IdentityOAuthProviderIdentity{
 			Provider:        "wechat_open",
 			ProviderSubject: "wechat-login-subject",
 		}},
@@ -336,14 +336,14 @@ func TestOAuthFlowExpiresAndRejectsUnsafeRedirectSchemes(t *testing.T) {
 	identity := NewIdentityServiceWithClock(func() time.Time { return now })
 	if _, err := newOAuthFlowCoordinatorWithClockAndKey(
 		identity,
-		map[string]OAuthProviderAdapter{"qq": &oauthAdapterStub{}},
+		map[string]IdentityOAuthProviderAdapter{"qq": &oauthAdapterStub{}},
 		map[string][]string{"qq": {"http://console.ashr.example/oauth/callback"}},
 		func() time.Time { return now },
 		[]byte("0123456789abcdef0123456789abcdef"),
 	); err == nil {
 		t.Fatal("non-loopback HTTP redirect must be rejected even when configured")
 	}
-	adapter := &oauthAdapterStub{identity: OAuthProviderIdentity{
+	adapter := &oauthAdapterStub{identity: IdentityOAuthProviderIdentity{
 		Provider:        "qq",
 		ProviderSubject: "qq-private-subject",
 	}}
@@ -351,7 +351,7 @@ func TestOAuthFlowExpiresAndRejectsUnsafeRedirectSchemes(t *testing.T) {
 		t,
 		func() time.Time { return now },
 		identity,
-		map[string]OAuthProviderAdapter{"qq": adapter},
+		map[string]IdentityOAuthProviderAdapter{"qq": adapter},
 		map[string][]string{"qq": {"http://127.0.0.1:3000/oauth/callback"}},
 	)
 	begin, err := coordinator.Begin(

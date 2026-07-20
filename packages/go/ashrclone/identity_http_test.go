@@ -376,7 +376,7 @@ func TestIdentityHTTPOAuthRegistrationAndLoginPreserveIntentAndSafeClaims(t *tes
 	identity := NewIdentityServiceWithClock(func() time.Time { return now })
 	delivery := &identityDeliveryCapture{}
 	audit := &identityAuditCapture{}
-	adapter := &oauthAdapterStub{identity: OAuthProviderIdentity{
+	adapter := &oauthAdapterStub{identity: IdentityOAuthProviderIdentity{
 		Provider:        "qq",
 		ProviderSubject: "qq-private-registration-subject",
 		ProviderUnionID: "qq-private-union",
@@ -387,7 +387,7 @@ func TestIdentityHTTPOAuthRegistrationAndLoginPreserveIntentAndSafeClaims(t *tes
 		t,
 		func() time.Time { return now },
 		identity,
-		map[string]OAuthProviderAdapter{"qq": adapter},
+		map[string]IdentityOAuthProviderAdapter{"qq": adapter},
 		map[string][]string{"qq": {"https://console.ashr.example/oauth/callback"}},
 	)
 	server := newIdentityHTTPTestServerWithOAuth(t, identity, delivery, audit, nil, coordinator)
@@ -485,7 +485,7 @@ func TestIdentityHTTPOAuthLoginNeverAutoLinksMatchingEmailAndMFAIsDelivered(t *t
 	identity := NewIdentityService()
 	delivery := &identityDeliveryCapture{}
 	existing := registerIdentityAccount(t, identity, "existing@163.com")
-	adapter := &oauthAdapterStub{identity: OAuthProviderIdentity{
+	adapter := &oauthAdapterStub{identity: IdentityOAuthProviderIdentity{
 		Provider:        "wechat_open",
 		ProviderSubject: "unknown-wechat-subject",
 		VerifiedEmail:   existing.PrimaryEmail,
@@ -494,7 +494,7 @@ func TestIdentityHTTPOAuthLoginNeverAutoLinksMatchingEmailAndMFAIsDelivered(t *t
 		t,
 		time.Now,
 		identity,
-		map[string]OAuthProviderAdapter{"wechat_open": adapter},
+		map[string]IdentityOAuthProviderAdapter{"wechat_open": adapter},
 		map[string][]string{"wechat_open": {"https://console.ashr.example/oauth/callback"}},
 	)
 	server := newIdentityHTTPTestServerWithOAuth(t, identity, delivery, nil, nil, coordinator)
@@ -545,7 +545,7 @@ func TestIdentityHTTPOAuthLoginNeverAutoLinksMatchingEmailAndMFAIsDelivered(t *t
 	if _, err := identity.EnableTwoFactor(existing.AccountID, []string{"totp"}); err != nil {
 		t.Fatal(err)
 	}
-	adapter.identity = OAuthProviderIdentity{
+	adapter.identity = IdentityOAuthProviderIdentity{
 		Provider:        "wechat_open",
 		ProviderSubject: "bound-wechat-subject",
 	}
@@ -594,7 +594,7 @@ func TestIdentityHTTPOAuthLinkRequiresFreshSessionAndEmitsOpaqueTicketOnce(t *te
 		SessionID:    authResult.SessionID,
 		SessionToken: authResult.SessionToken,
 	}
-	adapter := &oauthAdapterStub{identity: OAuthProviderIdentity{
+	adapter := &oauthAdapterStub{identity: IdentityOAuthProviderIdentity{
 		Provider:        "wechat_open",
 		ProviderSubject: "wechat-link-private-subject",
 		ProviderUnionID: "wechat-link-private-union",
@@ -604,7 +604,7 @@ func TestIdentityHTTPOAuthLinkRequiresFreshSessionAndEmitsOpaqueTicketOnce(t *te
 		t,
 		func() time.Time { return now },
 		identity,
-		map[string]OAuthProviderAdapter{"wechat_open": adapter},
+		map[string]IdentityOAuthProviderAdapter{"wechat_open": adapter},
 		map[string][]string{"wechat_open": {"https://console.ashr.example/oauth/callback"}},
 	)
 	server := newIdentityHTTPTestServerWithOAuth(t, identity, delivery, nil, nil, coordinator)
@@ -693,7 +693,7 @@ func TestIdentityHTTPOAuthFailsClosedAndStrictlyValidatesRequests(t *testing.T) 
 		t,
 		time.Now,
 		identity,
-		map[string]OAuthProviderAdapter{"qq": adapter},
+		map[string]IdentityOAuthProviderAdapter{"qq": adapter},
 		map[string][]string{"qq": {"https://console.ashr.example/oauth/callback"}},
 	)
 	configured := newIdentityHTTPTestServerWithOAuth(t, identity, &identityDeliveryCapture{}, nil, nil, coordinator)
@@ -752,7 +752,7 @@ func TestIdentityHTTPOAuthFailsClosedAndStrictlyValidatesRequests(t *testing.T) 
 
 func TestIdentityHTTPOAuthWrongStateDoesNotConsumeFlowAndMetadataIsIntentScoped(t *testing.T) {
 	identity := NewIdentityService()
-	adapter := &oauthAdapterStub{identity: OAuthProviderIdentity{
+	adapter := &oauthAdapterStub{identity: IdentityOAuthProviderIdentity{
 		Provider:        "qq",
 		ProviderSubject: "unknown-login-subject",
 	}}
@@ -760,7 +760,7 @@ func TestIdentityHTTPOAuthWrongStateDoesNotConsumeFlowAndMetadataIsIntentScoped(
 		t,
 		time.Now,
 		identity,
-		map[string]OAuthProviderAdapter{"qq": adapter},
+		map[string]IdentityOAuthProviderAdapter{"qq": adapter},
 		map[string][]string{"qq": {"https://console.ashr.example/oauth/callback"}},
 	)
 	server := newIdentityHTTPTestServerWithOAuth(t, identity, &identityDeliveryCapture{}, nil, nil, coordinator)
@@ -828,7 +828,7 @@ func TestIdentityHTTPOAuthCoordinatorIdentityMismatchFailsClosed(t *testing.T) {
 		t,
 		time.Now,
 		coordinatorIdentity,
-		map[string]OAuthProviderAdapter{"qq": adapter},
+		map[string]IdentityOAuthProviderAdapter{"qq": adapter},
 		map[string][]string{"qq": {"https://console.ashr.example/oauth/callback"}},
 	)
 	server := newIdentityHTTPTestServerWithOAuth(

@@ -361,7 +361,7 @@ func (service *IdentityService) CompleteEmailLogin(challengeID, secret string) (
 // verified email. Existing email or provider bindings are conflicts, never
 // implicit login/link/merge signals.
 func (service *IdentityService) RegisterOAuthIdentity(
-	identity OAuthProviderIdentity,
+	identity IdentityOAuthProviderIdentity,
 	displayName string,
 	locale string,
 	region string,
@@ -421,7 +421,7 @@ func (service *IdentityService) RegisterOAuthIdentity(
 
 // CompleteOAuthLogin authenticates only an already-bound provider subject.
 // Verified email claims are intentionally ignored for account resolution.
-func (service *IdentityService) CompleteOAuthLogin(identity OAuthProviderIdentity) (LoginResult, error) {
+func (service *IdentityService) CompleteOAuthLogin(identity IdentityOAuthProviderIdentity) (LoginResult, error) {
 	provider := strings.ToLower(strings.TrimSpace(identity.Provider))
 	subject := strings.TrimSpace(identity.ProviderSubject)
 	if !providerSupportsLogin(provider) || subject == "" {

@@ -8,6 +8,7 @@ import pytest
 
 from packages.sdk.ashr_clone.provider_journal import (
     PROVIDER_MODALITIES,
+    ProviderJournalStateError,
     ProviderRequestIdentity,
     ProviderRequestJournal,
 )
@@ -151,13 +152,14 @@ def test_partial_stream_consumption_blocks_retry_and_retry_reconciliation(tmp_pa
     indeterminate = journal.get(entry_id, now="2026-07-12T00:00:02Z")
     assert indeterminate["state"] == "indeterminate"
     assert indeterminate["stream_observed"] is True
-    reconciled = journal.reconcile(
-        entry_id,
-        outcome="reserved",
-        reason="unsafe automatic replay",
-        now="2026-07-12T00:00:03Z",
-    )
-    assert reconciled["state"] == "indeterminate"
+    with pytest.raises(ProviderJournalStateError, match="partial-stream"):
+        journal.reconcile(
+            entry_id,
+            outcome="reserved",
+            reason="unsafe automatic replay",
+            now="2026-07-12T00:00:03Z",
+        )
+    assert journal.get(entry_id)["state"] == "indeterminate"
 
 
 def test_reconciled_retry_increments_fence_and_rejects_old_owner(tmp_path: Path):

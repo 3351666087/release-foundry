@@ -31,6 +31,18 @@ const messages = [{
   ],
 }];
 
+async function waitForState(journal, expected, timeoutMs = 2_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const entry = journal.list()[0];
+    if (entry?.state === expected) {
+      return entry;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  assert.fail(`journal did not reach ${expected} within ${timeoutMs}ms`);
+}
+
 test("journal persists only safe five-modality evidence and replays success after restart", async () => {
   const temp = mkdtempSync(join(tmpdir(), "ashr-provider-journal-"));
   const path = join(temp, "journal.json");
@@ -258,9 +270,7 @@ test("expired lease is fenced to indeterminate and explicit reconcile permits re
         return { finishReason: "stop" };
       },
     });
-    await new Promise((resolve) => setTimeout(resolve, 10));
-    const running = journal.list()[0];
-    assert.equal(running.state, "in_flight");
+    const running = await waitForState(journal, "in_flight");
     assert.equal(running.fencing_token, 1);
     assert.equal(running.lease_owner_sha256.length, 64);
 

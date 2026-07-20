@@ -34,6 +34,7 @@ const runtimeMarkers = {
   "delivery-protocol": "identityDeliveryProtocolContractManifest",
   evidence: "buildPrivateEvidenceIndex",
   "github-oauth": "GitHubOAuthHttpClient",
+  "identity-client": "IdentityClient",
   oauth: "buildAuthorizationEnvelope",
   "provider-adapter": "ModelProviderAdapter",
   "provider-dispatch": "ProviderDispatchClient",

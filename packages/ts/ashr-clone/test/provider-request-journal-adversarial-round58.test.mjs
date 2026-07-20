@@ -8,6 +8,7 @@ import {
   PROVIDER_REQUEST_JOURNAL_SCHEMA_VERSION,
   ProviderRequestJournal,
   ProviderRequestJournalError,
+  ProviderStreamLedger,
   providerRequestFingerprint,
   requestModalityEvidence,
 } from "../dist/index.js";
@@ -54,6 +55,18 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
+async function waitFor(predicate, description, timeoutMs = 2_000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const value = predicate();
+    if (value) {
+      return value;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 10));
+  }
+  assert.fail(`${description} was not observed within ${timeoutMs}ms`);
+}
+
 function runningSnapshot({
   requestMessages = messages,
   requestScope = scope,
@@ -61,7 +74,8 @@ function runningSnapshot({
   fencingToken = 7,
 } = {}) {
   const requestFingerprint = providerRequestFingerprint(requestScope, requestMessages);
-  const journalKey = "round58-seeded-journal-key";
+  const journalKey = "a".repeat(64);
+  const partEvidence = requestModalityEvidence(requestMessages);
   return {
     journalKey,
     snapshot: {
@@ -69,25 +83,45 @@ function runningSnapshot({
       entries: {
         [journalKey]: {
           schema_version: PROVIDER_REQUEST_JOURNAL_SCHEMA_VERSION,
-          journal_key: journalKey,
-          scope_fingerprint: "round58-seeded-scope",
+          entry_id: journalKey,
+          scope_fingerprint: "b".repeat(64),
           request_fingerprint: requestFingerprint,
-          idempotency_key_sha256: "round58-seeded-key-hash",
-          state: "running",
-          attempts: 1,
+          idempotency_fingerprint: "c".repeat(64),
+          request_evidence: {
+            modality_counts: { text: 1, image: 1, audio: 1, file: 1, video: 1 },
+            modalities_present: ["text", "image", "audio", "file", "video"],
+            raw_prompt_persisted: false,
+            raw_media_persisted: false,
+            raw_url_persisted: false,
+            raw_credential_persisted: false,
+          },
+          state: "in_flight",
+          attempt_count: 1,
           max_attempts: 3,
           created_at: "2026-07-12T00:00:00.000Z",
           updated_at: "2026-07-12T00:00:00.000Z",
           next_retry_at: null,
-          lease_owner_sha256: "round58-owner-hash",
+          lease_owner_fingerprint: "d".repeat(64),
           lease_expires_at: leaseExpiresAt,
           fencing_token: fencingToken,
           stream_observed: false,
-          modality_evidence: requestModalityEvidence(requestMessages),
+          stream_snapshot: null,
+          part_evidence: partEvidence,
           usage_evidence: null,
           completion_evidence: null,
           error_evidence: null,
           recovery_count: 0,
+          persistence_capabilities: {
+            storage_kind: "local_json_file",
+            restart_persistent: true,
+            atomic_replace: true,
+            same_process_identity_claim: true,
+            cross_process_lock: false,
+            multi_process_safe: false,
+            multi_host_safe: false,
+            power_loss_durability_proven: false,
+            crash_recovery: "in_flight_to_indeterminate",
+          },
         },
       },
     },
@@ -119,9 +153,9 @@ test("stale lease fails closed without executing a second provider request", asy
   const temp = mkdtempSync(join(tmpdir(), "ashr-round58-stale-"));
   const path = join(temp, "journal.json");
   let now = new Date("2026-07-12T00:00:00.000Z");
+  const release = deferred();
   try {
     const journal = await ProviderRequestJournal.open(path, { clock: () => now });
-    const release = deferred();
     const active = journal.run({
       scope,
       idempotencyKey: "round58-stale-key",
@@ -133,8 +167,13 @@ test("stale lease fails closed without executing a second provider request", asy
         return { finishReason: "stop" };
       },
     });
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await waitFor(() => journal.list()[0]?.state === "in_flight", "in-flight journal state");
     now = new Date("2026-07-12T00:00:02.000Z");
+    release.resolve();
+    await assert.rejects(
+      active,
+      (error) => error instanceof ProviderRequestJournalError && error.code === "indeterminate",
+    );
     let secondExecutions = 0;
     await assert.rejects(
       journal.run({
@@ -152,12 +191,8 @@ test("stale lease fails closed without executing a second provider request", asy
     assert.equal(secondExecutions, 0);
     assert.equal(journal.list()[0].state, "indeterminate");
     assert.equal(journal.list()[0].error_evidence.kind, "stale_claim");
-    release.resolve();
-    await assert.rejects(
-      active,
-      (error) => error instanceof ProviderRequestJournalError && error.code === "indeterminate",
-    );
   } finally {
+    release.resolve();
     rmSync(temp, { recursive: true, force: true });
   }
 });
@@ -174,9 +209,14 @@ test("partial stream consumption blocks retry and retry reconciliation", async (
         idempotencyKey: "round58-stream-key",
         messages,
         maxAttempts: 5,
-        execute: async ({ markStreamObserved }) => {
+        execute: async ({ markStreamObserved, journalKey, fencingToken }) => {
           attempts += 1;
-          await markStreamObserved();
+          const stream = new ProviderStreamLedger(undefined, {
+            entry_id: journalKey,
+            fencing_token: fencingToken,
+          });
+          stream.observe(0, "delta", "ROUND58_STREAMED_SECRET_OUTPUT");
+          await markStreamObserved(stream.snapshot());
           const error = new Error("ROUND58_STREAMED_SECRET_OUTPUT");
           error.retryable = true;
           throw error;
@@ -302,19 +342,22 @@ test("same-process concurrent claim executes exactly one owner", async () => {
         return { finishReason: "second" };
       },
     });
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await waitFor(() => executions === 1, "single provider execution");
     const observedExecutions = executions;
     release.resolve();
     const settled = await Promise.allSettled([first, second]);
     assert.equal(observedExecutions, 1);
-    assert.equal(settled.filter((item) => item.status === "fulfilled").length, 1);
+    assert.equal(settled.filter((item) => item.status === "fulfilled").length, 2);
+    const results = settled.map((item) => item.value);
+    assert.equal(results.filter((item) => item.executed).length, 1);
+    assert.equal(results.filter((item) => item.replayed).length, 1);
   } finally {
     release.resolve();
     rmSync(temp, { recursive: true, force: true });
   }
 });
 
-test("late completion with an obsolete fencing token cannot overwrite a newer owner", async () => {
+test("expired completion is fenced before a reconciled owner receives the next token", async () => {
   const temp = mkdtempSync(join(tmpdir(), "ashr-round58-fencing-"));
   const path = join(temp, "journal.json");
   const firstRelease = deferred();
@@ -333,19 +376,15 @@ test("late completion with an obsolete fencing token cannot overwrite a newer ow
         return { finishReason: "obsolete-owner" };
       },
     });
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await waitFor(() => journal.list()[0]?.state === "in_flight", "in-flight journal state");
     now = new Date("2026-07-12T00:00:02.000Z");
+    firstRelease.resolve();
     await assert.rejects(
-      journal.run({
-        scope,
-        idempotencyKey: "round58-fencing-key",
-        messages,
-        leaseOwner: "worker-b",
-        execute: async () => ({ finishReason: "must-not-run-before-reconcile" }),
-      }),
+      first,
       (error) => error instanceof ProviderRequestJournalError && error.code === "indeterminate",
     );
     const indeterminate = journal.list()[0];
+    assert.equal(indeterminate.error_evidence.kind, "stale_claim");
     await journal.reconcile(indeterminate.journal_key, {
       outcome: "retry",
       reason: "provider confirms worker-a request was not accepted",
@@ -361,11 +400,6 @@ test("late completion with an obsolete fencing token cannot overwrite a newer ow
       },
     });
     assert.equal(second.entry.completion_evidence.finish_reason, "current-owner");
-    firstRelease.resolve();
-    await assert.rejects(
-      first,
-      (error) => error instanceof ProviderRequestJournalError && error.code === "indeterminate",
-    );
     assert.equal(journal.list()[0].completion_evidence.finish_reason, "current-owner");
   } finally {
     firstRelease.resolve();

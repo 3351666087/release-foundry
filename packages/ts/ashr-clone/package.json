@@ -72,6 +72,10 @@
       "types": "./dist/github-oauth.d.ts",
       "import": "./dist/github-oauth.js"
     },
+    "./identity-client": {
+      "types": "./dist/identity-client.d.ts",
+      "import": "./dist/identity-client.js"
+    },
     "./oauth": {
       "types": "./dist/oauth.d.ts",
       "import": "./dist/oauth.js"
