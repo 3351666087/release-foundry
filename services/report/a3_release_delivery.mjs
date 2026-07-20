@@ -268,8 +268,8 @@ export function buildReleaseArtifactManifest(input = {}, options = {}) {
     },
     compatibility: {
       a1: ["ashr.clone.run_result.v1", "a1.run_fixture.v1"],
-      a2: ["a2.grade_results.v1", "a2.trusted_spine_handoff.v1", "a2.decision_ledger.v1"],
-      a3: [A3_DEPLOYMENT_ACCEPTANCE_SCHEMA_VERSION, A3_DELIVERY_GOLDEN_PATH_SCHEMA_VERSION],
+      a2: ["a2.grade_results.v1", "a2.trusted_spine_handoff.v1", "a2.candidate_trusted_spine.v1", "a2.decision_ledger.v1"],
+      a3: [A3_DEPLOYMENT_ACCEPTANCE_SCHEMA_VERSION, A3_DELIVERY_GOLDEN_PATH_SCHEMA_VERSION, "a3.candidate_delivery_binding.v1"],
       required_scope: ["organization_id", "tenant_id", "workspace_id", "project_id", "environment_id"]
     },
     artifact_set: {

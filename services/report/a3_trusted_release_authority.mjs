@@ -9,6 +9,9 @@ const A2_SCOPE_FIELDS = Object.freeze([
 ]);
 const A2_GENESIS_HASH = `sha256:${"0".repeat(64)}`;
 const A2_VALID_DECISIONS = new Set(["allow", "block", "review"]);
+const A2_VALID_COMPLETENESS = new Set(["complete", "partial", "evidence_missing", "invalid"]);
+const A2_LEGACY_SPINE_SCHEMA = "a2.trusted_spine_handoff.v1";
+const A2_CANDIDATE_SPINE_SCHEMA = "a2.candidate_trusted_spine.v1";
 
 export function evaluateA2TrustedReleaseAuthority(spine = {}, options = {}) {
   const integrity = verifyA2TrustedSpine(spine, options);
@@ -89,25 +92,38 @@ export function evaluateA2TrustedReleaseAuthority(spine = {}, options = {}) {
 export function verifyA2TrustedSpine(spine = {}, options = {}) {
   const integrityBlockers = [];
   const add = (reason) => integrityBlockers.push(reason);
-  const evidence = objectOr(spine.evidence_snapshot);
+  const legacySpine = spine.schema_version === A2_LEGACY_SPINE_SCHEMA;
+  const candidateSpine = spine.schema_version === A2_CANDIDATE_SPINE_SCHEMA;
+  const evidenceSnapshots = candidateSpine
+    ? arrayOf(spine.evidence_snapshots).map(objectOr)
+    : [objectOr(spine.evidence_snapshot)];
   const ledger = objectOr(spine.decision_ledger);
   const records = Array.isArray(ledger.records) ? ledger.records.map(objectOr) : [];
   const latestRecord = records.at(-1) || {};
   const expectedScope = normalizeExpectedScope(options.expectedScope || options.scope || {});
 
-  if (spine.schema_version !== "a2.trusted_spine_handoff.v1") add("trusted_spine_missing");
-  if (evidence.schema_version !== "a2.evidence_snapshot.v1") add("evidence_snapshot_missing");
-  if (!scopeComplete(evidence)) add("evidence_scope_incomplete");
-  if (scopeComplete(expectedScope) && !scopesEqual(evidence, expectedScope)) add("evidence_scope_mismatch");
-  if (evidence.snapshot_id !== hashWithout(evidence, ["snapshot_id", "snapshot_hash"])) add("evidence_snapshot_id_invalid");
-  if (evidence.snapshot_hash !== hashWithout(evidence, ["snapshot_hash"])) add("evidence_snapshot_hash_invalid");
-  if (evidence.completeness !== "complete" || evidence.security?.scope_complete !== true) add("evidence_incomplete");
-  if (
-    evidence.security?.secrets_included === true
-    || evidence.security?.raw_evidence_included === true
-    || evidence.security?.private_evidence_included === true
-    || evidence.security?.artifact_content_included === true
-  ) add("evidence_not_public_safe");
+  if (!legacySpine && !candidateSpine) add("trusted_spine_missing");
+  if (!evidenceSnapshots.length || evidenceSnapshots.some((item) => !Object.keys(item).length)) {
+    add("evidence_snapshot_missing");
+  }
+  evidenceSnapshots.forEach((evidence, index) => {
+    const suffix = candidateSpine ? `:${index}` : "";
+    if (evidence.schema_version !== "a2.evidence_snapshot.v1") add(`evidence_snapshot_missing${suffix}`);
+    if (!scopeComplete(evidence)) add(`evidence_scope_incomplete${suffix}`);
+    if (scopeComplete(expectedScope) && !scopesEqual(evidence, expectedScope)) add(`evidence_scope_mismatch${suffix}`);
+    if (evidence.snapshot_id !== hashWithout(evidence, ["snapshot_id", "snapshot_hash"])) add(`evidence_snapshot_id_invalid${suffix}`);
+    if (evidence.snapshot_hash !== hashWithout(evidence, ["snapshot_hash"])) add(`evidence_snapshot_hash_invalid${suffix}`);
+    if (!A2_VALID_COMPLETENESS.has(evidence.completeness) || evidence.security?.scope_complete !== true) {
+      add(`evidence_contract_invalid${suffix}`);
+    }
+    if (legacySpine && evidence.completeness !== "complete") add("evidence_incomplete");
+    if (
+      evidence.security?.secrets_included === true
+      || evidence.security?.raw_evidence_included === true
+      || evidence.security?.private_evidence_included === true
+      || evidence.security?.artifact_content_included === true
+    ) add(`evidence_not_public_safe${suffix}`);
+  });
 
   if (ledger.schema_version !== "a2.decision_ledger.v1") add("decision_ledger_missing");
   if (!scopeComplete(ledger)) add("decision_ledger_scope_incomplete");
@@ -130,19 +146,40 @@ export function verifyA2TrustedSpine(spine = {}, options = {}) {
     if (record.record_hash !== hashWithout(record, ["record_hash"])) add(`decision_record_hash_invalid:${index}`);
     if (!A2_VALID_DECISIONS.has(record.decision)) add(`decision_value_invalid:${index}`);
     if (record.public_safe !== true) add(`decision_record_not_public_safe:${index}`);
+    const linkedEvidence = evidenceSnapshots.find((item) => (
+      item.snapshot_id === record.evidence_snapshot_id
+      && item.snapshot_hash === record.evidence_snapshot_hash
+    ));
+    if (!linkedEvidence) {
+      add(`evidence_snapshot_mismatch:${index}`);
+    } else {
+      for (const field of ["run_id", "case_id", "scenario_id"]) {
+        if (String(record[field] || "") !== String(linkedEvidence[field] || "")) add(`evidence_${field}_mismatch:${index}`);
+      }
+      if (record.evidence_completeness !== linkedEvidence.completeness) add(`evidence_completeness_mismatch:${index}`);
+      if (record.decision === "allow" && linkedEvidence.completeness !== "complete") add(`allow_with_incomplete_evidence:${index}`);
+    }
     previousHash = typeof record.record_hash === "string" ? record.record_hash : "";
   });
 
   if (ledger.head_hash !== previousHash) add("decision_ledger_head_invalid");
   if (ledger.ledger_hash !== hashWithout(ledger, ["ledger_hash"])) add("decision_ledger_hash_invalid");
 
-  if (latestRecord.evidence_snapshot_id !== evidence.snapshot_id || latestRecord.evidence_snapshot_hash !== evidence.snapshot_hash) {
-    add("evidence_snapshot_mismatch");
+  const evidence = evidenceSnapshots.find((item) => (
+    item.snapshot_id === latestRecord.evidence_snapshot_id
+    && item.snapshot_hash === latestRecord.evidence_snapshot_hash
+  )) || evidenceSnapshots.at(-1) || {};
+
+  if (candidateSpine) {
+    const binding = objectOr(spine.candidate_binding);
+    if (!binding.candidate_id || !binding.run_id || !binding.evidence_release_version) add("candidate_binding_incomplete");
+    if (binding.run_id && evidenceSnapshots.some((item) => item.run_id !== binding.run_id)) add("candidate_run_id_mismatch");
+    if (binding.run_id && records.some((item) => item.run_id !== binding.run_id)) add("candidate_ledger_run_id_mismatch");
+    if (!/^sha256:[0-9a-f]{64}$/.test(String(binding.a1_evidence_bundle_hash || ""))) add("candidate_a1_evidence_hash_invalid");
+    if (!/^[0-9a-f]{40}$/.test(String(binding.a1_source_commit || ""))) add("candidate_a1_source_commit_invalid");
+    if (!/^[0-9a-f]{40}$/.test(String(binding.a2_authority_commit || ""))) add("candidate_a2_authority_commit_invalid");
+    if (!/^sha256:[0-9a-f]{64}$/.test(String(spine.grade_results?.hash || ""))) add("candidate_grades_hash_invalid");
   }
-  for (const field of ["run_id", "case_id", "scenario_id"]) {
-    if (String(latestRecord[field] || "") !== String(evidence[field] || "")) add(`evidence_${field}_mismatch`);
-  }
-  if (latestRecord.evidence_completeness !== evidence.completeness) add("evidence_completeness_mismatch");
 
   const consumption = objectOr(spine.a3_consumption);
   if (consumption.decision_record_required !== true || consumption.may_recompute_grade !== false) {
@@ -159,8 +196,10 @@ export function verifyA2TrustedSpine(spine = {}, options = {}) {
     integrity_verified: uniqueBlockers.length === 0,
     integrity_blockers: uniqueBlockers,
     evidence,
+    evidence_snapshots: evidenceSnapshots,
     ledger,
-    latest_record: latestRecord
+    latest_record: latestRecord,
+    candidate_binding: candidateSpine ? objectOr(spine.candidate_binding) : null
   };
 }
 
@@ -216,4 +255,8 @@ function authorityStatus(integrityVerified, decision, releaseReady) {
 
 function objectOr(value) {
   return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+}
+
+function arrayOf(value) {
+  return Array.isArray(value) ? value : [];
 }
