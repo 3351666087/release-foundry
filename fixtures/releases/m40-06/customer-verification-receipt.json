@@ -1,0 +1,54 @@
+{
+  "authoritative_blockers": [
+    "a2_release_blocked",
+    "a2_release_not_ready",
+    "a3_ci_tested_sha_missing",
+    "a3_delivery_not_ready",
+    "a3_gate_blocked",
+    "human_approval_missing",
+    "product_release_not_approved"
+  ],
+  "customer_release": {
+    "decision": "block_customer_agent_release",
+    "manifest_sha256": "4e5c7e4094753216affcc446e90aa3d7491017b4fcc0edd9f75c02823ad2c276",
+    "release_id": "agent-release:demo/a3-golden-agent@0.2.0-rc.3",
+    "verification_sha256": "fc93a7d97a0910b9f9a713603ab45d954570478d6e0b47d75d2dd53e596a621b"
+  },
+  "evidence": {
+    "manifest": {
+      "path": "fixtures/releases/m40-06/agent-release-demo-a3-golden-agent-0.2.0-rc.3/manifest.json",
+      "sha256": "4e5c7e4094753216affcc446e90aa3d7491017b4fcc0edd9f75c02823ad2c276"
+    },
+    "verification": {
+      "path": "fixtures/releases/m40-06/agent-release-demo-a3-golden-agent-0.2.0-rc.3/verification.json",
+      "sha256": "fc93a7d97a0910b9f9a713603ab45d954570478d6e0b47d75d2dd53e596a621b"
+    }
+  },
+  "generated_at": "2026-07-21T04:57:23.953Z",
+  "identity_alignment": {
+    "a1_candidate_source_commit": "1d292047e991995fdf52f0545ffff410ee19a171",
+    "a2_authority_commit": "d3529c356e49ce8502c050f0dad44020031ee0dd",
+    "a2_decision_ledger_head_hash": "sha256:af84d7e9e3143f4da06341f2e20f3402c8f44ed5efc8221b18c8ef2869747a4e",
+    "a2_grades_hash": "sha256:ffeba9ab8d7a2ccfb26ca8e135448cc9a2e6c8ead5b49837f77e5e73606a5304",
+    "a3_implementation_commit": "a0b427257c5cd80fbe3394b4a406fa21f50bae37",
+    "candidate_id": "a3-golden-agent@0.2.0-rc.3",
+    "evidence_release_version": "0.2.0-rc.3",
+    "mismatch_reasons": [],
+    "release_package_commit": "718f9b0512138382d8562737ecf4e99e72a998e1",
+    "run_id": "a3-golden-20260720-003",
+    "status": "passed"
+  },
+  "safety": {
+    "a2_decision_recomputed": false,
+    "human_approval_invented": false,
+    "no_go_relabelled_as_go": false,
+    "production_authority_claimed": false,
+    "secrets_included": false
+  },
+  "schema_version": "ashr.m40_06_customer_verification_receipt.v1",
+  "source": {
+    "clean": true,
+    "release_package_commit": "718f9b0512138382d8562737ecf4e99e72a998e1",
+    "repository": "https://github.com/3351666087/ashr-codex-factory"
+  }
+}
