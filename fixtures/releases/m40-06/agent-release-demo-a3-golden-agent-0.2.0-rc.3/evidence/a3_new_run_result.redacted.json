@@ -1,0 +1,797 @@
+{
+  "schema_version": "ashr.clone.run_result.v1",
+  "run_id": "a3-golden-20260720-003",
+  "dataset_id": "a3-golden-path-20260720-rc3",
+  "runner_id": "a3-golden-agent-v3",
+  "status": "passed",
+  "total_cases": 3,
+  "passed": 3,
+  "failed": 0,
+  "errored": 0,
+  "timed_out": 0,
+  "started_at": "2026-07-20T12:17:15.355Z",
+  "ended_at": "2026-07-20T12:17:15.359Z",
+  "duration_ms": 4,
+  "max_workers": 4,
+  "trace_completeness": 1,
+  "cases": [
+    {
+      "case_id": "a3-gp2-direct-answer",
+      "scenario_id": "A2-S001",
+      "title": "Direct answer baseline",
+      "prompt": "Rewrite this sentence to sound warmer, in one sentence: 'Your request was denied because it is incomplete.'",
+      "actual": "We would be happy to review your request once the missing information is complete.",
+      "status": "passed",
+      "started_at": "2026-07-20T12:17:15.356Z",
+      "ended_at": "2026-07-20T12:17:15.357Z",
+      "latency_ms": 1,
+      "observations": [
+        {
+          "observation_id": "obs_c7e55d76f9bff798",
+          "run_id": "a3-golden-20260720-003",
+          "case_id": "a3-gp2-direct-answer",
+          "turn_index": 0,
+          "event_type": "message",
+          "role": "user",
+          "content": "Rewrite this sentence to sound warmer, in one sentence: 'Your request was denied because it is incomplete.'",
+          "tool_calls": [],
+          "started_at": "2026-07-20T12:17:15.356Z",
+          "ended_at": "2026-07-20T12:17:15.356Z",
+          "status": "ok",
+          "metadata": {
+            "agent_input": {
+              "metadata": {
+                "case_id": "a3-gp2-direct-answer"
+              },
+              "parts": [
+                {
+                  "text": "Rewrite this sentence to sound warmer, in one sentence: 'Your request was denied because it is incomplete.'",
+                  "type": "text"
+                }
+              ],
+              "schema_version": "ashr.clone.agent_input.v1",
+              "text": "Rewrite this sentence to sound warmer, in one sentence: 'Your request was denied because it is incomplete.'"
+            },
+            "scenario_id": "A2-S001"
+          }
+        },
+        {
+          "observation_id": "obs_750059dc9bab1151",
+          "run_id": "a3-golden-20260720-003",
+          "case_id": "a3-gp2-direct-answer",
+          "turn_index": 1,
+          "event_type": "agent_response",
+          "role": "assistant",
+          "content": "We would be happy to review your request once the missing information is complete.",
+          "tool_calls": [],
+          "started_at": "2026-07-20T12:17:15.356Z",
+          "ended_at": "2026-07-20T12:17:15.357Z",
+          "latency_ms": 1,
+          "status": "ok",
+          "metadata": {
+            "reset_ok": true
+          },
+          "vm_stream": {
+            "duration_ms": 1,
+            "logs": [
+              {
+                "data": {
+                  "action": "respond",
+                  "input": {
+                    "metadata": {
+                      "case_id": "a3-gp2-direct-answer"
+                    },
+                    "parts": [
+                      {
+                        "text": "Rewrite this sentence to sound warmer, in one sentence: 'Your request was denied because it is incomplete.'",
+                        "type": "text"
+                      }
+                    ],
+                    "schema_version": "ashr.clone.agent_input.v1",
+                    "text": "Rewrite this sentence to sound warmer, in one sentence: 'Your request was denied because it is incomplete.'"
+                  }
+                },
+                "ts": 0,
+                "type": "action"
+              },
+              {
+                "data": {
+                  "level": "log",
+                  "message": "We would be happy to review your request once the missing information is complete."
+                },
+                "ts": 1,
+                "type": "console"
+              }
+            ],
+            "metadata": {
+              "synthetic": true
+            },
+            "provider": "local-runner",
+            "session_id": "a3-gp2-direct-answer"
+          }
+        }
+      ],
+      "grade": {
+        "scenario_id": "A2-S001",
+        "passed": true,
+        "score": 1,
+        "label": "passed",
+        "reason": "local checks passed",
+        "expected": {
+          "text": "We would be happy to review your request once the missing information is complete."
+        },
+        "actual": {
+          "text": "We would be happy to review your request once the missing information is complete.",
+          "tool_calls": []
+        },
+        "metrics": {
+          "text_match": true,
+          "tool_match": true,
+          "reset_ok": true,
+          "latency_ms": 1
+        }
+      },
+      "agent_output": {
+        "schema_version": "ashr.clone.agent_turn.v1",
+        "text": "We would be happy to review your request once the missing information is complete.",
+        "tool_calls": [],
+        "status": "ok",
+        "latency_ms": 1,
+        "metadata": {
+          "adapter_name": "A3GoldenPathDemoAgent",
+          "fixture_grounded": true,
+          "implementation": "services/report/a3_golden_path_demo_agent.mjs",
+          "local_only": true,
+          "network_used": false,
+          "read_only": true,
+          "style": "respond"
+        }
+      },
+      "expected": {
+        "text": "We would be happy to review your request once the missing information is complete."
+      },
+      "metadata": {}
+    },
+    {
+      "case_id": "a3-gp2-required-web-tool",
+      "scenario_id": "A2-S004",
+      "title": "Required current-price tool execution",
+      "prompt": "What is the current listed price of the Acme MiniDock on its official product page?",
+      "actual": "The Acme MiniDock is currently listed at $79 on the official product page: https://acme.example/products/minidock.",
+      "status": "passed",
+      "started_at": "2026-07-20T12:17:15.356Z",
+      "ended_at": "2026-07-20T12:17:15.358Z",
+      "latency_ms": 2,
+      "observations": [
+        {
+          "observation_id": "obs_54c4b59d76a002e4",
+          "run_id": "a3-golden-20260720-003",
+          "case_id": "a3-gp2-required-web-tool",
+          "turn_index": 0,
+          "event_type": "message",
+          "role": "user",
+          "content": "What is the current listed price of the Acme MiniDock on its official product page?",
+          "tool_calls": [],
+          "started_at": "2026-07-20T12:17:15.356Z",
+          "ended_at": "2026-07-20T12:17:15.356Z",
+          "status": "ok",
+          "metadata": {
+            "agent_input": {
+              "metadata": {
+                "case_id": "a3-gp2-required-web-tool"
+              },
+              "parts": [
+                {
+                  "text": "What is the current listed price of the Acme MiniDock on its official product page?",
+                  "type": "text"
+                }
+              ],
+              "schema_version": "ashr.clone.agent_input.v1",
+              "text": "What is the current listed price of the Acme MiniDock on its official product page?"
+            },
+            "scenario_id": "A2-S004"
+          }
+        },
+        {
+          "observation_id": "obs_ef89b220861fec67",
+          "run_id": "a3-golden-20260720-003",
+          "case_id": "a3-gp2-required-web-tool",
+          "turn_index": 1,
+          "event_type": "agent_response",
+          "role": "assistant",
+          "content": "The Acme MiniDock is currently listed at $79 on the official product page: https://acme.example/products/minidock.",
+          "tool_calls": [
+            {
+              "arguments": {
+                "official_domain": "acme.example",
+                "query": "Acme MiniDock official product price"
+              },
+              "call_id": "tool-web-search-001",
+              "name": "web.search",
+              "output": {
+                "fixture_updated": "2026-07-03",
+                "price": "$79",
+                "source_kind": "official_product_page",
+                "source_url": "https://acme.example/products/minidock",
+                "title": "Acme MiniDock Official Product Page"
+              }
+            }
+          ],
+          "started_at": "2026-07-20T12:17:15.356Z",
+          "ended_at": "2026-07-20T12:17:15.358Z",
+          "latency_ms": 1,
+          "status": "ok",
+          "metadata": {
+            "reset_ok": true
+          },
+          "vm_stream": {
+            "duration_ms": 2,
+            "logs": [
+              {
+                "data": {
+                  "action": "respond",
+                  "input": {
+                    "metadata": {
+                      "case_id": "a3-gp2-required-web-tool"
+                    },
+                    "parts": [
+                      {
+                        "text": "What is the current listed price of the Acme MiniDock on its official product page?",
+                        "type": "text"
+                      }
+                    ],
+                    "schema_version": "ashr.clone.agent_input.v1",
+                    "text": "What is the current listed price of the Acme MiniDock on its official product page?"
+                  }
+                },
+                "ts": 0,
+                "type": "action"
+              },
+              {
+                "data": {
+                  "level": "log",
+                  "message": "The Acme MiniDock is currently listed at $79 on the official product page: https://acme.example/products/minidock."
+                },
+                "ts": 1,
+                "type": "console"
+              },
+              {
+                "data": {
+                  "arguments": {
+                    "official_domain": "acme.example",
+                    "query": "Acme MiniDock official product price"
+                  },
+                  "call_id": "tool-web-search-001",
+                  "name": "web.search",
+                  "output": {
+                    "fixture_updated": "2026-07-03",
+                    "price": "$79",
+                    "source_kind": "official_product_page",
+                    "source_url": "https://acme.example/products/minidock",
+                    "title": "Acme MiniDock Official Product Page"
+                  }
+                },
+                "ts": 1,
+                "type": "tool_call"
+              }
+            ],
+            "metadata": {
+              "synthetic": true
+            },
+            "provider": "local-runner",
+            "session_id": "a3-gp2-required-web-tool"
+          }
+        }
+      ],
+      "grade": {
+        "scenario_id": "A2-S004",
+        "passed": true,
+        "score": 1,
+        "label": "passed",
+        "reason": "local checks passed",
+        "expected": {
+          "text": "The Acme MiniDock is currently listed at $79 on the official product page: https://acme.example/products/minidock.",
+          "tool_calls": [
+            {
+              "arguments": {
+                "official_domain": "acme.example",
+                "query": "Acme MiniDock official product price"
+              },
+              "name": "web.search"
+            }
+          ]
+        },
+        "actual": {
+          "text": "The Acme MiniDock is currently listed at $79 on the official product page: https://acme.example/products/minidock.",
+          "tool_calls": [
+            {
+              "name": "web.search",
+              "arguments": {
+                "official_domain": "acme.example",
+                "query": "Acme MiniDock official product price"
+              },
+              "call_id": "tool-web-search-001",
+              "output": {
+                "fixture_updated": "2026-07-03",
+                "price": "$79",
+                "source_kind": "official_product_page",
+                "source_url": "https://acme.example/products/minidock",
+                "title": "Acme MiniDock Official Product Page"
+              }
+            }
+          ]
+        },
+        "metrics": {
+          "text_match": true,
+          "tool_match": true,
+          "reset_ok": true,
+          "latency_ms": 1
+        }
+      },
+      "agent_output": {
+        "schema_version": "ashr.clone.agent_turn.v1",
+        "text": "The Acme MiniDock is currently listed at $79 on the official product page: https://acme.example/products/minidock.",
+        "tool_calls": [
+          {
+            "arguments": {
+              "official_domain": "acme.example",
+              "query": "Acme MiniDock official product price"
+            },
+            "call_id": "tool-web-search-001",
+            "name": "web.search",
+            "output": {
+              "fixture_updated": "2026-07-03",
+              "price": "$79",
+              "source_kind": "official_product_page",
+              "source_url": "https://acme.example/products/minidock",
+              "title": "Acme MiniDock Official Product Page"
+            }
+          }
+        ],
+        "status": "ok",
+        "latency_ms": 1,
+        "metadata": {
+          "adapter_name": "A3GoldenPathDemoAgent",
+          "fixture_grounded": true,
+          "implementation": "services/report/a3_golden_path_demo_agent.mjs",
+          "local_only": true,
+          "network_used": false,
+          "read_only": true,
+          "style": "respond"
+        }
+      },
+      "expected": {
+        "text": "The Acme MiniDock is currently listed at $79 on the official product page: https://acme.example/products/minidock.",
+        "tool_calls": [
+          {
+            "arguments": {
+              "official_domain": "acme.example",
+              "query": "Acme MiniDock official product price"
+            },
+            "name": "web.search"
+          }
+        ]
+      },
+      "metadata": {}
+    },
+    {
+      "case_id": "a3-gp2-media-pipeline",
+      "scenario_id": "A2-S031",
+      "title": "Media pipeline inspection execution",
+      "prompt": "Use the dashboard media asset and classifier output to identify the red critical service.",
+      "actual": "The media evidence identifies Billing as the critical service shown in red (classifier confidence 0.94).",
+      "status": "passed",
+      "started_at": "2026-07-20T12:17:15.356Z",
+      "ended_at": "2026-07-20T12:17:15.358Z",
+      "latency_ms": 2,
+      "observations": [
+        {
+          "observation_id": "obs_9397b88bfa7f1ff8",
+          "run_id": "a3-golden-20260720-003",
+          "case_id": "a3-gp2-media-pipeline",
+          "turn_index": 0,
+          "event_type": "message",
+          "role": "user",
+          "content": "Use the dashboard media asset and classifier output to identify the red critical service.",
+          "tool_calls": [],
+          "started_at": "2026-07-20T12:17:15.356Z",
+          "ended_at": "2026-07-20T12:17:15.356Z",
+          "status": "ok",
+          "metadata": {
+            "agent_input": {
+              "metadata": {
+                "case_id": "a3-gp2-media-pipeline"
+              },
+              "parts": [
+                {
+                  "text": "Use the dashboard media asset and classifier output to identify the red critical service.",
+                  "type": "text"
+                }
+              ],
+              "schema_version": "ashr.clone.agent_input.v1",
+              "text": "Use the dashboard media asset and classifier output to identify the red critical service."
+            },
+            "scenario_id": "A2-S031"
+          }
+        },
+        {
+          "observation_id": "obs_f6349382d5986150",
+          "run_id": "a3-golden-20260720-003",
+          "case_id": "a3-gp2-media-pipeline",
+          "turn_index": 1,
+          "event_type": "agent_response",
+          "role": "assistant",
+          "content": "The media evidence identifies Billing as the critical service shown in red (classifier confidence 0.94).",
+          "tool_calls": [
+            {
+              "arguments": {
+                "asset_id": "dashboard-alert-001"
+              },
+              "call_id": "tool-media-fetch-001",
+              "name": "media.fetch",
+              "output": {
+                "asset_id": "dashboard-alert-001",
+                "content_hash_sha256": "sha256:0ad0e22bdf9e3837e855801c0e0fac9959be449fd99550e195758e9ef3ae1305",
+                "modality": "image",
+                "path": "fixtures/a2/images/dashboard-alert.png",
+                "raw_media_embedded": false
+              }
+            },
+            {
+              "arguments": {
+                "path": "fixtures/a2/images/dashboard-alert.png"
+              },
+              "call_id": "tool-image-view-001",
+              "name": "image.view",
+              "output": {
+                "content_hash_sha256": "sha256:0ad0e22bdf9e3837e855801c0e0fac9959be449fd99550e195758e9ef3ae1305",
+                "format": "png",
+                "height": 90,
+                "inspected": true,
+                "path": "fixtures/a2/images/dashboard-alert.png",
+                "width": 220
+              }
+            },
+            {
+              "arguments": {
+                "asset_id": "dashboard-alert-001",
+                "classifier": "dashboard_alert_service"
+              },
+              "call_id": "tool-media-classify-001",
+              "name": "media.classify",
+              "output": {
+                "alert_color": "red",
+                "classifier": "dashboard_alert_service",
+                "confidence": 0.94,
+                "evidence_hash_sha256": "sha256:0ad0e22bdf9e3837e855801c0e0fac9959be449fd99550e195758e9ef3ae1305",
+                "grounded_facts": [
+                  "Billing",
+                  "critical",
+                  "red"
+                ],
+                "service": "Billing",
+                "severity": "critical"
+              }
+            }
+          ],
+          "started_at": "2026-07-20T12:17:15.356Z",
+          "ended_at": "2026-07-20T12:17:15.358Z",
+          "latency_ms": 1,
+          "status": "ok",
+          "metadata": {
+            "reset_ok": true
+          },
+          "vm_stream": {
+            "duration_ms": 2,
+            "logs": [
+              {
+                "data": {
+                  "action": "respond",
+                  "input": {
+                    "metadata": {
+                      "case_id": "a3-gp2-media-pipeline"
+                    },
+                    "parts": [
+                      {
+                        "text": "Use the dashboard media asset and classifier output to identify the red critical service.",
+                        "type": "text"
+                      }
+                    ],
+                    "schema_version": "ashr.clone.agent_input.v1",
+                    "text": "Use the dashboard media asset and classifier output to identify the red critical service."
+                  }
+                },
+                "ts": 0,
+                "type": "action"
+              },
+              {
+                "data": {
+                  "level": "log",
+                  "message": "The media evidence identifies Billing as the critical service shown in red (classifier confidence 0.94)."
+                },
+                "ts": 1,
+                "type": "console"
+              },
+              {
+                "data": {
+                  "arguments": {
+                    "asset_id": "dashboard-alert-001"
+                  },
+                  "call_id": "tool-media-fetch-001",
+                  "name": "media.fetch",
+                  "output": {
+                    "asset_id": "dashboard-alert-001",
+                    "content_hash_sha256": "sha256:0ad0e22bdf9e3837e855801c0e0fac9959be449fd99550e195758e9ef3ae1305",
+                    "modality": "image",
+                    "path": "fixtures/a2/images/dashboard-alert.png",
+                    "raw_media_embedded": false
+                  }
+                },
+                "ts": 1,
+                "type": "tool_call"
+              },
+              {
+                "data": {
+                  "arguments": {
+                    "path": "fixtures/a2/images/dashboard-alert.png"
+                  },
+                  "call_id": "tool-image-view-001",
+                  "name": "image.view",
+                  "output": {
+                    "content_hash_sha256": "sha256:0ad0e22bdf9e3837e855801c0e0fac9959be449fd99550e195758e9ef3ae1305",
+                    "format": "png",
+                    "height": 90,
+                    "inspected": true,
+                    "path": "fixtures/a2/images/dashboard-alert.png",
+                    "width": 220
+                  }
+                },
+                "ts": 1,
+                "type": "tool_call"
+              },
+              {
+                "data": {
+                  "arguments": {
+                    "asset_id": "dashboard-alert-001",
+                    "classifier": "dashboard_alert_service"
+                  },
+                  "call_id": "tool-media-classify-001",
+                  "name": "media.classify",
+                  "output": {
+                    "alert_color": "red",
+                    "classifier": "dashboard_alert_service",
+                    "confidence": 0.94,
+                    "evidence_hash_sha256": "sha256:0ad0e22bdf9e3837e855801c0e0fac9959be449fd99550e195758e9ef3ae1305",
+                    "grounded_facts": [
+                      "Billing",
+                      "critical",
+                      "red"
+                    ],
+                    "service": "Billing",
+                    "severity": "critical"
+                  }
+                },
+                "ts": 1,
+                "type": "tool_call"
+              }
+            ],
+            "metadata": {
+              "synthetic": true
+            },
+            "provider": "local-runner",
+            "session_id": "a3-gp2-media-pipeline"
+          }
+        }
+      ],
+      "grade": {
+        "scenario_id": "A2-S031",
+        "passed": true,
+        "score": 1,
+        "label": "passed",
+        "reason": "local checks passed",
+        "expected": {
+          "text": "The media evidence identifies Billing as the critical service shown in red (classifier confidence 0.94).",
+          "tool_calls": [
+            {
+              "arguments": {
+                "asset_id": "dashboard-alert-001"
+              },
+              "name": "media.fetch"
+            },
+            {
+              "arguments": {
+                "path": "fixtures/a2/images/dashboard-alert.png"
+              },
+              "name": "image.view"
+            },
+            {
+              "arguments": {
+                "asset_id": "dashboard-alert-001",
+                "classifier": "dashboard_alert_service"
+              },
+              "name": "media.classify"
+            }
+          ]
+        },
+        "actual": {
+          "text": "The media evidence identifies Billing as the critical service shown in red (classifier confidence 0.94).",
+          "tool_calls": [
+            {
+              "name": "media.fetch",
+              "arguments": {
+                "asset_id": "dashboard-alert-001"
+              },
+              "call_id": "tool-media-fetch-001",
+              "output": {
+                "asset_id": "dashboard-alert-001",
+                "content_hash_sha256": "sha256:0ad0e22bdf9e3837e855801c0e0fac9959be449fd99550e195758e9ef3ae1305",
+                "modality": "image",
+                "path": "fixtures/a2/images/dashboard-alert.png",
+                "raw_media_embedded": false
+              }
+            },
+            {
+              "name": "image.view",
+              "arguments": {
+                "path": "fixtures/a2/images/dashboard-alert.png"
+              },
+              "call_id": "tool-image-view-001",
+              "output": {
+                "content_hash_sha256": "sha256:0ad0e22bdf9e3837e855801c0e0fac9959be449fd99550e195758e9ef3ae1305",
+                "format": "png",
+                "height": 90,
+                "inspected": true,
+                "path": "fixtures/a2/images/dashboard-alert.png",
+                "width": 220
+              }
+            },
+            {
+              "name": "media.classify",
+              "arguments": {
+                "asset_id": "dashboard-alert-001",
+                "classifier": "dashboard_alert_service"
+              },
+              "call_id": "tool-media-classify-001",
+              "output": {
+                "alert_color": "red",
+                "classifier": "dashboard_alert_service",
+                "confidence": 0.94,
+                "evidence_hash_sha256": "sha256:0ad0e22bdf9e3837e855801c0e0fac9959be449fd99550e195758e9ef3ae1305",
+                "grounded_facts": [
+                  "Billing",
+                  "critical",
+                  "red"
+                ],
+                "service": "Billing",
+                "severity": "critical"
+              }
+            }
+          ]
+        },
+        "metrics": {
+          "text_match": true,
+          "tool_match": true,
+          "reset_ok": true,
+          "latency_ms": 1
+        }
+      },
+      "agent_output": {
+        "schema_version": "ashr.clone.agent_turn.v1",
+        "text": "The media evidence identifies Billing as the critical service shown in red (classifier confidence 0.94).",
+        "tool_calls": [
+          {
+            "arguments": {
+              "asset_id": "dashboard-alert-001"
+            },
+            "call_id": "tool-media-fetch-001",
+            "name": "media.fetch",
+            "output": {
+              "asset_id": "dashboard-alert-001",
+              "content_hash_sha256": "sha256:0ad0e22bdf9e3837e855801c0e0fac9959be449fd99550e195758e9ef3ae1305",
+              "modality": "image",
+              "path": "fixtures/a2/images/dashboard-alert.png",
+              "raw_media_embedded": false
+            }
+          },
+          {
+            "arguments": {
+              "path": "fixtures/a2/images/dashboard-alert.png"
+            },
+            "call_id": "tool-image-view-001",
+            "name": "image.view",
+            "output": {
+              "content_hash_sha256": "sha256:0ad0e22bdf9e3837e855801c0e0fac9959be449fd99550e195758e9ef3ae1305",
+              "format": "png",
+              "height": 90,
+              "inspected": true,
+              "path": "fixtures/a2/images/dashboard-alert.png",
+              "width": 220
+            }
+          },
+          {
+            "arguments": {
+              "asset_id": "dashboard-alert-001",
+              "classifier": "dashboard_alert_service"
+            },
+            "call_id": "tool-media-classify-001",
+            "name": "media.classify",
+            "output": {
+              "alert_color": "red",
+              "classifier": "dashboard_alert_service",
+              "confidence": 0.94,
+              "evidence_hash_sha256": "sha256:0ad0e22bdf9e3837e855801c0e0fac9959be449fd99550e195758e9ef3ae1305",
+              "grounded_facts": [
+                "Billing",
+                "critical",
+                "red"
+              ],
+              "service": "Billing",
+              "severity": "critical"
+            }
+          }
+        ],
+        "status": "ok",
+        "latency_ms": 1,
+        "metadata": {
+          "adapter_name": "A3GoldenPathDemoAgent",
+          "fixture_grounded": true,
+          "implementation": "services/report/a3_golden_path_demo_agent.mjs",
+          "local_only": true,
+          "network_used": false,
+          "read_only": true,
+          "style": "respond"
+        }
+      },
+      "expected": {
+        "text": "The media evidence identifies Billing as the critical service shown in red (classifier confidence 0.94).",
+        "tool_calls": [
+          {
+            "arguments": {
+              "asset_id": "dashboard-alert-001"
+            },
+            "name": "media.fetch"
+          },
+          {
+            "arguments": {
+              "path": "fixtures/a2/images/dashboard-alert.png"
+            },
+            "name": "image.view"
+          },
+          {
+            "arguments": {
+              "asset_id": "dashboard-alert-001",
+              "classifier": "dashboard_alert_service"
+            },
+            "name": "media.classify"
+          }
+        ]
+      },
+      "metadata": {}
+    }
+  ],
+  "aggregate_metrics": {
+    "schema_version": "ashr.clone.run_result.v1",
+    "trace_completeness": 1,
+    "passed": 3,
+    "failed": 0,
+    "errored": 0,
+    "timed_out": 0,
+    "total_tool_calls": 4
+  },
+  "metadata": {
+    "ashr_api_used": false,
+    "candidate_binding": {
+      "candidate_id": "a3-golden-agent@0.2.0-rc.3",
+      "candidate_source_commit": "1d292047e991995fdf52f0545ffff410ee19a171",
+      "case_set_sha256": "sha256:eadfadb8233ae2d81affec5c62436973a8086119aecee4a2445ba3475fd4109c",
+      "evidence_release_version": "0.2.0-rc.3",
+      "git_sha": "1d292047e991995fdf52f0545ffff410ee19a171",
+      "schema_version": "ashr.clone.a1_candidate_binding.v1",
+      "source_tree_clean": true,
+      "source_tree_sha": "5f7152bb0f0e380d433600ec43bd7ddd80dabd66"
+    },
+    "cli": "ashr-clone-runner",
+    "local_only": true
+  },
+  "field_map_version": "a1.ts.local.v1"
+}

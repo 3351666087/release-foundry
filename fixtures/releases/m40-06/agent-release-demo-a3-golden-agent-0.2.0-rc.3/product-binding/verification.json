@@ -1,0 +1,289 @@
+{
+  "blocking_reasons": [
+    "failed_receipt",
+    "invalid_sha256",
+    "missing_path",
+    "missing_receipt",
+    "unpinned_image"
+  ],
+  "checked_receipt_ids": [
+    "web.production_surface"
+  ],
+  "decision": "block_product_release",
+  "issues": [
+    {
+      "code": "failed_receipt",
+      "message": "must be integer 0",
+      "path": "verification.receipts.web.production_surface.content.exit_code"
+    },
+    {
+      "code": "failed_receipt",
+      "message": "must be 'passed'",
+      "path": "verification.receipts.web.production_surface.content.status"
+    },
+    {
+      "code": "invalid_sha256",
+      "message": "must be a lowercase SHA-256",
+      "path": "deployment.services[0].supply_chain.signature.sha256"
+    },
+    {
+      "code": "invalid_sha256",
+      "message": "must be a lowercase SHA-256",
+      "path": "deployment.services[1].supply_chain.signature.sha256"
+    },
+    {
+      "code": "missing_path",
+      "message": "must be a non-empty repository-relative path",
+      "path": "deployment.services[0].supply_chain.signature.path"
+    },
+    {
+      "code": "missing_path",
+      "message": "must be a non-empty repository-relative path",
+      "path": "deployment.services[1].supply_chain.signature.path"
+    },
+    {
+      "code": "missing_receipt",
+      "message": "required live verification evidence is absent",
+      "path": "verification.receipts.billing.china_provider_contract"
+    },
+    {
+      "code": "missing_receipt",
+      "message": "required live verification evidence is absent",
+      "path": "verification.receipts.billing.entitlement_enforcement"
+    },
+    {
+      "code": "missing_receipt",
+      "message": "required live verification evidence is absent",
+      "path": "verification.receipts.billing.stripe_test_mode"
+    },
+    {
+      "code": "missing_receipt",
+      "message": "required live verification evidence is absent",
+      "path": "verification.receipts.docker.compose_config"
+    },
+    {
+      "code": "missing_receipt",
+      "message": "required live verification evidence is absent",
+      "path": "verification.receipts.docker.image_build"
+    },
+    {
+      "code": "missing_receipt",
+      "message": "required live verification evidence is absent",
+      "path": "verification.receipts.evaluation.multimodal_live"
+    },
+    {
+      "code": "missing_receipt",
+      "message": "required live verification evidence is absent",
+      "path": "verification.receipts.evaluation.security_policy"
+    },
+    {
+      "code": "missing_receipt",
+      "message": "required live verification evidence is absent",
+      "path": "verification.receipts.identity.account_linking"
+    },
+    {
+      "code": "missing_receipt",
+      "message": "required live verification evidence is absent",
+      "path": "verification.receipts.identity.email_registration"
+    },
+    {
+      "code": "missing_receipt",
+      "message": "required live verification evidence is absent",
+      "path": "verification.receipts.identity.email_verification"
+    },
+    {
+      "code": "missing_receipt",
+      "message": "required live verification evidence is absent",
+      "path": "verification.receipts.identity.oauth_github"
+    },
+    {
+      "code": "missing_receipt",
+      "message": "required live verification evidence is absent",
+      "path": "verification.receipts.identity.oauth_google"
+    },
+    {
+      "code": "missing_receipt",
+      "message": "required live verification evidence is absent",
+      "path": "verification.receipts.identity.password_change"
+    },
+    {
+      "code": "missing_receipt",
+      "message": "required live verification evidence is absent",
+      "path": "verification.receipts.identity.password_login"
+    },
+    {
+      "code": "missing_receipt",
+      "message": "required live verification evidence is absent",
+      "path": "verification.receipts.identity.password_reset"
+    },
+    {
+      "code": "missing_receipt",
+      "message": "required live verification evidence is absent",
+      "path": "verification.receipts.identity.recovery_codes"
+    },
+    {
+      "code": "missing_receipt",
+      "message": "required live verification evidence is absent",
+      "path": "verification.receipts.identity.session_device_revoke"
+    },
+    {
+      "code": "missing_receipt",
+      "message": "required live verification evidence is absent",
+      "path": "verification.receipts.identity.totp_2fa"
+    },
+    {
+      "code": "missing_receipt",
+      "message": "required live verification evidence is absent",
+      "path": "verification.receipts.install.admin_bootstrap"
+    },
+    {
+      "code": "missing_receipt",
+      "message": "required live verification evidence is absent",
+      "path": "verification.receipts.install.fresh_linux"
+    },
+    {
+      "code": "missing_receipt",
+      "message": "required live verification evidence is absent",
+      "path": "verification.receipts.install.fresh_migration"
+    },
+    {
+      "code": "missing_receipt",
+      "message": "required live verification evidence is absent",
+      "path": "verification.receipts.install.fresh_windows"
+    },
+    {
+      "code": "missing_receipt",
+      "message": "required live verification evidence is absent",
+      "path": "verification.receipts.install.full_stack_health"
+    },
+    {
+      "code": "missing_receipt",
+      "message": "required live verification evidence is absent",
+      "path": "verification.receipts.install.restart_persistence"
+    },
+    {
+      "code": "missing_receipt",
+      "message": "required live verification evidence is absent",
+      "path": "verification.receipts.integration.a1_a2_a3_product_smoke"
+    },
+    {
+      "code": "missing_receipt",
+      "message": "required live verification evidence is absent",
+      "path": "verification.receipts.operations.backup_restore"
+    },
+    {
+      "code": "missing_receipt",
+      "message": "required live verification evidence is absent",
+      "path": "verification.receipts.operations.observability"
+    },
+    {
+      "code": "missing_receipt",
+      "message": "required live verification evidence is absent",
+      "path": "verification.receipts.operations.rollback"
+    },
+    {
+      "code": "missing_receipt",
+      "message": "required live verification evidence is absent",
+      "path": "verification.receipts.operations.upgrade"
+    },
+    {
+      "code": "missing_receipt",
+      "message": "required live verification evidence is absent",
+      "path": "verification.receipts.reporting.signed_export"
+    },
+    {
+      "code": "missing_receipt",
+      "message": "required live verification evidence is absent",
+      "path": "verification.receipts.sdk.go_hosted"
+    },
+    {
+      "code": "missing_receipt",
+      "message": "required live verification evidence is absent",
+      "path": "verification.receipts.sdk.python_hosted"
+    },
+    {
+      "code": "missing_receipt",
+      "message": "required live verification evidence is absent",
+      "path": "verification.receipts.sdk.typescript_hosted"
+    },
+    {
+      "code": "missing_receipt",
+      "message": "required live verification evidence is absent",
+      "path": "verification.receipts.security.secret_scan"
+    },
+    {
+      "code": "missing_receipt",
+      "message": "required live verification evidence is absent",
+      "path": "verification.receipts.security.vulnerability_scan"
+    },
+    {
+      "code": "missing_receipt",
+      "message": "required live verification evidence is absent",
+      "path": "verification.receipts.supply_chain.provenance"
+    },
+    {
+      "code": "missing_receipt",
+      "message": "required live verification evidence is absent",
+      "path": "verification.receipts.supply_chain.sbom"
+    },
+    {
+      "code": "missing_receipt",
+      "message": "required live verification evidence is absent",
+      "path": "verification.receipts.supply_chain.signature"
+    },
+    {
+      "code": "missing_receipt",
+      "message": "required live verification evidence is absent",
+      "path": "verification.receipts.tenancy.isolation"
+    },
+    {
+      "code": "missing_receipt",
+      "message": "required live verification evidence is absent",
+      "path": "verification.receipts.tenancy.rbac"
+    },
+    {
+      "code": "missing_receipt",
+      "message": "required live verification evidence is absent",
+      "path": "verification.receipts.web.registration_login"
+    },
+    {
+      "code": "missing_receipt",
+      "message": "required live verification evidence is absent",
+      "path": "verification.receipts.web.report_review"
+    },
+    {
+      "code": "missing_receipt",
+      "message": "required live verification evidence is absent",
+      "path": "verification.receipts.web.sdk_quickstart"
+    },
+    {
+      "code": "unpinned_image",
+      "message": "released services must use an immutable sha256 digest",
+      "path": "deployment.services[0].digest"
+    },
+    {
+      "code": "unpinned_image",
+      "message": "released services must use an immutable sha256 digest",
+      "path": "deployment.services[1].digest"
+    },
+    {
+      "code": "unpinned_image",
+      "message": "released services must use an immutable sha256 digest",
+      "path": "deployment.services[2].digest"
+    },
+    {
+      "code": "unpinned_image",
+      "message": "released services must use an immutable sha256 digest",
+      "path": "deployment.services[3].digest"
+    },
+    {
+      "code": "unpinned_image",
+      "message": "released services must use an immutable sha256 digest",
+      "path": "deployment.services[4].digest"
+    }
+  ],
+  "policy_id": "ashr.product_release.enterprise.v1",
+  "product_release_id": "ashr-product@1.0.0-rc.1",
+  "product_release_manifest_sha256": "1dbc75b5f79a3304aeded898fcf6e33e3588ecbe22dd83b62f91455e11f6151f",
+  "schema_version": "ashr.product_release_verification.v1"
+}

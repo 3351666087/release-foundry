@@ -1,0 +1,80 @@
+{
+  "a2_authoritative_decision": "block",
+  "a3_recomputed_a2_decision": false,
+  "agent_release_id": "agent-release:demo/a3-golden-agent@0.2.0-rc.3",
+  "agent_release_manifest_sha256": "a2371bee78a8dcc0a42b22d3c8cf0133d972c49649d3841ecc662293204c7c05",
+  "blocking_reasons": [
+    "a2_release_blocked",
+    "a2_release_not_ready",
+    "a3_ci_tested_sha_missing",
+    "a3_delivery_not_ready",
+    "a3_gate_blocked",
+    "human_approval_missing",
+    "product_release_not_approved"
+  ],
+  "checked_evidence_ids": [
+    "a1_candidate_run_receipt",
+    "a1_run_result",
+    "a2_trusted_spine",
+    "a3_audit_archive_manifest",
+    "a3_audit_bundle_index",
+    "a3_candidate_delivery_binding",
+    "a3_gate_report",
+    "a3_release_artifact_verification",
+    "a3_release_delivery_index",
+    "a3_shared_candidate_identity"
+  ],
+  "decision": "block_customer_agent_release",
+  "identity_alignment": {
+    "a1_candidate_source_commit": "1d292047e991995fdf52f0545ffff410ee19a171",
+    "a2_authority_commit": "d3529c356e49ce8502c050f0dad44020031ee0dd",
+    "a2_decision_ledger_head_hash": "sha256:af84d7e9e3143f4da06341f2e20f3402c8f44ed5efc8221b18c8ef2869747a4e",
+    "a2_grades_hash": "sha256:ffeba9ab8d7a2ccfb26ca8e135448cc9a2e6c8ead5b49837f77e5e73606a5304",
+    "a3_implementation_commit": "a0b427257c5cd80fbe3394b4a406fa21f50bae37",
+    "candidate_id": "a3-golden-agent@0.2.0-rc.3",
+    "evidence_release_version": "0.2.0-rc.3",
+    "mismatch_reasons": [],
+    "release_package_commit": "35ffd3bed3f5d37bdceeb4c0bec5067801c631f5",
+    "run_id": "a3-golden-20260720-003",
+    "status": "passed"
+  },
+  "issues": [
+    {
+      "code": "a2_release_blocked",
+      "message": "A2 decision is 'block'",
+      "path": "evidence.a2_trusted_spine.decision"
+    },
+    {
+      "code": "a2_release_not_ready",
+      "message": "release_ready must be true",
+      "path": "evidence.a2_trusted_spine.a3_consumption"
+    },
+    {
+      "code": "a3_ci_tested_sha_missing",
+      "message": "no candidate-bound CI tested SHA receipt is attached",
+      "path": "evidence.a3_release_delivery_index.ci_tested_sha_alias"
+    },
+    {
+      "code": "a3_delivery_not_ready",
+      "message": "must be true",
+      "path": "evidence.a3_release_delivery_index.production_ready"
+    },
+    {
+      "code": "a3_gate_blocked",
+      "message": "must approve release",
+      "path": "evidence.a3_gate_report.release_gate"
+    },
+    {
+      "code": "human_approval_missing",
+      "message": "must be approved",
+      "path": "human_review.status"
+    },
+    {
+      "code": "product_release_not_approved",
+      "message": "Customer Agent Release requires an approved Product Release",
+      "path": "product_binding.verification.decision"
+    }
+  ],
+  "product_release_decision": "block_product_release",
+  "schema_version": "ashr.customer_agent_release_verification.v1"
+}

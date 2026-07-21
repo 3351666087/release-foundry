@@ -72,7 +72,10 @@ _RUNBOOKS = {
 }
 _CUSTOMER_EVIDENCE = {
     "a1_run_result": "a3_new_run_result.redacted.json",
+    "a1_candidate_run_receipt": "a1_candidate_run_receipt.json",
     "a2_trusted_spine": "a2_trusted_spine_handoff.snapshot.json",
+    "a3_shared_candidate_identity": "a3_shared_candidate_identity.json",
+    "a3_candidate_delivery_binding": "a3_candidate_delivery_binding.json",
     "a3_gate_report": "gate-report.json",
     "a3_release_artifact_verification": "release-artifact-verification.json",
     "a3_release_delivery_index": "release-delivery-index.json",
@@ -536,7 +539,17 @@ def _build_customer_candidate(
     _reset_directory(customer_dir, output_root)
     evidence_dir = customer_dir / "evidence"
     binding_dir = customer_dir / "product-binding"
-    source_evidence = repo_root / "fixtures/a3/golden-path/rc2"
+    source_evidence = repo_root / "fixtures/a3/golden-path/rc3"
+    a1_receipt = json.loads((source_evidence / "a1_candidate_run_receipt.json").read_text(encoding="utf-8"))
+    a2_spine = json.loads((source_evidence / "a2_trusted_spine_handoff.snapshot.json").read_text(encoding="utf-8"))
+    delivery_binding = json.loads((source_evidence / "a3_candidate_delivery_binding.json").read_text(encoding="utf-8"))
+    a3_identity = json.loads((source_evidence / "a3_shared_candidate_identity.json").read_text(encoding="utf-8"))
+    candidate_binding = delivery_binding["candidate"]
+    upstream_binding = delivery_binding["upstream"]
+    a3_binding = delivery_binding["a3"]
+    expected_candidate_id = f"{agent_name}@{agent_version}"
+    if candidate_binding.get("candidate_id") != expected_candidate_id:
+        raise ValueError("requested Agent version does not match the sealed rc.3 candidate")
 
     evidence_refs: dict[str, dict[str, str]] = {}
     for evidence_id, filename in _CUSTOMER_EVIDENCE.items():
@@ -559,19 +572,31 @@ def _build_customer_candidate(
             "dirty": source_dirty,
         },
         "tenant_scope": {
-            "organization_id": "org_local_demo",
-            "tenant_id": "org_local_demo",
-            "workspace_id": "workspace_local_demo",
-            "project_id": "a2_g3_calibration",
-            "environment_id": "local",
+            field: a2_spine["decision_ledger"][field]
+            for field in (
+                "organization_id",
+                "tenant_id",
+                "workspace_id",
+                "project_id",
+                "environment_id",
+            )
         },
         "candidate": {
             "agent_id": agent_name,
             "version": agent_version,
             "candidate_id": f"{agent_name}@{agent_version}",
-            "run_id": "a3-golden-20260712-002",
-            "source_commit": source_commit,
-            "evidence_release_version": "0.2.0-rc.2",
+            "run_id": candidate_binding["run_id"],
+            "source_commit": upstream_binding["a1_source_commit"],
+            "evidence_release_version": candidate_binding["release_version"],
+        },
+        "lane_bindings": {
+            "release_package_commit": source_commit,
+            "a1_candidate_source_commit": upstream_binding["a1_source_commit"],
+            "a1_evidence_bundle_hash": upstream_binding["a1_evidence_bundle_hash"],
+            "a2_authority_commit": upstream_binding["a2_authority_commit"],
+            "a2_decision_ledger_head_hash": upstream_binding["a2_decision_ledger_head_hash"],
+            "a2_grades_hash": upstream_binding["a2_grades_hash"],
+            "a3_implementation_commit": a3_binding["implementation_commit"],
         },
         "product_binding": {
             "product_release_id": product_verification.get("product_release_id"),
@@ -587,6 +612,9 @@ def _build_customer_candidate(
         "authority": {
             "decision_authority": "A2 Decision Ledger",
             "a3_recomputed_a2_decision": False,
+            "candidate_binding_verified": delivery_binding.get("binding_state") == "exact"
+            and a3_identity.get("binding_state") == "exact"
+            and a1_receipt.get("candidate_binding", {}).get("candidate_id") == expected_candidate_id,
         },
         "safety": {
             "public_safe": True,
@@ -692,7 +720,7 @@ def build_dual_release_candidates(
     output_root: str | Path,
     *,
     product_version: str = "1.0.0-rc.1",
-    agent_version: str = "0.2.0-rc.2",
+    agent_version: str = "0.2.0-rc.3",
     agent_org: str = "demo",
     agent_name: str = "a3-golden-agent",
     source_commit: str | None = None,

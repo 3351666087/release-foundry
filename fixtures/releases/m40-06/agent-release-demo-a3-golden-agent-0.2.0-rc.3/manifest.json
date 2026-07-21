@@ -1,0 +1,104 @@
+{
+  "agent_release_id": "agent-release:demo/a3-golden-agent@0.2.0-rc.3",
+  "authority": {
+    "a3_recomputed_a2_decision": false,
+    "candidate_binding_verified": true,
+    "decision_authority": "A2 Decision Ledger"
+  },
+  "candidate": {
+    "agent_id": "a3-golden-agent",
+    "candidate_id": "a3-golden-agent@0.2.0-rc.3",
+    "evidence_release_version": "0.2.0-rc.3",
+    "run_id": "a3-golden-20260720-003",
+    "source_commit": "1d292047e991995fdf52f0545ffff410ee19a171",
+    "version": "0.2.0-rc.3"
+  },
+  "evidence": {
+    "a1_candidate_run_receipt": {
+      "path": "evidence/a1_candidate_run_receipt.json",
+      "sha256": "62fd4731a37504b0839990850da043ab62baf891a8f9a32bc7dfd5a5a6fee23f"
+    },
+    "a1_run_result": {
+      "path": "evidence/a3_new_run_result.redacted.json",
+      "sha256": "74c6d5b61220ee94703194d1ca70c54a2129b9ea6a13c1e33aca9e2fade7623e"
+    },
+    "a2_trusted_spine": {
+      "path": "evidence/a2_trusted_spine_handoff.snapshot.json",
+      "sha256": "b315c537c6ba24a1b3b4cc87f03f04d609c387b5e197fd4db8398d4440bebde8"
+    },
+    "a3_audit_archive_manifest": {
+      "path": "evidence/audit-archive-manifest.json",
+      "sha256": "0553b1ec755033777a041bc53f2b28bf68032dd05171cc41f909b3e80bcba647"
+    },
+    "a3_audit_bundle_index": {
+      "path": "evidence/audit-bundle-index.json",
+      "sha256": "e90fa0e50436ae679cf8f4910e262fa9ce7df7cdb1c8b9ec4ee7c5d769502897"
+    },
+    "a3_candidate_delivery_binding": {
+      "path": "evidence/a3_candidate_delivery_binding.json",
+      "sha256": "1d52f85e95703f49359dd24871a598f3241b1888b8f1b0840b03e0562f3cf666"
+    },
+    "a3_gate_report": {
+      "path": "evidence/gate-report.json",
+      "sha256": "45cca2323e0f013ca748bbc3802bdd8c3cfe4debe81b4bff408e89701682cbad"
+    },
+    "a3_release_artifact_verification": {
+      "path": "evidence/release-artifact-verification.json",
+      "sha256": "938e48dad3920c661bcb9bd20c5a9095bde68776f3a98c69bac049defaaae012"
+    },
+    "a3_release_delivery_index": {
+      "path": "evidence/release-delivery-index.json",
+      "sha256": "1346d18dd077df2db594d93911cb9ac104f3ad4e9919189e935bf212582fc692"
+    },
+    "a3_shared_candidate_identity": {
+      "path": "evidence/a3_shared_candidate_identity.json",
+      "sha256": "8a39671fec3d6d6042896387a40e69bf4467096d1710a8f9005645eb9702ce57"
+    }
+  },
+  "generated_at": "2026-07-21T05:22:47.937318Z",
+  "human_review": {
+    "approval_receipt": null,
+    "status": "not_approved"
+  },
+  "lane_bindings": {
+    "a1_candidate_source_commit": "1d292047e991995fdf52f0545ffff410ee19a171",
+    "a1_evidence_bundle_hash": "sha256:0b4fb982ccc5a25a54c8c8ea8744285296502bb6be3113d5220af7f3340e3d6b",
+    "a2_authority_commit": "d3529c356e49ce8502c050f0dad44020031ee0dd",
+    "a2_decision_ledger_head_hash": "sha256:af84d7e9e3143f4da06341f2e20f3402c8f44ed5efc8221b18c8ef2869747a4e",
+    "a2_grades_hash": "sha256:ffeba9ab8d7a2ccfb26ca8e135448cc9a2e6c8ead5b49837f77e5e73606a5304",
+    "a3_implementation_commit": "a0b427257c5cd80fbe3394b4a406fa21f50bae37",
+    "release_package_commit": "35ffd3bed3f5d37bdceeb4c0bec5067801c631f5"
+  },
+  "product_binding": {
+    "manifest": {
+      "path": "product-binding/manifest.json",
+      "sha256": "1dbc75b5f79a3304aeded898fcf6e33e3588ecbe22dd83b62f91455e11f6151f"
+    },
+    "product_release_id": "ashr-product@1.0.0-rc.1",
+    "product_release_manifest_sha256": "1dbc75b5f79a3304aeded898fcf6e33e3588ecbe22dd83b62f91455e11f6151f",
+    "verification": {
+      "path": "product-binding/verification.json",
+      "sha256": "d74e213113b3866c5d0c56f02a3e5411b1cec9f47e2d9d25a8fc80768133901e"
+    }
+  },
+  "safety": {
+    "public_safe": true,
+    "raw_identity_included": false,
+    "raw_media_included": false,
+    "raw_secrets_included": false,
+    "signed_url_included": false
+  },
+  "schema_version": "ashr.customer_agent_release_manifest.v1",
+  "source": {
+    "commit_sha": "35ffd3bed3f5d37bdceeb4c0bec5067801c631f5",
+    "dirty": false,
+    "repository": "https://github.com/3351666087/ashr-codex-factory"
+  },
+  "tenant_scope": {
+    "environment_id": "staging",
+    "organization_id": "org_local_demo",
+    "project_id": "ashr_plus_plus_golden_path",
+    "tenant_id": "tenant_local_demo",
+    "workspace_id": "workspace_local_demo"
+  }
+}

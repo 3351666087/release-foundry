@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 import zipfile
 
+from services.customer_release import verify_customer_agent_release_manifest
 from services.release_distribution import build_dual_release_candidates, verify_release_index
 
 
@@ -38,7 +39,7 @@ def test_dual_builder_emits_independent_deterministic_no_go_candidates(tmp_path:
 
     assert first["product_release"]["release_id"] == "ashr-product@1.0.0-rc.1"
     assert first["customer_agent_release"]["release_id"] == (
-        "agent-release:demo/a3-golden-agent@0.2.0-rc.2"
+        "agent-release:demo/a3-golden-agent@0.2.0-rc.3"
     )
     assert first["product_release"]["decision"] == "block_product_release"
     assert first["customer_agent_release"]["decision"] == "block_customer_agent_release"
@@ -53,7 +54,7 @@ def test_dual_builder_emits_independent_deterministic_no_go_candidates(tmp_path:
     }
 
     product_zip = first_root / "ashr-product-1.0.0-rc.1.zip"
-    customer_zip = first_root / "agent-release-demo-a3-golden-agent-0.2.0-rc.2.zip"
+    customer_zip = first_root / "agent-release-demo-a3-golden-agent-0.2.0-rc.3.zip"
     assert sha256_file(product_zip) == sha256_file(second_root / product_zip.name)
     assert sha256_file(customer_zip) == sha256_file(second_root / customer_zip.name)
     assert verify_release_index(first_root / "dual-release-index.json")["status"] == "passed"
@@ -75,6 +76,9 @@ def test_dual_builder_emits_independent_deterministic_no_go_candidates(tmp_path:
     with zipfile.ZipFile(customer_zip) as archive:
         customer_entries = archive.namelist()
         assert any(name.endswith("/evidence/a2_trusted_spine_handoff.snapshot.json") for name in customer_entries)
+        assert any(name.endswith("/evidence/a1_candidate_run_receipt.json") for name in customer_entries)
+        assert any(name.endswith("/evidence/a3_shared_candidate_identity.json") for name in customer_entries)
+        assert any(name.endswith("/evidence/a3_candidate_delivery_binding.json") for name in customer_entries)
         assert any(name.endswith("/product-binding/verification.json") for name in customer_entries)
 
     forbidden = ("ashr_key", "__pycache__", ".pyc", "node_modules")
@@ -98,6 +102,35 @@ def test_dual_builder_emits_independent_deterministic_no_go_candidates(tmp_path:
     assert first["customer_agent_release"]["product_release_manifest_sha256"] == sha256_file(
         product_manifest_path
     )
+    customer_verification = json.loads(
+        (first_root / first["customer_agent_release"]["release_root"] / "verification.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert customer_manifest["source"]["commit_sha"] == source_commit
+    assert customer_manifest["candidate"]["candidate_id"] == "a3-golden-agent@0.2.0-rc.3"
+    assert customer_manifest["candidate"]["run_id"] == "a3-golden-20260720-003"
+    assert customer_manifest["candidate"]["source_commit"] == (
+        "1d292047e991995fdf52f0545ffff410ee19a171"
+    )
+    assert customer_manifest["lane_bindings"]["release_package_commit"] == source_commit
+    assert customer_verification["identity_alignment"]["status"] == "passed"
+    assert customer_verification["identity_alignment"]["mismatch_reasons"] == []
+    assert customer_verification["decision"] == "block_customer_agent_release"
+    assert {
+        "product_release_not_approved",
+        "a2_release_blocked",
+        "a2_release_not_ready",
+        "a3_gate_blocked",
+        "a3_delivery_not_ready",
+        "a3_ci_tested_sha_missing",
+        "human_approval_missing",
+    }.issubset(customer_verification["blocking_reasons"])
+    assert not {
+        "a2_candidate_run_mismatch",
+        "a3_delivery_source_mismatch",
+        "a3_release_version_mismatch",
+    }.intersection(customer_verification["blocking_reasons"])
 
 
 def test_release_index_detects_asset_tampering(tmp_path: Path) -> None:
@@ -108,7 +141,7 @@ def test_release_index_detects_asset_tampering(tmp_path: Path) -> None:
         generated_at=GENERATED_AT,
         allow_dirty=True,
     )
-    asset = tmp_path / "agent-release-demo-a3-golden-agent-0.2.0-rc.2.manifest.json"
+    asset = tmp_path / "agent-release-demo-a3-golden-agent-0.2.0-rc.3.manifest.json"
     asset.write_text("{}\n", encoding="utf-8")
 
     result = verify_release_index(tmp_path / "dual-release-index.json")
@@ -118,6 +151,43 @@ def test_release_index_detects_asset_tampering(tmp_path: Path) -> None:
         "asset_digest_mismatch",
         "asset_size_mismatch",
     }
+
+
+def test_rc3_customer_verifier_reports_cross_lane_identity_tampering(tmp_path: Path) -> None:
+    index = build_dual_release_candidates(
+        REPO_ROOT,
+        tmp_path,
+        source_commit=_head_sha(),
+        generated_at=GENERATED_AT,
+        allow_dirty=True,
+    )
+    customer_root = tmp_path / index["customer_agent_release"]["release_root"]
+    manifest_path = customer_root / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    spine_path = customer_root / manifest["evidence"]["a2_trusted_spine"]["path"]
+    spine = json.loads(spine_path.read_text(encoding="utf-8"))
+    spine["candidate_binding"]["run_id"] = "stale-run"
+    spine_path.write_text(json.dumps(spine, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    manifest["evidence"]["a2_trusted_spine"]["sha256"] = sha256_file(spine_path)
+
+    binding_path = customer_root / manifest["evidence"]["a3_candidate_delivery_binding"]["path"]
+    binding = json.loads(binding_path.read_text(encoding="utf-8"))
+    binding["a3"]["implementation_commit"] = "f" * 40
+    binding_path.write_text(json.dumps(binding, ensure_ascii=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    manifest["evidence"]["a3_candidate_delivery_binding"]["sha256"] = sha256_file(binding_path)
+    manifest_path.write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+    result = verify_customer_agent_release_manifest(manifest_path, release_root=customer_root)
+
+    assert result["identity_alignment"]["status"] == "failed"
+    assert {
+        "a2_candidate_run_mismatch",
+        "a3_implementation_commit_mismatch",
+    }.issubset(result["identity_alignment"]["mismatch_reasons"])
 
 
 def _head_sha() -> str:
