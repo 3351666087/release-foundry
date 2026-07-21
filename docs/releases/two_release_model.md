@@ -119,8 +119,15 @@ python scripts/build_dual_release_candidates.py `
 
 ```powershell
 python scripts/verify_customer_agent_release.py `
-  --manifest dist/releases/agent-release-demo-a3-golden-agent-0.2.0-rc.2/manifest.json `
-  --release-root dist/releases/agent-release-demo-a3-golden-agent-0.2.0-rc.2
+  --manifest dist/releases/agent-release-demo-a3-golden-agent-0.2.0-rc.3/manifest.json `
+  --release-root dist/releases/agent-release-demo-a3-golden-agent-0.2.0-rc.3
 ```
+
+Customer rc.3 separates the clean `main` commit that packages the Release from
+the sealed A1 candidate source, A2 authority implementation and A3 delivery
+implementation commits. These SHA values are not interchangeable. The verifier
+requires each value to match its own signed or hashed evidence and reports an
+independent `identity_alignment` result before applying Product, A2, A3 and
+human-approval release policy.
 
 构建成功只证明资产完整、摘要一致，不等于 `GO`。GitHub 上传和 Product/Customer 发布判定彼此独立；任何 `NO-GO` 候选只能作为 prerelease，并必须保留阻断原因。完整发布和下载回读步骤见 `docs/releases/github_dual_release_runbook.md`。

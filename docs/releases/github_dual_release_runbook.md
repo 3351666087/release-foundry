@@ -5,9 +5,9 @@ Ashr publishes two independent GitHub Releases from one tested source commit:
 | Release | Canonical ID | Git tag |
 | --- | --- | --- |
 | Product RC | `ashr-product@1.0.0-rc.1` | `ashr-product-v1.0.0-rc.1` |
-| Customer Agent evidence RC | `agent-release:demo/a3-golden-agent@0.2.0-rc.2` | `customer-agent-demo-a3-golden-agent-v0.2.0-rc.2` |
+| Customer Agent evidence RC | `agent-release:demo/a3-golden-agent@0.2.0-rc.3` | `customer-agent-demo-a3-golden-agent-v0.2.0-rc.3` |
 
-These tags may point to the same repository commit, but their manifests, assets, verification decisions, notes, and checksums are separate. Both are GitHub prereleases until their own verifier reports `GO`.
+These tags may point to the same clean packaging commit, but their manifests, assets, verification decisions, notes, and checksums are separate. Customer evidence also preserves distinct A1 candidate, A2 authority and A3 implementation commits. Both are GitHub prereleases until their own verifier reports `GO`.
 
 ## Build Preconditions
 
@@ -29,7 +29,7 @@ These tags may point to the same repository commit, but their manifests, assets,
 ```powershell
 python scripts/build_dual_release_candidates.py `
   --product-version 1.0.0-rc.1 `
-  --agent-version 0.2.0-rc.2 `
+  --agent-version 0.2.0-rc.3 `
   --agent-org demo `
   --agent-name a3-golden-agent
 ```
@@ -72,12 +72,12 @@ gh release create ashr-product-v1.0.0-rc.1 `
   --notes-file dist/releases/ashr-product-1.0.0-rc.1.release-notes.md `
   <product-assets>
 
-gh release create customer-agent-demo-a3-golden-agent-v0.2.0-rc.2 `
+gh release create customer-agent-demo-a3-golden-agent-v0.2.0-rc.3 `
   --repo 3351666087/ashr-codex-factory `
   --target <tested-main-sha> `
   --prerelease `
-  --title "Customer Agent a3-golden-agent 0.2.0-rc.2 (NO-GO Evidence Release)" `
-  --notes-file dist/releases/agent-release-demo-a3-golden-agent-0.2.0-rc.2.release-notes.md `
+  --title "Customer Agent a3-golden-agent 0.2.0-rc.3 (NO-GO Evidence Release)" `
+  --notes-file dist/releases/agent-release-demo-a3-golden-agent-0.2.0-rc.3.release-notes.md `
   <customer-assets>
 ```
 

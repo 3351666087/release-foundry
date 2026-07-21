@@ -24,7 +24,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--repo-root", type=Path, default=REPOSITORY_ROOT)
     parser.add_argument("--output-root", type=Path, default=REPOSITORY_ROOT / "dist/releases")
     parser.add_argument("--product-version", default="1.0.0-rc.1")
-    parser.add_argument("--agent-version", default="0.2.0-rc.2")
+    parser.add_argument("--agent-version", default="0.2.0-rc.3")
     parser.add_argument("--agent-org", default="demo")
     parser.add_argument("--agent-name", default="a3-golden-agent")
     parser.add_argument("--source-commit")

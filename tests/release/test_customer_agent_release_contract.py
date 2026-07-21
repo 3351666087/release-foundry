@@ -213,6 +213,8 @@ def test_complete_customer_agent_release_is_approved(tmp_path: Path) -> None:
     assert result["product_release_decision"] == "approve_product_release"
     assert result["a2_authoritative_decision"] == "allow"
     assert result["a3_recomputed_a2_decision"] is False
+    assert result["identity_alignment"]["status"] == "passed"
+    assert result["identity_alignment"]["mismatch_reasons"] == []
     assert len(result["checked_evidence_ids"]) == 7
     assert result["blocking_reasons"] == []
 
@@ -249,6 +251,7 @@ def test_a2_block_is_preserved_and_never_recomputed(tmp_path: Path) -> None:
     assert result["decision"] == "block_customer_agent_release"
     assert result["a2_authoritative_decision"] == "block"
     assert result["a3_recomputed_a2_decision"] is False
+    assert result["identity_alignment"]["status"] == "passed"
     assert {"a2_release_blocked", "a2_release_not_ready"}.issubset(result["blocking_reasons"])
 
 
