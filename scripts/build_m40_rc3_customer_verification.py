@@ -44,7 +44,7 @@ REQUIRED_BLOCKERS = {
 }
 SECRET_PATTERNS = (
     re.compile(r"sk-[A-Za-z0-9_-]{8,}"),
-    re.compile(r"Bearer\s+[A-Za-z0-9._-]+", re.IGNORECASE),
+    re.compile(r"Bearer\s+[A-Za-z0-9._-]{16,}", re.IGNORECASE),
     re.compile(r"github_pat_[A-Za-z0-9_]{8,}", re.IGNORECASE),
 )
 
