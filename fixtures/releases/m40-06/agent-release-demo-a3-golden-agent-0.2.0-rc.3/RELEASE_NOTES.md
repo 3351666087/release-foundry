@@ -2,7 +2,7 @@
 
 **Decision: NO-GO**
 
-Source commit: `718f9b0512138382d8562737ecf4e99e72a998e1`
+Source commit: `35ffd3bed3f5d37bdceeb4c0bec5067801c631f5`
 Bound Product Release decision: `block_product_release`
 A2 authoritative decision: `block`
 

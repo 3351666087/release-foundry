@@ -16,7 +16,7 @@ PACKET_ROOT = (
     / "agent-release-demo-a3-golden-agent-0.2.0-rc.3"
 )
 RECEIPT = ROOT / "fixtures" / "releases" / "m40-06" / "customer-verification-receipt.json"
-EXPECTED_PACKAGE_COMMIT = "718f9b0512138382d8562737ecf4e99e72a998e1"
+EXPECTED_PACKAGE_COMMIT = "35ffd3bed3f5d37bdceeb4c0bec5067801c631f5"
 EXPECTED_BLOCKERS = {
     "a2_release_blocked",
     "a2_release_not_ready",
@@ -97,6 +97,8 @@ def test_m40_06_manifest_separates_package_and_lane_commits() -> None:
     assert verification["identity_alignment"]["mismatch_reasons"] == []
     assert receipt["customer_release"]["manifest_sha256"] == sha256_file(PACKET_ROOT / "manifest.json")
     assert receipt["customer_release"]["verification_sha256"] == sha256_file(PACKET_ROOT / "verification.json")
+    for path in (PACKET_ROOT / "manifest.json", PACKET_ROOT / "verification.json", RECEIPT):
+        assert b"\r\n" not in path.read_bytes()
     assert re.fullmatch(r"[0-9a-f]{40}", EXPECTED_PACKAGE_COMMIT)
 
     commit_lookup = subprocess.run(

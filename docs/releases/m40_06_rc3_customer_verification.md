@@ -9,7 +9,7 @@ Customer Agent Release 已经重新绑定到同一个 rc.3 候选：
 | Candidate | `a3-golden-agent@0.2.0-rc.3` |
 | Run | `a3-golden-20260720-003` |
 | Evidence version | `0.2.0-rc.3` |
-| Release package commit | `718f9b0512138382d8562737ecf4e99e72a998e1` |
+| Release package commit | `35ffd3bed3f5d37bdceeb4c0bec5067801c631f5` |
 | A1 candidate source | `1d292047e991995fdf52f0545ffff410ee19a171` |
 | A2 authority | `d3529c356e49ce8502c050f0dad44020031ee0dd` |
 | A3 delivery implementation | `a0b427257c5cd80fbe3394b4a406fa21f50bae37` |

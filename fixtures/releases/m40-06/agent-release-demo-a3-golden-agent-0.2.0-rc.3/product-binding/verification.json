@@ -284,6 +284,6 @@
   ],
   "policy_id": "ashr.product_release.enterprise.v1",
   "product_release_id": "ashr-product@1.0.0-rc.1",
-  "product_release_manifest_sha256": "65f0b3db80b6a47597a5ab569f12fd745e45018c99dd3f55211072d852693b94",
+  "product_release_manifest_sha256": "1dbc75b5f79a3304aeded898fcf6e33e3588ecbe22dd83b62f91455e11f6151f",
   "schema_version": "ashr.product_release_verification.v1"
 }

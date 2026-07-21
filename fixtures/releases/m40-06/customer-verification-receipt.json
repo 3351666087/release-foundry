@@ -10,21 +10,21 @@
   ],
   "customer_release": {
     "decision": "block_customer_agent_release",
-    "manifest_sha256": "4e5c7e4094753216affcc446e90aa3d7491017b4fcc0edd9f75c02823ad2c276",
+    "manifest_sha256": "a2371bee78a8dcc0a42b22d3c8cf0133d972c49649d3841ecc662293204c7c05",
     "release_id": "agent-release:demo/a3-golden-agent@0.2.0-rc.3",
-    "verification_sha256": "fc93a7d97a0910b9f9a713603ab45d954570478d6e0b47d75d2dd53e596a621b"
+    "verification_sha256": "5d8a7ca7cd48d524ac00edb411f1efb133bf86cd80dd3700064557e5e246661b"
   },
   "evidence": {
     "manifest": {
       "path": "fixtures/releases/m40-06/agent-release-demo-a3-golden-agent-0.2.0-rc.3/manifest.json",
-      "sha256": "4e5c7e4094753216affcc446e90aa3d7491017b4fcc0edd9f75c02823ad2c276"
+      "sha256": "a2371bee78a8dcc0a42b22d3c8cf0133d972c49649d3841ecc662293204c7c05"
     },
     "verification": {
       "path": "fixtures/releases/m40-06/agent-release-demo-a3-golden-agent-0.2.0-rc.3/verification.json",
-      "sha256": "fc93a7d97a0910b9f9a713603ab45d954570478d6e0b47d75d2dd53e596a621b"
+      "sha256": "5d8a7ca7cd48d524ac00edb411f1efb133bf86cd80dd3700064557e5e246661b"
     }
   },
-  "generated_at": "2026-07-21T04:57:23.953Z",
+  "generated_at": "2026-07-21T05:22:47.937318Z",
   "identity_alignment": {
     "a1_candidate_source_commit": "1d292047e991995fdf52f0545ffff410ee19a171",
     "a2_authority_commit": "d3529c356e49ce8502c050f0dad44020031ee0dd",
@@ -34,7 +34,7 @@
     "candidate_id": "a3-golden-agent@0.2.0-rc.3",
     "evidence_release_version": "0.2.0-rc.3",
     "mismatch_reasons": [],
-    "release_package_commit": "718f9b0512138382d8562737ecf4e99e72a998e1",
+    "release_package_commit": "35ffd3bed3f5d37bdceeb4c0bec5067801c631f5",
     "run_id": "a3-golden-20260720-003",
     "status": "passed"
   },
@@ -48,7 +48,7 @@
   "schema_version": "ashr.m40_06_customer_verification_receipt.v1",
   "source": {
     "clean": true,
-    "release_package_commit": "718f9b0512138382d8562737ecf4e99e72a998e1",
+    "release_package_commit": "35ffd3bed3f5d37bdceeb4c0bec5067801c631f5",
     "repository": "https://github.com/3351666087/ashr-codex-factory"
   }
 }

@@ -2,7 +2,7 @@
   "deployment": {
     "bundle": {
       "path": "artifacts/ashr-product-1.0.0-rc.1-runtime.zip",
-      "sha256": "5b585149a1299d05bf0e0105c03655863534f6c2e060abd176305f03e2331579"
+      "sha256": "a7ed277a84af124e24031f5d9f250ca429db9d2d8d703d8321c467dcdff49c6a"
     },
     "compose": {
       "path": "artifacts/docker-compose.self-host.yml",
@@ -34,11 +34,11 @@
         "supply_chain": {
           "provenance": {
             "path": "supply-chain/ashr-product-1.0.0-rc.1.provenance.json",
-            "sha256": "8662d7a24f4082c607b0bf551f0efda5293242578bd96541a0436315973bba4a"
+            "sha256": "66a95be69733cbbc7c20c40dd98372e8e5ea29e085d0af46aaeb2efdca2722cb"
           },
           "sbom": {
             "path": "supply-chain/ashr-product-1.0.0-rc.1.spdx.json",
-            "sha256": "96f549f07c30de7f913f2d2f77cb43d457f60af181bb91e41afa19242233d90b"
+            "sha256": "f341b9f5ed4d6b8a06c433c03fbbb179c4de8a6dd4ffe9485799d0cfdc652c4c"
           },
           "signature": {}
         }
@@ -56,11 +56,11 @@
         "supply_chain": {
           "provenance": {
             "path": "supply-chain/ashr-product-1.0.0-rc.1.provenance.json",
-            "sha256": "8662d7a24f4082c607b0bf551f0efda5293242578bd96541a0436315973bba4a"
+            "sha256": "66a95be69733cbbc7c20c40dd98372e8e5ea29e085d0af46aaeb2efdca2722cb"
           },
           "sbom": {
             "path": "supply-chain/ashr-product-1.0.0-rc.1.spdx.json",
-            "sha256": "96f549f07c30de7f913f2d2f77cb43d457f60af181bb91e41afa19242233d90b"
+            "sha256": "f341b9f5ed4d6b8a06c433c03fbbb179c4de8a6dd4ffe9485799d0cfdc652c4c"
           },
           "signature": {}
         }
@@ -94,7 +94,7 @@
       }
     ]
   },
-  "generated_at": "2026-07-21T04:57:23.953Z",
+  "generated_at": "2026-07-21T05:22:47.937318Z",
   "policy": {
     "id": "ashr.product_release.enterprise.v1",
     "path": "policy/ashr_product_release_policy.v1.json",
@@ -158,7 +158,7 @@
     }
   ],
   "source": {
-    "commit_sha": "718f9b0512138382d8562737ecf4e99e72a998e1",
+    "commit_sha": "35ffd3bed3f5d37bdceeb4c0bec5067801c631f5",
     "dirty": false,
     "repository": "https://github.com/3351666087/ashr-codex-factory"
   },
@@ -166,7 +166,7 @@
     "receipts": {
       "web.production_surface": {
         "path": "receipts/web.production_surface.json",
-        "sha256": "07c9e01c606671f555ce89d20e1b43a4c75b49b4c1add7bb20a7766c99920d48"
+        "sha256": "e033ba1c77ddee190419c0be82787a2c03ec920b5ba2945709629aa6e0e059a6"
       }
     }
   }

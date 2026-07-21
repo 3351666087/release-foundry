@@ -2,7 +2,7 @@
   "a2_authoritative_decision": "block",
   "a3_recomputed_a2_decision": false,
   "agent_release_id": "agent-release:demo/a3-golden-agent@0.2.0-rc.3",
-  "agent_release_manifest_sha256": "4e5c7e4094753216affcc446e90aa3d7491017b4fcc0edd9f75c02823ad2c276",
+  "agent_release_manifest_sha256": "a2371bee78a8dcc0a42b22d3c8cf0133d972c49649d3841ecc662293204c7c05",
   "blocking_reasons": [
     "a2_release_blocked",
     "a2_release_not_ready",
@@ -34,7 +34,7 @@
     "candidate_id": "a3-golden-agent@0.2.0-rc.3",
     "evidence_release_version": "0.2.0-rc.3",
     "mismatch_reasons": [],
-    "release_package_commit": "718f9b0512138382d8562737ecf4e99e72a998e1",
+    "release_package_commit": "35ffd3bed3f5d37bdceeb4c0bec5067801c631f5",
     "run_id": "a3-golden-20260720-003",
     "status": "passed"
   },
