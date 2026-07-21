@@ -5,9 +5,9 @@
 
 ## Current Pointer
 
-- Current module: `M40 Cross-lane Trusted Release`
-- Current item: `M40-07`
-- Checklist: `docs/strategy/execution/M40-cross-lane-trusted-release.md`
+- Current module: `M50 SaaS Control Plane`
+- Current item: `M50-03`
+- Checklist: `docs/strategy/execution/M50-saas-control-plane.md`
 - Baseline commit: `1d292047e991995fdf52f0545ffff410ee19a171`
 - Current candidate: `a3-golden-agent@0.2.0-rc.3`
 - Current A1 run: `a3-golden-20260720-003`

@@ -6,6 +6,8 @@ from pathlib import Path
 import subprocess
 import sys
 
+import pytest
+
 from services.customer_release import verify_customer_agent_release_manifest
 
 
@@ -253,6 +255,68 @@ def test_a2_block_is_preserved_and_never_recomputed(tmp_path: Path) -> None:
     assert result["a3_recomputed_a2_decision"] is False
     assert result["identity_alignment"]["status"] == "passed"
     assert {"a2_release_blocked", "a2_release_not_ready"}.issubset(result["blocking_reasons"])
+
+
+@pytest.mark.parametrize(
+    ("failed_condition", "expected_blockers"),
+    [
+        ("product", {"product_release_not_approved"}),
+        ("a2", {"a2_release_blocked", "a2_release_not_ready"}),
+        ("a3_gate", {"a3_gate_blocked"}),
+        ("a3_delivery", {"a3_delivery_not_ready"}),
+        ("human_approval", {"human_approval_missing"}),
+    ],
+)
+def test_customer_release_requires_every_independent_authority(
+    tmp_path: Path,
+    failed_condition: str,
+    expected_blockers: set[str],
+) -> None:
+    manifest_path = build_release(tmp_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    if failed_condition == "product":
+        ref = manifest["product_binding"]["verification"]
+        path = tmp_path / ref["path"]
+        value = json.loads(path.read_text(encoding="utf-8"))
+        value["decision"] = "block_product_release"
+        write_json(path, value)
+        manifest["product_binding"]["verification"] = file_ref(tmp_path, path)
+    elif failed_condition == "a2":
+        ref = manifest["evidence"]["a2_trusted_spine"]
+        path = tmp_path / ref["path"]
+        value = json.loads(path.read_text(encoding="utf-8"))
+        value["decision_ledger"]["records"][-1]["decision"] = "block"
+        value["a3_consumption"]["release_ready"] = False
+        write_json(path, value)
+        manifest["evidence"]["a2_trusted_spine"] = file_ref(tmp_path, path)
+    elif failed_condition == "a3_gate":
+        ref = manifest["evidence"]["a3_gate_report"]
+        path = tmp_path / ref["path"]
+        value = json.loads(path.read_text(encoding="utf-8"))
+        value["release_gate"]["decision"] = "block_release"
+        write_json(path, value)
+        manifest["evidence"]["a3_gate_report"] = file_ref(tmp_path, path)
+    elif failed_condition == "a3_delivery":
+        ref = manifest["evidence"]["a3_release_delivery_index"]
+        path = tmp_path / ref["path"]
+        value = json.loads(path.read_text(encoding="utf-8"))
+        value["production_ready"] = False
+        write_json(path, value)
+        manifest["evidence"]["a3_release_delivery_index"] = file_ref(tmp_path, path)
+    else:
+        manifest["human_review"] = {"status": "not_approved", "approval_receipt": None}
+
+    write_json(manifest_path, manifest)
+    result = verify_customer_agent_release_manifest(manifest_path, release_root=tmp_path)
+
+    assert result["decision"] == "block_customer_agent_release"
+    assert set(result["blocking_reasons"]) == expected_blockers
+    assert result["a3_recomputed_a2_decision"] is False
+    if failed_condition != "product":
+        assert result["product_release_decision"] == "approve_product_release"
+    if failed_condition != "a2":
+        assert result["a2_authoritative_decision"] == "allow"
 
 
 def test_digest_path_and_secret_fail_closed(tmp_path: Path) -> None:
