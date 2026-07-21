@@ -9,7 +9,7 @@ This is the current module. Its purpose is to bind A1 execution, A2 authority an
 - [x] `M40-03` Generate a fresh A1 run bound to the latest candidate ID and latest `main` SHA.
 - [x] `M40-04` Generate A2 Trusted Spine and Decision Ledger for that exact A1 run.
 - [x] `M40-05` Regenerate A3 gate, delivery index, audit bundle and archive for the same run, SHA and version.
-- [ ] `M40-06` Recompute Customer verification with no candidate/run/SHA/version mismatch findings.
+- [x] `M40-06` Recompute Customer verification with no candidate/run/SHA/version mismatch findings.
 - [ ] `M40-07` Preserve authoritative NO-GO unless Product, A2, A3 delivery and human approval all independently pass.
 
 ## Definition Of Done
@@ -62,3 +62,5 @@ python scripts/build_dual_release_candidates.py --verify-index dist/releases/dua
 - `2026-07-21`: the Customer decision correctly remains `block_customer_agent_release`: Product is not approved, A2 is block/not-ready, A3 gate/delivery are blocked, candidate-bound CI tested SHA evidence is absent and human approval is absent. `M40-06` remains unchecked until GitHub CL Gate passes.
 - `2026-07-21`: draft PR `#46` CL Gate run `29803666318` exposed a Windows CRLF versus Linux LF mismatch in the hash-pinned Customer verification receipt; business verification remained unchanged.
 - `2026-07-21`: implementation anchor `35ffd3bed3f5d37bdceeb4c0bec5067801c631f5` now writes M40 receipt JSON as explicit UTF-8/LF bytes. The rc.3 packet was regenerated against that clean commit and contract coverage now rejects CRLF in hash-pinned files.
+- `2026-07-21`: updated PR `#46` CL Gate run `29804010081` passed Product release contracts, Python A1/A2 contracts, plan hygiene and the aggregate CL Gate summary on exact head `50a0a0b543db031366f7af54d79aa53dff175e21`.
+- `2026-07-21`: `M40-06` is complete. Customer verification has no candidate, run, SHA or version mismatch findings; authoritative Product, A2, A3 delivery and human-approval blockers remain intact. Current work moves to `M40-07` NO-GO preservation.
