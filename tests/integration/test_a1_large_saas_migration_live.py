@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -26,7 +27,10 @@ def _psql(
 ) -> subprocess.CompletedProcess[str]:
     docker_container = os.environ.get("A1_PSQL_DOCKER_CONTAINER", "").strip()
     if docker_container:
-        command = ["docker", "exec", "-i", docker_container, "psql", "-U", "ashr", "-d", "ashr", "-v", "ON_ERROR_STOP=1"]
+        docker = shutil.which("docker")
+        if docker is None:
+            pytest.skip("Docker CLI is unavailable for the configured live PostgreSQL container")
+        command = [docker, "exec", "-i", docker_container, "psql", "-U", "ashr", "-d", "ashr", "-v", "ON_ERROR_STOP=1"]
         input_sql = file.read_text(encoding="utf-8-sig") if file is not None else (sql or "")
         command.extend(["-f", "-"])
         return subprocess.run(command, cwd=ROOT, input=input_sql, text=True, capture_output=True, check=check)

@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+import shutil
 import subprocess
 import uuid
 from pathlib import Path
@@ -29,8 +30,11 @@ def _psql(
     tuples: bool = True,
     check: bool = True,
 ) -> subprocess.CompletedProcess[str]:
+    docker = shutil.which("docker")
+    if docker is None:
+        pytest.skip("Docker CLI is unavailable for live PostgreSQL tests")
     command = [
-        "docker",
+        docker,
         "exec",
         "-i",
         CONTAINER,
@@ -68,8 +72,11 @@ def _rows(result: subprocess.CompletedProcess[str]) -> list[str]:
 
 @pytest.fixture(scope="module")
 def scoped_security_database() -> str:
+    docker = shutil.which("docker")
+    if docker is None:
+        pytest.skip("Docker CLI is unavailable for live PostgreSQL tests")
     running = subprocess.run(
-        ["docker", "inspect", "-f", "{{.State.Running}}", CONTAINER],
+        [docker, "inspect", "-f", "{{.State.Running}}", CONTAINER],
         text=True,
         capture_output=True,
     )

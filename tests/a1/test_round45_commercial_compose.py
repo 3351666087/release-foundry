@@ -144,7 +144,8 @@ def test_round45_example_and_evidence_keep_live_smoke_explicit() -> None:
 @pytest.mark.docker
 def test_round45_live_commercial_compose_smoke() -> None:
     docker = shutil.which("docker")
-    assert docker is not None, "Docker CLI is required for the opt-in live smoke"
+    if docker is None:
+        pytest.skip("Docker CLI is unavailable for the opt-in live smoke")
 
     project = f"ashr-round45-{uuid.uuid4().hex[:8]}"
     env = os.environ.copy()

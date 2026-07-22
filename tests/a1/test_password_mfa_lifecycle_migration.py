@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+import shutil
 import subprocess
 import uuid
 from concurrent.futures import ThreadPoolExecutor
@@ -22,8 +23,11 @@ def _digest(value: str) -> str:
 
 
 def _psql(database: str, sql: str, *, check: bool = True) -> subprocess.CompletedProcess[str]:
+    docker = shutil.which("docker")
+    if docker is None:
+        pytest.skip("Docker CLI is unavailable for live PostgreSQL tests")
     return subprocess.run(
-        ["docker", "exec", "-i", CONTAINER, "psql", "-X", "-v", "ON_ERROR_STOP=1",
+        [docker, "exec", "-i", CONTAINER, "psql", "-X", "-v", "ON_ERROR_STOP=1",
          "-U", "postgres", "-d", database, "-A", "-t", "-F", "|"],
         input=sql, text=True, capture_output=True, check=check,
     )
@@ -36,8 +40,11 @@ def _rows(result: subprocess.CompletedProcess[str]) -> list[str]:
 
 @pytest.fixture(scope="module")
 def password_mfa_database() -> str:
+    docker = shutil.which("docker")
+    if docker is None:
+        pytest.skip("Docker CLI is unavailable for live PostgreSQL tests")
     running = subprocess.run(
-        ["docker", "inspect", "-f", "{{.State.Running}}", CONTAINER],
+        [docker, "inspect", "-f", "{{.State.Running}}", CONTAINER],
         text=True, capture_output=True,
     )
     if running.returncode or running.stdout.strip() != "true":

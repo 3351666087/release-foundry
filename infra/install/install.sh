@@ -9,6 +9,7 @@ MODE=${1:---up}
 usage() {
   printf '%s\n' "Usage: install.sh [--check|--up]"
   printf '%s\n' "Set ASHR_ENV_FILE to a private environment file before running."
+  printf '%s\n' "Required secrets may be in that file or exported in the invoking shell."
 }
 
 case "$MODE" in
@@ -35,8 +36,19 @@ docker compose version >/dev/null 2>&1 || {
   exit 4
 }
 
+required_secret_is_configured() {
+  name=$1
+  case "$name" in
+    ASHR_POSTGRES_AUTH_SECRET) env_value=${ASHR_POSTGRES_AUTH_SECRET-} ;;
+    ASHR_OBJECT_STORE_ACCESS_KEY) env_value=${ASHR_OBJECT_STORE_ACCESS_KEY-} ;;
+    ASHR_OBJECT_STORE_SECRET_KEY) env_value=${ASHR_OBJECT_STORE_SECRET_KEY-} ;;
+    *) env_value= ;;
+  esac
+  [ -n "$env_value" ] || grep -Eq "^${name}=.+" "$ENV_FILE"
+}
+
 for name in ASHR_POSTGRES_AUTH_SECRET ASHR_OBJECT_STORE_ACCESS_KEY ASHR_OBJECT_STORE_SECRET_KEY; do
-  grep -Eq "^${name}=.+" "$ENV_FILE" || {
+  required_secret_is_configured "$name" || {
     printf '%s\n' "Required variable is missing or empty: $name" >&2
     exit 5
   }

@@ -17,6 +17,8 @@ ROOT = Path(__file__).resolve().parents[2]
 COMPOSE = ROOT / "services" / "runner" / "docker-compose.a1.yml"
 INFRA_DOCKER_COMPOSE = ROOT / "infra" / "docker" / "docker-compose.self-host.yml"
 INFRA_DOCKER_ENV_EXAMPLE = ROOT / "infra" / "docker" / "self-host.env.example"
+INSTALL_PS1 = ROOT / "infra" / "install" / "install.ps1"
+INSTALL_SH = ROOT / "infra" / "install" / "install.sh"
 HEALTHCHECK = ROOT / "services" / "runner" / "a1_docker_healthcheck.go"
 COMMERCIAL_WORKER_ENTRYPOINT = ROOT / "services" / "runner" / "commercial-worker-entrypoint.sh"
 TERRAFORM_SELF_HOST = ROOT / "infra" / "terraform" / "self-host"
@@ -308,6 +310,18 @@ def test_infra_docker_self_host_env_example_uses_refs_only_for_secrets():
     ]
     for marker in forbidden_markers:
         assert marker not in env_example
+
+
+def test_self_host_installers_accept_private_file_or_inherited_secret_values():
+    powershell = INSTALL_PS1.read_text(encoding="utf-8")
+    posix = INSTALL_SH.read_text(encoding="utf-8")
+
+    assert '[Environment]::GetEnvironmentVariable($name, "Process")' in powershell
+    assert "[string]::IsNullOrWhiteSpace($processValue)" in powershell
+    assert "required_secret_is_configured()" in posix
+    assert "ASHR_POSTGRES_AUTH_SECRET) env_value=${ASHR_POSTGRES_AUTH_SECRET-}" in posix
+    assert "ASHR_OBJECT_STORE_ACCESS_KEY) env_value=${ASHR_OBJECT_STORE_ACCESS_KEY-}" in posix
+    assert "ASHR_OBJECT_STORE_SECRET_KEY) env_value=${ASHR_OBJECT_STORE_SECRET_KEY-}" in posix
 
 
 def test_a1_self_host_terraform_contract_tracks_runtime_services_public_safely():

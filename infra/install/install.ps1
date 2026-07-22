@@ -32,11 +32,13 @@ $required = @(
 $configured = @{}
 Get-Content -LiteralPath $EnvFile | ForEach-Object {
     if ($_ -match '^([A-Z0-9_]+)=(.+)$') {
-        $configured[$Matches[1]] = $true
+        $configured[$Matches[1]] = $Matches[2].Trim()
     }
 }
 foreach ($name in $required) {
-    if (-not $configured.ContainsKey($name)) {
+    $fileValue = if ($configured.ContainsKey($name)) { $configured[$name] } else { $null }
+    $processValue = [Environment]::GetEnvironmentVariable($name, "Process")
+    if ([string]::IsNullOrWhiteSpace($fileValue) -and [string]::IsNullOrWhiteSpace($processValue)) {
         throw "Required variable is missing or empty: $name"
     }
 }
