@@ -1681,6 +1681,18 @@
 - [x] Pass CL hygiene, commercial gate, diff check and production dependency audits.
 - [x] Keep A2 quality blocked, candidate invalid, production receipts 0 and `production_ready=false`.
 
+## Beginner navigation and onboarding clarity - 2026-07-22
+
+- [x] Increase key Webapp and mobile navigation text sizes while retaining bounded layouts.
+- [x] Group the sidebar into five numbered, collapsible product areas with plain-language purposes.
+- [x] Show the current group, current route, current marker, and module purpose after navigation.
+- [x] Add a persistent project -> run -> review -> release path and next-step cue.
+- [x] Place the first-session workflow before the release verdict on Overview.
+- [x] Keep the read-only demo entry visible before account creation or identity setup.
+- [x] Add current-location and active-subsection behavior to both legacy Dashboard themes.
+- [x] Preserve A1/A2 evidence ownership and all existing release-authority boundaries.
+- [x] Pass 50 Dashboard wiring tests, 24 Webapp Playwright tests, 7 legacy Dashboard Playwright tests, TypeScript, production build, and diff hygiene.
+
 ## 2026-07-22 - A1/A3 acceptance remediation
 
 - [x] Rebase context confirmed against remote `main` `c30a37e`.

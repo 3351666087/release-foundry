@@ -1865,6 +1865,115 @@ tr:last-child td {
   }
 }
 
+/* Navigation clarity layer: keep the evidence console legible for first-time users. */
+.sidebar-guide {
+  display: grid;
+  gap: 4px;
+  margin-top: 12px;
+  padding: 12px 13px;
+  color: #f4f6ff;
+  background: #202b50;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-left: 4px solid var(--brand-3);
+  border-radius: 8px;
+}
+
+.sidebar-guide > span {
+  color: var(--brand-3);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0 !important;
+  text-transform: uppercase;
+}
+
+.navigation-context-label { color: var(--accent-grad); }
+
+.sidebar-guide strong {
+  font-size: 14px;
+  line-height: 1.25;
+}
+
+.sidebar-guide small {
+  color: #d6def5;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.nav-group.has-active-child .nav-parent,
+.nav-parent.group-active {
+  color: #fff;
+  background: rgba(124, 92, 255, 0.18);
+}
+
+.nav-parent.group-active::before {
+  opacity: 0.55;
+}
+
+.nav-subitem {
+  min-height: 34px;
+  padding-top: 8px;
+  padding-bottom: 8px;
+  font-size: 12px;
+}
+
+.nav-subitem.active {
+  color: #fff;
+  background: rgba(56, 189, 248, 0.12);
+  border-left-width: 3px;
+}
+
+.navigation-context {
+  display: flex;
+  min-width: 0;
+  min-height: 46px;
+  align-items: center;
+  gap: 9px;
+  margin-top: 14px;
+  padding: 8px 12px;
+  overflow-x: auto;
+  color: var(--ink-soft);
+  background: rgba(255, 255, 255, 0.84);
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent-grad);
+  border-radius: 8px;
+  box-shadow: var(--shadow-soft);
+  white-space: nowrap;
+}
+
+.navigation-context > strong {
+  color: var(--ink);
+  font-size: 13px;
+}
+
+.navigation-context > span:not(.navigation-context-label) {
+  color: var(--muted);
+}
+
+.navigation-context > small {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+}
+
+.navigation-context-label {
+  flex: 0 0 auto;
+  padding: 3px 6px;
+  background: var(--accent-grad-soft);
+  border-radius: 4px;
+}
+
+body { font-size: 14px; }
+.caption,
+.muted { font-size: 12px; }
+.panel-header h2 { font-size: 16px; }
+
+@media (max-width: 760px) {
+  .navigation-context { margin-top: 10px; padding: 7px 10px; }
+  .navigation-context > small { max-width: 180px; }
+  .sidebar-guide { display: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

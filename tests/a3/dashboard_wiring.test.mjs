@@ -43,6 +43,11 @@ test("A3 dashboard is split into a webapp shell, module, and stylesheet", async 
   assert.match(html, /className = "nav-group"/);
   assert.match(html, /className = "nav-sublist"/);
   assert.match(html, /function syncExpandedNavigation\(id\)/);
+  assert.match(html, /id="navigation-context"/);
+  assert.match(html, /id="navigation-context-current"/);
+  assert.match(html, /setAttribute\("aria-current", "location"\)/);
+  assert.match(html, /classList\.toggle\("has-active-child"/);
+  assert.match(html, /dataset\.navGroupLabel/);
   assert.match(html, /Procurement \/ Sign-Off Posture/);
   assert.match(html, /Usage Escalation/);
   assert.match(html, /Collections \/ Invoice Escalation/);

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, CircleAlert, ShieldCheck } from "lucide-react";
+import { Activity, ArrowRight, CircleAlert, FolderKanban, PackageCheck, ShieldCheck, UserCheck } from "lucide-react";
 
 import { array, record, string } from "@/lib/api";
 import { useI18n } from "@/lib/i18n";
@@ -35,6 +35,40 @@ export function OverviewPage() {
           summary={zh ? "先核验权威决策账本，再查看案例、证据和人工审核。" : "Verify the authoritative decision ledger before inspecting cases, evidence, and review."}
           meta={<><span>{model.sourceLabel}</span><strong>{model.summary.lastRunId}</strong></>}
         />
+
+        <section className="getting-started" aria-labelledby="getting-started-title">
+          <header className="getting-started-header">
+            <div>
+              <span className="eyebrow">{zh ? "首次进入" : "FIRST SESSION"}</span>
+              <h2 id="getting-started-title">{zh ? "从运行到发布，按这条线查看" : "Follow the path from run to release"}</h2>
+              <p>{zh ? "每一步都对应一类证据，点击入口即可进入对应模块。" : "Each step has its own evidence surface. Open a step to inspect it."}</p>
+            </div>
+            <span className="getting-started-count">{zh ? "4 个入口" : "4 steps"}</span>
+          </header>
+          <ol className="workflow-steps">
+            {[
+              { href: "/projects", icon: FolderKanban, number: "01", zh: "准备项目", en: "Set up project", detailZh: "项目与数据", detailEn: "Project & data" },
+              { href: "/runs", icon: Activity, number: "02", zh: "运行 Agent", en: "Run the agent", detailZh: "运行与 Trace", detailEn: "Run & trace" },
+              { href: "/review", icon: UserCheck, number: "03", zh: "检查质量", en: "Review quality", detailZh: "评分与失败", detailEn: "Scores & failures" },
+              { href: "/delivery?source=a3-golden-path", icon: PackageCheck, number: "04", zh: "决定发布", en: "Decide release", detailZh: "门禁与审计", detailEn: "Gate & audit" }
+            ].map((step) => {
+              const StepIcon = step.icon;
+              return (
+                <li key={step.href}>
+                  <Link href={step.href} className="workflow-step">
+                    <span className="workflow-step-number">{step.number}</span>
+                    <span className="workflow-step-icon"><StepIcon size={18} strokeWidth={1.9} aria-hidden="true" /></span>
+                    <span className="workflow-step-copy">
+                      <strong>{zh ? step.zh : step.en}</strong>
+                      <small>{zh ? step.detailZh : step.detailEn}</small>
+                    </span>
+                    <ArrowRight className="workflow-step-arrow" size={17} aria-hidden="true" />
+                  </Link>
+                </li>
+              );
+            })}
+          </ol>
+        </section>
 
         <section className="release-signal">
           <div className="release-signal-copy">

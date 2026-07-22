@@ -163,6 +163,7 @@ function renderPrimaryNav(container) {
 
     const link = anchor(item.href, "nav-link nav-parent");
     link.dataset.navParent = item.label.toLowerCase();
+    link.dataset.navLabel = item.label;
     link.classList.toggle("active", index === 0);
 
     const label = document.createElement("span");
@@ -183,6 +184,8 @@ function renderPrimaryNav(container) {
     sublist.setAttribute("aria-label", `${item.label} subsections`);
     sublist.replaceChildren(...item.children.map((child) => {
       const childLink = anchor(child.href, "nav-subitem");
+      childLink.dataset.navLabel = child.label;
+      childLink.dataset.navGroupLabel = item.label;
       childLink.textContent = child.label;
       return childLink;
     }));
@@ -196,6 +199,8 @@ function renderProductSurfaces(container) {
   if (!container) return;
   container.replaceChildren(...productSurfaces.map((item, index) => {
     const link = anchor(item.href, "product-surface");
+    link.dataset.navLabel = item.label;
+    link.dataset.navDetail = item.detail;
     link.classList.toggle("active", index === 0);
 
     const label = document.createElement("strong");
@@ -220,6 +225,8 @@ function renderWorkspaceRail(container) {
 
     groupNode.append(label, ...group.links.map((item) => {
       const link = anchor(item.href, "rail-chip");
+      link.dataset.navLabel = item.label;
+      link.dataset.navGroupLabel = group.label;
       link.textContent = item.label;
       return link;
     }));

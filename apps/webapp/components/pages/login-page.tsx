@@ -139,6 +139,15 @@ export function LoginPage() {
             <p>{zh ? "使用受支持的身份方式，或先进入只读产品预览。" : "Use a supported identity provider or enter the read-only product preview."}</p>
           </header>
 
+          <Link className="preview-quickstart" href="/overview">
+            <span className="preview-quickstart-icon"><PackageCheck size={18} aria-hidden="true" /></span>
+            <span>
+              <strong>{zh ? "先进入只读演示" : "Open the read-only demo"}</strong>
+              <small>{zh ? "不创建账号，不保存邮箱或凭据" : "No account, email, or credential is saved"}</small>
+            </span>
+            <ArrowRight size={17} aria-hidden="true" />
+          </Link>
+
           <div className={styles.modeSwitch} role="tablist" aria-label={zh ? "身份模式" : "Identity mode"}>
             <button type="button" role="tab" aria-selected={mode === "signin"} onClick={() => { setMode("signin"); setNotice(null); }}>
               {zh ? "登录" : "Sign in"}

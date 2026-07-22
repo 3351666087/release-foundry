@@ -7205,3 +7205,15 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
   - CL hygiene and commercial gate passed with zero findings
   - root/Webapp audits: 0 vulnerabilities
 - Truth state unchanged: Golden Path 7/11, Deployment Acceptance 8/17, authority `integrity_invalid`, current A2 decision `unknown`, historical A2 decision `block`, production receipts 0, production_ready false.
+
+## 2026-07-22 - Beginner Navigation And Onboarding Clarity
+
+- Increased the primary Webapp body, navigation, section-description, workflow-card, and mobile-navigation type sizes without changing A1 execution or A2 judgement data.
+- Reorganized the sidebar into five numbered and collapsible product groups with a visible group purpose, module purpose, item count, current-group state, current-page badge, and route arrow.
+- Added a persistent current-location breadcrumb plus a four-step suggested path: project, run, review, and release.
+- Moved the first-session workflow ahead of the release verdict on Overview so a new user sees how to begin before reading the gate result.
+- Kept the login read-only demo entry prominent and added a compact first-session reminder in the sidebar.
+- Added the same current-group, current-subsection, `aria-current`, and first-session treatment to the legacy evidence console in both visual themes.
+- Saved desktop and 390 x 844 clarity screenshots and confirmed no document-level horizontal overflow.
+- Verification passed: Next.js TypeScript and 15-page production build, 50 Dashboard wiring tests, 24 Webapp route/onboarding Playwright tests, 7 legacy Dashboard commercial/visual Playwright tests, and `git diff --check`.
+- Release truth remains unchanged: the UI still displays A1 evidence and A2 authority as read-only inputs and does not convert blocked or integrity-invalid evidence into a pass.

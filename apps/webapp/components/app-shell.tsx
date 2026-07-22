@@ -1,10 +1,13 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   Activity,
   BookOpenText,
   CreditCard,
+  ChevronDown,
+  ChevronRight,
   FileSearch,
   FileText,
   FolderKanban,
@@ -40,9 +43,73 @@ const icons = {
 
 const routeGroups = ["workspace", "evaluate", "release", "developer", "manage"] as const;
 
+const groupDetails = {
+  workspace: {
+    index: "01",
+    hint: { zh: "项目与数据", en: "Projects & data" },
+    icon: FolderKanban
+  },
+  evaluate: {
+    index: "02",
+    hint: { zh: "运行与证据", en: "Runs & evidence" },
+    icon: Activity
+  },
+  release: {
+    index: "03",
+    hint: { zh: "审核与交付", en: "Review & delivery" },
+    icon: PackageCheck
+  },
+  developer: {
+    index: "04",
+    hint: { zh: "接口与接入", en: "API & integration" },
+    icon: BookOpenText
+  },
+  manage: {
+    index: "05",
+    hint: { zh: "成员与治理", en: "Team & governance" },
+    icon: ShieldCheck
+  }
+} as const;
+
+const routeHints: Record<string, { zh: string; en: string }> = {
+  overview: { zh: "整体状态", en: "Health overview" },
+  projects: { zh: "项目边界", en: "Project boundary" },
+  runs: { zh: "运行批次", en: "Run batches" },
+  case: { zh: "单个证据", en: "Single case" },
+  review: { zh: "人工决策", en: "Human decisions" },
+  reports: { zh: "导出与分享", en: "Export & share" },
+  delivery: { zh: "发布门禁", en: "Release gate" },
+  "api-reference": { zh: "接口契约", en: "API contracts" },
+  team: { zh: "成员权限", en: "Members & roles" },
+  billing: { zh: "用量账单", en: "Usage & billing" },
+  trust: { zh: "审计隔离", en: "Audit & isolation" },
+  login: { zh: "身份入口", en: "Identity entry" }
+};
+
+const journey = [
+  { route: "projects", zh: "准备项目", en: "Set up project" },
+  { route: "runs", zh: "运行 Agent", en: "Run the agent" },
+  { route: "review", zh: "检查质量", en: "Review quality" },
+  { route: "delivery", zh: "决定发布", en: "Decide release" }
+] as const;
+
 export function AppShell({ route, children }: { route: ProductRoute; children: React.ReactNode }) {
   const { language, setLanguage, t } = useI18n();
   const { model, source, setSource, loading } = useDashboard();
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({
+    developer: true,
+    manage: true
+  });
+  const activeRoute = productRoutes.find((item) => item.id === route);
+  const activeGroup = activeRoute?.group && routeGroups.includes(activeRoute.group as typeof routeGroups[number])
+    ? activeRoute.group as typeof routeGroups[number]
+    : "workspace";
+
+  useEffect(() => {
+    setCollapsedGroups((current) => ({ ...current, [activeGroup]: false }));
+  }, [activeGroup]);
+
+  const currentRouteHint = routeHints[route] || routeHints.overview;
 
   return (
     <div className="app-shell">
@@ -54,25 +121,65 @@ export function AppShell({ route, children }: { route: ProductRoute; children: R
 
         <nav className="app-nav" aria-label="Product navigation">
           {routeGroups.map((group) => (
-            <div className="nav-section" key={group}>
-              <span className="nav-section-label">{t(`group.${group}`)}</span>
-              {productRoutes.filter((item) => item.group === group).map((item) => {
-                const Icon = icons[item.id];
+            <section className={`nav-section ${collapsedGroups[group] ? "is-collapsed" : "is-open"} ${activeGroup === group ? "is-active" : ""}`} key={group}>
+              {(() => {
+                const GroupIcon = groupDetails[group].icon;
+                const isOpen = !collapsedGroups[group];
+                const items = productRoutes.filter((item) => item.group === group);
+                const visibleItems = isOpen ? items : items.filter((item) => item.id === route);
                 return (
-                  <Link
+                  <>
+                    <button
+                      className="nav-section-toggle"
+                      type="button"
+                      aria-expanded={isOpen}
+                      aria-controls={`nav-group-${group}`}
+                      onClick={() => setCollapsedGroups((current) => ({ ...current, [group]: isOpen }))}
+                    >
+                      <span className="nav-section-index">{groupDetails[group].index}</span>
+                      <GroupIcon size={16} strokeWidth={1.9} aria-hidden="true" />
+                      <span className="nav-section-heading-copy">
+                        <span className="nav-section-label">{t(`group.${group}`)}</span>
+                        <small>{language === "zh-CN" ? groupDetails[group].hint.zh : groupDetails[group].hint.en}</small>
+                      </span>
+                      <span className="nav-section-count">{items.length}</span>
+                      <ChevronDown className="nav-section-chevron" size={16} strokeWidth={2} aria-hidden="true" />
+                    </button>
+                    <div className="nav-section-links" id={`nav-group-${group}`}>
+                      {visibleItems.map((item) => {
+                const Icon = icons[item.id];
+                const hint = routeHints[item.id] || routeHints.overview;
+                return (
+                    <Link
                     className={route === item.id ? "route-link active" : "route-link"}
                     href={`/${item.id}`}
                     key={item.id}
                     aria-current={route === item.id ? "page" : undefined}
+                    title={language === "zh-CN" ? hint.zh : hint.en}
                   >
                     <Icon size={17} strokeWidth={1.8} aria-hidden="true" />
-                    <span>{t(item.labelKey)}</span>
+                    <span className="route-link-copy">
+                      <span className="route-link-label">{t(item.labelKey)}</span>
+                      <small>{language === "zh-CN" ? hint.zh : hint.en}</small>
+                    </span>
+                    {route === item.id && <span className="route-link-current">{language === "zh-CN" ? "当前" : "Current"}</span>}
+                    <ChevronRight className="route-link-arrow" size={15} strokeWidth={1.9} aria-hidden="true" />
                   </Link>
                 );
-              })}
-            </div>
+                      })}
+                    </div>
+                  </>
+                );
+              })()}
+            </section>
           ))}
         </nav>
+
+        <div className="sidebar-guide" aria-label={language === "zh-CN" ? "首次使用指南" : "First-use guide"}>
+          <span>{language === "zh-CN" ? "第一次使用" : "FIRST SESSION"}</span>
+          <strong>{language === "zh-CN" ? "从项目开始" : "Start with a project"}</strong>
+          <small>{language === "zh-CN" ? "项目 → 运行 → 审核 → 发布" : "Project → Run → Review → Release"}</small>
+        </div>
 
         <div className="sidebar-contract">
           <span><SearchCheck size={14} aria-hidden="true" /> {language === "zh-CN" ? "证据链" : "Evidence spine"}</span>
@@ -84,6 +191,13 @@ export function AppShell({ route, children }: { route: ProductRoute; children: R
       <div className="app-stage">
         <header className="command-bar">
           <div className="mobile-brand"><span className="brand-emblem"><PackageCheck size={18} strokeWidth={1.9} aria-hidden="true" /></span><strong>ASHR</strong></div>
+          <div className="command-context" aria-label={language === "zh-CN" ? "当前位置" : "Current location"}>
+            <span className="command-context-label">{language === "zh-CN" ? "当前位置" : "CURRENT"}</span>
+            <span>{t(`group.${activeGroup}`)}</span>
+            <ChevronRight size={14} strokeWidth={2} aria-hidden="true" />
+            <strong>{activeRoute ? t(activeRoute.labelKey) : t("nav.overview")}</strong>
+            <small>{language === "zh-CN" ? currentRouteHint.zh : currentRouteHint.en}</small>
+          </div>
           <label className="source-control">
             <span>{t("shell.source")}</span>
             <select value={source} onChange={(event) => setSource(event.target.value)}>
@@ -112,6 +226,28 @@ export function AppShell({ route, children }: { route: ProductRoute; children: R
             <Link className="account-command" href="/login"><LogIn size={16} aria-hidden="true" />{t("shell.account")}</Link>
           </div>
         </header>
+
+        <div className="orientation-strip" aria-label={language === "zh-CN" ? "使用顺序" : "Suggested workflow"}>
+          <span className="orientation-label">{language === "zh-CN" ? "建议顺序" : "SUGGESTED PATH"}</span>
+          <div className="orientation-steps">
+            {journey.map((step, index) => {
+              const isCurrent = route === step.route;
+              return (
+                <span className={isCurrent ? "orientation-step current" : "orientation-step"} key={step.route}>
+                  <span>{String(index + 1).padStart(2, "0")}</span>
+                  <Link href={`/${step.route}`}>{language === "zh-CN" ? step.zh : step.en}</Link>
+                  {index < journey.length - 1 && <ChevronRight size={13} aria-hidden="true" />}
+                  {isCurrent && <small>{language === "zh-CN" ? "你在这里" : "You are here"}</small>}
+                </span>
+              );
+            })}
+          </div>
+          {route !== "overview" && (() => {
+            const currentIndex = journey.findIndex((step) => step.route === route);
+            const next = currentIndex >= 0 ? journey[currentIndex + 1] : undefined;
+            return next ? <span className="orientation-next">{language === "zh-CN" ? "下一步" : "NEXT"} → {language === "zh-CN" ? next.zh : next.en}</span> : null;
+          })()}
+        </div>
 
         <main className="route-content" data-route={route}>{children}</main>
 
