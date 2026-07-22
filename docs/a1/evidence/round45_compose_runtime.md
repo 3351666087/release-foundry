@@ -14,6 +14,14 @@ profile to silently select the Go memory backend or a local file object store.
   `docs/a1/schemas/a1_control_plane_postgres_migration.sql` with
   `ON_ERROR_STOP=1`, then verifies the tenant, project, worker-job, and artifact
   manifest tables.
+- `postgres-migrate` creates a separate `ashr_identity_runtime` login with no
+  superuser, role-creation, database-creation, schema-creation, or RLS-bypass
+  authority. It inherits only the security-definer entrypoints granted to the
+  non-login `a1_runtime` role. The API identity store uses this dedicated DSN;
+  migrations continue to use the database owner.
+- Ordered migrations are recorded in `ashr_schema_migrations` with their
+  SHA-256 digest. Repeated Compose startup skips already-applied files, while a
+  changed historical migration fails closed instead of being silently rerun.
 - `api` is the Go control plane with `ASHR_GO_BACKEND=postgres`. Its healthcheck
   requires `backend=postgres_repository_v0`, `backend_ready=true`, and
   `local_only=false`.
@@ -42,6 +50,7 @@ Disposable live smoke:
 ```powershell
 $env:ASHR_RUN_COMMERCIAL_COMPOSE_SMOKE = "1"
 $env:ASHR_POSTGRES_AUTH_SECRET = "round45-postgres-local-only"
+$env:ASHR_POSTGRES_RUNTIME_SECRET = "round45-runtime-local-only"
 $env:ASHR_OBJECT_STORE_ACCESS_KEY = "round45minio"
 $env:ASHR_OBJECT_STORE_SECRET_KEY = "round45-minio-local-only-secret"
 python -m pytest tests/a1/test_round45_commercial_compose.py -q

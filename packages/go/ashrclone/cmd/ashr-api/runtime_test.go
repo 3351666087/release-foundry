@@ -38,7 +38,7 @@ func TestIdentityRuntimeDefaultsToPostgresAndFailsClosedWithoutDSN(t *testing.T)
 	}
 }
 
-func TestProductionIdentityRuntimeUsesPostgresAsSoleIdentityAuthority(t *testing.T) {
+func TestProductionIdentityRuntimeUsesDedicatedPostgresDSNAsSoleIdentityAuthority(t *testing.T) {
 	db, mock, err := sqlmock.New(sqlmock.MonitorPingsOption(true))
 	if err != nil {
 		t.Fatal(err)
@@ -58,7 +58,8 @@ func TestProductionIdentityRuntimeUsesPostgresAsSoleIdentityAuthority(t *testing
 		sqlmock.NewRows([]string{"ready"}).AddRow(true),
 	)
 	runtime, err := newIdentityRuntimeFromEnv(context.Background(), lookup(map[string]string{
-		"ASHR_POSTGRES_DSN":                              "postgres://production-authority.invalid/ashr",
+		"ASHR_IDENTITY_POSTGRES_DSN":                     "postgres://production-authority.invalid/ashr",
+		"ASHR_POSTGRES_DSN":                              "postgres://control-plane-owner-must-not-be-used.invalid/ashr",
 		"ASHR_IDENTITY_SESSION_HMAC_ACTIVE_VERSION":      "v1",
 		"ASHR_IDENTITY_SESSION_HMAC_KEY":                 strings.Repeat("S", 40),
 		"ASHR_IDENTITY_SESSION_HMAC_LEGACY_VERSION":      "v1",

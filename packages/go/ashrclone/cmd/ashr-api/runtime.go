@@ -101,9 +101,14 @@ func newIdentityRuntimeFromEnv(ctx context.Context, lookup func(string) (string,
 	case ashrclone.IdentityRuntimeMemory:
 		return newDevelopmentIdentityRuntime(environment, mode, lookup)
 	case ashrclone.IdentityRuntimePostgres:
-		dsn := firstEnv(lookup, "ASHR_POSTGRES_DSN", "DATABASE_URL")
+		dsn := firstEnv(
+			lookup,
+			"ASHR_IDENTITY_POSTGRES_DSN",
+			"ASHR_POSTGRES_DSN",
+			"DATABASE_URL",
+		)
 		if dsn == "" {
-			return identityRuntime{}, fmt.Errorf("production identity requires ASHR_POSTGRES_DSN or DATABASE_URL")
+			return identityRuntime{}, fmt.Errorf("production identity requires ASHR_POSTGRES_DSN or DATABASE_URL; ASHR_IDENTITY_POSTGRES_DSN is the preferred dedicated override")
 		}
 		store, err := openProductionIdentityStoreFromEnv(dsn, lookup)
 		if err != nil {

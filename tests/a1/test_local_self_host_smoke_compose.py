@@ -176,8 +176,12 @@ def test_infra_docker_self_host_compose_wires_commercial_daemon_profile():
     for env in (api_env, worker_env):
         assert env["ASHR_RUNTIME_ENV"] == "self-host"
         assert env["ASHR_SECRET_PROVIDER"] == "env-ref"
+        assert env["ASHR_IDENTITY_RUNTIME"] == "postgres"
+        assert env["ASHR_IDENTITY_SESSION_HMAC_KEY_REF"] == "env:ASHR_IDENTITY_SESSION_HMAC_KEY"
+        assert env["ASHR_IDENTITY_LIFECYCLE_RECEIPT_KEY_REF"] == "env:ASHR_IDENTITY_LIFECYCLE_RECEIPT_KEY"
         assert env["ASHR_DATABASE_URL_REF"] == "env:ASHR_DATABASE_URL"
         assert env["ASHR_POSTGRES_DSN_REF"] == "env:ASHR_DATABASE_URL"
+        assert env["ASHR_IDENTITY_POSTGRES_DSN_REF"] == "env:ASHR_IDENTITY_POSTGRES_DSN"
         assert env["ASHR_REDIS_URL"] == "redis://redis:6379/0"
         assert env["ASHR_REDIS_URL_REF"] == "env:ASHR_REDIS_URL"
         assert env["ASHR_OBJECT_STORE_ENDPOINT"] == "http://minio:9000"
@@ -236,6 +240,8 @@ def test_infra_docker_self_host_compose_wires_postgres_redis_minio_without_secre
     assert postgres["environment"]["POSTGRES_PASSWORD_FILE"] == "/run/secrets/postgres_password"
     assert postgres["secrets"] == ["postgres_password"]
     assert compose["secrets"]["postgres_password"] == {"environment": "ASHR_POSTGRES_AUTH_SECRET"}
+    assert compose["secrets"]["postgres_runtime_password"] == {"environment": "ASHR_POSTGRES_RUNTIME_SECRET"}
+    assert services["postgres-migrate"]["secrets"] == ["postgres_password", "postgres_runtime_password"]
     assert postgres["healthcheck"]["test"] == ["CMD-SHELL", "pg_isready -U ashr -d ashr"]
 
     assert redis["image"] == "redis:7-alpine"
@@ -283,10 +289,13 @@ def test_infra_docker_self_host_env_example_uses_refs_only_for_secrets():
 
     for marker in (
         "ASHR_DATABASE_URL_REF=env:ASHR_DATABASE_URL",
+        "ASHR_IDENTITY_POSTGRES_DSN_REF=env:ASHR_IDENTITY_POSTGRES_DSN",
         "ASHR_OBJECT_STORE_ACCESS_KEY_REF=env:ASHR_OBJECT_STORE_ACCESS_KEY",
         "ASHR_OBJECT_STORE_SECRET_KEY_REF=env:ASHR_OBJECT_STORE_SECRET_KEY",
         "ASHR_BILLING_PROVIDER_SECRET_REF=env:ASHR_BILLING_PROVIDER_SECRET",
         "ASHR_BILLING_WEBHOOK_SECRET_REF=env:ASHR_BILLING_WEBHOOK_SECRET",
+        "ASHR_IDENTITY_SESSION_HMAC_KEY_REF=env:ASHR_IDENTITY_SESSION_HMAC_KEY",
+        "ASHR_IDENTITY_LIFECYCLE_RECEIPT_KEY_REF=env:ASHR_IDENTITY_LIFECYCLE_RECEIPT_KEY",
         "ASHR_WORKER_MODE=daemon",
         "ASHR_WORKER_EVIDENCE_WRITES=object-store",
         "ASHR_OBJECT_STORE_ENDPOINT=http://minio:9000",
@@ -320,8 +329,11 @@ def test_self_host_installers_accept_private_file_or_inherited_secret_values():
     assert "[string]::IsNullOrWhiteSpace($processValue)" in powershell
     assert "required_secret_is_configured()" in posix
     assert "ASHR_POSTGRES_AUTH_SECRET) env_value=${ASHR_POSTGRES_AUTH_SECRET-}" in posix
+    assert "ASHR_POSTGRES_RUNTIME_SECRET) env_value=${ASHR_POSTGRES_RUNTIME_SECRET-}" in posix
     assert "ASHR_OBJECT_STORE_ACCESS_KEY) env_value=${ASHR_OBJECT_STORE_ACCESS_KEY-}" in posix
     assert "ASHR_OBJECT_STORE_SECRET_KEY) env_value=${ASHR_OBJECT_STORE_SECRET_KEY-}" in posix
+    assert "ASHR_IDENTITY_SESSION_HMAC_KEY) env_value=${ASHR_IDENTITY_SESSION_HMAC_KEY-}" in posix
+    assert "ASHR_IDENTITY_LIFECYCLE_RECEIPT_KEY) env_value=${ASHR_IDENTITY_LIFECYCLE_RECEIPT_KEY-}" in posix
 
 
 def test_a1_self_host_terraform_contract_tracks_runtime_services_public_safely():

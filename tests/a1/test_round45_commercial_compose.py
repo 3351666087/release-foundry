@@ -105,6 +105,9 @@ def test_round45_scripts_prove_migration_object_checksum_and_restart_recovery() 
     assert "--set ON_ERROR_STOP=1" in migrate
     assert "ashr_worker_jobs" in migrate
     assert "ashr_artifact_manifests" in migrate
+    assert "ashr_schema_migrations" in migrate
+    assert "sha256sum" in migrate
+    assert "Refusing changed applied migration" in migrate
 
     for operation in ("mc cp", "mc stat"):
         assert operation in minio
@@ -122,6 +125,21 @@ def test_round45_scripts_prove_migration_object_checksum_and_restart_recovery() 
     assert "LocalOnly" in healthcheck
     assert "postgres_repository_v0" in dockerfile
     assert "ashr-healthcheck" in dockerfile
+
+
+def test_round45_migration_bootstraps_restricted_identity_roles() -> None:
+    migrate = MIGRATE.read_text(encoding="utf-8")
+
+    assert "ensure_runtime_roles" in migrate
+    assert "CREATE ROLE a1_runtime NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS" in migrate
+    assert "CREATE ROLE a1_security_ticket_issuer NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOBYPASSRLS" in migrate
+    assert "CREATE ROLE ashr_identity_runtime LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE INHERIT NOBYPASSRLS" in migrate
+    assert "ALTER ROLE a1_runtime" in migrate
+    assert "ALTER ROLE a1_security_ticket_issuer" in migrate
+    assert "rolcanlogin = false" in migrate
+    assert "rolbypassrls = false" in migrate
+    assert "GRANT a1_runtime TO ashr_identity_runtime" in migrate
+    assert "THEN 'ready' ELSE 'not_ready' END" in migrate
 
 
 def test_round45_example_and_evidence_keep_live_smoke_explicit() -> None:
@@ -150,8 +168,11 @@ def test_round45_live_commercial_compose_smoke() -> None:
     project = f"ashr-round45-{uuid.uuid4().hex[:8]}"
     env = os.environ.copy()
     env.setdefault("ASHR_POSTGRES_AUTH_SECRET", "round45-postgres-local-only")
+    env.setdefault("ASHR_POSTGRES_RUNTIME_SECRET", "round45-runtime-local-only")
     env.setdefault("ASHR_OBJECT_STORE_ACCESS_KEY", "round45minio")
     env.setdefault("ASHR_OBJECT_STORE_SECRET_KEY", "round45-minio-local-only-secret")
+    env.setdefault("ASHR_IDENTITY_SESSION_HMAC_KEY", "round45-session-hmac-local-only-key-123456")
+    env.setdefault("ASHR_IDENTITY_LIFECYCLE_RECEIPT_KEY", "round45-lifecycle-hmac-local-only-key-123456")
     base = [
         docker,
         "compose",
@@ -186,7 +207,13 @@ def test_round45_live_commercial_compose_smoke() -> None:
             env=env,
             timeout=600,
         )
-        assert run.returncode == 0, run.stdout[-12000:]
+        if run.returncode != 0:
+            failed_logs = _run(
+                [*base, "logs", "--no-color", "postgres-migrate", "api", "worker"],
+                env=env,
+                timeout=30,
+            )
+            pytest.fail((run.stdout + "\n" + failed_logs.stdout)[-20000:])
 
         ps = _run(
             [*base, "ps", "--format", "json"],

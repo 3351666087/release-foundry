@@ -1580,6 +1580,15 @@
 - [ ] Bind accepted evidence and the terminal review to one exact candidate and A2 Decision Ledger.
 - [ ] Run migrations 023/024 and the complete workflow in authorized target PostgreSQL/VPC/object storage/KMS.
 
+## 2026-07-22 - A1 commercial Compose identity follow-up
+
+- [x] Verify fresh PostgreSQL migration 001-024 and SHA-256 replay ledger.
+- [x] Verify dedicated non-superuser identity runtime login and API readiness.
+- [x] Verify disposable commercial Compose API, MinIO evidence, and worker
+  recovery smoke (`1 passed`).
+- [ ] Do not treat local Compose evidence as hosted deployment, tenant-bound
+  GitHub App proof, production upgrade/rollback proof, or A2 approval.
+
 ## A2 Round 51 Multi-repeat Stability Intake - 2026-07-14
 
 - [x] Re-fetch authoritative main `ccf6ce5`, A1 peer `81f7e9e` and A2 peer/source `7504680`.

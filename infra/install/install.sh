@@ -40,14 +40,17 @@ required_secret_is_configured() {
   name=$1
   case "$name" in
     ASHR_POSTGRES_AUTH_SECRET) env_value=${ASHR_POSTGRES_AUTH_SECRET-} ;;
+    ASHR_POSTGRES_RUNTIME_SECRET) env_value=${ASHR_POSTGRES_RUNTIME_SECRET-} ;;
     ASHR_OBJECT_STORE_ACCESS_KEY) env_value=${ASHR_OBJECT_STORE_ACCESS_KEY-} ;;
     ASHR_OBJECT_STORE_SECRET_KEY) env_value=${ASHR_OBJECT_STORE_SECRET_KEY-} ;;
+    ASHR_IDENTITY_SESSION_HMAC_KEY) env_value=${ASHR_IDENTITY_SESSION_HMAC_KEY-} ;;
+    ASHR_IDENTITY_LIFECYCLE_RECEIPT_KEY) env_value=${ASHR_IDENTITY_LIFECYCLE_RECEIPT_KEY-} ;;
     *) env_value= ;;
   esac
   [ -n "$env_value" ] || grep -Eq "^${name}=.+" "$ENV_FILE"
 }
 
-for name in ASHR_POSTGRES_AUTH_SECRET ASHR_OBJECT_STORE_ACCESS_KEY ASHR_OBJECT_STORE_SECRET_KEY; do
+for name in ASHR_POSTGRES_AUTH_SECRET ASHR_POSTGRES_RUNTIME_SECRET ASHR_OBJECT_STORE_ACCESS_KEY ASHR_OBJECT_STORE_SECRET_KEY ASHR_IDENTITY_SESSION_HMAC_KEY ASHR_IDENTITY_LIFECYCLE_RECEIPT_KEY; do
   required_secret_is_configured "$name" || {
     printf '%s\n' "Required variable is missing or empty: $name" >&2
     exit 5

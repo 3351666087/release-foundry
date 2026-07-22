@@ -4,9 +4,20 @@ x-ashr-runtime-env: &ashr-runtime-env
   ASHR_RUNTIME_ENV: self-host
   ASHR_SECRET_PROVIDER: env-ref
   ASHR_CONTROL_PLANE_BASE_URL: http://api:8787
+  ASHR_ENVIRONMENT: self-host
+  ASHR_IDENTITY_RUNTIME: postgres
+  ASHR_IDENTITY_SESSION_HMAC_ACTIVE_VERSION: ${ASHR_IDENTITY_SESSION_HMAC_ACTIVE_VERSION:-v1}
+  ASHR_IDENTITY_SESSION_HMAC_LEGACY_VERSION: ${ASHR_IDENTITY_SESSION_HMAC_LEGACY_VERSION:-v1}
+  ASHR_IDENTITY_SESSION_HMAC_KEY: ${ASHR_IDENTITY_SESSION_HMAC_KEY:-}
+  ASHR_IDENTITY_LIFECYCLE_RECEIPT_ACTIVE_VERSION: ${ASHR_IDENTITY_LIFECYCLE_RECEIPT_ACTIVE_VERSION:-v1}
+  ASHR_IDENTITY_LIFECYCLE_RECEIPT_KEY: ${ASHR_IDENTITY_LIFECYCLE_RECEIPT_KEY:-}
+  ASHR_IDENTITY_SESSION_HMAC_KEY_REF: env:ASHR_IDENTITY_SESSION_HMAC_KEY
+  ASHR_IDENTITY_LIFECYCLE_RECEIPT_KEY_REF: env:ASHR_IDENTITY_LIFECYCLE_RECEIPT_KEY
   ASHR_DATABASE_URL_REF: env:ASHR_DATABASE_URL
   ASHR_DATABASE_URL: postgresql://ashr:${ASHR_POSTGRES_AUTH_SECRET}@postgres:5432/ashr?sslmode=disable
   ASHR_POSTGRES_DSN_REF: env:ASHR_DATABASE_URL
+  ASHR_IDENTITY_POSTGRES_DSN_REF: env:ASHR_IDENTITY_POSTGRES_DSN
+  ASHR_IDENTITY_POSTGRES_DSN: postgresql://ashr_identity_runtime:${ASHR_POSTGRES_RUNTIME_SECRET}@postgres:5432/ashr?sslmode=disable
   ASHR_REDIS_URL: redis://redis:6379/0
   ASHR_REDIS_URL_REF: env:ASHR_REDIS_URL
   ASHR_OBJECT_STORE_URL: http://minio:9000
@@ -361,6 +372,7 @@ services:
       ASHR_POSTGRES_DB: ashr
       ASHR_POSTGRES_USER: ashr
       ASHR_POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      ASHR_POSTGRES_RUNTIME_PASSWORD_FILE: /run/secrets/postgres_runtime_password
       ASHR_POSTGRES_MIGRATION: /migrations/a1_control_plane_postgres_migration.sql
       ASHR_POSTGRES_MIGRATION_DIR: /migrations/ordered
     command: ["/bin/sh", "/opt/ashr/postgres-migrate.sh"]
@@ -370,6 +382,7 @@ services:
       - ../../services/api/migrations:/migrations/ordered:ro
     secrets:
       - postgres_password
+      - postgres_runtime_password
     depends_on:
       postgres:
         condition: service_healthy
@@ -486,6 +499,8 @@ services:
 secrets:
   postgres_password:
     environment: ASHR_POSTGRES_AUTH_SECRET
+  postgres_runtime_password:
+    environment: ASHR_POSTGRES_RUNTIME_SECRET
   minio_root_user:
     environment: ASHR_OBJECT_STORE_ACCESS_KEY
   minio_root_password:

@@ -3506,3 +3506,29 @@ Date: 2026-07-14
 
 Next: publish this authority regression, then continue production lookup-key
 rotation drills and cross-language identity-security/client parity.
+
+## Round 69: Dedicated Identity Runtime and Migration Replay
+
+Date: 2026-07-22
+
+- Diagnosed the commercial Compose startup failure to the production identity
+  readiness query correctly rejecting the PostgreSQL owner/superuser session.
+- Added a dedicated `ashr_identity_runtime` login, inherited scoped
+  `a1_runtime` authorities, and explicit no-superuser/no-BYPASSRLS/no-schema-
+  CREATE posture. The identity store now prefers
+  `ASHR_IDENTITY_POSTGRES_DSN` while the existing control-plane DSN remains
+  compatible.
+- Added the `ASHR_POSTGRES_RUNTIME_SECRET` Docker secret and installer checks;
+  no resolved secret is tracked.
+- Added the `ashr_schema_migrations` SHA-256 ledger so ordered migrations are
+  replay-safe and changed historical files fail closed.
+- Added failure-time Compose log collection to the live test and updated the
+  Round 45 runtime evidence with the new identity boundary.
+- Verification: API Go tests passed; commercial/self-host static tests passed
+  (`16 passed, 1 skipped`); fresh migration and migration replay passed; full
+  disposable commercial smoke passed (`1 passed` in about 71 seconds).
+- Evidence: `docs/a1/evidence/round69_identity_runtime_migration_20260722.md`.
+
+Next: publish this focused remediation, then treat hosted identity, target
+PostgreSQL/VPC/KMS deployment, tenant-bound GitHub App checks, and production
+upgrade/rollback receipts as separate external acceptance work.

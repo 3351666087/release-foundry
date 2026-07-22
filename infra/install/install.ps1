@@ -26,8 +26,11 @@ if (-not (Test-Path -LiteralPath $EnvFile -PathType Leaf)) {
 
 $required = @(
     "ASHR_POSTGRES_AUTH_SECRET",
+    "ASHR_POSTGRES_RUNTIME_SECRET",
     "ASHR_OBJECT_STORE_ACCESS_KEY",
-    "ASHR_OBJECT_STORE_SECRET_KEY"
+    "ASHR_OBJECT_STORE_SECRET_KEY",
+    "ASHR_IDENTITY_SESSION_HMAC_KEY",
+    "ASHR_IDENTITY_LIFECYCLE_RECEIPT_KEY"
 )
 $configured = @{}
 Get-Content -LiteralPath $EnvFile | ForEach-Object {
