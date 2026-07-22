@@ -1671,3 +1671,21 @@
 - [x] Pass 519 A3 Node tests, 186 current-main A2 tests, TypeScript, 15-page build and 47 Playwright tests.
 - [x] Pass CL hygiene, commercial gate, diff check and production dependency audits.
 - [x] Keep A2 quality blocked, candidate invalid, production receipts 0 and `production_ready=false`.
+
+## 2026-07-22 - A1/A3 acceptance remediation
+
+- [x] Rebase context confirmed against remote `main` `c30a37e`.
+- [x] Fix installer secret-source parity for private env files and inherited
+  process variables.
+- [x] Fix the dashboard zero-gradient and fail-badge visual contracts.
+- [x] Require an installed and runnable WSL distribution in WSL probes.
+- [x] Honor `CARGO_TARGET_DIR` in the Rust verifier contract.
+- [x] Add explicit capability skips for missing Docker, Go, Node/npm,
+  TypeScript, and Cargo toolchains.
+- [x] A1/integration verification: `1358 passed, 68 skipped, 0 failed`.
+- [x] A3 verification: `532 passed, 1 skipped, 0 failed`.
+- [x] Full Playwright verification: `48 passed, 0 failed`.
+- [x] Preserve the external Docker/WSL environment boundary and do not claim
+  live PostgreSQL or Compose qualification.
+- [x] Preserve A2 judge, Decision Ledger, and release-authority semantics.
+- [x] Record remediation details in `docs/a3/acceptance_remediation_20260722.md`.
