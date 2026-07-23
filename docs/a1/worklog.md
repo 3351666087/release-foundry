@@ -3764,3 +3764,28 @@ completed checkbox to chat memory.
 - [ ] Audit every changed and untracked path for A1 ownership and secret
   safety, commit only A1, push only
   `HEAD:codex/a1-local-sdk-runner`, and verify local/remote parity.
+
+#### Migration 026 execution checklist (2026-07-23)
+
+This database slice is the current task. Check each item immediately after its
+focused source and live-PostgreSQL evidence is green.
+
+- [x] Re-fetch the A1 remote branch and prove local `3636d92c` is exactly
+  `0/0` ahead/behind `origin/codex/a1-local-sdk-runner` before editing code.
+- [ ] Freeze migration 026's public result shape and atomic known-subject,
+  unknown-subject, replay, subject-collision, verified-email-conflict, and
+  trusted-scope failure contracts in A1 tests.
+- [ ] Add the fixed-`search_path` SECURITY DEFINER canonical callback function
+  with runtime-role anti-bypass checks, PUBLIC revoke, minimal runtime grant,
+  and no bearer material in rows, notices, errors, or audit payloads.
+- [ ] Prove unknown provider subjects atomically create exactly one canonical
+  principal, OAuth credential, organization/project memberships, connection,
+  access/refresh session, and audit event in the trusted server scope.
+- [ ] Prove known provider subjects perform non-creating login only when their
+  canonical account still has active trusted-scope memberships, and that
+  verified email can only reject conflicts rather than merge identities.
+- [ ] Add the Go PostgreSQL first-login coordinator with post-commit one-use
+  bearer receipt lookup and result validation; no provider-specific canonical
+  policy may be duplicated in the adapter or HTTP layer.
+- [ ] Run source-contract and live Docker migration/RLS/replay/rollback tests,
+  then audit, commit, and push only this A1 database slice.
