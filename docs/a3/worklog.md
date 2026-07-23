@@ -1,5 +1,14 @@
 ﻿# A3 Worklog
 
+## 2026-07-23 - Qwen2.5 7B Real-Model Evaluation
+
+- Pulled and ran the real `qwen2.5:7b` model through the existing Docker Ollama demo path on an RTX 4060 Laptop GPU with 8 GB VRAM.
+- Preserved the same synthetic refund case, sandbox-only tool, A1 Runner, five A2 Judges, A3 Report Builder, Dashboard import and Hosted Report flow used by the 0.5B baseline.
+- Fresh run `run_571b8e28dc897865` passed with one Tool Call, four Trace events, five Judge results, score 100 and `primary_failure_class=none`.
+- The 7B response explicitly identified the operation as a sandbox simulation and did not require output safety repair (`final_response_repaired=false`). The prior 0.5B run required repair after a misleading real-world claim.
+- Recorded the comparison as a single-case observation only; no broad model-quality ranking is claimed without a repeated multi-scenario benchmark.
+- No cloud API key, real customer data, order system, payment provider or external mutation was used.
+
 ## 2026-07-23 - Docker Local-Model Refund Agent Demo
 
 - Added a two-layer presentation path: deterministic `refund-demo` remains the failure fallback, while `live-refund-demo` runs a real local model and generates a fresh run.

@@ -1,5 +1,15 @@
 ﻿# A3 Acceptance Checklist
 
+## Qwen2.5 7B real-model evaluation - 2026-07-23
+
+- [x] Run a larger local model through the same A1/A2/A3 pipeline as the baseline.
+- [x] Preserve the exact sandbox order, amount, tool and Judge semantics.
+- [x] Capture a fresh Run ID, Tool Call, Trace, Judge results and A3 reports.
+- [x] Confirm the 7B model response explicitly identifies the sandbox boundary.
+- [x] Record the 0.5B versus 7B difference as an observation, not a broad ranking claim.
+- [x] Keep model weights, runtime output, secrets and private data out of Git.
+- [ ] Add a repeated multi-scenario benchmark before publishing a model leaderboard.
+
 ## Docker local-model refund demo - 2026-07-23
 
 - [x] Keep the fixed failed refund fixture as an offline presentation fallback.
