@@ -7230,3 +7230,4 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
 - Saved and visually inspected login, overview, case, review, and 390 x 844 mobile screenshots. No incoherent overlap or horizontal overflow was observed.
 - Verification passed: Next.js TypeScript and production build, 59 focused A3/A1/A2 compatibility/store/dashboard tests, the dedicated refund contract test, and 3 navigation/refund Playwright tests.
 - No production claim changed. The demo is local synthetic evidence, live refund execution is absent, review writes remain disabled, and A2 remains the grading authority.
+- Added a 10-12 minute word-for-word Chinese presentation script, a 5-minute fallback, 15 likely teacher questions, truth-safe phrasing, and offline/local-service recovery instructions.

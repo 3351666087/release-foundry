@@ -1,5 +1,7 @@
 # A3 电商退款演示手册（新手版）
 
+更详细、可以逐字照读的汇报版本见：`docs/demo/a3_refund_demo_presentation_script_cn.md`。
+
 ## 1. 这个 Demo 在讲什么
 
 用户说：“请帮我把订单 `order_demo_123` 退款 42 元。”

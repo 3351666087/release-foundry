@@ -1723,6 +1723,7 @@
 - [x] Explain automated Judge -> human review -> delivery gate and keep unavailable write actions disabled.
 - [x] Increase targeted login, evidence, Trace, Judge, and action type sizes and keep controls at least 44px high.
 - [x] Add a Chinese beginner walkthrough with click order, talk track, questions, and non-production boundaries.
+- [x] Add a word-for-word 10-12 minute script, 5-minute compressed script, likely Q&A, speaking boundaries, and local failure recovery steps.
 - [x] Save and inspect desktop and 390 x 844 screenshots without incoherent overlap or horizontal overflow.
 - [x] Pass TypeScript, Next.js build, focused A3/A1/A2 contract tests, and refund navigation Playwright tests.
 - [x] Keep the demo fully redacted and avoid key, token, cookie, email, private identity, or real customer data.
