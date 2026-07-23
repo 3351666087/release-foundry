@@ -3559,7 +3559,7 @@ codes.
 - [x] Run the complete A1 verification matrix and confirm no A3 files changed.
 - [ ] Send exactly one controlled real QQ SMTP calibration email only after
   all security tests pass; never print or commit its configuration or secrets.
-- [ ] Commit and push only the second A1 browser-session batch.
+- [x] Commit and push only the second A1 browser-session batch.
 
 Next: commit and push the first transaction batch, then begin the canonical
 browser registration/login session-handoff endpoints.
@@ -3618,7 +3618,7 @@ green; do not rely on chat memory.
   PostgreSQL migrations 001-025/RLS/rotation matrix.
 - [x] Run complete A1 Go/cross-language tests, `git diff --check`, and verify
   that no A3 or `apps/webapp` path changed.
-- [ ] Commit and immediately push only this A1 browser-session batch to
+- [x] Commit and immediately push only this A1 browser-session batch to
   `origin/codex/a1-local-sdk-runner`.
 - [ ] Only after every safety test is green, send exactly one controlled QQ
   SMTP calibration message without printing, logging, or committing any real
@@ -3641,7 +3641,7 @@ one item immediately after its focused evidence is green.
   when all four are green.
 - [x] Re-run all `tests/a1`, Go command packages, and the live PostgreSQL
   lifecycle/RLS/key-rotation matrix; run `git diff --check`.
-- [ ] Audit every changed/untracked path, commit only A1, and push only
+- [x] Audit every changed/untracked path, commit only A1, and push only
   `HEAD:codex/a1-local-sdk-runner`.
 - [ ] After all tests and the A1-only push are green, send one and only one
   real QQ SMTP calibration message without exposing any secret material.
