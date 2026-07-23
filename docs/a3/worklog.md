@@ -7217,3 +7217,16 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
 - Saved desktop and 390 x 844 clarity screenshots and confirmed no document-level horizontal overflow.
 - Verification passed: Next.js TypeScript and 15-page production build, 50 Dashboard wiring tests, 24 Webapp route/onboarding Playwright tests, 7 legacy Dashboard commercial/visual Playwright tests, and `git diff --check`.
 - Release truth remains unchanged: the UI still displays A1 evidence and A2 authority as read-only inputs and does not convert blocked or integrity-invalid evidence into a pass.
+
+## 2026-07-23 - Beginner Refund Demo And Evidence Labels
+
+- Applied the local `frontend-design-pack-global` readiness guidance as a bounded visual pass: readable labels, 44px controls, accessible evidence hierarchy, reduced technical-ID prominence, and desktop/mobile screenshot verification.
+- Added the synthetic, fully redacted `refund-demo` source from the existing A1/A2 compatibility contract. It contains one failed refund case, one complete A1 Trace, zero actual tool calls, and the unchanged A2 result `score=42`, `passed=false`, `primary_failure_class=missing_required_tool`.
+- Added a direct login-page entry and source-preserving navigation so a beginner can follow Overview -> Runs -> Case -> Review -> Delivery without silently switching fixtures.
+- Added plain-language Chinese/English labels for Judge modes, rubric classes, failure classes, and Trace events while retaining raw IDs as secondary evidence.
+- Added a Case explanation showing A1 capture -> A2 decision -> A3 triage, explicit missing-tool evidence, and a structured rubric view.
+- Added a Review explanation showing automated Judge -> human review -> delivery gate, plus an honest reason why live actions remain disabled without hosted identity, RBAC, and durable audit.
+- Added `docs/demo/a3_refund_demo_walkthrough_cn.md` with a six-minute script, click path, terminology, likely questions, and truth-boundary wording.
+- Saved and visually inspected login, overview, case, review, and 390 x 844 mobile screenshots. No incoherent overlap or horizontal overflow was observed.
+- Verification passed: Next.js TypeScript and production build, 59 focused A3/A1/A2 compatibility/store/dashboard tests, the dedicated refund contract test, and 3 navigation/refund Playwright tests.
+- No production claim changed. The demo is local synthetic evidence, live refund execution is absent, review writes remain disabled, and A2 remains the grading authority.

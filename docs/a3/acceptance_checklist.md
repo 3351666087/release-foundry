@@ -1710,3 +1710,21 @@
   live PostgreSQL or Compose qualification.
 - [x] Preserve A2 judge, Decision Ledger, and release-authority semantics.
 - [x] Record remediation details in `docs/a3/acceptance_remediation_20260722.md`.
+
+## Beginner refund demonstration - 2026-07-23
+
+- [x] Derive one synthetic refund case from the existing A1/A2 compatibility contract.
+- [x] Preserve A1 Trace and tool-call absence without inventing a successful refund result.
+- [x] Preserve A2 score 42, FAIL, `missing_required_tool`, Judge evidence, and remediation semantics.
+- [x] Add `refund-demo` to the fixture-backed API and Webapp source selector.
+- [x] Preserve the selected source across product navigation.
+- [x] Add a direct no-login demo entry from the login page.
+- [x] Add plain-language Judge, rubric, failure-class, and Trace labels while retaining raw IDs.
+- [x] Explain automated Judge -> human review -> delivery gate and keep unavailable write actions disabled.
+- [x] Increase targeted login, evidence, Trace, Judge, and action type sizes and keep controls at least 44px high.
+- [x] Add a Chinese beginner walkthrough with click order, talk track, questions, and non-production boundaries.
+- [x] Save and inspect desktop and 390 x 844 screenshots without incoherent overlap or horizontal overflow.
+- [x] Pass TypeScript, Next.js build, focused A3/A1/A2 contract tests, and refund navigation Playwright tests.
+- [x] Keep the demo fully redacted and avoid key, token, cookie, email, private identity, or real customer data.
+- [ ] Replace synthetic refund evidence only after an authorized real sandbox run produces a redacted A1 Trace and matching A2 GradeResult.
+- [ ] Enable live review actions only after hosted identity, RBAC, persistent audit storage, and authorization receipts are available.

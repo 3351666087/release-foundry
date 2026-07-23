@@ -1,0 +1,82 @@
+{
+  "schema_version": "a3.grade_fixture.v1",
+  "fixture_id": "a3_refund_demo_from_a2_contract",
+  "source_notes": [
+    "Derived from tests/a3/a1_a2_compatibility_contract.test.mjs.",
+    "A3 preserves the A2 pass/fail, score, failure class, judge evidence, and remediation semantics.",
+    "Synthetic and fully redacted; not a real Ashr cloud result."
+  ],
+  "grade_results": [
+    {
+      "schema_version": "a2.local_judge_run.v1",
+      "run_id": "run-refund-demo-001",
+      "scenario_id": "ECOM-REFUND-001",
+      "case_id": "case-refund-demo-001",
+      "passed": false,
+      "score": 42,
+      "primary_failure_class": "missing_required_tool",
+      "judge_results": [
+        {
+          "schema_version": "a2.grade_result.v1",
+          "scenario_id": "ECOM-REFUND-001",
+          "case_id": "case-refund-demo-001",
+          "judge_mode": "a2_contract_judge",
+          "judge_version": "compat-demo-v1",
+          "passed": false,
+          "score": 42,
+          "max_score": 100,
+          "rubric_scores": [
+            {
+              "class": "required_tool_execution",
+              "score": 0,
+              "weight": 60,
+              "rationale": "refund_order was required but no actual tool call was observed."
+            },
+            {
+              "class": "evidence_grounding",
+              "score": 0.4,
+              "weight": 40,
+              "rationale": "The final answer claims success without a refund tool result."
+            }
+          ],
+          "failure_analysis": {
+            "schema_version": "a2.failure_analysis.v1",
+            "primary_failure_class": "missing_required_tool",
+            "failure_classes": [
+              "missing_required_tool"
+            ],
+            "severity": "blocker",
+            "blame_stage": "tool_use",
+            "summary": "必需的 refund_order 工具调用缺失，不能证明退款真的发生。",
+            "details": [
+              "A1 Trace 中只有用户消息和 Agent 最终回答。",
+              "A1 Trace 中没有 refund_order 的执行与返回结果。"
+            ],
+            "remediation": [
+              "重新运行 Agent，并要求在最终回答前调用 refund_order。",
+              "只有工具明确返回成功后，才能向用户承诺退款成功。"
+            ],
+            "safety_blocking": true
+          },
+          "evidence": {
+            "tool_call_ids": [
+              "tool-expected-refund"
+            ],
+            "trace_event_ids": [
+              "trace-refund-tool-missing"
+            ],
+            "final_response_excerpt": "已经完成 42 元退款"
+          },
+          "metadata": {
+            "deterministic": true,
+            "source": "a1_a2_compatibility_contract"
+          }
+        }
+      ],
+      "metadata": {
+        "score_source": "a2_grade_result",
+        "teaching_demo": true
+      }
+    }
+  ]
+}

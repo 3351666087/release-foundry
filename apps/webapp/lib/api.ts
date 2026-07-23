@@ -280,6 +280,7 @@ export function normalizeDashboard(payload: JsonRecord): DashboardModel {
 
 function customerSourceLabel(source: string, sourceLabel: string): string {
   const labels: Record<string, string> = {
+    "refund-demo": "新手演示 · 电商退款失败",
     "api-mock": "API 聚合证据",
     "p3-media": "多模态分歧校准",
     "p3-a2-round50": "三方模型复核 · Round 50",

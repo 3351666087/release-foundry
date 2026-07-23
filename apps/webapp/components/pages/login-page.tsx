@@ -139,11 +139,11 @@ export function LoginPage() {
             <p>{zh ? "使用受支持的身份方式，或先进入只读产品预览。" : "Use a supported identity provider or enter the read-only product preview."}</p>
           </header>
 
-          <Link className="preview-quickstart" href="/overview">
+          <Link className="preview-quickstart" href={{ pathname: "/overview", query: { source: "refund-demo" } }}>
             <span className="preview-quickstart-icon"><PackageCheck size={18} aria-hidden="true" /></span>
             <span>
-              <strong>{zh ? "先进入只读演示" : "Open the read-only demo"}</strong>
-              <small>{zh ? "不创建账号，不保存邮箱或凭据" : "No account, email, or credential is saved"}</small>
+              <strong>{zh ? "一键进入退款案例演示" : "Open the refund demo"}</strong>
+              <small>{zh ? "无需登录 · 一条案例看懂 A1、A2、A3" : "No sign-in · One case explains execution, evaluation, and review"}</small>
             </span>
             <ArrowRight size={17} aria-hidden="true" />
           </Link>
@@ -187,7 +187,7 @@ export function LoginPage() {
 
               <details className={styles.previewEntry}>
                 <summary><span><strong>READ-ONLY DEMO IDENTITY</strong><small>{zh ? "不创建账号，不保存邮箱或凭据" : "This preview does not create an account or store email or credentials."}</small></span><ArrowRight size={15} /></summary>
-                <form onSubmit={(event) => { event.preventDefault(); router.push("/overview"); }}>
+                <form onSubmit={(event) => { event.preventDefault(); router.push("/overview?source=refund-demo"); }}>
                   <label>
                     <span>{zh ? "工作区" : "Workspace"}</span>
                     <div className="input-with-icon"><Building2 size={17} /><input value={workspace} onChange={(event) => setWorkspace(event.target.value)} /></div>

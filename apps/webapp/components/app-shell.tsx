@@ -114,7 +114,7 @@ export function AppShell({ route, children }: { route: ProductRoute; children: R
   return (
     <div className="app-shell">
       <aside className="app-sidebar">
-        <Link className="app-brand" href="/overview" aria-label="Ashr overview">
+        <Link className="app-brand" href={{ pathname: "/overview", query: { source } }} aria-label="Ashr overview">
           <span className="brand-emblem"><PackageCheck size={20} strokeWidth={1.9} aria-hidden="true" /></span>
           <strong>ASHR<small>Release Console</small></strong>
         </Link>
@@ -152,7 +152,7 @@ export function AppShell({ route, children }: { route: ProductRoute; children: R
                 return (
                     <Link
                     className={route === item.id ? "route-link active" : "route-link"}
-                    href={`/${item.id}`}
+                    href={{ pathname: `/${item.id}`, query: { source } }}
                     key={item.id}
                     aria-current={route === item.id ? "page" : undefined}
                     title={language === "zh-CN" ? hint.zh : hint.en}
@@ -201,6 +201,7 @@ export function AppShell({ route, children }: { route: ProductRoute; children: R
           <label className="source-control">
             <span>{t("shell.source")}</span>
             <select value={source} onChange={(event) => setSource(event.target.value)}>
+              <option value="refund-demo">{language === "zh-CN" ? "新手演示 · 电商退款失败" : "Beginner demo · Refund failure"}</option>
               <option value="api-mock">{language === "zh-CN" ? "API 聚合证据" : "API evidence projection"}</option>
               <option value="p3-media">{language === "zh-CN" ? "多模态分歧校准" : "Multimodal disagreement calibration"}</option>
               <option value="p3-a2-round50">{language === "zh-CN" ? "三方模型复核 · Round 50" : "Three-provider review · Round 50"}</option>
@@ -235,7 +236,7 @@ export function AppShell({ route, children }: { route: ProductRoute; children: R
               return (
                 <span className={isCurrent ? "orientation-step current" : "orientation-step"} key={step.route}>
                   <span>{String(index + 1).padStart(2, "0")}</span>
-                  <Link href={`/${step.route}`}>{language === "zh-CN" ? step.zh : step.en}</Link>
+                  <Link href={{ pathname: `/${step.route}`, query: { source } }}>{language === "zh-CN" ? step.zh : step.en}</Link>
                   {index < journey.length - 1 && <ChevronRight size={13} aria-hidden="true" />}
                   {isCurrent && <small>{language === "zh-CN" ? "你在这里" : "You are here"}</small>}
                 </span>
@@ -254,7 +255,7 @@ export function AppShell({ route, children }: { route: ProductRoute; children: R
         <nav className="mobile-route-nav" aria-label="Mobile product navigation">
           {productRoutes.filter((item) => ["overview", "runs", "review", "delivery", "reports"].includes(item.id)).map((item) => {
             const Icon = icons[item.id];
-            return <Link href={`/${item.id}`} className={route === item.id ? "active" : ""} key={item.id}><Icon size={17} /><span>{t(item.labelKey)}</span></Link>;
+            return <Link href={{ pathname: `/${item.id}`, query: { source } }} className={route === item.id ? "active" : ""} key={item.id}><Icon size={17} /><span>{t(item.labelKey)}</span></Link>;
           })}
         </nav>
       </div>

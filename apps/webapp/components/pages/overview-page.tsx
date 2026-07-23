@@ -26,6 +26,18 @@ export function OverviewPage() {
       failureCounts.set(item.failureClass, (failureCounts.get(item.failureClass) || 0) + 1);
     }
     const failures = [...failureCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4);
+    const refundDemo = model.source === "refund-demo";
+    const workflowSteps = refundDemo ? [
+      { pathname: "/runs", source: model.source, icon: Activity, number: "01", zh: "找到失败案例", en: "Find the failed case", detailZh: "运行结果与分数", detailEn: "Run result & score" },
+      { pathname: "/case", source: model.source, query: { case_id: "case-refund-demo-001" }, icon: CircleAlert, number: "02", zh: "查看失败证据", en: "Inspect the evidence", detailZh: "Expected、Actual 与 Trace", detailEn: "Expected, Actual & Trace" },
+      { pathname: "/review", source: model.source, icon: UserCheck, number: "03", zh: "理解人工审核", en: "Understand review", detailZh: "自动判定与人工治理", detailEn: "Automation & human governance" },
+      { pathname: "/delivery", source: model.source, icon: PackageCheck, number: "04", zh: "查看发布阻断", en: "See the release block", detailZh: "失败证据不能被绕过", detailEn: "Failed evidence cannot be bypassed" }
+    ] : [
+      { pathname: "/projects", source: model.source, icon: FolderKanban, number: "01", zh: "准备项目", en: "Set up project", detailZh: "项目与数据", detailEn: "Project & data" },
+      { pathname: "/runs", source: model.source, icon: Activity, number: "02", zh: "运行 Agent", en: "Run the agent", detailZh: "运行与 Trace", detailEn: "Run & trace" },
+      { pathname: "/review", source: model.source, icon: UserCheck, number: "03", zh: "检查质量", en: "Review quality", detailZh: "评分与失败", detailEn: "Scores & failures" },
+      { pathname: "/delivery", source: "a3-golden-path", icon: PackageCheck, number: "04", zh: "决定发布", en: "Decide release", detailZh: "门禁与审计", detailEn: "Gate & audit" }
+    ];
 
     return (
       <>
@@ -40,22 +52,21 @@ export function OverviewPage() {
           <header className="getting-started-header">
             <div>
               <span className="eyebrow">{zh ? "首次进入" : "FIRST SESSION"}</span>
-              <h2 id="getting-started-title">{zh ? "从运行到发布，按这条线查看" : "Follow the path from run to release"}</h2>
-              <p>{zh ? "每一步都对应一类证据，点击入口即可进入对应模块。" : "Each step has its own evidence surface. Open a step to inspect it."}</p>
+              <h2 id="getting-started-title">{refundDemo
+                ? (zh ? "用一笔失败退款，看懂 A1、A2、A3" : "Understand A1, A2, and A3 through one failed refund")
+                : (zh ? "从运行到发布，按这条线查看" : "Follow the path from run to release")}</h2>
+              <p>{refundDemo
+                ? (zh ? "这是假数据教学案例，不连接真实订单，也不会执行真实退款。按 01 到 04 点击即可完成演示。" : "This synthetic teaching case never touches a real order. Follow steps 01 through 04 for the demo.")
+                : (zh ? "每一步都对应一类证据，点击入口即可进入对应模块。" : "Each step has its own evidence surface. Open a step to inspect it.")}</p>
             </div>
             <span className="getting-started-count">{zh ? "4 个入口" : "4 steps"}</span>
           </header>
           <ol className="workflow-steps">
-            {[
-              { href: "/projects", icon: FolderKanban, number: "01", zh: "准备项目", en: "Set up project", detailZh: "项目与数据", detailEn: "Project & data" },
-              { href: "/runs", icon: Activity, number: "02", zh: "运行 Agent", en: "Run the agent", detailZh: "运行与 Trace", detailEn: "Run & trace" },
-              { href: "/review", icon: UserCheck, number: "03", zh: "检查质量", en: "Review quality", detailZh: "评分与失败", detailEn: "Scores & failures" },
-              { href: "/delivery?source=a3-golden-path", icon: PackageCheck, number: "04", zh: "决定发布", en: "Decide release", detailZh: "门禁与审计", detailEn: "Gate & audit" }
-            ].map((step) => {
+            {workflowSteps.map((step) => {
               const StepIcon = step.icon;
               return (
-                <li key={step.href}>
-                  <Link href={step.href} className="workflow-step">
+                <li key={`${step.pathname}-${step.number}`}>
+                  <Link href={{ pathname: step.pathname, query: { source: step.source, ...(step.query || {}) } }} className="workflow-step">
                     <span className="workflow-step-number">{step.number}</span>
                     <span className="workflow-step-icon"><StepIcon size={18} strokeWidth={1.9} aria-hidden="true" /></span>
                     <span className="workflow-step-copy">
@@ -80,7 +91,7 @@ export function OverviewPage() {
             <p>{zh
               ? `账本完整性：${authority.integrityVerified ? "已核验" : "未通过"}；权威决策：${authority.upstreamDecision}；原因：${authority.reasonCode}。`
               : `Ledger integrity: ${authority.integrityVerified ? "verified" : "not verified"}; authoritative decision: ${authority.upstreamDecision}; reason: ${authority.reasonCode}.`}</p>
-            <Link className="signal-action" href="/review">{zh ? "进入人工审核" : "Open review"}<ArrowRight size={17} /></Link>
+            <Link className="signal-action" href={{ pathname: "/review", query: { source: model.source } }}>{zh ? "进入人工审核" : "Open review"}<ArrowRight size={17} /></Link>
           </div>
           <div className="release-signal-aside">
             <strong>{model.summary.passRate}%</strong><span>{zh ? "当前通过率" : "current pass rate"}</span>
@@ -96,7 +107,7 @@ export function OverviewPage() {
         ]} />
 
         <div className="content-grid two-one">
-          <Section title={zh ? "最近运行" : "Recent runs"} description={zh ? "来自运行服务的执行批次" : "Execution batches from the runtime service"} action={<Link className="text-link" href="/runs">{zh ? "全部运行" : "All runs"}<ArrowRight size={14} /></Link>}>
+          <Section title={zh ? "最近运行" : "Recent runs"} description={zh ? "来自运行服务的执行批次" : "Execution batches from the runtime service"} action={<Link className="text-link" href={{ pathname: "/runs", query: { source: model.source } }}>{zh ? "全部运行" : "All runs"}<ArrowRight size={14} /></Link>}>
             <DataTable headers={[zh ? "运行 ID" : "Run ID", zh ? "状态" : "Status", zh ? "案例" : "Cases", zh ? "耗时" : "Duration", zh ? "开始时间" : "Started"]} label="Recent runs">
               {model.runs.map((run) => (
                 <tr key={run.runId}>
@@ -112,7 +123,7 @@ export function OverviewPage() {
 
           <Section title={zh ? "失败集中点" : "Failure concentration"} description={zh ? "按权威评测的主要失败分类" : "By authoritative primary failure class"}>
             <div className="rank-list">
-              {failures.map(([name, count], index) => <Link href={`/runs?failure=${encodeURIComponent(name)}`} key={name}><span>{String(index + 1).padStart(2, "0")}</span><strong>{name}</strong><b>{count}</b></Link>)}
+              {failures.map(([name, count], index) => <Link href={{ pathname: "/runs", query: { failure: name, source: model.source } }} key={name}><span>{String(index + 1).padStart(2, "0")}</span><strong>{name}</strong><b>{count}</b></Link>)}
             </div>
           </Section>
         </div>
