@@ -24,6 +24,23 @@ Qwen2.5 7B Agent
   -> A3 JSON + Markdown + CSV + Dashboard + Hosted Report
 ```
 
+## 大模型是怎么被调用的
+
+1. `scripts/run-live-refund-demo.ps1:44-58` 接收 `-Model qwen2.5:7b`，把 `OLLAMA_MODEL` 传入一次新的 Docker `demo-runner`。
+2. `infra/docker/docker-compose.refund-agent-demo.yml:25-26` 让 Agent 容器通过 `http://ollama:11434` 访问本地 Ollama 服务。
+3. `examples/agents/ollama_refund_agent.py:60-66` 使用 `ProviderNeutralModelAdapter.for_ollama` 创建 SDK 模型适配器。
+4. `examples/agents/ollama_refund_agent.py:123-128` 把系统安全规则、用户退款请求和退款工具 JSON Schema 一起交给模型。
+5. `packages/sdk/ashr_clone/model_adapter.py:286-321` 编码请求，并向 Ollama `/api/chat` 发送 HTTP POST。
+6. Qwen 把输入转换为 Token 并生成结构化 Tool Call。平台不记录或伪造不可验证的隐藏思维链，只记录输入、Tool Call、回执、回复和耗时。
+7. `examples/agents/ollama_refund_agent.py:76-89` 验证模型生成的订单号与金额，执行内存沙盒工具，再把工具回执交给模型生成最终中文回复。
+8. `scripts/demo/run_live_refund_pipeline.py:65-91` 让 A1 生成 RunResult/Trace，再让 A2 对同一个 Case 运行五个 Judge。
+9. `services/report/a3_demo_report_cli.mjs:20-22` 让 A3 生成 JSON、Markdown、CSV、Dashboard 和 Hosted Report。
+
+可视化代码证据已放在 Case Detail 的“它到底是怎么运行起来的？”区域：
+
+- `docs/screenshots/a3-qwen7b-technical-evidence-cn-desktop.png`
+- `docs/screenshots/a3-qwen7b-technical-evidence-cn-mobile.png`
+
 ## 真实结果
 
 - Run ID：`run_571b8e28dc897865`

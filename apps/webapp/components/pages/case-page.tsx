@@ -9,6 +9,72 @@ import { failureClassLabel, judgeLabel, rubricLabel, traceEventLabel } from "@/l
 import { useI18n } from "@/lib/i18n";
 import { DataBoundary, EmptyState, EvidenceDetails, MetricStrip, PageHeader, Section, StatusBadge } from "../ui";
 
+const liveTechnicalSteps = [
+  {
+    index: "01",
+    file: "scripts/run-live-refund-demo.ps1:44-58",
+    zhTitle: "启动 7B 模型任务",
+    enTitle: "Start the 7B model run",
+    zhDetail: "PowerShell 把模型名交给 Docker，并启动一次全新的 demo-runner 容器。",
+    enDetail: "PowerShell passes the model name into a fresh demo-runner container.",
+    code: `$env:OLLAMA_MODEL = $Model\nInvoke-DockerCompose -Arguments @(\n  "run", "--rm", "-e",\n  "OLLAMA_MODEL=$Model", "demo-runner"\n)`
+  },
+  {
+    index: "02",
+    file: "infra/docker/docker-compose.refund-agent-demo.yml:25-26",
+    zhTitle: "Docker 连接 Ollama",
+    enTitle: "Connect Docker to Ollama",
+    zhDetail: "Agent 容器通过 Docker 内网访问 Ollama，不需要云端 API key。",
+    enDetail: "The Agent reaches Ollama over the Docker network without a cloud API key.",
+    code: `OLLAMA_BASE_URL: http://ollama:11434\nOLLAMA_MODEL: \${OLLAMA_MODEL:-qwen2.5:0.5b}`
+  },
+  {
+    index: "03",
+    file: "examples/agents/ollama_refund_agent.py:60-66,123-128",
+    zhTitle: "把消息和工具交给模型",
+    enTitle: "Send messages and tools to the model",
+    zhDetail: "Python SDK 创建 Ollama 适配器，再把系统规则、用户请求和工具 Schema 一起发送。",
+    enDetail: "The Python SDK creates the Ollama adapter and sends rules, request, and tool schema.",
+    code: `self.adapter = ProviderNeutralModelAdapter.for_ollama(\n  model=model_name, base_url=endpoint\n)\nresponse = self.adapter.complete(\n  messages, tools=[_refund_tool_schema()]\n)`
+  },
+  {
+    index: "04",
+    file: "packages/sdk/ashr_clone/model_adapter.py:286-321",
+    zhTitle: "SDK 调用 Ollama /api/chat",
+    enTitle: "SDK calls Ollama /api/chat",
+    zhDetail: "适配器编码 JSON 请求，通过 HTTP POST 调用本地模型，并解析文字与 Tool Call。",
+    enDetail: "The adapter posts JSON to the local model and parses text and tool calls.",
+    code: `url = self.base_url + "/api/chat"\nresponse = self._transport(\n  "POST", url, headers, body, timeout, stream\n)`
+  },
+  {
+    index: "05",
+    file: "examples/agents/ollama_refund_agent.py:76-89",
+    zhTitle: "校验参数并执行沙盒工具",
+    enTitle: "Validate and execute the sandbox tool",
+    zhDetail: "程序只接受指定模拟订单和 42 元；拿到回执后，再让模型生成最终中文回复。",
+    enDetail: "Only the allowlisted order and amount are accepted; the receipt is used for the final response.",
+    code: `decision, decision_attempts = self._decide(prompt)\nreceipt = self.sandbox.refund(\n  order_id=order_id, amount=amount\n)\nfinal_text, final_repaired = self._summarize(prompt, receipt)`
+  },
+  {
+    index: "06",
+    file: "scripts/demo/run_live_refund_pipeline.py:65-91",
+    zhTitle: "A1 记录，A2 评分",
+    enTitle: "A1 captures and A2 grades",
+    zhDetail: "同一个 case 先经过 A1 Runner 形成 Trace，再交给 A2 的五个 Judge。",
+    enDetail: "The same case becomes an A1 Trace and is then evaluated by five A2 Judges.",
+    code: `run_result = run_agent_batch(agent, [build_case()])\ngrade = grade_run(\n  SCENARIO_ID, run_result["cases"][0],\n  pack_path=SCENARIO_PACK\n)`
+  },
+  {
+    index: "07",
+    file: "services/report/a3_demo_report_cli.mjs:20-22",
+    zhTitle: "A3 生成页面和报告",
+    enTitle: "A3 builds the page and reports",
+    zhDetail: "A3 读取 A1 与 A2 的结果，生成 JSON、Markdown、CSV，并导入当前 Dashboard。",
+    enDetail: "A3 reads A1/A2 evidence, exports three formats, and imports the Dashboard.",
+    code: `buildJsonReport(runFixture, gradeFixture)\nbuildMarkdownReport(runFixture, gradeFixture)\nbuildCsvReport(runFixture, gradeFixture)`
+  }
+] as const;
+
 export function CasePage() {
   const { language } = useI18n();
   const zh = language === "zh-CN";
@@ -108,6 +174,49 @@ export function CasePage() {
               <span><Bot size={18} aria-hidden="true" />{zh ? "模型最后说了什么" : "Final model response"}</span>
               <blockquote>{actualResponse}</blockquote>
               <p><ShieldCheck size={15} aria-hidden="true" />{zh ? "真实的是模型推理、工具调用和评测记录；模拟的是订单和退款资金。" : "The inference, tool call, and evaluation are real; the order and payment are synthetic."}</p>
+            </div>
+          </section>
+        )}
+
+        {model.source === "live-refund-demo" && (
+          <section className="live-technical-evidence" aria-label={zh ? "大模型调用代码证据" : "Model invocation code evidence"}>
+            <header className="live-technical-header">
+              <div>
+                <small>{zh ? "代码证据 / 从命令到报告" : "CODE EVIDENCE / COMMAND TO REPORT"}</small>
+                <h2>{zh ? "它到底是怎么运行起来的？" : "How did this run actually happen?"}</h2>
+                <p>{zh ? "下面每一段都来自仓库中的真实文件。文件名和行号保留在标题旁，老师可以继续打开源码核对。" : "Every excerpt comes from a real repository file, with its source path and line number shown."}</p>
+              </div>
+              <Braces size={28} strokeWidth={1.6} aria-hidden="true" />
+            </header>
+
+            <div className="live-model-processing">
+              <div><span>1</span><strong>{zh ? "系统规则 + 用户请求" : "Rules + request"}</strong><small>{zh ? "限制只能操作模拟订单" : "Synthetic order only"}</small></div>
+              <b>→</b>
+              <div><span>2</span><strong>{zh ? "文字转换为 Token" : "Text to tokens"}</strong><small>{zh ? "由 Ollama/Qwen 运行时完成" : "Handled by Ollama/Qwen"}</small></div>
+              <b>→</b>
+              <div><span>3</span><strong>{zh ? "7B 模型生成决定" : "7B model decision"}</strong><small>{zh ? "输出结构化 Tool Call" : "Structured tool call"}</small></div>
+              <b>→</b>
+              <div><span>4</span><strong>{zh ? "Python 校验参数" : "Python validates"}</strong><small>{zh ? "订单号和金额必须匹配" : "Order and amount match"}</small></div>
+              <b>→</b>
+              <div><span>5</span><strong>{zh ? "沙盒工具返回回执" : "Sandbox receipt"}</strong><small>{zh ? "真实资金保持不变" : "No real payment mutation"}</small></div>
+              <b>→</b>
+              <div><span>6</span><strong>{zh ? "模型根据回执回答" : "Response from receipt"}</strong><small>{zh ? "再进入评测与报告" : "Then evaluation and report"}</small></div>
+            </div>
+            <p className="live-processing-boundary"><ShieldCheck size={15} aria-hidden="true" />{zh ? "我们记录输入、Tool Call、工具回执和最终回答，不伪造也不展示模型不可验证的隐藏思维链。" : "We record inputs, tool calls, receipts, and outputs without inventing hidden chain-of-thought."}</p>
+
+            <div className="live-code-grid">
+              {liveTechnicalSteps.map((step) => (
+                <article key={step.index}>
+                  <header><span>{step.index}</span><div><strong>{zh ? step.zhTitle : step.enTitle}</strong><code>{step.file}</code></div></header>
+                  <p>{zh ? step.zhDetail : step.enDetail}</p>
+                  <pre><code>{step.code}</code></pre>
+                </article>
+              ))}
+            </div>
+
+            <div className="live-runtime-receipt">
+              <header><ReceiptText size={18} aria-hidden="true" /><div><strong>{zh ? "本次真实运行回执" : "Actual runtime receipt"}</strong><small>{zh ? "这些值来自刚才生成的 RunResult 和 GradeResult" : "Read from the generated RunResult and GradeResult"}</small></div></header>
+              <pre><code>{`COMMAND     scripts/run-live-refund-demo.ps1 -Model ${modelName}\nMODEL       ${modelName}\nRUN_ID      ${item.runId}\nHTTP        POST http://ollama:11434/api/chat\nLATENCY     ${number(item.actual.latency_ms)} ms\nTOOL_CALL   ${string(firstToolCall.name, "refund_order_sandbox")}(${JSON.stringify(toolArguments)})\nTOOL_RESULT ${string(toolOutput.status, "approved")} / external_payment_mutated=${String(toolOutput.external_payment_mutated === true)}\nA1_TRACE    ${timeline.length} events\nA2_JUDGES   ${item.judgeResults.length}\nA2_SCORE    ${item.score}\nVERDICT     ${item.passed ? "PASS" : "FAIL"}`}</code></pre>
             </div>
           </section>
         )}

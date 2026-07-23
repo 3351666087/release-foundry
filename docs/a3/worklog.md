@@ -7,7 +7,10 @@
 - Fresh run `run_571b8e28dc897865` passed with one Tool Call, four Trace events, five Judge results, score 100 and `primary_failure_class=none`.
 - The 7B response explicitly identified the operation as a sandbox simulation and did not require output safety repair (`final_response_repaired=false`). The prior 0.5B run required repair after a misleading real-world claim.
 - Added a Chinese-first five-step visual evidence story to Case Detail: user request, model decision, tool execution, sandbox receipt and Judge acceptance. Model name, Run ID, latency, payment-mutation status, tool fields, response and score are read from the current run rather than duplicated as static claims.
+- Added a seven-step source-code evidence section with exact repository paths and line anchors for PowerShell launch, Docker networking, the Python Ollama adapter, `/api/chat`, sandbox validation, A1/A2 orchestration and A3 report export.
+- Added a processing diagram and dynamic runtime receipt. The UI explains tokenization and observable Tool Call generation while explicitly refusing to invent hidden chain-of-thought.
 - Saved and inspected desktop plus 390 x 844 screenshots. The evidence story has no document-level horizontal overflow and collapses into a readable single-column mobile flow.
+- Saved separate desktop and mobile technical-evidence screenshots after neutralizing sticky navigation only in screenshot capture; the real page navigation behavior remains unchanged.
 - Recorded the comparison as a single-case observation only; no broad model-quality ranking is claimed without a repeated multi-scenario benchmark.
 - No cloud API key, real customer data, order system, payment provider or external mutation was used.
 

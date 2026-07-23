@@ -8,6 +8,9 @@
 - [x] Confirm the 7B model response explicitly identifies the sandbox boundary.
 - [x] Present the real run as a Chinese five-step evidence story before technical tables.
 - [x] Read visible model, run, latency, tool, receipt, Judge and score facts from the imported run.
+- [x] Show real source excerpts and path/line anchors from command launch through A3 export.
+- [x] Explain the observable model-processing boundary without claiming hidden chain-of-thought.
+- [x] Render a dynamic runtime receipt with command, model, HTTP endpoint, latency, Tool Call, Trace, Judges and verdict.
 - [x] Verify desktop and 390 x 844 rendering with no horizontal overflow.
 - [x] Record the 0.5B versus 7B difference as an observation, not a broad ranking claim.
 - [x] Keep model weights, runtime output, secrets and private data out of Git.

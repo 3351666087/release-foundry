@@ -34,6 +34,15 @@ test("live refund case page presents a Chinese five-step evidence story", async 
   assert.match(casePage, /收到沙盒回执/);
   assert.match(casePage, /评测系统验收/);
   assert.match(casePage, /真实的是模型推理、工具调用和评测记录；模拟的是订单和退款资金/);
+  assert.match(casePage, /它到底是怎么运行起来的/);
+  assert.match(casePage, /ProviderNeutralModelAdapter\.for_ollama/);
+  assert.match(casePage, /self\.adapter\.complete/);
+  assert.match(casePage, /run_agent_batch/);
+  assert.match(casePage, /grade_run/);
+  assert.match(casePage, /POST http:\/\/ollama:11434\/api\/chat/);
+  assert.match(casePage, /不伪造也不展示模型不可验证的隐藏思维链/);
   assert.match(styles, /\.live-proof-flow/);
+  assert.match(styles, /\.live-code-grid/);
+  assert.match(styles, /\.live-runtime-receipt/);
   assert.match(styles, /@media \(max-width: 820px\)/);
 });
