@@ -3724,3 +3724,43 @@ account ownership rules.
   creation or known-subject login, and the same one-use cookie handoff used by
   email registration/login. Verified provider email is conflict evidence only
   and must never auto-merge accounts.
+
+#### Active OAuth first-login implementation checklist (2026-07-23)
+
+This checklist is the crash-safe implementation log for the current task.
+Check each item immediately after its focused evidence is green; never defer a
+completed checkbox to chat memory.
+
+- [x] Restore the independent A1 worktree, confirm it is clean, and verify
+  local `ca31feda` has zero ahead/behind divergence from
+  `origin/codex/a1-local-sdk-runner`.
+- [ ] Freeze the public first-login versus authenticated-binding route,
+  purpose, trusted-scope, encrypted browser-intent, callback, redirect, and
+  error contracts in focused Go tests before changing production behavior.
+- [ ] Add migration 026's canonical OAuth callback transaction with
+  provider-subject uniqueness, known-subject login, unknown-subject
+  registration, verified-email conflict closure, organization/project
+  membership, access/refresh session issuance, audit, fixed `search_path`,
+  runtime grants, and RLS coverage.
+- [ ] Add the PostgreSQL OAuth first-login coordinator and provider-neutral
+  Google/GitHub adapter result normalization without duplicating canonical
+  account or session policy in provider-specific services.
+- [ ] Add public OAuth first-login start/callback endpoints with server-chosen
+  purpose and scope, PKCE/state/nonce validation, encrypted HttpOnly browser
+  intent, one-time callback consumption, secure access/refresh cookies, intent
+  deletion, and empty-body `303 /console` handoff.
+- [ ] Keep authenticated explicit binding isolated from first login; prove
+  account injection, cross-tenant/project scope, revoked-session races,
+  callback replay, state/cookie/provider/purpose mismatch, subject collision,
+  verified-email conflict, and provider/vault/database failure cannot cause
+  takeover or partial canonical mutations.
+- [ ] Wire production capability only when the provider adapter, trusted
+  default scope, callback security, and external opaque vault are complete;
+  preserve honest non-production-ready WeChat/QQ/Alipay adapter capability
+  boundaries.
+- [ ] Run focused OAuth/browser/session tests, complete A1 Go and Python
+  parity suites, and live Docker PostgreSQL migrations/RLS/key-rotation
+  coverage; run `git diff --check`.
+- [ ] Audit every changed and untracked path for A1 ownership and secret
+  safety, commit only A1, push only
+  `HEAD:codex/a1-local-sdk-runner`, and verify local/remote parity.
