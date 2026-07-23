@@ -3539,7 +3539,7 @@ codes.
 - [x] Add/adjust unit, SQL mock, migration, RLS, rollback, idempotency,
   duplicate-registration, canonical-account, and bearer-redaction tests.
 - [x] Run the first focused Go and live PostgreSQL verification batch.
-- [ ] Commit and push only the first A1 registration/login transaction batch
+- [x] Commit and push only the first A1 registration/login transaction batch
   to remote branch `codex/a1-local-sdk-runner`.
 - [ ] Add canonical email registration/login HTTP begin/complete endpoints
   with browser intent, same-origin enforcement, secure HttpOnly strict cookies,
@@ -3581,3 +3581,6 @@ Progress:
   rotation/tamper cases. The complete A1 package plus `ashr-api` and
   `ashr-identity-delivery` command-package tests are also green, and
   `git diff --check` reports no whitespace errors.
+- The first A1-only transaction batch was committed as `ff061c39` and pushed
+  to remote branch `codex/a1-local-sdk-runner`; no A3 or `apps/webapp` file was
+  included.
