@@ -3662,5 +3662,6 @@ authorization code, verification code, or provider response.
   accepted the message once.
 - [x] If accepted, mark all QQ SMTP calibration items complete and audit the
   diff for secrets, A3 paths, or `apps/webapp` paths.
-- [ ] Commit only `docs/a1/worklog.md`, push only
-  `HEAD:codex/a1-local-sdk-runner`, and verify local/remote parity.
+- [x] Commit only `docs/a1/worklog.md`, push only
+  `HEAD:codex/a1-local-sdk-runner`, and verify local/remote parity at the
+  pushed calibration record.
