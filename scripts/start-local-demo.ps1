@@ -1,13 +1,15 @@
 param(
   [ValidateRange(1, 65535)]
   [int]$Port = 4174,
+  [ValidatePattern("^[a-zA-Z0-9._-]+$")]
+  [string]$Source = "a3-golden-path",
   [switch]$NoBrowser
 )
 
 $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $healthUrl = "http://127.0.0.1:$Port/__health"
-$demoUrl = "http://127.0.0.1:$Port/apps/webapp/out/overview/?source=a3-golden-path"
+$demoUrl = "http://127.0.0.1:$Port/apps/webapp/out/overview/?source=$([uri]::EscapeDataString($Source))"
 
 function Test-DemoServer {
   try {

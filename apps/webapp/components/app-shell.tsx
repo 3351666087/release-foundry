@@ -201,6 +201,7 @@ export function AppShell({ route, children }: { route: ProductRoute; children: R
           <label className="source-control">
             <span>{t("shell.source")}</span>
             <select value={source} onChange={(event) => setSource(event.target.value)}>
+              <option value="live-refund-demo">{language === "zh-CN" ? "现场演示 · Docker 本地模型退款" : "Live demo · Docker local-model refund"}</option>
               <option value="refund-demo">{language === "zh-CN" ? "新手演示 · 电商退款失败" : "Beginner demo · Refund failure"}</option>
               <option value="api-mock">{language === "zh-CN" ? "API 聚合证据" : "API evidence projection"}</option>
               <option value="p3-media">{language === "zh-CN" ? "多模态分歧校准" : "Multimodal disagreement calibration"}</option>

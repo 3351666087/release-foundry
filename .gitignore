@@ -18,3 +18,4 @@ docs/screenshots/playwright-results/
 
 # Local release build output
 dist/
+.demo-output/

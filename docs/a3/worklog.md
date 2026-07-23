@@ -1,5 +1,23 @@
 ﻿# A3 Worklog
 
+## 2026-07-23 - Docker Local-Model Refund Agent Demo
+
+- Added a two-layer presentation path: deterministic `refund-demo` remains the failure fallback, while `live-refund-demo` runs a real local model and generates a fresh run.
+- Added `OllamaRefundAgent` through the existing Python `ProviderNeutralModelAdapter`; the agent uses Docker Ollama `qwen2.5:0.5b` and does not read an external API key.
+- Added the allowlisted in-memory `refund_order_sandbox`. It accepts only `order_demo_123` and CNY 42, records `external_payment_mutated=false`, and has no order, bank, WeChat Pay, or Alipay integration.
+- Added a dedicated A3 teaching Scenario while reusing A2 `grade_run` and all five existing Judge implementations without changing A2 semantics or the official A2 scenario pack.
+- Added a Docker Compose runtime, mirror-backed Python image, persistent model volume, and one-command PowerShell flow.
+- The command now performs Docker model execution -> A1 RunResult/Trace -> A2 GradeResult -> A3 JSON/Markdown/CSV export -> Dashboard API import -> local Hosted Report.
+- A real first run exposed a misleading model statement that the operation had “really happened.” Added forbidden-fact coverage and an explicit final-response safety repair; the repair is recorded as `final_response_repaired=true`.
+- Fixed the dynamic Trace order to user message -> tool call -> tool result -> Agent response.
+- Fixed Windows PowerShell UTF-8 upload, A1 `agent_output.text` to A3 `actual.final_response` normalization, and duplicate Tool Call display across agent output and observations.
+- Verified a fresh dynamic run with one Tool Call, four Trace events, five A2 Judges, score 100, PASS, and `primary_failure_class=none`.
+- Exported and read back a local Hosted Report, and saved desktop plus 390 x 844 screenshots with no horizontal overflow.
+- Kept `.demo-output/` ignored and found no API key, bearer token, cookie, email, or real customer data in generated evidence.
+- Final cross-lane regression passed `47` Python tests covering the A1 runner, A2 Judges, and the live demo pipeline, plus `114` A3 Node tests covering fixture intake, dashboard wiring, P3 mapping, report generation, and the new demo export.
+- `python scripts/cl_guard.py hygiene` passed with `0` findings; Commercial CL passed with `0` blockers and `0` advisories; `git diff --check` found no whitespace error.
+- This demo does not change production readiness, A2 release authority, hosted identity status, or real payment integration status.
+
 ## 2026-07-12 - Round 12 Request Boundary and Next Golden Path
 
 ### Main and A1/A2 calibration

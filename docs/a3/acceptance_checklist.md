@@ -1,5 +1,23 @@
 ﻿# A3 Acceptance Checklist
 
+## Docker local-model refund demo - 2026-07-23
+
+- [x] Keep the fixed failed refund fixture as an offline presentation fallback.
+- [x] Run a real local model through the existing Python SDK adapter in Docker.
+- [x] Restrict the only executable refund tool to one synthetic order and amount.
+- [x] Record that no real order, payment provider, bank, WeChat Pay, or Alipay mutation occurs.
+- [x] Generate a fresh A1 RunResult with one Tool Call and four ordered Trace events.
+- [x] Grade the same case with the existing five A2 Judges without changing A2 semantics.
+- [x] Preserve the same `run_id` and `case_id` across A1, A2, A3, reports, and API import.
+- [x] Export A3 JSON, Markdown, CSV, and a local Hosted Report.
+- [x] Add `live-refund-demo` to the product data-source selector.
+- [x] Repair misleading real-payment model claims and record the repair in Agent metadata.
+- [x] Preserve Chinese text through Windows PowerShell UTF-8 API import.
+- [x] Normalize A1 `agent_output.text` as A3 actual output and deduplicate Tool Calls.
+- [x] Verify desktop and 390 x 844 rendering with four Trace events and one Tool Call.
+- [x] Ignore runtime output and keep generated evidence free of secrets and real customer data.
+- [ ] Connect to a real payment sandbox only after authorization, tenant identity, RBAC, durable audit, and explicit product approval exist.
+
 ## New A3 Lane Goal / Trusted Resource Isolation - 2026-07-12
 
 - [x] Read the new A3 Lane Goal and preserve it as the continuing enterprise

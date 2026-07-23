@@ -191,13 +191,22 @@ export function normalizeDashboard(payload: JsonRecord): DashboardModel {
     const grade = gradeByCase.get(caseId) || {};
     const explicitActual = record(item.actual);
     const agentOutput = record(item.agent_output);
-    const actual = Object.keys(explicitActual).length ? explicitActual : agentOutput;
+    const actualSource = Object.keys(explicitActual).length ? explicitActual : agentOutput;
+    const actualText = string(
+      actualSource.final_response,
+      string(actualSource.text, string(actualSource.response, ""))
+    );
+    const actual: JsonRecord = {
+      ...actualSource,
+      text: actualText,
+      final_response: actualText
+    };
     const observations = array(item.observations).map(record);
     const traceEvents = array(item.trace_events).map(record);
-    const toolCalls = [
+    const toolCalls = dedupeToolCalls([
       ...array(actual.tool_calls).map(record),
       ...observations.flatMap((observation) => array(observation.tool_calls).map(record))
-    ];
+    ]);
     const judgeResults = array(grade.judge_results).map(record);
     const failureAnalyses = judgeResults.map((judge) => record(judge.failure_analysis));
     const failureSummary = failureAnalyses.find((analysis) => string(analysis.summary, ""))?.summary;
@@ -281,6 +290,7 @@ export function normalizeDashboard(payload: JsonRecord): DashboardModel {
 function customerSourceLabel(source: string, sourceLabel: string): string {
   const labels: Record<string, string> = {
     "refund-demo": "新手演示 · 电商退款失败",
+    "live-refund-demo": "现场演示 · Docker 本地模型退款",
     "api-mock": "API 聚合证据",
     "p3-media": "多模态分歧校准",
     "p3-a2-round50": "三方模型复核 · Round 50",
@@ -294,6 +304,20 @@ function customerSourceLabel(source: string, sourceLabel: string): string {
   };
   if (labels[source]) return labels[source];
   return /\bA[123](?:\/A[123])*\b/.test(sourceLabel) ? "发布证据数据源" : sourceLabel;
+}
+
+function dedupeToolCalls(calls: JsonRecord[]): JsonRecord[] {
+  const seen = new Set<string>();
+  return calls.filter((call) => {
+    const callId = string(call.call_id, string(call.id, ""));
+    const key = callId || JSON.stringify([
+      string(call.name, string(call.tool, "unknown_tool")),
+      record(call.arguments || call.args)
+    ]);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function trustedAuthorityStatus(value: unknown): TrustedReleaseAuthority["status"] {
