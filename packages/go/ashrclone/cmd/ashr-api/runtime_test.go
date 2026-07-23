@@ -838,6 +838,7 @@ func TestProductionIdentitySessionCookieTransportUsesExplicitProxyTrustOnly(t *t
 		"ASHR_IDENTITY_SESSION_COOKIE_MAX_AGE_SECONDS":     "3600",
 		"ASHR_IDENTITY_REFRESH_COOKIE_MAX_AGE_SECONDS":     "7200",
 		"ASHR_IDENTITY_SESSION_COOKIE_TRUSTED_PROXY_CIDRS": "10.0.0.0/8,2001:db8:1234::/48",
+		"ASHR_IDENTITY_VERIFICATION_HMAC_KEY":              "runtime-browser-intent-key-at-least-32-bytes",
 		"ASHR_IDENTITY_VERIFICATION_SMTP_ENABLED":          "true",
 		"ASHR_SMTP_AUTH_CODE":                              "ignored-production-smtp-secret",
 	}))
@@ -860,21 +861,61 @@ func TestProductionIdentitySessionCookieTransportUsesExplicitProxyTrustOnly(t *t
 	if err := transport.ValidateIdentitySessionRequest(trusted); err != nil {
 		t.Fatalf("trusted proxy HTTPS rejected: %v", err)
 	}
+
+	intentTransport, ok := transport.(ashrclone.IdentityBrowserVerificationIntentTransport)
+	if !ok {
+		t.Fatal("production session transport omitted browser verification intents")
+	}
+	intentRequest := httptest.NewRequest(
+		http.MethodPost,
+		"https://api.example.test/v1/identity/registration/email/begin",
+		nil,
+	)
+	intentRequest.Header.Set("Origin", "https://api.example.test")
+	intentRequest.Header.Set("Sec-Fetch-Site", "same-origin")
+	intentResponse := httptest.NewRecorder()
+	intentReceipt, err := intentTransport.IssueIdentityBrowserVerificationIntent(
+		intentResponse,
+		intentRequest,
+		ashrclone.IdentityBrowserVerificationIntentIssue{
+			ChallengeID: "challenge-runtime-browser-test",
+			Purpose:     ashrclone.IdentityVerificationRegistration,
+			TenantID:    "tenant-runtime-test",
+			ProjectID:   "project-runtime-test",
+			Identifier:  "runtime@example.test",
+			ExpiresAt:   time.Now().UTC().Add(10 * time.Minute),
+		},
+	)
+	if err != nil || intentReceipt.IntentID == "" {
+		t.Fatalf("production runtime did not configure browser intent encryption: %v", err)
+	}
+	intentCookies := intentResponse.Result().Cookies()
+	if len(intentCookies) != 1 ||
+		intentCookies[0].Name != ashrclone.IdentityBrowserVerificationIntentCookieName ||
+		!intentCookies[0].Secure ||
+		!intentCookies[0].HttpOnly {
+		t.Fatalf("production browser intent cookie is incomplete: %#v", intentCookies)
+	}
 }
 
 func TestProductionIdentitySessionCookieTransportRejectsInvalidEnvWithoutEcho(t *testing.T) {
 	for _, values := range []map[string]string{
+		{},
 		{
 			"ASHR_IDENTITY_SESSION_COOKIE_MAX_AGE_SECONDS": "invalid-max-age-secret",
+			"ASHR_IDENTITY_VERIFICATION_HMAC_KEY":          "runtime-browser-intent-key-at-least-32-bytes",
 		},
 		{
 			"ASHR_IDENTITY_REFRESH_COOKIE_MAX_AGE_SECONDS": "invalid-refresh-max-age-secret",
+			"ASHR_IDENTITY_VERIFICATION_HMAC_KEY":          "runtime-browser-intent-key-at-least-32-bytes",
 		},
 		{
 			"ASHR_IDENTITY_SESSION_COOKIE_TRUSTED_PROXY_CIDRS": "invalid-cidr-secret",
+			"ASHR_IDENTITY_VERIFICATION_HMAC_KEY":              "runtime-browser-intent-key-at-least-32-bytes",
 		},
 		{
 			"ASHR_IDENTITY_SESSION_COOKIE_TRUSTED_PROXY_CIDRS": "10.0.0.1/8,10.0.0.0/8",
+			"ASHR_IDENTITY_VERIFICATION_HMAC_KEY":              "runtime-browser-intent-key-at-least-32-bytes",
 		},
 	} {
 		_, err := productionIdentitySessionReceiptTransportFromEnv(lookup(values))

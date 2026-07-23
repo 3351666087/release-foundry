@@ -39,6 +39,8 @@ type IdentitySessionCookieTransportOptions struct {
 	MaxLifetime        time.Duration
 	RefreshMaxLifetime time.Duration
 	TrustedProxyCIDRs  []netip.Prefix
+	IntentKey          []byte
+	IntentMaxLifetime  time.Duration
 }
 
 // IdentitySessionCookieTransport writes a host-only secure cookie. Forwarded
@@ -49,6 +51,7 @@ type IdentitySessionCookieTransport struct {
 	maxLifetime        time.Duration
 	refreshMaxLifetime time.Duration
 	trustedProxyCIDRs  []netip.Prefix
+	browserIntent      *identityBrowserVerificationIntentCodec
 }
 
 func NewIdentitySessionCookieTransport(
@@ -80,11 +83,20 @@ func NewIdentitySessionCookieTransport(
 		}
 		trustedProxyCIDRs = append(trustedProxyCIDRs, prefix.Masked())
 	}
+	browserIntent, err := newIdentityBrowserVerificationIntentCodec(
+		options.IntentKey,
+		options.IntentMaxLifetime,
+		now,
+	)
+	if err != nil {
+		return nil, err
+	}
 	return &IdentitySessionCookieTransport{
 		now:                now,
 		maxLifetime:        maxLifetime,
 		refreshMaxLifetime: refreshMaxLifetime,
 		trustedProxyCIDRs:  trustedProxyCIDRs,
+		browserIntent:      browserIntent,
 	}, nil
 }
 
@@ -423,7 +435,9 @@ func (server *HTTPServer) handleIdentityVerification(writer http.ResponseWriter,
 			MutationTicketID: mutationTicketID, StepUpReceiptID: stepUpReceiptID,
 			DisplayName: stringValue(body, "display_name"),
 		}
-		issueSession := purpose == IdentityVerificationLogin || purpose == IdentityVerificationRecovery
+		issueSession := purpose == IdentityVerificationRegistration ||
+			purpose == IdentityVerificationLogin ||
+			purpose == IdentityVerificationRecovery
 		if issueSession {
 			if server.identitySessionReceiptTransport == nil {
 				writeError(writer, http.StatusServiceUnavailable, "identity_session_transport_unavailable", "identity session handoff is not configured")

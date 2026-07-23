@@ -3541,10 +3541,22 @@ codes.
 - [x] Run the first focused Go and live PostgreSQL verification batch.
 - [x] Commit and push only the first A1 registration/login transaction batch
   to remote branch `codex/a1-local-sdk-runner`.
-- [ ] Add canonical email registration/login HTTP begin/complete endpoints
+- [x] Add canonical email registration/login HTTP begin/complete endpoints
   with browser intent, same-origin enforcement, secure HttpOnly strict cookies,
   no-store responses, and `303 /console` handoff.
-- [ ] Run the complete A1 verification matrix and confirm no A3 files changed.
+  - [x] Reconfirm the clean A1-only worktree and exact remote parity at
+    `030c37b5`; inspect the production HTTP/runtime wiring before editing.
+  - [x] Return a browser-safe `challenge_id` plus opaque `intent_id` from the
+    dedicated registration/login begin routes.
+  - [x] Bind encrypted HttpOnly intent state to challenge, purpose, trusted
+    tenant/project scope, normalized email, exact HTTPS origin, and expiry.
+  - [x] Validate secure transport, exact same-origin, fetch metadata, strict
+    JSON keys, and constant-time intent matches before durable completion.
+  - [x] Issue access/refresh cookies for both registration and login, clear the
+    intent cookie, and redirect with an empty `303 /console` response.
+  - [x] Prove purpose isolation, replay/mismatch rejection, no secret leakage,
+    and pre-mutation failure across the browser security matrix.
+- [x] Run the complete A1 verification matrix and confirm no A3 files changed.
 - [ ] Send exactly one controlled real QQ SMTP calibration email only after
   all security tests pass; never print or commit its configuration or secrets.
 - [ ] Commit and push only the second A1 browser-session batch.
@@ -3584,3 +3596,52 @@ Progress:
 - The first A1-only transaction batch was committed as `ff061c39` and pushed
   to remote branch `codex/a1-local-sdk-runner`; no A3 or `apps/webapp` file was
   included.
+
+### Immediate continuation queue (2026-07-23)
+
+This queue is the local source of truth for the current A1 browser
+registration/login closure. Check each item immediately when its evidence is
+green; do not rely on chat memory.
+
+- [x] Restore the A1-only worktree, confirm local/remote parity at `030c37b5`,
+  and enumerate the uncommitted browser handoff files.
+- [x] Diagnose whether valid begin responses are real verification challenges
+  or anti-enumeration decoys; correct only the fake/implementation that is
+  proven wrong.
+- [x] Make the complete `IdentityBrowser` security matrix green, including
+  registration and login `challenge_id`/`intent_id` handoff, exact-origin
+  enforcement, purpose isolation, replay rejection, secret redaction, secure
+  cookies, and empty `303 /console` session transfer.
+- [x] Add and pass intent-expiry, production runtime `IntentKey`, and generic
+  registration session-issuance regression coverage.
+- [x] Run focused identity/session/readiness tests and the complete live Docker
+  PostgreSQL migrations 001-025/RLS/rotation matrix.
+- [x] Run complete A1 Go/cross-language tests, `git diff --check`, and verify
+  that no A3 or `apps/webapp` path changed.
+- [ ] Commit and immediately push only this A1 browser-session batch to
+  `origin/codex/a1-local-sdk-runner`.
+- [ ] Only after every safety test is green, send exactly one controlled QQ
+  SMTP calibration message without printing, logging, or committing any real
+  address, SMTP setting, authorization code, OTP, proof, or bearer.
+
+#### Active failure-closure checklist (2026-07-23)
+
+This checklist records the exact remaining work from the resumed task. Check
+one item immediately after its focused evidence is green.
+
+- [x] Reconfirm the independent A1 worktree/branch and classify all four
+  complete-suite failures without changing A3 or `apps/webapp`.
+- [x] Update the legacy live session-lifecycle tests to call migration 025's
+  canonical login/recovery result wrappers, while proving the replaced direct
+  wrappers remain revoked from `a1_runtime`.
+- [x] Update the Round 53 source-order contract to locate the current
+  `applyIdentityMutationTx` call without weakening digest-only SQL,
+  post-commit bearer handoff, or bearer-redaction assertions.
+- [x] Re-run the four previously failing tests and check this item immediately
+  when all four are green.
+- [x] Re-run all `tests/a1`, Go command packages, and the live PostgreSQL
+  lifecycle/RLS/key-rotation matrix; run `git diff --check`.
+- [ ] Audit every changed/untracked path, commit only A1, and push only
+  `HEAD:codex/a1-local-sdk-runner`.
+- [ ] After all tests and the A1-only push are green, send one and only one
+  real QQ SMTP calibration message without exposing any secret material.

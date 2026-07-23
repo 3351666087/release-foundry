@@ -972,15 +972,16 @@ def test_live_verified_login_separates_access_and_refresh_credentials(
         session_lifecycle_database,
         scope
         + f"""
-          SELECT a1_login_with_verified_identity_with_refresh(
-            '{account['organization']}', '{project}',
-            '{digests['receipt']}', '{digests['session']}',
-            '{digests['refresh']}', '{digests['family']}',
-            clock_timestamp() + interval '2 hours',
-            clock_timestamp() + interval '15 minutes',
-            '{digests['idempotency']}', '{digests['request']}',
-            '{digests['login_event']}', '{{}}'::jsonb
-          );
+          SELECT session_id
+            FROM a1_login_with_verified_identity_with_refresh_result(
+              '{account['organization']}', '{project}',
+              '{digests['receipt']}', '{digests['session']}',
+              '{digests['refresh']}', '{digests['family']}',
+              clock_timestamp() + interval '2 hours',
+              clock_timestamp() + interval '15 minutes',
+              '{digests['idempotency']}', '{digests['request']}',
+              '{digests['login_event']}', '{{}}'::jsonb
+            );
         """,
         user=RUNTIME_ROLE,
         check=False,
@@ -993,15 +994,16 @@ def test_live_verified_login_separates_access_and_refresh_credentials(
             session_lifecycle_database,
             scope
             + f"""
-              SELECT a1_login_with_verified_identity_with_refresh(
-                '{account['organization']}', '{project}',
-                '{digests['receipt']}', '{digests['session']}',
-                '{digests['refresh']}', '{digests['family']}',
-                clock_timestamp() + interval '15 minutes',
-                clock_timestamp() + interval '2 hours',
-                '{digests['idempotency']}', '{digests['request']}',
-                '{digests['login_event']}', '{{}}'::jsonb
-              );
+              SELECT session_id
+                FROM a1_login_with_verified_identity_with_refresh_result(
+                  '{account['organization']}', '{project}',
+                  '{digests['receipt']}', '{digests['session']}',
+                  '{digests['refresh']}', '{digests['family']}',
+                  clock_timestamp() + interval '15 minutes',
+                  clock_timestamp() + interval '2 hours',
+                  '{digests['idempotency']}', '{digests['request']}',
+                  '{digests['login_event']}', '{{}}'::jsonb
+                );
             """,
             user=RUNTIME_ROLE,
         )
@@ -1142,15 +1144,16 @@ def test_live_verified_recovery_invalidates_only_the_exact_project_account(
         session_lifecycle_database,
         scope
         + f"""
-          SELECT a1_recover_verified_identity_with_refresh(
-            '{account['organization']}', '{first_project}',
-            '{digests['receipt']}', '{digests['new_session']}',
-            '{digests['new_refresh']}', '{digests['new_family']}',
-            clock_timestamp() + interval '2 hours',
-            clock_timestamp() + interval '15 minutes',
-            '{digests['idempotency']}', '{digests['request']}',
-            '{digests['recovery_event']}', '{{}}'::jsonb
-          );
+          SELECT session_id
+            FROM a1_recover_verified_identity_with_refresh_result(
+              '{account['organization']}', '{first_project}',
+              '{digests['receipt']}', '{digests['new_session']}',
+              '{digests['new_refresh']}', '{digests['new_family']}',
+              clock_timestamp() + interval '2 hours',
+              clock_timestamp() + interval '15 minutes',
+              '{digests['idempotency']}', '{digests['request']}',
+              '{digests['recovery_event']}', '{{}}'::jsonb
+            );
         """,
         user=RUNTIME_ROLE,
         check=False,
@@ -1163,15 +1166,16 @@ def test_live_verified_recovery_invalidates_only_the_exact_project_account(
             session_lifecycle_database,
             scope
             + f"""
-              SELECT a1_recover_verified_identity_with_refresh(
-                '{account['organization']}', '{first_project}',
-                '{digests['receipt']}', '{digests['new_session']}',
-                '{digests['new_refresh']}', '{digests['new_family']}',
-                clock_timestamp() + interval '15 minutes',
-                clock_timestamp() + interval '2 hours',
-                '{digests['idempotency']}', '{digests['request']}',
-                '{digests['recovery_event']}', '{{}}'::jsonb
-              );
+              SELECT session_id
+                FROM a1_recover_verified_identity_with_refresh_result(
+                  '{account['organization']}', '{first_project}',
+                  '{digests['receipt']}', '{digests['new_session']}',
+                  '{digests['new_refresh']}', '{digests['new_family']}',
+                  clock_timestamp() + interval '15 minutes',
+                  clock_timestamp() + interval '2 hours',
+                  '{digests['idempotency']}', '{digests['request']}',
+                  '{digests['recovery_event']}', '{{}}'::jsonb
+                );
             """,
             user=RUNTIME_ROLE,
         )
@@ -1221,7 +1225,7 @@ def test_live_verified_recovery_invalidates_only_the_exact_project_account(
     ]
 
 
-def test_live_runtime_privileges_exclude_legacy_access_only_issuers(
+def test_live_runtime_privileges_exclude_replaced_session_issuers(
     session_lifecycle_database: str,
 ) -> None:
     privileges = _rows(
@@ -1258,11 +1262,23 @@ def test_live_runtime_privileges_exclude_legacy_access_only_issuers(
                   'a1_runtime',
                   'a1_recover_verified_identity_with_refresh(uuid,uuid,text,text,text,text,timestamptz,timestamptz,text,text,text,jsonb)',
                   'EXECUTE'
+                ) || '|' ||
+                has_function_privilege(
+                  'a1_runtime',
+                  'a1_login_with_verified_identity_with_refresh_result(uuid,uuid,text,text,text,text,timestamptz,timestamptz,text,text,text,jsonb)',
+                  'EXECUTE'
+                ) || '|' ||
+                has_function_privilege(
+                  'a1_runtime',
+                  'a1_recover_verified_identity_with_refresh_result(uuid,uuid,text,text,text,text,timestamptz,timestamptz,text,text,text,jsonb)',
+                  'EXECUTE'
                 );
             """,
         )
     )
-    assert privileges == ["false|false|false|false|true|true"]
+    assert privileges == [
+        "false|false|false|false|false|false|true|true"
+    ]
 
 
 def test_browser_refresh_bootstrap_is_digest_only_scoped_and_narrowly_granted() -> None:

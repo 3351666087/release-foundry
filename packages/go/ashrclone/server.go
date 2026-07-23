@@ -25,6 +25,7 @@ type HTTPServer struct {
 	identityVerification               *IdentityVerificationService
 	identityVerificationResponsePolicy *IdentityVerificationResponsePolicy
 	identitySessionReceiptTransport    IdentitySessionReceiptTransport
+	identityBrowserVerificationIntents IdentityBrowserVerificationIntentTransport
 	oauthProviders                     map[string]*OAuthService
 	githubOAuth                        *GitHubOAuthService
 	providerDispatch                   ProviderDispatchBackend
@@ -84,6 +85,7 @@ type HTTPServerOptions struct {
 	IdentityVerification               *IdentityVerificationService
 	IdentityVerificationResponsePolicy *IdentityVerificationResponsePolicy
 	IdentitySessionReceiptTransport    IdentitySessionReceiptTransport
+	IdentityBrowserVerificationIntents IdentityBrowserVerificationIntentTransport
 	OAuthProviders                     map[string]*OAuthService
 	GitHubOAuth                        *GitHubOAuthService
 	ProviderDispatch                   ProviderDispatchBackend
@@ -153,6 +155,7 @@ func NewHTTPServerWithOptions(service ControlPlaneBackend, options HTTPServerOpt
 		identityVerification:               options.IdentityVerification,
 		identityVerificationResponsePolicy: options.IdentityVerificationResponsePolicy,
 		identitySessionReceiptTransport:    options.IdentitySessionReceiptTransport,
+		identityBrowserVerificationIntents: options.IdentityBrowserVerificationIntents,
 		oauthProviders:                     oauthProviders,
 		githubOAuth:                        options.GitHubOAuth,
 		providerDispatch:                   options.ProviderDispatch,

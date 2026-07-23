@@ -12,7 +12,10 @@ import (
 	"time"
 )
 
-type httpSessionVerificationStore struct{}
+type httpSessionVerificationStore struct {
+	createCalls   int
+	lastChallenge IdentityVerificationChallenge
+}
 
 func (*httpSessionVerificationStore) CreateIdentityVerificationChallenge(
 	context.Context,
@@ -38,23 +41,28 @@ func (*httpSessionVerificationStore) IdentityVerificationDeliveryScope() (string
 	return "tenant-http", "project-http"
 }
 
-func (*httpSessionVerificationStore) CreateIdentityVerificationChallengeWithDelivery(
-	context.Context,
-	IdentityVerificationChallenge,
-	time.Duration,
-	string,
-	string,
+func (store *httpSessionVerificationStore) CreateIdentityVerificationChallengeWithDelivery(
+	_ context.Context,
+	challenge IdentityVerificationChallenge,
+	_ time.Duration,
+	_ string,
+	_ string,
 ) error {
+	store.createCalls++
+	store.lastChallenge = challenge
 	return nil
 }
 
-type httpSessionVerificationVault struct{}
+type httpSessionVerificationVault struct {
+	sealRequest IdentityDeliverySealRequest
+}
 
-func (*httpSessionVerificationVault) SealIdentityDelivery(
-	context.Context,
-	IdentityDeliverySealRequest,
+func (vault *httpSessionVerificationVault) SealIdentityDelivery(
+	_ context.Context,
+	request IdentityDeliverySealRequest,
 ) (string, error) {
-	return "identity_delivery_vault_ref_http_test", nil
+	vault.sealRequest = request
+	return "vault:identity_delivery_http_test", nil
 }
 
 func (*httpSessionVerificationVault) DeleteIdentityDelivery(context.Context, string) error {
@@ -88,6 +96,7 @@ func (coordinator *httpSessionVerificationCoordinator) CompleteIdentityVerificat
 ) (IdentityVerificationResultDTO, IdentitySessionIssuanceReceipt, error) {
 	coordinator.issueCalls++
 	coordinator.lastPurpose = command.Purpose
+	coordinator.lastCommand = command
 	coordinator.lastBearer = "ashr_session.v2." + strings.Repeat("A", 43)
 	coordinator.lastRefreshBearer = "ashr_refresh.v2." + strings.Repeat("B", 43)
 	coordinator.lastReceipt = newIdentitySessionIssuanceReceiptWithRefresh(
@@ -175,7 +184,8 @@ func identitySessionVerifyRequest(purpose IdentityVerificationPurpose, secure bo
 		scheme = "https"
 	}
 	accountField := ""
-	if purpose != IdentityVerificationBinding {
+	if purpose == IdentityVerificationLogin ||
+		purpose == IdentityVerificationRecovery {
 		accountField = `,"account_id":"account-http-test"`
 	}
 	body := fmt.Sprintf(
@@ -190,9 +200,10 @@ func identitySessionVerifyRequest(purpose IdentityVerificationPurpose, secure bo
 	)
 }
 
-func TestIdentityVerificationHTTPLoginAndRecoveryUseOneTimeSecureCookieOnly(t *testing.T) {
+func TestIdentityVerificationHTTPRegistrationLoginAndRecoveryUseOneTimeSecureCookieOnly(t *testing.T) {
 	now := time.Date(2026, 7, 11, 12, 0, 0, 0, time.UTC)
 	for _, purpose := range []IdentityVerificationPurpose{
+		IdentityVerificationRegistration,
 		IdentityVerificationLogin,
 		IdentityVerificationRecovery,
 	} {

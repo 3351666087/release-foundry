@@ -738,6 +738,10 @@ func zeroBytes(value []byte) {
 func productionIdentitySessionReceiptTransportFromEnv(
 	lookup func(string) (string, bool),
 ) (ashrclone.IdentitySessionReceiptTransport, error) {
+	intentKey := envRaw(lookup, "ASHR_IDENTITY_VERIFICATION_HMAC_KEY")
+	if len(intentKey) < 32 {
+		return nil, fmt.Errorf("ASHR_IDENTITY_VERIFICATION_HMAC_KEY must contain at least 32 bytes")
+	}
 	maxLifetime := 24 * time.Hour
 	refreshMaxLifetime := 30 * 24 * time.Hour
 	if raw := env(lookup, "ASHR_IDENTITY_SESSION_COOKIE_MAX_AGE_SECONDS"); raw != "" {
@@ -775,6 +779,7 @@ func productionIdentitySessionReceiptTransportFromEnv(
 			MaxLifetime:        maxLifetime,
 			RefreshMaxLifetime: refreshMaxLifetime,
 			TrustedProxyCIDRs:  trustedProxyCIDRs,
+			IntentKey:          []byte(intentKey),
 		},
 	)
 	if err != nil {

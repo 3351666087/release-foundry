@@ -310,6 +310,14 @@ func (server *HTTPServer) completeIdentityOAuthLink(writer http.ResponseWriter, 
 }
 
 func (server *HTTPServer) handleIdentityRegistrationBegin(writer http.ResponseWriter, request *http.Request) {
+	if server.identityVerification != nil {
+		server.handleIdentityBrowserEmailBegin(
+			writer,
+			request,
+			IdentityVerificationRegistration,
+		)
+		return
+	}
 	if !requireIdentityMethod(writer, request, http.MethodPost) {
 		return
 	}
@@ -340,6 +348,14 @@ func (server *HTTPServer) handleIdentityRegistrationBegin(writer http.ResponseWr
 }
 
 func (server *HTTPServer) handleIdentityRegistrationComplete(writer http.ResponseWriter, request *http.Request) {
+	if server.identityVerification != nil {
+		server.handleIdentityBrowserEmailComplete(
+			writer,
+			request,
+			IdentityVerificationRegistration,
+		)
+		return
+	}
 	if !requireIdentityMethod(writer, request, http.MethodPost) {
 		return
 	}
@@ -371,6 +387,14 @@ func (server *HTTPServer) handleIdentityRegistrationComplete(writer http.Respons
 }
 
 func (server *HTTPServer) handleIdentityLoginBegin(writer http.ResponseWriter, request *http.Request) {
+	if server.identityVerification != nil {
+		server.handleIdentityBrowserEmailBegin(
+			writer,
+			request,
+			IdentityVerificationLogin,
+		)
+		return
+	}
 	if !requireIdentityMethod(writer, request, http.MethodPost) {
 		return
 	}
@@ -401,6 +425,14 @@ func (server *HTTPServer) handleIdentityLoginBegin(writer http.ResponseWriter, r
 }
 
 func (server *HTTPServer) handleIdentityLoginComplete(writer http.ResponseWriter, request *http.Request) {
+	if server.identityVerification != nil {
+		server.handleIdentityBrowserEmailComplete(
+			writer,
+			request,
+			IdentityVerificationLogin,
+		)
+		return
+	}
 	if !requireIdentityMethod(writer, request, http.MethodPost) {
 		return
 	}
