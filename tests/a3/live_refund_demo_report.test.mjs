@@ -22,3 +22,18 @@ test("live refund demo exports A3 reports from A1 and A2 fixtures", async () => 
   assert.match(await readFile(join(outputDir, "a3_report.md"), "utf8"), /missing_required_tool/);
   assert.match(await readFile(join(outputDir, "a3_report.csv"), "utf8"), /case-refund-demo-001/);
 });
+
+test("live refund case page presents a Chinese five-step evidence story", async () => {
+  const casePage = await readFile(new URL("../../apps/webapp/components/pages/case-page.tsx", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../../apps/webapp/app/globals.css", import.meta.url), "utf8");
+
+  assert.match(casePage, /model\.source === "live-refund-demo"/);
+  assert.match(casePage, /真实运行证据 \/ 不是预先写好的截图/);
+  assert.match(casePage, /大模型作出决定/);
+  assert.match(casePage, /工具真实执行/);
+  assert.match(casePage, /收到沙盒回执/);
+  assert.match(casePage, /评测系统验收/);
+  assert.match(casePage, /真实的是模型推理、工具调用和评测记录；模拟的是订单和退款资金/);
+  assert.match(styles, /\.live-proof-flow/);
+  assert.match(styles, /@media \(max-width: 820px\)/);
+});

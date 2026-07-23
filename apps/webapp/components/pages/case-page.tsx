@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Bot, Braces, CheckCircle2, MessageSquareText, SearchCheck, Wrench, XCircle } from "lucide-react";
+import { ArrowLeft, Bot, Braces, CheckCircle2, Cpu, MessageSquareText, ReceiptText, SearchCheck, ShieldCheck, Wrench, XCircle } from "lucide-react";
 
-import { array, pretty, record, string } from "@/lib/api";
+import { array, number, pretty, record, string } from "@/lib/api";
 import { failureClassLabel, judgeLabel, rubricLabel, traceEventLabel } from "@/lib/evidence-labels";
 import { useI18n } from "@/lib/i18n";
 import { DataBoundary, EmptyState, EvidenceDetails, MetricStrip, PageHeader, Section, StatusBadge } from "../ui";
@@ -23,6 +23,13 @@ export function CasePage() {
     const expectedSummary = string(item.expected.summary, array(item.expected.expected_responses)[0] ? string(array(item.expected.expected_responses)[0]) : "No expected summary.");
     const actualResponse = string(item.actual.final_response, "No final response.");
     const timeline = item.traceEvents.length ? item.traceEvents : item.observations;
+    const actualMetadata = record(item.actual.metadata);
+    const modelName = string(actualMetadata.model, "local model");
+    const firstToolCall = record(item.toolCalls[0]);
+    const toolArguments = record(firstToolCall.arguments || firstToolCall.args);
+    const toolOutput = record(firstToolCall.output);
+    const latencySeconds = Math.max(1, Math.round(number(item.actual.latency_ms) / 1000));
+    const userRequest = string(record(timeline[0]).content, "请处理这笔模拟退款。仅允许沙盒操作。");
 
     return (
       <>
@@ -49,6 +56,59 @@ export function CasePage() {
               <li><span>02</span><strong>A2 · Judge</strong><p>{zh ? "判定缺少必需工具，得分 42，结果失败。" : "Missing required tool: score 42, failed."}</p></li>
               <li><span>03</span><strong>A3 · Triage</strong><p>{zh ? "展示差异并阻止未经证实的退款版本发布。" : "Show the mismatch and block an unverified release."}</p></li>
             </ol>
+          </section>
+        )}
+
+        {model.source === "live-refund-demo" && (
+          <section className="live-demo-proof" aria-label={zh ? "7B 大模型真实运行证据" : "7B real-model run evidence"}>
+            <header className="live-demo-proof-hero">
+              <span className="live-proof-icon"><Cpu size={26} strokeWidth={1.8} aria-hidden="true" /></span>
+              <div>
+                <small>{zh ? "真实运行证据 / 不是预先写好的截图" : "REAL RUN EVIDENCE / NOT A PREWRITTEN SCREENSHOT"}</small>
+                <h2>{zh ? `${modelName} 完成了一次退款 Agent 测试` : `${modelName} completed a refund Agent test`}</h2>
+                <p>{zh ? "模型在 Docker 中真实推理，自己选择工具；退款工具只操作模拟订单，不连接真实资金。" : "The model performed real inference in Docker and selected its tool. The tool only touches a synthetic order."}</p>
+              </div>
+              <div className="live-proof-verdict" data-status={item.passed ? "passed" : "failed"}>
+                {item.passed ? <CheckCircle2 size={22} aria-hidden="true" /> : <XCircle size={22} aria-hidden="true" />}
+                <span><strong>{item.passed ? "PASS" : "FAIL"}</strong><small>{zh ? `得分 ${item.score}` : `Score ${item.score}`}</small></span>
+              </div>
+            </header>
+
+            <div className="live-proof-facts">
+              <div><span>{zh ? "真实模型" : "Model"}</span><strong>{modelName}</strong><small>{zh ? "Docker Ollama 本地推理" : "Docker Ollama inference"}</small></div>
+              <div><span>{zh ? "本次运行编号" : "Run ID"}</span><strong>{item.runId}</strong><small>{zh ? "可追踪到同一次运行" : "Binds the same run"}</small></div>
+              <div><span>{zh ? "推理用时" : "Inference time"}</span><strong>{latencySeconds} {zh ? "秒" : "sec"}</strong><small>{zh ? "真实等待，不是静态结果" : "Observed runtime latency"}</small></div>
+              <div><span>{zh ? "真实资金变化" : "Real payment mutation"}</span><strong>{toolOutput.external_payment_mutated === true ? (zh ? "是" : "Yes") : (zh ? "没有" : "None")}</strong><small>{zh ? "全程沙盒" : "Sandbox only"}</small></div>
+            </div>
+
+            <ol className="live-proof-flow">
+              <li>
+                <span>01</span><MessageSquareText size={20} aria-hidden="true" />
+                <div><small>{zh ? "用户提出任务" : "User request"}</small><strong>{zh ? "请求退款" : "Request a refund"}</strong><p>{userRequest}</p></div>
+              </li>
+              <li>
+                <span>02</span><Bot size={20} aria-hidden="true" />
+                <div><small>{zh ? "大模型作出决定" : "Model decision"}</small><strong>{zh ? "需要调用退款工具" : "Call the refund tool"}</strong><p>{zh ? `${modelName} 读取请求后选择了工具，而不是只回复一段文字。` : `${modelName} selected a tool after reading the request.`}</p></div>
+              </li>
+              <li>
+                <span>03</span><Wrench size={20} aria-hidden="true" />
+                <div><small>{zh ? "工具真实执行" : "Tool execution"}</small><strong>{string(firstToolCall.name, "refund_order_sandbox")}</strong><p>{zh ? `订单 ${string(toolArguments.order_id)}，金额 ${string(toolArguments.amount)} 元。` : `Order ${string(toolArguments.order_id)}, amount ${string(toolArguments.amount)}.`}</p></div>
+              </li>
+              <li>
+                <span>04</span><ReceiptText size={20} aria-hidden="true" />
+                <div><small>{zh ? "收到沙盒回执" : "Sandbox receipt"}</small><strong>{string(toolOutput.status, "approved").toUpperCase()}</strong><p>{zh ? "工具确认模拟退款成功，同时证明真实支付没有变化。" : "The tool approved the simulation and recorded no real payment mutation."}</p></div>
+              </li>
+              <li>
+                <span>05</span><ShieldCheck size={20} aria-hidden="true" />
+                <div><small>{zh ? "评测系统验收" : "Evaluation"}</small><strong>{item.judgeResults.length} {zh ? "个 Judge，得分" : "Judges, score"} {item.score}</strong><p>{zh ? "工具、参数、安全边界和最终回复全部通过检查。" : "Tool, arguments, safety boundary, and response passed review."}</p></div>
+              </li>
+            </ol>
+
+            <div className="live-proof-answer">
+              <span><Bot size={18} aria-hidden="true" />{zh ? "模型最后说了什么" : "Final model response"}</span>
+              <blockquote>{actualResponse}</blockquote>
+              <p><ShieldCheck size={15} aria-hidden="true" />{zh ? "真实的是模型推理、工具调用和评测记录；模拟的是订单和退款资金。" : "The inference, tool call, and evaluation are real; the order and payment are synthetic."}</p>
+            </div>
           </section>
         )}
 

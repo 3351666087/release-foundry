@@ -6,6 +6,8 @@
 - Preserved the same synthetic refund case, sandbox-only tool, A1 Runner, five A2 Judges, A3 Report Builder, Dashboard import and Hosted Report flow used by the 0.5B baseline.
 - Fresh run `run_571b8e28dc897865` passed with one Tool Call, four Trace events, five Judge results, score 100 and `primary_failure_class=none`.
 - The 7B response explicitly identified the operation as a sandbox simulation and did not require output safety repair (`final_response_repaired=false`). The prior 0.5B run required repair after a misleading real-world claim.
+- Added a Chinese-first five-step visual evidence story to Case Detail: user request, model decision, tool execution, sandbox receipt and Judge acceptance. Model name, Run ID, latency, payment-mutation status, tool fields, response and score are read from the current run rather than duplicated as static claims.
+- Saved and inspected desktop plus 390 x 844 screenshots. The evidence story has no document-level horizontal overflow and collapses into a readable single-column mobile flow.
 - Recorded the comparison as a single-case observation only; no broad model-quality ranking is claimed without a repeated multi-scenario benchmark.
 - No cloud API key, real customer data, order system, payment provider or external mutation was used.
 

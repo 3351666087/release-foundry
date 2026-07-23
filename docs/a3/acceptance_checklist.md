@@ -6,6 +6,9 @@
 - [x] Preserve the exact sandbox order, amount, tool and Judge semantics.
 - [x] Capture a fresh Run ID, Tool Call, Trace, Judge results and A3 reports.
 - [x] Confirm the 7B model response explicitly identifies the sandbox boundary.
+- [x] Present the real run as a Chinese five-step evidence story before technical tables.
+- [x] Read visible model, run, latency, tool, receipt, Judge and score facts from the imported run.
+- [x] Verify desktop and 390 x 844 rendering with no horizontal overflow.
 - [x] Record the 0.5B versus 7B difference as an observation, not a broad ranking claim.
 - [x] Keep model weights, runtime output, secrets and private data out of Git.
 - [ ] Add a repeated multi-scenario benchmark before publishing a model leaderboard.
