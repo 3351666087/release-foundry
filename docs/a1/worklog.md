@@ -3772,7 +3772,7 @@ focused source and live-PostgreSQL evidence is green.
 
 - [x] Re-fetch the A1 remote branch and prove local `3636d92c` is exactly
   `0/0` ahead/behind `origin/codex/a1-local-sdk-runner` before editing code.
-- [ ] Freeze migration 026's public result shape and atomic known-subject,
+- [x] Freeze migration 026's public result shape and atomic known-subject,
   unknown-subject, replay, subject-collision, verified-email-conflict, and
   trusted-scope failure contracts in A1 tests.
 - [ ] Add the fixed-`search_path` SECURITY DEFINER canonical callback function
