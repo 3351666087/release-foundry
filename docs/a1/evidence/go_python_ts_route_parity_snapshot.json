@@ -11,6 +11,10 @@
     "GET /v1/accounts/{account_id}/credentials",
     "GET /v1/accounts/{account_id}/memberships",
     "GET /v1/healthz",
+    "GET /v1/identity/oauth/github/callback",
+    "GET /v1/identity/oauth/github/start",
+    "GET /v1/identity/oauth/google/callback",
+    "GET /v1/identity/oauth/google/start",
     "GET /v1/identity/providers",
     "GET /v1/me",
     "GET /v1/openapi.json",
@@ -88,7 +92,7 @@
     "POST /v1/projects/{project_id}/worker-jobs/{job_id}/fail",
     "POST /v1/projects/{project_id}/worker-jobs/{job_id}/heartbeat"
   ],
-  "go_route_count": 87,
+  "go_route_count": 91,
   "intentional_route_differences": {
     "go_only": [
       "DELETE /v1/projects/{project_id}/oauth/github/disconnect",
@@ -100,6 +104,10 @@
       "GET /v1/accounts/{account_id}/credentials",
       "GET /v1/accounts/{account_id}/memberships",
       "GET /v1/healthz",
+      "GET /v1/identity/oauth/github/callback",
+      "GET /v1/identity/oauth/github/start",
+      "GET /v1/identity/oauth/google/callback",
+      "GET /v1/identity/oauth/google/start",
       "GET /v1/identity/providers",
       "GET /v1/me",
       "GET /v1/projects/{project_id}/audit-chain/verify",

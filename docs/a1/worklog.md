@@ -3737,7 +3737,7 @@ completed checkbox to chat memory.
 - [x] Freeze the public first-login versus authenticated-binding route,
   purpose, trusted-scope, encrypted browser-intent, callback, redirect, and
   error contracts in focused Go tests before changing production behavior.
-- [ ] Add migration 026's canonical OAuth callback transaction with
+- [x] Add migration 026's canonical OAuth callback transaction with
   provider-subject uniqueness, known-subject login, unknown-subject
   registration, verified-email conflict closure, organization/project
   membership, access/refresh session issuance, audit, fixed `search_path`,
@@ -3775,13 +3775,13 @@ focused source and live-PostgreSQL evidence is green.
 - [x] Freeze migration 026's public result shape and atomic known-subject,
   unknown-subject, replay, subject-collision, verified-email-conflict, and
   trusted-scope failure contracts in A1 tests.
-- [ ] Add the fixed-`search_path` SECURITY DEFINER canonical callback function
+- [x] Add the fixed-`search_path` SECURITY DEFINER canonical callback function
   with runtime-role anti-bypass checks, PUBLIC revoke, minimal runtime grant,
   and no bearer material in rows, notices, errors, or audit payloads.
-- [ ] Prove unknown provider subjects atomically create exactly one canonical
+- [x] Prove unknown provider subjects atomically create exactly one canonical
   principal, OAuth credential, organization/project memberships, connection,
   access/refresh session, and audit event in the trusted server scope.
-- [ ] Prove known provider subjects perform non-creating login only when their
+- [x] Prove known provider subjects perform non-creating login only when their
   canonical account still has active trusted-scope memberships, and that
   verified email can only reject conflicts rather than merge identities.
 - [ ] Add the Go PostgreSQL first-login coordinator with post-commit one-use
@@ -3789,3 +3789,43 @@ focused source and live-PostgreSQL evidence is green.
   policy may be duplicated in the adapter or HTTP layer.
 - [ ] Run source-contract and live Docker migration/RLS/replay/rollback tests,
   then audit, commit, and push only this A1 database slice.
+
+#### A1 continuation and push checklist (2026-07-23)
+
+This is the crash-safe source of truth for the resumed A1 task. Check each
+item immediately after its evidence is green. Before every commit, run the
+repository CL/quality gates plus formatting, diff, changed-path, and secret
+audits. Never modify or push A3 or `apps/webapp`.
+
+- [x] Resume the independent A1 worktree, fetch the remote branch, and prove
+  local `a3581939` is exactly `0/0` ahead/behind
+  `origin/codex/a1-local-sdk-runner`.
+- [x] Run and repair the pending migration 026 source/live PostgreSQL tests
+  without weakening provider-subject, verified-email, trusted-scope, RLS,
+  rollback, concurrency, ACL, or non-disclosure contracts.
+- [x] Check every migration 026 implementation item immediately when its
+  focused live evidence turns green.
+- [x] Pass the repository CL/quality gates, `git diff --check`, changed-path
+  ownership audit, and secret-material audit for the database batch.
+- [ ] Commit the complete migration 026 database-test batch and push only
+  `HEAD:codex/a1-local-sdk-runner`; verify post-push `0/0` parity.
+- [ ] Implement the production Go PostgreSQL OAuth first-login coordinator
+  in a large coherent batch with domain-separated keyed digests, trusted
+  tenant/project scope, bounded serializable retry, result validation, and a
+  one-use post-commit access/refresh bearer receipt.
+- [ ] Prove coordinator success, replay behavior, conflict/error mapping,
+  commit/database failure cleanup, receipt redaction/single-take behavior,
+  RLS/key-rotation compatibility, and provider-neutral policy ownership.
+- [ ] Re-run focused and full A1 Go/Python/cross-language suites, check all
+  newly earned worklog items, pass CL and audits, commit, and push only A1.
+
+Database-batch evidence:
+
+- Migration 026 source/live PostgreSQL suite: `14 passed`.
+- Go/Python/TypeScript route-contract focused suite after first-login route
+  registration: `20 passed`.
+- Python A1/A2/integration CL job: `2112 passed, 8 skipped`.
+- Product release CL job: `33 passed`.
+- Go SDK and Go integration CL jobs: all packages passed.
+- CL hygiene and commercial guards passed with zero findings/blockers;
+  `git diff --check`, A3-path audit, and redacted secret-pattern audit passed.

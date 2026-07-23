@@ -412,7 +412,7 @@ BEGIN
       v_now,
       v_now
     )
-    ON CONFLICT (principal_id) DO UPDATE
+    ON CONFLICT ON CONSTRAINT identity_account_emails_pkey DO UPDATE
       SET source_provider = EXCLUDED.source_provider,
           verified_at = EXCLUDED.verified_at,
           updated_at = EXCLUDED.updated_at
@@ -431,7 +431,7 @@ BEGIN
     TRUE,
     v_now
   )
-  ON CONFLICT (principal_id) DO NOTHING;
+  ON CONFLICT ON CONSTRAINT identity_account_security_pkey DO NOTHING;
 
   SELECT token_ref_row.*
     INTO token_ref
@@ -544,7 +544,7 @@ BEGIN
       'first_login_reauthenticated',
       'pending'
     )
-    ON CONFLICT (token_ref_id) DO NOTHING;
+    ON CONFLICT ON CONSTRAINT oauth_revocation_outbox_token_key DO NOTHING;
 
     UPDATE oauth_account_connections AS connection_row
        SET session_id = v_session_id::TEXT,
