@@ -3787,7 +3787,7 @@ focused source and live-PostgreSQL evidence is green.
 - [ ] Add the Go PostgreSQL first-login coordinator with post-commit one-use
   bearer receipt lookup and result validation; no provider-specific canonical
   policy may be duplicated in the adapter or HTTP layer.
-- [ ] Run source-contract and live Docker migration/RLS/replay/rollback tests,
+- [x] Run source-contract and live Docker migration/RLS/replay/rollback tests,
   then audit, commit, and push only this A1 database slice.
 
 #### A1 continuation and push checklist (2026-07-23)
@@ -3807,7 +3807,7 @@ audits. Never modify or push A3 or `apps/webapp`.
   focused live evidence turns green.
 - [x] Pass the repository CL/quality gates, `git diff --check`, changed-path
   ownership audit, and secret-material audit for the database batch.
-- [ ] Commit the complete migration 026 database-test batch and push only
+- [x] Commit the complete migration 026 database-test batch and push only
   `HEAD:codex/a1-local-sdk-runner`; verify post-push `0/0` parity.
 - [ ] Implement the production Go PostgreSQL OAuth first-login coordinator
   in a large coherent batch with domain-separated keyed digests, trusted
@@ -3829,3 +3829,5 @@ Database-batch evidence:
 - Go SDK and Go integration CL jobs: all packages passed.
 - CL hygiene and commercial guards passed with zero findings/blockers;
   `git diff --check`, A3-path audit, and redacted secret-pattern audit passed.
+- Database batch committed as `7871655a` and pushed only to
+  `origin/codex/a1-local-sdk-runner`; post-push ahead/behind is `0/0`.
