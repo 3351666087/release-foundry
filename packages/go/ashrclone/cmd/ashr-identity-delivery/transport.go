@@ -87,10 +87,11 @@ func (vault *identityDeliveryHTTPVault) OpenIdentityDelivery(
 }
 
 type identityDeliveryHTTPAdapter struct {
-	endpoint string
-	channel  ashrclone.IdentityVerificationChannel
-	client   *http.Client
-	timeout  time.Duration
+	endpoint               string
+	channel                ashrclone.IdentityVerificationChannel
+	client                 *http.Client
+	timeout                time.Duration
+	browserVerificationURL string
 }
 
 type identityDeliveryRelayRequest struct {
@@ -100,6 +101,7 @@ type identityDeliveryRelayRequest struct {
 	Code                   string                                `json:"code"`
 	Purpose                ashrclone.IdentityVerificationPurpose `json:"purpose"`
 	ExpiresAt              time.Time                             `json:"expires_at"`
+	VerificationURL        string                                `json:"verification_url,omitempty"`
 	ProviderIdempotencyKey string                                `json:"provider_idempotency_key"`
 }
 
@@ -140,6 +142,18 @@ func (adapter *identityDeliveryHTTPAdapter) SendIdentityVerificationWithAcceptan
 		Destination: delivery.Destination, Code: delivery.Code,
 		Purpose: delivery.Purpose, ExpiresAt: delivery.ExpiresAt,
 		ProviderIdempotencyKey: delivery.ProviderIdempotencyKey,
+	}
+	if delivery.Channel == ashrclone.IdentityVerificationEmail {
+		request.VerificationURL, err = ashrclone.BuildIdentityVerificationBrowserURL(
+			adapter.browserVerificationURL,
+			delivery.ChallengeID,
+			delivery.Purpose,
+		)
+		if err != nil {
+			return ashrclone.IdentityDeliveryProviderAcceptance{}, errors.New(
+				"identity delivery relay is unavailable",
+			)
+		}
 	}
 	var response identityDeliveryRelayResponse
 	if err = postIdentityDeliveryJSON(

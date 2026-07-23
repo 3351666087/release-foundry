@@ -177,12 +177,19 @@ func TestIdentityRuntimeVerificationUsesMemorySenderUnlessSMTPExplicitlyEnabled(
 func TestIdentityRuntimeVerificationSMTPRequiresCompleteConfiguration(t *testing.T) {
 	base := map[string]string{
 		"ASHR_IDENTITY_VERIFICATION_SMTP_ENABLED": "true",
-		"ASHR_SMTP_HOST":      "host-value-must-not-leak.example.test",
-		"ASHR_SMTP_PORT":      "2465",
-		"ASHR_SMTP_FROM":      "from-value-must-not-leak@example.test",
-		"ASHR_SMTP_AUTH_CODE": "auth-value-must-not-leak",
+		"ASHR_SMTP_HOST":                         "host-value-must-not-leak.example.test",
+		"ASHR_SMTP_PORT":                         "2465",
+		"ASHR_SMTP_FROM":                         "from-value-must-not-leak@example.test",
+		"ASHR_SMTP_AUTH_CODE":                    "auth-value-must-not-leak",
+		"ASHR_IDENTITY_VERIFICATION_BROWSER_URL": "https://app.example.test/login/verify",
 	}
-	for _, missing := range []string{"ASHR_SMTP_HOST", "ASHR_SMTP_PORT", "ASHR_SMTP_FROM", "ASHR_SMTP_AUTH_CODE"} {
+	for _, missing := range []string{
+		"ASHR_SMTP_HOST",
+		"ASHR_SMTP_PORT",
+		"ASHR_SMTP_FROM",
+		"ASHR_SMTP_AUTH_CODE",
+		"ASHR_IDENTITY_VERIFICATION_BROWSER_URL",
+	} {
 		values := cloneStrings(base)
 		delete(values, missing)
 		_, err := developmentIdentityVerificationSenderFromEnv(lookup(values))
@@ -200,10 +207,11 @@ func TestIdentityRuntimeVerificationSMTPRejectsInvalidPortWithoutLeakingValue(t 
 	const invalidPort = "invalid-port-secret"
 	_, err := developmentIdentityVerificationSenderFromEnv(lookup(map[string]string{
 		"ASHR_IDENTITY_VERIFICATION_SMTP_ENABLED": "true",
-		"ASHR_SMTP_HOST":      "smtp.example.test",
-		"ASHR_SMTP_PORT":      invalidPort,
-		"ASHR_SMTP_FROM":      "verify@example.test",
-		"ASHR_SMTP_AUTH_CODE": "auth-code-secret",
+		"ASHR_SMTP_HOST":                         "smtp.example.test",
+		"ASHR_SMTP_PORT":                         invalidPort,
+		"ASHR_SMTP_FROM":                         "verify@example.test",
+		"ASHR_SMTP_AUTH_CODE":                    "auth-code-secret",
+		"ASHR_IDENTITY_VERIFICATION_BROWSER_URL": "https://app.example.test/login/verify",
 	}))
 	if err == nil || !strings.Contains(err.Error(), "ASHR_SMTP_PORT") {
 		t.Fatalf("expected invalid SMTP port error, got %v", err)
@@ -217,10 +225,11 @@ func TestIdentityRuntimeVerificationSMTPRejectsInvalidPortWithoutLeakingValue(t 
 func TestIdentityRuntimeVerificationSMTPRedactsInvalidSenderConfiguration(t *testing.T) {
 	base := map[string]string{
 		"ASHR_IDENTITY_VERIFICATION_SMTP_ENABLED": "true",
-		"ASHR_SMTP_HOST":      "smtp.example.test",
-		"ASHR_SMTP_PORT":      "465",
-		"ASHR_SMTP_FROM":      "verify@example.test",
-		"ASHR_SMTP_AUTH_CODE": "auth-code-secret",
+		"ASHR_SMTP_HOST":                         "smtp.example.test",
+		"ASHR_SMTP_PORT":                         "465",
+		"ASHR_SMTP_FROM":                         "verify@example.test",
+		"ASHR_SMTP_AUTH_CODE":                    "auth-code-secret",
+		"ASHR_IDENTITY_VERIFICATION_BROWSER_URL": "https://app.example.test/login/verify",
 	}
 	for name, mutate := range map[string]func(map[string]string){
 		"host": func(values map[string]string) {
@@ -231,6 +240,9 @@ func TestIdentityRuntimeVerificationSMTPRedactsInvalidSenderConfiguration(t *tes
 		},
 		"auth": func(values map[string]string) {
 			values["ASHR_SMTP_AUTH_CODE"] = "auth-value-must-not-leak\r\nunsafe"
+		},
+		"browser URL": func(values map[string]string) {
+			values["ASHR_IDENTITY_VERIFICATION_BROWSER_URL"] = "https://app.example.test/login?unsafe=1"
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -258,6 +270,7 @@ func TestIdentityRuntimeVerificationSMTPWiresConfiguredSender(t *testing.T) {
 		"ASHR_SMTP_PORT":                            "465",
 		"ASHR_SMTP_FROM":                            "verify@example.test",
 		"ASHR_SMTP_AUTH_CODE":                       "development-auth-code",
+		"ASHR_IDENTITY_VERIFICATION_BROWSER_URL":    "https://app.example.test/login/verify",
 	}
 	runtime, err := newIdentityRuntimeFromEnv(context.Background(), lookup(base))
 	if err != nil {

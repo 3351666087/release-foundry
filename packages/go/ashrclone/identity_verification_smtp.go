@@ -19,23 +19,25 @@ const defaultSMTPIdentityVerificationTimeout = 10 * time.Second
 type SMTPIdentityVerificationDialFunc func(context.Context, string, *tls.Config) (net.Conn, error)
 
 type SMTPIdentityVerificationSenderOptions struct {
-	Host       string
-	Port       int
-	ServerName string
-	From       string
-	AuthCode   string
-	Timeout    time.Duration
-	DialTLS    SMTPIdentityVerificationDialFunc
+	Host                   string
+	Port                   int
+	ServerName             string
+	From                   string
+	AuthCode               string
+	BrowserVerificationURL string
+	Timeout                time.Duration
+	DialTLS                SMTPIdentityVerificationDialFunc
 }
 
 type SMTPIdentityVerificationSender struct {
-	host       string
-	address    string
-	serverName string
-	from       string
-	authCode   string
-	timeout    time.Duration
-	dialTLS    SMTPIdentityVerificationDialFunc
+	host                   string
+	address                string
+	serverName             string
+	from                   string
+	authCode               string
+	browserVerificationURL string
+	timeout                time.Duration
+	dialTLS                SMTPIdentityVerificationDialFunc
 }
 
 func NewSMTPIdentityVerificationSender(
@@ -62,6 +64,16 @@ func NewSMTPIdentityVerificationSender(
 	if options.AuthCode == "" || containsSMTPHeaderBreak(options.AuthCode) {
 		return nil, fmt.Errorf("SMTP authorization is invalid")
 	}
+	browserVerificationURL := strings.TrimSpace(options.BrowserVerificationURL)
+	if browserVerificationURL != "" {
+		if _, err := BuildIdentityVerificationBrowserURL(
+			browserVerificationURL,
+			"ivc_000000000000000000000000000000000000",
+			IdentityVerificationBinding,
+		); err != nil {
+			return nil, fmt.Errorf("SMTP browser verification URL is invalid")
+		}
+	}
 	timeout := options.Timeout
 	if timeout <= 0 {
 		timeout = defaultSMTPIdentityVerificationTimeout
@@ -79,7 +91,8 @@ func NewSMTPIdentityVerificationSender(
 	return &SMTPIdentityVerificationSender{
 		host: host, address: net.JoinHostPort(host, strconv.Itoa(options.Port)),
 		serverName: serverName, from: from, authCode: options.AuthCode,
-		timeout: timeout, dialTLS: dialTLS,
+		browserVerificationURL: browserVerificationURL,
+		timeout:                timeout, dialTLS: dialTLS,
 	}, nil
 }
 
@@ -96,6 +109,17 @@ func (sender *SMTPIdentityVerificationSender) SendIdentityVerification(
 	}
 	if !validIdentityVerificationCode(delivery.Code) {
 		return fmt.Errorf("SMTP identity verification code is invalid")
+	}
+	verificationURL := ""
+	if sender.browserVerificationURL != "" {
+		verificationURL, err = BuildIdentityVerificationBrowserURL(
+			sender.browserVerificationURL,
+			delivery.ChallengeID,
+			delivery.Purpose,
+		)
+		if err != nil {
+			return fmt.Errorf("SMTP identity verification browser context is invalid")
+		}
 	}
 
 	sendCtx, cancel := context.WithTimeout(ctx, sender.timeout)
@@ -130,7 +154,10 @@ func (sender *SMTPIdentityVerificationSender) SendIdentityVerification(
 	if err != nil {
 		return fmt.Errorf("SMTP identity verification delivery failed at message")
 	}
-	if _, err := io.WriteString(writer, identityVerificationEmail(sender.from, destination, delivery)); err != nil {
+	if _, err := io.WriteString(
+		writer,
+		identityVerificationEmail(sender.from, destination, verificationURL, delivery),
+	); err != nil {
 		_ = writer.Close()
 		return fmt.Errorf("SMTP identity verification delivery failed at message")
 	}
@@ -174,6 +201,7 @@ func validIdentityVerificationCode(value string) bool {
 func identityVerificationEmail(
 	from string,
 	destination string,
+	verificationURL string,
 	delivery IdentityVerificationDelivery,
 ) string {
 	expiresAt := delivery.ExpiresAt.UTC().Format(time.RFC3339)
@@ -185,7 +213,12 @@ func identityVerificationEmail(
 	_, _ = fmt.Fprint(writer, "MIME-Version: 1.0\r\n")
 	_, _ = fmt.Fprint(writer, "Content-Type: text/plain; charset=UTF-8\r\n")
 	_, _ = fmt.Fprint(writer, "\r\n")
+	_, _ = fmt.Fprint(writer, "Ashr 邮箱验证码 / Ashr email verification code\r\n\r\n")
 	_, _ = fmt.Fprintf(writer, "Your Ashr verification code is: %s\r\n\r\n", delivery.Code)
+	if verificationURL != "" {
+		_, _ = fmt.Fprint(writer, "请使用以下安全链接继续验证 / Continue verification using this secure link:\r\n")
+		_, _ = fmt.Fprintf(writer, "%s\r\n\r\n", verificationURL)
+	}
 	_, _ = fmt.Fprintf(writer, "This code expires at %s.\r\n", expiresAt)
 	_, _ = fmt.Fprint(writer, "If you did not request this code, ignore this message.\r\n")
 	_ = writer.Flush()

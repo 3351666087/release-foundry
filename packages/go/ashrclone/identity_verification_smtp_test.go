@@ -22,7 +22,8 @@ func TestSMTPIdentityVerificationSenderDeliversEmail(t *testing.T) {
 
 	sender, err := NewSMTPIdentityVerificationSender(SMTPIdentityVerificationSenderOptions{
 		Host: "localhost", Port: 465, From: "sender@example.test",
-		AuthCode: "x", Timeout: time.Second,
+		AuthCode: "x", BrowserVerificationURL: "https://app.example.test/login/verify",
+		Timeout: time.Second,
 		DialTLS: func(context.Context, string, *tls.Config) (net.Conn, error) {
 			return clientConn, nil
 		},
@@ -32,7 +33,8 @@ func TestSMTPIdentityVerificationSenderDeliversEmail(t *testing.T) {
 	}
 	err = sender.SendIdentityVerification(context.Background(), IdentityVerificationDelivery{
 		Channel: IdentityVerificationEmail, Destination: "recipient@example.test",
-		Code: "314159", Purpose: IdentityVerificationBinding,
+		ChallengeID: "ivc_444444444444444444444444444444444444",
+		Code:        "314159", Purpose: IdentityVerificationBinding,
 		ExpiresAt: time.Date(2026, 7, 10, 12, 30, 0, 0, time.UTC),
 	})
 	if err != nil {
@@ -44,11 +46,19 @@ func TestSMTPIdentityVerificationSenderDeliversEmail(t *testing.T) {
 		"To: recipient@example.test",
 		"Subject: Ashr verification code",
 		"Your Ashr verification code is: 314159",
+		"https://app.example.test/login/verify?challenge_id=ivc_444444444444444444444444444444444444&amp;",
 		"This code expires at 2026-07-10T12:30:00Z.",
 	} {
+		if strings.Contains(expected, "&amp;") {
+			expected = strings.ReplaceAll(expected, "&amp;", "&")
+		}
 		if !strings.Contains(message, expected) {
 			t.Fatalf("message did not contain %q: %q", expected, message)
 		}
+	}
+	if strings.Contains(message, "recipient@example.test?") ||
+		strings.Contains(message, "code=314159") {
+		t.Fatalf("verification URL leaked raw delivery material: %q", message)
 	}
 }
 
@@ -65,6 +75,9 @@ func TestSMTPIdentityVerificationSenderRejectsUnsafeInput(t *testing.T) {
 		},
 		"auth":       func(options *SMTPIdentityVerificationSenderOptions) { options.AuthCode = "" },
 		"serverName": func(options *SMTPIdentityVerificationSenderOptions) { options.ServerName = "smtp.test\nunsafe" },
+		"browserURL": func(options *SMTPIdentityVerificationSenderOptions) {
+			options.BrowserVerificationURL = "https://app.example.test/login?next=/admin"
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			options := valid
@@ -100,6 +113,39 @@ func TestSMTPIdentityVerificationSenderRejectsNonEmailAndUnsafeDelivery(t *testi
 	}
 	if dialed {
 		t.Fatal("sender dialed before validating delivery")
+	}
+}
+
+func TestSMTPIdentityVerificationSenderRejectsUnsafeBrowserContextBeforeDial(t *testing.T) {
+	dialed := false
+	sender, err := NewSMTPIdentityVerificationSender(SMTPIdentityVerificationSenderOptions{
+		Host: "smtp.example.test", Port: 465, From: "sender@example.test",
+		AuthCode: "x", BrowserVerificationURL: "https://app.example.test/login/verify",
+		DialTLS: func(context.Context, string, *tls.Config) (net.Conn, error) {
+			dialed = true
+			return nil, errors.New("unexpected")
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, delivery := range []IdentityVerificationDelivery{
+		{
+			Channel: IdentityVerificationEmail, Destination: "recipient@example.test",
+			Code: "123456", Purpose: IdentityVerificationLogin,
+		},
+		{
+			ChallengeID: "ivc_444444444444444444444444444444444444",
+			Channel:     IdentityVerificationEmail, Destination: "recipient@example.test",
+			Code: "123456", Purpose: "signup",
+		},
+	} {
+		if err := sender.SendIdentityVerification(context.Background(), delivery); err == nil {
+			t.Fatal("unsafe browser context was accepted")
+		}
+	}
+	if dialed {
+		t.Fatal("sender dialed before validating browser context")
 	}
 }
 
@@ -166,13 +212,15 @@ func TestSMTPIdentityVerificationSenderRealCalibration(t *testing.T) {
 	from := os.Getenv("ASHR_SMTP_FROM")
 	sender, err := NewSMTPIdentityVerificationSender(SMTPIdentityVerificationSenderOptions{
 		Host: host, Port: port, From: from, AuthCode: os.Getenv("ASHR_SMTP_AUTH_CODE"),
-		Timeout: 15 * time.Second,
+		BrowserVerificationURL: os.Getenv("ASHR_IDENTITY_VERIFICATION_BROWSER_URL"),
+		Timeout:                15 * time.Second,
 	})
 	if err != nil {
 		t.Fatal("real SMTP calibration sender configuration was rejected")
 	}
 	if err := sender.SendIdentityVerification(context.Background(), IdentityVerificationDelivery{
-		Channel: IdentityVerificationEmail, Destination: from, Code: "724190",
+		ChallengeID: "ivc_444444444444444444444444444444444444",
+		Channel:     IdentityVerificationEmail, Destination: from, Code: "724190",
 		Purpose: IdentityVerificationBinding, ExpiresAt: time.Now().UTC().Add(10 * time.Minute),
 	}); err != nil {
 		t.Fatalf("real SMTP calibration failed: %v", err)

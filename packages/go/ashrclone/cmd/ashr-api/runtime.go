@@ -793,7 +793,8 @@ func developmentIdentityVerificationSenderFromEnv(
 	portValue := env(lookup, "ASHR_SMTP_PORT")
 	from := env(lookup, "ASHR_SMTP_FROM")
 	authCode := envRaw(lookup, "ASHR_SMTP_AUTH_CODE")
-	missing := make([]string, 0, 4)
+	browserVerificationURL := env(lookup, "ASHR_IDENTITY_VERIFICATION_BROWSER_URL")
+	missing := make([]string, 0, 5)
 	if host == "" {
 		missing = append(missing, "ASHR_SMTP_HOST")
 	}
@@ -806,6 +807,9 @@ func developmentIdentityVerificationSenderFromEnv(
 	if strings.TrimSpace(authCode) == "" {
 		missing = append(missing, "ASHR_SMTP_AUTH_CODE")
 	}
+	if browserVerificationURL == "" {
+		missing = append(missing, "ASHR_IDENTITY_VERIFICATION_BROWSER_URL")
+	}
 	if len(missing) != 0 {
 		return nil, fmt.Errorf("development identity verification SMTP requires complete configuration: %s", strings.Join(missing, ", "))
 	}
@@ -815,6 +819,7 @@ func developmentIdentityVerificationSenderFromEnv(
 	}
 	sender, err := ashrclone.NewSMTPIdentityVerificationSender(ashrclone.SMTPIdentityVerificationSenderOptions{
 		Host: host, Port: port, From: from, AuthCode: authCode,
+		BrowserVerificationURL: browserVerificationURL,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("configure development identity verification SMTP sender: invalid SMTP configuration")
