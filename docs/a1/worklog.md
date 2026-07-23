@@ -3557,7 +3557,7 @@ codes.
   - [x] Prove purpose isolation, replay/mismatch rejection, no secret leakage,
     and pre-mutation failure across the browser security matrix.
 - [x] Run the complete A1 verification matrix and confirm no A3 files changed.
-- [ ] Send exactly one controlled real QQ SMTP calibration email only after
+- [x] Send exactly one controlled real QQ SMTP calibration email only after
   all security tests pass; never print or commit its configuration or secrets.
 - [x] Commit and push only the second A1 browser-session batch.
 
@@ -3620,9 +3620,10 @@ green; do not rely on chat memory.
   that no A3 or `apps/webapp` path changed.
 - [x] Commit and immediately push only this A1 browser-session batch to
   `origin/codex/a1-local-sdk-runner`.
-- [ ] Only after every safety test is green, send exactly one controlled QQ
+- [x] Only after every safety test is green, send exactly one controlled QQ
   SMTP calibration message without printing, logging, or committing any real
-  address, SMTP setting, authorization code, OTP, proof, or bearer.
+  address, SMTP setting, authorization code, OTP, proof, or bearer; the
+  provider accepted exactly one message and no retry was made.
 
 #### Active failure-closure checklist (2026-07-23)
 
@@ -3643,5 +3644,23 @@ one item immediately after its focused evidence is green.
   lifecycle/RLS/key-rotation matrix; run `git diff --check`.
 - [x] Audit every changed/untracked path, commit only A1, and push only
   `HEAD:codex/a1-local-sdk-runner`.
-- [ ] After all tests and the A1-only push are green, send one and only one
+- [x] After all tests and the A1-only push are green, send one and only one
   real QQ SMTP calibration message without exposing any secret material.
+
+#### Single-send QQ SMTP calibration checklist (2026-07-23)
+
+This is the crash-safe execution record for the final real-mail check. Update
+each checkbox immediately; never record the address, SMTP endpoint,
+authorization code, verification code, or provider response.
+
+- [x] Reconfirm the independent A1 worktree is clean and local/remote both
+  resolve to `b942ad52`.
+- [x] Safely confirm the host process contains the four sender-required SMTP
+  variable names without printing their values; do not inspect secret values.
+- [x] Run the opt-in production SMTP sender calibration test exactly once with
+  no retry and accept only its redacted success/failure result; the provider
+  accepted the message once.
+- [x] If accepted, mark all QQ SMTP calibration items complete and audit the
+  diff for secrets, A3 paths, or `apps/webapp` paths.
+- [ ] Commit only `docs/a1/worklog.md`, push only
+  `HEAD:codex/a1-local-sdk-runner`, and verify local/remote parity.
