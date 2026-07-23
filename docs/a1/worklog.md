@@ -3734,7 +3734,7 @@ completed checkbox to chat memory.
 - [x] Restore the independent A1 worktree, confirm it is clean, and verify
   local `ca31feda` has zero ahead/behind divergence from
   `origin/codex/a1-local-sdk-runner`.
-- [ ] Freeze the public first-login versus authenticated-binding route,
+- [x] Freeze the public first-login versus authenticated-binding route,
   purpose, trusted-scope, encrypted browser-intent, callback, redirect, and
   error contracts in focused Go tests before changing production behavior.
 - [ ] Add migration 026's canonical OAuth callback transaction with

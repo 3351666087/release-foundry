@@ -47,11 +47,12 @@ type IdentitySessionCookieTransportOptions struct {
 // scheme headers are considered only when the immediate peer is explicitly
 // covered by a configured proxy CIDR.
 type IdentitySessionCookieTransport struct {
-	now                func() time.Time
-	maxLifetime        time.Duration
-	refreshMaxLifetime time.Duration
-	trustedProxyCIDRs  []netip.Prefix
-	browserIntent      *identityBrowserVerificationIntentCodec
+	now                   func() time.Time
+	maxLifetime           time.Duration
+	refreshMaxLifetime    time.Duration
+	trustedProxyCIDRs     []netip.Prefix
+	browserIntent         *identityBrowserVerificationIntentCodec
+	oauthFirstLoginIntent *oauthFirstLoginIntentCodec
 }
 
 func NewIdentitySessionCookieTransport(
@@ -91,12 +92,21 @@ func NewIdentitySessionCookieTransport(
 	if err != nil {
 		return nil, err
 	}
+	oauthFirstLoginIntent, err := newOAuthFirstLoginIntentCodec(
+		options.IntentKey,
+		options.IntentMaxLifetime,
+		now,
+	)
+	if err != nil {
+		return nil, err
+	}
 	return &IdentitySessionCookieTransport{
-		now:                now,
-		maxLifetime:        maxLifetime,
-		refreshMaxLifetime: refreshMaxLifetime,
-		trustedProxyCIDRs:  trustedProxyCIDRs,
-		browserIntent:      browserIntent,
+		now:                   now,
+		maxLifetime:           maxLifetime,
+		refreshMaxLifetime:    refreshMaxLifetime,
+		trustedProxyCIDRs:     trustedProxyCIDRs,
+		browserIntent:         browserIntent,
+		oauthFirstLoginIntent: oauthFirstLoginIntent,
 	}, nil
 }
 
