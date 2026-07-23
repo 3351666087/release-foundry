@@ -3506,3 +3506,78 @@ Date: 2026-07-14
 
 Next: publish this authority regression, then continue production lookup-key
 rotation drills and cross-language identity-security/client parity.
+
+## Round 69: Registration/Login Session Handoff (Active Checklist)
+
+Date: 2026-07-23
+
+Scope: A1 only. Complete the email registration/login boundary before
+continuing first-login OAuth. Never persist or log raw email addresses, OTPs,
+challenge proofs, access/refresh bearers, SMTP hosts, or SMTP authorization
+codes.
+
+- [x] Continue from synchronized A1 branch
+  `codex/a1-sync-publish` at `9804111916c635bbc2f4023ee5590de208e37884`;
+  it exactly matches remote `codex/a1-local-sdk-runner`.
+- [x] Confirm the existing Docker PostgreSQL integration container
+  `ashr-oauth-pg-test` is healthy and accepting connections on its configured
+  local test port.
+- [x] Record this local A1 execution checklist; update each completed item
+  immediately instead of relying on conversation memory.
+- [x] Add a distinct `registration` verification purpose; require email and
+  no pre-existing account, while keeping explicit binding account-bound and
+  login non-creating.
+- [x] Add migration 025 constraints and challenge issuance rules for
+  accountless email registration and accountless login.
+- [x] Add a single PostgreSQL transaction that creates the canonical
+  principal, email credential, canonical verified email, optional/recommended
+  2FA posture, organization/project memberships, and access/refresh session.
+- [x] Return canonical principal and credential IDs for accountless login and
+  recovery via narrow `SECURITY DEFINER` result wrappers.
+- [x] Update Go PostgreSQL mutation results, principal scoping, readiness, and
+  migration integration range through 025.
+- [x] Add/adjust unit, SQL mock, migration, RLS, rollback, idempotency,
+  duplicate-registration, canonical-account, and bearer-redaction tests.
+- [x] Run the first focused Go and live PostgreSQL verification batch.
+- [ ] Commit and push only the first A1 registration/login transaction batch
+  to remote branch `codex/a1-local-sdk-runner`.
+- [ ] Add canonical email registration/login HTTP begin/complete endpoints
+  with browser intent, same-origin enforcement, secure HttpOnly strict cookies,
+  no-store responses, and `303 /console` handoff.
+- [ ] Run the complete A1 verification matrix and confirm no A3 files changed.
+- [ ] Send exactly one controlled real QQ SMTP calibration email only after
+  all security tests pass; never print or commit its configuration or secrets.
+- [ ] Commit and push only the second A1 browser-session batch.
+
+Next: commit and push the first transaction batch, then begin the canonical
+browser registration/login session-handoff endpoints.
+
+Progress:
+
+- The dedicated `registration` purpose is now email-only and accountless;
+  explicit `binding` and `recovery` reject a missing account, while production
+  `login` remains non-creating and may resolve its canonical account from the
+  verified credential.
+- Docker PostgreSQL successfully rebuilt a disposable database and applied
+  migrations 001-025. The existing atomic lifecycle registration regression
+  and the migration-025 readiness/least-privilege additions pass against the
+  live database.
+- A dedicated live migration-025 test now proves that verified email
+  registration atomically creates the canonical principal, credential,
+  canonical email, recommended-but-disabled 2FA posture, organization/project
+  memberships, and access/refresh session. It also proves that accountless
+  email login resolves the same canonical account and credential.
+- Duplicate registration fully rolls back without an orphan principal,
+  credential, session, or consumed verification receipt; cross-project and
+  cross-organization completion attempts leave the original challenge
+  untouched, and the runtime role cannot directly read verification tables.
+- Focused verification/readiness tests and the new Docker PostgreSQL live
+  registration/login session-handoff test are green. Go build/test caches were
+  moved to a disposable D-drive cache because the system drive had insufficient
+  linker space; no source, Docker data, or credential material was moved.
+- The complete Docker PostgreSQL identity lifecycle matrix is green across
+  migrations 001-025, including replay, rollback, credential-link concurrency,
+  canonical-email conflict, foreign-project rejection, and key
+  rotation/tamper cases. The complete A1 package plus `ashr-api` and
+  `ashr-identity-delivery` command-package tests are also green, and
+  `git diff --check` reports no whitespace errors.
