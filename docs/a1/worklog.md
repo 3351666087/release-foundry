@@ -3673,7 +3673,7 @@ each item immediately when its evidence is green. Do not modify A3 or
 `apps/webapp`, and do not weaken explicit credential binding or canonical
 account ownership rules.
 
-- [ ] Inventory the current Google/GitHub OAuth begin/callback, intent,
+- [x] Inventory the current Google/GitHub OAuth begin/callback, intent,
   provider-subject uniqueness, canonical-account mutation, and session
   handoff paths; record the exact first-login gap before editing production
   code.
@@ -3697,3 +3697,30 @@ account ownership rules.
   `git diff --check`.
 - [ ] Audit every changed path and secret boundary, commit only A1, push only
   `HEAD:codex/a1-local-sdk-runner`, and verify local/remote parity.
+
+#### OAuth first-login inventory evidence (2026-07-23)
+
+- The provider-neutral and GitHub project routes call `Start` only after
+  resolving an active authenticated session and deriving the canonical
+  account from that session. Their callbacks consume one-time state but then
+  require the same session, user, and account, so they are explicit binding
+  paths rather than first-login paths.
+- The older `/v1/identity/oauth/begin` coordinator recognizes registration,
+  login, and link intents only in the in-memory identity service. Production
+  startup does not inject that coordinator or its identity authority.
+- Migration 009 atomically binds an OAuth credential, opaque token reference,
+  and connection only for an already selected principal/account/session. It
+  cannot create the canonical principal and memberships or issue the normal
+  access/refresh browser session.
+- Migration 006 can create a user and session, but it mutates legacy
+  `users`/`external_identities`/`sessions` tables and is not an acceptable
+  canonical-account implementation.
+- Production runtime currently sets Google/GitHub lifecycle capability false,
+  constructs provider services only in explicit development-memory mode, and
+  refuses production OAuth when no external opaque vault is injected.
+- The closure therefore requires a distinct server-selected first-login
+  purpose, trusted server-side organization/project scope, a canonical
+  PostgreSQL transaction that owns principal/credential/membership/session
+  creation or known-subject login, and the same one-use cookie handoff used by
+  email registration/login. Verified provider email is conflict evidence only
+  and must never auto-merge accounts.
