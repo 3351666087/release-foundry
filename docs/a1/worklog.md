@@ -3665,3 +3665,35 @@ authorization code, verification code, or provider response.
 - [x] Commit only `docs/a1/worklog.md`, push only
   `HEAD:codex/a1-local-sdk-runner`, and verify local/remote parity at the
   pushed calibration record.
+
+### OAuth first-login closure queue (2026-07-23)
+
+This is the local source of truth for the next A1-only identity batch. Check
+each item immediately when its evidence is green. Do not modify A3 or
+`apps/webapp`, and do not weaken explicit credential binding or canonical
+account ownership rules.
+
+- [ ] Inventory the current Google/GitHub OAuth begin/callback, intent,
+  provider-subject uniqueness, canonical-account mutation, and session
+  handoff paths; record the exact first-login gap before editing production
+  code.
+- [ ] Separate OAuth first-login from authenticated explicit binding with
+  server-selected purposes, encrypted/one-time callback state, trusted
+  tenant/project scope, exact redirect policy, and fail-closed callback
+  validation.
+- [ ] Allow a verified OAuth provider subject to create one canonical account
+  on first login and issue the normal access/refresh browser session, while
+  preserving non-creating login for known credentials and explicit binding
+  for an already authenticated account.
+- [ ] Prove duplicate callback, provider-subject collision, verified-email
+  conflict, cross-tenant/project confusion, account injection, CSRF/state
+  mismatch, and pre-mutation failures cannot take over or partially create an
+  account.
+- [ ] Keep Google/GitHub production capability honest and retain
+  ready-to-integrate domestic OAuth adapter boundaries without claiming
+  WeChat/QQ/Alipay production availability before qualifications exist.
+- [ ] Run focused OAuth/session tests, complete A1 Go/Python parity tests, and
+  live Docker PostgreSQL migrations/RLS/key-rotation coverage; run
+  `git diff --check`.
+- [ ] Audit every changed path and secret boundary, commit only A1, push only
+  `HEAD:codex/a1-local-sdk-runner`, and verify local/remote parity.
