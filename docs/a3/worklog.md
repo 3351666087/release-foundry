@@ -7345,3 +7345,11 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
 - Final in-app browser inspection loaded the configured Chinese login page with
   no console errors or horizontal overflow. Google/GitHub initial login remains
   disabled and truthfully labelled.
+- Merged A1 `6897997`, including the PostgreSQL OAuth first-login coordinator.
+  The first Docker upgrade correctly rejected A1's changed already-applied
+  migration `026`; restored immutable `026` and moved the new digest-rotation
+  upgrade into forward migration `027` so existing accounts can upgrade
+  without deleting or rewriting migration history.
+- Rebuilt the real-login Docker stack after the migration repair. All four
+  long-running services became healthy, 27 migrations were recorded, and the
+  existing one principal plus two historical session rows remained present.

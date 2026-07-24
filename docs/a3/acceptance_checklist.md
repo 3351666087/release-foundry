@@ -1783,6 +1783,8 @@
 - [x] Restrict Caddy to the exported Webapp directory and return `404` for repository, docs, `.env.local`, and `.local-runtime` paths.
 - [x] Make browser logout idempotent when the server already reports an unauthenticated session.
 - [x] Calibrate the TypeScript SaaS route-gap registry to A1 Google/GitHub initial-login browser routes without exposing OAuth codes or cookies to the generic client.
+- [x] Merge A1 `6897997` and preserve applied migration immutability by restoring `026` and applying the new OAuth digest-rotation authority as `027`.
+- [x] Upgrade the existing Docker PostgreSQL volume through migration `027` without deleting the persisted principal or session history.
 - [x] Pass final A3 Node `536/536` with one explicit opt-in skip, Go all-package tests, TypeScript SDK `654/654`, Webapp typecheck and 15-page build.
 - [x] Pass CL hygiene with zero findings, Commercial CL with zero blockers/advisories, live HTTPS route isolation checks, and browser rendering checks.
 - [ ] Deploy the same-origin topology to an authorized hosted environment with server-side document-route protection.

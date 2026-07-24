@@ -87,8 +87,8 @@ CREATE OR REPLACE FUNCTION a1_complete_oauth_first_login_with_refresh(
   p_organization_id UUID,
   p_project_id UUID,
   p_provider TEXT,
-  p_subject_digests TEXT[],
-  p_email_digests TEXT[],
+  p_subject_digest TEXT,
+  p_email_digest TEXT,
   p_opaque_ref TEXT,
   p_opaque_ref_digest TEXT,
   p_binding_digest TEXT,
@@ -108,13 +108,7 @@ RETURNS TABLE (
   credential_id UUID,
   connection_id UUID,
   token_ref_id UUID,
-  created BOOLEAN,
-  organization_id UUID,
-  project_id UUID,
-  provider_name TEXT,
-  access_expires_at TIMESTAMPTZ,
-  refresh_expires_at TIMESTAMPTZ,
-  completed_at TIMESTAMPTZ
+  created BOOLEAN
 )
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -136,20 +130,9 @@ DECLARE
   v_organization_membership_id UUID;
   v_email_owner UUID;
   v_existing_email_digest TEXT;
-  v_active_subject_digest TEXT;
-  v_active_email_digest TEXT;
-  v_lock_digest TEXT;
-  v_subject_match_count BIGINT;
-  v_subject_principal_count BIGINT;
-  v_connection_match_count BIGINT;
   v_created BOOLEAN := FALSE;
 BEGIN
   PERFORM a1_assert_role_nobypassrls(session_user);
-
-  v_active_subject_digest := p_subject_digests[1];
-  IF cardinality(p_email_digests) > 0 THEN
-    v_active_email_digest := p_email_digests[1];
-  END IF;
 
   IF p_organization_id IS NULL
      OR p_project_id IS NULL
@@ -170,30 +153,11 @@ BEGIN
   END IF;
 
   IF p_provider NOT IN ('google', 'github')
-     OR p_subject_digests IS NULL
-     OR cardinality(p_subject_digests) NOT BETWEEN 1 AND 16
-     OR array_position(p_subject_digests, NULL) IS NOT NULL
-     OR EXISTS (
-       SELECT 1
-         FROM unnest(p_subject_digests) AS subject_candidate(digest)
-        WHERE NOT a1_identity_digest_valid(subject_candidate.digest)
-     )
+     OR NOT a1_identity_digest_valid(p_subject_digest)
      OR (
-       SELECT count(DISTINCT subject_candidate.digest)
-         FROM unnest(p_subject_digests) AS subject_candidate(digest)
-     ) <> cardinality(p_subject_digests)
-     OR p_email_digests IS NULL
-     OR cardinality(p_email_digests) NOT BETWEEN 0 AND 16
-     OR array_position(p_email_digests, NULL) IS NOT NULL
-     OR EXISTS (
-       SELECT 1
-         FROM unnest(p_email_digests) AS email_candidate(digest)
-        WHERE NOT a1_identity_digest_valid(email_candidate.digest)
+       p_email_digest IS NOT NULL
+       AND NOT a1_identity_digest_valid(p_email_digest)
      )
-     OR (
-       SELECT count(DISTINCT email_candidate.digest)
-         FROM unnest(p_email_digests) AS email_candidate(digest)
-     ) <> cardinality(p_email_digests)
      OR NOT a1_oauth_reference_only(p_opaque_ref)
      OR NOT a1_identity_digest_valid(p_opaque_ref_digest)
      OR NOT a1_identity_digest_valid(p_binding_digest)
@@ -226,13 +190,13 @@ BEGIN
     p_organization_id,
     p_project_id,
     p_provider,
-    v_active_subject_digest,
+    p_subject_digest,
     p_idempotency_digest,
     p_request_digest
   )
-  ON CONFLICT ON CONSTRAINT
-    oauth_first_login_operations_idempotency_key
-  DO NOTHING;
+  ON CONFLICT (
+    organization_id, project_id, provider, idempotency_digest
+  ) DO NOTHING;
 
   SELECT operation_row.*
     INTO operation
@@ -243,7 +207,7 @@ BEGIN
      AND operation_row.idempotency_digest = p_idempotency_digest
    FOR UPDATE;
   IF operation.request_digest <> p_request_digest
-     OR operation.subject_digest <> v_active_subject_digest THEN
+     OR operation.subject_digest <> p_subject_digest THEN
     RAISE EXCEPTION 'idempotency_conflict'
       USING ERRCODE = '23505';
   END IF;
@@ -254,73 +218,24 @@ BEGIN
       operation.credential_id,
       operation.connection_id,
       operation.token_ref_id,
-      operation.account_created,
-      session_row.organization_id,
-      session_row.project_id,
-      p_provider,
-      session_row.expires_at,
-      session_row.refresh_expires_at,
-      operation.completed_at
-    FROM identity_sessions AS session_row
-    WHERE session_row.id = operation.session_id
-      AND session_row.principal_id = operation.principal_id
-      AND session_row.credential_id = operation.credential_id;
-    IF NOT FOUND THEN
-      RAISE EXCEPTION 'oauth first-login replay session is unavailable'
-        USING ERRCODE = '40001';
-    END IF;
+      operation.account_created;
     RETURN;
   END IF;
 
   -- Different callbacks for one provider subject serialize before the
   -- absent-row lookup, so two first-login transactions cannot create two
   -- canonical principals for the same external identity.
-  FOR v_lock_digest IN
-    SELECT DISTINCT subject_candidate.digest
-      FROM unnest(p_subject_digests) AS subject_candidate(digest)
-     ORDER BY subject_candidate.digest
-  LOOP
-    PERFORM pg_advisory_xact_lock(
-      8101,
-      hashtext(p_provider || ':production:' || v_lock_digest)
-    );
-  END LOOP;
-
-  PERFORM 1
-    FROM identity_credentials AS credential_row
-   WHERE credential_row.provider = p_provider
-     AND credential_row.provider_environment = 'production'
-     AND credential_row.subject_digest = ANY(p_subject_digests)
-   ORDER BY array_position(
-     p_subject_digests,
-     credential_row.subject_digest
-   )
-   FOR UPDATE;
-
-  SELECT
-    count(*),
-    count(DISTINCT credential_row.principal_id)
-    INTO v_subject_match_count, v_subject_principal_count
-    FROM identity_credentials AS credential_row
-   WHERE credential_row.provider = p_provider
-     AND credential_row.provider_environment = 'production'
-     AND credential_row.subject_digest = ANY(p_subject_digests);
-  IF v_subject_match_count > 1 OR v_subject_principal_count > 1 THEN
-    RAISE EXCEPTION 'oauth subject digest candidates are ambiguous'
-      USING ERRCODE = '23505';
-  END IF;
+  PERFORM pg_advisory_xact_lock(
+    8101,
+    hashtext(p_provider || ':production:' || p_subject_digest)
+  );
 
   SELECT credential_row.*
     INTO credential
     FROM identity_credentials AS credential_row
    WHERE credential_row.provider = p_provider
      AND credential_row.provider_environment = 'production'
-     AND credential_row.subject_digest = ANY(p_subject_digests)
-   ORDER BY array_position(
-     p_subject_digests,
-     credential_row.subject_digest
-   )
-   LIMIT 1
+     AND credential_row.subject_digest = p_subject_digest
    FOR UPDATE;
   IF FOUND THEN
     SELECT principal_row.*
@@ -362,8 +277,7 @@ BEGIN
     v_created := FALSE;
 
     UPDATE identity_credentials AS credential_row
-       SET subject_digest = v_active_subject_digest,
-           last_authenticated_at = v_now,
+       SET last_authenticated_at = v_now,
            metadata = credential_row.metadata || p_metadata,
            updated_at = v_now
      WHERE credential_row.id = credential.id;
@@ -401,7 +315,7 @@ BEGIN
       p_provider,
       'production',
       'federated',
-      v_active_subject_digest,
+      p_subject_digest,
       'active',
       TRUE,
       v_now,
@@ -460,24 +374,13 @@ BEGIN
     v_created := TRUE;
   END IF;
 
-  IF v_active_email_digest IS NOT NULL THEN
-    FOR v_lock_digest IN
-      SELECT DISTINCT email_candidate.digest
-        FROM unnest(p_email_digests) AS email_candidate(digest)
-       ORDER BY email_candidate.digest
-    LOOP
-      PERFORM pg_advisory_xact_lock(8102, hashtext(v_lock_digest));
-    END LOOP;
+  IF p_email_digest IS NOT NULL THEN
+    PERFORM pg_advisory_xact_lock(8102, hashtext(p_email_digest));
 
     SELECT account_email.principal_id
       INTO v_email_owner
       FROM identity_account_emails AS account_email
-     WHERE account_email.normalized_email_digest = ANY(p_email_digests)
-     ORDER BY array_position(
-       p_email_digests,
-       account_email.normalized_email_digest
-     )
-     LIMIT 1
+     WHERE account_email.normalized_email_digest = p_email_digest
      FOR UPDATE;
     IF FOUND AND v_email_owner <> v_principal_id THEN
       RAISE EXCEPTION 'canonical_email_conflict'
@@ -489,8 +392,7 @@ BEGIN
       FROM identity_account_emails AS account_email
      WHERE account_email.principal_id = v_principal_id
      FOR UPDATE;
-    IF FOUND
-       AND v_existing_email_digest <> ALL(p_email_digests) THEN
+    IF FOUND AND v_existing_email_digest <> p_email_digest THEN
       RAISE EXCEPTION 'canonical_email_conflict'
         USING ERRCODE = '23505';
     END IF;
@@ -504,17 +406,18 @@ BEGIN
       updated_at
     ) VALUES (
       v_principal_id,
-      v_active_email_digest,
+      p_email_digest,
       p_provider,
       v_now,
       v_now,
       v_now
     )
     ON CONFLICT ON CONSTRAINT identity_account_emails_pkey DO UPDATE
-      SET normalized_email_digest = EXCLUDED.normalized_email_digest,
-          source_provider = EXCLUDED.source_provider,
+      SET source_provider = EXCLUDED.source_provider,
           verified_at = EXCLUDED.verified_at,
-          updated_at = EXCLUDED.updated_at;
+          updated_at = EXCLUDED.updated_at
+      WHERE identity_account_emails.normalized_email_digest =
+            EXCLUDED.normalized_email_digest;
   END IF;
 
   INSERT INTO identity_account_security (
@@ -583,33 +486,6 @@ BEGIN
       USING ERRCODE = '40001';
   END IF;
 
-  PERFORM 1
-    FROM oauth_account_connections AS connection_row
-   WHERE connection_row.organization_id = p_organization_id
-     AND connection_row.project_id = p_project_id
-     AND connection_row.provider = p_provider
-     AND (
-       connection_row.credential_id = v_credential_id
-       OR connection_row.provider_subject_digest = ANY(p_subject_digests)
-     )
-   ORDER BY connection_row.id
-   FOR UPDATE;
-
-  SELECT count(*)
-    INTO v_connection_match_count
-    FROM oauth_account_connections AS connection_row
-   WHERE connection_row.organization_id = p_organization_id
-     AND connection_row.project_id = p_project_id
-     AND connection_row.provider = p_provider
-     AND (
-       connection_row.credential_id = v_credential_id
-       OR connection_row.provider_subject_digest = ANY(p_subject_digests)
-     );
-  IF v_connection_match_count > 1 THEN
-    RAISE EXCEPTION 'oauth subject connection candidates are ambiguous'
-      USING ERRCODE = '23505';
-  END IF;
-
   SELECT connection_row.*
     INTO connection
     FROM oauth_account_connections AS connection_row
@@ -618,15 +494,13 @@ BEGIN
      AND connection_row.provider = p_provider
      AND (
        connection_row.credential_id = v_credential_id
-       OR connection_row.provider_subject_digest = ANY(p_subject_digests)
+       OR connection_row.provider_subject_digest = p_subject_digest
      )
-   ORDER BY connection_row.id
-   LIMIT 1
    FOR UPDATE;
   IF FOUND AND (
     connection.principal_id <> v_principal_id
     OR connection.credential_id <> v_credential_id
-    OR connection.provider_subject_digest <> ALL(p_subject_digests)
+    OR connection.provider_subject_digest <> p_subject_digest
     OR connection.status NOT IN ('active', 'reauthorization_required')
   ) THEN
     RAISE EXCEPTION 'oauth subject connection conflicts with canonical account'
@@ -673,13 +547,11 @@ BEGIN
     ON CONFLICT ON CONSTRAINT oauth_revocation_outbox_token_key DO NOTHING;
 
     UPDATE oauth_account_connections AS connection_row
-       SET account_id = v_active_subject_digest,
-           session_id = v_session_id::TEXT,
+       SET session_id = v_session_id::TEXT,
            user_id = v_principal_id::TEXT,
            binding_digest = p_binding_digest,
-           provider_subject_digest = v_active_subject_digest,
-           email_digest = v_active_email_digest,
-           email_present = v_active_email_digest IS NOT NULL,
+           email_digest = p_email_digest,
+           email_present = p_email_digest IS NOT NULL,
            token_ref_id = v_token_ref_id,
            status = 'active',
            disconnected_at = NULL,
@@ -713,14 +585,14 @@ BEGIN
       v_principal_id,
       v_credential_id,
       p_provider,
-      v_active_subject_digest,
+      p_subject_digest,
       v_session_id::TEXT,
       v_principal_id::TEXT,
       p_binding_digest,
-      v_active_subject_digest,
+      p_subject_digest,
       '[redacted]',
-      v_active_email_digest,
-      v_active_email_digest IS NOT NULL,
+      p_email_digest,
+      p_email_digest IS NOT NULL,
       v_token_ref_id,
       'active',
       p_metadata,
@@ -766,87 +638,8 @@ BEGIN
     v_credential_id,
     v_connection_id,
     v_token_ref_id,
-    v_created,
-    session_row.organization_id,
-    session_row.project_id,
-    p_provider,
-    session_row.expires_at,
-    session_row.refresh_expires_at,
-    v_now
-  FROM identity_sessions AS session_row
-  WHERE session_row.id = v_session_id
-    AND session_row.principal_id = v_principal_id
-    AND session_row.credential_id = v_credential_id;
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'oauth first-login session relation is unavailable'
-      USING ERRCODE = '40001';
-  END IF;
+    v_created;
 END;
-$$;
-
--- Scalar compatibility wrapper retained for already-deployed callers. New
--- production coordinators use the array authority above so active and retained
--- lookup-key digests can resolve and upgrade one canonical credential.
-CREATE OR REPLACE FUNCTION a1_complete_oauth_first_login_with_refresh(
-  p_organization_id UUID,
-  p_project_id UUID,
-  p_provider TEXT,
-  p_subject_digest TEXT,
-  p_email_digest TEXT,
-  p_opaque_ref TEXT,
-  p_opaque_ref_digest TEXT,
-  p_binding_digest TEXT,
-  p_session_digest TEXT,
-  p_refresh_digest TEXT,
-  p_rotation_family_digest TEXT,
-  p_access_expires_at TIMESTAMPTZ,
-  p_refresh_expires_at TIMESTAMPTZ,
-  p_idempotency_digest TEXT,
-  p_request_digest TEXT,
-  p_display_label TEXT,
-  p_metadata JSONB DEFAULT '{}'::JSONB
-)
-RETURNS TABLE (
-  session_id UUID,
-  principal_id UUID,
-  credential_id UUID,
-  connection_id UUID,
-  token_ref_id UUID,
-  created BOOLEAN,
-  organization_id UUID,
-  project_id UUID,
-  provider_name TEXT,
-  access_expires_at TIMESTAMPTZ,
-  refresh_expires_at TIMESTAMPTZ,
-  completed_at TIMESTAMPTZ
-)
-LANGUAGE sql
-SECURITY DEFINER
-SET search_path = pg_catalog, public, pg_temp
-AS $$
-  SELECT completed.*
-    FROM a1_complete_oauth_first_login_with_refresh(
-      p_organization_id,
-      p_project_id,
-      p_provider,
-      ARRAY[p_subject_digest]::TEXT[],
-      CASE
-        WHEN p_email_digest IS NULL THEN ARRAY[]::TEXT[]
-        ELSE ARRAY[p_email_digest]::TEXT[]
-      END,
-      p_opaque_ref,
-      p_opaque_ref_digest,
-      p_binding_digest,
-      p_session_digest,
-      p_refresh_digest,
-      p_rotation_family_digest,
-      p_access_expires_at,
-      p_refresh_expires_at,
-      p_idempotency_digest,
-      p_request_digest,
-      p_display_label,
-      p_metadata
-    ) AS completed
 $$;
 
 ALTER TABLE oauth_first_login_operations ENABLE ROW LEVEL SECURITY;
@@ -867,10 +660,6 @@ CREATE POLICY oauth_first_login_operations_tenant_isolation
 
 REVOKE ALL ON TABLE oauth_first_login_operations FROM PUBLIC;
 REVOKE ALL ON FUNCTION a1_complete_oauth_first_login_with_refresh(
-  UUID,UUID,TEXT,TEXT[],TEXT[],TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,
-  TIMESTAMPTZ,TIMESTAMPTZ,TEXT,TEXT,TEXT,JSONB
-) FROM PUBLIC;
-REVOKE ALL ON FUNCTION a1_complete_oauth_first_login_with_refresh(
   UUID,UUID,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,
   TIMESTAMPTZ,TIMESTAMPTZ,TEXT,TEXT,TEXT,JSONB
 ) FROM PUBLIC;
@@ -878,10 +667,6 @@ REVOKE ALL ON FUNCTION a1_complete_oauth_first_login_with_refresh(
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'a1_runtime') THEN
-    GRANT EXECUTE ON FUNCTION a1_complete_oauth_first_login_with_refresh(
-      UUID,UUID,TEXT,TEXT[],TEXT[],TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,
-      TIMESTAMPTZ,TIMESTAMPTZ,TEXT,TEXT,TEXT,JSONB
-    ) TO a1_runtime;
     GRANT EXECUTE ON FUNCTION a1_complete_oauth_first_login_with_refresh(
       UUID,UUID,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,
       TIMESTAMPTZ,TIMESTAMPTZ,TEXT,TEXT,TEXT,JSONB

@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parents[2]
 MIGRATIONS = ROOT / "services" / "api" / "migrations"
 MIGRATION = (
     MIGRATIONS
-    / "026_a1_oauth_first_login_session_handoff.sql"
+    / "027_a1_oauth_first_login_digest_rotation.sql"
 )
 CONTAINER = os.environ.get("A1_POSTGRES_TEST_CONTAINER", "ashr-oauth-pg-test")
 RUNTIME_ROLE = "a1_runtime"
