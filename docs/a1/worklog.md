@@ -4082,3 +4082,41 @@ Runtime capability correction:
   callbacks, secret-manager/Vault contract, fail-closed startup requirements,
   frontend secret boundary, and the controlled `https://localhost:4443`
   development-only boundary. No credential or secret value is included.
+
+#### External OAuth operator-readiness audit (2026-07-24)
+
+- [x] Re-checked the dedicated A1 worktree at
+  `C:\Users\33516\Documents\Ashr-a1-sync`: branch
+  `codex/a1-sync-publish` is clean and exactly `0/0` against
+  `origin/codex/a1-local-sdk-runner`. The unrelated root worktree remains
+  intentionally untouched.
+- [x] Confirmed the local Windows User/Process environment contains
+  non-empty `ASHR_GOOGLE_OAUTH_CLIENT_ID`,
+  `ASHR_GOOGLE_OAUTH_CLIENT_SECRET`, `ASHR_GITHUB_OAUTH_CLIENT_ID`, and
+  `ASHR_GITHUB_OAUTH_CLIENT_SECRET` values. Only presence and shape were
+  inspected; no value, prefix, hash, or secret material was written here or
+  printed.
+- [x] Confirmed no production callback/enabled flags, external opaque-vault
+  mTLS/endpoint variables, trusted first-login organization/project scope, or
+  production PostgreSQL DSN is currently injected into the local process or
+  User environment. The existing disposable PostgreSQL container
+  `ashr-oauth-pg-test` is up on host port `55432`; it is test evidence, not a
+  production secret manager or deployment.
+- [x] Confirmed the tracked repository contains only safe OAuth configuration
+  references and examples; no Client Secret, QQ mailbox credential, SMTP
+  credential, provider token, callback code, state, nonce, PKCE verifier,
+  cookie, or browser storage value was recorded.
+- [ ] Create or verify the Google Web OAuth Client and GitHub OAuth App in the
+  operator-owned external consoles, registering the exact real-HTTPS callback
+  paths. This remains unchecked because the Chrome browser bridge failed to
+  initialize in this task; no external console mutation or credential value
+  was attempted.
+- [ ] Deliver the provider credentials through the production external Vault
+  or Secret Manager, configure all required runtime bindings, and enable the
+  production providers only after PostgreSQL/RLS and trusted scope readiness
+  passes. Local environment presence alone is not production secret-manager
+  evidence.
+- [ ] Complete real-HTTPS Google/GitHub first-login, replay, failure, explicit
+  binding, state/nonce/PKCE, session-cookie, and console-handoff verification
+  with redacted evidence only. `https://localhost:4443` remains controlled
+  development testing and is not production evidence.
