@@ -36,25 +36,46 @@ Production OAuth is enabled only when all of the following are present:
 
 - PostgreSQL runtime and the required A1 migrations are ready.
 - A mutually authenticated, external opaque vault/secret-manager bridge is
-  configured with all eight `ASHR_OAUTH_VAULT_*` variables.
-- The Google/GitHub Client ID and Client Secret are injected into the API
-  process under `ASHR_GOOGLE_OAUTH_CLIENT_ID`,
-  `ASHR_GOOGLE_OAUTH_CLIENT_SECRET`, `ASHR_GITHUB_OAUTH_CLIENT_ID`, and
-  `ASHR_GITHUB_OAUTH_CLIENT_SECRET`.
-- The four credential values are supplied by the deployment's secret manager
-  or an equivalent protected runtime injection mechanism; they are not stored
-  in Git, `.env` files, container images, Compose environment literals,
-  Terraform state, logs, documents, frontend bundles, or browser storage.
+  configured with all eight `ASHR_OAUTH_VAULT_*` variables for transaction and
+  provider-token material.
+- A mutually authenticated, external credential resolver is configured with
+  `ASHR_OAUTH_CREDENTIALS_RESOLVE_URL`,
+  `ASHR_OAUTH_CREDENTIALS_MTLS_CA_FILE`,
+  `ASHR_OAUTH_CREDENTIALS_MTLS_CLIENT_CERT_FILE`,
+  `ASHR_OAUTH_CREDENTIALS_MTLS_CLIENT_KEY_FILE`, and
+  `ASHR_OAUTH_CREDENTIALS_MTLS_SERVER_NAME`.
+- Google and GitHub each receive two opaque references:
+  `ASHR_GOOGLE_OAUTH_CLIENT_ID_REF`,
+  `ASHR_GOOGLE_OAUTH_CLIENT_SECRET_REF`,
+  `ASHR_GITHUB_OAUTH_CLIENT_ID_REF`, and
+  `ASHR_GITHUB_OAUTH_CLIENT_SECRET_REF`. References must be unique and use
+  an approved opaque scheme such as `vault:`, `kms:`, `secret:`,
+  `provider-ref:`, or `opaque-ref:`.
+- The API process must not receive
+  `ASHR_GOOGLE_OAUTH_CLIENT_ID`,
+  `ASHR_GOOGLE_OAUTH_CLIENT_SECRET`,
+  `ASHR_GITHUB_OAUTH_CLIENT_ID`, or
+  `ASHR_GITHUB_OAUTH_CLIENT_SECRET` in production. If any enabled provider
+  has one of these legacy/raw variables present, startup fails closed.
+- The four credential values are resolved only by the external credential
+  service and are not stored in Git, `.env` files, container images, Compose
+  environment literals, Terraform state, logs, documents, frontend bundles,
+  or browser storage.
 - The trusted server-owned organization and project IDs are configured with
   `ASHR_OAUTH_FIRST_LOGIN_ORGANIZATION_ID` and
   `ASHR_OAUTH_FIRST_LOGIN_PROJECT_ID`.
 
-The API reads credentials only on the backend through the
-`OAuthCredentialsProvider` contract. It validates presence, whitespace,
-control characters, size bounds, and Client ID/Secret inequality without
-including values in startup errors. The external opaque vault stores
-transaction and provider-token material by reference; PostgreSQL stores
-digests and canonical account/session state, not raw OAuth secrets.
+The API resolves credentials only on the backend through the
+`OAuthCredentialsProvider` contract. Each OAuth operation resolves the
+provider's two references again, so an approved reference rotation takes
+effect without an API restart. The resolver request contains only the
+provider, purpose `ashr.oauth.client_credentials.v1`, and opaque references;
+the response is strict JSON and is never included in errors or logs. The
+runtime validates presence, whitespace, control characters, size bounds,
+provider/purpose binding, reference uniqueness, and Client ID/Secret
+inequality without including values in startup errors. The external opaque
+vault stores transaction and provider-token material by reference; PostgreSQL
+stores digests and canonical account/session state, not raw OAuth secrets.
 
 When either provider is enabled, missing credentials, missing opaque-vault
 configuration, missing mTLS material, missing trusted scope, an invalid
@@ -70,6 +91,11 @@ ASHR_GOOGLE_OAUTH_ENABLED=true
 ASHR_GITHUB_OAUTH_ENABLED=true
 ASHR_GOOGLE_OAUTH_CALLBACK_URL=https://<api-host>/v1/identity/oauth/google/callback
 ASHR_GITHUB_OAUTH_CALLBACK_URL=https://<api-host>/v1/identity/oauth/github/callback
+ASHR_GOOGLE_OAUTH_CLIENT_ID_REF=vault:<opaque-reference>
+ASHR_GOOGLE_OAUTH_CLIENT_SECRET_REF=vault:<opaque-reference>
+ASHR_GITHUB_OAUTH_CLIENT_ID_REF=vault:<opaque-reference>
+ASHR_GITHUB_OAUTH_CLIENT_SECRET_REF=vault:<opaque-reference>
+ASHR_OAUTH_CREDENTIALS_RESOLVE_URL=https://<secret-manager-host>/v1/oauth/resolve
 ASHR_OAUTH_FIRST_LOGIN_ORGANIZATION_ID=<server-owned-uuid>
 ASHR_OAUTH_FIRST_LOGIN_PROJECT_ID=<server-owned-uuid>
 ```
@@ -91,6 +117,11 @@ the complete dependency graph is valid:
 5. open and readiness-check PostgreSQL;
 6. construct the migration-backed first-login store/coordinator;
 7. expose browser intent, secure session/refresh-cookie, and OAuth routes.
+
+The credential resolver must return a fresh response for each resolution.
+Google and GitHub may not resolve to the same Client ID or Client Secret at
+startup; this prevents a cross-provider configuration mix-up from being
+advertised as ready.
 
 The first-login callback must enforce state, nonce, PKCE S256, provider,
 purpose, callback, intent, expiry, one-use transaction, and trusted

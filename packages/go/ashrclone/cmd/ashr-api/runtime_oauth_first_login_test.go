@@ -3,10 +3,13 @@ package main
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"net/http"
 	"strings"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/ashr-labs/ashr/packages/go/ashrclone"
 )
 
 func productionOAuthFirstLoginTestEnv(t *testing.T) map[string]string {
@@ -31,17 +34,74 @@ func productionOAuthFirstLoginTestEnv(t *testing.T) map[string]string {
 		"ASHR_OAUTH_VAULT_MTLS_CLIENT_KEY_FILE":          identityVault["ASHR_IDENTITY_DELIVERY_VAULT_MTLS_CLIENT_KEY_FILE"],
 		"ASHR_OAUTH_VAULT_MTLS_SERVER_NAME":              "oauth-vault.example.test",
 		"ASHR_GOOGLE_OAUTH_ENABLED":                      "true",
-		"ASHR_GOOGLE_OAUTH_CLIENT_ID":                    "google-client-fixture",
-		"ASHR_GOOGLE_OAUTH_CLIENT_SECRET":                "google-secret-fixture",
+		"ASHR_GOOGLE_OAUTH_CLIENT_ID_REF":                "vault:oauth/google-client-id",
+		"ASHR_GOOGLE_OAUTH_CLIENT_SECRET_REF":            "vault:oauth/google-client-secret",
 		"ASHR_GOOGLE_OAUTH_CALLBACK_URL":                 "https://api.example.test/v1/identity/oauth/google/callback",
 		"ASHR_GITHUB_OAUTH_ENABLED":                      "true",
-		"ASHR_GITHUB_OAUTH_CLIENT_ID":                    "github-client-fixture",
-		"ASHR_GITHUB_OAUTH_CLIENT_SECRET":                "github-secret-fixture",
+		"ASHR_GITHUB_OAUTH_CLIENT_ID_REF":                "vault:oauth/github-client-id",
+		"ASHR_GITHUB_OAUTH_CLIENT_SECRET_REF":            "vault:oauth/github-client-secret",
 		"ASHR_GITHUB_OAUTH_CALLBACK_URL":                 "https://api.example.test/v1/identity/oauth/github/callback",
 	}
 }
 
+type productionOAuthFixtureCredentials struct {
+	values map[string]ashrclone.OAuthClientCredentials
+}
+
+func (provider productionOAuthFixtureCredentials) OAuthCredentials(
+	_ context.Context,
+	providerName string,
+) (ashrclone.OAuthClientCredentials, error) {
+	credentials, ok := provider.values[providerName]
+	if !ok {
+		return ashrclone.OAuthClientCredentials{}, fmt.Errorf("fixture credentials unavailable")
+	}
+	return credentials, nil
+}
+
+type productionOAuthRecordingCredentials struct {
+	calls  []string
+	values map[string]ashrclone.OAuthClientCredentials
+}
+
+func (provider *productionOAuthRecordingCredentials) OAuthCredentials(
+	_ context.Context,
+	providerName string,
+) (ashrclone.OAuthClientCredentials, error) {
+	provider.calls = append(provider.calls, providerName)
+	credentials, ok := provider.values[providerName]
+	if !ok {
+		return ashrclone.OAuthClientCredentials{}, fmt.Errorf("fixture credentials unavailable")
+	}
+	return credentials, nil
+}
+
+func useProductionOAuthFixtureCredentials(t *testing.T) {
+	t.Helper()
+	original := productionOAuthCredentialsRuntimeFactory
+	productionOAuthCredentialsRuntimeFactory = func(
+		_ func(string) (string, bool),
+		googleEnabled bool,
+		githubEnabled bool,
+		references map[string]ashrclone.OAuthCredentialReference,
+	) (*productionOAuthCredentialsRuntime, error) {
+		if len(references) != 2 || !googleEnabled || !githubEnabled {
+			return nil, fmt.Errorf("fixture OAuth credential graph is incomplete")
+		}
+		return &productionOAuthCredentialsRuntime{
+			provider: productionOAuthFixtureCredentials{
+				values: map[string]ashrclone.OAuthClientCredentials{
+					"google": {ClientID: "google-client-fixture", ClientSecret: "google-secret-fixture"},
+					"github": {ClientID: "github-client-fixture", ClientSecret: "github-secret-fixture"},
+				},
+			},
+		}, nil
+	}
+	t.Cleanup(func() { productionOAuthCredentialsRuntimeFactory = original })
+}
+
 func TestProductionIdentityRuntimeWiresCompletePublicOAuthFirstLoginGraph(t *testing.T) {
+	useProductionOAuthFixtureCredentials(t)
 	db, mock, err := sqlmock.New(sqlmock.MonitorPingsOption(true))
 	if err != nil {
 		t.Fatal(err)
@@ -89,7 +149,7 @@ func TestProductionIdentityRuntimeOAuthFailsClosedBeforeDatabaseReadiness(t *tes
 		"callback": func(values map[string]string) {
 			values["ASHR_GITHUB_OAUTH_CALLBACK_URL"] = "http://api.example.test/v1/identity/oauth/github/callback"
 		},
-		"credentials": func(values map[string]string) { delete(values, "ASHR_GOOGLE_OAUTH_CLIENT_SECRET") },
+		"credentials": func(values map[string]string) { delete(values, "ASHR_GOOGLE_OAUTH_CLIENT_SECRET_REF") },
 		"intent key":  func(values map[string]string) { delete(values, "ASHR_IDENTITY_BROWSER_INTENT_KEY") },
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -98,6 +158,165 @@ func TestProductionIdentityRuntimeOAuthFailsClosedBeforeDatabaseReadiness(t *tes
 			_, err := newIdentityRuntimeFromEnv(context.Background(), lookup(values))
 			if err == nil {
 				t.Fatal("incomplete production OAuth first-login capability was accepted")
+			}
+			assertErrorOmitsValues(t, err, values)
+		})
+	}
+}
+
+func TestProductionOAuthCredentialReferencesRejectRawSecretsAndReuse(t *testing.T) {
+	base := productionOAuthFirstLoginTestEnv(t)
+	for name, mutate := range map[string]func(map[string]string){
+		"raw client id": func(values map[string]string) {
+			values["ASHR_GOOGLE_OAUTH_CLIENT_ID"] = "legacy-client-material"
+		},
+		"raw client secret": func(values map[string]string) {
+			values["ASHR_GITHUB_OAUTH_CLIENT_SECRET"] = "legacy-secret-material"
+		},
+		"shared reference": func(values map[string]string) {
+			values["ASHR_GITHUB_OAUTH_CLIENT_ID_REF"] = values["ASHR_GOOGLE_OAUTH_CLIENT_ID_REF"]
+		},
+		"same provider references": func(values map[string]string) {
+			values["ASHR_GOOGLE_OAUTH_CLIENT_SECRET_REF"] = values["ASHR_GOOGLE_OAUTH_CLIENT_ID_REF"]
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			values := cloneStrings(base)
+			mutate(values)
+			_, err := productionOAuthCredentialReferencesFromEnv(
+				lookup(values), true, true,
+			)
+			if err == nil {
+				t.Fatal("unsafe production OAuth credential configuration was accepted")
+			}
+			assertErrorOmitsValues(t, err, values)
+		})
+	}
+	values := cloneStrings(base)
+	delete(values, "ASHR_GITHUB_OAUTH_CLIENT_ID_REF")
+	delete(values, "ASHR_GITHUB_OAUTH_CLIENT_SECRET_REF")
+	references, err := productionOAuthCredentialReferencesFromEnv(
+		lookup(values), true, false,
+	)
+	if err != nil || len(references) != 1 || references["google"].ClientIDRef == "" {
+		t.Fatalf("disabled provider incorrectly required references: %#v %v", references, err)
+	}
+}
+
+func TestProductionOAuthRuntimeRejectsSharedResolvedClientMaterial(t *testing.T) {
+	base := productionOAuthFirstLoginTestEnv(t)
+	original := productionOAuthCredentialsRuntimeFactory
+	productionOAuthCredentialsRuntimeFactory = func(
+		_ func(string) (string, bool),
+		googleEnabled bool,
+		githubEnabled bool,
+		_ map[string]ashrclone.OAuthCredentialReference,
+	) (*productionOAuthCredentialsRuntime, error) {
+		return &productionOAuthCredentialsRuntime{
+			provider: productionOAuthFixtureCredentials{
+				values: map[string]ashrclone.OAuthClientCredentials{
+					"google": {ClientID: "shared-client-fixture", ClientSecret: "google-secret-fixture"},
+					"github": {ClientID: "shared-client-fixture", ClientSecret: "github-secret-fixture"},
+				},
+			},
+		}, nil
+	}
+	t.Cleanup(func() { productionOAuthCredentialsRuntimeFactory = original })
+	_, err := productionOAuthFirstLoginDependenciesFromEnv(lookup(base))
+	if err == nil || !strings.Contains(err.Error(), "must not share") {
+		t.Fatalf("shared resolved OAuth client material was accepted: %v", err)
+	}
+}
+
+func TestProductionOAuthRuntimeDoesNotResolveDisabledProvider(t *testing.T) {
+	values := productionOAuthFirstLoginTestEnv(t)
+	values["ASHR_GITHUB_OAUTH_ENABLED"] = "false"
+	delete(values, "ASHR_GITHUB_OAUTH_CLIENT_ID_REF")
+	delete(values, "ASHR_GITHUB_OAUTH_CLIENT_SECRET_REF")
+	delete(values, "ASHR_GITHUB_OAUTH_CALLBACK_URL")
+	recorder := &productionOAuthRecordingCredentials{
+		values: map[string]ashrclone.OAuthClientCredentials{
+			"google": {
+				ClientID:     "google-client-fixture",
+				ClientSecret: "google-secret-fixture",
+			},
+		},
+	}
+	original := productionOAuthCredentialsRuntimeFactory
+	productionOAuthCredentialsRuntimeFactory = func(
+		_ func(string) (string, bool),
+		googleEnabled bool,
+		githubEnabled bool,
+		references map[string]ashrclone.OAuthCredentialReference,
+	) (*productionOAuthCredentialsRuntime, error) {
+		if !googleEnabled || githubEnabled || len(references) != 1 {
+			return nil, fmt.Errorf("disabled provider entered the credential resolver graph")
+		}
+		return &productionOAuthCredentialsRuntime{provider: recorder}, nil
+	}
+	t.Cleanup(func() { productionOAuthCredentialsRuntimeFactory = original })
+	dependencies, err := productionOAuthFirstLoginDependenciesFromEnv(lookup(values))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer dependencies.close()
+	if len(recorder.calls) != 1 || recorder.calls[0] != "google" {
+		t.Fatalf("disabled provider was resolved: %#v", recorder.calls)
+	}
+	if _, exists := dependencies.providers["github"]; exists {
+		t.Fatal("disabled provider entered the public first-login graph")
+	}
+}
+
+func TestProductionOAuthCredentialsRuntimeBuildsCompleteMTLSResolver(t *testing.T) {
+	identityVault := productionIdentityDeliveryVaultTestEnv(t)
+	values := map[string]string{
+		"ASHR_OAUTH_CREDENTIALS_RESOLVE_URL":           "https://credential-resolver.example.test/v1/oauth/resolve",
+		"ASHR_OAUTH_CREDENTIALS_MTLS_CA_FILE":          identityVault["ASHR_IDENTITY_DELIVERY_VAULT_MTLS_CA_FILE"],
+		"ASHR_OAUTH_CREDENTIALS_MTLS_CLIENT_CERT_FILE": identityVault["ASHR_IDENTITY_DELIVERY_VAULT_MTLS_CLIENT_CERT_FILE"],
+		"ASHR_OAUTH_CREDENTIALS_MTLS_CLIENT_KEY_FILE":  identityVault["ASHR_IDENTITY_DELIVERY_VAULT_MTLS_CLIENT_KEY_FILE"],
+		"ASHR_OAUTH_CREDENTIALS_MTLS_SERVER_NAME":      "credential-resolver.example.test",
+	}
+	references := map[string]ashrclone.OAuthCredentialReference{
+		"google": {
+			ClientIDRef:     "vault:oauth/google-client-id",
+			ClientSecretRef: "vault:oauth/google-client-secret",
+		},
+		"github": {
+			ClientIDRef:     "vault:oauth/github-client-id",
+			ClientSecretRef: "vault:oauth/github-client-secret",
+		},
+	}
+	runtime, err := productionOAuthCredentialsRuntimeFromEnv(
+		lookup(values), true, true, references,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer runtime.close()
+	if runtime.provider == nil || runtime.client == nil {
+		t.Fatal("production credential resolver runtime is incomplete")
+	}
+	transport, ok := runtime.client.Transport.(*http.Transport)
+	if !ok || transport.TLSClientConfig == nil {
+		t.Fatalf("production credential resolver did not use the mTLS transport: %T", runtime.client.Transport)
+	}
+	if transport.TLSClientConfig.ServerName != values["ASHR_OAUTH_CREDENTIALS_MTLS_SERVER_NAME"] ||
+		transport.TLSClientConfig.RootCAs == nil ||
+		len(transport.TLSClientConfig.Certificates) != 1 ||
+		runtime.client.Timeout != productionIdentityDeliveryVaultRequestTimeout {
+		t.Fatal("production credential resolver lost its trust, identity, server name, or timeout binding")
+	}
+
+	for missing := range values {
+		t.Run("missing "+missing, func(t *testing.T) {
+			incomplete := cloneStrings(values)
+			delete(incomplete, missing)
+			resolver, err := productionOAuthCredentialsRuntimeFromEnv(
+				lookup(incomplete), true, true, references,
+			)
+			if resolver != nil || err == nil {
+				t.Fatal("incomplete production credential resolver configuration was accepted")
 			}
 			assertErrorOmitsValues(t, err, values)
 		})

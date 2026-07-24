@@ -130,3 +130,22 @@ must not be included in A1 commits.
   `596fde1966e1edd62e76885cd973c66338f2a383`, push only A1 to
   `origin/codex/a1-local-sdk-runner`, fetch back, and prove post-push `0/0`
   parity.
+
+## A1 - external credential delivery and operator verification checkpoint (2026-07-24)
+
+- [x] Re-confirm the dedicated A1 worktree is clean at the accepted remote
+  baseline and preserve the A1-only push target.
+- [x] Re-confirm local OAuth configuration records by presence/shape only;
+  no secret values, mailbox credentials, tokens, or browser state are logged.
+- [x] Add the production external Secret Manager/Vault OAuth client-credential
+  resolver and fail-closed startup contract; support reference-based rotation.
+- [x] Add resolver, startup, redaction, provider-isolation, and rotation tests.
+- [x] Run focused, PostgreSQL, cross-language, complete CL, formatting, and
+  ownership/secret audits.
+- [ ] Commit and push only A1 to `origin/codex/a1-local-sdk-runner`, then prove
+  local/remote `0/0` parity.
+- [ ] Verify or create the Google Web OAuth Client and GitHub OAuth App in the
+  operator-owned consoles, deliver credentials through the production external
+  Secret Manager/Vault, and complete real-HTTPS Google/GitHub E2E. This remains
+  externally gated until Chrome, console ownership, Vault, and a real test
+  domain are available; localhost is not production evidence.

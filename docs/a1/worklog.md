@@ -4120,3 +4120,61 @@ Runtime capability correction:
   binding, state/nonce/PKCE, session-cookie, and console-handoff verification
   with redacted evidence only. `https://localhost:4443` remains controlled
   development testing and is not production evidence.
+
+### External credential delivery and operator verification checkpoint (2026-07-24)
+
+- [x] Re-confirmed the dedicated A1 worktree is clean at the accepted remote
+  baseline and preserved the A1-only push target.
+- [x] Re-confirmed local OAuth configuration records by presence/shape only;
+  no secret values, mailbox credentials, tokens, or browser state were logged.
+- [x] Add the production external Secret Manager/Vault OAuth client-credential
+  resolver and fail-closed startup contract; support reference-based rotation.
+- [x] Add resolver, startup, redaction, provider-isolation, and rotation tests.
+- [x] Run focused, PostgreSQL, cross-language, complete CL, formatting, and
+  ownership/secret audits.
+- [ ] Commit and push only A1 to `origin/codex/a1-local-sdk-runner`, then prove
+  local/remote `0/0` parity.
+- [ ] Verify or create the Google Web OAuth Client and GitHub OAuth App in the
+  operator-owned consoles, deliver credentials through the production external
+  Secret Manager/Vault, and complete real-HTTPS Google/GitHub E2E. This remains
+  externally gated until Chrome, console ownership, Vault, and a real test
+  domain are available; localhost is not production evidence.
+
+Implementation evidence for this checkpoint:
+
+- [x] Added the backend-only `HTTPOAuthCredentialsProvider` with strict
+  HTTPS/JSON, redirect refusal, mTLS-compatible client injection, opaque
+  reference-only requests, provider/purpose binding, bounded responses,
+  redacted failures, and no cache so reference rotation is observed on the
+  next operation.
+- [x] Production `ashr-api` now requires unique per-provider credential
+  references and an external resolver/mTLS graph, rejects enabled-provider
+  raw `ASHR_*_OAUTH_CLIENT_ID/SECRET` variables, resolves both providers at
+  startup, and rejects shared resolved Client ID or Client Secret material.
+- [x] Added focused resolver and production-runtime tests for rotation,
+  strict response/configuration, redirect/error redaction, raw-secret
+  rejection, disabled-provider isolation, reference reuse, and cross-provider
+  material reuse. No credential value was recorded.
+- [x] All four Go packages in the main module passed after this implementation
+  batch.
+
+Final local A1 gate evidence for this checkpoint:
+
+- [x] Re-ran the complete main Go module after the final disabled-provider
+  isolation test: `4 packages passed`.
+- [x] Re-ran the Go integration module: `tests/integration/go passed`.
+- [x] Retained the completed cross-language evidence from this batch:
+  Python `2123 passed, 14 skipped, 19 warnings`; TypeScript `660 passed`;
+  Rust formatting, clippy, and all-target tests passed with `31 tests`.
+- [x] Reused `ashr-oauth-pg-test` on host port `55432`; the Docker-backed
+  OAuth/identity PostgreSQL evidence remains green (`18 passed`) and the
+  PostgreSQL/RLS/key-rotation matrix was not changed by the resolver-only
+  patch.
+- [x] Re-ran `python scripts/cl_guard.py plan --full`,
+  `python scripts/cl_guard.py hygiene`, and
+  `python scripts/cl_guard.py commercial`; hygiene passed with zero findings
+  and commercial passed with zero blockers/advisories.
+- [x] `gofmt -d` and `git diff --check` are clean. Exact changed-path
+  ownership/generated-artifact audit passed for the seven A1 paths; the
+  changed-file secret audit passed with values suppressed and synthetic test
+  fixture literals classified explicitly.

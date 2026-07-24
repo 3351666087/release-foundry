@@ -111,6 +111,17 @@ func (runtime *productionOAuthOpaqueVaultRuntime) close() {
 	}
 }
 
+type productionOAuthCredentialsRuntime struct {
+	provider ashrclone.OAuthCredentialsProvider
+	client   *http.Client
+}
+
+func (runtime *productionOAuthCredentialsRuntime) close() {
+	if runtime != nil && runtime.client != nil {
+		runtime.client.CloseIdleConnections()
+	}
+}
+
 type productionOAuthFirstLoginProvider struct {
 	adapter        ashrclone.OAuthProviderAdapter
 	callbackURL    string
@@ -119,13 +130,14 @@ type productionOAuthFirstLoginProvider struct {
 }
 
 type productionOAuthFirstLoginDependencies struct {
-	organizationID string
-	projectID      string
-	credentials    ashrclone.OAuthCredentialsProvider
-	vault          *productionOAuthOpaqueVaultRuntime
-	googleEnabled  bool
-	githubEnabled  bool
-	providers      map[string]productionOAuthFirstLoginProvider
+	organizationID  string
+	projectID       string
+	credentials     ashrclone.OAuthCredentialsProvider
+	credentialVault *productionOAuthCredentialsRuntime
+	vault           *productionOAuthOpaqueVaultRuntime
+	googleEnabled   bool
+	githubEnabled   bool
+	providers       map[string]productionOAuthFirstLoginProvider
 }
 
 func (dependencies *productionOAuthFirstLoginDependencies) close() {
@@ -138,6 +150,7 @@ func (dependencies *productionOAuthFirstLoginDependencies) close() {
 		}
 	}
 	dependencies.vault.close()
+	dependencies.credentialVault.close()
 }
 
 func (dependencies *productionOAuthFirstLoginDependencies) build(
@@ -404,19 +417,38 @@ func productionOAuthFirstLoginDependenciesFromEnv(
 			"ASHR_OAUTH_FIRST_LOGIN_PROJECT_ID must be a canonical UUID",
 		)
 	}
-	credentials := ashrclone.EnvOAuthCredentialsProvider{LookupEnv: lookup}
-	vault, err := productionOAuthOpaqueVaultFromEnv(lookup)
+	references, err := productionOAuthCredentialReferencesFromEnv(
+		lookup, googleEnabled, githubEnabled,
+	)
 	if err != nil {
 		return nil, err
 	}
+	credentialVault, err := productionOAuthCredentialsRuntimeFactory(
+		lookup, googleEnabled, githubEnabled, references,
+	)
+	if err != nil || credentialVault == nil || credentialVault.provider == nil {
+		if err == nil {
+			err = fmt.Errorf(
+				"production OAuth external credential resolver is incomplete",
+			)
+		}
+		return nil, err
+	}
+	credentials := credentialVault.provider
+	vault, err := productionOAuthOpaqueVaultFromEnv(lookup)
+	if err != nil {
+		credentialVault.close()
+		return nil, err
+	}
 	dependencies := &productionOAuthFirstLoginDependencies{
-		organizationID: organizationID,
-		projectID:      projectID,
-		credentials:    credentials,
-		vault:          vault,
-		googleEnabled:  googleEnabled,
-		githubEnabled:  githubEnabled,
-		providers:      make(map[string]productionOAuthFirstLoginProvider, 2),
+		organizationID:  organizationID,
+		projectID:       projectID,
+		credentials:     credentials,
+		credentialVault: credentialVault,
+		vault:           vault,
+		googleEnabled:   googleEnabled,
+		githubEnabled:   githubEnabled,
+		providers:       make(map[string]productionOAuthFirstLoginProvider, 2),
 	}
 	keep := false
 	defer func() {
@@ -425,10 +457,17 @@ func productionOAuthFirstLoginDependenciesFromEnv(
 		}
 	}()
 
+	resolvedCredentials := make(map[string]ashrclone.OAuthClientCredentials, 2)
 	if googleEnabled {
+		resolved, credentialErr := resolveProductionOAuthCredentials(
+			credentials, "google",
+		)
+		if credentialErr != nil {
+			return nil, credentialErr
+		}
+		resolvedCredentials["google"] = resolved
 		provider, providerErr := productionGoogleOAuthFirstLoginProvider(
 			lookup,
-			credentials,
 		)
 		if providerErr != nil {
 			return nil, providerErr
@@ -436,14 +475,30 @@ func productionOAuthFirstLoginDependenciesFromEnv(
 		dependencies.providers["google"] = provider
 	}
 	if githubEnabled {
+		resolved, credentialErr := resolveProductionOAuthCredentials(
+			credentials, "github",
+		)
+		if credentialErr != nil {
+			return nil, credentialErr
+		}
+		resolvedCredentials["github"] = resolved
 		provider, providerErr := productionGitHubOAuthFirstLoginProvider(
 			lookup,
-			credentials,
 		)
 		if providerErr != nil {
 			return nil, providerErr
 		}
 		dependencies.providers["github"] = provider
+	}
+	if googleEnabled && githubEnabled {
+		googleCredentials := resolvedCredentials["google"]
+		githubCredentials := resolvedCredentials["github"]
+		if googleCredentials.ClientID == githubCredentials.ClientID ||
+			googleCredentials.ClientSecret == githubCredentials.ClientSecret {
+			return nil, fmt.Errorf(
+				"production OAuth providers must not share client material",
+			)
+		}
 	}
 	keep = true
 	return dependencies, nil
@@ -451,14 +506,7 @@ func productionOAuthFirstLoginDependenciesFromEnv(
 
 func productionGoogleOAuthFirstLoginProvider(
 	lookup func(string) (string, bool),
-	credentials ashrclone.OAuthCredentialsProvider,
 ) (productionOAuthFirstLoginProvider, error) {
-	if err := validateProductionOAuthCredentials(
-		credentials,
-		"google",
-	); err != nil {
-		return productionOAuthFirstLoginProvider{}, err
-	}
 	callbackURL, err := productionOAuthCallbackURLFromEnv(
 		lookup,
 		"google",
@@ -511,14 +559,7 @@ func productionGoogleOAuthFirstLoginProvider(
 
 func productionGitHubOAuthFirstLoginProvider(
 	lookup func(string) (string, bool),
-	credentials ashrclone.OAuthCredentialsProvider,
 ) (productionOAuthFirstLoginProvider, error) {
-	if err := validateProductionOAuthCredentials(
-		credentials,
-		"github",
-	); err != nil {
-		return productionOAuthFirstLoginProvider{}, err
-	}
 	callbackURL, err := productionOAuthCallbackURLFromEnv(
 		lookup,
 		"github",
@@ -566,6 +607,210 @@ func productionGitHubOAuthFirstLoginProvider(
 		adapter: provider, callbackURL: callbackURL,
 		transactionTTL: transactionTTL, client: client,
 	}, nil
+}
+
+var productionOAuthCredentialsRuntimeFactory = productionOAuthCredentialsRuntimeFromEnv
+
+func productionOAuthCredentialReferencesFromEnv(
+	lookup func(string) (string, bool),
+	googleEnabled bool,
+	githubEnabled bool,
+) (map[string]ashrclone.OAuthCredentialReference, error) {
+	if lookup == nil {
+		return nil, fmt.Errorf("identity environment lookup is required")
+	}
+	enabled := map[string]bool{"google": googleEnabled, "github": githubEnabled}
+	references := make(map[string]ashrclone.OAuthCredentialReference, 2)
+	seen := make(map[string]string, 4)
+	for _, provider := range []string{"google", "github"} {
+		if !enabled[provider] {
+			continue
+		}
+		upper := strings.ToUpper(provider)
+		for _, suffix := range []string{"CLIENT_ID", "CLIENT_SECRET"} {
+			if value, present := lookup("ASHR_" + upper + "_OAUTH_" + suffix); present {
+				if strings.TrimSpace(value) != "" ||
+					value != strings.TrimSpace(value) ||
+					strings.ContainsAny(value, "\x00\r\n\t") {
+					return nil, fmt.Errorf(
+						"production %s OAuth credentials must be delivered by the external secret manager",
+						provider,
+					)
+				}
+				return nil, fmt.Errorf(
+					"production %s OAuth credential environment variables are forbidden",
+					provider,
+				)
+			}
+		}
+		clientIDRef, err := requiredProductionOAuthValue(
+			lookup, "ASHR_"+upper+"_OAUTH_CLIENT_ID_REF",
+		)
+		if err != nil || !ashrclone.ValidOAuthCredentialReference(clientIDRef) {
+			return nil, fmt.Errorf(
+				"production %s OAuth client ID reference is invalid",
+				provider,
+			)
+		}
+		clientSecretRef, err := requiredProductionOAuthValue(
+			lookup, "ASHR_"+upper+"_OAUTH_CLIENT_SECRET_REF",
+		)
+		if err != nil || !ashrclone.ValidOAuthCredentialReference(clientSecretRef) ||
+			clientIDRef == clientSecretRef {
+			return nil, fmt.Errorf(
+				"production %s OAuth client secret reference is invalid",
+				provider,
+			)
+		}
+		for kind, reference := range map[string]string{
+			"client_id": clientIDRef, "client_secret": clientSecretRef,
+		} {
+			if _, exists := seen[reference]; exists {
+				return nil, fmt.Errorf(
+					"production OAuth credential references must be unique",
+				)
+			}
+			seen[reference] = provider + "." + kind
+		}
+		references[provider] = ashrclone.OAuthCredentialReference{
+			ClientIDRef: clientIDRef, ClientSecretRef: clientSecretRef,
+		}
+	}
+	return references, nil
+}
+
+func productionOAuthCredentialsRuntimeFromEnv(
+	lookup func(string) (string, bool),
+	googleEnabled bool,
+	githubEnabled bool,
+	references map[string]ashrclone.OAuthCredentialReference,
+) (*productionOAuthCredentialsRuntime, error) {
+	if lookup == nil || len(references) == 0 {
+		return nil, fmt.Errorf(
+			"production OAuth external credential resolver is required",
+		)
+	}
+	type binding struct {
+		key         string
+		destination *string
+	}
+	var endpoint, caBundleFile, clientCertificateFile, clientPrivateKeyFile, serverName string
+	bindings := []binding{
+		{"ASHR_OAUTH_CREDENTIALS_RESOLVE_URL", &endpoint},
+		{"ASHR_OAUTH_CREDENTIALS_MTLS_CA_FILE", &caBundleFile},
+		{"ASHR_OAUTH_CREDENTIALS_MTLS_CLIENT_CERT_FILE", &clientCertificateFile},
+		{"ASHR_OAUTH_CREDENTIALS_MTLS_CLIENT_KEY_FILE", &clientPrivateKeyFile},
+		{"ASHR_OAUTH_CREDENTIALS_MTLS_SERVER_NAME", &serverName},
+	}
+	missing := make([]string, 0, len(bindings))
+	for _, item := range bindings {
+		value, present := lookup(item.key)
+		if !present || strings.TrimSpace(value) == "" {
+			missing = append(missing, item.key)
+			continue
+		}
+		if value != strings.TrimSpace(value) ||
+			strings.ContainsAny(value, "\x00\r\n\t") {
+			return nil, fmt.Errorf(
+				"production OAuth external credential resolver configuration is invalid",
+			)
+		}
+		*item.destination = value
+	}
+	if len(missing) != 0 {
+		return nil, fmt.Errorf(
+			"production OAuth external credential resolver configuration is incomplete",
+		)
+	}
+	if !googleEnabled && !githubEnabled {
+		return nil, fmt.Errorf(
+			"production OAuth external credential resolver has no enabled provider",
+		)
+	}
+	caBundlePEM, err := readProductionIdentityDeliveryVaultPEM(
+		caBundleFile, maxProductionIdentityDeliveryVaultCABundleBytes,
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"production OAuth credential resolver mTLS trust material is unavailable",
+		)
+	}
+	defer zeroBytes(caBundlePEM)
+	clientCertificatePEM, err := readProductionIdentityDeliveryVaultPEM(
+		clientCertificateFile, maxProductionIdentityDeliveryVaultIdentityBytes,
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"production OAuth credential resolver mTLS identity material is unavailable",
+		)
+	}
+	defer zeroBytes(clientCertificatePEM)
+	clientPrivateKeyPEM, err := readProductionIdentityDeliveryVaultPEM(
+		clientPrivateKeyFile, maxProductionIdentityDeliveryVaultIdentityBytes,
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"production OAuth credential resolver mTLS identity material is unavailable",
+		)
+	}
+	defer zeroBytes(clientPrivateKeyPEM)
+	client, err := ashrclone.NewIdentityDeliveryMTLSHTTPClient(
+		ashrclone.IdentityDeliveryMTLSClientOptions{
+			CABundlePEM: caBundlePEM, ClientCertificatePEM: clientCertificatePEM,
+			ClientPrivateKeyPEM: clientPrivateKeyPEM, ServerName: serverName,
+			DialTimeout:           productionIdentityDeliveryVaultConnectTimeout,
+			TLSHandshakeTimeout:   productionIdentityDeliveryVaultConnectTimeout,
+			ResponseHeaderTimeout: productionIdentityDeliveryVaultRequestTimeout,
+			RequestTimeout:        productionIdentityDeliveryVaultRequestTimeout,
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"production OAuth credential resolver mTLS profile was rejected",
+		)
+	}
+	provider, err := ashrclone.NewHTTPOAuthCredentialsProvider(
+		ashrclone.HTTPOAuthCredentialsProviderOptions{
+			Endpoint: endpoint, Client: client,
+			Timeout:    productionIdentityDeliveryVaultRequestTimeout,
+			References: references,
+		},
+	)
+	if err != nil {
+		client.CloseIdleConnections()
+		return nil, fmt.Errorf(
+			"production OAuth credential resolver endpoints were rejected",
+		)
+	}
+	return &productionOAuthCredentialsRuntime{
+		provider: provider, client: client,
+	}, nil
+}
+
+func resolveProductionOAuthCredentials(
+	credentials ashrclone.OAuthCredentialsProvider,
+	provider string,
+) (ashrclone.OAuthClientCredentials, error) {
+	if credentials == nil {
+		return ashrclone.OAuthClientCredentials{}, fmt.Errorf(
+			"production %s OAuth credentials are unavailable", provider,
+		)
+	}
+	resolved, err := credentials.OAuthCredentials(context.Background(), provider)
+	if err != nil ||
+		!validProductionOAuthClientMaterial(resolved.ClientID, 4096) ||
+		!validProductionOAuthClientMaterial(resolved.ClientSecret, 16384) ||
+		resolved.ClientID == resolved.ClientSecret {
+		return ashrclone.OAuthClientCredentials{}, fmt.Errorf(
+			"production %s OAuth credentials are unavailable", provider,
+		)
+	}
+	return resolved, nil
+}
+
+func validProductionOAuthClientMaterial(value string, maximum int) bool {
+	return value != "" && value == strings.TrimSpace(value) &&
+		len(value) <= maximum && !strings.ContainsAny(value, "\x00\r\n\t")
 }
 
 func productionOAuthOpaqueVaultFromEnv(
@@ -713,22 +958,8 @@ func validateProductionOAuthCredentials(
 	credentials ashrclone.OAuthCredentialsProvider,
 	provider string,
 ) error {
-	resolved, err := credentials.OAuthCredentials(context.Background(), provider)
-	if err != nil ||
-		resolved.ClientID == "" ||
-		resolved.ClientID != strings.TrimSpace(resolved.ClientID) ||
-		len(resolved.ClientID) > 4096 ||
-		strings.ContainsAny(resolved.ClientID, "\x00\r\n\t") ||
-		resolved.ClientSecret == "" ||
-		resolved.ClientSecret != strings.TrimSpace(resolved.ClientSecret) ||
-		len(resolved.ClientSecret) > 16384 ||
-		strings.ContainsAny(resolved.ClientSecret, "\x00\r\n\t") {
-		return fmt.Errorf(
-			"production %s OAuth credentials are unavailable",
-			provider,
-		)
-	}
-	return nil
+	_, err := resolveProductionOAuthCredentials(credentials, provider)
+	return err
 }
 
 func requiredProductionOAuthValue(
