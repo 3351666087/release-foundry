@@ -142,8 +142,9 @@ must not be included in A1 commits.
 - [x] Add resolver, startup, redaction, provider-isolation, and rotation tests.
 - [x] Run focused, PostgreSQL, cross-language, complete CL, formatting, and
   ownership/secret audits.
-- [ ] Commit and push only A1 to `origin/codex/a1-local-sdk-runner`, then prove
-  local/remote `0/0` parity.
+- [x] Commit and push only A1 to `origin/codex/a1-local-sdk-runner`, then prove
+  local/remote `0/0` parity. Implementation commit `5307d863` is the exact
+  local/remote tip after the accepted A1-only push.
 - [ ] Verify or create the Google Web OAuth Client and GitHub OAuth App in the
   operator-owned consoles, deliver credentials through the production external
   Secret Manager/Vault, and complete real-HTTPS Google/GitHub E2E. This remains

@@ -4132,8 +4132,9 @@ Runtime capability correction:
 - [x] Add resolver, startup, redaction, provider-isolation, and rotation tests.
 - [x] Run focused, PostgreSQL, cross-language, complete CL, formatting, and
   ownership/secret audits.
-- [ ] Commit and push only A1 to `origin/codex/a1-local-sdk-runner`, then prove
-  local/remote `0/0` parity.
+- [x] Commit and push only A1 to `origin/codex/a1-local-sdk-runner`, then prove
+  local/remote `0/0` parity. Implementation commit `5307d863` is the exact
+  local/remote tip after the accepted A1-only push.
 - [ ] Verify or create the Google Web OAuth Client and GitHub OAuth App in the
   operator-owned consoles, deliver credentials through the production external
   Secret Manager/Vault, and complete real-HTTPS Google/GitHub E2E. This remains
@@ -4178,3 +4179,5 @@ Final local A1 gate evidence for this checkpoint:
   ownership/generated-artifact audit passed for the seven A1 paths; the
   changed-file secret audit passed with values suppressed and synthetic test
   fixture literals classified explicitly.
+- [x] Pushed only `HEAD:codex/a1-local-sdk-runner`, fetched `origin`, and
+  verified local/remote parity `0/0`; both resolve to `5307d863`.
