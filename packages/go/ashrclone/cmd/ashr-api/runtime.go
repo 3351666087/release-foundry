@@ -123,6 +123,8 @@ type productionOAuthFirstLoginDependencies struct {
 	projectID      string
 	credentials    ashrclone.OAuthCredentialsProvider
 	vault          *productionOAuthOpaqueVaultRuntime
+	googleEnabled  bool
+	githubEnabled  bool
 	providers      map[string]productionOAuthFirstLoginProvider
 }
 
@@ -259,8 +261,8 @@ func newIdentityRuntimeFromEnv(ctx context.Context, lookup func(string) (string,
 			ReceiptStore:  receiptStore,
 			Coordinator:   coordinator,
 			Environment:   environment,
-			GitHubEnabled: false,
-			GoogleEnabled: false,
+			GitHubEnabled: oauthDependencies != nil && oauthDependencies.githubEnabled,
+			GoogleEnabled: oauthDependencies != nil && oauthDependencies.googleEnabled,
 		})
 		if err != nil {
 			_ = closeResources()
@@ -412,6 +414,8 @@ func productionOAuthFirstLoginDependenciesFromEnv(
 		projectID:      projectID,
 		credentials:    credentials,
 		vault:          vault,
+		googleEnabled:  googleEnabled,
+		githubEnabled:  githubEnabled,
 		providers:      make(map[string]productionOAuthFirstLoginProvider, 2),
 	}
 	keep := false

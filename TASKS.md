@@ -7,6 +7,36 @@ after its implementation or verification evidence is green. A1 records and
 pushes only A1-owned work; A2/A3 paths may be exercised read-only by CL but
 must not be included in A1 commits.
 
+## A1 - durable SDK event delivery / offline resume batch (2026-07-24)
+
+- [x] Re-enter the dedicated A1 worktree, prove local/remote `0/0`, audit the
+  strategy release gaps, and select the next A1-owned implementation slice
+  without repeating the completed registration/OAuth runtime batch.
+- [x] Freeze one Python/TypeScript event-envelope and durable-spool contract
+  covering bounded batches, deterministic sampling, stable idempotency,
+  retry/resume, and explicit backpressure/dead-letter behavior.
+- [x] Implement the Python and TypeScript durable SDK spool with atomic local
+  persistence, secret-safe metadata inspection, bounded storage, resumable
+  flush, and parity helpers for the existing trace-ingestion contract.
+- [x] Add Go-side hosted trace replay/idempotency evidence so an interrupted
+  or repeated flush cannot double-count quota or create duplicate trace
+  batches.
+- [x] Carry the validated production `ASHR_GOOGLE_OAUTH_ENABLED` and
+  `ASHR_GITHUB_OAUTH_ENABLED` flags into the PostgreSQL identity lifecycle
+  capability response instead of hard-coding both capabilities to `false`;
+  add a runtime assertion that configured providers are advertised as
+  enabled only when their complete provider/vault/database graph is wired.
+- [x] Add the operator-safe production Google/GitHub callback and
+  secret-delivery deployment checklist; keep credentials out of the frontend,
+  `NEXT_PUBLIC_*`, repository, documentation values, logs, and browser
+  storage.
+- [x] Pass focused Python/TypeScript/Go tests, cross-language parity, Docker
+  PostgreSQL trace/quota replay coverage, full CL, formatting, ownership,
+  generated-artifact, and secret audits.
+- [ ] Stage only A1-owned paths, commit the coherent batch, push only
+  `HEAD:codex/a1-local-sdk-runner`, fetch back, and verify local/remote `0/0`;
+  check this item only after the push succeeds.
+
 ## A1 - current PostgreSQL OAuth first-login coordinator batch
 
 - [x] Sync the dedicated A1 worktree with

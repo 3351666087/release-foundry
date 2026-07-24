@@ -4020,3 +4020,62 @@ Pre-push full-CL checkpoint for the production registration/login wiring batch:
   `HEAD:codex/a1-local-sdk-runner`, fetch back, and prove post-push `0/0`
   parity. The local HEAD and
   `origin/codex/a1-local-sdk-runner` are identical after the accepted push.
+## Durable SDK event delivery / offline resume batch (2026-07-24)
+
+- [x] Re-entered `C:\Users\33516\Documents\Ashr-a1-sync`, confirmed the
+  dedicated A1 branch is clean and exactly `0/0` against
+  `origin/codex/a1-local-sdk-runner`, and selected the next A1 slice from the
+  strategy release gap: SDK event envelope, bounded offline buffering,
+  resumable delivery, idempotency, sampling, and backpressure.
+- [x] Freeze the cross-language event-envelope and spool state contract in
+  focused tests before editing implementation.
+- [x] Implement Python and TypeScript durable event spools and trace-ingestion
+  adapters without persisting API keys, bearer values, OAuth material, or
+  unredacted control-plane secrets in metadata.
+- [x] Add Go replay/idempotency evidence and live PostgreSQL trace/quota
+  verification for interrupted delivery.
+- [x] Run focused and full CL, cross-language parity, Docker PostgreSQL,
+  formatting, path ownership, generated-artifact, and secret audits.
+- [ ] Commit and push only A1, then record the accepted commit and post-push
+  `0/0` parity here.
+
+Implementation evidence for the completed slice:
+
+- Python `DurableEventSpool` and TypeScript `DurableEventSpool` share
+  `ashr.clone.event.v1`, `ashr.clone.event_spool_batch.v1`, and
+  `ashr.clone.event_spool.v1`; both seal event payloads, preserve a stable
+  `batch_id`/`idempotency_key`, use atomic JSON files, recover expired leases,
+  retry with bounded backoff, dead-letter permanent failures, and redact
+  control-plane secrets from failure metadata.
+- Focused Python event-spool tests passed `6/6`; TypeScript build plus event
+  spool/distribution/parity tests passed `13/13`; Go module tests passed with
+  the new trace replay test.
+- Re-ran the focused Python contract/parity tests: `7 passed`; the complete
+  Python A1/A2/integration suite passed `2123 passed, 14 skipped, 19
+  warnings`; the Docker-backed OAuth first-login migration suite passed
+  `18 passed`; the live Postgres quota/RLS smoke passed `5 passed`.
+- The complete TypeScript SDK suite passed `660/660`; all four Go modules
+  passed with the trace replay test; `gofmt -d`, working-tree and staged
+  `git diff --check` were clean.
+- `cl_guard.py plan --full` selected the complete CL scope; `hygiene` and
+  `commercial` passed with zero findings, blockers, and advisories. The
+  exact staged-path ownership/generated-artifact audit and changed-file
+  literal-secret audit passed; no A2/A3/webapp/calibration/generated path
+  is staged.
+- `packages/go/ashrclone/event_spool_trace_replay_test.go` proves exact
+  replay does not create a second trace batch or consume quota twice, while a
+  changed payload under the same idempotency key fails closed without quota
+  mutation.
+
+Runtime capability correction:
+
+- [x] Replaced the production PostgreSQL lifecycle's hard-coded
+  `GitHubEnabled: false` and `GoogleEnabled: false` with the already validated
+  provider flags from the production OAuth dependency graph.
+- [x] Added a runtime test proving both configured providers are present in
+  the public first-login graph and are reported as enabled by
+  `ProviderCapabilities()`.
+- [x] Added `docs/a1/oauth_production_deployment.md` with the exact HTTPS
+  callbacks, secret-manager/Vault contract, fail-closed startup requirements,
+  frontend secret boundary, and the controlled `https://localhost:4443`
+  development-only boundary. No credential or secret value is included.

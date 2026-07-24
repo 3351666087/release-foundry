@@ -61,7 +61,14 @@ def test_ts_python_gap_matrix_is_generated_public_safe_and_current():
     assert "SaaSIngestionClient" in symbols["shared_export_names"]
     assert "CloudApiService" in symbols["typescript_only_export_names"]
     assert "capability_matrix" not in symbols["typescript_effective_export_names"]
-    assert symbols["python_only_export_names"] == []
+    assert symbols["python_only_export_names"] == [
+        "build_event_envelope",
+        "build_trace_ingestion_sender",
+        "canonical_event_spool_json",
+        "deterministic_sample",
+        "sha256_event_spool_json",
+        "validate_event_envelope",
+    ]
 
     cli = matrix["generated_contract"]["cli"]
     assert "bootstrap" in cli["python_commands"]["ashr_clone.saas_cli"]

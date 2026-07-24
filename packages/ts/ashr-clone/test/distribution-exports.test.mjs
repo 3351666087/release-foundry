@@ -33,6 +33,7 @@ const runtimeMarkers = {
   commercial: "buildCommercialControlPlaneKit",
   "dataset-adapter": "datasetSourceToCases",
   "delivery-protocol": "identityDeliveryProtocolContractManifest",
+  "event-spool": "DurableEventSpool",
   evidence: "buildPrivateEvidenceIndex",
   "github-oauth": "GitHubOAuthHttpClient",
   "identity-client": "IdentityClient",

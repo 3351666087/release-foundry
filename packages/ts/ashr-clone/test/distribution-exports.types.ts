@@ -17,6 +17,7 @@ import { CloudQueueWorker } from "@ashr-clone/sdk/cloud-queue";
 import { buildCommercialControlPlaneKit } from "@ashr-clone/sdk/commercial";
 import { datasetSourceToCases } from "@ashr-clone/sdk/dataset-adapter";
 import { identityDeliveryProtocolContractManifest } from "@ashr-clone/sdk/delivery-protocol";
+import { DurableEventSpool } from "@ashr-clone/sdk/event-spool";
 import { buildPrivateEvidenceIndex } from "@ashr-clone/sdk/evidence";
 import { GitHubOAuthHttpClient } from "@ashr-clone/sdk/github-oauth";
 import { IdentityClient } from "@ashr-clone/sdk/identity-client";
@@ -47,6 +48,7 @@ export const typedDistributionImports: readonly unknown[] = [
   buildCommercialControlPlaneKit,
   datasetSourceToCases,
   identityDeliveryProtocolContractManifest,
+  DurableEventSpool,
   buildPrivateEvidenceIndex,
   GitHubOAuthHttpClient,
   IdentityClient,

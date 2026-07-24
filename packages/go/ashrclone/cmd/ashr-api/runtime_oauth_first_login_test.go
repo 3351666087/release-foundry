@@ -61,6 +61,14 @@ func TestProductionIdentityRuntimeWiresCompletePublicOAuthFirstLoginGraph(t *tes
 	if len(runtime.oauthFirstLogins) != 2 || runtime.oauthFirstLogins["google"] == nil || runtime.oauthFirstLogins["github"] == nil {
 		t.Fatalf("production OAuth first-login providers were not fully wired: %#v", runtime.oauthFirstLogins)
 	}
+	capabilities := runtime.identityLifecycle.ProviderCapabilities()
+	enabled := map[string]bool{}
+	for _, capability := range capabilities {
+		enabled[string(capability.Provider)] = capability.Enabled
+	}
+	if !enabled["google"] || !enabled["github"] {
+		t.Fatalf("production lifecycle did not expose configured OAuth capabilities: %#v", capabilities)
+	}
 	if runtime.sessionReceiptTransport == nil {
 		t.Fatal("production OAuth first-login omitted session/cookie handoff transport")
 	}
