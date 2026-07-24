@@ -7263,3 +7263,30 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
 - Verification passed: Next.js TypeScript and production build, 59 focused A3/A1/A2 compatibility/store/dashboard tests, the dedicated refund contract test, and 3 navigation/refund Playwright tests.
 - No production claim changed. The demo is local synthetic evidence, live refund execution is absent, review writes remain disabled, and A2 remains the grading authority.
 - Added a 10-12 minute word-for-word Chinese presentation script, a 5-minute fallback, 15 likely teacher questions, truth-safe phrasing, and offline/local-service recovery instructions.
+
+## 2026-07-24 - A1 Email Registration/Login Integration And Restart Recovery
+
+- Fetched and merged A1 `780e94fc` into the A3 acceptance branch through merge
+  commit `56037ed`; the only conflict was A1's worklog and both evidence
+  histories were retained.
+- Replaced A3's old credential-binding verification calls with the dedicated
+  A1 email registration and email login begin/complete routes.
+- Added browser-memory-only handling for A1 `challenge_id` and `intent_id`,
+  proof submission, strict same-origin HTTPS readiness, credentials-included
+  requests, and validated `303 /console` handoff.
+- Added a real email login form alongside registration. Google/GitHub first
+  login remains disabled because the production coordinator/provider/vault
+  callback path is incomplete.
+- Updated API Reference to v18 and the redacted A1/A2 auth snapshot to v4.
+- Recorded the remaining honest identity gaps: browser-cookie `/v1/me`,
+  browser-cookie logout, protected server routes, one-origin HTTPS proxy,
+  PostgreSQL/SMTP runtime, and production OAuth first login.
+- Improved `scripts/start-local-demo.ps1` with stale-build detection, health
+  polling, ignored PID/log state, and a stable login URL.
+- Added `scripts/install-local-demo-shortcut.ps1` and installed
+  `Ashr Local Demo.lnk` on the current user's desktop.
+- Verified 124 focused A3 contracts, focused A1 Go identity contracts,
+  TypeScript, the 15-page Next.js build, one focused Playwright flow, both CL
+  guards, and the live local login page without horizontal overflow.
+- Did not submit a real email, OTP, account, token, cookie, API key, or SMTP
+  secret. The current HTTP page remains an explicit read-only demo.

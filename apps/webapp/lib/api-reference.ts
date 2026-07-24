@@ -24,8 +24,8 @@ export type ApiEndpoint = {
 };
 
 export const apiReferenceMeta = {
-  schemaVersion: "a3.api_reference.v17",
-  calibratedAt: "2026-07-15",
+  schemaVersion: "a3.api_reference.v18",
+  calibratedAt: "2026-07-24",
   mainSha: "ccf6ce5",
   a1Sha: "c784163",
   a2Sha: "8cd1d4f",
@@ -33,8 +33,8 @@ export const apiReferenceMeta = {
   a2SourceState: "merged_to_main",
   a1IdentityPeerSha: "6a985b8",
   a1IdentityPeerState: "peer_branch_identity_authority_readiness_not_merged",
-  a1LatestPeerSha: "566a13d",
-  a1LatestPeerState: "peer_branch_round68_authorized_credential_binding_regression_not_client_callable",
+  a1LatestPeerSha: "780e94f",
+  a1LatestPeerState: "merged_into_a3_email_browser_handoff_oauth_runtime_incomplete",
   a1AtomicCredentialLinkContract: "IdentityCredentialLinkCoordinator",
   a1AtomicCredentialLinkRouteLifecycle: "proposed",
   a1AtomicCredentialLinkClientCallable: false,
@@ -62,6 +62,9 @@ export const apiReferenceMeta = {
   a3MultimodalReleaseCaseEvidenceMode: "hash_only_no_signed_url",
   secretValuesIncluded: false,
   a1BrowserSession: "implemented",
+  a1EmailRegistrationLogin: "implemented",
+  a1BrowserIdentityRead: "not_implemented",
+  a1BrowserLogout: "not_implemented",
   a1OAuthInitialLogin: "not_implemented",
   a2TrustedSpine: "implemented",
   a2EvidenceSnapshotSchema: "a2.evidence_snapshot.v1",
@@ -185,28 +188,25 @@ export const apiEndpoints: ApiEndpoint[] = [
     group: "identity",
     owner: "A1",
     method: "POST",
-    path: "/v1/identity-verification/challenges",
+    path: "/v1/identity/registration/email/begin",
     title: { zh: "请求邮箱验证码", en: "Request email verification" },
     description: {
-      zh: "请求发送 6 位邮箱验证码。公开响应始终保持一致，避免泄露邮箱是否已经注册。",
-      en: "Request a six-digit email code. The public response stays uniform to prevent account enumeration."
+      zh: "开始邮箱注册并发送 6 位验证码。响应返回短期 challenge_id 与 opaque intent_id，敏感邮箱和验证码不会回传。",
+      en: "Begin email registration and send a six-digit code. The response returns short-lived challenge and opaque intent handles without returning the email or proof."
     },
-    auth: { zh: "注册用途公开；绑定用途需要可信会话", en: "Public for registration; trusted session required for credential binding" },
+    auth: { zh: "同源 HTTPS；不需要已有账号", en: "Same-origin HTTPS; no existing account required" },
     status: "implemented",
-    source: "A1 c784163 / identity_verification_http.go",
-    request: {
-      channel: "email",
-      identifier: "student@example.test",
-      purpose: "binding",
-      tenant_id: "tenant_example"
-    },
+    source: "A1 780e94f / identity_browser_verification_http.go",
+    request: { email: "student@example.test" },
     response: {
-      schema_version: "ashr.identity_verification_security.v1",
-      status: "accepted",
-      message: "If the request is eligible, verification instructions will be sent."
+      schema_version: "ashr.identity.browser_verification.v1",
+      challenge_id: "challenge_example",
+      intent_id: "opaque_intent_example",
+      expires_at: "2026-07-24T12:10:00Z",
+      resend_after: "2026-07-24T12:01:00Z"
     },
     notes: [
-      { zh: "响应不会返回 challenge_id，这是 A1 的防枚举设计。", en: "The response intentionally omits challenge_id as an anti-enumeration control." },
+      { zh: "A1 同时写入加密、HttpOnly、Secure、SameSite=Strict 的短期 intent Cookie。", en: "A1 also writes a short-lived encrypted HttpOnly, Secure, SameSite=Strict intent cookie." },
       { zh: "A3 不在日志、localStorage 或文档中记录邮箱与验证码。", en: "A3 does not persist email addresses or codes in logs, localStorage, or documentation." }
     ]
   },
@@ -215,35 +215,61 @@ export const apiEndpoints: ApiEndpoint[] = [
     group: "identity",
     owner: "A1",
     method: "POST",
-    path: "/v1/identity-verification/verify",
+    path: "/v1/identity/registration/email/complete",
     title: { zh: "完成邮箱验证", en: "Complete email verification" },
     description: {
-      zh: "校验一次性验证码并创建账号或绑定已验证邮箱凭据。",
-      en: "Verify a single-use code and create an account or bind a verified email credential."
+      zh: "校验一次性验证码，在一个数据库事务中创建账号、邮箱凭据、成员关系和浏览器会话。",
+      en: "Verify a single-use code and atomically create the account, email credential, membership, and browser session."
     },
-    auth: { zh: "需要验证码和服务端签发的 challenge 上下文", en: "Requires the code and server-issued challenge context" },
-    status: "blocked",
-    source: "A1 c784163 / identity_verification_http.go",
+    auth: { zh: "同源 HTTPS、intent Cookie、challenge_id、intent_id 和验证码", en: "Same-origin HTTPS, intent cookie, challenge_id, intent_id, and proof" },
+    status: "implemented",
+    source: "A1 780e94f / identity_browser_verification_http.go",
     request: {
-      challenge_id: "challenge_from_secure_mail_context",
-      code: "123456",
-      channel: "email",
-      identifier: "student@example.test",
-      purpose: "binding",
-      tenant_id: "tenant_example",
+      challenge_id: "challenge_example",
+      intent_id: "opaque_intent_example",
+      proof: "123456",
       display_name: "Example student"
     },
     response: {
-      schema_version: "ashr.identity_verification.v1",
-      credential_created: true,
-      account: { account_id: "account_example", status: "active" },
-      credential: { kind: "email", verified: true }
+      status: 303,
+      location: "/console",
+      body: null,
+      set_cookie: "[REDACTED HttpOnly session cookies]"
     },
     notes: [
-      { zh: "当前 A1 纯文本邮件没有 challenge_id，浏览器无法闭环；A3 已提交 contract change request。", en: "The current A1 plaintext email omits challenge_id, so the browser flow cannot close; A3 has filed a contract change request." },
-      { zh: "A1 c784163 已能在 login/recovery 验证成功后签发 Secure、HttpOnly、SameSite=Strict 的访问与刷新 Cookie；binding 注册仍不会创建登录会话。", en: "A1 c784163 can issue Secure, HttpOnly, SameSite=Strict access and refresh cookies after login/recovery verification; binding registration still does not create a signed-in session." },
-      { zh: "在 A1 修复前，A3 只会展示真实阻塞状态，不伪造注册成功。", en: "Until A1 closes the contract, A3 shows the real blocker and never fakes successful registration." }
+      { zh: "成功响应为空 body；A3 只接受同源 303 /console，不能读取 HttpOnly Cookie。", en: "The success body is empty; A3 accepts only the same-origin 303 /console handoff and cannot read HttpOnly cookies." },
+      { zh: "当前仍缺浏览器 Cookie 版 /v1/me 和 logout 契约，因此受保护路由闭环尚未完成。", en: "Browser-cookie /v1/me and logout contracts are still missing, so protected-route closure is not complete." }
     ]
+  },
+  {
+    id: "a1-email-login-start",
+    group: "identity",
+    owner: "A1",
+    method: "POST",
+    path: "/v1/identity/login/email/begin",
+    title: { zh: "请求邮箱登录码", en: "Request email sign-in code" },
+    description: { zh: "为已有邮箱账号开始登录挑战。", en: "Begin a sign-in challenge for an existing email account." },
+    auth: { zh: "同源 HTTPS；不需要已有会话", en: "Same-origin HTTPS; no existing session required" },
+    status: "implemented",
+    source: "A1 780e94f / identity_browser_verification_http.go",
+    request: { email: "student@example.test" },
+    response: { challenge_id: "challenge_example", intent_id: "opaque_intent_example", expires_at: "2026-07-24T12:10:00Z" },
+    notes: [{ zh: "公开行为保持防枚举，调用方不能由响应判断邮箱是否存在。", en: "Public behavior remains anti-enumeration and does not disclose account existence." }]
+  },
+  {
+    id: "a1-email-login-complete",
+    group: "identity",
+    owner: "A1",
+    method: "POST",
+    path: "/v1/identity/login/email/complete",
+    title: { zh: "完成邮箱登录", en: "Complete email sign-in" },
+    description: { zh: "验证登录码并签发访问/刷新 Cookie。", en: "Verify the sign-in proof and issue access and refresh cookies." },
+    auth: { zh: "同源 HTTPS、intent Cookie 与短期验证上下文", en: "Same-origin HTTPS, intent cookie, and short-lived verification context" },
+    status: "implemented",
+    source: "A1 780e94f / identity_browser_verification_http.go",
+    request: { challenge_id: "challenge_example", intent_id: "opaque_intent_example", proof: "123456" },
+    response: { status: 303, location: "/console", body: null },
+    notes: [{ zh: "A3 不接收 access token 或 refresh token；浏览器只保存 HttpOnly Cookie。", en: "A3 never receives access or refresh token values; the browser stores only HttpOnly cookies." }]
   },
   {
     id: "a1-session-refresh",

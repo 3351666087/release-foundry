@@ -1763,3 +1763,21 @@
 - [x] Keep the demo fully redacted and avoid key, token, cookie, email, private identity, or real customer data.
 - [ ] Replace synthetic refund evidence only after an authorized real sandbox run produces a redacted A1 Trace and matching A2 GradeResult.
 - [ ] Enable live review actions only after hosted identity, RBAC, persistent audit storage, and authorization receipts are available.
+
+## A1 email authentication integration - 2026-07-24
+
+- [x] Fetch and merge A1 `780e94fc` without altering A1 identity semantics.
+- [x] Replace old binding verification calls with dedicated registration and login routes.
+- [x] Keep `challenge_id` and `intent_id` in component state only.
+- [x] Submit the six-digit code as `proof` and never log or persist it.
+- [x] Accept only same-origin HTTPS and the trusted `303 /console` handoff.
+- [x] Add both email login and email registration UI states.
+- [x] Keep Google/GitHub initial sign-in disabled and truthfully labelled.
+- [x] Update public-safe API Reference, contract tests, and redacted capability snapshot.
+- [x] Add stale-build detection, health polling, local runtime logs, and a desktop restart shortcut.
+- [x] Pass 124 focused Node contracts, focused A1 Go identity contracts, TypeScript, Next.js build, focused Playwright, both CL guards, and browser overflow inspection.
+- [ ] Add an A1 browser-cookie identity read endpoint suitable for protected A3 routes.
+- [ ] Add an A1 browser-cookie logout endpoint that revokes and clears both cookies.
+- [ ] Deploy one HTTPS reverse-proxy origin for A3, `/v1/*`, `/api/a3/*`, and `/console`.
+- [ ] Configure PostgreSQL migrations, identity delivery worker, and SMTP secret references.
+- [ ] Complete production Google/GitHub first-login coordinator and callback wiring in A1.

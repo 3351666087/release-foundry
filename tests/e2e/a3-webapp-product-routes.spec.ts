@@ -635,7 +635,7 @@ test.describe("A3 Next.js product console", () => {
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.goto(`${base}/api-reference/`);
     await expect(page.getByRole("heading", { name: "API 文档与参考" })).toBeVisible();
-    await expect(page.getByText(/身份会话与可信判定链已进入 main/)).toBeVisible();
+    await expect(page.getByText(/邮箱注册登录已接入 A3/)).toBeVisible();
     await expect(page.getByText("organization_id", { exact: true })).toBeVisible();
     await expect(page.getByText("可信证据与决策账本", { exact: true })).toBeVisible();
     await expect(page.getByText("请求邮箱验证码", { exact: true })).toBeVisible();
@@ -649,7 +649,7 @@ test.describe("A3 Next.js product console", () => {
 
     await page.goto(`${base}/login/`);
     await page.getByRole("tab", { name: "邮箱注册" }).click();
-    await expect(page.getByRole("button", { name: /发送验证码/ })).toBeDisabled();
+    await expect(page.getByRole("button", { name: /发送注册验证码/ })).toBeDisabled();
     await page.getByText("查看验证邮件设计稿").click();
     await expect(page.getByLabel("验证码邮件设计预览")).toBeVisible();
     await expect(page.getByText(/当前身份服务的 SMTP 仍发送纯文本/)).toBeVisible();
