@@ -44,25 +44,58 @@ must not be included in A1 commits.
 
 ## A1 - registration and login closure after this push
 
-- [ ] Add public Google/GitHub first-login start and callback endpoints with
+- [x] Add public Google/GitHub first-login start and callback endpoints with
   server-chosen purpose/scope, PKCE/state/nonce validation, encrypted
   HttpOnly browser intent, one-time callback consumption, secure
   access/refresh cookies, intent deletion, and empty-body `303 /console`
   handoff.
-- [ ] Keep first registration, ordinary login, and authenticated explicit
+- [x] Keep first registration, ordinary login, and authenticated explicit
   credential binding as separate fail-closed operations over one canonical
   account; prove no email/provider inference can silently merge identities.
-- [ ] Return a browser-safe `challenge_id` for domestic-email verification
+- [x] Return a browser-safe `challenge_id` for domestic-email verification
   and complete the verification-to-session/cookie/console handoff without
   exposing OTP, proof, bearer, OAuth code/state, or SMTP material.
-- [ ] Preserve domestic-email-first signup, optional/recommended 2FA, and
+- [x] Preserve domestic-email-first signup, optional/recommended 2FA, and
   honest non-production-ready WeChat/QQ/Alipay capability boundaries while
   keeping future domestic OAuth adapters compatible with the same canonical
   credential model.
-- [ ] Prove callback replay, account injection, subject collision,
+- [x] Prove callback replay, account injection, subject collision,
   state/cookie/provider/purpose mismatch, revoked-session race,
   cross-tenant/project scope, provider/vault/database failure, and explicit
   binding authorization cannot cause takeover or partial canonical mutation.
 - [ ] Wire production readiness only when provider adapters, trusted default
   scope, callback security, external opaque vault, PostgreSQL/RLS, key
   rotation, cross-language parity, and the complete CL are green.
+
+## A1 - production registration/login runtime wiring (2026-07-24)
+
+- [x] Re-enter the dedicated A1 worktree, confirm it is clean and exactly
+  `0/0` against `origin/codex/a1-local-sdk-runner`, and verify the existing
+  PostgreSQL test container name/port baseline without exposing secrets.
+- [x] Audit the existing browser OAuth and domestic-email verification code;
+  confirm the public handlers already implement challenge/session handoff
+  contracts and isolate the current release gap to production runtime wiring
+  and deployable adapter configuration rather than duplicating those flows.
+- [x] Freeze fail-closed production runtime tests for Google/GitHub first-login
+  capability completeness, trusted scope, exact callback, external opaque
+  vault, PostgreSQL transaction storage, intent transport, and one-use
+  access/refresh cookie handoff.
+- [x] Implement the production external OAuth opaque-vault adapter and
+  PostgreSQL first-login transaction adapter without persisting raw provider
+  subject, email, OAuth code/state/nonce/verifier, provider token, or bearer.
+- [x] Wire Google/GitHub public first-login services and browser intent/session
+  transports into `ashr-api` only when every provider capability and trusted
+  server-owned organization/project scope is valid.
+- [x] Prove production email begin returns browser-safe `challenge_id` and
+  verification completion produces secure access/refresh cookies, clears the
+  intent, and returns an empty-body `303 /console` without A3-owned changes.
+- [x] Re-prove registration/login/explicit-binding separation, callback replay
+  and mismatch closure, canonical conflict rollback, RLS/ACL/key rotation,
+  provider/vault/database failure atomicity, and honest domestic OAuth/2FA
+  capability boundaries.
+- [x] Pass focused, Go, live Docker PostgreSQL, Python/TypeScript parity, A3
+  compatibility, full CL, formatting, diff, ownership/generated-path, and
+  secret audits. The coherent A1 batch is ready for the commit/push gate.
+- [ ] Commit the coherent A1 batch and push only A1 to
+  `origin/codex/a1-local-sdk-runner`; fetch back and prove post-push `0/0`
+  parity before checking this item.

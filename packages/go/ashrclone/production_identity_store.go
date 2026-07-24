@@ -1450,9 +1450,18 @@ func (store *ProductionIdentityStore) Ready(ctx context.Context) error {
 		return fmt.Errorf("verify production identity schema: %w", err)
 	}
 	if !ready {
-		return fmt.Errorf("production identity PostgreSQL schema is incomplete; migrations through 025 email registration session handoff are required")
+		return fmt.Errorf("production identity PostgreSQL schema is incomplete; migrations through 026 OAuth first-login session handoff are required")
 	}
 	return nil
+}
+
+func (store *ProductionIdentityStore) NewOAuthFirstLoginStore(
+	vault OAuthOpaqueVault,
+) (*PostgresOAuthFirstLoginStore, error) {
+	if store == nil || store.db == nil {
+		return nil, fmt.Errorf("production identity store is not configured")
+	}
+	return NewPostgresOAuthFirstLoginStore(store.db, vault)
 }
 
 func (store *ProductionIdentityStore) NewOAuthStore(vault OAuthOpaqueVault) (*PostgresOAuthStore, error) {

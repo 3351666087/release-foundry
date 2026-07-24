@@ -114,6 +114,18 @@ func identityHTTPServerOptions(
 	if intentTransport, ok := runtime.sessionReceiptTransport.(ashrclone.IdentityBrowserVerificationIntentTransport); ok {
 		options.IdentityBrowserVerificationIntents = intentTransport
 	}
+	if len(runtime.oauthFirstLogins) != 0 {
+		if intentTransport, ok := runtime.sessionReceiptTransport.(ashrclone.OAuthFirstLoginIntentTransport); ok {
+			options.OAuthFirstLogins = make(
+				map[string]*ashrclone.OAuthFirstLoginService,
+				len(runtime.oauthFirstLogins),
+			)
+			for provider, service := range runtime.oauthFirstLogins {
+				options.OAuthFirstLogins[provider] = service
+			}
+			options.OAuthFirstLoginIntents = intentTransport
+		}
+	}
 	if runtime.postgres != nil {
 		options.UnifiedIdentityStore = runtime.postgres
 		options.IdentitySecurity = runtime.postgres

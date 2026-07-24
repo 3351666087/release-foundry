@@ -3946,3 +3946,76 @@ Coordinator-batch evidence:
   After restoring the existing Docker Desktop engine and reusing
   `ashr-oauth-pg-test`, the combined identity-lifecycle and OAuth first-login
   PostgreSQL integration command passed against port `55432`.
+
+#### Production registration/login runtime wiring checklist (2026-07-24)
+
+This is the current crash-safe A1 execution log. Check an item immediately
+only after its source/runtime evidence is green. The implementation must reuse
+the existing public browser OAuth and email verification handlers, keep
+registration/login/authenticated binding separate, and never write A2/A3 paths.
+
+- [x] Confirm the dedicated A1 worktree starts clean at commit `68979975`, is
+  exactly `0/0` against `origin/codex/a1-local-sdk-runner`, and retains the
+  existing Docker PostgreSQL target `ashr-oauth-pg-test` on host port `55432`.
+- [x] Audit `server.go`, `oauth_first_login_*`,
+  `identity_browser_verification_http.go`, and `cmd/ashr-api`: public
+  Google/GitHub and email browser closure already exists, while production
+  runtime currently omits `OAuthFirstLogins`/`OAuthFirstLoginIntents` and
+  rejects enabled production OAuth instead of constructing the complete
+  PostgreSQL/vault/coordinator graph.
+- [x] Add focused runtime and adapter contract tests before implementation.
+- [x] Implement the complete production OAuth first-login dependency graph.
+- [x] Run focused and live PostgreSQL evidence, then check each earned item.
+- [ ] Run full CL/audits, commit the coherent A1 batch, push only A1, fetch,
+  and prove post-push `0/0` parity.
+
+Focused production-wiring evidence:
+
+- The external HTTP opaque-vault, PostgreSQL first-login store, and GitHub
+  provider adapter tests passed together.
+- The complete `cmd/ashr-api` suite passed after wiring Google and GitHub
+  first-login services, one trusted organization/project scope, migration-026
+  coordinator authority, the mTLS vault, and the shared encrypted browser
+  intent plus access/refresh cookie transport.
+- Incomplete vault, scope, callback, credentials, or dedicated browser intent
+  configuration fails before PostgreSQL readiness; production rejects both
+  localhost development-session flags, and a disabled provider set exposes no
+  public first-login routes.
+- The focused browser contract batch proved email registration and login return
+  opaque challenge context, registration/login/recovery use a one-time secure
+  intent cookie, a successful verification receipt is consumed exactly once,
+  OAuth first-login clears its intent and performs the canonical access/refresh
+  cookie plus empty-body console redirect handoff, and public first login stays
+  separate from authenticated binding.
+- Reusing `ashr-oauth-pg-test` on host port `55432`, the complete identity
+  lifecycle integration suite and all five OAuth first-login migration-026
+  scenarios passed. Evidence covers canonical registration/login, accountless
+  domestic-email handoff, exact replay, explicit binding, subject/email
+  collision rollback, foreign scope rejection, RLS/ACL enforcement, receipt
+  and lookup-key rotation, and no partial canonical mutation.
+
+Pre-push full-CL checkpoint for the production registration/login wiring batch:
+
+- [x] `python scripts/cl_guard.py plan --full` selected every CL job.
+- [x] `python scripts/cl_guard.py hygiene` passed with zero findings.
+- [x] `python scripts/cl_guard.py commercial` passed with zero blockers and
+  zero advisories.
+- [x] Python A1/A2/integration CL suite passed `2116 passed, 8 skipped`;
+  product release suite passed `33 passed`.
+- [x] A3 Node suite passed `532 passed, 1 skipped`; TypeScript SDK suite
+  passed `654 passed`.
+- [x] Go SDK, Go integration module, and Rust verifier suites passed.
+- [x] `apps/webapp` TypeScript check and production build passed; Chromium
+  product-route E2E passed `22/22`.
+- [x] RC.1, RC.2, and RC.3 audit-bundle index/archive/release-manifest
+  verification passed with zero findings and no secret values; customer
+  verification remained an honest release block.
+- [x] `gofmt -d` and `git diff --cached --check` passed. The staged set is
+  exactly twelve A1-owned paths, with no A2/A3/webapp/screenshot/report/E2E/
+  cache/build/generated artifact.
+- [x] Changed-file secret audit passed after excluding only non-secret fixture
+  labels; no QQ mailbox, SMTP credential, private key, provider/API token,
+  JWT/bearer value, OAuth code/state, or raw provider subject/email is staged.
+- [ ] Commit, push only `HEAD:codex/a1-local-sdk-runner`, fetch back, and prove
+  post-push `0/0` parity. This remains unchecked until the remote accepts the
+  push.

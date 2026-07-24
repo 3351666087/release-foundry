@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"net/netip"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -21,6 +22,8 @@ const (
 	maxProductionIdentityDeliveryVaultIdentityBytes = int64(256 * 1024)
 	productionIdentityDeliveryVaultConnectTimeout   = 2 * time.Second
 	productionIdentityDeliveryVaultRequestTimeout   = 10 * time.Second
+	productionOAuthProviderDefaultTimeout           = 10 * time.Second
+	productionOAuthFirstLoginDefaultTTL             = 10 * time.Minute
 )
 
 var openIdentityDatabase = sql.Open
@@ -35,6 +38,7 @@ type identityRuntime struct {
 	verification               *ashrclone.IdentityVerificationService
 	verificationResponsePolicy *ashrclone.IdentityVerificationResponsePolicy
 	sessionReceiptTransport    ashrclone.IdentitySessionReceiptTransport
+	oauthFirstLogins           map[string]*ashrclone.OAuthFirstLoginService
 	close                      func() error
 }
 
@@ -85,6 +89,105 @@ func (runtime *productionIdentityDeliveryVaultRuntime) close() {
 	}
 }
 
+type productionOAuthOpaqueVaultConfig struct {
+	putURL                string
+	getURL                string
+	bindingURL            string
+	deleteURL             string
+	caBundleFile          string
+	clientCertificateFile string
+	clientPrivateKeyFile  string
+	serverName            string
+}
+
+type productionOAuthOpaqueVaultRuntime struct {
+	vault  *ashrclone.HTTPOAuthOpaqueVault
+	client *http.Client
+}
+
+func (runtime *productionOAuthOpaqueVaultRuntime) close() {
+	if runtime != nil && runtime.client != nil {
+		runtime.client.CloseIdleConnections()
+	}
+}
+
+type productionOAuthFirstLoginProvider struct {
+	adapter        ashrclone.OAuthProviderAdapter
+	callbackURL    string
+	transactionTTL time.Duration
+	client         *http.Client
+}
+
+type productionOAuthFirstLoginDependencies struct {
+	organizationID string
+	projectID      string
+	credentials    ashrclone.OAuthCredentialsProvider
+	vault          *productionOAuthOpaqueVaultRuntime
+	providers      map[string]productionOAuthFirstLoginProvider
+}
+
+func (dependencies *productionOAuthFirstLoginDependencies) close() {
+	if dependencies == nil {
+		return
+	}
+	for _, provider := range dependencies.providers {
+		if provider.client != nil {
+			provider.client.CloseIdleConnections()
+		}
+	}
+	dependencies.vault.close()
+}
+
+func (dependencies *productionOAuthFirstLoginDependencies) build(
+	store *ashrclone.ProductionIdentityStore,
+) (map[string]*ashrclone.OAuthFirstLoginService, error) {
+	if dependencies == nil || store == nil || dependencies.vault == nil ||
+		dependencies.vault.vault == nil || len(dependencies.providers) == 0 {
+		return nil, fmt.Errorf("production OAuth first-login dependencies are incomplete")
+	}
+	firstLoginStore, err := store.NewOAuthFirstLoginStore(dependencies.vault.vault)
+	if err != nil {
+		return nil, fmt.Errorf("configure production OAuth first-login store: %w", err)
+	}
+	coordinator, err := ashrclone.NewPostgresOAuthFirstLoginCoordinator(
+		ashrclone.PostgresOAuthFirstLoginCoordinatorOptions{
+			Store:          store,
+			OrganizationID: dependencies.organizationID,
+			ProjectID:      dependencies.projectID,
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("configure production OAuth first-login coordinator: %w", err)
+	}
+	services := make(
+		map[string]*ashrclone.OAuthFirstLoginService,
+		len(dependencies.providers),
+	)
+	for providerName, provider := range dependencies.providers {
+		service, serviceErr := ashrclone.NewOAuthFirstLoginService(
+			ashrclone.OAuthFirstLoginServiceOptions{
+				Provider:       provider.adapter,
+				Credentials:    dependencies.credentials,
+				Transactions:   firstLoginStore,
+				Secrets:        firstLoginStore,
+				Coordinator:    coordinator,
+				OrganizationID: dependencies.organizationID,
+				ProjectID:      dependencies.projectID,
+				CallbackURL:    provider.callbackURL,
+				TransactionTTL: provider.transactionTTL,
+			},
+		)
+		if serviceErr != nil {
+			return nil, fmt.Errorf(
+				"configure production %s OAuth first-login service",
+				providerName,
+			)
+		}
+		services[providerName] = service
+	}
+	return services, nil
+}
+
 func newIdentityRuntimeFromEnv(ctx context.Context, lookup func(string) (string, bool)) (identityRuntime, error) {
 	if lookup == nil {
 		return identityRuntime{}, fmt.Errorf("identity environment lookup is required")
@@ -111,12 +214,26 @@ func newIdentityRuntimeFromEnv(ctx context.Context, lookup func(string) (string,
 		}
 		verificationEnabled := envTrue(lookup, "ASHR_IDENTITY_VERIFICATION_ENABLED")
 		var deliveryVault *productionIdentityDeliveryVaultRuntime
+		oauthDependencies, err := productionOAuthFirstLoginDependenciesFromEnv(lookup)
+		if err != nil {
+			_ = store.Close()
+			return identityRuntime{}, err
+		}
+		var sessionReceiptTransport ashrclone.IdentitySessionReceiptTransport
 		closeResources := func() error {
 			deliveryVault.close()
+			oauthDependencies.close()
 			return store.Close()
 		}
 		if verificationEnabled {
 			deliveryVault, err = productionIdentityDeliveryVaultFromEnv(lookup)
+			if err != nil {
+				_ = closeResources()
+				return identityRuntime{}, err
+			}
+		}
+		if verificationEnabled || oauthDependencies != nil {
+			sessionReceiptTransport, err = productionIdentitySessionReceiptTransportFromEnv(lookup)
 			if err != nil {
 				_ = closeResources()
 				return identityRuntime{}, err
@@ -154,17 +271,23 @@ func newIdentityRuntimeFromEnv(ctx context.Context, lookup func(string) (string,
 			_ = closeResources()
 			return identityRuntime{}, err
 		}
-		if envTrue(lookup, "ASHR_GITHUB_OAUTH_ENABLED") || envTrue(lookup, "ASHR_GOOGLE_OAUTH_ENABLED") {
-			_ = closeResources()
-			return identityRuntime{}, fmt.Errorf("production OAuth requires an injected external opaque vault; refusing memory or plaintext token storage")
+		oauthFirstLogins := map[string]*ashrclone.OAuthFirstLoginService(nil)
+		if oauthDependencies != nil {
+			oauthFirstLogins, err = oauthDependencies.build(store)
+			if err != nil {
+				_ = closeResources()
+				return identityRuntime{}, err
+			}
 		}
 		runtime := identityRuntime{
-			mode:              mode,
-			identityLifecycle: lifecycle,
-			identitySessions:  store,
-			postgres:          store,
-			outbox:            outbox,
-			close:             closeResources,
+			mode:                    mode,
+			identityLifecycle:       lifecycle,
+			identitySessions:        store,
+			postgres:                store,
+			outbox:                  outbox,
+			sessionReceiptTransport: sessionReceiptTransport,
+			oauthFirstLogins:        oauthFirstLogins,
+			close:                   closeResources,
 		}
 		if verificationEnabled {
 			digestKey := envRaw(lookup, "ASHR_IDENTITY_VERIFICATION_HMAC_KEY")
@@ -212,16 +335,8 @@ func newIdentityRuntimeFromEnv(ctx context.Context, lookup func(string) (string,
 				_ = closeResources()
 				return identityRuntime{}, fmt.Errorf("configure production identity verification response policy: %w", policyErr)
 			}
-			sessionReceiptTransport, transportErr := productionIdentitySessionReceiptTransportFromEnv(lookup)
-			if transportErr != nil {
-				verification.Close()
-				verificationStore.Close()
-				_ = closeResources()
-				return identityRuntime{}, transportErr
-			}
 			runtime.verification = verification
 			runtime.verificationResponsePolicy = responsePolicy
-			runtime.sessionReceiptTransport = sessionReceiptTransport
 			runtime.close = func() error {
 				verification.Close()
 				verificationStore.Close()
@@ -231,6 +346,472 @@ func newIdentityRuntimeFromEnv(ctx context.Context, lookup func(string) (string,
 		return runtime, nil
 	default:
 		return identityRuntime{}, fmt.Errorf("unsupported ASHR_IDENTITY_RUNTIME %q", mode)
+	}
+}
+
+func productionOAuthFirstLoginDependenciesFromEnv(
+	lookup func(string) (string, bool),
+) (*productionOAuthFirstLoginDependencies, error) {
+	googleEnabled, err := productionOAuthBooleanEnv(
+		lookup,
+		"ASHR_GOOGLE_OAUTH_ENABLED",
+	)
+	if err != nil {
+		return nil, err
+	}
+	githubEnabled, err := productionOAuthBooleanEnv(
+		lookup,
+		"ASHR_GITHUB_OAUTH_ENABLED",
+	)
+	if err != nil {
+		return nil, err
+	}
+	for _, key := range []string{
+		"ASHR_GOOGLE_OAUTH_DEV_SESSION_ENABLED",
+		"ASHR_GITHUB_OAUTH_DEV_SESSION_ENABLED",
+	} {
+		enabled, flagErr := productionOAuthBooleanEnv(lookup, key)
+		if flagErr != nil {
+			return nil, flagErr
+		}
+		if enabled {
+			return nil, fmt.Errorf(
+				"production OAuth refuses development session configuration",
+			)
+		}
+	}
+	if !googleEnabled && !githubEnabled {
+		return nil, nil
+	}
+
+	organizationID, err := requiredProductionOAuthValue(
+		lookup,
+		"ASHR_OAUTH_FIRST_LOGIN_ORGANIZATION_ID",
+	)
+	if err != nil || !validProductionOAuthUUID(organizationID) {
+		return nil, fmt.Errorf(
+			"ASHR_OAUTH_FIRST_LOGIN_ORGANIZATION_ID must be a canonical UUID",
+		)
+	}
+	projectID, err := requiredProductionOAuthValue(
+		lookup,
+		"ASHR_OAUTH_FIRST_LOGIN_PROJECT_ID",
+	)
+	if err != nil || !validProductionOAuthUUID(projectID) {
+		return nil, fmt.Errorf(
+			"ASHR_OAUTH_FIRST_LOGIN_PROJECT_ID must be a canonical UUID",
+		)
+	}
+	credentials := ashrclone.EnvOAuthCredentialsProvider{LookupEnv: lookup}
+	vault, err := productionOAuthOpaqueVaultFromEnv(lookup)
+	if err != nil {
+		return nil, err
+	}
+	dependencies := &productionOAuthFirstLoginDependencies{
+		organizationID: organizationID,
+		projectID:      projectID,
+		credentials:    credentials,
+		vault:          vault,
+		providers:      make(map[string]productionOAuthFirstLoginProvider, 2),
+	}
+	keep := false
+	defer func() {
+		if !keep {
+			dependencies.close()
+		}
+	}()
+
+	if googleEnabled {
+		provider, providerErr := productionGoogleOAuthFirstLoginProvider(
+			lookup,
+			credentials,
+		)
+		if providerErr != nil {
+			return nil, providerErr
+		}
+		dependencies.providers["google"] = provider
+	}
+	if githubEnabled {
+		provider, providerErr := productionGitHubOAuthFirstLoginProvider(
+			lookup,
+			credentials,
+		)
+		if providerErr != nil {
+			return nil, providerErr
+		}
+		dependencies.providers["github"] = provider
+	}
+	keep = true
+	return dependencies, nil
+}
+
+func productionGoogleOAuthFirstLoginProvider(
+	lookup func(string) (string, bool),
+	credentials ashrclone.OAuthCredentialsProvider,
+) (productionOAuthFirstLoginProvider, error) {
+	if err := validateProductionOAuthCredentials(
+		credentials,
+		"google",
+	); err != nil {
+		return productionOAuthFirstLoginProvider{}, err
+	}
+	callbackURL, err := productionOAuthCallbackURLFromEnv(
+		lookup,
+		"google",
+	)
+	if err != nil {
+		return productionOAuthFirstLoginProvider{}, err
+	}
+	transactionTTL, err := productionOAuthDurationSeconds(
+		lookup,
+		"ASHR_GOOGLE_OAUTH_TRANSACTION_TTL_SECONDS",
+		productionOAuthFirstLoginDefaultTTL,
+		30,
+		30*60,
+	)
+	if err != nil {
+		return productionOAuthFirstLoginProvider{}, err
+	}
+	upstreamTimeout, err := productionOAuthDurationSeconds(
+		lookup,
+		"ASHR_GOOGLE_OAUTH_UPSTREAM_TIMEOUT_SECONDS",
+		productionOAuthProviderDefaultTimeout,
+		1,
+		60,
+	)
+	if err != nil {
+		return productionOAuthFirstLoginProvider{}, err
+	}
+	client := newProductionOAuthProviderHTTPClient(upstreamTimeout)
+	provider, err := ashrclone.NewGoogleOIDCProvider(
+		ashrclone.GoogleOIDCOptions{
+			HTTPClient:      client,
+			AuthorizeURL:    env(lookup, "ASHR_GOOGLE_OAUTH_AUTHORIZE_URL"),
+			TokenURL:        env(lookup, "ASHR_GOOGLE_OAUTH_TOKEN_URL"),
+			RevokeURL:       env(lookup, "ASHR_GOOGLE_OAUTH_REVOKE_URL"),
+			JWKSURL:         env(lookup, "ASHR_GOOGLE_OAUTH_JWKS_URL"),
+			UpstreamTimeout: upstreamTimeout,
+		},
+	)
+	if err != nil {
+		client.CloseIdleConnections()
+		return productionOAuthFirstLoginProvider{}, fmt.Errorf(
+			"production Google OAuth provider configuration was rejected",
+		)
+	}
+	return productionOAuthFirstLoginProvider{
+		adapter: provider, callbackURL: callbackURL,
+		transactionTTL: transactionTTL, client: client,
+	}, nil
+}
+
+func productionGitHubOAuthFirstLoginProvider(
+	lookup func(string) (string, bool),
+	credentials ashrclone.OAuthCredentialsProvider,
+) (productionOAuthFirstLoginProvider, error) {
+	if err := validateProductionOAuthCredentials(
+		credentials,
+		"github",
+	); err != nil {
+		return productionOAuthFirstLoginProvider{}, err
+	}
+	callbackURL, err := productionOAuthCallbackURLFromEnv(
+		lookup,
+		"github",
+	)
+	if err != nil {
+		return productionOAuthFirstLoginProvider{}, err
+	}
+	transactionTTL, err := productionOAuthDurationSeconds(
+		lookup,
+		"ASHR_GITHUB_OAUTH_TRANSACTION_TTL_SECONDS",
+		productionOAuthFirstLoginDefaultTTL,
+		30,
+		30*60,
+	)
+	if err != nil {
+		return productionOAuthFirstLoginProvider{}, err
+	}
+	upstreamTimeout, err := productionOAuthDurationSeconds(
+		lookup,
+		"ASHR_GITHUB_OAUTH_UPSTREAM_TIMEOUT_SECONDS",
+		productionOAuthProviderDefaultTimeout,
+		1,
+		60,
+	)
+	if err != nil {
+		return productionOAuthFirstLoginProvider{}, err
+	}
+	client := newProductionOAuthProviderHTTPClient(upstreamTimeout)
+	provider, err := ashrclone.NewGitHubOAuthProvider(
+		ashrclone.GitHubOAuthProviderOptions{
+			HTTPClient:      client,
+			AuthorizeURL:    env(lookup, "ASHR_GITHUB_OAUTH_AUTHORIZE_URL"),
+			TokenURL:        env(lookup, "ASHR_GITHUB_OAUTH_TOKEN_URL"),
+			APIURL:          env(lookup, "ASHR_GITHUB_OAUTH_API_URL"),
+			UpstreamTimeout: upstreamTimeout,
+		},
+	)
+	if err != nil {
+		client.CloseIdleConnections()
+		return productionOAuthFirstLoginProvider{}, fmt.Errorf(
+			"production GitHub OAuth provider configuration was rejected",
+		)
+	}
+	return productionOAuthFirstLoginProvider{
+		adapter: provider, callbackURL: callbackURL,
+		transactionTTL: transactionTTL, client: client,
+	}, nil
+}
+
+func productionOAuthOpaqueVaultFromEnv(
+	lookup func(string) (string, bool),
+) (*productionOAuthOpaqueVaultRuntime, error) {
+	config, err := productionOAuthOpaqueVaultConfigFromEnv(lookup)
+	if err != nil {
+		return nil, err
+	}
+	caBundlePEM, err := readProductionIdentityDeliveryVaultPEM(
+		config.caBundleFile,
+		maxProductionIdentityDeliveryVaultCABundleBytes,
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"production OAuth opaque vault mTLS trust material is unavailable",
+		)
+	}
+	defer zeroBytes(caBundlePEM)
+	clientCertificatePEM, err := readProductionIdentityDeliveryVaultPEM(
+		config.clientCertificateFile,
+		maxProductionIdentityDeliveryVaultIdentityBytes,
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"production OAuth opaque vault mTLS identity material is unavailable",
+		)
+	}
+	defer zeroBytes(clientCertificatePEM)
+	clientPrivateKeyPEM, err := readProductionIdentityDeliveryVaultPEM(
+		config.clientPrivateKeyFile,
+		maxProductionIdentityDeliveryVaultIdentityBytes,
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"production OAuth opaque vault mTLS identity material is unavailable",
+		)
+	}
+	defer zeroBytes(clientPrivateKeyPEM)
+	client, err := ashrclone.NewIdentityDeliveryMTLSHTTPClient(
+		ashrclone.IdentityDeliveryMTLSClientOptions{
+			CABundlePEM:           caBundlePEM,
+			ClientCertificatePEM:  clientCertificatePEM,
+			ClientPrivateKeyPEM:   clientPrivateKeyPEM,
+			ServerName:            config.serverName,
+			DialTimeout:           productionIdentityDeliveryVaultConnectTimeout,
+			TLSHandshakeTimeout:   productionIdentityDeliveryVaultConnectTimeout,
+			ResponseHeaderTimeout: productionIdentityDeliveryVaultRequestTimeout,
+			RequestTimeout:        productionIdentityDeliveryVaultRequestTimeout,
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf(
+			"production OAuth opaque vault mTLS profile was rejected",
+		)
+	}
+	vault, err := ashrclone.NewHTTPOAuthOpaqueVault(
+		ashrclone.HTTPOAuthOpaqueVaultOptions{
+			PutEndpoint:     config.putURL,
+			GetEndpoint:     config.getURL,
+			BindingEndpoint: config.bindingURL,
+			DeleteEndpoint:  config.deleteURL,
+			Client:          client,
+			Timeout:         productionIdentityDeliveryVaultRequestTimeout,
+		},
+	)
+	if err != nil {
+		client.CloseIdleConnections()
+		return nil, fmt.Errorf(
+			"production OAuth opaque vault endpoints were rejected",
+		)
+	}
+	return &productionOAuthOpaqueVaultRuntime{vault: vault, client: client}, nil
+}
+
+func productionOAuthOpaqueVaultConfigFromEnv(
+	lookup func(string) (string, bool),
+) (productionOAuthOpaqueVaultConfig, error) {
+	if lookup == nil {
+		return productionOAuthOpaqueVaultConfig{}, fmt.Errorf(
+			"identity environment lookup is required",
+		)
+	}
+	var config productionOAuthOpaqueVaultConfig
+	bindings := []struct {
+		key         string
+		destination *string
+	}{
+		{"ASHR_OAUTH_VAULT_PUT_URL", &config.putURL},
+		{"ASHR_OAUTH_VAULT_GET_URL", &config.getURL},
+		{"ASHR_OAUTH_VAULT_BINDING_URL", &config.bindingURL},
+		{"ASHR_OAUTH_VAULT_DELETE_URL", &config.deleteURL},
+		{"ASHR_OAUTH_VAULT_MTLS_CA_FILE", &config.caBundleFile},
+		{"ASHR_OAUTH_VAULT_MTLS_CLIENT_CERT_FILE", &config.clientCertificateFile},
+		{"ASHR_OAUTH_VAULT_MTLS_CLIENT_KEY_FILE", &config.clientPrivateKeyFile},
+		{"ASHR_OAUTH_VAULT_MTLS_SERVER_NAME", &config.serverName},
+	}
+	missing := make([]string, 0, len(bindings))
+	for _, binding := range bindings {
+		value, present := lookup(binding.key)
+		if !present || strings.TrimSpace(value) == "" {
+			missing = append(missing, binding.key)
+			continue
+		}
+		if value != strings.TrimSpace(value) ||
+			strings.ContainsAny(value, "\x00\r\n\t") {
+			return productionOAuthOpaqueVaultConfig{}, fmt.Errorf(
+				"production OAuth opaque vault configuration is invalid",
+			)
+		}
+		*binding.destination = value
+	}
+	if len(missing) != 0 {
+		return productionOAuthOpaqueVaultConfig{}, fmt.Errorf(
+			"production OAuth opaque vault configuration must be all-or-none; missing %s",
+			strings.Join(missing, ", "),
+		)
+	}
+	return config, nil
+}
+
+func productionOAuthCallbackURLFromEnv(
+	lookup func(string) (string, bool),
+	provider string,
+) (string, error) {
+	key := "ASHR_" + strings.ToUpper(provider) + "_OAUTH_CALLBACK_URL"
+	raw, err := requiredProductionOAuthValue(lookup, key)
+	if err != nil {
+		return "", err
+	}
+	callback, err := url.ParseRequestURI(raw)
+	if err != nil || callback.Scheme != "https" || callback.Host == "" ||
+		callback.User != nil || callback.RawQuery != "" ||
+		callback.Fragment != "" ||
+		callback.Path != "/v1/identity/oauth/"+provider+"/callback" {
+		return "", fmt.Errorf(
+			"%s must be the dedicated absolute HTTPS provider callback",
+			key,
+		)
+	}
+	return callback.String(), nil
+}
+
+func validateProductionOAuthCredentials(
+	credentials ashrclone.OAuthCredentialsProvider,
+	provider string,
+) error {
+	resolved, err := credentials.OAuthCredentials(context.Background(), provider)
+	if err != nil ||
+		resolved.ClientID == "" ||
+		resolved.ClientID != strings.TrimSpace(resolved.ClientID) ||
+		len(resolved.ClientID) > 4096 ||
+		strings.ContainsAny(resolved.ClientID, "\x00\r\n\t") ||
+		resolved.ClientSecret == "" ||
+		resolved.ClientSecret != strings.TrimSpace(resolved.ClientSecret) ||
+		len(resolved.ClientSecret) > 16384 ||
+		strings.ContainsAny(resolved.ClientSecret, "\x00\r\n\t") {
+		return fmt.Errorf(
+			"production %s OAuth credentials are unavailable",
+			provider,
+		)
+	}
+	return nil
+}
+
+func requiredProductionOAuthValue(
+	lookup func(string) (string, bool),
+	key string,
+) (string, error) {
+	if lookup == nil {
+		return "", fmt.Errorf("identity environment lookup is required")
+	}
+	value, present := lookup(key)
+	if !present || value == "" || value != strings.TrimSpace(value) ||
+		strings.ContainsAny(value, "\x00\r\n\t") {
+		return "", fmt.Errorf("%s is required", key)
+	}
+	return value, nil
+}
+
+func productionOAuthBooleanEnv(
+	lookup func(string) (string, bool),
+	key string,
+) (bool, error) {
+	if lookup == nil {
+		return false, fmt.Errorf("identity environment lookup is required")
+	}
+	raw, present := lookup(key)
+	if !present || strings.TrimSpace(raw) == "" {
+		return false, nil
+	}
+	if raw != strings.TrimSpace(raw) || strings.ContainsAny(raw, "\x00\r\n\t") {
+		return false, fmt.Errorf("%s must be a boolean", key)
+	}
+	value, err := strconv.ParseBool(raw)
+	if err != nil {
+		return false, fmt.Errorf("%s must be a boolean", key)
+	}
+	return value, nil
+}
+
+func productionOAuthDurationSeconds(
+	lookup func(string) (string, bool),
+	key string,
+	fallback time.Duration,
+	minimum int,
+	maximum int,
+) (time.Duration, error) {
+	raw := env(lookup, key)
+	if raw == "" {
+		return fallback, nil
+	}
+	seconds, err := strconv.Atoi(raw)
+	if err != nil || seconds < minimum || seconds > maximum {
+		return 0, fmt.Errorf(
+			"%s must be between %d and %d",
+			key,
+			minimum,
+			maximum,
+		)
+	}
+	return time.Duration(seconds) * time.Second, nil
+}
+
+func validProductionOAuthUUID(value string) bool {
+	if len(value) != 36 {
+		return false
+	}
+	for index := 0; index < len(value); index++ {
+		if index == 8 || index == 13 || index == 18 || index == 23 {
+			if value[index] != '-' {
+				return false
+			}
+			continue
+		}
+		character := value[index]
+		if (character < '0' || character > '9') &&
+			(character < 'a' || character > 'f') {
+			return false
+		}
+	}
+	return true
+}
+
+func newProductionOAuthProviderHTTPClient(timeout time.Duration) *http.Client {
+	return &http.Client{
+		Timeout: timeout,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return fmt.Errorf("production OAuth provider redirect refused")
+		},
 	}
 }
 
@@ -738,9 +1319,26 @@ func zeroBytes(value []byte) {
 func productionIdentitySessionReceiptTransportFromEnv(
 	lookup func(string) (string, bool),
 ) (ashrclone.IdentitySessionReceiptTransport, error) {
-	intentKey := envRaw(lookup, "ASHR_IDENTITY_VERIFICATION_HMAC_KEY")
-	if len(intentKey) < 32 {
-		return nil, fmt.Errorf("ASHR_IDENTITY_VERIFICATION_HMAC_KEY must contain at least 32 bytes")
+	intentKey := ""
+	if dedicatedKey, present := lookup("ASHR_IDENTITY_BROWSER_INTENT_KEY"); present {
+		if dedicatedKey == "" ||
+			dedicatedKey != strings.TrimSpace(dedicatedKey) ||
+			len(dedicatedKey) < 32 ||
+			strings.ContainsAny(dedicatedKey, "\x00\r\n\t") {
+			return nil, fmt.Errorf(
+				"ASHR_IDENTITY_BROWSER_INTENT_KEY must contain at least 32 normalized bytes",
+			)
+		}
+		intentKey = dedicatedKey
+	} else {
+		intentKey = envRaw(lookup, "ASHR_IDENTITY_VERIFICATION_HMAC_KEY")
+		if intentKey != strings.TrimSpace(intentKey) ||
+			len(intentKey) < 32 ||
+			strings.ContainsAny(intentKey, "\x00\r\n\t") {
+			return nil, fmt.Errorf(
+				"ASHR_IDENTITY_BROWSER_INTENT_KEY or ASHR_IDENTITY_VERIFICATION_HMAC_KEY must contain at least 32 normalized bytes",
+			)
+		}
 	}
 	maxLifetime := 24 * time.Hour
 	refreshMaxLifetime := 30 * 24 * time.Hour
