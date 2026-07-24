@@ -290,8 +290,15 @@ func TestOAuthFirstLoginHTTPCompletesCanonicalSessionHandoff(t *testing.T) {
 
 	callback := httptest.NewRequest(
 		http.MethodGet,
-		"https://console.example.invalid/v1/identity/oauth/google/callback?code=provider-code&state="+
-			url.QueryEscape(state),
+		"https://console.example.invalid/v1/identity/oauth/google/callback?"+
+			url.Values{
+				"authuser": {"0"},
+				"code":     {"provider-code"},
+				"iss":      {"https://accounts.google.com"},
+				"prompt":   {"none"},
+				"scope":    {"openid profile email"},
+				"state":    {state},
+			}.Encode(),
 		nil,
 	)
 	callback.AddCookie(intent)
@@ -389,6 +396,112 @@ func TestOAuthFirstLoginHTTPCompletesCanonicalSessionHandoff(t *testing.T) {
 	}
 }
 
+func TestStrictOAuthFirstLoginCallbackQueryAllowsOnlyProviderResponseShape(
+	t *testing.T,
+) {
+	t.Parallel()
+	cases := []struct {
+		name     string
+		provider string
+		rawQuery string
+		ok       bool
+	}{
+		{
+			name:     "google minimal",
+			provider: "google",
+			rawQuery: "code=provider-code&state=oauth-state",
+			ok:       true,
+		},
+		{
+			name:     "google real response extras",
+			provider: "google",
+			rawQuery: url.Values{
+				"authuser": {"0"},
+				"code":     {"provider-code"},
+				"iss":      {"https://accounts.google.com"},
+				"prompt":   {"none"},
+				"scope":    {"openid profile email"},
+				"state":    {"oauth-state"},
+			}.Encode(),
+			ok: true,
+		},
+		{
+			name:     "github minimal",
+			provider: "github",
+			rawQuery: "code=provider-code&state=oauth-state",
+			ok:       true,
+		},
+		{
+			name:     "github rejects google extras",
+			provider: "github",
+			rawQuery: "code=provider-code&state=oauth-state&scope=user",
+		},
+		{
+			name:     "unknown parameter",
+			provider: "google",
+			rawQuery: "code=provider-code&state=oauth-state&redirect_uri=https%3A%2F%2Fevil.example",
+		},
+		{
+			name:     "duplicate state",
+			provider: "google",
+			rawQuery: "code=provider-code&state=oauth-state&state=other-state",
+		},
+		{
+			name:     "invalid issuer",
+			provider: "google",
+			rawQuery: "code=provider-code&state=oauth-state&iss=https%3A%2F%2Fevil.example",
+		},
+		{
+			name:     "invalid authuser",
+			provider: "google",
+			rawQuery: "code=provider-code&state=oauth-state&authuser=account-zero",
+		},
+		{
+			name:     "invalid prompt",
+			provider: "google",
+			rawQuery: "code=provider-code&state=oauth-state&prompt=attacker",
+		},
+		{
+			name:     "provider error response is not success",
+			provider: "google",
+			rawQuery: "error=access_denied&state=oauth-state",
+		},
+		{
+			name:     "malformed encoding",
+			provider: "google",
+			rawQuery: "code=%zz&state=oauth-state",
+		},
+		{
+			name:     "query too large",
+			provider: "google",
+			rawQuery: "code=" +
+				strings.Repeat("x", maxOAuthFirstLoginCallbackRawQueryLength) +
+				"&state=oauth-state",
+		},
+	}
+	for _, testCase := range cases {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			request := httptest.NewRequest(
+				http.MethodGet,
+				"https://console.example.invalid/callback?"+testCase.rawQuery,
+				nil,
+			)
+			code, state, ok := strictOAuthFirstLoginCallbackQuery(
+				request,
+				testCase.provider,
+			)
+			if ok != testCase.ok {
+				t.Fatalf("ok=%t want=%t", ok, testCase.ok)
+			}
+			if ok && (code != "provider-code" || state != "oauth-state") {
+				t.Fatalf("unexpected accepted callback result")
+			}
+		})
+	}
+}
+
 func TestOAuthFirstLoginHTTPRejectsClientSelectedScopeAndPurpose(t *testing.T) {
 	handler, _, transactions, secrets, coordinator, _ :=
 		newOAuthFirstLoginHTTPFixture(t)
@@ -424,24 +537,103 @@ func TestOAuthFirstLoginHTTPRejectsClientSelectedScopeAndPurpose(t *testing.T) {
 	}
 }
 
-func TestOAuthFirstLoginHTTPRejectsMissingOriginAndInsecureTransport(t *testing.T) {
+func TestOAuthFirstLoginHTTPAllowsSameOriginTopLevelNavigationWithoutOrigin(t *testing.T) {
 	handler, _, transactions, _, coordinator, _ :=
 		newOAuthFirstLoginHTTPFixture(t)
 
-	missingOrigin := httptest.NewRequest(
+	navigation := httptest.NewRequest(
 		http.MethodGet,
 		"https://console.example.invalid/v1/identity/oauth/google/start",
 		nil,
 	)
-	missingOriginResponse := httptest.NewRecorder()
-	handler.ServeHTTP(missingOriginResponse, missingOrigin)
-	if missingOriginResponse.Code != http.StatusForbidden {
+	navigation.Header.Set("Sec-Fetch-Site", "same-origin")
+	navigation.Header.Set("Sec-Fetch-Mode", "navigate")
+	navigation.Header.Set("Sec-Fetch-Dest", "document")
+	navigation.Header.Set("Referer", "https://console.example.invalid/console")
+	navigationResponse := httptest.NewRecorder()
+	handler.ServeHTTP(navigationResponse, navigation)
+	if navigationResponse.Code != http.StatusFound {
 		t.Fatalf(
-			"missing origin status=%d body=%s",
-			missingOriginResponse.Code,
-			missingOriginResponse.Body.String(),
+			"same-origin navigation status=%d body=%s",
+			navigationResponse.Code,
+			navigationResponse.Body.String(),
 		)
 	}
+	if navigationResponse.Body.Len() != 0 || transactions.creates != 1 || coordinator.calls != 0 {
+		t.Fatal("same-origin top-level navigation did not create only the OAuth browser state")
+	}
+}
+
+func TestOAuthFirstLoginHTTPRejectsMalformedOrCrossSiteTopLevelNavigation(t *testing.T) {
+	handler, _, transactions, _, coordinator, _ :=
+		newOAuthFirstLoginHTTPFixture(t)
+
+	cases := []struct {
+		name    string
+		headers map[string]string
+	}{
+		{
+			name: "missing fetch mode",
+			headers: map[string]string{
+				"Sec-Fetch-Site": "same-origin",
+				"Sec-Fetch-Dest": "document",
+				"Referer":        "https://console.example.invalid/console",
+			},
+		},
+		{
+			name: "non document destination",
+			headers: map[string]string{
+				"Sec-Fetch-Site": "same-origin",
+				"Sec-Fetch-Mode": "navigate",
+				"Sec-Fetch-Dest": "iframe",
+				"Referer":        "https://console.example.invalid/console",
+			},
+		},
+		{
+			name: "cross site",
+			headers: map[string]string{
+				"Sec-Fetch-Site": "cross-site",
+				"Sec-Fetch-Mode": "navigate",
+				"Sec-Fetch-Dest": "document",
+				"Referer":        "https://evil.example.invalid/",
+			},
+		},
+		{
+			name: "forwarded host spoof",
+			headers: map[string]string{
+				"Sec-Fetch-Site":   "same-origin",
+				"Sec-Fetch-Mode":   "navigate",
+				"Sec-Fetch-Dest":   "document",
+				"Referer":          "https://console.example.invalid/console",
+				"X-Forwarded-Host": "evil.example.invalid",
+			},
+		},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			request := httptest.NewRequest(
+				http.MethodGet,
+				"https://console.example.invalid/v1/identity/oauth/google/start",
+				nil,
+			)
+			for name, value := range testCase.headers {
+				request.Header.Set(name, value)
+			}
+			response := httptest.NewRecorder()
+			handler.ServeHTTP(response, request)
+			if response.Code != http.StatusForbidden {
+				t.Fatalf("navigation status=%d body=%s", response.Code, response.Body.String())
+			}
+		})
+	}
+	if transactions.creates != 0 || coordinator.calls != 0 {
+		t.Fatal("malformed or cross-site navigation created OAuth state or canonical identity")
+	}
+}
+
+func TestOAuthFirstLoginHTTPRejectsInsecureTransport(t *testing.T) {
+	handler, _, transactions, _, coordinator, _ :=
+		newOAuthFirstLoginHTTPFixture(t)
 
 	insecure := httptest.NewRequest(
 		http.MethodGet,

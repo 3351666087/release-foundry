@@ -60,6 +60,8 @@ func (store *PostgresOAuthFirstLoginStore) CreateOAuthFirstLoginTransaction(
 	ctx context.Context,
 	transaction OAuthFirstLoginTransaction,
 ) error {
+	transaction.CreatedAt = transaction.CreatedAt.UTC().Truncate(time.Microsecond)
+	transaction.ExpiresAt = transaction.ExpiresAt.UTC().Truncate(time.Microsecond)
 	if ctx == nil || validatePostgresOAuthFirstLoginTransaction(transaction) != nil {
 		return errors.New("OAuth first-login transaction is invalid")
 	}
@@ -95,21 +97,25 @@ func (store *PostgresOAuthFirstLoginStore) CreateOAuthFirstLoginTransaction(
 		_ = store.vault.Delete(ctx, ref)
 		return err
 	}
-	_, err = tx.ExecContext(ctx, `
-INSERT INTO oauth_runtime_transactions (
-  organization_id, project_id, provider, state_digest, binding_digest,
-  transaction_ref, created_at, expires_at
-) VALUES ($1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8)
+	var created bool
+	err = tx.QueryRowContext(ctx, `
+SELECT a1_create_oauth_runtime_transaction(
+  $1::uuid, $2::uuid, $3, $4, $5, $6, $7, $8
+)
 `, transaction.OrganizationID, transaction.ProjectID, transaction.Provider,
 		postgresOAuthDigest(transaction.StateHash),
 		postgresOAuthBindingDigestNeutral(binding), ref,
-		transaction.CreatedAt.UTC(), transaction.ExpiresAt.UTC())
+		transaction.CreatedAt, transaction.ExpiresAt).Scan(&created)
 	if err != nil {
 		_ = store.vault.Delete(ctx, ref)
 		if postgresOAuthUniqueViolation(err) {
 			return errors.New("OAuth first-login state collision")
 		}
 		return fmt.Errorf("insert OAuth first-login runtime transaction: %w", err)
+	}
+	if !created {
+		_ = store.vault.Delete(ctx, ref)
+		return errors.New("OAuth first-login runtime transaction was not created")
 	}
 	if err := tx.Commit(); err != nil {
 		_ = store.vault.Delete(ctx, ref)

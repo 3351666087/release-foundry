@@ -1768,6 +1768,8 @@ $$`); err != nil {
 		"a1_lock_identity_credential_link_receipt(TEXT[])",
 		"a1_complete_identity_credential_link(UUID,UUID,TEXT,UUID,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,JSONB)",
 		"a1_complete_oauth_first_login_with_refresh(UUID,UUID,TEXT,TEXT[],TEXT[],TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TIMESTAMPTZ,TIMESTAMPTZ,TEXT,TEXT,TEXT,JSONB)",
+		"a1_create_oauth_runtime_transaction(UUID,UUID,TEXT,TEXT,TEXT,TEXT,TIMESTAMPTZ,TIMESTAMPTZ)",
+		"a1_consume_oauth_runtime_transaction(TEXT,TEXT,TIMESTAMPTZ)",
 	} {
 		if _, err := db.Exec(`GRANT EXECUTE ON FUNCTION ` + signature + ` TO ` +
 			quotePostgresIdentifier(runtimeRole)); err != nil {
@@ -1915,7 +1917,7 @@ func applyIdentityLifecycleMigrations(t *testing.T, db *sql.DB) {
 	applied := 0
 	for _, path := range entries {
 		base := filepath.Base(path)
-		if len(base) < 3 || base[:3] < "001" || base[:3] > "026" {
+		if len(base) < 3 || base[:3] < "001" || base[:3] > "027" {
 			continue
 		}
 		sqlBytes, err := os.ReadFile(path)
@@ -1927,8 +1929,8 @@ func applyIdentityLifecycleMigrations(t *testing.T, db *sql.DB) {
 		}
 		applied++
 	}
-	if applied != 26 {
-		t.Fatalf("expected migrations 001-026, applied %d from %s", applied, migrationsDir)
+	if applied != 27 {
+		t.Fatalf("expected migrations 001-027, applied %d from %s", applied, migrationsDir)
 	}
 }
 

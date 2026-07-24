@@ -33,6 +33,90 @@ func TestOAuthFirstLoginPostgresIntegration(t *testing.T) {
 
 	h := newPostgresLifecycleHarness(t, adminDSN)
 
+	t.Run("runtime transaction round trip preserves PostgreSQL timestamp precision", func(t *testing.T) {
+		const (
+			organizationID = "b0000000-0000-4000-8000-000000000001"
+			workspaceID    = "b0000000-0000-4000-8000-000000000002"
+			projectID      = "b0000000-0000-4000-8000-000000000003"
+		)
+		createIdentityVerificationProjectScope(
+			t,
+			h.adminDB,
+			organizationID,
+			workspaceID,
+			projectID,
+			"oauth-runtime-timestamp-precision",
+		)
+		instance := h.newInstance(
+			t,
+			[]byte("oauth-runtime-timestamp-precision-key-01"),
+			"timestamp-precision",
+			nil,
+		)
+		createdAt := time.Now().UTC()
+		if createdAt.Nanosecond()%int(time.Microsecond) == 0 {
+			createdAt = createdAt.Add(time.Nanosecond)
+		}
+		transaction := oauthFirstLoginStoreTestTransaction(createdAt)
+		transaction.Provider = "google"
+		transaction.StateHash = "state-hash-postgres-timestamp-precision"
+		transaction.CodeVerifier = "pkce-verifier-postgres-timestamp-precision"
+		transaction.Nonce = "nonce-postgres-timestamp-precision"
+		transaction.IntentID = "ofli_postgres-timestamp-precision"
+		transaction.OrganizationID = organizationID
+		transaction.ProjectID = projectID
+		canonical := transaction
+		canonical.CreatedAt = canonical.CreatedAt.UTC().Truncate(time.Microsecond)
+		canonical.ExpiresAt = canonical.ExpiresAt.UTC().Truncate(time.Microsecond)
+		vault := &oauthFirstLoginStoreVault{
+			ref: "vault:oauth/first-login-transaction-postgres-timestamp-precision",
+		}
+		store, err := NewPostgresOAuthFirstLoginStore(instance.db, vault)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := store.CreateOAuthFirstLoginTransaction(
+			context.Background(),
+			transaction,
+		); err != nil {
+			t.Fatalf("create nanosecond-precision runtime transaction: %v", err)
+		}
+		consumed, err := store.ConsumeOAuthFirstLoginTransaction(
+			context.Background(),
+			canonical.Provider,
+			canonical.StateHash,
+			canonical.CreatedAt.Add(time.Minute),
+		)
+		if err != nil {
+			t.Fatalf("consume canonicalized runtime transaction: %v", err)
+		}
+		if consumed != canonical || vault.deletes != 1 {
+			t.Fatalf(
+				"PostgreSQL timestamp round trip diverged: transaction=%#v deletes=%d",
+				consumed,
+				vault.deletes,
+			)
+		}
+		assertOAuthFirstLoginDatabaseCount(
+			t,
+			h.adminDB,
+			`SELECT count(*)
+			   FROM oauth_runtime_transactions
+			  WHERE organization_id=$1::uuid
+			    AND project_id=$2::uuid
+			    AND provider=$3
+			    AND created_at=$4
+			    AND expires_at=$5
+			    AND status='consumed'`,
+			1,
+			organizationID,
+			projectID,
+			canonical.Provider,
+			canonical.CreatedAt,
+			canonical.ExpiresAt,
+		)
+	})
+
 	t.Run("unknown subject registration, browser session handoff, and known subject login", func(t *testing.T) {
 		const (
 			organizationID = "b1000000-0000-4000-8000-000000000001"

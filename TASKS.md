@@ -145,8 +145,95 @@ must not be included in A1 commits.
 - [x] Commit and push only A1 to `origin/codex/a1-local-sdk-runner`, then prove
   local/remote `0/0` parity. Implementation commit `5307d863` is the exact
   local/remote tip after the accepted A1-only push.
-- [ ] Verify or create the Google Web OAuth Client and GitHub OAuth App in the
+- [x] Verify or create the Google Web OAuth Client and GitHub OAuth App in the
   operator-owned consoles, deliver credentials through the production external
-  Secret Manager/Vault, and complete real-HTTPS Google/GitHub E2E. This remains
-  externally gated until Chrome, console ownership, Vault, and a real test
-  domain are available; localhost is not production evidence.
+  Secret Manager/Vault, and complete real-HTTPS Google/GitHub first-login plus
+  known-account E2E through the Chrome Extension. The controlled callback and
+  database evidence is redacted; localhost is not used as production evidence.
+
+## A1 - Chrome Extension real-HTTPS OAuth closure (2026-07-24)
+
+The five operator deliverables requested for this closure are tracked
+individually so console setup cannot be confused with an actually usable
+first-login runtime:
+
+- [x] Verify/create the Google Web OAuth Client with the exact production and
+  controlled real-HTTPS callback paths through the Chrome Extension.
+- [x] Verify/create the GitHub OAuth App with the exact controlled real-HTTPS
+  callback path through the Chrome Extension.
+- [x] Deliver both providers' Client ID/Client Secret pairs to the backend
+  through the mTLS external Vault references, with no raw secret in the
+  frontend, repository, documentation, browser storage, or runtime raw-secret
+  environment.
+- [x] Complete Google first-login on the controlled real-HTTPS domain through
+  the Chrome Extension, including state/nonce/PKCE, canonical account,
+  access/refresh cookie handoff, empty-body `303 /console`, replay rejection,
+  and redacted database evidence. Repeat login reuses the credential/account
+  and creates only a new session.
+- [x] Complete GitHub first-login on the controlled real-HTTPS domain through
+  the Chrome Extension with the same handoff, replay, failure-atomicity, and
+  redacted database evidence. Repeat login reuses the credential/account and
+  creates only a new session.
+
+Implementation and release gates discovered by the real runtime exercise:
+
+- [x] Start the production identity runtime with the restricted
+  `a1_runtime` PostgreSQL role (`NOSUPERUSER`, `NOBYPASSRLS`, `NOINHERIT`) and
+  pass production schema/readiness without using the `postgres` superuser DSN.
+- [x] Preserve the already-registered quick-tunnel hostname while restoring
+  the exact external Host through a controlled local reverse proxy; the
+  real-HTTPS health check is green and no secret crosses that edge.
+- [x] Replace the first-login store's forbidden direct sensitive-table insert
+  with a scoped, security-definer PostgreSQL entrypoint; make readiness prove
+  its ACL/owner/search-path/RLS boundary and add a restricted-role integration
+  test.
+- [x] Permit a standard same-origin browser top-level navigation to the public
+  OAuth start route without weakening the strict Origin contract used by
+  mutation requests; reject cross-site, malformed, non-navigation, and
+  forwarded-host spoofing cases.
+- [x] Apply migration 027, rebuild/restart the restricted-role runtime, and
+  prove local/real-HTTPS health plus explicit-Origin and standard same-origin
+  top-level navigation preflights for Google and GitHub.
+- [x] Re-run all four main Go packages and the Go integration module after the
+  readiness change; extend the disposable restricted-role PostgreSQL harness
+  for migration 027 and pass the complete identity/OAuth lifecycle integration
+  matrix against migrations 001-027.
+- [x] Diagnose the Chrome Extension handoff without switching browser
+  surfaces: Chrome is running, the Extension is installed/enabled in the
+  selected `Default` profile, and the registered Native Messaging Host,
+  expected Extension origin, and manifest path are correct. Open a fresh
+  `Default`-profile Chrome window for the operator to enter the controlled
+  `/console` URL without exposing an OAuth-bearing URL.
+- [x] Restrict the repository-external nginx E2E edge to a safe access-log
+  shape containing only status, method, and path; exclude query arguments,
+  Referer, Cookie, client address, and the complete request. Confirm the
+  blocked automated Google attempt produced no canonical principal,
+  credential, session, first-login operation, or opaque token mutation; only
+  one additional pending Google runtime transaction exists.
+- [x] Have the operator open the controlled `/console` URL in that exact
+  Extension-selected window; then retain that tab for both provider flows
+  without standalone Playwright, another browser, raw CDP, or an indirect
+  navigation bridge.
+- [x] Reproduce the real Google callback shape and harden the callback parser
+  to accept only Google's documented single-valued `iss`, `scope`, `authuser`,
+  and `prompt` additions while preserving strict `code`/`state` bounds,
+  malformed-query rejection, provider-specific allowlists, and GitHub's
+  `code`/`state`-only contract. Re-run all Go packages plus the restricted-role
+  PostgreSQL identity/OAuth lifecycle integrations.
+- [x] Correct the second incompatibility exposed by the real Google callback:
+  canonicalize first-login transaction `created_at`/`expires_at` to UTC
+  microsecond precision before deriving the Vault envelope/binding or issuing
+  SQL, so strict Vault/PostgreSQL binding validation survives a real
+  `TIMESTAMPTZ` round trip.
+- [x] Add non-microsecond-aligned unit and live PostgreSQL regressions proving
+  the canonical Vault envelope and SQL arguments agree, the restricted
+  runtime role consumes the transaction, and the external opaque reference is
+  deleted exactly once. Re-run all four Go packages and both complete
+  restricted-role PostgreSQL integration suites.
+- [x] Rebuild/restart the restricted-role runtime, complete both provider
+  first-login and known-account Extension E2E flows, and update only redacted
+  aggregate/provider-set release evidence.
+- [x] Run the final focused/full cross-language, PostgreSQL, CL plan, hygiene,
+  commercial, formatting, secret, ownership, and generated-artifact audits.
+- [ ] Commit and push only A1 to
+  `origin/codex/a1-local-sdk-runner`.

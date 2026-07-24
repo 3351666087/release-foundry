@@ -142,7 +142,7 @@ func (transport *IdentitySessionCookieTransport) IssueOAuthFirstLoginIntent(
 	if err := transport.ValidateIdentitySessionRequest(request); err != nil {
 		return err
 	}
-	origin, err := identityBrowserVerificationOrigin(request)
+	origin, err := oauthFirstLoginStartOrigin(request)
 	if err != nil {
 		return errOAuthFirstLoginIntentInvalid
 	}

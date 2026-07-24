@@ -2,6 +2,7 @@ package ashrclone
 
 import (
 	"net/http"
+	"net/url"
 	"strings"
 )
 
@@ -63,7 +64,7 @@ func (server *HTTPServer) handleOAuthFirstLoginStart(
 		writeError(writer, http.StatusBadRequest, "oauth_first_login_request_invalid", "OAuth first-login start request is invalid")
 		return
 	}
-	if _, err := identityBrowserVerificationOrigin(request); err != nil {
+	if _, err := oauthFirstLoginStartOrigin(request); err != nil {
 		writeError(writer, http.StatusForbidden, "oauth_first_login_origin_rejected", "OAuth first-login origin was rejected")
 		return
 	}
@@ -100,6 +101,68 @@ func (server *HTTPServer) handleOAuthFirstLoginStart(
 	writeEmptyOAuthFirstLoginRedirect(writer, http.StatusFound, prepared.AuthorizationURL)
 }
 
+// oauthFirstLoginStartOrigin preserves the strict Origin contract for
+// script/fetch requests while also accepting a standard browser top-level
+// same-origin navigation, which commonly omits Origin on GET navigations.
+func oauthFirstLoginStartOrigin(request *http.Request) (string, error) {
+	if request == nil || request.Host == "" ||
+		request.Host != strings.TrimSpace(request.Host) {
+		return "", errIdentityBrowserIntentInvalid
+	}
+	for _, header := range []string{
+		"Forwarded",
+		"X-Forwarded-For",
+		"X-Forwarded-Host",
+		"X-Real-IP",
+	} {
+		for _, value := range request.Header.Values(header) {
+			if strings.TrimSpace(value) != "" {
+				return "", errIdentityBrowserIntentInvalid
+			}
+		}
+	}
+	if len(request.Header.Values("Origin")) > 0 {
+		return identityBrowserVerificationOrigin(request)
+	}
+
+	if !singleOAuthFetchMetadataValue(request, "Sec-Fetch-Site", "same-origin") ||
+		!singleOAuthFetchMetadataValue(request, "Sec-Fetch-Mode", "navigate") ||
+		!singleOAuthFetchMetadataValue(request, "Sec-Fetch-Dest", "document") {
+		return "", errIdentityBrowserIntentInvalid
+	}
+	referers := request.Header.Values("Referer")
+	if len(referers) != 1 ||
+		referers[0] == "" ||
+		referers[0] != strings.TrimSpace(referers[0]) {
+		return "", errIdentityBrowserIntentInvalid
+	}
+	referer, err := url.Parse(referers[0])
+	if err != nil ||
+		!strings.EqualFold(referer.Scheme, "https") ||
+		referer.Host == "" ||
+		!strings.EqualFold(referer.Host, request.Host) ||
+		referer.User != nil ||
+		referer.Fragment != "" {
+		return "", errIdentityBrowserIntentInvalid
+	}
+	return "https://" + strings.ToLower(request.Host), nil
+}
+
+func singleOAuthFetchMetadataValue(
+	request *http.Request,
+	header string,
+	expected string,
+) bool {
+	if request == nil {
+		return false
+	}
+	values := request.Header.Values(header)
+	return len(values) == 1 &&
+		values[0] != "" &&
+		values[0] == strings.TrimSpace(values[0]) &&
+		strings.EqualFold(values[0], expected)
+}
+
 func (server *HTTPServer) handleOAuthFirstLoginCallback(
 	writer http.ResponseWriter,
 	request *http.Request,
@@ -114,7 +177,7 @@ func (server *HTTPServer) handleOAuthFirstLoginCallback(
 		writeError(writer, http.StatusUpgradeRequired, "identity_session_secure_transport_required", "identity session handoff requires HTTPS")
 		return
 	}
-	code, state, ok := strictOAuthFirstLoginCallbackQuery(request)
+	code, state, ok := strictOAuthFirstLoginCallbackQuery(request, providerName)
 	if !ok {
 		writeError(writer, http.StatusBadRequest, "invalid_oauth_callback", "OAuth callback is invalid")
 		return
@@ -157,23 +220,85 @@ func (server *HTTPServer) handleOAuthFirstLoginCallback(
 	writeEmptyOAuthFirstLoginRedirect(writer, http.StatusSeeOther, "/console")
 }
 
-func strictOAuthFirstLoginCallbackQuery(request *http.Request) (string, string, bool) {
-	if request == nil || request.URL == nil || request.URL.RawQuery == "" {
+const maxOAuthFirstLoginCallbackRawQueryLength = 16 * 1024
+
+func strictOAuthFirstLoginCallbackQuery(
+	request *http.Request,
+	providerName string,
+) (string, string, bool) {
+	if request == nil ||
+		request.URL == nil ||
+		request.URL.RawQuery == "" ||
+		len(request.URL.RawQuery) > maxOAuthFirstLoginCallbackRawQueryLength {
 		return "", "", false
 	}
-	query := request.URL.Query()
-	if len(query) != 2 {
+	query, err := url.ParseQuery(request.URL.RawQuery)
+	if err != nil {
 		return "", "", false
 	}
-	for _, key := range []string{"code", "state"} {
-		values, exists := query[key]
-		if !exists || len(values) != 1 || values[0] == "" ||
-			values[0] != strings.TrimSpace(values[0]) ||
-			strings.ContainsAny(values[0], "\x00\r\n\t") {
+	for key, values := range query {
+		if len(values) != 1 ||
+			!validOAuthFirstLoginCallbackParameter(
+				providerName,
+				key,
+				values[0],
+			) {
 			return "", "", false
 		}
 	}
-	return query.Get("code"), query.Get("state"), true
+	code, codeExists := query["code"]
+	state, stateExists := query["state"]
+	if !codeExists || !stateExists ||
+		len(code) != 1 || len(state) != 1 {
+		return "", "", false
+	}
+	return code[0], state[0], true
+}
+
+func validOAuthFirstLoginCallbackParameter(
+	providerName string,
+	key string,
+	value string,
+) bool {
+	if value == "" ||
+		value != strings.TrimSpace(value) ||
+		strings.ContainsAny(value, "\x00\r\n\t") {
+		return false
+	}
+	switch key {
+	case "code":
+		return len(value) <= 4096
+	case "state":
+		return len(value) <= 1024
+	}
+	if providerName != "google" {
+		return false
+	}
+	switch key {
+	case "iss":
+		return value == "https://accounts.google.com"
+	case "scope":
+		return len(value) <= 8192
+	case "authuser":
+		if len(value) > 16 {
+			return false
+		}
+		for _, character := range value {
+			if character < '0' || character > '9' {
+				return false
+			}
+		}
+		return true
+	case "prompt":
+		switch value {
+		case "none", "consent", "select_account", "login":
+			return true
+		default:
+			return false
+		}
+	default:
+		return false
+	}
 }
 
 func setOAuthFirstLoginResponseHeaders(writer http.ResponseWriter) {

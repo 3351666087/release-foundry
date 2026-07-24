@@ -3677,22 +3677,22 @@ account ownership rules.
   provider-subject uniqueness, canonical-account mutation, and session
   handoff paths; record the exact first-login gap before editing production
   code.
-- [ ] Separate OAuth first-login from authenticated explicit binding with
+- [x] Separate OAuth first-login from authenticated explicit binding with
   server-selected purposes, encrypted/one-time callback state, trusted
   tenant/project scope, exact redirect policy, and fail-closed callback
   validation.
-- [ ] Allow a verified OAuth provider subject to create one canonical account
+- [x] Allow a verified OAuth provider subject to create one canonical account
   on first login and issue the normal access/refresh browser session, while
   preserving non-creating login for known credentials and explicit binding
   for an already authenticated account.
-- [ ] Prove duplicate callback, provider-subject collision, verified-email
+- [x] Prove duplicate callback, provider-subject collision, verified-email
   conflict, cross-tenant/project confusion, account injection, CSRF/state
   mismatch, and pre-mutation failures cannot take over or partially create an
   account.
-- [ ] Keep Google/GitHub production capability honest and retain
+- [x] Keep Google/GitHub production capability honest and retain
   ready-to-integrate domestic OAuth adapter boundaries without claiming
   WeChat/QQ/Alipay production availability before qualifications exist.
-- [ ] Run focused OAuth/session tests, complete A1 Go/Python parity tests, and
+- [x] Run focused OAuth/session tests, complete A1 Go/Python parity tests, and
   live Docker PostgreSQL migrations/RLS/key-rotation coverage; run
   `git diff --check`.
 - [ ] Audit every changed path and secret boundary, commit only A1, push only
@@ -3745,20 +3745,20 @@ completed checkbox to chat memory.
 - [x] Add the PostgreSQL OAuth first-login coordinator and provider-neutral
   Google/GitHub adapter result normalization without duplicating canonical
   account or session policy in provider-specific services.
-- [ ] Add public OAuth first-login start/callback endpoints with server-chosen
+- [x] Add public OAuth first-login start/callback endpoints with server-chosen
   purpose and scope, PKCE/state/nonce validation, encrypted HttpOnly browser
   intent, one-time callback consumption, secure access/refresh cookies, intent
   deletion, and empty-body `303 /console` handoff.
-- [ ] Keep authenticated explicit binding isolated from first login; prove
+- [x] Keep authenticated explicit binding isolated from first login; prove
   account injection, cross-tenant/project scope, revoked-session races,
   callback replay, state/cookie/provider/purpose mismatch, subject collision,
   verified-email conflict, and provider/vault/database failure cannot cause
   takeover or partial canonical mutations.
-- [ ] Wire production capability only when the provider adapter, trusted
+- [x] Wire production capability only when the provider adapter, trusted
   default scope, callback security, and external opaque vault are complete;
   preserve honest non-production-ready WeChat/QQ/Alipay adapter capability
   boundaries.
-- [ ] Run focused OAuth/browser/session tests, complete A1 Go and Python
+- [x] Run focused OAuth/browser/session tests, complete A1 Go and Python
   parity suites, and live Docker PostgreSQL migrations/RLS/key-rotation
   coverage; run `git diff --check`.
 - [ ] Audit every changed and untracked path for A1 ownership and secret
@@ -3966,8 +3966,10 @@ registration/login/authenticated binding separate, and never write A2/A3 paths.
 - [x] Add focused runtime and adapter contract tests before implementation.
 - [x] Implement the complete production OAuth first-login dependency graph.
 - [x] Run focused and live PostgreSQL evidence, then check each earned item.
-- [ ] Run full CL/audits, commit the coherent A1 batch, push only A1, fetch,
-  and prove post-push `0/0` parity.
+- [x] Run the full changed-scope cross-language, PostgreSQL, CL, formatting,
+  ownership, generated-artifact, and secret audits.
+- [ ] Commit the coherent A1 batch, push only A1, fetch, and prove post-push
+  `0/0` parity.
 
 Focused production-wiring evidence:
 
@@ -4106,20 +4108,21 @@ Runtime capability correction:
   references and examples; no Client Secret, QQ mailbox credential, SMTP
   credential, provider token, callback code, state, nonce, PKCE verifier,
   cookie, or browser storage value was recorded.
-- [ ] Create or verify the Google Web OAuth Client and GitHub OAuth App in the
+- [x] Create or verify the Google Web OAuth Client and GitHub OAuth App in the
   operator-owned external consoles, registering the exact real-HTTPS callback
-  paths. This remains unchecked because the Chrome browser bridge failed to
-  initialize in this task; no external console mutation or credential value
-  was attempted.
-- [ ] Deliver the provider credentials through the production external Vault
+  paths through the Chrome Extension. The earlier browser-bridge block was
+  resolved without switching browser surfaces.
+- [x] Deliver the provider credentials through the production external Vault
   or Secret Manager, configure all required runtime bindings, and enable the
   production providers only after PostgreSQL/RLS and trusted scope readiness
-  passes. Local environment presence alone is not production secret-manager
-  evidence.
-- [ ] Complete real-HTTPS Google/GitHub first-login, replay, failure, explicit
+  passes. The API receives only opaque mTLS Vault references and has no raw
+  OAuth credential environment variable.
+- [x] Complete real-HTTPS Google/GitHub first-login, replay, failure, explicit
   binding, state/nonce/PKCE, session-cookie, and console-handoff verification
-  with redacted evidence only. `https://localhost:4443` remains controlled
-  development testing and is not production evidence.
+  with redacted evidence only. Real callbacks prove provider/session handoff;
+  deterministic tests prove replay and failure atomicity without capturing
+  callback queries. `https://localhost:4443` remains controlled development
+  testing and is not production evidence.
 
 ### External credential delivery and operator verification checkpoint (2026-07-24)
 
@@ -4135,11 +4138,11 @@ Runtime capability correction:
 - [x] Commit and push only A1 to `origin/codex/a1-local-sdk-runner`, then prove
   local/remote `0/0` parity. Implementation commit `5307d863` is the exact
   local/remote tip after the accepted A1-only push.
-- [ ] Verify or create the Google Web OAuth Client and GitHub OAuth App in the
+- [x] Verify or create the Google Web OAuth Client and GitHub OAuth App in the
   operator-owned consoles, deliver credentials through the production external
-  Secret Manager/Vault, and complete real-HTTPS Google/GitHub E2E. This remains
-  externally gated until Chrome, console ownership, Vault, and a real test
-  domain are available; localhost is not production evidence.
+  Secret Manager/Vault, and complete real-HTTPS Google/GitHub first-login plus
+  known-account E2E through the Chrome Extension. Only aggregate/provider-set
+  evidence is retained; localhost is not production evidence.
 
 Implementation evidence for this checkpoint:
 
@@ -4181,3 +4184,198 @@ Final local A1 gate evidence for this checkpoint:
   fixture literals classified explicitly.
 - [x] Pushed only `HEAD:codex/a1-local-sdk-runner`, fetched `origin`, and
   verified local/remote parity `0/0`; both resolve to `5307d863`.
+
+### Chrome Extension real-HTTPS OAuth closure (2026-07-24)
+
+- [x] Re-entered the clean dedicated A1 worktree at exact remote `0/0`
+  parity and reused the existing Chrome Extension bindings rather than
+  switching to standalone browser automation.
+- [x] Verified the operator-owned Google Web OAuth Client and GitHub OAuth App
+  exist with the controlled real-HTTPS callback paths. Google credential
+  rotation was completed without retaining the discarded exposed candidate;
+  final credential material remains unprinted and outside the repository.
+- [x] Verified all four Google/GitHub credential references are present in the
+  mTLS external Vault and the backend resolver succeeds by status/presence
+  only. No Client Secret, mailbox credential, OAuth code/state/nonce/PKCE,
+  cookie, provider subject, or token is recorded here.
+- [x] Applied migrations 001-026 to the disposable PostgreSQL E2E database,
+  seeded only the fixed organization/workspace/project scope, changed the API
+  DSN from `postgres` to a fresh restricted `a1_runtime` credential, and
+  passed production identity readiness plus local and real-HTTPS health
+  checks.
+- [x] Preserved the registered quick-tunnel hostname and restored the exact
+  external Host with a local controlled reverse proxy. This is controlled
+  real-HTTPS E2E evidence, not a claim that a quick tunnel is a production
+  deployment.
+- [x] Corrected the restricted-role start failure found by the real runtime:
+  `PostgresOAuthFirstLoginStore` currently attempts a direct insert into
+  `oauth_runtime_transactions`, while `a1_runtime` correctly has no sensitive
+  table privilege. Migration 027 now exposes only
+  `a1_create_oauth_runtime_transaction(...)` as a pinned-search-path,
+  role-guarded `SECURITY DEFINER` entrypoint; readiness proves its
+  ACL/owner/search-path/RLS boundary and the store retains vault-reference
+  cleanup on database failure. No direct sensitive-table grant was added.
+- [x] Corrected the public start browser contract found by the real runtime:
+  retain strict same-origin `Origin` validation when present, and separately
+  accept only a standard same-origin top-level document navigation when the
+  browser omits `Origin`; continue rejecting cross-site and malformed fetch
+  metadata. The implementation also rejects untrusted forwarded-host/client
+  headers before accepting the navigation fallback.
+- [x] Applied migration 027 to the disposable E2E database, rebuilt and
+  restarted the Linux API under restricted `a1_runtime`, and re-proved local
+  and controlled real-HTTPS health. Both providers return `302` for the strict
+  explicit-Origin start shape and for a standard same-origin top-level
+  navigation shape without exposing any authorization query value.
+- [x] Restricted-role database evidence is green: runtime has no direct
+  sensitive-table or sensitive-column insert privilege, has execute only on
+  the scoped migration-027 function, PUBLIC cannot execute it, its owner is
+  non-runtime and non-inheritable, its search path is exactly
+  `pg_catalog, public, pg_temp`, and the transaction table has enabled and
+  forced RLS.
+- [x] Re-ran all four packages in the main Go module and the separate Go
+  integration module. The first complete PostgreSQL lifecycle rerun correctly
+  caught that its disposable runtime role had not yet received migration-027
+  execute authority; the harness now grants only that scoped function, and the
+  full migrations-001-027 identity/OAuth lifecycle matrix passes under the
+  disposable `NOSUPERUSER NOBYPASSRLS NOINHERIT` role.
+- [x] Complete Google and GitHub first-login through the Chrome Extension,
+  verify state/nonce/PKCE, canonical-account/session-cookie/console handoff,
+  replay denial and failure atomicity with aggregate/provider-set evidence,
+  then run the complete changed-scope CL.
+- [ ] Commit and push only A1 after the final staged-diff audit.
+- [x] Diagnosed the Chrome Extension handoff through the plugin's read-only
+  checks without switching browser surfaces: Chrome is running; the
+  Extension is installed and enabled in its selected `Default` profile; and
+  the Native Messaging Host manifest, expected Extension origin, and Windows
+  registration all match. Opened a fresh Chrome window for that exact profile.
+  The diagnostic output contained no browser history, cookie, account, OAuth
+  parameter, mailbox, or secret value.
+- [x] The operator manually entered the controlled `/console` URL in that
+  newly opened `Default`-profile window because direct automation of the quick
+  tunnel is rejected by Chrome's safety boundary. The Extension now exposes
+  that tab for both providers in the same window; no standalone browser,
+  indirect navigation bridge, raw CDP, or secret-bearing URL capture is
+  permitted.
+- [x] The operator-opened controlled `/console` tab is now visible and
+  claimable through the Chrome Extension, and its DOM exposes exactly one
+  Google start link and one GitHub start link. Extension-triggered top-level
+  navigation is still blocked by Chrome, so provider entry must be clicked by
+  the operator in the same window; this is not being bypassed with another
+  browser surface.
+- [x] Tightened the repository-external nginx edge logging before further
+  callbacks. Its access log now contains only status, method, and path and
+  excludes query arguments, Referer, Cookie, full request, and client address;
+  the error threshold is `crit`. A safe trace of the blocked Google attempt
+  showed the start redirect and callback status without any OAuth parameter.
+- [x] Re-queried the E2E PostgreSQL database using aggregate/provider-set
+  output only after that blocked attempt. Principals, active credentials,
+  active/access-refresh sessions, completed first-login operations, and opaque
+  token references remain zero. The known six preflight transactions plus one
+  new Google start transaction are pending; no partial canonical mutation or
+  transaction consumption occurred.
+- [x] Expanded `docs/a1/oauth_production_deployment.md` with the migration-027
+  least-privilege/RLS readiness contract, the exact safe top-level navigation
+  fallback, and a provider-by-provider real-HTTPS release checklist. Re-ran
+  the focused Google/GitHub/OAuth/PostgreSQL/adversarial Python group:
+  `71 passed`.
+- [x] Captured a pre-E2E aggregate-only database baseline without identities
+  or digests: canonical principals, active credentials, active sessions,
+  completed first-login operations, and opaque token references are all zero.
+  Six pending runtime transactions are the known earlier start-preflight
+  baseline and will be excluded from final callback evidence.
+- [x] Re-ran the current-batch cross-language and release gates while waiting
+  for the operator-opened Extension tab: four Go packages passed, the Go
+  integration module passed, Python reported `2123 passed, 14 skipped`,
+  TypeScript reported `660 passed`, and Rust formatting/clippy/all-target
+  tests passed with `31 tests`. Restored all test-generated A2 calibration
+  fixture rewrites immediately afterward, leaving only A1-owned paths.
+- [x] Re-ran the full CL plan, hygiene, and commercial checks after the
+  deployment-document update. Hygiene has zero findings, commercial has zero
+  blockers/advisories, `gofmt -d` is clean, `git diff --check` is clean, both
+  local and controlled real-HTTPS health remain `200`, and the six runtime
+  containers remain healthy.
+- [x] The previously pending Extension handoff is resolved: the correctly
+  selected `Default`-profile window has an operator-entered controlled
+  `/console` tab visible to the Extension. No standalone Playwright, another
+  browser, raw CDP, or indirect navigation bridge was substituted.
+- [x] A real Google authorization round trip reached the controlled callback
+  and exposed an implementation incompatibility without any canonical/session
+  partial write: Google adds standard `iss`, `scope`, `authuser`, and `prompt`
+  callback parameters, while the old parser required exactly two query keys.
+  The parser now accepts only tightly validated, single-valued Google additions,
+  keeps GitHub `code`/`state`-only, rejects malformed/oversized/duplicate or
+  provider-crossed parameters, and bounds the raw query plus every accepted
+  value. No OAuth parameter value is retained in this log.
+- [x] Formatted the callback change and passed all four packages in the main Go
+  module, the separate Go integration module, and fresh restricted-role
+  PostgreSQL identity/OAuth lifecycle integrations against migrations 001-027.
+- [x] The fresh callback then exposed a second real-runtime incompatibility
+  after PostgreSQL had correctly marked the state consumed: Go retained
+  nanoseconds in the external Vault envelope while PostgreSQL `TIMESTAMPTZ`
+  readback retained microseconds, so strict binding validation failed before
+  the Vault transaction reference could be deleted. No canonical principal,
+  credential, session, first-login operation, or opaque token reference was
+  partially written.
+- [x] Canonicalized first-login transaction timestamps to UTC microsecond
+  precision at the PostgreSQL persistence boundary before generating the
+  Vault envelope, binding digest, or SQL parameters. Added both a
+  non-microsecond-aligned unit round trip and a live restricted-role
+  PostgreSQL round trip that prove the canonical transaction is consumed and
+  its Vault reference is deleted exactly once.
+- [x] Re-ran all four Go packages and both complete restricted-role PostgreSQL
+  integration suites after extending the disposable role with only the
+  already-required consume-function `EXECUTE`; the combined live matrix
+  passed against migrations 001-027.
+- [x] Rebuilt and safely replaced the restricted-role Linux API after the
+  callback and PostgreSQL timestamp fixes. Local API, local edge, and the
+  controlled real-HTTPS `/health` route all returned `200`; the API container
+  receives only opaque Google/GitHub credential references and no raw OAuth
+  Client Secret environment variable.
+- [x] Completed a fresh Google first-login through the Chrome Extension on the
+  controlled real-HTTPS domain. The safe edge trace was `302` start, `303`
+  callback, and `200 /console`; the callback consumed the one-use state,
+  completed PKCE exchange and Google nonce/OIDC validation, created one
+  canonical principal plus one Google credential, issued an access/refresh
+  session handoff, and completed the external Vault put/get/binding/delete
+  lifecycle. No OAuth query value, identity, cookie, or token was inspected or
+  retained.
+- [x] Completed a fresh GitHub first-login through the same Chrome Extension
+  tab and controlled real-HTTPS edge. The safe trace was again `302` start,
+  `303` callback, and `200 /console`; state and PKCE completed, the canonical
+  account/credential transaction committed, the access/refresh session handoff
+  reached the console, and the opaque Vault transaction was deleted. The two
+  provider identities remained two principals and two explicit credentials;
+  no implicit cross-provider merge occurred.
+- [x] Repeated Google and GitHub login through the Extension. Both returned the
+  same `302`/`303`/`200` handoff while principal and active-credential counts
+  remained `2` and `2`; active refresh-backed sessions increased to `4`,
+  completed operations reached `4`, and outcomes split into `account_created=2`
+  plus `account_reused=2`. Active opaque references remained one per provider,
+  while replaced provider references entered the controlled revocation outbox.
+- [x] Kept real-provider evidence separate from deterministic replay and
+  failure-injection evidence. The real callbacks prove provider exchange,
+  one-use state consumption, provider-specific nonce handling, session-cookie
+  handoff, and canonical reuse. Focused HTTP/PostgreSQL tests prove callback
+  replay returns `400` without canonical/secret-store calls, exact transaction
+  replay yields one canonical relation, verified-email conflicts roll back
+  every mutation, and provider/Vault/database/RLS failures return no receipt or
+  partial canonical state.
+- [x] Ran the final focused callback/store/coordinator tests, all four Go
+  packages, the standalone Go integration module, both complete
+  restricted-role PostgreSQL lifecycle suites, Python compileall plus
+  `2122 passed, 8 skipped`, release `33 passed`, TypeScript `660 passed`, and
+  Rust fmt/clippy/all-target tests (`31 tests`).
+- [x] Re-ran `cl_guard.py plan --full`, hygiene, and commercial. Hygiene has
+  zero findings and commercial has zero blockers/advisories. `gofmt -d`,
+  `git diff --check`, the exact 13-path A1 ownership allowlist, generated-
+  artifact gate, and changed-file secret gate are clean.
+- [x] Re-checked local API, local edge, and controlled real-HTTPS health:
+  all three return `200`. Container configuration contains all four opaque
+  OAuth credential references, no raw OAuth credential variable, and no
+  secret-like `NEXT_PUBLIC_*` variable.
+- [x] Fetched `origin` after the final test pass and confirmed local `HEAD`
+  and `origin/codex/a1-local-sdk-runner` still share the exact
+  `a7b0e0383e85` base with pre-commit divergence `0/0`.
+- [ ] Stage and review exactly the 13 A1-owned paths, commit the coherent
+  batch, push only `HEAD:codex/a1-local-sdk-runner`, fetch, and prove final
+  `0/0` parity.

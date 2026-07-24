@@ -73,11 +73,11 @@ func TestPostgresOAuthFirstLoginStorePersistsOnlyDigestAndOpaqueReference(t *tes
 	transaction := oauthFirstLoginStoreTestTransaction(now)
 	mock.ExpectBegin()
 	mock.ExpectExec("SELECT set_config").WithArgs(transaction.OrganizationID, transaction.ProjectID).WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectExec("INSERT INTO oauth_runtime_transactions").WithArgs(
+	mock.ExpectQuery("a1_create_oauth_runtime_transaction").WithArgs(
 		transaction.OrganizationID, transaction.ProjectID, transaction.Provider,
 		postgresOAuthDigest(transaction.StateHash), sqlmock.AnyArg(), vault.ref,
 		transaction.CreatedAt, transaction.ExpiresAt,
-	).WillReturnResult(sqlmock.NewResult(1, 1))
+	).WillReturnRows(sqlmock.NewRows([]string{"a1_create_oauth_runtime_transaction"}).AddRow(true))
 	mock.ExpectCommit()
 	if err := store.CreateOAuthFirstLoginTransaction(context.Background(), transaction); err != nil {
 		t.Fatal(err)
@@ -130,6 +130,76 @@ func TestPostgresOAuthFirstLoginStoreConsumesOneTimeBoundEnvelope(t *testing.T) 
 	}
 	if consumed != transaction || vault.deletes != 1 {
 		t.Fatalf("first-login transaction was not consumed exactly once: transaction=%#v deletes=%d", consumed, vault.deletes)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPostgresOAuthFirstLoginStoreCanonicalizesTimestampPrecisionBeforeVaultAndDatabasePersistence(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	createdAt := time.Date(2026, 7, 24, 2, 20, 0, 123456789, time.FixedZone("test-offset", 8*60*60))
+	transaction := oauthFirstLoginStoreTestTransaction(createdAt)
+	canonical := transaction
+	canonical.CreatedAt = transaction.CreatedAt.UTC().Truncate(time.Microsecond)
+	canonical.ExpiresAt = transaction.ExpiresAt.UTC().Truncate(time.Microsecond)
+	consumeAt := canonical.CreatedAt.Add(time.Minute)
+	vault := &oauthFirstLoginStoreVault{ref: "vault:oauth/first-login-transaction-timestamp-precision"}
+	store, err := NewPostgresOAuthFirstLoginStore(db, vault)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	mock.ExpectBegin()
+	mock.ExpectExec("SELECT set_config").
+		WithArgs(canonical.OrganizationID, canonical.ProjectID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery("a1_create_oauth_runtime_transaction").WithArgs(
+		canonical.OrganizationID, canonical.ProjectID, canonical.Provider,
+		postgresOAuthDigest(canonical.StateHash), sqlmock.AnyArg(), vault.ref,
+		canonical.CreatedAt, canonical.ExpiresAt,
+	).WillReturnRows(sqlmock.NewRows([]string{"a1_create_oauth_runtime_transaction"}).AddRow(true))
+	mock.ExpectCommit()
+	if err := store.CreateOAuthFirstLoginTransaction(context.Background(), transaction); err != nil {
+		t.Fatal(err)
+	}
+
+	var envelope oauthFirstLoginVaultEnvelope
+	if err := json.Unmarshal(vault.payload, &envelope); err != nil {
+		t.Fatal(err)
+	}
+	if envelope.Transaction == nil || *envelope.Transaction != canonical {
+		t.Fatalf("vault envelope did not use canonical PostgreSQL timestamp precision: %#v", envelope)
+	}
+	if vault.binding != oauthFirstLoginTransactionBinding(canonical) {
+		t.Fatal("vault binding was not derived from the canonical transaction")
+	}
+
+	mock.ExpectQuery("a1_consume_oauth_runtime_transaction").WithArgs(
+		canonical.Provider, postgresOAuthDigest(canonical.StateHash), consumeAt,
+	).WillReturnRows(
+		sqlmock.NewRows([]string{"transaction_ref", "expires_at", "status"}).
+			AddRow(vault.ref, canonical.ExpiresAt, "consumed"),
+	)
+	consumed, err := store.ConsumeOAuthFirstLoginTransaction(
+		context.Background(),
+		canonical.Provider,
+		canonical.StateHash,
+		consumeAt,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if consumed != canonical || vault.deletes != 1 {
+		t.Fatalf(
+			"canonical transaction was not consumed and deleted exactly once: transaction=%#v deletes=%d",
+			consumed,
+			vault.deletes,
+		)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)

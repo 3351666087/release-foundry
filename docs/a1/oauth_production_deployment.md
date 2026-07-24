@@ -137,6 +137,48 @@ construct the provider services. A disabled provider is not advertised as
 first-login-capable, while an enabled provider is reported as available only
 when its complete production graph is active.
 
+### PostgreSQL migration 027 runtime boundary
+
+Apply migrations through
+`027_a1_oauth_first_login_runtime_create.sql` before enabling either
+first-login provider. Migration 027 adds the only runtime-authorized creation
+entrypoint for the sensitive OAuth transaction table:
+
+```text
+a1_create_oauth_runtime_transaction(
+  UUID, UUID, TEXT, TEXT, TEXT, TEXT, TIMESTAMPTZ, TIMESTAMPTZ
+)
+```
+
+The production runtime role must be `NOSUPERUSER`, `NOBYPASSRLS`, and
+`NOINHERIT`. It receives `EXECUTE` on this function but no direct table or
+column privilege on `oauth_runtime_transactions`. `PUBLIC` must not have
+function, table, or column access. The transaction table must have both
+enabled and forced RLS. The function must remain `SECURITY DEFINER`, owned by
+a non-runtime role that the runtime cannot inherit, and must keep the exact
+`pg_catalog, public, pg_temp` search path. Production readiness checks all of
+these properties and fails startup if any property changes.
+
+Do not work around a readiness failure by granting direct
+`INSERT`/`SELECT`/`UPDATE`/`DELETE` access to the runtime. Repair the migration,
+function ACL, owner, role attributes, or RLS configuration instead.
+
+### Browser start navigation boundary
+
+The public provider start route accepts either:
+
+- a request with exactly one valid same-origin HTTPS `Origin`; or
+- a normal same-origin top-level document navigation that omits `Origin` but
+  supplies exact `Sec-Fetch-Site: same-origin`,
+  `Sec-Fetch-Mode: navigate`, `Sec-Fetch-Dest: document`, and a same-host
+  HTTPS `Referer`.
+
+The route rejects forwarded-host/client identity headers, cross-site fetch
+metadata, missing or duplicate required values, non-document requests, and
+malformed referrers. This navigation exception applies only to the public
+OAuth start route and its browser-intent issue step; it does not weaken email
+verification, explicit credential binding, or any other mutation route.
+
 ## Controlled local verification
 
 `https://localhost:4443` is for controlled development checks only. It must
@@ -151,3 +193,111 @@ HTTP status, safe account digest, capability status, replay denied, and
 session-handoff status. Do not record provider responses, raw email addresses,
 authorization codes, state/nonce/verifier values, access/refresh tokens,
 Client Secrets, cookies, or browser storage.
+
+For each provider, the real-HTTPS release gate must prove:
+
+1. the backend capability advertises first login only while the complete
+   provider/runtime graph is ready;
+2. the provider authorization request contains `state`, `nonce`,
+   `code_challenge`, and `code_challenge_method` without recording any value;
+3. the callback reaches the exact registered HTTPS URI and completes with an
+   empty-body `303 /console` handoff;
+4. the access and refresh cookies are issued with the production security
+   attributes while their values remain uninspected and unrecorded;
+5. one canonical account and one active provider credential exist in the
+   trusted tenant/project scope, using count/provider-set evidence only;
+6. the corresponding runtime transaction is consumed or cleared and no raw
+   provider material is present in PostgreSQL;
+7. replay is rejected and provider/Vault/database failures leave no partial
+   account, credential, session, or token-reference mutation.
+
+Google and GitHub must each pass this checklist independently. A successful
+Google flow is not evidence for GitHub, and a provider-console configuration
+screen is not evidence that the callback/session handoff works.
+
+## Controlled real-HTTPS release evidence (2026-07-24)
+
+The release exercise used the operator-controlled temporary HTTPS host
+`depending-while-munich-dare.trycloudflare.com`. This hostname is evidence for
+the dated controlled test only; it is not a permanent production endpoint and
+must not be copied into production configuration. The registered callback
+paths were:
+
+```text
+/v1/identity/oauth/google/callback
+/v1/identity/oauth/github/callback
+```
+
+Both provider applications were created or verified through the operator's
+Chrome Extension session. Their Client ID/Client Secret pairs were delivered
+to the backend as four opaque mTLS external-Vault references. The API
+container had no raw Google/GitHub OAuth credential environment variable and
+no `NEXT_PUBLIC_*` credential or secret. The provider start buttons were
+enabled from the validated runtime capability rather than a frontend
+hard-code.
+
+Google and GitHub independently completed the safe HTTP sequence:
+
+```text
+302 GET /v1/identity/oauth/<provider>/start
+303 GET /v1/identity/oauth/<provider>/callback
+200 GET /console
+```
+
+The Google round trip proved one-use state consumption, PKCE exchange,
+nonce/OIDC identity validation, canonical account creation, explicit Google
+credential attachment, access/refresh session-cookie handoff, and the external
+Vault transaction put/get/binding/delete lifecycle. The GitHub round trip
+proved the corresponding one-use state, PKCE, canonical-account,
+explicit-credential, session-handoff, and Vault lifecycle; GitHub's OAuth
+identity response is not treated as a Google-style OIDC ID-token nonce flow.
+No query value, provider subject, email address, account/credential/session ID,
+cookie, token, opaque reference, or digest was recorded.
+
+After both first logins, count/provider-set evidence was:
+
+```text
+principals=2
+active_credentials=2
+credential_providers=github:1,google:1
+active_sessions_with_refresh=2
+completed_first_login=2
+completed_created=2
+active_opaque_refs=2
+active_opaque_providers=github:1,google:1
+```
+
+The two independently authorized provider identities therefore remained
+separate canonical principals; the runtime did not infer an unsafe
+cross-provider merge. Explicit credential binding remains a separate
+authenticated operation.
+
+A second Extension login for each provider completed the same
+`302`/`303`/`200` handoff. Final aggregate evidence was:
+
+```text
+principals=2
+active_credentials=2
+credential_providers=github:1,google:1
+active_sessions_with_refresh=4
+completed_first_login=4
+account_created=2
+account_reused=2
+operation_providers=github:2,google:2
+active_opaque_refs=2
+revocation_pending_refs=2
+pending_revocations=2
+```
+
+This proves known-subject login reuses the canonical account and credential,
+creates a fresh session, keeps only the current provider token reference
+active, and sends replaced references to the controlled revocation outbox.
+
+Real provider callbacks are not replayed because doing so would require
+capturing secret-bearing callback queries. Replay and failure atomicity are
+instead release-gated by deterministic HTTP and restricted-role PostgreSQL
+tests: callback replay returns `400` before canonical mutation or secret
+storage; exact transaction replay returns one canonical relation;
+verified-email conflict rolls back all mutations; and transaction,
+provider/Vault, database, trusted-scope, and RLS failures return no receipt or
+partial canonical state.
