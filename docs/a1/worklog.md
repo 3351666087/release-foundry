@@ -3883,8 +3883,9 @@ corresponding command or audit is green.
 - [x] Verify implementation commit
   `0ce8252b18584d4c8f06962a8ed4facbe6c69cc5` is `0/0` against
   `origin/codex/a1-local-sdk-runner` and record the result here.
-- [ ] Commit and push the A1 worklog/TASKS completion checkpoint, fetch the
-  remote, and prove final `0/0` parity.
+- [x] Commit and push A1 worklog/TASKS checkpoint
+  `892553c85a16db5a265dd02a70275d6792fc7fdb`, fetch the remote, and prove
+  `0/0` parity. This checked state is the final docs-only closeout.
 
 July 24 final-CL evidence:
 
@@ -3909,6 +3910,9 @@ July 24 final-CL evidence:
 - The complete twelve-path coordinator batch was committed as
   `0ce8252b18584d4c8f06962a8ed4facbe6c69cc5`, pushed only to
   `origin/codex/a1-local-sdk-runner`, fetched back, and verified `0/0`.
+- The first A1 worklog/TASKS checkpoint was committed as
+  `892553c85a16db5a265dd02a70275d6792fc7fdb`, pushed to the same A1-only
+  remote branch, fetched back, and verified `0/0`.
 
 Coordinator-batch evidence:
 

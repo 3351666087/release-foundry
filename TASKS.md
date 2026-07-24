@@ -38,8 +38,9 @@ must not be included in A1 commits.
 - [x] Verify implementation commit
   `0ce8252b18584d4c8f06962a8ed4facbe6c69cc5` was pushed only to
   `origin/codex/a1-local-sdk-runner` and is exactly `0/0` ahead/behind.
-- [ ] Commit and push the A1 worklog/TASKS completion checkpoint, then fetch
-  the remote again and prove final `0/0` parity.
+- [x] Commit and push A1 worklog/TASKS checkpoint
+  `892553c85a16db5a265dd02a70275d6792fc7fdb`, fetch the remote, and prove
+  `0/0` parity. This checked state is the final docs-only closeout.
 
 ## A1 - registration and login closure after this push
 
