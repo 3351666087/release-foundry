@@ -916,6 +916,44 @@ func TestProductionIdentityReadinessRequiresSessionAndDeliveryReplacementContrac
 	}
 }
 
+func TestProductionIdentityReadinessRequiresOAuthFirstLoginAuthority(t *testing.T) {
+	arrayAuthority := "public.a1_complete_oauth_first_login_with_refresh(" +
+		"uuid,uuid,text,text[],text[],text,text,text,text,text,text," +
+		"timestamp with time zone,timestamp with time zone,text,text,text,jsonb)"
+	scalarCompatibility := "public.a1_complete_oauth_first_login_with_refresh(" +
+		"uuid,uuid,text,text,text,text,text,text,text,text,text," +
+		"timestamp with time zone,timestamp with time zone,text,text,text,jsonb)"
+
+	for _, required := range []string{
+		"to_regclass('public.oauth_first_login_operations') IS NOT NULL",
+		"to_regprocedure(\n     '" + arrayAuthority + "'\n   ) IS NOT NULL",
+		"has_function_privilege(\n      current_user,\n      '" + arrayAuthority + "'",
+		"NOT has_function_privilege(\n      'public',\n      '" + arrayAuthority + "'",
+		"NOT has_function_privilege(\n      'public',\n      '" + scalarCompatibility + "'",
+		"NOT has_table_privilege(\n      current_user,\n      'public.oauth_first_login_operations'",
+		"NOT has_any_column_privilege(\n      current_user,\n      'public.oauth_first_login_operations'",
+		"NOT has_table_privilege(\n      'public',\n      'public.oauth_first_login_operations'",
+		"NOT has_any_column_privilege(\n      'public',\n      'public.oauth_first_login_operations'",
+		"c.relrowsecurity AND c.relforcerowsecurity",
+		"c.oid = to_regclass('public.oauth_first_login_operations')",
+		"p.oid = to_regprocedure(\n         '" + arrayAuthority + "'",
+		"p.prosecdef",
+		"pg_get_userbyid(p.proowner) <> current_user",
+		"NOT pg_catalog.pg_has_role(current_user, p.proowner, 'MEMBER')",
+		"search_path=pg_catalog,public,pg_temp",
+	} {
+		if !strings.Contains(productionIdentityReadinessQuery, required) {
+			t.Fatalf("OAuth first-login readiness omitted %s", required)
+		}
+	}
+	if strings.Contains(
+		productionIdentityReadinessQuery,
+		"has_function_privilege(\n      current_user,\n      '"+scalarCompatibility+"'",
+	) {
+		t.Fatal("production readiness must not depend on the scalar compatibility wrapper")
+	}
+}
+
 func TestProductionIdentityReadinessEnforcesSecurityAuthorityLeastPrivilege(t *testing.T) {
 	for _, required := range []string{
 		"NOT has_function_privilege",

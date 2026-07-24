@@ -125,6 +125,21 @@ test("TS hosted client consumes Go route/scope manifest public-safely", async ()
   assert.deepEqual(routeScopes.get("GET /v1/projects/{project_id}/worker-jobs"), ["worker_job:read"]);
   assert.deepEqual(routeScopes.get("GET /v1/projects/{project_id}/runs/{run_id}/release-evidence"), ["evidence:read"]);
   assert.equal(consumption.unsupported_go_routes.includes("POST /v1/projects/{project_id}/runs/submit"), true);
+  assert.equal(consumption.unsupported_go_routes.includes("GET /v1/identity/oauth/github/start"), true);
+  assert.equal(consumption.unsupported_go_routes.includes("GET /v1/identity/oauth/github/callback"), true);
+  assert.equal(consumption.unsupported_go_routes.includes("GET /v1/identity/oauth/google/start"), true);
+  assert.equal(consumption.unsupported_go_routes.includes("GET /v1/identity/oauth/google/callback"), true);
+  for (const route of [
+    "GET /v1/identity/oauth/github/start",
+    "GET /v1/identity/oauth/github/callback",
+    "GET /v1/identity/oauth/google/start",
+    "GET /v1/identity/oauth/google/callback",
+  ]) {
+    const gap = consumption.unsupported_go_route_gaps.find((entry) => entry.route === route);
+    assert.equal(typeof gap?.reason, "string");
+    assert.equal(typeof gap?.consumer_action, "string");
+    assert.equal(Object.hasOwn(gap ?? {}, "replacement_route"), false);
+  }
   assert.equal(consumption.route_scope_docs, null);
 });
 

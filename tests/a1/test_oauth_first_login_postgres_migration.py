@@ -30,13 +30,26 @@ def _normalized() -> str:
     return re.sub(r"\s+", " ", _sql()).lower()
 
 
-def _function_body() -> str:
+def _array_authority_body() -> str:
     sql = _normalized()
-    start = sql.index(
+    marker = (
         "create or replace function "
         "a1_complete_oauth_first_login_with_refresh("
     )
-    return sql[start : sql.index("revoke all on function", start)]
+    start = sql.index(marker)
+    end = sql.index(marker, start + len(marker))
+    return sql[start:end]
+
+
+def _scalar_wrapper_body() -> str:
+    sql = _normalized()
+    marker = (
+        "create or replace function "
+        "a1_complete_oauth_first_login_with_refresh("
+    )
+    first = sql.index(marker)
+    start = sql.index(marker, first + len(marker))
+    return sql[start : sql.index("alter table oauth_first_login_operations", start)]
 
 
 def _operation_table() -> str:
@@ -193,13 +206,45 @@ def _complete_first_login(
     *,
     provider: str = "google",
     email_digest: str | None = None,
+    subject_digests: list[str] | None = None,
+    email_digests: list[str] | None = None,
     runtime_scope: dict[str, str] | None = None,
+    scalar: bool = False,
     user: str = RUNTIME_ROLE,
     check: bool = True,
 ):
     selected_scope = runtime_scope or scope
     email = material["email"] if email_digest is None else email_digest
-    email_sql = "NULL" if email == "" else f"'{email}'"
+    selected_subjects = (
+        [material["subject"]]
+        if subject_digests is None
+        else subject_digests
+    )
+    selected_emails = (
+        email_digests
+        if email_digests is not None
+        else ([] if email == "" else [email])
+    )
+    if scalar:
+        subject_sql = f"'{selected_subjects[0]}'"
+        email_sql = (
+            "NULL" if not selected_emails else f"'{selected_emails[0]}'"
+        )
+    else:
+        subject_sql = (
+            "ARRAY["
+            + ",".join(f"'{digest}'" for digest in selected_subjects)
+            + "]::TEXT[]"
+        )
+        email_sql = (
+            "ARRAY[]::TEXT[]"
+            if not selected_emails
+            else (
+                "ARRAY["
+                + ",".join(f"'{digest}'" for digest in selected_emails)
+                + "]::TEXT[]"
+            )
+        )
     return _psql(
         database,
         f"""
@@ -211,12 +256,18 @@ def _complete_first_login(
             credential_id::TEXT,
             connection_id::TEXT,
             token_ref_id::TEXT,
-            created
+            created,
+            organization_id::TEXT,
+            project_id::TEXT,
+            provider_name,
+            access_expires_at::TEXT,
+            refresh_expires_at::TEXT,
+            completed_at::TEXT
           FROM a1_complete_oauth_first_login_with_refresh(
             '{scope['organization']}'::UUID,
             '{scope['project']}'::UUID,
             '{provider}',
-            '{material['subject']}',
+            {subject_sql},
             {email_sql},
             '{material['opaque_ref']}',
             '{material['opaque_ref_digest']}',
@@ -247,6 +298,12 @@ def _parse_result(result: subprocess.CompletedProcess[str]) -> dict[str, str]:
         connection,
         token_ref,
         created,
+        organization,
+        project,
+        provider,
+        access_expires_at,
+        refresh_expires_at,
+        completed_at,
     ) = rows[0].split("|")
     return {
         "session": session,
@@ -255,6 +312,12 @@ def _parse_result(result: subprocess.CompletedProcess[str]) -> dict[str, str]:
         "connection": connection,
         "token_ref": token_ref,
         "created": created,
+        "organization": organization,
+        "project": project,
+        "provider": provider,
+        "access_expires_at": access_expires_at,
+        "refresh_expires_at": refresh_expires_at,
+        "completed_at": completed_at,
     }
 
 
@@ -272,12 +335,12 @@ def test_migration_is_atomic_additive_and_follows_email_handoff() -> None:
 
 
 def test_public_authority_signature_is_digest_and_reference_only() -> None:
-    function = _function_body()
+    function = _array_authority_body()
     signature = (
         "create or replace function "
         "a1_complete_oauth_first_login_with_refresh( "
         "p_organization_id uuid, p_project_id uuid, p_provider text, "
-        "p_subject_digest text, p_email_digest text, p_opaque_ref text, "
+        "p_subject_digests text[], p_email_digests text[], p_opaque_ref text, "
         "p_opaque_ref_digest text, p_binding_digest text, "
         "p_session_digest text, p_refresh_digest text, "
         "p_rotation_family_digest text, p_access_expires_at timestamptz, "
@@ -289,7 +352,9 @@ def test_public_authority_signature_is_digest_and_reference_only() -> None:
     assert (
         "returns table ( session_id uuid, principal_id uuid, "
         "credential_id uuid, connection_id uuid, token_ref_id uuid, "
-        "created boolean )"
+        "created boolean, organization_id uuid, project_id uuid, "
+        "provider_name text, access_expires_at timestamptz, "
+        "refresh_expires_at timestamptz, completed_at timestamptz )"
     ) in function
 
     forbidden_parameters = (
@@ -312,8 +377,6 @@ def test_public_authority_signature_is_digest_and_reference_only() -> None:
         assert fragment not in function
 
     for parameter in (
-        "p_subject_digest",
-        "p_email_digest",
         "p_opaque_ref_digest",
         "p_binding_digest",
         "p_session_digest",
@@ -323,9 +386,43 @@ def test_public_authority_signature_is_digest_and_reference_only() -> None:
         "p_request_digest",
     ):
         assert f"a1_identity_digest_valid({parameter})" in function
+    assert "cardinality(p_subject_digests) not between 1 and 16" in function
+    assert "cardinality(p_email_digests) not between 0 and 16" in function
+    assert "array_position(p_subject_digests, null) is not null" in function
+    assert "array_position(p_email_digests, null) is not null" in function
+    assert "from unnest(p_subject_digests)" in function
+    assert "from unnest(p_email_digests)" in function
+    assert "not a1_identity_digest_valid(subject_candidate.digest)" in function
+    assert "not a1_identity_digest_valid(email_candidate.digest)" in function
+    assert "count(distinct subject_candidate.digest)" in function
+    assert "count(distinct email_candidate.digest)" in function
     assert "a1_oauth_reference_only(p_opaque_ref)" in function
     assert "a1_identity_public_metadata(p_metadata)" in function
     assert "a1_oauth_public_metadata(p_metadata)" in function
+
+
+def test_scalar_compatibility_wrapper_is_thin_and_non_authoritative() -> None:
+    wrapper = _scalar_wrapper_body()
+    assert (
+        "p_subject_digest text, p_email_digest text, p_opaque_ref text"
+        in wrapper
+    )
+    assert "language sql security definer" in wrapper
+    assert "set search_path = pg_catalog, public, pg_temp" in wrapper
+    assert "array[p_subject_digest]::text[]" in wrapper
+    assert "array[p_email_digest]::text[]" in wrapper
+    assert "array[]::text[]" in wrapper
+    assert (
+        wrapper.count("a1_complete_oauth_first_login_with_refresh(") == 2
+    )
+    for mutation in (
+        "insert into ",
+        "update ",
+        "delete from ",
+        "a1_issue_identity_session_with_refresh(",
+        "a1_identity_write_event(",
+    ):
+        assert mutation not in wrapper
 
 
 def test_operation_ledger_is_scoped_digest_only_and_replay_safe() -> None:
@@ -368,19 +465,26 @@ def test_operation_ledger_is_scoped_digest_only_and_replay_safe() -> None:
     for fragment in forbidden_columns:
         assert fragment not in f" {table} "
 
-    function = _function_body()
-    assert "on conflict (" in function
+    function = _array_authority_body()
+    assert (
+        "on conflict on constraint "
+        "oauth_first_login_operations_idempotency_key"
+    ) in function
     assert "for update" in function
     assert "operation.request_digest <> p_request_digest" in function
-    assert "operation.subject_digest <> p_subject_digest" in function
+    assert "operation.subject_digest <> v_active_subject_digest" in function
     assert "if operation.status = 'completed' then" in function
     assert "return query select" in function
+    assert "session_row.organization_id" in function
+    assert "session_row.project_id" in function
+    assert "session_row.expires_at" in function
+    assert "session_row.refresh_expires_at" in function
     assert "raise exception 'idempotency_conflict'" in function
 
 
 def test_authority_is_fixed_search_path_scope_bound_and_minimally_granted() -> None:
     sql = _normalized()
-    function = _function_body()
+    function = _array_authority_body()
     assert "language plpgsql security definer" in function
     assert "set search_path = pg_catalog, public, pg_temp" in function
     assert "a1_assert_role_nobypassrls(session_user)" in function
@@ -391,28 +495,33 @@ def test_authority_is_fixed_search_path_scope_bound_and_minimally_granted() -> N
     assert "p_provider not in ('google', 'github')" in function
     assert "'production'" in function
 
-    signature = (
+    scalar_signature = (
         "uuid,uuid,text,text,text,text,text,text,text,text,text,"
         "timestamptz,timestamptz,text,text,text,jsonb"
     )
+    array_signature = (
+        "uuid,uuid,text,text[],text[],text,text,text,text,text,text,"
+        "timestamptz,timestamptz,text,text,text,jsonb"
+    )
     compact = re.sub(r"\s+", "", sql)
-    assert (
-        "revoke all on function "
-        "a1_complete_oauth_first_login_with_refresh("
-        f"{signature}) from public;"
-    ).replace(" ", "") in compact
-    assert (
-        "grant execute on function "
-        "a1_complete_oauth_first_login_with_refresh("
-        f"{signature}) to a1_runtime;"
-    ).replace(" ", "") in compact
+    for signature in (array_signature, scalar_signature):
+        assert (
+            "revoke all on function "
+            "a1_complete_oauth_first_login_with_refresh("
+            f"{signature}) from public;"
+        ).replace(" ", "") in compact
+        assert (
+            "grant execute on function "
+            "a1_complete_oauth_first_login_with_refresh("
+            f"{signature}) to a1_runtime;"
+        ).replace(" ", "") in compact
     assert "grant insert on identity_principals to a1_runtime" not in sql
     assert "grant update on identity_credentials to a1_runtime" not in sql
     assert "grant insert on oauth_token_opaque_refs to a1_runtime" not in sql
 
 
 def test_unknown_subject_creation_and_known_subject_login_are_separate() -> None:
-    function = _function_body()
+    function = _array_authority_body()
     lookup = function.index("from identity_credentials as credential_row")
     known = function.index("if found then", lookup)
     unknown = function.index("else", known)
@@ -422,7 +531,10 @@ def test_unknown_subject_creation_and_known_subject_login_are_separate() -> None
 
     assert "pg_advisory_xact_lock(" in function[:lookup]
     assert "p_provider" in function[:lookup]
-    assert "p_subject_digest" in function[:lookup]
+    assert "p_subject_digests" in function[:lookup]
+    assert "subject_digest = any(p_subject_digests)" in function
+    assert "array_position( p_subject_digests" in function
+    assert "oauth subject digest candidates are ambiguous" in function
     assert "provider_environment = 'production'" in function[lookup:known]
     assert "for update" in function[lookup:known]
 
@@ -437,6 +549,7 @@ def test_unknown_subject_creation_and_known_subject_login_are_separate() -> None
     assert "insert into identity_organization_memberships" not in known_branch
     assert "insert into identity_project_memberships" not in known_branch
     assert "v_created := false" in known_branch
+    assert "set subject_digest = v_active_subject_digest" in known_branch
 
     assert "insert into identity_principals" in unknown_branch
     assert "insert into identity_credentials" in unknown_branch
@@ -446,17 +559,18 @@ def test_unknown_subject_creation_and_known_subject_login_are_separate() -> None
 
 
 def test_verified_email_is_conflict_evidence_never_an_account_merge_key() -> None:
-    function = _function_body()
+    function = _array_authority_body()
     assert "from identity_account_emails" in function
-    assert "normalized_email_digest = p_email_digest" in function
+    assert "normalized_email_digest = any(p_email_digests)" in function
     assert "principal_id = v_principal_id" in function
     assert function.count("for update") >= 4
     assert "raise exception 'canonical_email_conflict'" in function
     assert "insert into identity_account_emails" in function
     assert "insert into identity_account_security" in function
+    assert "normalized_email_digest = excluded.normalized_email_digest" in function
     assert "a1_merge_identity_accounts" not in function
     assert "merged_into_principal_id" not in function
-    assert "where normalized_email_digest = p_email_digest" not in (
+    assert "where normalized_email_digest = any(p_email_digests)" not in (
         function[
             : function.index("from identity_credentials as credential_row")
         ]
@@ -464,7 +578,7 @@ def test_verified_email_is_conflict_evidence_never_an_account_merge_key() -> Non
 
 
 def test_session_connection_and_audit_complete_inside_one_authority() -> None:
-    function = _function_body()
+    function = _array_authority_body()
     principal = function.index("insert into identity_principals")
     credential = function.index("insert into identity_credentials")
     org_membership = function.index(
@@ -488,12 +602,12 @@ def test_session_connection_and_audit_complete_inside_one_authority() -> None:
     assert "p_refresh_digest" in function
     assert "p_rotation_family_digest" in function
     assert "account_id" in function
-    assert "p_subject_digest" in function
+    assert "p_subject_digests" in function
     assert "provider_login" in function
     assert "'[redacted]'" in function
     assert "p_opaque_ref" not in function[audit:completion]
-    assert "p_email_digest" not in function[audit:completion]
-    assert "p_subject_digest" not in function[audit:completion]
+    assert "p_email_digests" not in function[audit:completion]
+    assert "p_subject_digests" not in function[audit:completion]
 
 
 def test_live_unknown_subject_replay_and_known_subject_login(
@@ -509,6 +623,12 @@ def test_live_unknown_subject_replay_and_known_subject_login(
         _complete_first_login(database, scope, first_material)
     )
     assert first["created"] == "t"
+    assert first["organization"] == scope["organization"]
+    assert first["project"] == scope["project"]
+    assert first["provider"] == "google"
+    assert first["access_expires_at"]
+    assert first["refresh_expires_at"]
+    assert first["completed_at"]
 
     persisted = _rows(
         _psql(
@@ -614,6 +734,199 @@ def test_live_unknown_subject_replay_and_known_subject_login(
         )
     )
     assert stable_counts == ["1|1|1|1|2|1|1|1"]
+
+
+def test_live_scalar_wrapper_delegates_to_array_authority(
+    oauth_first_login_database: str,
+) -> None:
+    database = oauth_first_login_database
+    scope = _seed_scope(database, "scalar-wrapper")
+    material = _first_login_material("scalar-wrapper")
+
+    completed = _parse_result(
+        _complete_first_login(
+            database,
+            scope,
+            material,
+            provider="github",
+            scalar=True,
+        )
+    )
+    assert completed["created"] == "t"
+    assert completed["organization"] == scope["organization"]
+    assert completed["project"] == scope["project"]
+    assert completed["provider"] == "github"
+
+    persisted = _rows(
+        _psql(
+            database,
+            f"""
+              SELECT
+                (SELECT count(*) FROM identity_credentials
+                  WHERE id = '{completed['credential']}'
+                    AND provider = 'github'
+                    AND subject_digest = '{material['subject']}'),
+                (SELECT count(*) FROM identity_sessions
+                  WHERE id = '{completed['session']}'
+                    AND organization_id = '{scope['organization']}'
+                    AND project_id = '{scope['project']}'),
+                (SELECT count(*) FROM oauth_first_login_operations
+                  WHERE session_id = '{completed['session']}'
+                    AND status = 'completed');
+            """,
+        )
+    )
+    assert persisted == ["1|1|1"]
+
+
+def test_live_lookup_key_rotation_reuses_and_upgrades_canonical_account(
+    oauth_first_login_database: str,
+) -> None:
+    database = oauth_first_login_database
+    scope = _seed_scope(database, "lookup-key-rotation")
+    old_material = _first_login_material("lookup-key-rotation-old")
+    original = _parse_result(
+        _complete_first_login(database, scope, old_material)
+    )
+
+    rotated_material = _first_login_material("lookup-key-rotation-active")
+    rotated = _parse_result(
+        _complete_first_login(
+            database,
+            scope,
+            rotated_material,
+            subject_digests=[
+                rotated_material["subject"],
+                old_material["subject"],
+            ],
+            email_digests=[
+                rotated_material["email"],
+                old_material["email"],
+            ],
+        )
+    )
+    assert rotated["created"] == "f"
+    assert rotated["principal"] == original["principal"]
+    assert rotated["credential"] == original["credential"]
+    assert rotated["connection"] == original["connection"]
+    assert rotated["session"] != original["session"]
+    assert rotated["token_ref"] != original["token_ref"]
+
+    upgraded = _rows(
+        _psql(
+            database,
+            f"""
+              SELECT
+                (SELECT count(*) FROM identity_principals
+                  WHERE id = '{original['principal']}'),
+                (SELECT count(*) FROM identity_credentials
+                  WHERE id = '{original['credential']}'
+                    AND principal_id = '{original['principal']}'
+                    AND subject_digest = '{rotated_material['subject']}'),
+                (SELECT count(*) FROM identity_credentials
+                  WHERE provider = 'google'
+                    AND subject_digest IN (
+                      '{old_material['subject']}',
+                      '{rotated_material['subject']}'
+                    )),
+                (SELECT count(*) FROM identity_account_emails
+                  WHERE principal_id = '{original['principal']}'
+                    AND normalized_email_digest =
+                          '{rotated_material['email']}'),
+                (SELECT count(*) FROM identity_account_emails
+                  WHERE normalized_email_digest = '{old_material['email']}'),
+                (SELECT count(*) FROM oauth_account_connections
+                  WHERE id = '{original['connection']}'
+                    AND principal_id = '{original['principal']}'
+                    AND credential_id = '{original['credential']}'
+                    AND account_id = '{rotated_material['subject']}'
+                    AND provider_subject_digest =
+                          '{rotated_material['subject']}'
+                    AND email_digest = '{rotated_material['email']}'),
+                (SELECT count(*) FROM identity_sessions
+                  WHERE principal_id = '{original['principal']}'
+                    AND organization_id = '{scope['organization']}'
+                    AND project_id = '{scope['project']}');
+            """,
+        )
+    )
+    assert upgraded == ["1|1|1|1|0|1|2"]
+
+
+def test_live_digest_candidate_ambiguity_rolls_back(
+    oauth_first_login_database: str,
+) -> None:
+    database = oauth_first_login_database
+    scope = _seed_scope(database, "candidate-ambiguity")
+    first_material = _first_login_material("candidate-ambiguity-first")
+    second_material = _first_login_material("candidate-ambiguity-second")
+    first = _parse_result(
+        _complete_first_login(
+            database,
+            scope,
+            first_material,
+            email_digests=[],
+        )
+    )
+    second = _parse_result(
+        _complete_first_login(
+            database,
+            scope,
+            second_material,
+            email_digests=[],
+        )
+    )
+    assert first["principal"] != second["principal"]
+
+    attempt = _first_login_material("candidate-ambiguity-attempt")
+    before = _rows(
+        _psql(
+            database,
+            f"""
+              SELECT
+                (SELECT count(*) FROM identity_principals),
+                (SELECT count(*) FROM identity_credentials),
+                (SELECT count(*) FROM identity_sessions),
+                (SELECT count(*) FROM oauth_first_login_operations
+                  WHERE idempotency_digest = '{attempt['idempotency']}');
+            """,
+        )
+    )
+    rejected = _complete_first_login(
+        database,
+        scope,
+        attempt,
+        subject_digests=[
+            attempt["subject"],
+            first_material["subject"],
+            second_material["subject"],
+        ],
+        email_digests=[],
+        check=False,
+    )
+    assert rejected.returncode != 0
+    assert "digest candidates are ambiguous" in rejected.stderr.lower()
+    for digest in (
+        attempt["subject"],
+        first_material["subject"],
+        second_material["subject"],
+    ):
+        assert digest not in rejected.stderr
+
+    after = _rows(
+        _psql(
+            database,
+            f"""
+              SELECT
+                (SELECT count(*) FROM identity_principals),
+                (SELECT count(*) FROM identity_credentials),
+                (SELECT count(*) FROM identity_sessions),
+                (SELECT count(*) FROM oauth_first_login_operations
+                  WHERE idempotency_digest = '{attempt['idempotency']}');
+            """,
+        )
+    )
+    assert after == before
 
 
 def test_live_known_subject_requires_active_trusted_memberships(
@@ -981,6 +1294,7 @@ def test_live_acl_and_direct_table_access_are_least_privilege(
             database,
             """
               SELECT
+                pg_get_function_identity_arguments(function_row.oid),
                 has_function_privilege(
                   'a1_runtime',
                   function_row.oid,
@@ -997,11 +1311,15 @@ def test_live_acl_and_direct_table_access_are_least_privilege(
                 ON namespace_row.oid = function_row.pronamespace
              WHERE namespace_row.nspname = 'public'
                AND function_row.proname =
-                     'a1_complete_oauth_first_login_with_refresh';
+                     'a1_complete_oauth_first_login_with_refresh'
+             ORDER BY pg_get_function_identity_arguments(function_row.oid);
             """,
         )
     )
-    assert acl == ["t|t"]
+    assert len(acl) == 2
+    assert all(row.endswith("|t|t") for row in acl)
+    assert any("p_subject_digests text[]" in row for row in acl)
+    assert any("p_subject_digest text" in row for row in acl)
 
     scope = _seed_scope(database, "direct-access")
     direct_read = _psql(
