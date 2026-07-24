@@ -111,6 +111,9 @@ func identityHTTPServerOptions(
 		IdentityVerificationResponsePolicy: runtime.verificationResponsePolicy,
 		IdentitySessionReceiptTransport:    runtime.sessionReceiptTransport,
 	}
+	if intentTransport, ok := runtime.sessionReceiptTransport.(ashrclone.IdentityBrowserVerificationIntentTransport); ok {
+		options.IdentityBrowserVerificationIntents = intentTransport
+	}
 	if runtime.postgres != nil {
 		options.UnifiedIdentityStore = runtime.postgres
 		options.IdentitySecurity = runtime.postgres

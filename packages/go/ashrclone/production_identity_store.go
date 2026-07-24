@@ -115,11 +115,14 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
    AND to_regprocedure(
      'public.a1_revoke_all_identity_sessions(uuid,uuid,uuid,text,boolean,integer,text,text,text)'
    ) IS NOT NULL
-   AND to_regprocedure(
-     'public.a1_login_with_verified_identity_with_refresh(uuid,uuid,text,text,text,text,timestamp with time zone,timestamp with time zone,text,text,text,jsonb)'
-   ) IS NOT NULL
-   AND to_regprocedure(
-     'public.a1_recover_verified_identity_with_refresh(uuid,uuid,text,text,text,text,timestamp with time zone,timestamp with time zone,text,text,text,jsonb)'
+    AND to_regprocedure(
+      'public.a1_register_with_verified_identity_with_refresh(uuid,uuid,text,text,text,text,timestamp with time zone,timestamp with time zone,text,text,text,text,jsonb)'
+    ) IS NOT NULL
+    AND to_regprocedure(
+      'public.a1_login_with_verified_identity_with_refresh_result(uuid,uuid,text,text,text,text,timestamp with time zone,timestamp with time zone,text,text,text,jsonb)'
+    ) IS NOT NULL
+    AND to_regprocedure(
+      'public.a1_recover_verified_identity_with_refresh_result(uuid,uuid,text,text,text,text,timestamp with time zone,timestamp with time zone,text,text,text,jsonb)'
    ) IS NOT NULL
    AND to_regprocedure(
      'public.a1_claim_identity_delivery_outbox(uuid,uuid,text,integer,bigint,timestamp with time zone)'
@@ -226,7 +229,32 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
      current_user,
      'public.a1_bind_verified_identity_credential_authorized(uuid,uuid,text,uuid,text,text,text,text,text,text,jsonb)',
      'EXECUTE'
-   )
+    )
+    AND has_function_privilege(
+      current_user,
+      'public.a1_register_with_verified_identity_with_refresh(uuid,uuid,text,text,text,text,timestamp with time zone,timestamp with time zone,text,text,text,text,jsonb)',
+      'EXECUTE'
+    )
+    AND has_function_privilege(
+      current_user,
+      'public.a1_login_with_verified_identity_with_refresh_result(uuid,uuid,text,text,text,text,timestamp with time zone,timestamp with time zone,text,text,text,jsonb)',
+      'EXECUTE'
+    )
+    AND has_function_privilege(
+      current_user,
+      'public.a1_recover_verified_identity_with_refresh_result(uuid,uuid,text,text,text,text,timestamp with time zone,timestamp with time zone,text,text,text,jsonb)',
+      'EXECUTE'
+    )
+    AND NOT has_function_privilege(
+      current_user,
+      'public.a1_login_with_verified_identity_with_refresh(uuid,uuid,text,text,text,text,timestamp with time zone,timestamp with time zone,text,text,text,jsonb)',
+      'EXECUTE'
+    )
+    AND NOT has_function_privilege(
+      current_user,
+      'public.a1_recover_verified_identity_with_refresh(uuid,uuid,text,text,text,text,timestamp with time zone,timestamp with time zone,text,text,text,jsonb)',
+      'EXECUTE'
+    )
    AND NOT has_function_privilege(
      current_user,
      'public.a1_bind_verified_identity_credential(uuid,uuid,text,uuid,text,text,text,jsonb)',
@@ -262,11 +290,42 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
      'public.a1_purge_identity_credential_link_replays(timestamp with time zone,integer,text,text,text,text,timestamp with time zone)',
      'EXECUTE'
    )
-   AND NOT has_table_privilege(
-     current_user,
-     'public.identity_lifecycle_receipts',
-     'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
-   )
+    AND NOT has_table_privilege(
+      current_user,
+      'public.identity_lifecycle_receipts',
+      'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+    )
+    AND NOT EXISTS (
+      SELECT 1
+        FROM unnest(ARRAY[
+          'public.identity_verification_cooldowns'::regclass,
+          'public.identity_verification_challenges'::regclass,
+          'public.identity_verification_receipts'::regclass,
+          'public.identity_verification_delivery_outbox'::regclass,
+          'public.identity_verification_abuse_budgets'::regclass,
+          'public.identity_verification_audit_events'::regclass
+        ]) AS verification_table(table_oid)
+       WHERE has_table_privilege(
+               current_user,
+               verification_table.table_oid,
+               'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+             )
+          OR has_table_privilege(
+               'public',
+               verification_table.table_oid,
+               'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+             )
+          OR has_any_column_privilege(
+               current_user,
+               verification_table.table_oid,
+               'SELECT,INSERT,UPDATE,REFERENCES'
+             )
+          OR has_any_column_privilege(
+               'public',
+               verification_table.table_oid,
+               'SELECT,INSERT,UPDATE,REFERENCES'
+             )
+    )
    AND NOT has_table_privilege(
      current_user,
      'public.identity_credential_link_replay_purge_audit',
@@ -460,8 +519,8 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
           'identity_security_mutation_idempotency'
         )
    )
-   AND (
-     SELECT count(*) = 5
+    AND (
+      SELECT count(*) = 5
        FROM pg_catalog.pg_proc p
       WHERE p.oid IN (
         to_regprocedure(
@@ -487,7 +546,31 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
            WHERE regexp_replace(setting, '\s', '', 'g') =
              'search_path=pg_catalog,public,pg_temp'
         )
-   )
+    )
+    AND (
+      SELECT count(*) = 3
+        FROM pg_catalog.pg_proc p
+       WHERE p.oid IN (
+         to_regprocedure(
+           'public.a1_register_with_verified_identity_with_refresh(uuid,uuid,text,text,text,text,timestamp with time zone,timestamp with time zone,text,text,text,text,jsonb)'
+         ),
+         to_regprocedure(
+           'public.a1_login_with_verified_identity_with_refresh_result(uuid,uuid,text,text,text,text,timestamp with time zone,timestamp with time zone,text,text,text,jsonb)'
+         ),
+         to_regprocedure(
+           'public.a1_recover_verified_identity_with_refresh_result(uuid,uuid,text,text,text,text,timestamp with time zone,timestamp with time zone,text,text,text,jsonb)'
+         )
+       )
+         AND p.prosecdef
+         AND pg_catalog.pg_get_userbyid(p.proowner) <> current_user
+         AND NOT pg_catalog.pg_has_role(current_user, p.proowner, 'MEMBER')
+         AND EXISTS (
+           SELECT 1
+             FROM unnest(COALESCE(p.proconfig, ARRAY[]::text[])) setting
+            WHERE regexp_replace(setting, '\s', '', 'g') =
+              'search_path=pg_catalog,public,pg_temp'
+         )
+    )
 `
 
 type ProductionIdentityStore struct {
@@ -1308,7 +1391,7 @@ func (store *ProductionIdentityStore) Ready(ctx context.Context) error {
 		return fmt.Errorf("verify production identity schema: %w", err)
 	}
 	if !ready {
-		return fmt.Errorf("production identity PostgreSQL schema is incomplete; migrations through 024 credential-link replay retention are required")
+		return fmt.Errorf("production identity PostgreSQL schema is incomplete; migrations through 025 email registration session handoff are required")
 	}
 	return nil
 }

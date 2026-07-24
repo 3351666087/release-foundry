@@ -24,6 +24,7 @@ const (
 	postgresVerificationChallengeUUID  = "44444444-4444-4444-8444-444444444444"
 	postgresVerificationReceiptUUID    = "55555555-5555-4555-8555-555555555555"
 	postgresVerificationSessionUUID    = "66666666-6666-4666-8666-666666666666"
+	postgresVerificationCredentialUUID = "77777777-7777-4777-8777-777777777777"
 	postgresVerificationDigestA        = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 	postgresVerificationDigestB        = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
 )
@@ -119,6 +120,93 @@ func TestPostgresIdentityVerificationStoreCreateUsesSealedDeliveryMigrationFunct
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestPostgresIdentityVerificationChallengePrincipalScopeByPurpose(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name              string
+		purpose           IdentityVerificationPurpose
+		accountID         string
+		wantPrincipalID   string
+		wantDatabaseValue string
+	}{
+		{
+			name:              "registration is accountless",
+			purpose:           IdentityVerificationRegistration,
+			wantPrincipalID:   "",
+			wantDatabaseValue: "registration",
+		},
+		{
+			name:              "login may be accountless",
+			purpose:           IdentityVerificationLogin,
+			wantPrincipalID:   "",
+			wantDatabaseValue: "login",
+		},
+		{
+			name:              "binding is account bound",
+			purpose:           IdentityVerificationBinding,
+			accountID:         postgresVerificationPrincipalID,
+			wantPrincipalID:   postgresVerificationPrincipalID,
+			wantDatabaseValue: "credential_binding",
+		},
+		{
+			name:              "recovery is account bound",
+			purpose:           IdentityVerificationRecovery,
+			accountID:         postgresVerificationPrincipalID,
+			wantPrincipalID:   postgresVerificationPrincipalID,
+			wantDatabaseValue: "account_recovery",
+		},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			db, mock, store := newPostgresVerificationMock(t)
+			defer db.Close()
+			challenge := validPostgresVerificationChallenge()
+			challenge.Purpose = test.purpose
+			challenge.AccountID = test.accountID
+
+			expectPostgresVerificationScope(mock)
+			mock.ExpectQuery("FROM a1_issue_identity_verification_challenge_with_delivery").
+				WithArgs(
+					postgresVerificationOrganizationID,
+					postgresVerificationProjectID,
+					test.wantPrincipalID,
+					"email",
+					test.wantDatabaseValue,
+					challenge.IdentifierDigest,
+					sqlmock.AnyArg(),
+					challenge.CodeDigest,
+					sqlmock.AnyArg(),
+					challenge.ExpiresAt,
+					challenge.AttemptCap,
+					60,
+					sqlmock.AnyArg(),
+					"vault:identity-delivery/principal-scope",
+					sqlmock.AnyArg(),
+				).
+				WillReturnRows(sqlmock.NewRows(
+					[]string{"challenge_id", "accepted", "retry_after_seconds"},
+				).AddRow(postgresVerificationChallengeUUID, true, 0))
+			mock.ExpectCommit()
+
+			if err := store.CreateIdentityVerificationChallengeWithDelivery(
+				context.Background(),
+				challenge,
+				time.Minute,
+				postgresVerificationChallengeUUID,
+				"vault:identity-delivery/principal-scope",
+			); err != nil {
+				t.Fatalf("create challenge: %v", err)
+			}
+			if err := mock.ExpectationsWereMet(); err != nil {
+				t.Fatal(err)
+			}
+		})
 	}
 }
 
@@ -522,7 +610,157 @@ func TestPostgresIdentityVerificationBindingRejectsMissingTrustedAuthorizationBe
 	}
 }
 
-func TestPostgresIdentityVerificationIssuesOneTimeBearerWithResolverDigestLineage(t *testing.T) {
+func TestPostgresIdentityVerificationRegistrationUsesAccountlessReceiptAndCanonicalSessionResult(t *testing.T) {
+	t.Parallel()
+
+	now := time.Date(2026, 7, 23, 9, 0, 0, 0, time.UTC)
+	sessionKey := bytes.Repeat([]byte{0x19}, 32)
+	accessNonce := bytes.Repeat([]byte{0x2b}, identitySessionNonceBytes)
+	refreshNonce := bytes.Repeat([]byte{0x3c}, identitySessionNonceBytes)
+	expectedBearer := identitySessionBearerPrefix + ".2026-07." +
+		base64.RawURLEncoding.EncodeToString(accessNonce)
+	expectedRefreshBearer := identityRefreshBearerPrefix + ".2026-07." +
+		base64.RawURLEncoding.EncodeToString(refreshNonce)
+	expectedSessionDigest := identitySessionHMAC(sessionKey, expectedBearer)
+	expectedRefreshDigest := identitySessionHMAC(sessionKey, expectedRefreshBearer)
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	productionStore, err := NewProductionIdentityStore(ProductionIdentityStoreOptions{
+		DB: db, SessionKey: sessionKey, SessionKeyVersion: "2026-07",
+		Random: bytes.NewReader(append(accessNonce, refreshNonce...)),
+	})
+	if err != nil {
+		db.Close()
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = productionStore.Close() })
+	verificationStore, err := productionStore.NewIdentityVerificationStore(
+		postgresVerificationStoreOptions(db),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(verificationStore.Close)
+	coordinator, err := productionStore.NewIdentityVerificationTransactionCoordinator(
+		verificationStore,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	vault := &recordingIdentityDeliveryVault{}
+	service, err := NewIdentityVerificationService(IdentityVerificationServiceOptions{
+		Store: verificationStore, Sender: &countingIdentityVerificationSender{},
+		DeliveryVaultSealer: vault, DeliveryVaultDeleter: vault,
+		TransactionCoordinator: coordinator,
+		Now:                    func() time.Time { return now },
+		Random:                 bytes.NewReader(bytes.Repeat([]byte{0x41}, 1024)),
+		DigestKey:              postgresVerificationDigestKey,
+		TTL:                    5 * time.Minute,
+		AttemptCap:             3,
+		ResendCooldown:         time.Minute,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(service.Close)
+	request := IdentityVerificationCompleteRequest{
+		ChallengeID: "ivc_postgres_registration_01",
+		Code:        "123456",
+		Channel:     IdentityVerificationEmail,
+		Identifier:  "registration@example.cn",
+		Purpose:     IdentityVerificationRegistration,
+		TenantID:    postgresVerificationOrganizationID,
+		DisplayName: "Registration Account",
+	}
+	if _, err := service.Complete(
+		context.Background(),
+		request,
+	); verificationErrorCode(err) != "session_issuance_required" {
+		t.Fatalf("public registration completion created or exposed a production session: %v", err)
+	}
+
+	expectPostgresVerificationScope(mock)
+	metadata := `{"source":"go_identity_verification_transaction_coordinator"}`
+	mock.ExpectQuery("FROM a1_verify_identity_verification_attempt").
+		WithArgs(
+			postgresVerificationOrganizationID,
+			postgresVerificationProjectID,
+			sqlmock.AnyArg(),
+			service.digest("code", request.ChallengeID, request.Code),
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+			metadata,
+		).
+		WillReturnRows(sqlmock.NewRows([]string{
+			"outcome_code", "challenge_id", "receipt_id", "principal_id",
+			"channel", "purpose", "attempts_remaining",
+		}).AddRow(
+			"verified",
+			postgresVerificationChallengeUUID,
+			postgresVerificationReceiptUUID,
+			nil,
+			"email",
+			"registration",
+			3,
+		))
+	mock.ExpectQuery("FROM a1_register_with_verified_identity_with_refresh").
+		WithArgs(
+			postgresVerificationOrganizationID,
+			postgresVerificationProjectID,
+			sqlmock.AnyArg(),
+			expectedSessionDigest,
+			expectedRefreshDigest,
+			sqlmock.AnyArg(),
+			now.Add(24*time.Hour),
+			now.Add(30*24*time.Hour),
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+			sqlmock.AnyArg(),
+			request.DisplayName,
+			metadata,
+		).
+		WillReturnRows(sqlmock.NewRows(
+			[]string{"session_id", "principal_id", "credential_id"},
+		).AddRow(
+			postgresVerificationSessionUUID,
+			postgresVerificationPrincipalID,
+			postgresVerificationCredentialUUID,
+		))
+	mock.ExpectCommit()
+
+	result, issuance, err := service.CompleteAndIssueSession(
+		context.Background(),
+		request,
+	)
+	if err != nil {
+		t.Fatalf("issue registration session: %v", err)
+	}
+	if result.Account.AccountID != postgresVerificationPrincipalID ||
+		result.Account.DisplayName != request.DisplayName ||
+		result.Credential.CredentialID != postgresVerificationCredentialUUID ||
+		!result.Created ||
+		issuance.SessionID() != postgresVerificationSessionUUID {
+		t.Fatalf("unexpected registration result=%#v receipt=%v", result, issuance)
+	}
+	bearer, refreshBearer, err := issuance.TakeBearerTokens()
+	if err != nil || bearer != expectedBearer ||
+		refreshBearer != expectedRefreshBearer {
+		t.Fatalf(
+			"registration bearer handoff access_matched=%t refresh_matched=%t err=%v",
+			bearer == expectedBearer,
+			refreshBearer == expectedRefreshBearer,
+			err,
+		)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestPostgresIdentityVerificationAccountlessLoginReturnsCanonicalIdentityAndOneTimeBearer(t *testing.T) {
 	t.Parallel()
 
 	now := time.Date(2026, 7, 11, 11, 0, 0, 0, time.UTC)
@@ -579,7 +817,6 @@ func TestPostgresIdentityVerificationIssuesOneTimeBearerWithResolverDigestLineag
 		ChallengeID: "ivc_postgres_session_01", Code: "123456",
 		Channel: IdentityVerificationEmail, Identifier: "session@example.test",
 		Purpose: IdentityVerificationLogin, TenantID: postgresVerificationOrganizationID,
-		AccountID: postgresVerificationPrincipalID,
 	}
 	if _, err := service.Complete(context.Background(), request); verificationErrorCode(err) != "session_issuance_required" {
 		t.Fatalf("public completion created or exposed a production session: %v", err)
@@ -610,7 +847,7 @@ func TestPostgresIdentityVerificationIssuesOneTimeBearerWithResolverDigestLineag
 			"login",
 			3,
 		))
-	mock.ExpectQuery("SELECT a1_login_with_verified_identity_with_refresh").
+	mock.ExpectQuery("FROM a1_login_with_verified_identity_with_refresh_result").
 		WithArgs(
 			postgresVerificationOrganizationID,
 			postgresVerificationProjectID,
@@ -625,7 +862,13 @@ func TestPostgresIdentityVerificationIssuesOneTimeBearerWithResolverDigestLineag
 			sqlmock.AnyArg(),
 			metadata,
 		).
-		WillReturnRows(sqlmock.NewRows([]string{"session_id"}).AddRow(postgresVerificationSessionUUID))
+		WillReturnRows(sqlmock.NewRows(
+			[]string{"session_id", "principal_id", "credential_id"},
+		).AddRow(
+			postgresVerificationSessionUUID,
+			postgresVerificationPrincipalID,
+			postgresVerificationCredentialUUID,
+		))
 	mock.ExpectCommit()
 
 	result, issuance, err := service.CompleteAndIssueSession(context.Background(), request)
@@ -633,6 +876,7 @@ func TestPostgresIdentityVerificationIssuesOneTimeBearerWithResolverDigestLineag
 		t.Fatalf("issue production session: %v", err)
 	}
 	if result.Account.AccountID != postgresVerificationPrincipalID ||
+		result.Credential.CredentialID != postgresVerificationCredentialUUID ||
 		issuance.SessionID() != postgresVerificationSessionUUID ||
 		issuance.KeyVersion() != "2026-07" ||
 		issuance.RefreshKeyVersion() != "2026-07" ||
@@ -755,7 +999,7 @@ func TestPostgresIdentityVerificationSessionMutationFailureRollsBackWithoutRecei
 			"account_recovery",
 			3,
 		))
-	mock.ExpectQuery("SELECT a1_recover_verified_identity_with_refresh").
+	mock.ExpectQuery("FROM a1_recover_verified_identity_with_refresh_result").
 		WithArgs(
 			postgresVerificationOrganizationID,
 			postgresVerificationProjectID,

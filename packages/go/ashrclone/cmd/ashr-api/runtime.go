@@ -743,6 +743,10 @@ func zeroBytes(value []byte) {
 func productionIdentitySessionReceiptTransportFromEnv(
 	lookup func(string) (string, bool),
 ) (ashrclone.IdentitySessionReceiptTransport, error) {
+	intentKey := envRaw(lookup, "ASHR_IDENTITY_VERIFICATION_HMAC_KEY")
+	if len(intentKey) < 32 {
+		return nil, fmt.Errorf("ASHR_IDENTITY_VERIFICATION_HMAC_KEY must contain at least 32 bytes")
+	}
 	maxLifetime := 24 * time.Hour
 	refreshMaxLifetime := 30 * 24 * time.Hour
 	if raw := env(lookup, "ASHR_IDENTITY_SESSION_COOKIE_MAX_AGE_SECONDS"); raw != "" {
@@ -780,6 +784,7 @@ func productionIdentitySessionReceiptTransportFromEnv(
 			MaxLifetime:        maxLifetime,
 			RefreshMaxLifetime: refreshMaxLifetime,
 			TrustedProxyCIDRs:  trustedProxyCIDRs,
+			IntentKey:          []byte(intentKey),
 		},
 	)
 	if err != nil {
@@ -798,7 +803,8 @@ func developmentIdentityVerificationSenderFromEnv(
 	portValue := env(lookup, "ASHR_SMTP_PORT")
 	from := env(lookup, "ASHR_SMTP_FROM")
 	authCode := envRaw(lookup, "ASHR_SMTP_AUTH_CODE")
-	missing := make([]string, 0, 4)
+	browserVerificationURL := env(lookup, "ASHR_IDENTITY_VERIFICATION_BROWSER_URL")
+	missing := make([]string, 0, 5)
 	if host == "" {
 		missing = append(missing, "ASHR_SMTP_HOST")
 	}
@@ -811,6 +817,9 @@ func developmentIdentityVerificationSenderFromEnv(
 	if strings.TrimSpace(authCode) == "" {
 		missing = append(missing, "ASHR_SMTP_AUTH_CODE")
 	}
+	if browserVerificationURL == "" {
+		missing = append(missing, "ASHR_IDENTITY_VERIFICATION_BROWSER_URL")
+	}
 	if len(missing) != 0 {
 		return nil, fmt.Errorf("development identity verification SMTP requires complete configuration: %s", strings.Join(missing, ", "))
 	}
@@ -820,6 +829,7 @@ func developmentIdentityVerificationSenderFromEnv(
 	}
 	sender, err := ashrclone.NewSMTPIdentityVerificationSender(ashrclone.SMTPIdentityVerificationSenderOptions{
 		Host: host, Port: port, From: from, AuthCode: authCode,
+		BrowserVerificationURL: browserVerificationURL,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("configure development identity verification SMTP sender: invalid SMTP configuration")

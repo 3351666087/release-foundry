@@ -3532,3 +3532,327 @@ Date: 2026-07-22
 Next: publish this focused remediation, then treat hosted identity, target
 PostgreSQL/VPC/KMS deployment, tenant-bound GitHub App checks, and production
 upgrade/rollback receipts as separate external acceptance work.
+## Round 69: Registration/Login Session Handoff (Active Checklist)
+
+Date: 2026-07-23
+
+Scope: A1 only. Complete the email registration/login boundary before
+continuing first-login OAuth. Never persist or log raw email addresses, OTPs,
+challenge proofs, access/refresh bearers, SMTP hosts, or SMTP authorization
+codes.
+
+- [x] Continue from synchronized A1 branch
+  `codex/a1-sync-publish` at `9804111916c635bbc2f4023ee5590de208e37884`;
+  it exactly matches remote `codex/a1-local-sdk-runner`.
+- [x] Confirm the existing Docker PostgreSQL integration container
+  `ashr-oauth-pg-test` is healthy and accepting connections on its configured
+  local test port.
+- [x] Record this local A1 execution checklist; update each completed item
+  immediately instead of relying on conversation memory.
+- [x] Add a distinct `registration` verification purpose; require email and
+  no pre-existing account, while keeping explicit binding account-bound and
+  login non-creating.
+- [x] Add migration 025 constraints and challenge issuance rules for
+  accountless email registration and accountless login.
+- [x] Add a single PostgreSQL transaction that creates the canonical
+  principal, email credential, canonical verified email, optional/recommended
+  2FA posture, organization/project memberships, and access/refresh session.
+- [x] Return canonical principal and credential IDs for accountless login and
+  recovery via narrow `SECURITY DEFINER` result wrappers.
+- [x] Update Go PostgreSQL mutation results, principal scoping, readiness, and
+  migration integration range through 025.
+- [x] Add/adjust unit, SQL mock, migration, RLS, rollback, idempotency,
+  duplicate-registration, canonical-account, and bearer-redaction tests.
+- [x] Run the first focused Go and live PostgreSQL verification batch.
+- [x] Commit and push only the first A1 registration/login transaction batch
+  to remote branch `codex/a1-local-sdk-runner`.
+- [x] Add canonical email registration/login HTTP begin/complete endpoints
+  with browser intent, same-origin enforcement, secure HttpOnly strict cookies,
+  no-store responses, and `303 /console` handoff.
+  - [x] Reconfirm the clean A1-only worktree and exact remote parity at
+    `030c37b5`; inspect the production HTTP/runtime wiring before editing.
+  - [x] Return a browser-safe `challenge_id` plus opaque `intent_id` from the
+    dedicated registration/login begin routes.
+  - [x] Bind encrypted HttpOnly intent state to challenge, purpose, trusted
+    tenant/project scope, normalized email, exact HTTPS origin, and expiry.
+  - [x] Validate secure transport, exact same-origin, fetch metadata, strict
+    JSON keys, and constant-time intent matches before durable completion.
+  - [x] Issue access/refresh cookies for both registration and login, clear the
+    intent cookie, and redirect with an empty `303 /console` response.
+  - [x] Prove purpose isolation, replay/mismatch rejection, no secret leakage,
+    and pre-mutation failure across the browser security matrix.
+- [x] Run the complete A1 verification matrix and confirm no A3 files changed.
+- [x] Send exactly one controlled real QQ SMTP calibration email only after
+  all security tests pass; never print or commit its configuration or secrets.
+- [x] Commit and push only the second A1 browser-session batch.
+
+Next: commit and push the first transaction batch, then begin the canonical
+browser registration/login session-handoff endpoints.
+
+Progress:
+
+- The dedicated `registration` purpose is now email-only and accountless;
+  explicit `binding` and `recovery` reject a missing account, while production
+  `login` remains non-creating and may resolve its canonical account from the
+  verified credential.
+- Docker PostgreSQL successfully rebuilt a disposable database and applied
+  migrations 001-025. The existing atomic lifecycle registration regression
+  and the migration-025 readiness/least-privilege additions pass against the
+  live database.
+- A dedicated live migration-025 test now proves that verified email
+  registration atomically creates the canonical principal, credential,
+  canonical email, recommended-but-disabled 2FA posture, organization/project
+  memberships, and access/refresh session. It also proves that accountless
+  email login resolves the same canonical account and credential.
+- Duplicate registration fully rolls back without an orphan principal,
+  credential, session, or consumed verification receipt; cross-project and
+  cross-organization completion attempts leave the original challenge
+  untouched, and the runtime role cannot directly read verification tables.
+- Focused verification/readiness tests and the new Docker PostgreSQL live
+  registration/login session-handoff test are green. Go build/test caches were
+  moved to a disposable D-drive cache because the system drive had insufficient
+  linker space; no source, Docker data, or credential material was moved.
+- The complete Docker PostgreSQL identity lifecycle matrix is green across
+  migrations 001-025, including replay, rollback, credential-link concurrency,
+  canonical-email conflict, foreign-project rejection, and key
+  rotation/tamper cases. The complete A1 package plus `ashr-api` and
+  `ashr-identity-delivery` command-package tests are also green, and
+  `git diff --check` reports no whitespace errors.
+- The first A1-only transaction batch was committed as `ff061c39` and pushed
+  to remote branch `codex/a1-local-sdk-runner`; no A3 or `apps/webapp` file was
+  included.
+
+### Immediate continuation queue (2026-07-23)
+
+This queue is the local source of truth for the current A1 browser
+registration/login closure. Check each item immediately when its evidence is
+green; do not rely on chat memory.
+
+- [x] Restore the A1-only worktree, confirm local/remote parity at `030c37b5`,
+  and enumerate the uncommitted browser handoff files.
+- [x] Diagnose whether valid begin responses are real verification challenges
+  or anti-enumeration decoys; correct only the fake/implementation that is
+  proven wrong.
+- [x] Make the complete `IdentityBrowser` security matrix green, including
+  registration and login `challenge_id`/`intent_id` handoff, exact-origin
+  enforcement, purpose isolation, replay rejection, secret redaction, secure
+  cookies, and empty `303 /console` session transfer.
+- [x] Add and pass intent-expiry, production runtime `IntentKey`, and generic
+  registration session-issuance regression coverage.
+- [x] Run focused identity/session/readiness tests and the complete live Docker
+  PostgreSQL migrations 001-025/RLS/rotation matrix.
+- [x] Run complete A1 Go/cross-language tests, `git diff --check`, and verify
+  that no A3 or `apps/webapp` path changed.
+- [x] Commit and immediately push only this A1 browser-session batch to
+  `origin/codex/a1-local-sdk-runner`.
+- [x] Only after every safety test is green, send exactly one controlled QQ
+  SMTP calibration message without printing, logging, or committing any real
+  address, SMTP setting, authorization code, OTP, proof, or bearer; the
+  provider accepted exactly one message and no retry was made.
+
+#### Active failure-closure checklist (2026-07-23)
+
+This checklist records the exact remaining work from the resumed task. Check
+one item immediately after its focused evidence is green.
+
+- [x] Reconfirm the independent A1 worktree/branch and classify all four
+  complete-suite failures without changing A3 or `apps/webapp`.
+- [x] Update the legacy live session-lifecycle tests to call migration 025's
+  canonical login/recovery result wrappers, while proving the replaced direct
+  wrappers remain revoked from `a1_runtime`.
+- [x] Update the Round 53 source-order contract to locate the current
+  `applyIdentityMutationTx` call without weakening digest-only SQL,
+  post-commit bearer handoff, or bearer-redaction assertions.
+- [x] Re-run the four previously failing tests and check this item immediately
+  when all four are green.
+- [x] Re-run all `tests/a1`, Go command packages, and the live PostgreSQL
+  lifecycle/RLS/key-rotation matrix; run `git diff --check`.
+- [x] Audit every changed/untracked path, commit only A1, and push only
+  `HEAD:codex/a1-local-sdk-runner`.
+- [x] After all tests and the A1-only push are green, send one and only one
+  real QQ SMTP calibration message without exposing any secret material.
+
+#### Single-send QQ SMTP calibration checklist (2026-07-23)
+
+This is the crash-safe execution record for the final real-mail check. Update
+each checkbox immediately; never record the address, SMTP endpoint,
+authorization code, verification code, or provider response.
+
+- [x] Reconfirm the independent A1 worktree is clean and local/remote both
+  resolve to `b942ad52`.
+- [x] Safely confirm the host process contains the four sender-required SMTP
+  variable names without printing their values; do not inspect secret values.
+- [x] Run the opt-in production SMTP sender calibration test exactly once with
+  no retry and accept only its redacted success/failure result; the provider
+  accepted the message once.
+- [x] If accepted, mark all QQ SMTP calibration items complete and audit the
+  diff for secrets, A3 paths, or `apps/webapp` paths.
+- [x] Commit only `docs/a1/worklog.md`, push only
+  `HEAD:codex/a1-local-sdk-runner`, and verify local/remote parity at the
+  pushed calibration record.
+
+### OAuth first-login closure queue (2026-07-23)
+
+This is the local source of truth for the next A1-only identity batch. Check
+each item immediately when its evidence is green. Do not modify A3 or
+`apps/webapp`, and do not weaken explicit credential binding or canonical
+account ownership rules.
+
+- [x] Inventory the current Google/GitHub OAuth begin/callback, intent,
+  provider-subject uniqueness, canonical-account mutation, and session
+  handoff paths; record the exact first-login gap before editing production
+  code.
+- [ ] Separate OAuth first-login from authenticated explicit binding with
+  server-selected purposes, encrypted/one-time callback state, trusted
+  tenant/project scope, exact redirect policy, and fail-closed callback
+  validation.
+- [ ] Allow a verified OAuth provider subject to create one canonical account
+  on first login and issue the normal access/refresh browser session, while
+  preserving non-creating login for known credentials and explicit binding
+  for an already authenticated account.
+- [ ] Prove duplicate callback, provider-subject collision, verified-email
+  conflict, cross-tenant/project confusion, account injection, CSRF/state
+  mismatch, and pre-mutation failures cannot take over or partially create an
+  account.
+- [ ] Keep Google/GitHub production capability honest and retain
+  ready-to-integrate domestic OAuth adapter boundaries without claiming
+  WeChat/QQ/Alipay production availability before qualifications exist.
+- [ ] Run focused OAuth/session tests, complete A1 Go/Python parity tests, and
+  live Docker PostgreSQL migrations/RLS/key-rotation coverage; run
+  `git diff --check`.
+- [ ] Audit every changed path and secret boundary, commit only A1, push only
+  `HEAD:codex/a1-local-sdk-runner`, and verify local/remote parity.
+
+#### OAuth first-login inventory evidence (2026-07-23)
+
+- The provider-neutral and GitHub project routes call `Start` only after
+  resolving an active authenticated session and deriving the canonical
+  account from that session. Their callbacks consume one-time state but then
+  require the same session, user, and account, so they are explicit binding
+  paths rather than first-login paths.
+- The older `/v1/identity/oauth/begin` coordinator recognizes registration,
+  login, and link intents only in the in-memory identity service. Production
+  startup does not inject that coordinator or its identity authority.
+- Migration 009 atomically binds an OAuth credential, opaque token reference,
+  and connection only for an already selected principal/account/session. It
+  cannot create the canonical principal and memberships or issue the normal
+  access/refresh browser session.
+- Migration 006 can create a user and session, but it mutates legacy
+  `users`/`external_identities`/`sessions` tables and is not an acceptable
+  canonical-account implementation.
+- Production runtime currently sets Google/GitHub lifecycle capability false,
+  constructs provider services only in explicit development-memory mode, and
+  refuses production OAuth when no external opaque vault is injected.
+- The closure therefore requires a distinct server-selected first-login
+  purpose, trusted server-side organization/project scope, a canonical
+  PostgreSQL transaction that owns principal/credential/membership/session
+  creation or known-subject login, and the same one-use cookie handoff used by
+  email registration/login. Verified provider email is conflict evidence only
+  and must never auto-merge accounts.
+
+#### Active OAuth first-login implementation checklist (2026-07-23)
+
+This checklist is the crash-safe implementation log for the current task.
+Check each item immediately after its focused evidence is green; never defer a
+completed checkbox to chat memory.
+
+- [x] Restore the independent A1 worktree, confirm it is clean, and verify
+  local `ca31feda` has zero ahead/behind divergence from
+  `origin/codex/a1-local-sdk-runner`.
+- [x] Freeze the public first-login versus authenticated-binding route,
+  purpose, trusted-scope, encrypted browser-intent, callback, redirect, and
+  error contracts in focused Go tests before changing production behavior.
+- [x] Add migration 026's canonical OAuth callback transaction with
+  provider-subject uniqueness, known-subject login, unknown-subject
+  registration, verified-email conflict closure, organization/project
+  membership, access/refresh session issuance, audit, fixed `search_path`,
+  runtime grants, and RLS coverage.
+- [ ] Add the PostgreSQL OAuth first-login coordinator and provider-neutral
+  Google/GitHub adapter result normalization without duplicating canonical
+  account or session policy in provider-specific services.
+- [ ] Add public OAuth first-login start/callback endpoints with server-chosen
+  purpose and scope, PKCE/state/nonce validation, encrypted HttpOnly browser
+  intent, one-time callback consumption, secure access/refresh cookies, intent
+  deletion, and empty-body `303 /console` handoff.
+- [ ] Keep authenticated explicit binding isolated from first login; prove
+  account injection, cross-tenant/project scope, revoked-session races,
+  callback replay, state/cookie/provider/purpose mismatch, subject collision,
+  verified-email conflict, and provider/vault/database failure cannot cause
+  takeover or partial canonical mutations.
+- [ ] Wire production capability only when the provider adapter, trusted
+  default scope, callback security, and external opaque vault are complete;
+  preserve honest non-production-ready WeChat/QQ/Alipay adapter capability
+  boundaries.
+- [ ] Run focused OAuth/browser/session tests, complete A1 Go and Python
+  parity suites, and live Docker PostgreSQL migrations/RLS/key-rotation
+  coverage; run `git diff --check`.
+- [ ] Audit every changed and untracked path for A1 ownership and secret
+  safety, commit only A1, push only
+  `HEAD:codex/a1-local-sdk-runner`, and verify local/remote parity.
+
+#### Migration 026 execution checklist (2026-07-23)
+
+This database slice is the current task. Check each item immediately after its
+focused source and live-PostgreSQL evidence is green.
+
+- [x] Re-fetch the A1 remote branch and prove local `3636d92c` is exactly
+  `0/0` ahead/behind `origin/codex/a1-local-sdk-runner` before editing code.
+- [x] Freeze migration 026's public result shape and atomic known-subject,
+  unknown-subject, replay, subject-collision, verified-email-conflict, and
+  trusted-scope failure contracts in A1 tests.
+- [x] Add the fixed-`search_path` SECURITY DEFINER canonical callback function
+  with runtime-role anti-bypass checks, PUBLIC revoke, minimal runtime grant,
+  and no bearer material in rows, notices, errors, or audit payloads.
+- [x] Prove unknown provider subjects atomically create exactly one canonical
+  principal, OAuth credential, organization/project memberships, connection,
+  access/refresh session, and audit event in the trusted server scope.
+- [x] Prove known provider subjects perform non-creating login only when their
+  canonical account still has active trusted-scope memberships, and that
+  verified email can only reject conflicts rather than merge identities.
+- [ ] Add the Go PostgreSQL first-login coordinator with post-commit one-use
+  bearer receipt lookup and result validation; no provider-specific canonical
+  policy may be duplicated in the adapter or HTTP layer.
+- [x] Run source-contract and live Docker migration/RLS/replay/rollback tests,
+  then audit, commit, and push only this A1 database slice.
+
+#### A1 continuation and push checklist (2026-07-23)
+
+This is the crash-safe source of truth for the resumed A1 task. Check each
+item immediately after its evidence is green. Before every commit, run the
+repository CL/quality gates plus formatting, diff, changed-path, and secret
+audits. Never modify or push A3 or `apps/webapp`.
+
+- [x] Resume the independent A1 worktree, fetch the remote branch, and prove
+  local `a3581939` is exactly `0/0` ahead/behind
+  `origin/codex/a1-local-sdk-runner`.
+- [x] Run and repair the pending migration 026 source/live PostgreSQL tests
+  without weakening provider-subject, verified-email, trusted-scope, RLS,
+  rollback, concurrency, ACL, or non-disclosure contracts.
+- [x] Check every migration 026 implementation item immediately when its
+  focused live evidence turns green.
+- [x] Pass the repository CL/quality gates, `git diff --check`, changed-path
+  ownership audit, and secret-material audit for the database batch.
+- [x] Commit the complete migration 026 database-test batch and push only
+  `HEAD:codex/a1-local-sdk-runner`; verify post-push `0/0` parity.
+- [ ] Implement the production Go PostgreSQL OAuth first-login coordinator
+  in a large coherent batch with domain-separated keyed digests, trusted
+  tenant/project scope, bounded serializable retry, result validation, and a
+  one-use post-commit access/refresh bearer receipt.
+- [ ] Prove coordinator success, replay behavior, conflict/error mapping,
+  commit/database failure cleanup, receipt redaction/single-take behavior,
+  RLS/key-rotation compatibility, and provider-neutral policy ownership.
+- [ ] Re-run focused and full A1 Go/Python/cross-language suites, check all
+  newly earned worklog items, pass CL and audits, commit, and push only A1.
+
+Database-batch evidence:
+
+- Migration 026 source/live PostgreSQL suite: `14 passed`.
+- Go/Python/TypeScript route-contract focused suite after first-login route
+  registration: `20 passed`.
+- Python A1/A2/integration CL job: `2112 passed, 8 skipped`.
+- Product release CL job: `33 passed`.
+- Go SDK and Go integration CL jobs: all packages passed.
+- CL hygiene and commercial guards passed with zero findings/blockers;
+  `git diff --check`, A3-path audit, and redacted secret-pattern audit passed.
+- Database batch committed as `7871655a` and pushed only to
+  `origin/codex/a1-local-sdk-runner`; post-push ahead/behind is `0/0`.

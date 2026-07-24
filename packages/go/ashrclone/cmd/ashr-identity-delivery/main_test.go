@@ -379,6 +379,7 @@ func identityDeliveryTestEnvironment() map[string]string {
 		"ASHR_IDENTITY_DELIVERY_VAULT_URL":                   "https://vault.internal/v1/open",
 		"ASHR_IDENTITY_DELIVERY_EMAIL_RELAY_URL":             "https://relay.internal/v1/email/send",
 		"ASHR_IDENTITY_DELIVERY_SMS_RELAY_URL":               "https://relay.internal/v1/sms/send",
+		"ASHR_IDENTITY_VERIFICATION_BROWSER_URL":             "https://app.example.test/login/verify",
 		"ASHR_IDENTITY_DELIVERY_MTLS_PROFILE_MODE":           "separate",
 		"ASHR_IDENTITY_DELIVERY_VAULT_MTLS_CA_FILE":          "/run/secrets/vault-ca.pem",
 		"ASHR_IDENTITY_DELIVERY_VAULT_MTLS_CLIENT_CERT_FILE": "/run/secrets/vault-cert.pem",

@@ -25,6 +25,9 @@ type HTTPServer struct {
 	identityVerification               *IdentityVerificationService
 	identityVerificationResponsePolicy *IdentityVerificationResponsePolicy
 	identitySessionReceiptTransport    IdentitySessionReceiptTransport
+	identityBrowserVerificationIntents IdentityBrowserVerificationIntentTransport
+	oauthFirstLoginIntents             OAuthFirstLoginIntentTransport
+	oauthFirstLogins                   map[string]*OAuthFirstLoginService
 	oauthProviders                     map[string]*OAuthService
 	githubOAuth                        *GitHubOAuthService
 	providerDispatch                   ProviderDispatchBackend
@@ -84,6 +87,9 @@ type HTTPServerOptions struct {
 	IdentityVerification               *IdentityVerificationService
 	IdentityVerificationResponsePolicy *IdentityVerificationResponsePolicy
 	IdentitySessionReceiptTransport    IdentitySessionReceiptTransport
+	IdentityBrowserVerificationIntents IdentityBrowserVerificationIntentTransport
+	OAuthFirstLoginIntents             OAuthFirstLoginIntentTransport
+	OAuthFirstLogins                   map[string]*OAuthFirstLoginService
 	OAuthProviders                     map[string]*OAuthService
 	GitHubOAuth                        *GitHubOAuthService
 	ProviderDispatch                   ProviderDispatchBackend
@@ -113,6 +119,18 @@ func NewHTTPServerWithOptions(service ControlPlaneBackend, options HTTPServerOpt
 			continue
 		}
 		oauthProviders[normalizedProvider] = oauthService
+	}
+	oauthFirstLogins := make(
+		map[string]*OAuthFirstLoginService,
+		len(options.OAuthFirstLogins),
+	)
+	for providerName, oauthService := range options.OAuthFirstLogins {
+		normalizedProvider := strings.ToLower(strings.TrimSpace(providerName))
+		if normalizedProvider == "" || oauthService == nil ||
+			oauthService.ProviderName() != normalizedProvider {
+			continue
+		}
+		oauthFirstLogins[normalizedProvider] = oauthService
 	}
 	identity := options.IdentityService
 	oauth := options.OAuthCoordinator
@@ -153,6 +171,9 @@ func NewHTTPServerWithOptions(service ControlPlaneBackend, options HTTPServerOpt
 		identityVerification:               options.IdentityVerification,
 		identityVerificationResponsePolicy: options.IdentityVerificationResponsePolicy,
 		identitySessionReceiptTransport:    options.IdentitySessionReceiptTransport,
+		identityBrowserVerificationIntents: options.IdentityBrowserVerificationIntents,
+		oauthFirstLoginIntents:             options.OAuthFirstLoginIntents,
+		oauthFirstLogins:                   oauthFirstLogins,
 		oauthProviders:                     oauthProviders,
 		githubOAuth:                        options.GitHubOAuth,
 		providerDispatch:                   options.ProviderDispatch,
@@ -196,6 +217,24 @@ func (server *HTTPServer) ServeHTTP(writer http.ResponseWriter, request *http.Re
 		}
 	}
 	parts := pathParts(request.URL.Path)
+	if len(parts) == 6 && parts[0] == "v1" && parts[1] == "identity" &&
+		parts[2] == "oauth" {
+		if _, configured := server.oauthFirstLogins[parts[3]]; configured &&
+			(parts[4] == "start" || parts[4] == "callback") {
+			// Reserved for a future path segment; reject rather than silently
+			// interpreting an ambiguous first-login route.
+			writeError(writer, http.StatusNotFound, "not_found", "route not found")
+			return
+		}
+	}
+	if len(parts) == 5 && parts[0] == "v1" && parts[1] == "identity" &&
+		parts[2] == "oauth" {
+		providerName := strings.ToLower(strings.TrimSpace(parts[3]))
+		if _, configured := server.oauthFirstLogins[providerName]; configured {
+			server.handleOAuthFirstLogin(writer, request, providerName, parts[4])
+			return
+		}
+	}
 	if server.handleIdentityRoute(writer, request, parts) {
 		return
 	}
@@ -1026,6 +1065,10 @@ func GoRouteManifestEntries() []RouteManifestEntry {
 		goPublicRoute("POST", "/v1/identity/login/email/complete", "identity.login.email.complete", "identity"),
 		goPublicRoute("POST", "/v1/identity/oauth/begin", "identity.oauth.begin", "identity"),
 		goPublicRoute("POST", "/v1/identity/oauth/complete", "identity.oauth.complete", "identity"),
+		goPublicRoute("GET", "/v1/identity/oauth/google/start", "oauth.google.first_login.start", "oauth"),
+		goPublicRoute("GET", "/v1/identity/oauth/google/callback", "oauth.google.first_login.callback", "oauth"),
+		goPublicRoute("GET", "/v1/identity/oauth/github/start", "oauth.github.first_login.start", "oauth"),
+		goPublicRoute("GET", "/v1/identity/oauth/github/callback", "oauth.github.first_login.callback", "oauth"),
 		goPublicRoute("POST", "/v1/identity/mfa/complete", "identity.mfa.complete", "identity"),
 		goPublicRoute("POST", "/v1/identity/credentials/bind", "identity.credentials.bind", "identity"),
 		goPublicRoute("POST", "/v1/identity/sessions/revoke", "identity.sessions.revoke", "identity"),

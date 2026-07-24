@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -147,6 +148,588 @@ DROP FUNCTION reject_identity_session_for_test();
 `)
 		if _, err := second.service.CompleteRegistration(completionFor(rollback)); err != nil {
 			t.Fatalf("rolled-back receipt was not retryable: %v", err)
+		}
+	})
+
+	t.Run("verified email registration and accountless login session handoff", func(t *testing.T) {
+		h := newPostgresLifecycleHarness(t, adminDSN)
+		instance := h.newInstance(
+			t,
+			[]byte("verification-lifecycle-key-012345678901"),
+			"v1",
+			nil,
+		)
+
+		organizationID := "90000000-0000-4000-8000-000000000001"
+		workspaceID := "90000000-0000-4000-8000-000000000002"
+		projectID := "90000000-0000-4000-8000-000000000003"
+		otherProjectID := "90000000-0000-4000-8000-000000000004"
+		createIdentityVerificationProjectScope(
+			t,
+			instance.adminDB,
+			organizationID,
+			workspaceID,
+			projectID,
+			"verification-primary",
+		)
+		mustExecArgs(t, instance.adminDB, `
+INSERT INTO projects(id,organization_id,workspace_id,slug,display_name)
+VALUES ($1::uuid,$2::uuid,$3::uuid,'verification-secondary','Verification Secondary')
+`, otherProjectID, organizationID, workspaceID)
+
+		foreignOrganizationID := "a0000000-0000-4000-8000-000000000001"
+		foreignWorkspaceID := "a0000000-0000-4000-8000-000000000002"
+		foreignProjectID := "a0000000-0000-4000-8000-000000000003"
+		createIdentityVerificationProjectScope(
+			t,
+			instance.adminDB,
+			foreignOrganizationID,
+			foreignWorkspaceID,
+			foreignProjectID,
+			"verification-foreign",
+		)
+
+		verificationDigestKey := []byte(
+			"verification-integration-digest-key-0123456789",
+		)
+		newVerificationService := func(
+			organizationID string,
+			projectID string,
+			sealRef string,
+		) (*IdentityVerificationService, *PostgresIdentityVerificationStore, *recordingIdentityDeliveryVault) {
+			t.Helper()
+			verificationStore, err := instance.store.NewIdentityVerificationStore(
+				PostgresIdentityVerificationStoreOptions{
+					OrganizationID:   organizationID,
+					ProjectID:        projectID,
+					DigestKey:        verificationDigestKey,
+					OperationTimeout: 10 * time.Second,
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(verificationStore.Close)
+			coordinator, err := instance.store.NewIdentityVerificationTransactionCoordinator(
+				verificationStore,
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			vault := &recordingIdentityDeliveryVault{sealRef: sealRef}
+			service, err := NewIdentityVerificationService(
+				IdentityVerificationServiceOptions{
+					Store:                  verificationStore,
+					DeliveryVaultSealer:    vault,
+					DeliveryVaultDeleter:   vault,
+					TransactionCoordinator: coordinator,
+					Now:                    func() time.Time { return h.now },
+					DigestKey:              verificationDigestKey,
+					TTL:                    5 * time.Minute,
+					AttemptCap:             3,
+					ResendCooldown:         time.Second,
+				},
+			)
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(service.Close)
+			return service, verificationStore, vault
+		}
+
+		registrationService, registrationStore, registrationVault := newVerificationService(
+			organizationID,
+			projectID,
+			"vault:identity-delivery/registration-live",
+		)
+		registrationIdentifier := "registration-live@example.cn"
+		registrationChallenge, err := registrationService.Start(
+			context.Background(),
+			IdentityVerificationStartRequest{
+				Channel:    IdentityVerificationEmail,
+				Identifier: registrationIdentifier,
+				Purpose:    IdentityVerificationRegistration,
+				TenantID:   organizationID,
+			},
+		)
+		if err != nil {
+			t.Fatalf("start verified registration: %v", err)
+		}
+		if registrationChallenge.ChallengeID == "" ||
+			registrationChallenge.AccountBound ||
+			registrationVault.sealRequest.ChallengeHandle !=
+				registrationChallenge.ChallengeID ||
+			registrationVault.sealRequest.Code == "" {
+			t.Fatal("registration did not produce a private delivery and public accountless challenge handle")
+		}
+		registrationCompletion := IdentityVerificationCompleteRequest{
+			ChallengeID: registrationChallenge.ChallengeID,
+			Code:        registrationVault.sealRequest.Code,
+			Channel:     IdentityVerificationEmail,
+			Identifier:  registrationIdentifier,
+			Purpose:     IdentityVerificationRegistration,
+			TenantID:    organizationID,
+			DisplayName: "Verified Registration",
+		}
+		if _, err := registrationService.Complete(
+			context.Background(),
+			registrationCompletion,
+		); verificationErrorCode(err) != "session_issuance_required" {
+			t.Fatalf("public registration completion bypassed trusted session issuance: %v", err)
+		}
+		registrationResult, registrationIssuance, err :=
+			registrationService.CompleteAndIssueSession(
+				context.Background(),
+				registrationCompletion,
+			)
+		if err != nil {
+			t.Fatalf("complete verified registration: %v", err)
+		}
+		if registrationResult.Account.AccountID == "" ||
+			registrationResult.Credential.CredentialID == "" ||
+			!registrationResult.Created ||
+			registrationResult.Account.AccountID ==
+				registrationResult.Credential.CredentialID ||
+			registrationIssuance.SessionID() == "" {
+			t.Fatalf(
+				"verified registration did not return canonical identifiers: result=%#v receipt=%v",
+				registrationResult,
+				registrationIssuance,
+			)
+		}
+		accessBearer, refreshBearer, err := registrationIssuance.TakeBearerTokens()
+		if err != nil || accessBearer == "" || refreshBearer == "" ||
+			accessBearer == refreshBearer {
+			t.Fatalf(
+				"verified registration did not hand off a distinct bearer pair: access_nonempty=%t refresh_nonempty=%t distinct=%t err=%v",
+				accessBearer != "",
+				refreshBearer != "",
+				accessBearer != refreshBearer,
+				err,
+			)
+		}
+		accessDigest, _, err := instance.store.sessionTokens.digest(accessBearer)
+		if err != nil {
+			t.Fatal("issued access bearer could not be digested")
+		}
+		refreshDigest, _, err := instance.store.sessionTokens.digestRefresh(
+			refreshBearer,
+		)
+		if err != nil {
+			t.Fatal("issued refresh bearer could not be digested")
+		}
+		identifierDigest := registrationService.digest(
+			"identifier",
+			string(IdentityCredentialEmail),
+			registrationIdentifier,
+		)
+		challengeDigest := registrationStore.challengeDigest(
+			registrationChallenge.ChallengeID,
+		)
+		var (
+			principalValid              bool
+			credentialValid             bool
+			canonicalEmailValid         bool
+			securityPostureValid        bool
+			organizationMembershipValid bool
+			projectMembershipValid      bool
+			sessionValid                bool
+			receiptValid                bool
+			auditValid                  bool
+		)
+		if err := instance.adminDB.QueryRow(`
+SELECT
+  EXISTS (
+    SELECT 1 FROM identity_principals
+     WHERE id=$1::uuid AND status='active' AND display_label=$2
+  ),
+  EXISTS (
+    SELECT 1 FROM identity_credentials
+     WHERE id=$3::uuid AND principal_id=$1::uuid
+       AND provider='email' AND credential_kind='email_otp'
+       AND subject_digest=$4 AND status='active' AND login_enabled
+       AND verified_at IS NOT NULL
+  ),
+  EXISTS (
+    SELECT 1 FROM identity_account_emails
+     WHERE principal_id=$1::uuid AND normalized_email_digest=$4
+       AND source_provider='email' AND verified_at IS NOT NULL
+  ),
+  EXISTS (
+    SELECT 1 FROM identity_account_security
+     WHERE principal_id=$1::uuid AND two_factor_status='disabled'
+       AND two_factor_recommended AND two_factor_enrolled_at IS NULL
+  ),
+  EXISTS (
+    SELECT 1 FROM identity_organization_memberships
+     WHERE organization_id=$5::uuid AND principal_id=$1::uuid
+       AND role='member' AND status='active' AND activated_at IS NOT NULL
+  ),
+  EXISTS (
+    SELECT 1 FROM identity_project_memberships
+     WHERE organization_id=$5::uuid AND project_id=$6::uuid
+       AND principal_id=$1::uuid AND role='member' AND status='active'
+       AND activated_at IS NOT NULL
+  ),
+  EXISTS (
+    SELECT 1 FROM identity_sessions
+     WHERE id=$7::uuid AND principal_id=$1::uuid AND credential_id=$3::uuid
+       AND organization_id=$5::uuid AND project_id=$6::uuid
+       AND session_digest=$8 AND refresh_digest=$9
+       AND status='active' AND assurance_level='aal1'
+       AND refresh_expires_at > expires_at
+  ),
+  EXISTS (
+    SELECT 1
+      FROM identity_verification_receipts AS receipt
+      JOIN identity_verification_challenges AS challenge
+        ON challenge.id=receipt.challenge_id
+     WHERE challenge.challenge_digest=$10
+       AND receipt.status='consumed'
+       AND receipt.purpose='registration'
+       AND receipt.principal_id IS NULL
+       AND receipt.mutation_kind='registration'
+       AND receipt.mutation_result_id=$7::uuid
+       AND receipt.consumed_at IS NOT NULL
+  ),
+  EXISTS (
+    SELECT 1
+      FROM identity_verification_audit_events AS event
+      JOIN identity_verification_challenges AS challenge
+        ON challenge.id=event.challenge_id
+     WHERE challenge.challenge_digest=$10
+       AND event.principal_id=$1::uuid
+       AND event.event_type='registration_succeeded'
+       AND event.outcome_code='registered'
+  )
+`,
+			registrationResult.Account.AccountID,
+			registrationCompletion.DisplayName,
+			registrationResult.Credential.CredentialID,
+			identifierDigest,
+			organizationID,
+			projectID,
+			registrationIssuance.SessionID(),
+			accessDigest,
+			refreshDigest,
+			challengeDigest,
+		).Scan(
+			&principalValid,
+			&credentialValid,
+			&canonicalEmailValid,
+			&securityPostureValid,
+			&organizationMembershipValid,
+			&projectMembershipValid,
+			&sessionValid,
+			&receiptValid,
+			&auditValid,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if !principalValid || !credentialValid || !canonicalEmailValid ||
+			!securityPostureValid || !organizationMembershipValid ||
+			!projectMembershipValid || !sessionValid || !receiptValid ||
+			!auditValid {
+			t.Fatalf(
+				"verified registration projection principal=%t credential=%t email=%t security=%t organization_membership=%t project_membership=%t session=%t receipt=%t audit=%t",
+				principalValid,
+				credentialValid,
+				canonicalEmailValid,
+				securityPostureValid,
+				organizationMembershipValid,
+				projectMembershipValid,
+				sessionValid,
+				receiptValid,
+				auditValid,
+			)
+		}
+
+		httpRequest, err := http.NewRequest(
+			http.MethodGet,
+			"https://api.example.test/v1/identity/session",
+			nil,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		httpRequest.Header.Set("Authorization", "Bearer "+accessBearer)
+		resolved, err := instance.store.ResolveIdentityHTTPSession(
+			context.Background(),
+			httpRequest,
+		)
+		if err != nil ||
+			resolved.AccountID != registrationResult.Account.AccountID ||
+			resolved.SessionID != registrationIssuance.SessionID() {
+			t.Fatalf("issued registration session did not resolve canonically: session=%#v err=%v", resolved, err)
+		}
+		refreshRequest, err := http.NewRequest(
+			http.MethodGet,
+			"https://api.example.test/v1/identity/session",
+			nil,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		refreshRequest.Header.Set("Authorization", "Bearer "+refreshBearer)
+		if _, err := instance.store.ResolveIdentityHTTPSession(
+			context.Background(),
+			refreshRequest,
+		); err == nil {
+			t.Fatal("refresh bearer authenticated as an access session")
+		}
+
+		loginService, _, loginVault := newVerificationService(
+			organizationID,
+			projectID,
+			"vault:identity-delivery/login-live",
+		)
+		loginChallenge, err := loginService.Start(
+			context.Background(),
+			IdentityVerificationStartRequest{
+				Channel:    IdentityVerificationEmail,
+				Identifier: registrationIdentifier,
+				Purpose:    IdentityVerificationLogin,
+				TenantID:   organizationID,
+			},
+		)
+		if err != nil {
+			t.Fatalf("start accountless login: %v", err)
+		}
+		loginResult, loginIssuance, err := loginService.CompleteAndIssueSession(
+			context.Background(),
+			IdentityVerificationCompleteRequest{
+				ChallengeID: loginChallenge.ChallengeID,
+				Code:        loginVault.sealRequest.Code,
+				Channel:     IdentityVerificationEmail,
+				Identifier:  registrationIdentifier,
+				Purpose:     IdentityVerificationLogin,
+				TenantID:    organizationID,
+			},
+		)
+		if err != nil {
+			t.Fatalf("complete accountless login: %v", err)
+		}
+		if loginResult.Account.AccountID != registrationResult.Account.AccountID ||
+			loginResult.Credential.CredentialID !=
+				registrationResult.Credential.CredentialID ||
+			loginResult.Created ||
+			loginIssuance.SessionID() == "" ||
+			loginIssuance.SessionID() == registrationIssuance.SessionID() {
+			t.Fatalf(
+				"accountless login did not reuse the canonical account and credential: result=%#v receipt=%v",
+				loginResult,
+				loginIssuance,
+			)
+		}
+		loginAccessBearer, loginRefreshBearer, err :=
+			loginIssuance.TakeBearerTokens()
+		if err != nil || loginAccessBearer == "" || loginRefreshBearer == "" {
+			t.Fatalf(
+				"accountless login bearer handoff failed: access_nonempty=%t refresh_nonempty=%t err=%v",
+				loginAccessBearer != "",
+				loginRefreshBearer != "",
+				err,
+			)
+		}
+		loginRequest, err := http.NewRequest(
+			http.MethodGet,
+			"https://api.example.test/v1/identity/session",
+			nil,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		loginRequest.Header.Set("Authorization", "Bearer "+loginAccessBearer)
+		loginSession, err := instance.store.ResolveIdentityHTTPSession(
+			context.Background(),
+			loginRequest,
+		)
+		if err != nil ||
+			loginSession.AccountID != registrationResult.Account.AccountID ||
+			loginSession.SessionID != loginIssuance.SessionID() {
+			t.Fatalf("accountless login session did not resolve canonically: session=%#v err=%v", loginSession, err)
+		}
+
+		time.Sleep(1100 * time.Millisecond)
+		duplicateService, duplicateStore, duplicateVault := newVerificationService(
+			organizationID,
+			projectID,
+			"vault:identity-delivery/registration-duplicate",
+		)
+		duplicateChallenge, err := duplicateService.Start(
+			context.Background(),
+			IdentityVerificationStartRequest{
+				Channel:    IdentityVerificationEmail,
+				Identifier: registrationIdentifier,
+				Purpose:    IdentityVerificationRegistration,
+				TenantID:   organizationID,
+			},
+		)
+		if err != nil {
+			t.Fatalf("start duplicate registration: %v", err)
+		}
+		if _, _, err := duplicateService.CompleteAndIssueSession(
+			context.Background(),
+			IdentityVerificationCompleteRequest{
+				ChallengeID: duplicateChallenge.ChallengeID,
+				Code:        duplicateVault.sealRequest.Code,
+				Channel:     IdentityVerificationEmail,
+				Identifier:  registrationIdentifier,
+				Purpose:     IdentityVerificationRegistration,
+				TenantID:    organizationID,
+				DisplayName: "Duplicate Registration",
+			},
+		); verificationErrorCode(err) != "verification_mutation_rejected" {
+			t.Fatalf("duplicate registration was not rejected atomically: %v", err)
+		}
+		duplicateChallengeDigest := duplicateStore.challengeDigest(
+			duplicateChallenge.ChallengeID,
+		)
+		var (
+			principalCount        int
+			credentialCount       int
+			sessionCount          int
+			duplicateStatus       string
+			duplicateAttemptCount int
+			duplicateReceiptCount int
+		)
+		if err := instance.adminDB.QueryRow(`
+SELECT
+  (SELECT count(*) FROM identity_principals),
+  (SELECT count(*) FROM identity_credentials),
+  (SELECT count(*) FROM identity_sessions),
+  challenge.status,
+  challenge.attempt_count,
+  (
+    SELECT count(*) FROM identity_verification_receipts AS receipt
+     WHERE receipt.challenge_id=challenge.id
+  )
+  FROM identity_verification_challenges AS challenge
+ WHERE challenge.challenge_digest=$1
+`, duplicateChallengeDigest).Scan(
+			&principalCount,
+			&credentialCount,
+			&sessionCount,
+			&duplicateStatus,
+			&duplicateAttemptCount,
+			&duplicateReceiptCount,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if principalCount != 1 || credentialCount != 1 || sessionCount != 2 ||
+			duplicateStatus != "pending" || duplicateAttemptCount != 0 ||
+			duplicateReceiptCount != 0 {
+			t.Fatalf(
+				"duplicate registration rollback principals=%d credentials=%d sessions=%d status=%q attempts=%d receipts=%d",
+				principalCount,
+				credentialCount,
+				sessionCount,
+				duplicateStatus,
+				duplicateAttemptCount,
+				duplicateReceiptCount,
+			)
+		}
+
+		scopeService, scopeStore, scopeVault := newVerificationService(
+			organizationID,
+			projectID,
+			"vault:identity-delivery/scope-live",
+		)
+		scopeIdentifier := "registration-scope@example.cn"
+		scopeChallenge, err := scopeService.Start(
+			context.Background(),
+			IdentityVerificationStartRequest{
+				Channel:    IdentityVerificationEmail,
+				Identifier: scopeIdentifier,
+				Purpose:    IdentityVerificationRegistration,
+				TenantID:   organizationID,
+			},
+		)
+		if err != nil {
+			t.Fatalf("start scoped registration: %v", err)
+		}
+		for _, mismatch := range []struct {
+			name           string
+			organizationID string
+			projectID      string
+			sealRef        string
+		}{
+			{
+				name:           "project",
+				organizationID: organizationID,
+				projectID:      otherProjectID,
+				sealRef:        "vault:identity-delivery/scope-project",
+			},
+			{
+				name:           "organization",
+				organizationID: foreignOrganizationID,
+				projectID:      foreignProjectID,
+				sealRef:        "vault:identity-delivery/scope-organization",
+			},
+		} {
+			t.Run("reject mismatched "+mismatch.name, func(t *testing.T) {
+				mismatchService, _, _ := newVerificationService(
+					mismatch.organizationID,
+					mismatch.projectID,
+					mismatch.sealRef,
+				)
+				if _, _, err := mismatchService.CompleteAndIssueSession(
+					context.Background(),
+					IdentityVerificationCompleteRequest{
+						ChallengeID: scopeChallenge.ChallengeID,
+						Code:        scopeVault.sealRequest.Code,
+						Channel:     IdentityVerificationEmail,
+						Identifier:  scopeIdentifier,
+						Purpose:     IdentityVerificationRegistration,
+						TenantID:    mismatch.organizationID,
+						DisplayName: "Scope Rejection",
+					},
+				); verificationErrorCode(err) != "verification_rejected" {
+					t.Fatalf("mismatched %s scope returned %v", mismatch.name, err)
+				}
+			})
+		}
+		scopeChallengeDigest := scopeStore.challengeDigest(scopeChallenge.ChallengeID)
+		var scopeStatus string
+		var scopeAttempts, scopeReceipts int
+		if err := instance.adminDB.QueryRow(`
+SELECT challenge.status, challenge.attempt_count,
+       (
+         SELECT count(*) FROM identity_verification_receipts AS receipt
+          WHERE receipt.challenge_id=challenge.id
+       )
+  FROM identity_verification_challenges AS challenge
+ WHERE challenge.challenge_digest=$1
+`, scopeChallengeDigest).Scan(
+			&scopeStatus,
+			&scopeAttempts,
+			&scopeReceipts,
+		); err != nil {
+			t.Fatal(err)
+		}
+		if scopeStatus != "pending" || scopeAttempts != 0 || scopeReceipts != 0 {
+			t.Fatalf(
+				"scope mismatch mutated original challenge status=%q attempts=%d receipts=%d",
+				scopeStatus,
+				scopeAttempts,
+				scopeReceipts,
+			)
+		}
+
+		for _, table := range []string{
+			"identity_verification_cooldowns",
+			"identity_verification_challenges",
+			"identity_verification_receipts",
+			"identity_verification_delivery_outbox",
+			"identity_verification_abuse_buckets",
+			"identity_verification_audit_events",
+		} {
+			var count int
+			if err := instance.db.QueryRow(
+				"SELECT count(*) FROM " + table,
+			).Scan(&count); err == nil {
+				t.Fatalf("runtime role read protected verification table %s", table)
+			}
 		}
 	})
 
@@ -1175,6 +1758,12 @@ $$`); err != nil {
 		"a1_execute_identity_security_mutation(TEXT,TEXT,TEXT,UUID)",
 		"a1_project_account_security(UUID)",
 		"a1_bind_verified_identity_credential_authorized(UUID,UUID,TEXT,UUID,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,JSONB)",
+		"a1_issue_identity_verification_challenge_with_delivery(UUID,UUID,UUID,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TIMESTAMPTZ,INTEGER,INTEGER,TEXT,TEXT,JSONB)",
+		"a1_verify_identity_verification_attempt(UUID,UUID,TEXT,TEXT,TEXT,TEXT,TEXT,JSONB)",
+		"a1_register_with_verified_identity_with_refresh(UUID,UUID,TEXT,TEXT,TEXT,TEXT,TIMESTAMPTZ,TIMESTAMPTZ,TEXT,TEXT,TEXT,TEXT,JSONB)",
+		"a1_login_with_verified_identity_with_refresh_result(UUID,UUID,TEXT,TEXT,TEXT,TEXT,TIMESTAMPTZ,TIMESTAMPTZ,TEXT,TEXT,TEXT,JSONB)",
+		"a1_recover_verified_identity_with_refresh_result(UUID,UUID,TEXT,TEXT,TEXT,TEXT,TIMESTAMPTZ,TIMESTAMPTZ,TEXT,TEXT,TEXT,JSONB)",
+		"a1_authenticate_identity_session_digest(TEXT)",
 		"a1_lock_identity_credential_link_receipt(TEXT[])",
 		"a1_complete_identity_credential_link(UUID,UUID,TEXT,UUID,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,JSONB)",
 	} {
@@ -1324,7 +1913,7 @@ func applyIdentityLifecycleMigrations(t *testing.T, db *sql.DB) {
 	applied := 0
 	for _, path := range entries {
 		base := filepath.Base(path)
-		if len(base) < 3 || base[:3] < "001" || base[:3] > "024" {
+		if len(base) < 3 || base[:3] < "001" || base[:3] > "025" {
 			continue
 		}
 		sqlBytes, err := os.ReadFile(path)
@@ -1336,8 +1925,8 @@ func applyIdentityLifecycleMigrations(t *testing.T, db *sql.DB) {
 		}
 		applied++
 	}
-	if applied != 24 {
-		t.Fatalf("expected migrations 001-024, applied %d from %s", applied, migrationsDir)
+	if applied != 25 {
+		t.Fatalf("expected migrations 001-025, applied %d from %s", applied, migrationsDir)
 	}
 }
 
@@ -1429,6 +2018,29 @@ func assertPublicIdentityJSON(t *testing.T, value any) {
 			t.Fatalf("public identity DTO leaked %q: %s", forbidden, encoded)
 		}
 	}
+}
+
+func createIdentityVerificationProjectScope(
+	t *testing.T,
+	db *sql.DB,
+	organizationID string,
+	workspaceID string,
+	projectID string,
+	slugPrefix string,
+) {
+	t.Helper()
+	mustExecArgs(t, db, `
+INSERT INTO organizations(id,slug,display_name)
+VALUES ($1::uuid,$2,'Identity Verification Organization')
+`, organizationID, slugPrefix+"-organization")
+	mustExecArgs(t, db, `
+INSERT INTO workspaces(id,organization_id,slug,display_name)
+VALUES ($1::uuid,$2::uuid,$3,'Identity Verification Workspace')
+`, workspaceID, organizationID, slugPrefix+"-workspace")
+	mustExecArgs(t, db, `
+INSERT INTO projects(id,organization_id,workspace_id,slug,display_name)
+VALUES ($1::uuid,$2::uuid,$3::uuid,$4,'Identity Verification Project')
+`, projectID, organizationID, workspaceID, slugPrefix+"-project")
 }
 
 func establishIdentityProjectScope(

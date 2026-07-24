@@ -232,7 +232,7 @@ func TestIdentityVerificationProductionStartUsesOnlyTransactionalOutbox(t *testi
 
 	result, err := service.Start(context.Background(), IdentityVerificationStartRequest{
 		Channel: IdentityVerificationEmail, Identifier: "outbox@example.test",
-		Purpose: IdentityVerificationBinding, TenantID: "tenant-outbox",
+		Purpose: IdentityVerificationRegistration, TenantID: "tenant-outbox",
 	})
 	if err != nil || result.ChallengeID == "" {
 		t.Fatalf("durable start failed: result=%#v err=%v", result, err)
@@ -278,7 +278,7 @@ func TestIdentityVerificationProductionStartUsesOnlyTransactionalOutbox(t *testi
 	t.Cleanup(failedService.Close)
 	_, err = failedService.Start(context.Background(), IdentityVerificationStartRequest{
 		Channel: IdentityVerificationEmail, Identifier: "outbox-failure@example.test",
-		Purpose: IdentityVerificationBinding, TenantID: "tenant-outbox",
+		Purpose: IdentityVerificationRegistration, TenantID: "tenant-outbox",
 	})
 	if verificationErrorCode(err) != "verification_store_unavailable" {
 		t.Fatalf("durable enqueue failure was remapped incorrectly: %v", err)
@@ -336,7 +336,7 @@ func TestIdentityVerificationProductionDeliveryFailsClosedAndCompensates(t *test
 		defer service.Close()
 		_, err = service.Start(context.Background(), IdentityVerificationStartRequest{
 			Channel: IdentityVerificationEmail, Identifier: "seal-failure@example.test",
-			Purpose: IdentityVerificationBinding, TenantID: "tenant-outbox",
+			Purpose: IdentityVerificationRegistration, TenantID: "tenant-outbox",
 		})
 		if verificationErrorCode(err) != "verification_delivery_unavailable" ||
 			store.createCalls != 0 || vault.deleteCalls != 0 {
@@ -358,7 +358,7 @@ func TestIdentityVerificationProductionDeliveryFailsClosedAndCompensates(t *test
 		cancel()
 		_, err = service.Start(ctx, IdentityVerificationStartRequest{
 			Channel: IdentityVerificationEmail, Identifier: "rollback@example.test",
-			Purpose: IdentityVerificationBinding, TenantID: "tenant-outbox",
+			Purpose: IdentityVerificationRegistration, TenantID: "tenant-outbox",
 		})
 		if verificationErrorCode(err) != "verification_store_unavailable" ||
 			vault.deleteCalls != 1 || !vault.deleteHadDeadline || vault.deleteContextErr != nil {
@@ -377,7 +377,7 @@ func TestIdentityVerificationProductionDeliveryFailsClosedAndCompensates(t *test
 		defer service.Close()
 		_, err = service.Start(context.Background(), IdentityVerificationStartRequest{
 			Channel: IdentityVerificationEmail, Identifier: "compensation@example.test",
-			Purpose: IdentityVerificationBinding, TenantID: "tenant-outbox",
+			Purpose: IdentityVerificationRegistration, TenantID: "tenant-outbox",
 		})
 		if verificationErrorCode(err) != "verification_delivery_compensation_failed" ||
 			strings.Contains(err.Error(), secret) {
@@ -397,7 +397,7 @@ func TestIdentityVerificationProductionDeliveryFailsClosedAndCompensates(t *test
 		defer service.Close()
 		_, err = service.Start(context.Background(), IdentityVerificationStartRequest{
 			Channel: IdentityVerificationEmail, Identifier: "commit-unknown@example.test",
-			Purpose: IdentityVerificationBinding, TenantID: "tenant-outbox",
+			Purpose: IdentityVerificationRegistration, TenantID: "tenant-outbox",
 		})
 		if verificationErrorCode(err) != "verification_delivery_commit_unknown" ||
 			vault.sealCalls != 1 || vault.deleteCalls != 0 {
@@ -467,7 +467,7 @@ func TestIdentityVerificationDeliveryModesFailClosedAndCallSynchronousProviderOn
 			t.Cleanup(service.Close)
 			_, startErr := service.Start(context.Background(), IdentityVerificationStartRequest{
 				Channel: IdentityVerificationEmail, Identifier: test.identifier,
-				Purpose: IdentityVerificationBinding, TenantID: "tenant-memory",
+				Purpose: IdentityVerificationRegistration, TenantID: "tenant-memory",
 			})
 			if (test.wantErrCode == "" && startErr != nil) ||
 				(test.wantErrCode != "" && verificationErrorCode(startErr) != test.wantErrCode) {
@@ -485,22 +485,22 @@ func TestIdentityVerificationDeliveryModesFailClosedAndCallSynchronousProviderOn
 	}
 }
 
-func TestIdentityVerificationBindingCreatesCredentialWithoutImplicitMerge(t *testing.T) {
+func TestIdentityVerificationRegistrationCreatesAccountAndBindingDoesNotMerge(t *testing.T) {
 	service, sender, identity, clock := newVerificationTestService(t)
 	first := startVerification(t, service, IdentityVerificationStartRequest{
 		Channel: IdentityVerificationEmail, Identifier: "User@Example.com",
-		Purpose: IdentityVerificationBinding, TenantID: "tenant-a",
+		Purpose: IdentityVerificationRegistration, TenantID: "tenant-a",
 	})
 	code := lastVerificationCode(t, sender)
 	result, err := service.Complete(context.Background(), IdentityVerificationCompleteRequest{
 		ChallengeID: first.ChallengeID, Code: code, Channel: IdentityVerificationEmail,
-		Identifier: "user@example.com", Purpose: IdentityVerificationBinding, TenantID: "tenant-a",
+		Identifier: "user@example.com", Purpose: IdentityVerificationRegistration, TenantID: "tenant-a",
 	})
 	if err != nil {
-		t.Fatalf("complete first binding: %v", err)
+		t.Fatalf("complete registration: %v", err)
 	}
 	if !result.Created || result.Account.CredentialCount != 1 || result.Credential.Kind != IdentityCredentialEmail {
-		t.Fatalf("unexpected binding result: %#v", result)
+		t.Fatalf("unexpected registration result: %#v", result)
 	}
 
 	secondAccount, err := identity.CreateAccount(CreateIdentityAccountRequest{})
@@ -526,11 +526,90 @@ func TestIdentityVerificationBindingCreatesCredentialWithoutImplicitMerge(t *tes
 	}
 }
 
+func TestIdentityVerificationRegistrationLoginAndBindingBoundaries(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name      string
+		channel   IdentityVerificationChannel
+		purpose   IdentityVerificationPurpose
+		accountID string
+		wantCode  string
+	}{
+		{
+			name:     "registration is email only",
+			channel:  IdentityVerificationPhone,
+			purpose:  IdentityVerificationRegistration,
+			wantCode: "invalid_verification_channel",
+		},
+		{
+			name:      "registration rejects an existing account",
+			channel:   IdentityVerificationEmail,
+			purpose:   IdentityVerificationRegistration,
+			accountID: "account-existing",
+			wantCode:  "registration_account_forbidden",
+		},
+		{
+			name:     "binding requires an account",
+			channel:  IdentityVerificationEmail,
+			purpose:  IdentityVerificationBinding,
+			wantCode: "account_binding_required",
+		},
+		{
+			name:     "recovery requires an account",
+			channel:  IdentityVerificationEmail,
+			purpose:  IdentityVerificationRecovery,
+			wantCode: "account_binding_required",
+		},
+		{
+			name:     "accountless email login is valid",
+			channel:  IdentityVerificationEmail,
+			purpose:  IdentityVerificationLogin,
+			wantCode: "",
+		},
+		{
+			name:     "accountless email registration is valid",
+			channel:  IdentityVerificationEmail,
+			purpose:  IdentityVerificationRegistration,
+			wantCode: "",
+		},
+	}
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			_, _, _, _, _, _, err := normalizeVerificationRequest(
+				test.channel,
+				func() string {
+					if test.channel == IdentityVerificationPhone {
+						return "+8613800138000"
+					}
+					return "boundary@example.cn"
+				}(),
+				test.purpose,
+				"tenant-boundary",
+				test.accountID,
+			)
+			gotCode := ""
+			if err != nil {
+				gotCode = verificationErrorCode(err)
+			}
+			if gotCode != test.wantCode {
+				t.Fatalf(
+					"boundary returned code %q, want %q",
+					gotCode,
+					test.wantCode,
+				)
+			}
+		})
+	}
+}
+
 func TestIdentityVerificationTTLAttemptsCooldownAndSingleUse(t *testing.T) {
 	service, sender, _, clock := newVerificationTestService(t)
 	request := IdentityVerificationStartRequest{
-		Channel: IdentityVerificationPhone, Identifier: "+86 138-0013-8000",
-		Purpose: IdentityVerificationBinding, TenantID: "tenant-a",
+		Channel: IdentityVerificationEmail, Identifier: "attempts@example.test",
+		Purpose: IdentityVerificationRegistration, TenantID: "tenant-a",
 	}
 	challenge := startVerification(t, service, request)
 	if _, err := service.Start(context.Background(), request); verificationErrorCode(err) != "verification_resend_cooldown" {
@@ -580,7 +659,7 @@ func TestIdentityVerificationConcurrentCompleteIsSingleUse(t *testing.T) {
 	service, sender, _, _ := newVerificationTestService(t)
 	request := IdentityVerificationStartRequest{
 		Channel: IdentityVerificationEmail, Identifier: "race@example.com",
-		Purpose: IdentityVerificationBinding, TenantID: "tenant-a",
+		Purpose: IdentityVerificationRegistration, TenantID: "tenant-a",
 	}
 	challenge := startVerification(t, service, request)
 	code := lastVerificationCode(t, sender)
@@ -624,7 +703,7 @@ func TestIdentityVerificationDeliveryFailureInvalidatesChallenge(t *testing.T) {
 	sender.SetError(IdentityVerificationError{Code: "provider_unavailable"})
 	_, err := service.Start(context.Background(), IdentityVerificationStartRequest{
 		Channel: IdentityVerificationEmail, Identifier: "delivery@example.com",
-		Purpose: IdentityVerificationBinding, TenantID: "tenant-a",
+		Purpose: IdentityVerificationRegistration, TenantID: "tenant-a",
 	})
 	if verificationErrorCode(err) != "delivery_failed" {
 		t.Fatalf("sender failure was not normalized: %v", err)
@@ -637,7 +716,7 @@ func TestIdentityVerificationDeliveryFailureInvalidatesChallenge(t *testing.T) {
 	sender.SetError(nil)
 	if _, err := service.Start(context.Background(), IdentityVerificationStartRequest{
 		Channel: IdentityVerificationEmail, Identifier: "delivery@example.com",
-		Purpose: IdentityVerificationBinding, TenantID: "tenant-a",
+		Purpose: IdentityVerificationRegistration, TenantID: "tenant-a",
 	}); err != nil {
 		t.Fatalf("failed delivery permanently blocked resend: %v", err)
 	}

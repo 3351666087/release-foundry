@@ -882,8 +882,9 @@ func TestProductionIdentityReadinessRequiresSessionAndDeliveryReplacementContrac
 		"a1_rotate_identity_session_refresh_from_digest",
 		"a1_revoke_identity_session",
 		"a1_revoke_all_identity_sessions",
-		"a1_login_with_verified_identity_with_refresh",
-		"a1_recover_verified_identity_with_refresh",
+		"a1_register_with_verified_identity_with_refresh",
+		"a1_login_with_verified_identity_with_refresh_result",
+		"a1_recover_verified_identity_with_refresh_result",
 		"a1_claim_identity_delivery_outbox",
 		"a1_heartbeat_identity_delivery_outbox",
 		"a1_complete_identity_delivery_outbox",
@@ -903,6 +904,14 @@ func TestProductionIdentityReadinessRequiresSessionAndDeliveryReplacementContrac
 	} {
 		if strings.Contains(productionIdentityReadinessQuery, revoked) {
 			t.Fatalf("readiness still depends on revoked runtime entrypoint %s", revoked)
+		}
+	}
+	for _, revokedExistenceCheck := range []string{
+		"AND to_regprocedure(\n      'public.a1_login_with_verified_identity_with_refresh(",
+		"AND to_regprocedure(\n      'public.a1_recover_verified_identity_with_refresh(",
+	} {
+		if strings.Contains(productionIdentityReadinessQuery, revokedExistenceCheck) {
+			t.Fatalf("readiness still depends on revoked wrapper existence %s", revokedExistenceCheck)
 		}
 	}
 }
@@ -935,6 +944,12 @@ func TestProductionIdentityReadinessEnforcesSecurityAuthorityLeastPrivilege(t *t
 		"timestamp with time zone,timestamp with time zone)'",
 		"a1_execute_identity_security_mutation(text,text,text,timestamp with time zone)'",
 		"a1_bind_verified_identity_credential_authorized",
+		"a1_register_with_verified_identity_with_refresh",
+		"a1_login_with_verified_identity_with_refresh_result",
+		"a1_recover_verified_identity_with_refresh_result",
+		"identity_verification_challenges",
+		"identity_verification_receipts",
+		"identity_verification_delivery_outbox",
 		"AND NOT has_function_privilege(\n     current_user,\n     'public.a1_bind_verified_identity_credential(",
 		"OR has_function_privilege('public', function_oid, 'EXECUTE')",
 		"count(*) = 5",

@@ -129,11 +129,25 @@ def test_session_issuance_and_resolution_share_one_hmac_codec() -> None:
     refresh_issue_index = completion.index(
         "refreshToken, err = store.sessionTokens.issueRefresh()"
     )
-    mutation_index = completion.index("sessionToken.digest, refreshToken.digest,")
+    mutation_call_start = completion.index(
+        "mutationResult, err := coordinator.applyIdentityMutationTx("
+    )
+    mutation_index = completion.index(
+        "sessionToken.digest, refreshToken.digest,",
+        mutation_call_start,
+    )
     commit_index = completion.index("if err := tx.Commit(); err != nil")
     receipt_index = completion.index("newIdentitySessionIssuanceReceiptWithRefresh(")
-    assert issue_index < refresh_issue_index < mutation_index < commit_index < receipt_index
-    mutation_call = completion[completion.index("resultID, err :="):commit_index]
+    assert (
+        issue_index
+        < refresh_issue_index
+        < mutation_call_start
+        < mutation_index
+        < commit_index
+        < receipt_index
+    )
+    mutation_call = completion[mutation_call_start:commit_index]
+    assert "sessionToken.digest, refreshToken.digest," in mutation_call
     assert "sessionToken.bearer" not in mutation_call
     assert "refreshToken.bearer" not in mutation_call
     assert "sessionToken.bearer" in completion[commit_index:]

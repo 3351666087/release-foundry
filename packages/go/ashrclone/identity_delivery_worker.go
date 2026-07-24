@@ -1318,7 +1318,10 @@ func validIdentityDeliveryIdentifier(value string) bool {
 
 func validIdentityDeliveryPurpose(purpose IdentityVerificationPurpose) bool {
 	switch purpose {
-	case IdentityVerificationBinding, IdentityVerificationLogin, IdentityVerificationRecovery,
+	case IdentityVerificationRegistration,
+		IdentityVerificationBinding,
+		IdentityVerificationLogin,
+		IdentityVerificationRecovery,
 		IdentityVerificationPurpose("credential_binding"),
 		IdentityVerificationPurpose("account_recovery"),
 		IdentityVerificationPurpose("step_up"):
