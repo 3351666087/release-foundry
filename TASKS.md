@@ -96,6 +96,7 @@ must not be included in A1 commits.
 - [x] Pass focused, Go, live Docker PostgreSQL, Python/TypeScript parity, A3
   compatibility, full CL, formatting, diff, ownership/generated-path, and
   secret audits. The coherent A1 batch is ready for the commit/push gate.
-- [ ] Commit the coherent A1 batch and push only A1 to
-  `origin/codex/a1-local-sdk-runner`; fetch back and prove post-push `0/0`
-  parity before checking this item.
+- [x] Commit the coherent A1 batch as
+  `596fde1966e1edd62e76885cd973c66338f2a383`, push only A1 to
+  `origin/codex/a1-local-sdk-runner`, fetch back, and prove post-push `0/0`
+  parity.

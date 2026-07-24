@@ -4016,6 +4016,7 @@ Pre-push full-CL checkpoint for the production registration/login wiring batch:
 - [x] Changed-file secret audit passed after excluding only non-secret fixture
   labels; no QQ mailbox, SMTP credential, private key, provider/API token,
   JWT/bearer value, OAuth code/state, or raw provider subject/email is staged.
-- [ ] Commit, push only `HEAD:codex/a1-local-sdk-runner`, fetch back, and prove
-  post-push `0/0` parity. This remains unchecked until the remote accepts the
-  push.
+- [x] Commit `596fde1966e1edd62e76885cd973c66338f2a383`, push only
+  `HEAD:codex/a1-local-sdk-runner`, fetch back, and prove post-push `0/0`
+  parity. The local HEAD and
+  `origin/codex/a1-local-sdk-runner` are identical after the accepted push.
