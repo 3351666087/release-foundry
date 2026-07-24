@@ -235,5 +235,7 @@ Implementation and release gates discovered by the real runtime exercise:
   aggregate/provider-set release evidence.
 - [x] Run the final focused/full cross-language, PostgreSQL, CL plan, hygiene,
   commercial, formatting, secret, ownership, and generated-artifact audits.
-- [ ] Commit and push only A1 to
-  `origin/codex/a1-local-sdk-runner`.
+- [x] Commit the exact 13-path A1 batch as
+  `086622c7b13f5cfb6fdf63f217e78b03694c0291`, push only
+  `HEAD:codex/a1-local-sdk-runner`, fetch the remote, and prove post-push
+  local/remote parity `0/0`.

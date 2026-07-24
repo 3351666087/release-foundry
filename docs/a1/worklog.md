@@ -4242,7 +4242,10 @@ Final local A1 gate evidence for this checkpoint:
   verify state/nonce/PKCE, canonical-account/session-cookie/console handoff,
   replay denial and failure atomicity with aggregate/provider-set evidence,
   then run the complete changed-scope CL.
-- [ ] Commit and push only A1 after the final staged-diff audit.
+- [x] Committed the exact 13-path A1 batch as
+  `086622c7b13f5cfb6fdf63f217e78b03694c0291`, pushed only
+  `HEAD:codex/a1-local-sdk-runner`, fetched `origin`, and proved post-push
+  local/remote parity `0/0`.
 - [x] Diagnosed the Chrome Extension handoff through the plugin's read-only
   checks without switching browser surfaces: Chrome is running; the
   Extension is installed and enabled in its selected `Default` profile; and
@@ -4376,6 +4379,7 @@ Final local A1 gate evidence for this checkpoint:
 - [x] Fetched `origin` after the final test pass and confirmed local `HEAD`
   and `origin/codex/a1-local-sdk-runner` still share the exact
   `a7b0e0383e85` base with pre-commit divergence `0/0`.
-- [ ] Stage and review exactly the 13 A1-owned paths, commit the coherent
-  batch, push only `HEAD:codex/a1-local-sdk-runner`, fetch, and prove final
-  `0/0` parity.
+- [x] Staged and reviewed exactly the 13 A1-owned paths, committed the
+  coherent batch as `086622c7b13f5cfb6fdf63f217e78b03694c0291`, pushed only
+  `HEAD:codex/a1-local-sdk-runner`, fetched `origin`, and proved post-push
+  local/remote parity `0/0`.
