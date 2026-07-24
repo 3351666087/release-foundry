@@ -76,6 +76,7 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
    AND to_regclass('public.identity_security_receipts') IS NOT NULL
    AND to_regclass('public.identity_security_mutation_tickets') IS NOT NULL
    AND to_regclass('public.identity_security_mutation_idempotency') IS NOT NULL
+   AND to_regclass('public.oauth_first_login_operations') IS NOT NULL
    AND to_regprocedure(
      'public.a1_complete_oauth_identity_callback(uuid,uuid,uuid,text,text,text,text,text,text,text,text,text,text,text,jsonb)'
    ) IS NOT NULL
@@ -123,6 +124,9 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
     ) IS NOT NULL
     AND to_regprocedure(
       'public.a1_recover_verified_identity_with_refresh_result(uuid,uuid,text,text,text,text,timestamp with time zone,timestamp with time zone,text,text,text,jsonb)'
+   ) IS NOT NULL
+   AND to_regprocedure(
+     'public.a1_complete_oauth_first_login_with_refresh(uuid,uuid,text,text[],text[],text,text,text,text,text,text,timestamp with time zone,timestamp with time zone,text,text,text,jsonb)'
    ) IS NOT NULL
    AND to_regprocedure(
      'public.a1_claim_identity_delivery_outbox(uuid,uuid,text,integer,bigint,timestamp with time zone)'
@@ -243,6 +247,21 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
     AND has_function_privilege(
       current_user,
       'public.a1_recover_verified_identity_with_refresh_result(uuid,uuid,text,text,text,text,timestamp with time zone,timestamp with time zone,text,text,text,jsonb)',
+      'EXECUTE'
+    )
+    AND has_function_privilege(
+      current_user,
+      'public.a1_complete_oauth_first_login_with_refresh(uuid,uuid,text,text[],text[],text,text,text,text,text,text,timestamp with time zone,timestamp with time zone,text,text,text,jsonb)',
+      'EXECUTE'
+    )
+    AND NOT has_function_privilege(
+      'public',
+      'public.a1_complete_oauth_first_login_with_refresh(uuid,uuid,text,text[],text[],text,text,text,text,text,text,timestamp with time zone,timestamp with time zone,text,text,text,jsonb)',
+      'EXECUTE'
+    )
+    AND NOT has_function_privilege(
+      'public',
+      'public.a1_complete_oauth_first_login_with_refresh(uuid,uuid,text,text,text,text,text,text,text,text,text,timestamp with time zone,timestamp with time zone,text,text,text,jsonb)',
       'EXECUTE'
     )
     AND NOT has_function_privilege(
@@ -570,6 +589,46 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
             WHERE regexp_replace(setting, '\s', '', 'g') =
               'search_path=pg_catalog,public,pg_temp'
          )
+    )
+    AND NOT has_table_privilege(
+      current_user,
+      'public.oauth_first_login_operations',
+      'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+    )
+    AND NOT has_any_column_privilege(
+      current_user,
+      'public.oauth_first_login_operations',
+      'SELECT,INSERT,UPDATE,REFERENCES'
+    )
+    AND NOT has_table_privilege(
+      'public',
+      'public.oauth_first_login_operations',
+      'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+    )
+    AND NOT has_any_column_privilege(
+      'public',
+      'public.oauth_first_login_operations',
+      'SELECT,INSERT,UPDATE,REFERENCES'
+    )
+    AND (
+      SELECT c.relrowsecurity AND c.relforcerowsecurity
+        FROM pg_catalog.pg_class c
+       WHERE c.oid = to_regclass('public.oauth_first_login_operations')
+    )
+    AND (
+      SELECT p.prosecdef
+        AND pg_catalog.pg_get_userbyid(p.proowner) <> current_user
+        AND NOT pg_catalog.pg_has_role(current_user, p.proowner, 'MEMBER')
+        AND EXISTS (
+          SELECT 1
+            FROM unnest(COALESCE(p.proconfig, ARRAY[]::TEXT[])) setting
+           WHERE regexp_replace(setting, '\s', '', 'g') =
+             'search_path=pg_catalog,public,pg_temp'
+        )
+        FROM pg_catalog.pg_proc p
+       WHERE p.oid = to_regprocedure(
+         'public.a1_complete_oauth_first_login_with_refresh(uuid,uuid,text,text[],text[],text,text,text,text,text,text,timestamp with time zone,timestamp with time zone,text,text,text,jsonb)'
+       )
     )
 `
 

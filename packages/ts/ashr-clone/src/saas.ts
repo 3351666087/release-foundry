@@ -240,6 +240,22 @@ export const UNSUPPORTED_GO_ROUTE_GAPS: Record<string, { reason: string; replace
     reason: "Go exposes the canonical localhost Google account-connection callback; the hosted TypeScript route client does not execute browser redirects.",
     consumer_action: "keep explicit until the generated OpenAPI client models provider callbacks without exposing authorization codes",
   },
+  "GET /v1/identity/oauth/github/callback": {
+    reason: "Go completes GitHub first login through a dedicated same-origin browser callback that consumes one-time state and hands off only hardened session cookies; the generic hosted SaaS client must not accept OAuth codes or browser intent material.",
+    consumer_action: "invoke through the browser identity surface and keep authorization codes, state, PKCE, nonce, and session cookies outside generic hosted route manifests",
+  },
+  "GET /v1/identity/oauth/github/start": {
+    reason: "Go starts GitHub first login through a dedicated same-origin browser redirect with server-selected account-creation policy; the generic hosted SaaS client does not own browser OAuth navigation.",
+    consumer_action: "invoke through the browser identity surface and keep first login separate from authenticated explicit credential binding",
+  },
+  "GET /v1/identity/oauth/google/callback": {
+    reason: "Go completes Google first login through a dedicated same-origin browser callback that consumes one-time state and hands off only hardened session cookies; the generic hosted SaaS client must not accept OAuth codes or browser intent material.",
+    consumer_action: "invoke through the browser identity surface and keep authorization codes, state, PKCE, nonce, and session cookies outside generic hosted route manifests",
+  },
+  "GET /v1/identity/oauth/google/start": {
+    reason: "Go starts Google first login through a dedicated same-origin browser redirect with server-selected account-creation policy; the generic hosted SaaS client does not own browser OAuth navigation.",
+    consumer_action: "invoke through the browser identity surface and keep first login separate from authenticated explicit credential binding",
+  },
   "GET /v1/projects/{project_id}/oauth/google/start": {
     reason: "Go exposes a browser redirect alias; hosted SDKs use the provider-neutral JSON POST start contract.",
     replacement_route: "POST /v1/projects/{project_id}/oauth/{provider}/start",

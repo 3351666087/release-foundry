@@ -3742,7 +3742,7 @@ completed checkbox to chat memory.
   registration, verified-email conflict closure, organization/project
   membership, access/refresh session issuance, audit, fixed `search_path`,
   runtime grants, and RLS coverage.
-- [ ] Add the PostgreSQL OAuth first-login coordinator and provider-neutral
+- [x] Add the PostgreSQL OAuth first-login coordinator and provider-neutral
   Google/GitHub adapter result normalization without duplicating canonical
   account or session policy in provider-specific services.
 - [ ] Add public OAuth first-login start/callback endpoints with server-chosen
@@ -3784,7 +3784,7 @@ focused source and live-PostgreSQL evidence is green.
 - [x] Prove known provider subjects perform non-creating login only when their
   canonical account still has active trusted-scope memberships, and that
   verified email can only reject conflicts rather than merge identities.
-- [ ] Add the Go PostgreSQL first-login coordinator with post-commit one-use
+- [x] Add the Go PostgreSQL first-login coordinator with post-commit one-use
   bearer receipt lookup and result validation; no provider-specific canonical
   policy may be duplicated in the adapter or HTTP layer.
 - [x] Run source-contract and live Docker migration/RLS/replay/rollback tests,
@@ -3809,11 +3809,11 @@ audits. Never modify or push A3 or `apps/webapp`.
   ownership audit, and secret-material audit for the database batch.
 - [x] Commit the complete migration 026 database-test batch and push only
   `HEAD:codex/a1-local-sdk-runner`; verify post-push `0/0` parity.
-- [ ] Implement the production Go PostgreSQL OAuth first-login coordinator
+- [x] Implement the production Go PostgreSQL OAuth first-login coordinator
   in a large coherent batch with domain-separated keyed digests, trusted
   tenant/project scope, bounded serializable retry, result validation, and a
   one-use post-commit access/refresh bearer receipt.
-- [ ] Prove coordinator success, replay behavior, conflict/error mapping,
+- [x] Prove coordinator success, replay behavior, conflict/error mapping,
   commit/database failure cleanup, receipt redaction/single-take behavior,
   RLS/key-rotation compatibility, and provider-neutral policy ownership.
 - [ ] Re-run focused and full A1 Go/Python/cross-language suites, check all
@@ -3831,3 +3831,109 @@ Database-batch evidence:
   `git diff --check`, A3-path audit, and redacted secret-pattern audit passed.
 - Database batch committed as `7871655a` and pushed only to
   `origin/codex/a1-local-sdk-runner`; post-push ahead/behind is `0/0`.
+
+#### Go PostgreSQL OAuth first-login coordinator checklist (2026-07-23)
+
+This checklist is the live implementation gate for the next A1-only batch.
+Check an item only after focused evidence is green.
+
+- [x] Add a production coordinator constructor bound to one
+  `ProductionIdentityStore` database and its configured session/digest
+  keyrings; reject missing database, keyring, or trusted scope.
+- [x] Validate schema, first-login purpose, production Google/GitHub provider,
+  canonical UUID scope, provider subject, verified email, opaque vault
+  reference, display label, and completion time before opening a transaction.
+- [x] Generate access/refresh bearers once, pass only keyed,
+  domain-separated digests to PostgreSQL, and clear local bearer copies on
+  every pre-commit, SQL, validation, retry-exhaustion, or commit failure.
+- [x] Execute migration 026 as the single canonical account/session authority
+  in a bounded serializable transaction with trusted organization/project
+  `set_config` scope and bounded retry that reuses the same bearer material.
+- [x] Validate every returned UUID, provider/scope/session relation, created
+  semantics, and expiry before returning a post-commit one-use
+  `IdentitySessionIssuanceReceipt`.
+- [x] Map PostgreSQL conflicts, authorization rejection, malformed state, and
+  infrastructure failure to stable non-disclosing public OAuth errors.
+- [x] Add unit tests for constructor/validation, keyed SQL arguments, retry,
+  conflict mapping, rollback/commit failure cleanup, result validation,
+  receipt redaction, and single-take behavior.
+- [x] Add live Docker PostgreSQL tests for unknown-subject registration,
+  known-subject login, exact replay, RLS/trusted-scope closure, canonical email
+  conflict, key-versioned session resolution, and no raw secret persistence.
+- [ ] Re-run focused and full CL gates, perform changed-path/A3/secret audits,
+  check all earned items, commit, and push only
+  `HEAD:codex/a1-local-sdk-runner`.
+
+#### July 24 final CL and A1-only push checklist
+
+This is the current crash-safe execution log. Check each item only after the
+corresponding command or audit is green.
+
+- [x] Re-enter the dedicated A1 worktree, restore accidental generated A2/A3
+  drift, add the required root `TASKS.md` crash-safe ledger, confirm exactly
+  twelve A1-owned paths remain, fetch the A1 remote, and prove pre-commit
+  local/remote parity is `0/0`.
+- [x] Pass the remaining read-only A3 webapp, evidence-gate, golden-path, and
+  rc2 release-delivery CL commands without modifying A3 or `apps/webapp`.
+- [x] Re-run final CL hygiene/commercial guards, formatting, diff,
+  changed-path/A3/A2, generated-artifact, and redacted secret-material audits.
+- [ ] Check the earned continuation/coordinator items, stage exactly the
+  twelve A1-owned paths, commit the complete coordinator batch, and push only
+  `HEAD:codex/a1-local-sdk-runner`.
+- [ ] Verify the pushed commit is `0/0` against the A1 remote, record its SHA
+  here, then commit and push the worklog-only completion checkpoint and prove
+  final `0/0` parity.
+
+July 24 final-CL evidence:
+
+- Root and `apps/webapp` lockfile installs passed; the webapp TypeScript check
+  and optimized Next.js production build passed.
+- The Chromium A3 product-route E2E passed `22/22`. Its deliberate screenshot
+  refreshes were restored immediately, leaving no A3 or screenshot path in
+  the A1 worktree.
+- The blocked-exception evidence bundle, golden-path rc.1 audit
+  bundle/archive/release manifest, and rc.2 audit bundle/archive/release
+  manifest all verified with `status=passed`, zero findings, and no secret
+  values.
+- The final full CL plan selected every job; hygiene passed with zero
+  findings, and the commercial guard passed with zero blockers or advisories.
+- `gofmt -d` was empty for all six changed Go files and `git diff --check`
+  passed. The exact changed-path allowlist contains twelve A1-owned paths and
+  no A2, A3, webapp, screenshot, report, E2E, cache, build, or generated path.
+- The final changed-file secret scan found no QQ mailbox, SMTP secret
+  assignment, private key, provider/API token shape, JWT, bearer literal, or
+  OAuth query value. All email literals use only synthetic `example.cn` or
+  RFC-reserved `example.com` domains.
+
+Coordinator-batch evidence in progress:
+
+- Go coordinator formatted and the complete `packages/go/ashrclone` module
+  suite passed before focused coordinator tests were added.
+- Migration 026 array authority, scalar compatibility wrapper, expanded
+  session relation, ACL/RLS, rollback, concurrency, candidate ambiguity, and
+  lookup-key rotation source/live Docker suite: `18 passed`.
+- Focused Go coordinator constructor/validation, keyed SQL boundary,
+  serialization/deadlock retry, exhaustion, conflict mapping, rollback,
+  malformed-result, commit-failure, expiry-relation, and one-use receipt
+  suite passed across the complete Go module command.
+- Resumed coordinator batch on 2026-07-23: confirmed dedicated A1 worktree remains `0/0` against `origin/codex/a1-local-sdk-runner`; next green gates are lifecycle harness migration-026 compatibility, focused coordinator unit/SQL tests, and live Docker integration.
+- Go coordinator focused constructor/validation/SQL/retry/error/receipt command
+  passed after the integration-test batch was added.
+- Live Docker PostgreSQL coordinator suite passed all five scenarios against
+  migrations 001-026 with a disposable `NOSUPERUSER NOBYPASSRLS` runtime:
+  Google unknown-subject registration and access/refresh handoff, known-subject
+  login and revocation outbox, exact replay, canonical-email rollback,
+  trusted-scope/ACL/RLS failure closure, GitHub lookup-key rotation, key-version
+  session resolution, and raw subject/email/bearer persistence audits.
+- Full TypeScript SDK gate initially exposed four undeclared Go-only browser
+  first-login routes. The A1 parity registry now explicitly records Google and
+  GitHub first-login start/callback as browser identity surfaces rather than
+  generic hosted JSON routes; the focused route/scope suite passed `10/10` and
+  the complete TypeScript SDK suite passed `654/654`.
+- July 24 complete CL rerun: Python compileall passed with bytecode isolated
+  under the temporary CL cache, the A1/A2/integration contract suite passed
+  `2064 passed, 60 skipped`, and the product release suite passed `33/33`.
+- The uncached Go SDK suite and the separate Go integration module passed.
+  After restoring the existing Docker Desktop engine and reusing
+  `ashr-oauth-pg-test`, the combined identity-lifecycle and OAuth first-login
+  PostgreSQL integration command passed against port `55432`.

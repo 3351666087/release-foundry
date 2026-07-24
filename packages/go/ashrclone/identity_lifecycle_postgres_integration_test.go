@@ -1764,8 +1764,10 @@ $$`); err != nil {
 		"a1_login_with_verified_identity_with_refresh_result(UUID,UUID,TEXT,TEXT,TEXT,TEXT,TIMESTAMPTZ,TIMESTAMPTZ,TEXT,TEXT,TEXT,JSONB)",
 		"a1_recover_verified_identity_with_refresh_result(UUID,UUID,TEXT,TEXT,TEXT,TEXT,TIMESTAMPTZ,TIMESTAMPTZ,TEXT,TEXT,TEXT,JSONB)",
 		"a1_authenticate_identity_session_digest(TEXT)",
+		"a1_rotate_identity_session_refresh_from_digest(UUID,UUID,TEXT,TEXT,TEXT,TIMESTAMPTZ,TEXT,TEXT,JSONB)",
 		"a1_lock_identity_credential_link_receipt(TEXT[])",
 		"a1_complete_identity_credential_link(UUID,UUID,TEXT,UUID,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,JSONB)",
+		"a1_complete_oauth_first_login_with_refresh(UUID,UUID,TEXT,TEXT[],TEXT[],TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TIMESTAMPTZ,TIMESTAMPTZ,TEXT,TEXT,TEXT,JSONB)",
 	} {
 		if _, err := db.Exec(`GRANT EXECUTE ON FUNCTION ` + signature + ` TO ` +
 			quotePostgresIdentifier(runtimeRole)); err != nil {
@@ -1913,7 +1915,7 @@ func applyIdentityLifecycleMigrations(t *testing.T, db *sql.DB) {
 	applied := 0
 	for _, path := range entries {
 		base := filepath.Base(path)
-		if len(base) < 3 || base[:3] < "001" || base[:3] > "025" {
+		if len(base) < 3 || base[:3] < "001" || base[:3] > "026" {
 			continue
 		}
 		sqlBytes, err := os.ReadFile(path)
@@ -1925,8 +1927,8 @@ func applyIdentityLifecycleMigrations(t *testing.T, db *sql.DB) {
 		}
 		applied++
 	}
-	if applied != 25 {
-		t.Fatalf("expected migrations 001-025, applied %d from %s", applied, migrationsDir)
+	if applied != 26 {
+		t.Fatalf("expected migrations 001-026, applied %d from %s", applied, migrationsDir)
 	}
 }
 
