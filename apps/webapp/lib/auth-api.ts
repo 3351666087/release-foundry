@@ -1,9 +1,10 @@
 export type OAuthProvider = "google" | "github";
 
 export const authContractCapabilities = {
-  sourceSha: "780e94f",
+  sourceSha: "6897997",
   sourceState: "merged_to_a3",
   oauthAccountLinking: true,
+  oauthInitialLoginCoordinator: true,
   oauthInitialLogin: false,
   emailRegistration: true,
   emailLogin: true,

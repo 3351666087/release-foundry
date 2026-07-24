@@ -1,5 +1,5 @@
 {
-  "schema_version": "a3.auth_contract_snapshot.v5",
+  "schema_version": "a3.auth_contract_snapshot.v6",
   "calibrated_at": "2026-07-24",
   "public_safe": true,
   "contains_secret_values": false,
@@ -11,7 +11,7 @@
   },
   "a1": {
     "ref": "origin/codex/a1-local-sdk-runner",
-    "sha": "780e94fc9de29563e70cb41a5855a679780601fc",
+    "sha": "689799750a9a092ffb3ce92d17100256310bd2e8",
     "pull_request_state": "merged_into_a3_branch",
     "merged_to_main": false,
     "authority": [
@@ -34,6 +34,10 @@
       "POST /v1/identity/registration/email/complete",
       "POST /v1/identity/login/email/begin",
       "POST /v1/identity/login/email/complete",
+      "GET /v1/identity/oauth/google/start",
+      "GET /v1/identity/oauth/google/callback",
+      "GET /v1/identity/oauth/github/start",
+      "GET /v1/identity/oauth/github/callback",
       "POST /v1/projects/{project_id}/accounts/{account_id}/browser-sessions/refresh",
       "GET /v1/me",
       "POST /v1/identity/sessions/revoke",
@@ -49,7 +53,7 @@
       "identity_delivery_outbox": "implemented_and_tested",
       "browser_session_lifecycle": "implemented_and_tested",
       "refresh_reuse_detection": "implemented_and_tested",
-      "oauth_initial_login": "not_implemented",
+      "oauth_initial_login": "coordinator_implemented_and_tested_provider_deployment_unconfigured",
       "registration_session_handoff": "implemented_and_tested",
       "login_session_handoff": "implemented_and_tested",
       "browser_identity_read": "implemented_and_local_https_verified",
@@ -63,7 +67,7 @@
       "verification_completion": "implemented_with_browser_intent",
       "email_registration": "implemented",
       "email_login": "implemented",
-      "oauth_initial_login": "unavailable"
+      "oauth_initial_login": "coordinator_implemented_runtime_unavailable"
     }
   },
   "a2": {
@@ -144,10 +148,10 @@
   },
   "known_blockers": [
     {
-      "id": "oauth_initial_login_not_implemented",
+      "id": "oauth_initial_login_not_deployed",
       "severity": "blocking_for_hosted_login",
-      "fact": "Migration and HTTP contract tests exist, but the production PostgreSQL coordinator, provider/vault wiring, and public callback orchestration are incomplete.",
-      "a3_behavior": "disable_login_buttons_and_disclose_account_linking_only"
+      "fact": "The production PostgreSQL coordinator is implemented and tested, but this A3 environment has no authorized provider credentials, Vault references, or deployed callback configuration.",
+      "a3_behavior": "disable_login_buttons_and_disclose_missing_provider_deployment"
     }
   ],
   "safety": {

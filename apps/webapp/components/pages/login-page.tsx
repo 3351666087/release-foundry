@@ -266,14 +266,14 @@ export function LoginPage() {
           {mode === "signin" ? (
             <div className={styles.signInFlow} role="tabpanel">
               <div className={styles.providerGrid}>
-                <button type="button" className={styles.providerButton} disabled={!oauthInitialLoginReady || busy !== null} title={zh ? "当前只有已登录账号绑定路由" : "Only signed-in account linking is currently available"}>
+                <button type="button" className={styles.providerButton} disabled={!oauthInitialLoginReady || busy !== null} title={zh ? "协调器已完成，本地尚未配置 Provider 与 Vault" : "Coordinator ready; local Provider and Vault configuration is missing"}>
                   <span className={styles.googleMark} aria-hidden="true">G</span>
-                  <span><strong>{zh ? "Google 登录待接入" : "Google sign-in pending"}</strong><small>{zh ? "现有路由仅用于已登录账号绑定" : "Current route is account linking only"}</small></span>
+                  <span><strong>{zh ? "Google 登录待配置" : "Google sign-in needs configuration"}</strong><small>{zh ? "协调器已就绪 · 缺少本地 Provider/Vault" : "Coordinator ready · local Provider/Vault missing"}</small></span>
                   <ArrowRight size={16} />
                 </button>
-                <button type="button" className={styles.providerButton} disabled={!oauthInitialLoginReady || busy !== null} title={zh ? "当前只有已登录账号绑定路由" : "Only signed-in account linking is currently available"}>
+                <button type="button" className={styles.providerButton} disabled={!oauthInitialLoginReady || busy !== null} title={zh ? "协调器已完成，本地尚未配置 Provider 与 Vault" : "Coordinator ready; local Provider and Vault configuration is missing"}>
                   <GitFork size={19} aria-hidden="true" />
-                  <span><strong>{zh ? "GitHub 登录待接入" : "GitHub sign-in pending"}</strong><small>{zh ? "现有路由仅用于已登录账号绑定" : "Current route is account linking only"}</small></span>
+                  <span><strong>{zh ? "GitHub 登录待配置" : "GitHub sign-in needs configuration"}</strong><small>{zh ? "协调器已就绪 · 缺少本地 Provider/Vault" : "Coordinator ready · local Provider/Vault missing"}</small></span>
                   <ArrowRight size={16} />
                 </button>
               </div>
@@ -281,8 +281,8 @@ export function LoginPage() {
               <div className={styles.boundaryNote}>
                 <LockKeyhole size={15} />
                 <p>{zh
-                  ? "邮箱注册和邮箱登录已接入 A1 的安全 Cookie 闭环。Google/GitHub 首次登录仍未完成，因此按钮继续关闭。"
-                  : "Email registration and sign-in now use A1's secure cookie handoff. Google/GitHub first login remains disabled until its production flow is complete."}</p>
+                  ? "邮箱注册和邮箱登录已接入 A1 的安全 Cookie 闭环。Google/GitHub 首次登录协调器已实现，但本地 Provider、Vault 和回调部署尚未配置，因此按钮继续关闭。"
+                  : "Email registration and sign-in use A1's secure cookie handoff. The Google/GitHub first-login coordinator is implemented, but local Provider, Vault, and callback deployment are not configured, so the buttons remain disabled."}</p>
               </div>
 
               {emailIdentityFlow}

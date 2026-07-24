@@ -24,7 +24,7 @@ export type ApiEndpoint = {
 };
 
 export const apiReferenceMeta = {
-  schemaVersion: "a3.api_reference.v19",
+  schemaVersion: "a3.api_reference.v20",
   calibratedAt: "2026-07-24",
   mainSha: "ccf6ce5",
   a1Sha: "c784163",
@@ -33,8 +33,8 @@ export const apiReferenceMeta = {
   a2SourceState: "merged_to_main",
   a1IdentityPeerSha: "6a985b8",
   a1IdentityPeerState: "peer_branch_identity_authority_readiness_not_merged",
-  a1LatestPeerSha: "780e94f",
-  a1LatestPeerState: "merged_into_a3_email_browser_handoff_oauth_runtime_incomplete",
+  a1LatestPeerSha: "6897997",
+  a1LatestPeerState: "merged_into_a3_oauth_coordinator_implemented_provider_deployment_unconfigured",
   a1AtomicCredentialLinkContract: "IdentityCredentialLinkCoordinator",
   a1AtomicCredentialLinkRouteLifecycle: "proposed",
   a1AtomicCredentialLinkClientCallable: false,
@@ -65,7 +65,7 @@ export const apiReferenceMeta = {
   a1EmailRegistrationLogin: "implemented",
   a1BrowserIdentityRead: "implemented_and_local_https_verified",
   a1BrowserLogout: "implemented_and_local_https_verified",
-  a1OAuthInitialLogin: "not_implemented",
+  a1OAuthInitialLogin: "coordinator_implemented_provider_deployment_unconfigured",
   a2TrustedSpine: "implemented",
   a2EvidenceSnapshotSchema: "a2.evidence_snapshot.v1",
   a2DecisionLedgerSchema: "a2.decision_ledger.v1",

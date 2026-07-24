@@ -23,7 +23,7 @@ test("API Reference is a typed route grounded in A1, A2, and A3 contracts", asyn
   assert.match(page, /Request example/);
   assert.match(page, /Response example/);
   assert.match(reference, /mainSha: "ccf6ce5"/);
-  assert.match(reference, /schemaVersion: "a3\.api_reference\.v19"/);
+  assert.match(reference, /schemaVersion: "a3\.api_reference\.v20"/);
   assert.match(reference, /a1Sha: "c784163"/);
   assert.match(reference, /a2Sha: "8cd1d4f"/);
   assert.match(reference, /a1SourceState: "merged_to_main"/);
@@ -132,6 +132,7 @@ test("A3 auth adapter calls A1 without taking custody of provider secrets", asyn
   assert.match(auth, /browserLogout: true/);
   assert.match(auth, /identity_session_same_origin_required/);
   assert.match(auth, /oauthInitialLogin: false/);
+  assert.match(auth, /oauthInitialLoginCoordinator: true/);
   assert.match(auth, /sourceState: "merged_to_a3"/);
   assert.match(auth, /emailBrowserCompletion: true/);
   assert.match(auth, /emailLoginSessionCookie: true/);
@@ -147,15 +148,15 @@ test("A3 auth adapter calls A1 without taking custody of provider secrets", asyn
 test("login and registration disclose upstream capability gaps instead of faking success", async () => {
   const login = await source("apps/webapp/components/pages/login-page.tsx");
 
-  assert.match(login, /Google sign-in pending/);
-  assert.match(login, /GitHub sign-in pending/);
-  assert.match(login, /Current route is account linking only/);
+  assert.match(login, /Google sign-in needs configuration/);
+  assert.match(login, /GitHub sign-in needs configuration/);
+  assert.match(login, /Coordinator ready/);
   assert.match(login, /Send registration code/);
   assert.match(login, /Send sign-in code/);
   assert.match(login, /completeEmailRegistration/);
   assert.match(login, /completeEmailLogin/);
   assert.match(login, /!challengeId/);
-  assert.match(login, /Google\/GitHub first login remains disabled/);
+  assert.match(login, /Google\/GitHub first-login coordinator is implemented/);
   assert.match(login, /identity service currently sends plain text/);
   assert.match(login, /This preview does not create an account or store email or credentials/);
   assert.doesNotMatch(login, /localStorage|sessionStorage|document\.cookie|console\./);
@@ -182,11 +183,11 @@ test("verification email handoff is public-safe and email-client compatible", as
 
 test("redacted auth snapshot records current peer SHAs and blockers without secrets", async () => {
   const fixture = JSON.parse(await source("fixtures/a3/auth/a1_a2_auth_contract_snapshot.redacted.json"));
-  assert.equal(fixture.schema_version, "a3.auth_contract_snapshot.v5");
+  assert.equal(fixture.schema_version, "a3.auth_contract_snapshot.v6");
   assert.equal(fixture.main.sha, "ccf6ce57890aaceabcb627c14d2e078674bd50ad");
   assert.equal(fixture.main.a1_a2_integration_sha, "7dd14d7b154ad86bd3bfedacbf4c3e03796170ce");
   assert.equal(fixture.main.contained_by_a3_branch, true);
-  assert.equal(fixture.a1.sha, "780e94fc9de29563e70cb41a5855a679780601fc");
+  assert.equal(fixture.a1.sha, "689799750a9a092ffb3ce92d17100256310bd2e8");
   assert.equal(fixture.a1.pull_request_state, "merged_into_a3_branch");
   assert.equal(fixture.a1.merged_to_main, false);
   assert.equal(fixture.a1.calibration.production_ready, false);
@@ -195,13 +196,13 @@ test("redacted auth snapshot records current peer SHAs and blockers without secr
   assert.equal(fixture.a1.capabilities.verification_completion, "implemented_with_browser_intent");
   assert.equal(fixture.a1.capabilities.email_registration, "implemented");
   assert.equal(fixture.a1.capabilities.email_login, "implemented");
-  assert.equal(fixture.a1.capabilities.oauth_initial_login, "unavailable");
+  assert.equal(fixture.a1.capabilities.oauth_initial_login, "coordinator_implemented_runtime_unavailable");
   assert.equal(fixture.a2.sha, "8cd1d4f1cb72e73ae7ead5d3218b4ae963a31a81");
   assert.equal(fixture.a2.source_state, "merged_to_main");
   assert.equal(fixture.a1.calibration.browser_session_lifecycle, "implemented_and_tested");
   assert.equal(fixture.a1.calibration.browser_identity_read, "implemented_and_local_https_verified");
   assert.equal(fixture.a1.calibration.browser_logout, "implemented_and_local_https_verified");
-  assert.equal(fixture.a1.calibration.oauth_initial_login, "not_implemented");
+  assert.equal(fixture.a1.calibration.oauth_initial_login, "coordinator_implemented_and_tested_provider_deployment_unconfigured");
   assert.equal(fixture.a2.trusted_spine.evidence_snapshot_schema, "a2.evidence_snapshot.v1");
   assert.equal(fixture.a2.trusted_spine.decision_ledger_schema, "a2.decision_ledger.v1");
   assert.deepEqual(fixture.a2.trusted_spine.required_scope_fields, [

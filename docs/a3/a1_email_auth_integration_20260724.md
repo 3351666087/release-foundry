@@ -13,10 +13,11 @@ identity closure. It does not make the hosted identity product production-ready.
 ## Integrated A1 source
 
 - Source branch: `origin/codex/a1-local-sdk-runner`
-- Source commit: `780e94fc9de29563e70cb41a5855a679780601fc`
+- Initial email source commit: `780e94fc9de29563e70cb41a5855a679780601fc`
+- Latest integrated A1 commit: `689799750a9a092ffb3ce92d17100256310bd2e8`
 - Integration commit: merge commit `56037ed`
 - A1 database authority: migration 025
-- A1 OAuth database contract: migration 026
+- A1 OAuth database contract: immutable migration 026 plus forward upgrade 027
 
 ## A3 browser flow
 
