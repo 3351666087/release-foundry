@@ -33,9 +33,9 @@ must not be included in A1 commits.
 - [x] Pass focused Python/TypeScript/Go tests, cross-language parity, Docker
   PostgreSQL trace/quota replay coverage, full CL, formatting, ownership,
   generated-artifact, and secret audits.
-- [ ] Stage only A1-owned paths, commit the coherent batch, push only
+- [x] Stage only A1-owned paths, commit the coherent batch, push only
   `HEAD:codex/a1-local-sdk-runner`, fetch back, and verify local/remote `0/0`;
-  check this item only after the push succeeds.
+  commit `1dd5e43f` was accepted on the A1-only remote branch.
 
 ## A1 - current PostgreSQL OAuth first-login coordinator batch
 

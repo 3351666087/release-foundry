@@ -4036,7 +4036,7 @@ Pre-push full-CL checkpoint for the production registration/login wiring batch:
   verification for interrupted delivery.
 - [x] Run focused and full CL, cross-language parity, Docker PostgreSQL,
   formatting, path ownership, generated-artifact, and secret audits.
-- [ ] Commit and push only A1, then record the accepted commit and post-push
+- [x] Commit and push only A1, then record the accepted commit and post-push
   `0/0` parity here.
 
 Implementation evidence for the completed slice:
@@ -4062,6 +4062,9 @@ Implementation evidence for the completed slice:
   exact staged-path ownership/generated-artifact audit and changed-file
   literal-secret audit passed; no A2/A3/webapp/calibration/generated path
   is staged.
+- Coherent commit `1dd5e43f` was pushed only with
+  `git push origin HEAD:codex/a1-local-sdk-runner`; after `git fetch origin`,
+  local `HEAD` and `origin/codex/a1-local-sdk-runner` are identical (`0/0`).
 - `packages/go/ashrclone/event_spool_trace_replay_test.go` proves exact
   replay does not create a second trace batch or consume quota twice, while a
   changed payload under the same idempotency key fails closed without quota
