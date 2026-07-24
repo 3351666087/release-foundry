@@ -3816,7 +3816,7 @@ audits. Never modify or push A3 or `apps/webapp`.
 - [x] Prove coordinator success, replay behavior, conflict/error mapping,
   commit/database failure cleanup, receipt redaction/single-take behavior,
   RLS/key-rotation compatibility, and provider-neutral policy ownership.
-- [ ] Re-run focused and full A1 Go/Python/cross-language suites, check all
+- [x] Re-run focused and full A1 Go/Python/cross-language suites, check all
   newly earned worklog items, pass CL and audits, commit, and push only A1.
 
 Database-batch evidence:
@@ -3860,7 +3860,7 @@ Check an item only after focused evidence is green.
 - [x] Add live Docker PostgreSQL tests for unknown-subject registration,
   known-subject login, exact replay, RLS/trusted-scope closure, canonical email
   conflict, key-versioned session resolution, and no raw secret persistence.
-- [ ] Re-run focused and full CL gates, perform changed-path/A3/secret audits,
+- [x] Re-run focused and full CL gates, perform changed-path/A3/secret audits,
   check all earned items, commit, and push only
   `HEAD:codex/a1-local-sdk-runner`.
 
@@ -3877,12 +3877,14 @@ corresponding command or audit is green.
   rc2 release-delivery CL commands without modifying A3 or `apps/webapp`.
 - [x] Re-run final CL hygiene/commercial guards, formatting, diff,
   changed-path/A3/A2, generated-artifact, and redacted secret-material audits.
-- [ ] Check the earned continuation/coordinator items, stage exactly the
+- [x] Check the earned continuation/coordinator items, stage exactly the
   twelve A1-owned paths, commit the complete coordinator batch, and push only
   `HEAD:codex/a1-local-sdk-runner`.
-- [ ] Verify the pushed commit is `0/0` against the A1 remote, record its SHA
-  here, then commit and push the worklog-only completion checkpoint and prove
-  final `0/0` parity.
+- [x] Verify implementation commit
+  `0ce8252b18584d4c8f06962a8ed4facbe6c69cc5` is `0/0` against
+  `origin/codex/a1-local-sdk-runner` and record the result here.
+- [ ] Commit and push the A1 worklog/TASKS completion checkpoint, fetch the
+  remote, and prove final `0/0` parity.
 
 July 24 final-CL evidence:
 
@@ -3904,8 +3906,11 @@ July 24 final-CL evidence:
   assignment, private key, provider/API token shape, JWT, bearer literal, or
   OAuth query value. All email literals use only synthetic `example.cn` or
   RFC-reserved `example.com` domains.
+- The complete twelve-path coordinator batch was committed as
+  `0ce8252b18584d4c8f06962a8ed4facbe6c69cc5`, pushed only to
+  `origin/codex/a1-local-sdk-runner`, fetched back, and verified `0/0`.
 
-Coordinator-batch evidence in progress:
+Coordinator-batch evidence:
 
 - Go coordinator formatted and the complete `packages/go/ashrclone` module
   suite passed before focused coordinator tests were added.

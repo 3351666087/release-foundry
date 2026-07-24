@@ -7,7 +7,7 @@ after its implementation or verification evidence is green. A1 records and
 pushes only A1-owned work; A2/A3 paths may be exercised read-only by CL but
 must not be included in A1 commits.
 
-## A1 — current PostgreSQL OAuth first-login coordinator batch
+## A1 - current PostgreSQL OAuth first-login coordinator batch
 
 - [x] Sync the dedicated A1 worktree with
   `origin/codex/a1-local-sdk-runner`, prove pre-commit `0/0` parity, and
@@ -32,14 +32,16 @@ must not be included in A1 commits.
 - [x] Pass final hygiene/commercial guards, `gofmt`, `git diff --check`,
   exact changed-path/A2/A3/generated-artifact audit, and changed-file secret
   audit.
-- [ ] Stage exactly the twelve A1-owned paths, review the staged diff, commit
+- [x] Stage exactly the twelve A1-owned paths, review the staged diff, commit
   the complete coordinator batch, and push only
   `HEAD:codex/a1-local-sdk-runner`.
-- [ ] Verify the pushed implementation commit is `0/0`, record its SHA in
-  this ledger and `docs/a1/worklog.md`, then push the A1 worklog/TASKS
-  completion checkpoint and prove final `0/0` parity.
+- [x] Verify implementation commit
+  `0ce8252b18584d4c8f06962a8ed4facbe6c69cc5` was pushed only to
+  `origin/codex/a1-local-sdk-runner` and is exactly `0/0` ahead/behind.
+- [ ] Commit and push the A1 worklog/TASKS completion checkpoint, then fetch
+  the remote again and prove final `0/0` parity.
 
-## A1 — registration and login closure after this push
+## A1 - registration and login closure after this push
 
 - [ ] Add public Google/GitHub first-login start and callback endpoints with
   server-chosen purpose/scope, PKCE/state/nonce validation, encrypted
