@@ -39,6 +39,10 @@ type IdentityHTTPSessionRefresher interface {
 	) (IdentitySessionIssuanceReceipt, error)
 }
 
+type IdentityHTTPSessionRevoker interface {
+	RevokeIdentityHTTPSession(context.Context, *http.Request) error
+}
+
 // UnifiedIdentityHTTPStore is the production HTTP read boundary. A durable
 // control-plane backend can implement it without exposing a memory service.
 type UnifiedIdentityHTTPStore interface {
@@ -177,6 +181,18 @@ func (adapter unifiedIdentityHTTPServiceAdapter) GetIdentityAccount(
 }
 
 func (server *HTTPServer) resolveIdentityHTTPSession(writer http.ResponseWriter, request *http.Request, assertedAccountID string) (IdentityHTTPSession, bool) {
+	session, ok := server.resolveTrustedIdentityHTTPSession(writer, request)
+	if !ok {
+		return IdentityHTTPSession{}, false
+	}
+	if strings.TrimSpace(assertedAccountID) == "" || strings.TrimSpace(assertedAccountID) != session.AccountID {
+		writeError(writer, http.StatusForbidden, "account_mismatch", "account_id does not match the authenticated account")
+		return IdentityHTTPSession{}, false
+	}
+	return session, true
+}
+
+func (server *HTTPServer) resolveTrustedIdentityHTTPSession(writer http.ResponseWriter, request *http.Request) (IdentityHTTPSession, bool) {
 	if server.identitySessions == nil {
 		writeError(writer, http.StatusUnauthorized, "identity_session_required", "a trusted identity session is required")
 		return IdentityHTTPSession{}, false
@@ -199,10 +215,6 @@ func (server *HTTPServer) resolveIdentityHTTPSession(writer http.ResponseWriter,
 	session.SessionDigest = strings.TrimSpace(session.SessionDigest)
 	if session.Revoked || session.AccountID == "" || session.ActorID == "" || session.SessionID == "" {
 		writeError(writer, http.StatusUnauthorized, "identity_session_invalid", "identity session could not be authenticated")
-		return IdentityHTTPSession{}, false
-	}
-	if strings.TrimSpace(assertedAccountID) == "" || strings.TrimSpace(assertedAccountID) != session.AccountID {
-		writeError(writer, http.StatusForbidden, "account_mismatch", "account_id does not match the authenticated account")
 		return IdentityHTTPSession{}, false
 	}
 	return session, true

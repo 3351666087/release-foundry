@@ -24,7 +24,7 @@ export type ApiEndpoint = {
 };
 
 export const apiReferenceMeta = {
-  schemaVersion: "a3.api_reference.v18",
+  schemaVersion: "a3.api_reference.v19",
   calibratedAt: "2026-07-24",
   mainSha: "ccf6ce5",
   a1Sha: "c784163",
@@ -63,8 +63,8 @@ export const apiReferenceMeta = {
   secretValuesIncluded: false,
   a1BrowserSession: "implemented",
   a1EmailRegistrationLogin: "implemented",
-  a1BrowserIdentityRead: "not_implemented",
-  a1BrowserLogout: "not_implemented",
+  a1BrowserIdentityRead: "implemented_and_local_https_verified",
+  a1BrowserLogout: "implemented_and_local_https_verified",
   a1OAuthInitialLogin: "not_implemented",
   a2TrustedSpine: "implemented",
   a2EvidenceSnapshotSchema: "a2.evidence_snapshot.v1",
@@ -238,7 +238,7 @@ export const apiEndpoints: ApiEndpoint[] = [
     },
     notes: [
       { zh: "成功响应为空 body；A3 只接受同源 303 /console，不能读取 HttpOnly Cookie。", en: "The success body is empty; A3 accepts only the same-origin 303 /console handoff and cannot read HttpOnly cookies." },
-      { zh: "当前仍缺浏览器 Cookie 版 /v1/me 和 logout 契约，因此受保护路由闭环尚未完成。", en: "Browser-cookie /v1/me and logout contracts are still missing, so protected-route closure is not complete." }
+      { zh: "浏览器 Cookie 版 /v1/me 与 logout 已在本地同源 HTTPS、PostgreSQL 环境完成校准；生产部署仍需托管身份与边缘路由回执。", en: "Browser-cookie /v1/me and logout are calibrated in the local same-origin HTTPS and PostgreSQL stack; production still requires hosted identity and edge-routing receipts." }
     ]
   },
   {
@@ -297,6 +297,54 @@ export const apiEndpoints: ApiEndpoint[] = [
       { zh: "A3 只能触发轮换，不能读取 HttpOnly Cookie 或 bearer 内容。", en: "A3 may trigger rotation but cannot read HttpOnly cookies or bearer material." },
       { zh: "A1 要求请求 Origin 与 API Host 完全一致；跨域静态预览不能调用。", en: "A1 requires the request Origin and API Host to match exactly; a cross-origin static preview cannot call this route." },
       { zh: "该能力已随 A1 c784163 进入 main；跨域静态预览仍不能执行同源 Cookie 轮换。", en: "This capability entered main with A1 c784163; a cross-origin static preview still cannot rotate same-origin cookies." }
+    ]
+  },
+  {
+    id: "a1-current-identity",
+    group: "identity",
+    owner: "A1",
+    method: "GET",
+    path: "/v1/me",
+    title: { zh: "读取当前登录账号", en: "Read current identity" },
+    description: {
+      zh: "使用浏览器的 HttpOnly 访问 Cookie 读取当前账号、凭据数量和成员关系数量。",
+      en: "Read the current account and credential/membership counts through the browser's HttpOnly access cookie."
+    },
+    auth: { zh: "同源 HTTPS 与有效的 Secure/HttpOnly 会话 Cookie", en: "Same-origin HTTPS and a valid Secure/HttpOnly session cookie" },
+    status: "implemented",
+    source: "identity_http.go / production_identity_store.go",
+    response: {
+      schema_version: "ashr.unified_identity.v1",
+      account_id: "account_example",
+      display_name: "Example user",
+      status: "active",
+      credential_count: 1,
+      membership_count: 2
+    },
+    notes: [
+      { zh: "响应不返回邮箱、Cookie、访问 token 或刷新 token。", en: "The response does not return email addresses, cookies, access tokens, or refresh tokens." },
+      { zh: "A3 用该接口保护产品控制台；未登录请求返回 401。", en: "A3 uses this route to gate the product console; unauthenticated requests return 401." }
+    ]
+  },
+  {
+    id: "a1-session-logout",
+    group: "identity",
+    owner: "A1",
+    method: "POST",
+    path: "/v1/identity/sessions/revoke",
+    title: { zh: "退出并撤销会话", en: "Log out and revoke sessions" },
+    description: {
+      zh: "在 PostgreSQL 租户事务中撤销当前账号的会话组，并清除访问与刷新 Cookie。",
+      en: "Revoke the current account's session family inside a tenant-scoped PostgreSQL transaction and clear both cookies."
+    },
+    auth: { zh: "同源 HTTPS、有效会话 Cookie 与 Origin 校验", en: "Same-origin HTTPS, a valid session cookie, and Origin validation" },
+    status: "implemented",
+    source: "identity_http.go / production_identity_store.go",
+    request: {},
+    response: { schema_version: "ashr.clone.identity.v1", status: "revoked" },
+    notes: [
+      { zh: "成功响应会把两个 __Host- Cookie 设为空并立即过期。", en: "A successful response empties and immediately expires both __Host- cookies." },
+      { zh: "本地实测退出后数据库状态为 revoked，旧 Cookie 再访问 /v1/me 返回 401。", en: "Local verification confirms a revoked database state and a 401 from /v1/me when the old cookie is reused." }
     ]
   },
   {

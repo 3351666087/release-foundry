@@ -82,6 +82,9 @@ export function LoginPage() {
           ? "验证码请求已由身份服务接收。请查看邮箱；页面只暂存本次验证编号，不保存验证码。"
           : "The identity service accepted the challenge. Check your email; this page keeps only the short-lived challenge handles."
       });
+      if (config.apiBaseUrl === "https://localhost:4443") {
+        window.open("http://127.0.0.1:18025", "ashr-local-inbox");
+      }
     } catch (error) {
       setNotice({ tone: "error", text: authErrorText(error, zh) });
     } finally {

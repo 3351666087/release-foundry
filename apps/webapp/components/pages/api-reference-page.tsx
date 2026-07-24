@@ -64,13 +64,13 @@ export function ApiReferencePage() {
       <section className={styles.upstreamDelta} aria-label={zh ? "上游契约更新" : "Upstream contract delta"}>
         <header>
           <span>UPSTREAM A1 INTEGRATION / 2026-07-24</span>
-          <strong>{zh ? "邮箱注册登录已接入 A3；首次 OAuth、登录态读取与退出仍未完成" : "Email registration and sign-in are integrated into A3; initial OAuth, session identity read, and logout remain incomplete"}</strong>
+          <strong>{zh ? "邮箱注册、登录态读取与安全退出已接入；首次 OAuth 仍未完成" : "Email auth, session identity read, and secure logout are integrated; initial OAuth remains incomplete"}</strong>
         </header>
         <div>
           <article>
             <span>{zh ? "运行与身份平台" : "Runtime and identity"} · {apiReferenceMeta.a1Sha}</span>
             <strong>{zh ? "安全浏览器会话" : "Secure browser session"}</strong>
-            <p>{zh ? "邮箱注册和登录会返回短期 challenge/intent，并通过同源 303 签发双 HttpOnly Cookie。Google/GitHub 生产首次登录、Cookie 版 /v1/me 和 logout 仍是明确缺口。" : "Email registration and sign-in return short-lived challenge/intent handles and issue paired HttpOnly cookies through a same-origin 303 handoff. Production Google/GitHub first login, cookie-based /v1/me, and logout remain explicit gaps."}</p>
+            <p>{zh ? "邮箱注册和登录通过同源 303 签发双 HttpOnly Cookie；控制台用 /v1/me 读取安全登录态，并通过 logout 撤销数据库会话。Google/GitHub 生产首次登录仍是明确缺口。" : "Email auth issues paired HttpOnly cookies through a same-origin 303 handoff. The console reads identity through /v1/me and logout revokes the durable session. Production Google/GitHub first login remains an explicit gap."}</p>
             <StatusBadge value={zh ? "A3 分支已集成" : "Integrated in A3 branch"} tone="pass" />
           </article>
           <article>

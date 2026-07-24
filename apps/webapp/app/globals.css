@@ -50,6 +50,26 @@ body {
   line-height: 1.65;
 }
 
+.identity-gate-state {
+  min-height: 100vh;
+  display: grid;
+  place-content: center;
+  gap: 8px;
+  padding: 32px;
+  text-align: center;
+  color: #172033;
+  background: #f4f6f8;
+}
+
+.identity-gate-state strong {
+  font-size: 20px;
+}
+
+.identity-gate-state span {
+  color: #667085;
+  font-size: 14px;
+}
+
 button,
 input,
 select,

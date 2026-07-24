@@ -6,8 +6,9 @@ A1 now owns the secure backend steps for email registration and email login.
 A3 now owns the matching browser form and calls those exact A1 endpoints. A3
 never reads access or refresh cookie values.
 
-This closes the previous missing `challenge_id` browser-context blocker. It
-does not make the complete hosted identity product production-ready.
+This closes the previous missing `challenge_id` browser-context blocker. The
+same branch now also contains a verified local PostgreSQL, Mailpit, and HTTPS
+identity closure. It does not make the hosted identity product production-ready.
 
 ## Integrated A1 source
 
@@ -30,9 +31,10 @@ does not make the complete hosted identity product production-ready.
    `intent_id`, and `proof`.
 7. A3 accepts only a successful same-origin redirect ending at `/console`.
 8. A1 owns the encrypted intent cookie and access/refresh HttpOnly cookies.
-9. A3 then changes the visible route to `/overview`; this is only navigation.
-   Server-side route protection still depends on the cookie identity-read
-   contract listed below.
+9. A3 then changes the visible route to `/overview` and checks `GET /v1/me`
+   through the HttpOnly access cookie before rendering the console.
+10. Logout calls `POST /v1/identity/sessions/revoke`, revokes the durable
+    PostgreSQL session family, clears both cookies, and returns to `/login`.
 
 ## Security requirements
 
@@ -43,23 +45,38 @@ does not make the complete hosted identity product production-ready.
 - Email, proof, cookies, SMTP authorization, API keys, and bearer material must
   never enter logs, fixtures, documentation, or browser storage.
 
+## Local real-login closure
+
+The local development stack now provides:
+
+- PostgreSQL migrations 001-026 plus one seeded organization, workspace, and project;
+- local-only verification delivery to Mailpit;
+- Caddy same-origin HTTPS at `https://localhost:4443`;
+- browser-cookie `GET /v1/me`;
+- tenant-scoped durable `POST /v1/identity/sessions/revoke`;
+- Secure, HttpOnly, SameSite=Strict access and refresh cookies;
+- an A3 identity gate, authenticated account label, and logout action.
+
+The in-app browser created a redacted local test account, completed registration
+and a later independent email-login challenge, refreshed the console, read
+`/v1/me`, and logged out.
+PostgreSQL then reported the session as `revoked`, both cookies were absent,
+and an unauthenticated `/v1/me` request returned `401`.
+
 ## Remaining backend/deployment work
 
-### Required for a complete email-login product
+### Required for a hosted production email-login product
 
-- Add a browser-cookie identity read contract. The current `GET /v1/me`
-  implementation still expects explicit session/bearer headers and A3 cannot
-  safely construct those from HttpOnly cookies.
-- Add a browser-cookie logout/revoke contract that clears both access and
-  refresh cookies server-side.
-- Put A1 and A3 behind one trusted local or hosted HTTPS reverse proxy.
-- Run PostgreSQL migrations 001-026 and the A1 API with production identity
-  configuration.
+- Move the locally verified same-origin topology behind an authorized hosted
+  edge and record deployment identity, image/config digests, and health receipts.
 - Configure the transactional verification-delivery worker and SMTP through
-  secret references. No SMTP secret exists in this A3 worktree.
-- Add server-side protection for A3 console and API routes after cookie-based
-  session read exists. Client-side redirects alone are not an authorization
-  boundary.
+  secret references. Local Mailpit delivery is development-only and is not a
+  production SMTP/Vault closure.
+- Add server-side protection for hosted A3 document routes. The current static
+  Webapp has a client identity gate, while sensitive APIs must continue to
+  enforce authorization independently on the server.
+- Add production observability, abuse response, backup/restore, key rotation,
+  tenant-isolation receipts, and incident recovery evidence.
 
 ### Required for Google/GitHub first login
 
@@ -89,6 +106,10 @@ that process during reboot, so the URL cannot remain available by itself.
 `Ashr Local Demo.lnk`. After reboot, double-clicking that shortcut restores the
 read-only local product demo.
 
+`scripts/install-local-auth-shortcut.ps1` creates `Ashr Real Login.lnk`.
+After Docker Desktop is ready, this shortcut builds and starts PostgreSQL,
+Mailpit, A1, Caddy, and the A3 Webapp, then opens the HTTPS login page.
+
 ## Verification evidence
 
 - Focused A3 auth/report/dashboard Node contracts: `124 passed`.
@@ -101,5 +122,6 @@ read-only local product demo.
   blockers.
 - In-app browser check: login page loaded, correct A1 source displayed, no
   document-level horizontal overflow.
-- Real account creation was not attempted because the current worktree lacks
-  the required same-origin HTTPS/PostgreSQL/SMTP runtime.
+- Local real-login verification passed for registration, Mailpit OTP delivery,
+  Secure/HttpOnly cookies, `/v1/me`, refresh persistence, durable logout, cookie
+  clearing, and post-logout `401`. No production email or customer identity was used.

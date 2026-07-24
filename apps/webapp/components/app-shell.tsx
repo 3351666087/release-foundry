@@ -15,6 +15,7 @@ import {
   Languages,
   PackageCheck,
   LogIn,
+  LogOut,
   SearchCheck,
   ShieldCheck,
   UserCheck,
@@ -25,6 +26,7 @@ import type { ProductRoute } from "@/lib/routes";
 import { productRoutes } from "@/lib/routes";
 import { useI18n } from "@/lib/i18n";
 import { useDashboard } from "./dashboard-provider";
+import { useIdentity } from "./identity-provider";
 
 const icons = {
   overview: Gauge,
@@ -96,6 +98,7 @@ const journey = [
 export function AppShell({ route, children }: { route: ProductRoute; children: React.ReactNode }) {
   const { language, setLanguage, t } = useI18n();
   const { model, source, setSource, loading } = useDashboard();
+  const { mode: identityMode, identity, logout } = useIdentity();
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({
     developer: true,
     manage: true
@@ -225,7 +228,14 @@ export function AppShell({ route, children }: { route: ProductRoute; children: R
             <a className="icon-command" href={`/apps/dashboard/index.html?source=${encodeURIComponent(source)}&design=signal-form`} title={t("shell.legacy")}>
               <SearchCheck size={17} aria-hidden="true" />
             </a>
-            <Link className="account-command" href="/login"><LogIn size={16} aria-hidden="true" />{t("shell.account")}</Link>
+            {identityMode === "authenticated" ? (
+              <button className="account-command" type="button" onClick={() => void logout()} title={language === "zh-CN" ? "退出当前账号" : "Sign out"}>
+                <LogOut size={16} aria-hidden="true" />
+                {identity?.display_name || (language === "zh-CN" ? "退出登录" : "Sign out")}
+              </button>
+            ) : (
+              <Link className="account-command" href="/login"><LogIn size={16} aria-hidden="true" />{t("shell.account")}</Link>
+            )}
           </div>
         </header>
 

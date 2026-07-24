@@ -7290,3 +7290,58 @@ ode --test tests/a3/report_builder.test.mjs tests/a3/a3_live_ops_control_plane.t
   guards, and the live local login page without horizontal overflow.
 - Did not submit a real email, OTP, account, token, cookie, API key, or SMTP
   secret. The current HTTP page remains an explicit read-only demo.
+
+## 2026-07-24 - Local PostgreSQL Real Login Closure
+
+- Added a development-only local identity stack with PostgreSQL, migrations
+  001-026, Mailpit, the A1 Go API, Caddy same-origin HTTPS, and the statically
+  exported A3 Webapp.
+- Kept local verification delivery behind both
+  `ASHR_ENVIRONMENT=development` and `ASHR_IDENTITY_LOCAL_MAIL_ENABLED=true`;
+  the production Vault path remains fail-closed and unchanged.
+- Added browser-cookie `GET /v1/me` and connected it to an A3
+  `IdentityProvider` so configured HTTPS console routes require a valid A1
+  session before rendering.
+- Added browser logout through `POST /v1/identity/sessions/revoke`, server-side
+  access/refresh Cookie clearing, an authenticated account label, and a return
+  to the login page.
+- Found and fixed a real logout defect during browser verification: the
+  PostgreSQL revoke-all function requires organization, project, and principal
+  settings inside the same transaction. Logout now opens a transaction,
+  configures those tenant settings, performs the revocation, and commits.
+- Added Go regression coverage for Cookie `/v1/me`, tenant-scoped logout,
+  clearing both Secure/HttpOnly Cookies, and rejecting the revoked Cookie.
+- Added A3 contract coverage for the identity gate, `/v1/me`, logout adapter,
+  capability metadata, API Reference v19, and the redacted auth snapshot v5.
+- Browser verification completed one local-only registration and one later
+  email login through Mailpit, confirmed Secure/HttpOnly/SameSite=Strict
+  Cookies, confirmed refresh kept the account logged in, confirmed `/v1/me`,
+  and completed logout with HTTP 200.
+- Database readback after logout reported one `revoked` session; browser Cookie
+  readback was empty and unauthenticated `/v1/me` returned HTTP 401.
+- Added `start-ashr-real-login.cmd`, restart-safe generated secrets under the
+  ignored `.local-runtime/local-auth/` directory, a desktop shortcut installer,
+  and a Chinese beginner guide.
+- This is local development evidence, not production identity closure. Mailpit
+  is not SMTP/Vault, the static document route has a client gate rather than an
+  edge authorization boundary, and Google/GitHub first login remains disabled.
+- Closed the local static-delivery exposure found during final review: Caddy
+  now mounts and serves only `apps/webapp/out`, accepts only the explicit
+  `/apps/webapp/out/*` prefix, and returns `404` for repository files,
+  `.env.local`, `.local-runtime`, docs, and unknown paths.
+- Fixed root and `/console` redirects and verified the login HTML and a Next.js
+  asset return `200`, unauthenticated `/v1/me` returns `401`, protected local
+  paths return `404`, and both redirects point to their intended pages.
+- Made client logout idempotent for an already-missing/revoked session while
+  retaining fail-closed behavior for every non-`401` error.
+- Recalibrated the TypeScript hosted route-gap registry to A1's four new
+  Google/GitHub initial-login browser routes. They remain outside the generic
+  SaaS client because A1 owns OAuth state, code, nonce, Cookie, and callback
+  handling.
+- Final regression passed A3 Node `536/536` with one explicit opt-in skip, Go
+  all-package tests, TypeScript SDK `654/654`, Webapp TypeScript, the 15-page
+  configured Next.js build, CL hygiene with zero findings, and Commercial CL
+  with zero blockers or advisories.
+- Final in-app browser inspection loaded the configured Chinese login page with
+  no console errors or horizontal overflow. Google/GitHub initial login remains
+  disabled and truthfully labelled.

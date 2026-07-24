@@ -10,8 +10,8 @@ export const authContractCapabilities = {
   emailChallengeRequest: true,
   emailBrowserCompletion: true,
   emailLoginSessionCookie: true,
-  browserIdentityRead: false,
-  browserLogout: false,
+  browserIdentityRead: true,
+  browserLogout: true,
   browserSessionRefresh: true,
   productionReady: false
 } as const;
@@ -53,6 +53,16 @@ export type EmailIdentityCompletion = {
 export type IdentitySessionRefreshResponse = {
   schema_version: "ashr.identity_session_refresh.v1";
   status: "rotated";
+};
+
+export type CurrentIdentity = {
+  schema_version: string;
+  account_id: string;
+  primary_principal_id: string;
+  display_name?: string;
+  status: string;
+  credential_count: number;
+  membership_count: number;
 };
 
 const rawApiBase = process.env.NEXT_PUBLIC_A1_API_BASE_URL || "";
@@ -210,6 +220,43 @@ export async function refreshIdentitySession(accountId: string): Promise<Identit
   };
 }
 
+export async function getCurrentIdentity(): Promise<CurrentIdentity> {
+  const config = requireBrowserConfig();
+  const payload = await fetchJson(`${config.apiBaseUrl}/v1/me`, {
+    method: "GET",
+    credentials: "include"
+  });
+  return {
+    schema_version: readString(payload, "schema_version"),
+    account_id: readString(payload, "account_id"),
+    primary_principal_id: readString(payload, "primary_principal_id"),
+    display_name: optionalString(payload.display_name),
+    status: readString(payload, "status"),
+    credential_count: readNonNegativeInteger(payload, "credential_count"),
+    membership_count: readNonNegativeInteger(payload, "membership_count")
+  };
+}
+
+export async function logoutIdentity(): Promise<void> {
+  const config = requireBrowserConfig();
+  let payload: Record<string, unknown>;
+  try {
+    payload = await fetchJson(`${config.apiBaseUrl}/v1/identity/sessions/revoke`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: "{}"
+    });
+  } catch (error) {
+    // A missing or already-revoked session is already in the requested state.
+    if (error instanceof AuthApiError && error.status === 401) return;
+    throw error;
+  }
+  if (readString(payload, "status") !== "revoked") {
+    throw new AuthApiError("The identity service did not confirm logout.", "identity_logout_invalid");
+  }
+}
+
 function requireBrowserConfig(): AuthRuntimeConfig & { apiBaseUrl: string } {
   const config = getAuthRuntimeConfig();
   if (!config.configured || !config.apiBaseUrl) {
@@ -359,6 +406,14 @@ function readString(record: Record<string, unknown>, key: string) {
 function readDateString(record: Record<string, unknown>, key: string) {
   const value = readString(record, key);
   if (Number.isNaN(Date.parse(value))) {
+    throw new AuthApiError(`The identity response contains an invalid ${key}.`, "identity_response_invalid");
+  }
+  return value;
+}
+
+function readNonNegativeInteger(record: Record<string, unknown>, key: string) {
+  const value = record[key];
+  if (typeof value !== "number" || !Number.isInteger(value) || value < 0) {
     throw new AuthApiError(`The identity response contains an invalid ${key}.`, "identity_response_invalid");
   }
   return value;

@@ -69,7 +69,7 @@ test("A3 webapp consumes A1 and A2 through the existing read-only dashboard API"
 });
 
 test("A3 webapp keeps auth and commercial writes explicitly fail-closed", async () => {
-  const [loginSource, reviewSource, reportsSource, billingSource, teamSource, apiReferenceSource, i18nSource, authApiSource] = await Promise.all([
+  const [loginSource, reviewSource, reportsSource, billingSource, teamSource, apiReferenceSource, i18nSource, authApiSource, identityProviderSource, appShellSource] = await Promise.all([
     readFile(new URL("components/pages/login-page.tsx", webappUrl), "utf8"),
     readFile(new URL("components/pages/review-page.tsx", webappUrl), "utf8"),
     readFile(new URL("components/pages/reports-page.tsx", webappUrl), "utf8"),
@@ -77,7 +77,9 @@ test("A3 webapp keeps auth and commercial writes explicitly fail-closed", async 
     readFile(new URL("components/pages/team-page.tsx", webappUrl), "utf8"),
     readFile(new URL("components/pages/api-reference-page.tsx", webappUrl), "utf8"),
     readFile(new URL("lib/i18n.tsx", webappUrl), "utf8"),
-    readFile(new URL("lib/auth-api.ts", webappUrl), "utf8")
+    readFile(new URL("lib/auth-api.ts", webappUrl), "utf8"),
+    readFile(new URL("components/identity-provider.tsx", webappUrl), "utf8"),
+    readFile(new URL("components/app-shell.tsx", webappUrl), "utf8")
   ]);
 
   assert.match(loginSource, /READ-ONLY DEMO IDENTITY/);
@@ -88,6 +90,11 @@ test("A3 webapp keeps auth and commercial writes explicitly fail-closed", async 
   assert.match(loginSource, /beginEmailLogin/);
   assert.match(loginSource, /completeEmailRegistration/);
   assert.match(loginSource, /completeEmailLogin/);
+  assert.match(identityProviderSource, /getCurrentIdentity/);
+  assert.match(identityProviderSource, /logoutIdentity/);
+  assert.match(identityProviderSource, /mode === "unauthenticated"/);
+  assert.match(identityProviderSource, /router\.replace\("\/login"\)/);
+  assert.match(appShellSource, /onClick=\{\(\) => void logout\(\)\}/);
   assert.match(reviewSource, /disabled/);
   assert.match(reportsSource, /hosted report service/);
   assert.match(billingSource, /live payment backend/);

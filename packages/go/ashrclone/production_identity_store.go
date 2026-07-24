@@ -1782,6 +1782,93 @@ func (store *ProductionIdentityStore) ResolveIdentityHTTPSession(
 	}, nil
 }
 
+func (store *ProductionIdentityStore) RevokeIdentityHTTPSession(
+	ctx context.Context,
+	request *http.Request,
+) error {
+	if store == nil || store.db == nil || store.sessionTokens == nil {
+		return fmt.Errorf("production identity session store is unavailable")
+	}
+	token, err := bearerToken(request)
+	if err != nil {
+		return fmt.Errorf("identity session is invalid")
+	}
+	actorDigest, keyVersion, err := store.sessionTokens.digest(token)
+	token = ""
+	if err != nil {
+		return fmt.Errorf("identity session is invalid")
+	}
+	session, err := store.resolveSession(ctx, request)
+	if err != nil || session.AccountID == "" || session.SessionID == "" ||
+		session.TenantID == "" || session.ProjectID == "" {
+		return fmt.Errorf("identity session is invalid")
+	}
+	nonce := make([]byte, identitySessionNonceBytes)
+	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
+		return fmt.Errorf("identity session revoke is unavailable")
+	}
+	nonceValue := base64.RawURLEncoding.EncodeToString(nonce)
+	clear(nonce)
+	idempotencyDigest, err := store.sessionTokens.digestWithVersion(
+		keyVersion, "identity-browser-logout-idempotency", session.SessionID, nonceValue,
+	)
+	if err != nil {
+		return fmt.Errorf("identity session revoke is unavailable")
+	}
+	requestDigest, err := store.sessionTokens.digestWithVersion(
+		keyVersion, "identity-browser-logout-request", actorDigest, session.SessionID,
+	)
+	if err != nil {
+		return fmt.Errorf("identity session revoke is unavailable")
+	}
+	operationCtx, cancel := context.WithTimeout(ctx, store.sqlTimeout)
+	defer cancel()
+	tx, err := store.db.BeginTx(operationCtx, &sql.TxOptions{Isolation: sql.LevelReadCommitted})
+	if err != nil {
+		return fmt.Errorf("identity session revoke is unavailable")
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback()
+		}
+	}()
+	if _, err = tx.ExecContext(operationCtx, `
+SELECT set_config('statement_timeout', $1, true),
+       set_config('lock_timeout', $2, true),
+       set_config('app.a1_organization_id', $3, true),
+       set_config('app.a1_project_id', $4, true),
+       set_config('app.a1_principal_id', $5, true)
+`, fmt.Sprintf("%dms", store.statementTimeout.Milliseconds()),
+		fmt.Sprintf("%dms", store.lockTimeout.Milliseconds()),
+		session.TenantID, session.ProjectID, session.AccountID); err != nil {
+		return fmt.Errorf("identity session revoke is unavailable")
+	}
+	var sessionID string
+	var generation int64
+	var outcome string
+	var affected int
+	err = tx.QueryRowContext(operationCtx, `
+SELECT session_id::text, rotation_generation, outcome_code, affected_count
+  FROM a1_revoke_all_identity_sessions(
+    $1::uuid, $2::uuid, $3::uuid, $4, false, 86400,
+    'user_logout', $5, $6
+  )
+`, session.TenantID, session.ProjectID, session.AccountID, actorDigest,
+		idempotencyDigest, requestDigest).Scan(
+		&sessionID, &generation, &outcome, &affected,
+	)
+	if err != nil || sessionID != session.SessionID || generation < 0 ||
+		outcome != "revoked_all" || affected < 1 {
+		return fmt.Errorf("identity session revoke is unavailable")
+	}
+	if err = tx.Commit(); err != nil {
+		return fmt.Errorf("identity session revoke is unavailable")
+	}
+	committed = true
+	return nil
+}
+
 func (store *ProductionIdentityStore) ResolveOAuthSession(
 	ctx context.Context,
 	request *http.Request,

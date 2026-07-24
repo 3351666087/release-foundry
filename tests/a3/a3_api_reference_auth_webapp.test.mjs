@@ -23,7 +23,7 @@ test("API Reference is a typed route grounded in A1, A2, and A3 contracts", asyn
   assert.match(page, /Request example/);
   assert.match(page, /Response example/);
   assert.match(reference, /mainSha: "ccf6ce5"/);
-  assert.match(reference, /schemaVersion: "a3\.api_reference\.v18"/);
+  assert.match(reference, /schemaVersion: "a3\.api_reference\.v19"/);
   assert.match(reference, /a1Sha: "c784163"/);
   assert.match(reference, /a2Sha: "8cd1d4f"/);
   assert.match(reference, /a1SourceState: "merged_to_main"/);
@@ -36,6 +36,10 @@ test("API Reference is a typed route grounded in A1, A2, and A3 contracts", asyn
   assert.match(reference, /\/v1\/identity\/login\/email\/begin/);
   assert.match(reference, /\/v1\/identity\/login\/email\/complete/);
   assert.match(reference, /browser-sessions\/refresh/);
+  assert.match(reference, /path: "\/v1\/me"/);
+  assert.match(reference, /path: "\/v1\/identity\/sessions\/revoke"/);
+  assert.match(reference, /a1BrowserIdentityRead: "implemented_and_local_https_verified"/);
+  assert.match(reference, /a1BrowserLogout: "implemented_and_local_https_verified"/);
   assert.match(reference, /\/internal\/judge\/case/);
   assert.match(reference, /\/api\/a3\/import\/a2-multimodal-comparison/);
   assert.match(reference, /\/api\/a3\/import\/a2-multimodal-repeat-stability/);
@@ -119,6 +123,13 @@ test("A3 auth adapter calls A1 without taking custody of provider secrets", asyn
   assert.match(auth, /redirect: "follow"/);
   assert.match(auth, /finalUrl\.pathname !== "\/console"/);
   assert.match(auth, /browser-sessions\/refresh/);
+  assert.match(auth, /export async function getCurrentIdentity/);
+  assert.match(auth, /`\$\{config\.apiBaseUrl\}\/v1\/me`/);
+  assert.match(auth, /export async function logoutIdentity/);
+  assert.match(auth, /\/v1\/identity\/sessions\/revoke/);
+  assert.match(auth, /error\.status === 401/);
+  assert.match(auth, /browserIdentityRead: true/);
+  assert.match(auth, /browserLogout: true/);
   assert.match(auth, /identity_session_same_origin_required/);
   assert.match(auth, /oauthInitialLogin: false/);
   assert.match(auth, /sourceState: "merged_to_a3"/);
@@ -171,7 +182,7 @@ test("verification email handoff is public-safe and email-client compatible", as
 
 test("redacted auth snapshot records current peer SHAs and blockers without secrets", async () => {
   const fixture = JSON.parse(await source("fixtures/a3/auth/a1_a2_auth_contract_snapshot.redacted.json"));
-  assert.equal(fixture.schema_version, "a3.auth_contract_snapshot.v4");
+  assert.equal(fixture.schema_version, "a3.auth_contract_snapshot.v5");
   assert.equal(fixture.main.sha, "ccf6ce57890aaceabcb627c14d2e078674bd50ad");
   assert.equal(fixture.main.a1_a2_integration_sha, "7dd14d7b154ad86bd3bfedacbf4c3e03796170ce");
   assert.equal(fixture.main.contained_by_a3_branch, true);
@@ -188,6 +199,8 @@ test("redacted auth snapshot records current peer SHAs and blockers without secr
   assert.equal(fixture.a2.sha, "8cd1d4f1cb72e73ae7ead5d3218b4ae963a31a81");
   assert.equal(fixture.a2.source_state, "merged_to_main");
   assert.equal(fixture.a1.calibration.browser_session_lifecycle, "implemented_and_tested");
+  assert.equal(fixture.a1.calibration.browser_identity_read, "implemented_and_local_https_verified");
+  assert.equal(fixture.a1.calibration.browser_logout, "implemented_and_local_https_verified");
   assert.equal(fixture.a1.calibration.oauth_initial_login, "not_implemented");
   assert.equal(fixture.a2.trusted_spine.evidence_snapshot_schema, "a2.evidence_snapshot.v1");
   assert.equal(fixture.a2.trusted_spine.decision_ledger_schema, "a2.decision_ledger.v1");
@@ -204,7 +217,8 @@ test("redacted auth snapshot records current peer SHAs and blockers without secr
   assert.equal(fixture.a2.trusted_spine.release_ready, false);
   assert.equal(fixture.a2.trusted_spine.a3_may_recompute_grade, false);
   assert.equal(fixture.a3.oauth_provider_secrets_owned, false);
-  assert.equal(fixture.known_blockers.length, 2);
+  assert.equal(fixture.known_blockers.length, 1);
+  assert.equal(fixture.known_blockers.some((blocker) => blocker.id === "browser_session_identity_read_and_logout_missing"), false);
   assert.equal(fixture.known_blockers.some((blocker) => blocker.id === "a1_auth_not_in_main"), false);
   assert.equal(fixture.safety.api_key_read, false);
   assert.equal(fixture.safety.real_email_recorded, false);

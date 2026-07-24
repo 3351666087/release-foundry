@@ -1776,8 +1776,15 @@
 - [x] Update public-safe API Reference, contract tests, and redacted capability snapshot.
 - [x] Add stale-build detection, health polling, local runtime logs, and a desktop restart shortcut.
 - [x] Pass 124 focused Node contracts, focused A1 Go identity contracts, TypeScript, Next.js build, focused Playwright, both CL guards, and browser overflow inspection.
-- [ ] Add an A1 browser-cookie identity read endpoint suitable for protected A3 routes.
-- [ ] Add an A1 browser-cookie logout endpoint that revokes and clears both cookies.
-- [ ] Deploy one HTTPS reverse-proxy origin for A3, `/v1/*`, `/api/a3/*`, and `/console`.
-- [ ] Configure PostgreSQL migrations, identity delivery worker, and SMTP secret references.
+- [x] Add an A1 browser-cookie identity read endpoint and use it as the A3 client identity gate.
+- [x] Add an A1 browser-cookie logout endpoint that revokes PostgreSQL sessions and clears both cookies.
+- [x] Verify one local HTTPS origin for A3 and `/v1/*` through Caddy.
+- [x] Run PostgreSQL migrations 001-026 and verify local Mailpit OTP delivery.
+- [x] Restrict Caddy to the exported Webapp directory and return `404` for repository, docs, `.env.local`, and `.local-runtime` paths.
+- [x] Make browser logout idempotent when the server already reports an unauthenticated session.
+- [x] Calibrate the TypeScript SaaS route-gap registry to A1 Google/GitHub initial-login browser routes without exposing OAuth codes or cookies to the generic client.
+- [x] Pass final A3 Node `536/536` with one explicit opt-in skip, Go all-package tests, TypeScript SDK `654/654`, Webapp typecheck and 15-page build.
+- [x] Pass CL hygiene with zero findings, Commercial CL with zero blockers/advisories, live HTTPS route isolation checks, and browser rendering checks.
+- [ ] Deploy the same-origin topology to an authorized hosted environment with server-side document-route protection.
+- [ ] Configure the production identity delivery worker, SMTP/Vault secret references, and delivery receipts.
 - [ ] Complete production Google/GitHub first-login coordinator and callback wiring in A1.

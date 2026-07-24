@@ -194,6 +194,22 @@ export const UNSUPPORTED_GO_ROUTE_GAPS: Record<string, { reason: string; replace
     reason: "Go completes canonical OAuth identity flows through a typed union that the generic hosted SaaS route client does not model.",
     consumer_action: "consume through IdentityClient.completeOAuth and handle registration, authentication, MFA, or binding-ticket outcomes explicitly",
   },
+  "GET /v1/identity/oauth/github/start": {
+    reason: "Go starts GitHub initial-login in a browser and owns the state, PKCE, redirect, and cookie boundary; the generic hosted SaaS client must not handle those credentials.",
+    consumer_action: "launch through the dedicated identity browser flow and keep authorization codes, state, and session cookies outside the generic hosted client",
+  },
+  "GET /v1/identity/oauth/github/callback": {
+    reason: "Go completes GitHub initial-login through a browser callback that may establish an HttpOnly session; the generic hosted SaaS client does not consume provider callbacks.",
+    consumer_action: "return the browser to the dedicated identity callback and consume only the resulting canonical account session",
+  },
+  "GET /v1/identity/oauth/google/start": {
+    reason: "Go starts Google initial-login in a browser and owns the state, PKCE, nonce, redirect, and cookie boundary; the generic hosted SaaS client must not handle those credentials.",
+    consumer_action: "launch through the dedicated identity browser flow and keep authorization codes, state, nonce, and session cookies outside the generic hosted client",
+  },
+  "GET /v1/identity/oauth/google/callback": {
+    reason: "Go completes Google initial-login through a browser callback that may establish an HttpOnly session; the generic hosted SaaS client does not consume provider callbacks.",
+    consumer_action: "return the browser to the dedicated identity callback and consume only the resulting canonical account session",
+  },
   "POST /v1/identity/registration/complete": {
     reason: "Go owns receipt-backed account creation; the hosted SaaS client does not yet expose identity registration transport.",
     consumer_action: "consume through the unified identity SDK after obtaining a server-issued proof receipt",

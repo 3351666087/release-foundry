@@ -27,7 +27,9 @@ async function buildGoServerBinary() {
   const dir = await mkdtemp(join(tmpdir(), "ashr-ts-go-server-"));
   const binary = join(dir, process.platform === "win32" ? "ashr-api.exe" : "ashr-api");
   const command = process.platform === "win32" ? (process.env.ComSpec ?? "C:\\Windows\\System32\\cmd.exe") : (process.env.GO_EXE ?? "go");
-  const args = process.platform === "win32" ? ["/c", "go", "build", "-o", binary, "./cmd/ashr-api"] : ["build", "-o", binary, "./cmd/ashr-api"];
+  const args = process.platform === "win32"
+    ? ["/c", "go", "build", "-buildvcs=false", "-o", binary, "./cmd/ashr-api"]
+    : ["build", "-buildvcs=false", "-o", binary, "./cmd/ashr-api"];
   const build = spawnSync(command, args, { cwd: goServerCwd, encoding: "utf8" });
   if (build.status !== 0) throw new Error(`failed to build Go server: ${build.stderr || build.stdout}`);
   return { binary, dir };

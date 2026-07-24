@@ -116,15 +116,33 @@ func newIdentityRuntimeFromEnv(ctx context.Context, lookup func(string) (string,
 		}
 		verificationEnabled := envTrue(lookup, "ASHR_IDENTITY_VERIFICATION_ENABLED")
 		var deliveryVault *productionIdentityDeliveryVaultRuntime
+		var deliverySealer ashrclone.IdentityDeliveryVaultSealer
+		var deliveryDeleter ashrclone.IdentityDeliveryVaultDeleter
 		closeResources := func() error {
 			deliveryVault.close()
 			return store.Close()
 		}
 		if verificationEnabled {
-			deliveryVault, err = productionIdentityDeliveryVaultFromEnv(lookup)
-			if err != nil {
-				_ = closeResources()
-				return identityRuntime{}, err
+			if envTrue(lookup, "ASHR_IDENTITY_LOCAL_MAIL_ENABLED") {
+				if environment != "development" {
+					_ = closeResources()
+					return identityRuntime{}, fmt.Errorf("local identity mail delivery requires ASHR_ENVIRONMENT=development")
+				}
+				localMail, localMailErr := newLocalIdentityDeliveryMailSealer(lookup)
+				if localMailErr != nil {
+					_ = closeResources()
+					return identityRuntime{}, localMailErr
+				}
+				deliverySealer = localMail
+				deliveryDeleter = localMail
+			} else {
+				deliveryVault, err = productionIdentityDeliveryVaultFromEnv(lookup)
+				if err != nil {
+					_ = closeResources()
+					return identityRuntime{}, err
+				}
+				deliverySealer = deliveryVault.sealer
+				deliveryDeleter = deliveryVault.sealer
 			}
 		}
 		readyCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
@@ -195,8 +213,8 @@ func newIdentityRuntimeFromEnv(ctx context.Context, lookup func(string) (string,
 			verification, verificationErr := ashrclone.NewIdentityVerificationService(
 				ashrclone.IdentityVerificationServiceOptions{
 					Store:                  verificationStore,
-					DeliveryVaultSealer:    deliveryVault.sealer,
-					DeliveryVaultDeleter:   deliveryVault.sealer,
+					DeliveryVaultSealer:    deliverySealer,
+					DeliveryVaultDeleter:   deliveryDeleter,
 					DeliveryMode:           ashrclone.IdentityVerificationDeliveryTransactionalOutbox,
 					TransactionCoordinator: coordinator, DigestKey: []byte(digestKey),
 				},

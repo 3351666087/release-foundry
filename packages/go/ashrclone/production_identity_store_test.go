@@ -1004,6 +1004,49 @@ func TestProductionIdentityStoreResolvesOneTrustedSessionForAllInterfaces(t *tes
 	}
 }
 
+func TestProductionIdentityStoreRevokesCookieSessionInsideTenantScope(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	key := []byte("01234567890123456789012345678901")
+	store, err := NewProductionIdentityStore(ProductionIdentityStoreOptions{DB: db, SessionKey: key})
+	if err != nil {
+		t.Fatal(err)
+	}
+	token := "opaque-cookie-session-token"
+	digest := store.sessionDigest(token)
+	accountID := "01c735e2-1296-4b21-86aa-57afe21da18f"
+	sessionID := "d30e4fd3-dda2-4af8-8c05-b04a1d187fcd"
+	tenantID := "11111111-1111-4111-8111-111111111111"
+	projectID := "33333333-3333-4333-8333-333333333333"
+	mock.ExpectQuery("FROM a1_authenticate_identity_session_digest").
+		WithArgs(digest).
+		WillReturnRows(sqlmock.NewRows(
+			[]string{"account", "actor", "session", "tenant", "project", "user"},
+		).AddRow(accountID, accountID, sessionID, tenantID, projectID, accountID))
+	mock.ExpectBegin()
+	mock.ExpectExec("SELECT set_config\\('statement_timeout'").
+		WithArgs(sqlmock.AnyArg(), sqlmock.AnyArg(), tenantID, projectID, accountID).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectQuery("FROM a1_revoke_all_identity_sessions").
+		WithArgs(tenantID, projectID, accountID, digest, sqlmock.AnyArg(), sqlmock.AnyArg()).
+		WillReturnRows(sqlmock.NewRows(
+			[]string{"session_id", "rotation_generation", "outcome_code", "affected_count"},
+		).AddRow(sessionID, int64(0), "revoked_all", 1))
+	mock.ExpectCommit()
+
+	request, _ := http.NewRequest(http.MethodPost, "https://api.example.test/v1/identity/sessions/revoke", nil)
+	request.AddCookie(&http.Cookie{Name: IdentitySessionCookieName, Value: token})
+	if err := store.RevokeIdentityHTTPSession(context.Background(), request); err != nil {
+		t.Fatalf("revoke cookie session: %v", err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestProductionIdentityStoreSessionHMACIsKeyedAndNeverQueriesRawToken(t *testing.T) {
 	db, mock, err := sqlmock.New()
 	if err != nil {

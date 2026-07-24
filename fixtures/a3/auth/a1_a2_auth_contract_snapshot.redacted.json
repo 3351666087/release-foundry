@@ -1,5 +1,5 @@
 {
-  "schema_version": "a3.auth_contract_snapshot.v4",
+  "schema_version": "a3.auth_contract_snapshot.v5",
   "calibrated_at": "2026-07-24",
   "public_safe": true,
   "contains_secret_values": false,
@@ -35,6 +35,8 @@
       "POST /v1/identity/login/email/begin",
       "POST /v1/identity/login/email/complete",
       "POST /v1/projects/{project_id}/accounts/{account_id}/browser-sessions/refresh",
+      "GET /v1/me",
+      "POST /v1/identity/sessions/revoke",
       "GET /v1/accounts/{account_id}",
       "GET /v1/accounts/{account_id}/credentials",
       "GET /v1/accounts/{account_id}/memberships"
@@ -50,8 +52,8 @@
       "oauth_initial_login": "not_implemented",
       "registration_session_handoff": "implemented_and_tested",
       "login_session_handoff": "implemented_and_tested",
-      "browser_identity_read": "not_implemented_for_cookie_session",
-      "browser_logout": "not_implemented_for_cookie_session",
+      "browser_identity_read": "implemented_and_local_https_verified",
+      "browser_logout": "implemented_and_local_https_verified",
       "production_ready": false
     },
     "capabilities": {
@@ -128,6 +130,10 @@
       "opaque_challenge_and_intent_state",
       "secure_303_console_handoff",
       "identity_session_refresh_adapter",
+      "cookie_identity_read_adapter",
+      "protected_console_identity_gate",
+      "durable_cookie_session_logout",
+      "local_postgres_mailpit_https_stack",
       "capability_aware_login_and_signup_ui",
       "oauth_initial_login_fail_closed_correction",
       "a2_trusted_spine_reference_surface",
@@ -137,12 +143,6 @@
     ]
   },
   "known_blockers": [
-    {
-      "id": "browser_session_identity_read_and_logout_missing",
-      "severity": "blocking",
-      "fact": "Email registration/login now issue secure browser cookies, but the current GET /v1/me and session revoke handlers still require explicit bearer/session headers rather than the browser cookie contract.",
-      "a3_behavior": "complete_email_handoff_but_do_not_claim_protected_route_or_logout_closure"
-    },
     {
       "id": "oauth_initial_login_not_implemented",
       "severity": "blocking_for_hosted_login",
