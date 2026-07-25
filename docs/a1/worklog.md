@@ -4587,5 +4587,10 @@ implementation and adversarial evidence is green.
   while total sessions increased from `9` to `10`. No callback parameter,
   browser storage, cookie, identity value, provider token, or secret was read
   or retained.
-- [ ] Review and stage only A1-owned paths, commit one coherent batch, push
-  only `HEAD:codex/a1-local-sdk-runner`, fetch, and prove final `0/0` parity.
+- [x] Reviewed and staged exactly the 52 manifest-owned A1 paths with zero
+  peer-lane paths, committed the coherent implementation batch as
+  `ff4167e94d13d7eda7a729fee812ec32cc79704c`, pushed only
+  `HEAD:codex/a1-local-sdk-runner`, fetched `origin`, and proved post-push
+  parity `0/0`. The remaining 253 working-tree entries are all unstaged
+  `fixtures/a2/**` peer artifacts and were neither modified nor included by
+  A1.

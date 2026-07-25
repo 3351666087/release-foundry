@@ -212,9 +212,12 @@ first-login runtime:
   integration, Vault rotation/redaction/failure tests, complete
   Python/TypeScript/Rust parity, formatting, full CL, ownership, generated
   artifact, and secret audits.
-- [ ] Update the A1 evidence/worklog after each earned gate, commit one
+- [x] Update the A1 evidence/worklog after each earned gate, commit one
   coherent A1-only batch, push only
   `HEAD:codex/a1-local-sdk-runner`, fetch, and prove final `0/0` parity.
+  The 52-path implementation batch was committed as
+  `ff4167e94d13d7eda7a729fee812ec32cc79704c`; the only push target was the
+  A1 branch and the fetched post-push divergence was `0/0`.
 
 Implementation and release gates discovered by the real runtime exercise:
 
