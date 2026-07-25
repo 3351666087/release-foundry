@@ -54,6 +54,10 @@ func TestIdentitySecurityProcessorHandlerAndHTTPClientRoundTrip(t *testing.T) {
 		HTTPIdentitySecuritySecretProcessorOptions{
 			ProcessEndpoint: server.URL + "/v1/identity/security/process",
 			ConfirmEndpoint: server.URL + "/v1/identity/security/confirm",
+			PrepareEndpoint: server.URL +
+				"/v1/identity/security/mutations/prepare",
+			FinalizeEndpoint: server.URL +
+				"/v1/identity/security/mutations/finalize",
 			HandoffConsumeEndpoint: server.URL +
 				"/v1/identity/security/handoff/consume",
 			CleanupEndpoint: server.URL + "/v1/identity/security/cleanup",
@@ -105,6 +109,157 @@ func TestIdentitySecurityProcessorHandlerAndHTTPClientRoundTrip(t *testing.T) {
 	}
 	if readiness.callCount() != 1 {
 		t.Fatalf("health endpoint read secret readiness state")
+	}
+}
+
+func TestIdentitySecurityProcessorHandlerRecoveryLifecycleRoundTrip(t *testing.T) {
+	processor, vault, _, _ := newIdentitySecurityProcessorVaultTestSubject(t)
+	processed, recoveryCodes := identitySecurityProcessorTestConfirmedMFA(
+		t,
+		processor,
+		vault,
+		"handler-recovery-lifecycle",
+	)
+	record := vault.decodedRecord(t, processed.SecretRef)
+	expectedBatch := record.RecoveryBatchDigest
+	expectedCount := len(record.RecoveryCodeDigests)
+	clearIdentitySecurityProcessorRecord(&record)
+	handler, err := NewIdentitySecurityProcessorHandler(
+		IdentitySecurityProcessorHandlerOptions{
+			Processor:        processor,
+			Readiness:        processor,
+			ReadinessTimeout: time.Second,
+		},
+	)
+	if err != nil {
+		t.Fatalf("new processor handler: %v", err)
+	}
+	server := httptest.NewTLSServer(handler)
+	defer server.Close()
+	client, err := NewHTTPIdentitySecuritySecretProcessor(
+		identitySecurityProcessorTestOptions(server, time.Second),
+	)
+	if err != nil {
+		t.Fatalf("new processor HTTP client: %v", err)
+	}
+
+	consumeRequest := IdentitySecuritySecretMutationPrepareRequest{
+		AccountID:                   identitySecurityProcessorVaultTestAccountID,
+		Operation:                   "mfa_recovery_consume",
+		IdempotencyKey:              "handler-recovery-consume-0001",
+		SecretRef:                   processed.SecretRef,
+		SecretDigest:                processed.SecretDigest,
+		ExpectedRecoveryBatchDigest: expectedBatch,
+		ExpectedRecoveryCodeCount:   expectedCount,
+		RecoveryCode:                recoveryCodes[0],
+	}
+	consumed, err := client.PrepareIdentitySecuritySecretMutation(
+		context.Background(),
+		consumeRequest,
+	)
+	if err != nil {
+		t.Fatalf("HTTP prepare recovery consume: %v", err)
+	}
+	replayed, err := client.PrepareIdentitySecuritySecretMutation(
+		context.Background(),
+		consumeRequest,
+	)
+	if err != nil || replayed != consumed {
+		t.Fatalf("HTTP exact consume replay: result=%+v err=%v", replayed, err)
+	}
+	if err := client.FinalizeIdentitySecuritySecretMutation(
+		context.Background(),
+		IdentitySecuritySecretMutationFinalizeRequest{
+			AccountID:      consumeRequest.AccountID,
+			Operation:      consumeRequest.Operation,
+			IdempotencyKey: consumeRequest.IdempotencyKey,
+			FinalizeToken:  consumed.FinalizeToken,
+		},
+	); err != nil {
+		t.Fatalf("HTTP finalize recovery consume: %v", err)
+	}
+
+	rotateRequest := IdentitySecuritySecretMutationPrepareRequest{
+		AccountID:                   consumeRequest.AccountID,
+		Operation:                   "mfa_recovery_rotate",
+		IdempotencyKey:              "handler-recovery-rotate-0001",
+		SecretRef:                   consumeRequest.SecretRef,
+		SecretDigest:                consumeRequest.SecretDigest,
+		ExpectedRecoveryBatchDigest: consumed.RecoveryBatchDigest,
+		ExpectedRecoveryCodeCount:   consumed.RecoveryCodeCount,
+	}
+	rotated, err := client.PrepareIdentitySecuritySecretMutation(
+		context.Background(),
+		rotateRequest,
+	)
+	if err != nil {
+		t.Fatalf("HTTP prepare recovery rotation: %v", err)
+	}
+	if _, err := client.ConsumeIdentitySecuritySecretHandoff(
+		context.Background(),
+		IdentitySecuritySecretHandoffRequest{
+			AccountID:      rotateRequest.AccountID,
+			Operation:      rotateRequest.Operation,
+			IdempotencyKey: rotateRequest.IdempotencyKey,
+			HandoffID:      rotated.HandoffID,
+		},
+	); !errors.Is(err, ErrIdentitySecurityProcessorRejected) {
+		t.Fatalf("HTTP pre-finalize rotation handoff was accepted: %v", err)
+	}
+	if err := client.FinalizeIdentitySecuritySecretMutation(
+		context.Background(),
+		IdentitySecuritySecretMutationFinalizeRequest{
+			AccountID:      rotateRequest.AccountID,
+			Operation:      rotateRequest.Operation,
+			IdempotencyKey: rotateRequest.IdempotencyKey,
+			FinalizeToken:  rotated.FinalizeToken,
+		},
+	); err != nil {
+		t.Fatalf("HTTP finalize recovery rotation: %v", err)
+	}
+	rotatedHandoff, err := client.ConsumeIdentitySecuritySecretHandoff(
+		context.Background(),
+		IdentitySecuritySecretHandoffRequest{
+			AccountID:      rotateRequest.AccountID,
+			Operation:      rotateRequest.Operation,
+			IdempotencyKey: rotateRequest.IdempotencyKey,
+			HandoffID:      rotated.HandoffID,
+		},
+	)
+	if err != nil ||
+		len(rotatedHandoff.RecoveryCodes) != rotated.RecoveryCodeCount {
+		t.Fatalf("HTTP consume rotated recovery codes: handoff=%+v err=%v", rotatedHandoff, err)
+	}
+	clearIdentitySecuritySecretHandoff(&rotatedHandoff)
+
+	disabled, err := client.PrepareIdentitySecuritySecretMutation(
+		context.Background(),
+		IdentitySecuritySecretMutationPrepareRequest{
+			AccountID:                   rotateRequest.AccountID,
+			Operation:                   "mfa_disable",
+			IdempotencyKey:              "handler-mfa-disable-0001",
+			SecretRef:                   rotateRequest.SecretRef,
+			SecretDigest:                rotateRequest.SecretDigest,
+			ExpectedRecoveryBatchDigest: rotated.RecoveryBatchDigest,
+			ExpectedRecoveryCodeCount:   rotated.RecoveryCodeCount,
+		},
+	)
+	if err != nil {
+		t.Fatalf("HTTP prepare MFA disable: %v", err)
+	}
+	if err := client.FinalizeIdentitySecuritySecretMutation(
+		context.Background(),
+		IdentitySecuritySecretMutationFinalizeRequest{
+			AccountID:      rotateRequest.AccountID,
+			Operation:      "mfa_disable",
+			IdempotencyKey: "handler-mfa-disable-0001",
+			FinalizeToken:  disabled.FinalizeToken,
+		},
+	); err != nil {
+		t.Fatalf("HTTP finalize MFA disable: %v", err)
+	}
+	if vault.recordCount() != 0 {
+		t.Fatalf("HTTP finalized MFA disable retained Vault state")
 	}
 }
 

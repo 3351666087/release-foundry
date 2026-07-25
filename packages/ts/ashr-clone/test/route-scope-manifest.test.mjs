@@ -130,6 +130,17 @@ test("TS hosted client consumes Go route/scope manifest public-safely", async ()
   assert.equal(consumption.unsupported_go_routes.includes("GET /v1/identity/oauth/google/start"), true);
   assert.equal(consumption.unsupported_go_routes.includes("GET /v1/identity/oauth/google/callback"), true);
   for (const route of [
+    "POST /v1/accounts/{account_id}/two-factor/disable",
+    "POST /v1/accounts/{account_id}/two-factor/recovery-codes/consume",
+    "POST /v1/accounts/{account_id}/two-factor/recovery-codes/rotate",
+  ]) {
+    const gap = consumption.unsupported_go_route_gaps.find((entry) => entry.route === route);
+    assert.equal(consumption.unsupported_go_routes.includes(route), true);
+    assert.equal(typeof gap?.reason, "string");
+    assert.match(gap?.consumer_action ?? "", /UnifiedIdentityHttpClient/);
+    assert.equal(Object.hasOwn(gap ?? {}, "replacement_route"), false);
+  }
+  for (const route of [
     "GET /v1/identity/oauth/github/start",
     "GET /v1/identity/oauth/github/callback",
     "GET /v1/identity/oauth/google/start",

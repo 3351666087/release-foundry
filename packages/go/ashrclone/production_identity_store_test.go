@@ -966,20 +966,59 @@ func TestProductionIdentityReadinessRequiresOAuthFirstLoginAuthority(t *testing.
 }
 
 func TestProductionIdentityReadinessEnforcesSecurityAuthorityLeastPrivilege(t *testing.T) {
+	newCoreIssuer := "public.a1_issue_identity_security_mutation_ticket(" +
+		"text,text,uuid,uuid,text,text,text,text,text,integer,text,integer," +
+		"timestamp with time zone)"
+	oldCoreIssuer := "public.a1_issue_identity_security_mutation_ticket(" +
+		"text,text,uuid,uuid,text,text,text,text,text,integer," +
+		"timestamp with time zone)"
+	newScopedIssuer := "public.a1_issue_scoped_identity_security_mutation_ticket(" +
+		"uuid,uuid,uuid,uuid,uuid,text,text,text,text,text,text,text,integer," +
+		"text,integer,timestamp with time zone)"
+	oldScopedIssuer := "public.a1_issue_scoped_identity_security_mutation_ticket(" +
+		"uuid,uuid,uuid,uuid,uuid,text,text,text,text,text,text,text,integer," +
+		"timestamp with time zone)"
+
 	for _, required := range []string{
 		"NOT has_function_privilege",
-		"a1_issue_identity_security_mutation_ticket",
-		"a1_issue_scoped_identity_security_mutation_ticket",
+		newCoreIssuer,
+		newScopedIssuer,
+		oldCoreIssuer + "'\n   ) IS NULL",
+		oldScopedIssuer + "'\n   ) IS NULL",
 		"a1_cancel_scoped_identity_security_mutation_ticket",
 		"a1_consume_identity_security_receipt",
 		"a1_mutate_account_password",
 		"a1_begin_totp_enrollment",
 		"a1_confirm_totp_enrollment",
 		"a1_set_account_two_factor",
+		"a1_mutate_totp_recovery_lifecycle",
+		"a1_project_identity_security_processor_state",
+		"a1_project_identity_security_mutation_replay",
+		"has_function_privilege(\n      current_user,\n      " +
+			"'public.a1_project_identity_security_processor_state(uuid)'",
+		"has_function_privilege(\n      current_user,\n      " +
+			"'public.a1_project_identity_security_mutation_replay(uuid,text,text)'",
+		"NOT has_function_privilege(\n      'a1_security_ticket_issuer',\n      " +
+			"'public.a1_project_identity_security_processor_state(uuid)'",
+		"NOT has_function_privilege(\n      'a1_security_ticket_issuer',\n      " +
+			"'public.a1_project_identity_security_mutation_replay(uuid,text,text)'",
 		"NOT has_table_privilege",
 		"NOT has_any_column_privilege",
 		"identity_account_security",
+		"identity_security_receipts",
+		"identity_security_mutation_tickets",
+		"identity_security_mutation_idempotency",
 		"identity_security_ticket_issuance",
+		"'a1_security_ticket_issuer',\n               security_table.table_oid",
+		"expected_recovery_batch_digest",
+		"expected_recovery_code_count",
+		"identity_recovery_code_count_check",
+		"identity_totp_posture_check",
+		"identity_security_mutation_tickets_operation_check",
+		"identity_security_mutation_ticket_payload_check",
+		"%mfa_recovery_consume%",
+		"%mfa_recovery_rotate%",
+		"%mfa_disable%",
 		"NOT has_schema_privilege(current_user, 'public', 'CREATE')",
 		"NOT has_schema_privilege('public', 'public', 'CREATE')",
 		"NOT r.rolsuper",
@@ -1004,8 +1043,9 @@ func TestProductionIdentityReadinessEnforcesSecurityAuthorityLeastPrivilege(t *t
 		"identity_verification_delivery_outbox",
 		"AND NOT has_function_privilege(\n     current_user,\n     'public.a1_bind_verified_identity_credential(",
 		"OR has_function_privilege('public', function_oid, 'EXECUTE')",
-		"count(*) = 4",
-		"count(*) = 5",
+		"SELECT count(*) = 5\n        FROM pg_catalog.pg_class",
+		") = 5\n        FROM pg_catalog.pg_policies",
+		"SELECT count(*) = 7\n         FROM pg_catalog.pg_proc",
 	} {
 		if !strings.Contains(productionIdentityReadinessQuery, required) {
 			t.Fatalf("security readiness omitted %s", required)

@@ -24,6 +24,9 @@ var identitySecurityProcessorHandoffPattern = regexp.MustCompile(
 var identitySecurityProcessorCleanupPattern = regexp.MustCompile(
 	`^isx_[A-Za-z0-9_-]{24,252}$`,
 )
+var identitySecurityProcessorFinalizePattern = regexp.MustCompile(
+	`^isf_[A-Za-z0-9_-]{24,252}$`,
+)
 var identitySecurityProcessorKeyVersionPattern = regexp.MustCompile(
 	`^[A-Za-z0-9][A-Za-z0-9._:-]{1,63}$`,
 )
@@ -62,6 +65,37 @@ type IdentitySecuritySecretConfirmResult struct {
 	CleanupToken        string
 }
 
+type IdentitySecuritySecretMutationPrepareRequest struct {
+	AccountID                   string
+	Operation                   string
+	IdempotencyKey              string
+	SecretRef                   string
+	SecretDigest                string
+	ExpectedRecoveryBatchDigest string
+	ExpectedRecoveryCodeCount   int
+	RecoveryCode                string
+}
+
+type IdentitySecuritySecretMutationPrepareResult struct {
+	SecretRef                   string
+	SecretDigest                string
+	ExpectedRecoveryBatchDigest string
+	ExpectedRecoveryCodeCount   int
+	RecoveryBatchDigest         string
+	RecoveryCodeCount           int
+	KeyVersion                  string
+	HandoffID                   string
+	FinalizeToken               string
+	CleanupToken                string
+}
+
+type IdentitySecuritySecretMutationFinalizeRequest struct {
+	AccountID      string
+	Operation      string
+	IdempotencyKey string
+	FinalizeToken  string
+}
+
 type IdentitySecuritySecretHandoffRequest struct {
 	AccountID      string
 	Operation      string
@@ -93,6 +127,14 @@ type IdentitySecuritySecretProcessor interface {
 		context.Context,
 		IdentitySecuritySecretConfirmRequest,
 	) (IdentitySecuritySecretConfirmResult, error)
+	PrepareIdentitySecuritySecretMutation(
+		context.Context,
+		IdentitySecuritySecretMutationPrepareRequest,
+	) (IdentitySecuritySecretMutationPrepareResult, error)
+	FinalizeIdentitySecuritySecretMutation(
+		context.Context,
+		IdentitySecuritySecretMutationFinalizeRequest,
+	) error
 	ConsumeIdentitySecuritySecretHandoff(
 		context.Context,
 		IdentitySecuritySecretHandoffRequest,
@@ -184,6 +226,86 @@ func validIdentitySecuritySecretConfirmResult(
 		identitySecurityProcessorCleanupPattern.MatchString(result.CleanupToken)
 }
 
+func validIdentitySecuritySecretMutationPrepareRequest(
+	request IdentitySecuritySecretMutationPrepareRequest,
+) bool {
+	if !validPostgresIdentityVerificationUUID(strings.TrimSpace(request.AccountID)) ||
+		!validIdentitySecurityIdempotencyKey(strings.TrimSpace(request.IdempotencyKey)) ||
+		!identitySecurityProcessorReferencePattern.MatchString(
+			strings.TrimSpace(request.SecretRef),
+		) ||
+		!validIdentitySecurityDigest(strings.TrimSpace(request.SecretDigest)) ||
+		!validIdentitySecurityDigest(
+			strings.TrimSpace(request.ExpectedRecoveryBatchDigest),
+		) ||
+		request.ExpectedRecoveryCodeCount < 0 ||
+		request.ExpectedRecoveryCodeCount > 20 {
+		return false
+	}
+	switch strings.TrimSpace(request.Operation) {
+	case "mfa_recovery_consume":
+		return request.ExpectedRecoveryCodeCount > 0 &&
+			identitySecurityRecoveryCodePattern.MatchString(
+				strings.TrimSpace(request.RecoveryCode),
+			)
+	case "mfa_recovery_rotate", "mfa_disable":
+		return request.RecoveryCode == ""
+	default:
+		return false
+	}
+}
+
+func validIdentitySecuritySecretMutationPrepareResult(
+	operation string,
+	result IdentitySecuritySecretMutationPrepareResult,
+) bool {
+	if !identitySecurityProcessorReferencePattern.MatchString(result.SecretRef) ||
+		!validIdentitySecurityDigest(result.SecretDigest) ||
+		!validIdentitySecurityDigest(result.ExpectedRecoveryBatchDigest) ||
+		result.ExpectedRecoveryCodeCount < 0 ||
+		result.ExpectedRecoveryCodeCount > 20 ||
+		!identitySecurityProcessorKeyVersionPattern.MatchString(result.KeyVersion) ||
+		!identitySecurityProcessorFinalizePattern.MatchString(result.FinalizeToken) ||
+		!identitySecurityProcessorCleanupPattern.MatchString(result.CleanupToken) {
+		return false
+	}
+	switch strings.TrimSpace(operation) {
+	case "mfa_recovery_consume":
+		return result.HandoffID == "" &&
+			validIdentitySecurityDigest(result.RecoveryBatchDigest) &&
+			result.RecoveryCodeCount == result.ExpectedRecoveryCodeCount-1
+	case "mfa_recovery_rotate":
+		return identitySecurityProcessorHandoffPattern.MatchString(result.HandoffID) &&
+			validIdentitySecurityDigest(result.RecoveryBatchDigest) &&
+			result.RecoveryCodeCount >= 6 &&
+			result.RecoveryCodeCount <= 20
+	case "mfa_disable":
+		return result.HandoffID == "" &&
+			result.RecoveryBatchDigest == "" &&
+			result.RecoveryCodeCount == 0
+	default:
+		return false
+	}
+}
+
+func validIdentitySecuritySecretMutationFinalizeRequest(
+	request IdentitySecuritySecretMutationFinalizeRequest,
+) bool {
+	if !validPostgresIdentityVerificationUUID(strings.TrimSpace(request.AccountID)) ||
+		!validIdentitySecurityIdempotencyKey(strings.TrimSpace(request.IdempotencyKey)) ||
+		!identitySecurityProcessorFinalizePattern.MatchString(
+			strings.TrimSpace(request.FinalizeToken),
+		) {
+		return false
+	}
+	switch strings.TrimSpace(request.Operation) {
+	case "mfa_recovery_consume", "mfa_recovery_rotate", "mfa_disable":
+		return true
+	default:
+		return false
+	}
+}
+
 func validIdentitySecuritySecretHandoffRequest(
 	request IdentitySecuritySecretHandoffRequest,
 ) bool {
@@ -194,7 +316,12 @@ func validIdentitySecuritySecretHandoffRequest(
 		) {
 		return false
 	}
-	return request.Operation == "mfa_enroll" || request.Operation == "mfa_confirm"
+	switch request.Operation {
+	case "mfa_enroll", "mfa_confirm", "mfa_recovery_rotate":
+		return true
+	default:
+		return false
+	}
 }
 
 func validIdentitySecuritySecretHandoff(
@@ -206,6 +333,9 @@ func validIdentitySecuritySecretHandoff(
 		return validIdentitySecurityProvisioningURI(handoff.ProvisioningURI) &&
 			len(handoff.RecoveryCodes) == 0
 	case "mfa_confirm":
+		return handoff.ProvisioningURI == "" &&
+			validIdentitySecurityRecoveryCodes(handoff.RecoveryCodes)
+	case "mfa_recovery_rotate":
 		return handoff.ProvisioningURI == "" &&
 			validIdentitySecurityRecoveryCodes(handoff.RecoveryCodes)
 	default:
@@ -257,7 +387,8 @@ func validIdentitySecuritySecretCleanupRequest(
 	}
 	switch request.Operation {
 	case "password_enroll", "password_change", "password_recovery",
-		"mfa_enroll", "mfa_confirm":
+		"mfa_enroll", "mfa_confirm", "mfa_recovery_consume",
+		"mfa_recovery_rotate", "mfa_disable":
 		return true
 	default:
 		return false

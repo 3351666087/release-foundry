@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/url"
 	"strings"
 	"sync"
@@ -662,6 +663,507 @@ func TestVaultIdentitySecurityProcessorFailureAtomicityAndRedaction(t *testing.T
 	) || strings.Contains(err.Error(), secretMarker) {
 		t.Fatalf("key resolver failure was not safely redacted: %v", err)
 	}
+}
+
+func TestVaultIdentitySecurityProcessorRecoveryMutationLifecycle(t *testing.T) {
+	processor, vault, _, _ := newIdentitySecurityProcessorVaultTestSubject(t)
+	processed, recoveryCodes := identitySecurityProcessorTestConfirmedMFA(
+		t,
+		processor,
+		vault,
+		"mutation-lifecycle",
+	)
+	record := vault.decodedRecord(t, processed.SecretRef)
+	initialBatch := record.RecoveryBatchDigest
+	initialCount := len(record.RecoveryCodeDigests)
+	initialTOTPSecret := append([]byte(nil), record.TOTPSecret...)
+	clearIdentitySecurityProcessorRecord(&record)
+	defer clear(initialTOTPSecret)
+
+	consumeRequest := IdentitySecuritySecretMutationPrepareRequest{
+		AccountID:                   identitySecurityProcessorVaultTestAccountID,
+		Operation:                   "mfa_recovery_consume",
+		IdempotencyKey:              "recovery-consume-0001",
+		SecretRef:                   processed.SecretRef,
+		SecretDigest:                processed.SecretDigest,
+		ExpectedRecoveryBatchDigest: initialBatch,
+		ExpectedRecoveryCodeCount:   initialCount,
+		RecoveryCode:                recoveryCodes[0],
+	}
+	consumed, err := processor.PrepareIdentitySecuritySecretMutation(
+		context.Background(),
+		consumeRequest,
+	)
+	if err != nil {
+		t.Fatalf("prepare recovery consume: %v", err)
+	}
+	if consumed.RecoveryCodeCount != initialCount-1 ||
+		consumed.ExpectedRecoveryBatchDigest != initialBatch ||
+		consumed.ExpectedRecoveryCodeCount != initialCount ||
+		consumed.RecoveryBatchDigest == initialBatch ||
+		consumed.HandoffID != "" {
+		t.Fatalf("invalid recovery consume projection: %+v", consumed)
+	}
+	replayed, err := processor.PrepareIdentitySecuritySecretMutation(
+		context.Background(),
+		consumeRequest,
+	)
+	if err != nil || replayed != consumed {
+		t.Fatalf("exact consume retry changed projection: result=%+v err=%v", replayed, err)
+	}
+	conflict := consumeRequest
+	conflict.RecoveryCode = recoveryCodes[1]
+	if _, err := processor.PrepareIdentitySecuritySecretMutation(
+		context.Background(),
+		conflict,
+	); !errors.Is(err, ErrIdentitySecurityProcessorRejected) {
+		t.Fatalf("same idempotency with a different code was accepted: %v", err)
+	}
+	wrongAccount := consumeRequest
+	wrongAccount.AccountID = "55555555-5555-4555-8555-555555555555"
+	if _, err := processor.PrepareIdentitySecuritySecretMutation(
+		context.Background(),
+		wrongAccount,
+	); !errors.Is(err, ErrIdentitySecurityProcessorRejected) {
+		t.Fatalf("wrong-account recovery consume was accepted: %v", err)
+	}
+	if _, err := processor.PrepareIdentitySecuritySecretMutation(
+		context.Background(),
+		IdentitySecuritySecretMutationPrepareRequest{
+			AccountID:                   consumeRequest.AccountID,
+			Operation:                   "mfa_recovery_rotate",
+			IdempotencyKey:              "recovery-rotate-blocked-0001",
+			SecretRef:                   consumeRequest.SecretRef,
+			SecretDigest:                consumeRequest.SecretDigest,
+			ExpectedRecoveryBatchDigest: consumed.RecoveryBatchDigest,
+			ExpectedRecoveryCodeCount:   consumed.RecoveryCodeCount,
+		},
+	); !errors.Is(err, ErrIdentitySecurityProcessorRejected) {
+		t.Fatalf("pending consume did not block rotation: %v", err)
+	}
+	if err := processor.CleanupIdentitySecuritySecret(
+		context.Background(),
+		IdentitySecuritySecretCleanupRequest{
+			AccountID:      consumeRequest.AccountID,
+			Operation:      consumeRequest.Operation,
+			IdempotencyKey: consumeRequest.IdempotencyKey,
+			CleanupToken:   consumed.CleanupToken,
+		},
+	); err != nil {
+		t.Fatalf("rollback recovery consume: %v", err)
+	}
+	record = vault.decodedRecord(t, processed.SecretRef)
+	if record.PendingOperation != "" ||
+		record.RecoveryBatchDigest != initialBatch ||
+		len(record.RecoveryCodeDigests) != initialCount ||
+		!record.RecoveryHandoffConsumed ||
+		!bytes.Equal(record.TOTPSecret, initialTOTPSecret) {
+		t.Fatalf("recovery consume rollback did not restore the exact prior state")
+	}
+	clearIdentitySecurityProcessorRecord(&record)
+
+	consumed, err = processor.PrepareIdentitySecuritySecretMutation(
+		context.Background(),
+		consumeRequest,
+	)
+	if err != nil {
+		t.Fatalf("prepare recovery consume after rollback: %v", err)
+	}
+	if err := processor.FinalizeIdentitySecuritySecretMutation(
+		context.Background(),
+		IdentitySecuritySecretMutationFinalizeRequest{
+			AccountID:      consumeRequest.AccountID,
+			Operation:      consumeRequest.Operation,
+			IdempotencyKey: consumeRequest.IdempotencyKey,
+			FinalizeToken:  consumed.FinalizeToken,
+		},
+	); err != nil {
+		t.Fatalf("finalize recovery consume: %v", err)
+	}
+	if err := processor.FinalizeIdentitySecuritySecretMutation(
+		context.Background(),
+		IdentitySecuritySecretMutationFinalizeRequest{
+			AccountID:      consumeRequest.AccountID,
+			Operation:      consumeRequest.Operation,
+			IdempotencyKey: consumeRequest.IdempotencyKey,
+			FinalizeToken:  consumed.FinalizeToken,
+		},
+	); err != nil {
+		t.Fatalf("replay recovery consume finalize: %v", err)
+	}
+	usedCode := consumeRequest
+	usedCode.IdempotencyKey = "recovery-consume-used-0002"
+	usedCode.ExpectedRecoveryBatchDigest = consumed.RecoveryBatchDigest
+	usedCode.ExpectedRecoveryCodeCount = consumed.RecoveryCodeCount
+	if _, err := processor.PrepareIdentitySecuritySecretMutation(
+		context.Background(),
+		usedCode,
+	); !errors.Is(err, ErrIdentitySecurityProcessorRejected) {
+		t.Fatalf("consumed recovery code was accepted again: %v", err)
+	}
+
+	rotateRequest := IdentitySecuritySecretMutationPrepareRequest{
+		AccountID:                   consumeRequest.AccountID,
+		Operation:                   "mfa_recovery_rotate",
+		IdempotencyKey:              "recovery-rotate-0001",
+		SecretRef:                   consumeRequest.SecretRef,
+		SecretDigest:                consumeRequest.SecretDigest,
+		ExpectedRecoveryBatchDigest: consumed.RecoveryBatchDigest,
+		ExpectedRecoveryCodeCount:   consumed.RecoveryCodeCount,
+	}
+	rotated, err := processor.PrepareIdentitySecuritySecretMutation(
+		context.Background(),
+		rotateRequest,
+	)
+	if err != nil {
+		t.Fatalf("prepare recovery rotation: %v", err)
+	}
+	if rotated.HandoffID == "" ||
+		rotated.RecoveryCodeCount < 6 ||
+		rotated.RecoveryBatchDigest == consumed.RecoveryBatchDigest {
+		t.Fatalf("invalid recovery rotation projection: %+v", rotated)
+	}
+	if replayed, retryErr := processor.PrepareIdentitySecuritySecretMutation(
+		context.Background(),
+		rotateRequest,
+	); retryErr != nil || replayed != rotated {
+		t.Fatalf("exact rotation retry changed projection: result=%+v err=%v", replayed, retryErr)
+	}
+	handoffRequest := IdentitySecuritySecretHandoffRequest{
+		AccountID:      rotateRequest.AccountID,
+		Operation:      rotateRequest.Operation,
+		IdempotencyKey: rotateRequest.IdempotencyKey,
+		HandoffID:      rotated.HandoffID,
+	}
+	if _, err := processor.ConsumeIdentitySecuritySecretHandoff(
+		context.Background(),
+		handoffRequest,
+	); !errors.Is(err, ErrIdentitySecurityProcessorRejected) {
+		t.Fatalf("rotated recovery codes were handed off before finalize: %v", err)
+	}
+	if err := processor.FinalizeIdentitySecuritySecretMutation(
+		context.Background(),
+		IdentitySecuritySecretMutationFinalizeRequest{
+			AccountID:      rotateRequest.AccountID,
+			Operation:      rotateRequest.Operation,
+			IdempotencyKey: rotateRequest.IdempotencyKey,
+			FinalizeToken:  rotated.FinalizeToken,
+		},
+	); err != nil {
+		t.Fatalf("finalize recovery rotation: %v", err)
+	}
+	rotatedCodes, err := processor.ConsumeIdentitySecuritySecretHandoff(
+		context.Background(),
+		handoffRequest,
+	)
+	if err != nil || len(rotatedCodes.RecoveryCodes) != rotated.RecoveryCodeCount ||
+		!validIdentitySecurityRecoveryCodes(rotatedCodes.RecoveryCodes) {
+		t.Fatalf("consume rotated recovery codes: handoff=%+v err=%v", rotatedCodes, err)
+	}
+	if _, err := processor.ConsumeIdentitySecuritySecretHandoff(
+		context.Background(),
+		handoffRequest,
+	); !errors.Is(err, ErrIdentitySecurityProcessorRejected) {
+		t.Fatalf("rotated recovery handoff replay was accepted: %v", err)
+	}
+	record = vault.decodedRecord(t, processed.SecretRef)
+	if record.PendingOperation != "" ||
+		!record.RecoveryHandoffConsumed ||
+		len(record.RecoveryCodes) != 0 ||
+		record.RecoveryBatchDigest != rotated.RecoveryBatchDigest ||
+		len(record.RecoveryCodeDigests) != rotated.RecoveryCodeCount {
+		t.Fatalf("rotation handoff did not leave only active digests")
+	}
+	clearIdentitySecurityProcessorRecord(&record)
+
+	disableRequest := IdentitySecuritySecretMutationPrepareRequest{
+		AccountID:                   rotateRequest.AccountID,
+		Operation:                   "mfa_disable",
+		IdempotencyKey:              "mfa-disable-0001",
+		SecretRef:                   rotateRequest.SecretRef,
+		SecretDigest:                rotateRequest.SecretDigest,
+		ExpectedRecoveryBatchDigest: rotated.RecoveryBatchDigest,
+		ExpectedRecoveryCodeCount:   rotated.RecoveryCodeCount,
+	}
+	disabled, err := processor.PrepareIdentitySecuritySecretMutation(
+		context.Background(),
+		disableRequest,
+	)
+	if err != nil {
+		t.Fatalf("prepare MFA disable: %v", err)
+	}
+	record = vault.decodedRecord(t, processed.SecretRef)
+	if record.Confirmed || len(record.TOTPSecret) != 0 ||
+		record.RecoveryBatchDigest != "" ||
+		len(record.RecoveryCodeDigests) != 0 ||
+		record.PendingOperation != "mfa_disable" ||
+		!bytes.Equal(record.PreviousTOTPSecret, initialTOTPSecret) {
+		t.Fatalf("MFA disable prepare left active secret material available")
+	}
+	clearIdentitySecurityProcessorRecord(&record)
+	if err := processor.CleanupIdentitySecuritySecret(
+		context.Background(),
+		IdentitySecuritySecretCleanupRequest{
+			AccountID:      disableRequest.AccountID,
+			Operation:      disableRequest.Operation,
+			IdempotencyKey: disableRequest.IdempotencyKey,
+			CleanupToken:   disabled.CleanupToken,
+		},
+	); err != nil {
+		t.Fatalf("rollback MFA disable: %v", err)
+	}
+	record = vault.decodedRecord(t, processed.SecretRef)
+	if !record.Confirmed ||
+		!bytes.Equal(record.TOTPSecret, initialTOTPSecret) ||
+		record.RecoveryBatchDigest != rotated.RecoveryBatchDigest ||
+		len(record.RecoveryCodeDigests) != rotated.RecoveryCodeCount ||
+		record.PendingOperation != "" {
+		t.Fatalf("MFA disable rollback did not restore active state")
+	}
+	clearIdentitySecurityProcessorRecord(&record)
+	disabled, err = processor.PrepareIdentitySecuritySecretMutation(
+		context.Background(),
+		disableRequest,
+	)
+	if err != nil {
+		t.Fatalf("prepare MFA disable after rollback: %v", err)
+	}
+	if err := processor.FinalizeIdentitySecuritySecretMutation(
+		context.Background(),
+		IdentitySecuritySecretMutationFinalizeRequest{
+			AccountID:      disableRequest.AccountID,
+			Operation:      disableRequest.Operation,
+			IdempotencyKey: disableRequest.IdempotencyKey,
+			FinalizeToken:  disabled.FinalizeToken,
+		},
+	); err != nil {
+		t.Fatalf("finalize MFA disable: %v", err)
+	}
+	if vault.recordCount() != 0 {
+		t.Fatalf("finalized MFA disable retained the Vault record")
+	}
+	if err := processor.FinalizeIdentitySecuritySecretMutation(
+		context.Background(),
+		IdentitySecuritySecretMutationFinalizeRequest{
+			AccountID:      disableRequest.AccountID,
+			Operation:      disableRequest.Operation,
+			IdempotencyKey: disableRequest.IdempotencyKey,
+			FinalizeToken:  disabled.FinalizeToken,
+		},
+	); err != nil {
+		t.Fatalf("MFA disable finalize replay failed: %v", err)
+	}
+	clearIdentitySecuritySecretHandoff(&rotatedCodes)
+}
+
+func TestVaultIdentitySecurityProcessorRecoveryCodeConcurrentSingleWinner(t *testing.T) {
+	processor, vault, _, _ := newIdentitySecurityProcessorVaultTestSubject(t)
+	processed, recoveryCodes := identitySecurityProcessorTestConfirmedMFA(
+		t,
+		processor,
+		vault,
+		"concurrent-recovery",
+	)
+	record := vault.decodedRecord(t, processed.SecretRef)
+	expectedBatch := record.RecoveryBatchDigest
+	expectedCount := len(record.RecoveryCodeDigests)
+	clearIdentitySecurityProcessorRecord(&record)
+
+	const workers = 24
+	type outcome struct {
+		request IdentitySecuritySecretMutationPrepareRequest
+		result  IdentitySecuritySecretMutationPrepareResult
+		err     error
+	}
+	outcomes := make(chan outcome, workers)
+	var wait sync.WaitGroup
+	for index := 0; index < workers; index++ {
+		wait.Add(1)
+		go func(worker int) {
+			defer wait.Done()
+			request := IdentitySecuritySecretMutationPrepareRequest{
+				AccountID:                   identitySecurityProcessorVaultTestAccountID,
+				Operation:                   "mfa_recovery_consume",
+				IdempotencyKey:              fmt.Sprintf("concurrent-recovery-%04d", worker),
+				SecretRef:                   processed.SecretRef,
+				SecretDigest:                processed.SecretDigest,
+				ExpectedRecoveryBatchDigest: expectedBatch,
+				ExpectedRecoveryCodeCount:   expectedCount,
+				RecoveryCode:                recoveryCodes[0],
+			}
+			result, err := processor.PrepareIdentitySecuritySecretMutation(
+				context.Background(),
+				request,
+			)
+			outcomes <- outcome{request: request, result: result, err: err}
+		}(index)
+	}
+	wait.Wait()
+	close(outcomes)
+
+	var winner *outcome
+	for current := range outcomes {
+		if current.err == nil {
+			if winner != nil {
+				t.Fatalf("same recovery code produced multiple concurrent winners")
+			}
+			copy := current
+			winner = &copy
+			continue
+		}
+		if !errors.Is(current.err, ErrIdentitySecurityProcessorRejected) {
+			t.Fatalf("unexpected concurrent recovery error: %v", current.err)
+		}
+	}
+	if winner == nil {
+		t.Fatal("same recovery code produced no concurrent winner")
+	}
+	if err := processor.FinalizeIdentitySecuritySecretMutation(
+		context.Background(),
+		IdentitySecuritySecretMutationFinalizeRequest{
+			AccountID:      winner.request.AccountID,
+			Operation:      winner.request.Operation,
+			IdempotencyKey: winner.request.IdempotencyKey,
+			FinalizeToken:  winner.result.FinalizeToken,
+		},
+	); err != nil {
+		t.Fatalf("finalize concurrent recovery winner: %v", err)
+	}
+	record = vault.decodedRecord(t, processed.SecretRef)
+	if len(record.RecoveryCodeDigests) != expectedCount-1 ||
+		record.RecoveryBatchDigest != winner.result.RecoveryBatchDigest {
+		t.Fatalf("concurrent recovery winner did not commit exactly one digest removal")
+	}
+	clearIdentitySecurityProcessorRecord(&record)
+}
+
+func TestVaultIdentitySecurityProcessorDisableDeleteRetryIsFailClosed(t *testing.T) {
+	processor, vault, keys, _ := newIdentitySecurityProcessorVaultTestSubject(t)
+	processed, _ := identitySecurityProcessorTestConfirmedMFA(
+		t,
+		processor,
+		vault,
+		"disable-delete-retry",
+	)
+	record := vault.decodedRecord(t, processed.SecretRef)
+	request := IdentitySecuritySecretMutationPrepareRequest{
+		AccountID:                   identitySecurityProcessorVaultTestAccountID,
+		Operation:                   "mfa_disable",
+		IdempotencyKey:              "disable-delete-retry-0001",
+		SecretRef:                   processed.SecretRef,
+		SecretDigest:                processed.SecretDigest,
+		ExpectedRecoveryBatchDigest: record.RecoveryBatchDigest,
+		ExpectedRecoveryCodeCount:   len(record.RecoveryCodeDigests),
+	}
+	clearIdentitySecurityProcessorRecord(&record)
+	keys.set("key-v2", map[string][]byte{
+		"key-v1": bytes.Repeat([]byte{0x41}, 32),
+		"key-v2": bytes.Repeat([]byte{0x42}, 32),
+	})
+	prepared, err := processor.PrepareIdentitySecuritySecretMutation(
+		context.Background(),
+		request,
+	)
+	if err != nil || prepared.KeyVersion != "key-v2" {
+		t.Fatalf("prepare disable under rotated key: result=%+v err=%v", prepared, err)
+	}
+	const secretMarker = "delete-upstream-secret-must-not-leak"
+	vault.deleteErr = errors.New(secretMarker)
+	finalizeRequest := IdentitySecuritySecretMutationFinalizeRequest{
+		AccountID:      request.AccountID,
+		Operation:      request.Operation,
+		IdempotencyKey: request.IdempotencyKey,
+		FinalizeToken:  prepared.FinalizeToken,
+	}
+	if err := processor.FinalizeIdentitySecuritySecretMutation(
+		context.Background(),
+		finalizeRequest,
+	); !errors.Is(err, ErrIdentitySecurityProcessorUnavailable) ||
+		strings.Contains(err.Error(), secretMarker) {
+		t.Fatalf("disable delete failure was not safely redacted: %v", err)
+	}
+	record = vault.decodedRecord(t, processed.SecretRef)
+	if !record.PendingFinalized ||
+		record.PendingOperation != "mfa_disable" ||
+		len(record.PreviousTOTPSecret) != 0 ||
+		len(record.PreviousRecoveryDigests) != 0 {
+		t.Fatalf("delete failure did not leave a fail-closed finalized tombstone")
+	}
+	clearIdentitySecurityProcessorRecord(&record)
+	if err := processor.CleanupIdentitySecuritySecret(
+		context.Background(),
+		IdentitySecuritySecretCleanupRequest{
+			AccountID:      request.AccountID,
+			Operation:      request.Operation,
+			IdempotencyKey: request.IdempotencyKey,
+			CleanupToken:   prepared.CleanupToken,
+		},
+	); !errors.Is(err, ErrIdentitySecurityProcessorRejected) {
+		t.Fatalf("finalized disable tombstone was rolled back: %v", err)
+	}
+	vault.deleteErr = nil
+	if err := processor.FinalizeIdentitySecuritySecretMutation(
+		context.Background(),
+		finalizeRequest,
+	); err != nil {
+		t.Fatalf("retry disable tombstone delete: %v", err)
+	}
+	if vault.recordCount() != 0 {
+		t.Fatalf("disable finalize retry retained the tombstone")
+	}
+}
+
+func identitySecurityProcessorTestConfirmedMFA(
+	t *testing.T,
+	processor *VaultIdentitySecuritySecretProcessor,
+	vault *identitySecurityProcessorMemoryVault,
+	suffix string,
+) (IdentitySecuritySecretProcessResult, []string) {
+	t.Helper()
+	processRequest := IdentitySecuritySecretProcessRequest{
+		AccountID:      identitySecurityProcessorVaultTestAccountID,
+		Operation:      "mfa_enroll",
+		IdempotencyKey: "mfa-enroll-" + suffix,
+	}
+	processed, err := processor.ProcessIdentitySecuritySecret(
+		context.Background(),
+		processRequest,
+	)
+	if err != nil {
+		t.Fatalf("process confirmed MFA fixture: %v", err)
+	}
+	record := vault.decodedRecord(t, processed.SecretRef)
+	code := identitySecurityTOTPCode(record.TOTPSecret, processor.now().Unix()/30)
+	clearIdentitySecurityProcessorRecord(&record)
+	defer clear(code)
+	confirmRequest := IdentitySecuritySecretConfirmRequest{
+		AccountID:      processRequest.AccountID,
+		ChallengeID:    processed.ConfirmationChallengeID,
+		Code:           string(code),
+		IdempotencyKey: "mfa-confirm-" + suffix,
+	}
+	confirmed, err := processor.ConfirmIdentitySecuritySecret(
+		context.Background(),
+		confirmRequest,
+	)
+	if err != nil {
+		t.Fatalf("confirm MFA fixture: %v", err)
+	}
+	handoff, err := processor.ConsumeIdentitySecuritySecretHandoff(
+		context.Background(),
+		IdentitySecuritySecretHandoffRequest{
+			AccountID:      processRequest.AccountID,
+			Operation:      "mfa_confirm",
+			IdempotencyKey: confirmRequest.IdempotencyKey,
+			HandoffID:      confirmed.HandoffID,
+		},
+	)
+	if err != nil || !validIdentitySecurityRecoveryCodes(handoff.RecoveryCodes) {
+		t.Fatalf("consume MFA fixture recovery codes: handoff=%+v err=%v", handoff, err)
+	}
+	recoveryCodes := append([]string(nil), handoff.RecoveryCodes...)
+	clearIdentitySecuritySecretHandoff(&handoff)
+	return processed, recoveryCodes
 }
 
 func identitySecurityProcessorTestTOTPSecret(

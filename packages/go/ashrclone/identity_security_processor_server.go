@@ -51,6 +51,14 @@ func NewIdentitySecurityProcessorHandler(
 	mux.HandleFunc("/v1/identity/security/process", handler.process)
 	mux.HandleFunc("/v1/identity/security/confirm", handler.confirm)
 	mux.HandleFunc(
+		"/v1/identity/security/mutations/prepare",
+		handler.prepareMutation,
+	)
+	mux.HandleFunc(
+		"/v1/identity/security/mutations/finalize",
+		handler.finalizeMutation,
+	)
+	mux.HandleFunc(
 		"/v1/identity/security/handoff/consume",
 		handler.consumeHandoff,
 	)
@@ -219,6 +227,123 @@ func (handler *identitySecurityProcessorHandler) confirm(
 		HandoffID:           result.HandoffID,
 		CleanupToken:        result.CleanupToken,
 	})
+}
+
+func (handler *identitySecurityProcessorHandler) prepareMutation(
+	writer http.ResponseWriter,
+	request *http.Request,
+) {
+	if request.Method != http.MethodPost {
+		writeIdentitySecurityProcessorMethodNotAllowed(writer, http.MethodPost)
+		return
+	}
+	var payload struct {
+		SchemaVersion               string `json:"schema_version"`
+		AccountID                   string `json:"account_id"`
+		Operation                   string `json:"operation"`
+		IdempotencyKey              string `json:"idempotency_key"`
+		SecretRef                   string `json:"secret_ref"`
+		SecretDigest                string `json:"secret_digest"`
+		ExpectedRecoveryBatchDigest string `json:"expected_recovery_batch_digest"`
+		ExpectedRecoveryCodeCount   int    `json:"expected_recovery_code_count"`
+		RecoveryCode                string `json:"recovery_code,omitempty"`
+	}
+	if !decodeIdentitySecurityProcessorRequest(writer, request, &payload) {
+		return
+	}
+	if payload.SchemaVersion != IdentitySecurityProcessorSchemaVersion {
+		writeIdentitySecurityProcessorError(
+			writer,
+			http.StatusBadRequest,
+			"invalid_request",
+		)
+		return
+	}
+	result, err := handler.processor.PrepareIdentitySecuritySecretMutation(
+		request.Context(),
+		IdentitySecuritySecretMutationPrepareRequest{
+			AccountID:                   payload.AccountID,
+			Operation:                   payload.Operation,
+			IdempotencyKey:              payload.IdempotencyKey,
+			SecretRef:                   payload.SecretRef,
+			SecretDigest:                payload.SecretDigest,
+			ExpectedRecoveryBatchDigest: payload.ExpectedRecoveryBatchDigest,
+			ExpectedRecoveryCodeCount:   payload.ExpectedRecoveryCodeCount,
+			RecoveryCode:                payload.RecoveryCode,
+		},
+	)
+	payload.RecoveryCode = ""
+	if err != nil {
+		writeIdentitySecurityProcessorOperationError(writer, err)
+		return
+	}
+	writeIdentitySecurityProcessorJSON(writer, http.StatusCreated, struct {
+		SchemaVersion               string `json:"schema_version"`
+		SecretRef                   string `json:"secret_ref"`
+		SecretDigest                string `json:"secret_digest"`
+		ExpectedRecoveryBatchDigest string `json:"expected_recovery_batch_digest"`
+		ExpectedRecoveryCodeCount   int    `json:"expected_recovery_code_count"`
+		RecoveryBatchDigest         string `json:"recovery_batch_digest,omitempty"`
+		RecoveryCodeCount           int    `json:"recovery_code_count"`
+		KeyVersion                  string `json:"key_version"`
+		HandoffID                   string `json:"handoff_id,omitempty"`
+		FinalizeToken               string `json:"finalize_token"`
+		CleanupToken                string `json:"cleanup_token"`
+	}{
+		SchemaVersion:               IdentitySecurityProcessorSchemaVersion,
+		SecretRef:                   result.SecretRef,
+		SecretDigest:                result.SecretDigest,
+		ExpectedRecoveryBatchDigest: result.ExpectedRecoveryBatchDigest,
+		ExpectedRecoveryCodeCount:   result.ExpectedRecoveryCodeCount,
+		RecoveryBatchDigest:         result.RecoveryBatchDigest,
+		RecoveryCodeCount:           result.RecoveryCodeCount,
+		KeyVersion:                  result.KeyVersion,
+		HandoffID:                   result.HandoffID,
+		FinalizeToken:               result.FinalizeToken,
+		CleanupToken:                result.CleanupToken,
+	})
+}
+
+func (handler *identitySecurityProcessorHandler) finalizeMutation(
+	writer http.ResponseWriter,
+	request *http.Request,
+) {
+	if request.Method != http.MethodPost {
+		writeIdentitySecurityProcessorMethodNotAllowed(writer, http.MethodPost)
+		return
+	}
+	var payload struct {
+		SchemaVersion  string `json:"schema_version"`
+		AccountID      string `json:"account_id"`
+		Operation      string `json:"operation"`
+		IdempotencyKey string `json:"idempotency_key"`
+		FinalizeToken  string `json:"finalize_token"`
+	}
+	if !decodeIdentitySecurityProcessorRequest(writer, request, &payload) {
+		return
+	}
+	if payload.SchemaVersion != IdentitySecurityProcessorSchemaVersion {
+		writeIdentitySecurityProcessorError(
+			writer,
+			http.StatusBadRequest,
+			"invalid_request",
+		)
+		return
+	}
+	err := handler.processor.FinalizeIdentitySecuritySecretMutation(
+		request.Context(),
+		IdentitySecuritySecretMutationFinalizeRequest{
+			AccountID:      payload.AccountID,
+			Operation:      payload.Operation,
+			IdempotencyKey: payload.IdempotencyKey,
+			FinalizeToken:  payload.FinalizeToken,
+		},
+	)
+	if err != nil {
+		writeIdentitySecurityProcessorOperationError(writer, err)
+		return
+	}
+	writer.WriteHeader(http.StatusNoContent)
 }
 
 func (handler *identitySecurityProcessorHandler) consumeHandoff(

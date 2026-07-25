@@ -19,16 +19,20 @@ const IdentitySecurityProcessorSchemaVersion = "ashr.identity_security_processor
 const maxIdentitySecurityProcessorResponseBytes = 128 * 1024
 
 const (
-	identitySecurityProcessorProcessPath = "/v1/identity/security/process"
-	identitySecurityProcessorConfirmPath = "/v1/identity/security/confirm"
-	identitySecurityProcessorHandoffPath = "/v1/identity/security/handoff/consume"
-	identitySecurityProcessorCleanupPath = "/v1/identity/security/cleanup"
-	identitySecurityProcessorReadyPath   = "/ready"
+	identitySecurityProcessorProcessPath  = "/v1/identity/security/process"
+	identitySecurityProcessorConfirmPath  = "/v1/identity/security/confirm"
+	identitySecurityProcessorPreparePath  = "/v1/identity/security/mutations/prepare"
+	identitySecurityProcessorFinalizePath = "/v1/identity/security/mutations/finalize"
+	identitySecurityProcessorHandoffPath  = "/v1/identity/security/handoff/consume"
+	identitySecurityProcessorCleanupPath  = "/v1/identity/security/cleanup"
+	identitySecurityProcessorReadyPath    = "/ready"
 )
 
 type HTTPIdentitySecuritySecretProcessorOptions struct {
 	ProcessEndpoint        string
 	ConfirmEndpoint        string
+	PrepareEndpoint        string
+	FinalizeEndpoint       string
 	HandoffConsumeEndpoint string
 	CleanupEndpoint        string
 	Client                 *http.Client
@@ -41,6 +45,8 @@ type HTTPIdentitySecuritySecretProcessorOptions struct {
 type HTTPIdentitySecuritySecretProcessor struct {
 	processEndpoint        string
 	confirmEndpoint        string
+	prepareEndpoint        string
+	finalizeEndpoint       string
 	handoffConsumeEndpoint string
 	cleanupEndpoint        string
 	readinessEndpoint      string
@@ -60,6 +66,8 @@ func NewHTTPIdentitySecuritySecretProcessor(
 	}{
 		{&options.ProcessEndpoint, identitySecurityProcessorProcessPath},
 		{&options.ConfirmEndpoint, identitySecurityProcessorConfirmPath},
+		{&options.PrepareEndpoint, identitySecurityProcessorPreparePath},
+		{&options.FinalizeEndpoint, identitySecurityProcessorFinalizePath},
 		{&options.HandoffConsumeEndpoint, identitySecurityProcessorHandoffPath},
 		{&options.CleanupEndpoint, identitySecurityProcessorCleanupPath},
 	}
@@ -91,6 +99,8 @@ func NewHTTPIdentitySecuritySecretProcessor(
 	return &HTTPIdentitySecuritySecretProcessor{
 		processEndpoint:        options.ProcessEndpoint,
 		confirmEndpoint:        options.ConfirmEndpoint,
+		prepareEndpoint:        options.PrepareEndpoint,
+		finalizeEndpoint:       options.FinalizeEndpoint,
 		handoffConsumeEndpoint: options.HandoffConsumeEndpoint,
 		cleanupEndpoint:        options.CleanupEndpoint,
 		readinessEndpoint:      processorOrigin + identitySecurityProcessorReadyPath,
@@ -258,6 +268,122 @@ func (processor *HTTPIdentitySecuritySecretProcessor) ConfirmIdentitySecuritySec
 		return IdentitySecuritySecretConfirmResult{}, ErrIdentitySecurityProcessorUnavailable
 	}
 	return result, nil
+}
+
+func (processor *HTTPIdentitySecuritySecretProcessor) PrepareIdentitySecuritySecretMutation(
+	ctx context.Context,
+	request IdentitySecuritySecretMutationPrepareRequest,
+) (IdentitySecuritySecretMutationPrepareResult, error) {
+	if processor == nil || processor.client == nil || ctx == nil ||
+		!validIdentitySecuritySecretMutationPrepareRequest(request) {
+		return IdentitySecuritySecretMutationPrepareResult{},
+			ErrIdentitySecurityProcessorRejected
+	}
+	responseBody, err := processor.postJSON(
+		ctx,
+		processor.prepareEndpoint,
+		struct {
+			SchemaVersion               string `json:"schema_version"`
+			AccountID                   string `json:"account_id"`
+			Operation                   string `json:"operation"`
+			IdempotencyKey              string `json:"idempotency_key"`
+			SecretRef                   string `json:"secret_ref"`
+			SecretDigest                string `json:"secret_digest"`
+			ExpectedRecoveryBatchDigest string `json:"expected_recovery_batch_digest"`
+			ExpectedRecoveryCodeCount   int    `json:"expected_recovery_code_count"`
+			RecoveryCode                string `json:"recovery_code,omitempty"`
+		}{
+			SchemaVersion:  IdentitySecurityProcessorSchemaVersion,
+			AccountID:      strings.TrimSpace(request.AccountID),
+			Operation:      strings.TrimSpace(request.Operation),
+			IdempotencyKey: strings.TrimSpace(request.IdempotencyKey),
+			SecretRef:      strings.TrimSpace(request.SecretRef),
+			SecretDigest:   strings.TrimSpace(request.SecretDigest),
+			ExpectedRecoveryBatchDigest: strings.TrimSpace(
+				request.ExpectedRecoveryBatchDigest,
+			),
+			ExpectedRecoveryCodeCount: request.ExpectedRecoveryCodeCount,
+			RecoveryCode:              strings.TrimSpace(request.RecoveryCode),
+		},
+		http.StatusOK,
+		http.StatusCreated,
+	)
+	if err != nil {
+		return IdentitySecuritySecretMutationPrepareResult{}, err
+	}
+	defer clear(responseBody)
+	var response struct {
+		SchemaVersion               string `json:"schema_version"`
+		SecretRef                   string `json:"secret_ref"`
+		SecretDigest                string `json:"secret_digest"`
+		ExpectedRecoveryBatchDigest string `json:"expected_recovery_batch_digest"`
+		ExpectedRecoveryCodeCount   int    `json:"expected_recovery_code_count"`
+		RecoveryBatchDigest         string `json:"recovery_batch_digest,omitempty"`
+		RecoveryCodeCount           int    `json:"recovery_code_count"`
+		KeyVersion                  string `json:"key_version"`
+		HandoffID                   string `json:"handoff_id,omitempty"`
+		FinalizeToken               string `json:"finalize_token"`
+		CleanupToken                string `json:"cleanup_token"`
+	}
+	if err := decodeStrictIdentitySecurityProcessorJSON(
+		responseBody,
+		&response,
+	); err != nil ||
+		response.SchemaVersion != IdentitySecurityProcessorSchemaVersion {
+		return IdentitySecuritySecretMutationPrepareResult{},
+			ErrIdentitySecurityProcessorUnavailable
+	}
+	result := IdentitySecuritySecretMutationPrepareResult{
+		SecretRef:                   response.SecretRef,
+		SecretDigest:                response.SecretDigest,
+		ExpectedRecoveryBatchDigest: response.ExpectedRecoveryBatchDigest,
+		ExpectedRecoveryCodeCount:   response.ExpectedRecoveryCodeCount,
+		RecoveryBatchDigest:         response.RecoveryBatchDigest,
+		RecoveryCodeCount:           response.RecoveryCodeCount,
+		KeyVersion:                  response.KeyVersion,
+		HandoffID:                   response.HandoffID,
+		FinalizeToken:               response.FinalizeToken,
+		CleanupToken:                response.CleanupToken,
+	}
+	if !validIdentitySecuritySecretMutationPrepareResult(
+		request.Operation,
+		result,
+	) {
+		return IdentitySecuritySecretMutationPrepareResult{},
+			ErrIdentitySecurityProcessorUnavailable
+	}
+	return result, nil
+}
+
+func (processor *HTTPIdentitySecuritySecretProcessor) FinalizeIdentitySecuritySecretMutation(
+	ctx context.Context,
+	request IdentitySecuritySecretMutationFinalizeRequest,
+) error {
+	if processor == nil || processor.client == nil || ctx == nil ||
+		!validIdentitySecuritySecretMutationFinalizeRequest(request) {
+		return ErrIdentitySecurityProcessorRejected
+	}
+	responseBody, err := processor.postJSON(
+		context.WithoutCancel(ctx),
+		processor.finalizeEndpoint,
+		struct {
+			SchemaVersion  string `json:"schema_version"`
+			AccountID      string `json:"account_id"`
+			Operation      string `json:"operation"`
+			IdempotencyKey string `json:"idempotency_key"`
+			FinalizeToken  string `json:"finalize_token"`
+		}{
+			SchemaVersion:  IdentitySecurityProcessorSchemaVersion,
+			AccountID:      strings.TrimSpace(request.AccountID),
+			Operation:      strings.TrimSpace(request.Operation),
+			IdempotencyKey: strings.TrimSpace(request.IdempotencyKey),
+			FinalizeToken:  strings.TrimSpace(request.FinalizeToken),
+		},
+		http.StatusOK,
+		http.StatusNoContent,
+	)
+	clear(responseBody)
+	return err
 }
 
 func (processor *HTTPIdentitySecuritySecretProcessor) ConsumeIdentitySecuritySecretHandoff(

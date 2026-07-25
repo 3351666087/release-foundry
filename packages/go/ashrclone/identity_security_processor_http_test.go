@@ -20,6 +20,8 @@ func identitySecurityProcessorTestOptions(
 	return HTTPIdentitySecuritySecretProcessorOptions{
 		ProcessEndpoint:        server.URL + identitySecurityProcessorProcessPath,
 		ConfirmEndpoint:        server.URL + identitySecurityProcessorConfirmPath,
+		PrepareEndpoint:        server.URL + identitySecurityProcessorPreparePath,
+		FinalizeEndpoint:       server.URL + identitySecurityProcessorFinalizePath,
 		HandoffConsumeEndpoint: server.URL + identitySecurityProcessorHandoffPath,
 		CleanupEndpoint:        server.URL + identitySecurityProcessorCleanupPath,
 		Client:                 server.Client(),
@@ -87,8 +89,10 @@ func TestHTTPIdentitySecuritySecretProcessorRoundTripIsStrictAndSecretSafe(t *te
 	challenge := "isc_" + strings.Repeat("B", 24)
 	handoff := "ish_" + strings.Repeat("C", 24)
 	cleanup := "isx_" + strings.Repeat("D", 24)
+	finalize := "isf_" + strings.Repeat("E", 24)
 	digest := strings.Repeat("a", 64)
 	recoveryDigest := strings.Repeat("b", 64)
+	nextRecoveryDigest := strings.Repeat("c", 64)
 	recoveryCodes := []string{
 		"A1BC-DEFG", "B2CD-EFGH", "C3DE-FGHJ",
 		"D4EF-GHJK", "E5FG-HJKL", "F6GH-JKLM",
@@ -141,6 +145,31 @@ func TestHTTPIdentitySecuritySecretProcessorRoundTripIsStrictAndSecretSafe(t *te
 					"handoff_id":            handoff,
 					"cleanup_token":         cleanup,
 				})
+			case identitySecurityProcessorPreparePath:
+				if body["operation"] != "mfa_recovery_consume" ||
+					body["recovery_code"] != recoveryCodes[0] ||
+					body["expected_recovery_batch_digest"] != recoveryDigest ||
+					body["expected_recovery_code_count"] != float64(len(recoveryCodes)) {
+					t.Errorf("mutation prepare lost trusted recovery context")
+				}
+				writeIdentitySecurityProcessorTestJSON(writer, http.StatusCreated, map[string]any{
+					"schema_version":                 IdentitySecurityProcessorSchemaVersion,
+					"secret_ref":                     reference,
+					"secret_digest":                  digest,
+					"expected_recovery_batch_digest": recoveryDigest,
+					"expected_recovery_code_count":   len(recoveryCodes),
+					"recovery_batch_digest":          nextRecoveryDigest,
+					"recovery_code_count":            len(recoveryCodes) - 1,
+					"key_version":                    "key-v1",
+					"finalize_token":                 finalize,
+					"cleanup_token":                  cleanup,
+				})
+			case identitySecurityProcessorFinalizePath:
+				if body["operation"] != "mfa_recovery_consume" ||
+					body["finalize_token"] != finalize {
+					t.Errorf("mutation finalize lost its opaque binding")
+				}
+				writer.WriteHeader(http.StatusNoContent)
 			case identitySecurityProcessorHandoffPath:
 				if body["operation"] == "mfa_confirm" {
 					writeIdentitySecurityProcessorTestJSON(writer, http.StatusOK, map[string]any{
@@ -227,8 +256,36 @@ func TestHTTPIdentitySecuritySecretProcessorRoundTripIsStrictAndSecretSafe(t *te
 	if err != nil || len(recovery.RecoveryCodes) != len(recoveryCodes) {
 		t.Fatalf("consume recovery handoff: result=%#v err=%v", recovery, err)
 	}
+	prepared, err := processor.PrepareIdentitySecuritySecretMutation(
+		context.Background(),
+		IdentitySecuritySecretMutationPrepareRequest{
+			AccountID:                   identitySecurityProcessorTestAccountID,
+			Operation:                   "mfa_recovery_consume",
+			IdempotencyKey:              "mfa-recovery-consume-1",
+			SecretRef:                   reference,
+			SecretDigest:                digest,
+			ExpectedRecoveryBatchDigest: recoveryDigest,
+			ExpectedRecoveryCodeCount:   len(recoveryCodes),
+			RecoveryCode:                recoveryCodes[0],
+		},
+	)
+	if err != nil || prepared.RecoveryBatchDigest != nextRecoveryDigest ||
+		prepared.RecoveryCodeCount != len(recoveryCodes)-1 {
+		t.Fatalf("prepare recovery-code consume: result=%#v err=%v", prepared, err)
+	}
 	canceled, cancel := context.WithCancel(context.Background())
 	cancel()
+	if err := processor.FinalizeIdentitySecuritySecretMutation(
+		canceled,
+		IdentitySecuritySecretMutationFinalizeRequest{
+			AccountID:      identitySecurityProcessorTestAccountID,
+			Operation:      "mfa_recovery_consume",
+			IdempotencyKey: "mfa-recovery-consume-1",
+			FinalizeToken:  prepared.FinalizeToken,
+		},
+	); err != nil {
+		t.Fatalf("finalize must survive caller cancellation: %v", err)
+	}
 	if err := processor.CleanupIdentitySecuritySecret(
 		canceled,
 		IdentitySecuritySecretCleanupRequest{
@@ -247,6 +304,8 @@ func TestHTTPIdentitySecuritySecretProcessorRoundTripIsStrictAndSecretSafe(t *te
 			identitySecurityProcessorHandoffPath,
 			identitySecurityProcessorConfirmPath,
 			identitySecurityProcessorHandoffPath,
+			identitySecurityProcessorPreparePath,
+			identitySecurityProcessorFinalizePath,
 			identitySecurityProcessorCleanupPath,
 		}, ",") {
 		t.Fatalf("unexpected processor call sequence: %v", paths)

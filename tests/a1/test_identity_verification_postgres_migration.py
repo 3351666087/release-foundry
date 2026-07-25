@@ -577,7 +577,7 @@ def test_live_retryable_proof_outbox_budget_and_runtime_boundary(
               SELECT a1_issue_identity_security_mutation_ticket(
                 '{ticket_digest}', '{step_up_digest}', '{principal}',
                 '{principal}', 'credential_bind', '{request_digest}',
-                NULL, NULL, NULL, NULL,
+                NULL, NULL, NULL, NULL, NULL, NULL,
                 clock_timestamp() + interval '5 minutes'
               );
             """,

@@ -1,6 +1,6 @@
 # Ashr task ledger
 
-Updated: 2026-07-24
+Updated: 2026-07-25
 
 This file is the repository-level crash-safe checklist. Check an item only
 after its implementation or verification evidence is green. A1 records and
@@ -283,3 +283,136 @@ Implementation and release gates discovered by the real runtime exercise:
   `086622c7b13f5cfb6fdf63f217e78b03694c0291`, push only
   `HEAD:codex/a1-local-sdk-runner`, fetch the remote, and prove post-push
   local/remote parity `0/0`.
+
+## A1 - TOTP disable and recovery-code lifecycle closure (2026-07-25)
+
+- [x] Restore the existing password/TOTP enrollment baseline after introducing
+  the private processor-state store: legacy begin/confirm flows no longer
+  require that optional store, while the three new lifecycle mutations still
+  fail closed without it. All Go packages pass.
+- [x] Reconnect only through the operator-authorized Chrome Extension in the
+  newly opened window and re-run both live Google and GitHub HTTPS OAuth
+  round-trips. Each provider returned to the controlled `/console` landing
+  page; no browser cookie/storage, callback parameter, provider token, account
+  identity, or secret was inspected or retained. A repeat-only aggregate
+  PostgreSQL check held Google and GitHub canonical credential counts at `2`
+  each while total/active sessions advanced from `16` to `18`.
+- [x] Re-check the five operator OAuth deliverables after the latest Chrome
+  window handoff. The Google Web client, GitHub OAuth App, four external-Vault
+  credential references, and exact HTTPS callback registrations remained in
+  place. The controlled bridge token had expired and both start routes failed
+  closed; rotate it from the DPAPI-protected bootstrap without exposing any
+  token or client secret, restore both starts to `302`, and complete fresh
+  Google/GitHub Extension round-trips. Canonical credential counts stayed at
+  `2` per provider while total/active sessions advanced from `18` to `20`.
+- [x] Freeze the A3-safe production contract for recent-authenticated TOTP
+  disable, one-time recovery-code authentication/consumption, and recovery-code
+  rotation. Raw TOTP secrets/codes and recovery codes must remain confined to
+  the trusted processor boundary and must never enter public mutation tickets,
+  PostgreSQL, logs, repository artifacts, frontend state, or result DTOs. The
+  exact operation split, request shapes, idempotency binding, response
+  invariants, and nested-secret rejection pass the focused Python/round54
+  group (`77 passed`) and TypeScript build/identity group (`71 passed`).
+- [x] Extend the external mTLS Vault processor with account-bound,
+  constant-time recovery-code verification, atomic single-code consumption,
+  deterministic replay handling, recovery-batch rotation, and TOTP-disable
+  cleanup/compensation across active and previous processor keys. The focused
+  lifecycle/concurrency suite passed 25 repeated runs, and the live external
+  Vault harness passed TLS 1.3 mutual authentication, one-winner CAS,
+  consume/rotate/disable replay rules, rollback/finalize behavior, key
+  rotation/retirement, read-only/timeout/outage failure, and redacted logs
+  across `165` Vault TLS requests.
+- [x] Add the scoped PostgreSQL/RLS mutation lifecycle for `mfa_disable`,
+  `mfa_recovery_consume`, and `mfa_recovery_rotate`, including restricted
+  issuer/runtime ACLs, recent-auth/CSRF/session binding, idempotency,
+  concurrency, security-version advancement, session revocation, audit, and
+  outbox guarantees. Migration 029 now has a dedicated clean-apply/live-Docker
+  PostgreSQL suite covering consume/rotate/disable, exact replay and payload
+  conflict, wrong-account and stale-state rejection, concurrent exactly-once
+  consume, private processor/replay projections, five forced-RLS policies,
+  restricted login-member ACLs, and public-result redaction; the focused
+  migration/scoped-runtime/verification group passes `24` tests.
+- [x] Wire the Go runtime, issuer, store, service, HTTP routes, startup
+  readiness, and processor client/server so all three operations are callable
+  only through their intended trusted/public boundaries and 2FA remains
+  optional but recommended. Go formatting is clean; every main-module package
+  passes, the focused recovery lifecycle passes 25 repeated runs, and the live
+  PostgreSQL lifecycle integration passes against migrations 001-029.
+- [x] Add strict Python/TypeScript DTO, route, parsing, and client parity;
+  promote only implemented routes and keep every secret/ref/digest/ticket
+  absent from A3/browser-visible responses. The round54 schema and evidence
+  now expose active consume/rotate/disable routes while retaining only
+  existing-account credential linking as proposed.
+- [x] Export the recovery lifecycle result DTO and all three exact route
+  helpers from the public Python package barrel, and prove top-level imports
+  resolve to the strict unified-identity implementations (`62 passed`).
+- [x] Update the production deployment contract with all six strict
+  API-to-processor mTLS URLs, migration 029/RLS rollout requirements, exact
+  consume/rotate/disable operations and routes, recent-auth/CSRF/session
+  binding, atomic security-version/session/audit/outbox effects, prepare →
+  PostgreSQL mutation → finalize ordering, cleanup compensation, one-use
+  no-store rotation handoff, and private/public secret-material boundaries.
+- [x] Regenerate and validate the public TS/Python symbol/contract matrix and
+  Go/Python/TypeScript route snapshot. Add the three snake-case TypeScript
+  parity aliases plus explicit generic-SaaS gap records for routes owned by
+  the dedicated unified identity client. The generated contracts report
+  unified-identity parity, Go `100`, Python `35`, TypeScript `38`, and the
+  complete focused evidence group passes `27` tests.
+- [x] Pass the uncached Go main-module test suite for all five packages,
+  `go vet ./...`, and the standalone `tests/integration/go` test/vet module.
+- [x] Re-run the complete live Docker PostgreSQL identity lifecycle against
+  migrations 001-029 (`39.15s`, all subtests passed) and the migration
+  029/scoped-runtime/verification RLS group (`24 passed in 32.55s`).
+- [x] Fix the one full-suite-discovered round54 drift by keeping the three
+  active TypeScript recovery/disable route declarations statically
+  inspectable by the shared HTTP boundary test. Round54 passes `26` tests,
+  TypeScript builds cleanly, and its unified-identity suite passes `71`.
+- [x] Pass Python compileall and the complete A1 Python suite after the
+  manifest correction: `1450 passed, 5 skipped` in `338.25s`.
+- [x] Pass the complete release Python gate: `33 passed` with only the known
+  upstream `jsonschema.RefResolver` deprecation warning.
+- [x] Run the broad repository pytest gate: `2178 passed, 14 skipped` in
+  `407.03s`. The only two failures are peer-owned A2 generated-fixture drift
+  where `a2_cross_lane_security_context.json` still records A1 route count
+  `102` while the current builder observes `111`; do not regenerate, modify,
+  restore, stage, or commit any `fixtures/a2/**` artifact from the A1 lane.
+- [x] Pass the complete TypeScript package matrix: the first run exposed that
+  the generic hosted Go-route gap registry had not delegated the three new
+  recovery/disable routes to `UnifiedIdentityHttpClient`; after adding those
+  explicit public-safe records and coverage, build plus all `667` tests pass.
+- [x] Pass the complete Rust runtime verifier gate: `cargo fmt --check`,
+  all-target/all-feature Clippy with warnings denied, and every unit plus
+  integration test (`31` total) are clean.
+- [x] Re-run the repository-external live Vault processor closeout: TLS 1.3
+  mTLS on both hops, projected-token isolation, active/previous key rotation
+  and retirement, concurrent one-use handoff, cleanup compensation, recovery
+  consume/rotate/disable, read-only/timeout/unavailable failure paths, and
+  redacted logs all pass across `162` Vault TLS requests.
+- [x] Pass focused replay/concurrency/wrong-account/stale-ticket/CSRF/
+  recent-auth/session-revocation/Vault-failure/PostgreSQL-failure/key-rotation
+  tests plus live Docker PostgreSQL/RLS and external-Vault validation.
+- [x] Complete the final generated/format integrity pass: all `19` changed Go
+  files are `gofmt` clean from the repository root, generated TS/Python parity
+  check is current, its focused evidence group passes `27` tests, all `21`
+  changed JSON files parse, `git diff --check` is clean, and Python compileall
+  succeeds.
+- [x] Pass `python scripts/cl_guard.py plan --full`; the selective CI planner
+  resolves the full Python/A3/TypeScript/Go/Rust/integration/evidence matrix.
+- [x] Pass `python scripts/cl_guard.py hygiene` with zero findings, including
+  the repository high-confidence secret and hygiene blockers.
+- [x] Pass `python scripts/cl_guard.py commercial`: all `20` blocker anchors
+  and `4` advisory anchors are present, with zero blockers or advisories.
+- [x] Build and validate the closeout ownership manifest: exactly `41`
+  changed/untracked A1 paths fall under the documented A1 platform/runtime/
+  identity/SDK/migration/test boundaries, with zero invalid or
+  `fixtures/a2/**` paths.
+- [x] Secret-scan the exact staged A1 diff. CL hygiene has zero findings;
+  redacted Gitleaks triage classified its five generic candidates as
+  test-only `idem-` replay keys, and a narrowly scoped default-rule rerun
+  reports no leaks without adding an allowlist to the repository.
+- [x] Update A3-safe evidence, parity snapshots, deployment/runtime docs, and
+  this worklog only after each gate is earned; pass full Go/Python/TypeScript/
+  Rust/CL/ownership/generated-artifact/secret checks.
+- [ ] Precisely stage only A1-owned paths, commit the coherent batch, push only
+  `HEAD:codex/a1-local-sdk-runner`, fetch, and prove final local/remote `0/0`
+  parity without staging any `fixtures/a2/**` peer artifact.

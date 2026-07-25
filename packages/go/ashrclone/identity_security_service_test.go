@@ -22,10 +22,15 @@ type identitySecurityServiceTestProcessor struct {
 	processErr    error
 	confirmResult IdentitySecuritySecretConfirmResult
 	confirmErr    error
+	prepareResult IdentitySecuritySecretMutationPrepareResult
+	prepareErr    error
+	finalizeErr   error
 	handoffs      map[string]IdentitySecuritySecretHandoff
 	handoffErr    error
 	processCalls  []IdentitySecuritySecretProcessRequest
 	confirmCalls  []IdentitySecuritySecretConfirmRequest
+	prepareCalls  []IdentitySecuritySecretMutationPrepareRequest
+	finalizeCalls []IdentitySecuritySecretMutationFinalizeRequest
 	handoffCalls  []IdentitySecuritySecretHandoffRequest
 	cleanupCalls  []IdentitySecuritySecretCleanupRequest
 	events        *[]string
@@ -51,6 +56,28 @@ func (processor *identitySecurityServiceTestProcessor) ConfirmIdentitySecuritySe
 		*processor.events = append(*processor.events, "confirm")
 	}
 	return processor.confirmResult, processor.confirmErr
+}
+
+func (processor *identitySecurityServiceTestProcessor) PrepareIdentitySecuritySecretMutation(
+	_ context.Context,
+	request IdentitySecuritySecretMutationPrepareRequest,
+) (IdentitySecuritySecretMutationPrepareResult, error) {
+	processor.prepareCalls = append(processor.prepareCalls, request)
+	if processor.events != nil {
+		*processor.events = append(*processor.events, "prepare")
+	}
+	return processor.prepareResult, processor.prepareErr
+}
+
+func (processor *identitySecurityServiceTestProcessor) FinalizeIdentitySecuritySecretMutation(
+	_ context.Context,
+	request IdentitySecuritySecretMutationFinalizeRequest,
+) error {
+	processor.finalizeCalls = append(processor.finalizeCalls, request)
+	if processor.events != nil {
+		*processor.events = append(*processor.events, "finalize")
+	}
+	return processor.finalizeErr
 }
 
 func (processor *identitySecurityServiceTestProcessor) ConsumeIdentitySecuritySecretHandoff(
@@ -118,10 +145,17 @@ func (issuer *identitySecurityServiceTestIssuer) CancelIdentitySecurityMutationT
 }
 
 type identitySecurityServiceTestStore struct {
-	result    IdentitySecurityHTTPMutationResultDTO
-	err       error
-	mutations []IdentitySecurityMutation
-	events    *[]string
+	result      IdentitySecurityHTTPMutationResultDTO
+	err         error
+	state       IdentitySecurityProcessorState
+	stateErr    error
+	stateCalls  int
+	replay      IdentitySecurityTwoFactorMutationReplay
+	replayFound bool
+	replayErr   error
+	replayCalls int
+	mutations   []IdentitySecurityMutation
+	events      *[]string
 }
 
 func (store *identitySecurityServiceTestStore) GetIdentitySecurityPosture(
@@ -140,6 +174,30 @@ func (store *identitySecurityServiceTestStore) MutateIdentitySecurity(
 		*store.events = append(*store.events, "mutate")
 	}
 	return store.result, store.err
+}
+
+func (store *identitySecurityServiceTestStore) GetIdentitySecurityProcessorState(
+	_ context.Context,
+	_ string,
+) (IdentitySecurityProcessorState, error) {
+	store.stateCalls++
+	if store.events != nil {
+		*store.events = append(*store.events, "state")
+	}
+	return store.state, store.stateErr
+}
+
+func (store *identitySecurityServiceTestStore) GetIdentitySecurityTwoFactorMutationReplay(
+	_ context.Context,
+	_ string,
+	_ string,
+	_ string,
+) (IdentitySecurityTwoFactorMutationReplay, bool, error) {
+	store.replayCalls++
+	if store.events != nil {
+		*store.events = append(*store.events, "replay")
+	}
+	return store.replay, store.replayFound, store.replayErr
 }
 
 func newIdentitySecurityServiceTestSubject(
@@ -181,6 +239,63 @@ func identitySecurityServiceTestProcessResult() IdentitySecuritySecretProcessRes
 		KeyVersion:   "key-v1",
 		CleanupToken: "isx_" + strings.Repeat("D", 24),
 	}
+}
+
+func identitySecurityServiceTestProcessorState() IdentitySecurityProcessorState {
+	return IdentitySecurityProcessorState{
+		TwoFactorStatus:        "enabled",
+		TOTPSecretRef:          "isr_" + strings.Repeat("A", 24),
+		TOTPSecretDigest:       strings.Repeat("a", 64),
+		RecoveryBatchDigest:    strings.Repeat("b", 64),
+		RecoveryCodesRemaining: 10,
+	}
+}
+
+func identitySecurityServiceTestPreparedMutation(
+	operation string,
+) IdentitySecuritySecretMutationPrepareResult {
+	state := identitySecurityServiceTestProcessorState()
+	result := IdentitySecuritySecretMutationPrepareResult{
+		SecretRef:                   state.TOTPSecretRef,
+		SecretDigest:                state.TOTPSecretDigest,
+		ExpectedRecoveryBatchDigest: state.RecoveryBatchDigest,
+		ExpectedRecoveryCodeCount:   state.RecoveryCodesRemaining,
+		RecoveryBatchDigest:         strings.Repeat("c", 64),
+		RecoveryCodeCount:           state.RecoveryCodesRemaining,
+		KeyVersion:                  "key-v2",
+		FinalizeToken:               "isf_" + strings.Repeat("F", 24),
+		CleanupToken:                "isx_" + strings.Repeat("C", 24),
+	}
+	switch operation {
+	case "mfa_recovery_consume":
+		result.RecoveryCodeCount--
+	case "mfa_recovery_rotate":
+		result.HandoffID = "ish_" + strings.Repeat("H", 24)
+	case "mfa_disable":
+		result.RecoveryBatchDigest = ""
+		result.RecoveryCodeCount = 0
+	}
+	return result
+}
+
+func identitySecurityServiceTestMutationResult(
+	operation string,
+) IdentitySecurityHTTPMutationResultDTO {
+	result := IdentitySecurityHTTPMutationResultDTO{
+		TwoFactorStatus:          "enabled",
+		RecoveryCodesRemaining:   10,
+		SecurityVersion:          7,
+		SessionsRevoked:          2,
+		ReauthenticationRequired: true,
+	}
+	switch operation {
+	case "mfa_recovery_consume":
+		result.RecoveryCodesRemaining = 9
+	case "mfa_disable":
+		result.TwoFactorStatus = "disabled"
+		result.RecoveryCodesRemaining = 0
+	}
+	return result
 }
 
 func TestIdentitySecurityServicePasswordFlowIsCanonicalIdempotentAndSecretSafe(t *testing.T) {
@@ -572,5 +687,269 @@ func TestIdentitySecurityServiceHandoffReplayFailureDoesNotExposeOrDeleteCommitt
 			len(processor.cleanupCalls),
 			len(store.mutations),
 		)
+	}
+}
+
+func TestIdentitySecurityServiceTwoFactorLifecycleIsA3SafeAndOrdered(t *testing.T) {
+	now := time.Date(2026, 7, 25, 9, 0, 0, 0, time.UTC)
+	for _, operation := range []string{
+		"mfa_recovery_consume",
+		"mfa_recovery_rotate",
+		"mfa_disable",
+	} {
+		t.Run(operation, func(t *testing.T) {
+			events := []string{}
+			prepared := identitySecurityServiceTestPreparedMutation(operation)
+			processor := &identitySecurityServiceTestProcessor{
+				prepareResult: prepared,
+				handoffs: map[string]IdentitySecuritySecretHandoff{
+					"mfa_recovery_rotate": {
+						RecoveryCodes: []string{
+							"A1BCD-EFGHJ", "B2CDE-FGHJK",
+							"C3DEF-GHJKL", "D4EFG-HJKLM",
+							"E5FGH-JKLMN", "F6GHJ-KLMNP",
+						},
+					},
+				},
+				events: &events,
+			}
+			issuer := &identitySecurityServiceTestIssuer{events: &events}
+			store := &identitySecurityServiceTestStore{
+				state:  identitySecurityServiceTestProcessorState(),
+				result: identitySecurityServiceTestMutationResult(operation),
+				events: &events,
+			}
+			service := newIdentitySecurityServiceTestSubject(
+				t,
+				processor,
+				issuer,
+				store,
+				now,
+			)
+			request := IdentitySecurityTwoFactorMutationRequest{
+				Operation:      operation,
+				IdempotencyKey: operation + "-1",
+			}
+			if operation == "mfa_recovery_consume" {
+				request.RecoveryCode = "ABCDE-FGHJK"
+			}
+			result, err := service.MutateTwoFactor(
+				context.Background(),
+				identitySecurityServiceTestSession(),
+				request,
+			)
+			if err != nil {
+				t.Fatalf("mutate two-factor lifecycle: %v", err)
+			}
+			wantEvents := "replay,state,prepare,issue,mutate,finalize"
+			if operation == "mfa_recovery_rotate" {
+				wantEvents += ",handoff"
+			}
+			if strings.Join(events, ",") != wantEvents {
+				t.Fatalf("unsafe lifecycle ordering: %v", events)
+			}
+			if len(processor.prepareCalls) != 1 ||
+				processor.prepareCalls[0].AccountID !=
+					identitySecurityServiceTestAccountID ||
+				processor.prepareCalls[0].ExpectedRecoveryBatchDigest !=
+					store.state.RecoveryBatchDigest ||
+				processor.prepareCalls[0].ExpectedRecoveryCodeCount !=
+					store.state.RecoveryCodesRemaining {
+				t.Fatalf(
+					"processor state binding was lost: %#v",
+					processor.prepareCalls,
+				)
+			}
+			if operation == "mfa_recovery_consume" &&
+				processor.prepareCalls[0].RecoveryCode != request.RecoveryCode {
+				t.Fatalf("recovery proof did not stay at processor boundary")
+			}
+			if len(issuer.issueCalls) != 1 ||
+				issuer.issueCalls[0].ExpectedRecoveryBatchDigest !=
+					prepared.ExpectedRecoveryBatchDigest ||
+				issuer.issueCalls[0].ExpectedRecoveryCodeCount !=
+					prepared.ExpectedRecoveryCodeCount ||
+				issuer.issueCalls[0].RecoveryBatchDigest !=
+					prepared.RecoveryBatchDigest ||
+				issuer.issueCalls[0].RecoveryCodeCount !=
+					prepared.RecoveryCodeCount {
+				t.Fatalf("ticket envelope was incomplete: %#v", issuer.issueCalls)
+			}
+			if result.TwoFactorOptional != true ||
+				result.TwoFactorRecommended != true ||
+				result.RecoveryCodesRemaining !=
+					store.result.RecoveryCodesRemaining ||
+				result.ReauthenticationRequired != true {
+				t.Fatalf("public lifecycle result is incomplete: %#v", result)
+			}
+			if operation == "mfa_recovery_rotate" &&
+				len(result.RecoveryCodes) != 6 {
+				t.Fatalf("rotated recovery handoff was not delivered once: %#v", result)
+			}
+			if operation != "mfa_recovery_rotate" &&
+				len(result.RecoveryCodes) != 0 {
+				t.Fatalf("non-rotation leaked recovery material: %#v", result)
+			}
+			encoded, marshalErr := json.Marshal(result)
+			if marshalErr != nil {
+				t.Fatalf("marshal public result: %v", marshalErr)
+			}
+			for _, forbidden := range []string{
+				"secret_ref",
+				"secret_digest",
+				"batch_digest",
+				"finalize",
+				"cleanup",
+				"ticket",
+				prepared.SecretRef,
+				prepared.SecretDigest,
+				prepared.ExpectedRecoveryBatchDigest,
+				prepared.RecoveryBatchDigest,
+				prepared.FinalizeToken,
+				prepared.CleanupToken,
+			} {
+				if forbidden != "" &&
+					strings.Contains(string(encoded), forbidden) {
+					t.Fatalf(
+						"public result exposed private material %q: %s",
+						forbidden,
+						encoded,
+					)
+				}
+			}
+		})
+	}
+}
+
+func TestIdentitySecurityServiceResumesCommittedMutationWithoutReissuingSQL(t *testing.T) {
+	now := time.Date(2026, 7, 25, 9, 30, 0, 0, time.UTC)
+	for _, operation := range []string{
+		"mfa_recovery_consume",
+		"mfa_recovery_rotate",
+		"mfa_disable",
+	} {
+		t.Run(operation, func(t *testing.T) {
+			prepared := identitySecurityServiceTestPreparedMutation(operation)
+			mutationResult := identitySecurityServiceTestMutationResult(operation)
+			processor := &identitySecurityServiceTestProcessor{
+				prepareResult: prepared,
+				finalizeErr:   ErrIdentitySecurityProcessorUnavailable,
+				handoffs: map[string]IdentitySecuritySecretHandoff{
+					"mfa_recovery_rotate": {
+						RecoveryCodes: []string{
+							"A1BCD-EFGHJ", "B2CDE-FGHJK",
+							"C3DEF-GHJKL", "D4EFG-HJKLM",
+							"E5FGH-JKLMN", "F6GHJ-KLMNP",
+						},
+					},
+				},
+			}
+			issuer := &identitySecurityServiceTestIssuer{}
+			store := &identitySecurityServiceTestStore{
+				state:  identitySecurityServiceTestProcessorState(),
+				result: mutationResult,
+			}
+			service := newIdentitySecurityServiceTestSubject(
+				t,
+				processor,
+				issuer,
+				store,
+				now,
+			)
+			request := IdentitySecurityTwoFactorMutationRequest{
+				Operation:      operation,
+				IdempotencyKey: operation + "-resume-1",
+			}
+			if operation == "mfa_recovery_consume" {
+				request.RecoveryCode = "ABCDE-FGHJK"
+			}
+			if _, err := service.MutateTwoFactor(
+				context.Background(),
+				identitySecurityServiceTestSession(),
+				request,
+			); !errors.Is(err, ErrIdentitySecurityUnavailable) {
+				t.Fatalf("finalize outage was not surfaced: %v", err)
+			}
+			store.replay = IdentitySecurityTwoFactorMutationReplay{
+				SecretRef:                   prepared.SecretRef,
+				SecretDigest:                prepared.SecretDigest,
+				ExpectedRecoveryBatchDigest: prepared.ExpectedRecoveryBatchDigest,
+				ExpectedRecoveryCodeCount:   prepared.ExpectedRecoveryCodeCount,
+				RecoveryBatchDigest:         prepared.RecoveryBatchDigest,
+				RecoveryCodeCount:           prepared.RecoveryCodeCount,
+				Result:                      mutationResult,
+			}
+			store.replayFound = true
+			processor.finalizeErr = nil
+			result, err := service.MutateTwoFactor(
+				context.Background(),
+				identitySecurityServiceTestSession(),
+				request,
+			)
+			if err != nil {
+				t.Fatalf("resume committed mutation: %v", err)
+			}
+			if len(issuer.issueCalls) != 1 ||
+				len(store.mutations) != 1 ||
+				store.stateCalls != 1 ||
+				store.replayCalls != 2 ||
+				len(processor.prepareCalls) != 2 ||
+				len(processor.finalizeCalls) != 2 {
+				t.Fatalf(
+					"committed replay reissued SQL or lost recovery: issue=%d mutate=%d state=%d replay=%d prepare=%d finalize=%d",
+					len(issuer.issueCalls),
+					len(store.mutations),
+					store.stateCalls,
+					store.replayCalls,
+					len(processor.prepareCalls),
+					len(processor.finalizeCalls),
+				)
+			}
+			if result.SecurityVersion != mutationResult.SecurityVersion ||
+				result.RecoveryCodesRemaining !=
+					mutationResult.RecoveryCodesRemaining {
+				t.Fatalf("replayed result changed: %#v", result)
+			}
+			if operation == "mfa_recovery_rotate" &&
+				len(result.RecoveryCodes) != 6 {
+				t.Fatalf("resumed rotation lost its one-use handoff: %#v", result)
+			}
+		})
+	}
+}
+
+func TestIdentitySecurityServiceFailsClosedWithoutPrivateReplayStore(t *testing.T) {
+	now := time.Date(2026, 7, 25, 10, 0, 0, 0, time.UTC)
+	processor := &identitySecurityServiceTestProcessor{
+		prepareResult: identitySecurityServiceTestPreparedMutation(
+			"mfa_disable",
+		),
+		handoffs: map[string]IdentitySecuritySecretHandoff{},
+	}
+	issuer := &identitySecurityServiceTestIssuer{}
+	store := &identitySecurityServiceTestStore{
+		state:  identitySecurityServiceTestProcessorState(),
+		result: identitySecurityServiceTestMutationResult("mfa_disable"),
+	}
+	service := newIdentitySecurityServiceTestSubject(
+		t,
+		processor,
+		issuer,
+		store,
+		now,
+	)
+	service.mutationReplay = nil
+	if _, err := service.MutateTwoFactor(
+		context.Background(),
+		identitySecurityServiceTestSession(),
+		IdentitySecurityTwoFactorMutationRequest{
+			Operation:      "mfa_disable",
+			IdempotencyKey: "mfa-disable-no-replay",
+		},
+	); !errors.Is(err, ErrIdentitySecurityRejected) {
+		t.Fatalf("missing private replay store was accepted: %v", err)
+	}
+	if len(processor.prepareCalls) != 0 || len(store.mutations) != 0 {
+		t.Fatalf("rejected mutation reached dependencies")
 	}
 }

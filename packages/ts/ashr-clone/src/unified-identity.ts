@@ -76,7 +76,8 @@ export const UNIFIED_IDENTITY_ERROR_CODES = [
 export const A3_IDENTITY_FLOW_OPERATIONS = [
   "provider_status", "register_start", "register_complete", "login_start", "login_complete",
   "link_start", "link_complete", "unlink", "password_set", "password_change",
-  "two_factor_enroll", "two_factor_verify", "two_factor_recovery", "two_factor_disable",
+  "two_factor_enroll", "two_factor_verify", "two_factor_recovery_consume",
+  "two_factor_recovery_rotate", "two_factor_disable",
   "security_posture", "password_recover",
 ] as const;
 
@@ -625,6 +626,30 @@ export interface IdentitySecurityConfirmResult {
   reauthentication_required: boolean;
 }
 
+export interface IdentitySecurityRecoveryConsumeOptions {
+  accountId: string;
+  recoveryCode: string;
+  idempotencyKey: string;
+}
+
+export interface IdentitySecurityIdempotentMutationOptions {
+  accountId: string;
+  idempotencyKey: string;
+}
+
+export interface IdentityTwoFactorRecoveryMutationResult {
+  schema_version: typeof IDENTITY_SECURITY_SERVICE_SCHEMA_VERSION;
+  operation: "mfa_recovery_consume" | "mfa_recovery_rotate" | "mfa_disable";
+  two_factor_status: "disabled" | "enabled";
+  two_factor_optional: boolean;
+  two_factor_recommended: boolean;
+  recovery_codes?: string[];
+  recovery_codes_remaining: number;
+  security_version: number;
+  sessions_revoked: number;
+  reauthentication_required: boolean;
+}
+
 export type CreateVerificationChallengeOptions = StartVerificationOptions;
 export type VerifyVerificationChallengeOptions = VerifyChallengeOptions;
 
@@ -644,9 +669,21 @@ const FORBIDDEN_PUBLIC_KEYS = new Set([
   "phone",
   "phone_number",
   "refresh_token",
+  "recovery_code",
   "secret",
+  "secret_digest",
+  "secret_ref",
   "session_token",
   "state",
+  "digest",
+  "ref",
+  "ticket",
+  "ticket_id",
+  "processor_token",
+  "handoff_token",
+  "finalize_token",
+  "cleanup_token",
+  "raw_code",
   "provider_subject_sha256",
   "subject_digest",
   "identifier_sha256",
@@ -669,8 +706,17 @@ const FORBIDDEN_KEY_SUFFIXES = [
   "_otp",
   "_password",
   "_refresh_token",
+  "_secret_digest",
+  "_secret_ref",
   "_secret",
   "_session_token",
+  "_ticket",
+  "_ticket_id",
+  "_processor_token",
+  "_handoff_token",
+  "_finalize_token",
+  "_cleanup_token",
+  "_raw_code",
 ];
 
 const RECOVERY_PROVIDERS = new Set<UnifiedIdentityProvider>(["phone", "email"]);
@@ -950,6 +996,58 @@ export class UnifiedIdentityHttpClient {
       },
       idempotencyKey,
       (value) => ({ ...parseIdentitySecurityConfirmResult(value), challenge_id: challengeId }),
+    );
+  }
+
+  consumeTwoFactorRecoveryCode(
+    options: IdentitySecurityRecoveryConsumeOptions,
+  ): Promise<IdentityTwoFactorRecoveryMutationResult> {
+    const recoveryCode = requireIdentitySecurityRecoveryCode(options.recoveryCode);
+    const idempotencyKey = requireIdentitySecurityIdempotencyKey(options.idempotencyKey);
+    return this.#requestTrusted(
+      "POST",
+      identityTwoFactorRecoveryConsumeRoute(options.accountId),
+      {
+        recovery_code: recoveryCode,
+        idempotency_key: idempotencyKey,
+      },
+      idempotencyKey,
+      (value) => parseIdentityTwoFactorRecoveryMutationResult(
+        value,
+        "mfa_recovery_consume",
+      ),
+    );
+  }
+
+  rotateTwoFactorRecoveryCodes(
+    options: IdentitySecurityIdempotentMutationOptions,
+  ): Promise<IdentityTwoFactorRecoveryMutationResult> {
+    const idempotencyKey = requireIdentitySecurityIdempotencyKey(options.idempotencyKey);
+    return this.#requestTrusted(
+      "POST",
+      identityTwoFactorRecoveryRotateRoute(options.accountId),
+      { idempotency_key: idempotencyKey },
+      idempotencyKey,
+      (value) => parseIdentityTwoFactorRecoveryMutationResult(
+        value,
+        "mfa_recovery_rotate",
+      ),
+    );
+  }
+
+  disableTwoFactor(
+    options: IdentitySecurityIdempotentMutationOptions,
+  ): Promise<IdentityTwoFactorRecoveryMutationResult> {
+    const idempotencyKey = requireIdentitySecurityIdempotencyKey(options.idempotencyKey);
+    return this.#requestTrusted(
+      "POST",
+      identityTwoFactorDisableRoute(options.accountId),
+      { idempotency_key: idempotencyKey },
+      idempotencyKey,
+      (value) => parseIdentityTwoFactorRecoveryMutationResult(
+        value,
+        "mfa_disable",
+      ),
     );
   }
 
@@ -1346,8 +1444,9 @@ export function a3IdentityContractManifest(): A3IdentityContractManifest {
       route("password_recover", "POST", "/v1/accounts/{account_id}/password/recover/begin", "active"),
       route("two_factor_enroll", "POST", "/v1/accounts/{account_id}/two-factor/enroll/begin", "active"),
       route("two_factor_verify", "POST", "/v1/accounts/{account_id}/two-factor/enroll/confirm", "active"),
-      route("two_factor_recovery", "POST", "/v1/accounts/{account_id}/two-factor/recovery", "proposed"),
-      route("two_factor_disable", "POST", "/v1/accounts/{account_id}/two-factor/disable", "proposed"),
+      route("two_factor_recovery_consume", "POST", "/v1/accounts/{account_id}/two-factor/recovery-codes/consume", "active"),
+      route("two_factor_recovery_rotate", "POST", "/v1/accounts/{account_id}/two-factor/recovery-codes/rotate", "active"),
+      route("two_factor_disable", "POST", "/v1/accounts/{account_id}/two-factor/disable", "active"),
     ],
     providers: [
       provider(
@@ -2211,6 +2310,18 @@ export function identityTwoFactorEnrollConfirmRoute(accountId: string): string {
   return `${identityAccountRoute(accountId)}/two-factor/enroll/confirm`;
 }
 
+export function identityTwoFactorRecoveryConsumeRoute(accountId: string): string {
+  return `${identityAccountRoute(accountId)}/two-factor/recovery-codes/consume`;
+}
+
+export function identityTwoFactorRecoveryRotateRoute(accountId: string): string {
+  return `${identityAccountRoute(accountId)}/two-factor/recovery-codes/rotate`;
+}
+
+export function identityTwoFactorDisableRoute(accountId: string): string {
+  return `${identityAccountRoute(accountId)}/two-factor/disable`;
+}
+
 export function identityTwoFactorRoute(accountId: string, operation: string): string {
   const normalized = requireEnum("two factor operation", operation, ["enroll", "verify"] as const);
   return normalized === "enroll"
@@ -2438,6 +2549,102 @@ export function parseIdentitySecurityConfirmResult(
     ),
     security_version: requireNonNegativeInteger("security_version", value.security_version),
     sessions_revoked: requireNonNegativeInteger("sessions_revoked", value.sessions_revoked),
+    reauthentication_required: requireBoolean(
+      "reauthentication_required",
+      value.reauthentication_required,
+    ),
+  };
+}
+
+export function parseIdentityTwoFactorRecoveryMutationResult(
+  value: unknown,
+  expectedOperation?: IdentityTwoFactorRecoveryMutationResult["operation"],
+): IdentityTwoFactorRecoveryMutationResult {
+  assertPublicUnifiedIdentityPayload(value);
+  if (!isRecord(value) || value.schema_version !== IDENTITY_SECURITY_SERVICE_SCHEMA_VERSION) {
+    throw new UnifiedIdentityContractError(
+      "unsupported identity two-factor mutation schema version",
+    );
+  }
+  const operation = requireEnum(
+    "identity security operation",
+    value.operation,
+    ["mfa_recovery_consume", "mfa_recovery_rotate", "mfa_disable"] as const,
+  );
+  if (expectedOperation !== undefined && operation !== expectedOperation) {
+    throw new UnifiedIdentityContractError(
+      "identity two-factor mutation operation mismatch",
+    );
+  }
+  let recoveryCodes: string[] | undefined;
+  if (operation === "mfa_recovery_rotate") {
+    if (!Array.isArray(value.recovery_codes)) {
+      throw new UnifiedIdentityContractError("recovery_codes must be an array");
+    }
+    recoveryCodes = value.recovery_codes.map((item) =>
+      requireIdentitySecurityRecoveryCode(item));
+    if (recoveryCodes.length < 6 || recoveryCodes.length > 20) {
+      throw new UnifiedIdentityContractError(
+        "rotated recovery_codes must contain 6 through 20 codes",
+      );
+    }
+  } else if (Object.hasOwn(value, "recovery_codes")) {
+    throw new UnifiedIdentityContractError(
+      "recovery_codes are only valid for recovery-code rotation",
+    );
+  }
+  const recoveryCodesRemaining = requireNonNegativeInteger(
+    "recovery_codes_remaining",
+    value.recovery_codes_remaining,
+  );
+  if (
+    operation === "mfa_recovery_rotate"
+    && recoveryCodesRemaining !== recoveryCodes?.length
+  ) {
+    throw new UnifiedIdentityContractError(
+      "rotated recovery code count does not match recovery_codes_remaining",
+    );
+  }
+  const twoFactorStatus = requireEnum(
+    "two_factor_status",
+    value.two_factor_status,
+    ["disabled", "enabled"] as const,
+  );
+  if (
+    operation === "mfa_disable"
+    && (twoFactorStatus !== "disabled" || recoveryCodesRemaining !== 0)
+  ) {
+    throw new UnifiedIdentityContractError(
+      "disabled two-factor result must clear recovery state",
+    );
+  }
+  if (operation !== "mfa_disable" && twoFactorStatus !== "enabled") {
+    throw new UnifiedIdentityContractError(
+      "recovery-code mutation must keep two-factor enabled",
+    );
+  }
+  return {
+    schema_version: IDENTITY_SECURITY_SERVICE_SCHEMA_VERSION,
+    operation,
+    two_factor_status: twoFactorStatus,
+    two_factor_optional: requireBoolean(
+      "two_factor_optional",
+      value.two_factor_optional,
+    ),
+    two_factor_recommended: requireBoolean(
+      "two_factor_recommended",
+      value.two_factor_recommended,
+    ),
+    ...(recoveryCodes === undefined ? {} : { recovery_codes: recoveryCodes }),
+    recovery_codes_remaining: recoveryCodesRemaining,
+    security_version: requireNonNegativeInteger(
+      "security_version",
+      value.security_version,
+    ),
+    sessions_revoked: requireNonNegativeInteger(
+      "sessions_revoked",
+      value.sessions_revoked,
+    ),
     reauthentication_required: requireBoolean(
       "reauthentication_required",
       value.reauthentication_required,
@@ -3035,6 +3242,16 @@ function requireIdentitySecurityPassword(value: unknown): string {
 function requireIdentitySecurityTotpCode(value: unknown): string {
   if (typeof value !== "string" || !/^[0-9]{6}$/u.test(value)) {
     throw new UnifiedIdentityContractError("two-factor code must be six digits");
+  }
+  return value;
+}
+
+function requireIdentitySecurityRecoveryCode(value: unknown): string {
+  if (
+    typeof value !== "string"
+    || !/^[A-Z0-9][A-Z0-9-]{7,63}$/u.test(value)
+  ) {
+    throw new UnifiedIdentityContractError("recovery code is invalid");
   }
   return value;
 }

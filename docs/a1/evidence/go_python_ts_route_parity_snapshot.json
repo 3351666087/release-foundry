@@ -49,8 +49,11 @@
     "POST /v1/accounts/{account_id}/password/change/begin",
     "POST /v1/accounts/{account_id}/password/enroll/begin",
     "POST /v1/accounts/{account_id}/password/recover/begin",
+    "POST /v1/accounts/{account_id}/two-factor/disable",
     "POST /v1/accounts/{account_id}/two-factor/enroll/begin",
     "POST /v1/accounts/{account_id}/two-factor/enroll/confirm",
+    "POST /v1/accounts/{account_id}/two-factor/recovery-codes/consume",
+    "POST /v1/accounts/{account_id}/two-factor/recovery-codes/rotate",
     "POST /v1/bootstrap",
     "POST /v1/identity/credentials/bind",
     "POST /v1/identity/login/complete",
@@ -98,7 +101,7 @@
     "POST /v1/projects/{project_id}/worker-jobs/{job_id}/fail",
     "POST /v1/projects/{project_id}/worker-jobs/{job_id}/heartbeat"
   ],
-  "go_route_count": 97,
+  "go_route_count": 100,
   "intentional_route_differences": {
     "go_only": [
       "DELETE /v1/projects/{project_id}/oauth/github/disconnect",
@@ -137,8 +140,11 @@
       "POST /v1/accounts/{account_id}/password/change/begin",
       "POST /v1/accounts/{account_id}/password/enroll/begin",
       "POST /v1/accounts/{account_id}/password/recover/begin",
+      "POST /v1/accounts/{account_id}/two-factor/disable",
       "POST /v1/accounts/{account_id}/two-factor/enroll/begin",
       "POST /v1/accounts/{account_id}/two-factor/enroll/confirm",
+      "POST /v1/accounts/{account_id}/two-factor/recovery-codes/consume",
+      "POST /v1/accounts/{account_id}/two-factor/recovery-codes/rotate",
       "POST /v1/identity/credentials/bind",
       "POST /v1/identity/login/complete",
       "POST /v1/identity/login/email/begin",

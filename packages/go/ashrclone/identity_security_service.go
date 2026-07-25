@@ -49,14 +49,75 @@ type IdentitySecurityConfirmResult struct {
 	ReauthenticationRequired bool     `json:"reauthentication_required"`
 }
 
+// IdentitySecurityProcessorState is a backend-only projection used to bind a
+// trusted processor mutation to the exact active TOTP and recovery-code state.
+// It deliberately has no JSON tags and must never be embedded in a public DTO.
+type IdentitySecurityProcessorState struct {
+	TwoFactorStatus        string
+	TOTPSecretRef          string
+	TOTPSecretDigest       string
+	RecoveryBatchDigest    string
+	RecoveryCodesRemaining int
+}
+
+type IdentitySecurityProcessorStateStore interface {
+	GetIdentitySecurityProcessorState(
+		context.Context,
+		string,
+	) (IdentitySecurityProcessorState, error)
+}
+
+// IdentitySecurityTwoFactorMutationReplay is a backend-only exact-replay
+// envelope. PostgreSQL may return it only after the scoped mutation committed.
+// It deliberately has no JSON tags and must never cross the HTTP boundary.
+type IdentitySecurityTwoFactorMutationReplay struct {
+	SecretRef                   string
+	SecretDigest                string
+	ExpectedRecoveryBatchDigest string
+	ExpectedRecoveryCodeCount   int
+	RecoveryBatchDigest         string
+	RecoveryCodeCount           int
+	Result                      IdentitySecurityHTTPMutationResultDTO
+}
+
+type IdentitySecurityTwoFactorMutationReplayStore interface {
+	GetIdentitySecurityTwoFactorMutationReplay(
+		context.Context,
+		string,
+		string,
+		string,
+	) (IdentitySecurityTwoFactorMutationReplay, bool, error)
+}
+
+type IdentitySecurityTwoFactorMutationRequest struct {
+	Operation      string
+	IdempotencyKey string
+	RecoveryCode   string
+}
+
+type IdentitySecurityTwoFactorMutationResult struct {
+	SchemaVersion            string   `json:"schema_version"`
+	Operation                string   `json:"operation"`
+	TwoFactorStatus          string   `json:"two_factor_status"`
+	TwoFactorOptional        bool     `json:"two_factor_optional"`
+	TwoFactorRecommended     bool     `json:"two_factor_recommended"`
+	RecoveryCodes            []string `json:"recovery_codes,omitempty"`
+	RecoveryCodesRemaining   int      `json:"recovery_codes_remaining"`
+	SecurityVersion          int64    `json:"security_version"`
+	SessionsRevoked          int64    `json:"sessions_revoked"`
+	ReauthenticationRequired bool     `json:"reauthentication_required"`
+}
+
 type IdentitySecurityServiceOptions struct {
-	Processor      IdentitySecuritySecretProcessor
-	TicketIssuer   IdentitySecurityTicketIssuer
-	MutationStore  IdentitySecurityHTTPStore
-	OrganizationID string
-	ProjectID      string
-	TicketTTL      time.Duration
-	Now            func() time.Time
+	Processor           IdentitySecuritySecretProcessor
+	TicketIssuer        IdentitySecurityTicketIssuer
+	MutationStore       IdentitySecurityHTTPStore
+	ProcessorStateStore IdentitySecurityProcessorStateStore
+	MutationReplayStore IdentitySecurityTwoFactorMutationReplayStore
+	OrganizationID      string
+	ProjectID           string
+	TicketTTL           time.Duration
+	Now                 func() time.Time
 }
 
 // IdentitySecurityService coordinates secret processing, scoped ticket
@@ -66,6 +127,8 @@ type IdentitySecurityService struct {
 	processor      IdentitySecuritySecretProcessor
 	ticketIssuer   IdentitySecurityTicketIssuer
 	mutationStore  IdentitySecurityHTTPStore
+	processorState IdentitySecurityProcessorStateStore
+	mutationReplay IdentitySecurityTwoFactorMutationReplayStore
 	organizationID string
 	projectID      string
 	ticketTTL      time.Duration
@@ -75,6 +138,14 @@ type IdentitySecurityService struct {
 func NewIdentitySecurityService(
 	options IdentitySecurityServiceOptions,
 ) (*IdentitySecurityService, error) {
+	if options.ProcessorStateStore == nil && options.MutationStore != nil {
+		options.ProcessorStateStore, _ =
+			options.MutationStore.(IdentitySecurityProcessorStateStore)
+	}
+	if options.MutationReplayStore == nil && options.MutationStore != nil {
+		options.MutationReplayStore, _ =
+			options.MutationStore.(IdentitySecurityTwoFactorMutationReplayStore)
+	}
 	if options.Processor == nil || options.TicketIssuer == nil ||
 		options.MutationStore == nil {
 		return nil, errors.New("identity security service dependencies are required")
@@ -98,11 +169,304 @@ func NewIdentitySecurityService(
 		processor:      options.Processor,
 		ticketIssuer:   options.TicketIssuer,
 		mutationStore:  options.MutationStore,
+		processorState: options.ProcessorStateStore,
+		mutationReplay: options.MutationReplayStore,
 		organizationID: options.OrganizationID,
 		projectID:      options.ProjectID,
 		ticketTTL:      options.TicketTTL,
 		now:            options.Now,
 	}, nil
+}
+
+func (service *IdentitySecurityService) MutateTwoFactor(
+	ctx context.Context,
+	session IdentityHTTPSession,
+	request IdentitySecurityTwoFactorMutationRequest,
+) (IdentitySecurityTwoFactorMutationResult, error) {
+	session = normalizeIdentitySecuritySession(session)
+	request.Operation = strings.TrimSpace(request.Operation)
+	request.IdempotencyKey = strings.TrimSpace(request.IdempotencyKey)
+	request.RecoveryCode = strings.TrimSpace(request.RecoveryCode)
+	if ctx == nil || !service.validSession(session) ||
+		!validIdentitySecurityIdempotencyKey(request.IdempotencyKey) ||
+		!validIdentitySecurityTwoFactorMutationRequest(request) ||
+		service.processorState == nil || service.mutationReplay == nil {
+		request.RecoveryCode = ""
+		return IdentitySecurityTwoFactorMutationResult{},
+			ErrIdentitySecurityRejected
+	}
+
+	replay, found, err :=
+		service.mutationReplay.GetIdentitySecurityTwoFactorMutationReplay(
+			ctx,
+			session.AccountID,
+			request.Operation,
+			request.IdempotencyKey,
+		)
+	if err != nil {
+		request.RecoveryCode = ""
+		return IdentitySecurityTwoFactorMutationResult{},
+			identitySecurityServiceError(err)
+	}
+	if found {
+		return service.resumeTwoFactorMutation(
+			ctx,
+			session,
+			request,
+			replay,
+		)
+	}
+
+	state, err := service.processorState.GetIdentitySecurityProcessorState(
+		ctx,
+		session.AccountID,
+	)
+	if err != nil {
+		request.RecoveryCode = ""
+		return IdentitySecurityTwoFactorMutationResult{},
+			identitySecurityServiceError(err)
+	}
+	if !validIdentitySecurityProcessorState(state) {
+		request.RecoveryCode = ""
+		return IdentitySecurityTwoFactorMutationResult{},
+			ErrIdentitySecurityUnavailable
+	}
+
+	prepared, err := service.processor.PrepareIdentitySecuritySecretMutation(
+		ctx,
+		IdentitySecuritySecretMutationPrepareRequest{
+			AccountID:                   session.AccountID,
+			Operation:                   request.Operation,
+			IdempotencyKey:              request.IdempotencyKey,
+			SecretRef:                   state.TOTPSecretRef,
+			SecretDigest:                state.TOTPSecretDigest,
+			ExpectedRecoveryBatchDigest: state.RecoveryBatchDigest,
+			ExpectedRecoveryCodeCount:   state.RecoveryCodesRemaining,
+			RecoveryCode:                request.RecoveryCode,
+		},
+	)
+	request.RecoveryCode = ""
+	if err != nil {
+		return IdentitySecurityTwoFactorMutationResult{},
+			identitySecurityProcessorServiceError(err)
+	}
+	if !validIdentitySecuritySecretMutationPrepareResult(
+		request.Operation,
+		prepared,
+	) || !identitySecurityPreparedMutationMatchesState(prepared, state) {
+		service.cleanup(
+			ctx,
+			session.AccountID,
+			request.Operation,
+			request.IdempotencyKey,
+			prepared.CleanupToken,
+		)
+		return IdentitySecurityTwoFactorMutationResult{},
+			ErrIdentitySecurityUnavailable
+	}
+
+	issueRequest := service.issueRequest(
+		session,
+		request.Operation,
+		request.IdempotencyKey,
+		prepared.SecretRef,
+		prepared.SecretDigest,
+		prepared.RecoveryBatchDigest,
+		prepared.RecoveryCodeCount,
+	)
+	issueRequest.ExpectedRecoveryBatchDigest =
+		prepared.ExpectedRecoveryBatchDigest
+	issueRequest.ExpectedRecoveryCodeCount =
+		prepared.ExpectedRecoveryCodeCount
+	issueRequest.ContextDigest =
+		identitySecurityTicketContextDigest(issueRequest)
+	issued, err := service.ticketIssuer.IssueIdentitySecurityMutationTicket(
+		ctx,
+		issueRequest,
+	)
+	if err != nil {
+		service.cleanup(
+			ctx,
+			session.AccountID,
+			request.Operation,
+			request.IdempotencyKey,
+			prepared.CleanupToken,
+		)
+		return IdentitySecurityTwoFactorMutationResult{},
+			identitySecurityServiceError(err)
+	}
+	if !validIdentitySecurityIssuedTicket(
+		issueRequest,
+		issued,
+		service.now().UTC(),
+	) {
+		service.cleanup(
+			ctx,
+			session.AccountID,
+			request.Operation,
+			request.IdempotencyKey,
+			prepared.CleanupToken,
+		)
+		return IdentitySecurityTwoFactorMutationResult{},
+			ErrIdentitySecurityUnavailable
+	}
+
+	mutationResult, err := service.mutationStore.MutateIdentitySecurity(
+		ctx,
+		identitySecurityMutationFromIssue(session, issueRequest, issued),
+	)
+	if err != nil ||
+		!validIdentitySecurityMutationResult(
+			request.Operation,
+			mutationResult,
+		) {
+		_ = service.ticketIssuer.CancelIdentitySecurityMutationTicket(
+			ctx,
+			issueRequest,
+			issued,
+		)
+		service.cleanup(
+			ctx,
+			session.AccountID,
+			request.Operation,
+			request.IdempotencyKey,
+			prepared.CleanupToken,
+		)
+		return IdentitySecurityTwoFactorMutationResult{},
+			identitySecurityServiceError(err)
+	}
+
+	return service.finalizeTwoFactorMutation(
+		ctx,
+		session,
+		request.Operation,
+		request.IdempotencyKey,
+		prepared,
+		mutationResult,
+	)
+}
+
+func (service *IdentitySecurityService) resumeTwoFactorMutation(
+	ctx context.Context,
+	session IdentityHTTPSession,
+	request IdentitySecurityTwoFactorMutationRequest,
+	replay IdentitySecurityTwoFactorMutationReplay,
+) (IdentitySecurityTwoFactorMutationResult, error) {
+	if !validIdentitySecurityTwoFactorMutationReplay(
+		request.Operation,
+		replay,
+	) {
+		request.RecoveryCode = ""
+		return IdentitySecurityTwoFactorMutationResult{},
+			ErrIdentitySecurityUnavailable
+	}
+	prepared, err := service.processor.PrepareIdentitySecuritySecretMutation(
+		ctx,
+		IdentitySecuritySecretMutationPrepareRequest{
+			AccountID:                   session.AccountID,
+			Operation:                   request.Operation,
+			IdempotencyKey:              request.IdempotencyKey,
+			SecretRef:                   replay.SecretRef,
+			SecretDigest:                replay.SecretDigest,
+			ExpectedRecoveryBatchDigest: replay.ExpectedRecoveryBatchDigest,
+			ExpectedRecoveryCodeCount:   replay.ExpectedRecoveryCodeCount,
+			RecoveryCode:                request.RecoveryCode,
+		},
+	)
+	request.RecoveryCode = ""
+	if err != nil {
+		if errors.Is(err, ErrIdentitySecurityProcessorRejected) &&
+			request.Operation != "mfa_recovery_rotate" {
+			return identitySecurityTwoFactorMutationPublicResult(
+				request.Operation,
+				replay.Result,
+			), nil
+		}
+		return IdentitySecurityTwoFactorMutationResult{},
+			identitySecurityProcessorServiceError(err)
+	}
+	if !validIdentitySecuritySecretMutationPrepareResult(
+		request.Operation,
+		prepared,
+	) || !identitySecurityPreparedMutationMatchesReplay(prepared, replay) {
+		return IdentitySecurityTwoFactorMutationResult{},
+			ErrIdentitySecurityUnavailable
+	}
+	return service.finalizeTwoFactorMutation(
+		ctx,
+		session,
+		request.Operation,
+		request.IdempotencyKey,
+		prepared,
+		replay.Result,
+	)
+}
+
+func (service *IdentitySecurityService) finalizeTwoFactorMutation(
+	ctx context.Context,
+	session IdentityHTTPSession,
+	operation string,
+	idempotencyKey string,
+	prepared IdentitySecuritySecretMutationPrepareResult,
+	mutationResult IdentitySecurityHTTPMutationResultDTO,
+) (IdentitySecurityTwoFactorMutationResult, error) {
+	err := service.processor.FinalizeIdentitySecuritySecretMutation(
+		ctx,
+		IdentitySecuritySecretMutationFinalizeRequest{
+			AccountID:      session.AccountID,
+			Operation:      operation,
+			IdempotencyKey: idempotencyKey,
+			FinalizeToken:  prepared.FinalizeToken,
+		},
+	)
+	if err != nil {
+		return IdentitySecurityTwoFactorMutationResult{},
+			identitySecurityProcessorServiceError(err)
+	}
+
+	result := identitySecurityTwoFactorMutationPublicResult(
+		operation,
+		mutationResult,
+	)
+	if operation != "mfa_recovery_rotate" {
+		return result, nil
+	}
+	handoff, err := service.processor.ConsumeIdentitySecuritySecretHandoff(
+		ctx,
+		IdentitySecuritySecretHandoffRequest{
+			AccountID:      session.AccountID,
+			Operation:      operation,
+			IdempotencyKey: idempotencyKey,
+			HandoffID:      prepared.HandoffID,
+		},
+	)
+	if err != nil {
+		return IdentitySecurityTwoFactorMutationResult{},
+			identitySecurityProcessorServiceError(err)
+	}
+	if !validIdentitySecuritySecretHandoff(operation, handoff) {
+		return IdentitySecurityTwoFactorMutationResult{},
+			ErrIdentitySecurityUnavailable
+	}
+	result.RecoveryCodes = append([]string(nil), handoff.RecoveryCodes...)
+	return result, nil
+}
+
+func identitySecurityTwoFactorMutationPublicResult(
+	operation string,
+	mutationResult IdentitySecurityHTTPMutationResultDTO,
+) IdentitySecurityTwoFactorMutationResult {
+	return IdentitySecurityTwoFactorMutationResult{
+		SchemaVersion:            IdentitySecurityServiceSchemaVersion,
+		Operation:                operation,
+		TwoFactorStatus:          mutationResult.TwoFactorStatus,
+		TwoFactorOptional:        true,
+		TwoFactorRecommended:     true,
+		RecoveryCodesRemaining:   mutationResult.RecoveryCodesRemaining,
+		SecurityVersion:          mutationResult.SecurityVersion,
+		SessionsRevoked:          mutationResult.SessionsRevoked,
+		ReauthenticationRequired: mutationResult.ReauthenticationRequired,
+	}
 }
 
 func (service *IdentitySecurityService) Begin(
@@ -412,6 +776,99 @@ func (service *IdentitySecurityService) validSession(
 		session.ActorID == session.AccountID &&
 		validPostgresIdentityVerificationUUID(session.SessionID) &&
 		validIdentitySecurityDigest(session.SessionDigest)
+}
+
+func validIdentitySecurityTwoFactorMutationRequest(
+	request IdentitySecurityTwoFactorMutationRequest,
+) bool {
+	switch request.Operation {
+	case "mfa_recovery_consume":
+		return identitySecurityRecoveryCodePattern.MatchString(
+			request.RecoveryCode,
+		)
+	case "mfa_recovery_rotate", "mfa_disable":
+		return request.RecoveryCode == ""
+	default:
+		return false
+	}
+}
+
+func validIdentitySecurityTwoFactorOperation(operation string) bool {
+	switch operation {
+	case "mfa_recovery_consume", "mfa_recovery_rotate", "mfa_disable":
+		return true
+	default:
+		return false
+	}
+}
+
+func validIdentitySecurityProcessorState(
+	state IdentitySecurityProcessorState,
+) bool {
+	return state.TwoFactorStatus == "enabled" &&
+		identitySecurityProcessorReferencePattern.MatchString(
+			state.TOTPSecretRef,
+		) &&
+		validIdentitySecurityDigest(state.TOTPSecretDigest) &&
+		validIdentitySecurityDigest(state.RecoveryBatchDigest) &&
+		state.RecoveryCodesRemaining >= 0 &&
+		state.RecoveryCodesRemaining <= 20
+}
+
+func identitySecurityPreparedMutationMatchesState(
+	prepared IdentitySecuritySecretMutationPrepareResult,
+	state IdentitySecurityProcessorState,
+) bool {
+	return prepared.SecretRef == state.TOTPSecretRef &&
+		prepared.SecretDigest == state.TOTPSecretDigest &&
+		prepared.ExpectedRecoveryBatchDigest ==
+			state.RecoveryBatchDigest &&
+		prepared.ExpectedRecoveryCodeCount ==
+			state.RecoveryCodesRemaining
+}
+
+func validIdentitySecurityTwoFactorMutationReplay(
+	operation string,
+	replay IdentitySecurityTwoFactorMutationReplay,
+) bool {
+	if !identitySecurityProcessorReferencePattern.MatchString(replay.SecretRef) ||
+		!validIdentitySecurityDigest(replay.SecretDigest) ||
+		!validIdentitySecurityDigest(replay.ExpectedRecoveryBatchDigest) ||
+		replay.ExpectedRecoveryCodeCount < 0 ||
+		replay.ExpectedRecoveryCodeCount > 20 ||
+		!validIdentitySecurityMutationResult(operation, replay.Result) ||
+		replay.Result.RecoveryCodesRemaining != replay.RecoveryCodeCount {
+		return false
+	}
+	switch operation {
+	case "mfa_recovery_consume":
+		return validIdentitySecurityDigest(replay.RecoveryBatchDigest) &&
+			replay.ExpectedRecoveryCodeCount > 0 &&
+			replay.RecoveryCodeCount == replay.ExpectedRecoveryCodeCount-1
+	case "mfa_recovery_rotate":
+		return validIdentitySecurityDigest(replay.RecoveryBatchDigest) &&
+			replay.RecoveryCodeCount >= 6 &&
+			replay.RecoveryCodeCount <= 20
+	case "mfa_disable":
+		return replay.RecoveryBatchDigest == "" &&
+			replay.RecoveryCodeCount == 0
+	default:
+		return false
+	}
+}
+
+func identitySecurityPreparedMutationMatchesReplay(
+	prepared IdentitySecuritySecretMutationPrepareResult,
+	replay IdentitySecurityTwoFactorMutationReplay,
+) bool {
+	return prepared.SecretRef == replay.SecretRef &&
+		prepared.SecretDigest == replay.SecretDigest &&
+		prepared.ExpectedRecoveryBatchDigest ==
+			replay.ExpectedRecoveryBatchDigest &&
+		prepared.ExpectedRecoveryCodeCount ==
+			replay.ExpectedRecoveryCodeCount &&
+		prepared.RecoveryBatchDigest == replay.RecoveryBatchDigest &&
+		prepared.RecoveryCodeCount == replay.RecoveryCodeCount
 }
 
 func (service *IdentitySecurityService) cleanup(

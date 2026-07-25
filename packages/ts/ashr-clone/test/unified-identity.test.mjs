@@ -34,6 +34,9 @@ import {
   identitySecurityRoute,
   identityTwoFactorEnrollBeginRoute,
   identityTwoFactorEnrollConfirmRoute,
+  identityTwoFactorDisableRoute,
+  identityTwoFactorRecoveryConsumeRoute,
+  identityTwoFactorRecoveryRotateRoute,
   identityTwoFactorRoute,
   identityUnlinkRoute,
   normalizeUnifiedIdentityProvider,
@@ -48,6 +51,7 @@ import {
   parseIdentitySecurityBeginResult,
   parseIdentitySecurityConfirmResult,
   parseIdentitySecurityPosture,
+  parseIdentityTwoFactorRecoveryMutationResult,
   parseIdentityRegistrationCompleteRequest,
   parseIdentityRegistrationStartRequest,
   parseA3IdentityProviderCapability,
@@ -354,14 +358,11 @@ test("A3 registration and login contract is explicit and fail closed", () => {
   }
   for (const operation of [
     "security_posture", "password_set", "password_change", "password_recover",
-    "two_factor_enroll", "two_factor_verify",
+    "two_factor_enroll", "two_factor_verify", "two_factor_recovery_consume",
+    "two_factor_recovery_rotate", "two_factor_disable",
   ]) {
     assert.equal(routes.get(operation).lifecycle, "active");
     assert.equal(routes.get(operation).client_callable, true);
-  }
-  for (const operation of ["two_factor_recovery", "two_factor_disable"]) {
-    assert.equal(routes.get(operation).lifecycle, "proposed");
-    assert.equal(routes.get(operation).client_callable, false);
   }
   assert.equal(contract.preferred_registration_provider, "email");
   assert.equal(providers.get("email").preferred_registration, true);
@@ -705,6 +706,18 @@ test("public DTO guard rejects normalized private reference aliases", () => {
     assert.equal(
       identityTwoFactorEnrollConfirmRoute("account_01"),
       "/v1/accounts/account_01/two-factor/enroll/confirm",
+    );
+    assert.equal(
+      identityTwoFactorRecoveryConsumeRoute("account_01"),
+      "/v1/accounts/account_01/two-factor/recovery-codes/consume",
+    );
+    assert.equal(
+      identityTwoFactorRecoveryRotateRoute("account_01"),
+      "/v1/accounts/account_01/two-factor/recovery-codes/rotate",
+    );
+    assert.equal(
+      identityTwoFactorDisableRoute("account_01"),
+      "/v1/accounts/account_01/two-factor/disable",
     );
     assert.equal(
       identityTwoFactorRoute("account_01", "verify"),
@@ -1102,6 +1115,32 @@ function identitySecurityConfirm(overrides = {}) {
   };
 }
 
+function identitySecurityTwoFactorMutation(operation, overrides = {}) {
+  const recoveryCodes = [
+    "A1BCD-EFGHJ",
+    "B2CDE-FGHJK",
+    "C3DEF-GHJKL",
+    "D4EFG-HJKLM",
+    "E5FGH-JKLMN",
+    "F6GHJ-KLMNP",
+  ];
+  return {
+    schema_version: IDENTITY_SECURITY_SERVICE_SCHEMA_VERSION,
+    operation,
+    two_factor_status: operation === "mfa_disable" ? "disabled" : "enabled",
+    two_factor_optional: true,
+    two_factor_recommended: true,
+    ...(operation === "mfa_recovery_rotate" ? { recovery_codes: recoveryCodes } : {}),
+    recovery_codes_remaining: operation === "mfa_disable"
+      ? 0
+      : (operation === "mfa_recovery_rotate" ? recoveryCodes.length : 5),
+    security_version: 7,
+    sessions_revoked: 1,
+    reauthentication_required: true,
+    ...overrides,
+  };
+}
+
 test("identity security parsers preserve flat optional and recommended posture", () => {
   assert.deepEqual(parseIdentitySecurityPosture(identitySecurityPosture()), {
     schema_version: IDENTITY_SECURITY_HTTP_SCHEMA_VERSION,
@@ -1126,6 +1165,24 @@ test("identity security parsers preserve flat optional and recommended posture",
   assert.equal(confirmed.two_factor_optional, true);
   assert.equal(confirmed.two_factor_recommended, true);
   assert.equal("challenge_id" in confirmed, false);
+  const consumed = parseIdentityTwoFactorRecoveryMutationResult(
+    identitySecurityTwoFactorMutation("mfa_recovery_consume"),
+    "mfa_recovery_consume",
+  );
+  assert.equal(consumed.two_factor_optional, true);
+  assert.equal(consumed.two_factor_recommended, true);
+  assert.equal("recovery_codes" in consumed, false);
+  const rotated = parseIdentityTwoFactorRecoveryMutationResult(
+    identitySecurityTwoFactorMutation("mfa_recovery_rotate"),
+    "mfa_recovery_rotate",
+  );
+  assert.equal(rotated.recovery_codes.length, 6);
+  const disabled = parseIdentityTwoFactorRecoveryMutationResult(
+    identitySecurityTwoFactorMutation("mfa_disable"),
+    "mfa_disable",
+  );
+  assert.equal(disabled.two_factor_status, "disabled");
+  assert.equal(disabled.recovery_codes_remaining, 0);
   assert.throws(
     () => parseIdentitySecurityPosture({
       ...identitySecurityPosture(),
@@ -1133,6 +1190,68 @@ test("identity security parsers preserve flat optional and recommended posture",
     }),
     UnifiedIdentityContractError,
   );
+});
+
+test("identity two-factor mutation parser rejects leaks, mismatches, and invalid counts", () => {
+  assert.throws(
+    () => parseIdentityTwoFactorRecoveryMutationResult(
+      identitySecurityTwoFactorMutation("mfa_recovery_consume", {
+        recovery_codes: ["A1BCD-EFGHJ"],
+      }),
+      "mfa_recovery_consume",
+    ),
+    UnifiedIdentityContractError,
+  );
+  assert.throws(
+    () => parseIdentityTwoFactorRecoveryMutationResult(
+      identitySecurityTwoFactorMutation("mfa_disable", { recovery_codes: [] }),
+      "mfa_disable",
+    ),
+    UnifiedIdentityContractError,
+  );
+  assert.throws(
+    () => parseIdentityTwoFactorRecoveryMutationResult(
+      identitySecurityTwoFactorMutation("mfa_disable"),
+      "mfa_recovery_rotate",
+    ),
+    UnifiedIdentityContractError,
+  );
+  assert.throws(
+    () => parseIdentityTwoFactorRecoveryMutationResult(
+      identitySecurityTwoFactorMutation("mfa_recovery_rotate", {
+        schema_version: "ashr.identity_security_service.v0",
+      }),
+      "mfa_recovery_rotate",
+    ),
+    UnifiedIdentityContractError,
+  );
+  assert.throws(
+    () => parseIdentityTwoFactorRecoveryMutationResult(
+      identitySecurityTwoFactorMutation("mfa_recovery_rotate", {
+        security_version: -1,
+      }),
+      "mfa_recovery_rotate",
+    ),
+    UnifiedIdentityContractError,
+  );
+  for (const leaked of [
+    { nested: { secret_ref: "isr_private" } },
+    { nested: { digest: "digest_private" } },
+    { nested: { ticket: "ticket_private" } },
+    { nested: { processor_token: "processor_private" } },
+    { nested: { handoff_token: "handoff_private" } },
+    { nested: { finalize_token: "finalize_private" } },
+    { nested: { cleanup_token: "cleanup_private" } },
+    { nested: { raw_code: "A1BCD-EFGHJ" } },
+  ]) {
+    assert.throws(
+      () => parseIdentityTwoFactorRecoveryMutationResult(
+        identitySecurityTwoFactorMutation("mfa_recovery_rotate", leaked),
+        "mfa_recovery_rotate",
+      ),
+      UnifiedIdentityContractError,
+    );
+  }
 });
 
 test("identity security client uses exact password begin routes and idempotency headers", async () => {
@@ -1240,6 +1359,71 @@ test("identity security client completes TOTP enrollment without retaining raw c
   assert.deepEqual(confirmed.recovery_codes, ["recovery-test-01", "recovery-test-02"]);
   assert.equal(confirmed.two_factor_status, "enabled");
   assert.equal("code" in confirmed, false);
+});
+
+test("identity security client exposes explicit recovery consume rotate and disable", async () => {
+  const calls = [];
+  const operations = [
+    "mfa_recovery_consume",
+    "mfa_recovery_rotate",
+    "mfa_disable",
+  ];
+  const client = new UnifiedIdentityHttpClient({
+    baseUrl: "http://127.0.0.1:8787",
+    fetch: async (url, init) => {
+      const operation = operations[calls.length];
+      calls.push({
+        path: new URL(String(url)).pathname,
+        method: init.method,
+        headers: new Headers(init.headers),
+        body: JSON.parse(init.body),
+      });
+      return response({
+        result: identitySecurityTwoFactorMutation(operation),
+      });
+    },
+  });
+  const recoveryCode = "ABCDE-FGHJK";
+  const consumed = await client.consumeTwoFactorRecoveryCode({
+    accountId: "account_01",
+    recoveryCode,
+    idempotencyKey: "idem-mfa-consume-01",
+  });
+  const rotated = await client.rotateTwoFactorRecoveryCodes({
+    accountId: "account_01",
+    idempotencyKey: "idem-mfa-rotate-01",
+  });
+  const disabled = await client.disableTwoFactor({
+    accountId: "account_01",
+    idempotencyKey: "idem-mfa-disable-01",
+  });
+
+  assert.deepEqual(calls.map(({ method, path }) => [method, path]), [
+    ["POST", "/v1/accounts/account_01/two-factor/recovery-codes/consume"],
+    ["POST", "/v1/accounts/account_01/two-factor/recovery-codes/rotate"],
+    ["POST", "/v1/accounts/account_01/two-factor/disable"],
+  ]);
+  assert.deepEqual(calls.map(({ body }) => body), [
+    {
+      recovery_code: recoveryCode,
+      idempotency_key: "idem-mfa-consume-01",
+    },
+    { idempotency_key: "idem-mfa-rotate-01" },
+    { idempotency_key: "idem-mfa-disable-01" },
+  ]);
+  assert.deepEqual(
+    calls.map(({ headers }) => headers.get("Idempotency-Key")),
+    ["idem-mfa-consume-01", "idem-mfa-rotate-01", "idem-mfa-disable-01"],
+  );
+  assert.equal(consumed.operation, "mfa_recovery_consume");
+  assert.equal("recovery_codes" in consumed, false);
+  assert.equal(rotated.recovery_codes.length, 6);
+  assert.equal(disabled.operation, "mfa_disable");
+  assert.equal(disabled.two_factor_status, "disabled");
+  assert.equal(
+    JSON.stringify({ consumed, rotated, disabled }).includes(recoveryCode),
+    false,
+  );
 });
 
 test("identity security posture client consumes the exact flat Go response", async () => {

@@ -12,8 +12,8 @@
         "provider_status", "register_start", "register_complete", "login_start",
         "login_complete", "link_start", "link_complete", "unlink", "password_set",
         "password_change", "two_factor_enroll", "two_factor_verify",
-        "two_factor_recovery", "two_factor_disable", "security_posture",
-        "password_recover"
+        "two_factor_recovery_consume", "two_factor_recovery_rotate",
+        "two_factor_disable", "security_posture", "password_recover"
       ]
     },
     "status": {

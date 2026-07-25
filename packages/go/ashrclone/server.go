@@ -1085,6 +1085,9 @@ func GoRouteManifestEntries() []RouteManifestEntry {
 		goScopedRoute("POST", "/v1/accounts/{account_id}/password/recover/begin", "identity.password.recover.begin", "identity"),
 		goScopedRoute("POST", "/v1/accounts/{account_id}/two-factor/enroll/begin", "identity.two_factor.enroll.begin", "identity"),
 		goScopedRoute("POST", "/v1/accounts/{account_id}/two-factor/enroll/confirm", "identity.two_factor.enroll.confirm", "identity"),
+		goScopedRoute("POST", "/v1/accounts/{account_id}/two-factor/disable", "identity.two_factor.disable", "identity"),
+		goScopedRoute("POST", "/v1/accounts/{account_id}/two-factor/recovery-codes/consume", "identity.two_factor.recovery_codes.consume", "identity"),
+		goScopedRoute("POST", "/v1/accounts/{account_id}/two-factor/recovery-codes/rotate", "identity.two_factor.recovery_codes.rotate", "identity"),
 		goScopedRoute("POST", "/v1/projects/{project_id}/accounts/{account_id}/browser-sessions/refresh", "identity.browser_session.refresh", "identity"),
 		// Reserved fail-closed contracts:
 		// POST /v1/accounts/{account_id}/credentials/{provider}/link

@@ -4594,3 +4594,215 @@ implementation and adversarial evidence is green.
   parity `0/0`. The remaining 253 working-tree entries are all unstaged
   `fixtures/a2/**` peer artifacts and were neither modified nor included by
   A1.
+
+## 2026-07-25 A1 TOTP disable and recovery-code lifecycle continuation
+
+- [x] Removed the accidental processor-state dependency from the shared
+  session validator so existing password/TOTP begin-confirm contracts remain
+  backward compatible. The new mutation path retains its own fail-closed
+  processor-state requirement, and `go test ./...` passes for every Go package.
+- [x] Reconnected through the operator-authorized Chrome Extension after the
+  new window was opened. The current real-HTTPS `/console` exposed both enabled
+  provider buttons, and Google plus GitHub each completed a fresh round-trip
+  back to the controlled landing page. No cookie, storage value, OAuth
+  parameter, provider token, account identity, or secret was read or recorded.
+  Repeated both known-account logins once more through that same Extension and
+  compared only aggregate PostgreSQL state: Google and GitHub canonical
+  credential counts remained `2` each while total and active session counts
+  advanced from `16` to `18`, confirming session handoff without duplicate
+  credential binding.
+- [x] Re-verified the five live OAuth operator deliverables in the newly
+  focused Chrome window. Both provider registrations, exact HTTPS callback
+  paths, and all four external-Vault credential references were still present;
+  the only fault was expiry of the controlled bridge's least-privilege service
+  token. The bridge failed closed with credential-unavailable responses until
+  a replacement short-lived renewable token was issued from the
+  DPAPI-protected local bootstrap entirely in memory. After rebuilding only
+  that bridge, Google and GitHub starts returned `302` again and both providers
+  completed fresh Extension-driven round-trips to `/console`. No browser
+  storage, cookie, callback parameter, provider token, account identity,
+  OAuth secret, or bootstrap value was inspected or recorded. Aggregate-only
+  PostgreSQL evidence kept canonical credentials at Google `2` and GitHub `2`
+  while total/active sessions advanced from `18` to `20`.
+- [x] Freeze and test the A3-safe operation split:
+  `mfa_recovery_consume` authenticates exactly one account-bound recovery code
+  and consumes it once; `mfa_recovery_rotate` replaces the complete recovery
+  batch after recent authentication; `mfa_disable` removes TOTP and recovery
+  material after recent authentication. No raw secret, code, digest, reference,
+  or mutation ticket crosses the browser-safe result boundary.
+- [x] Implement the external-Vault processor state machine, CAS/concurrency,
+  key-rotation compatibility, one-use rotated-code handoff, and failure
+  compensation. Rebuilt the current processor and ran the repository-external
+  live harness through TLS 1.3 mTLS on both API-to-processor and
+  processor-to-Vault boundaries. Eight concurrent consumes of one recovery
+  code produced exactly one winner; exact replay, conflicting replay, used-code
+  rejection, rotate pre-finalize denial, one-use rotated handoff, disable
+  rollback/finalize replay, active/previous key rotation and retirement,
+  read-only Vault, timeout, proxy outage/recovery, no-store headers, projected
+  token delivery, and log redaction all passed across `165` Vault TLS requests.
+- [x] Implement migration 029 plus restricted issuer/runtime, forced-RLS,
+  security-version/session-revocation, audit/outbox, replay, and readiness
+  enforcement. Added
+  `tests/a1/test_totp_recovery_lifecycle_postgres_migration.py`, which applies
+  migrations 001-029 to a clean disposable database and uses unique
+  `LOGIN`/`NOINHERIT` members of the existing runtime and issuer roles without
+  mutating those global roles. The suite proves consume decrements once,
+  rotation replaces the complete batch, disable clears all TOTP/recovery
+  state, exact retry remains stable after ticket expiry, request-payload
+  conflict fails closed, wrong-account and stale digest/count attempts do not
+  consume a ticket, concurrent consumes change state exactly once, every
+  success advances `security_version`, revokes sessions, and writes audit plus
+  `identity_outbox`, and all five sensitive tables retain FORCE RLS with their
+  `_self` policies. It also proves only `a1_runtime` can obtain the private
+  ref/digest projections while the issuer/PUBLIC have neither bottom-table nor
+  sensitive-function authority, and public SQL results contain only the five
+  browser-safe posture fields. Updated the two all-migration Python fixtures
+  for the migration-029 issuer signatures; the focused recovery, scoped
+  runtime, and identity-verification PostgreSQL group passes `24 passed in
+  32.81s`.
+- [x] Added explicit Python and TypeScript route helpers, clients, and strict
+  result DTOs for recovery-code consume, recovery-code rotation, and TOTP
+  disable. Consume sends only `recovery_code` plus `idempotency_key`;
+  rotate/disable send only `idempotency_key`; every request binds the same
+  normalized value in the `Idempotency-Key` header. Legacy generic mutation
+  entrypoints remain fail closed.
+- [x] Hardened the browser-safe parser boundary for the recovery lifecycle.
+  Results must match `ashr.identity_security_service.v1` and the exact
+  requested operation, preserve optional/recommended posture, satisfy
+  enabled/disabled and count/version/session invariants, expose the complete
+  6-20 code batch only for rotation, and reject nested raw codes, refs,
+  digests, tickets, processor/handoff/finalize/cleanup tokens, and secret
+  aliases.
+- [x] Updated the round54 JSON schema, contract evidence, and tests so the
+  three exact Go-manifest recovery/disable routes are active and only
+  existing-account link operations remain proposed. Runtime deployment
+  attestation remains honestly `not_claimed` in the contract-only evidence.
+- [x] Passed the focused Python unified-identity and round54 contract group
+  (`77 passed`) plus a clean TypeScript build and unified-identity group
+  (`71 passed`), covering exact route/body/header parity, strict parsing,
+  one-time recovery input isolation, nested-secret rejection, and fail-closed
+  obsolete operations.
+- [x] Completed one further Google and GitHub known-account round-trip through
+  the operator-authorized Chrome Extension in the newly opened controlled
+  HTTPS window. Aggregate-only PostgreSQL evidence held Google and GitHub
+  canonical credential counts at `2` each while total/active sessions
+  advanced to `22`; no browser storage, cookie, callback parameter, identity
+  value, provider token, or secret was inspected or recorded.
+- [x] Wire Go processor/runtime/service/HTTP and strict Python/TypeScript parity
+  without weakening optional-but-recommended 2FA or existing password/TOTP
+  enrollment guarantees. Recursive formatting over changed Go files is clean;
+  all five main Go packages pass uncached, the six focused recovery processor/
+  server/service cases pass 25 repeated runs, the live Go PostgreSQL lifecycle
+  integration passes in `39.60s`, and the migration 029 restricted-role Python
+  group passes `24 passed in 32.28s`.
+- [x] Closed the Python package-barrel parity gap by exporting
+  `IdentityTwoFactorRecoveryMutationResult` plus the exact consume, rotate, and
+  disable route helpers from `ashr_clone`. A public-import regression proves
+  each top-level symbol is the same strict implementation used by
+  `ashr_clone.unified_identity`; the complete Python unified-identity module
+  passes `62` tests.
+- [x] Expanded `oauth_production_deployment.md` from four to all six exact
+  identity-security processor endpoints and documented migration 029 as a
+  production prerequisite. The guide now fixes the authenticated route and
+  operation split, recent-auth/CSRF/session/account/idempotency binding,
+  forced-RLS/ACL/readiness requirements, atomic PostgreSQL
+  security-version/session-revocation/audit/outbox mutation, processor
+  prepare/finalize ordering, database-failure cleanup compensation, one-use
+  no-store rotation handoff, and the rule that raw codes never enter
+  PostgreSQL while backend refs/digests/tickets remain confined to private
+  projections and absent from public results.
+- [x] Regenerated `ts_python_gap_matrix.json` and
+  `go_python_ts_route_parity_snapshot.json`. The TypeScript Python-parity
+  barrel now exports the three new snake-case route aliases, while the generic
+  Python SaaS route consumer explicitly delegates those account-security
+  mutations to `UnifiedIdentityClient` instead of silently claiming ownership.
+  The matrix retains only the six established event-spool Python-only exports,
+  reports `347` shared exports and unified-identity parity, and the route
+  snapshot advances from Go `97` to `100` with Python `35` and TypeScript `38`.
+  Writer/check plus the route, gap-matrix, and round53 evidence group pass
+  `27` tests.
+- [x] Re-ran the uncached Go main-module suite after parity/document closure:
+  all five packages pass, `go vet ./...` is clean, and the standalone
+  `tests/integration/go` module passes both its uncached tests and vet.
+- [x] Re-ran the full live Docker PostgreSQL identity lifecycle with the
+  restricted runtime and issuer principals against migrations 001-029. Every
+  registration/login/linking, scope rollback, issuer ACL, concurrency,
+  key-rotation, tamper, and new recovery lifecycle subtest passed in `39.15s`;
+  the dedicated migration 029, scoped-runtime, and identity-verification RLS
+  group separately passed `24` tests in `32.55s`.
+- [x] The first complete `tests/a1` run reached `1449 passed, 5 skipped` and
+  exposed exactly one genuine drift: the three TypeScript round54 route calls
+  were multiline and therefore absent from the intentionally static route
+  parser. Kept the same active semantics but made those declarations
+  statically inspectable; the complete round54 group now passes `26`, the
+  TypeScript build is clean, unified identity passes `71`, and generated
+  parity remains current.
+- [x] Re-ran the complete A1 Python suite after that correction. Compileall is
+  clean and `tests/a1` passes `1450` tests with `5` intentional skips in
+  `338.25s`.
+- [x] Passed the full `tests/release` gate: `33` tests pass; the only warning
+  is the existing upstream `jsonschema.RefResolver` deprecation in an A2
+  release test.
+- [x] Ran the broad root pytest gate: `2178 passed, 14 skipped` in `407.03s`.
+  Its only two failures are reproducibility checks for the peer-owned
+  `fixtures/a2/results/a2_cross_lane_security_context.json`, whose stored
+  `a1_route_count=102` now trails the current A1 builder count `111`. This A1
+  closeout intentionally does not run the A2 fixture writer and will not
+  modify, restore, stage, or commit that file or any other `fixtures/a2/**`
+  artifact.
+- [x] Ran the complete TypeScript package gate. Its first pass found five
+  route-scope consistency failures because the newly active recovery consume,
+  recovery rotate, and TOTP-disable Go routes were correctly implemented by
+  `UnifiedIdentityHttpClient` but absent from the generic hosted SaaS gap
+  registry. Added the same explicit ownership boundary already recorded by
+  Python, including one-time-code and session/CSRF/idempotency isolation, plus
+  regression assertions. The clean build and all `667` TypeScript tests now
+  pass.
+- [x] Passed the Rust runtime verifier closeout: `cargo fmt --check` is clean,
+  `cargo clippy --all-targets --all-features -- -D warnings` reports no
+  warnings, and `cargo test --all-targets --all-features` passes all `31`
+  unit/integration tests across authenticated envelopes, signed evidence
+  bundles, replay guards, streaming objects, filesystem confinement, tamper
+  detection, and secret-marker rejection.
+- [x] Re-ran the repository-external live Vault processor harness for final
+  closeout. Both API-to-processor and processor-to-Vault channels negotiated
+  TLS 1.3 mutual authentication; projected token delivery passed with no raw
+  token in the processor environment; active/previous key rotation and
+  retirement, replay/concurrency, cleanup compensation, recovery consume/
+  rotate/disable, read-only/timeout/unavailable Vault behavior, and redacted
+  logs all passed across `162` Vault TLS requests and only three processor log
+  lines. No runtime credential or secret was read, printed, or copied into the
+  repository.
+- [x] Closed the focused security/runtime gate across the already recorded
+  repeated replay/concurrency, wrong-account, stale-ticket, CSRF, recent-auth,
+  session-revocation, processor/Vault/PostgreSQL failure, key-rotation, live
+  Docker PostgreSQL/RLS, and final external-Vault results.
+- [x] Completed the repository-root format/generated integrity pass. All `19`
+  changed Go files are `gofmt` clean; the TS/Python generated parity check is
+  current and its route/gap/round53 group passes `27` tests; all `21` changed
+  JSON files parse; `git diff --check` and Python compileall are clean.
+- [x] Passed `python scripts/cl_guard.py plan --full`; the planner selected the
+  complete Python, A3, TypeScript, Go, Rust, integration, and evidence gate
+  matrix.
+- [x] Passed `python scripts/cl_guard.py hygiene` with no findings. The
+  repository high-confidence credential patterns, private-key markers, pinned
+  artifact rules, and hygiene blockers remain clean.
+- [x] Passed `python scripts/cl_guard.py commercial`: all `20` commercial
+  blocker anchors and `4` advisory anchors were checked with zero blockers and
+  zero advisories; the TypeScript and A1/A2 calibration mainlines remain
+  declared.
+- [x] Generated the repository-external closeout manifest and validated all
+  `41` paths against the A1 platform/runtime/identity/SDK/migration/test
+  ownership prefixes. No invalid path and no `fixtures/a2/**` path entered the
+  manifest.
+- [x] Precisely staged the `41`-path A1 manifest and proved the index contains
+  zero `fixtures/a2/**` paths. CL hygiene found no high-confidence secret.
+  Gitleaks surfaced five redacted generic candidates only in unified-identity
+  test fixtures; value-free classification proved all are `idem-` request
+  replay keys with no credential prefix. A repository-external allowlist
+  scoped only to those two test files and that exact non-secret prefix let the
+  default rule set complete with no leaks; no suppression was committed.
+- [x] Full PostgreSQL/Vault/cross-language/CL/security, ownership, generated
+  artifact, and secret gates are now recorded and green.
+- [ ] Commit and push only the exact A1 manifest, then fetch and prove final
+  local/remote `0/0` parity.

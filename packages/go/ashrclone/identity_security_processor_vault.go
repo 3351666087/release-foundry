@@ -183,6 +183,20 @@ type identitySecurityProcessorRecord struct {
 	RecoveryCodeDigests      []string  `json:"recovery_code_digests,omitempty"`
 	RecoveryCodes            [][]byte  `json:"recovery_codes,omitempty"`
 	RecoveryHandoffConsumed  bool      `json:"recovery_handoff_consumed,omitempty"`
+	PendingOperation         string    `json:"pending_operation,omitempty"`
+	PendingIdempotencyKey    string    `json:"pending_idempotency_key,omitempty"`
+	PendingRequestDigest     string    `json:"pending_request_digest,omitempty"`
+	PendingKeyVersion        string    `json:"pending_key_version,omitempty"`
+	PendingExpectedBatch     string    `json:"pending_expected_batch,omitempty"`
+	PendingExpectedCount     int       `json:"pending_expected_count,omitempty"`
+	PendingFinalized         bool      `json:"pending_finalized,omitempty"`
+	PreviousConfirmed        bool      `json:"previous_confirmed,omitempty"`
+	PreviousTOTPSecret       []byte    `json:"previous_totp_secret,omitempty"`
+	PreviousRecoveryVersion  string    `json:"previous_recovery_version,omitempty"`
+	PreviousRecoveryBatch    string    `json:"previous_recovery_batch,omitempty"`
+	PreviousRecoveryDigests  []string  `json:"previous_recovery_digests,omitempty"`
+	PreviousRecoveryCodes    [][]byte  `json:"previous_recovery_codes,omitempty"`
+	PreviousHandoffConsumed  bool      `json:"previous_handoff_consumed,omitempty"`
 	CreatedAt                time.Time `json:"created_at"`
 	LastSecurityTransitionAt time.Time `json:"last_security_transition_at"`
 }
@@ -509,6 +523,372 @@ func (processor *VaultIdentitySecuritySecretProcessor) ConfirmIdentitySecuritySe
 	return IdentitySecuritySecretConfirmResult{}, ErrIdentitySecurityProcessorUnavailable
 }
 
+func (processor *VaultIdentitySecuritySecretProcessor) PrepareIdentitySecuritySecretMutation(
+	ctx context.Context,
+	request IdentitySecuritySecretMutationPrepareRequest,
+) (IdentitySecuritySecretMutationPrepareResult, error) {
+	request.AccountID = strings.TrimSpace(request.AccountID)
+	request.Operation = strings.TrimSpace(request.Operation)
+	request.IdempotencyKey = strings.TrimSpace(request.IdempotencyKey)
+	request.SecretRef = strings.TrimSpace(request.SecretRef)
+	request.SecretDigest = strings.TrimSpace(request.SecretDigest)
+	request.ExpectedRecoveryBatchDigest = strings.TrimSpace(
+		request.ExpectedRecoveryBatchDigest,
+	)
+	request.RecoveryCode = strings.TrimSpace(request.RecoveryCode)
+	if processor == nil || processor.vault == nil || processor.keys == nil ||
+		processor.random == nil || processor.now == nil || ctx == nil ||
+		!validIdentitySecuritySecretMutationPrepareRequest(request) {
+		request.RecoveryCode = ""
+		return IdentitySecuritySecretMutationPrepareResult{},
+			ErrIdentitySecurityProcessorRejected
+	}
+	recoveryCode := []byte(request.RecoveryCode)
+	request.RecoveryCode = ""
+	defer clear(recoveryCode)
+	refToken, ok := parseIdentitySecurityProcessorSecretRef(request.SecretRef)
+	if !ok {
+		return IdentitySecuritySecretMutationPrepareResult{},
+			ErrIdentitySecurityProcessorRejected
+	}
+	ring, err := processor.resolveKeyRing(ctx)
+	if err != nil {
+		return IdentitySecuritySecretMutationPrepareResult{}, err
+	}
+	defer clearIdentitySecurityProcessorKeyRing(&ring)
+	activeKey := ring.Keys[ring.ActiveVersion]
+	requestDigest := identitySecurityProcessorMutationRequestDigest(
+		activeKey,
+		request,
+		recoveryCode,
+	)
+
+	for attempt := 0; attempt < 8; attempt++ {
+		record, version, readErr := processor.readRecord(ctx, refToken)
+		if readErr != nil {
+			return IdentitySecuritySecretMutationPrepareResult{}, readErr
+		}
+		recordKey := ring.Keys[record.KeyVersion]
+		if len(recordKey) == 0 ||
+			record.AccountID != request.AccountID ||
+			record.Operation != "mfa_enroll" ||
+			record.SecretRef != request.SecretRef ||
+			subtle.ConstantTimeCompare(
+				[]byte(record.SecretDigest),
+				[]byte(request.SecretDigest),
+			) != 1 {
+			clearIdentitySecurityProcessorRecord(&record)
+			return IdentitySecuritySecretMutationPrepareResult{},
+				ErrIdentitySecurityProcessorRejected
+		}
+
+		if record.PendingOperation != "" {
+			pendingKey := ring.Keys[record.PendingKeyVersion]
+			if len(pendingKey) != 0 &&
+				record.PendingOperation == request.Operation &&
+				record.PendingIdempotencyKey == request.IdempotencyKey &&
+				subtle.ConstantTimeCompare(
+					[]byte(record.PendingRequestDigest),
+					[]byte(identitySecurityProcessorMutationRequestDigest(
+						pendingKey,
+						request,
+						recoveryCode,
+					)),
+				) == 1 {
+				result := identitySecurityProcessorMutationPrepareResult(
+					record,
+					pendingKey,
+					refToken,
+				)
+				clearIdentitySecurityProcessorRecord(&record)
+				if !validIdentitySecuritySecretMutationPrepareResult(
+					request.Operation,
+					result,
+				) {
+					return IdentitySecuritySecretMutationPrepareResult{},
+						ErrIdentitySecurityProcessorUnavailable
+				}
+				return result, nil
+			}
+			if !record.PendingFinalized ||
+				(record.PendingOperation == "mfa_recovery_rotate" &&
+					!record.RecoveryHandoffConsumed) {
+				clearIdentitySecurityProcessorRecord(&record)
+				return IdentitySecuritySecretMutationPrepareResult{},
+					ErrIdentitySecurityProcessorRejected
+			}
+			clearIdentitySecurityProcessorPendingMutation(&record)
+		}
+
+		recoveryKey := ring.Keys[record.RecoveryKeyVersion]
+		if len(recoveryKey) == 0 ||
+			!record.Confirmed || !record.RecoveryHandoffConsumed ||
+			len(record.RecoveryCodes) != 0 ||
+			subtle.ConstantTimeCompare(
+				[]byte(record.RecoveryBatchDigest),
+				[]byte(request.ExpectedRecoveryBatchDigest),
+			) != 1 ||
+			len(record.RecoveryCodeDigests) != request.ExpectedRecoveryCodeCount {
+			clearIdentitySecurityProcessorRecord(&record)
+			return IdentitySecuritySecretMutationPrepareResult{},
+				ErrIdentitySecurityProcessorRejected
+		}
+
+		record.PreviousConfirmed = record.Confirmed
+		record.PreviousTOTPSecret = append(
+			[]byte(nil),
+			record.TOTPSecret...,
+		)
+		record.PreviousRecoveryVersion = record.RecoveryKeyVersion
+		record.PreviousRecoveryBatch = record.RecoveryBatchDigest
+		record.PreviousRecoveryDigests = append(
+			[]string(nil),
+			record.RecoveryCodeDigests...,
+		)
+		record.PreviousRecoveryCodes = cloneIdentitySecurityProcessorByteSlices(
+			record.RecoveryCodes,
+		)
+		record.PreviousHandoffConsumed = record.RecoveryHandoffConsumed
+		record.PendingOperation = request.Operation
+		record.PendingIdempotencyKey = request.IdempotencyKey
+		record.PendingRequestDigest = requestDigest
+		record.PendingKeyVersion = ring.ActiveVersion
+		record.PendingExpectedBatch = request.ExpectedRecoveryBatchDigest
+		record.PendingExpectedCount = request.ExpectedRecoveryCodeCount
+		record.PendingFinalized = false
+
+		switch request.Operation {
+		case "mfa_recovery_consume":
+			candidateDigest := identitySecurityProcessorRecoveryCodeDigest(
+				recoveryKey,
+				record.AccountID,
+				recoveryCode,
+			)
+			matchedIndex := -1
+			matched := 0
+			for index, digest := range record.RecoveryCodeDigests {
+				equal := subtle.ConstantTimeCompare(
+					[]byte(digest),
+					[]byte(candidateDigest),
+				)
+				if equal == 1 && matchedIndex < 0 {
+					matchedIndex = index
+				}
+				matched |= equal
+			}
+			if matched != 1 || matchedIndex < 0 {
+				clearIdentitySecurityProcessorRecord(&record)
+				return IdentitySecuritySecretMutationPrepareResult{},
+					ErrIdentitySecurityProcessorRejected
+			}
+			record.RecoveryCodeDigests = append(
+				record.RecoveryCodeDigests[:matchedIndex:matchedIndex],
+				record.RecoveryCodeDigests[matchedIndex+1:]...,
+			)
+			record.RecoveryBatchDigest =
+				identitySecurityProcessorRecoveryBatchDigest(
+					recoveryKey,
+					record.AccountID,
+					record.RecoveryCodeDigests,
+				)
+		case "mfa_recovery_rotate":
+			recoveryCodes, generateErr := generateIdentitySecurityRecoveryCodes(
+				processor.random,
+				processor.recoveryCodeCount,
+			)
+			if generateErr != nil {
+				clearIdentitySecurityProcessorRecord(&record)
+				return IdentitySecuritySecretMutationPrepareResult{},
+					ErrIdentitySecurityProcessorUnavailable
+			}
+			recoveryDigests := make([]string, 0, len(recoveryCodes))
+			for _, code := range recoveryCodes {
+				recoveryDigests = append(
+					recoveryDigests,
+					identitySecurityProcessorRecoveryCodeDigest(
+						activeKey,
+						record.AccountID,
+						code,
+					),
+				)
+			}
+			record.RecoveryKeyVersion = ring.ActiveVersion
+			record.RecoveryCodeDigests = recoveryDigests
+			record.RecoveryCodes = recoveryCodes
+			record.RecoveryBatchDigest =
+				identitySecurityProcessorRecoveryBatchDigest(
+					activeKey,
+					record.AccountID,
+					recoveryDigests,
+				)
+			record.RecoveryHandoffConsumed = false
+		case "mfa_disable":
+			record.Confirmed = false
+			clear(record.TOTPSecret)
+			record.TOTPSecret = nil
+			record.RecoveryKeyVersion = ""
+			record.RecoveryBatchDigest = ""
+			record.RecoveryCodeDigests = nil
+			clearIdentitySecurityProcessorByteSlices(record.RecoveryCodes)
+			record.RecoveryCodes = nil
+			record.RecoveryHandoffConsumed = false
+		default:
+			clearIdentitySecurityProcessorRecord(&record)
+			return IdentitySecuritySecretMutationPrepareResult{},
+				ErrIdentitySecurityProcessorRejected
+		}
+		record.LastSecurityTransitionAt = processor.now().UTC().
+			Truncate(time.Microsecond)
+		payload, marshalErr := json.Marshal(record)
+		if marshalErr != nil {
+			clearIdentitySecurityProcessorRecord(&record)
+			return IdentitySecuritySecretMutationPrepareResult{},
+				ErrIdentitySecurityProcessorUnavailable
+		}
+		swapped, swapErr := processor.vault.CompareAndSwap(
+			ctx,
+			refToken,
+			version,
+			payload,
+		)
+		clear(payload)
+		if swapErr != nil {
+			clearIdentitySecurityProcessorRecord(&record)
+			return IdentitySecuritySecretMutationPrepareResult{},
+				ErrIdentitySecurityProcessorUnavailable
+		}
+		if !swapped {
+			clearIdentitySecurityProcessorRecord(&record)
+			continue
+		}
+		result := identitySecurityProcessorMutationPrepareResult(
+			record,
+			activeKey,
+			refToken,
+		)
+		clearIdentitySecurityProcessorRecord(&record)
+		if !validIdentitySecuritySecretMutationPrepareResult(
+			request.Operation,
+			result,
+		) {
+			return IdentitySecuritySecretMutationPrepareResult{},
+				ErrIdentitySecurityProcessorUnavailable
+		}
+		return result, nil
+	}
+	return IdentitySecuritySecretMutationPrepareResult{},
+		ErrIdentitySecurityProcessorUnavailable
+}
+
+func (processor *VaultIdentitySecuritySecretProcessor) FinalizeIdentitySecuritySecretMutation(
+	ctx context.Context,
+	request IdentitySecuritySecretMutationFinalizeRequest,
+) error {
+	request.AccountID = strings.TrimSpace(request.AccountID)
+	request.Operation = strings.TrimSpace(request.Operation)
+	request.IdempotencyKey = strings.TrimSpace(request.IdempotencyKey)
+	request.FinalizeToken = strings.TrimSpace(request.FinalizeToken)
+	if processor == nil || processor.vault == nil || processor.keys == nil ||
+		processor.now == nil || ctx == nil ||
+		!validIdentitySecuritySecretMutationFinalizeRequest(request) {
+		return ErrIdentitySecurityProcessorRejected
+	}
+	refToken, tag, ok := parseIdentitySecurityProcessorBoundID(
+		request.FinalizeToken,
+		"isf_",
+	)
+	if !ok {
+		return ErrIdentitySecurityProcessorRejected
+	}
+	callCtx := context.WithoutCancel(ctx)
+	ring, err := processor.resolveKeyRing(callCtx)
+	if err != nil {
+		return err
+	}
+	defer clearIdentitySecurityProcessorKeyRing(&ring)
+	if !identitySecurityProcessorBoundTagMatches(
+		ring,
+		tag,
+		"finalize",
+		refToken,
+		request.AccountID,
+		request.Operation,
+		request.IdempotencyKey,
+	) {
+		return ErrIdentitySecurityProcessorRejected
+	}
+
+	for attempt := 0; attempt < 8; attempt++ {
+		record, version, readErr := processor.readRecord(callCtx, refToken)
+		if errors.Is(readErr, ErrIdentitySecurityProcessorRejected) &&
+			request.Operation == "mfa_disable" {
+			return nil
+		}
+		if readErr != nil {
+			return readErr
+		}
+		pendingKey := ring.Keys[record.PendingKeyVersion]
+		if len(pendingKey) == 0 ||
+			record.AccountID != request.AccountID ||
+			record.PendingOperation != request.Operation ||
+			record.PendingIdempotencyKey != request.IdempotencyKey ||
+			subtle.ConstantTimeCompare(
+				[]byte(tag),
+				[]byte(identitySecurityProcessorBoundTag(
+					pendingKey,
+					"finalize",
+					refToken,
+					record.AccountID,
+					record.PendingOperation,
+					record.PendingIdempotencyKey,
+				)),
+			) != 1 {
+			clearIdentitySecurityProcessorRecord(&record)
+			return ErrIdentitySecurityProcessorRejected
+		}
+		if record.PendingFinalized {
+			if request.Operation == "mfa_disable" {
+				clearIdentitySecurityProcessorRecord(&record)
+				if err := processor.vault.Delete(callCtx, refToken); err != nil {
+					return ErrIdentitySecurityProcessorUnavailable
+				}
+				return nil
+			}
+			clearIdentitySecurityProcessorRecord(&record)
+			return nil
+		}
+		record.PendingFinalized = true
+		clearIdentitySecurityProcessorPendingBackup(&record)
+		record.LastSecurityTransitionAt = processor.now().UTC().
+			Truncate(time.Microsecond)
+		payload, marshalErr := json.Marshal(record)
+		if marshalErr != nil {
+			clearIdentitySecurityProcessorRecord(&record)
+			return ErrIdentitySecurityProcessorUnavailable
+		}
+		swapped, swapErr := processor.vault.CompareAndSwap(
+			callCtx,
+			refToken,
+			version,
+			payload,
+		)
+		clear(payload)
+		clearIdentitySecurityProcessorRecord(&record)
+		if swapErr != nil {
+			return ErrIdentitySecurityProcessorUnavailable
+		}
+		if swapped {
+			if request.Operation == "mfa_disable" {
+				if err := processor.vault.Delete(callCtx, refToken); err != nil {
+					return ErrIdentitySecurityProcessorUnavailable
+				}
+			}
+			return nil
+		}
+	}
+	return ErrIdentitySecurityProcessorUnavailable
+}
+
 func (processor *VaultIdentitySecuritySecretProcessor) ConsumeIdentitySecuritySecretHandoff(
 	ctx context.Context,
 	request IdentitySecuritySecretHandoffRequest,
@@ -546,6 +926,10 @@ func (processor *VaultIdentitySecuritySecretProcessor) ConsumeIdentitySecuritySe
 		if request.Operation == "mfa_confirm" {
 			purpose = "recovery"
 			expectedIdempotency = record.ConfirmIdempotencyKey
+		} else if request.Operation == "mfa_recovery_rotate" {
+			recordKey = ring.Keys[record.PendingKeyVersion]
+			purpose = "recovery-rotate"
+			expectedIdempotency = record.PendingIdempotencyKey
 		}
 		if len(recordKey) == 0 ||
 			record.AccountID != request.AccountID ||
@@ -596,6 +980,29 @@ func (processor *VaultIdentitySecuritySecretProcessor) ConsumeIdentitySecuritySe
 			record.RecoveryHandoffConsumed = true
 			clearIdentitySecurityProcessorByteSlices(record.RecoveryCodes)
 			record.RecoveryCodes = nil
+		case "mfa_recovery_rotate":
+			if record.PendingOperation != "mfa_recovery_rotate" ||
+				!record.PendingFinalized || record.RecoveryHandoffConsumed ||
+				len(record.RecoveryCodes) < 6 {
+				clearIdentitySecurityProcessorRecord(&record)
+				return IdentitySecuritySecretHandoff{},
+					ErrIdentitySecurityProcessorRejected
+			}
+			handoff.RecoveryCodes = make(
+				[]string,
+				0,
+				len(record.RecoveryCodes),
+			)
+			for _, recoveryCode := range record.RecoveryCodes {
+				handoff.RecoveryCodes = append(
+					handoff.RecoveryCodes,
+					string(recoveryCode),
+				)
+			}
+			record.RecoveryHandoffConsumed = true
+			clearIdentitySecurityProcessorByteSlices(record.RecoveryCodes)
+			record.RecoveryCodes = nil
+			clearIdentitySecurityProcessorPendingMutation(&record)
 		default:
 			clearIdentitySecurityProcessorRecord(&record)
 			return IdentitySecuritySecretHandoff{}, ErrIdentitySecurityProcessorRejected
@@ -679,6 +1086,57 @@ func (processor *VaultIdentitySecuritySecretProcessor) CleanupIdentitySecuritySe
 		}
 		if readErr != nil {
 			return readErr
+		}
+		if request.Operation == "mfa_recovery_consume" ||
+			request.Operation == "mfa_recovery_rotate" ||
+			request.Operation == "mfa_disable" {
+			if record.PendingOperation == "" {
+				clearIdentitySecurityProcessorRecord(&record)
+				return nil
+			}
+			pendingKey := ring.Keys[record.PendingKeyVersion]
+			if len(pendingKey) == 0 ||
+				record.AccountID != request.AccountID ||
+				record.PendingOperation != request.Operation ||
+				record.PendingIdempotencyKey != request.IdempotencyKey ||
+				subtle.ConstantTimeCompare(
+					[]byte(tag),
+					[]byte(identitySecurityProcessorBoundTag(
+						pendingKey,
+						"cleanup",
+						refToken,
+						record.AccountID,
+						record.PendingOperation,
+						record.PendingIdempotencyKey,
+					)),
+				) != 1 ||
+				record.PendingFinalized {
+				clearIdentitySecurityProcessorRecord(&record)
+				return ErrIdentitySecurityProcessorRejected
+			}
+			restoreIdentitySecurityProcessorPendingMutation(&record)
+			record.LastSecurityTransitionAt = processor.now().UTC().
+				Truncate(time.Microsecond)
+			payload, marshalErr := json.Marshal(record)
+			if marshalErr != nil {
+				clearIdentitySecurityProcessorRecord(&record)
+				return ErrIdentitySecurityProcessorUnavailable
+			}
+			swapped, swapErr := processor.vault.CompareAndSwap(
+				context.WithoutCancel(ctx),
+				refToken,
+				version,
+				payload,
+			)
+			clear(payload)
+			clearIdentitySecurityProcessorRecord(&record)
+			if swapErr != nil {
+				return ErrIdentitySecurityProcessorUnavailable
+			}
+			if swapped {
+				return nil
+			}
+			continue
 		}
 		recordKey := ring.Keys[record.KeyVersion]
 		expectedIdempotency := record.IdempotencyKey
@@ -948,6 +1406,56 @@ func identitySecurityProcessorConfirmResult(
 	}
 }
 
+func identitySecurityProcessorMutationPrepareResult(
+	record identitySecurityProcessorRecord,
+	pendingKey []byte,
+	refToken string,
+) IdentitySecuritySecretMutationPrepareResult {
+	keyVersion := record.RecoveryKeyVersion
+	if record.PendingOperation == "mfa_disable" {
+		keyVersion = record.PendingKeyVersion
+	}
+	result := IdentitySecuritySecretMutationPrepareResult{
+		SecretRef:                   record.SecretRef,
+		SecretDigest:                record.SecretDigest,
+		ExpectedRecoveryBatchDigest: record.PendingExpectedBatch,
+		ExpectedRecoveryCodeCount:   record.PendingExpectedCount,
+		RecoveryBatchDigest:         record.RecoveryBatchDigest,
+		RecoveryCodeCount:           len(record.RecoveryCodeDigests),
+		KeyVersion:                  keyVersion,
+		FinalizeToken: identitySecurityProcessorBoundID(
+			"isf_",
+			pendingKey,
+			"finalize",
+			refToken,
+			record.AccountID,
+			record.PendingOperation,
+			record.PendingIdempotencyKey,
+		),
+		CleanupToken: identitySecurityProcessorBoundID(
+			"isx_",
+			pendingKey,
+			"cleanup",
+			refToken,
+			record.AccountID,
+			record.PendingOperation,
+			record.PendingIdempotencyKey,
+		),
+	}
+	if record.PendingOperation == "mfa_recovery_rotate" {
+		result.HandoffID = identitySecurityProcessorBoundID(
+			"ish_",
+			pendingKey,
+			"recovery-rotate",
+			refToken,
+			record.AccountID,
+			record.PendingOperation,
+			record.PendingIdempotencyKey,
+		)
+	}
+	return result
+}
+
 func identitySecurityProcessorRefToken(
 	key []byte,
 	accountID string,
@@ -961,6 +1469,20 @@ func identitySecurityProcessorRefToken(
 		operation,
 		idempotencyKey,
 	))
+}
+
+func parseIdentitySecurityProcessorSecretRef(value string) (string, bool) {
+	if !strings.HasPrefix(value, "isr_") {
+		return "", false
+	}
+	refToken := strings.TrimPrefix(value, "isr_")
+	if len(refToken) != identitySecurityProcessorRefTokenSize {
+		return "", false
+	}
+	if _, err := base64.RawURLEncoding.Strict().DecodeString(refToken); err != nil {
+		return "", false
+	}
+	return refToken, true
 }
 
 func identitySecurityProcessorBoundID(
@@ -1067,6 +1589,27 @@ func identitySecurityProcessorRequestDigest(
 		idempotencyKey,
 	)
 	_, _ = mac.Write(password)
+	return hex.EncodeToString(mac.Sum(nil))
+}
+
+func identitySecurityProcessorMutationRequestDigest(
+	key []byte,
+	request IdentitySecuritySecretMutationPrepareRequest,
+	recoveryCode []byte,
+) string {
+	mac := hmac.New(sha256.New, key)
+	identitySecurityProcessorWriteCanonical(
+		mac,
+		"mutation-request",
+		request.AccountID,
+		request.Operation,
+		request.IdempotencyKey,
+		request.SecretRef,
+		request.SecretDigest,
+		request.ExpectedRecoveryBatchDigest,
+		fmt.Sprintf("%d", request.ExpectedRecoveryCodeCount),
+	)
+	_, _ = mac.Write(recoveryCode)
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
@@ -1264,8 +1807,77 @@ func clearIdentitySecurityProcessorRecord(
 	}
 	clear(record.PasswordHash)
 	clear(record.TOTPSecret)
+	clear(record.PreviousTOTPSecret)
 	clearIdentitySecurityProcessorByteSlices(record.RecoveryCodes)
+	clearIdentitySecurityProcessorByteSlices(record.PreviousRecoveryCodes)
 	*record = identitySecurityProcessorRecord{}
+}
+
+func cloneIdentitySecurityProcessorByteSlices(values [][]byte) [][]byte {
+	if len(values) == 0 {
+		return nil
+	}
+	cloned := make([][]byte, 0, len(values))
+	for _, value := range values {
+		cloned = append(cloned, append([]byte(nil), value...))
+	}
+	return cloned
+}
+
+func clearIdentitySecurityProcessorPendingBackup(
+	record *identitySecurityProcessorRecord,
+) {
+	if record == nil {
+		return
+	}
+	record.PreviousConfirmed = false
+	clear(record.PreviousTOTPSecret)
+	record.PreviousTOTPSecret = nil
+	record.PreviousRecoveryVersion = ""
+	record.PreviousRecoveryBatch = ""
+	record.PreviousRecoveryDigests = nil
+	clearIdentitySecurityProcessorByteSlices(record.PreviousRecoveryCodes)
+	record.PreviousRecoveryCodes = nil
+	record.PreviousHandoffConsumed = false
+}
+
+func clearIdentitySecurityProcessorPendingMutation(
+	record *identitySecurityProcessorRecord,
+) {
+	if record == nil {
+		return
+	}
+	record.PendingOperation = ""
+	record.PendingIdempotencyKey = ""
+	record.PendingRequestDigest = ""
+	record.PendingKeyVersion = ""
+	record.PendingExpectedBatch = ""
+	record.PendingExpectedCount = 0
+	record.PendingFinalized = false
+	clearIdentitySecurityProcessorPendingBackup(record)
+}
+
+func restoreIdentitySecurityProcessorPendingMutation(
+	record *identitySecurityProcessorRecord,
+) {
+	if record == nil {
+		return
+	}
+	record.Confirmed = record.PreviousConfirmed
+	clear(record.TOTPSecret)
+	record.TOTPSecret = append([]byte(nil), record.PreviousTOTPSecret...)
+	record.RecoveryKeyVersion = record.PreviousRecoveryVersion
+	record.RecoveryBatchDigest = record.PreviousRecoveryBatch
+	record.RecoveryCodeDigests = append(
+		[]string(nil),
+		record.PreviousRecoveryDigests...,
+	)
+	clearIdentitySecurityProcessorByteSlices(record.RecoveryCodes)
+	record.RecoveryCodes = cloneIdentitySecurityProcessorByteSlices(
+		record.PreviousRecoveryCodes,
+	)
+	record.RecoveryHandoffConsumed = record.PreviousHandoffConsumed
+	clearIdentitySecurityProcessorPendingMutation(record)
 }
 
 func clearIdentitySecurityProcessorByteSlices(values [][]byte) {

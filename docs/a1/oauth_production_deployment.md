@@ -181,9 +181,10 @@ verification, explicit credential binding, or any other mutation route.
 
 ## Password and optional recommended 2FA runtime
 
-Password enrollment/change/recovery and TOTP enrollment/confirmation are
-enabled only when the API, PostgreSQL issuer, external processor, and external
-Vault are all ready. Set the following API variables as one complete group:
+Password enrollment/change/recovery, TOTP enrollment/confirmation/disable,
+recovery-code authentication, and recovery-code rotation are enabled only when
+the API, PostgreSQL issuer/runtime, external processor, and external Vault are
+all ready. Set the following API variables as one complete group:
 
 ```text
 ASHR_IDENTITY_SECURITY_ENABLED=true
@@ -192,6 +193,8 @@ ASHR_IDENTITY_SECURITY_PROCESS_URL=https://<processor-host>/v1/identity/security
 ASHR_IDENTITY_SECURITY_CONFIRM_URL=https://<processor-host>/v1/identity/security/confirm
 ASHR_IDENTITY_SECURITY_HANDOFF_CONSUME_URL=https://<processor-host>/v1/identity/security/handoff/consume
 ASHR_IDENTITY_SECURITY_CLEANUP_URL=https://<processor-host>/v1/identity/security/cleanup
+ASHR_IDENTITY_SECURITY_MUTATION_PREPARE_URL=https://<processor-host>/v1/identity/security/mutations/prepare
+ASHR_IDENTITY_SECURITY_MUTATION_FINALIZE_URL=https://<processor-host>/v1/identity/security/mutations/finalize
 ASHR_IDENTITY_SECURITY_MTLS_CA_FILE=<projected-ca-file>
 ASHR_IDENTITY_SECURITY_MTLS_CLIENT_CERT_FILE=<projected-client-certificate-file>
 ASHR_IDENTITY_SECURITY_MTLS_CLIENT_KEY_FILE=<projected-client-private-key-file>
@@ -206,7 +209,7 @@ The last two timeout variables are optional and bounded; every other variable
 is required when the feature is enabled. If
 `ASHR_IDENTITY_SECURITY_ENABLED=false` or is absent, any residual
 identity-security variable causes startup to fail closed. The issuer DSN must
-be separate from the normal `a1_runtime` DSN. All four processor URLs must use
+be separate from the normal `a1_runtime` DSN. All six processor URLs must use
 the same HTTPS origin and the exact paths shown above, with no userinfo, query,
 fragment, escaped path, alternate path, or redirect.
 
@@ -226,6 +229,23 @@ placed in logs, or retained by SDK client state. TOTP remains optional and
 recommended; it is never silently made mandatory by a capability flag.
 Password recovery additionally requires a recent active session whose
 credential is an active, login-enabled, verified email credential.
+
+The public recovery lifecycle is exposed only through these authenticated
+account routes:
+
+```text
+POST /v1/accounts/{account_id}/two-factor/recovery-codes/consume
+POST /v1/accounts/{account_id}/two-factor/recovery-codes/rotate
+POST /v1/accounts/{account_id}/two-factor/disable
+```
+
+Each request requires an account-bound active session, recent authentication,
+same-origin CSRF/fetch-metadata enforcement, and one normalized idempotency key
+bound identically in the request body and `Idempotency-Key` header. Consume
+accepts one recovery code; rotate and disable accept no raw authentication
+material in their JSON bodies. A recovery code is consumed at most once, and
+every successful lifecycle mutation advances the account security version,
+revokes affected sessions, and requires reauthentication.
 
 ## External identity-security processor and Vault
 
@@ -267,8 +287,8 @@ allows exactly TLS 1.3. The processor-to-Vault client likewise pins the Vault
 CA/server name, presents its workload certificate, requires exactly TLS 1.3,
 refuses redirects, and applies bounded timeouts. Startup resolves the Vault
 KV-v2 key ring and verifies data-plane readiness before serving traffic.
-`/health`, `/ready`, process, confirm, one-use handoff, and cleanup responses
-all carry `Cache-Control: no-store`.
+`/health`, `/ready`, process, confirm, mutation prepare/finalize, one-use
+handoff, and cleanup responses all carry `Cache-Control: no-store`.
 
 The Vault key-ring record contains one active version and may retain previous
 versions during a controlled rotation. New records always use the active key.
@@ -334,6 +354,54 @@ no direct access to issuance, receipt, or mutation-ticket tables. Deployment
 verification must also check function ownership, ACLs, and the fixed search
 path. Never repair readiness by granting the issuer or runtime direct table
 access.
+
+## PostgreSQL migration 029 recovery lifecycle and RLS boundary
+
+Apply `029_a1_totp_recovery_lifecycle.sql` after migration 028 and before
+enabling the recovery-code consume/rotate or TOTP-disable routes. Migration 029
+extends the restricted issuer and runtime contracts with exactly these
+operations:
+
+```text
+mfa_recovery_consume
+mfa_recovery_rotate
+mfa_disable
+```
+
+The issuer must bind every ticket to the canonical account, actor, active
+session, organization, project, operation, request digest, idempotency key,
+recent-authentication window, expected security version, and expected
+processor-state digest/count. The normal runtime role may execute only the
+scoped mutation and private projection functions required by the service; the
+issuer, `PUBLIC`, and browser-facing callers receive no direct access to the
+five sensitive lifecycle tables. Enabled and forced RLS, `_self` policies,
+fixed `SECURITY DEFINER` search paths, restricted function ACLs, and distinct
+`LOGIN`/`NOLOGIN` role identities are production startup requirements rather
+than optional hardening.
+
+The transaction order is fail closed:
+
+1. the trusted processor prepares the account-bound secret mutation and
+   returns only backend mutation material;
+2. the restricted issuer creates the scoped ticket;
+3. PostgreSQL atomically applies the mutation, idempotency record,
+   `security_version` increment, session revocation, audit event, and
+   `identity_outbox` event;
+4. the processor finalizes the prepared Vault state; and
+5. if ticket issuance, PostgreSQL validation, or the database mutation fails,
+   the API invokes processor cleanup compensation and returns a stable
+   redacted error.
+
+For recovery rotation, the new 6-20 code batch is released only through the
+processor's one-use handoff with `Cache-Control: no-store`; exactly one
+consumer may obtain it. Raw TOTP secrets, TOTP codes, and recovery codes must
+never enter PostgreSQL, logs, audit/outbox payloads, or replay records. Opaque
+secret references, digests, mutation tickets, cleanup/finalize tokens, and
+processor replay material may exist only inside their private forced-RLS
+backend projections and must never appear in PostgreSQL public results,
+browser-safe DTOs, frontend state, logs, or SDK-retained state. Public
+consume/disable responses never contain recovery codes; only a successful
+rotation response may contain the one-use code batch.
 
 ## Controlled local verification
 

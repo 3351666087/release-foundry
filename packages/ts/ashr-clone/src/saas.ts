@@ -190,6 +190,18 @@ export const UNSUPPORTED_GO_ROUTE_GAPS: Record<string, { reason: string; replace
     reason: "Go confirms TOTP enrollment through the dedicated trusted unified identity transport; the generic hosted SaaS client must not carry TOTP proof or recovery codes.",
     consumer_action: "consume through UnifiedIdentityHttpClient.confirmTwoFactorEnroll and keep TOTP and one-use recovery material out of generic SaaS payloads and logs",
   },
+  "POST /v1/accounts/{account_id}/two-factor/disable": {
+    reason: "Go disables optional TOTP through the dedicated recent-authenticated unified identity client; the generic hosted SaaS client must not own account-security mutation proofs.",
+    consumer_action: "consume through UnifiedIdentityHttpClient.disableTwoFactor and keep session, CSRF, idempotency, processor, and recovery material outside generic hosted route manifests",
+  },
+  "POST /v1/accounts/{account_id}/two-factor/recovery-codes/consume": {
+    reason: "Go authenticates and atomically consumes one recovery code through the dedicated unified identity client; the generic hosted SaaS client must not retain recovery-code input.",
+    consumer_action: "consume through UnifiedIdentityHttpClient.consumeTwoFactorRecoveryCode and keep the one-time code plus session and CSRF proof outside generic hosted route manifests",
+  },
+  "POST /v1/accounts/{account_id}/two-factor/recovery-codes/rotate": {
+    reason: "Go rotates recovery codes through the dedicated recent-authenticated unified identity client and one-use no-store handoff; the generic hosted SaaS client does not own that boundary.",
+    consumer_action: "consume through UnifiedIdentityHttpClient.rotateTwoFactorRecoveryCodes and never persist recovery codes in generic hosted client state",
+  },
   "POST /v1/identity/login/complete": {
     reason: "Go owns receipt-backed login completion; the hosted SaaS client intentionally cannot create, merge, or link accounts during login.",
     consumer_action: "consume through the unified identity SDK after obtaining a server-issued proof receipt",

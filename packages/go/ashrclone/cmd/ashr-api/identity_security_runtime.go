@@ -30,6 +30,8 @@ type productionIdentitySecurityRuntimeConfig struct {
 	issuerDSN             string
 	processEndpoint       string
 	confirmEndpoint       string
+	prepareEndpoint       string
+	finalizeEndpoint      string
 	handoffEndpoint       string
 	cleanupEndpoint       string
 	caBundleFile          string
@@ -76,6 +78,8 @@ func productionIdentitySecurityRuntimeConfigFromEnv(
 		"ASHR_IDENTITY_SECURITY_TICKET_ISSUER_DSN",
 		"ASHR_IDENTITY_SECURITY_PROCESS_URL",
 		"ASHR_IDENTITY_SECURITY_CONFIRM_URL",
+		"ASHR_IDENTITY_SECURITY_MUTATION_PREPARE_URL",
+		"ASHR_IDENTITY_SECURITY_MUTATION_FINALIZE_URL",
 		"ASHR_IDENTITY_SECURITY_HANDOFF_CONSUME_URL",
 		"ASHR_IDENTITY_SECURITY_CLEANUP_URL",
 		"ASHR_IDENTITY_SECURITY_MTLS_CA_FILE",
@@ -119,6 +123,8 @@ func productionIdentitySecurityRuntimeConfigFromEnv(
 	if !validProductionIdentitySecurityProcessorEndpoints(
 		values["ASHR_IDENTITY_SECURITY_PROCESS_URL"],
 		values["ASHR_IDENTITY_SECURITY_CONFIRM_URL"],
+		values["ASHR_IDENTITY_SECURITY_MUTATION_PREPARE_URL"],
+		values["ASHR_IDENTITY_SECURITY_MUTATION_FINALIZE_URL"],
 		values["ASHR_IDENTITY_SECURITY_HANDOFF_CONSUME_URL"],
 		values["ASHR_IDENTITY_SECURITY_CLEANUP_URL"],
 	) {
@@ -164,6 +170,8 @@ func productionIdentitySecurityRuntimeConfigFromEnv(
 		issuerDSN:             issuerDSN,
 		processEndpoint:       values["ASHR_IDENTITY_SECURITY_PROCESS_URL"],
 		confirmEndpoint:       values["ASHR_IDENTITY_SECURITY_CONFIRM_URL"],
+		prepareEndpoint:       values["ASHR_IDENTITY_SECURITY_MUTATION_PREPARE_URL"],
+		finalizeEndpoint:      values["ASHR_IDENTITY_SECURITY_MUTATION_FINALIZE_URL"],
 		handoffEndpoint:       values["ASHR_IDENTITY_SECURITY_HANDOFF_CONSUME_URL"],
 		cleanupEndpoint:       values["ASHR_IDENTITY_SECURITY_CLEANUP_URL"],
 		caBundleFile:          values["ASHR_IDENTITY_SECURITY_MTLS_CA_FILE"],
@@ -251,6 +259,8 @@ func newProductionIdentitySecurityRuntime(
 		ashrclone.HTTPIdentitySecuritySecretProcessorOptions{
 			ProcessEndpoint:        config.processEndpoint,
 			ConfirmEndpoint:        config.confirmEndpoint,
+			PrepareEndpoint:        config.prepareEndpoint,
+			FinalizeEndpoint:       config.finalizeEndpoint,
 			HandoffConsumeEndpoint: config.handoffEndpoint,
 			CleanupEndpoint:        config.cleanupEndpoint,
 			Client:                 client,
@@ -303,12 +313,14 @@ func newProductionIdentitySecurityRuntime(
 	}
 	service, err := ashrclone.NewIdentitySecurityService(
 		ashrclone.IdentitySecurityServiceOptions{
-			Processor:      processor,
-			TicketIssuer:   issuer,
-			MutationStore:  store,
-			OrganizationID: config.organizationID,
-			ProjectID:      config.projectID,
-			TicketTTL:      config.ticketTTL,
+			Processor:           processor,
+			TicketIssuer:        issuer,
+			MutationStore:       store,
+			ProcessorStateStore: store,
+			MutationReplayStore: store,
+			OrganizationID:      config.organizationID,
+			ProjectID:           config.projectID,
+			TicketTTL:           config.ticketTTL,
 		},
 	)
 	if err != nil {
@@ -324,6 +336,8 @@ func newProductionIdentitySecurityRuntime(
 func validProductionIdentitySecurityProcessorEndpoints(
 	processEndpoint string,
 	confirmEndpoint string,
+	prepareEndpoint string,
+	finalizeEndpoint string,
 	handoffEndpoint string,
 	cleanupEndpoint string,
 ) bool {
@@ -333,6 +347,14 @@ func validProductionIdentitySecurityProcessorEndpoints(
 	}{
 		{processEndpoint, "/v1/identity/security/process"},
 		{confirmEndpoint, "/v1/identity/security/confirm"},
+		{
+			prepareEndpoint,
+			"/v1/identity/security/mutations/prepare",
+		},
+		{
+			finalizeEndpoint,
+			"/v1/identity/security/mutations/finalize",
+		},
 		{handoffEndpoint, "/v1/identity/security/handoff/consume"},
 		{cleanupEndpoint, "/v1/identity/security/cleanup"},
 	}

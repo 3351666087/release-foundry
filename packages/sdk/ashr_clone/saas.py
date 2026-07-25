@@ -82,6 +82,18 @@ UNSUPPORTED_GO_ROUTE_GAPS: dict[str, dict[str, str]] = {
         "reason": "Go exposes account security posture through the dedicated unified identity client; the generic hosted SaaS client does not own authenticated account-security state.",
         "consumer_action": "consume through UnifiedIdentityClient.get_security_posture and keep session credentials outside generic hosted route manifests",
     },
+    "POST /v1/accounts/{account_id}/two-factor/disable": {
+        "reason": "Go disables optional TOTP through the dedicated recent-authenticated unified identity client; the generic hosted SaaS client must not own account-security mutation proofs.",
+        "consumer_action": "consume through UnifiedIdentityClient.disable_two_factor and keep session, CSRF, idempotency, processor, and recovery material outside generic hosted route manifests",
+    },
+    "POST /v1/accounts/{account_id}/two-factor/recovery-codes/consume": {
+        "reason": "Go authenticates and atomically consumes one recovery code through the dedicated unified identity client; the generic hosted SaaS client must not retain recovery-code input.",
+        "consumer_action": "consume through UnifiedIdentityClient.consume_two_factor_recovery_code and keep the one-time code plus session and CSRF proof outside generic hosted route manifests",
+    },
+    "POST /v1/accounts/{account_id}/two-factor/recovery-codes/rotate": {
+        "reason": "Go rotates recovery codes through the dedicated recent-authenticated unified identity client and one-use no-store handoff; the generic hosted SaaS client does not own that boundary.",
+        "consumer_action": "consume through UnifiedIdentityClient.rotate_two_factor_recovery_codes and never persist recovery codes in generic hosted client state",
+    },
     "GET /health": {
         "reason": "Go exposes a root health alias; the hosted Python client uses scoped SaaS/OpenAPI helpers instead of consuming this alias.",
         "replacement_route": "GET /healthz",

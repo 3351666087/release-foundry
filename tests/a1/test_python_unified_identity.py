@@ -6,6 +6,7 @@ from urllib.parse import urlparse
 
 import pytest
 
+import ashr_clone as public_api
 from ashr_clone.unified_identity import (
     IDENTITY_SECURITY_HTTP_SCHEMA_VERSION,
     IDENTITY_SECURITY_SERVICE_SCHEMA_VERSION,
@@ -17,6 +18,7 @@ from ashr_clone.unified_identity import (
     IdentitySecurityBeginResult,
     IdentitySecurityConfirmResult,
     IdentitySecurityPosture,
+    IdentityTwoFactorRecoveryMutationResult,
     UnifiedAccount,
     UnifiedIdentityClient,
     UnifiedIdentityContractError,
@@ -25,12 +27,34 @@ from ashr_clone.unified_identity import (
     identity_link_route,
     identity_two_factor_enroll_begin_route,
     identity_two_factor_enroll_confirm_route,
+    identity_two_factor_disable_route,
+    identity_two_factor_recovery_consume_route,
+    identity_two_factor_recovery_rotate_route,
     identity_two_factor_route,
     unified_identity_contract_manifest,
 )
 
 
 NOW = "2026-07-10T10:00:00Z"
+
+
+def test_recovery_lifecycle_is_exported_from_python_package_barrel() -> None:
+    assert (
+        public_api.IdentityTwoFactorRecoveryMutationResult
+        is IdentityTwoFactorRecoveryMutationResult
+    )
+    assert (
+        public_api.identity_two_factor_recovery_consume_route
+        is identity_two_factor_recovery_consume_route
+    )
+    assert (
+        public_api.identity_two_factor_recovery_rotate_route
+        is identity_two_factor_recovery_rotate_route
+    )
+    assert (
+        public_api.identity_two_factor_disable_route
+        is identity_two_factor_disable_route
+    )
 
 
 def _credential(provider: str = "google", **overrides: Any) -> dict[str, Any]:
@@ -394,6 +418,15 @@ def test_security_route_helpers_only_emit_backed_begin_and_confirm_paths() -> No
     assert identity_two_factor_enroll_confirm_route("acct_01") == (
         "/v1/accounts/acct_01/two-factor/enroll/confirm"
     )
+    assert identity_two_factor_recovery_consume_route("acct_01") == (
+        "/v1/accounts/acct_01/two-factor/recovery-codes/consume"
+    )
+    assert identity_two_factor_recovery_rotate_route("acct_01") == (
+        "/v1/accounts/acct_01/two-factor/recovery-codes/rotate"
+    )
+    assert identity_two_factor_disable_route("acct_01") == (
+        "/v1/accounts/acct_01/two-factor/disable"
+    )
     assert identity_two_factor_route("acct_01", "verify").endswith("/enroll/confirm")
     with pytest.raises(UnifiedIdentityContractError):
         identity_two_factor_route("acct_01", "recovery")
@@ -468,6 +501,66 @@ def test_flat_identity_security_dtos_are_strict_and_public_safe() -> None:
     assert "password" not in confirm.to_dict()
     assert "code" not in confirm.to_dict()
 
+    consume = IdentityTwoFactorRecoveryMutationResult.from_public_response(
+        {
+            "schema_version": IDENTITY_SECURITY_SERVICE_SCHEMA_VERSION,
+            "operation": "mfa_recovery_consume",
+            "two_factor_status": "enabled",
+            "two_factor_optional": True,
+            "two_factor_recommended": True,
+            "recovery_codes_remaining": 5,
+            "security_version": 7,
+            "sessions_revoked": 1,
+            "reauthentication_required": True,
+        },
+        expected_operation="mfa_recovery_consume",
+    )
+    assert consume.recovery_codes == ()
+    assert "recovery_codes" not in consume.to_dict()
+
+    rotated_codes = (
+        "A1BCD-EFGHJ",
+        "B2CDE-FGHJK",
+        "C3DEF-GHJKL",
+        "D4EFG-HJKLM",
+        "E5FGH-JKLMN",
+        "F6GHJ-KLMNP",
+    )
+    rotate = IdentityTwoFactorRecoveryMutationResult.from_public_response(
+        {
+            "schema_version": IDENTITY_SECURITY_SERVICE_SCHEMA_VERSION,
+            "operation": "mfa_recovery_rotate",
+            "two_factor_status": "enabled",
+            "two_factor_optional": True,
+            "two_factor_recommended": True,
+            "recovery_codes": list(rotated_codes),
+            "recovery_codes_remaining": len(rotated_codes),
+            "security_version": 8,
+            "sessions_revoked": 1,
+            "reauthentication_required": True,
+        },
+        expected_operation="mfa_recovery_rotate",
+    )
+    assert rotate.recovery_codes == rotated_codes
+
+    disable = IdentityTwoFactorRecoveryMutationResult.from_public_response(
+        {
+            "schema_version": IDENTITY_SECURITY_SERVICE_SCHEMA_VERSION,
+            "operation": "mfa_disable",
+            "two_factor_status": "disabled",
+            "two_factor_optional": True,
+            "two_factor_recommended": True,
+            "recovery_codes_remaining": 0,
+            "security_version": 9,
+            "sessions_revoked": 2,
+            "reauthentication_required": True,
+        },
+        expected_operation="mfa_disable",
+    )
+    assert disable.two_factor_status == "disabled"
+    assert disable.two_factor_optional is True
+    assert disable.two_factor_recommended is True
+
     with pytest.raises(UnifiedIdentityContractError, match="schema version"):
         IdentitySecurityPosture.from_public_response(
             {
@@ -491,14 +584,110 @@ def test_flat_identity_security_dtos_are_strict_and_public_safe() -> None:
         )
 
 
+@pytest.mark.parametrize(
+    ("operation", "overrides", "message"),
+    [
+        (
+            "mfa_recovery_consume",
+            {"recovery_codes": ["A1BCD-EFGHJ"]},
+            "only valid",
+        ),
+        (
+            "mfa_disable",
+            {"recovery_codes": []},
+            "only valid",
+        ),
+        (
+            "mfa_recovery_rotate",
+            {"operation": "mfa_disable"},
+            "operation mismatch",
+        ),
+        (
+            "mfa_recovery_rotate",
+            {"schema_version": "ashr.identity_security_service.v0"},
+            "schema version",
+        ),
+        (
+            "mfa_recovery_rotate",
+            {"security_version": -1},
+            "non-negative",
+        ),
+        (
+            "mfa_recovery_rotate",
+            {"nested": {"secret_ref": "isr_private"}},
+            "secret_ref",
+        ),
+        (
+            "mfa_recovery_rotate",
+            {"nested": {"ticket": "ticket_private"}},
+            "ticket",
+        ),
+        (
+            "mfa_recovery_rotate",
+            {"nested": {"finalize_token": "isf_private"}},
+            "finalize_token",
+        ),
+        (
+            "mfa_recovery_rotate",
+            {"nested": {"raw_code": "A1BCD-EFGHJ"}},
+            "raw_code",
+        ),
+    ],
+)
+def test_two_factor_recovery_mutation_parser_fails_closed(
+    operation: str,
+    overrides: dict[str, Any],
+    message: str,
+) -> None:
+    rotated_codes = [
+        "A1BCD-EFGHJ",
+        "B2CDE-FGHJK",
+        "C3DEF-GHJKL",
+        "D4EFG-HJKLM",
+        "E5FGH-JKLMN",
+        "F6GHJ-KLMNP",
+    ]
+    payload = {
+        "schema_version": IDENTITY_SECURITY_SERVICE_SCHEMA_VERSION,
+        "operation": operation,
+        "two_factor_status": (
+            "disabled" if operation == "mfa_disable" else "enabled"
+        ),
+        "two_factor_optional": True,
+        "two_factor_recommended": True,
+        "recovery_codes_remaining": (
+            0 if operation == "mfa_disable" else len(rotated_codes)
+        ),
+        "security_version": 8,
+        "sessions_revoked": 1,
+        "reauthentication_required": True,
+    }
+    if operation == "mfa_recovery_rotate":
+        payload["recovery_codes"] = rotated_codes
+    payload.update(overrides)
+    with pytest.raises(UnifiedIdentityContractError, match=message):
+        IdentityTwoFactorRecoveryMutationResult.from_public_response(
+            payload,
+            expected_operation=operation,
+        )
+
+
 def test_security_client_uses_dedicated_sensitive_transports_and_secret_free_dtos() -> None:
-    calls: list[tuple[str, str, dict[str, Any]]] = []
+    calls: list[
+        tuple[str, str, dict[str, Any], dict[str, str]]
+    ] = []
     password_value = "A1-only-test-password!"
     totp_value = "123456"
+    recovery_value = "ABCDE-FGHJK"
 
-    def transport(method: str, url: str, payload: Mapping[str, Any]) -> Mapping[str, Any]:
+    def transport(
+        method: str,
+        url: str,
+        payload: Mapping[str, Any],
+        headers: Mapping[str, str] | None = None,
+    ) -> Mapping[str, Any]:
         path = urlparse(url).path
-        calls.append((method, path, dict(payload)))
+        calls.append((method, path, dict(payload), dict(headers or {})))
         if path.endswith("/security"):
             return {
                 "schema_version": IDENTITY_SECURITY_HTTP_SCHEMA_VERSION,
@@ -549,6 +738,50 @@ def test_security_client_uses_dedicated_sensitive_transports_and_secret_free_dto
                 "sessions_revoked": 1,
                 "reauthentication_required": True,
             }
+        if path.endswith("/two-factor/recovery-codes/consume"):
+            return {
+                "schema_version": IDENTITY_SECURITY_SERVICE_SCHEMA_VERSION,
+                "operation": "mfa_recovery_consume",
+                "two_factor_status": "enabled",
+                "two_factor_optional": True,
+                "two_factor_recommended": True,
+                "recovery_codes_remaining": 5,
+                "security_version": 5,
+                "sessions_revoked": 1,
+                "reauthentication_required": True,
+            }
+        if path.endswith("/two-factor/recovery-codes/rotate"):
+            return {
+                "schema_version": IDENTITY_SECURITY_SERVICE_SCHEMA_VERSION,
+                "operation": "mfa_recovery_rotate",
+                "two_factor_status": "enabled",
+                "two_factor_optional": True,
+                "two_factor_recommended": True,
+                "recovery_codes": [
+                    "A1BCD-EFGHJ",
+                    "B2CDE-FGHJK",
+                    "C3DEF-GHJKL",
+                    "D4EFG-HJKLM",
+                    "E5FGH-JKLMN",
+                    "F6GHJ-KLMNP",
+                ],
+                "recovery_codes_remaining": 6,
+                "security_version": 6,
+                "sessions_revoked": 1,
+                "reauthentication_required": True,
+            }
+        if path.endswith("/two-factor/disable"):
+            return {
+                "schema_version": IDENTITY_SECURITY_SERVICE_SCHEMA_VERSION,
+                "operation": "mfa_disable",
+                "two_factor_status": "disabled",
+                "two_factor_optional": True,
+                "two_factor_recommended": True,
+                "recovery_codes_remaining": 0,
+                "security_version": 7,
+                "sessions_revoked": 1,
+                "reauthentication_required": True,
+            }
         raise AssertionError(path)
 
     client = UnifiedIdentityClient("https://identity.example", transport=transport)
@@ -568,6 +801,19 @@ def test_security_client_uses_dedicated_sensitive_transports_and_secret_free_dto
         totp_value,
         idempotency_key="idem-mfa-confirm-01",
     )
+    consume_result = client.consume_two_factor_recovery_code(
+        "acct_01",
+        recovery_value,
+        idempotency_key="idem-mfa-consume-01",
+    )
+    rotate_result = client.rotate_two_factor_recovery_codes(
+        "acct_01",
+        idempotency_key="idem-mfa-rotate-01",
+    )
+    disable_result = client.disable_two_factor(
+        "acct_01",
+        idempotency_key="idem-mfa-disable-01",
+    )
 
     assert calls[1] == (
         "POST",
@@ -576,8 +822,14 @@ def test_security_client_uses_dedicated_sensitive_transports_and_secret_free_dto
             "password": password_value,
             "idempotency_key": "idem-password-enroll-01",
         },
+        {"Idempotency-Key": "idem-password-enroll-01"},
     )
-    assert calls[2][1] == "/v1/accounts/acct_01/two-factor/enroll/begin"
+    assert calls[2] == (
+        "POST",
+        "/v1/accounts/acct_01/two-factor/enroll/begin",
+        {"idempotency_key": "idem-mfa-begin-01"},
+        {"Idempotency-Key": "idem-mfa-begin-01"},
+    )
     assert calls[3] == (
         "POST",
         "/v1/accounts/acct_01/two-factor/enroll/confirm",
@@ -586,21 +838,50 @@ def test_security_client_uses_dedicated_sensitive_transports_and_secret_free_dto
             "code": totp_value,
             "idempotency_key": "idem-mfa-confirm-01",
         },
+        {"Idempotency-Key": "idem-mfa-confirm-01"},
+    )
+    assert calls[4] == (
+        "POST",
+        "/v1/accounts/acct_01/two-factor/recovery-codes/consume",
+        {
+            "recovery_code": recovery_value,
+            "idempotency_key": "idem-mfa-consume-01",
+        },
+        {"Idempotency-Key": "idem-mfa-consume-01"},
+    )
+    assert calls[5] == (
+        "POST",
+        "/v1/accounts/acct_01/two-factor/recovery-codes/rotate",
+        {"idempotency_key": "idem-mfa-rotate-01"},
+        {"Idempotency-Key": "idem-mfa-rotate-01"},
+    )
+    assert calls[6] == (
+        "POST",
+        "/v1/accounts/acct_01/two-factor/disable",
+        {"idempotency_key": "idem-mfa-disable-01"},
+        {"Idempotency-Key": "idem-mfa-disable-01"},
     )
     result_dump = json.dumps(
         {
             "password": password_result.to_dict(),
             "begin": begin_result.to_dict(),
             "confirm": confirm_result.to_dict(),
+            "consume": consume_result.to_dict(),
+            "rotate": rotate_result.to_dict(),
+            "disable": disable_result.to_dict(),
         }
     )
     assert password_value not in result_dump
     assert totp_value not in result_dump
+    assert recovery_value not in result_dump
     assert "confirmation_challenge_id" not in result_dump
     assert confirm_result.recovery_codes == (
         "RECOVERY-A1-1001",
         "RECOVERY-A1-1002",
     )
+    assert consume_result.operation == "mfa_recovery_consume"
+    assert len(rotate_result.recovery_codes) == 6
+    assert disable_result.two_factor_status == "disabled"
 
 
 def test_legacy_security_mutations_fail_closed_before_transport() -> None:

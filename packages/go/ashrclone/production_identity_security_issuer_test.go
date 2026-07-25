@@ -105,31 +105,52 @@ func TestProductionIdentitySecurityTicketIssuerRequiresIndependentSafePool(t *te
 }
 
 func TestProductionIdentitySecurityTicketIssuerReadinessChecksExactRoleAndACL(t *testing.T) {
-	if !strings.Contains(
-		productionIdentitySecurityIssuerReadinessQuery,
+	newCoreIssuer := "public.a1_issue_identity_security_mutation_ticket(" +
+		"text,text,uuid,uuid,text,text,text,text,text,integer,text,integer," +
+		"timestamp with time zone)"
+	oldCoreIssuer := "public.a1_issue_identity_security_mutation_ticket(" +
+		"text,text,uuid,uuid,text,text,text,text,text,integer," +
+		"timestamp with time zone)"
+	newScopedIssuer := "public.a1_issue_scoped_identity_security_mutation_ticket(" +
+		"uuid,uuid,uuid,uuid,uuid,text,text,text,text,text,text,text,integer," +
+		"text,integer,timestamp with time zone)"
+	oldScopedIssuer := "public.a1_issue_scoped_identity_security_mutation_ticket(" +
+		"uuid,uuid,uuid,uuid,uuid,text,text,text,text,text,text,text,integer," +
+		"timestamp with time zone)"
+	for _, required := range []string{
 		"current_user = 'a1_security_ticket_issuer'",
-	) ||
-		!strings.Contains(
+		"NOT rolcanlogin",
+		"pg_has_role(session_user, current_user, 'MEMBER')",
+		"NOT rolbypassrls",
+		"NOT has_schema_privilege(current_user, 'public', 'CREATE')",
+		newScopedIssuer,
+		newCoreIssuer,
+		oldScopedIssuer + "'\n  ) IS NULL",
+		oldCoreIssuer + "'\n  ) IS NULL",
+		"a1_project_identity_security_processor_state",
+		"a1_project_identity_security_mutation_replay",
+		"a1_mutate_totp_recovery_lifecycle",
+		"identity_account_security",
+		"identity_security_receipts",
+		"identity_security_mutation_tickets",
+		"identity_security_mutation_idempotency",
+		"identity_security_ticket_issuance",
+		"SELECT count(*) = 5",
+		"policy.roles = ARRAY['public'::name]",
+		"has_any_column_privilege",
+		"has_function_privilege('public', function_oid, 'EXECUTE')",
+		"SELECT count(*) = 6",
+		"function_row.prosecdef",
+		"pg_get_userbyid(function_row.proowner) <> current_user",
+		"NOT pg_catalog.pg_has_role(",
+		"search_path=pg_catalog,public,pg_temp",
+	} {
+		if !strings.Contains(
 			productionIdentitySecurityIssuerReadinessQuery,
-			"NOT rolcanlogin",
-		) ||
-		!strings.Contains(
-			productionIdentitySecurityIssuerReadinessQuery,
-			"pg_has_role(session_user, current_user, 'MEMBER')",
-		) ||
-		!strings.Contains(
-			productionIdentitySecurityIssuerReadinessQuery,
-			"NOT rolbypassrls",
-		) ||
-		!strings.Contains(
-			productionIdentitySecurityIssuerReadinessQuery,
-			"a1_issue_scoped_identity_security_mutation_ticket",
-		) ||
-		!strings.Contains(
-			productionIdentitySecurityIssuerReadinessQuery,
-			"NOT has_table_privilege",
+			required,
 		) {
-		t.Fatal("issuer readiness query lost exact-role or least-privilege checks")
+			t.Fatalf("issuer readiness omitted %s", required)
+		}
 	}
 	now := time.Date(2026, 7, 24, 8, 0, 0, 0, time.UTC)
 	for name, ready := range map[string]bool{
@@ -189,6 +210,8 @@ func TestProductionIdentitySecurityTicketIssuerIssuesScopedTicketAndAcceptsExact
 			request.ContextDigest,
 			request.SecretRef,
 			request.SecretDigest,
+			request.ExpectedRecoveryBatchDigest,
+			request.ExpectedRecoveryCodeCount,
 			request.RecoveryBatchDigest,
 			request.RecoveryCodeCount,
 			canonicalExpiresAt,

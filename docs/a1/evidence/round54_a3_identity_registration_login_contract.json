@@ -101,7 +101,10 @@
       {"operation": "password_change", "method": "POST", "path": "/v1/accounts/{account_id}/password/change/begin"},
       {"operation": "password_recover", "method": "POST", "path": "/v1/accounts/{account_id}/password/recover/begin"},
       {"operation": "two_factor_enroll", "method": "POST", "path": "/v1/accounts/{account_id}/two-factor/enroll/begin"},
-      {"operation": "two_factor_verify", "method": "POST", "path": "/v1/accounts/{account_id}/two-factor/enroll/confirm"}
+      {"operation": "two_factor_verify", "method": "POST", "path": "/v1/accounts/{account_id}/two-factor/enroll/confirm"},
+      {"operation": "two_factor_recovery_consume", "method": "POST", "path": "/v1/accounts/{account_id}/two-factor/recovery-codes/consume"},
+      {"operation": "two_factor_recovery_rotate", "method": "POST", "path": "/v1/accounts/{account_id}/two-factor/recovery-codes/rotate"},
+      {"operation": "two_factor_disable", "method": "POST", "path": "/v1/accounts/{account_id}/two-factor/disable"}
     ],
     "status": "implemented_in_go_route_manifest"
   },
@@ -115,9 +118,7 @@
     "operations": [
       "link_start",
       "link_complete",
-      "unlink",
-      "two_factor_recovery",
-      "two_factor_disable"
+      "unlink"
     ],
     "client_callable": false,
     "missing_lifecycle_never_implies_active": true
@@ -194,7 +195,8 @@
       "password_recover",
       "two_factor_enroll",
       "two_factor_verify",
-      "two_factor_recovery",
+      "two_factor_recovery_consume",
+      "two_factor_recovery_rotate",
       "two_factor_disable"
     ],
     "required_route_fields": ["operation", "method", "path", "lifecycle", "client_callable"],
@@ -237,9 +239,9 @@
       "detail": "The HTTP boundary already rejects caller-asserted verification and consumes server-owned opaque single-use receipts; production provider resolver deployment and live runtime attestation remain pending."
     },
     {
-      "code": "link_recovery_code_and_two_factor_disable_routes_proposed",
+      "code": "existing_account_link_routes_proposed",
       "severity": "expected",
-      "detail": "Existing-account credential linking, recovery-code mutation, and two-factor disable remain non-routable. Security posture, password enroll/change/recovery begin, and TOTP enroll begin/confirm are active only through the authenticated ticket and external secret-processor boundaries represented in the Go manifest."
+      "detail": "Existing-account credential linking remains non-routable. Security posture, password enroll/change/recovery begin, TOTP enroll begin/confirm, recovery-code consume/rotate, and two-factor disable are active only through the authenticated ticket, idempotency, PostgreSQL coordinator, and external secret-processor boundaries represented in the Go manifest."
     },
     {
       "code": "domestic_provider_qualification_unavailable",

@@ -254,7 +254,8 @@ def test_runtime_rejects_foreign_canonical_account_without_consumption(
             '{organization}','{project}','{principal_b}','{principal_b}',
             '{session_b}','{session_digest}','password_enroll',
             '{issuer_idempotency}','{context}','vault://password/scoped',
-            '{secret}',NULL,NULL,clock_timestamp()+interval '5 minutes'
+            '{secret}',NULL,NULL,NULL,NULL,
+            clock_timestamp()+interval '4 minutes 30 seconds'
           ) AS payload
         )
         SELECT payload->>'ticket_id',payload->>'step_up_receipt_id'

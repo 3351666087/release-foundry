@@ -34,8 +34,6 @@ def test_route_lifecycle_is_explicit_and_fail_closed() -> None:
         "link_start",
         "link_complete",
         "unlink",
-        "two_factor_recovery",
-        "two_factor_disable",
     }:
         assert routes[operation]["lifecycle"] == "proposed"
         assert routes[operation]["client_callable"] is False
@@ -47,6 +45,9 @@ def test_route_lifecycle_is_explicit_and_fail_closed() -> None:
         "password_recover",
         "two_factor_enroll",
         "two_factor_verify",
+        "two_factor_recovery_consume",
+        "two_factor_recovery_rotate",
+        "two_factor_disable",
     }:
         assert routes[operation]["lifecycle"] == "active"
         assert routes[operation]["client_callable"] is True

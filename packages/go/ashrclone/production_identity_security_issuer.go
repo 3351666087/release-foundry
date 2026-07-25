@@ -34,17 +34,72 @@ SELECT
        AND NOT rolsuper
        AND NOT rolbypassrls
        AND NOT rolinherit
-       AND rolcanlogin
+        AND rolcanlogin
   )
+  AND to_regclass('public.identity_account_security') IS NOT NULL
+  AND to_regclass('public.identity_security_receipts') IS NOT NULL
+  AND to_regclass('public.identity_security_mutation_tickets') IS NOT NULL
+  AND to_regclass(
+    'public.identity_security_mutation_idempotency'
+  ) IS NOT NULL
   AND to_regclass('public.identity_security_ticket_issuance') IS NOT NULL
   AND (
-    SELECT relrowsecurity AND relforcerowsecurity
-      FROM pg_class
-     WHERE oid = 'public.identity_security_ticket_issuance'::regclass
+    SELECT count(*) = 5
+      FROM pg_catalog.pg_class relation
+      JOIN pg_catalog.pg_namespace namespace
+        ON namespace.oid = relation.relnamespace
+     WHERE namespace.nspname = 'public'
+       AND relation.relname IN (
+         'identity_account_security',
+         'identity_security_receipts',
+         'identity_security_mutation_tickets',
+         'identity_security_mutation_idempotency',
+         'identity_security_ticket_issuance'
+       )
+       AND relation.relrowsecurity
+       AND relation.relforcerowsecurity
   )
+  AND (
+    SELECT count(*) = 5
+      AND count(*) FILTER (
+        WHERE policy.policyname = policy.tablename || '_self'
+          AND policy.permissive = 'PERMISSIVE'
+          AND policy.roles = ARRAY['public'::name]
+      ) = 5
+      FROM pg_catalog.pg_policies policy
+     WHERE policy.schemaname = 'public'
+       AND policy.tablename IN (
+         'identity_account_security',
+         'identity_security_receipts',
+         'identity_security_mutation_tickets',
+         'identity_security_mutation_idempotency',
+         'identity_security_ticket_issuance'
+       )
+  )
+  AND to_regprocedure(
+    'public.a1_issue_scoped_identity_security_mutation_ticket(uuid,uuid,uuid,uuid,uuid,text,text,text,text,text,text,text,integer,text,integer,timestamp with time zone)'
+  ) IS NOT NULL
+  AND to_regprocedure(
+    'public.a1_issue_identity_security_mutation_ticket(text,text,uuid,uuid,text,text,text,text,text,integer,text,integer,timestamp with time zone)'
+  ) IS NOT NULL
+  AND to_regprocedure(
+    'public.a1_project_identity_security_processor_state(uuid)'
+  ) IS NOT NULL
+  AND to_regprocedure(
+    'public.a1_project_identity_security_mutation_replay(uuid,text,text)'
+  ) IS NOT NULL
+  AND to_regprocedure(
+    'public.a1_issue_scoped_identity_security_mutation_ticket(uuid,uuid,uuid,uuid,uuid,text,text,text,text,text,text,text,integer,timestamp with time zone)'
+  ) IS NULL
+  AND to_regprocedure(
+    'public.a1_issue_identity_security_mutation_ticket(text,text,uuid,uuid,text,text,text,text,text,integer,timestamp with time zone)'
+  ) IS NULL
+  AND has_schema_privilege(current_user, 'public', 'USAGE')
+  AND NOT has_schema_privilege(current_user, 'public', 'CREATE')
+  AND NOT has_schema_privilege('public', 'public', 'CREATE')
   AND has_function_privilege(
     current_user,
-    'public.a1_issue_scoped_identity_security_mutation_ticket(uuid,uuid,uuid,uuid,uuid,text,text,text,text,text,text,text,integer,timestamp with time zone)',
+    'public.a1_issue_scoped_identity_security_mutation_ticket(uuid,uuid,uuid,uuid,uuid,text,text,text,text,text,text,text,integer,text,integer,timestamp with time zone)',
     'EXECUTE'
   )
   AND has_function_privilege(
@@ -54,7 +109,7 @@ SELECT
   )
   AND NOT has_function_privilege(
     current_user,
-    'public.a1_issue_identity_security_mutation_ticket(text,text,uuid,uuid,text,text,text,text,text,integer,timestamp with time zone)',
+    'public.a1_issue_identity_security_mutation_ticket(text,text,uuid,uuid,text,text,text,text,text,integer,text,integer,timestamp with time zone)',
     'EXECUTE'
   )
   AND NOT has_function_privilege(
@@ -72,38 +127,134 @@ SELECT
     'public.a1_project_account_security(uuid)',
     'EXECUTE'
   )
-  AND NOT has_table_privilege(
+  AND NOT has_function_privilege(
     current_user,
-    'public.identity_security_ticket_issuance',
-    'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+    'public.a1_project_identity_security_processor_state(uuid)',
+    'EXECUTE'
   )
-  AND NOT has_table_privilege(
+  AND NOT has_function_privilege(
     current_user,
-    'public.identity_security_receipts',
-    'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+    'public.a1_project_identity_security_mutation_replay(uuid,text,text)',
+    'EXECUTE'
   )
-  AND NOT has_table_privilege(
+  AND NOT has_function_privilege(
     current_user,
-    'public.identity_security_mutation_tickets',
-    'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+    'public.a1_mutate_totp_recovery_lifecycle(uuid,text,text,text,text,integer,text,integer,text,text,uuid,text,timestamp with time zone)',
+    'EXECUTE'
+  )
+  AND NOT EXISTS (
+    SELECT 1
+      FROM unnest(ARRAY[
+        'public.identity_account_security'::regclass,
+        'public.identity_security_receipts'::regclass,
+        'public.identity_security_mutation_tickets'::regclass,
+        'public.identity_security_mutation_idempotency'::regclass,
+        'public.identity_security_ticket_issuance'::regclass
+      ]) AS security_table(table_oid)
+     WHERE has_table_privilege(
+             current_user,
+             security_table.table_oid,
+             'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+           )
+        OR has_any_column_privilege(
+             current_user,
+             security_table.table_oid,
+             'SELECT,INSERT,UPDATE,REFERENCES'
+           )
+        OR has_table_privilege(
+             'public',
+             security_table.table_oid,
+             'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+           )
+        OR has_any_column_privilege(
+             'public',
+             security_table.table_oid,
+             'SELECT,INSERT,UPDATE,REFERENCES'
+           )
+  )
+  AND NOT EXISTS (
+    SELECT 1
+      FROM unnest(ARRAY[
+        to_regprocedure(
+          'public.a1_issue_scoped_identity_security_mutation_ticket(uuid,uuid,uuid,uuid,uuid,text,text,text,text,text,text,text,integer,text,integer,timestamp with time zone)'
+        ),
+        to_regprocedure(
+          'public.a1_cancel_scoped_identity_security_mutation_ticket(uuid,uuid,uuid,uuid,uuid,text,text,text,text,text)'
+        ),
+        to_regprocedure(
+          'public.a1_issue_identity_security_mutation_ticket(text,text,uuid,uuid,text,text,text,text,text,integer,text,integer,timestamp with time zone)'
+        ),
+        to_regprocedure(
+          'public.a1_project_identity_security_processor_state(uuid)'
+        ),
+        to_regprocedure(
+          'public.a1_project_identity_security_mutation_replay(uuid,text,text)'
+        ),
+        to_regprocedure(
+          'public.a1_mutate_totp_recovery_lifecycle(uuid,text,text,text,text,integer,text,integer,text,text,uuid,text,timestamp with time zone)'
+        )
+      ]) function_oid
+     WHERE function_oid IS NULL
+        OR has_function_privilege('public', function_oid, 'EXECUTE')
+  )
+  AND (
+    SELECT count(*) = 6
+      FROM pg_catalog.pg_proc function_row
+     WHERE function_row.oid IN (
+       to_regprocedure(
+         'public.a1_issue_scoped_identity_security_mutation_ticket(uuid,uuid,uuid,uuid,uuid,text,text,text,text,text,text,text,integer,text,integer,timestamp with time zone)'
+       ),
+       to_regprocedure(
+         'public.a1_cancel_scoped_identity_security_mutation_ticket(uuid,uuid,uuid,uuid,uuid,text,text,text,text,text)'
+       ),
+       to_regprocedure(
+         'public.a1_issue_identity_security_mutation_ticket(text,text,uuid,uuid,text,text,text,text,text,integer,text,integer,timestamp with time zone)'
+       ),
+       to_regprocedure(
+         'public.a1_project_identity_security_processor_state(uuid)'
+       ),
+       to_regprocedure(
+         'public.a1_project_identity_security_mutation_replay(uuid,text,text)'
+       ),
+       to_regprocedure(
+         'public.a1_mutate_totp_recovery_lifecycle(uuid,text,text,text,text,integer,text,integer,text,text,uuid,text,timestamp with time zone)'
+       )
+     )
+       AND function_row.prosecdef
+       AND pg_catalog.pg_get_userbyid(function_row.proowner) <> current_user
+       AND NOT pg_catalog.pg_has_role(
+         current_user,
+         function_row.proowner,
+         'MEMBER'
+       )
+       AND EXISTS (
+         SELECT 1
+           FROM unnest(
+             COALESCE(function_row.proconfig, ARRAY[]::text[])
+           ) setting
+          WHERE regexp_replace(setting, '\s', '', 'g') =
+            'search_path=pg_catalog,public,pg_temp'
+       )
   )
 `
 
 type IdentitySecurityTicketIssueRequest struct {
-	OrganizationID      string
-	ProjectID           string
-	AccountID           string
-	ActorID             string
-	SessionID           string
-	SessionDigest       string
-	Operation           string
-	IdempotencyKey      string
-	ContextDigest       string
-	SecretRef           string
-	SecretDigest        string
-	RecoveryBatchDigest string
-	RecoveryCodeCount   int
-	ExpiresAt           time.Time
+	OrganizationID              string
+	ProjectID                   string
+	AccountID                   string
+	ActorID                     string
+	SessionID                   string
+	SessionDigest               string
+	Operation                   string
+	IdempotencyKey              string
+	ContextDigest               string
+	SecretRef                   string
+	SecretDigest                string
+	ExpectedRecoveryBatchDigest string
+	ExpectedRecoveryCodeCount   int
+	RecoveryBatchDigest         string
+	RecoveryCodeCount           int
+	ExpiresAt                   time.Time
 }
 
 type IdentitySecurityIssuedTicket struct {
@@ -229,13 +380,18 @@ func (issuer *ProductionIdentitySecurityTicketIssuer) IssueIdentitySecurityMutat
 	err = tx.QueryRowContext(queryCtx, `
 SELECT a1_issue_scoped_identity_security_mutation_ticket(
   $1::uuid,$2::uuid,$3::uuid,$4::uuid,$5::uuid,$6,$7,$8,$9,
-  NULLIF($10,''),NULLIF($11,''),NULLIF($12,''),NULLIF($13::integer,0),$14
+  NULLIF($10,''),NULLIF($11,''),NULLIF($12,''),$13::integer,
+  NULLIF($14,''),$15::integer,$16
 )
 `, request.OrganizationID, request.ProjectID, request.AccountID,
 		request.ActorID, request.SessionID, request.SessionDigest,
 		request.Operation, request.IdempotencyKey, request.ContextDigest,
-		request.SecretRef, request.SecretDigest, request.RecoveryBatchDigest,
-		request.RecoveryCodeCount, request.ExpiresAt).Scan(&raw)
+		request.SecretRef, request.SecretDigest,
+		request.ExpectedRecoveryBatchDigest,
+		request.ExpectedRecoveryCodeCount,
+		request.RecoveryBatchDigest,
+		request.RecoveryCodeCount,
+		request.ExpiresAt).Scan(&raw)
 	if err != nil {
 		return IdentitySecurityIssuedTicket{}, identitySecurityDatabaseError(err)
 	}
@@ -352,6 +508,9 @@ func normalizeIdentitySecurityTicketIssueRequest(
 	request.ContextDigest = strings.TrimSpace(request.ContextDigest)
 	request.SecretRef = strings.TrimSpace(request.SecretRef)
 	request.SecretDigest = strings.TrimSpace(request.SecretDigest)
+	request.ExpectedRecoveryBatchDigest = strings.TrimSpace(
+		request.ExpectedRecoveryBatchDigest,
+	)
 	request.RecoveryBatchDigest = strings.TrimSpace(request.RecoveryBatchDigest)
 	request.ExpiresAt = request.ExpiresAt.UTC().Truncate(time.Microsecond)
 	return request
@@ -390,14 +549,56 @@ func validIdentitySecurityTicketIssueRequestShape(
 			request.SecretRef,
 		) &&
 			validIdentitySecurityDigest(request.SecretDigest) &&
+			request.ExpectedRecoveryBatchDigest == "" &&
+			request.ExpectedRecoveryCodeCount == 0 &&
 			request.RecoveryBatchDigest == "" &&
 			request.RecoveryCodeCount == 0
 	case "mfa_confirm":
 		return request.SecretRef == "" &&
 			request.SecretDigest == "" &&
+			request.ExpectedRecoveryBatchDigest == "" &&
+			request.ExpectedRecoveryCodeCount == 0 &&
 			validIdentitySecurityDigest(request.RecoveryBatchDigest) &&
 			request.RecoveryCodeCount >= 6 &&
 			request.RecoveryCodeCount <= 20
+	case "mfa_recovery_consume":
+		return identitySecurityProcessorReferencePattern.MatchString(
+			request.SecretRef,
+		) &&
+			validIdentitySecurityDigest(request.SecretDigest) &&
+			validIdentitySecurityDigest(
+				request.ExpectedRecoveryBatchDigest,
+			) &&
+			request.ExpectedRecoveryCodeCount > 0 &&
+			request.ExpectedRecoveryCodeCount <= 20 &&
+			validIdentitySecurityDigest(request.RecoveryBatchDigest) &&
+			request.RecoveryCodeCount ==
+				request.ExpectedRecoveryCodeCount-1
+	case "mfa_recovery_rotate":
+		return identitySecurityProcessorReferencePattern.MatchString(
+			request.SecretRef,
+		) &&
+			validIdentitySecurityDigest(request.SecretDigest) &&
+			validIdentitySecurityDigest(
+				request.ExpectedRecoveryBatchDigest,
+			) &&
+			request.ExpectedRecoveryCodeCount >= 0 &&
+			request.ExpectedRecoveryCodeCount <= 20 &&
+			validIdentitySecurityDigest(request.RecoveryBatchDigest) &&
+			request.RecoveryCodeCount >= 6 &&
+			request.RecoveryCodeCount <= 20
+	case "mfa_disable":
+		return identitySecurityProcessorReferencePattern.MatchString(
+			request.SecretRef,
+		) &&
+			validIdentitySecurityDigest(request.SecretDigest) &&
+			validIdentitySecurityDigest(
+				request.ExpectedRecoveryBatchDigest,
+			) &&
+			request.ExpectedRecoveryCodeCount >= 0 &&
+			request.ExpectedRecoveryCodeCount <= 20 &&
+			request.RecoveryBatchDigest == "" &&
+			request.RecoveryCodeCount == 0
 	default:
 		return false
 	}

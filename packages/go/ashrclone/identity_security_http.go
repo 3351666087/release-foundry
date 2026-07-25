@@ -228,28 +228,45 @@ func (server *HTTPServer) handleIdentitySecurityService(
 		writeIdentitySecurityServiceResult(writer, result, err)
 		return
 	}
-	challengeID := stringValue(body, "challenge_id")
-	code := stringValue(body, "code")
-	delete(body, "code")
-	result, err := server.identitySecurityService.Confirm(
+	if action == "confirm" {
+		challengeID := stringValue(body, "challenge_id")
+		code := stringValue(body, "code")
+		delete(body, "code")
+		result, err := server.identitySecurityService.Confirm(
+			request.Context(),
+			session,
+			IdentitySecurityConfirmRequest{
+				IdempotencyKey: headerKey,
+				ChallengeID:    challengeID,
+				Code:           code,
+			},
+		)
+		code = ""
+		writeIdentitySecurityServiceResult(writer, result, err)
+		return
+	}
+	recoveryCode := stringValue(body, "recovery_code")
+	delete(body, "recovery_code")
+	result, err := server.identitySecurityService.MutateTwoFactor(
 		request.Context(),
 		session,
-		IdentitySecurityConfirmRequest{
+		IdentitySecurityTwoFactorMutationRequest{
+			Operation:      operation,
 			IdempotencyKey: headerKey,
-			ChallengeID:    challengeID,
-			Code:           code,
+			RecoveryCode:   recoveryCode,
 		},
 	)
-	code = ""
+	recoveryCode = ""
+	if operation == "mfa_recovery_rotate" {
+		writer.Header().Set("Cache-Control", "no-store")
+		writer.Header().Set("Pragma", "no-cache")
+	}
 	writeIdentitySecurityServiceResult(writer, result, err)
 }
 
 func identitySecurityServiceOperation(
 	parts []string,
 ) (string, string, bool) {
-	if len(parts) != 3 {
-		return "", "", false
-	}
 	key := strings.Join(parts, "/")
 	routes := map[string]struct {
 		operation string
@@ -275,6 +292,18 @@ func identitySecurityServiceOperation(
 			operation: "mfa_confirm",
 			action:    "confirm",
 		},
+		"two-factor/disable": {
+			operation: "mfa_disable",
+			action:    "mutation",
+		},
+		"two-factor/recovery-codes/consume": {
+			operation: "mfa_recovery_consume",
+			action:    "mutation",
+		},
+		"two-factor/recovery-codes/rotate": {
+			operation: "mfa_recovery_rotate",
+			action:    "mutation",
+		},
 	}
 	route, ok := routes[key]
 	return route.operation, route.action, ok
@@ -296,6 +325,10 @@ func validateIdentitySecurityServiceBody(
 	case action == "confirm" && operation == "mfa_confirm":
 		allowed["challenge_id"] = true
 		allowed["code"] = true
+	case action == "mutation" && operation == "mfa_recovery_consume":
+		allowed["recovery_code"] = true
+	case action == "mutation" &&
+		(operation == "mfa_recovery_rotate" || operation == "mfa_disable"):
 	default:
 		return ErrIdentitySecurityRejected
 	}
@@ -317,6 +350,11 @@ func validateIdentitySecurityServiceBody(
 			return ErrIdentitySecurityRejected
 		}
 		if _, ok := body["code"].(string); !ok {
+			return ErrIdentitySecurityRejected
+		}
+	}
+	if action == "mutation" && operation == "mfa_recovery_consume" {
+		if _, ok := body["recovery_code"].(string); !ok {
 			return ErrIdentitySecurityRejected
 		}
 	}

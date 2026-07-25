@@ -907,7 +907,10 @@ INSERT INTO identity_project_memberships(
 		}
 
 		retryRequest := request
-		retryRequest.ExpiresAt = now.Add(5 * time.Minute)
+		// Exercise the contract that an exact retry may present a later
+		// expiry ceiling without depending on host/container clocks agreeing
+		// at the exact five-minute boundary.
+		retryRequest.ExpiresAt = now.Add(4*time.Minute + 30*time.Second)
 		retry, err := issuer.IssueIdentitySecurityMutationTicket(
 			context.Background(),
 			retryRequest,
@@ -2196,6 +2199,8 @@ ALTER ROLE a1_security_ticket_issuer NOLOGIN NOSUPERUSER NOCREATEDB
 		"a1_resolve_identity_security_mutation_ticket(TEXT,TEXT,TEXT,UUID,TIMESTAMPTZ)",
 		"a1_execute_identity_security_mutation(TEXT,TEXT,TEXT,UUID)",
 		"a1_project_account_security(UUID)",
+		"a1_project_identity_security_processor_state(UUID)",
+		"a1_project_identity_security_mutation_replay(UUID,TEXT,TEXT)",
 		"a1_bind_verified_identity_credential_authorized(UUID,UUID,TEXT,UUID,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,JSONB)",
 		"a1_issue_identity_verification_challenge_with_delivery(UUID,UUID,UUID,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TIMESTAMPTZ,INTEGER,INTEGER,TEXT,TEXT,JSONB)",
 		"a1_verify_identity_verification_attempt(UUID,UUID,TEXT,TEXT,TEXT,TEXT,TEXT,JSONB)",
@@ -2366,7 +2371,7 @@ func applyIdentityLifecycleMigrations(t *testing.T, db *sql.DB) {
 	applied := 0
 	for _, path := range entries {
 		base := filepath.Base(path)
-		if len(base) < 3 || base[:3] < "001" || base[:3] > "028" {
+		if len(base) < 3 || base[:3] < "001" || base[:3] > "029" {
 			continue
 		}
 		sqlBytes, err := os.ReadFile(path)
@@ -2378,8 +2383,8 @@ func applyIdentityLifecycleMigrations(t *testing.T, db *sql.DB) {
 		}
 		applied++
 	}
-	if applied != 28 {
-		t.Fatalf("expected migrations 001-028, applied %d from %s", applied, migrationsDir)
+	if applied != 29 {
+		t.Fatalf("expected migrations 001-029, applied %d from %s", applied, migrationsDir)
 	}
 }
 
@@ -2620,7 +2625,7 @@ INSERT INTO identity_security_receipts(
 	if err := instance.adminDB.QueryRow(`
 SELECT a1_issue_identity_security_mutation_ticket(
   $1,$2,$3::uuid,$3::uuid,'credential_bind',$4,
-  NULL,NULL,NULL,NULL,$5
+  NULL,NULL,NULL,NULL,NULL,NULL,$5
 )
 `, mutationTicketDigest, stepUpReceiptDigest, principalID, requestDigest,
 		now.Add(5*time.Minute)).Scan(&issued); err != nil {
@@ -2666,7 +2671,7 @@ INSERT INTO identity_security_receipts(
 		var issued bool
 		if err := instance.adminDB.QueryRow(`
 SELECT a1_issue_identity_security_mutation_ticket(
-  $1,$2,$3::uuid,$3::uuid,$4,$5,$6,$7,$8,$9,$10
+  $1,$2,$3::uuid,$3::uuid,$4,$5,$6,$7,NULL,NULL,$8,$9,$10
 )
 `, ticketDigest, receiptDigest, principalID, operation, contextDigest,
 			secretRef, secretDigest, recoveryBatchDigest, recoveryCodeCount,
