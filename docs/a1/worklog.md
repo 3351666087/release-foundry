@@ -4804,5 +4804,8 @@ implementation and adversarial evidence is green.
   default rule set complete with no leaks; no suppression was committed.
 - [x] Full PostgreSQL/Vault/cross-language/CL/security, ownership, generated
   artifact, and secret gates are now recorded and green.
-- [ ] Commit and push only the exact A1 manifest, then fetch and prove final
-  local/remote `0/0` parity.
+- [x] Committed the exact `41`-path A1 manifest as `cbd465b7` with `7,515`
+  insertions and `220` deletions, pushed only
+  `HEAD:codex/a1-local-sdk-runner`, fetched the target, and proved local/remote
+  `0/0` parity. The index contained no `fixtures/a2/**`; all peer-owned A2
+  working-tree drift remains untouched and uncommitted.

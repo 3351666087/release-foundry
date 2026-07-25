@@ -413,6 +413,6 @@ Implementation and release gates discovered by the real runtime exercise:
 - [x] Update A3-safe evidence, parity snapshots, deployment/runtime docs, and
   this worklog only after each gate is earned; pass full Go/Python/TypeScript/
   Rust/CL/ownership/generated-artifact/secret checks.
-- [ ] Precisely stage only A1-owned paths, commit the coherent batch, push only
-  `HEAD:codex/a1-local-sdk-runner`, fetch, and prove final local/remote `0/0`
-  parity without staging any `fixtures/a2/**` peer artifact.
+- [x] Precisely stage only the `41` A1-owned paths, commit the coherent batch
+  as `cbd465b7`, push only `HEAD:codex/a1-local-sdk-runner`, fetch, and prove
+  local/remote `0/0` parity with zero staged `fixtures/a2/**` peer artifacts.
