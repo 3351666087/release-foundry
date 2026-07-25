@@ -969,6 +969,8 @@ func TestProductionIdentityReadinessEnforcesSecurityAuthorityLeastPrivilege(t *t
 	for _, required := range []string{
 		"NOT has_function_privilege",
 		"a1_issue_identity_security_mutation_ticket",
+		"a1_issue_scoped_identity_security_mutation_ticket",
+		"a1_cancel_scoped_identity_security_mutation_ticket",
 		"a1_consume_identity_security_receipt",
 		"a1_mutate_account_password",
 		"a1_begin_totp_enrollment",
@@ -977,6 +979,7 @@ func TestProductionIdentityReadinessEnforcesSecurityAuthorityLeastPrivilege(t *t
 		"NOT has_table_privilege",
 		"NOT has_any_column_privilege",
 		"identity_account_security",
+		"identity_security_ticket_issuance",
 		"NOT has_schema_privilege(current_user, 'public', 'CREATE')",
 		"NOT has_schema_privilege('public', 'public', 'CREATE')",
 		"NOT r.rolsuper",
@@ -1001,6 +1004,7 @@ func TestProductionIdentityReadinessEnforcesSecurityAuthorityLeastPrivilege(t *t
 		"identity_verification_delivery_outbox",
 		"AND NOT has_function_privilege(\n     current_user,\n     'public.a1_bind_verified_identity_credential(",
 		"OR has_function_privilege('public', function_oid, 'EXECUTE')",
+		"count(*) = 4",
 		"count(*) = 5",
 	} {
 		if !strings.Contains(productionIdentityReadinessQuery, required) {

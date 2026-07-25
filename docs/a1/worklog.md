@@ -3695,7 +3695,7 @@ account ownership rules.
 - [x] Run focused OAuth/session tests, complete A1 Go/Python parity tests, and
   live Docker PostgreSQL migrations/RLS/key-rotation coverage; run
   `git diff --check`.
-- [ ] Audit every changed path and secret boundary, commit only A1, push only
+- [x] Audit every changed path and secret boundary, commit only A1, push only
   `HEAD:codex/a1-local-sdk-runner`, and verify local/remote parity.
 
 #### OAuth first-login inventory evidence (2026-07-23)
@@ -3761,7 +3761,7 @@ completed checkbox to chat memory.
 - [x] Run focused OAuth/browser/session tests, complete A1 Go and Python
   parity suites, and live Docker PostgreSQL migrations/RLS/key-rotation
   coverage; run `git diff --check`.
-- [ ] Audit every changed and untracked path for A1 ownership and secret
+- [x] Audit every changed and untracked path for A1 ownership and secret
   safety, commit only A1, push only
   `HEAD:codex/a1-local-sdk-runner`, and verify local/remote parity.
 
@@ -3968,7 +3968,7 @@ registration/login/authenticated binding separate, and never write A2/A3 paths.
 - [x] Run focused and live PostgreSQL evidence, then check each earned item.
 - [x] Run the full changed-scope cross-language, PostgreSQL, CL, formatting,
   ownership, generated-artifact, and secret audits.
-- [ ] Commit the coherent A1 batch, push only A1, fetch, and prove post-push
+- [x] Commit the coherent A1 batch, push only A1, fetch, and prove post-push
   `0/0` parity.
 
 Focused production-wiring evidence:
@@ -4246,6 +4246,62 @@ Final local A1 gate evidence for this checkpoint:
   `086622c7b13f5cfb6fdf63f217e78b03694c0291`, pushed only
   `HEAD:codex/a1-local-sdk-runner`, fetched `origin`, and proved post-push
   local/remote parity `0/0`.
+
+### Production password and recommended optional 2FA closure (2026-07-24)
+
+This is the current A1 batch. Each item is checked only after its focused
+implementation and adversarial evidence is green.
+
+- [x] Re-entered `C:\Users\33516\Documents\Ashr-a1-sync`, confirmed the clean
+  `codex/a1-sync-publish` worktree and
+  `origin/codex/a1-local-sdk-runner` are exactly `0/0`, and retained the
+  A1-only push refspec.
+- [x] Reconnected exclusively through the Chrome Extension and confirmed the
+  operator-opened controlled real-HTTPS console window is discoverable. No
+  cookie, browser storage, mailbox credential, OAuth callback parameter,
+  provider subject, token, secret, ref, or digest is copied into this log.
+- [x] Recovered the repository-external Docker runtime after the Windows
+  restart without recreating its state: the existing PostgreSQL, API, edge,
+  Vault, Vault bridge, and tunnel containers were reused; the persistent Raft
+  Vault was unsealed from the DPAPI-protected local bootstrap entirely in
+  memory; local API and edge health returned `200`; and the replacement quick
+  tunnel returned `200`. The newly opened Chrome window was claimed only
+  through the Extension, and the controlled `/console` exposed both Google and
+  GitHub entries without reading browser storage, callback parameters, or
+  secret material.
+- [x] Froze the A3-safe password/TOTP begin-confirm HTTP and DTO contract:
+  begin returns an explicit `challenge_id`, confirm accepts only that opaque
+  challenge plus the caller-supplied proof on the dedicated trusted boundary,
+  and provisioning/recovery material is returned only through a one-use,
+  no-store handoff. Focused HTTP/service/runtime tests prove that secret refs,
+  keyed digests, TOTP seeds, recovery codes, and mutation tickets are not
+  exposed by the browser-facing contract.
+- [ ] Implement the mTLS external Vault secret processor with opaque
+  one-use delivery, keyed-digest rotation, redaction, and partial-write
+  cleanup.
+- [x] Implemented and wired the independent restricted
+  `a1_security_ticket_issuer` PostgreSQL adapter/DSN with canonical actor,
+  operation, context, receipt, TTL, and idempotency binding.
+  Migration 028 uses a strict `NOLOGIN NOSUPERUSER NOBYPASSRLS NOINHERIT`
+  capability role reached only through a separate restricted disposable LOGIN
+  role and explicit startup role switch. The complete migrations 001-028
+  Docker PostgreSQL lifecycle suite passes, including concurrent exact retry,
+  conflict/cancel behavior, verified-email recovery, OAuth-only recovery
+  rejection, RLS/FORCE RLS, runtime authority denial, issuer table denial, and
+  issuer projection/resolve/execute denial. The runtime/store also canonicalize
+  ticket expiry to PostgreSQL microsecond precision before persistence.
+- [ ] Complete authenticated password enroll/change and TOTP enroll/confirm,
+  plus verified domestic-email password recovery, through the existing atomic
+  mutation executor without admitting raw secret fields to its endpoints.
+- [ ] Prove one-use TOTP/recovery material handoff, replay/concurrency/CSRF/
+  account-injection/mismatch rejection, and Vault/PostgreSQL failure
+  atomicity.
+- [ ] Promote only real routes and add strict Python/TypeScript client and
+  manifest parity.
+- [ ] Run live PostgreSQL/RLS, all Go/Python/TypeScript/Rust tests, formatting,
+  CL, ownership, generated-artifact, and secret gates.
+- [ ] Commit and push only the complete A1 batch, then fetch and prove exact
+  post-push `0/0` parity.
 - [x] Diagnosed the Chrome Extension handoff through the plugin's read-only
   checks without switching browser surfaces: Chrome is running; the
   Extension is installed and enabled in its selected `Default` profile; and
@@ -4383,3 +4439,153 @@ Final local A1 gate evidence for this checkpoint:
   coherent batch as `086622c7b13f5cfb6fdf63f217e78b03694c0291`, pushed only
   `HEAD:codex/a1-local-sdk-runner`, fetched `origin`, and proved post-push
   local/remote parity `0/0`.
+
+## 2026-07-25 A1 password and optional recommended 2FA continuation
+
+- [x] Re-entered `C:\Users\33516\Documents\Ashr-a1-sync`, confirmed branch
+  `codex/a1-sync-publish` still tracks
+  `origin/codex/a1-local-sdk-runner`, and confirmed the shared baseline is
+  `4d231242` with no remote divergence before continuing the dirty A1 batch.
+- [x] Preserved the completed Chrome Extension OAuth evidence and controlled
+  HTTPS console handoff. No real provider login, callback parameter, browser
+  storage, cookie, identity value, credential, or secret was re-read or
+  repeated during this SDK parity continuation.
+- [x] Promoted only the Go-manifest-backed security posture, password
+  enroll/change/recovery begin, TOTP enrollment begin, and TOTP enrollment
+  confirm paths in the Python and TypeScript A3 manifests. Recovery-code
+  mutation and MFA-disable remain proposed and non-callable.
+- [x] Added strict flat posture, begin, and confirm DTOs in Python and
+  TypeScript; normalized the backend `confirmation_challenge_id` to the
+  cross-language `challenge_id`, retained optional/recommended 2FA, and kept
+  password/TOTP input out of result DTOs and client state.
+- [x] Added dedicated password/TOTP trusted request transports without
+  weakening the existing public-payload safety gates. The legacy generic
+  mutation methods now fail closed instead of calling obsolete routes.
+- [x] Completed Python syntax compilation, TypeScript compilation, and the
+  existing focused Python identity/A3/HTTP-boundary group (`67 passed`).
+- [x] Added and passed the focused Python identity-security route, strict DTO,
+  sensitive-input isolation, recovery-code, and unsupported-operation tests
+  (`52 passed`).
+- [x] Added and passed the matching TypeScript route, flat posture, challenge
+  normalization, idempotency-header, one-time provisioning/recovery-code,
+  sensitive-input isolation, and fail-closed legacy-operation tests
+  (`665 passed`; TypeScript build clean).
+- [x] Promoted the six manifest-backed account-security routes in the
+  machine-readable A3 evidence, retained credential linking/recovery-code
+  mutation/MFA disable as proposed, and passed the combined Python SDK/A3/HTTP
+  boundary group (`71 passed`).
+- [x] Added exact Python/TypeScript route, DTO, sensitive-input, recovery-code,
+  and unsupported-operation tests; extended and regenerated the parity matrix
+  with both security schema versions and all six active routes. The generated
+  unified-identity contract reports no differing fields.
+- [x] Extended the production deployment contract and machine-readable A3
+  evidence for the external processor, exact TLS 1.3 API/processor/Vault
+  boundaries, projected rotating Vault workload token, active/previous key
+  rotation, one-use provisioning/recovery handoffs, cleanup compensation,
+  restricted PostgreSQL issuer role/DSN, forced RLS, fail-closed startup
+  readiness, and verified-email recovery boundary. Also corrected migration
+  028's operator comment to match the enforced `NOLOGIN` issuer plus separate
+  restricted `LOGIN` member architecture.
+- [x] Formatted the complete current Go change set, ran the full main Go module
+  test matrix with uncached results, and passed `go vet ./...` across the root
+  package plus API, delivery, security-processor, and worker commands.
+- [x] Synchronized the standalone Go integration module's Argon2 transitive
+  dependencies and checksums with `go mod tidy`, then passed its full uncached
+  test matrix.
+- [x] Reused the existing `ashr-oauth-pg-test` Docker PostgreSQL runtime and
+  passed the migrations 001-028 lifecycle integration (`58.88s`), including
+  forced RLS, independent restricted issuer/runtime privileges, mismatch and
+  foreign-project rejection, credential replay/idempotency, key retirement,
+  concurrent single-mutation behavior, rollback atomicity, and receipt-key
+  rotation/tamper failure.
+- [x] Ran the five focused Docker PostgreSQL/Python identity-security,
+  password/MFA, verified-credential, verification-migration, and round-53
+  integration suites against the current migrations. The first pass exposed
+  stale direct use of the now-revoked legacy issuer primitive and a missing
+  TypeScript route-union update; migrated the scoped-runtime fixture to a
+  separate restricted `LOGIN` member plus the migration-028 scoped issuer,
+  retained credential-bind setup as explicit database-owner test seeding,
+  synchronized all six active TypeScript security operations, and passed the
+  complete rerun (`44 passed`).
+- [x] Ran the live external-Vault identity-security processor harness against
+  the existing Docker Vault through an isolated TLS 1.3 mTLS proxy and a
+  short-lived projected token file. It passed API-to-processor and
+  processor-to-Vault mutual TLS, absent raw processor-token environment,
+  active/previous encryption-key rotation and previous-key retirement,
+  password/TOTP exact replay and conflict handling, eight-worker CAS
+  concurrency, one-use provisioning and recovery-code handoff, cleanup
+  compensation, read-only Vault atomicity, one-second timeout, proxy
+  outage/recovery, `Cache-Control: no-store`, and log-redaction checks
+  (`87` Vault TLS requests; no sensitive value retained in this log).
+- [x] Re-ran the complete TypeScript SDK matrix after synchronizing the six
+  active identity-security route gaps and Python-compatible route aliases.
+  All `665` tests passed, and a separate clean `npm run build` completed
+  without TypeScript diagnostics.
+- [x] Ran the standalone Rust runtime-verification crate from its actual
+  `packages/rust/ashr-runtime-verify` workspace. `cargo fmt --check`,
+  all-feature/all-target Clippy with `-D warnings`, and all target tests
+  passed (`31` integration/unit tests plus the empty library target).
+- [x] Re-ran the final Go closeout after the cross-language route refresh.
+  Recursive `gofmt -l` checks were empty, the main module passed uncached
+  `go test ./...` and `go vet ./...`, and the standalone integration module
+  passed uncached tests plus `go vet ./...`.
+- [x] Reused the running `ashr-oauth-pg-test` Docker PostgreSQL container for
+  the final five-suite identity-security/RLS closeout. Scoped issuer,
+  password/MFA lifecycle, verified-credential mutation authority,
+  verification migration, and round-53 integration tests all passed
+  (`44 passed in 51.79s`).
+- [x] Completed the Python A1-owned closeout without writing peer-owned
+  fixtures: SDK compilation and the generated TypeScript/Python parity check
+  passed, and the complete `tests/a1` plus `tests/release` matrix passed
+  (`1465 passed, 5 skipped`; one third-party deprecation warning).
+- [x] Classified the broad root-Pytest residual honestly: the current A1 code
+  passed (`2160 passed, 14 skipped`), while exactly two assertions remain
+  blocked only by A2-owned
+  `fixtures/a2/results/a2_cross_lane_security_context.json` retaining the
+  pre-security-route count. Per `TASKS.md`, that deterministic peer fixture
+  is excluded from this A1 commit and must be refreshed on the A2 lane.
+- [x] Passed the required CL suite from the synchronized repository:
+  `python scripts/cl_guard.py plan --full`, `hygiene`, and `commercial`.
+  Hygiene reported no findings; commercial reported zero blockers and zero
+  advisories.
+- [x] Run all focused/full Go, Python, TypeScript, Rust, Docker PostgreSQL/RLS,
+  Vault, CL, ownership, generated-artifact, formatting, and secret gates.
+- [x] Replaced the final Vault-shaped test-only token literals with
+  unmistakable A1 synthetic fixture identifiers, re-ran the affected Go
+  package, and completed the 52-file changed-path secret closeout. The
+  high-confidence GitHub/Google/Vault/JWT/private-key scan reported zero
+  findings. A redacted Gitleaks pass classified eight generic-key findings as
+  test-only idempotency/provisioning fixtures; no OAuth/Vault secret from the
+  host or containers matched an A1 file. The only exact environment-text
+  overlap was the eight-character, low-entropy PostgreSQL development
+  password word used by the disposable test container.
+- [x] Parsed every changed A1 JSON artifact, re-ran the generated
+  TypeScript/Python parity check, passed `git diff --check` for all 52
+  manifest paths, and confirmed the manifest has zero missing, peer-owned, or
+  ownership-violating paths. The route snapshot remains Go `97`, Python `35`,
+  TypeScript `38`; every generated unified-identity `differing_fields` array
+  is empty.
+- [x] Rebuilt the current Linux API binary, applied migration 028 to the
+  controlled PostgreSQL E2E database, and restarted the restricted
+  production runtime after its schema-readiness gate correctly rejected the
+  pre-028 database. Rebound the repository-external edge and runtime callback
+  configuration to the currently active HTTPS quick tunnel; API, edge,
+  PostgreSQL, Vault, bridge, and tunnel containers are running, Vault is
+  initialized/unsealed, HTTPS `/healthz` returns `200`, and both provider
+  start routes return `302` to their exact public authorization origins with
+  a browser-state cookie.
+- [x] Used only the operator-authorized Chrome Extension to verify the
+  existing Google Web OAuth client and GitHub OAuth App, without revealing a
+  client secret or reading browser storage/cookies. Updated both exact HTTPS
+  callback registrations for the active quick-tunnel hostname. GitHub saved
+  successfully and completed first-login plus a repeated known-account login:
+  the canonical credential count stayed stable on repeat while the session
+  count increased. Google saved successfully in Cloud Console; after the
+  provider configuration propagated, two current-host Extension logins both
+  returned to the controlled `/console`. Aggregate-only PostgreSQL evidence
+  showed Google credentials remained `2` on the repeated known-account login
+  while total sessions increased from `9` to `10`. No callback parameter,
+  browser storage, cookie, identity value, provider token, or secret was read
+  or retained.
+- [ ] Review and stage only A1-owned paths, commit one coherent batch, push
+  only `HEAD:codex/a1-local-sdk-runner`, fetch, and prove final `0/0` parity.

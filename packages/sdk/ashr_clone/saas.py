@@ -78,6 +78,10 @@ MUTATING_CALIBRATION_MODALITIES = ("text", "image", "audio", "file", "video")
 MUTATING_CALIBRATION_INDEX_SCHEMA_VERSION = "ashr.clone.official_api_mutating_calibration_index.v1"
 
 UNSUPPORTED_GO_ROUTE_GAPS: dict[str, dict[str, str]] = {
+    "GET /v1/accounts/{account_id}/security": {
+        "reason": "Go exposes account security posture through the dedicated unified identity client; the generic hosted SaaS client does not own authenticated account-security state.",
+        "consumer_action": "consume through UnifiedIdentityClient.get_security_posture and keep session credentials outside generic hosted route manifests",
+    },
     "GET /health": {
         "reason": "Go exposes a root health alias; the hosted Python client uses scoped SaaS/OpenAPI helpers instead of consuming this alias.",
         "replacement_route": "GET /healthz",
@@ -151,6 +155,26 @@ UNSUPPORTED_GO_ROUTE_GAPS: dict[str, dict[str, str]] = {
         "reason": "Go keeps a root bootstrap alias; hosted clients consume the versioned bootstrap route.",
         "replacement_route": "POST /v1/bootstrap",
         "consumer_action": "keep unsupported until root bootstrap aliases are part of generated SDK contracts",
+    },
+    "POST /v1/accounts/{account_id}/password/change/begin": {
+        "reason": "Go accepts password change material only through the dedicated trusted unified identity transport; the generic hosted SaaS client must not carry password proofs.",
+        "consumer_action": "consume through UnifiedIdentityClient.begin_password_change with recent-auth and idempotency context kept out of generic SaaS payloads",
+    },
+    "POST /v1/accounts/{account_id}/password/enroll/begin": {
+        "reason": "Go accepts initial password material only through the dedicated trusted unified identity transport; the generic hosted SaaS client must not carry passwords.",
+        "consumer_action": "consume through UnifiedIdentityClient.begin_password_enroll and keep password material out of generic SaaS payloads and logs",
+    },
+    "POST /v1/accounts/{account_id}/password/recover/begin": {
+        "reason": "Go accepts verified-email password recovery material only through the dedicated trusted unified identity transport; the generic hosted SaaS client does not own recovery authority.",
+        "consumer_action": "consume through UnifiedIdentityClient.begin_password_recovery after server-issued verification and keep recovery proof material out of generic SaaS payloads",
+    },
+    "POST /v1/accounts/{account_id}/two-factor/enroll/begin": {
+        "reason": "Go starts TOTP enrollment through the dedicated trusted unified identity transport; the generic hosted SaaS client must not receive provisioning secrets.",
+        "consumer_action": "consume through UnifiedIdentityClient.begin_two_factor_enroll and treat provisioning output as a one-use handoff",
+    },
+    "POST /v1/accounts/{account_id}/two-factor/enroll/confirm": {
+        "reason": "Go confirms TOTP enrollment through the dedicated trusted unified identity transport; the generic hosted SaaS client must not carry TOTP proof or recovery codes.",
+        "consumer_action": "consume through UnifiedIdentityClient.confirm_two_factor_enroll and keep TOTP and one-use recovery material out of generic SaaS payloads and logs",
     },
     "POST /v1/identity/login/complete": {
         "reason": "Go authenticates an existing credential through the dedicated identity lifecycle contract; generic hosted SaaS operations intentionally cannot create, merge, or link accounts during login.",

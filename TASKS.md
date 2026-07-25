@@ -93,7 +93,7 @@ must not be included in A1 commits.
   state/cookie/provider/purpose mismatch, revoked-session race,
   cross-tenant/project scope, provider/vault/database failure, and explicit
   binding authorization cannot cause takeover or partial canonical mutation.
-- [ ] Wire production readiness only when provider adapters, trusted default
+- [x] Wire production readiness only when provider adapters, trusted default
   scope, callback security, external opaque vault, PostgreSQL/RLS, key
   rotation, cross-language parity, and the complete CL are green.
 
@@ -174,6 +174,47 @@ first-login runtime:
   the Chrome Extension with the same handoff, replay, failure-atomicity, and
   redacted database evidence. Repeat login reuses the credential/account and
   creates only a new session.
+
+## A1 - production password and recommended optional 2FA closure (2026-07-24)
+
+- [x] Re-enter the dedicated A1 worktree, prove exact remote `0/0` parity,
+  confirm the Chrome Extension sees the operator-opened controlled HTTPS
+  window, and record this checklist before implementation.
+- [x] Recover the repository-external Docker runtime after the Windows restart:
+  start the existing PostgreSQL/API/edge/Vault containers, unseal the
+  persistent Raft Vault only from the DPAPI-protected local bootstrap,
+  restore local API/edge health, and prove the new quick-tunnel `/health` and
+  Extension-claimed `/console` expose both provider entries without reading
+  browser storage or any OAuth/session/secret material.
+- [x] Freeze the A3-safe begin/confirm contract for password
+  enroll/change/recovery and TOTP enroll/confirm: raw password, TOTP secret,
+  OTP, recovery codes, refs, and keyed digests must never enter the existing
+  opaque mutation endpoints, logs, repository, or browser storage.
+- [x] Implement a fail-closed mTLS external Vault secret processor that
+  accepts secret material only on the dedicated trusted backend boundary,
+  returns opaque one-use delivery plus server-keyed digests, supports
+  reference-based key rotation, and cleans up partial writes.
+- [x] Implement an independent restricted PostgreSQL mutation-ticket issuer
+  runtime using only the `a1_security_ticket_issuer` role/DSN; bind canonical
+  account, actor/session, operation, context, recent step-up receipt, TTL, and
+  idempotency without granting issuer authority to `a1_runtime`.
+- [x] Wire password recovery and authenticated password/TOTP begin/confirm
+  handlers to the processor, receipt authority, ticket issuer, and existing
+  atomic mutation executor while keeping 2FA optional and recommended.
+- [x] Return TOTP enrollment material and recovery codes through one-use,
+  no-store, browser-safe handoff only; prove replay, concurrency, account
+  injection, CSRF, operation/context/receipt mismatch, expiry, and
+  Vault/PostgreSQL failure atomicity.
+- [x] Promote only the actually routable password/security/TOTP contracts
+  from `proposed` to `active` and add strict Python/TypeScript DTO/client
+  parity without claiming unsupported recovery-code/disable routes.
+- [x] Pass focused Go/HTTP/runtime tests, live restricted-role PostgreSQL/RLS
+  integration, Vault rotation/redaction/failure tests, complete
+  Python/TypeScript/Rust parity, formatting, full CL, ownership, generated
+  artifact, and secret audits.
+- [ ] Update the A1 evidence/worklog after each earned gate, commit one
+  coherent A1-only batch, push only
+  `HEAD:codex/a1-local-sdk-runner`, fetch, and prove final `0/0` parity.
 
 Implementation and release gates discovered by the real runtime exercise:
 

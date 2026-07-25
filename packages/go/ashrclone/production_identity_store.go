@@ -76,6 +76,7 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
    AND to_regclass('public.identity_security_receipts') IS NOT NULL
    AND to_regclass('public.identity_security_mutation_tickets') IS NOT NULL
    AND to_regclass('public.identity_security_mutation_idempotency') IS NOT NULL
+   AND to_regclass('public.identity_security_ticket_issuance') IS NOT NULL
    AND to_regclass('public.oauth_first_login_operations') IS NOT NULL
    AND to_regprocedure(
      'public.a1_complete_oauth_identity_callback(uuid,uuid,uuid,text,text,text,text,text,text,text,text,text,text,text,jsonb)'
@@ -176,6 +177,12 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
    AND to_regprocedure(
      'public.a1_issue_identity_security_mutation_ticket(text,text,uuid,uuid,text,text,text,text,text,integer,timestamp with time zone)'
    ) IS NOT NULL
+   AND to_regprocedure(
+     'public.a1_issue_scoped_identity_security_mutation_ticket(uuid,uuid,uuid,uuid,uuid,text,text,text,text,text,text,text,integer,timestamp with time zone)'
+   ) IS NOT NULL
+   AND to_regprocedure(
+     'public.a1_cancel_scoped_identity_security_mutation_ticket(uuid,uuid,uuid,uuid,uuid,text,text,text,text,text)'
+   ) IS NOT NULL
     AND to_regprocedure(
       'public.a1_resolve_identity_security_mutation_ticket(text,text,text,timestamp with time zone)'
     ) IS NOT NULL
@@ -205,6 +212,26 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
    AND NOT has_function_privilege(
      current_user,
      'public.a1_issue_identity_security_mutation_ticket(text,text,uuid,uuid,text,text,text,text,text,integer,timestamp with time zone)',
+     'EXECUTE'
+   )
+   AND NOT has_function_privilege(
+     current_user,
+     'public.a1_issue_scoped_identity_security_mutation_ticket(uuid,uuid,uuid,uuid,uuid,text,text,text,text,text,text,text,integer,timestamp with time zone)',
+     'EXECUTE'
+   )
+   AND NOT has_function_privilege(
+     current_user,
+     'public.a1_cancel_scoped_identity_security_mutation_ticket(uuid,uuid,uuid,uuid,uuid,text,text,text,text,text)',
+     'EXECUTE'
+   )
+   AND NOT has_function_privilege(
+     'public',
+     'public.a1_issue_scoped_identity_security_mutation_ticket(uuid,uuid,uuid,uuid,uuid,text,text,text,text,text,text,text,integer,timestamp with time zone)',
+     'EXECUTE'
+   )
+   AND NOT has_function_privilege(
+     'public',
+     'public.a1_cancel_scoped_identity_security_mutation_ticket(uuid,uuid,uuid,uuid,uuid,text,text,text,text,text)',
      'EXECUTE'
    )
     AND NOT has_function_privilege(
@@ -419,6 +446,11 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
      'public.identity_security_mutation_idempotency',
      'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
    )
+   AND NOT has_table_privilege(
+     current_user,
+     'public.identity_security_ticket_issuance',
+     'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+   )
    AND NOT has_any_column_privilege(
      current_user,
      'public.identity_account_security',
@@ -439,6 +471,11 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
      'public.identity_security_mutation_idempotency',
      'SELECT,INSERT,UPDATE,REFERENCES'
    )
+   AND NOT has_any_column_privilege(
+     current_user,
+     'public.identity_security_ticket_issuance',
+     'SELECT,INSERT,UPDATE,REFERENCES'
+   )
    AND NOT has_table_privilege(
      'public',
      'public.identity_account_security',
@@ -459,6 +496,11 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
      'public.identity_security_mutation_idempotency',
      'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
    )
+   AND NOT has_table_privilege(
+     'public',
+     'public.identity_security_ticket_issuance',
+     'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+   )
    AND NOT has_any_column_privilege(
      'public',
      'public.identity_account_security',
@@ -477,6 +519,11 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
    AND NOT has_any_column_privilege(
      'public',
      'public.identity_security_mutation_idempotency',
+     'SELECT,INSERT,UPDATE,REFERENCES'
+   )
+   AND NOT has_any_column_privilege(
+     'public',
+     'public.identity_security_ticket_issuance',
      'SELECT,INSERT,UPDATE,REFERENCES'
    )
    AND NOT EXISTS (
@@ -524,33 +571,56 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
          OR has_function_privilege('public', function_oid, 'EXECUTE')
    )
    AND (
-     SELECT count(*) = 3
+     SELECT count(*) = 4
        FROM pg_catalog.pg_class c
        JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
       WHERE n.nspname = 'public'
         AND c.relname IN (
           'identity_security_receipts',
           'identity_security_mutation_tickets',
-          'identity_security_mutation_idempotency'
+          'identity_security_mutation_idempotency',
+          'identity_security_ticket_issuance'
         )
         AND c.relrowsecurity
         AND c.relforcerowsecurity
    )
    AND (
-     SELECT count(*) = 3
+      SELECT count(*) = 4
         AND count(*) FILTER (
           WHERE p.policyname = p.tablename || '_self'
             AND p.permissive = 'PERMISSIVE'
             AND p.roles = ARRAY['public'::name]
-        ) = 3
+        ) = 4
        FROM pg_catalog.pg_policies p
       WHERE p.schemaname = 'public'
         AND p.tablename IN (
           'identity_security_receipts',
           'identity_security_mutation_tickets',
-          'identity_security_mutation_idempotency'
+          'identity_security_mutation_idempotency',
+          'identity_security_ticket_issuance'
         )
    )
+    AND (
+      SELECT count(*) = 2
+        FROM pg_catalog.pg_proc p
+       WHERE p.oid IN (
+         to_regprocedure(
+           'public.a1_issue_scoped_identity_security_mutation_ticket(uuid,uuid,uuid,uuid,uuid,text,text,text,text,text,text,text,integer,timestamp with time zone)'
+         ),
+         to_regprocedure(
+           'public.a1_cancel_scoped_identity_security_mutation_ticket(uuid,uuid,uuid,uuid,uuid,text,text,text,text,text)'
+         )
+       )
+         AND p.prosecdef
+         AND pg_catalog.pg_get_userbyid(p.proowner) <> current_user
+         AND NOT pg_catalog.pg_has_role(current_user, p.proowner, 'MEMBER')
+         AND EXISTS (
+           SELECT 1
+             FROM unnest(COALESCE(p.proconfig, ARRAY[]::text[])) setting
+            WHERE regexp_replace(setting, '\s', '', 'g') =
+              'search_path=pg_catalog,public,pg_temp'
+         )
+    )
     AND (
       SELECT count(*) = 5
         FROM pg_catalog.pg_proc p
@@ -1503,7 +1573,7 @@ func (store *ProductionIdentityStore) Ready(ctx context.Context) error {
 		return fmt.Errorf("verify production identity schema: %w", err)
 	}
 	if !ready {
-		return fmt.Errorf("production identity PostgreSQL schema is incomplete; migrations through 027 OAuth first-login runtime entrypoint are required")
+		return fmt.Errorf("production identity PostgreSQL schema is incomplete; migrations through 028 scoped identity security ticket issuance are required")
 	}
 	return nil
 }

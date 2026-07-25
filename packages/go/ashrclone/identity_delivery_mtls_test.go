@@ -319,3 +319,69 @@ func TestIdentityDeliveryMTLSClientDoesNotRetainInputSlices(t *testing.T) {
 		t.Fatal("clearing source PEM removed parsed trust or identity")
 	}
 }
+
+func TestIdentityDeliveryMTLSClientSupportsExactTLS13Profiles(t *testing.T) {
+	authority := newIdentityDeliveryMTLSTestAuthority(t, "tls13-ca")
+	certificate, key := authority.issueIdentityDeliveryMTLSCertificate(
+		t,
+		"tls13-client",
+		true,
+	)
+	client, err := NewIdentityDeliveryMTLSHTTPClient(
+		IdentityDeliveryMTLSClientOptions{
+			CABundlePEM:           authority.certificatePEM,
+			ClientCertificatePEM:  certificate,
+			ClientPrivateKeyPEM:   key,
+			ServerName:            "sidecar.internal",
+			MinimumTLSVersion:     tls.VersionTLS13,
+			MaximumTLSVersion:     tls.VersionTLS13,
+			DialTimeout:           time.Second,
+			TLSHandshakeTimeout:   time.Second,
+			ResponseHeaderTimeout: time.Second,
+			RequestTimeout:        time.Second,
+		},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer client.CloseIdleConnections()
+	transport := client.Transport.(*http.Transport)
+	if transport.TLSClientConfig.MinVersion != tls.VersionTLS13 ||
+		transport.TLSClientConfig.MaxVersion != tls.VersionTLS13 {
+		t.Fatalf(
+			"exact TLS 1.3 profile was not retained: min=%x max=%x",
+			transport.TLSClientConfig.MinVersion,
+			transport.TLSClientConfig.MaxVersion,
+		)
+	}
+
+	for _, options := range []IdentityDeliveryMTLSClientOptions{
+		{
+			CABundlePEM:           authority.certificatePEM,
+			ClientCertificatePEM:  certificate,
+			ClientPrivateKeyPEM:   key,
+			ServerName:            "sidecar.internal",
+			MinimumTLSVersion:     tls.VersionTLS13,
+			MaximumTLSVersion:     tls.VersionTLS12,
+			DialTimeout:           time.Second,
+			TLSHandshakeTimeout:   time.Second,
+			ResponseHeaderTimeout: time.Second,
+			RequestTimeout:        time.Second,
+		},
+		{
+			CABundlePEM:           authority.certificatePEM,
+			ClientCertificatePEM:  certificate,
+			ClientPrivateKeyPEM:   key,
+			ServerName:            "sidecar.internal",
+			MinimumTLSVersion:     tls.VersionTLS11,
+			DialTimeout:           time.Second,
+			TLSHandshakeTimeout:   time.Second,
+			ResponseHeaderTimeout: time.Second,
+			RequestTimeout:        time.Second,
+		},
+	} {
+		if _, configErr := NewIdentityDeliveryMTLSHTTPClient(options); configErr == nil {
+			t.Fatal("unsafe TLS version profile was accepted")
+		}
+	}
+}

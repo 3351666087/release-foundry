@@ -1,4 +1,4 @@
-# A1 Production Google/GitHub OAuth Deployment
+# A1 Production Identity and Google/GitHub OAuth Deployment
 
 This is the production operator checklist for the A1 first-login path. It
 does not contain credentials, client secrets, authorization codes, callback
@@ -178,6 +178,162 @@ metadata, missing or duplicate required values, non-document requests, and
 malformed referrers. This navigation exception applies only to the public
 OAuth start route and its browser-intent issue step; it does not weaken email
 verification, explicit credential binding, or any other mutation route.
+
+## Password and optional recommended 2FA runtime
+
+Password enrollment/change/recovery and TOTP enrollment/confirmation are
+enabled only when the API, PostgreSQL issuer, external processor, and external
+Vault are all ready. Set the following API variables as one complete group:
+
+```text
+ASHR_IDENTITY_SECURITY_ENABLED=true
+ASHR_IDENTITY_SECURITY_TICKET_ISSUER_DSN=<restricted-issuer-login-dsn-with-explicit-role>
+ASHR_IDENTITY_SECURITY_PROCESS_URL=https://<processor-host>/v1/identity/security/process
+ASHR_IDENTITY_SECURITY_CONFIRM_URL=https://<processor-host>/v1/identity/security/confirm
+ASHR_IDENTITY_SECURITY_HANDOFF_CONSUME_URL=https://<processor-host>/v1/identity/security/handoff/consume
+ASHR_IDENTITY_SECURITY_CLEANUP_URL=https://<processor-host>/v1/identity/security/cleanup
+ASHR_IDENTITY_SECURITY_MTLS_CA_FILE=<projected-ca-file>
+ASHR_IDENTITY_SECURITY_MTLS_CLIENT_CERT_FILE=<projected-client-certificate-file>
+ASHR_IDENTITY_SECURITY_MTLS_CLIENT_KEY_FILE=<projected-client-private-key-file>
+ASHR_IDENTITY_SECURITY_MTLS_SERVER_NAME=<processor-server-name>
+ASHR_IDENTITY_SECURITY_ORGANIZATION_ID=<server-owned-uuid>
+ASHR_IDENTITY_SECURITY_PROJECT_ID=<server-owned-uuid>
+ASHR_IDENTITY_SECURITY_REQUEST_TIMEOUT_SECONDS=<1-through-30>
+ASHR_IDENTITY_SECURITY_TICKET_TTL_SECONDS=<1-through-300>
+```
+
+The last two timeout variables are optional and bounded; every other variable
+is required when the feature is enabled. If
+`ASHR_IDENTITY_SECURITY_ENABLED=false` or is absent, any residual
+identity-security variable causes startup to fail closed. The issuer DSN must
+be separate from the normal `a1_runtime` DSN. All four processor URLs must use
+the same HTTPS origin and the exact paths shown above, with no userinfo, query,
+fragment, escaped path, alternate path, or redirect.
+
+The API-to-processor client pins the supplied CA and client identity, disables
+ambient proxy discovery and redirects, and requires exactly TLS 1.3. Startup
+performs a strict `GET /ready` through that mTLS channel before it opens the
+issuer database. It then readiness-checks the restricted issuer role before
+constructing the service and exposing the active account-security routes.
+An unavailable processor, malformed readiness response, unsafe TLS profile,
+invalid endpoint, shared database DSN, or failed issuer readiness prevents the
+password/TOTP service from being wired into the HTTP runtime.
+
+The API may accept a password or six-digit TOTP code only on the dedicated
+authenticated mutation route. Raw password/code material is sent directly to
+the trusted processor and must not be written to PostgreSQL, returned in DTOs,
+placed in logs, or retained by SDK client state. TOTP remains optional and
+recommended; it is never silently made mandatory by a capability flag.
+Password recovery additionally requires a recent active session whose
+credential is an active, login-enabled, verified email credential.
+
+## External identity-security processor and Vault
+
+Run `ashr-identity-security-processor` as a separately deployable trusted
+workload. Supply this complete processor configuration:
+
+```text
+ASHR_IDENTITY_SECURITY_PROCESSOR_LISTEN_ADDRESS=<private-host-port>
+ASHR_IDENTITY_SECURITY_PROCESSOR_SERVER_CERT_FILE=<projected-server-certificate-file>
+ASHR_IDENTITY_SECURITY_PROCESSOR_SERVER_KEY_FILE=<projected-server-private-key-file>
+ASHR_IDENTITY_SECURITY_PROCESSOR_CLIENT_CA_FILE=<projected-api-client-ca-file>
+ASHR_IDENTITY_SECURITY_VAULT_DATA_ENDPOINT_PREFIX=https://<vault-host>/v1/<kv-mount>/data/<prefix>
+ASHR_IDENTITY_SECURITY_VAULT_METADATA_ENDPOINT_PREFIX=https://<vault-host>/v1/<kv-mount>/metadata/<prefix>
+ASHR_IDENTITY_SECURITY_VAULT_KEYRING_ENDPOINT=https://<vault-host>/v1/<kv-mount>/data/<keyring-path>
+ASHR_IDENTITY_SECURITY_VAULT_TOKEN_FILE=<projected-short-lived-token-file>
+ASHR_IDENTITY_SECURITY_VAULT_CA_FILE=<projected-vault-ca-file>
+ASHR_IDENTITY_SECURITY_VAULT_CLIENT_CERT_FILE=<projected-vault-client-certificate-file>
+ASHR_IDENTITY_SECURITY_VAULT_CLIENT_KEY_FILE=<projected-vault-client-private-key-file>
+ASHR_IDENTITY_SECURITY_VAULT_SERVER_NAME=<vault-server-name>
+ASHR_IDENTITY_SECURITY_VAULT_NAMESPACE=<optional-vault-namespace>
+ASHR_IDENTITY_SECURITY_TOTP_ISSUER=<optional-display-issuer>
+ASHR_IDENTITY_SECURITY_VAULT_TIMEOUT_SECONDS=<1-through-30>
+ASHR_IDENTITY_SECURITY_READINESS_TIMEOUT_SECONDS=<1-through-30>
+ASHR_IDENTITY_SECURITY_SHUTDOWN_TIMEOUT_SECONDS=<1-through-120>
+```
+
+`ASHR_IDENTITY_SECURITY_VAULT_TOKEN` is explicitly forbidden. Deliver a
+short-lived token only through
+`ASHR_IDENTITY_SECURITY_VAULT_TOKEN_FILE`; a Vault Agent, workload-identity
+sidecar, or equivalent production Secret Manager integration must refresh the
+projected file before expiry. The processor reads the file for each Vault
+operation so token rotation does not require a processor restart. Do not put a
+token, key, DSN, password, OAuth Client Secret, or credential reference into a
+frontend variable, `NEXT_PUBLIC_*`, repository file, document, browser
+storage, container image, command transcript, or log.
+
+The processor listener requires and verifies an API client certificate and
+allows exactly TLS 1.3. The processor-to-Vault client likewise pins the Vault
+CA/server name, presents its workload certificate, requires exactly TLS 1.3,
+refuses redirects, and applies bounded timeouts. Startup resolves the Vault
+KV-v2 key ring and verifies data-plane readiness before serving traffic.
+`/health`, `/ready`, process, confirm, one-use handoff, and cleanup responses
+all carry `Cache-Control: no-store`.
+
+The Vault key-ring record contains one active version and may retain previous
+versions during a controlled rotation. New records always use the active key.
+Existing records remain usable only while their referenced previous key is
+still present; retiring that key makes those records fail closed. Rotation
+therefore proceeds as:
+
+1. add the new key while retaining the previous key;
+2. mark the new version active and verify readiness;
+3. allow in-flight records/handoffs to complete or clean them up;
+4. use aggregate-only evidence to verify no retained record needs the previous
+   version; and
+5. remove the previous key and re-run readiness/failure tests.
+
+The processor uses Vault KV-v2 compare-and-swap operations for idempotency,
+replica concurrency, and one-use claims. TOTP provisioning URIs and recovery
+codes are returned through separate handoff identifiers and exactly one
+consumer may win. Recovery codes are returned once, then removed from the
+stored record. Cleanup tokens compensate failed or partial API/database
+mutations without exposing the stored secret. A Vault outage, timeout,
+read-only response, CAS conflict, malformed key ring, retired key, handoff
+replay, or cleanup mismatch must return a stable redacted error and leave no
+new active account-security state.
+
+## PostgreSQL migration 028 issuer and RLS boundary
+
+Apply `028_a1_scoped_identity_security_ticket_issuer.sql` before enabling the
+password/TOTP runtime. Migration 028 adds forced-RLS issuance records and only
+these issuer entrypoints:
+
+```text
+a1_issue_scoped_identity_security_mutation_ticket(
+  UUID,UUID,UUID,UUID,UUID,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,TEXT,INTEGER,TIMESTAMPTZ
+)
+a1_cancel_scoped_identity_security_mutation_ticket(
+  UUID,UUID,UUID,UUID,UUID,TEXT,TEXT,TEXT,TEXT,TEXT
+)
+```
+
+Create `a1_security_ticket_issuer` as an independent `NOLOGIN`,
+`NOSUPERUSER`, `NOBYPASSRLS`, `NOINHERIT` role. Create a separate restricted
+`LOGIN`, `NOSUPERUSER`, `NOBYPASSRLS`, `NOINHERIT` deployment principal,
+grant it membership in the issuer role, and make its dedicated DSN explicitly
+select `a1_security_ticket_issuer` (for example through the PostgreSQL startup
+`role` option). The API must never reuse the normal runtime pool for this
+connection.
+
+The `a1_runtime` role receives no issuer function authority. The issuer role
+receives no direct sensitive-table privilege, no schema-create privilege, no
+general ticket resolution/execution authority, and no account-security
+projection authority. It may execute only the two scoped issue/cancel
+functions. Those `SECURITY DEFINER` functions retain the exact
+`pg_catalog, public, pg_temp` search path, enforce organization/project,
+canonical principal/actor, recent session, idempotency, context digest, ticket
+TTL, and forced-RLS scope, and reject password recovery unless the recent
+session is backed by a verified active email credential.
+
+Startup readiness verifies that `current_user` is the `NOLOGIN` issuer role,
+`session_user` is a separate restricted `LOGIN` member, both roles are
+`NOSUPERUSER`, `NOBYPASSRLS`, and `NOINHERIT`, the issuance table has enabled
+and forced RLS, only the scoped functions are executable, and the issuer has
+no direct access to issuance, receipt, or mutation-ticket tables. Deployment
+verification must also check function ownership, ACLs, and the fixed search
+path. Never repair readiness by granting the issuer or runtime direct table
+access.
 
 ## Controlled local verification
 

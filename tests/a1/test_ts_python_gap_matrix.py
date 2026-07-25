@@ -111,6 +111,8 @@ def test_ts_python_gap_matrix_is_generated_public_safe_and_current():
         "credential_statuses",
         "forbidden_key_suffixes",
         "forbidden_public_keys",
+        "identity_security_http_schema_version",
+        "identity_security_service_schema_version",
         "invariants",
         "membership_roles",
         "membership_statuses",
@@ -147,7 +149,27 @@ def test_ts_python_gap_matrix_is_generated_public_safe_and_current():
         "wechat",
     ]
     assert len(identity["python"]["stable_error_codes"]) == 28
-    assert len(identity["python"]["routes"]) == 12
+    assert len(identity["python"]["routes"]) == 18
+    assert {
+        route["operation"]
+        for route in identity["python"]["routes"]
+        if route["operation"]
+        in {
+            "security_posture",
+            "password_enroll_begin",
+            "password_change_begin",
+            "password_recovery_begin",
+            "two_factor_enroll_begin",
+            "two_factor_enroll_confirm",
+        }
+    } == {
+        "security_posture",
+        "password_enroll_begin",
+        "password_change_begin",
+        "password_recovery_begin",
+        "two_factor_enroll_begin",
+        "two_factor_enroll_confirm",
+    }
     assert len(identity["python"]["verification_public_surface"]) == 10
     assert identity["python"]["verification"]["digest_only_envelopes"] is True
     assert identity["typescript"]["verification"]["atomic_receipt_consumption"] is True

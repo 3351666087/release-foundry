@@ -34,15 +34,22 @@ def test_route_lifecycle_is_explicit_and_fail_closed() -> None:
         "link_start",
         "link_complete",
         "unlink",
-        "password_set",
-        "password_change",
-        "two_factor_enroll",
-        "two_factor_verify",
         "two_factor_recovery",
         "two_factor_disable",
     }:
         assert routes[operation]["lifecycle"] == "proposed"
         assert routes[operation]["client_callable"] is False
+
+    for operation in {
+        "security_posture",
+        "password_set",
+        "password_change",
+        "password_recover",
+        "two_factor_enroll",
+        "two_factor_verify",
+    }:
+        assert routes[operation]["lifecycle"] == "active"
+        assert routes[operation]["client_callable"] is True
 
     providers = {item["provider"]: item for item in manifest["providers"]}
     for provider in {"email", "github", "google"}:

@@ -122,6 +122,10 @@ export const HOSTED_ROUTE_SCOPE_REQUIREMENTS: Record<string, string[]> = {
 };
 
 export const UNSUPPORTED_GO_ROUTE_GAPS: Record<string, { reason: string; replacement_route?: string; consumer_action: string }> = {
+  "GET /v1/accounts/{account_id}/security": {
+    reason: "Go exposes account security posture through the dedicated unified identity client; the generic hosted SaaS client does not own authenticated account-security state.",
+    consumer_action: "consume through UnifiedIdentityHttpClient.getSecurityPosture and keep session credentials outside generic hosted route manifests",
+  },
   "GET /v1/identity/providers": {
     reason: "Go exposes the A3-facing identity provider deployment capability surface; the hosted SaaS client does not yet own identity lifecycle transport.",
     consumer_action: "consume through the unified identity SDK until the generated hosted client adopts the typed provider capability DTO",
@@ -165,6 +169,26 @@ export const UNSUPPORTED_GO_ROUTE_GAPS: Record<string, { reason: string; replace
     reason: "Go keeps a root bootstrap alias; hosted clients consume the versioned bootstrap route.",
     replacement_route: "POST /v1/bootstrap",
     consumer_action: "keep unsupported until root bootstrap aliases are part of generated SDK contracts",
+  },
+  "POST /v1/accounts/{account_id}/password/change/begin": {
+    reason: "Go accepts password change material only through the dedicated trusted unified identity transport; the generic hosted SaaS client must not carry password proofs.",
+    consumer_action: "consume through UnifiedIdentityHttpClient.beginPasswordChange with recent-auth and idempotency context kept out of generic SaaS payloads",
+  },
+  "POST /v1/accounts/{account_id}/password/enroll/begin": {
+    reason: "Go accepts initial password material only through the dedicated trusted unified identity transport; the generic hosted SaaS client must not carry passwords.",
+    consumer_action: "consume through UnifiedIdentityHttpClient.beginPasswordEnroll and keep password material out of generic SaaS payloads and logs",
+  },
+  "POST /v1/accounts/{account_id}/password/recover/begin": {
+    reason: "Go accepts verified-email password recovery material only through the dedicated trusted unified identity transport; the generic hosted SaaS client does not own recovery authority.",
+    consumer_action: "consume through UnifiedIdentityHttpClient.beginPasswordRecovery after server-issued verification and keep recovery proof material out of generic SaaS payloads",
+  },
+  "POST /v1/accounts/{account_id}/two-factor/enroll/begin": {
+    reason: "Go starts TOTP enrollment through the dedicated trusted unified identity transport; the generic hosted SaaS client must not receive provisioning secrets.",
+    consumer_action: "consume through UnifiedIdentityHttpClient.beginTwoFactorEnroll and treat provisioning output as a one-use handoff",
+  },
+  "POST /v1/accounts/{account_id}/two-factor/enroll/confirm": {
+    reason: "Go confirms TOTP enrollment through the dedicated trusted unified identity transport; the generic hosted SaaS client must not carry TOTP proof or recovery codes.",
+    consumer_action: "consume through UnifiedIdentityHttpClient.confirmTwoFactorEnroll and keep TOTP and one-use recovery material out of generic SaaS payloads and logs",
   },
   "POST /v1/identity/login/complete": {
     reason: "Go owns receipt-backed login completion; the hosted SaaS client intentionally cannot create, merge, or link accounts during login.",

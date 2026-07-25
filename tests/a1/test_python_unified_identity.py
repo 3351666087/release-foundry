@@ -7,16 +7,25 @@ from urllib.parse import urlparse
 import pytest
 
 from ashr_clone.unified_identity import (
+    IDENTITY_SECURITY_HTTP_SCHEMA_VERSION,
+    IDENTITY_SECURITY_SERVICE_SCHEMA_VERSION,
     UNIFIED_IDENTITY_ERROR_CODES,
     UNIFIED_IDENTITY_PROVIDERS,
     IdentityCredential,
     IdentityMerge,
     IdentityRecovery,
+    IdentitySecurityBeginResult,
+    IdentitySecurityConfirmResult,
+    IdentitySecurityPosture,
     UnifiedAccount,
     UnifiedIdentityClient,
     UnifiedIdentityContractError,
     UnifiedIdentityError,
+    identity_password_begin_route,
     identity_link_route,
+    identity_two_factor_enroll_begin_route,
+    identity_two_factor_enroll_confirm_route,
+    identity_two_factor_route,
     unified_identity_contract_manifest,
 )
 
@@ -367,6 +376,257 @@ def test_route_helpers_encode_ids_and_keep_provider_under_account_credentials() 
     assert identity_link_route("acct with/slash", "wechat") == (
         "/v1/accounts/acct%20with%2Fslash/credentials/wechat/link"
     )
+
+
+def test_security_route_helpers_only_emit_backed_begin_and_confirm_paths() -> None:
+    assert identity_password_begin_route("acct_01", "set") == (
+        "/v1/accounts/acct_01/password/enroll/begin"
+    )
+    assert identity_password_begin_route("acct_01", "change") == (
+        "/v1/accounts/acct_01/password/change/begin"
+    )
+    assert identity_password_begin_route("acct_01", "recover") == (
+        "/v1/accounts/acct_01/password/recover/begin"
+    )
+    assert identity_two_factor_enroll_begin_route("acct_01") == (
+        "/v1/accounts/acct_01/two-factor/enroll/begin"
+    )
+    assert identity_two_factor_enroll_confirm_route("acct_01") == (
+        "/v1/accounts/acct_01/two-factor/enroll/confirm"
+    )
+    assert identity_two_factor_route("acct_01", "verify").endswith("/enroll/confirm")
+    with pytest.raises(UnifiedIdentityContractError):
+        identity_two_factor_route("acct_01", "recovery")
+    with pytest.raises(UnifiedIdentityContractError):
+        identity_two_factor_route("acct_01", "disable")
+
+
+def test_flat_identity_security_dtos_are_strict_and_public_safe() -> None:
+    posture = IdentitySecurityPosture.from_public_response(
+        {
+            "schema_version": IDENTITY_SECURITY_HTTP_SCHEMA_VERSION,
+            "password_status": "set",
+            "password_change_available": True,
+            "password_recovery_available": True,
+            "two_factor_status": "disabled",
+            "two_factor_optional": True,
+            "two_factor_recommended": True,
+            "recovery_codes_remaining": 0,
+            "security_version": 4,
+            "active_sessions": 2,
+        }
+    )
+    assert posture.to_dict() == {
+        "schema_version": IDENTITY_SECURITY_HTTP_SCHEMA_VERSION,
+        "password_status": "set",
+        "password_change_available": True,
+        "password_recovery_available": True,
+        "two_factor_status": "disabled",
+        "two_factor_optional": True,
+        "two_factor_recommended": True,
+        "recovery_codes_remaining": 0,
+        "security_version": 4,
+        "active_sessions": 2,
+    }
+
+    begin = IdentitySecurityBeginResult.from_public_response(
+        {
+            "schema_version": IDENTITY_SECURITY_SERVICE_SCHEMA_VERSION,
+            "operation": "mfa_enroll",
+            "two_factor_status": "pending",
+            "two_factor_optional": True,
+            "two_factor_recommended": True,
+            "confirmation_required": True,
+            "confirmation_challenge_id": "challenge_a1_01",
+            "provisioning_uri": "otpauth://totp/Ashr%3Atest",
+            "security_version": 5,
+            "sessions_revoked": 0,
+        }
+    )
+    assert begin.challenge_id == "challenge_a1_01"
+    assert "confirmation_challenge_id" not in begin.to_dict()
+    assert begin.two_factor_optional is True
+    assert begin.two_factor_recommended is True
+
+    confirm = IdentitySecurityConfirmResult.from_public_response(
+        {
+            "schema_version": IDENTITY_SECURITY_SERVICE_SCHEMA_VERSION,
+            "operation": "mfa_confirm",
+            "two_factor_status": "enabled",
+            "two_factor_optional": True,
+            "two_factor_recommended": True,
+            "recovery_codes": ["RECOVERY-A1-0001", "RECOVERY-A1-0002"],
+            "recovery_codes_remaining": 2,
+            "security_version": 6,
+            "sessions_revoked": 1,
+            "reauthentication_required": True,
+        },
+        challenge_id="challenge_a1_01",
+    )
+    assert confirm.challenge_id == "challenge_a1_01"
+    assert confirm.recovery_codes == ("RECOVERY-A1-0001", "RECOVERY-A1-0002")
+    assert "password" not in confirm.to_dict()
+    assert "code" not in confirm.to_dict()
+
+    with pytest.raises(UnifiedIdentityContractError, match="schema version"):
+        IdentitySecurityPosture.from_public_response(
+            {
+                **posture.to_dict(),
+                "schema_version": "ashr.identity_security_http.v0",
+            }
+        )
+    with pytest.raises(UnifiedIdentityContractError, match="challenge"):
+        IdentitySecurityBeginResult.from_public_response(
+            {
+                "schema_version": IDENTITY_SECURITY_SERVICE_SCHEMA_VERSION,
+                "operation": "mfa_enroll",
+                "two_factor_status": "pending",
+                "two_factor_optional": True,
+                "two_factor_recommended": True,
+                "confirmation_required": True,
+                "provisioning_uri": "otpauth://totp/Ashr%3Atest",
+                "security_version": 5,
+                "sessions_revoked": 0,
+            }
+        )
+
+
+def test_security_client_uses_dedicated_sensitive_transports_and_secret_free_dtos() -> None:
+    calls: list[tuple[str, str, dict[str, Any]]] = []
+    password_value = "A1-only-test-password!"
+    totp_value = "123456"
+
+    def transport(method: str, url: str, payload: Mapping[str, Any]) -> Mapping[str, Any]:
+        path = urlparse(url).path
+        calls.append((method, path, dict(payload)))
+        if path.endswith("/security"):
+            return {
+                "schema_version": IDENTITY_SECURITY_HTTP_SCHEMA_VERSION,
+                "password_status": "absent",
+                "password_change_available": False,
+                "password_recovery_available": True,
+                "two_factor_status": "disabled",
+                "two_factor_optional": True,
+                "two_factor_recommended": True,
+                "recovery_codes_remaining": 0,
+                "security_version": 1,
+                "active_sessions": 1,
+            }
+        if path.endswith("/password/enroll/begin"):
+            return {
+                "schema_version": IDENTITY_SECURITY_SERVICE_SCHEMA_VERSION,
+                "operation": "password_enroll",
+                "password_status": "set",
+                "two_factor_optional": True,
+                "two_factor_recommended": True,
+                "security_version": 2,
+                "sessions_revoked": 1,
+                "reauthentication_required": True,
+            }
+        if path.endswith("/two-factor/enroll/begin"):
+            return {
+                "schema_version": IDENTITY_SECURITY_SERVICE_SCHEMA_VERSION,
+                "operation": "mfa_enroll",
+                "two_factor_status": "pending",
+                "two_factor_optional": True,
+                "two_factor_recommended": True,
+                "confirmation_required": True,
+                "confirmation_challenge_id": "challenge_a1_02",
+                "provisioning_uri": "otpauth://totp/Ashr%3Atest",
+                "security_version": 3,
+                "sessions_revoked": 0,
+            }
+        if path.endswith("/two-factor/enroll/confirm"):
+            return {
+                "schema_version": IDENTITY_SECURITY_SERVICE_SCHEMA_VERSION,
+                "operation": "mfa_confirm",
+                "two_factor_status": "enabled",
+                "two_factor_optional": True,
+                "two_factor_recommended": True,
+                "recovery_codes": ["RECOVERY-A1-1001", "RECOVERY-A1-1002"],
+                "recovery_codes_remaining": 2,
+                "security_version": 4,
+                "sessions_revoked": 1,
+                "reauthentication_required": True,
+            }
+        raise AssertionError(path)
+
+    client = UnifiedIdentityClient("https://identity.example", transport=transport)
+    assert client.get_security_posture("acct_01").two_factor_recommended is True
+    password_result = client.begin_password_enroll(
+        "acct_01",
+        password_value,
+        idempotency_key="idem-password-enroll-01",
+    )
+    begin_result = client.begin_two_factor_enroll(
+        "acct_01",
+        idempotency_key="idem-mfa-begin-01",
+    )
+    confirm_result = client.confirm_two_factor_enroll(
+        "acct_01",
+        begin_result.challenge_id or "",
+        totp_value,
+        idempotency_key="idem-mfa-confirm-01",
+    )
+
+    assert calls[1] == (
+        "POST",
+        "/v1/accounts/acct_01/password/enroll/begin",
+        {
+            "password": password_value,
+            "idempotency_key": "idem-password-enroll-01",
+        },
+    )
+    assert calls[2][1] == "/v1/accounts/acct_01/two-factor/enroll/begin"
+    assert calls[3] == (
+        "POST",
+        "/v1/accounts/acct_01/two-factor/enroll/confirm",
+        {
+            "challenge_id": "challenge_a1_02",
+            "code": totp_value,
+            "idempotency_key": "idem-mfa-confirm-01",
+        },
+    )
+    result_dump = json.dumps(
+        {
+            "password": password_result.to_dict(),
+            "begin": begin_result.to_dict(),
+            "confirm": confirm_result.to_dict(),
+        }
+    )
+    assert password_value not in result_dump
+    assert totp_value not in result_dump
+    assert "confirmation_challenge_id" not in result_dump
+    assert confirm_result.recovery_codes == (
+        "RECOVERY-A1-1001",
+        "RECOVERY-A1-1002",
+    )
+
+
+def test_legacy_security_mutations_fail_closed_before_transport() -> None:
+    calls: list[object] = []
+    client = UnifiedIdentityClient(
+        "https://identity.example",
+        transport=lambda *args: calls.append(args) or {},
+    )
+
+    with pytest.raises(UnifiedIdentityContractError, match="not routable"):
+        client.mutate_password(
+            "acct_01",
+            "set",
+            mutation_ticket_id="ticket_01",
+            step_up_receipt_id="receipt_01",
+            idempotency_key="idem-password-legacy",
+        )
+    with pytest.raises(UnifiedIdentityContractError, match="not routable"):
+        client.mutate_two_factor(
+            "acct_01",
+            "disable",
+            mutation_ticket_id="ticket_01",
+            step_up_receipt_id="receipt_01",
+            idempotency_key="idem-mfa-legacy",
+        )
+    assert calls == []
 
 
 def test_client_helpers_emit_public_reference_only_requests_and_parse_dtos() -> None:

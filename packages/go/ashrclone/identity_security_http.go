@@ -71,6 +71,16 @@ type IdentitySecurityHTTPStore interface {
 }
 
 func (server *HTTPServer) handleIdentitySecurity(w http.ResponseWriter, r *http.Request, session IdentityHTTPSession, parts []string) {
+	if operation, action, ok := identitySecurityServiceOperation(parts); ok {
+		server.handleIdentitySecurityService(
+			w,
+			r,
+			session,
+			operation,
+			action,
+		)
+		return
+	}
 	if server.identitySecurity == nil {
 		writeError(w, http.StatusServiceUnavailable, "identity_security_unavailable", "identity security capability is unavailable")
 		return
@@ -137,6 +147,206 @@ func (server *HTTPServer) handleIdentitySecurity(w http.ResponseWriter, r *http.
 	}
 	result.SchemaVersion = IdentitySecurityHTTPSchemaVersion
 	writeJSON(w, http.StatusOK, result)
+}
+
+func (server *HTTPServer) handleIdentitySecurityService(
+	writer http.ResponseWriter,
+	request *http.Request,
+	session IdentityHTTPSession,
+	operation string,
+	action string,
+) {
+	if request.Method != http.MethodPost {
+		writeError(
+			writer,
+			http.StatusMethodNotAllowed,
+			"method_not_allowed",
+			"method not allowed",
+		)
+		return
+	}
+	if server.identitySecurityService == nil {
+		writeError(
+			writer,
+			http.StatusServiceUnavailable,
+			"identity_security_unavailable",
+			"identity security capability is unavailable",
+		)
+		return
+	}
+	if _, err := identityBrowserVerificationOrigin(request); err != nil {
+		writeError(
+			writer,
+			http.StatusForbidden,
+			"identity_security_origin_rejected",
+			"identity security request origin could not be verified",
+		)
+		return
+	}
+	body, ok := readJSONBody(writer, request)
+	if !ok {
+		return
+	}
+	if err := validateIdentitySecurityServiceBody(
+		body,
+		operation,
+		action,
+	); err != nil {
+		writeError(
+			writer,
+			http.StatusBadRequest,
+			"invalid_identity_security_request",
+			"identity security request is invalid",
+		)
+		return
+	}
+	headerKey := strings.TrimSpace(request.Header.Get("Idempotency-Key"))
+	bodyKey := strings.TrimSpace(stringValue(body, "idempotency_key"))
+	if headerKey == "" || bodyKey == "" || headerKey != bodyKey ||
+		!validIdentitySecurityIdempotencyKey(headerKey) {
+		writeError(
+			writer,
+			http.StatusBadRequest,
+			"invalid_identity_security_request",
+			"a matching idempotency key is required",
+		)
+		return
+	}
+	if action == "begin" {
+		password := stringValue(body, "password")
+		delete(body, "password")
+		result, err := server.identitySecurityService.Begin(
+			request.Context(),
+			session,
+			IdentitySecurityBeginRequest{
+				Operation:      operation,
+				IdempotencyKey: headerKey,
+				Password:       password,
+			},
+		)
+		password = ""
+		writeIdentitySecurityServiceResult(writer, result, err)
+		return
+	}
+	challengeID := stringValue(body, "challenge_id")
+	code := stringValue(body, "code")
+	delete(body, "code")
+	result, err := server.identitySecurityService.Confirm(
+		request.Context(),
+		session,
+		IdentitySecurityConfirmRequest{
+			IdempotencyKey: headerKey,
+			ChallengeID:    challengeID,
+			Code:           code,
+		},
+	)
+	code = ""
+	writeIdentitySecurityServiceResult(writer, result, err)
+}
+
+func identitySecurityServiceOperation(
+	parts []string,
+) (string, string, bool) {
+	if len(parts) != 3 {
+		return "", "", false
+	}
+	key := strings.Join(parts, "/")
+	routes := map[string]struct {
+		operation string
+		action    string
+	}{
+		"password/enroll/begin": {
+			operation: "password_enroll",
+			action:    "begin",
+		},
+		"password/change/begin": {
+			operation: "password_change",
+			action:    "begin",
+		},
+		"password/recover/begin": {
+			operation: "password_recovery",
+			action:    "begin",
+		},
+		"two-factor/enroll/begin": {
+			operation: "mfa_enroll",
+			action:    "begin",
+		},
+		"two-factor/enroll/confirm": {
+			operation: "mfa_confirm",
+			action:    "confirm",
+		},
+	}
+	route, ok := routes[key]
+	return route.operation, route.action, ok
+}
+
+func validateIdentitySecurityServiceBody(
+	body JSONMap,
+	operation string,
+	action string,
+) error {
+	if body == nil {
+		return ErrIdentitySecurityRejected
+	}
+	allowed := map[string]bool{"idempotency_key": true}
+	switch {
+	case action == "begin" && operation == "mfa_enroll":
+	case action == "begin":
+		allowed["password"] = true
+	case action == "confirm" && operation == "mfa_confirm":
+		allowed["challenge_id"] = true
+		allowed["code"] = true
+	default:
+		return ErrIdentitySecurityRejected
+	}
+	for key := range body {
+		if !allowed[key] {
+			return ErrIdentitySecurityRejected
+		}
+	}
+	if _, ok := body["idempotency_key"].(string); !ok {
+		return ErrIdentitySecurityRejected
+	}
+	if action == "begin" && operation != "mfa_enroll" {
+		if _, ok := body["password"].(string); !ok {
+			return ErrIdentitySecurityRejected
+		}
+	}
+	if action == "confirm" {
+		if _, ok := body["challenge_id"].(string); !ok {
+			return ErrIdentitySecurityRejected
+		}
+		if _, ok := body["code"].(string); !ok {
+			return ErrIdentitySecurityRejected
+		}
+	}
+	return nil
+}
+
+func writeIdentitySecurityServiceResult[T any](
+	writer http.ResponseWriter,
+	result T,
+	err error,
+) {
+	if err == nil {
+		writeJSON(writer, http.StatusOK, result)
+		return
+	}
+	if errors.Is(err, ErrIdentitySecurityRejected) {
+		writeError(
+			writer,
+			http.StatusForbidden,
+			"identity_security_request_rejected",
+			"identity security request could not be completed",
+		)
+		return
+	}
+	writeError(
+		writer,
+		http.StatusServiceUnavailable,
+		"identity_security_unavailable",
+		"identity security capability is unavailable",
+	)
 }
 
 func identitySecurityOperation(parts []string) (string, bool) {

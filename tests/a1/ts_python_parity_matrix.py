@@ -79,6 +79,37 @@ UNIFIED_IDENTITY_ROUTE_OPERATIONS = [
     ("account_get", "GET", "identity_account_route", ("account_contract",)),
     ("credential_list", "GET", "identity_credentials_route", ("account_contract",)),
     ("membership_list", "GET", "identity_memberships_route", ("account_contract",)),
+    ("security_posture", "GET", "identity_security_route", ("account_contract",)),
+    (
+        "password_enroll_begin",
+        "POST",
+        "identity_password_begin_route",
+        ("account_contract", "enroll"),
+    ),
+    (
+        "password_change_begin",
+        "POST",
+        "identity_password_begin_route",
+        ("account_contract", "change"),
+    ),
+    (
+        "password_recovery_begin",
+        "POST",
+        "identity_password_begin_route",
+        ("account_contract", "recover"),
+    ),
+    (
+        "two_factor_enroll_begin",
+        "POST",
+        "identity_two_factor_enroll_begin_route",
+        ("account_contract",),
+    ),
+    (
+        "two_factor_enroll_confirm",
+        "POST",
+        "identity_two_factor_enroll_confirm_route",
+        ("account_contract",),
+    ),
     ("credential_link", "POST", "identity_link_route", ("account_contract", "github")),
     (
         "credential_unlink",
@@ -342,6 +373,12 @@ def python_unified_identity_contract(path: Path) -> dict[str, Any]:
     }
     return {
         "schema_version": python_scalar_literal(path, "UNIFIED_IDENTITY_SCHEMA_VERSION"),
+        "identity_security_http_schema_version": python_scalar_literal(
+            path, "IDENTITY_SECURITY_HTTP_SCHEMA_VERSION"
+        ),
+        "identity_security_service_schema_version": python_scalar_literal(
+            path, "IDENTITY_SECURITY_SERVICE_SCHEMA_VERSION"
+        ),
         "providers": python_set_literal(path, "UNIFIED_IDENTITY_PROVIDERS"),
         "account_statuses": python_set_literal(path, "UNIFIED_IDENTITY_ACCOUNT_STATUSES"),
         "credential_statuses": python_set_literal(path, "UNIFIED_IDENTITY_CREDENTIAL_STATUSES"),
@@ -386,6 +423,12 @@ def ts_unified_identity_contract(path: Path) -> dict[str, Any]:
         raise AssertionError(f"missing unified identity subject_model in {repo_path(path)}")
     return {
         "schema_version": ts_named_string(path, "UNIFIED_IDENTITY_SCHEMA_VERSION"),
+        "identity_security_http_schema_version": ts_named_string(
+            path, "IDENTITY_SECURITY_HTTP_SCHEMA_VERSION"
+        ),
+        "identity_security_service_schema_version": ts_named_string(
+            path, "IDENTITY_SECURITY_SERVICE_SCHEMA_VERSION"
+        ),
         "providers": ts_named_string_collection(path, "UNIFIED_IDENTITY_PROVIDERS"),
         "account_statuses": ts_named_string_collection(path, "UNIFIED_IDENTITY_ACCOUNT_STATUSES"),
         "credential_statuses": ts_named_string_collection(

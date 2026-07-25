@@ -67,7 +67,7 @@ def _rows(result: subprocess.CompletedProcess[str]) -> list[str]:
 
 
 @pytest.fixture(scope="module")
-def scoped_security_database() -> str:
+def scoped_security_database() -> tuple[str, str]:
     running = subprocess.run(
         ["docker", "inspect", "-f", "{{.State.Running}}", CONTAINER],
         text=True,
@@ -95,6 +95,17 @@ def scoped_security_database() -> str:
         """,
         tuples=False,
     )
+    issuer_login = f"a1_security_issuer_test_{uuid.uuid4().hex[:12]}"
+    _psql(
+        "postgres",
+        f"""
+        CREATE ROLE "{issuer_login}"
+          LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE
+          NOBYPASSRLS NOINHERIT;
+        GRANT a1_security_ticket_issuer TO "{issuer_login}";
+        """,
+        tuples=False,
+    )
     database = f"a1_scoped_security_it_{uuid.uuid4().hex[:12]}"
     _psql("postgres", f'CREATE DATABASE "{database}";', tuples=False)
     try:
@@ -104,11 +115,20 @@ def scoped_security_database() -> str:
                 migration.read_text(encoding="utf-8"),
                 tuples=False,
             )
-        yield database
+        yield database, issuer_login
     finally:
         _psql(
             "postgres",
             f'DROP DATABASE IF EXISTS "{database}" WITH (FORCE);',
+            tuples=False,
+            check=False,
+        )
+        _psql(
+            "postgres",
+            f"""
+            REVOKE a1_security_ticket_issuer FROM "{issuer_login}";
+            DROP ROLE IF EXISTS "{issuer_login}";
+            """,
             tuples=False,
             check=False,
         )
@@ -143,39 +163,108 @@ def test_migration_declares_only_principal_scoped_runtime_authorities() -> None:
 
 
 def test_runtime_rejects_foreign_canonical_account_without_consumption(
-    scoped_security_database: str,
+    scoped_security_database: tuple[str, str],
 ) -> None:
-    database = scoped_security_database
+    database, issuer_login = scoped_security_database
+    organization = str(uuid.uuid4())
+    workspace = str(uuid.uuid4())
+    project = str(uuid.uuid4())
     principal_a = str(uuid.uuid4())
     principal_b = str(uuid.uuid4())
-    ticket = _digest("scoped-security-ticket")
-    receipt = _digest("scoped-security-receipt")
-    context = _digest("scoped-security-context")
+    membership_b = str(uuid.uuid4())
+    credential_b = str(uuid.uuid4())
+    session_b = str(uuid.uuid4())
+    session_digest = _digest("scoped-security-session")
+    rotation_digest = _digest("scoped-security-rotation")
+    issuer_idempotency = "scoped-security-issuer"
     secret = _digest("scoped-security-secret")
     request = _digest("scoped-security-request")
+    context = hashlib.sha256(
+        "\0".join(
+            (
+                "ashr.identity_security_ticket.v1",
+                organization,
+                project,
+                principal_b,
+                principal_b,
+                session_b,
+                session_digest,
+                "password_enroll",
+                issuer_idempotency,
+            )
+        ).encode("utf-8")
+    ).hexdigest()
 
-    _psql(
-        database,
-        f"""
+    issued = _rows(
+        _psql(
+            database,
+            f"""
+        INSERT INTO organizations(id,slug,display_name)
+        VALUES ('{organization}','scoped-security','Scoped Security');
+        INSERT INTO workspaces(id,organization_id,slug,display_name)
+        VALUES ('{workspace}','{organization}','scoped-security','Scoped Security');
+        INSERT INTO projects(id,organization_id,workspace_id,slug,display_name)
+        VALUES (
+          '{project}','{organization}','{workspace}',
+          'scoped-security','Scoped Security'
+        );
         INSERT INTO identity_principals(id,status)
         VALUES ('{principal_a}','active'),('{principal_b}','active');
+        INSERT INTO identity_organization_memberships(
+          id,organization_id,principal_id,status,activated_at
+        ) VALUES (
+          '{membership_b}','{organization}','{principal_b}',
+          'active',clock_timestamp()
+        );
+        INSERT INTO identity_project_memberships(
+          organization_id,project_id,principal_id,
+          organization_membership_id,status,activated_at
+        ) VALUES (
+          '{organization}','{project}','{principal_b}',
+          '{membership_b}','active',clock_timestamp()
+        );
+        INSERT INTO identity_credentials(
+          id,principal_id,provider,credential_kind,subject_digest,
+          status,login_enabled,verified_at,last_authenticated_at
+        ) VALUES (
+          '{credential_b}','{principal_b}','email','email_otp',
+          '{_digest("scoped-security-login-subject")}',
+          'active',TRUE,clock_timestamp(),clock_timestamp()
+        );
+        INSERT INTO identity_sessions(
+          id,principal_id,credential_id,organization_id,project_id,
+          session_digest,rotation_family_digest,status,assurance_level,
+          authenticated_at,expires_at
+        ) VALUES (
+          '{session_b}','{principal_b}','{credential_b}',
+          '{organization}','{project}','{session_digest}','{rotation_digest}',
+          'active','aal1',clock_timestamp(),
+          clock_timestamp()+interval '30 minutes'
+        );
         INSERT INTO identity_account_security(principal_id)
         VALUES ('{principal_a}'),('{principal_b}');
-        INSERT INTO identity_security_receipts(
-          receipt_digest,principal_id,purpose,context_digest,expires_at
-        ) VALUES (
-          '{receipt}','{principal_b}','password_enroll','{context}',
-          clock_timestamp()+interval '10 minutes'
-        );
-        SET ROLE a1_security_ticket_issuer;
-        SELECT a1_issue_identity_security_mutation_ticket(
-          '{ticket}','{receipt}','{principal_b}','{principal_b}',
-          'password_enroll','{context}','vault://password/scoped','{secret}',
-          NULL,NULL,clock_timestamp()+interval '5 minutes'
-        );
-        RESET ROLE;
+        BEGIN;
+        SET LOCAL app.a1_organization_id = '{organization}';
+        SET LOCAL app.a1_project_id = '{project}';
+        SET LOCAL app.a1_principal_id = '{principal_b}';
+        SET SESSION AUTHORIZATION "{issuer_login}";
+        SET LOCAL ROLE a1_security_ticket_issuer;
+        WITH issuance AS (
+          SELECT a1_issue_scoped_identity_security_mutation_ticket(
+            '{organization}','{project}','{principal_b}','{principal_b}',
+            '{session_b}','{session_digest}','password_enroll',
+            '{issuer_idempotency}','{context}','vault://password/scoped',
+            '{secret}',NULL,NULL,clock_timestamp()+interval '5 minutes'
+          ) AS payload
+        )
+        SELECT payload->>'ticket_id',payload->>'step_up_receipt_id'
+          FROM issuance;
+        COMMIT;
         """,
+        )
     )
+    assert len(issued) == 1
+    ticket, receipt = issued[0].split("|")
 
     foreign_calls = (
         f"SELECT a1_project_account_security('{principal_b}'::uuid);",
@@ -259,9 +348,9 @@ def test_runtime_rejects_foreign_canonical_account_without_consumption(
 
 
 def test_runtime_privileges_expose_only_scoped_functions(
-    scoped_security_database: str,
+    scoped_security_database: tuple[str, str],
 ) -> None:
-    database = scoped_security_database
+    database, _ = scoped_security_database
     privileges = _rows(
         _psql(
             database,

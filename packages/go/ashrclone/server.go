@@ -22,6 +22,7 @@ type HTTPServer struct {
 	identitySessions                   IdentityHTTPSessionResolver
 	identitySecurityTickets            IdentitySecurityTicketResolver
 	identitySecurity                   IdentitySecurityHTTPStore
+	identitySecurityService            *IdentitySecurityService
 	identityVerification               *IdentityVerificationService
 	identityVerificationResponsePolicy *IdentityVerificationResponsePolicy
 	identitySessionReceiptTransport    IdentitySessionReceiptTransport
@@ -84,6 +85,7 @@ type HTTPServerOptions struct {
 	IdentitySessions                   IdentityHTTPSessionResolver
 	IdentitySecurityTickets            IdentitySecurityTicketResolver
 	IdentitySecurity                   IdentitySecurityHTTPStore
+	IdentitySecurityService            *IdentitySecurityService
 	IdentityVerification               *IdentityVerificationService
 	IdentityVerificationResponsePolicy *IdentityVerificationResponsePolicy
 	IdentitySessionReceiptTransport    IdentitySessionReceiptTransport
@@ -168,6 +170,7 @@ func NewHTTPServerWithOptions(service ControlPlaneBackend, options HTTPServerOpt
 		identitySessions:                   options.IdentitySessions,
 		identitySecurityTickets:            options.IdentitySecurityTickets,
 		identitySecurity:                   options.IdentitySecurity,
+		identitySecurityService:            options.IdentitySecurityService,
 		identityVerification:               options.IdentityVerification,
 		identityVerificationResponsePolicy: options.IdentityVerificationResponsePolicy,
 		identitySessionReceiptTransport:    options.IdentitySessionReceiptTransport,
@@ -1076,6 +1079,12 @@ func GoRouteManifestEntries() []RouteManifestEntry {
 		goScopedRoute("GET", "/v1/accounts/{account_id}", "identity.account.get", "identity"),
 		goScopedRoute("GET", "/v1/accounts/{account_id}/credentials", "identity.credentials.list", "identity"),
 		goScopedRoute("GET", "/v1/accounts/{account_id}/memberships", "identity.memberships.list", "identity"),
+		goScopedRoute("GET", "/v1/accounts/{account_id}/security", "identity.security.get", "identity"),
+		goScopedRoute("POST", "/v1/accounts/{account_id}/password/enroll/begin", "identity.password.enroll.begin", "identity"),
+		goScopedRoute("POST", "/v1/accounts/{account_id}/password/change/begin", "identity.password.change.begin", "identity"),
+		goScopedRoute("POST", "/v1/accounts/{account_id}/password/recover/begin", "identity.password.recover.begin", "identity"),
+		goScopedRoute("POST", "/v1/accounts/{account_id}/two-factor/enroll/begin", "identity.two_factor.enroll.begin", "identity"),
+		goScopedRoute("POST", "/v1/accounts/{account_id}/two-factor/enroll/confirm", "identity.two_factor.enroll.confirm", "identity"),
 		goScopedRoute("POST", "/v1/projects/{project_id}/accounts/{account_id}/browser-sessions/refresh", "identity.browser_session.refresh", "identity"),
 		// Reserved fail-closed contracts:
 		// POST /v1/accounts/{account_id}/credentials/{provider}/link

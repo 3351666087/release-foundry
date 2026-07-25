@@ -33,6 +33,7 @@ type identityRuntime struct {
 	unifiedIdentity            *ashrclone.UnifiedIdentityService
 	identityLifecycle          *ashrclone.IdentityLifecycleService
 	identitySessions           ashrclone.IdentityHTTPSessionResolver
+	identitySecurityService    *ashrclone.IdentitySecurityService
 	postgres                   *ashrclone.ProductionIdentityStore
 	outbox                     ashrclone.OAuthRevocationOutboxStore
 	verification               *ashrclone.IdentityVerificationService
@@ -223,12 +224,20 @@ func newIdentityRuntimeFromEnv(ctx context.Context, lookup func(string) (string,
 		if dsn == "" {
 			return identityRuntime{}, fmt.Errorf("production identity requires ASHR_POSTGRES_DSN or DATABASE_URL")
 		}
+		securityConfig, err := productionIdentitySecurityRuntimeConfigFromEnv(
+			lookup,
+			dsn,
+		)
+		if err != nil {
+			return identityRuntime{}, err
+		}
 		store, err := openProductionIdentityStoreFromEnv(dsn, lookup)
 		if err != nil {
 			return identityRuntime{}, err
 		}
 		verificationEnabled := envTrue(lookup, "ASHR_IDENTITY_VERIFICATION_ENABLED")
 		var deliveryVault *productionIdentityDeliveryVaultRuntime
+		var securityRuntime *productionIdentitySecurityRuntime
 		oauthDependencies, err := productionOAuthFirstLoginDependenciesFromEnv(lookup)
 		if err != nil {
 			_ = store.Close()
@@ -238,7 +247,12 @@ func newIdentityRuntimeFromEnv(ctx context.Context, lookup func(string) (string,
 		closeResources := func() error {
 			deliveryVault.close()
 			oauthDependencies.close()
-			return store.Close()
+			securityErr := securityRuntime.close()
+			storeErr := store.Close()
+			if securityErr != nil {
+				return securityErr
+			}
+			return storeErr
 		}
 		if verificationEnabled {
 			deliveryVault, err = productionIdentityDeliveryVaultFromEnv(lookup)
@@ -257,6 +271,15 @@ func newIdentityRuntimeFromEnv(ctx context.Context, lookup func(string) (string,
 		readyCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 		defer cancel()
 		if err := store.Ready(readyCtx); err != nil {
+			_ = closeResources()
+			return identityRuntime{}, err
+		}
+		securityRuntime, err = newProductionIdentitySecurityRuntime(
+			ctx,
+			securityConfig,
+			store,
+		)
+		if err != nil {
 			_ = closeResources()
 			return identityRuntime{}, err
 		}
@@ -298,11 +321,15 @@ func newIdentityRuntimeFromEnv(ctx context.Context, lookup func(string) (string,
 			mode:                    mode,
 			identityLifecycle:       lifecycle,
 			identitySessions:        store,
+			identitySecurityService: nil,
 			postgres:                store,
 			outbox:                  outbox,
 			sessionReceiptTransport: sessionReceiptTransport,
 			oauthFirstLogins:        oauthFirstLogins,
 			close:                   closeResources,
+		}
+		if securityRuntime != nil {
+			runtime.identitySecurityService = securityRuntime.service
 		}
 		if verificationEnabled {
 			digestKey := envRaw(lookup, "ASHR_IDENTITY_VERIFICATION_HMAC_KEY")

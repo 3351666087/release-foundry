@@ -31,6 +31,8 @@ type IdentityDeliveryMTLSClientOptions struct {
 	ClientCertificatePEM  []byte
 	ClientPrivateKeyPEM   []byte
 	ServerName            string
+	MinimumTLSVersion     uint16
+	MaximumTLSVersion     uint16
 	DialTimeout           time.Duration
 	TLSHandshakeTimeout   time.Duration
 	ResponseHeaderTimeout time.Duration
@@ -42,6 +44,11 @@ type IdentityDeliveryMTLSClientOptions struct {
 func NewIdentityDeliveryMTLSHTTPClient(
 	options IdentityDeliveryMTLSClientOptions,
 ) (*http.Client, error) {
+	minimumTLSVersion, maximumTLSVersion, versionsOK :=
+		identityDeliveryMTLSVersions(
+			options.MinimumTLSVersion,
+			options.MaximumTLSVersion,
+		)
 	if !validIdentityDeliveryMTLSTimeout(options.DialTimeout) ||
 		!validIdentityDeliveryMTLSTimeout(options.TLSHandshakeTimeout) ||
 		!validIdentityDeliveryMTLSTimeout(options.ResponseHeaderTimeout) ||
@@ -49,6 +56,7 @@ func NewIdentityDeliveryMTLSHTTPClient(
 		options.DialTimeout > options.RequestTimeout ||
 		options.TLSHandshakeTimeout > options.RequestTimeout ||
 		options.ResponseHeaderTimeout > options.RequestTimeout ||
+		!versionsOK ||
 		!validIdentityDeliveryMTLSServerName(options.ServerName) {
 		return nil, errIdentityDeliveryMTLSConfiguration
 	}
@@ -94,7 +102,8 @@ func NewIdentityDeliveryMTLSHTTPClient(
 		ExpectContinueTimeout: time.Second,
 		DisableCompression:    true,
 		TLSClientConfig: &tls.Config{
-			MinVersion:   tls.VersionTLS12,
+			MinVersion:   minimumTLSVersion,
+			MaxVersion:   maximumTLSVersion,
 			RootCAs:      roots,
 			Certificates: []tls.Certificate{certificate},
 			ServerName:   options.ServerName,
@@ -107,6 +116,27 @@ func NewIdentityDeliveryMTLSHTTPClient(
 			return http.ErrUseLastResponse
 		},
 	}, nil
+}
+
+func identityDeliveryMTLSVersions(
+	minimum uint16,
+	maximum uint16,
+) (uint16, uint16, bool) {
+	if minimum == 0 {
+		minimum = tls.VersionTLS12
+	}
+	if minimum != tls.VersionTLS12 && minimum != tls.VersionTLS13 {
+		return 0, 0, false
+	}
+	if maximum != 0 &&
+		maximum != tls.VersionTLS12 &&
+		maximum != tls.VersionTLS13 {
+		return 0, 0, false
+	}
+	if maximum != 0 && maximum < minimum {
+		return 0, 0, false
+	}
+	return minimum, maximum, true
 }
 
 func identityDeliveryMTLSCertPool(encoded []byte) (*x509.CertPool, error) {

@@ -570,7 +570,10 @@ def test_live_retryable_proof_outbox_budget_and_runtime_boundary(
         issued = _rows(_psql(
             verification_database,
             f"""
-              SET ROLE a1_security_ticket_issuer;
+              -- Migration 028 deliberately removes the independent
+              -- password/MFA issuer's access to this legacy credential-bind
+              -- primitive. Seed the authority as the database owner because
+              -- this test exercises binding atomicity, not issuer ACLs.
               SELECT a1_issue_identity_security_mutation_ticket(
                 '{ticket_digest}', '{step_up_digest}', '{principal}',
                 '{principal}', 'credential_bind', '{request_digest}',

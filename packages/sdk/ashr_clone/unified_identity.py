@@ -16,6 +16,8 @@ from .api_client import redact_text
 
 UNIFIED_IDENTITY_SCHEMA_VERSION = "ashr.clone.unified_identity.v1"
 A3_IDENTITY_CONTRACT_SCHEMA_VERSION = "ashr.clone.a3_identity.v1"
+IDENTITY_SECURITY_HTTP_SCHEMA_VERSION = "ashr.identity_security_http.v1"
+IDENTITY_SECURITY_SERVICE_SCHEMA_VERSION = "ashr.identity_security_service.v1"
 UNIFIED_IDENTITY_PROVIDERS = (
     "github",
     "google",
@@ -295,12 +297,37 @@ def a3_identity_contract_manifest() -> dict[str, Any]:
         route("link_start", "POST", "/v1/accounts/{account_id}/identities/{provider}/link/start", "proposed"),
         route("link_complete", "POST", "/v1/accounts/{account_id}/identities/{provider}/link/complete", "proposed"),
         route("unlink", "POST", "/v1/accounts/{account_id}/identities/{credential_id}/unlink", "proposed"),
-        route("security_posture", "GET", "/v1/accounts/{account_id}/security", "proposed"),
-        route("password_set", "POST", "/v1/accounts/{account_id}/password/set", "proposed"),
-        route("password_change", "POST", "/v1/accounts/{account_id}/password/change", "proposed"),
-        route("password_recover", "POST", "/v1/accounts/{account_id}/password/recover", "proposed"),
-        route("two_factor_enroll", "POST", "/v1/accounts/{account_id}/two-factor/enroll", "proposed"),
-        route("two_factor_verify", "POST", "/v1/accounts/{account_id}/two-factor/verify", "proposed"),
+        route("security_posture", "GET", "/v1/accounts/{account_id}/security", "active"),
+        route(
+            "password_set",
+            "POST",
+            "/v1/accounts/{account_id}/password/enroll/begin",
+            "active",
+        ),
+        route(
+            "password_change",
+            "POST",
+            "/v1/accounts/{account_id}/password/change/begin",
+            "active",
+        ),
+        route(
+            "password_recover",
+            "POST",
+            "/v1/accounts/{account_id}/password/recover/begin",
+            "active",
+        ),
+        route(
+            "two_factor_enroll",
+            "POST",
+            "/v1/accounts/{account_id}/two-factor/enroll/begin",
+            "active",
+        ),
+        route(
+            "two_factor_verify",
+            "POST",
+            "/v1/accounts/{account_id}/two-factor/enroll/confirm",
+            "active",
+        ),
         route("two_factor_recovery", "POST", "/v1/accounts/{account_id}/two-factor/recovery", "proposed"),
         route("two_factor_disable", "POST", "/v1/accounts/{account_id}/two-factor/disable", "proposed"),
     ]
@@ -1225,6 +1252,284 @@ def _security_posture(value: Any) -> dict[str, Any]:
             "recommended": _boolean("two_factor.recommended", two_factor.get("recommended", True)),
         },
     }
+
+
+@dataclass(frozen=True)
+class IdentitySecurityPosture:
+    schema_version: str
+    password_status: str
+    password_change_available: bool
+    password_recovery_available: bool
+    two_factor_status: str
+    two_factor_optional: bool
+    two_factor_recommended: bool
+    recovery_codes_remaining: int
+    security_version: int
+    active_sessions: int
+
+    @classmethod
+    def from_public_response(
+        cls, payload: Mapping[str, Any]
+    ) -> "IdentitySecurityPosture":
+        _assert_public_safe(payload)
+        schema_version = _identifier("schema_version", payload.get("schema_version"))
+        if schema_version != IDENTITY_SECURITY_HTTP_SCHEMA_VERSION:
+            raise UnifiedIdentityContractError(
+                "unsupported identity security posture schema version"
+            )
+        return cls(
+            schema_version=schema_version,
+            password_status=_enum(
+                "password_status", payload.get("password_status"), ("absent", "set")
+            ),
+            password_change_available=_boolean(
+                "password_change_available",
+                payload.get("password_change_available"),
+            ),
+            password_recovery_available=_boolean(
+                "password_recovery_available",
+                payload.get("password_recovery_available"),
+            ),
+            two_factor_status=_enum(
+                "two_factor_status",
+                payload.get("two_factor_status"),
+                ("disabled", "pending", "enabled", "recovery_required"),
+            ),
+            two_factor_optional=_boolean(
+                "two_factor_optional", payload.get("two_factor_optional")
+            ),
+            two_factor_recommended=_boolean(
+                "two_factor_recommended", payload.get("two_factor_recommended")
+            ),
+            recovery_codes_remaining=_non_negative_int(
+                "recovery_codes_remaining", payload.get("recovery_codes_remaining")
+            ),
+            security_version=_non_negative_int(
+                "security_version", payload.get("security_version")
+            ),
+            active_sessions=_non_negative_int(
+                "active_sessions", payload.get("active_sessions")
+            ),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "password_status": self.password_status,
+            "password_change_available": self.password_change_available,
+            "password_recovery_available": self.password_recovery_available,
+            "two_factor_status": self.two_factor_status,
+            "two_factor_optional": self.two_factor_optional,
+            "two_factor_recommended": self.two_factor_recommended,
+            "recovery_codes_remaining": self.recovery_codes_remaining,
+            "security_version": self.security_version,
+            "active_sessions": self.active_sessions,
+        }
+
+
+@dataclass(frozen=True)
+class IdentitySecurityBeginResult:
+    schema_version: str
+    operation: str
+    password_status: str | None
+    two_factor_status: str | None
+    two_factor_optional: bool
+    two_factor_recommended: bool
+    confirmation_required: bool
+    challenge_id: str | None
+    provisioning_uri: str | None
+    security_version: int
+    sessions_revoked: int
+    reauthentication_required: bool
+
+    @classmethod
+    def from_public_response(
+        cls, payload: Mapping[str, Any]
+    ) -> "IdentitySecurityBeginResult":
+        _assert_public_safe(payload)
+        schema_version = _identifier("schema_version", payload.get("schema_version"))
+        if schema_version != IDENTITY_SECURITY_SERVICE_SCHEMA_VERSION:
+            raise UnifiedIdentityContractError(
+                "unsupported identity security begin schema version"
+            )
+        operation = _enum(
+            "identity security operation",
+            payload.get("operation"),
+            ("password_enroll", "password_change", "password_recovery", "mfa_enroll"),
+        )
+        password_value = payload.get("password_status")
+        two_factor_value = payload.get("two_factor_status")
+        password_status = (
+            _enum("password_status", password_value, ("absent", "set"))
+            if password_value is not None
+            else None
+        )
+        two_factor_status = (
+            _enum(
+                "two_factor_status",
+                two_factor_value,
+                ("disabled", "pending", "enabled", "recovery_required"),
+            )
+            if two_factor_value is not None
+            else None
+        )
+        if operation == "mfa_enroll" and two_factor_status is None:
+            raise UnifiedIdentityContractError(
+                "two_factor_status is required for MFA enrollment"
+            )
+        if operation != "mfa_enroll" and password_status is None:
+            raise UnifiedIdentityContractError(
+                "password_status is required for password mutation"
+            )
+        confirmation_required = _boolean(
+            "confirmation_required", payload.get("confirmation_required", False)
+        )
+        challenge_value = payload.get("confirmation_challenge_id")
+        challenge_id = (
+            _identifier("confirmation_challenge_id", challenge_value)
+            if challenge_value
+            else None
+        )
+        if confirmation_required and not challenge_id:
+            raise UnifiedIdentityContractError(
+                "confirmation_challenge_id is required when confirmation is required"
+            )
+        provisioning_value = payload.get("provisioning_uri")
+        provisioning_uri = (
+            _provisioning_uri(provisioning_value)
+            if provisioning_value is not None
+            else None
+        )
+        if operation == "mfa_enroll" and not provisioning_uri:
+            raise UnifiedIdentityContractError(
+                "provisioning_uri is required for MFA enrollment"
+            )
+        return cls(
+            schema_version=schema_version,
+            operation=operation,
+            password_status=password_status,
+            two_factor_status=two_factor_status,
+            two_factor_optional=_boolean(
+                "two_factor_optional", payload.get("two_factor_optional")
+            ),
+            two_factor_recommended=_boolean(
+                "two_factor_recommended", payload.get("two_factor_recommended")
+            ),
+            confirmation_required=confirmation_required,
+            challenge_id=challenge_id,
+            provisioning_uri=provisioning_uri,
+            security_version=_non_negative_int(
+                "security_version", payload.get("security_version")
+            ),
+            sessions_revoked=_non_negative_int(
+                "sessions_revoked", payload.get("sessions_revoked")
+            ),
+            reauthentication_required=_boolean(
+                "reauthentication_required",
+                payload.get("reauthentication_required", False),
+            ),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "operation": self.operation,
+            "password_status": self.password_status,
+            "two_factor_status": self.two_factor_status,
+            "two_factor_optional": self.two_factor_optional,
+            "two_factor_recommended": self.two_factor_recommended,
+            "confirmation_required": self.confirmation_required,
+            "challenge_id": self.challenge_id,
+            "provisioning_uri": self.provisioning_uri,
+            "security_version": self.security_version,
+            "sessions_revoked": self.sessions_revoked,
+            "reauthentication_required": self.reauthentication_required,
+        }
+
+
+@dataclass(frozen=True)
+class IdentitySecurityConfirmResult:
+    schema_version: str
+    operation: str
+    challenge_id: str | None
+    two_factor_status: str
+    two_factor_optional: bool
+    two_factor_recommended: bool
+    recovery_codes: tuple[str, ...]
+    recovery_codes_remaining: int
+    security_version: int
+    sessions_revoked: int
+    reauthentication_required: bool
+
+    @classmethod
+    def from_public_response(
+        cls,
+        payload: Mapping[str, Any],
+        *,
+        challenge_id: str | None = None,
+    ) -> "IdentitySecurityConfirmResult":
+        _assert_public_safe(payload)
+        schema_version = _identifier("schema_version", payload.get("schema_version"))
+        if schema_version != IDENTITY_SECURITY_SERVICE_SCHEMA_VERSION:
+            raise UnifiedIdentityContractError(
+                "unsupported identity security confirm schema version"
+            )
+        operation = _enum(
+            "identity security operation", payload.get("operation"), ("mfa_confirm",)
+        )
+        recovery_codes = tuple(
+            _identifier("recovery_code", item)
+            for item in _scalar_sequence("recovery_codes", payload.get("recovery_codes"))
+        )
+        recovery_codes_remaining = _non_negative_int(
+            "recovery_codes_remaining", payload.get("recovery_codes_remaining")
+        )
+        return cls(
+            schema_version=schema_version,
+            operation=operation,
+            challenge_id=(
+                _identifier("challenge_id", challenge_id)
+                if challenge_id is not None
+                else None
+            ),
+            two_factor_status=_enum(
+                "two_factor_status",
+                payload.get("two_factor_status"),
+                ("disabled", "pending", "enabled", "recovery_required"),
+            ),
+            two_factor_optional=_boolean(
+                "two_factor_optional", payload.get("two_factor_optional")
+            ),
+            two_factor_recommended=_boolean(
+                "two_factor_recommended", payload.get("two_factor_recommended")
+            ),
+            recovery_codes=recovery_codes,
+            recovery_codes_remaining=recovery_codes_remaining,
+            security_version=_non_negative_int(
+                "security_version", payload.get("security_version")
+            ),
+            sessions_revoked=_non_negative_int(
+                "sessions_revoked", payload.get("sessions_revoked")
+            ),
+            reauthentication_required=_boolean(
+                "reauthentication_required", payload.get("reauthentication_required")
+            ),
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "schema_version": self.schema_version,
+            "operation": self.operation,
+            "challenge_id": self.challenge_id,
+            "two_factor_status": self.two_factor_status,
+            "two_factor_optional": self.two_factor_optional,
+            "two_factor_recommended": self.two_factor_recommended,
+            "recovery_codes": list(self.recovery_codes),
+            "recovery_codes_remaining": self.recovery_codes_remaining,
+            "security_version": self.security_version,
+            "sessions_revoked": self.sessions_revoked,
+            "reauthentication_required": self.reauthentication_required,
+        }
 
 
 @dataclass(frozen=True)
@@ -2158,27 +2463,119 @@ class UnifiedIdentityClient:
             for item in _mapping_sequence("memberships", payload.get("memberships"))
         )
 
-    def get_security_posture(self, account_id: str) -> Mapping[str, Any]:
-        return self._request("GET", identity_security_route(account_id), {})
+    def get_security_posture(self, account_id: str) -> IdentitySecurityPosture:
+        return IdentitySecurityPosture.from_public_response(
+            self._request("GET", identity_security_route(account_id), {})
+        )
 
-    def mutate_password(self, account_id: str, operation: str, *, mutation_ticket_id: str,
-                        step_up_receipt_id: str, idempotency_key: str) -> Mapping[str, Any]:
-        normalized = _enum("password operation", operation, ("set", "change", "recover"))
-        return self._request("POST", identity_password_route(account_id, normalized), {
-            "mutation_ticket_id": _identifier("mutation_ticket_id", mutation_ticket_id),
-            "step_up_receipt_id": _identifier("step_up_receipt_id", step_up_receipt_id),
-            "idempotency_key": _identifier("idempotency_key", idempotency_key),
-        })
+    def begin_password_enroll(
+        self,
+        account_id: str,
+        password: str,
+        *,
+        idempotency_key: str,
+    ) -> IdentitySecurityBeginResult:
+        return self._begin_password_security(
+            account_id,
+            "enroll",
+            password,
+            idempotency_key=idempotency_key,
+        )
 
-    def mutate_two_factor(self, account_id: str, operation: str, *, mutation_ticket_id: str,
-                          step_up_receipt_id: str, idempotency_key: str) -> Mapping[str, Any]:
-        normalized = _enum("two factor operation", operation,
-                           ("enroll", "verify", "recovery", "disable"))
-        return self._request("POST", identity_two_factor_route(account_id, normalized), {
-            "mutation_ticket_id": _identifier("mutation_ticket_id", mutation_ticket_id),
-            "step_up_receipt_id": _identifier("step_up_receipt_id", step_up_receipt_id),
-            "idempotency_key": _identifier("idempotency_key", idempotency_key),
-        })
+    def begin_password_change(
+        self,
+        account_id: str,
+        password: str,
+        *,
+        idempotency_key: str,
+    ) -> IdentitySecurityBeginResult:
+        return self._begin_password_security(
+            account_id,
+            "change",
+            password,
+            idempotency_key=idempotency_key,
+        )
+
+    def begin_password_recovery(
+        self,
+        account_id: str,
+        password: str,
+        *,
+        idempotency_key: str,
+    ) -> IdentitySecurityBeginResult:
+        return self._begin_password_security(
+            account_id,
+            "recover",
+            password,
+            idempotency_key=idempotency_key,
+        )
+
+    def begin_two_factor_enroll(
+        self,
+        account_id: str,
+        *,
+        idempotency_key: str,
+    ) -> IdentitySecurityBeginResult:
+        normalized_key = _identity_security_idempotency_key(idempotency_key)
+        response = self._request_private(
+            "POST",
+            identity_two_factor_enroll_begin_route(account_id),
+            {"idempotency_key": normalized_key},
+        )
+        return IdentitySecurityBeginResult.from_public_response(response)
+
+    def confirm_two_factor_enroll(
+        self,
+        account_id: str,
+        challenge_id: str,
+        code: str,
+        *,
+        idempotency_key: str,
+    ) -> IdentitySecurityConfirmResult:
+        normalized_challenge = _identifier("challenge_id", challenge_id)
+        normalized_code = _identity_security_totp_code(code)
+        normalized_key = _identity_security_idempotency_key(idempotency_key)
+        response = self._request_private(
+            "POST",
+            identity_two_factor_enroll_confirm_route(account_id),
+            {
+                "challenge_id": normalized_challenge,
+                "code": normalized_code,
+                "idempotency_key": normalized_key,
+            },
+        )
+        return IdentitySecurityConfirmResult.from_public_response(
+            response,
+            challenge_id=normalized_challenge,
+        )
+
+    def mutate_password(
+        self,
+        account_id: str,
+        operation: str,
+        *,
+        mutation_ticket_id: str,
+        step_up_receipt_id: str,
+        idempotency_key: str,
+    ) -> Mapping[str, Any]:
+        del account_id, operation, mutation_ticket_id, step_up_receipt_id, idempotency_key
+        raise UnifiedIdentityContractError(
+            "legacy password mutation route is not routable"
+        )
+
+    def mutate_two_factor(
+        self,
+        account_id: str,
+        operation: str,
+        *,
+        mutation_ticket_id: str,
+        step_up_receipt_id: str,
+        idempotency_key: str,
+    ) -> Mapping[str, Any]:
+        del account_id, operation, mutation_ticket_id, step_up_receipt_id, idempotency_key
+        raise UnifiedIdentityContractError(
+            "legacy two-factor mutation route is not routable"
+        )
 
     def link_credential(
         self,
@@ -2386,6 +2783,22 @@ class UnifiedIdentityClient:
         self, method: str, path: str, payload: Mapping[str, Any]
     ) -> Mapping[str, Any]:
         _assert_public_safe(payload)
+        return self._request_response(method, path, payload)
+
+    def _request_private(
+        self, method: str, path: str, payload: Mapping[str, Any]
+    ) -> Mapping[str, Any]:
+        """Trusted backend-only transport for raw password/TOTP input.
+
+        This deliberately bypasses the public payload gate for the request
+        only. The caller immediately parses the response into a secret-free
+        DTO; no private value is stored on the client.
+        """
+        return self._request_response(method, path, payload)
+
+    def _request_response(
+        self, method: str, path: str, payload: Mapping[str, Any]
+    ) -> Mapping[str, Any]:
         response = self._transport(method, f"{self.base_url}{path}", dict(payload))
         if not isinstance(response, Mapping):
             raise UnifiedIdentityContractError("identity transport must return an object")
@@ -2396,6 +2809,29 @@ class UnifiedIdentityClient:
             parsed = UnifiedIdentityError.from_public_response(error)
             raise UnifiedIdentityContractError(parsed.message or parsed.code, code=parsed.code)
         return result
+
+    def _begin_password_security(
+        self,
+        account_id: str,
+        operation: str,
+        password: str,
+        *,
+        idempotency_key: str,
+    ) -> IdentitySecurityBeginResult:
+        normalized_operation = _enum(
+            "password operation", operation, ("enroll", "change", "recover")
+        )
+        normalized_password = _identity_security_password(password)
+        normalized_key = _identity_security_idempotency_key(idempotency_key)
+        response = self._request_private(
+            "POST",
+            identity_password_begin_route(account_id, normalized_operation),
+            {
+                "password": normalized_password,
+                "idempotency_key": normalized_key,
+            },
+        )
+        return IdentitySecurityBeginResult.from_public_response(response)
 
 
 def identity_account_route(account_id: str) -> str:
@@ -2414,12 +2850,37 @@ def identity_security_route(account_id: str) -> str:
     return f"{identity_account_route(account_id)}/security"
 
 
+def identity_password_begin_route(account_id: str, operation: str) -> str:
+    normalized = _enum(
+        "password operation", operation, ("set", "enroll", "change", "recover")
+    )
+    segment = {"set": "enroll", "enroll": "enroll"}.get(normalized, normalized)
+    return f"{identity_account_route(account_id)}/password/{segment}/begin"
+
+
 def identity_password_route(account_id: str, operation: str) -> str:
-    return f"{identity_account_route(account_id)}/password/{quote(operation, safe='')}"
+    """Compatibility alias that always resolves to a routable begin endpoint."""
+    return identity_password_begin_route(account_id, operation)
+
+
+def identity_two_factor_enroll_begin_route(account_id: str) -> str:
+    return f"{identity_account_route(account_id)}/two-factor/enroll/begin"
+
+
+def identity_two_factor_enroll_confirm_route(account_id: str) -> str:
+    return f"{identity_account_route(account_id)}/two-factor/enroll/confirm"
 
 
 def identity_two_factor_route(account_id: str, operation: str) -> str:
-    return f"{identity_account_route(account_id)}/two-factor/{quote(operation, safe='')}"
+    """Compatibility helper for the only routable MFA operations.
+
+    Recovery-code and disable routes remain proposed and are not callable by
+    the client; they are intentionally not accepted here.
+    """
+    normalized = _enum("two factor operation", operation, ("enroll", "verify"))
+    if normalized == "enroll":
+        return identity_two_factor_enroll_begin_route(account_id)
+    return identity_two_factor_enroll_confirm_route(account_id)
 
 
 def identity_link_route(account_id: str, provider: str) -> str:
@@ -2641,6 +3102,44 @@ def _public_url(name: str, value: Any) -> str:
     normalized = str(value or "").strip()
     if not normalized.startswith(("http://", "https://")):
         raise UnifiedIdentityContractError(f"{name} must be HTTP or HTTPS")
+    return normalized
+
+
+def _provisioning_uri(value: Any) -> str:
+    normalized = str(value or "").strip()
+    if (
+        not normalized.startswith("otpauth://totp/")
+        or len(normalized) > 4096
+        or any(ord(character) < 0x20 for character in normalized)
+    ):
+        raise UnifiedIdentityContractError("provisioning_uri is invalid")
+    return normalized
+
+
+def _identity_security_password(value: Any) -> str:
+    if not isinstance(value, str):
+        raise UnifiedIdentityContractError("password must be a string")
+    if (
+        len(value) < 12
+        or len(value) > 256
+        or "\x00" in value
+        or "\r" in value
+        or "\n" in value
+    ):
+        raise UnifiedIdentityContractError("password does not meet security requirements")
+    return value
+
+
+def _identity_security_totp_code(value: Any) -> str:
+    if not isinstance(value, str) or not re.fullmatch(r"[0-9]{6}", value):
+        raise UnifiedIdentityContractError("two-factor code must be six digits")
+    return value
+
+
+def _identity_security_idempotency_key(value: Any) -> str:
+    normalized = _identifier("idempotency_key", value)
+    if not re.fullmatch(r"[A-Za-z0-9._:-]{8,255}", normalized):
+        raise UnifiedIdentityContractError("idempotency_key is invalid")
     return normalized
 
 
