@@ -403,6 +403,90 @@ browser-safe DTOs, frontend state, logs, or SDK-retained state. Public
 consume/disable responses never contain recovery codes; only a successful
 rotation response may contain the one-use code batch.
 
+## PostgreSQL migration 030 tenancy lifecycle and RLS boundary
+
+Apply `030_a1_tenancy_lifecycle.sql` after migration 029 and before advertising
+any authoritative organization, project, environment, or project-membership
+route. The migration extends the existing foundation tables and creates the
+forced-RLS tenancy mutation-receipt boundary used by these 14 routes:
+
+```text
+POST   /v1/organizations
+GET    /v1/organizations
+GET    /v1/organizations/{organization_id}/projects
+POST   /v1/organizations/{organization_id}/projects
+PATCH  /v1/organizations/{organization_id}/projects/{project_id}
+POST   /v1/organizations/{organization_id}/projects/{project_id}/archive
+POST   /v1/organizations/{organization_id}/projects/{project_id}/restore
+GET    /v1/organizations/{organization_id}/projects/{project_id}/environments
+POST   /v1/organizations/{organization_id}/projects/{project_id}/environments
+POST   /v1/organizations/{organization_id}/projects/{project_id}/environments/{environment_id}/disable
+POST   /v1/organizations/{organization_id}/projects/{project_id}/environments/{environment_id}/enable
+GET    /v1/organizations/{organization_id}/projects/{project_id}/memberships
+PUT    /v1/organizations/{organization_id}/projects/{project_id}/memberships/{account_id}
+DELETE /v1/organizations/{organization_id}/projects/{project_id}/memberships/{account_id}
+```
+
+Production identity mode constructs `PostgresTenancyStore` from the existing
+restricted PostgreSQL runtime connection and fails startup closed if migration
+030, its ACLs, or its readiness contract are unavailable. Memory identity mode
+does not advertise this surface. The runtime role may execute only:
+
+```text
+a1_tenancy_query(UUID, TEXT, UUID, UUID)
+a1_tenancy_mutate(
+  UUID, TEXT, UUID, UUID, UUID, UUID,
+  TEXT, TEXT, TEXT, TEXT, JSONB
+)
+```
+
+`PUBLIC` and the runtime role receive no direct table authority on
+`tenancy_mutation_receipts`; helper functions are not runtime entrypoints.
+The receipt table must retain both enabled and forced RLS. The restricted
+functions retain their fixed `pg_catalog, public, pg_temp` search path, set
+transaction-local principal/organization/project scope, and atomically apply
+resource state, membership state, exact idempotency, audit, and outbox
+effects. Never repair readiness by granting direct table access, helper
+execution, `BYPASSRLS`, superuser, schema-create, or owner authority.
+
+Every call derives its actor exclusively from the authenticated production
+identity Session. The Go boundary passes trusted `Session.AccountID` as the
+canonical account principal. It must never substitute `Session.ActorID`, a
+request-body field, query value, URL membership target, header, Cookie value,
+or browser-supplied account/principal identifier. URL resource identifiers are
+scope assertions; cross-tenant and out-of-scope resources remain opaque.
+
+Mutation idempotency is header-only through `Idempotency-Key`. Exact replay
+returns the stored public result and creates no duplicate resource,
+membership, receipt, audit, or outbox effect. Reusing the scoped key with a
+different request digest fails with a stable conflict. Concurrent first
+attempts must serialize to one effect, and last-owner protection must remain
+effective under concurrent membership updates.
+
+Use this rollout order:
+
+1. take a database backup and record the pre-rollout schema/readiness state;
+2. apply migrations through 030 while tenancy route advertisement remains
+   disabled;
+3. verify the runtime role is restricted, `PUBLIC` has no entrypoint or table
+   authority, receipt RLS is enabled and forced, and both entrypoints retain
+   the fixed search path;
+4. start the API in production PostgreSQL identity mode and require identity
+   plus tenancy readiness to pass;
+5. run exact replay, payload-conflict, cross-tenant opacity, last-owner, and
+   concurrent exactly-once probes with non-production tenant records;
+6. verify aggregate-only audit/outbox/receipt effects and A3-safe DTOs; and
+7. enable route advertisement only after all checks pass.
+
+Rollback is route-first and data-preserving:
+
+1. disable the 14 tenancy routes and remove them from advertised capability;
+2. stop new mutations and drain in-flight requests;
+3. keep migration 030 data, receipts, audit, and outbox records intact;
+4. deploy the prior API/runtime while retaining the PostgreSQL schema; and
+5. investigate and repair forward. Do not automatically drop tenant data,
+   weaken RLS/ACLs, delete receipts, or restore an in-memory authority.
+
 ## Controlled local verification
 
 `https://localhost:4443` is for controlled development checks only. It must

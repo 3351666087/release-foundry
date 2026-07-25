@@ -40,6 +40,7 @@ type identityRuntime struct {
 	verificationResponsePolicy *ashrclone.IdentityVerificationResponsePolicy
 	sessionReceiptTransport    ashrclone.IdentitySessionReceiptTransport
 	oauthFirstLogins           map[string]*ashrclone.OAuthFirstLoginService
+	tenancy                    ashrclone.TenancyHTTPStore
 	close                      func() error
 }
 
@@ -274,6 +275,14 @@ func newIdentityRuntimeFromEnv(ctx context.Context, lookup func(string) (string,
 			_ = closeResources()
 			return identityRuntime{}, err
 		}
+		tenancy, err := store.NewPostgresTenancyStore()
+		if err != nil {
+			_ = closeResources()
+			return identityRuntime{}, fmt.Errorf(
+				"configure production PostgreSQL tenancy store: %w",
+				err,
+			)
+		}
 		securityRuntime, err = newProductionIdentitySecurityRuntime(
 			ctx,
 			securityConfig,
@@ -326,6 +335,7 @@ func newIdentityRuntimeFromEnv(ctx context.Context, lookup func(string) (string,
 			outbox:                  outbox,
 			sessionReceiptTransport: sessionReceiptTransport,
 			oauthFirstLogins:        oauthFirstLogins,
+			tenancy:                 tenancy,
 			close:                   closeResources,
 		}
 		if securityRuntime != nil {

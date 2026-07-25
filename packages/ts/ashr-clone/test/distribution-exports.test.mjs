@@ -49,6 +49,7 @@ const runtimeMarkers = {
   "session-lifecycle": "SessionLifecycleClient",
   storage: "LocalFilesystemObjectStorage",
   "stripe-executor": "StripeTestHostedExecutor",
+  tenancy: "TenancyClient",
   trace: "TraceRecorder",
   "unified-identity": "UnifiedIdentityHttpClient",
 };

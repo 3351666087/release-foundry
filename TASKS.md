@@ -416,3 +416,92 @@ Implementation and release gates discovered by the real runtime exercise:
 - [x] Precisely stage only the `41` A1-owned paths, commit the coherent batch
   as `cbd465b7`, push only `HEAD:codex/a1-local-sdk-runner`, fetch, and prove
   local/remote `0/0` parity with zero staged `fixtures/a2/**` peer artifacts.
+
+## A1 authoritative tenancy lifecycle batch (2026-07-25)
+
+- [x] Freeze the PostgreSQL-authoritative organization/project/environment
+  lifecycle contract, A3-safe public DTOs, trusted-session boundary, strategic
+  organization/project roles, idempotency rules, and actor/request/trace/audit
+  invariants before implementation.
+- [x] Add migration `030_a1_tenancy_lifecycle.sql` with lifecycle state,
+  strategic role constraints, mutation idempotency, audit/outbox emission,
+  restricted runtime grants, and FORCE RLS for every new tenant-owned table.
+  A fresh disposable PostgreSQL database applied migrations `001-030`; the
+  focused live suite passes `5` tests covering exact replay, payload conflict,
+  cross-tenant isolation, last-owner rejection, concurrent exactly-once
+  effects, append-only receipts, FORCE RLS, and the two-function runtime ACL.
+- [x] Implement the scoped PostgreSQL tenancy store and runtime initialization
+  without accepting caller-supplied account ownership or introducing a second
+  authoritative in-memory tenancy path. PostgreSQL runtime readiness now
+  requires migration 030 and constructs a store limited to
+  `a1_tenancy_query` / `a1_tenancy_mutate`; memory mode does not advertise the
+  authoritative routes.
+- [x] Add authenticated Go HTTP routes for organization/project/environment
+  create/list/update/archive/restore/enable/disable plus project membership
+  set/revoke/list, reusing the trusted identity Session resolver. All 14
+  routes derive the caller only from canonical `Session.AccountID`, reject
+  identity overrides, and emit strict no-store public envelopes.
+- [x] Enforce active membership, role authorization, cross-tenant/project
+  isolation, last-owner protection, idempotent replay, payload-conflict
+  rejection, and concurrent exactly-once lifecycle effects. The fresh Docker
+  migration suite passes `5` tests and the permanent Go live integration
+  passes against migrations `001-030` with restricted runtime credentials,
+  including readiness, exact replay/conflict, cross-tenant opacity,
+  last-owner rejection, 12-way exactly-once mutation, and real HTTP routing.
+- [x] Add strict Python SDK DTOs, parsers, route helpers, and client methods for
+  the implemented tenancy surface while rejecting private refs, digests,
+  tickets, raw policy internals, and arbitrary account/actor overrides. Added
+  `packages/sdk/ashr_clone/tenancy.py`, root exports, and
+  `tests/a1/test_tenancy_sdk.py`: all 14 exact route/client operations use the
+  origin-bound browser cookie jar, mutation idempotency is header-only,
+  response DTO/envelopes reject unknown/private/cross-scope content, public
+  errors accept only the four frozen keys, HTTPS is mandatory outside an
+  explicitly controlled localhost, and no API accepts a caller principal or
+  session override. The tenancy, browser-session, and SDK-distribution focused
+  group passes `31` tests.
+- [x] Add matching TypeScript SDK DTOs, validators, route helpers, and client
+  methods. Added frozen `ashr.clone.tenancy.v1` DTO/envelope/error types,
+  all 14 exact route helpers and browser-safe client operations, root/subpath
+  exports, Python-style aliases, strict response/scope/private-field
+  validation, header-only idempotency, browser-managed same-origin
+  credentials with no Cookie input/header, HTTPS-by-default, and controlled
+  localhost opt-in. TypeScript builds cleanly and `tenancy.test.mjs` passes
+  all `9` tests.
+- [x] Regenerate Go/Python/TypeScript route and public-symbol parity artifacts
+  with the new tenancy module and exact 14-route surface. The generated
+  contract reports Go `114`, Python hosted `35` plus tenancy `14`, TypeScript
+  hosted `38` plus tenancy `14`, and exact three-language tenancy parity with
+  zero provider-only routes; writer/check and the focused evidence/SDK group
+  pass `38` tests.
+- [x] Add focused migration/RLS/ACL, Go runtime/HTTP/store, Python, TypeScript,
+  A3-safe schema, cross-tenant, replay, conflict, concurrency, and last-owner
+  regression tests. The focused PostgreSQL/Python/A3/parity group passes `69`,
+  the uncached Go main and integration modules plus vet pass, and the complete
+  TypeScript package passes all `676` tests after adding tenancy to the strict
+  reusable-module and package-export inventories.
+- [x] Update production deployment/runtime documentation and A1 evidence for
+  migration 030, restricted PostgreSQL roles, trusted Session authorization,
+  lifecycle routes, audit/outbox, and rollback requirements. Corrected the
+  canonical caller boundary to trusted `Session.AccountID`, added the
+  route-first/data-preserving rollout and rollback runbook, and published the
+  A3-safe round 69 evidence without tenant identities or secret material.
+- [x] Run focused and full Go/Python/TypeScript/PostgreSQL/generated checks,
+  `gofmt`, `go vet`, `git diff --check`, and the complete CL plan/hygiene/
+  commercial gates; fix every A1-owned failure. Python compileall and the
+  complete A1 suite pass `1473` tests with `5` intentional skips; migration
+  030 live PostgreSQL passes `5`, Go main/integration test and vet gates pass,
+  the explicit Go PostgreSQL tenancy integration passes, TypeScript builds and
+  passes `676`, release passes `33`, Rust fmt/clippy and all `31` tests pass,
+  generated parity and JSON checks are current, `git diff --check` is clean,
+  and CL full-plan/hygiene/commercial report zero findings or blockers.
+- [x] Build the exact A1 ownership manifest, secret-scan the exact staged diff,
+  and prove no `fixtures/a2/**`, secret, browser credential, or peer-owned path
+  is staged. The repository-external manifest contains exactly `35` A1 paths,
+  matches the index exactly, leaves all `253` peer-owned A2 working-tree paths
+  unstaged, and has zero staged `fixtures/a2/**`. Replaced static live-test key
+  material with runtime `crypto/rand` data and constructed long test
+  idempotency keys from bounded parts; the final redacted staged gitleaks scan
+  reports zero findings without a committed allowlist.
+- [ ] Precisely stage, commit, and push only this A1 batch to
+  `origin/codex/a1-local-sdk-runner`; fetch and prove local/remote `0/0`
+  parity.

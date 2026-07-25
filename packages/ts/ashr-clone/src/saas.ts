@@ -13,6 +13,7 @@ import {
   parseAccountConnectionDisconnect,
   parseAccountConnectionStart,
 } from "./account-connections.js";
+import { TENANCY_ROUTES } from "./tenancy.js";
 import type { AgentInput, AgentInputPart, JsonRecord } from "./index.js";
 
 export const CONTROL_PLANE_SCHEMA_VERSION = "ashr.clone.saas_control_plane.v1";
@@ -372,6 +373,12 @@ export const UNSUPPORTED_GO_ROUTE_GAPS: Record<string, { reason: string; replace
     consumer_action: "keep the route explicit in parity evidence until the hosted SDK implements the provider-safe China payment contract",
   },
 };
+for (const route of TENANCY_ROUTES) {
+  UNSUPPORTED_GO_ROUTE_GAPS[`${route.method} ${route.path}`] = {
+    reason: "Go exposes the PostgreSQL-authoritative tenancy lifecycle through the dedicated cookie-authenticated tenancy client; the generic hosted SaaS client must not accept caller identity or session overrides.",
+    consumer_action: "consume through TenancyClient so the canonical caller remains bound to the trusted server session and Idempotency-Key stays header-only",
+  };
+}
 
 export interface SaaSControlPlaneStore {
   api_keys: Record<string, JsonRecord>;

@@ -27,6 +27,8 @@ var (
 	ErrIdentitySessionRefreshInvalid = errors.New("identity session refresh is unavailable")
 	ErrIdentitySessionRefreshReused  = errors.New("identity session refresh credential was reused")
 	ErrIdentityStoreUnavailable      = errors.New("identity store unavailable")
+	errIdentityHTTPSessionRequired   = errors.New("trusted identity session is required")
+	errIdentityHTTPSessionInvalid    = errors.New("trusted identity session is invalid")
 )
 
 type IdentityHTTPSessionRefresher interface {
@@ -177,27 +179,12 @@ func (adapter unifiedIdentityHTTPServiceAdapter) GetIdentityAccount(
 }
 
 func (server *HTTPServer) resolveIdentityHTTPSession(writer http.ResponseWriter, request *http.Request, assertedAccountID string) (IdentityHTTPSession, bool) {
-	if server.identitySessions == nil {
+	session, err := server.resolveTrustedIdentityHTTPSession(request)
+	if errors.Is(err, errIdentityHTTPSessionRequired) {
 		writeError(writer, http.StatusUnauthorized, "identity_session_required", "a trusted identity session is required")
 		return IdentityHTTPSession{}, false
 	}
-	if identitySessionCookiePresent(request, IdentitySessionCookieName) {
-		if server.identitySessionReceiptTransport == nil ||
-			server.identitySessionReceiptTransport.ValidateIdentitySessionRequest(request) != nil {
-			writeError(writer, http.StatusUnauthorized, "identity_session_invalid", "identity session could not be authenticated")
-			return IdentityHTTPSession{}, false
-		}
-	}
-	session, err := server.identitySessions.ResolveIdentityHTTPSession(request.Context(), request)
 	if err != nil {
-		writeError(writer, http.StatusUnauthorized, "identity_session_invalid", "identity session could not be authenticated")
-		return IdentityHTTPSession{}, false
-	}
-	session.AccountID = strings.TrimSpace(session.AccountID)
-	session.ActorID = strings.TrimSpace(session.ActorID)
-	session.SessionID = strings.TrimSpace(session.SessionID)
-	session.SessionDigest = strings.TrimSpace(session.SessionDigest)
-	if session.Revoked || session.AccountID == "" || session.ActorID == "" || session.SessionID == "" {
 		writeError(writer, http.StatusUnauthorized, "identity_session_invalid", "identity session could not be authenticated")
 		return IdentityHTTPSession{}, false
 	}
@@ -206,6 +193,32 @@ func (server *HTTPServer) resolveIdentityHTTPSession(writer http.ResponseWriter,
 		return IdentityHTTPSession{}, false
 	}
 	return session, true
+}
+
+func (server *HTTPServer) resolveTrustedIdentityHTTPSession(
+	request *http.Request,
+) (IdentityHTTPSession, error) {
+	if server == nil || server.identitySessions == nil || request == nil {
+		return IdentityHTTPSession{}, errIdentityHTTPSessionRequired
+	}
+	if identitySessionCookiePresent(request, IdentitySessionCookieName) {
+		if server.identitySessionReceiptTransport == nil ||
+			server.identitySessionReceiptTransport.ValidateIdentitySessionRequest(request) != nil {
+			return IdentityHTTPSession{}, errIdentityHTTPSessionInvalid
+		}
+	}
+	session, err := server.identitySessions.ResolveIdentityHTTPSession(request.Context(), request)
+	if err != nil {
+		return IdentityHTTPSession{}, errIdentityHTTPSessionInvalid
+	}
+	session.AccountID = strings.TrimSpace(session.AccountID)
+	session.ActorID = strings.TrimSpace(session.ActorID)
+	session.SessionID = strings.TrimSpace(session.SessionID)
+	session.SessionDigest = strings.TrimSpace(session.SessionDigest)
+	if session.Revoked || session.AccountID == "" || session.ActorID == "" || session.SessionID == "" {
+		return IdentityHTTPSession{}, errIdentityHTTPSessionInvalid
+	}
+	return session, nil
 }
 
 func identitySessionCookiePresent(request *http.Request, name string) bool {

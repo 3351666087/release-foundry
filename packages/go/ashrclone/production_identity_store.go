@@ -906,6 +906,77 @@ SELECT to_regclass('public.identity_principals') IS NOT NULL
          'public.a1_create_oauth_runtime_transaction(uuid,uuid,text,text,text,text,timestamp with time zone,timestamp with time zone)'
        )
     )
+    AND to_regclass('public.tenancy_mutation_receipts') IS NOT NULL
+    AND to_regprocedure(
+      'public.a1_tenancy_query(uuid,text,uuid,uuid)'
+    ) IS NOT NULL
+    AND to_regprocedure(
+      'public.a1_tenancy_mutate(uuid,text,uuid,uuid,uuid,uuid,text,text,text,text,jsonb)'
+    ) IS NOT NULL
+    AND NOT has_table_privilege(
+      current_user,
+      'public.tenancy_mutation_receipts',
+      'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+    )
+    AND NOT has_any_column_privilege(
+      current_user,
+      'public.tenancy_mutation_receipts',
+      'SELECT,INSERT,UPDATE,REFERENCES'
+    )
+    AND NOT has_table_privilege(
+      'public',
+      'public.tenancy_mutation_receipts',
+      'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'
+    )
+    AND NOT has_any_column_privilege(
+      'public',
+      'public.tenancy_mutation_receipts',
+      'SELECT,INSERT,UPDATE,REFERENCES'
+    )
+    AND (
+      SELECT c.relrowsecurity AND c.relforcerowsecurity
+        FROM pg_catalog.pg_class c
+       WHERE c.oid = to_regclass('public.tenancy_mutation_receipts')
+    )
+    AND has_function_privilege(
+      current_user,
+      'public.a1_tenancy_query(uuid,text,uuid,uuid)',
+      'EXECUTE'
+    )
+    AND has_function_privilege(
+      current_user,
+      'public.a1_tenancy_mutate(uuid,text,uuid,uuid,uuid,uuid,text,text,text,text,jsonb)',
+      'EXECUTE'
+    )
+    AND NOT has_function_privilege(
+      'public',
+      'public.a1_tenancy_query(uuid,text,uuid,uuid)',
+      'EXECUTE'
+    )
+    AND NOT has_function_privilege(
+      'public',
+      'public.a1_tenancy_mutate(uuid,text,uuid,uuid,uuid,uuid,text,text,text,text,jsonb)',
+      'EXECUTE'
+    )
+    AND (
+      SELECT count(*) = 2
+        FROM pg_catalog.pg_proc p
+       WHERE p.oid IN (
+         to_regprocedure('public.a1_tenancy_query(uuid,text,uuid,uuid)'),
+         to_regprocedure(
+           'public.a1_tenancy_mutate(uuid,text,uuid,uuid,uuid,uuid,text,text,text,text,jsonb)'
+         )
+       )
+         AND p.prosecdef
+         AND pg_catalog.pg_get_userbyid(p.proowner) <> current_user
+         AND NOT pg_catalog.pg_has_role(current_user, p.proowner, 'MEMBER')
+         AND EXISTS (
+           SELECT 1
+             FROM unnest(COALESCE(p.proconfig, ARRAY[]::TEXT[])) setting
+            WHERE regexp_replace(setting, '\s', '', 'g') =
+              'search_path=pg_catalog,public,pg_temp'
+         )
+    )
 `
 
 type ProductionIdentityStore struct {
@@ -1726,7 +1797,7 @@ func (store *ProductionIdentityStore) Ready(ctx context.Context) error {
 		return fmt.Errorf("verify production identity schema: %w", err)
 	}
 	if !ready {
-		return fmt.Errorf("production identity PostgreSQL schema is incomplete; migrations through 028 scoped identity security ticket issuance are required")
+		return fmt.Errorf("production identity PostgreSQL schema is incomplete; migrations through 030 authoritative tenancy lifecycle are required")
 	}
 	return nil
 }

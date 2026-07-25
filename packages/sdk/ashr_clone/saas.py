@@ -15,6 +15,7 @@ from .account_connection import (
     AccountConnectionDisconnect,
     AccountConnectionStart,
 )
+from .tenancy import TENANCY_ROUTES
 
 JsonDict = dict[str, Any]
 SAAS_CLIENT_VERSION = "ashr.clone.saas_ingestion_client.v1"
@@ -290,6 +291,15 @@ UNSUPPORTED_GO_ROUTE_GAPS.update(
             "consumer_action": "keep the route explicit in parity evidence until both hosted SDKs implement the provider-safe China payment contract",
         }
         for route in _CHINA_PAYMENT_GO_ONLY_ROUTES
+    }
+)
+UNSUPPORTED_GO_ROUTE_GAPS.update(
+    {
+        f"{method} {path}": {
+            "reason": "Go exposes the PostgreSQL-authoritative tenancy lifecycle through the dedicated cookie-authenticated tenancy client; the generic hosted SaaS client must not accept caller identity or session overrides.",
+            "consumer_action": "consume through TenancyClient so the canonical caller remains bound to the trusted server session and Idempotency-Key stays header-only",
+        }
+        for _operation, method, path in TENANCY_ROUTES
     }
 )
 

@@ -341,6 +341,44 @@ def ts_unified_identity_routes(path: Path) -> list[dict[str, str]]:
     return routes
 
 
+def python_tenancy_routes(path: Path) -> list[dict[str, str]]:
+    routes = [
+        {"operation": str(operation), "method": str(method), "path": str(route)}
+        for operation, method, route in python_scalar_literal(path, "TENANCY_ROUTES")
+    ]
+    if len(routes) != 14 or len({item["operation"] for item in routes}) != 14:
+        raise AssertionError(f"expected 14 unique tenancy operations in {repo_path(path)}")
+    if len({(item["method"], item["path"]) for item in routes}) != 14:
+        raise AssertionError(f"expected 14 unique tenancy method/path pairs in {repo_path(path)}")
+    return sorted(routes, key=lambda item: (item["operation"], item["method"], item["path"]))
+
+
+def ts_tenancy_routes(path: Path) -> list[dict[str, str]]:
+    text = read_text(path)
+    match = re.search(
+        r"TENANCY_ROUTES[^=]*=\s*Object\.freeze\(\[(.*?)\]\);",
+        text,
+        re.S,
+    )
+    if not match:
+        raise AssertionError(f"missing TENANCY_ROUTES in {repo_path(path)}")
+    routes = [
+        {"operation": operation, "method": method, "path": route}
+        for operation, method, route in re.findall(
+            r"operation:\s*[\"']([^\"']+)[\"']\s*,\s*"
+            r"method:\s*[\"']([^\"']+)[\"']\s*,\s*"
+            r"path:\s*[\"']([^\"']+)[\"']",
+            match.group(1),
+            re.S,
+        )
+    ]
+    if len(routes) != 14 or len({item["operation"] for item in routes}) != 14:
+        raise AssertionError(f"expected 14 unique tenancy operations in {repo_path(path)}")
+    if len({(item["method"], item["path"]) for item in routes}) != 14:
+        raise AssertionError(f"expected 14 unique tenancy method/path pairs in {repo_path(path)}")
+    return sorted(routes, key=lambda item: (item["operation"], item["method"], item["path"]))
+
+
 def python_unified_identity_contract(path: Path) -> dict[str, Any]:
     sdk_root = ROOT / "packages" / "sdk"
     if str(sdk_root) not in sys.path:
@@ -817,6 +855,22 @@ def generate_matrix() -> dict[str, Any]:
     ts_session = ts_session_lifecycle_contract(ts_src / "session-lifecycle.ts")
     py_delivery = python_identity_delivery_protocol_contract(py_pkg / "delivery_protocol.py")
     ts_delivery = ts_identity_delivery_protocol_contract(ts_src / "delivery-protocol.ts")
+    py_tenancy = python_tenancy_routes(py_pkg / "tenancy.py")
+    ts_tenancy = ts_tenancy_routes(ts_src / "tenancy.ts")
+    tenancy_requirements = {
+        "schema_version_matches": python_scalar_literal(
+            py_pkg / "tenancy.py", "TENANCY_SCHEMA_VERSION"
+        )
+        == ts_named_string(ts_src / "tenancy.ts", "TENANCY_SCHEMA_VERSION")
+        == "ashr.clone.tenancy.v1",
+        "exact_route_count": len(py_tenancy) == len(ts_tenancy) == 14,
+        "operation_method_path_parity": py_tenancy == ts_tenancy,
+        "python_root_exported": "TENANCY_ROUTES" in py_exports
+        and "TenancyClient" in py_exports,
+        "typescript_barrel_exported": "tenancy" in ts_modules
+        and "TENANCY_ROUTES" in ts_export_names
+        and "TenancyClient" in ts_export_names,
+    }
     identity_contract_requirements = {
         "seven_credential_kinds": len(py_identity["providers"]) == 7
         and set(py_identity["providers"])
@@ -937,6 +991,30 @@ def generate_matrix() -> dict[str, Any]:
                 "differing_fields": sorted(
                     key for key in py_delivery if py_delivery[key] != ts_delivery.get(key)
                 ),
+            },
+            "tenancy_lifecycle": {
+                "requirements": tenancy_requirements,
+                "python": {
+                    "schema_version": python_scalar_literal(
+                        py_pkg / "tenancy.py", "TENANCY_SCHEMA_VERSION"
+                    ),
+                    "routes": py_tenancy,
+                },
+                "typescript": {
+                    "schema_version": ts_named_string(
+                        ts_src / "tenancy.ts", "TENANCY_SCHEMA_VERSION"
+                    ),
+                    "routes": ts_tenancy,
+                },
+                "matching_fields": (
+                    ["routes", "schema_version"]
+                    if all(tenancy_requirements.values())
+                    else []
+                ),
+                "source_paths": [
+                    "packages/sdk/ashr_clone/tenancy.py",
+                    "packages/ts/ashr-clone/src/tenancy.ts",
+                ],
             },
         },
         "gap_matrix": [
@@ -1085,6 +1163,41 @@ def generate_matrix() -> dict[str, Any]:
                     "packages/ts/ashr-clone/src/delivery-protocol.ts",
                     "tests/a1/test_identity_delivery_protocol_sdk.py",
                     "packages/ts/ashr-clone/test/delivery-protocol.test.mjs",
+                ],
+            },
+            {
+                "area": "Go-compatible Python/TypeScript tenancy lifecycle routes",
+                "status": (
+                    "parity" if all(tenancy_requirements.values()) else "partial"
+                ),
+                "requirements": tenancy_requirements,
+                "shared": [
+                    f"{item['method']} {item['path']}" for item in py_tenancy
+                ]
+                if py_tenancy == ts_tenancy
+                else [],
+                "python_leads": sorted(
+                    {
+                        f"{item['method']} {item['path']}" for item in py_tenancy
+                    }
+                    - {
+                        f"{item['method']} {item['path']}" for item in ts_tenancy
+                    }
+                ),
+                "typescript_leads": sorted(
+                    {
+                        f"{item['method']} {item['path']}" for item in ts_tenancy
+                    }
+                    - {
+                        f"{item['method']} {item['path']}" for item in py_tenancy
+                    }
+                ),
+                "evidence": [
+                    "packages/go/ashrclone/server.go",
+                    "packages/sdk/ashr_clone/tenancy.py",
+                    "tests/a1/test_tenancy_sdk.py",
+                    "packages/ts/ashr-clone/src/tenancy.ts",
+                    "packages/ts/ashr-clone/test/tenancy.test.mjs",
                 ],
             },
         ],

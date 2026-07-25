@@ -51,6 +51,7 @@ def test_ts_python_gap_matrix_is_generated_public_safe_and_current():
         "Python/TypeScript identity delivery protocol",
         "Python/TypeScript unified identity contract",
         "Python/TypeScript session lifecycle contract",
+        "Go-compatible Python/TypeScript tenancy lifecycle routes",
     }
     assert by_area["CLI commands"]["status"] in {"parity", "typescript_leads"}
     assert by_area["media text/audio/file/image/video parity"]["status"] == "parity"
@@ -103,6 +104,23 @@ def test_ts_python_gap_matrix_is_generated_public_safe_and_current():
     assert identity_client["missing_python_routes"] == []
     assert identity_client["missing_typescript_routes"] == []
     assert all(identity_client["security_contract"].values())
+
+    tenancy = matrix["generated_contract"]["tenancy_lifecycle"]
+    assert tenancy["matching_fields"] == ["routes", "schema_version"]
+    assert tenancy["requirements"] == {
+        "exact_route_count": True,
+        "operation_method_path_parity": True,
+        "python_root_exported": True,
+        "schema_version_matches": True,
+        "typescript_barrel_exported": True,
+    }
+    assert tenancy["python"]["schema_version"] == "ashr.clone.tenancy.v1"
+    assert tenancy["typescript"]["schema_version"] == "ashr.clone.tenancy.v1"
+    assert len(tenancy["python"]["routes"]) == 14
+    assert tenancy["python"]["routes"] == tenancy["typescript"]["routes"]
+    assert by_area[
+        "Go-compatible Python/TypeScript tenancy lifecycle routes"
+    ]["status"] == "parity"
 
     identity = matrix["generated_contract"]["unified_identity"]
     assert identity["differing_fields"] == []

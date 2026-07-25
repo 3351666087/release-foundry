@@ -26,6 +26,8 @@ MUTATING_CALIBRATION_INDEX_SCHEMA = ROOT / "docs" / "a1" / "schemas" / "official
 GO_SERVER = ROOT / "packages" / "go" / "ashrclone" / "server.go"
 PY_SAAS = ROOT / "packages" / "sdk" / "ashr_clone" / "saas.py"
 TS_SAAS = ROOT / "packages" / "ts" / "ashr-clone" / "src" / "saas.ts"
+PY_TENANCY = ROOT / "packages" / "sdk" / "ashr_clone" / "tenancy.py"
+TS_TENANCY = ROOT / "packages" / "ts" / "ashr-clone" / "src" / "tenancy.ts"
 GO_AUTH = ROOT / "packages" / "go" / "ashrclone" / "auth.go"
 
 
@@ -259,6 +261,100 @@ def _ts_openapi_routes() -> set[str]:
     return routes
 
 
+def _go_tenancy_routes() -> set[str]:
+    return {
+        route
+        for route in _go_manifest_routes()
+        if route.split(" ", 1)[1].startswith("/v1/organizations")
+    }
+
+
+def _python_tenancy_routes() -> set[str]:
+    from ashr_clone.tenancy import TENANCY_ROUTES
+
+    return {f"{method} {path}" for _operation, method, path in TENANCY_ROUTES}
+
+
+def _ts_tenancy_routes() -> set[str]:
+    text = TS_TENANCY.read_text(encoding="utf-8")
+    match = re.search(
+        r"TENANCY_ROUTES[^=]*=\s*Object\.freeze\(\[(.*?)\]\);",
+        text,
+        re.S,
+    )
+    assert match, "TypeScript TENANCY_ROUTES literal not found"
+    routes = {
+        f"{method} {path}"
+        for _operation, method, path in re.findall(
+            r"operation:\s*[\"']([^\"']+)[\"']\s*,\s*"
+            r"method:\s*[\"']([^\"']+)[\"']\s*,\s*"
+            r"path:\s*[\"']([^\"']+)[\"']",
+            match.group(1),
+            re.S,
+        )
+    }
+    assert routes, "TypeScript tenancy routes not found"
+    return routes
+
+
+def _route_snapshot_fixture() -> dict:
+    go_routes = _go_manifest_routes()
+    python_routes = _python_hosted_routes()
+    ts_routes = _ts_openapi_routes()
+    go_tenancy = _go_tenancy_routes()
+    python_tenancy = _python_tenancy_routes()
+    ts_tenancy = _ts_tenancy_routes()
+    python_effective = python_routes | python_tenancy
+    ts_effective = ts_routes | ts_tenancy
+    tenancy_shared = go_tenancy & python_tenancy & ts_tenancy
+    return {
+        "schema_version": "ashr.clone.go_python_ts_route_parity_snapshot.v1",
+        "public_safe": True,
+        "source_policy": {
+            "private_evidence_read": False,
+            "raw_payloads_included": False,
+            "tokens_included": False,
+        },
+        "source_paths": [
+            "packages/go/ashrclone/server.go",
+            "packages/sdk/ashr_clone/saas.py",
+            "packages/sdk/ashr_clone/tenancy.py",
+            "packages/ts/ashr-clone/src/saas.ts",
+            "packages/ts/ashr-clone/src/tenancy.ts",
+        ],
+        "go_manifest_routes": sorted(go_routes),
+        "go_route_count": len(go_routes),
+        "python_hosted_routes": sorted(python_routes),
+        "python_route_count": len(python_routes),
+        "ts_openapi_routes": sorted(ts_routes),
+        "ts_route_count": len(ts_routes),
+        "python_tenancy_routes": sorted(python_tenancy),
+        "python_tenancy_route_count": len(python_tenancy),
+        "ts_tenancy_routes": sorted(ts_tenancy),
+        "ts_tenancy_route_count": len(ts_tenancy),
+        "tenancy_route_parity": {
+            "expected_route_count": 14,
+            "go_routes": sorted(go_tenancy),
+            "python_routes": sorted(python_tenancy),
+            "typescript_routes": sorted(ts_tenancy),
+            "shared_all": sorted(tenancy_shared),
+            "go_only": sorted(go_tenancy - python_tenancy - ts_tenancy),
+            "python_only": sorted(python_tenancy - go_tenancy - ts_tenancy),
+            "typescript_only": sorted(ts_tenancy - go_tenancy - python_tenancy),
+            "exact_parity": (
+                len(tenancy_shared) == 14
+                and go_tenancy == python_tenancy == ts_tenancy
+            ),
+        },
+        "intentional_route_differences": {
+            "go_only": sorted(go_routes - python_effective - ts_effective),
+            "python_only": sorted(python_routes - ts_routes),
+            "ts_only": sorted(ts_routes - python_routes),
+            "shared_all": sorted(go_routes & python_effective & ts_effective),
+        },
+    }
+
+
 def test_go_python_route_contract_artifact_matches_schema_shape():
     artifact = _load_artifact()
     schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
@@ -448,12 +544,28 @@ def test_route_parity_snapshot_is_public_safe_and_current():
     assert snapshot["source_paths"] == [
         "packages/go/ashrclone/server.go",
         "packages/sdk/ashr_clone/saas.py",
+        "packages/sdk/ashr_clone/tenancy.py",
         "packages/ts/ashr-clone/src/saas.ts",
+        "packages/ts/ashr-clone/src/tenancy.ts",
     ]
+    assert snapshot == _route_snapshot_fixture()
 
-    assert set(snapshot["go_manifest_routes"]) == _go_manifest_routes()
-    assert set(snapshot["python_hosted_routes"]) == _python_hosted_routes()
-    assert set(snapshot["ts_openapi_routes"]) == _ts_openapi_routes()
+
+def test_go_python_typescript_tenancy_routes_have_exact_parity():
+    snapshot = _load_route_snapshot()
+    parity = snapshot["tenancy_route_parity"]
+
+    assert parity["expected_route_count"] == 14
+    assert parity["exact_parity"] is True
+    assert len(parity["shared_all"]) == 14
+    assert parity["go_only"] == []
+    assert parity["python_only"] == []
+    assert parity["typescript_only"] == []
+    assert set(parity["go_routes"]) == _go_tenancy_routes()
+    assert set(parity["python_routes"]) == _python_tenancy_routes()
+    assert set(parity["typescript_routes"]) == _ts_tenancy_routes()
+    assert snapshot["python_tenancy_route_count"] == 14
+    assert snapshot["ts_tenancy_route_count"] == 14
 
 
 def test_go_manifest_keeps_executable_subset_shared_with_python_and_ts():
@@ -645,3 +757,31 @@ def test_shared_go_python_hosted_routes_have_matching_scope_values():
         go_scope_names = go_by_route[route]["scopes"]
         go_scopes = sorted(go_scope_values[name] for name in go_scope_names)
         assert go_scopes == sorted(python_by_route[route]["required_scopes"]), route
+
+
+def _write_route_snapshot() -> None:
+    ROUTE_SNAPSHOT.parent.mkdir(parents=True, exist_ok=True)
+    ROUTE_SNAPSHOT.write_text(
+        json.dumps(_route_snapshot_fixture(), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _check_route_snapshot() -> None:
+    if _load_route_snapshot() != _route_snapshot_fixture():
+        raise SystemExit(
+            "go_python_ts_route_parity_snapshot.json is stale; run "
+            "`python tests/a1/test_go_python_route_contract_evidence.py --write-route-snapshot`"
+        )
+
+
+if __name__ == "__main__":
+    if sys.argv[1:] == ["--write-route-snapshot"]:
+        _write_route_snapshot()
+    elif sys.argv[1:] in ([], ["--check-route-snapshot"]):
+        _check_route_snapshot()
+    else:
+        raise SystemExit(
+            "usage: python tests/a1/test_go_python_route_contract_evidence.py "
+            "[--check-route-snapshot|--write-route-snapshot]"
+        )

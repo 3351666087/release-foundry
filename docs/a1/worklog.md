@@ -4809,3 +4809,134 @@ implementation and adversarial evidence is green.
   `HEAD:codex/a1-local-sdk-runner`, fetched the target, and proved local/remote
   `0/0` parity. The index contained no `fixtures/a2/**`; all peer-owned A2
   working-tree drift remains untouched and uncommitted.
+
+## 2026-07-25 authoritative tenancy lifecycle
+
+- [x] Freeze the PostgreSQL-authoritative organization/project/environment
+  lifecycle contract, A3-safe public DTOs, trusted-session boundary, strategic
+  organization/project roles, idempotency rules, and actor/request/trace/audit
+  invariants before implementation.
+- [x] Add migration `030_a1_tenancy_lifecycle.sql` with lifecycle state,
+  strategic role constraints, mutation idempotency, audit/outbox emission,
+  restricted runtime grants, and FORCE RLS for every new tenant-owned table.
+  Replayed the latest migrations `001-030` into a fresh disposable PostgreSQL
+  database after preserving the membership lookup `FOUND` result and
+  separating invalid update payloads from lifecycle state conflicts. Added
+  `test_tenancy_lifecycle_postgres_migration.py`; all `5` live tests pass and
+  prove the restricted runtime has only `a1_tenancy_query` /
+  `a1_tenancy_mutate`, no receipt-table or helper authority, PUBLIC has no
+  entrypoint/table authority, receipts retain ENABLE+FORCE RLS, exact replay
+  emits no duplicate audit/outbox effect, conflicting payloads fail closed,
+  cross-tenant access is opaque, the last owner cannot be removed/demoted,
+  and concurrent replay/owner mutations serialize to exactly one effect.
+- [x] Implement the scoped PostgreSQL tenancy store and runtime initialization
+  without accepting caller-supplied account ownership or introducing a second
+  authoritative in-memory tenancy path. Added the strict
+  `PostgresTenancyStore`, reused the production identity connection and
+  transaction-local SQL/statement/lock timeouts, limited calls to
+  `a1_tenancy_query` / `a1_tenancy_mutate`, made readiness require migration
+  030, failed PostgreSQL startup closed on tenancy construction, and kept
+  memory mode route advertisement disabled.
+- [x] Add authenticated Go HTTP routes for organization/project/environment
+  create/list/update/archive/restore/enable/disable plus project membership
+  set/revoke/list, reusing the trusted identity Session resolver. Added all
+  14 frozen routes with strict object-only JSON, 64 KiB mutation limits,
+  exact `Idempotency-Key` handling, safe request/trace correlation, no-store /
+  nosniff responses, and rejection of normalized account/actor/principal/
+  session overrides. The canonical PostgreSQL caller is always the trusted
+  `Session.AccountID`, never caller input or `Session.ActorID`.
+- [x] Enforce active membership, role authorization, cross-tenant/project
+  isolation, last-owner protection, idempotent replay, payload-conflict
+  rejection, and concurrent exactly-once lifecycle effects. Re-ran
+  `test_tenancy_lifecycle_postgres_migration.py` with `5 passed`; updated the
+  reusable Go PostgreSQL harness from migrations `001-029` to `001-030` and
+  added its two scoped tenancy entrypoints. Added and ran
+  `TestTenancyPostgresIntegration` against a fresh database in
+  `ashr-oauth-pg-test` using an ephemeral external test login; readiness,
+  store construction, typed DTO parsing, exact replay, payload conflict,
+  cross-tenant opacity, last-owner rejection, 12-way concurrent
+  exactly-once environment creation, and real HTTP create all pass. The full
+  Go package gate also passes after `gofmt`.
+- [x] Add strict Python SDK DTOs, parsers, route helpers, and client methods for
+  the implemented tenancy surface while rejecting private refs, digests,
+  tickets, raw policy internals, and arbitrary account/actor overrides. Added
+  the frozen `ashr.clone.tenancy.v1` organization, project, environment,
+  membership, collection, mutation, and four-field error DTOs; all 14 exact
+  route helpers and cookie-authenticated client methods; strict response
+  headers, exact-key parsing, recursive private-marker rejection, path scope
+  validation, header-only `Idempotency-Key`, HTTPS-by-default, and controlled
+  localhost opt-in. The public client never accepts actor/principal/session
+  overrides, and membership target `account_id` exists only in the route path.
+  `test_tenancy_sdk.py`, browser-session SDK, and SDK distribution pass
+  `31` tests in `23.02s`; the test transport records only Cookie presence, not
+  a Cookie value.
+- [x] Add matching TypeScript SDK DTOs, validators, route helpers, and client
+  methods. Added `src/tenancy.ts`, `test/tenancy.test.mjs`, root barrel and
+  `./tenancy` package exports. The frozen DTOs and 14 route/client operations
+  preserve the Python/Go contract while keeping authentication in the
+  browser-managed same-origin credential boundary: the public API accepts no
+  Cookie, token, actor, principal, or session override and never sets a
+  Cookie/Authorization header. Mutation idempotency remains header-only;
+  exact-key, lifecycle, timestamp, scope, private-marker, HTTPS, response
+  header, and exact four-field public-error validation fail closed.
+  `npm run build` and `node --test test/tenancy.test.mjs` pass all `9` tests.
+- [x] Regenerate Go/Python/TypeScript route and public-symbol parity artifacts
+  with the new tenancy module and exact 14-route surface. Added immutable
+  Python and TypeScript `TENANCY_ROUTES` manifests, generated
+  `generated_contract.tenancy_lifecycle`, and extended the route snapshot with
+  the exact Go/Python/TypeScript tenancy comparison. The writer/check pair is
+  deterministic; Go reports `114` routes, Python reports hosted `35` plus
+  tenancy `14`, TypeScript reports hosted `38` plus tenancy `14`, and all 14
+  tenancy operation/method/path triples are shared with zero language-only
+  entries. The route-evidence plus tenancy SDK group passes `38` tests.
+- [x] Add focused migration/RLS/ACL, Go runtime/HTTP/store, Python, TypeScript,
+  A3-safe schema, cross-tenant, replay, conflict, concurrency, and last-owner
+  regression tests. The combined migration 030, tenancy SDK, route snapshot,
+  generated matrix, and round54 A3-safe contract group passes `69` tests. The
+  uncached Go main-module focused/full suites, standalone integration module,
+  and both vet gates pass. The first complete TypeScript run exposed only two
+  stale distribution inventories; after adding the published `./tenancy`
+  subpath and `TenancyClient` marker, build plus all `676` tests pass.
+- [x] Re-ran one Google and one GitHub known-account login in the newly opened
+  real-HTTPS window using only the operator-authorized Chrome Extension. Both
+  starts completed and returned to `/console`. Aggregate-only PostgreSQL
+  evidence kept canonical credentials at Google `2` and GitHub `2`, recorded
+  exactly `2` sessions in the five-minute verification window, and showed
+  total/active sessions at `35`/`31`. No Cookie, browser storage, callback
+  parameter, identity value, provider token, Vault material, or secret was
+  inspected or retained.
+- [x] Update production deployment/runtime documentation and A1 evidence for
+  migration 030, restricted PostgreSQL roles, trusted Session authorization,
+  lifecycle routes, audit/outbox, and rollback requirements. Corrected the
+  frozen trust boundary to production-resolved `Session.AccountID`, documented
+  the exact 14-route advertisement and restricted two-function PostgreSQL
+  runtime, added the route-first/data-preserving rollout and rollback
+  sequence, and published `round69_tenancy_lifecycle_postgres.md` with only
+  A3-safe aggregate results.
+- [x] Run focused and full Go/Python/TypeScript/PostgreSQL/generated checks,
+  `gofmt`, `go vet`, `git diff --check`, and the complete CL plan/hygiene/
+  commercial gates; fix every A1-owned failure. Python compileall is clean and
+  the complete A1 suite passes `1473` tests with `5` intentional skips. Its
+  first run had one transient existing delivery-outbox claim-thread miss; the
+  exact live test passed immediately in isolation and the complete A1 rerun
+  then passed without a skip or code change. Migration 030 live PostgreSQL
+  passes `5`, the explicit Go PostgreSQL tenancy integration passes, both Go
+  modules and vet gates pass, TypeScript build plus all `676` tests pass,
+  release passes `33`, Rust fmt/clippy plus all `31` tests pass, generated
+  route/parity and JSON checks are current, and `git diff --check` is clean.
+  CL full-plan/hygiene/commercial pass with zero hygiene findings, zero
+  blockers, and zero advisories.
+- [x] Build the exact A1 ownership manifest, secret-scan the exact staged diff,
+  and prove no `fixtures/a2/**`, secret, browser credential, or peer-owned path
+  is staged. Wrote a repository-external manifest containing exactly `35` A1
+  paths and proved it exactly matches the index. All `253` peer-owned
+  `fixtures/a2/**` working-tree paths remain unstaged and zero such paths
+  entered the index. The first redacted staged gitleaks pass classified a
+  fixed live-test session key and then a long test idempotency key as generic
+  candidates. Removed both static shapes by generating the test session key
+  with runtime `crypto/rand` and constructing idempotency keys from bounded
+  parts. Focused Go/vet checks remained green and the final staged scan reports
+  zero findings without a repository allowlist.
+- [ ] Precisely stage, commit, and push only this A1 batch to
+  `origin/codex/a1-local-sdk-runner`; fetch and prove local/remote `0/0`
+  parity.

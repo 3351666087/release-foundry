@@ -111,6 +111,7 @@ func identityHTTPServerOptions(
 		IdentityVerificationResponsePolicy: runtime.verificationResponsePolicy,
 		IdentitySessionReceiptTransport:    runtime.sessionReceiptTransport,
 		IdentitySecurityService:            runtime.identitySecurityService,
+		Tenancy:                            runtime.tenancy,
 	}
 	if intentTransport, ok := runtime.sessionReceiptTransport.(ashrclone.IdentityBrowserVerificationIntentTransport); ok {
 		options.IdentityBrowserVerificationIntents = intentTransport

@@ -38,6 +38,7 @@ export * from "./saas.js";
 export * from "./session-lifecycle.js";
 export * from "./stripe-executor.js";
 export * from "./storage.js";
+export * from "./tenancy.js";
 export * from "./trace.js";
 export * from "./unified-identity.js";
 export * from "./event-spool.js";
