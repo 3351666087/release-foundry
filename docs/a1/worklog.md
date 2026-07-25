@@ -4937,6 +4937,10 @@ implementation and adversarial evidence is green.
   with runtime `crypto/rand` and constructing idempotency keys from bounded
   parts. Focused Go/vet checks remained green and the final staged scan reports
   zero findings without a repository allowlist.
-- [ ] Precisely stage, commit, and push only this A1 batch to
+- [x] Precisely stage, commit, and push only this A1 batch to
   `origin/codex/a1-local-sdk-runner`; fetch and prove local/remote `0/0`
-  parity.
+  parity. Committed the exact `35`-path A1 ownership manifest as `6f80469f`
+  with `10,288` insertions and `26` deletions, pushed only
+  `HEAD:codex/a1-local-sdk-runner`, fetched the target, and proved local/remote
+  `0/0` parity. All peer-owned `fixtures/a2/**` working-tree drift remains
+  untouched, unstaged, and uncommitted.

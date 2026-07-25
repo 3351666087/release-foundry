@@ -502,6 +502,9 @@ Implementation and release gates discovered by the real runtime exercise:
   material with runtime `crypto/rand` data and constructed long test
   idempotency keys from bounded parts; the final redacted staged gitleaks scan
   reports zero findings without a committed allowlist.
-- [ ] Precisely stage, commit, and push only this A1 batch to
+- [x] Precisely stage, commit, and push only this A1 batch to
   `origin/codex/a1-local-sdk-runner`; fetch and prove local/remote `0/0`
-  parity.
+  parity. Committed the exact 35-path manifest as `6f80469f` with `10,288`
+  insertions and `26` deletions, pushed only
+  `HEAD:codex/a1-local-sdk-runner`, fetched the target, and proved `0/0`
+  parity while all peer-owned `fixtures/a2/**` changes remained unstaged.
