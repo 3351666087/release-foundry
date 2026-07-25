@@ -4276,9 +4276,12 @@ implementation and adversarial evidence is green.
   no-store handoff. Focused HTTP/service/runtime tests prove that secret refs,
   keyed digests, TOTP seeds, recovery codes, and mutation tickets are not
   exposed by the browser-facing contract.
-- [ ] Implement the mTLS external Vault secret processor with opaque
-  one-use delivery, keyed-digest rotation, redaction, and partial-write
-  cleanup.
+- [x] Reconciled against the later live processor evidence: implemented the
+  mTLS external Vault secret processor with opaque one-use delivery,
+  keyed-digest rotation, redaction, and partial-write cleanup. The live TLS
+  1.3/mTLS harness, projected-token isolation, key-rotation/retirement,
+  replay/concurrency, cleanup compensation, timeout, outage/recovery,
+  no-store, and redaction checks are recorded below.
 - [x] Implemented and wired the independent restricted
   `a1_security_ticket_issuer` PostgreSQL adapter/DSN with canonical actor,
   operation, context, receipt, TTL, and idempotency binding.
@@ -4290,18 +4293,40 @@ implementation and adversarial evidence is green.
   rejection, RLS/FORCE RLS, runtime authority denial, issuer table denial, and
   issuer projection/resolve/execute denial. The runtime/store also canonicalize
   ticket expiry to PostgreSQL microsecond precision before persistence.
-- [ ] Complete authenticated password enroll/change and TOTP enroll/confirm,
-  plus verified domestic-email password recovery, through the existing atomic
-  mutation executor without admitting raw secret fields to its endpoints.
-- [ ] Prove one-use TOTP/recovery material handoff, replay/concurrency/CSRF/
+- [x] Reconciled against the later production security closeout: completed
+  authenticated password enroll/change, TOTP enroll/confirm, and verified
+  domestic-email recovery through the atomic mutation executor without raw
+  secret fields in public endpoints.
+- [x] Reconciled against the later processor and migration-029 evidence:
+  proved one-use TOTP/recovery handoff, replay/concurrency/CSRF/
   account-injection/mismatch rejection, and Vault/PostgreSQL failure
   atomicity.
-- [ ] Promote only real routes and add strict Python/TypeScript client and
-  manifest parity.
-- [ ] Run live PostgreSQL/RLS, all Go/Python/TypeScript/Rust tests, formatting,
-  CL, ownership, generated-artifact, and secret gates.
-- [ ] Commit and push only the complete A1 batch, then fetch and prove exact
-  post-push `0/0` parity.
+- [x] Reconciled against the later cross-language closeout: promoted only real
+  routes, added strict Python/TypeScript clients, and regenerated manifest
+  parity.
+- [x] Reconciled against the later complete gate matrix: live PostgreSQL/RLS,
+  all Go/Python/TypeScript/Rust tests, formatting, CL, ownership,
+  generated-artifact, and secret gates passed.
+- [x] Reconciled against the later A1-only closeouts: committed and pushed
+  only A1 manifests, fetched the target branch, and proved exact post-push
+  local/remote `0/0` parity.
+
+## 2026-07-25 A1 documentation-only reconciliation closeout
+
+- [x] Ran `python scripts/cl_guard.py plan --full`; the complete CL scope was
+  selected successfully.
+- [x] Ran `python scripts/cl_guard.py hygiene`; it passed with zero findings.
+- [x] Ran `python scripts/cl_guard.py commercial`; it passed with zero
+  blockers and zero advisories.
+- [x] Ran `git diff --check`; it passed. The only output was the existing
+  CRLF-normalization warning for untouched peer-owned `fixtures/a2/**` files.
+- [x] Precisely staged `TASKS.md` and `docs/a1/worklog.md`; the ownership
+  manifest matched exactly two paths, the generated-artifact gate found no
+  generated/binary/artifact path, `fixtures/a2/**` staged count was zero, and
+  `gitleaks protect --staged --redact --no-banner` reported no leaks.
+- [ ] Pending the documentation-only commit and push to
+  `origin/codex/a1-local-sdk-runner`, followed by fetch and exact `0/0`
+  parity verification.
 - [x] Diagnosed the Chrome Extension handoff through the plugin's read-only
   checks without switching browser surfaces: Chrome is running; the
   Extension is installed and enabled in its selected `Default` profile; and

@@ -508,3 +508,21 @@ Implementation and release gates discovered by the real runtime exercise:
   insertions and `26` deletions, pushed only
   `HEAD:codex/a1-local-sdk-runner`, fetched the target, and proved `0/0`
   parity while all peer-owned `fixtures/a2/**` changes remained unstaged.
+
+## A1 checklist reconciliation checkpoint (2026-07-25)
+
+- [x] Reconciled the six historical unchecked items in
+  `docs/a1/worklog.md` against the later production password/2FA,
+  external-mTLS-Vault, PostgreSQL/RLS, cross-language parity, full-gate, and
+  A1-only push evidence; no implementation gap remains in that historical
+  section.
+- [x] Reconnected through the operator-authorized Chrome Extension and
+  completed a fresh GitHub real-HTTPS round trip to the controlled `/console`
+  path. The page path was checked only after navigation; no callback query,
+  cookie, storage, identity, token, or secret value was read.
+- [x] Confirmed the current A1 worktree is remote-parity `0/0`; retained all
+  unstaged `fixtures/a2/**` peer changes and will use only an explicit A1
+  ownership manifest if a commit is needed.
+- [x] Ran the required pre-commit CL plan, hygiene, commercial, diff-check,
+  exact two-path ownership/generated-artifact, and staged secret gates for
+  this documentation-only reconciliation; no peer-owned path was staged.
