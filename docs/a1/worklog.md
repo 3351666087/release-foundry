@@ -4324,9 +4324,11 @@ implementation and adversarial evidence is green.
   manifest matched exactly two paths, the generated-artifact gate found no
   generated/binary/artifact path, `fixtures/a2/**` staged count was zero, and
   `gitleaks protect --staged --redact --no-banner` reported no leaks.
-- [ ] Pending the documentation-only commit and push to
-  `origin/codex/a1-local-sdk-runner`, followed by fetch and exact `0/0`
-  parity verification.
+- [x] Committed the exact documentation-only A1 batch as
+  `docs(a1): reconcile identity security checklist`, pushed only
+  `HEAD:codex/a1-local-sdk-runner`, fetched `origin`, and proved exact
+  post-push local/remote `0/0` parity. The index is empty afterward and all
+  `fixtures/a2/**` peer changes remain unstaged and uncommitted.
 - [x] Diagnosed the Chrome Extension handoff through the plugin's read-only
   checks without switching browser surfaces: Chrome is running; the
   Extension is installed and enabled in its selected `Default` profile; and
