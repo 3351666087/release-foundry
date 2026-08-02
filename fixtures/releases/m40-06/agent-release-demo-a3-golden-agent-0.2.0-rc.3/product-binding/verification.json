@@ -284,6 +284,6 @@
   ],
   "policy_id": "releasefoundry.product_release.enterprise.v1",
   "product_release_id": "releasefoundry-product@1.0.0-rc.1",
-  "product_release_manifest_sha256": "552643ffa2f0110c1deeba3ba86fab9ed46a3848d457d9977ec9199616f828a4",
+  "product_release_manifest_sha256": "0761d243c6e0cfe2ba83b289a66b9684cae9d4e5ca52fca1c04e5eeef6a1a962",
   "schema_version": "releasefoundry.product_release_verification.v1"
 }

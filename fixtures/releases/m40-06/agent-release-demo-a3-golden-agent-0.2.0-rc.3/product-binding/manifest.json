@@ -2,7 +2,7 @@
   "deployment": {
     "bundle": {
       "path": "artifacts/releasefoundry-product-1.0.0-rc.1-runtime.zip",
-      "sha256": "5b485365bfa02c202cb4421c6193f2cf9cf0e0d69cda89628f19caae56a29729"
+      "sha256": "16f9a420c427234c4e138bfd76978d6f778c272a05f208e1fdf42a1bba6187ef"
     },
     "compose": {
       "path": "artifacts/docker-compose.self-host.yml",
@@ -34,11 +34,11 @@
         "supply_chain": {
           "provenance": {
             "path": "supply-chain/releasefoundry-product-1.0.0-rc.1.provenance.json",
-            "sha256": "b98ead93e51462d7580db2d002b014aa56f5a6f59a872388d4f52ae273260b3c"
+            "sha256": "aa1ca3d67b5c701fbfcbdf528f8b0d133bb22ce8246e8e4532f6762797d8b0df"
           },
           "sbom": {
             "path": "supply-chain/releasefoundry-product-1.0.0-rc.1.spdx.json",
-            "sha256": "8fd41c306de7a28078969defe5d4922d69f522c57aac80550b98619a102d4991"
+            "sha256": "3f17e5b6a1550d0c974be83d7df1b1d67dc3178dc4eda471f68d826155604020"
           },
           "signature": {}
         }
@@ -56,11 +56,11 @@
         "supply_chain": {
           "provenance": {
             "path": "supply-chain/releasefoundry-product-1.0.0-rc.1.provenance.json",
-            "sha256": "b98ead93e51462d7580db2d002b014aa56f5a6f59a872388d4f52ae273260b3c"
+            "sha256": "aa1ca3d67b5c701fbfcbdf528f8b0d133bb22ce8246e8e4532f6762797d8b0df"
           },
           "sbom": {
             "path": "supply-chain/releasefoundry-product-1.0.0-rc.1.spdx.json",
-            "sha256": "8fd41c306de7a28078969defe5d4922d69f522c57aac80550b98619a102d4991"
+            "sha256": "3f17e5b6a1550d0c974be83d7df1b1d67dc3178dc4eda471f68d826155604020"
           },
           "signature": {}
         }
@@ -94,7 +94,7 @@
       }
     ]
   },
-  "generated_at": "2026-08-02T15:52:44.736888Z",
+  "generated_at": "2026-08-02T16:29:48.888988Z",
   "policy": {
     "id": "releasefoundry.product_release.enterprise.v1",
     "path": "policy/releasefoundry_product_release_policy.v1.json",
@@ -132,7 +132,7 @@
     {
       "artifact": {
         "path": "artifacts/releasefoundry-python-sdk-0.1.0.zip",
-        "sha256": "bc197636ba066394d218d2d824726aa4724ce3441f4526adb83e113057e9aa0a"
+        "sha256": "ed0312216bdd8758244f1e10b80c5c03958e381142fec2f3e38d91562c4a4074"
       },
       "language": "python",
       "package": "releasefoundry-sdk",
@@ -141,7 +141,7 @@
     {
       "artifact": {
         "path": "artifacts/releasefoundry-typescript-sdk-0.1.0.zip",
-        "sha256": "206ecfa3871ef1f747185fb69ef917ff9bc3e20b7be118143e65f2c5240487e1"
+        "sha256": "ee68c059e4b9ca61bfd8d4442ceb63f9561c82bebb4f86f11fa37a1801256300"
       },
       "language": "typescript",
       "package": "releasefoundry",
@@ -150,7 +150,7 @@
     {
       "artifact": {
         "path": "artifacts/releasefoundry-go-sdk-0.1.0.zip",
-        "sha256": "2ef88ef7342ac273b02f1c49a2e50f22041623b7aed04a39514f462c12e60a3b"
+        "sha256": "d779cee441fc762171541c74e992f7f80803745aaea61057864e4137e30fd703"
       },
       "language": "go",
       "package": "github.com/3351666087/release-foundry/packages/go/releasefoundry",
@@ -158,7 +158,7 @@
     }
   ],
   "source": {
-    "commit_sha": "665fa6487a76702f286a3c67f187627bb242b27b",
+    "commit_sha": "228cb79d9e89b82fcb7d86b5e08e2b4e7fbb9642",
     "dirty": false,
     "repository": "https://github.com/3351666087/release-foundry"
   },
@@ -166,7 +166,7 @@
     "receipts": {
       "web.production_surface": {
         "path": "receipts/web.production_surface.json",
-        "sha256": "6fc8a7fe499a50ba7d395c055d18ef7f4d38c014e7255e5dfe1b45ef08651edf"
+        "sha256": "c2863daf7e1133cc82e73fa7c55161cff1b9147f5af7ddf6fc473164ccc54d7e"
       }
     }
   }

@@ -1,6 +1,6 @@
 {
   "schema_version": "a3.gate_cli.v1",
-  "generated_at": "2026-08-02T15:51:21.804Z",
+  "generated_at": "2026-08-02T17:13:34.531Z",
   "source": "m40-05-rc3-local-candidate-binding",
   "command_shape": "releasefoundry gate --json",
   "summary": {
@@ -265,8 +265,8 @@
           "a2_hard_blockers_present"
         ],
         "evidence_refs": [
-          "sha256:93343a7920b06dc0f232aee7b3eb82b793010ca8c2061043682b4e7ebc088797",
-          "sha256:448e329ef369b749a8865e1fd57ec7f650199d5a467ac8c71d4657b130fb81e9"
+          "sha256:da5fde59a34df2968e28cd0b3e2a8dc495cb68b590e5c309979801d0353b7dff",
+          "sha256:a88a192ada64a5892d21eeb53f4a1b077c67f9753e084a82281875511c6f7ef7"
         ]
       }
     },
@@ -324,8 +324,8 @@
           "a2_hard_blockers_present"
         ],
         "evidence_refs": [
-          "sha256:93343a7920b06dc0f232aee7b3eb82b793010ca8c2061043682b4e7ebc088797",
-          "sha256:448e329ef369b749a8865e1fd57ec7f650199d5a467ac8c71d4657b130fb81e9"
+          "sha256:da5fde59a34df2968e28cd0b3e2a8dc495cb68b590e5c309979801d0353b7dff",
+          "sha256:a88a192ada64a5892d21eeb53f4a1b077c67f9753e084a82281875511c6f7ef7"
         ]
       },
       "a1_evidence": {
@@ -442,11 +442,11 @@
     "decision_ledger": {
       "schema_version": "a2.decision_ledger.v1",
       "ledger_id": "a2-a3-golden-20260720-003-ledger",
-      "head_hash": "sha256:93343a7920b06dc0f232aee7b3eb82b793010ca8c2061043682b4e7ebc088797",
-      "ledger_hash": "sha256:76a083201e1add96395ff22c3a8d62fb284dd2a144f2f2c97d4d85fc3aa7229f",
+      "head_hash": "sha256:da5fde59a34df2968e28cd0b3e2a8dc495cb68b590e5c309979801d0353b7dff",
+      "ledger_hash": "sha256:af01eb222ceb901c22f8574c47d07a9ec1d76fa748069d582e6783b51aeaec04",
       "record_count": 3,
-      "record_id": "sha256:448e329ef369b749a8865e1fd57ec7f650199d5a467ac8c71d4657b130fb81e9",
-      "record_hash": "sha256:93343a7920b06dc0f232aee7b3eb82b793010ca8c2061043682b4e7ebc088797",
+      "record_id": "sha256:a88a192ada64a5892d21eeb53f4a1b077c67f9753e084a82281875511c6f7ef7",
+      "record_hash": "sha256:da5fde59a34df2968e28cd0b3e2a8dc495cb68b590e5c309979801d0353b7dff",
       "chain_verified": true
     },
     "evidence_snapshot": {
@@ -471,9 +471,9 @@
     "candidate_id": "a3-golden-agent@0.2.0-rc.3",
     "run_id": "a3-golden-20260720-003",
     "release_version": "0.2.0-rc.3",
-    "a2_decision_ledger_head_hash": "sha256:93343a7920b06dc0f232aee7b3eb82b793010ca8c2061043682b4e7ebc088797",
+    "a2_decision_ledger_head_hash": "sha256:da5fde59a34df2968e28cd0b3e2a8dc495cb68b590e5c309979801d0353b7dff",
     "a2_grades_hash": "sha256:ffeba9ab8d7a2ccfb26ca8e135448cc9a2e6c8ead5b49837f77e5e73606a5304",
-    "a3_implementation_commit": "e21ebcb1b09b2a709f5381e02f89933477453d82",
+    "a3_implementation_commit": "e30ef3554a7dc721067db513807f3409542abf78",
     "delivery_status": "blocked_by_a2",
     "production_ready": false,
     "blockers": []

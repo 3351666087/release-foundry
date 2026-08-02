@@ -1,6 +1,6 @@
 {
   "schema_version": "a3.candidate_delivery_binding.v1",
-  "generated_at": "2026-08-02T15:51:21.804Z",
+  "generated_at": "2026-08-02T17:13:34.531Z",
   "candidate": {
     "candidate_id": "a3-golden-agent@0.2.0-rc.3",
     "run_id": "a3-golden-20260720-003",
@@ -9,21 +9,21 @@
   "upstream": {
     "a1_source_commit": "1d292047e991995fdf52f0545ffff410ee19a171",
     "a1_evidence_bundle_hash": "sha256:3240e097cc4e793520d9bbb0b2a600081a5440c751bf842cbe3b8cc9e495cd9f",
-    "a2_authority_commit": "e21ebcb1b09b2a709f5381e02f89933477453d82",
-    "a2_decision_ledger_head_hash": "sha256:93343a7920b06dc0f232aee7b3eb82b793010ca8c2061043682b4e7ebc088797",
+    "a2_authority_commit": "e30ef3554a7dc721067db513807f3409542abf78",
+    "a2_decision_ledger_head_hash": "sha256:da5fde59a34df2968e28cd0b3e2a8dc495cb68b590e5c309979801d0353b7dff",
     "a2_grades_hash": "sha256:ffeba9ab8d7a2ccfb26ca8e135448cc9a2e6c8ead5b49837f77e5e73606a5304",
     "a2_upstream_decision": "block",
     "a2_release_ready": false
   },
   "a3": {
-    "implementation_commit": "e21ebcb1b09b2a709f5381e02f89933477453d82",
-    "consumed_decision_ledger_head_hash": "sha256:93343a7920b06dc0f232aee7b3eb82b793010ca8c2061043682b4e7ebc088797",
+    "implementation_commit": "e30ef3554a7dc721067db513807f3409542abf78",
+    "consumed_decision_ledger_head_hash": "sha256:da5fde59a34df2968e28cd0b3e2a8dc495cb68b590e5c309979801d0353b7dff",
     "consumed_grades_hash": "sha256:ffeba9ab8d7a2ccfb26ca8e135448cc9a2e6c8ead5b49837f77e5e73606a5304",
     "delivery_status": "blocked_by_a2",
     "production_ready": false,
     "a2_decision_recomputed": false
   },
-  "shared_identity_hash": "sha256:fe4fb85cf50a7f1d2aa8e651df42dad9b3a3e1494870d3d9f1192ae741383398",
+  "shared_identity_hash": "sha256:89daf4f0da113035981759d86d721c92e88d58f67e6ec986b7d14207fdb85e55",
   "binding_state": "exact",
   "blockers": [],
   "release_blockers": [
@@ -40,5 +40,5 @@
     "secrets_included": false,
     "public_safe": true
   },
-  "binding_hash": "sha256:4c39b00f604fa76f814bbaa2b504a425502b8f31626f316e3b8a9734b917a298"
+  "binding_hash": "sha256:e8bee97f232b825695dd802711db8a692f32a119688ca8b3ccd23ae74d27a363"
 }
