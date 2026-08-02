@@ -555,6 +555,7 @@
       "secret_values_allowed": false
     }
   },
+  "candidate_binding_verification": null,
   "github_check_run": {
     "name": "ReleaseFoundry Release Gate",
     "head_sha": "[set-by-ci]",
@@ -597,16 +598,16 @@
         "path": "fixtures/a3/golden-path/a3_new_run_result.redacted.json",
         "required": true,
         "content_type": "application/json",
-        "sha256": "765a566732207e105d1856d8aa01dbbdb93f4fae9e85131e1b6fb1c77242d2fd",
-        "byte_size": 15727
+        "sha256": "72b958cec87985284624853d8afbc5d7870ab306b728564a916b6299ba2df124",
+        "byte_size": 15785
       },
       {
         "id": "grades",
         "path": "fixtures/a3/golden-path/a2_new_run_judge_response.redacted.json",
         "required": true,
         "content_type": "application/json",
-        "sha256": "c2b056989c7155009f0136ba75997de7dfbdfb92daa71bdc4d483474ec3417cf",
-        "byte_size": 77870
+        "sha256": "f95a7f099f5bd5ef61e9af104b8722aef5d112f6921b6cc04cee5b4d4d625fd5",
+        "byte_size": 77880
       },
       {
         "id": "coverage",

@@ -1,6 +1,6 @@
 {
   "schema_version": "a3.deployment_acceptance.v1",
-  "acceptance_id": "dpa_bbb34e1d7e41a4e22046",
+  "acceptance_id": "dpa_a5c323abc10df6800a69",
   "generated_at": "2026-07-12T11:40:04.000Z",
   "status": "blocked",
   "production_accepted": false,
@@ -244,7 +244,7 @@
       "required": true,
       "status": "passed",
       "evidence_class": "local_verification",
-      "evidence_ref": "a3-archive-a3-bundle-0-2-0-rc-1-a3-golden-20260712-001-560a41530d-ecb5ab0d638a",
+      "evidence_ref": "a3-archive-a3-bundle-0-2-0-rc-1-a3-golden-20260712-001-560a41530d-f5c5c10bb03f",
       "blocked_reason": null,
       "details": {},
       "production_proof": false
@@ -256,7 +256,7 @@
       "required": true,
       "status": "passed",
       "evidence_class": "local_verification",
-      "evidence_ref": "add0e16e18e8885175bf3a498fc98492eaf136074ca2e1669587a80b7d2dea0d",
+      "evidence_ref": "5ff4d30208bf9ae125a0f500d2bc3e51e809e9f367a711bd7b505ab70d960b1b",
       "blocked_reason": null,
       "details": {},
       "production_proof": false

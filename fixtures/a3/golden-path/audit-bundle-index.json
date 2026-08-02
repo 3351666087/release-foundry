@@ -26,6 +26,11 @@
     "a2_release_ready": false,
     "a2_decision_ledger_head_hash": "sha256:31c417d9232f2e3b0361f63b8aad305304774d28d0f68ed6e093f1a0bffa1e18",
     "a2_decision_record_id": "sha256:e19d38b6f189135256ed1afd9ad4f433cc0d5361a0a251adb936e469fa2e9687",
+    "candidate_id": null,
+    "candidate_binding_state": "not-attached",
+    "candidate_binding_verified": false,
+    "a2_grades_hash": null,
+    "a3_implementation_commit": null,
     "a3_recomputed_a2_decision": false,
     "failed_checks": [
       "pass_rate",
@@ -95,8 +100,8 @@
       "bundle_role": "custody_record",
       "content_type": "application/json",
       "required": false,
-      "sha256": "9e6c749a7ad3c5846ea60c8c86c3447fa77a49debf9fc68413b2c78c0c9e59b9",
-      "byte_size": 4492,
+      "sha256": "236f3a8e32a20ee7530c5e89720af3a6a11b987417a3caea2e75930cf3fcae4b",
+      "byte_size": 4502,
       "created_by": "releasefoundry gate generated artifact manifest",
       "redaction_status": "redacted_or_safe_for_audit"
     },
@@ -118,8 +123,8 @@
       "bundle_role": "generated_output",
       "content_type": "application/json",
       "required": true,
-      "sha256": "79ef95a5391c6375500569b54e742c3c0268e5f6f2d30c87d11bf3032fd53399",
-      "byte_size": 2230,
+      "sha256": "876363bbd2864ad804426f0429af713cf502317c1d0c4b601d8229a6fe9b1a21",
+      "byte_size": 2258,
       "created_by": "releasefoundry gate output writer",
       "redaction_status": "redacted_or_safe_for_audit"
     },
@@ -129,8 +134,8 @@
       "bundle_role": "generated_output",
       "content_type": "application/json",
       "required": true,
-      "sha256": "e6b34113417ecaf5e3af7ceb384aebb8de4739fcb79a036f2ddc89630c15dd51",
-      "byte_size": 26177,
+      "sha256": "468a820cb6c6977d0c2792ba0dd03d03b1f1867a8c3e3c5f0e695b8579502cbb",
+      "byte_size": 26327,
       "created_by": "releasefoundry gate output writer",
       "redaction_status": "redacted_or_safe_for_audit"
     },
@@ -140,8 +145,8 @@
       "bundle_role": "generated_output",
       "content_type": "text/markdown",
       "required": true,
-      "sha256": "610fa3919995519d6c43cb205460cff58b4e5b5949cd0e7a7c145211c5aca09d",
-      "byte_size": 2083,
+      "sha256": "13d95abc09e692cc22499133612403eb8b053746625de78d15a306e09b2839d3",
+      "byte_size": 2119,
       "created_by": "releasefoundry gate output writer",
       "redaction_status": "redacted_or_safe_for_audit"
     },
@@ -151,8 +156,8 @@
       "bundle_role": "generated_output",
       "content_type": "text/markdown",
       "required": true,
-      "sha256": "ba0090b045628104c996fbb4aa7d6e49e6fdda65ec476fd8322531012219dabc",
-      "byte_size": 847,
+      "sha256": "1dcb6c0d218e9cee3eb069815b147fcd29986076f065b989c3fe61d92d75ab03",
+      "byte_size": 865,
       "created_by": "releasefoundry gate output writer",
       "redaction_status": "redacted_or_safe_for_audit"
     },
@@ -162,8 +167,8 @@
       "bundle_role": "readback_record",
       "content_type": "application/json",
       "required": true,
-      "sha256": "83616b7a014e1c722e1e978d91d57b2461800933904678e194dcb11f24b9cb53",
-      "byte_size": 1386,
+      "sha256": "68c756aaaec29978d26f2988a0134f77836f2f66b996f3452f50f9b79fe50f8d",
+      "byte_size": 1393,
       "created_by": "A3 GitHub live readback observer",
       "origin": "external_github_live_readback",
       "redaction_status": "redacted_or_safe_for_audit"
@@ -174,8 +179,8 @@
       "bundle_role": "readback_record",
       "content_type": "application/json",
       "required": true,
-      "sha256": "034ae7376ffb1bb3cd3a8ba5f0af7207c15a05bed222a00ec4117176b1d8333b",
-      "byte_size": 2151,
+      "sha256": "6aa9dd5af2d3594d25ec9ecfd7b7608ca848f68b969f7ec895d84fed236540a8",
+      "byte_size": 2142,
       "created_by": "A3 GitHub live readback observer",
       "origin": "external_github_live_readback",
       "redaction_status": "redacted_or_safe_for_audit"
@@ -186,8 +191,8 @@
       "bundle_role": "readback_record",
       "content_type": "application/json",
       "required": true,
-      "sha256": "25c17c8eb61f035c02287d81ea831bd76b5590495aed6a0c924885c94f355f11",
-      "byte_size": 2116,
+      "sha256": "fe492c7a59e9a2cd6ee36dd1bf757c250aefa220328c38abc35beb71017f5166",
+      "byte_size": 2117,
       "created_by": "A3 GitHub live readback observer",
       "origin": "external_github_live_readback",
       "redaction_status": "redacted_or_safe_for_audit"
@@ -198,8 +203,8 @@
       "bundle_role": "readback_record",
       "content_type": "application/json",
       "required": true,
-      "sha256": "4e6ac32205a88507e3b66ae6fbcfe2a3fe515d88bff7c5a32936d2ace21bd133",
-      "byte_size": 1459,
+      "sha256": "b5f9fb901f512f4340295689e1969027f37bc8ea6c96c579453abb10983452a1",
+      "byte_size": 1456,
       "created_by": "A3 GitHub live readback observer",
       "origin": "external_github_live_readback",
       "redaction_status": "redacted_or_safe_for_audit"
@@ -221,8 +226,8 @@
       "bundle_role": "source_input",
       "content_type": "application/json",
       "required": true,
-      "sha256": "c2b056989c7155009f0136ba75997de7dfbdfb92daa71bdc4d483474ec3417cf",
-      "byte_size": 77870,
+      "sha256": "f95a7f099f5bd5ef61e9af104b8722aef5d112f6921b6cc04cee5b4d4d625fd5",
+      "byte_size": 77880,
       "created_by": "releasefoundry gate input manifest",
       "redaction_status": "redacted_or_safe_for_audit"
     },
@@ -232,8 +237,8 @@
       "bundle_role": "source_input",
       "content_type": "application/json",
       "required": true,
-      "sha256": "765a566732207e105d1856d8aa01dbbdb93f4fae9e85131e1b6fb1c77242d2fd",
-      "byte_size": 15727,
+      "sha256": "72b958cec87985284624853d8afbc5d7870ab306b728564a916b6299ba2df124",
+      "byte_size": 15785,
       "created_by": "releasefoundry gate input manifest",
       "redaction_status": "redacted_or_safe_for_audit"
     },
@@ -387,5 +392,5 @@
     "dry_run_compatible": true,
     "redaction_policy": "No API keys, cookies, tokens, emails, or live signed media URLs are allowed in CLI output."
   },
-  "bundle_root_hash": "ecb5ab0d638ad2d8f8f9a3b4d04fbfda2fb8955d2837fb2b801be904583871df"
+  "bundle_root_hash": "f5c5c10bb03fa8971fd9a75d66983bb2e8bce9f31b2bc0e7c710399ad118b87b"
 }

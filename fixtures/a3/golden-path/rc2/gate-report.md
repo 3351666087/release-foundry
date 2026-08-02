@@ -14,8 +14,8 @@
 
 ## Audit Manifest
 
-- runs: ee0428cef01b6797ec9fd6a9bb8363a9af342e48042cea58de86eec1fe1d1a36 (fixtures/a3/golden-path/rc2/a3_new_run_result.redacted.json)
-- grades: c9c636d737efa7abfddf984dc7ca2dd02e000a439200a8d88fb01fbed19db577 (fixtures/a3/golden-path/rc2/a2_new_run_judge_response.redacted.json)
+- runs: 096f869373fc3e0938b9ee292f36e6336deb14fe0ab9a569eef4d195d95a0e28 (fixtures/a3/golden-path/rc2/a3_new_run_result.redacted.json)
+- grades: 1c33a6240cb1aa3102accb550f373ced432ff16b65332a8115be81c7d68c6dc9 (fixtures/a3/golden-path/rc2/a2_new_run_judge_response.redacted.json)
 - coverage: 3e5f8c572056c38c38d93361c64ef6e76850a1e8a5716947c48be6b0cc19d14f (fixtures/a2/results/a2_g3_coverage_report.json)
 - thresholds: fb4360ed42e60a4d8123ccb432bf968cb200f7fe22554e158b1b8a5ac3426729 (fixtures/a3/release_gate_thresholds.json)
 

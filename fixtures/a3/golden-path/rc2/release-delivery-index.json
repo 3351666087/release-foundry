@@ -2,6 +2,8 @@
   "schema_version": "a3.release_delivery_index.v1",
   "generated_at": "2026-07-12T14:02:04.000Z",
   "release_version": "0.2.0-rc.2",
+  "candidate_id": null,
+  "run_id": "a3-golden-20260712-002",
   "git_sha_alias": "c8420813ed6cb94535bd108b30bd97663b906bdb",
   "ci_tested_sha_alias": "746ecbe959a9c8781e8e1fc7d2520a50fd92785b",
   "status": "blocked_by_a2",
@@ -13,12 +15,28 @@
     "golden_path_status": "golden-path-status.json",
     "golden_path_summary": "golden-path-summary.md"
   },
+  "candidate_binding": {
+    "attached": false,
+    "verified": false,
+    "binding_state": "not-attached",
+    "candidate_id": null,
+    "run_id": "a3-golden-20260712-002",
+    "release_version": "0.2.0-rc.2",
+    "a1_source_commit": null,
+    "a2_decision_ledger_head_hash": "sha256:31c417d9232f2e3b0361f63b8aad305304774d28d0f68ed6e093f1a0bffa1e18",
+    "a2_grades_hash": null,
+    "a3_implementation_commit": null,
+    "delivery_status": "not-attached",
+    "production_ready": false
+  },
   "authority": {
     "a1_run_ids": [
       "a3-golden-20260712-002"
     ],
     "a2_upstream_decision": "block",
     "a2_release_ready": false,
+    "a2_decision_ledger_head_hash": "sha256:31c417d9232f2e3b0361f63b8aad305304774d28d0f68ed6e093f1a0bffa1e18",
+    "a2_grades_hash": null,
     "a3_recomputed_decision": false
   },
   "safety": {

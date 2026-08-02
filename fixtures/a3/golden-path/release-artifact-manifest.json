@@ -31,11 +31,13 @@
     "a2": [
       "a2.grade_results.v1",
       "a2.trusted_spine_handoff.v1",
+      "a2.candidate_trusted_spine.v1",
       "a2.decision_ledger.v1"
     ],
     "a3": [
       "a3.deployment_acceptance.v1",
-      "a3.delivery_golden_path.v1"
+      "a3.delivery_golden_path.v1",
+      "a3.candidate_delivery_binding.v1"
     ],
     "required_scope": [
       "organization_id",
@@ -57,8 +59,8 @@
         "required": true,
         "content_type": "application/json",
         "schema_version": "a3.audit_bundle_index.v1",
-        "sha256": "61a4d89675658424f801d8e7b36533b3d2944a8ffd05a75034efda48341f1e5d",
-        "byte_size": 14953
+        "sha256": "f16406e1d86fa40c60d0733cf8d706dfd251ef7b5ba9f59abca1abc8e4e4a7e5",
+        "byte_size": 15243
       },
       {
         "id": "deployment_probe",
@@ -79,8 +81,8 @@
         "required": true,
         "content_type": "application/json",
         "schema_version": "a3.github_check_readback_receipt.v1",
-        "sha256": "034ae7376ffb1bb3cd3a8ba5f0af7207c15a05bed222a00ec4117176b1d8333b",
-        "byte_size": 2151
+        "sha256": "6aa9dd5af2d3594d25ec9ecfd7b7608ca848f68b969f7ec895d84fed236540a8",
+        "byte_size": 2142
       },
       {
         "id": "github_pr_comment_readback",
@@ -90,8 +92,8 @@
         "required": true,
         "content_type": "application/json",
         "schema_version": "a3.github_pr_comment_readback_receipt.v1",
-        "sha256": "25c17c8eb61f035c02287d81ea831bd76b5590495aed6a0c924885c94f355f11",
-        "byte_size": 2116
+        "sha256": "fe492c7a59e9a2cd6ee36dd1bf757c250aefa220328c38abc35beb71017f5166",
+        "byte_size": 2117
       },
       {
         "id": "a2_judge_service_response",
@@ -101,8 +103,8 @@
         "required": true,
         "content_type": "application/json",
         "schema_version": "a2.internal_service_response.v1",
-        "sha256": "c2b056989c7155009f0136ba75997de7dfbdfb92daa71bdc4d483474ec3417cf",
-        "byte_size": 77870
+        "sha256": "f95a7f099f5bd5ef61e9af104b8722aef5d112f6921b6cc04cee5b4d4d625fd5",
+        "byte_size": 77880
       },
       {
         "id": "a2_trusted_spine",
@@ -123,8 +125,8 @@
         "required": true,
         "content_type": "application/json",
         "schema_version": "a3.github_actions_artifact_readback.v1",
-        "sha256": "83616b7a014e1c722e1e978d91d57b2461800933904678e194dcb11f24b9cb53",
-        "byte_size": 1386
+        "sha256": "68c756aaaec29978d26f2988a0134f77836f2f66b996f3452f50f9b79fe50f8d",
+        "byte_size": 1393
       },
       {
         "id": "release_document_01",
@@ -134,8 +136,8 @@
         "required": true,
         "content_type": "text/markdown",
         "schema_version": null,
-        "sha256": "628134fa115fa4803aa1de8996b83fb6913c220797d3fc4f1849049e830fd71e",
-        "byte_size": 31946
+        "sha256": "1c0f7e754db8fd6ac1bf4ce2e06d744304cc9bf463487265629be58ed445e78d",
+        "byte_size": 32046
       },
       {
         "id": "release_document_02",
@@ -145,8 +147,8 @@
         "required": true,
         "content_type": "text/markdown",
         "schema_version": null,
-        "sha256": "71bd408d888c444d0607a02cc62e7f4ead01cd1398ead9ae2cd6d474208e4382",
-        "byte_size": 9291
+        "sha256": "f95ee4b19c627ee13700e6d19b98eaf50a4df59561fd5064d232540bb613f0d2",
+        "byte_size": 9308
       },
       {
         "id": "release_document_03",
@@ -156,8 +158,8 @@
         "required": true,
         "content_type": "text/markdown",
         "schema_version": null,
-        "sha256": "aeb4ab39105f7b78558e812f7fbf0f1e6d0a4bd76dde8f045a8f0ca652352c12",
-        "byte_size": 2489
+        "sha256": "8e6b6d2c07ba545bff17cee6d5eda6d17aa65fa7a1a43366b2f40f7f92884eec",
+        "byte_size": 2493
       },
       {
         "id": "github_required_check_proof",
@@ -167,8 +169,8 @@
         "required": true,
         "content_type": "application/json",
         "schema_version": "a3.github_required_check_proof.v1",
-        "sha256": "4e6ac32205a88507e3b66ae6fbcfe2a3fe515d88bff7c5a32936d2ace21bd133",
-        "byte_size": 1459
+        "sha256": "b5f9fb901f512f4340295689e1969027f37bc8ea6c96c579453abb10983452a1",
+        "byte_size": 1456
       },
       {
         "id": "a1_run_result",
@@ -178,8 +180,8 @@
         "required": true,
         "content_type": "application/json",
         "schema_version": "releasefoundry.run_result.v1",
-        "sha256": "765a566732207e105d1856d8aa01dbbdb93f4fae9e85131e1b6fb1c77242d2fd",
-        "byte_size": 15727
+        "sha256": "72b958cec87985284624853d8afbc5d7870ab306b728564a916b6299ba2df124",
+        "byte_size": 15785
       },
       {
         "id": "audit_archive_manifest",
@@ -189,8 +191,8 @@
         "required": true,
         "content_type": "application/json",
         "schema_version": "a3.audit_archive_manifest.v1",
-        "sha256": "bb56914d6b0dcfcb9d72718e6a8b8c7bed26d2519ba2d43610984ebd3d6d2e8e",
-        "byte_size": 11104
+        "sha256": "118ecea9a941359bf7f5c1b7e7c94119dd6c701069ccc19c9104c7ac91bd9e54",
+        "byte_size": 11404
       },
       {
         "id": "audit_archive_verification",
@@ -200,7 +202,7 @@
         "required": true,
         "content_type": "application/json",
         "schema_version": "a3.audit_archive_verification.v1",
-        "sha256": "622035dab1081f2dc537430da65da83e3563b41b4cafbf2c6857359e28a34c04",
+        "sha256": "5eafaa95ed59b53932985e4d6fdc02bd16d7c296d28ca5827b4b6c0425722402",
         "byte_size": 9960
       },
       {
@@ -211,7 +213,7 @@
         "required": true,
         "content_type": "application/json",
         "schema_version": "a3.audit_bundle_verification.v1",
-        "sha256": "fb881720feea8f2896765f995297990dddcbbf45b0f0f5688e05b8dec99b8dfa",
+        "sha256": "405c7cc59bfd34bdfb3212f0c72cab71c0103846d8ca88d1251e9803626981ce",
         "byte_size": 11918
       }
     ]
@@ -235,6 +237,6 @@
     "private_key_included": false,
     "fixture_claimed_as_production": false
   },
-  "artifact_set_hash": "ac5dde0ec930860bb7f879f09d20c548f89a6b8cb7716d04dc7f03f951eb8e87",
-  "manifest_hash": "add0e16e18e8885175bf3a498fc98492eaf136074ca2e1669587a80b7d2dea0d"
+  "artifact_set_hash": "d038889ebfaddafd89b7f0626681628cfa8a13005ff333ffbc04c8ce1a358c2e",
+  "manifest_hash": "5ff4d30208bf9ae125a0f500d2bc3e51e809e9f367a711bd7b505ab70d960b1b"
 }

@@ -23,32 +23,32 @@
       "id": "json_report",
       "path": "fixtures/a3/golden-path/rc2/gate-report.json",
       "content_type": "application/json",
-      "sha256": "c1f1a0b27794052e7148590dc390af97f912e6d0f6c00fe9035810e078871b9d",
-      "byte_size": 21181,
+      "sha256": "f0f373a6cf3936ab5e75a98ea7fb248fa762f036c7a0999445ee0b278e8af626",
+      "byte_size": 21308,
       "required": true
     },
     {
       "id": "markdown_report",
       "path": "fixtures/a3/golden-path/rc2/gate-report.md",
       "content_type": "text/markdown",
-      "sha256": "dc8dcaff221f041e271f6ff6c586707d301871051501b6da15ecbbb52f8de4d4",
-      "byte_size": 2131,
+      "sha256": "58b4592eb2326c9a2af855bf9014802c790b1039d7ddbfbbac57fc2246bedce9",
+      "byte_size": 2167,
       "required": true
     },
     {
       "id": "github_check_run",
       "path": "fixtures/a3/golden-path/rc2/github-check.json",
       "content_type": "application/json",
-      "sha256": "5d634bb71f8d6086fe12e76260fd9ec48d2015238bb2e4d3e273dfe92fde6f7e",
-      "byte_size": 1023,
+      "sha256": "d1ffc325cc48d96eb2dd592b28f520f34d1e20b53ff7129d48d51b3c00c65acd",
+      "byte_size": 1028,
       "required": true
     },
     {
       "id": "pr_comment_markdown",
       "path": "fixtures/a3/golden-path/rc2/pr-comment.md",
       "content_type": "text/markdown",
-      "sha256": "27070c2ebc5bdae31e11d77f933a14041d0a87c34aa3c3548c1b045a5895ffe4",
-      "byte_size": 878,
+      "sha256": "8ac6085a9b8349e135dc1e2844c6181ae0443aca59a7277ab7e9b65f8d538554",
+      "byte_size": 896,
       "required": true
     },
     {
@@ -65,8 +65,8 @@
       "id": "github_check_readback",
       "path": "fixtures/a3/golden-path/rc2/github-check-live-readback.redacted.json",
       "content_type": "application/json",
-      "sha256": "ed3b76fca5df23c97d673837bc12f82320e4a3652dd35bc06334c489c6e38ebb",
-      "byte_size": 2150,
+      "sha256": "81b487d5a0a2614d7084b69b75b353b6cbb7a91ef4c888efc6187ef5f2204c6e",
+      "byte_size": 2141,
       "required": true,
       "bundle_role": "readback_record",
       "origin": "external_github_live_readback"
@@ -75,8 +75,8 @@
       "id": "github_pr_comment_readback",
       "path": "fixtures/a3/golden-path/rc2/github-pr-comment-live-readback.redacted.json",
       "content_type": "application/json",
-      "sha256": "628f1741ad394288fbfed3e83f39b592d151b63991a6049cd58bea5edcde7e79",
-      "byte_size": 2115,
+      "sha256": "1ccb51f5e8c7794655acbc7a6871bd30c237d424cd2021d2c8091c9ea88fb8b1",
+      "byte_size": 2116,
       "required": true,
       "bundle_role": "readback_record",
       "origin": "external_github_live_readback"
@@ -85,8 +85,8 @@
       "id": "github_required_check_proof",
       "path": "fixtures/a3/golden-path/rc2/github-required-check-live-readback.redacted.json",
       "content_type": "application/json",
-      "sha256": "cc7fdf29705b625a12bcf193133876ca12103d4c816f04e26550342e71bb1bdc",
-      "byte_size": 1458,
+      "sha256": "ac0ba430d9fca0fc4357e8525bfb368ba98cd67690a60c0eb22dd2e7ec318e12",
+      "byte_size": 1455,
       "required": true,
       "bundle_role": "readback_record",
       "origin": "external_github_live_readback"
@@ -95,8 +95,8 @@
       "id": "github_actions_artifact_readback",
       "path": "fixtures/a3/golden-path/rc2/github-actions-artifact-live-readback.redacted.json",
       "content_type": "application/json",
-      "sha256": "f7bc47de59366ef85eca0fafc8c14ed75a4a1457e243a4f444e654ff682d05ec",
-      "byte_size": 1857,
+      "sha256": "4f3febf24fd8b1e9c4f3913bf1d78c0ed37535c43793ef4e290912828f8f4d56",
+      "byte_size": 1864,
       "required": true,
       "bundle_role": "readback_record",
       "origin": "external_github_live_readback"
