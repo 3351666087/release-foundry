@@ -1,11 +1,11 @@
 {
   "schema_version": "a3.deployment_probe.v1",
-  "generated_at": "2026-08-02T16:27:53.916Z",
+  "generated_at": "2026-08-02T17:13:34.531Z",
   "environment": "staging",
   "release_version": "0.2.0-rc.3",
   "git_sha_alias": "1d292047e991995fdf52f0545ffff410ee19a171",
   "ci_tested_sha_alias": null,
-  "a3_implementation_commit": "e21ebcb1b09b2a709f5381e02f89933477453d82",
+  "a3_implementation_commit": "e30ef3554a7dc721067db513807f3409542abf78",
   "hosted_identity": {
     "status": "not_proven",
     "verified": false,

@@ -24,7 +24,7 @@ test("A3 verifies every rc.3 candidate snapshot while preserving evidence_missin
   assert.equal(authority.status, "blocked");
   assert.ok(authority.blockers.includes("evidence_incomplete"));
   assert.ok(authority.blockers.includes("a2_hard_blockers_present"));
-  assert.equal(authority.decision_ledger.head_hash, "sha256:93343a7920b06dc0f232aee7b3eb82b793010ca8c2061043682b4e7ebc088797");
+  assert.equal(authority.decision_ledger.head_hash, "sha256:da5fde59a34df2968e28cd0b3e2a8dc495cb68b590e5c309979801d0353b7dff");
   assert.equal(authority.safety.a3_score_recomputed, false);
 });
 

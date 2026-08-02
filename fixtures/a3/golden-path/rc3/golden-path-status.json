@@ -1,7 +1,7 @@
 {
   "schema_version": "a3.delivery_golden_path.v1",
-  "golden_path_id": "gpath_8cbf3fff4f0b37b31224",
-  "generated_at": "2026-08-02T16:27:53.916Z",
+  "golden_path_id": "gpath_3d06ca3888a7922221e1",
+  "generated_at": "2026-08-02T17:13:34.531Z",
   "status": "blocked_by_a2",
   "production_ready": false,
   "release_version": "0.2.0-rc.3",
@@ -30,7 +30,7 @@
       "label": "A2 Decision Ledger authorizes release",
       "owner": "A2",
       "status": "blocked",
-      "evidence_ref": "sha256:93343a7920b06dc0f232aee7b3eb82b793010ca8c2061043682b4e7ebc088797",
+      "evidence_ref": "sha256:da5fde59a34df2968e28cd0b3e2a8dc495cb68b590e5c309979801d0353b7dff",
       "blocked_reason": "a2_decision_blocks_release"
     },
     {
@@ -38,7 +38,7 @@
       "label": "A3 seals and verifies the Audit Bundle",
       "owner": "A3",
       "status": "passed",
-      "evidence_ref": "a3-bundle-0-2-0-rc-3-a3-golden-20260720-003-3de1d402fa46",
+      "evidence_ref": "a3-bundle-0-2-0-rc-3-a3-golden-20260720-003-5805f82d8aad",
       "blocked_reason": null
     },
     {
@@ -46,7 +46,7 @@
       "label": "A3 verifies the signed archive",
       "owner": "A3",
       "status": "passed",
-      "evidence_ref": "a3-archive-a3-bundle-0-2-0-rc-3-a3-golden-20260720-003-3de1d402fa-b8e4742a1bc7",
+      "evidence_ref": "a3-archive-a3-bundle-0-2-0-rc-3-a3-golden-20260720-003-5805f82d8a-7f55e3b9f972",
       "blocked_reason": null
     },
     {
@@ -54,7 +54,7 @@
       "label": "Versioned release artifact is verifiable",
       "owner": "A3",
       "status": "passed",
-      "evidence_ref": "b18b6755ec1358cbc43d4875d92f9bd79a68193ca39389b2e9f4fe0877668881",
+      "evidence_ref": "bfe0b8dad169a77bf297c10b156288e9e3d855ca98a6ca225661463d42bd12b4",
       "blocked_reason": null
     },
     {
@@ -62,7 +62,7 @@
       "label": "Deployment acceptance passes",
       "owner": "A1/A3",
       "status": "blocked",
-      "evidence_ref": "dpa_bfeff4619f31e54bae51",
+      "evidence_ref": "dpa_4a4320695e24b43ec761",
       "blocked_reason": "Deployment acceptance is blocked."
     },
     {
@@ -70,7 +70,7 @@
       "label": "Tenant GitHub App is trusted",
       "owner": "A1/A3",
       "status": "blocked",
-      "evidence_ref": "dpa_bfeff4619f31e54bae51",
+      "evidence_ref": "dpa_4a4320695e24b43ec761",
       "blocked_reason": "A tenant-bound GitHub App installation is not proven."
     },
     {
@@ -134,8 +134,8 @@
     }
   ],
   "evidence_links": {
-    "deployment_acceptance_id": "dpa_bfeff4619f31e54bae51",
-    "release_artifact_manifest_hash": "b18b6755ec1358cbc43d4875d92f9bd79a68193ca39389b2e9f4fe0877668881",
+    "deployment_acceptance_id": "dpa_4a4320695e24b43ec761",
+    "release_artifact_manifest_hash": "bfe0b8dad169a77bf297c10b156288e9e3d855ca98a6ca225661463d42bd12b4",
     "audit_bundle_verification_id": null,
     "audit_archive_verification_id": null,
     "github_check_readback_id": null,

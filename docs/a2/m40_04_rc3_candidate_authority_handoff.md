@@ -4,7 +4,7 @@
 
 - Candidate: `a3-golden-agent@0.2.0-rc.3`
 - A1 source commit: `1d292047e991995fdf52f0545ffff410ee19a171`
-- A2 authority implementation: `e21ebcb1b09b2a709f5381e02f89933477453d82`
+- A2 authority implementation: `e30ef3554a7dc721067db513807f3409542abf78`
 - A1 run: `a3-golden-20260720-003`
 - Evidence release version: `0.2.0-rc.3`
 - A1 evidence bundle: `sha256:3240e097cc4e793520d9bbb0b2a600081a5440c751bf842cbe3b8cc9e495cd9f`
@@ -37,7 +37,7 @@ Decision Records into one append-only ledger.
 - Direct-answer snapshot: `complete`
 - Required-web-tool snapshot: `complete`
 - Media-pipeline snapshot: `evidence_missing`
-- Decision Ledger head: `sha256:93343a7920b06dc0f232aee7b3eb82b793010ca8c2061043682b4e7ebc088797`
+- Decision Ledger head: `sha256:da5fde59a34df2968e28cd0b3e2a8dc495cb68b590e5c309979801d0353b7dff`
 - Decision Ledger hash: `sha256:a6506f2f703a469bb4396c34ffe9a4dd840ebb2c63d810702811a8d0cdfd88eb`
 - Trusted Spine bundle hash: `sha256:b1cbc58868a5450b140668d0729b5b46a7882470c05f3e172a1e1c086d122b40`
 - Authoritative A2 decision: `block`
@@ -75,7 +75,7 @@ A3 must consume these exact A2 values without recalculating them:
 | --- | --- |
 | `candidate_id` | `a3-golden-agent@0.2.0-rc.3` |
 | `run_id` | `a3-golden-20260720-003` |
-| `consumed_decision_hash` | `sha256:93343a7920b06dc0f232aee7b3eb82b793010ca8c2061043682b4e7ebc088797` |
+| `consumed_decision_hash` | `sha256:da5fde59a34df2968e28cd0b3e2a8dc495cb68b590e5c309979801d0353b7dff` |
 | `consumed_grades_hash` | `sha256:ffeba9ab8d7a2ccfb26ca8e135448cc9a2e6c8ead5b49837f77e5e73606a5304` |
 
 The current shared identity intentionally remains `blocked` with

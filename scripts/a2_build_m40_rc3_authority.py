@@ -15,7 +15,7 @@ if str(ROOT) not in sys.path:
 from services.judge.candidate_authority import build_candidate_authority
 
 
-A2_AUTHORITY_GIT_SHA = "e21ebcb1b09b2a709f5381e02f89933477453d82"
+A2_AUTHORITY_GIT_SHA = "e30ef3554a7dc721067db513807f3409542abf78"
 A3_BASELINE_GIT_SHA = "bad647acae613f372053771a0eb7219798c4cc20"
 CREATED_AT = "2026-07-20T13:00:22Z"
 

@@ -27,8 +27,8 @@ const EXPECTED = Object.freeze({
   releaseVersion: "0.2.0-rc.3",
   a1SourceCommit: "1d292047e991995fdf52f0545ffff410ee19a171",
   a1EvidenceBundleHash: "sha256:3240e097cc4e793520d9bbb0b2a600081a5440c751bf842cbe3b8cc9e495cd9f",
-  a2AuthorityCommit: "e21ebcb1b09b2a709f5381e02f89933477453d82",
-  a2DecisionHead: "sha256:93343a7920b06dc0f232aee7b3eb82b793010ca8c2061043682b4e7ebc088797",
+  a2AuthorityCommit: "e30ef3554a7dc721067db513807f3409542abf78",
+  a2DecisionHead: "sha256:da5fde59a34df2968e28cd0b3e2a8dc495cb68b590e5c309979801d0353b7dff",
   a2GradesHash: "sha256:ffeba9ab8d7a2ccfb26ca8e135448cc9a2e6c8ead5b49837f77e5e73606a5304"
 });
 const FILES = Object.freeze({

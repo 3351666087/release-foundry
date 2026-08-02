@@ -1,7 +1,7 @@
 {
   "schema_version": "a3.deployment_acceptance.v1",
-  "acceptance_id": "dpa_bfeff4619f31e54bae51",
-  "generated_at": "2026-08-02T16:27:53.916Z",
+  "acceptance_id": "dpa_4a4320695e24b43ec761",
+  "generated_at": "2026-08-02T17:13:34.531Z",
   "status": "blocked",
   "production_accepted": false,
   "release_identity": {
@@ -52,7 +52,7 @@
       "required": true,
       "status": "blocked",
       "evidence_class": "local_authoritative",
-      "evidence_ref": "sha256:93343a7920b06dc0f232aee7b3eb82b793010ca8c2061043682b4e7ebc088797",
+      "evidence_ref": "sha256:da5fde59a34df2968e28cd0b3e2a8dc495cb68b590e5c309979801d0353b7dff",
       "blocked_reason": "a2_decision_blocks_release",
       "details": {
         "integrity_verified": true,
@@ -232,7 +232,7 @@
       "required": true,
       "status": "passed",
       "evidence_class": "local_verification",
-      "evidence_ref": "a3-bundle-0-2-0-rc-3-a3-golden-20260720-003-3de1d402fa46",
+      "evidence_ref": "a3-bundle-0-2-0-rc-3-a3-golden-20260720-003-5805f82d8aad",
       "blocked_reason": null,
       "details": {},
       "production_proof": false
@@ -244,7 +244,7 @@
       "required": true,
       "status": "passed",
       "evidence_class": "local_verification",
-      "evidence_ref": "a3-archive-a3-bundle-0-2-0-rc-3-a3-golden-20260720-003-3de1d402fa-b8e4742a1bc7",
+      "evidence_ref": "a3-archive-a3-bundle-0-2-0-rc-3-a3-golden-20260720-003-5805f82d8a-7f55e3b9f972",
       "blocked_reason": null,
       "details": {},
       "production_proof": false
@@ -256,7 +256,7 @@
       "required": true,
       "status": "passed",
       "evidence_class": "local_verification",
-      "evidence_ref": "b18b6755ec1358cbc43d4875d92f9bd79a68193ca39389b2e9f4fe0877668881",
+      "evidence_ref": "bfe0b8dad169a77bf297c10b156288e9e3d855ca98a6ca225661463d42bd12b4",
       "blocked_reason": null,
       "details": {},
       "production_proof": false
