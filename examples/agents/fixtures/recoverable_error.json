@@ -1,0 +1,325 @@
+{
+  "events": [
+    {
+      "event_id": "evt_55a5f9ec80b71f13",
+      "event_type": "lifecycle.control",
+      "metadata": {},
+      "observation": {
+        "channel": "system",
+        "data": {
+          "agent": "mock-agent",
+          "scenario": "recoverable_error"
+        },
+        "kind": "control",
+        "status": "ok",
+        "text": "run.started"
+      },
+      "parent_id": null,
+      "phase": "lifecycle",
+      "run_id": "run_10fe5d968cafe243",
+      "schema": "releasefoundry.trace.v1",
+      "seq": 0,
+      "source": "mock-agent",
+      "tags": [
+        "control"
+      ],
+      "timestamp": "2026-01-01T00:00:00.000Z",
+      "type": "trace_event"
+    },
+    {
+      "event_id": "evt_0c66063c91003699",
+      "event_type": "dialogue.message",
+      "metadata": {},
+      "observation": {
+        "channel": "user",
+        "data": {
+          "scenario": "recoverable_error"
+        },
+        "kind": "message",
+        "status": "ok",
+        "text": "Look up release channel beta-404 and continue if it is missing."
+      },
+      "parent_id": null,
+      "phase": "dialogue",
+      "run_id": "run_10fe5d968cafe243",
+      "schema": "releasefoundry.trace.v1",
+      "seq": 1,
+      "source": "mock-agent",
+      "tags": [
+        "user"
+      ],
+      "timestamp": "2026-01-01T00:00:00.050Z",
+      "type": "trace_event"
+    },
+    {
+      "event_id": "evt_1d869ba21b601177",
+      "event_type": "tool.tool_call",
+      "metadata": {},
+      "observation": {
+        "channel": "tool",
+        "data": {
+          "args": {
+            "fixture_only": true,
+            "key": "beta-404"
+          },
+          "call_id": "call_b9c9a617c88944b1",
+          "name": "local_lookup"
+        },
+        "kind": "tool_call",
+        "status": "ok",
+        "text": "call local_lookup"
+      },
+      "parent_id": null,
+      "phase": "tool",
+      "run_id": "run_10fe5d968cafe243",
+      "schema": "releasefoundry.trace.v1",
+      "seq": 2,
+      "source": "mock-agent",
+      "tags": [
+        "tool_call",
+        "local_lookup"
+      ],
+      "timestamp": "2026-01-01T00:00:00.100Z",
+      "type": "trace_event"
+    },
+    {
+      "event_id": "evt_87d4918269b06cec",
+      "event_type": "tool.tool_result",
+      "metadata": {},
+      "observation": {
+        "channel": "tool",
+        "data": {
+          "call_id": "call_b9c9a617c88944b1",
+          "name": "local_lookup",
+          "result": {
+            "error": "not_found",
+            "fallback": "stable-default",
+            "key": "beta-404"
+          }
+        },
+        "kind": "tool_result",
+        "status": "error",
+        "text": "local_lookup result"
+      },
+      "parent_id": null,
+      "phase": "tool",
+      "run_id": "run_10fe5d968cafe243",
+      "schema": "releasefoundry.trace.v1",
+      "seq": 3,
+      "source": "mock-agent",
+      "tags": [
+        "tool_result",
+        "local_lookup"
+      ],
+      "timestamp": "2026-01-01T00:00:00.150Z",
+      "type": "trace_event"
+    },
+    {
+      "event_id": "evt_57cc32b756abf4d5",
+      "event_type": "dialogue.message",
+      "metadata": {},
+      "observation": {
+        "channel": "assistant",
+        "data": {
+          "fallback_used": true,
+          "tool_call_id": "call_b9c9a617c88944b1"
+        },
+        "kind": "message",
+        "status": "ok",
+        "text": "No local record for beta-404; continuing with stable-default."
+      },
+      "parent_id": null,
+      "phase": "dialogue",
+      "run_id": "run_10fe5d968cafe243",
+      "schema": "releasefoundry.trace.v1",
+      "seq": 4,
+      "source": "mock-agent",
+      "tags": [
+        "assistant"
+      ],
+      "timestamp": "2026-01-01T00:00:00.200Z",
+      "type": "trace_event"
+    },
+    {
+      "event_id": "evt_7c603340679cb475",
+      "event_type": "telemetry.metric",
+      "metadata": {},
+      "observation": {
+        "channel": "system",
+        "data": {
+          "name": "events_emitted",
+          "unit": "count",
+          "value": 7
+        },
+        "kind": "metric",
+        "status": "ok",
+        "text": "events_emitted"
+      },
+      "parent_id": null,
+      "phase": "telemetry",
+      "run_id": "run_10fe5d968cafe243",
+      "schema": "releasefoundry.trace.v1",
+      "seq": 5,
+      "source": "mock-agent",
+      "tags": [
+        "metric",
+        "events_emitted"
+      ],
+      "timestamp": "2026-01-01T00:00:00.250Z",
+      "type": "trace_event"
+    },
+    {
+      "event_id": "evt_c0a73978b29be432",
+      "event_type": "lifecycle.control",
+      "metadata": {},
+      "observation": {
+        "channel": "system",
+        "data": {
+          "result": "No local record for beta-404; continuing with stable-default.",
+          "scenario": "recoverable_error"
+        },
+        "kind": "control",
+        "status": "degraded",
+        "text": "run.finished"
+      },
+      "parent_id": null,
+      "phase": "lifecycle",
+      "run_id": "run_10fe5d968cafe243",
+      "schema": "releasefoundry.trace.v1",
+      "seq": 6,
+      "source": "mock-agent",
+      "tags": [
+        "control"
+      ],
+      "timestamp": "2026-01-01T00:00:00.300Z",
+      "type": "trace_event"
+    }
+  ],
+  "expected": {
+    "event_count": 7,
+    "final_text": "No local record for beta-404; continuing with stable-default.",
+    "status": "degraded"
+  },
+  "labels": [
+    "a3",
+    "tool",
+    "degraded"
+  ],
+  "name": "recoverable_error",
+  "replay": {
+    "command": "--scenario recoverable_error",
+    "entrypoint": "python examples/agents/mock_agent.py",
+    "mode": "deterministic-local"
+  },
+  "run": {
+    "agent": "mock-agent",
+    "finished_at": "2026-01-01T00:00:00.300Z",
+    "run_id": "run_10fe5d968cafe243",
+    "started_at": "2026-01-01T00:00:00.000Z",
+    "status": "degraded",
+    "task": "Handle a missing local lookup and provide a fallback answer."
+  },
+  "schema": "releasefoundry.run.v1",
+  "vm_stream": [
+    {
+      "data": {
+        "agent": "mock-agent",
+        "scenario": "recoverable_error"
+      },
+      "event_id": "evt_55a5f9ec80b71f13",
+      "schema": "releasefoundry.vm_stream.v1",
+      "seq": 0,
+      "status": "ok",
+      "stream": "lifecycle",
+      "text": "run.started",
+      "timestamp": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "data": {
+        "scenario": "recoverable_error"
+      },
+      "event_id": "evt_0c66063c91003699",
+      "schema": "releasefoundry.vm_stream.v1",
+      "seq": 1,
+      "status": "ok",
+      "stream": "stdin",
+      "text": "Look up release channel beta-404 and continue if it is missing.",
+      "timestamp": "2026-01-01T00:00:00.050Z"
+    },
+    {
+      "data": {
+        "args": {
+          "fixture_only": true,
+          "key": "beta-404"
+        },
+        "call_id": "call_b9c9a617c88944b1",
+        "name": "local_lookup"
+      },
+      "event_id": "evt_1d869ba21b601177",
+      "schema": "releasefoundry.vm_stream.v1",
+      "seq": 2,
+      "status": "ok",
+      "stream": "tool_call",
+      "text": "call local_lookup",
+      "timestamp": "2026-01-01T00:00:00.100Z"
+    },
+    {
+      "data": {
+        "call_id": "call_b9c9a617c88944b1",
+        "name": "local_lookup",
+        "result": {
+          "error": "not_found",
+          "fallback": "stable-default",
+          "key": "beta-404"
+        }
+      },
+      "event_id": "evt_87d4918269b06cec",
+      "schema": "releasefoundry.vm_stream.v1",
+      "seq": 3,
+      "status": "error",
+      "stream": "tool_result",
+      "text": "local_lookup result",
+      "timestamp": "2026-01-01T00:00:00.150Z"
+    },
+    {
+      "data": {
+        "fallback_used": true,
+        "tool_call_id": "call_b9c9a617c88944b1"
+      },
+      "event_id": "evt_57cc32b756abf4d5",
+      "schema": "releasefoundry.vm_stream.v1",
+      "seq": 4,
+      "status": "ok",
+      "stream": "stdout",
+      "text": "No local record for beta-404; continuing with stable-default.",
+      "timestamp": "2026-01-01T00:00:00.200Z"
+    },
+    {
+      "data": {
+        "name": "events_emitted",
+        "unit": "count",
+        "value": 7
+      },
+      "event_id": "evt_7c603340679cb475",
+      "schema": "releasefoundry.vm_stream.v1",
+      "seq": 5,
+      "status": "ok",
+      "stream": "metric",
+      "text": "events_emitted",
+      "timestamp": "2026-01-01T00:00:00.250Z"
+    },
+    {
+      "data": {
+        "result": "No local record for beta-404; continuing with stable-default.",
+        "scenario": "recoverable_error"
+      },
+      "event_id": "evt_c0a73978b29be432",
+      "schema": "releasefoundry.vm_stream.v1",
+      "seq": 6,
+      "status": "degraded",
+      "stream": "lifecycle",
+      "text": "run.finished",
+      "timestamp": "2026-01-01T00:00:00.300Z"
+    }
+  ]
+}

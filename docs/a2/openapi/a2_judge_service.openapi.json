@@ -1,0 +1,521 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "A2 Judge Service Internal Contract",
+    "version": "a2-judge-service-0.1.0",
+    "summary": "Pure-function internal service contract for A2 evaluation intelligence.",
+    "description": "This is the public-safe OpenAPI shape for mounting the Python A2 service wrapper behind A1 worker/API infrastructure. The current implementation is deterministic Python, not a hosted server."
+  },
+  "servers": [
+    {
+      "url": "worker://a2-judge-service",
+      "description": "Logical worker boundary. A1 may mount these paths behind HTTP or a queue."
+    }
+  ],
+  "tags": [
+    { "name": "judge", "description": "Case, run, and batch grading." },
+    { "name": "policy", "description": "Release policy and PR gate evaluation." },
+    { "name": "scenario", "description": "Per-project scenario selection." },
+    { "name": "calibration", "description": "Calibration matrix and regression replay." },
+    { "name": "evidence", "description": "Release unblock and evidence readiness handoff." },
+    { "name": "persistence", "description": "Public-safe result persistence records." }
+  ],
+  "paths": {
+    "/internal/judge/case": {
+      "post": {
+        "operationId": "post_internal_judge_case",
+        "tags": ["judge"],
+        "summary": "Grade one scenario case.",
+        "x-a2": {
+          "implementation": "services.judge.service_wrapper.post_internal_judge_case",
+          "service_version": "a2-judge-service-0.1.0",
+          "pure_function_only": true,
+          "requires_network": false,
+          "requires_releasefoundry_api_key": false,
+          "public_safe_response": true
+        },
+        "requestBody": { "$ref": "#/components/requestBodies/GenericInternalRequest" },
+        "responses": { "200": { "$ref": "#/components/responses/InternalServiceEnvelope" } }
+      }
+    },
+    "/internal/judge/run": {
+      "post": {
+        "operationId": "post_internal_judge_run",
+        "tags": ["judge"],
+        "summary": "Grade all cases in a run and return run-level summary.",
+        "x-a2": {
+          "implementation": "services.judge.service_wrapper.post_internal_judge_run",
+          "service_version": "a2-judge-service-0.1.0",
+          "pure_function_only": true,
+          "requires_network": false,
+          "requires_releasefoundry_api_key": false,
+          "public_safe_response": true
+        },
+        "requestBody": { "$ref": "#/components/requestBodies/GenericInternalRequest" },
+        "responses": { "200": { "$ref": "#/components/responses/InternalServiceEnvelope" } }
+      }
+    },
+    "/internal/judge/batch": {
+      "post": {
+        "operationId": "post_internal_judge_batch",
+        "tags": ["judge"],
+        "summary": "Grade a batch and return an a2.grade_results.v1 report.",
+        "x-a2": {
+          "implementation": "services.judge.service_wrapper.post_internal_judge_batch",
+          "service_version": "a2-judge-service-0.1.0",
+          "pure_function_only": true,
+          "requires_network": false,
+          "requires_releasefoundry_api_key": false,
+          "public_safe_response": true
+        },
+        "requestBody": { "$ref": "#/components/requestBodies/GenericInternalRequest" },
+        "responses": { "200": { "$ref": "#/components/responses/InternalServiceEnvelope" } }
+      }
+    },
+    "/internal/release-policy/evaluate": {
+      "post": {
+        "operationId": "post_internal_release_policy_evaluate",
+        "tags": ["policy"],
+        "summary": "Evaluate configurable release policy and attach A3 release gate summary.",
+        "x-a2": {
+          "implementation": "services.judge.service_wrapper.post_internal_release_policy_evaluate",
+          "service_version": "a2-judge-service-0.1.0",
+          "pure_function_only": true,
+          "requires_network": false,
+          "requires_releasefoundry_api_key": false,
+          "public_safe_response": true
+        },
+        "requestBody": { "$ref": "#/components/requestBodies/GenericInternalRequest" },
+        "responses": { "200": { "$ref": "#/components/responses/InternalServiceEnvelope" } }
+      }
+    },
+    "/internal/regression/replay": {
+      "post": {
+        "operationId": "post_internal_regression_replay",
+        "tags": ["calibration"],
+        "summary": "Build regression replay readiness from calibration and case-book evidence.",
+        "x-a2": {
+          "implementation": "services.judge.service_wrapper.post_internal_regression_replay",
+          "service_version": "a2-judge-service-0.1.0",
+          "pure_function_only": true,
+          "requires_network": false,
+          "requires_releasefoundry_api_key": false,
+          "public_safe_response": true
+        },
+        "requestBody": { "$ref": "#/components/requestBodies/GenericInternalRequest" },
+        "responses": { "200": { "$ref": "#/components/responses/RegressionReplayServiceEnvelope" } }
+      }
+    },
+    "/internal/release/unblock-checklist": {
+      "post": {
+        "operationId": "post_internal_release_unblock_checklist",
+        "tags": ["evidence"],
+        "summary": "Build the public-safe C3/C4/C5 release unblock checklist for A1/A3.",
+        "x-a2": {
+          "implementation": "services.judge.service_wrapper.post_internal_release_unblock_checklist",
+          "service_version": "a2-judge-service-0.1.0",
+          "pure_function_only": true,
+          "requires_network": false,
+          "requires_releasefoundry_api_key": false,
+          "public_safe_response": true
+        },
+        "requestBody": { "$ref": "#/components/requestBodies/GenericInternalRequest" },
+        "responses": { "200": { "$ref": "#/components/responses/ReleaseUnblockChecklistServiceEnvelope" } }
+      }
+    },
+    "/internal/calibration/evaluate": {
+      "post": {
+        "operationId": "post_internal_calibration_evaluate",
+        "tags": ["calibration"],
+        "summary": "Return or build the A2 calibration matrix.",
+        "x-a2": {
+          "implementation": "services.judge.service_wrapper.post_internal_calibration_evaluate",
+          "service_version": "a2-judge-service-0.1.0",
+          "pure_function_only": true,
+          "requires_network": false,
+          "requires_releasefoundry_api_key": false,
+          "public_safe_response": true
+        },
+        "requestBody": { "$ref": "#/components/requestBodies/GenericInternalRequest" },
+        "responses": { "200": { "$ref": "#/components/responses/InternalServiceEnvelope" } }
+      }
+    },
+    "/internal/scenarios/select": {
+      "post": {
+        "operationId": "post_internal_scenarios_select",
+        "tags": ["scenario"],
+        "summary": "Select project-aware A2 scenarios for an environment.",
+        "x-a2": {
+          "implementation": "services.judge.service_wrapper.post_internal_scenarios_select",
+          "service_version": "a2-judge-service-0.1.0",
+          "pure_function_only": true,
+          "requires_network": false,
+          "requires_releasefoundry_api_key": false,
+          "public_safe_response": true
+        },
+        "requestBody": { "$ref": "#/components/requestBodies/GenericInternalRequest" },
+        "responses": { "200": { "$ref": "#/components/responses/InternalServiceEnvelope" } }
+      }
+    },
+    "/internal/results/persist": {
+      "post": {
+        "operationId": "post_internal_results_persist",
+        "tags": ["persistence"],
+        "summary": "Create public-safe persistence records for A1/A2/A3 handoff.",
+        "x-a2": {
+          "implementation": "services.judge.service_wrapper.post_internal_results_persist",
+          "service_version": "a2-judge-service-0.1.0",
+          "pure_function_only": true,
+          "requires_network": false,
+          "requires_releasefoundry_api_key": false,
+          "public_safe_response": true
+        },
+        "requestBody": { "$ref": "#/components/requestBodies/GenericInternalRequest" },
+        "responses": { "200": { "$ref": "#/components/responses/InternalServiceEnvelope" } }
+      }
+    }
+  },
+  "components": {
+    "requestBodies": {
+      "GenericInternalRequest": {
+        "required": true,
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/GenericInternalRequest" }
+          }
+        }
+      }
+    },
+    "responses": {
+      "InternalServiceEnvelope": {
+        "description": "A2 internal service response envelope.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/InternalServiceEnvelope" }
+          }
+        }
+      },
+      "RegressionReplayServiceEnvelope": {
+        "description": "A2 internal regression replay response envelope with release gate summary.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/RegressionReplayServiceEnvelope" }
+          }
+        }
+      },
+      "ReleaseUnblockChecklistServiceEnvelope": {
+        "description": "A2 internal release unblock checklist response envelope.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ReleaseUnblockChecklistServiceEnvelope" }
+          }
+        }
+      }
+    },
+    "schemas": {
+      "ReleaseUnblockChecklistServiceEnvelope": {
+        "type": "object",
+        "allOf": [
+          { "$ref": "#/components/schemas/InternalServiceEnvelope" },
+          {
+            "type": "object",
+            "required": ["result"],
+            "properties": {
+              "result": { "$ref": "#/components/schemas/ReleaseUnblockChecklist" }
+            }
+          }
+        ]
+      },
+      "ReleaseUnblockChecklist": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "checklist_id",
+          "source_release_gate",
+          "release_gate_decision",
+          "release_gate_exit_code",
+          "release_gate_risk_score",
+          "overall_status",
+          "blocked_gate_count",
+          "gate_items",
+          "a3_consumption_summary",
+          "review_workflow",
+          "evidence_refs",
+          "metadata"
+        ],
+        "properties": {
+          "schema_version": { "const": "a2.release_unblock_checklist.v1" },
+          "checklist_id": { "type": "string" },
+          "source_release_gate": { "type": "string" },
+          "release_gate_decision": { "type": "string" },
+          "release_gate_exit_code": { "type": "integer", "minimum": 0 },
+          "release_gate_risk_score": { "type": "integer", "minimum": 0, "maximum": 100 },
+          "overall_status": { "enum": ["blocked", "ready"] },
+          "blocked_gate_count": { "type": "integer", "minimum": 0 },
+          "gate_items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ReleaseUnblockGateItem" }
+          },
+          "a3_consumption_summary": { "type": "object", "additionalProperties": true },
+          "review_workflow": { "type": "object", "additionalProperties": true },
+          "evidence_refs": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "metadata": { "type": "object", "additionalProperties": true }
+        },
+        "additionalProperties": true
+      },
+      "ReleaseUnblockGateItem": {
+        "type": "object",
+        "required": [
+          "gate",
+          "title",
+          "status",
+          "blocks_release",
+          "owner_role",
+          "missing_count",
+          "required_actions",
+          "evidence_refs"
+        ],
+        "properties": {
+          "gate": { "enum": ["C3", "C4", "C5"] },
+          "title": { "type": "string" },
+          "status": { "type": "string" },
+          "blocks_release": { "type": "boolean" },
+          "owner_role": { "type": "string" },
+          "missing_count": { "type": "integer", "minimum": 0 },
+          "required_actions": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/ReleaseUnblockActionItem" }
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "additionalProperties": true
+      },
+      "ReleaseUnblockActionItem": {
+        "type": "object",
+        "required": [
+          "action_id",
+          "action",
+          "required_evidence_source",
+          "missing_count",
+          "private_evidence_required",
+          "private_input_ref",
+          "commands",
+          "evidence_refs"
+        ],
+        "properties": {
+          "action_id": { "type": "string" },
+          "action": { "type": "string" },
+          "required_evidence_source": { "type": "string" },
+          "missing_count": { "type": "integer", "minimum": 0 },
+          "private_evidence_required": { "type": "boolean" },
+          "private_input_ref": { "type": "string" },
+          "commands": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "additionalProperties": true
+      },
+      "RegressionReplayServiceEnvelope": {
+        "type": "object",
+        "allOf": [
+          { "$ref": "#/components/schemas/InternalServiceEnvelope" },
+          {
+            "type": "object",
+            "required": ["result"],
+            "properties": {
+              "result": { "$ref": "#/components/schemas/RegressionReplayReport" }
+            }
+          }
+        ]
+      },
+      "RegressionReplayReport": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "replay_ready",
+          "maturity_status",
+          "maturity_gate",
+          "release_gate_summary"
+        ],
+        "properties": {
+          "schema_version": { "const": "a2.regression_replay.v1" },
+          "replay_ready": { "type": "boolean" },
+          "maturity_status": { "type": "string" },
+          "maturity_gate": { "type": "object", "additionalProperties": true },
+          "release_gate_summary": { "$ref": "#/components/schemas/RegressionReplayReleaseGateSummary" }
+        },
+        "additionalProperties": true
+      },
+      "RegressionReplayReleaseGateSummary": {
+        "type": "object",
+        "required": [
+          "schema_version",
+          "gate",
+          "status",
+          "release_gate_status",
+          "blocks_release",
+          "action",
+          "required_action",
+          "blocking_count",
+          "current_replay_case_count",
+          "target_replay_case_count",
+          "missing_replay_case_count",
+          "failed_replay_case_count",
+          "reviewed_external_evidence_count",
+          "reviewed_evidence_target_count",
+          "missing_reviewed_evidence_count",
+          "case_book_maturity_ready",
+          "gaps",
+          "evidence_refs"
+        ],
+        "properties": {
+          "schema_version": { "const": "a2.regression_replay.release_gate_summary.v1" },
+          "gate": { "const": "C5" },
+          "status": { "type": "string" },
+          "release_gate_status": { "enum": ["blocked", "ready"] },
+          "blocks_release": { "type": "boolean" },
+          "action": {
+            "enum": [
+              "fix_failed_replays",
+              "promote_more_regressions",
+              "attach_reviewed_evidence",
+              "ready"
+            ]
+          },
+          "required_action": { "type": "string" },
+          "blocking_count": { "type": "integer", "minimum": 0 },
+          "current_replay_case_count": { "type": "integer", "minimum": 0 },
+          "target_replay_case_count": { "type": "integer", "minimum": 0 },
+          "missing_replay_case_count": { "type": "integer", "minimum": 0 },
+          "failed_replay_case_count": { "type": "integer", "minimum": 0 },
+          "reviewed_external_evidence_count": { "type": "integer", "minimum": 0 },
+          "reviewed_evidence_target_count": { "type": "integer", "minimum": 0 },
+          "missing_reviewed_evidence_count": { "type": "integer", "minimum": 0 },
+          "case_book_maturity_ready": { "type": "boolean" },
+          "gaps": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "evidence_refs": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "additionalProperties": false
+      },
+      "GenericInternalRequest": {
+        "type": "object",
+        "description": "Endpoint-specific payload. Raw private evidence, API key values, raw model responses, and exact private counters must stay outside tracked artifacts.",
+        "properties": {
+          "request_id": { "type": "string" },
+          "tenant_id": { "type": "string" },
+          "org_id": { "type": "string" },
+          "project_id": { "type": "string" },
+          "run_id": { "type": "string" },
+          "case_id": { "type": "string" },
+          "scenario_id": { "type": "string" },
+          "environment": { "type": "string" },
+          "release_candidate_id": { "type": "string" },
+          "created_at": { "type": "string", "format": "date-time" }
+        },
+        "additionalProperties": true
+      },
+      "InternalServiceEnvelope": {
+        "type": "object",
+        "required": ["schema_version", "ok", "status_code", "endpoint", "request_id", "service_context", "metadata"],
+        "properties": {
+          "schema_version": { "const": "a2.internal_service_response.v1" },
+          "ok": { "type": "boolean" },
+          "status_code": { "type": "integer" },
+          "endpoint": { "type": "string" },
+          "request_id": { "type": "string" },
+          "result": { "type": "object", "additionalProperties": true },
+          "grade_result": { "$ref": "#/components/schemas/A1ReleaseGateBridgeGradeResult" },
+          "error": { "$ref": "#/components/schemas/InternalServiceError" },
+          "service_context": { "$ref": "#/components/schemas/ServiceContext" },
+          "metadata": { "$ref": "#/components/schemas/ServiceMetadata" }
+        },
+        "additionalProperties": true
+      },
+      "A1ReleaseGateBridgeGradeResult": {
+        "type": "object",
+        "description": "GradeResult-like response accepted by A1 LocalReleaseGateBridgeClient for target_contract=A2.release_gate.evaluate.",
+        "required": ["scenario_id", "passed", "score", "label", "reason", "expected", "actual", "metrics"],
+        "properties": {
+          "schema_version": { "const": "a2.a1_release_gate_bridge_grade_result.v1" },
+          "scenario_id": { "type": "string" },
+          "passed": { "type": "boolean" },
+          "score": { "type": "number", "minimum": 0, "maximum": 1 },
+          "label": { "enum": ["release_gate_pass", "release_gate_review"] },
+          "reason": { "type": "string" },
+          "expected": { "type": "object", "additionalProperties": true },
+          "actual": { "type": "object", "additionalProperties": true },
+          "metrics": { "type": "object", "additionalProperties": true }
+        },
+        "additionalProperties": true
+      },
+      "InternalServiceError": {
+        "type": "object",
+        "required": ["code", "message"],
+        "properties": {
+          "code": { "type": "string" },
+          "message": { "type": "string" }
+        },
+        "additionalProperties": false
+      },
+      "ServiceContext": {
+        "type": "object",
+        "required": ["tenant_id", "org_id", "project_id", "run_id", "release_candidate_id"],
+        "properties": {
+          "tenant_id": { "type": "string" },
+          "org_id": { "type": "string" },
+          "project_id": { "type": "string" },
+          "run_id": { "type": "string" },
+          "release_candidate_id": { "type": "string" }
+        },
+        "additionalProperties": false
+      },
+      "ServiceMetadata": {
+        "type": "object",
+        "required": [
+          "public_safe",
+          "requires_network",
+          "requires_releasefoundry_api_key",
+          "does_not_execute_live_calls",
+          "raw_private_evidence_not_recorded",
+          "secrets_not_recorded"
+        ],
+        "properties": {
+          "public_safe": { "const": true },
+          "requires_network": { "const": false },
+          "requires_releasefoundry_api_key": { "const": false },
+          "does_not_execute_live_calls": { "const": true },
+          "raw_private_evidence_not_recorded": { "const": true },
+          "secrets_not_recorded": { "const": true }
+        },
+        "additionalProperties": true
+      }
+    }
+  },
+  "x-a2-boundary": {
+    "owned_by": "Kay/A2",
+    "implementation_language": "Python",
+    "contract_format": "OpenAPI JSON",
+    "hosted_server_in_scope": false,
+    "sql_in_scope": true,
+    "sql_scope": "Python sqlite reference adapter for eval results, calibration data, golden cases, and regression history.",
+    "typescript_runtime_in_scope": false,
+    "intended_consumers": ["A1 worker/API mounting", "A3 dashboard/report consumption", "CI release gate checks"]
+  }
+}

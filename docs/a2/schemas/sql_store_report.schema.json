@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A2SqlStoreReport",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "report_id",
+    "created_at",
+    "database",
+    "table_counts",
+    "write_counts",
+    "query_checks",
+    "source_refs",
+    "metadata"
+  ],
+  "properties": {
+    "schema_version": { "const": "a2.sql_store_report.v1" },
+    "report_id": { "type": "string" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "database": {
+      "type": "object",
+      "required": ["engine", "reference_dialect", "production_target", "ddl_version", "ddl_ref"],
+      "properties": {
+        "engine": { "const": "sqlite" },
+        "reference_dialect": { "const": "sqlite" },
+        "production_target": { "type": "string" },
+        "ddl_version": { "const": "a2.sql_store.sqlite.v1" },
+        "ddl_ref": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "table_counts": {
+      "type": "object",
+      "required": [
+        "a2_eval_runs",
+        "a2_judge_results",
+        "a2_calibration_cases",
+        "a2_golden_cases",
+        "a2_regression_history",
+        "a2_sql_ingest_log"
+      ],
+      "additionalProperties": { "type": "integer", "minimum": 0 }
+    },
+    "write_counts": {
+      "type": "object",
+      "required": [
+        "a2_judge_results",
+        "a2_calibration_cases",
+        "a2_golden_cases",
+        "a2_regression_history"
+      ],
+      "additionalProperties": { "type": "integer", "minimum": 0 }
+    },
+    "query_checks": {
+      "type": "object",
+      "required": [
+        "failure_class_counts",
+        "golden_failure_class_counts",
+        "calibration_missing_releasefoundry_count",
+        "calibration_disagreement_count",
+        "regression_replay_status_counts",
+        "can_join_case_level_history"
+      ],
+      "properties": {
+        "failure_class_counts": { "type": "object" },
+        "golden_failure_class_counts": { "type": "object" },
+        "calibration_missing_releasefoundry_count": { "type": "integer", "minimum": 0 },
+        "calibration_disagreement_count": { "type": "integer", "minimum": 0 },
+        "regression_replay_status_counts": { "type": "object" },
+        "can_join_case_level_history": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    },
+    "source_refs": {
+      "type": "object",
+      "required": ["grade_report", "calibration_matrix", "golden_cases", "regression_replay", "ddl"],
+      "properties": {
+        "grade_report": { "type": "string" },
+        "calibration_matrix": { "type": "string" },
+        "golden_cases": { "type": "string" },
+        "regression_replay": { "type": "string" },
+        "ddl": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "metadata": {
+      "type": "object",
+      "required": [
+        "public_safe",
+        "uses_python_stdlib_sqlite",
+        "does_not_require_external_database",
+        "does_not_execute_live_calls",
+        "raw_private_evidence_not_recorded",
+        "secrets_not_recorded",
+        "intended_consumers"
+      ],
+      "properties": {
+        "public_safe": { "const": true },
+        "uses_python_stdlib_sqlite": { "const": true },
+        "does_not_require_external_database": { "const": true },
+        "does_not_execute_live_calls": { "const": true },
+        "raw_private_evidence_not_recorded": { "const": true },
+        "secrets_not_recorded": { "const": true },
+        "intended_consumers": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

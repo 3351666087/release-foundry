@@ -1,0 +1,91 @@
+{
+  "schema_version": "releasefoundry.round54.identity_http_test_requirements.v1",
+  "scope": "a1_identity_http_contract_sidecar",
+  "public_safe": true,
+  "contains_secrets": false,
+  "contains_raw_identity_values": false,
+  "authority": {
+    "active_route_source": "packages/go/releasefoundry/server.go:GoRouteManifestEntries",
+    "client_contract_source": "a3_identity_contract_manifest",
+    "rule": "a client route is active only when its method and path exist in the Go route manifest"
+  },
+  "required_route_lifecycles": [
+    "active",
+    "proposed",
+    "non_routable",
+    "unavailable"
+  ],
+  "route_rules": {
+    "lifecycle_is_required": true,
+    "missing_lifecycle_implies_active": false,
+    "active_requires_go_manifest_entry": true,
+    "proposed_is_client_callable": false,
+    "non_routable_is_client_callable": false,
+    "unavailable_is_client_callable": false
+  },
+  "registration_login_separation": {
+    "distinct_start_routes": true,
+    "distinct_complete_routes": true,
+    "registration_requires_server_verified_proof": true,
+    "registration_may_create_account": true,
+    "login_requires_existing_verified_credential": true,
+    "login_may_create_account": false,
+    "login_may_link_credentials": false,
+    "login_may_merge_accounts": false
+  },
+  "oauth_first_registration": {
+    "canonical_email_source": "provider_verified_email_only",
+    "unverified_email_must_be_ignored": true,
+    "password_status": "absent"
+  },
+  "account_mutation_authorization": {
+    "matching_authenticated_actor_required": true,
+    "explicit_link_action_required": true,
+    "recent_reauthentication_required": true,
+    "csrf_required": true
+  },
+  "two_factor": {
+    "optional": true,
+    "recommended": true,
+    "mutation_requires_recent_reauthentication": true,
+    "mutation_requires_csrf": true
+  },
+  "domestic_fail_closed_providers": [
+    "wechat",
+    "qq",
+    "alipay"
+  ],
+  "domestic_provider_rules": {
+    "requires_business_qualification": true,
+    "registration": "unavailable",
+    "login": "unavailable",
+    "linking": "unavailable",
+    "enabled": false,
+    "client_callable": false
+  },
+  "anti_enumeration": {
+    "public_failure_code": "authentication_failed",
+    "allowed_http_statuses": [
+      400,
+      401
+    ],
+    "same_failure_for_unknown_and_bad_secret": true,
+    "account_enumeration_safe": true,
+    "unknown_identity_must_not_suggest_registration_or_linking": true
+  },
+  "expected_current_disposition": {
+    "fail_closed_until_go_routes_exist": true,
+    "phantom_active_routes_forbidden": true
+  },
+  "evidence_partition": {
+    "required_sections": [
+      "desired_contract",
+      "implemented_routes",
+      "runtime_verified",
+      "proposed_non_routable",
+      "known_gaps"
+    ],
+    "implemented_is_not_runtime_verified": true,
+    "proposed_is_not_implemented": true
+  }
+}

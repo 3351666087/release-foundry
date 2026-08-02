@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://releasefoundry.local/schemas/a2/composite_agent_capability_contract.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "agent_model",
+    "delegated_models",
+    "capabilities",
+    "contract_hash",
+    "evaluation_requirements",
+    "qualification_state",
+    "release_authority",
+    "blockers",
+    "public_safe"
+  ],
+  "properties": {
+    "schema_version": {"const": "a2.composite_agent_capability_contract.v1"},
+    "agent_model": {"$ref": "#/$defs/modelIdentity"},
+    "delegated_models": {
+      "type": "array",
+      "items": {
+        "allOf": [
+          {"$ref": "#/$defs/modelIdentity"},
+          {
+            "type": "object",
+            "required": ["role", "capabilities"],
+            "properties": {
+              "role": {"type": "string", "minLength": 1},
+              "capabilities": {
+                "type": "array",
+                "minItems": 1,
+                "uniqueItems": true,
+                "items": {"$ref": "#/$defs/capability"}
+              }
+            }
+          }
+        ]
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/capability"}
+    },
+    "contract_hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "evaluation_requirements": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "generated_artifact_hash_required",
+        "text_rendering_requires_ocr_comparison",
+        "independent_safety_judge_required",
+        "self_evaluation_has_release_authority"
+      ],
+      "properties": {
+        "generated_artifact_hash_required": {"const": true},
+        "text_rendering_requires_ocr_comparison": {"type": "boolean"},
+        "independent_safety_judge_required": {"const": true},
+        "self_evaluation_has_release_authority": {"const": false}
+      }
+    },
+    "qualification_state": {"enum": ["declared", "blocked"]},
+    "release_authority": {"const": false},
+    "blockers": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+    "public_safe": {"const": true}
+  },
+  "$defs": {
+    "capability": {
+      "enum": [
+        "text_reasoning",
+        "image_understanding",
+        "image_generation",
+        "image_text_rendering"
+      ]
+    },
+    "modelIdentity": {
+      "type": "object",
+      "required": ["provider_id", "model_id", "model_version"],
+      "properties": {
+        "provider_id": {"type": "string", "minLength": 1},
+        "model_id": {"type": "string", "minLength": 1},
+        "model_version": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

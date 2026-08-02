@@ -1,0 +1,231 @@
+{
+  "schema_version": "a3.official_frontend_mirror_summary.v1",
+  "source_archive": "ReleaseFoundry_frontend_mirror_20260707_125507.zip",
+  "derived_from": "local mirror structure, chunk names, route ids, and method names only",
+  "copyright_boundary": "Clean-room summary. Do not copy official source code, styles, assets, or proprietary implementation into A3.",
+  "file_counts": {
+    "total_files": 418,
+    "html": 136,
+    "javascript": 27,
+    "css": 19,
+    "svg": 79,
+    "png": 36,
+    "json": 12
+  },
+  "mirror_hosts": [
+    "app.releasefoundry.example",
+    "releasefoundry.example",
+    "www.releasefoundry.example",
+    "accounts.google.com",
+    "fonts.googleapis.com",
+    "fonts.gstatic.com",
+    "www.gstatic.com"
+  ],
+  "lab_chunks": [
+    "index-DSO2XOq6.js",
+    "DatasetsPage-C6F1zCF4.js",
+    "CreateRequestModal-LwtjGDgm.js",
+    "RequestDetailDrawer-SLqhBzSz.js",
+    "AgentsPage-CfpNKbhq.js",
+    "FoldersPage-SpXt22Dw.js",
+    "AnalyticsPage-3IidZ_zD.js",
+    "UsagePage-CoD18uzD.js",
+    "TrustPage-DH1i4mLu.js",
+    "ApiKeysPage-DcsMtTi4.js",
+    "TeamPage-zKnEHkxH.js",
+    "ObservabilityPage-BmNyibq8.js",
+    "AgentEffectivenessChart-Dn1jN8cP.js"
+  ],
+  "navigation": [
+    {
+      "tab_id": "agents",
+      "label": "Agents",
+      "chunk": "AgentsPage-CfpNKbhq.js",
+      "a3_decision": "copy metadata and effectiveness ideas; do not build full hosted registry yet"
+    },
+    {
+      "tab_id": "analysis",
+      "label": "Datasets",
+      "chunk": "DatasetsPage-C6F1zCF4.js",
+      "a3_decision": "copy dataset/run/case review flow"
+    },
+    {
+      "tab_id": "folders",
+      "label": "Folders",
+      "chunk": "FoldersPage-SpXt22Dw.js",
+      "a3_decision": "skip for MVP except optional grouping later"
+    },
+    {
+      "tab_id": "analytics",
+      "label": "Analytics",
+      "chunk": "AnalyticsPage-3IidZ_zD.js",
+      "a3_decision": "copy pass-rate and run-volume concepts using local data"
+    },
+    {
+      "tab_id": "observability",
+      "label": "Observability",
+      "chunk": "ObservabilityPage-BmNyibq8.js",
+      "a3_decision": "copy trace/latency/error concepts only when redacted trace fixtures exist"
+    },
+    {
+      "tab_id": "usage",
+      "label": "Usage",
+      "chunk": "UsagePage-CoD18uzD.js",
+      "a3_decision": "copy read-only media quota surface; do not enforce billing"
+    },
+    {
+      "tab_id": "trust",
+      "label": "Trust",
+      "chunk": "TrustPage-DH1i4mLu.js",
+      "a3_decision": "copy report/certificate concept into local audit export"
+    },
+    {
+      "tab_id": "api-keys",
+      "label": "API Keys",
+      "chunk": "ApiKeysPage-DcsMtTi4.js",
+      "a3_decision": "do not copy key creation or secret reveal flows"
+    },
+    {
+      "tab_id": "team",
+      "label": "Team",
+      "chunk": "TeamPage-zKnEHkxH.js",
+      "a3_decision": "do not copy invite/account administration flows"
+    },
+    {
+      "tab_id": "ui-tests",
+      "label": "UI Tests",
+      "chunk": "feature-gated placeholder",
+      "a3_decision": "future optional lane for browser replay evidence"
+    },
+    {
+      "tab_id": "security",
+      "label": "Security",
+      "chunk": "feature-gated placeholder",
+      "a3_decision": "future optional lane for policy/security review"
+    }
+  ],
+  "api_method_groups": [
+    {
+      "group": "evaluation_core",
+      "methods": [
+        "list_datasets",
+        "get_dataset",
+        "create_dataset",
+        "update_dataset",
+        "delete_dataset",
+        "list_runs",
+        "get_run",
+        "create_run",
+        "update_run_result",
+        "delete_run"
+      ],
+      "a3_decision": "highest priority for A3 parity"
+    },
+    {
+      "group": "request_generation",
+      "methods": [
+        "list_requests",
+        "get_request",
+        "create_request",
+        "update_request_status",
+        "delete_request",
+        "get_request_failed"
+      ],
+      "a3_decision": "show provenance and generation status read-only"
+    },
+    {
+      "group": "agent_registry",
+      "methods": [
+        "list_agents",
+        "create_agent",
+        "update_agent",
+        "delete_agent",
+        "get_agent_datasets",
+        "get_agent_tool_performance",
+        "get_tools_by_agent"
+      ],
+      "a3_decision": "copy agent label/effectiveness summaries; avoid hosted mutation"
+    },
+    {
+      "group": "folders",
+      "methods": [
+        "list_folders",
+        "get_folder_datasets",
+        "create_folder",
+        "update_folder",
+        "delete_folder",
+        "add_dataset_to_folder",
+        "remove_dataset_from_folder",
+        "list_folder_memberships"
+      ],
+      "a3_decision": "low priority for student MVP"
+    },
+    {
+      "group": "usage_billing",
+      "methods": [
+        "get_usage",
+        "billing_get_status",
+        "billing_get_public_pricing",
+        "billing_create_checkout_session",
+        "billing_create_portal_session"
+      ],
+      "a3_decision": "show read-only usage/quota; billing mutations out of scope"
+    },
+    {
+      "group": "trust_team_keys",
+      "methods": [
+        "get_trust_certificate_status",
+        "list_api_keys",
+        "create_api_key",
+        "list_users",
+        "create_user",
+        "update_user"
+      ],
+      "a3_decision": "copy audit/trust report concept; do not copy key/team mutations"
+    },
+    {
+      "group": "observability_voice",
+      "methods": [
+        "list_observability_traces",
+        "get_observability_trace",
+        "get_observability_analytics",
+        "get_observability_errors",
+        "get_observability_latency_distribution",
+        "get_observability_tool_errors",
+        "list_voice_sessions",
+        "get_voice_session",
+        "get_voice_session_turns",
+        "get_voice_session_audio_url",
+        "generate_voice_call_insights"
+      ],
+      "a3_decision": "future replay/incident lane; keep redacted only"
+    }
+  ],
+  "confirmed_labels": [
+    "New dataset",
+    "Test cases",
+    "Results",
+    "Runs History",
+    "Open Most Recent Run",
+    "No runs found",
+    "Tool Calls",
+    "Expected",
+    "Actual",
+    "Timeline",
+    "Score",
+    "Pass rate"
+  ],
+  "mvp_recommendations": [
+    "Add a dashboard parity panel that shows which official pages are copied, partial, out of scope, or future.",
+    "Keep A3 focused on datasets, runs, cases, expected vs actual, tool calls, trace, media, release gate, and audit export.",
+    "Do not copy official OAuth, API-key, team, billing, or destructive cloud mutation flows.",
+    "Use official Observability and UI Tests as inspiration for future incident replay and browser replay evidence."
+  ],
+  "safety": {
+    "official_source_committed": false,
+    "secret_values_allowed": false,
+    "raw_cookies_allowed": false,
+    "raw_tokens_allowed": false,
+    "raw_signed_urls_allowed": false
+  }
+}

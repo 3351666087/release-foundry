@@ -1,0 +1,7 @@
+{{- include "releasefoundry.validate" . -}}
+---
+apiVersion: v1
+kind: List
+metadata:
+  name: {{ include "releasefoundry.fullname" . }}-validated-inputs
+items: []

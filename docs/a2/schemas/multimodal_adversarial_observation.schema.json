@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://releasefoundry.local/schemas/a2/multimodal_adversarial_observation.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "attack_taxonomy", "binding", "binding_hash", "structured_output_hash", "state", "unexpected_fields", "forbidden_release_fields_present", "release_authority", "human_review_required", "blockers", "public_safe"],
+  "properties": {
+    "schema_version": {"const": "a2.multimodal_adversarial_observation.v1"},
+    "attack_taxonomy": {"type": "array", "items": {"enum": ["direct_instruction", "low_contrast_text", "schema_override", "release_authority_escalation", "visual_semantic_conflict"]}, "uniqueItems": true, "minItems": 1},
+    "binding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["artifact_hash", "prompt_hash", "generation_options_hash", "model_binding"],
+      "properties": {
+        "artifact_hash": {"$ref": "#/$defs/hash"}, "prompt_hash": {"$ref": "#/$defs/hash"}, "generation_options_hash": {"$ref": "#/$defs/hash"},
+        "model_binding": {"type": "object", "additionalProperties": false, "required": ["provider_id", "model_id", "model_version"], "properties": {"provider_id": {"type": "string", "minLength": 1}, "model_id": {"type": "string", "minLength": 1}, "model_version": {"type": "string", "minLength": 1}}}
+      }
+    },
+    "binding_hash": {"$ref": "#/$defs/hash"},
+    "structured_output_hash": {"type": "string", "pattern": "^(|sha256:[a-f0-9]{64})$"},
+    "state": {"enum": ["boundary_preserved", "malformed_output", "injection_obeyed"]},
+    "unexpected_fields": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "forbidden_release_fields_present": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "release_authority": {"const": false},
+    "human_review_required": {"const": true},
+    "blockers": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "public_safe": {"const": true}
+  },
+  "$defs": {"hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}}
+}

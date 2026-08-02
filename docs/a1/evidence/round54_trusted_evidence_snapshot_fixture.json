@@ -1,0 +1,103 @@
+{
+  "artifacts": [
+    {
+      "artifact_id": "artifact-audio-001",
+      "collection_status": "complete",
+      "content_hash": "sha256:9536f10d2b3ca77de2bebba2f577dd2f1ac4b56dae66eaa3d954d6b4ecbc37f2",
+      "content_included": false,
+      "modality": "audio",
+      "producer_tool": "audio.transcribe",
+      "reference_hash": "sha256:ad681f9cf2877ecf6ad69f5a2eb747fb9a5220c29815835f729f80dd3a5f3d1f"
+    },
+    {
+      "artifact_id": "artifact-file-001",
+      "collection_status": "complete",
+      "content_hash": "sha256:e6e62278f709f9616eef103ae66751c823571a4bc3a16b3ab4d77d1c32f75114",
+      "content_included": false,
+      "modality": "file",
+      "producer_tool": "file.inspect",
+      "reference_hash": "sha256:1feb53dfd882eecb54f3a6f26b8643b80c2d4c5574bf76e4fa59dd2a50ecd642"
+    },
+    {
+      "artifact_id": "artifact-image-001",
+      "collection_status": "complete",
+      "content_hash": "sha256:4ca12aee0e04119f35d86b495f02e3cb766a89f66dba9329069c1f78597ec89c",
+      "content_included": false,
+      "modality": "image",
+      "producer_tool": "image.inspect",
+      "reference_hash": "sha256:5a9b0eeb1d788d112510d9c77fd970d88a683105534890f36a4f163c7758e317"
+    },
+    {
+      "artifact_id": "artifact-text-001",
+      "collection_status": "complete",
+      "content_hash": "sha256:cf36afb7482f4ee17b342463605f2fad41a007042bd4dc071b1ae1164ccbd719",
+      "content_included": false,
+      "modality": "text",
+      "producer_tool": "text.generate",
+      "reference_hash": "sha256:d931cd6953ea957ec2f8e6026b18d3fa4e6e8f3ea99ec3154d08edafe663befe"
+    },
+    {
+      "artifact_id": "artifact-video-001",
+      "collection_status": "complete",
+      "content_hash": "sha256:75d08124fa7c4d65781348fa2385777834f9b426a7160a8751766668b7e03d80",
+      "content_included": false,
+      "modality": "video",
+      "producer_tool": "video.inspect",
+      "reference_hash": "sha256:c754dfe197fd997f757b4f87e75bfc3497fc7c7926a179113754db3fcfdf17cb"
+    }
+  ],
+  "case_id": "case-round54-001",
+  "completeness": "complete",
+  "created_at": "2026-07-11T00:00:00Z",
+  "environment_id": "environment-round54",
+  "extractor_provenance": [
+    {
+      "extractor_id": "a1.trusted_evidence_producer",
+      "extractor_version": "1.0.0",
+      "input_hash": "sha256:61ac912e0032cc9988394ed1077e37427f99c8b8a586c6c29dcd81a095ff899a",
+      "status": "complete"
+    }
+  ],
+  "missing_modalities": [],
+  "observed_modalities": [
+    "audio",
+    "file",
+    "image",
+    "text",
+    "video"
+  ],
+  "organization_id": "organization-round54",
+  "project_id": "project-round54",
+  "required_modalities": [
+    "audio",
+    "file",
+    "image",
+    "text",
+    "video"
+  ],
+  "run_id": "run-round54",
+  "scenario_id": "A2-S031",
+  "schema_version": "a2.evidence_snapshot.v1",
+  "security": {
+    "artifact_content_included": false,
+    "private_evidence_included": false,
+    "raw_evidence_included": false,
+    "scope_complete": true,
+    "secrets_included": false,
+    "tenant_scoped": true
+  },
+  "snapshot_hash": "sha256:b1e9fd935af78bee0285fec23b14d42d9a31c660882889f6394785e02a5e5319",
+  "snapshot_id": "sha256:dc1e188f1fb87cd1aebd2b1f951874ef977ee4b24874406d6696725902832c3e",
+  "source_payload_hash": "sha256:61ac912e0032cc9988394ed1077e37427f99c8b8a586c6c29dcd81a095ff899a",
+  "source_schema_version": "releasefoundry.run_fixture.v1",
+  "tenant_id": "tenant-round54",
+  "tool_call_count": 5,
+  "tool_sequence": [
+    "text.generate",
+    "image.inspect",
+    "audio.transcribe",
+    "file.inspect",
+    "video.inspect"
+  ],
+  "workspace_id": "workspace-round54"
+}

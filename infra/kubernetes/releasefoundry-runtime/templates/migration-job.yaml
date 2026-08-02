@@ -1,0 +1,71 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "releasefoundry.componentName" (dict "root" . "component" "migration") }}-{{ .Release.Revision }}
+  labels:
+    {{- include "releasefoundry.commonLabels" . | nindent 4 }}
+    app.kubernetes.io/component: migration
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "-10"
+    helm.sh/hook-delete-policy: before-hook-creation
+    {{- include "releasefoundry.supplyChainAnnotations" . | nindent 4 }}
+spec:
+  backoffLimit: {{ .Values.migration.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.migration.activeDeadlineSeconds }}
+  ttlSecondsAfterFinished: {{ .Values.migration.ttlSecondsAfterFinished }}
+  template:
+    metadata:
+      labels:
+        {{- include "releasefoundry.selectorLabels" (dict "root" . "component" "migration") | nindent 8 }}
+      annotations:
+        {{- include "releasefoundry.supplyChainAnnotations" . | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ include "releasefoundry.componentName" (dict "root" . "component" "migration") }}
+      automountServiceAccountToken: false
+      enableServiceLinks: false
+      activeDeadlineSeconds: {{ .Values.migration.activeDeadlineSeconds }}
+      securityContext:
+        {{- include "releasefoundry.podSecurityContext" . | nindent 8 }}
+      containers:
+        - name: migrate
+          image: {{ include "releasefoundry.image" .Values.images.migration | quote }}
+          imagePullPolicy: {{ .Values.images.migration.pullPolicy }}
+          command: ["/bin/sh", "/opt/releasefoundry/postgres-migrate.sh"]
+          env:
+            - name: RELEASEFOUNDRY_POSTGRES_HOST
+              value: {{ .Values.runtime.postgres.host | quote }}
+            - name: PGPORT
+              value: {{ .Values.runtime.postgres.port | quote }}
+            - name: RELEASEFOUNDRY_POSTGRES_DB
+              value: {{ .Values.runtime.postgres.database | quote }}
+            - name: RELEASEFOUNDRY_POSTGRES_USER
+              value: {{ .Values.runtime.postgres.user | quote }}
+            - name: RELEASEFOUNDRY_POSTGRES_PASSWORD_FILE
+              value: /var/run/secrets/releasefoundry/database/password
+            - name: RELEASEFOUNDRY_POSTGRES_MIGRATION
+              value: /migrations/a1_control_plane_postgres_migration.sql
+            - name: RELEASEFOUNDRY_POSTGRES_MIGRATION_DIR
+              value: /migrations/ordered
+          securityContext:
+            {{- include "releasefoundry.containerSecurityContext" . | nindent 12 }}
+          resources:
+            {{- toYaml .Values.migration.resources | nindent 12 }}
+          volumeMounts:
+            - name: database-secret
+              mountPath: /var/run/secrets/releasefoundry/database
+              readOnly: true
+            - name: runtime-tmp
+              mountPath: /tmp
+      volumes:
+        - name: database-secret
+          secret:
+            secretName: {{ .Values.runtime.secrets.runtime.name }}
+            defaultMode: 0440
+            items:
+              - key: {{ .Values.runtime.secrets.runtime.postgresPasswordKey }}
+                path: password
+        - name: runtime-tmp
+          emptyDir:
+            sizeLimit: 32Mi

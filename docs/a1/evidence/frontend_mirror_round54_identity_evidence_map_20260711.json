@@ -1,0 +1,41 @@
+{
+  "schema_version": "releasefoundry.a1.frontend_mirror_identity_evidence_map.v1",
+  "generated_at": "2026-07-11T14:31:00Z",
+  "source_kind": "user-provided-static-frontend-mirror",
+  "archive_entry_count": 589,
+  "text_entry_count": 197,
+  "live_browser_verified": false,
+  "controller_results": {
+    "in_app_browser": "failed_before_navigation",
+    "chrome": "failed_before_navigation",
+    "fallback": "static_frontend_mirror"
+  },
+  "term_counts": [
+    {"term": "verification_token", "entry_count": 0, "occurrence_count": 0},
+    {"term": "challenge_id", "entry_count": 0, "occurrence_count": 0},
+    {"term": "browser-sessions/refresh", "entry_count": 0, "occurrence_count": 0},
+    {"term": "refresh_token", "entry_count": 1, "occurrence_count": 18},
+    {"term": "session_id", "entry_count": 32, "occurrence_count": 241},
+    {"term": "evidence_snapshot", "entry_count": 0, "occurrence_count": 0},
+    {"term": "decision_ledger", "entry_count": 0, "occurrence_count": 0},
+    {"term": "trace_events", "entry_count": 0, "occurrence_count": 0},
+    {"term": "tool_calls", "entry_count": 38, "occurrence_count": 206},
+    {"term": "usage limit", "entry_count": 1, "occurrence_count": 1},
+    {"term": "API Keys", "entry_count": 36, "occurrence_count": 220},
+    {"term": "Audio", "entry_count": 57, "occurrence_count": 645},
+    {"term": "File", "entry_count": 82, "occurrence_count": 1276},
+    {"term": "Image", "entry_count": 151, "occurrence_count": 1482},
+    {"term": "Video", "entry_count": 40, "occurrence_count": 330}
+  ],
+  "interpretation": {
+    "identity_session_strings_are_static_hints_only": true,
+    "a2_trusted_spine_claimed_as_official": false,
+    "a3_verification_token_claimed_as_official": false,
+    "media_term_presence_proves_api_parity": false
+  },
+  "public_safety": {
+    "raw_bundle_content_included": false,
+    "credential_values_included": false,
+    "account_payloads_included": false
+  }
+}

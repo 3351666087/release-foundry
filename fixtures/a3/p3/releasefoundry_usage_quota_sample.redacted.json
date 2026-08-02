@@ -1,0 +1,16 @@
+{
+  "api_confirmed": true,
+  "api_paths": {
+    "init.tenant.plan": 1
+  },
+  "frontend_known_modules": [
+    "Images quota",
+    "Audio quota",
+    "Files quota",
+    "Upgrade"
+  ],
+  "note": "Top-level frontend confirms Images/Audio/Files quota modules; read-only API field search records any quota/usage/plan/limit-like paths exposed in L0 responses.",
+  "observed_at": "2026-07-06T04:27:11Z",
+  "schema_version": "a3.p3.usage_quota_sample.v1",
+  "source": "Read-only API and frontend-aligned field search for usage/quota/plan/limit signals."
+}

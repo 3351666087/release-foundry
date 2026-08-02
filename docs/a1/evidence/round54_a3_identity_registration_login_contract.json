@@ -1,0 +1,259 @@
+{
+  "schema_version": "releasefoundry.a3_identity.v1",
+  "scope": "public_contract_only",
+  "desired_contract": {
+    "preferred_registration_provider": "email",
+    "registration_and_login_are_distinct": true,
+    "registration": {
+      "may_create_canonical_account": true,
+      "server_verified_provider_proof_required": true,
+      "initial_login_capable_credential_required": true,
+      "credentialless_public_registration_forbidden": true
+    },
+    "login": {
+      "existing_credential_only": true,
+      "may_create_account": false,
+      "may_link_credentials": false,
+      "may_merge_accounts": false,
+      "verified_email_match_never_auto_links": true,
+      "public_failure_code": "authentication_failed",
+      "account_enumeration_safe": true
+    },
+    "oauth_first_registration": {
+      "canonical_email_source": "provider_verified_email_only",
+      "unverified_email_ignored": true,
+      "password_status": "absent"
+    },
+    "account_binding": {
+      "explicit_user_action_required": true,
+      "authenticated_actor_required": true,
+      "matching_authenticated_actor_required": true,
+      "recent_reauthentication_required": true,
+      "csrf_required": true,
+      "verified_assertion_required": true,
+      "verified_assertion_source": "server_owned_single_use_proof_receipt",
+      "route_lifecycle": "proposed",
+      "client_callable": false
+    },
+    "password_mutation": {
+      "matching_authenticated_actor_required": true,
+      "recent_reauthentication_required": true,
+      "csrf_required": true
+    },
+    "two_factor": {
+      "optional": true,
+      "recommended": true,
+      "mutation_requires_recent_reauthentication": true,
+      "mutation_requires_csrf": true
+    }
+  },
+  "operation_security": {
+    "public_registration": {
+      "authenticated_actor_required": false,
+      "matching_authenticated_actor_required": false,
+      "recent_reauthentication_required": false,
+      "csrf_required": false,
+      "verified_assertion_required": true,
+      "verified_assertion_source": "server_owned_single_use_proof_receipt",
+      "legacy_accountless_binding_http_rejected": true,
+      "route_lifecycle": "active",
+      "client_callable": true
+    },
+    "public_login": {
+      "authenticated_actor_required": false,
+      "matching_authenticated_actor_required": false,
+      "recent_reauthentication_required": false,
+      "csrf_required": false,
+      "verified_assertion_required": true,
+      "verified_assertion_source": "server_owned_single_use_proof_receipt",
+      "account_enumeration_safe": true,
+      "route_lifecycle": "active",
+      "client_callable": true
+    },
+    "existing_account_binding": {
+      "explicit_user_action_required": true,
+      "authenticated_actor_required": true,
+      "matching_authenticated_actor_required": true,
+      "recent_reauthentication_required": true,
+      "csrf_required": true,
+      "verified_assertion_required": true,
+      "verified_assertion_source": "server_owned_single_use_proof_receipt",
+      "atomic_completion_required": true,
+      "proof_receipt_consumed_with_mutation": true,
+      "mutation_ticket_consumed_with_step_up": true,
+      "activation_requires_postgres_coordinator": true,
+      "go_atomic_coordinator_contract": "IdentityCredentialLinkCoordinator",
+      "route_lifecycle": "proposed",
+      "client_callable": false
+    }
+  },
+  "implemented_routes": {
+    "authority": "packages/go/releasefoundry/server.go:GoRouteManifestEntries",
+    "rule": "active requires exact method and path in Go manifest",
+    "routes": [
+      {"operation": "provider_status", "method": "GET", "path": "/v1/identity/providers"},
+      {"operation": "register_start", "method": "POST", "path": "/v1/identity/registration/start"},
+      {"operation": "register_complete", "method": "POST", "path": "/v1/identity/registration/complete"},
+      {"operation": "login_start", "method": "POST", "path": "/v1/identity/login/start"},
+      {"operation": "login_complete", "method": "POST", "path": "/v1/identity/login/complete"}
+    ],
+    "status": "implemented_in_go_route_manifest"
+  },
+  "runtime_verified": {
+    "routes": [],
+    "provider_flows": [],
+    "status": "not_claimed",
+    "reason": "contract evidence is not deployment evidence"
+  },
+  "proposed_non_routable": {
+    "operations": [
+      "link_start",
+      "link_complete",
+      "unlink",
+      "security_posture",
+      "password_set",
+      "password_change",
+      "password_recover",
+      "two_factor_enroll",
+      "two_factor_verify",
+      "two_factor_recovery",
+      "two_factor_disable"
+    ],
+    "client_callable": false,
+    "missing_lifecycle_never_implies_active": true
+  },
+  "provider_capability_status_model": {
+    "code_capability": "route_and_handler_implemented",
+    "deployment_readiness": "derived_only_from_runtime_configuration",
+    "schema": "docs/a1/schemas/a3_identity_provider_capabilities.schema.json"
+  },
+  "provider_capabilities": {
+    "email": {
+      "registration": "available",
+      "login": "available",
+      "linking": "proposed",
+      "preferred_registration": true,
+      "requires_business_qualification": false
+    },
+    "github": {
+      "registration": "runtime_configuration_required",
+      "login": "runtime_configuration_required",
+      "linking": "proposed",
+      "verified_email_only": true,
+      "password_after_oauth_registration": "absent"
+    },
+    "google": {
+      "registration": "runtime_configuration_required",
+      "login": "runtime_configuration_required",
+      "linking": "proposed",
+      "verified_email_only": true,
+      "password_after_oauth_registration": "absent"
+    },
+    "wechat": {
+      "registration": "unavailable",
+      "login": "unavailable",
+      "linking": "unavailable",
+      "enabled": false,
+      "requires_business_qualification": true
+    },
+    "qq": {
+      "registration": "unavailable",
+      "login": "unavailable",
+      "linking": "unavailable",
+      "enabled": false,
+      "requires_business_qualification": true
+    },
+    "alipay": {
+      "registration": "unavailable",
+      "login": "unavailable",
+      "linking": "unavailable",
+      "enabled": false,
+      "requires_business_qualification": true
+    },
+    "phone": {
+      "registration": "unavailable",
+      "login": "unavailable",
+      "linking": "unavailable",
+      "enabled": false,
+      "requires_business_qualification": false
+    }
+  },
+  "a3_machine_readable_contract": {
+    "operations": [
+      "provider_status",
+      "register_start",
+      "register_complete",
+      "login_start",
+      "login_complete",
+      "link_start",
+      "link_complete",
+      "unlink",
+      "security_posture",
+      "password_set",
+      "password_change",
+      "password_recover",
+      "two_factor_enroll",
+      "two_factor_verify",
+      "two_factor_recovery",
+      "two_factor_disable"
+    ],
+    "required_route_fields": ["operation", "method", "path", "lifecycle", "client_callable"],
+    "public_error_fields": ["code", "http_status", "anti_enumeration", "retryable", "public_safe"],
+    "conflict_codes": [
+      "canonical_email_conflict",
+      "credential_already_linked",
+      "last_login_method",
+      "business_qualification_required"
+    ],
+    "error_codes": [
+      "authentication_failed",
+      "recent_reauthentication_required",
+      "csrf_validation_failed",
+      "provider_unavailable",
+      "verified_proof_required",
+      "verified_proof_expired",
+      "verified_proof_replayed",
+      "verified_proof_scope_mismatch"
+    ],
+    "next_actions": [
+      "verify_email",
+      "complete_provider",
+      "reauthenticate",
+      "enroll_two_factor",
+      "resolve_conflict",
+      "contact_support",
+      "none"
+    ]
+  },
+  "known_gaps": [
+    {
+      "code": "identity_route_manifest_parity_pending",
+      "severity": "blocking",
+      "detail": "No route is implemented or runtime-verified merely because it appears in an SDK contract."
+    },
+    {
+      "code": "trusted_proof_runtime_attestation_pending",
+      "severity": "blocking",
+      "detail": "The HTTP boundary already rejects caller-asserted verification and consumes server-owned opaque single-use receipts; production provider resolver deployment and live runtime attestation remain pending."
+    },
+    {
+      "code": "link_password_two_factor_routes_proposed",
+      "severity": "expected",
+      "detail": "Direct A3 account-mutation routes remain non-routable until their HTTP boundaries invoke the existing trusted binding authority with matching actor, recent reauthentication, CSRF, and verified assertion enforcement."
+    },
+    {
+      "code": "domestic_provider_qualification_unavailable",
+      "severity": "expected",
+      "detail": "WeChat, QQ, and Alipay remain fail-closed without business qualification."
+    }
+  ],
+  "public_safety": {
+    "raw_email_present": false,
+    "raw_phone_present": false,
+    "raw_password_present": false,
+    "raw_otp_present": false,
+    "oauth_code_present": false,
+    "oauth_token_present": false,
+    "secret_value_present": false
+  }
+}

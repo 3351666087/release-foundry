@@ -1,0 +1,1449 @@
+{
+  "created_at": "2026-07-04",
+  "list_datasets": {
+    "_user": {
+      "auth_method": "[REDACTED]",
+      "email": "[REDACTED]",
+      "is_owner": true,
+      "name": "[REDACTED]",
+      "tenant_id": "[REDACTED_ID]",
+      "user_id": "[REDACTED_ID]"
+    },
+    "datasets": [
+      {
+        "agent_details": null,
+        "agent_id": null,
+        "created_at": "2026-07-04T07:26:18.121653+00:00",
+        "creator": "[REDACTED_ID]",
+        "creator_details": {
+          "id": "[REDACTED_ID]",
+          "name": "[REDACTED]"
+        },
+        "dataset_source": {
+          "dataset_type": "multi_run_storyboard",
+          "runs": {
+            "sample_run_1": {
+              "actions": [
+                {
+                  "action_tags": null,
+                  "action_type": "text",
+                  "actor": "user",
+                  "content": "[REDACTED]",
+                  "name": "[REDACTED]",
+                  "output_path": null
+                },
+                {
+                  "action_tags": null,
+                  "action_type": "text",
+                  "actor": "agent",
+                  "content": "[REDACTED]",
+                  "expected_response": {},
+                  "name": "[REDACTED]",
+                  "output_path": null
+                },
+                {
+                  "action_tags": null,
+                  "action_type": "text",
+                  "actor": "user",
+                  "content": "[REDACTED]",
+                  "name": "[REDACTED]",
+                  "output_path": null
+                },
+                {
+                  "action_tags": null,
+                  "action_type": "text",
+                  "actor": "agent",
+                  "content": "[REDACTED]",
+                  "expected_response": {
+                    "tool_calls": [
+                      {
+                        "arguments": {
+                          "order_id": "[REDACTED]"
+                        },
+                        "name": "[REDACTED]"
+                      }
+                    ]
+                  },
+                  "name": "[REDACTED]",
+                  "output_path": null
+                }
+              ],
+              "audio_tags": {
+                "accent": "[REDACTED]",
+                "age": null,
+                "background_noise": "[REDACTED]",
+                "gender": "[REDACTED]",
+                "language": null,
+                "pace": "[REDACTED]",
+                "tone": "friendly",
+                "volume": null
+              },
+              "description": "[REDACTED]",
+              "intent": "[REDACTED]",
+              "intent_tags": [
+                "[REDACTED]",
+                "[REDACTED]",
+                "[REDACTED]",
+                "[REDACTED]"
+              ],
+              "run_id": "[REDACTED_ID]",
+              "simulation": null,
+              "title": "[REDACTED]"
+            }
+          },
+          "total_runs": 1
+        },
+        "dataset_type": "multi_run_storyboard",
+        "description": "[REDACTED]",
+        "id": "[REDACTED_ID]",
+        "name": "[REDACTED]",
+        "repo_id": null,
+        "request_id": "[REDACTED_ID]",
+        "run_count": 1,
+        "tenant": "[REDACTED_ID]"
+      },
+      {
+        "agent_details": null,
+        "agent_id": null,
+        "created_at": "2026-06-25T17:14:37.929275+00:00",
+        "creator": "[REDACTED_ID]",
+        "creator_details": {
+          "id": "[REDACTED_ID]",
+          "name": "[REDACTED]"
+        },
+        "dataset_source": {
+          "dataset_type": "multi_run_storyboard",
+          "runs": {
+            "sample_run_1": {
+              "actions": [
+                {
+                  "action_tags": null,
+                  "action_type": "text",
+                  "actor": "user",
+                  "content": "[REDACTED]",
+                  "name": "[REDACTED]",
+                  "output_path": null
+                },
+                {
+                  "action_tags": {
+                    "audio": null,
+                    "file": {
+                      "content_description": null,
+                      "content_type": null,
+                      "document_style": "[REDACTED]",
+                      "encoding": null,
+                      "file_format": "[REDACTED]",
+                      "file_size": null,
+                      "handwriting_style": null,
+                      "has_images": null,
+                      "has_tables": null,
+                      "language": null,
+                      "page_count": null,
+                      "sample_format": null,
+                      "scan_intensity": null
+                    },
+                    "image": null,
+                    "sensor": null,
+                    "video": null
+                  },
+                  "action_type": "file",
+                  "actor": "user",
+                  "content": "[REDACTED]",
+                  "name": "[REDACTED]",
+                  "output_path": "[REDACTED]"
+                },
+                {
+                  "action_tags": null,
+                  "action_type": "audio",
+                  "actor": "agent",
+                  "content": "[REDACTED]",
+                  "expected_response": {},
+                  "name": "[REDACTED]",
+                  "output_path": null
+                },
+                {
+                  "action_tags": null,
+                  "action_type": "text",
+                  "actor": "user",
+                  "content": "[REDACTED]",
+                  "name": "[REDACTED]",
+                  "output_path": null
+                },
+                {
+                  "action_tags": null,
+                  "action_type": "audio",
+                  "actor": "agent",
+                  "content": "[REDACTED]",
+                  "expected_response": {
+                    "tool_calls": [
+                      {
+                        "arguments": {
+                          "query": "[REDACTED]"
+                        },
+                        "name": "[REDACTED]"
+                      }
+                    ]
+                  },
+                  "name": "[REDACTED]",
+                  "output_path": null
+                },
+                {
+                  "action_tags": null,
+                  "action_type": "audio",
+                  "actor": "agent",
+                  "content": "[REDACTED]",
+                  "expected_response": {},
+                  "name": "[REDACTED]",
+                  "output_path": null
+                }
+              ],
+              "audio_tags": {
+                "accent": "[REDACTED]",
+                "age": null,
+                "background_noise": "[REDACTED]",
+                "gender": "[REDACTED]",
+                "language": null,
+                "pace": "[REDACTED]",
+                "tone": "confident",
+                "volume": null
+              },
+              "description": "[REDACTED]",
+              "intent": "[REDACTED]",
+              "intent_tags": [
+                "[REDACTED]",
+                "[REDACTED]",
+                "[REDACTED]"
+              ],
+              "run_id": "[REDACTED_ID]",
+              "simulation": null,
+              "title": "[REDACTED]"
+            }
+          },
+          "total_runs": 1
+        },
+        "dataset_type": "multi_run_storyboard",
+        "description": "[REDACTED]",
+        "id": "[REDACTED_ID]",
+        "name": "[REDACTED]",
+        "repo_id": null,
+        "request_id": "[REDACTED_ID]",
+        "run_count": 1,
+        "tenant": "[REDACTED_ID]"
+      },
+      {
+        "agent_details": null,
+        "agent_id": null,
+        "created_at": "2026-06-25T17:03:00.647453+00:00",
+        "creator": "[REDACTED_ID]",
+        "creator_details": {
+          "id": "[REDACTED_ID]",
+          "name": "[REDACTED]"
+        },
+        "dataset_source": {
+          "dataset_type": "multi_run_storyboard",
+          "runs": {
+            "sample_run_1": {
+              "actions": [
+                {
+                  "action_tags": null,
+                  "action_type": "text",
+                  "actor": "user",
+                  "content": "[REDACTED]",
+                  "name": "[REDACTED]",
+                  "output_path": null
+                },
+                {
+                  "action_tags": null,
+                  "action_type": "text",
+                  "actor": "agent",
+                  "content": "[REDACTED]",
+                  "expected_response": {},
+                  "name": "[REDACTED]",
+                  "output_path": null
+                },
+                {
+                  "action_tags": null,
+                  "action_type": "text",
+                  "actor": "user",
+                  "content": "[REDACTED]",
+                  "name": "[REDACTED]",
+                  "output_path": null
+                },
+                {
+                  "action_tags": null,
+                  "action_type": "text",
+                  "actor": "agent",
+                  "content": "[REDACTED]",
+                  "expected_response": {
+                    "tool_calls": [
+                      {
+                        "arguments": {
+                          "order_id": "[REDACTED]"
+                        },
+                        "name": "[REDACTED]"
+                      }
+                    ]
+                  },
+                  "name": "[REDACTED]",
+                  "output_path": null
+                },
+                {
+                  "action_tags": null,
+                  "action_type": "text",
+                  "actor": "user",
+                  "content": "[REDACTED]",
+                  "name": "[REDACTED]",
+                  "output_path": null
+                },
+                {
+                  "action_tags": null,
+                  "action_type": "text",
+                  "actor": "agent",
+                  "content": "[REDACTED]",
+                  "expected_response": {},
+                  "name": "[REDACTED]",
+                  "output_path": null
+                }
+              ],
+              "audio_tags": {
+                "accent": "[REDACTED]",
+                "age": null,
+                "background_noise": "[REDACTED]",
+                "gender": "[REDACTED]",
+                "language": null,
+                "pace": "[REDACTED]",
+                "tone": "friendly",
+                "volume": null
+              },
+              "description": "[REDACTED]",
+              "intent": "[REDACTED]",
+              "intent_tags": [
+                "[REDACTED]",
+                "[REDACTED]",
+                "[REDACTED]",
+                "[REDACTED]"
+              ],
+              "run_id": "[REDACTED_ID]",
+              "simulation": null,
+              "title": "[REDACTED]"
+            }
+          },
+          "total_runs": 1
+        },
+        "dataset_type": "multi_run_storyboard",
+        "description": "[REDACTED]",
+        "id": "[REDACTED_ID]",
+        "name": "[REDACTED]",
+        "repo_id": null,
+        "request_id": "[REDACTED_ID]",
+        "run_count": 1,
+        "tenant": "[REDACTED_ID]"
+      }
+    ],
+    "next_cursor": null,
+    "status": "ok"
+  },
+  "list_requests": {
+    "_user": {
+      "auth_method": "[REDACTED]",
+      "email": "[REDACTED]",
+      "is_owner": true,
+      "name": "[REDACTED]",
+      "tenant_id": "[REDACTED_ID]",
+      "user_id": "[REDACTED_ID]"
+    },
+    "next_cursor": 577,
+    "requests": [
+      {
+        "actual_duration_s": 3,
+        "completed_at": "2026-07-04T07:33:15.103550+00:00",
+        "created_at": "2026-07-04T07:33:11.265060+00:00",
+        "estimated_duration_s": 75,
+        "id": "[REDACTED_ID]",
+        "request": {
+          "_failure": {
+            "at": "[REDACTED]",
+            "error": "[REDACTED]"
+          },
+          "agent": {
+            "accepted_inputs": {
+              "audio": true,
+              "conversation": false,
+              "file": true,
+              "image": true,
+              "text": "[REDACTED]",
+              "video": false
+            },
+            "description": "[REDACTED]",
+            "name": "[REDACTED]",
+            "output_format": {
+              "type": "text"
+            },
+            "tools": [
+              {
+                "description": "[REDACTED]",
+                "name": "[REDACTED]",
+                "parameters": {
+                  "properties": {
+                    "attachment_type": {
+                      "enum": [
+                        "[REDACTED]",
+                        "[REDACTED]",
+                        "[REDACTED]"
+                      ],
+                      "type": "[REDACTED]"
+                    }
+                  },
+                  "required": [
+                    "[REDACTED]"
+                  ],
+                  "type": "[REDACTED]"
+                }
+              }
+            ]
+          },
+          "context": {
+            "domain": "[REDACTED]",
+            "scenario_context": "[REDACTED]",
+            "use_case": "[REDACTED]"
+          },
+          "generation_options": {
+            "generate_audio": true,
+            "generate_files": true,
+            "generate_images": true,
+            "generate_simulations": false,
+            "generate_videos": false
+          },
+          "metadata": {
+            "dataset_name": "[REDACTED]",
+            "description": "[REDACTED]"
+          },
+          "test_config": {
+            "coverage": {
+              "edge_cases": false,
+              "error_handling": false,
+              "happy_path": true
+            },
+            "num_variations": 1,
+            "strategy": "[REDACTED]"
+          }
+        },
+        "request_name": "[REDACTED]",
+        "request_status": "failed",
+        "requestor_details": {
+          "id": "[REDACTED_ID]",
+          "name": "[REDACTED]"
+        },
+        "requestor_id": "[REDACTED_ID]",
+        "requestor_tenant": "[REDACTED_ID]"
+      },
+      {
+        "actual_duration_s": 70,
+        "completed_at": "2026-07-04T07:26:34.683424+00:00",
+        "created_at": "2026-07-04T07:25:23.845739+00:00",
+        "estimated_duration_s": 38,
+        "id": "[REDACTED_ID]",
+        "request": {
+          "agent": {
+            "accepted_inputs": {
+              "audio": false,
+              "conversation": false,
+              "file": false,
+              "image": false,
+              "text": "[REDACTED]",
+              "video": false
+            },
+            "description": "[REDACTED]",
+            "name": "[REDACTED]",
+            "output_format": {
+              "type": "text"
+            },
+            "tools": [
+              {
+                "description": "[REDACTED]",
+                "name": "[REDACTED]",
+                "parameters": {
+                  "properties": {
+                    "order_id": {
+                      "description": "[REDACTED]",
+                      "type": "[REDACTED]"
+                    }
+                  },
+                  "required": [
+                    "[REDACTED]"
+                  ],
+                  "type": "[REDACTED]"
+                }
+              }
+            ]
+          },
+          "context": {
+            "domain": "[REDACTED]",
+            "scenario_context": "[REDACTED]",
+            "use_case": "[REDACTED]"
+          },
+          "generation_options": {
+            "generate_audio": false,
+            "generate_files": false,
+            "generate_images": false,
+            "generate_simulations": false,
+            "generate_videos": false
+          },
+          "metadata": {
+            "dataset_name": "[REDACTED]",
+            "description": "[REDACTED]"
+          },
+          "test_config": {
+            "coverage": {
+              "edge_cases": false,
+              "error_handling": false,
+              "happy_path": true
+            },
+            "num_variations": 1,
+            "strategy": "[REDACTED]"
+          }
+        },
+        "request_name": "[REDACTED]",
+        "request_status": "completed",
+        "requestor_details": {
+          "id": "[REDACTED_ID]",
+          "name": "[REDACTED]"
+        },
+        "requestor_id": "[REDACTED_ID]",
+        "requestor_tenant": "[REDACTED_ID]"
+      },
+      {
+        "actual_duration_s": 3,
+        "completed_at": "2026-06-26T04:20:11.065448+00:00",
+        "created_at": "2026-06-26T04:20:07.254018+00:00",
+        "estimated_duration_s": 75,
+        "id": "[REDACTED_ID]",
+        "request": {
+          "_failure": {
+            "at": "[REDACTED]",
+            "error": "[REDACTED]"
+          },
+          "agent": {
+            "accepted_inputs": {
+              "audio": true,
+              "conversation": false,
+              "file": true,
+              "image": true,
+              "text": "[REDACTED]",
+              "video": false
+            },
+            "description": "[REDACTED]",
+            "name": "[REDACTED]",
+            "output_format": {
+              "type": "text"
+            },
+            "system_prompt": "[REDACTED]",
+            "tools": [
+              {
+                "description": "[REDACTED]",
+                "name": "[REDACTED]",
+                "parameters": {
+                  "properties": {
+                    "query": {
+                      "type": "[REDACTED]"
+                    }
+                  },
+                  "required": [
+                    "[REDACTED]"
+                  ],
+                  "type": "[REDACTED]"
+                }
+              }
+            ]
+          },
+          "context": {
+            "domain": "[REDACTED]",
+            "scenario_context": "[REDACTED]",
+            "use_case": "[REDACTED]"
+          },
+          "generation_options": {
+            "generate_audio": true,
+            "generate_files": true,
+            "generate_images": true,
+            "generate_simulations": false,
+            "generate_videos": false,
+            "scenario_count": 1
+          },
+          "metadata": {
+            "dataset_name": "[REDACTED]",
+            "description": "[REDACTED]"
+          },
+          "test_config": {
+            "complexity_distribution": {
+              "complex": 0,
+              "moderate": 0,
+              "simple": 1
+            },
+            "coverage": {
+              "edge_cases": false,
+              "error_handling": false,
+              "happy_path": true,
+              "multi_input": false,
+              "multi_turn": false
+            },
+            "num_variations": 1,
+            "strategy": "[REDACTED]"
+          }
+        },
+        "request_name": "[REDACTED]",
+        "request_status": "failed",
+        "requestor_details": {
+          "id": "[REDACTED_ID]",
+          "name": "[REDACTED]"
+        },
+        "requestor_id": "[REDACTED_ID]",
+        "requestor_tenant": "[REDACTED_ID]"
+      },
+      {
+        "actual_duration_s": 389,
+        "completed_at": "2026-06-25T17:19:24.325019+00:00",
+        "created_at": "2026-06-25T17:12:54.884547+00:00",
+        "estimated_duration_s": 75,
+        "id": "[REDACTED_ID]",
+        "request": {
+          "agent": {
+            "accepted_inputs": {
+              "audio": {
+                "enabled": true
+              },
+              "conversation": {
+                "enabled": false
+              },
+              "file": {
+                "enabled": true
+              },
+              "image": {
+                "enabled": true
+              },
+              "text": {
+                "enabled": true
+              },
+              "video": {
+                "enabled": false
+              }
+            },
+            "description": "[REDACTED]",
+            "name": "[REDACTED]",
+            "output_format": {
+              "type": "text"
+            },
+            "system_prompt": "[REDACTED]",
+            "tools": [
+              {
+                "description": "[REDACTED]",
+                "name": "[REDACTED]",
+                "parameters": {
+                  "properties": {
+                    "query": {
+                      "type": "[REDACTED]"
+                    }
+                  },
+                  "required": [
+                    "[REDACTED]"
+                  ],
+                  "type": "[REDACTED]"
+                }
+              }
+            ]
+          },
+          "context": {
+            "domain": "[REDACTED]",
+            "scenario_context": "[REDACTED]",
+            "use_case": "[REDACTED]"
+          },
+          "generation_options": {
+            "generate_audio": true,
+            "generate_files": true,
+            "generate_images": true,
+            "generate_simulations": false,
+            "generate_videos": false,
+            "scenario_count": 1
+          },
+          "metadata": {
+            "dataset_name": "[REDACTED]",
+            "description": "[REDACTED]"
+          },
+          "test_config": {
+            "complexity_distribution": {
+              "complex": 0,
+              "moderate": 0,
+              "simple": 1
+            },
+            "coverage": {
+              "edge_cases": false,
+              "error_handling": false,
+              "happy_path": true,
+              "multi_input": false,
+              "multi_turn": false
+            },
+            "num_variations": 1,
+            "strategy": "[REDACTED]"
+          }
+        },
+        "request_name": "[REDACTED]",
+        "request_status": "completed",
+        "requestor_details": {
+          "id": "[REDACTED_ID]",
+          "name": "[REDACTED]"
+        },
+        "requestor_id": "[REDACTED_ID]",
+        "requestor_tenant": "[REDACTED_ID]"
+      },
+      {
+        "actual_duration_s": 104,
+        "completed_at": "2026-06-25T17:03:34.550034+00:00",
+        "created_at": "2026-06-25T17:01:49.667643+00:00",
+        "estimated_duration_s": 38,
+        "id": "[REDACTED_ID]",
+        "request": {
+          "agent": {
+            "accepted_inputs": {
+              "audio": false,
+              "conversation": false,
+              "file": false,
+              "image": false,
+              "text": "[REDACTED]",
+              "video": false
+            },
+            "description": "[REDACTED]",
+            "name": "[REDACTED]",
+            "output_format": {
+              "type": "text"
+            },
+            "system_prompt": "[REDACTED]",
+            "tools": [
+              {
+                "description": "[REDACTED]",
+                "name": "[REDACTED]",
+                "parameters": {
+                  "properties": {
+                    "order_id": {
+                      "description": "[REDACTED]",
+                      "type": "[REDACTED]"
+                    }
+                  },
+                  "required": [
+                    "[REDACTED]"
+                  ],
+                  "type": "[REDACTED]"
+                }
+              }
+            ]
+          },
+          "context": {
+            "domain": "[REDACTED]",
+            "scenario_context": "[REDACTED]",
+            "use_case": "[REDACTED]"
+          },
+          "generation_options": {
+            "generate_audio": false,
+            "generate_files": false,
+            "generate_images": false,
+            "generate_simulations": false,
+            "generate_videos": false,
+            "scenario_count": 1
+          },
+          "metadata": {
+            "dataset_name": "[REDACTED]",
+            "description": "[REDACTED]"
+          },
+          "test_config": {
+            "complexity_distribution": {
+              "complex": 0,
+              "moderate": 0,
+              "simple": 1
+            },
+            "coverage": {
+              "edge_cases": false,
+              "error_handling": false,
+              "happy_path": true
+            },
+            "num_variations": 1,
+            "strategy": "[REDACTED]"
+          }
+        },
+        "request_name": "[REDACTED]",
+        "request_status": "completed",
+        "requestor_details": {
+          "id": "[REDACTED_ID]",
+          "name": "[REDACTED]"
+        },
+        "requestor_id": "[REDACTED_ID]",
+        "requestor_tenant": "[REDACTED_ID]"
+      }
+    ],
+    "status": "ok"
+  },
+  "list_runs": {
+    "_user": {
+      "auth_method": "[REDACTED]",
+      "email": "[REDACTED]",
+      "is_owner": true,
+      "name": "[REDACTED]",
+      "tenant_id": "[REDACTED_ID]",
+      "user_id": "[REDACTED_ID]"
+    },
+    "runs": [
+      {
+        "created_at": "2026-07-04T06:24:44.661899+00:00",
+        "dataset": "[REDACTED_ID]",
+        "dataset_details": {
+          "description": "[REDACTED]",
+          "id": "[REDACTED_ID]",
+          "name": "[REDACTED]"
+        },
+        "id": "[REDACTED_ID]",
+        "result": {
+          "aggregate_metrics": {
+            "errored": 0,
+            "failed": 3,
+            "passed": 0,
+            "schema_version": "releasefoundry.run_result.v1",
+            "timed_out": 0,
+            "total_tool_calls": 0,
+            "trace_completeness": 1.0
+          },
+          "cases": [
+            {
+              "agent_output": {
+                "latency_ms": 0,
+                "metadata": {
+                  "adapter_name": "[REDACTED]",
+                  "mock_agent": "[REDACTED]",
+                  "style": "[REDACTED]"
+                },
+                "schema_version": "releasefoundry.agent_turn.v1",
+                "status": "ok",
+                "text": "[REDACTED]",
+                "tool_calls": []
+              },
+              "case_id": "[REDACTED]",
+              "ended_at": "[REDACTED]",
+              "expected": {
+                "text": "[REDACTED]"
+              },
+              "grade": {
+                "actual": {
+                  "text": "[REDACTED]",
+                  "tool_calls": []
+                },
+                "expected": {
+                  "text": "[REDACTED]"
+                },
+                "label": "[REDACTED]",
+                "metrics": {
+                  "latency_ms": 0,
+                  "reset_ok": true,
+                  "text_match": false,
+                  "tool_match": true
+                },
+                "passed": false,
+                "reason": "[REDACTED]",
+                "scenario_id": "[REDACTED]",
+                "score": 0.0
+              },
+              "latency_ms": 0,
+              "metadata": {
+                "action_count": 6,
+                "action_index": 2,
+                "action_name": "[REDACTED]",
+                "action_tags": [],
+                "action_type": "audio",
+                "adapter_version": "[REDACTED]",
+                "audio_tags": [
+                  {
+                    "accent": "[REDACTED]",
+                    "background_noise": "[REDACTED]",
+                    "gender": "[REDACTED]",
+                    "pace": "[REDACTED]",
+                    "tone": "confident"
+                  }
+                ],
+                "dataset_type": "multi_run_storyboard",
+                "intent_tags": [
+                  "[REDACTED]",
+                  "[REDACTED]",
+                  "[REDACTED]"
+                ],
+                "requires_external_judge": false,
+                "source": "[REDACTED]",
+                "source_run_hash": "[REDACTED]",
+                "total_runs": 1
+              },
+              "observations": [
+                {
+                  "case_id": "[REDACTED]",
+                  "content": "[REDACTED]",
+                  "ended_at": "[REDACTED]",
+                  "event_type": "[REDACTED]",
+                  "metadata": {
+                    "scenario_id": "[REDACTED]"
+                  },
+                  "observation_id": "[REDACTED_ID]",
+                  "role": "[REDACTED]",
+                  "run_id": "[REDACTED_ID]",
+                  "started_at": "2026-07-04T06:05:45.905Z",
+                  "status": "ok",
+                  "tool_calls": [],
+                  "turn_index": 0
+                },
+                {
+                  "case_id": "[REDACTED]",
+                  "content": "[REDACTED]",
+                  "ended_at": "[REDACTED]",
+                  "event_type": "[REDACTED]",
+                  "latency_ms": 0,
+                  "metadata": {
+                    "reset_ok": true
+                  },
+                  "observation_id": "[REDACTED_ID]",
+                  "role": "[REDACTED]",
+                  "run_id": "[REDACTED_ID]",
+                  "started_at": "2026-07-04T06:05:45.905Z",
+                  "status": "ok",
+                  "tool_calls": [],
+                  "turn_index": 1,
+                  "vm_stream": {
+                    "duration_ms": 0,
+                    "logs": [
+                      {
+                        "data": {
+                          "action": "[REDACTED]",
+                          "input": "[REDACTED]"
+                        },
+                        "ts": 0,
+                        "type": "action"
+                      },
+                      {
+                        "data": {
+                          "level": "log",
+                          "message": "[REDACTED]"
+                        },
+                        "ts": 0,
+                        "type": "console"
+                      }
+                    ],
+                    "metadata": {
+                      "synthetic": true
+                    },
+                    "provider": "local-runner",
+                    "session_id": "[REDACTED_ID]"
+                  }
+                }
+              ],
+              "scenario_id": "[REDACTED]",
+              "started_at": "2026-07-04T06:05:45.905Z",
+              "status": "failed",
+              "title": "[REDACTED]"
+            },
+            {
+              "agent_output": {
+                "latency_ms": 0,
+                "metadata": {
+                  "adapter_name": "[REDACTED]",
+                  "mock_agent": "[REDACTED]",
+                  "style": "[REDACTED]"
+                },
+                "schema_version": "releasefoundry.agent_turn.v1",
+                "status": "ok",
+                "text": "[REDACTED]",
+                "tool_calls": []
+              },
+              "case_id": "[REDACTED]",
+              "ended_at": "[REDACTED]",
+              "expected": {
+                "text": "[REDACTED]",
+                "tool_calls": [
+                  {
+                    "arguments": {
+                      "query": "[REDACTED]"
+                    },
+                    "name": "[REDACTED]"
+                  }
+                ]
+              },
+              "grade": {
+                "actual": {
+                  "text": "[REDACTED]",
+                  "tool_calls": []
+                },
+                "expected": {
+                  "text": "[REDACTED]",
+                  "tool_calls": [
+                    {
+                      "arguments": {
+                        "query": "[REDACTED]"
+                      },
+                      "name": "[REDACTED]"
+                    }
+                  ]
+                },
+                "label": "[REDACTED]",
+                "metrics": {
+                  "latency_ms": 0,
+                  "reset_ok": true,
+                  "text_match": false,
+                  "tool_match": false
+                },
+                "passed": false,
+                "reason": "[REDACTED]",
+                "scenario_id": "[REDACTED]",
+                "score": 0.0
+              },
+              "latency_ms": 0,
+              "metadata": {
+                "action_count": 6,
+                "action_index": 4,
+                "action_name": "[REDACTED]",
+                "action_tags": [],
+                "action_type": "audio",
+                "adapter_version": "[REDACTED]",
+                "audio_tags": [
+                  {
+                    "accent": "[REDACTED]",
+                    "background_noise": "[REDACTED]",
+                    "gender": "[REDACTED]",
+                    "pace": "[REDACTED]",
+                    "tone": "confident"
+                  }
+                ],
+                "dataset_type": "multi_run_storyboard",
+                "intent_tags": [
+                  "[REDACTED]",
+                  "[REDACTED]",
+                  "[REDACTED]"
+                ],
+                "requires_external_judge": false,
+                "source": "[REDACTED]",
+                "source_run_hash": "[REDACTED]",
+                "total_runs": 1
+              },
+              "observations": [
+                {
+                  "case_id": "[REDACTED]",
+                  "content": "[REDACTED]",
+                  "ended_at": "[REDACTED]",
+                  "event_type": "[REDACTED]",
+                  "metadata": {
+                    "scenario_id": "[REDACTED]"
+                  },
+                  "observation_id": "[REDACTED_ID]",
+                  "role": "[REDACTED]",
+                  "run_id": "[REDACTED_ID]",
+                  "started_at": "2026-07-04T06:05:45.906Z",
+                  "status": "ok",
+                  "tool_calls": [],
+                  "turn_index": 0
+                },
+                {
+                  "case_id": "[REDACTED]",
+                  "content": "[REDACTED]",
+                  "ended_at": "[REDACTED]",
+                  "event_type": "[REDACTED]",
+                  "latency_ms": 0,
+                  "metadata": {
+                    "reset_ok": true
+                  },
+                  "observation_id": "[REDACTED_ID]",
+                  "role": "[REDACTED]",
+                  "run_id": "[REDACTED_ID]",
+                  "started_at": "2026-07-04T06:05:45.906Z",
+                  "status": "ok",
+                  "tool_calls": [],
+                  "turn_index": 1,
+                  "vm_stream": {
+                    "duration_ms": 0,
+                    "logs": [
+                      {
+                        "data": {
+                          "action": "[REDACTED]",
+                          "input": "[REDACTED]"
+                        },
+                        "ts": 0,
+                        "type": "action"
+                      },
+                      {
+                        "data": {
+                          "level": "log",
+                          "message": "[REDACTED]"
+                        },
+                        "ts": 0,
+                        "type": "console"
+                      }
+                    ],
+                    "metadata": {
+                      "synthetic": true
+                    },
+                    "provider": "local-runner",
+                    "session_id": "[REDACTED_ID]"
+                  }
+                }
+              ],
+              "scenario_id": "[REDACTED]",
+              "started_at": "2026-07-04T06:05:45.906Z",
+              "status": "failed",
+              "title": "[REDACTED]"
+            },
+            {
+              "agent_output": {
+                "latency_ms": 0,
+                "metadata": {
+                  "adapter_name": "[REDACTED]",
+                  "mock_agent": "[REDACTED]",
+                  "style": "[REDACTED]"
+                },
+                "schema_version": "releasefoundry.agent_turn.v1",
+                "status": "ok",
+                "text": "[REDACTED]",
+                "tool_calls": []
+              },
+              "case_id": "[REDACTED]",
+              "ended_at": "[REDACTED]",
+              "expected": {
+                "text": "[REDACTED]"
+              },
+              "grade": {
+                "actual": {
+                  "text": "[REDACTED]",
+                  "tool_calls": []
+                },
+                "expected": {
+                  "text": "[REDACTED]"
+                },
+                "label": "[REDACTED]",
+                "metrics": {
+                  "latency_ms": 0,
+                  "reset_ok": true,
+                  "text_match": false,
+                  "tool_match": true
+                },
+                "passed": false,
+                "reason": "[REDACTED]",
+                "scenario_id": "[REDACTED]",
+                "score": 0.0
+              },
+              "latency_ms": 0,
+              "metadata": {
+                "action_count": 6,
+                "action_index": 5,
+                "action_name": "[REDACTED]",
+                "action_tags": [],
+                "action_type": "audio",
+                "adapter_version": "[REDACTED]",
+                "audio_tags": [
+                  {
+                    "accent": "[REDACTED]",
+                    "background_noise": "[REDACTED]",
+                    "gender": "[REDACTED]",
+                    "pace": "[REDACTED]",
+                    "tone": "confident"
+                  }
+                ],
+                "dataset_type": "multi_run_storyboard",
+                "intent_tags": [
+                  "[REDACTED]",
+                  "[REDACTED]",
+                  "[REDACTED]"
+                ],
+                "requires_external_judge": false,
+                "source": "[REDACTED]",
+                "source_run_hash": "[REDACTED]",
+                "total_runs": 1
+              },
+              "observations": [
+                {
+                  "case_id": "[REDACTED]",
+                  "content": "[REDACTED]",
+                  "ended_at": "[REDACTED]",
+                  "event_type": "[REDACTED]",
+                  "metadata": {
+                    "scenario_id": "[REDACTED]"
+                  },
+                  "observation_id": "[REDACTED_ID]",
+                  "role": "[REDACTED]",
+                  "run_id": "[REDACTED_ID]",
+                  "started_at": "2026-07-04T06:05:45.907Z",
+                  "status": "ok",
+                  "tool_calls": [],
+                  "turn_index": 0
+                },
+                {
+                  "case_id": "[REDACTED]",
+                  "content": "[REDACTED]",
+                  "ended_at": "[REDACTED]",
+                  "event_type": "[REDACTED]",
+                  "latency_ms": 0,
+                  "metadata": {
+                    "reset_ok": true
+                  },
+                  "observation_id": "[REDACTED_ID]",
+                  "role": "[REDACTED]",
+                  "run_id": "[REDACTED_ID]",
+                  "started_at": "2026-07-04T06:05:45.907Z",
+                  "status": "ok",
+                  "tool_calls": [],
+                  "turn_index": 1,
+                  "vm_stream": {
+                    "duration_ms": 0,
+                    "logs": [
+                      {
+                        "data": {
+                          "action": "[REDACTED]",
+                          "input": "[REDACTED]"
+                        },
+                        "ts": 0,
+                        "type": "action"
+                      },
+                      {
+                        "data": {
+                          "level": "log",
+                          "message": "[REDACTED]"
+                        },
+                        "ts": 0,
+                        "type": "console"
+                      }
+                    ],
+                    "metadata": {
+                      "synthetic": true
+                    },
+                    "provider": "local-runner",
+                    "session_id": "[REDACTED_ID]"
+                  }
+                }
+              ],
+              "scenario_id": "[REDACTED]",
+              "started_at": "2026-07-04T06:05:45.907Z",
+              "status": "failed",
+              "title": "[REDACTED]"
+            }
+          ],
+          "dataset_id": "[REDACTED_ID]",
+          "duration_ms": 4,
+          "ended_at": "[REDACTED]",
+          "errored": 0,
+          "failed": 3,
+          "field_map_version": "[REDACTED]",
+          "max_workers": 4,
+          "metadata": {
+            "releasefoundry_api_used": false,
+            "local_only": true
+          },
+          "passed": 0,
+          "run_id": "[REDACTED_ID]",
+          "runner_id": "[REDACTED]",
+          "started_at": "2026-07-04T06:05:45.903Z",
+          "status": "failed",
+          "timed_out": 0,
+          "total_cases": 3,
+          "trace_completeness": 1.0
+        },
+        "runner": null,
+        "runner_details": null,
+        "tenant": "[REDACTED_ID]"
+      },
+      {
+        "created_at": "2026-06-25T17:04:43.745545+00:00",
+        "dataset": "[REDACTED_ID]",
+        "dataset_details": {
+          "description": "[REDACTED]",
+          "id": "[REDACTED_ID]",
+          "name": "[REDACTED]"
+        },
+        "id": "[REDACTED_ID]",
+        "result": {
+          "aggregate_metrics": {
+            "action_summary": {
+              "failed": 0,
+              "passed": 4,
+              "total": 4
+            },
+            "average_similarity_score": 0.95,
+            "tests_failed": 0,
+            "tests_passed": 1,
+            "total_response_divergence": 0,
+            "total_tests": 1,
+            "total_tool_call_divergence": 0,
+            "weighted_tool_divergence": 0.0
+          },
+          "completed_at": "2026-06-25T17:04:42Z",
+          "started_at": "2026-06-25T17:04:40Z",
+          "status": "completed",
+          "tests": [
+            {
+              "action_results": [
+                {
+                  "action_index": 0,
+                  "action_type": "text",
+                  "actor": "user",
+                  "description": "[REDACTED]",
+                  "input_provided": true,
+                  "text": "[REDACTED]"
+                },
+                {
+                  "action_index": 1,
+                  "action_type": "text",
+                  "actor": "agent",
+                  "actual_response": {
+                    "text": "[REDACTED]"
+                  },
+                  "divergence_notes": null,
+                  "expected_response": {
+                    "text": "[REDACTED]"
+                  },
+                  "llm_judgment": {
+                    "completeness": "complete",
+                    "factual_accuracy": "correct",
+                    "summary": "[REDACTED]",
+                    "tone": "appropriate",
+                    "verdict": "match"
+                  },
+                  "match_status": "exact",
+                  "semantic_similarity": 0.95
+                },
+                {
+                  "action_index": 2,
+                  "action_type": "text",
+                  "actor": "user",
+                  "description": "[REDACTED]",
+                  "input_provided": true,
+                  "text": "[REDACTED]"
+                },
+                {
+                  "action_index": 3,
+                  "action_type": "tool_call",
+                  "actor": "agent",
+                  "tool_calls": [
+                    {
+                      "actual": {
+                        "arguments": {
+                          "order_id": "[REDACTED]"
+                        },
+                        "arguments_json": "[REDACTED]",
+                        "name": "[REDACTED]",
+                        "tool_name": "lookup_order"
+                      },
+                      "argument_comparison": {
+                        "actual_args": {
+                          "order_id": "[REDACTED]"
+                        },
+                        "exact_match": true,
+                        "expected_args": {
+                          "order_id": "[REDACTED]"
+                        },
+                        "status": "exact"
+                      },
+                      "divergence_notes": null,
+                      "expected": {
+                        "arguments": {
+                          "order_id": "[REDACTED]"
+                        },
+                        "arguments_json": "[REDACTED]",
+                        "name": "[REDACTED]",
+                        "tool_name": "lookup_order"
+                      },
+                      "match_status": "exact"
+                    }
+                  ]
+                },
+                {
+                  "action_index": 3,
+                  "action_type": "text",
+                  "actor": "agent",
+                  "actual_response": {
+                    "text": "[REDACTED]"
+                  },
+                  "divergence_notes": null,
+                  "expected_response": {
+                    "text": "[REDACTED]"
+                  },
+                  "llm_judgment": {
+                    "completeness": "complete",
+                    "factual_accuracy": "correct",
+                    "summary": "[REDACTED]",
+                    "tone": "appropriate",
+                    "verdict": "match"
+                  },
+                  "match_status": "exact",
+                  "semantic_similarity": 0.95
+                },
+                {
+                  "action_index": 4,
+                  "action_type": "text",
+                  "actor": "user",
+                  "description": "[REDACTED]",
+                  "input_provided": true,
+                  "text": "[REDACTED]"
+                },
+                {
+                  "action_index": 5,
+                  "action_type": "text",
+                  "actor": "agent",
+                  "actual_response": {
+                    "text": "[REDACTED]"
+                  },
+                  "divergence_notes": null,
+                  "expected_response": {
+                    "text": "[REDACTED]"
+                  },
+                  "llm_judgment": {
+                    "completeness": "complete",
+                    "factual_accuracy": "correct",
+                    "summary": "[REDACTED]",
+                    "tone": "appropriate",
+                    "verdict": "match"
+                  },
+                  "match_status": "exact",
+                  "semantic_similarity": 0.95
+                }
+              ],
+              "coherence": {
+                "issues": [],
+                "score": 1.0,
+                "summary": "[REDACTED]"
+              },
+              "completed_at": "2026-06-25T17:04:42Z",
+              "started_at": "2026-06-25T17:04:40Z",
+              "status": "completed",
+              "test_id": "[REDACTED_ID]"
+            }
+          ]
+        },
+        "runner": "[REDACTED_ID]",
+        "runner_details": {
+          "id": "[REDACTED_ID]",
+          "name": "[REDACTED]"
+        },
+        "tenant": "[REDACTED_ID]"
+      }
+    ],
+    "status": "ok"
+  },
+  "media_counts": {
+    "action_types": {
+      "audio": 3,
+      "file": 1,
+      "text": 2
+    },
+    "actions_with_output_path": 1,
+    "actions_with_tags": 1
+  },
+  "schema_version": "a3.p3_releasefoundry_media_field_sample.v1",
+  "selection": {
+    "dataset_detail_saved": true,
+    "datasets_seen": 3,
+    "request_detail_saved": true,
+    "requests_seen": 5,
+    "run_detail_saved": true,
+    "runs_seen": 2,
+    "selected_dataset_has_media_score": 6
+  },
+  "source_notes": [
+    "Read-only ReleaseFoundry SDK sample for media/action calibration.",
+    "Raw API responses were sanitized before writing this file."
+  ]
+}

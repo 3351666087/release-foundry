@@ -1,0 +1,95 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A1A2RealApiEvidenceIndex",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "label",
+    "field_map_version",
+    "total_records",
+    "status_counts",
+    "function_counts",
+    "error_kind_counts",
+    "quota_block_count",
+    "records"
+  ],
+  "properties": {
+    "schema_version": { "const": "releasefoundry.evidence_index.v1" },
+    "label": { "type": "string" },
+    "field_map_version": { "type": "string" },
+    "total_records": { "type": "integer", "minimum": 0 },
+    "status_counts": { "$ref": "#/$defs/count_map" },
+    "function_counts": { "$ref": "#/$defs/count_map" },
+    "error_kind_counts": { "$ref": "#/$defs/count_map" },
+    "quota_block_count": { "type": "integer", "minimum": 0 },
+    "records": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/record" }
+    }
+  },
+  "$defs": {
+    "count_map": {
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 0 }
+    },
+    "string_array": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "nullable_string": {
+      "type": ["string", "null"]
+    },
+    "nullable_integer": {
+      "type": ["integer", "null"]
+    },
+    "nullable_boolean": {
+      "type": ["boolean", "null"]
+    },
+    "record": {
+      "type": "object",
+      "required": [
+        "path",
+        "function",
+        "dry_run",
+        "status",
+        "request_keys",
+        "response_keys",
+        "error_keys",
+        "top_counts"
+      ],
+      "properties": {
+        "path": { "type": "string" },
+        "function": { "$ref": "#/$defs/nullable_string" },
+        "dry_run": { "$ref": "#/$defs/nullable_boolean" },
+        "status": { "$ref": "#/$defs/nullable_string" },
+        "status_code": { "$ref": "#/$defs/nullable_integer" },
+        "attempts": { "$ref": "#/$defs/nullable_integer" },
+        "request_keys": { "$ref": "#/$defs/string_array" },
+        "response_keys": { "$ref": "#/$defs/string_array" },
+        "response_status": { "$ref": "#/$defs/nullable_string" },
+        "response_summary_keys": { "$ref": "#/$defs/string_array" },
+        "error_keys": { "$ref": "#/$defs/string_array" },
+        "error_kind": { "$ref": "#/$defs/nullable_string" },
+        "top_counts": { "$ref": "#/$defs/count_map" },
+        "quota": { "$ref": "#/$defs/quota" }
+      },
+      "additionalProperties": true
+    },
+    "quota": {
+      "type": "object",
+      "required": ["blocked", "quota_keys"],
+      "properties": {
+        "blocked": { "type": "boolean" },
+        "message": { "$ref": "#/$defs/nullable_string" },
+        "quota_keys": { "$ref": "#/$defs/string_array" },
+        "resource": { "type": "string" },
+        "limit": { "type": ["integer", "number", "string", "boolean", "null"] },
+        "used": { "type": ["integer", "number", "string", "boolean", "null"] },
+        "requested": { "type": ["integer", "number", "string", "boolean", "null"] },
+        "remaining": { "type": ["integer", "number", "string", "boolean", "null"] }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

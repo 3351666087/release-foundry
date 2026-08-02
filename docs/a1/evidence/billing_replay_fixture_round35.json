@@ -1,0 +1,149 @@
+{
+  "accepted_provider_event": {
+    "created_at": "2026-07-09T12:56:56Z",
+    "event_id": "evt_fixture_invoice_paid",
+    "event_type": "invoice.paid",
+    "ingest_status": "accepted",
+    "ledger_event_id": "ble_fafd62220bf1d7becb3f72e2",
+    "ledger_event_type": "invoice_paid",
+    "ledger_mutation_count": 1,
+    "mode": "test",
+    "payload_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+    "project_id": "project_fixture",
+    "provider": "stripe",
+    "provider_event_key": "stripe:test:tenant_fixture:project_fixture:evt_fixture_invoice_paid",
+    "raw_payload_included": false,
+    "schema_version": "releasefoundry.billing_provider_contract.v1",
+    "secret_value_present": false,
+    "tenant_id": "tenant_fixture"
+  },
+  "billing_evidence": {
+    "billing_snapshot_sha256": "a51dd006d147498a0dce19ee098d778e2c0f225754bfc36b9fad819a4b9ff9b8",
+    "ledger_event_count": 2,
+    "project_id": "project_fixture",
+    "provider_event_count": 1,
+    "raw_payload_included": false,
+    "schema_version": "releasefoundry.billing_evidence_snapshot.v1",
+    "secret_value_present": false,
+    "tenant_id": "tenant_fixture",
+    "totals_by_currency_minor": {
+      "usd": 12345
+    },
+    "usage_units": 14
+  },
+  "description": "Public-safe A1 billing ledger/provider webhook replay fixture. Provider calls are not executed; raw provider payloads and secret values are omitted.",
+  "duplicate_provider_event": {
+    "created_at": "2026-07-09T12:56:56Z",
+    "event_id": "evt_fixture_invoice_paid",
+    "event_type": "invoice.paid",
+    "ingest_status": "duplicate",
+    "ledger_event_id": "ble_fafd62220bf1d7becb3f72e2",
+    "ledger_event_type": "invoice_paid",
+    "ledger_mutation_count": 0,
+    "mode": "test",
+    "payload_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+    "project_id": "project_fixture",
+    "provider": "stripe",
+    "provider_event_key": "stripe:test:tenant_fixture:project_fixture:evt_fixture_invoice_paid",
+    "raw_payload_included": false,
+    "schema_version": "releasefoundry.billing_provider_contract.v1",
+    "secret_value_present": false,
+    "tenant_id": "tenant_fixture"
+  },
+  "public_ledger": {
+    "billing_accounts": [
+      {
+        "account_ref": "acct_fixture",
+        "created_at": "2026-07-09T12:56:56Z",
+        "customer_ref": "cus_fixture",
+        "metadata": {},
+        "mode": "test",
+        "project_id": "project_fixture",
+        "provider": "stripe",
+        "raw_payload_included": false,
+        "raw_secret_present": false,
+        "schema_version": "releasefoundry.billing_provider_contract.v1",
+        "tenant_id": "tenant_fixture",
+        "updated_at": "2026-07-09T12:56:56Z"
+      }
+    ],
+    "ledger_event_count": 2,
+    "ledger_events": [
+      {
+        "amount_minor": 12345,
+        "created_at": "2026-07-09T12:56:56Z",
+        "currency": "usd",
+        "customer_ref": "cus_fixture",
+        "event_type": "invoice_paid",
+        "invoice_ref": "in_fixture",
+        "ledger_event_id": "ble_fafd62220bf1d7becb3f72e2",
+        "metadata": {},
+        "mode": "test",
+        "project_id": "project_fixture",
+        "provider": "stripe",
+        "provider_event_id": "evt_fixture_invoice_paid",
+        "raw_payload_included": false,
+        "schema_version": "releasefoundry.billing_provider_contract.v1",
+        "secret_value_present": false,
+        "tenant_id": "tenant_fixture",
+        "usage_units": 0
+      },
+      {
+        "amount_minor": 0,
+        "created_at": "2026-07-09T12:56:56Z",
+        "currency": "usd",
+        "customer_ref": "cus_fixture",
+        "event_type": "usage_reconciled",
+        "invoice_ref": null,
+        "ledger_event_id": "ble_e419710e717420fc4cac8603",
+        "metadata": {
+          "billing_period": "2026-07",
+          "operation_totals": {
+            "sdk.submit": 5,
+            "trace.ingest": 9
+          }
+        },
+        "mode": "test",
+        "project_id": "project_fixture",
+        "provider": "stripe",
+        "provider_event_id": "usage:tenant_fixture:project_fixture:2026-07",
+        "raw_payload_included": false,
+        "schema_version": "releasefoundry.billing_provider_contract.v1",
+        "secret_value_present": false,
+        "tenant_id": "tenant_fixture",
+        "usage_units": 14
+      }
+    ],
+    "project_id": "project_fixture",
+    "provider_event_count": 1,
+    "provider_events": [
+      {
+        "created_at": "2026-07-09T12:56:56Z",
+        "event_id": "evt_fixture_invoice_paid",
+        "event_type": "invoice.paid",
+        "ingest_status": "accepted",
+        "ledger_event_id": "ble_fafd62220bf1d7becb3f72e2",
+        "ledger_event_type": "invoice_paid",
+        "ledger_mutation_count": 1,
+        "mode": "test",
+        "payload_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+        "project_id": "project_fixture",
+        "provider": "stripe",
+        "provider_event_key": "stripe:test:tenant_fixture:project_fixture:evt_fixture_invoice_paid",
+        "raw_payload_included": false,
+        "schema_version": "releasefoundry.billing_provider_contract.v1",
+        "secret_value_present": false,
+        "tenant_id": "tenant_fixture"
+      }
+    ],
+    "raw_payload_included": false,
+    "schema_version": "releasefoundry.billing_provider_contract.v1",
+    "secret_value_present": false,
+    "tenant_id": "tenant_fixture",
+    "totals_by_currency_minor": {
+      "usd": 12345
+    },
+    "usage_units": 14
+  },
+  "schema_version": "releasefoundry.billing_replay_fixture.v1"
+}

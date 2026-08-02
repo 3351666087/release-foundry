@@ -1,0 +1,23 @@
+{
+  "scenario_id": "A2-S033",
+  "case_id": "sample-a2-s033-wrong-calculator-arguments",
+  "run": {
+    "tool_calls": [
+      {
+        "id": "calculator#1",
+        "tool": "calculator",
+        "args": {
+          "expression": "4873 + 29 + 1187"
+        },
+        "output": {
+          "value": 6089
+        }
+      }
+    ],
+    "final_response": "The result is 6089."
+  },
+  "expected": {
+    "passed": false,
+    "primary_failure_class": "wrong_arguments"
+  }
+}

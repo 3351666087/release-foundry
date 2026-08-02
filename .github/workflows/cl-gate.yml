@@ -1,0 +1,339 @@
+﻿name: CL Gate
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cl-gate-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  plan:
+    name: Plan and hygiene
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      full: ${{ steps.plan.outputs.full }}
+      python: ${{ steps.plan.outputs.python }}
+      a3: ${{ steps.plan.outputs.a3 }}
+      typescript: ${{ steps.plan.outputs.typescript }}
+      go: ${{ steps.plan.outputs.go }}
+      rust: ${{ steps.plan.outputs.rust }}
+      integration: ${{ steps.plan.outputs.integration }}
+      evidence: ${{ steps.plan.outputs.evidence }}
+      changed_count: ${{ steps.plan.outputs.changed_count }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build selective CL plan
+        id: plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            BASE="${{ github.event.pull_request.base.sha }}"
+            FULL=""
+          else
+            BASE="$(git rev-parse HEAD^ 2>/dev/null || git rev-parse HEAD)"
+            FULL="--full"
+          fi
+          python scripts/cl_guard.py plan --base "$BASE" --head HEAD $FULL --github-output "$GITHUB_OUTPUT" --summary "$GITHUB_STEP_SUMMARY"
+
+      - name: High-confidence hygiene blockers
+        run: python scripts/cl_guard.py hygiene
+
+      - name: Commercial SaaS anchor blockers
+        run: python scripts/cl_guard.py commercial
+
+  python-a1-a2:
+    name: Python A1/A2 contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: plan
+    if: needs.plan.outputs.python == 'true' || needs.plan.outputs.integration == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: packages/ts/releasefoundry/package-lock.json
+      - name: Install test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-ci.txt
+      - name: Build TypeScript cross-language fixtures
+        run: |
+          npm ci --prefix packages/ts/releasefoundry
+          npm run build --prefix packages/ts/releasefoundry
+      - name: Compile Python sources
+        run: python -m compileall packages services scripts tests
+      - name: Run Python contracts
+        run: python -B -m pytest tests/a1 tests/a2 tests/integration/test_a1_large_saas_migration.py -q -p no:cacheprovider
+
+  product-release:
+    name: Product release contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: plan
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install release test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-ci.txt
+      - name: Run product release contracts
+        run: python -B -m pytest tests/release -q -p no:cacheprovider
+
+  a3-node:
+    name: A3 dashboard/report/evidence contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: plan
+    if: needs.plan.outputs.a3 == 'true' || needs.plan.outputs.evidence == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Run A3 Node contracts
+        run: node --test tests/a3/*.mjs
+
+  a3-webapp:
+    name: A3 Next.js and Playwright
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: plan
+    if: needs.plan.outputs.a3 == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/webapp/package-lock.json
+      - name: Install root Playwright dependencies
+        run: npm ci
+      - name: Install A3 webapp dependencies
+        run: npm ci --prefix apps/webapp
+      - name: Typecheck and export A3 webapp
+        run: npm run check --prefix apps/webapp
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Run A3 route-level E2E
+        run: npx playwright test tests/e2e/a3-webapp-product-routes.spec.ts
+
+  typescript-sdk:
+    name: TypeScript SDK parity
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: plan
+    if: needs.plan.outputs.typescript == 'true'
+    defaults:
+      run:
+        working-directory: packages/ts/releasefoundry
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache-dependency-path: packages/go/releasefoundry/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: packages/ts/releasefoundry/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Build and test TypeScript SDK
+        run: npm test
+
+  go-sdk:
+    name: Go SDK and integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: plan
+    if: needs.plan.outputs.go == 'true' || needs.plan.outputs.integration == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+          cache-dependency-path: |
+            packages/go/releasefoundry/go.mod
+            tests/integration/go/go.mod
+      - name: Test Go SDK
+        working-directory: packages/go/releasefoundry
+        run: go test ./...
+      - name: Test Go integration
+        working-directory: tests/integration/go
+        run: go test ./...
+
+  rust-verifier:
+    name: Rust verifier
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: plan
+    if: needs.plan.outputs.rust == 'true'
+    defaults:
+      run:
+        working-directory: packages/rust/releasefoundry-runtime-verify
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Rust stable
+        run: |
+          rustup default stable
+          rustc --version
+          cargo --version
+      - name: Test Rust verifier
+        run: cargo test --quiet
+
+  evidence-gate:
+    name: A3 pinned evidence verification
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: plan
+    if: needs.plan.outputs.evidence == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Verify committed A3 audit bundle
+        run: |
+          node services/report/a3_gate_cli.mjs \
+            --verify-index fixtures/a3/p3/a3_audit_bundle_index_blocked_exception.redacted.json \
+            --generated-at 2026-07-07T00:00:00.000Z \
+            --strict-exit \
+            --json
+
+  a3-release-delivery:
+    name: A3 golden path release artifact
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    needs: plan
+    if: needs.plan.outputs.a3 == 'true' || needs.plan.outputs.evidence == 'true'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - name: Read sealed release identity
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
+          node -e "const fs=require('node:fs');const v=JSON.parse(fs.readFileSync('fixtures/a3/golden-path/rc2/release-delivery-index.json','utf8'));process.stdout.write('candidate_sha='+v.git_sha_alias+'\\nrelease_version='+v.release_version+'\\n')" >> "$GITHUB_OUTPUT"
+      - name: Verify historical rc.1 packet
+        shell: bash
+        run: |
+          set -euo pipefail
+          node services/report/a3_gate_cli.mjs \
+            --verify-index fixtures/a3/golden-path/audit-bundle-index.json \
+            --generated-at 2026-07-12T11:40:01.000Z \
+            --strict-exit \
+            --json
+          node services/report/a3_audit_archive.mjs \
+            --verify fixtures/a3/golden-path/audit-archive-manifest.json \
+            --generated-at 2026-07-12T11:40:03.000Z \
+            --json
+          node services/report/a3_release_delivery_cli.mjs \
+            --verify-manifest fixtures/a3/golden-path/release-artifact-manifest.json \
+            --verified-at 2026-07-12T11:40:05.000Z \
+            --strict-exit \
+            --json
+      - name: Verify sealed rc.2 Audit Bundle, archive, and release manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          node services/report/a3_gate_cli.mjs \
+            --verify-index fixtures/a3/golden-path/rc2/audit-bundle-index.json \
+            --generated-at 2026-07-12T14:02:01.000Z \
+            --strict-exit \
+            --json
+          node services/report/a3_audit_archive.mjs \
+            --verify fixtures/a3/golden-path/rc2/audit-archive-manifest.json \
+            --generated-at 2026-07-12T14:02:03.000Z \
+            --json
+          node services/report/a3_release_delivery_cli.mjs \
+            --verify-manifest fixtures/a3/golden-path/rc2/release-artifact-manifest.json \
+            --verified-at 2026-07-12T14:02:06.000Z \
+            --strict-exit \
+            --json
+      - name: Upload versioned release candidate packet
+        uses: actions/upload-artifact@v4
+        with:
+          name: releasefoundry-a3-${{ steps.release.outputs.release_version }}-${{ steps.release.outputs.candidate_sha }}
+          path: fixtures/a3/golden-path/rc2
+          if-no-files-found: error
+          retention-days: 14
+
+  cl-summary:
+    name: CL Gate summary
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: always()
+    needs:
+      - plan
+      - python-a1-a2
+      - product-release
+      - a3-node
+      - a3-webapp
+      - typescript-sdk
+      - go-sdk
+      - rust-verifier
+      - evidence-gate
+      - a3-release-delivery
+    steps:
+      - name: Summarize required results
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "plan=${{ needs.plan.result }}"
+          echo "python-a1-a2=${{ needs.python-a1-a2.result }}"
+          echo "product-release=${{ needs.product-release.result }}"
+          echo "a3-node=${{ needs.a3-node.result }}"
+          echo "a3-webapp=${{ needs.a3-webapp.result }}"
+          echo "typescript-sdk=${{ needs.typescript-sdk.result }}"
+          echo "go-sdk=${{ needs.go-sdk.result }}"
+          echo "rust-verifier=${{ needs.rust-verifier.result }}"
+          echo "evidence-gate=${{ needs.evidence-gate.result }}"
+          echo "a3-release-delivery=${{ needs.a3-release-delivery.result }}"
+          for result in \
+            "${{ needs.plan.result }}" \
+            "${{ needs.python-a1-a2.result }}" \
+            "${{ needs.product-release.result }}" \
+            "${{ needs.a3-node.result }}" \
+            "${{ needs.a3-webapp.result }}" \
+            "${{ needs.typescript-sdk.result }}" \
+            "${{ needs.go-sdk.result }}" \
+            "${{ needs.rust-verifier.result }}" \
+            "${{ needs.evidence-gate.result }}" \
+            "${{ needs.a3-release-delivery.result }}"; do
+            if [[ "$result" == "failure" || "$result" == "cancelled" ]]; then
+              exit 1
+            fi
+          done

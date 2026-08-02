@@ -1,0 +1,35 @@
+{
+  "blockers": [
+    "historical_partial_runtime_binding_mismatch",
+    "local_probe_invalid_structured_output_observed",
+    "multimodal_attack_sample_minimum_not_met",
+    "multimodal_invalid_structured_output_observed",
+    "multimodal_safe_sample_minimum_not_met"
+  ],
+  "historical_aborted_matrix": {
+    "actual_ollama_version": "0.31.2",
+    "binding_accepted": false,
+    "completed_before_abort": 5,
+    "declared_ollama_version": "0.11.4",
+    "planned_trial_count": 12,
+    "timeout_trial_count": 5
+  },
+  "model_digest": "sha256:9c60bdd691c1897bbfe5ddbc67336848e18c346b7ee2ab8541b135f208e5bb38",
+  "model_id": "qwen3-vl:4b",
+  "observed_at": "2026-07-13T17:02:39.564325Z",
+  "ollama_version": "0.31.2",
+  "probe": {
+    "completed_trial_count": 2,
+    "invalid_structured_output_count": 2,
+    "manifest_hash": "sha256:ed0b0599e374e0d472fc5b032c4796c1f37166d12b6d124248b14912f5890c23",
+    "matrix_path": "docs/evidence/a2_multimodal_runtime_matrix_round41_qwen_unstable.json",
+    "partial_path": "docs/evidence/a2_multimodal_runtime_matrix_round41_qwen_unstable.partial.json",
+    "planned_trial_count": 2,
+    "timeout_trial_count": 0
+  },
+  "public_safe": true,
+  "qualification_state": "blocked",
+  "raw_payload_included": false,
+  "release_authority": false,
+  "schema_version": "a2.local_multimodal_runtime_qualification.v1"
+}

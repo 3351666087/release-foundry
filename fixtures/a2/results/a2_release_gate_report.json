@@ -1,0 +1,387 @@
+{
+  "schema_version": "a2.release_gate.v1",
+  "report_id": "a2_release_gate",
+  "release_candidate": {
+    "id": "a2_g3_commercial_default",
+    "profile": "strict-commercial",
+    "scope": "A2 scenario/judge/calibration evidence for agent release readiness"
+  },
+  "decision": "block",
+  "exit_code": 2,
+  "risk_score": 100,
+  "hard_gate_ids": [
+    "C0",
+    "C1",
+    "C2",
+    "C3",
+    "C4",
+    "C5"
+  ],
+  "current_commercial_gate": "C2",
+  "ready_for_commercial_gate": false,
+  "blocking_gate_count": 3,
+  "evidence_blocker_count": 4,
+  "scenario_selection_blocker_count": 0,
+  "a1_output_policy_blocker_count": 0,
+  "warning_count": 3,
+  "scenario_selection_gate": {
+    "status": "ready",
+    "ready": true,
+    "coverage_ready": true,
+    "minimums_ready": true,
+    "selection_id": "a2_enterprise_saas_prod_selection",
+    "project_id": "project_enterprise_saas_agent",
+    "environment": "prod",
+    "selected_scenario_count": 12,
+    "observed_minimums": {
+      "golden_case_count": 5,
+      "run_fixture_count": 9,
+      "regression_case_count": 2,
+      "failure_class_count": 8,
+      "media_scenario_count": 2
+    },
+    "release_gate_inputs": {
+      "scenario_ids": [
+        "A2-S010",
+        "A2-S018",
+        "A2-S031",
+        "A2-S035",
+        "A2-S039",
+        "A2-S041",
+        "A2-S043",
+        "A2-S046",
+        "A2-S048",
+        "A2-S050",
+        "A2-S052",
+        "A2-S059"
+      ],
+      "policy_id": "release_policy_enterprise_prod",
+      "judge_policy_id": "judge_policy_a2_enterprise_prod",
+      "environment": "prod"
+    },
+    "gaps": [],
+    "evidence_refs": [
+      "fixtures/a2/results/a2_scenario_selection_report.json"
+    ]
+  },
+  "a1_output_policy_gate": {
+    "status": "ready",
+    "ready": true,
+    "source_schema_version": "releasefoundry.evidence_index.v1",
+    "label": "a1-real-api-round44-readonly-refresh",
+    "index_path": "docs/a1/api_calibration/real_api_evidence_index.json",
+    "total_records": 401,
+    "dangerous_counts": {
+      "unsafe_real_nonprivate_override": 0,
+      "private_required_but_not_private": 0
+    },
+    "safe_counts": {
+      "private_required": 5,
+      "private_file": 6,
+      "stdout_full_record_blocked": 5,
+      "present": 6
+    },
+    "evidence_refs": [
+      "docs/a1/api_calibration/real_api_evidence_index.json"
+    ]
+  },
+  "blockers": [
+    {
+      "type": "commercial_gate",
+      "gate": "C3",
+      "status": "partial",
+      "severity": "high",
+      "summary": "Paid batch calibration",
+      "required_action": "Collect reviewed ReleaseFoundry grading observations for 6 missing calibration cases.",
+      "gaps": [
+        "Collect reviewed ReleaseFoundry grading observations for 6 missing calibration cases.",
+        "Public ReleaseFoundry grading merge gate is not_merged; import, merge, and regenerate before marking C3 met."
+      ],
+      "evidence_refs": [
+        "calibration_matrix.agreement_summary.local_vs_releasefoundry_grading",
+        "calibration_matrix.agreement_summary.local_vs_llm_judge",
+        "fixtures/a2/results/a2_evidence_readiness_report.json"
+      ]
+    },
+    {
+      "type": "commercial_gate",
+      "gate": "C4",
+      "status": "partial",
+      "severity": "high",
+      "summary": "Semantic judge",
+      "required_action": "Replace offline llm_judge references by running the semantic harness with audited live model calls and prompt/model/cost metadata.",
+      "gaps": [
+        "Replace offline llm_judge references by running the semantic harness with audited live model calls and prompt/model/cost metadata.",
+        "Semantic live merge gate is offline_reference_only; import audited semantic judge summaries before marking C4 met."
+      ],
+      "evidence_refs": [
+        "calibration_matrix.cost_ledger",
+        "calibration_matrix.cases[].sources.llm_judge.confidence",
+        "calibration_matrix.cases[].calibration_tags",
+        "fixtures/a2/results/a2_semantic_harness_report.json",
+        "fixtures/a2/results/a2_semantic_harness_report.json::risk_assessment",
+        "fixtures/a2/results/a2_evidence_readiness_report.json"
+      ]
+    },
+    {
+      "type": "commercial_gate",
+      "gate": "C5",
+      "status": "partial",
+      "severity": "high",
+      "summary": "Case book and regression suite",
+      "required_action": "Expand the case book beyond the current seed into a mature regression suite.",
+      "gaps": [
+        "Expand the case book beyond the current seed into a mature regression suite."
+      ],
+      "evidence_refs": [
+        "calibration_tags.judge_disagreement_regression",
+        "fixtures/a2/results/a2_case_book.json",
+        "fixtures/a2/results/a2_regression_replay_report.json"
+      ]
+    },
+    {
+      "type": "evidence_gate",
+      "gate": "C3",
+      "status": "not_merged",
+      "severity": "high",
+      "summary": "ReleaseFoundry server-side grading evidence is not publicly merge-safe.",
+      "required_action": "Reviewed ReleaseFoundry grading observations with review_status=reviewed and evidence_ref must be imported, merged, and regenerated before C3 is met.",
+      "missing_count": 6,
+      "evidence_refs": [
+        "fixtures/a2/calibration/a2_g3_calibration_observations.json"
+      ]
+    },
+    {
+      "type": "evidence_gate",
+      "gate": "C4",
+      "status": "offline_reference_only",
+      "severity": "high",
+      "summary": "Audited live semantic judge evidence is not merged.",
+      "required_action": "Audited semantic judge observations must replace offline references before C4 is met.",
+      "missing_count": 6,
+      "evidence_refs": [
+        "fixtures/a2/calibration/a2_g3_calibration_observations.json"
+      ]
+    },
+    {
+      "type": "calibration_gap",
+      "gate": "C3",
+      "status": "missing_source",
+      "severity": "high",
+      "summary": "Calibration matrix lacks ReleaseFoundry grading rows.",
+      "required_action": "Collect, review, import, and regenerate ReleaseFoundry grading observations.",
+      "missing_count": 6,
+      "evidence_refs": [
+        "fixtures/a2/results/a2_g3_calibration_matrix.json"
+      ]
+    },
+    {
+      "type": "regression_maturity",
+      "gate": "C5",
+      "status": "seed",
+      "severity": "medium",
+      "summary": "Regression replay is not mature enough to unblock release.",
+      "required_action": "Promote more reviewed disagreement or incident cases into replayable C5 regressions.",
+      "missing_count": 3,
+      "evidence_refs": [
+        "fixtures/a2/results/a2_regression_replay_report.json",
+        "fixtures/a2/results/a2_case_book.json"
+      ]
+    }
+  ],
+  "warnings": [
+    {
+      "type": "judge_risk",
+      "severity": "medium",
+      "summary": "Semantic score-delta review candidates remain open.",
+      "count": 4,
+      "evidence_refs": [
+        "fixtures/a2/results/a2_semantic_harness_report.json"
+      ]
+    },
+    {
+      "type": "quota_risk",
+      "severity": "medium",
+      "summary": "Real API quota gate is currently blocking mutating request calibration.",
+      "count": 18,
+      "evidence_refs": [
+        "docs/a1/api_calibration/real_api_evidence_index.json"
+      ]
+    },
+    {
+      "type": "api_probe_gate_validation",
+      "severity": "medium",
+      "summary": "A1 API probe quota gate validation evidence needs review before mutating release calibration.",
+      "count": 4,
+      "evidence_refs": [
+        "docs/a1/api_calibration/real_api_evidence_index.json",
+        "docs/a1/schemas/api_probe_quota_gate.schema.json"
+      ]
+    }
+  ],
+  "required_evidence": [
+    {
+      "source": "releasefoundry_grading",
+      "required_count": 6,
+      "current_available": 0,
+      "private_input_ref": "docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json",
+      "collection_packet_ref": "fixtures/a2/calibration/a2_releasefoundry_grading_collection_packet.json",
+      "commands": [
+        "python scripts/a2_scan_releasefoundry_grading_evidence.py --input docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json --case-map fixtures/a2/calibration/releasefoundry_grading_batch_case_map.json",
+        "python scripts/a2_import_releasefoundry_grading.py --input docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json --case-map fixtures/a2/calibration/releasefoundry_grading_batch_case_map.json --evidence-ref docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json --review-status reviewed --output docs/evidence/private_refs/a2_releasefoundry_grading_import.review.json",
+        "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_releasefoundry_grading_import.review.json --source releasefoundry_grading --min-count 6 --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        "python scripts/a2_regenerate_fixtures.py --write"
+      ]
+    },
+    {
+      "source": "llm_judge",
+      "required_count": 6,
+      "current_available": 0,
+      "private_input_ref": "docs/evidence/private_refs/a2_semantic_judge_review.redacted.json",
+      "collection_packet_ref": "fixtures/a2/calibration/a2_semantic_judge_collection_packet.json",
+      "commands": [
+        "python scripts/a2_build_semantic_judge_collection_packet.py --check",
+        "python scripts/a2_import_semantic_judge.py --input docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --evidence-ref docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --output docs/evidence/private_refs/a2_semantic_judge_import.review.json",
+        "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_semantic_judge_import.review.json --source llm_judge --min-count 6 --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        "python scripts/a2_regenerate_fixtures.py --write"
+      ]
+    }
+  ],
+  "pr_annotations": [
+    {
+      "level": "failure",
+      "title": "C3 blocks release",
+      "message": "Collect reviewed ReleaseFoundry grading observations for 6 missing calibration cases.",
+      "evidence_refs": [
+        "calibration_matrix.agreement_summary.local_vs_releasefoundry_grading",
+        "calibration_matrix.agreement_summary.local_vs_llm_judge",
+        "fixtures/a2/results/a2_evidence_readiness_report.json"
+      ]
+    },
+    {
+      "level": "failure",
+      "title": "C4 blocks release",
+      "message": "Replace offline llm_judge references by running the semantic harness with audited live model calls and prompt/model/cost metadata.",
+      "evidence_refs": [
+        "calibration_matrix.cost_ledger",
+        "calibration_matrix.cases[].sources.llm_judge.confidence",
+        "calibration_matrix.cases[].calibration_tags",
+        "fixtures/a2/results/a2_semantic_harness_report.json",
+        "fixtures/a2/results/a2_semantic_harness_report.json::risk_assessment",
+        "fixtures/a2/results/a2_evidence_readiness_report.json"
+      ]
+    },
+    {
+      "level": "failure",
+      "title": "C5 blocks release",
+      "message": "Expand the case book beyond the current seed into a mature regression suite.",
+      "evidence_refs": [
+        "calibration_tags.judge_disagreement_regression",
+        "fixtures/a2/results/a2_case_book.json",
+        "fixtures/a2/results/a2_regression_replay_report.json"
+      ]
+    },
+    {
+      "level": "failure",
+      "title": "C3 blocks release",
+      "message": "Reviewed ReleaseFoundry grading observations with review_status=reviewed and evidence_ref must be imported, merged, and regenerated before C3 is met.",
+      "evidence_refs": [
+        "fixtures/a2/calibration/a2_g3_calibration_observations.json"
+      ]
+    },
+    {
+      "level": "failure",
+      "title": "C4 blocks release",
+      "message": "Audited semantic judge observations must replace offline references before C4 is met.",
+      "evidence_refs": [
+        "fixtures/a2/calibration/a2_g3_calibration_observations.json"
+      ]
+    },
+    {
+      "level": "failure",
+      "title": "C3 blocks release",
+      "message": "Collect, review, import, and regenerate ReleaseFoundry grading observations.",
+      "evidence_refs": [
+        "fixtures/a2/results/a2_g3_calibration_matrix.json"
+      ]
+    },
+    {
+      "level": "failure",
+      "title": "C5 blocks release",
+      "message": "Promote more reviewed disagreement or incident cases into replayable C5 regressions.",
+      "evidence_refs": [
+        "fixtures/a2/results/a2_regression_replay_report.json",
+        "fixtures/a2/results/a2_case_book.json"
+      ]
+    },
+    {
+      "level": "warning",
+      "title": "Semantic score-delta review candidates remain open.",
+      "message": "Semantic score-delta review candidates remain open.",
+      "evidence_refs": [
+        "fixtures/a2/results/a2_semantic_harness_report.json"
+      ]
+    },
+    {
+      "level": "warning",
+      "title": "Real API quota gate is currently blocking mutating request calibration.",
+      "message": "Real API quota gate is currently blocking mutating request calibration.",
+      "evidence_refs": [
+        "docs/a1/api_calibration/real_api_evidence_index.json"
+      ]
+    },
+    {
+      "level": "warning",
+      "title": "A1 API probe quota gate validation evidence needs review before mutating release calibration.",
+      "message": "A1 API probe quota gate validation evidence needs review before mutating release calibration.",
+      "evidence_refs": [
+        "docs/a1/api_calibration/real_api_evidence_index.json",
+        "docs/a1/schemas/api_probe_quota_gate.schema.json"
+      ]
+    }
+  ],
+  "review_workflow": {
+    "required_reviewers": [
+      "A2 owner",
+      "A1 API/runtime owner",
+      "A3 dashboard/report owner"
+    ],
+    "required_before_unblock": [
+      "reviewed ReleaseFoundry grading rows imported for all six calibration cases",
+      "audited live semantic judge rows imported for all six calibration cases",
+      "case book/regression replay maturity reaches mature",
+      "per-project scenario selection coverage and minimums remain ready",
+      "secret scan and deterministic fixture checks pass after import"
+    ],
+    "private_evidence_boundary": "Raw API/model payloads stay under docs/evidence/private_refs/ and are never committed."
+  },
+  "machine_contract": {
+    "ci_mode": "fail on decision=block",
+    "blocking_fields": [
+      "decision",
+      "blockers",
+      "required_evidence",
+      "scenario_selection_gate",
+      "a1_output_policy_gate"
+    ],
+    "stable_join_keys": [
+      "case_id",
+      "scenario_id",
+      "gate"
+    ],
+    "a3_consumption": "A3 may render this as a PR/release gate without reading private evidence."
+  },
+  "evidence_refs": [
+    "fixtures/a2/results/a2_commercial_readiness_report.json",
+    "fixtures/a2/results/a2_evidence_readiness_report.json",
+    "fixtures/a2/results/a2_g3_calibration_matrix.json",
+    "fixtures/a2/results/a2_regression_replay_report.json",
+    "fixtures/a2/results/a2_scenario_selection_report.json",
+    "docs/a1/api_calibration/real_api_evidence_index.json"
+  ],
+  "metadata": {
+    "deterministic": true,
+    "purpose": "Block unsafe agent releases until A2 replay, judge, evidence, review, and regression gates are proven.",
+    "does_not_execute_live_calls": true
+  }
+}

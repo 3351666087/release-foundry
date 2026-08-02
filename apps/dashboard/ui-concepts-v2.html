@@ -1,0 +1,580 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>A3 Dashboard UI Concepts V2</title>
+    <style>
+      :root {
+        color-scheme: light;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        --text: #111827;
+        --muted: #667085;
+        --line: #dde3ea;
+        --panel: #ffffff;
+        --bg: #f4f6f8;
+        --green: #1f8a5b;
+        --red: #c24135;
+        --amber: #b86913;
+        --blue: #2f5fb7;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        background: var(--bg);
+        color: var(--text);
+        margin: 0;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+
+      .page {
+        display: grid;
+        gap: 30px;
+        padding: 28px;
+      }
+
+      .intro {
+        max-width: 1120px;
+      }
+
+      .intro h1 {
+        font-size: 28px;
+        letter-spacing: 0;
+      }
+
+      .intro p {
+        color: var(--muted);
+        margin-top: 8px;
+      }
+
+      .concept {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        box-shadow: 0 24px 70px rgba(17, 24, 39, 0.08);
+        overflow: hidden;
+      }
+
+      .concept-label {
+        align-items: center;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        justify-content: space-between;
+        padding: 14px 18px;
+      }
+
+      .concept-label h2 {
+        font-size: 15px;
+      }
+
+      .concept-label span {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .screen {
+        min-height: 720px;
+      }
+
+      .badge {
+        align-items: center;
+        border-radius: 999px;
+        display: inline-flex;
+        font-size: 11px;
+        font-weight: 800;
+        min-height: 22px;
+        padding: 2px 8px;
+      }
+
+      .pass {
+        background: #e9f8ef;
+        color: var(--green);
+      }
+
+      .fail {
+        background: #fff0ed;
+        color: var(--red);
+      }
+
+      .warn {
+        background: #fff5e6;
+        color: var(--amber);
+      }
+
+      .info {
+        background: #eaf1ff;
+        color: var(--blue);
+      }
+
+      .metric strong {
+        display: block;
+        font-size: 28px;
+        letter-spacing: 0;
+      }
+
+      .metric span,
+      .muted {
+        color: var(--muted);
+        font-size: 12px;
+      }
+
+      .rows {
+        display: grid;
+        gap: 9px;
+      }
+
+      .row {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        display: grid;
+        gap: 7px;
+        padding: 11px;
+      }
+
+      .row-head {
+        align-items: center;
+        display: flex;
+        gap: 8px;
+        justify-content: space-between;
+      }
+
+      .row strong {
+        font-size: 13px;
+      }
+
+      .row p {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.45;
+      }
+
+      .button {
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        background: #fff;
+        color: var(--text);
+        font-weight: 800;
+        min-height: 34px;
+        padding: 7px 11px;
+      }
+
+      .button.primary {
+        background: #111827;
+        border-color: #111827;
+        color: #fff;
+      }
+
+      .progress {
+        background: #e5e7eb;
+        border-radius: 999px;
+        height: 7px;
+        overflow: hidden;
+      }
+
+      .progress span {
+        background: var(--blue);
+        display: block;
+        height: 100%;
+        width: 62%;
+      }
+
+      /* Concept E: Linear / Vercel release console */
+      .concept-e .screen {
+        background: #f7f8fa;
+        display: grid;
+        grid-template-columns: 230px 1fr;
+      }
+
+      .concept-e aside {
+        background: #080c12;
+        border-right: 1px solid #202632;
+        color: #d7dde7;
+        padding: 20px 14px;
+      }
+
+      .concept-e .brand {
+        color: #fff;
+        display: flex;
+        font-weight: 800;
+        gap: 9px;
+        margin-bottom: 22px;
+      }
+
+      .concept-e .brand span {
+        background: #fff;
+        border-radius: 6px;
+        color: #080c12;
+        display: inline-flex;
+        font-size: 12px;
+        height: 26px;
+        justify-content: center;
+        align-items: center;
+        width: 26px;
+      }
+
+      .concept-e nav {
+        display: grid;
+        gap: 5px;
+      }
+
+      .concept-e nav a {
+        border-radius: 7px;
+        color: #a8b2c3;
+        font-size: 13px;
+        padding: 8px 10px;
+      }
+
+      .concept-e nav a.active {
+        background: #f8fafc;
+        color: #0f172a;
+      }
+
+      .concept-e main {
+        display: grid;
+        gap: 14px;
+        padding: 20px;
+      }
+
+      .concept-e .hero {
+        background: #111827;
+        border-radius: 12px;
+        color: #fff;
+        display: flex;
+        justify-content: space-between;
+        gap: 18px;
+        padding: 22px;
+      }
+
+      .concept-e .hero p {
+        color: #aeb8c7;
+        margin-top: 7px;
+      }
+
+      .concept-e .metrics {
+        display: grid;
+        gap: 10px;
+        grid-template-columns: repeat(4, 1fr);
+      }
+
+      .concept-e .metric,
+      .concept-e .panel {
+        background: #fff;
+        border: 1px solid #e2e8f0;
+        border-radius: 10px;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+        padding: 14px;
+      }
+
+      .concept-e .grid {
+        display: grid;
+        gap: 14px;
+        grid-template-columns: 1.2fr 0.8fr;
+      }
+
+      /* Concept F: Supabase studio workbench */
+      .concept-f .screen {
+        background: #101614;
+        color: #ecfdf5;
+        display: grid;
+        grid-template-rows: 58px 1fr;
+      }
+
+      .concept-f .bar {
+        align-items: center;
+        border-bottom: 1px solid #23312c;
+        display: flex;
+        justify-content: space-between;
+        padding: 0 20px;
+      }
+
+      .concept-f .tabs {
+        display: flex;
+        gap: 8px;
+      }
+
+      .concept-f .tabs span {
+        background: #17231f;
+        border: 1px solid #273d35;
+        border-radius: 7px;
+        color: #b8d9ca;
+        font-size: 12px;
+        padding: 7px 10px;
+      }
+
+      .concept-f .body {
+        display: grid;
+        gap: 14px;
+        grid-template-columns: 250px 1fr;
+        padding: 18px;
+      }
+
+      .concept-f .tree,
+      .concept-f .panel,
+      .concept-f .metric {
+        background: #121c18;
+        border: 1px solid #263b34;
+        border-radius: 10px;
+        padding: 14px;
+      }
+
+      .concept-f .tree {
+        display: grid;
+        gap: 10px;
+      }
+
+      .concept-f .tree span {
+        color: #a7c9bb;
+        font-size: 13px;
+      }
+
+      .concept-f .content {
+        display: grid;
+        gap: 14px;
+      }
+
+      .concept-f .metrics {
+        display: grid;
+        gap: 10px;
+        grid-template-columns: repeat(4, 1fr);
+      }
+
+      .concept-f .metric span,
+      .concept-f .row p,
+      .concept-f .muted {
+        color: #a7c9bb;
+      }
+
+      .concept-f .row {
+        background: #15211d;
+        border-color: #263b34;
+      }
+
+      /* Concept G: Stripe-like commercial ledger */
+      .concept-g .screen {
+        background: #f6f7fb;
+        display: grid;
+        grid-template-columns: 1fr 330px;
+      }
+
+      .concept-g main {
+        display: grid;
+        gap: 14px;
+        padding: 20px;
+      }
+
+      .concept-g .top {
+        background: #fff;
+        border: 1px solid #dde3ee;
+        border-radius: 14px;
+        display: flex;
+        justify-content: space-between;
+        padding: 20px;
+      }
+
+      .concept-g .metrics {
+        display: grid;
+        gap: 10px;
+        grid-template-columns: repeat(3, 1fr);
+      }
+
+      .concept-g .metric,
+      .concept-g .panel,
+      .concept-g aside {
+        background: #fff;
+        border: 1px solid #dde3ee;
+        border-radius: 12px;
+        box-shadow: 0 12px 30px rgba(31, 41, 55, 0.06);
+        padding: 15px;
+      }
+
+      .concept-g aside {
+        border-radius: 0;
+        border-bottom: 0;
+        border-right: 0;
+        border-top: 0;
+        display: grid;
+        gap: 12px;
+      }
+
+      .concept-g .stripe {
+        background: #635bff;
+        border-radius: 999px;
+        height: 7px;
+      }
+
+      /* Concept H: Retool ops dense grid */
+      .concept-h .screen {
+        background: #f3f4f2;
+        display: grid;
+        grid-template-rows: 52px 1fr;
+      }
+
+      .concept-h .bar {
+        align-items: center;
+        background: #fdfdfb;
+        border-bottom: 1px solid #d8dcd2;
+        display: flex;
+        justify-content: space-between;
+        padding: 0 18px;
+      }
+
+      .concept-h .body {
+        display: grid;
+        gap: 10px;
+        grid-template-columns: 0.9fr 1.25fr 0.85fr;
+        padding: 14px;
+      }
+
+      .concept-h .panel,
+      .concept-h .metric {
+        background: #fff;
+        border: 1px solid #d8dcd2;
+        border-radius: 6px;
+        padding: 12px;
+      }
+
+      .concept-h .table {
+        border: 1px solid #d8dcd2;
+        border-radius: 6px;
+        overflow: hidden;
+      }
+
+      .concept-h .table-row {
+        display: grid;
+        grid-template-columns: 1fr 0.65fr 0.65fr;
+        padding: 9px 10px;
+      }
+
+      .concept-h .table-row + .table-row {
+        border-top: 1px solid #e5e7df;
+      }
+
+      .concept-h .table-head {
+        background: #eef0ea;
+        color: #606b5f;
+        font-size: 12px;
+        font-weight: 800;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <section class="intro">
+        <h1>A3 Dashboard Visual Directions V2</h1>
+        <p>Clean-room variations inspired by current SaaS product language. No external source code, assets, logos, or private UI were copied.</p>
+      </section>
+
+      <section class="concept concept-e" id="concept-linear-vercel">
+        <div class="concept-label"><h2>Concept E - Linear / Vercel Release Console</h2><span>Recommended for production A3</span></div>
+        <div class="screen">
+          <aside>
+            <div class="brand"><span>A3</span>ReleaseFoundry Console</div>
+            <nav>
+              <a class="active">Overview</a><a>Runs</a><a>Release Gate</a><a>Trace Timeline</a><a>Failure Clusters</a><a>Reports</a><a>Team</a><a>Trust</a>
+            </nav>
+          </aside>
+          <main>
+            <div class="hero">
+              <div><h2>Release evidence review</h2><p>Dataset 884 / run 11926. A1 trace and A2 judge evidence are ready for triage.</p></div>
+              <div><button class="button primary">Export report</button> <button class="button">Share</button></div>
+            </div>
+            <div class="metrics">
+              <div class="metric"><span>Pass rate</span><strong>40%</strong></div>
+              <div class="metric"><span>Avg score</span><strong>56.4</strong></div>
+              <div class="metric"><span>Trace complete</span><strong>100%</strong></div>
+              <div class="metric"><span>Media evidence</span><strong>5</strong></div>
+            </div>
+            <div class="grid">
+              <div class="panel">
+                <div class="row-head"><strong>Failure triage queue</strong><span class="badge fail">3 blocked</span></div>
+                <div class="rows" style="margin-top:12px">
+                  <div class="row"><div class="row-head"><strong>Refund policy mismatch</strong><span class="badge fail">needs triage</span></div><p>Expected refund eligibility explanation; actual skipped policy check.</p></div>
+                  <div class="row"><div class="row-head"><strong>Missing tool call</strong><span class="badge warn">tool drift</span></div><p>A1 trace has response, but no matching tool result was attached.</p></div>
+                  <div class="row"><div class="row-head"><strong>Media proof unavailable</strong><span class="badge info">metadata only</span></div><p>Signed URL behavior remains unconfirmed; render as safe evidence metadata.</p></div>
+                </div>
+              </div>
+              <div class="panel">
+                <div class="row-head"><strong>Release gate</strong><span class="badge fail">blocked</span></div>
+                <p class="muted" style="margin-top:10px">A2 score is below threshold. Reviewer waiver required before GitHub publish.</p>
+                <div class="progress" style="margin-top:14px"><span></span></div>
+              </div>
+            </div>
+          </main>
+        </div>
+      </section>
+
+      <section class="concept concept-f" id="concept-supabase">
+        <div class="concept-label"><h2>Concept F - Supabase Studio Workbench</h2><span>Best for DB, artifact, and media custody screens</span></div>
+        <div class="screen">
+          <div class="bar"><strong>ReleaseFoundry Studio</strong><div class="tabs"><span>Postgres</span><span>Auth</span><span>Storage</span><span>Reports</span></div></div>
+          <div class="body">
+            <div class="tree"><strong>Project objects</strong><span>runs</span><span>cases</span><span>trace_events</span><span>media_evidence</span><span>audit_events</span></div>
+            <div class="content">
+              <div class="metrics">
+                <div class="metric"><span>Rows</span><strong>1,926</strong></div>
+                <div class="metric"><span>Events</span><strong>48</strong></div>
+                <div class="metric"><span>Reports</span><strong>12</strong></div>
+                <div class="metric"><span>Secrets</span><strong>0</strong></div>
+              </div>
+              <div class="panel">
+                <div class="row-head"><strong>Trace event table</strong><span class="badge pass">redacted</span></div>
+                <div class="rows" style="margin-top:12px">
+                  <div class="row"><div class="row-head"><strong>tool_call.completed</strong><span class="badge info">checkout_refund</span></div><p>Arguments and tool result are normalized into A3 evidence rows.</p></div>
+                  <div class="row"><div class="row-head"><strong>judge.grade_result</strong><span class="badge fail">score 42</span></div><p>Failure class maps to A2 taxonomy without changing judge semantics.</p></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="concept concept-g" id="concept-ledger">
+        <div class="concept-label"><h2>Concept G - Commercial Ledger Dashboard</h2><span>Best for usage, billing, reports, and customer-facing summary</span></div>
+        <div class="screen">
+          <main>
+            <div class="top"><div><h2>Customer release report</h2><p class="muted">Evidence, score, usage, and reviewer decisions in one commercial summary.</p></div><button class="button primary">Publish hosted report</button></div>
+            <div class="metrics">
+              <div class="metric"><span>Billable runs</span><strong>1,926</strong></div>
+              <div class="metric"><span>Usage risk</span><strong>Low</strong></div>
+              <div class="metric"><span>Audit coverage</span><strong>87%</strong></div>
+            </div>
+            <div class="panel">
+              <div class="row-head"><strong>Report sections</strong><span class="badge pass">share-ready</span></div>
+              <div class="rows" style="margin-top:12px">
+                <div class="row"><div class="row-head"><strong>Expected vs actual</strong><span class="badge info">included</span></div><p>Readable customer-facing mismatch summary.</p></div>
+                <div class="row"><div class="row-head"><strong>Redaction firewall</strong><span class="badge pass">passed</span></div><p>Secrets, emails, tokens, and raw signed URLs are excluded.</p></div>
+              </div>
+            </div>
+          </main>
+          <aside>
+            <strong>Plan snapshot</strong>
+            <div class="stripe"></div>
+            <div class="row"><strong>Enterprise readiness</strong><p>Hosted auth, RBAC, usage, and trust surfaces are visible but guarded.</p></div>
+            <div class="row"><strong>Next action</strong><p>Attach real Postgres/RLS and billing provider after A1 backend is ready.</p></div>
+          </aside>
+        </div>
+      </section>
+
+      <section class="concept concept-h" id="concept-retool">
+        <div class="concept-label"><h2>Concept H - Retool Ops Grid</h2><span>Best for dense internal triage and reviewer operations</span></div>
+        <div class="screen">
+          <div class="bar"><strong>A3 Operations</strong><div><button class="button">Filter</button> <button class="button primary">Approve</button></div></div>
+          <div class="body">
+            <div class="panel"><div class="row-head"><strong>Queues</strong><span class="badge fail">3 hot</span></div><div class="rows" style="margin-top:12px"><div class="row"><strong>Refund cases</strong><p>3 pending review</p></div><div class="row"><strong>Media samples</strong><p>5 metadata-only</p></div><div class="row"><strong>Waivers</strong><p>1 awaiting approval</p></div></div></div>
+            <div class="panel"><div class="row-head"><strong>Case table</strong><span class="badge info">interactive</span></div><div class="table" style="margin-top:12px"><div class="table-row table-head"><span>Case</span><span>Score</span><span>Status</span></div><div class="table-row"><span>refund policy mismatch</span><span>42</span><span>fail</span></div><div class="table-row"><span>shipping ETA</span><span>91</span><span>pass</span></div><div class="table-row"><span>missing tool result</span><span>55</span><span>triage</span></div></div></div>
+            <div class="panel"><div class="row-head"><strong>Audit trail</strong><span class="badge pass">sealed</span></div><div class="rows" style="margin-top:12px"><div class="row"><strong>import_a1_run</strong><p>source artifact hashed</p></div><div class="row"><strong>import_a2_grade</strong><p>taxonomy preserved</p></div><div class="row"><strong>report_share</strong><p>token hash only</p></div></div></div>
+          </div>
+        </div>
+      </section>
+    </div>
+  </body>
+</html>

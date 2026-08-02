@@ -1,0 +1,148 @@
+{
+  "schema_version": "releasefoundry.google_oauth_localhost.v1",
+  "generated_at": "2026-07-10T10:08:15.1585685Z",
+  "provider": "google",
+  "environment": "localhost_development",
+  "loopback_host_class": "localhost",
+  "calibration_status": "controlled_existing_session_completed",
+  "public_safe": true,
+  "contains_secret_values": false,
+  "production_ready": false,
+  "credential_id_present": true,
+  "provider_subject_present": true,
+  "provider_network_calls": true,
+  "callback_uri": "http://localhost:8787/oauth/google/callback",
+  "requested_scopes": [
+    "email",
+    "openid",
+    "profile"
+  ],
+  "observed_equivalent_scope_classes": [
+    "email",
+    "openid",
+    "profile",
+    "userinfo.email",
+    "userinfo.profile"
+  ],
+  "response_key_sets": {
+    "start": [
+      "authorize_url",
+      "expires_at",
+      "provider",
+      "schema_version"
+    ],
+    "callback": [
+      "connection",
+      "provider",
+      "schema_version"
+    ],
+    "connection": [
+      "account_id",
+      "connected_at",
+      "credential_id",
+      "display_name",
+      "email_present",
+      "email_verified",
+      "provider",
+      "provider_subject_present",
+      "schema_version"
+    ],
+    "disconnect": [
+      "connection",
+      "disconnected",
+      "provider",
+      "schema_version"
+    ]
+  },
+  "controls": [
+    {
+      "control_id": "start_route_and_pkce",
+      "status": "verified_real_provider",
+      "method": "GET",
+      "status_code": 200,
+      "authorize_host": "accounts.google.com",
+      "authorize_path": "/o/oauth2/v2/auth",
+      "pkce_method": "S256",
+      "state_present_at_provider": true,
+      "nonce_present_at_provider": true,
+      "exact_scope_set_present": true
+    },
+    {
+      "control_id": "official_granted_scope_alias_normalization",
+      "status": "verified_real_provider_and_regression_test",
+      "initial_failure_code": "google_scope_mismatch",
+      "canonical_scope_set_after_fix": [
+        "email",
+        "openid",
+        "profile"
+      ],
+      "unexpected_privilege_escalation_still_rejected": true
+    },
+    {
+      "control_id": "callback_success",
+      "status": "verified_real_provider",
+      "method": "GET",
+      "status_code": 200,
+      "issuer_validation_passed": true,
+      "audience_validation_passed": true,
+      "nonce_validation_passed": true,
+      "email_present": true,
+      "email_verified": true
+    },
+    {
+      "control_id": "callback_replay",
+      "status": "verified_real_callback_replay",
+      "method": "GET",
+      "status_code": 400,
+      "failure_code": "invalid_oauth_state",
+      "replay_denied": true
+    },
+    {
+      "control_id": "identity_negative_cases",
+      "status": "verified_automated_tests",
+      "nonce_rejected": true,
+      "issuer_rejected": true,
+      "audience_rejected": true,
+      "unverified_email_rejected": true,
+      "invalid_signature_rejected": true
+    },
+    {
+      "control_id": "public_response_secret_scan",
+      "status": "verified",
+      "public_response_secret_scan_passed": true,
+      "raw_email_exposed": false,
+      "token_reference_exposed": false,
+      "access_token_exposed": false,
+      "refresh_token_exposed": false,
+      "id_token_exposed": false
+    },
+    {
+      "control_id": "disconnect_and_revocation",
+      "status": "verified_real_provider",
+      "method": "DELETE",
+      "status_code": 200,
+      "provider_revocation_completed": true,
+      "post_disconnect_connection_status_code": 404
+    }
+  ],
+  "raw_state_recorded": false,
+  "nonce_recorded": false,
+  "pkce_verifier_recorded": false,
+  "authorization_code_recorded": false,
+  "access_token_recorded": false,
+  "refresh_token_recorded": false,
+  "id_token_recorded": false,
+  "client_id_recorded": false,
+  "client_secret_recorded": false,
+  "raw_provider_response_recorded": false,
+  "callback_query_recorded": false,
+  "account_email_recorded": false,
+  "stable_provider_identifier_recorded": false,
+  "memory_backed": true,
+  "notes": [
+    "Controlled existing-session localhost account connection only; this is not production login or registration.",
+    "The first real callback exposed Google's equivalent short-name and userinfo URL scope representations; the provider now canonicalizes only those documented identity aliases before enforcing exact scopes.",
+    "OAuth transactions, token references, raw tokens, and connections remain process-local in this runtime.",
+    "No provider payloads, headers, cookies, callback query parameters, credentials, account identifiers, or tokens are retained."
+  ]
+}

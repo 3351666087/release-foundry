@@ -1,0 +1,258 @@
+{
+  "schema_version": "a3.audit_bundle_verification.v1",
+  "verified_at": "runtime",
+  "index_path": "fixtures/a3/golden-path/rc3/audit-bundle-index.json",
+  "bundle_id": "a3-bundle-0-2-0-rc-3-a3-golden-20260720-003-60c1e04d61b0",
+  "status": "passed",
+  "root_hash": {
+    "expected": "576f45dd557cd5e58346610b9f5cd3cfd1c751792833af02f1aad1a54221202d",
+    "actual": "576f45dd557cd5e58346610b9f5cd3cfd1c751792833af02f1aad1a54221202d",
+    "passed": true
+  },
+  "artifacts": {
+    "total": 14,
+    "checked": 14,
+    "passed": 14,
+    "skipped": 0,
+    "failed": 0,
+    "results": [
+      {
+        "id": "a2_shared_candidate_identity",
+        "path": "fixtures/a3/golden-path/rc3/a2_shared_candidate_identity.json",
+        "status": "passed",
+        "expected_sha256": "835d7a2184c6ed697d1c94940e07369ac88ef6b941ef5c196d8d6920f7715fb5",
+        "actual_sha256": "835d7a2184c6ed697d1c94940e07369ac88ef6b941ef5c196d8d6920f7715fb5",
+        "expected_byte_size": 1410,
+        "actual_byte_size": 1410,
+        "path_is_absolute": false,
+        "path_includes_user_home": false,
+        "message": "Artifact hash and byte size match."
+      },
+      {
+        "id": "a2_trusted_spine",
+        "path": "fixtures/a3/golden-path/rc3/a2_trusted_spine_handoff.snapshot.json",
+        "status": "passed",
+        "expected_sha256": "9fd305038728b4f8e1797c343ed7cd2cf899157a0e8875f5214e1edb093f7270",
+        "actual_sha256": "9fd305038728b4f8e1797c343ed7cd2cf899157a0e8875f5214e1edb093f7270",
+        "expected_byte_size": 22164,
+        "actual_byte_size": 22164,
+        "path_is_absolute": false,
+        "path_includes_user_home": false,
+        "message": "Artifact hash and byte size match."
+      },
+      {
+        "id": "a3_candidate_delivery_binding",
+        "path": "fixtures/a3/golden-path/rc3/a3_candidate_delivery_binding.json",
+        "status": "passed",
+        "expected_sha256": "029ba279fe2cef9442d7406949fa659501bc9e59961909561bc8b12d3f04ffec",
+        "actual_sha256": "029ba279fe2cef9442d7406949fa659501bc9e59961909561bc8b12d3f04ffec",
+        "expected_byte_size": 1831,
+        "actual_byte_size": 1831,
+        "path_is_absolute": false,
+        "path_includes_user_home": false,
+        "message": "Artifact hash and byte size match."
+      },
+      {
+        "id": "a3_shared_candidate_identity",
+        "path": "fixtures/a3/golden-path/rc3/a3_shared_candidate_identity.json",
+        "status": "passed",
+        "expected_sha256": "ca7faa1ad582d626ee930d1d5a2e20bdd5b15209f002951e86e1dc6240e7f386",
+        "actual_sha256": "ca7faa1ad582d626ee930d1d5a2e20bdd5b15209f002951e86e1dc6240e7f386",
+        "expected_byte_size": 1287,
+        "actual_byte_size": 1287,
+        "path_is_absolute": false,
+        "path_includes_user_home": false,
+        "message": "Artifact hash and byte size match."
+      },
+      {
+        "id": "generated_artifact_manifest",
+        "path": "fixtures/a3/golden-path/rc3/generated-artifact-manifest.json",
+        "status": "passed",
+        "expected_sha256": "8d9ef622c33fcafdbb7e1f3c9319d8bbf1a9d36d00dc5a8dbe0fe7079dcd4091",
+        "actual_sha256": "8d9ef622c33fcafdbb7e1f3c9319d8bbf1a9d36d00dc5a8dbe0fe7079dcd4091",
+        "expected_byte_size": 4098,
+        "actual_byte_size": 4098,
+        "path_is_absolute": false,
+        "path_includes_user_home": false,
+        "message": "Artifact hash and byte size match."
+      },
+      {
+        "id": "deployment_probe",
+        "path": "fixtures/a3/golden-path/rc3/deployment_probe.redacted.json",
+        "status": "passed",
+        "expected_sha256": "4dc9d1316a2c3ad3e1d979a7b730659f2f077dbb65f14b4a2d1098a88b2be64c",
+        "actual_sha256": "4dc9d1316a2c3ad3e1d979a7b730659f2f077dbb65f14b4a2d1098a88b2be64c",
+        "expected_byte_size": 1980,
+        "actual_byte_size": 1980,
+        "path_is_absolute": false,
+        "path_includes_user_home": false,
+        "message": "Artifact hash and byte size match."
+      },
+      {
+        "id": "github_check_run",
+        "path": "fixtures/a3/golden-path/rc3/github-check.json",
+        "status": "passed",
+        "expected_sha256": "57dd2bc69a138ed933849e73ba72ee7e1d731d0e5ab168fe569c034e60d32d48",
+        "actual_sha256": "57dd2bc69a138ed933849e73ba72ee7e1d731d0e5ab168fe569c034e60d32d48",
+        "expected_byte_size": 958,
+        "actual_byte_size": 958,
+        "path_is_absolute": false,
+        "path_includes_user_home": false,
+        "message": "Artifact hash and byte size match."
+      },
+      {
+        "id": "json_report",
+        "path": "fixtures/a3/golden-path/rc3/gate-report.json",
+        "status": "passed",
+        "expected_sha256": "472f0675e079319959ff5201c2a0d6e29797556afffa3d40a567521a55575332",
+        "actual_sha256": "472f0675e079319959ff5201c2a0d6e29797556afffa3d40a567521a55575332",
+        "expected_byte_size": 22014,
+        "actual_byte_size": 22014,
+        "path_is_absolute": false,
+        "path_includes_user_home": false,
+        "message": "Artifact hash and byte size match."
+      },
+      {
+        "id": "markdown_report",
+        "path": "fixtures/a3/golden-path/rc3/gate-report.md",
+        "status": "passed",
+        "expected_sha256": "1972babe101c3652d451f38b91220d81a607b430bdf412f286ab227f00ff6bc9",
+        "actual_sha256": "1972babe101c3652d451f38b91220d81a607b430bdf412f286ab227f00ff6bc9",
+        "expected_byte_size": 2183,
+        "actual_byte_size": 2183,
+        "path_is_absolute": false,
+        "path_includes_user_home": false,
+        "message": "Artifact hash and byte size match."
+      },
+      {
+        "id": "pr_comment_markdown",
+        "path": "fixtures/a3/golden-path/rc3/pr-comment.md",
+        "status": "passed",
+        "expected_sha256": "18b19bc05d79f09fae2a5198597e635d5c2b0c254801c9b669ebc3a918beea64",
+        "actual_sha256": "18b19bc05d79f09fae2a5198597e635d5c2b0c254801c9b669ebc3a918beea64",
+        "expected_byte_size": 920,
+        "actual_byte_size": 920,
+        "path_is_absolute": false,
+        "path_includes_user_home": false,
+        "message": "Artifact hash and byte size match."
+      },
+      {
+        "id": "coverage",
+        "path": "fixtures/a2/results/a2_g3_coverage_report.json",
+        "status": "passed",
+        "expected_sha256": "3e5f8c572056c38c38d93361c64ef6e76850a1e8a5716947c48be6b0cc19d14f",
+        "actual_sha256": "3e5f8c572056c38c38d93361c64ef6e76850a1e8a5716947c48be6b0cc19d14f",
+        "expected_byte_size": 49867,
+        "actual_byte_size": 49867,
+        "path_is_absolute": false,
+        "path_includes_user_home": false,
+        "message": "Artifact hash and byte size match."
+      },
+      {
+        "id": "grades",
+        "path": "fixtures/a3/golden-path/rc3/a2_grade_results.json",
+        "status": "passed",
+        "expected_sha256": "260834b3c5e0c05a5cef7f0275070083f926ddca31aafafb92877c4699e83eb5",
+        "actual_sha256": "260834b3c5e0c05a5cef7f0275070083f926ddca31aafafb92877c4699e83eb5",
+        "expected_byte_size": 31593,
+        "actual_byte_size": 31593,
+        "path_is_absolute": false,
+        "path_includes_user_home": false,
+        "message": "Artifact hash and byte size match."
+      },
+      {
+        "id": "runs",
+        "path": "fixtures/a3/golden-path/rc3/a3_new_run_result.redacted.json",
+        "status": "passed",
+        "expected_sha256": "77386f48ff32a5f97ca829e224884ff52a29630ed36574eb309083da2eaeb787",
+        "actual_sha256": "77386f48ff32a5f97ca829e224884ff52a29630ed36574eb309083da2eaeb787",
+        "expected_byte_size": 29045,
+        "actual_byte_size": 29045,
+        "path_is_absolute": false,
+        "path_includes_user_home": false,
+        "message": "Artifact hash and byte size match."
+      },
+      {
+        "id": "thresholds",
+        "path": "fixtures/a3/release_gate_thresholds.json",
+        "status": "passed",
+        "expected_sha256": "fb4360ed42e60a4d8123ccb432bf968cb200f7fe22554e158b1b8a5ac3426729",
+        "actual_sha256": "fb4360ed42e60a4d8123ccb432bf968cb200f7fe22554e158b1b8a5ac3426729",
+        "expected_byte_size": 425,
+        "actual_byte_size": 425,
+        "path_is_absolute": false,
+        "path_includes_user_home": false,
+        "message": "Artifact hash and byte size match."
+      }
+    ]
+  },
+  "chain_of_custody": {
+    "total": 6,
+    "passed": 6,
+    "failed": 0,
+    "results": [
+      {
+        "event_id": "001-gate_built",
+        "action": "gate_built",
+        "status": "passed",
+        "expected_event_hash": "64e11cd307721f551f4197f55de64ec0d337344c5b8931255f271c1bdbe012e8",
+        "actual_event_hash": "64e11cd307721f551f4197f55de64ec0d337344c5b8931255f271c1bdbe012e8",
+        "previous_hash_passed": true,
+        "event_hash_passed": true
+      },
+      {
+        "event_id": "002-input_artifacts_hashed",
+        "action": "input_artifacts_hashed",
+        "status": "passed",
+        "expected_event_hash": "cf42d1ee78584c290f6c1839f171fa3e8ea22079300131916db36af9f06b3e29",
+        "actual_event_hash": "cf42d1ee78584c290f6c1839f171fa3e8ea22079300131916db36af9f06b3e29",
+        "previous_hash_passed": true,
+        "event_hash_passed": true
+      },
+      {
+        "event_id": "003-generated_artifacts_hashed",
+        "action": "generated_artifacts_hashed",
+        "status": "passed",
+        "expected_event_hash": "7f001de801f8593ecb1dd4ac31048e4e37a35d9c370ec372f50c5b8b1d0e3316",
+        "actual_event_hash": "7f001de801f8593ecb1dd4ac31048e4e37a35d9c370ec372f50c5b8b1d0e3316",
+        "previous_hash_passed": true,
+        "event_hash_passed": true
+      },
+      {
+        "event_id": "004-a2_authority_hashed",
+        "action": "a2_authority_hashed",
+        "status": "passed",
+        "expected_event_hash": "c1865db33a04d845ab369ce3571271a7a1e31d8c6def42999a39d9e22afe0011",
+        "actual_event_hash": "c1865db33a04d845ab369ce3571271a7a1e31d8c6def42999a39d9e22afe0011",
+        "previous_hash_passed": true,
+        "event_hash_passed": true
+      },
+      {
+        "event_id": "005-deployment_probe_hashed",
+        "action": "deployment_probe_hashed",
+        "status": "passed",
+        "expected_event_hash": "111d726f6d5935032027e23423d7813eb1650a03fa1df464b4024d9933d19cf7",
+        "actual_event_hash": "111d726f6d5935032027e23423d7813eb1650a03fa1df464b4024d9933d19cf7",
+        "previous_hash_passed": true,
+        "event_hash_passed": true
+      },
+      {
+        "event_id": "006-bundle_index_written",
+        "action": "bundle_index_written",
+        "status": "passed",
+        "expected_event_hash": "e29ba1aeed396ded05b16ebb236b181abc651292739d7b9a50a37576c4d75faa",
+        "actual_event_hash": "e29ba1aeed396ded05b16ebb236b181abc651292739d7b9a50a37576c4d75faa",
+        "previous_hash_passed": true,
+        "event_hash_passed": true
+      }
+    ]
+  },
+  "safety": {
+    "contains_secret_values": false,
+    "local_absolute_paths_allowed": false,
+    "unsafe_path_count": 0,
+    "self_hash_excluded": true
+  },
+  "findings": [],
+  "process_exit_code": 0
+}

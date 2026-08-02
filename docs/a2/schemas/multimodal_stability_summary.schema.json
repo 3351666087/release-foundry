@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://releasefoundry.local/schemas/a2/multimodal_stability_summary.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "sample_count", "cold_sample_count", "warm_sample_count", "cold_start_window_seconds", "maximum_latency_seconds", "exact_hash_stable", "semantic_equivalent", "p50_wall_seconds", "p95_wall_seconds", "latency_qualified", "release_authority", "blockers", "public_safe"],
+  "properties": {
+    "schema_version": {"const": "a2.multimodal_stability_summary.v1"},
+    "sample_count": {"type": "integer", "minimum": 1},
+    "cold_sample_count": {"type": "integer", "minimum": 0},
+    "warm_sample_count": {"type": "integer", "minimum": 0},
+    "cold_start_window_seconds": {"type": "number", "exclusiveMinimum": 0},
+    "maximum_latency_seconds": {"type": "number", "exclusiveMinimum": 0},
+    "exact_hash_stable": {"type": "boolean"},
+    "semantic_equivalent": {"type": "boolean"},
+    "p50_wall_seconds": {"type": "number", "minimum": 0},
+    "p95_wall_seconds": {"type": "number", "minimum": 0},
+    "latency_qualified": {"type": "boolean"},
+    "release_authority": {"const": false},
+    "blockers": {"type": "array", "items": {"type": "string"}, "uniqueItems": true},
+    "public_safe": {"const": true}
+  }
+}

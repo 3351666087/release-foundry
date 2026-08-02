@@ -1,0 +1,107 @@
+{
+  "schema_version": "a2.case_book.v1",
+  "case_book_id": "a2_case_book",
+  "source_matrix": "a2_g3_calibration_matrix",
+  "dataset_id": "a2-g3-calibration",
+  "regression_case_count": 1,
+  "candidate_pool": {
+    "calibration_case_count": 6,
+    "comparable_local_llm_count": 6,
+    "local_llm_mismatch_count": 1,
+    "releasefoundry_grading_missing_count": 6,
+    "promoted_regression_case_count": 1,
+    "reviewed_external_evidence_count": 0
+  },
+  "maturity_gate": {
+    "status": "seed",
+    "ready": false,
+    "target_regression_case_count": 3,
+    "current_regression_case_count": 1,
+    "reviewed_evidence_target_count": 3,
+    "reviewed_external_evidence_count": 0,
+    "review_evidence_ready": false,
+    "gaps": [
+      "Promote 2 more reviewed disagreement case(s) before marking the C5 case book mature.",
+      "Attach reviewed ReleaseFoundry grading or audited semantic evidence to 3 regression case(s) before closing C5."
+    ]
+  },
+  "regression_cases": [
+    {
+      "regression_id": "regression-sample-a2-s010-wrong-arguments",
+      "case_id": "sample-a2-s010-wrong-arguments",
+      "scenario_id": "A2-S010",
+      "fixture_ref": "fixtures/a2/runs/a2_s010_wrong_arguments.json",
+      "status": "open",
+      "severity": "medium",
+      "calibration_focus": [
+        "argument_fidelity",
+        "misclassification_probe"
+      ],
+      "expected": {
+        "passed": false,
+        "primary_failure_class": "wrong_arguments"
+      },
+      "local_judge": {
+        "available": true,
+        "status": "available",
+        "source": "local_judge",
+        "provider": "services.judge.runner.grade_run",
+        "passed": false,
+        "primary_failure_class": "wrong_arguments",
+        "score": 75,
+        "confidence": 1.0,
+        "rationale": "Deterministic local A2 judge result.",
+        "evidence_ref": "fixtures/a2/results/a2_g3_grade_results.json"
+      },
+      "releasefoundry_grading": {
+        "available": false,
+        "status": "missing",
+        "source": "releasefoundry_grading",
+        "provider": "releasefoundry server-side grading",
+        "passed": null,
+        "primary_failure_class": "",
+        "score": null,
+        "confidence": null,
+        "rationale": "",
+        "evidence_ref": ""
+      },
+      "semantic_or_llm_judge": {
+        "available": true,
+        "status": "available",
+        "source": "llm_judge",
+        "provider": "offline_reference",
+        "passed": false,
+        "primary_failure_class": "ignored_tool_result",
+        "score": 44,
+        "confidence": 0.71,
+        "rationale": "The final answer contradicts the available contract fact; this intentionally probes whether semantic judges miss wrong tool arguments.",
+        "evidence_ref": "fixtures/a2/runs/a2_s010_wrong_arguments.json"
+      },
+      "disagreement_pairs": [
+        {
+          "left": "local_judge",
+          "right": "llm_judge",
+          "comparable": true,
+          "passed_match": true,
+          "failure_class_match": false,
+          "score_delta": 31,
+          "status": "mismatch"
+        }
+      ],
+      "regression_assertion": "Keep local primary_failure_class=wrong_arguments visible when semantic/LLM judge reports ignored_tool_result for the same case.",
+      "reviewer_note": "sample-a2-s010-wrong-arguments is a calibration disagreement: local_judge identifies wrong_arguments, while the semantic/LLM reference identifies ignored_tool_result. Keep it as a regression seed until reviewed ReleaseFoundry or live LLM evidence resolves whether this is a judge-boundary issue or an expected semantic ambiguity.",
+      "evidence_refs": [
+        "fixtures/a2/results/a2_g3_grade_results.json",
+        "fixtures/a2/runs/a2_s010_wrong_arguments.json"
+      ]
+    }
+  ],
+  "metadata": {
+    "deterministic": true,
+    "purpose": "Promote calibration disagreements into reviewer-visible regression seeds.",
+    "notes": [
+      "This report is additive and does not change local judge scores.",
+      "Live ReleaseFoundry or LLM evidence should update calibration observations first, then regenerate this case book."
+    ]
+  }
+}

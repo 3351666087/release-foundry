@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A2NormalizedProviderResponse",
+  "type": "object",
+  "required": ["schema_version", "status", "output_text", "usage", "provider_request_id"],
+  "properties": {
+    "schema_version": { "const": "a2.provider_response.v1" },
+    "status": { "enum": ["completed", "timeout", "rate_limited", "provider_unavailable", "provider_error", "invalid_response"] },
+    "output_text": { "type": "string" },
+    "usage": {
+      "type": "object",
+      "required": ["input_tokens", "output_tokens"],
+      "properties": {
+        "input_tokens": { "type": "integer", "minimum": 0 },
+        "output_tokens": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    },
+    "provider_request_id": { "type": "string" }
+  },
+  "additionalProperties": false
+}

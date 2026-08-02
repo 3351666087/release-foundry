@@ -1,0 +1,38 @@
+{
+  "schema_version": "a3.github_actions_artifact_readback.v1",
+  "provider": "github",
+  "resource_kind": "actions_artifact",
+  "readback_status": "readback_confirmed",
+  "readback_confirmed": true,
+  "artifact_id_alias": 8259493055,
+  "artifact_name": "releasefoundry-a3-0.2.0-rc.1-ad6113e01f5999f99b378e678d4f0a9602e8fdbc",
+  "workflow_run_id_alias": 29190953806,
+  "workflow_url": "https://github.com/3351666087/release-foundry/actions/runs/29190953806",
+  "candidate_head_sha_alias": "ad6113e01f5999f99b378e678d4f0a9602e8fdbc",
+  "ci_tested_sha_alias": "e07c5f6e3cb8c44e8d75ea781feeec778bb5ccb8",
+  "size_in_bytes": 28924,
+  "digest": "sha256:1d9866eea8eb0ad39afa1ed555349338773d0576b73af2f04fdffb0eb1cb5634",
+  "expired": false,
+  "created_at": "2026-07-12T11:31:09Z",
+  "expires_at": "2026-07-26T11:31:08Z",
+  "download_observed": true,
+  "embedded_verification": {
+    "release_artifact_manifest": "passed",
+    "candidate_sha_match": true,
+    "ci_tested_sha_match": true,
+    "production_release": false,
+    "golden_path_status": "blocked_by_a2"
+  },
+  "calibration": {
+    "live_readback": true,
+    "authority_class": "github_actions_app",
+    "custom_tenant_github_app_proven": false
+  },
+  "safety": {
+    "token_included": false,
+    "download_path_included": false,
+    "raw_archive_included": false,
+    "raw_response_stored": false,
+    "secret_values_allowed": false
+  }
+}

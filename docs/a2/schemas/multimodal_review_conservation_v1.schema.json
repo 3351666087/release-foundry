@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://releasefoundry.example/schemas/a2/multimodal_review_conservation_v1.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "queue_receipt_count",
+    "reviewed_queue_receipt_count",
+    "pending_queue_receipt_count",
+    "latest_receipt_hashes",
+    "conservation_holds",
+    "verification_state",
+    "errors",
+    "release_authority",
+    "public_safe"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "a2.multimodal_review_conservation.v1"
+    },
+    "queue_receipt_count": {"type": "integer", "minimum": 0},
+    "reviewed_queue_receipt_count": {"type": "integer", "minimum": 0},
+    "pending_queue_receipt_count": {"type": "integer", "minimum": 0},
+    "latest_receipt_hashes": {
+      "type": "object",
+      "propertyNames": {"pattern": "^sha256:[a-f0-9]{64}$"},
+      "additionalProperties": {"$ref": "#/$defs/hash"}
+    },
+    "conservation_holds": {"const": true},
+    "verification_state": {"enum": ["verified", "rejected"]},
+    "errors": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "duplicate_queue_receipt",
+          "orphan_review_receipt",
+          "noncontiguous_queue_review_sequence",
+          "queue_review_predecessor_mismatch"
+        ]
+      }
+    },
+    "release_authority": {"const": false},
+    "public_safe": {"const": true}
+  },
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    }
+  }
+}

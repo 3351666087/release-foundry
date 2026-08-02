@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://releasefoundry.local/schemas/go_python_route_contract_evidence.schema.json",
+  "title": "A1 Public-Safe Go/Python Route Contract Evidence",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "artifact_id",
+    "public_safe",
+    "generated_at",
+    "source_policy",
+    "ownership_summary",
+    "route_contracts",
+    "consumer_contracts",
+    "evidence_artifacts",
+    "known_gaps"
+  ],
+  "properties": {
+    "schema_version": {"const": "releasefoundry.go_python_route_contract_evidence.v1"},
+    "artifact_id": {"type": "string", "minLength": 1},
+    "public_safe": {"const": true},
+    "generated_at": {"type": "string", "minLength": 1},
+    "source_policy": {
+      "type": "object",
+      "required": [
+        "private_evidence_read",
+        "raw_payloads_included",
+        "tokens_included",
+        "excluded_paths",
+        "allowed_source_classes"
+      ],
+      "properties": {
+        "private_evidence_read": {"const": false},
+        "raw_payloads_included": {"const": false},
+        "tokens_included": {"const": false},
+        "excluded_paths": {"type": "array", "items": {"type": "string"}},
+        "allowed_source_classes": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": false
+    },
+    "ownership_summary": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/ownership"}
+    },
+    "route_contracts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/route_contract"}
+    },
+    "consumer_contracts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/consumer_contract"}
+    },
+    "evidence_artifacts": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/evidence_artifact"}
+    },
+    "known_gaps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "summary", "owner", "unblocks"],
+        "properties": {
+          "id": {"type": "string"},
+          "summary": {"type": "string"},
+          "owner": {"enum": ["go", "python", "shared"]},
+          "unblocks": {"type": "array", "items": {"enum": ["a2", "a3", "a1"]}}
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "ownership": {
+      "type": "object",
+      "required": ["owner", "owns", "does_not_own", "primary_paths", "public_outputs"],
+      "properties": {
+        "owner": {"enum": ["go", "python"]},
+        "owns": {"type": "array", "items": {"type": "string"}},
+        "does_not_own": {"type": "array", "items": {"type": "string"}},
+        "primary_paths": {"type": "array", "items": {"type": "string"}},
+        "public_outputs": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": false
+    },
+    "route_contract": {
+      "type": "object",
+      "required": [
+        "id",
+        "owner",
+        "status",
+        "route_family",
+        "transport",
+        "public_contract",
+        "producer_paths",
+        "contract_symbols",
+        "consumers",
+        "safe_to_consume"
+      ],
+      "properties": {
+        "id": {"type": "string"},
+        "owner": {"enum": ["go", "python"]},
+        "status": {"enum": ["implemented", "contracted", "planned"]},
+        "route_family": {"type": "string"},
+        "transport": {"type": "string"},
+        "public_contract": {"type": "string"},
+        "producer_paths": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+        "contract_symbols": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+        "consumers": {"type": "array", "items": {"enum": ["a2", "a3", "a1"]}},
+        "safe_to_consume": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": false
+    },
+    "consumer_contract": {
+      "type": "object",
+      "required": ["consumer", "can_consume", "must_not_consume", "stable_inputs", "handoff_notes"],
+      "properties": {
+        "consumer": {"enum": ["a2", "a3"]},
+        "can_consume": {"type": "array", "items": {"type": "string"}},
+        "must_not_consume": {"type": "array", "items": {"type": "string"}},
+        "stable_inputs": {"type": "array", "items": {"type": "string"}},
+        "handoff_notes": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": false
+    },
+    "evidence_artifact": {
+      "type": "object",
+      "required": ["path", "owner", "purpose", "consumers", "privacy_level"],
+      "properties": {
+        "path": {"type": "string"},
+        "owner": {"enum": ["go", "python", "shared"]},
+        "purpose": {"type": "string"},
+        "consumers": {"type": "array", "items": {"enum": ["a2", "a3", "a1"]}},
+        "privacy_level": {"const": "public_safe"}
+      },
+      "additionalProperties": false
+    }
+  }
+}

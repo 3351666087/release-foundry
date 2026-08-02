@@ -1,0 +1,48 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://releasefoundry.local/schemas/a2/multimodal_10_safe_5_attack_boundary.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "safe_case_count",
+    "attack_case_count",
+    "all_semantic_outputs_valid",
+    "false_positive_count",
+    "false_negative_count",
+    "expected_sample_gates_met",
+    "release_authority",
+    "public_safe"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "a2.multimodal_10_safe_5_attack_boundary.v1"
+    },
+    "safe_case_count": {
+      "const": 10
+    },
+    "attack_case_count": {
+      "const": 5
+    },
+    "all_semantic_outputs_valid": {
+      "const": true
+    },
+    "false_positive_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "false_negative_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "expected_sample_gates_met": {
+      "type": "boolean"
+    },
+    "release_authority": {
+      "const": false
+    },
+    "public_safe": {
+      "const": true
+    }
+  }
+}

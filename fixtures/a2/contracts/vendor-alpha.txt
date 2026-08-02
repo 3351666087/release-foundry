@@ -1,0 +1,4 @@
+Vendor: Alpha Systems
+Contract: Enterprise Support Renewal
+Renewal notice period: 45 days before the renewal date.
+Notes: Renewal requests must be sent to renewals@alpha.example.

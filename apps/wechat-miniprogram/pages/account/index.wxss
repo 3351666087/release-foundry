@@ -1,0 +1,114 @@
+.identity-panel,
+.connection-head,
+.capability-head,
+.security-row {
+  display: flex;
+  align-items: center;
+  gap: 18rpx;
+}
+
+.identity-panel {
+  padding: 26rpx;
+  border: 1rpx solid #d4d4d8;
+  border-radius: 8rpx;
+  background: #ffffff;
+}
+
+.identity-avatar {
+  display: flex;
+  width: 74rpx;
+  height: 74rpx;
+  flex: 0 0 74rpx;
+  align-items: center;
+  justify-content: center;
+  background: #18181b;
+  color: #ffffff;
+  font-size: 27rpx;
+  font-weight: 780;
+}
+
+.identity-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.identity-name,
+.identity-scope {
+  display: block;
+}
+
+.identity-name { font-size: 28rpx; font-weight: 740; }
+.identity-scope { margin-top: 6rpx; color: #71717a; font-size: 20rpx; line-height: 1.4; }
+
+.connection-panel {
+  padding: 26rpx;
+  border: 1rpx solid #d4d4d8;
+  border-radius: 8rpx;
+  background: #ffffff;
+}
+
+.connection-head { align-items: flex-start; }
+
+.connection-indicator {
+  width: 22rpx;
+  height: 22rpx;
+  flex: 0 0 22rpx;
+  margin-top: 7rpx;
+  border: 5rpx solid #ffffff;
+  border-radius: 50%;
+  background: #71717a;
+  box-shadow: 0 0 0 1rpx #71717a;
+}
+
+.connection-indicator.is-connected { background: #20845d; box-shadow: 0 0 0 1rpx #20845d; }
+.connection-indicator.is-preview { background: #b77900; box-shadow: 0 0 0 1rpx #b77900; }
+.connection-indicator.is-degraded,
+.connection-indicator.is-error { background: #d9483b; box-shadow: 0 0 0 1rpx #d9483b; }
+
+.connection-copy { min-width: 0; flex: 1; }
+.connection-title,
+.connection-detail { display: block; }
+.connection-title { font-size: 28rpx; font-weight: 740; }
+.connection-detail { margin-top: 7rpx; color: #71717a; font-size: 21rpx; line-height: 1.5; }
+
+.connection-facts {
+  margin-top: 22rpx;
+  padding-top: 4rpx;
+  border-top: 1rpx solid #e4e4e7;
+}
+
+.diagnostic-button { width: 100%; margin-top: 22rpx; }
+
+.security-row {
+  min-height: 82rpx;
+  justify-content: space-between;
+  padding: 15rpx 22rpx;
+  border-top: 1rpx solid #e4e4e7;
+}
+
+.security-row:first-child { border-top: 0; }
+.security-label { font-size: 23rpx; }
+
+.capability-card {
+  padding: 23rpx;
+  border: 1rpx solid #d4d4d8;
+  border-radius: 8rpx;
+  background: #ffffff;
+}
+
+.capability-card + .capability-card { margin-top: 14rpx; }
+.capability-head { justify-content: space-between; }
+.capability-label { font-size: 24rpx; font-weight: 710; }
+.capability-detail { display: block; margin-top: 12rpx; color: #71717a; font-size: 21rpx; line-height: 1.55; }
+
+.security-note {
+  margin-top: 28rpx;
+  padding: 23rpx;
+  border-left: 5rpx solid #18181b;
+  background: #e4e4e7;
+}
+
+.security-note-title,
+.security-note-copy { display: block; }
+.security-note-title { font-size: 23rpx; font-weight: 730; }
+.security-note-copy { margin-top: 8rpx; color: #52525b; font-size: 21rpx; line-height: 1.55; }

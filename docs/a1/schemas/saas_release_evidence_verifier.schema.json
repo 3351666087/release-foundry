@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://releasefoundry.local/schemas/saas_release_evidence_verifier.schema.json",
+  "title": "A1 SaaS Release Evidence Verifier v2 Contract",
+  "description": "Run-scoped SaaS verifier response for audit-chain and release-evidence read surfaces. Hosted calls require scoped auth_key_id and record usage/audit events; responses are hash-only and public-safe.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "tenant_id",
+    "project_id",
+    "verified",
+    "usage_event_id",
+    "raw_payload_included",
+    "secret_value_present"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "releasefoundry.saas_control_plane.v1"
+    },
+    "verification_schema_version": {
+      "type": "string"
+    },
+    "tenant_id": {
+      "type": "string"
+    },
+    "project_id": {
+      "type": "string"
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "verified": {
+      "type": "boolean"
+    },
+    "failures": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["reason"],
+        "properties": {
+          "reason": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "packet_sha256": {
+      "type": ["string", "null"]
+    },
+    "actual_packet_sha256": {
+      "type": "string"
+    },
+    "usage_event_id": {
+      "type": "string",
+      "pattern": "^usage_"
+    },
+    "bindings": {
+      "type": "object",
+      "required": ["counts", "hashes", "usage", "audit_chain", "bundle_root_sha256"],
+      "properties": {
+        "counts": {
+          "type": "object",
+          "properties": {
+            "uploads": {"type": "integer"},
+            "trace_batches": {"type": "integer"},
+            "artifacts": {"type": "integer"}
+          },
+          "additionalProperties": true
+        },
+        "hashes": {
+          "type": "object",
+          "additionalProperties": {"type": "string"}
+        },
+        "usage": {
+          "type": "object",
+          "required": ["operation_totals", "billable_units"],
+          "properties": {
+            "operation_totals": {"type": "object"},
+            "billable_units": {"type": "integer"}
+          },
+          "additionalProperties": true
+        },
+        "audit_chain": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "bundle_root_sha256": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "local_only": {
+      "const": true
+    },
+    "releasefoundry_api_used": {
+      "const": false
+    },
+    "raw_payload_included": {
+      "const": false
+    },
+    "secret_value_present": {
+      "const": false
+    }
+  },
+  "additionalProperties": true
+}

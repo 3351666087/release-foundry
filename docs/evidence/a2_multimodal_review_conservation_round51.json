@@ -1,0 +1,12 @@
+{
+  "conservation_holds": true,
+  "errors": [],
+  "latest_receipt_hashes": {},
+  "pending_queue_receipt_count": 1,
+  "public_safe": true,
+  "queue_receipt_count": 1,
+  "release_authority": false,
+  "reviewed_queue_receipt_count": 0,
+  "schema_version": "a2.multimodal_review_conservation.v1",
+  "verification_state": "verified"
+}

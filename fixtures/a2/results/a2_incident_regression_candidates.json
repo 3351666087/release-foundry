@@ -1,0 +1,133 @@
+{
+  "schema_version": "a2.incident_regression_candidates.v1",
+  "report_id": "a2_incident_regression_candidates",
+  "source_incident_count": 1,
+  "source_incidents": [
+    {
+      "incident_id": "prod-inc-2026-07-support-status-retry",
+      "source_ref": "fixtures/a2/incidents/a2_prod_incident_summary.json",
+      "environment": "prod",
+      "reported_at": "2026-07-03T18:40:00Z",
+      "title": "Support status retry path claimed success after transient tool failure",
+      "summary": "Redacted production summary: a support-status lookup hit a transient web tool error, but the agent answered that support was fully operational instead of retrying once or reporting uncertainty.",
+      "public_safe": true
+    }
+  ],
+  "candidate_count": 1,
+  "ready_candidate_count": 1,
+  "ready_for_case_book_review": true,
+  "public_safety": {
+    "safe": true,
+    "checks": {
+      "declares_public_safe": true,
+      "no_private_payload_keys": true,
+      "no_forbidden_text_patterns": true,
+      "fixture_refs_are_public": true,
+      "evidence_refs_are_reference_only": true
+    },
+    "private_field_names": [],
+    "forbidden_pattern_names": [],
+    "redaction_policy": {
+      "commit_only": [
+        "incident summaries already marked public_safe",
+        "stable case_id/scenario_id/fixture_ref join keys",
+        "failure class and reviewer notes",
+        "references to private evidence, not private evidence contents"
+      ],
+      "never_commit": [
+        "API keys",
+        "authorization tokens",
+        "raw prompts",
+        "raw model responses",
+        "tenant emails",
+        "account payloads"
+      ]
+    }
+  },
+  "candidates": [
+    {
+      "regression_id": "incident-regression-prod-inc-2026-07-support-status-retry",
+      "case_id": "sample-a2-s041-poor-retry-recovery",
+      "scenario_id": "A2-S041",
+      "fixture_ref": "fixtures/a2/runs/a2_s041_poor_retry_recovery.json",
+      "status": "candidate",
+      "severity": "high",
+      "source": "production_incident",
+      "incident_id": "prod-inc-2026-07-support-status-retry",
+      "environment": "prod",
+      "scenario_title": "Retry Then Fallback",
+      "scenario_family": "workflow_planning",
+      "scenario_tags": [
+        "recovery",
+        "retry",
+        "web"
+      ],
+      "calibration_focus": [
+        "failure_recovery",
+        "tool_error"
+      ],
+      "expected": {
+        "passed": false,
+        "primary_failure_class": "poor_failure_recovery"
+      },
+      "local_judge": {
+        "available": true,
+        "status": "available",
+        "source": "local_judge",
+        "provider": "services.judge.runner.grade_run",
+        "passed": false,
+        "primary_failure_class": "poor_failure_recovery",
+        "score": 70.75,
+        "confidence": 1.0,
+        "rationale": "Deterministic local A2 judge replay of the incident fixture.",
+        "evidence_ref": "fixtures/a2/results/a2_g3_grade_results.json"
+      },
+      "releasefoundry_grading": {
+        "available": false,
+        "status": "missing_review",
+        "source": "releasefoundry_grading",
+        "provider": "releasefoundry server-side grading",
+        "passed": null,
+        "primary_failure_class": "",
+        "score": null,
+        "confidence": null,
+        "rationale": "",
+        "evidence_ref": ""
+      },
+      "semantic_or_llm_judge": {
+        "available": false,
+        "status": "missing_review",
+        "source": "llm_judge",
+        "provider": "audited semantic judge",
+        "passed": null,
+        "primary_failure_class": "",
+        "score": null,
+        "confidence": null,
+        "rationale": "",
+        "evidence_ref": ""
+      },
+      "disagreement_pairs": [],
+      "regression_assertion": "Keep poor_failure_recovery visible when a transient status lookup error is followed by an unsupported success claim.",
+      "reviewer_note": "prod-inc-2026-07-support-status-retry maps to sample-a2-s041-poor-retry-recovery / A2-S041 with local failure_class=poor_failure_recovery. Keep it as a case-book candidate until A2 owner review and external evidence decide whether it should be promoted into the mature C5 replay set.",
+      "evidence_refs": [
+        "docs/evidence/private_refs/a2_prod_incident_support_status.redacted.json",
+        "fixtures/a2/incidents/a2_prod_incident_summary.json",
+        "fixtures/a2/runs/a2_s041_poor_retry_recovery.json"
+      ],
+      "public_safe": true,
+      "ready_for_case_book_review": true,
+      "case_book_candidate": true,
+      "promotion_blockers": [
+        "needs_case_book_owner_review",
+        "needs_reviewed_releasefoundry_or_audited_semantic_evidence"
+      ]
+    }
+  ],
+  "metadata": {
+    "deterministic": true,
+    "purpose": "Turn redacted production incidents into reviewer-visible A2 regression candidates.",
+    "does_not_execute_live_calls": true,
+    "does_not_read_private_evidence": true,
+    "candidate_policy": "Candidates require case-book owner review and reviewed external evidence before C5 maturity."
+  }
+}

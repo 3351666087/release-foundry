@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://releasefoundry.local/schemas/official_api_mutating_calibration_index.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "generated_at", "public_safe", "raw_payloads_included", "secret_values_included", "records"],
+  "properties": {
+    "schema_version": {"const": "releasefoundry.official_api_mutating_calibration_index.v1"},
+    "generated_at": {"type": "string"},
+    "public_safe": {"const": true},
+    "raw_payloads_included": {"const": false},
+    "secret_values_included": {"const": false},
+    "records": {
+      "type": "array",
+      "minItems": 5,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "mutating_step_ids",
+          "observed_error_kinds",
+          "private_manifest",
+          "quota_block_count",
+          "raw_payloads_included",
+          "read_steps",
+          "status",
+          "summary_modalities",
+          "total_steps"
+        ],
+        "properties": {
+          "mutating_step_ids": {
+            "type": "array",
+            "minItems": 1,
+            "items": {"type": "string", "pattern": "^create-request-(text|image|audio|file|video)$"}
+          },
+          "observed_error_kinds": {
+            "type": "array",
+            "items": {"type": "string"}
+          },
+          "private_manifest": {"type": "string", "pattern": "^docs/evidence/private_refs/[^\\s]+\\.json$"},
+          "quota_block_count": {"type": "integer", "minimum": 0},
+          "raw_payloads_included": {"const": false},
+          "read_steps": {"type": "integer", "minimum": 0},
+          "status": {"enum": ["ok", "partial", "error", "planned"]},
+          "summary_modalities": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 1,
+            "items": {"enum": ["text", "image", "audio", "file", "video"]}
+          },
+          "total_steps": {"type": "integer", "minimum": 1}
+        }
+      }
+    }
+  }
+}

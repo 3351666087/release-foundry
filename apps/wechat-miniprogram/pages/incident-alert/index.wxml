@@ -1,0 +1,101 @@
+<view class="screen">
+  <view class="product-header">
+    <view class="brand-mark">警</view>
+    <view class="product-copy">
+      <text class="product-name">风险告警</text>
+      <text class="product-context">{{meta.project || '企业发布助手'}} · 证据回放队列</text>
+    </view>
+    <text class="mode-pill">{{modeLabel}}</text>
+  </view>
+
+  <view wx:if="{{viewState === 'loading'}}" class="state-panel">
+    <view class="loading-mark"></view>
+    <text class="state-title">正在读取风险队列</text>
+    <text class="state-copy">正在汇总异常案例、执行时间线和评测依据。</text>
+  </view>
+
+  <view wx:elif="{{viewState === 'error'}}" class="state-panel">
+    <view class="state-mark">!</view>
+    <text class="state-title">告警信息加载失败</text>
+    <text class="state-copy">{{errorText}}</text>
+    <button class="secondary-button state-action" bindtap="retry" hover-class="button-pressed">重新加载</button>
+  </view>
+
+  <block wx:else>
+    <view wx:if="{{viewState === 'partial'}}" class="notice is-warning">
+      <text class="notice-title">实时同步中断</text>
+      <text class="notice-copy">{{errorText}} 当前继续展示最近一次安全快照。</text>
+    </view>
+
+    <view class="filter-bar" role="group" aria-label="告警筛选">
+      <button wx:for="{{filterOptions}}" wx:key="id" class="filter-button {{selectedFilter === item.id ? 'is-active' : ''}}" data-filter="{{item.id}}" bindtap="changeFilter">{{item.label}}</button>
+    </view>
+
+    <view wx:if="{{viewState === 'empty'}}" class="state-panel">
+      <view class="state-mark">✓</view>
+      <text class="state-title">当前筛选下没有告警</text>
+      <text class="state-copy">可以切换筛选条件，或下拉刷新风险队列。</text>
+    </view>
+
+    <block wx:else>
+      <text class="section-label">风险队列 · {{filteredIncidents.length}}</text>
+      <scroll-view class="incident-strip" scroll-x="true" enhanced="true" show-scrollbar="false">
+        <view class="incident-strip-inner">
+          <button wx:for="{{filteredIncidents}}" wx:key="id" class="incident-chip {{selectedIncidentId === item.id ? 'is-active' : ''}}" data-id="{{item.id}}" bindtap="selectIncident" hover-class="incident-chip-pressed">
+            <view class="incident-chip-head">
+              <text class="status-pill is-{{item.tone}}">{{item.severityLabel}}</text>
+              <text class="incident-time">{{item.updatedLabel}}</text>
+            </view>
+            <text class="incident-chip-title">{{item.title}}</text>
+            <text class="incident-chip-state">{{item.stateLabel}} · {{item.caseLabel}}</text>
+          </button>
+        </view>
+      </scroll-view>
+
+      <text class="section-label">告警详情</text>
+      <view class="incident-detail">
+        <view class="incident-detail-head">
+          <view class="severity-marker is-{{selectedIncident.tone}}"></view>
+          <view class="incident-detail-copy">
+            <text class="incident-detail-title">{{selectedIncident.title}}</text>
+            <text class="incident-detail-meta">{{selectedIncident.stateLabel}} · {{selectedIncident.caseLabel}}</text>
+          </view>
+          <text class="status-pill is-{{selectedIncident.tone}}">{{selectedIncident.severityLabel}}</text>
+        </view>
+        <text class="incident-summary">{{selectedIncident.summary}}</text>
+        <view class="evidence-callout">
+          <text class="evidence-callout-label">证据状态</text>
+          <text class="evidence-callout-value">{{selectedIncident.evidenceLabel}}</text>
+        </view>
+      </view>
+
+      <text class="section-label">事件时间线</text>
+      <view wx:if="{{selectedIncident.timeline.length}}" class="panel timeline">
+        <view wx:for="{{selectedIncident.timeline}}" wx:key="time" class="timeline-row">
+          <view class="timeline-rail">
+            <view class="timeline-dot"></view>
+          </view>
+          <view class="timeline-content">
+            <text class="timeline-time">{{item.time}}</text>
+            <text class="timeline-title">{{item.title}}</text>
+            <text class="timeline-detail">{{item.detail}}</text>
+          </view>
+        </view>
+      </view>
+      <view wx:else class="panel panel-body">
+        <text class="panel-title">详细时间线尚未同步</text>
+        <text class="panel-copy">缺失时间线时不会推断事件顺序，请从企业服务端补齐回放证据。</text>
+      </view>
+
+      <text class="section-label">处置建议</text>
+      <view class="panel action-list">
+        <view wx:for="{{selectedIncident.actions}}" wx:key="*this" class="action-row">
+          <text class="action-index">{{index + 1}}</text>
+          <text class="action-text">{{item}}</text>
+        </view>
+      </view>
+      <button class="primary-button related-release-button" bindtap="openRelatedRelease" hover-class="button-pressed">查看关联发布决策</button>
+    </block>
+    <view class="safe-bottom"></view>
+  </block>
+</view>

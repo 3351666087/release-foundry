@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A1 VM Stream Frame",
+  "type": "object",
+  "required": ["schema", "seq", "timestamp", "event_id", "stream", "status", "text", "data"],
+  "properties": {
+    "schema": { "const": "releasefoundry.vm_stream.v1" },
+    "seq": { "type": "integer", "minimum": 0 },
+    "timestamp": { "type": "string" },
+    "event_id": { "type": "string" },
+    "stream": { "enum": ["stdin", "stdout", "tool_call", "tool_result", "lifecycle", "metric", "stderr", "state"] },
+    "status": { "type": "string" },
+    "text": { "type": "string" },
+    "data": { "type": "object" }
+  },
+  "additionalProperties": false
+}

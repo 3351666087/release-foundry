@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://releasefoundry.example/schemas/a2/multimodal_real_review_receipt.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "receipt_id",
+    "queue_receipt_hash",
+    "comparison_artifact_hash",
+    "comparison_hash",
+    "artifact_hash",
+    "case_id",
+    "reviewer_identity_hash",
+    "reviewer_identity_class",
+    "predecessor_receipt_hash",
+    "review_sequence",
+    "review_completed_at",
+    "disposition",
+    "rationale_code",
+    "release_authority",
+    "public_safe"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "a2.multimodal_real_review_receipt.v1"
+    },
+    "receipt_id": {
+      "$ref": "#/$defs/hash"
+    },
+    "queue_receipt_hash": {
+      "$ref": "#/$defs/hash"
+    },
+    "comparison_artifact_hash": {
+      "$ref": "#/$defs/hash"
+    },
+    "comparison_hash": {
+      "$ref": "#/$defs/hash"
+    },
+    "artifact_hash": {
+      "$ref": "#/$defs/hash"
+    },
+    "case_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "reviewer_identity_hash": {
+      "$ref": "#/$defs/hash"
+    },
+    "reviewer_identity_class": {
+      "const": "human_reviewer"
+    },
+    "review_completed_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "disposition": {
+      "enum": [
+        "confirm_risk",
+        "confirm_safe",
+        "request_more_evidence",
+        "abstain",
+        "reference_unavailable_collect_more_evidence"
+      ]
+    },
+    "disposition_text": {
+      "const": "reference unavailable; collect more evidence"
+    },
+    "rationale_code": {
+      "type": "string",
+      "minLength": 1
+    },
+    "release_authority": {
+      "const": false
+    },
+    "public_safe": {
+      "const": true
+    },
+    "predecessor_receipt_hash": {
+      "type": "string",
+      "pattern": "^(|sha256:[a-f0-9]{64})$"
+    },
+    "review_sequence": {
+      "type": "integer",
+      "minimum": 1
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "disposition": {
+            "const": "reference_unavailable_collect_more_evidence"
+          }
+        },
+        "required": ["disposition"]
+      },
+      "then": {"required": ["disposition_text"]},
+      "else": {"not": {"required": ["disposition_text"]}}
+    }
+  ],
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    }
+  }
+}

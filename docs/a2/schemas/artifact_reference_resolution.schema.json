@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A2ArtifactReferenceResolution",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "reference_id_hash",
+    "artifact_id",
+    "tenant_scope",
+    "storage_provider",
+    "container_ref_hash",
+    "object_ref_hash",
+    "expected_object_version_hash",
+    "observed_object_version_hash",
+    "expected_content_hash",
+    "actual_content_hash",
+    "expected_size_bytes",
+    "actual_size_bytes",
+    "purpose",
+    "reader_id",
+    "reader_version",
+    "read_performed",
+    "status",
+    "blockers",
+    "raw_content_included",
+    "secret_material_included",
+    "resolution_hash"
+  ],
+  "properties": {
+    "schema_version": { "const": "a2.artifact_reference_resolution.v1" },
+    "reference_id_hash": { "$ref": "#/$defs/hash" },
+    "artifact_id": { "type": "string" },
+    "tenant_scope": { "$ref": "#/$defs/scope" },
+    "storage_provider": { "type": "string" },
+    "container_ref_hash": { "$ref": "#/$defs/hash" },
+    "object_ref_hash": { "$ref": "#/$defs/hash" },
+    "expected_object_version_hash": { "$ref": "#/$defs/hash" },
+    "observed_object_version_hash": {
+      "oneOf": [{ "const": "" }, { "$ref": "#/$defs/hash" }]
+    },
+    "expected_content_hash": { "type": "string" },
+    "actual_content_hash": { "type": "string" },
+    "expected_size_bytes": { "type": ["integer", "null"], "minimum": 1 },
+    "actual_size_bytes": { "type": ["integer", "null"], "minimum": 0 },
+    "purpose": { "type": "string" },
+    "reader_id": { "type": "string" },
+    "reader_version": { "type": "string" },
+    "read_performed": { "type": "boolean" },
+    "status": { "enum": ["verified", "blocked"] },
+    "blockers": {
+      "type": "array",
+      "items": { "type": "string" },
+      "uniqueItems": true
+    },
+    "raw_content_included": { "const": false },
+    "secret_material_included": { "const": false },
+    "resolution_hash": { "$ref": "#/$defs/hash" }
+  },
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "scope": {
+      "type": "object",
+      "required": [
+        "organization_id",
+        "tenant_id",
+        "workspace_id",
+        "project_id",
+        "environment_id"
+      ],
+      "properties": {
+        "organization_id": { "type": "string" },
+        "tenant_id": { "type": "string" },
+        "workspace_id": { "type": "string" },
+        "project_id": { "type": "string" },
+        "environment_id": { "type": "string" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

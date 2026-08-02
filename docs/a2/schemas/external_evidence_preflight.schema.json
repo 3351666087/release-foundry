@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A2ExternalEvidencePreflight",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "preflight_id",
+    "requires_network",
+    "requires_releasefoundry_api_key",
+    "reads_private_payloads",
+    "writes_files",
+    "public_inputs",
+    "environment_probe",
+    "gate_summary",
+    "private_input_refs",
+    "recommended_commands",
+    "redaction_policy",
+    "next_actions",
+    "metadata"
+  ],
+  "properties": {
+    "schema_version": { "const": "a2.external_evidence_preflight.v1" },
+    "preflight_id": { "type": "string" },
+    "requires_network": { "type": "boolean" },
+    "requires_releasefoundry_api_key": { "type": "boolean" },
+    "reads_private_payloads": { "type": "boolean" },
+    "writes_files": { "type": "boolean" },
+    "public_inputs": { "$ref": "#/$defs/string_array" },
+    "environment_probe": {
+      "type": "object",
+      "required": ["releasefoundry_api_key_present", "value_redacted"],
+      "properties": {
+        "releasefoundry_api_key_present": { "type": "boolean" },
+        "value_redacted": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    },
+    "gate_summary": {
+      "type": "object",
+      "required": ["C3", "C4", "C5"],
+      "properties": {
+        "C3": { "$ref": "#/$defs/gate_summary" },
+        "C4": { "$ref": "#/$defs/gate_summary" },
+        "C5": { "$ref": "#/$defs/gate_summary" }
+      },
+      "additionalProperties": true
+    },
+    "private_input_refs": { "$ref": "#/$defs/string_array" },
+    "recommended_commands": {
+      "type": "object",
+      "required": ["real_api_evidence_refresh", "releasefoundry_grading", "semantic_judge", "post_merge_verification"],
+      "properties": {
+        "real_api_evidence_refresh": { "$ref": "#/$defs/string_array" },
+        "releasefoundry_grading": { "$ref": "#/$defs/string_array" },
+        "semantic_judge": { "$ref": "#/$defs/string_array" },
+        "post_merge_verification": { "$ref": "#/$defs/string_array" }
+      },
+      "additionalProperties": true
+    },
+    "redaction_policy": { "type": "object" },
+    "next_actions": { "$ref": "#/$defs/string_array" },
+    "metadata": { "type": "object" }
+  },
+  "$defs": {
+    "string_array": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "gate_summary": {
+      "type": "object",
+      "required": ["name", "commercial_status"],
+      "properties": {
+        "name": { "type": "string" },
+        "commercial_status": { "type": "string" },
+        "merge_status": { "type": "string" },
+        "safe_to_mark_met": { "type": "boolean" },
+        "blocking_reason": { "type": "string" },
+        "gaps": { "$ref": "#/$defs/string_array" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

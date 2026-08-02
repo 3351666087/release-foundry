@@ -1,0 +1,176 @@
+{
+  "attempts": 1,
+  "dry_run": false,
+  "duration_ms": 5951,
+  "ended_at": "2026-07-05T16:46:26Z",
+  "error": null,
+  "field_map_version": "a1-api-calibration-2026-07-04",
+  "function": "get_request",
+  "output_path": "fixtures\\a3\\p3\\releasefoundry_failed_request_detail.redacted.json",
+  "purpose": "Poll one generation request",
+  "request": {
+    "estimated_calls": 1,
+    "function": "get_request",
+    "mutates": false,
+    "params": {
+      "request_id": 582
+    }
+  },
+  "response": {
+    "_user": {
+      "auth_method": "api_key",
+      "email": "[redacted]",
+      "is_owner": true,
+      "name": "\u9ec4\u777f",
+      "tenant_id": 36,
+      "user_id": 52
+    },
+    "request": {
+      "actual_duration_s": 3,
+      "completed_at": "2026-07-04T07:33:15.103550+00:00",
+      "created_at": "2026-07-04T07:33:11.265060+00:00",
+      "estimated_duration_s": 75,
+      "id": 582,
+      "prompt_version_id": null,
+      "request": {
+        "_failure": {
+          "at": "2026-07-04T07:33:15.103550+00:00",
+          "error": "AttributeError: 'bool' object has no attribute 'get'"
+        },
+        "agent": {
+          "accepted_inputs": {
+            "audio": true,
+            "conversation": false,
+            "file": true,
+            "image": true,
+            "text": true,
+            "video": false
+          },
+          "description": "A dry-run-only media interface fixture for image, audio, and file calibration.",
+          "name": "A1 Mock Multimodal Support Agent",
+          "output_format": {
+            "type": "text"
+          },
+          "tools": [
+            {
+              "description": "Inspect a synthetic image or audio attachment.",
+              "name": "inspect_attachment",
+              "parameters": {
+                "properties": {
+                  "attachment_type": {
+                    "enum": [
+                      "image",
+                      "audio",
+                      "file"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "attachment_type"
+                ],
+                "type": "object"
+              }
+            }
+          ]
+        },
+        "context": {
+          "domain": "support operations",
+          "scenario_context": "Use synthetic non-sensitive media descriptions only.",
+          "use_case": "Dry-run image, audio, and file interface calibration only."
+        },
+        "generation_options": {
+          "generate_audio": true,
+          "generate_files": true,
+          "generate_images": true,
+          "generate_simulations": false,
+          "generate_videos": false
+        },
+        "metadata": {
+          "dataset_name": "A1 Media Interface Dry Run",
+          "description": "Dry-run-only fixture to keep image/audio/file request interfaces visible without consuming quota."
+        },
+        "test_config": {
+          "coverage": {
+            "edge_cases": false,
+            "error_handling": false,
+            "happy_path": true
+          },
+          "num_variations": 1,
+          "strategy": "focused"
+        }
+      },
+      "request_input_schema": {
+        "additionalProperties": true,
+        "tools": [
+          {
+            "description": "Inspect a synthetic image or audio attachment.",
+            "name": "inspect_attachment",
+            "parameters": {
+              "properties": {
+                "attachment_type": {
+                  "enum": [
+                    "image",
+                    "audio",
+                    "file"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "attachment_type"
+              ],
+              "type": "object"
+            }
+          }
+        ],
+        "type": "object"
+      },
+      "request_name": "A1 Media Interface Calibration",
+      "request_status": "failed",
+      "requestor_id": 52,
+      "requestor_tenant": 36
+    },
+    "status": "ok"
+  },
+  "response_headers": {},
+  "response_summary": {
+    "request_failure": {
+      "failure_sources": {
+        "request._failure": {
+          "fields": {
+            "at": {
+              "length": 32,
+              "present": true,
+              "type": "string"
+            },
+            "error": {
+              "length": 52,
+              "present": true,
+              "type": "string"
+            }
+          },
+          "keys": [
+            "at",
+            "error"
+          ],
+          "present": true,
+          "type": "object"
+        }
+      },
+      "nested_request_keys": [
+        "_failure",
+        "agent",
+        "context",
+        "generation_options",
+        "metadata",
+        "test_config"
+      ],
+      "request_status": "failed",
+      "top_level_failure_like_keys": []
+    }
+  },
+  "started_at": "2026-07-05T16:46:20Z",
+  "status": "ok",
+  "status_code": 200
+}

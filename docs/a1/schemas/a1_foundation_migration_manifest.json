@@ -1,0 +1,559 @@
+{
+    "version":  1,
+    "migration":  "services/api/migrations/001_a1_large_saas_foundation.sql",
+    "description":  "Static manifest for the A1 large-SaaS Postgres foundation migration. Tests use this to catch SQL, RLS, idempotency, and usage rollup drift without requiring a live database.",
+    "required_extension_statements":  [
+                                          "CREATE EXTENSION IF NOT EXISTS pgcrypto"
+                                      ],
+    "tables":  [
+                   {
+                       "name":  "organizations",
+                       "tenant_column":  "id",
+                       "required_columns":  [
+                                                "id",
+                                                "slug",
+                                                "display_name",
+                                                "status",
+                                                "metadata",
+                                                "created_at",
+                                                "updated_at",
+                                                "deleted_at"
+                                            ],
+                       "required_indexes":  [
+                                                "idx_organizations_status"
+                                            ],
+                       "rls_policy":  "organizations_organization_isolation"
+                   },
+                   {
+                       "name":  "workspaces",
+                       "tenant_column":  "organization_id",
+                       "required_columns":  [
+                                                "id",
+                                                "organization_id",
+                                                "slug",
+                                                "display_name",
+                                                "status",
+                                                "metadata",
+                                                "created_at",
+                                                "updated_at",
+                                                "deleted_at"
+                                            ],
+                       "required_indexes":  [
+                                                "idx_workspaces_org_status"
+                                            ],
+                       "rls_policy":  "workspaces_organization_isolation"
+                   },
+                   {
+                       "name":  "projects",
+                       "tenant_column":  "organization_id",
+                       "required_columns":  [
+                                                "id",
+                                                "organization_id",
+                                                "workspace_id",
+                                                "slug",
+                                                "display_name",
+                                                "status",
+                                                "metadata",
+                                                "created_at",
+                                                "updated_at",
+                                                "deleted_at"
+                                            ],
+                       "required_indexes":  [
+                                                "idx_projects_org_workspace_status"
+                                            ],
+                       "rls_policy":  "projects_organization_isolation"
+                   },
+                   {
+                       "name":  "environments",
+                       "tenant_column":  "organization_id",
+                       "required_columns":  [
+                                                "id",
+                                                "organization_id",
+                                                "project_id",
+                                                "name",
+                                                "kind",
+                                                "status",
+                                                "config",
+                                                "created_at",
+                                                "updated_at",
+                                                "deleted_at"
+                                            ],
+                       "required_indexes":  [
+                                                "idx_environments_project_kind"
+                                            ],
+                       "rls_policy":  "environments_organization_isolation"
+                   },
+                   {
+                       "name":  "datasets",
+                       "tenant_column":  "organization_id",
+                       "required_columns":  [
+                                                "id",
+                                                "organization_id",
+                                                "project_id",
+                                                "environment_id",
+                                                "external_id",
+                                                "name",
+                                                "version",
+                                                "status",
+                                                "schema_json",
+                                                "metadata",
+                                                "created_at",
+                                                "updated_at",
+                                                "deleted_at"
+                                            ],
+                       "required_indexes":  [
+                                                "idx_datasets_project_created"
+                                            ],
+                       "rls_policy":  "datasets_organization_isolation"
+                   },
+                   {
+                       "name":  "runs",
+                       "tenant_column":  "organization_id",
+                       "required_columns":  [
+                                                "id",
+                                                "organization_id",
+                                                "project_id",
+                                                "environment_id",
+                                                "dataset_id",
+                                                "external_id",
+                                                "run_key",
+                                                "status",
+                                                "started_at",
+                                                "completed_at",
+                                                "request_fingerprint",
+                                                "summary",
+                                                "metadata",
+                                                "created_at",
+                                                "updated_at"
+                                            ],
+                       "required_indexes":  [
+                                                "idx_runs_project_created",
+                                                "idx_runs_project_status"
+                                            ],
+                       "rls_policy":  "runs_organization_isolation"
+                   },
+                   {
+                       "name":  "case_results",
+                       "tenant_column":  "organization_id",
+                       "required_columns":  [
+                                                "id",
+                                                "organization_id",
+                                                "project_id",
+                                                "run_id",
+                                                "dataset_id",
+                                                "case_id",
+                                                "status",
+                                                "score",
+                                                "failure_class",
+                                                "input",
+                                                "output",
+                                                "evaluation",
+                                                "started_at",
+                                                "completed_at",
+                                                "created_at"
+                                            ],
+                       "required_indexes":  [
+                                                "idx_case_results_run_status"
+                                            ],
+                       "rls_policy":  "case_results_organization_isolation"
+                   },
+                   {
+                       "name":  "trace_events",
+                       "tenant_column":  "organization_id",
+                       "required_columns":  [
+                                                "id",
+                                                "organization_id",
+                                                "project_id",
+                                                "run_id",
+                                                "case_result_id",
+                                                "sequence_no",
+                                                "event_type",
+                                                "payload",
+                                                "occurred_at",
+                                                "span_id",
+                                                "parent_event_id",
+                                                "attributes"
+                                            ],
+                       "required_indexes":  [
+                                                "idx_trace_events_run_order"
+                                            ],
+                       "rls_policy":  "trace_events_organization_isolation"
+                   },
+                   {
+                       "name":  "observations",
+                       "tenant_column":  "organization_id",
+                       "required_columns":  [
+                                                "id",
+                                                "organization_id",
+                                                "project_id",
+                                                "run_id",
+                                                "case_result_id",
+                                                "trace_event_id",
+                                                "observation_type",
+                                                "subject_type",
+                                                "subject_id",
+                                                "severity",
+                                                "value",
+                                                "observed_at",
+                                                "created_at"
+                                            ],
+                       "required_indexes":  [
+                                                "idx_observations_project_type_time"
+                                            ],
+                       "rls_policy":  "observations_organization_isolation"
+                   },
+                   {
+                       "name":  "artifacts",
+                       "tenant_column":  "organization_id",
+                       "required_columns":  [
+                                                "id",
+                                                "organization_id",
+                                                "project_id",
+                                                "run_id",
+                                                "case_result_id",
+                                                "artifact_type",
+                                                "storage_uri",
+                                                "content_type",
+                                                "byte_size",
+                                                "sha256",
+                                                "metadata",
+                                                "created_at"
+                                            ],
+                       "required_indexes":  [
+                                                "idx_artifacts_project_type_created"
+                                            ],
+                       "rls_policy":  "artifacts_organization_isolation"
+                   },
+                   {
+                       "name":  "evidence_bundles",
+                       "tenant_column":  "organization_id",
+                       "required_columns":  [
+                                                "id",
+                                                "organization_id",
+                                                "project_id",
+                                                "run_id",
+                                                "case_result_id",
+                                                "name",
+                                                "status",
+                                                "manifest",
+                                                "artifact_ids",
+                                                "sealed_at",
+                                                "created_at"
+                                            ],
+                       "required_indexes":  [
+                                                "idx_evidence_bundles_project_status"
+                                            ],
+                       "rls_policy":  "evidence_bundles_organization_isolation"
+                   },
+                   {
+                       "name":  "api_keys",
+                       "tenant_column":  "organization_id",
+                       "required_columns":  [
+                                                "id",
+                                                "organization_id",
+                                                "workspace_id",
+                                                "project_id",
+                                                "name",
+                                                "key_prefix",
+                                                "key_hash",
+                                                "scopes",
+                                                "status",
+                                                "last_used_at",
+                                                "expires_at",
+                                                "revoked_at",
+                                                "created_at"
+                                            ],
+                       "required_indexes":  [
+                                                "idx_api_keys_org_status"
+                                            ],
+                       "rls_policy":  "api_keys_organization_isolation"
+                   },
+                   {
+                       "name":  "webhook_endpoints",
+                       "tenant_column":  "organization_id",
+                       "required_columns":  [
+                                                "id",
+                                                "organization_id",
+                                                "project_id",
+                                                "url",
+                                                "secret_hash",
+                                                "event_types",
+                                                "status",
+                                                "retry_policy",
+                                                "created_at",
+                                                "updated_at",
+                                                "deleted_at"
+                                            ],
+                       "required_indexes":  [
+                                                "idx_webhook_endpoints_org_status"
+                                            ],
+                       "rls_policy":  "webhook_endpoints_organization_isolation"
+                   },
+                   {
+                       "name":  "idempotency_keys",
+                       "tenant_column":  "organization_id",
+                       "required_columns":  [
+                                                "id",
+                                                "organization_id",
+                                                "project_id",
+                                                "idempotency_key",
+                                                "request_method",
+                                                "request_path",
+                                                "fingerprint",
+                                                "status",
+                                                "response_code",
+                                                "response_body",
+                                                "locked_until",
+                                                "created_at",
+                                                "updated_at"
+                                            ],
+                       "required_indexes":  [
+                                                "idx_idempotency_keys_created"
+                                            ],
+                       "rls_policy":  "idempotency_keys_organization_isolation"
+                   },
+                   {
+                       "name":  "usage_ledger",
+                       "tenant_column":  "organization_id",
+                       "required_columns":  [
+                                                "id",
+                                                "organization_id",
+                                                "workspace_id",
+                                                "project_id",
+                                                "environment_id",
+                                                "idempotency_key_id",
+                                                "operation",
+                                                "meter",
+                                                "quantity",
+                                                "unit",
+                                                "source_type",
+                                                "source_id",
+                                                "period_start",
+                                                "period_end",
+                                                "metadata",
+                                                "created_at"
+                                            ],
+                       "required_indexes":  [
+                                                "idx_usage_ledger_idempotency_key_unique",
+                                                "idx_usage_ledger_operation_period",
+                                                "idx_usage_ledger_scope_meter_period",
+                                                "idx_usage_ledger_workspace_meter_period"
+                                            ],
+                       "rls_policy":  "usage_ledger_organization_isolation"
+                   },
+                   {
+                       "name":  "usage_rollups",
+                       "tenant_column":  "organization_id",
+                       "required_columns":  [
+                                                "organization_id",
+                                                "workspace_id",
+                                                "project_id",
+                                                "meter",
+                                                "period",
+                                                "period_start",
+                                                "period_end",
+                                                "total_quantity",
+                                                "ledger_entries",
+                                                "updated_at"
+                                            ],
+                       "required_indexes":  [
+                                                "idx_usage_rollups_scope_meter_period",
+                                                "idx_usage_rollups_workspace_meter_period"
+                                            ],
+                       "rls_policy":  "usage_rollups_organization_isolation"
+                   },
+                   {
+                       "name":  "quota_policies",
+                       "tenant_column":  "organization_id",
+                       "required_columns":  [
+                                                "id",
+                                                "organization_id",
+                                                "project_id",
+                                                "meter",
+                                                "period",
+                                                "limit_quantity",
+                                                "enforcement_mode",
+                                                "status",
+                                                "effective_from",
+                                                "effective_until",
+                                                "metadata",
+                                                "created_at"
+                                            ],
+                       "required_indexes":  [
+                                                "idx_quota_policies_scope_meter"
+                                            ],
+                       "rls_policy":  "quota_policies_organization_isolation"
+                   },
+                   {
+                       "name":  "jobs",
+                       "tenant_column":  "organization_id",
+                       "required_columns":  [
+                                                "id",
+                                                "organization_id",
+                                                "project_id",
+                                                "environment_id",
+                                                "job_type",
+                                                "status",
+                                                "priority",
+                                                "dedupe_key",
+                                                "payload",
+                                                "run_after",
+                                                "locked_by",
+                                                "locked_at",
+                                                "attempts",
+                                                "max_attempts",
+                                                "created_at",
+                                                "updated_at",
+                                                "completed_at"
+                                            ],
+                       "required_indexes":  [
+                                                "idx_jobs_ready_queue",
+                                                "idx_jobs_project_status"
+                                            ],
+                       "rls_policy":  "jobs_organization_isolation"
+                   },
+                   {
+                       "name":  "audit_log",
+                       "tenant_column":  "organization_id",
+                       "required_columns":  [
+                                                "id",
+                                                "organization_id",
+                                                "project_id",
+                                                "idempotency_key_id",
+                                                "actor_type",
+                                                "actor_id",
+                                                "action",
+                                                "resource_type",
+                                                "resource_id",
+                                                "payload",
+                                                "request_id",
+                                                "entry_hash",
+                                                "prev_hash",
+                                                "created_at"
+                                            ],
+                       "required_indexes":  [
+                                                "idx_audit_log_scope_created",
+                                                "idx_audit_log_resource"
+                                            ],
+                       "rls_policy":  "audit_log_organization_isolation"
+                   }
+               ],
+    "required_functions":  {
+                               "a1_current_organization_id":  {
+                                                                  "must_contain":  [
+                                                                                       "current_setting(\u0027app.a1_organization_id\u0027, true)"
+                                                                                   ]
+                                                              },
+                               "ensure_idempotency_fingerprint":  {
+                                                                      "must_contain":  [
+                                                                                           "FOR UPDATE",
+                                                                                           "RAISE EXCEPTION",
+                                                                                           "unique_violation",
+                                                                                           "idempotency_keys"
+                                                                                       ]
+                                                                  },
+                               "rollup_usage":  {
+                                                    "must_contain":  [
+                                                                         "RETURNS TABLE",
+                                                                         "COALESCE(SUM(u.quantity), 0)::NUMERIC",
+                                                                         "COUNT(*)::BIGINT",
+                                                                         "u.period_start \u003e= p_period_start",
+                                                                         "u.period_end \u003c= p_period_end",
+                                                                         "GROUP BY u.organization_id, u.project_id, u.meter"
+                                                                     ]
+                                                },
+                               "audit_chain_tail":  {
+                                                        "must_contain":  [
+                                                                             "ORDER BY created_at DESC, id DESC",
+                                                                             "LIMIT 1"
+                                                                         ]
+                                                    },
+                               "usage_rollup_period_bounds":  {
+                                                                  "must_contain":  [
+                                                                                       "date_trunc(\u0027hour\u0027, p_at)",
+                                                                                       "date_trunc(\u0027day\u0027, p_at)",
+                                                                                       "date_trunc(\u0027month\u0027, p_at)",
+                                                                                       "RAISE EXCEPTION"
+                                                                                   ]
+                                                              },
+                               "upsert_usage_rollup_from_ledger":  {
+                                                                       "must_contain":  [
+                                                                                            "FOREACH rollup_period IN ARRAY",
+                                                                                            "INSERT INTO usage_rollups",
+                                                                                            "ON CONFLICT (organization_id, project_id, meter, period, period_start)",
+                                                                                            "total_quantity = usage_rollups.total_quantity + EXCLUDED.total_quantity",
+                                                                                            "ledger_entries = usage_rollups.ledger_entries + 1"
+                                                                                        ]
+                                                                   },
+                               "audit_quota_policy_change":  {
+                                                                 "must_contain":  [
+                                                                                      "audit_chain_tail(target_policy.organization_id, target_policy.project_id)",
+                                                                                      "jsonb_build_object",
+                                                                                      "quota_policy_trigger",
+                                                                                      "INSERT INTO audit_log",
+                                                                                      "digest("
+                                                                                  ]
+                                                             },
+                               "operation_meter_mapping":  {
+                                                               "must_contain":  [
+                                                                                    "(\u0027sdk.submit\u0027, \u0027runs\u0027, \u0027count\u0027, 1::NUMERIC)",
+                                                                                    "(\u0027trace.ingest\u0027, \u0027observations\u0027, \u0027count\u0027, 1::NUMERIC)",
+                                                                                    "(\u0027artifact.manifest\u0027, \u0027storage_bytes\u0027, \u0027bytes\u0027, 0::NUMERIC)",
+                                                                                    "unsupported quota operation"
+                                                                                ]
+                                                           },
+                               "current_quota_policy":  {
+                                                            "must_contain":  [
+                                                                                 "status = \u0027active\u0027",
+                                                                                 "effective_from \u003c= p_at",
+                                                                                 "effective_until IS NULL OR effective_until \u003e p_at",
+                                                                                 "ORDER BY enforcement_mode DESC, period ASC, limit_quantity ASC"
+                                                                             ]
+                                                        },
+                               "append_quota_denied_audit_event":  {
+                                                                       "must_contain":  [
+                                                                                            "\u0027quota.denied\u0027",
+                                                                                            "\u0027quota_check\u0027",
+                                                                                            "jsonb_build_object",
+                                                                                            "INSERT INTO audit_log",
+                                                                                            "audit_chain_tail(p_organization_id, p_project_id)"
+                                                                                        ]
+                                                                   },
+                               "check_quota_and_insert_usage":  {
+                                                                    "must_contain":  [
+                                                                                         "operation_meter_mapping(p_operation)",
+                                                                                         "idempotency_key_id = p_idempotency_key_id",
+                                                                                         "FOR UPDATE",
+                                                                                         "pg_advisory_xact_lock",
+                                                                                         "append_quota_denied_audit_event",
+                                                                                         "ON CONFLICT (organization_id, project_id, idempotency_key_id) WHERE idempotency_key_id IS NOT NULL",
+                                                                                         "RETURNING * INTO inserted_usage"
+                                                                                     ]
+                                                                }
+                           },
+    "optional_live_hook":  {
+                               "env":  "A1_POSTGRES_TEST_DSN",
+                               "psql_bin_env":  "A1_PSQL_BIN",
+                               "smoke_test":  "tests/integration/test_a1_large_saas_migration_live.py"
+                           },
+    "quota_dimensions":  [
+                             "runs",
+                             "observations",
+                             "media",
+                             "voice_minutes",
+                             "projects",
+                             "storage_bytes"
+                         ],
+    "required_triggers":  {
+                              "usage_ledger_rollup_after_insert":  {
+                                                                       "table":  "usage_ledger",
+                                                                       "timing":  "AFTER INSERT",
+                                                                       "function":  "upsert_usage_rollup_from_ledger"
+                                                                   },
+                              "quota_policies_audit_after_change":  {
+                                                                        "table":  "quota_policies",
+                                                                        "timing":  "AFTER INSERT OR UPDATE OR DELETE",
+                                                                        "function":  "audit_quota_policy_change"
+                                                                    }
+                          }
+}

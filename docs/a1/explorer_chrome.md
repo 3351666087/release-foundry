@@ -1,0 +1,104 @@
+# Explorer Chrome Calibration
+
+Date: 2026-07-03
+Mode: read-only Chrome checks. No ReleaseFoundry API key, password, payment data, or other secret was entered.
+
+## Public Site
+
+- `https://releasefoundry.example/` loaded with title `ReleaseFoundry`.
+- Homepage headline observed: `Evals for Agents That Actually Work`.
+- Public nav links observed: Home, Docs, Plans, Blog, Book a Call, Login.
+- Login points to `https://app.releasefoundry.example/`.
+- Public setup copy observed: `Set up agent testing in one command.` and `Scale agent testing by usage.`
+
+## Python SDK Docs
+
+- `https://releasefoundry.example/docs/python-sdk/overview/` loaded with title `ReleaseFoundry Python SDK | ReleaseFoundry`.
+- Public docs show `pip install releasefoundry`.
+- Public docs show SDK surfaces used only as field-map calibration: `ReleaseFoundryClient`, `EvalRunner`, `RunBuilder`, `Agent`, `client.trace()`, `Span`, `Generation`, and `observability`.
+- Testing docs show the local agent protocol `respond()` / `reset()`, `EvalRunner.from_dataset`, `runner.run(...)`, `runner.run_and_deploy(...)`, `tool_calls`, `arguments`, `arguments_json`, `max_workers`, and dashboard deeplinks.
+- VM integration docs show `set_vm_stream`, provider/session/log metadata, browser-agent logs, and the note that VM streams are not auto-captured.
+- API reference shows API-key authentication, `RELEASEFOUNDRY_API_KEY`, default base URL `https://api.releasefoundry.example/testing-platform-api`, dataset/run methods, observability trace/span/generation methods, and feature-gated observability behavior.
+
+## TypeScript SDK Docs
+
+- `https://releasefoundry.example/docs/typescript-sdk/overview/` loaded with title `ReleaseFoundry TypeScript SDK | ReleaseFoundry`.
+- Public TypeScript docs expose parallel Testing Platform and Observability sections.
+- TypeScript overview states Observability is a separate product and requires the tenant observability feature flag.
+- TypeScript docs are recorded for product calibration only; A1 implemented Python local clone surfaces in this round.
+
+## Public Plans And Usage
+
+- Plans section loaded from `https://releasefoundry.example/#plans`.
+- Billing toggle copy observed: `Monthly` and `Annual Save 17%`.
+- Developer plan: `$39 /mo`, hard cap, 5,000 graded scenarios/mo, 250,000 observations/mo, 1,000 voice minutes/mo, 14 day retention, 1 project.
+- Startup plan: `$500 /mo`, metered overage, 100,000 graded scenarios/mo, 10,000,000 observations/mo, 50,000 voice minutes/mo, 90 day retention, unlimited projects.
+- Annual toggle was publicly visible. Developer annual price: `$390 /yr`; Startup annual price: `$5,000 /yr`; Enterprise remains custom/contact sales.
+- Enterprise plan: custom/contact sales for graded scenarios, observations, voice minutes, retention, and projects.
+
+## Dashboard Shell
+
+- Earlier read-only checks reached title `ReleaseFoundry`, URL `https://app.releasefoundry.example/?tab=analysis`, sign-in actions `Continue with Google` and `Continue with Microsoft`, Terms/Privacy links, public releasefoundry.example/Docs/Blog links, onboarding text `Create your workspace`, and a `Pick a plan` panel.
+- Earlier unauthenticated onboarding plan copy included `FREE $0/mo`, `100 images / mo`, `200 audio files / mo`, `100 sample files / mo`, and `CUSTOM Let's talk` with unlimited images/audio/sample files.
+- Round 4 could not reproduce the exact sign-in/onboarding plan-copy state; it reached title `ReleaseFoundry`, public Home/Docs/Blog links, and a dashboard-like `Datasets`/loading shell at `https://app.releasefoundry.example/?tab=analysis`.
+- Private dashboard data, project data, API key creation, billing portal, checkout, and server-side grading state were not verified.
+
+## API And VM Boundary Notes
+
+- Python API reference publicly lists `list_api_keys(include_inactive=False)` and `revoke_api_key(api_key_id)`.
+- TypeScript API reference publicly lists `listApiKeys(includeInactive?)` and `revokeApiKey(apiKeyId)`.
+- VM docs show `test.set_vm_stream(provider, session_id=None, duration_ms=None, logs=None, metadata=None)`.
+- VM log entry fields are `ts`, `type`, and `data`; docs state VM logs are not auto-captured.
+
+## Round 4 Recheck
+
+- `https://releasefoundry.example/` remained accessible with title `ReleaseFoundry`, headline `Evals for Agents That Actually Work`, and public nav links to Docs, Plans, Blog, Book a Call, and Login.
+- Monthly and annual public plan copy remained visible: Developer `$39 /mo` and `$390 /yr`; Startup `$500 /mo` and `$5,000 /yr`; Enterprise custom/contact sales.
+- Python API reference still listed `list_api_keys(include_inactive=False)`, `revoke_api_key(api_key_id)`, `set_vm_stream(...)`, and the observability feature flag note.
+- VM integration guide still described VM streams as per-test metadata and showed `set_vm_stream` / VM log fields.
+- TypeScript overview still stated Testing Platform and Observability share the SDK/API key while Observability requires a tenant feature flag.
+- `https://app.releasefoundry.example/` reached title `ReleaseFoundry`, public Home/Docs/Blog links, and a dashboard-like `Datasets`/loading shell at `https://app.releasefoundry.example/?tab=analysis`; the earlier sign-in/onboarding plan-copy state was not reproduced, and no authenticated dashboard data was used as clone input.
+
+## Round 5 Recheck
+
+- Main-agent read-only Chrome check again found public homepage/docs/API/VM/TypeScript pages accessible and consistent with the field map: homepage title `ReleaseFoundry`; H1 `Evals for Agents That Actually Work`; public nav Home/Docs/Plans/Blog/Book a Call/Login; Python docs show `pip install releasefoundry`; API reference shows `list_api_keys`, `revoke_api_key`, `set_vm_stream`, and observability feature-flag language.
+
+## 2026-07-04 Logged-In Dashboard Check
+
+- Chrome was already logged in to `app.releasefoundry.example`.
+- Main-agent read-only check navigated only to `https://app.releasefoundry.example/?tab=analysis`, not to API key pages.
+- Page title was `ReleaseFoundry`; login/sign-in text was not present.
+- Dashboard shell hints included `Datasets` and `Runs`.
+- Screenshot path: `docs/evidence/private_refs/releasefoundry_lab_analysis_2026-07-04.png` (ignored private evidence, not for commit).
+- Public pricing copy remained visible: Developer `$39 /mo`, Startup `$500 /mo`; Explorer-Chrome also verified annual Developer `$390 /yr` and Startup `$5,000 /yr`.
+- VM docs still state EvalRunner does not auto-capture VM logs, show `test.set_vm_stream(...)`, and describe VM log fields `ts`, `type`, and `data`.
+- Lab shell was variable across read-only checks in the same round. Main-agent Chrome saw title `ReleaseFoundry` with a `Datasets` loading shell at `https://app.releasefoundry.example/?tab=analysis`; Explorer-Chrome reproduced the unauthenticated sign-in/onboarding shell with `Continue with Google`, `Continue with Microsoft`, `Create your workspace`, `Pick a plan`, `FREE`, `$0/mo`, and quota copy. No private dashboard data, authenticated state, key creation/enforcement, billing, hosted grading, or observability rendering was verified.
+
+## 2026-07-06 A1 Queue Lease Round Recheck
+
+- Main-agent Chrome check was read-only and did not open API Keys, payment, checkout, or credential pages.
+- `https://releasefoundry.example/` loaded with title `ReleaseFoundry`; public nav still included Docs and Plans. The automatic text extractor found plan tier names `Developer`, `Startup`, and `Enterprise`; detailed price text was not re-extracted in this main-thread pass, while Explorer-Chrome separately observed Developer `$39/mo`, Startup `$500/mo`, and Enterprise custom/contact sales.
+- Python API reference remained public and exposed `ReleaseFoundryClient`, `from_env`, `create_request`, `list_requests`, `trace`, `TestBuilder`, and `RunBuilder`.
+- TypeScript API reference remained public and exposed `ReleaseFoundryClient`, `fromEnv`, `createRequest`, `listRequests`, `waitForRequest`, `Trace`, and `Generation`.
+- `https://app.releasefoundry.example/?tab=usage` loaded with title `ReleaseFoundry` and a visible `Usage` signal. The automated extractor did not reliably capture Images/Audio/Files counters in this pass, so no usage counter values are recorded here. API Keys was not opened to avoid key exposure.
+
+## 2026-07-06 Explorer-Chrome Public Docs And Usage Boundary Recheck
+
+- Mode: Chrome was available. Checks were read-only. API Keys, payment, checkout, and credential pages were not opened. No API key, password, payment value, or exact private usage counter was read, entered, or printed. Dashboard snippets were redacted in-browser before output.
+- Python API reference `https://releasefoundry.example/docs/python-sdk/api-reference/` loaded with title `API Reference | ReleaseFoundry`. It publicly exposed `create_request(request_name, request, request_input_schema=None, tenant_id=None, requestor_id=None)`. `request_input_schema` is optional and documented as using a permissive default if omitted, with agent tools included under `tools` for skill-template saving.
+- Python `create_request` request config sections remained `metadata`, `agent`, `context`, `test_config`, and `generation_options`. The visible `accepted_inputs` docs stated values can be booleans or `{enabled: bool}`; this pass captured text, audio, file, and image rows. Python `generation_options` visibly listed `generate_audio`, `generate_files`, `generate_images`, `generate_videos`, and `generate_simulations`.
+- TypeScript API reference `https://releasefoundry.example/docs/typescript-sdk/api-reference/` loaded with title `API Reference | ReleaseFoundry`. It publicly exposed `createRequest(requestName, request, requestInputSchema?, tenantId?, requestorId?)`; `requestInputSchema` is optional and documented as using a permissive default if omitted.
+- TypeScript `accepted_inputs` examples visibly included `text`, `audio`, `file`, `image`, and `video`. TypeScript `generation_options` examples visibly included `generate_audio`, `generate_files`, and `generate_simulations`; `generate_images` and `generate_videos` were not visible in the TypeScript API page during this pass.
+- Public ReleaseFoundry docs did not expose a `preflight` request field. In this repo, Python and TypeScript `preflight` remain local clone guardrails/record summaries, not an observed public ReleaseFoundry API body field. Local preflight fields include `num_variations`, `num_variations_known`, `media_generation` (`audio`, `files`, `images`, `videos`, `simulations`), `media_generation_enabled`, `accepted_inputs_known`, `accepted_input_flags`, `agent_input_part_types`, `agent_input_schema_version`, `non_text_inputs_enabled`, `small_batch`, `notes`, and caller-added `request_input_schema_source`.
+- Public Plans boundary: `https://releasefoundry.example/plans` returned 404 in this pass; the active public Plans entry is the homepage anchor `https://releasefoundry.example/#plans`. The homepage showed `Monthly` and `Annual Save 17%` toggle copy. Visible monthly plan copy: Developer is `HARD CAP`, `$39/mo`, 5,000 graded scenarios/mo, 250,000 observations/mo, 1,000 voice minutes/mo, 14 days retention, and 1 project. Startup is `METERED OVERAGE`, `$500/mo`, 100,000 graded scenarios/mo, 10,000,000 observations/mo, 50,000 voice minutes/mo, 90 days retention, and unlimited projects. Enterprise remains custom/contact sales.
+- Dashboard Usage boundary: an existing `https://app.releasefoundry.example/?tab=analysis` tab initially showed an authenticated-looking shell with `Datasets` and `Runs`, no sign-in text, and no `API Keys` text in the current view. Opening `https://app.releasefoundry.example/?tab=usage` in a new tab, and then clicking the single visible `Usage` button from the analysis shell, both landed on an `ReleaseFoundry` session-expired/sign-in plus onboarding `Pick a plan` shell.
+- Dashboard Images/Audio/Files current visible state: the authenticated Usage counter table did not load. The session-expired/onboarding shell showed plan-resource labels only: `images / mo`, `audio files / mo`, `sample files / mo`, `Videos`, `Simulations`, plus custom-plan copy for unlimited images and unlimited audio/sample files. Exact numeric dashboard or onboarding values were intentionally not recorded in this pass.
+- Current gaps: authenticated Usage `Images`, `Audio`, and `Files` used-of-limit counters; exact dashboard usage/remaining fields; dashboard billing or overage enforcement; API key list/revoke UI state; checkout/payment state; and hosted pricing enforcement remain unverified.
+
+## 2026-07-06 A1 Round7 Usage/API Boundary Recheck
+
+- Mode: Chrome read-only. API Keys, payment, checkout, credential, and billing mutation pages were not opened.
+- `https://releasefoundry.example/` loaded with title `ReleaseFoundry` and public signals for Docs, Plans, Developer, Startup, Enterprise, `$39`, and `$500`.
+- Primary docs host `https://docs.releasefoundry.example/` returned `net::ERR_CONNECTION_CLOSED`; fallback `https://releasefoundry.example/docs` returned `404 Not Found`. No docs fields were inferred from those failed pages.
+- `https://app.releasefoundry.example/?tab=usage` loaded with title `ReleaseFoundry` and visible labels/counters for `Usage`, `Images`, `Audio`, and `Files`. Exact private counter values were saved only to ignored private evidence at `docs/evidence/private_refs/a1_chrome_official_usage_round7.json` and are not recorded in tracked docs.
+- Current boundary: Image/Audio/File usage labels are confirmed as same-level dashboard resources. Video/Simulation usage labels were not visible on the logged-in Usage page in this pass, though prior onboarding/public plan shells exposed media/resource copy for those modalities.

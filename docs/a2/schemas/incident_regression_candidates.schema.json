@@ -1,0 +1,140 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A2IncidentRegressionCandidates",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "report_id",
+    "source_incident_count",
+    "source_incidents",
+    "candidate_count",
+    "ready_candidate_count",
+    "ready_for_case_book_review",
+    "public_safety",
+    "candidates",
+    "metadata"
+  ],
+  "properties": {
+    "schema_version": { "const": "a2.incident_regression_candidates.v1" },
+    "report_id": { "type": "string" },
+    "source_incident_count": { "type": "integer", "minimum": 0 },
+    "source_incidents": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/source_incident" }
+    },
+    "candidate_count": { "type": "integer", "minimum": 0 },
+    "ready_candidate_count": { "type": "integer", "minimum": 0 },
+    "ready_for_case_book_review": { "type": "boolean" },
+    "public_safety": { "$ref": "#/$defs/public_safety" },
+    "candidates": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/candidate" }
+    },
+    "metadata": { "type": "object" }
+  },
+  "$defs": {
+    "string_array": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "source_incident": {
+      "type": "object",
+      "required": ["incident_id", "source_ref", "environment", "reported_at", "title", "summary", "public_safe"],
+      "properties": {
+        "incident_id": { "type": "string" },
+        "source_ref": { "type": "string" },
+        "environment": { "type": "string" },
+        "reported_at": { "type": "string" },
+        "title": { "type": "string" },
+        "summary": { "type": "string" },
+        "public_safe": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    },
+    "public_safety": {
+      "type": "object",
+      "required": ["safe", "checks", "private_field_names", "forbidden_pattern_names", "redaction_policy"],
+      "properties": {
+        "safe": { "type": "boolean" },
+        "checks": { "type": "object" },
+        "private_field_names": { "$ref": "#/$defs/string_array" },
+        "forbidden_pattern_names": { "$ref": "#/$defs/string_array" },
+        "redaction_policy": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "source_summary": {
+      "type": "object",
+      "required": ["available", "status", "source", "provider", "primary_failure_class", "rationale", "evidence_ref"],
+      "properties": {
+        "available": { "type": "boolean" },
+        "status": { "type": "string" },
+        "source": { "type": "string" },
+        "provider": { "type": "string" },
+        "passed": { "type": ["boolean", "null"] },
+        "primary_failure_class": { "type": "string" },
+        "score": { "type": ["number", "null"] },
+        "confidence": { "type": ["number", "null"] },
+        "rationale": { "type": "string" },
+        "evidence_ref": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "candidate": {
+      "type": "object",
+      "required": [
+        "regression_id",
+        "case_id",
+        "scenario_id",
+        "fixture_ref",
+        "status",
+        "severity",
+        "source",
+        "incident_id",
+        "environment",
+        "calibration_focus",
+        "expected",
+        "local_judge",
+        "releasefoundry_grading",
+        "semantic_or_llm_judge",
+        "disagreement_pairs",
+        "regression_assertion",
+        "reviewer_note",
+        "evidence_refs",
+        "public_safe",
+        "ready_for_case_book_review",
+        "case_book_candidate",
+        "promotion_blockers"
+      ],
+      "properties": {
+        "regression_id": { "type": "string" },
+        "case_id": { "type": "string" },
+        "scenario_id": { "type": "string" },
+        "fixture_ref": { "type": "string" },
+        "status": { "type": "string" },
+        "severity": { "type": "string" },
+        "source": { "type": "string" },
+        "incident_id": { "type": "string" },
+        "environment": { "type": "string" },
+        "calibration_focus": { "$ref": "#/$defs/string_array" },
+        "expected": { "type": "object" },
+        "local_judge": { "$ref": "#/$defs/source_summary" },
+        "releasefoundry_grading": { "$ref": "#/$defs/source_summary" },
+        "semantic_or_llm_judge": { "$ref": "#/$defs/source_summary" },
+        "disagreement_pairs": {
+          "type": "array",
+          "items": { "type": "object" }
+        },
+        "regression_assertion": { "type": "string" },
+        "reviewer_note": { "type": "string" },
+        "evidence_refs": { "$ref": "#/$defs/string_array" },
+        "public_safe": { "type": "boolean" },
+        "ready_for_case_book_review": { "type": "boolean" },
+        "case_book_candidate": { "type": "boolean" },
+        "promotion_blockers": { "$ref": "#/$defs/string_array" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

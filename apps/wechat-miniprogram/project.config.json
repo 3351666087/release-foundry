@@ -1,0 +1,41 @@
+{
+  "description": "ReleaseFoundry 企业发布中心：移动审批、证据复核与风险响应。",
+  "appid": "touristappid",
+  "projectname": "releasefoundry-release-center-wechat",
+  "miniprogramRoot": "./",
+  "compileType": "miniprogram",
+  "setting": {
+    "urlCheck": true,
+    "es6": true,
+    "enhance": true,
+    "postcss": true,
+    "minified": false,
+    "coverView": true
+  },
+  "condition": {
+    "miniprogram": {
+      "list": [
+        {
+          "name": "发布工作台",
+          "pathName": "pages/workbench/index",
+          "query": ""
+        },
+        {
+          "name": "发布审批",
+          "pathName": "pages/release-approval/index",
+          "query": "releaseId=local-mock-commercial-gate"
+        },
+        {
+          "name": "风险告警",
+          "pathName": "pages/incident-alert/index",
+          "query": "incidentId=incident-local-risk&releaseId=local-mock-commercial-gate"
+        },
+        {
+          "name": "账户与连接",
+          "pathName": "pages/account/index",
+          "query": ""
+        }
+      ]
+    }
+  }
+}

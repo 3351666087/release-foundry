@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://releasefoundry.local/schemas/a2/multimodal_round22_qwen_output_modes.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "model_binding", "observations", "comparison", "qualification_state", "blockers", "release_authority", "public_safe"],
+  "properties": {
+    "schema_version": {"const": "a2.multimodal_round22_qwen_output_modes.v1"},
+    "model_binding": {
+      "type": "object", "additionalProperties": false,
+      "required": ["provider_id", "model_id", "model_version", "prompt_hash", "seed", "temperature", "thinking"],
+      "properties": {
+        "provider_id": {"type": "string", "minLength": 1}, "model_id": {"type": "string", "minLength": 1},
+        "model_version": {"$ref": "#/$defs/hash"}, "prompt_hash": {"$ref": "#/$defs/hash"},
+        "seed": {"type": "integer"}, "temperature": {"type": "number", "minimum": 0}, "thinking": {"const": false}
+      }
+    },
+    "observations": {
+      "type": "array", "minItems": 6, "maxItems": 6,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["mode", "case_id", "artifact_hash", "http_state", "raw_envelope_hash", "response_hash", "parse_state", "wall_seconds", "done_reason", "eval_count"],
+        "properties": {
+          "mode": {"enum": ["think_false_json", "think_false_plain"]}, "case_id": {"type": "string", "minLength": 1},
+          "artifact_hash": {"$ref": "#/$defs/hash"}, "http_state": {"const": "completed"},
+          "raw_envelope_hash": {"$ref": "#/$defs/hash"}, "response_hash": {"$ref": "#/$defs/hash"},
+          "parse_state": {"enum": ["empty_response", "valid_json"]}, "wall_seconds": {"type": "number", "minimum": 0},
+          "done_reason": {"const": "stop"}, "eval_count": {"type": "integer", "minimum": 0}
+        }
+      }
+    },
+    "comparison": {
+      "type": "object", "additionalProperties": false,
+      "required": ["format_json_state", "plain_state", "plain_safe_control_specificity", "plain_max_wall_seconds"],
+      "properties": {
+        "format_json_state": {"const": "blocked_empty_response"},
+        "plain_state": {"const": "structured_observation_available_but_latency_blocked"},
+        "plain_safe_control_specificity": {"type": "number", "minimum": 0, "maximum": 1},
+        "plain_max_wall_seconds": {"type": "number", "minimum": 0}
+      }
+    },
+    "qualification_state": {"const": "blocked"},
+    "blockers": {"type": "array", "minItems": 1, "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "release_authority": {"const": false}, "public_safe": {"const": true}
+  },
+  "$defs": {"hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}}
+}

@@ -1,0 +1,8 @@
+{
+  "collection_state": "pending",
+  "note": "No independently verified human reviewer was available during Round 52; the retained disagreement remains pending and has no A2 release authority.",
+  "public_safe": true,
+  "receipts": [],
+  "release_authority": false,
+  "schema_version": "a2.multimodal_real_review_collection.v1"
+}

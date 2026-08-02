@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://releasefoundry.local/schemas/a1/billing_sql_semantic_contract.schema.json",
+  "title": "A1 Billing SQL Semantic Contract Evidence",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "migration",
+    "public_safe",
+    "provider_config_storage",
+    "replay_semantics",
+    "object_evidence_linkage",
+    "validation"
+  ],
+  "properties": {
+    "schema_version": {"const": "releasefoundry.a1.billing_sql_semantic_contract.v1"},
+    "migration": {"const": "services/api/migrations/002_a1_billing_ledger.sql"},
+    "public_safe": {"const": true},
+    "provider_config_storage": {
+      "type": "object",
+      "required": [
+        "durable_policy",
+        "provider_config_column_present",
+        "provider_config_object_persisted",
+        "hash_columns",
+        "reference_only_fields",
+        "forbidden_public_markers"
+      ],
+      "properties": {
+        "durable_policy": {"const": "hash_or_reference_only"},
+        "provider_config_column_present": {"const": false},
+        "provider_config_object_persisted": {"const": false},
+        "hash_columns": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "reference_only_fields": {"type": "array", "items": {"type": "string"}},
+        "forbidden_durable_columns": {"type": "array", "items": {"type": "string"}},
+        "forbidden_public_markers": {"type": "array", "minItems": 1, "items": {"type": "string"}}
+      },
+      "additionalProperties": true
+    },
+    "replay_semantics": {
+      "type": "object",
+      "required": ["accepted", "duplicate", "conflict"],
+      "properties": {
+        "accepted": {"$ref": "#/$defs/replay_status"},
+        "duplicate": {"$ref": "#/$defs/replay_status"},
+        "conflict": {"$ref": "#/$defs/replay_status"}
+      },
+      "additionalProperties": true
+    },
+    "object_evidence_linkage": {
+      "type": "object",
+      "required": ["billing_sql_edges", "go_postgres_hash_only_objects", "public_snapshot_fields"],
+      "properties": {
+        "billing_sql_edges": {"type": "array", "minItems": 2, "items": {"$ref": "#/$defs/evidence_edge"}},
+        "go_postgres_hash_only_objects": {"type": "array", "minItems": 3, "items": {"$ref": "#/$defs/object_hash"}},
+        "public_snapshot_fields": {"type": "array", "items": {"type": "string"}}
+      },
+      "additionalProperties": true
+    },
+    "validation": {
+      "type": "object",
+      "required": ["pytest_targets", "schema_path"],
+      "properties": {
+        "pytest_targets": {"type": "array", "items": {"type": "string"}},
+        "schema_path": {"const": "docs/a1/schemas/billing_sql_semantic_contract.schema.json"}
+      },
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "replay_status": {
+      "type": "object",
+      "required": ["status", "ledger_mutation_count", "raw_payload_included", "secret_value_present"],
+      "properties": {
+        "status": {"enum": ["accepted", "duplicate", "conflict"]},
+        "ledger_mutation_count": {"type": "integer", "minimum": 0},
+        "payload_sha256_relation": {"enum": ["new_provider_event", "same_provider_event_same_hash", "same_provider_event_different_hash"]},
+        "raw_payload_included": {"const": false},
+        "secret_value_present": {"const": false}
+      },
+      "additionalProperties": true
+    },
+    "evidence_edge": {
+      "type": "object",
+      "required": ["from", "to", "link_type"],
+      "properties": {
+        "from": {"type": "string"},
+        "to": {"type": "string"},
+        "link_type": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "object_hash": {
+      "type": "object",
+      "required": ["table", "object_id_column", "sha256_column", "raw_payload_column_present"],
+      "properties": {
+        "table": {"type": "string"},
+        "object_id_column": {"type": "string"},
+        "sha256_column": {"type": "string"},
+        "raw_payload_column_present": {"const": false}
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

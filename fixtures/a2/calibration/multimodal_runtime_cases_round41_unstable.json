@@ -1,0 +1,36 @@
+{
+  "cases": [
+    {
+      "artifact_hash": "sha256:c894ac7ffbad01ada39fea9715477da21af7646ac0e2e197a761945c27a32570",
+      "artifact_path": "fixtures/a2/calibration/round40-round37-hallucination-2-jpeg-q35.jpg",
+      "case_id": "round40-round37-hallucination-2-jpeg-q35",
+      "expected_risk": true,
+      "perturbation": {
+        "height": 320,
+        "jpeg_quality": 35,
+        "kind": "jpeg_compression",
+        "width": 512
+      },
+      "source_case_id": "round37-hallucination-2",
+      "taxonomy": "hallucinated_text"
+    },
+    {
+      "artifact_hash": "sha256:d76e3191bf9d2226181b018b3e57152012794d2419c80696b1b49f0bb1454f89",
+      "artifact_path": "fixtures/a2/calibration/round40-round37-hallucination-2-rescaled-384.png",
+      "case_id": "round40-round37-hallucination-2-rescaled-384",
+      "expected_risk": true,
+      "perturbation": {
+        "height": 240,
+        "jpeg_quality": null,
+        "kind": "rescaling",
+        "width": 384
+      },
+      "source_case_id": "round37-hallucination-2",
+      "taxonomy": "hallucinated_text"
+    }
+  ],
+  "provider_labels_used": false,
+  "public_safe": true,
+  "release_authority": false,
+  "schema_version": "a2.multimodal_runtime_cases.v1"
+}

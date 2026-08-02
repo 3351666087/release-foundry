@@ -1,0 +1,668 @@
+{
+  "attempts": 1,
+  "dry_run": false,
+  "duration_ms": 1218,
+  "ended_at": "2026-07-05T17:03:07Z",
+  "error": null,
+  "field_map_version": "a1-api-calibration-2026-07-04",
+  "function": "list_runs",
+  "output_path": "fixtures\\a3\\p3\\releasefoundry_run_probe_after_frontend_empty.redacted.json",
+  "purpose": "List run shapes for polling calibration",
+  "request": {
+    "estimated_calls": 2,
+    "function": "list_runs",
+    "mutates": false,
+    "params": {
+      "limit": 20,
+      "tenant_id": 36
+    }
+  },
+  "response": {
+    "_user": {
+      "auth_method": "api_key",
+      "email": "[redacted]",
+      "is_owner": true,
+      "name": "\u9ec4\u777f",
+      "tenant_id": 36,
+      "user_id": 52
+    },
+    "runs": [
+      {
+        "created_at": "2026-07-04T06:24:44.661899+00:00",
+        "dataset": 882,
+        "dataset_details": {
+          "description": "",
+          "id": 882,
+          "name": "Agent boundary - enabled multimodal request 2026-06-26"
+        },
+        "id": 11924,
+        "result": {
+          "aggregate_metrics": {
+            "errored": 0,
+            "failed": 3,
+            "passed": 0,
+            "schema_version": "releasefoundry.run_result.v1",
+            "timed_out": 0,
+            "total_tool_calls": 0,
+            "trace_completeness": 1.0
+          },
+          "cases": [
+            {
+              "agent_output": {
+                "latency_ms": 0,
+                "metadata": {
+                  "adapter_name": "RespondingMockAgent",
+                  "mock_agent": "responding",
+                  "style": "respond"
+                },
+                "schema_version": "releasefoundry.agent_turn.v1",
+                "status": "ok",
+                "text": "Echo: Scenario: Find Samsung 980 PRO 2TB (heatsink) under $120 from a cropped screenshot\nDescription: User uploads a slightly cropped screenshot showing a Samsung 980 PRO 1TB product card with partial model string 'MZ-V8P1T0...' and unclear small text that might say 'without heatsink'. User wants the 2TB version of the same series under $120, unsure about heatsink (will confirm if asked). Agent should extract model/series from the image, clarify heatsink requirement, run a product search, and summarize top matches with prices noting which exceed the budget.\nIntent: User uploads a slightly cropped screenshot from another retailer showing a product card for \u201cSamsung 980 PRO 1TB PCIe 4.0 NVMe M.2\u201d with a partial model string visible (MZ-V8P1T0...) and small text that might say \u201cwithout heatsink,\u201d but it\u2019s unclear due to compression. The user wants to find the 2TB version of the same series under $120 on the tiny product search page. They\u2019re unsure whether they need the heatsink variant and will wait for the agent to clarify; if asked, they\u2019ll confirm they want the heatsink version. They expect the agent to extract the model/series from the screenshot, confirm the heatsink requirement, run a product search, and summarize the top matches with prices, noting any that exceed the budget.\nTarget agent action index: 2\n\nConversation so far:\n0. user (User describes goal and context (budget, partial model, unclear heatsink text)): Hi \u2014 I uploaded a slightly cropped screenshot from another retailer that shows a product card for \u201cSamsung 980 PRO 1TB PCIe 4.0 NVMe M.2\u201d. I can read a partial model string: \u201cMZ-V8P1T0...\u201d. There's also some tiny text that might say \u201cwithout heatsink\u201d but it's too compressed/blurred to be sure. I want you to find the 2TB version (same series) for under $120 on the tiny product search page. I'm not sure whether I need the heatsink \u2014 I'll wait for you to ask; if you ask, I'll confirm I want the heatsink version.\n1. user (User uploads cropped screenshot): screenshot_samsung_980_pro_cropped.jpg \u2014 Slightly cropped, compressed screenshot of a retailer product card showing title text 'Samsung 980 PRO 1TB PCIe 4.0 NVMe M.2', a visible partial model string 'MZ-V8P1T0...' and a very small blurred line that could read 'without heatsink' but it's unclear.\n\nRespond as the agent to the latest user/environment context.",
+                "tool_calls": []
+              },
+              "case_id": "image_ocr_samsung_980pro_heatsink_pricecap-a002",
+              "ended_at": "2026-07-04T06:05:45.905Z",
+              "expected": {
+                "text": "Thanks \u2014 I received the screenshot. I can extract the model/series from the image and then search for the 2TB listings. The tiny text about heatsink is hard to read in the screenshot, so quick question before I search: do you want the heatsink variant for the 2TB Samsung 980 PRO? (You mentioned you'd confirm if I asked.)"
+              },
+              "grade": {
+                "actual": {
+                  "text": "Echo: Scenario: Find Samsung 980 PRO 2TB (heatsink) under $120 from a cropped screenshot\nDescription: User uploads a slightly cropped screenshot showing a Samsung 980 PRO 1TB product card with partial model string 'MZ-V8P1T0...' and unclear small text that might say 'without heatsink'. User wants the 2TB version of the same series under $120, unsure about heatsink (will confirm if asked). Agent should extract model/series from the image, clarify heatsink requirement, run a product search, and summarize top matches with prices noting which exceed the budget.\nIntent: User uploads a slightly cropped screenshot from another retailer showing a product card for \u201cSamsung 980 PRO 1TB PCIe 4.0 NVMe M.2\u201d with a partial model string visible (MZ-V8P1T0...) and small text that might say \u201cwithout heatsink,\u201d but it\u2019s unclear due to compression. The user wants to find the 2TB version of the same series under $120 on the tiny product search page. They\u2019re unsure whether they need the heatsink variant and will wait for the agent to clarify; if asked, they\u2019ll confirm they want the heatsink version. They expect the agent to extract the model/series from the screenshot, confirm the heatsink requirement, run a product search, and summarize the top matches with prices, noting any that exceed the budget.\nTarget agent action index: 2\n\nConversation so far:\n0. user (User describes goal and context (budget, partial model, unclear heatsink text)): Hi \u2014 I uploaded a slightly cropped screenshot from another retailer that shows a product card for \u201cSamsung 980 PRO 1TB PCIe 4.0 NVMe M.2\u201d. I can read a partial model string: \u201cMZ-V8P1T0...\u201d. There's also some tiny text that might say \u201cwithout heatsink\u201d but it's too compressed/blurred to be sure. I want you to find the 2TB version (same series) for under $120 on the tiny product search page. I'm not sure whether I need the heatsink \u2014 I'll wait for you to ask; if you ask, I'll confirm I want the heatsink version.\n1. user (User uploads cropped screenshot): screenshot_samsung_980_pro_cropped.jpg \u2014 Slightly cropped, compressed screenshot of a retailer product card showing title text 'Samsung 980 PRO 1TB PCIe 4.0 NVMe M.2', a visible partial model string 'MZ-V8P1T0...' and a very small blurred line that could read 'without heatsink' but it's unclear.\n\nRespond as the agent to the latest user/environment context.",
+                  "tool_calls": []
+                },
+                "expected": {
+                  "text": "Thanks \u2014 I received the screenshot. I can extract the model/series from the image and then search for the 2TB listings. The tiny text about heatsink is hard to read in the screenshot, so quick question before I search: do you want the heatsink variant for the 2TB Samsung 980 PRO? (You mentioned you'd confirm if I asked.)"
+                },
+                "label": "failed",
+                "metrics": {
+                  "latency_ms": 0,
+                  "reset_ok": true,
+                  "text_match": false,
+                  "tool_match": true
+                },
+                "passed": false,
+                "reason": "local expected/actual mismatch",
+                "scenario_id": "image_ocr_samsung_980pro_heatsink_pricecap",
+                "score": 0.0
+              },
+              "latency_ms": 0,
+              "metadata": {
+                "action_count": 6,
+                "action_index": 2,
+                "action_name": "Agent asks whether heatsink variant is required",
+                "action_tags": [],
+                "action_type": "audio",
+                "adapter_version": "releasefoundry.dataset_adapter.v1",
+                "audio_tags": [
+                  {
+                    "accent": "american",
+                    "background_noise": "office",
+                    "gender": "male",
+                    "pace": "normal",
+                    "tone": "confident"
+                  }
+                ],
+                "dataset_type": "multi_run_storyboard",
+                "intent_tags": [
+                  "image_ocr",
+                  "variant_clarification",
+                  "price_filter"
+                ],
+                "requires_external_judge": false,
+                "source": "releasefoundry_dataset_source",
+                "source_run_hash": "source_run_ae16130974fc2de7",
+                "total_runs": 1
+              },
+              "observations": [
+                {
+                  "case_id": "image_ocr_samsung_980pro_heatsink_pricecap-a002",
+                  "content": "Scenario: Find Samsung 980 PRO 2TB (heatsink) under $120 from a cropped screenshot\nDescription: User uploads a slightly cropped screenshot showing a Samsung 980 PRO 1TB product card with partial model string 'MZ-V8P1T0...' and unclear small text that might say 'without heatsink'. User wants the 2TB version of the same series under $120, unsure about heatsink (will confirm if asked). Agent should extract model/series from the image, clarify heatsink requirement, run a product search, and summarize top matches with prices noting which exceed the budget.\nIntent: User uploads a slightly cropped screenshot from another retailer showing a product card for \u201cSamsung 980 PRO 1TB PCIe 4.0 NVMe M.2\u201d with a partial model string visible (MZ-V8P1T0...) and small text that might say \u201cwithout heatsink,\u201d but it\u2019s unclear due to compression. The user wants to find the 2TB version of the same series under $120 on the tiny product search page. They\u2019re unsure whether they need the heatsink variant and will wait for the agent to clarify; if asked, they\u2019ll confirm they want the heatsink version. They expect the agent to extract the model/series from the screenshot, confirm the heatsink requirement, run a product search, and summarize the top matches with prices, noting any that exceed the budget.\nTarget agent action index: 2\n\nConversation so far:\n0. user (User describes goal and context (budget, partial model, unclear heatsink text)): Hi \u2014 I uploaded a slightly cropped screenshot from another retailer that shows a product card for \u201cSamsung 980 PRO 1TB PCIe 4.0 NVMe M.2\u201d. I can read a partial model string: \u201cMZ-V8P1T0...\u201d. There's also some tiny text that might say \u201cwithout heatsink\u201d but it's too compressed/blurred to be sure. I want you to find the 2TB version (same series) for under $120 on the tiny product search page. I'm not sure whether I need the heatsink \u2014 I'll wait for you to ask; if you ask, I'll confirm I want the heatsink version.\n1. user (User uploads cropped screenshot): screenshot_samsung_980_pro_cropped.jpg \u2014 Slightly cropped, compressed screenshot of a retailer product card showing title text 'Samsung 980 PRO 1TB PCIe 4.0 NVMe M.2', a visible partial model string 'MZ-V8P1T0...' and a very small blurred line that could read 'without heatsink' but it's unclear.\n\nRespond as the agent to the latest user/environment context.",
+                  "ended_at": "2026-07-04T06:05:45.905Z",
+                  "event_type": "message",
+                  "metadata": {
+                    "scenario_id": "image_ocr_samsung_980pro_heatsink_pricecap"
+                  },
+                  "observation_id": "obs_45a89186b0094f93",
+                  "role": "user",
+                  "run_id": "run_b0f6ad0a8598a5e1",
+                  "started_at": "2026-07-04T06:05:45.905Z",
+                  "status": "ok",
+                  "tool_calls": [],
+                  "turn_index": 0
+                },
+                {
+                  "case_id": "image_ocr_samsung_980pro_heatsink_pricecap-a002",
+                  "content": "Echo: Scenario: Find Samsung 980 PRO 2TB (heatsink) under $120 from a cropped screenshot\nDescription: User uploads a slightly cropped screenshot showing a Samsung 980 PRO 1TB product card with partial model string 'MZ-V8P1T0...' and unclear small text that might say 'without heatsink'. User wants the 2TB version of the same series under $120, unsure about heatsink (will confirm if asked). Agent should extract model/series from the image, clarify heatsink requirement, run a product search, and summarize top matches with prices noting which exceed the budget.\nIntent: User uploads a slightly cropped screenshot from another retailer showing a product card for \u201cSamsung 980 PRO 1TB PCIe 4.0 NVMe M.2\u201d with a partial model string visible (MZ-V8P1T0...) and small text that might say \u201cwithout heatsink,\u201d but it\u2019s unclear due to compression. The user wants to find the 2TB version of the same series under $120 on the tiny product search page. They\u2019re unsure whether they need the heatsink variant and will wait for the agent to clarify; if asked, they\u2019ll confirm they want the heatsink version. They expect the agent to extract the model/series from the screenshot, confirm the heatsink requirement, run a product search, and summarize the top matches with prices, noting any that exceed the budget.\nTarget agent action index: 2\n\nConversation so far:\n0. user (User describes goal and context (budget, partial model, unclear heatsink text)): Hi \u2014 I uploaded a slightly cropped screenshot from another retailer that shows a product card for \u201cSamsung 980 PRO 1TB PCIe 4.0 NVMe M.2\u201d. I can read a partial model string: \u201cMZ-V8P1T0...\u201d. There's also some tiny text that might say \u201cwithout heatsink\u201d but it's too compressed/blurred to be sure. I want you to find the 2TB version (same series) for under $120 on the tiny product search page. I'm not sure whether I need the heatsink \u2014 I'll wait for you to ask; if you ask, I'll confirm I want the heatsink version.\n1. user (User uploads cropped screenshot): screenshot_samsung_980_pro_cropped.jpg \u2014 Slightly cropped, compressed screenshot of a retailer product card showing title text 'Samsung 980 PRO 1TB PCIe 4.0 NVMe M.2', a visible partial model string 'MZ-V8P1T0...' and a very small blurred line that could read 'without heatsink' but it's unclear.\n\nRespond as the agent to the latest user/environment context.",
+                  "ended_at": "2026-07-04T06:05:45.905Z",
+                  "event_type": "agent_response",
+                  "latency_ms": 0,
+                  "metadata": {
+                    "reset_ok": true
+                  },
+                  "observation_id": "obs_25b52e983660fb06",
+                  "role": "assistant",
+                  "run_id": "run_b0f6ad0a8598a5e1",
+                  "started_at": "2026-07-04T06:05:45.905Z",
+                  "status": "ok",
+                  "tool_calls": [],
+                  "turn_index": 1,
+                  "vm_stream": {
+                    "duration_ms": 0,
+                    "logs": [
+                      {
+                        "data": {
+                          "action": "respond",
+                          "input": "Scenario: Find Samsung 980 PRO 2TB (heatsink) under $120 from a cropped screenshot\nDescription: User uploads a slightly cropped screenshot showing a Samsung 980 PRO 1TB product card with partial model string 'MZ-V8P1T0...' and unclear small text that might say 'without heatsink'. User wants the 2TB version of the same series under $120, unsure about heatsink (will confirm if asked). Agent should extract model/series from the image, clarify heatsink requirement, run a product search, and summarize top matches with prices noting which exceed the budget.\nIntent: User uploads a slightly cropped screenshot from another retailer showing a product card for \u201cSamsung 980 PRO 1TB PCIe 4.0 NVMe M.2\u201d with a partial model string visible (MZ-V8P1T0...) and small text that might say \u201cwithout heatsink,\u201d but it\u2019s unclear due to compression. The user wants to find the 2TB version of the same series under $120 on the tiny product search page. They\u2019re unsure whether they need the heatsink variant and will wait for the agent to clarify; if asked, they\u2019ll confirm they want the heatsink version. They expect the agent to extract the model/series from the screenshot, confirm the heatsink requirement, run a product search, and summarize the top matches with prices, noting any that exceed the budget.\nTarget agent action index: 2\n\nConversation so far:\n0. user (User describes goal and context (budget, partial model, unclear heatsink text)): Hi \u2014 I uploaded a slightly cropped screenshot from another retailer that shows a product card for \u201cSamsung 980 PRO 1TB PCIe 4.0 NVMe M.2\u201d. I can read a partial model string: \u201cMZ-V8P1T0...\u201d. There's also some tiny text that might say \u201cwithout heatsink\u201d but it's too compressed/blurred to be sure. I want you to find the 2TB version (same series) for under $120 on the tiny product search page. I'm not sure whether I need the heatsink \u2014 I'll wait for you to ask; if you ask, I'll confirm I want the heatsink version.\n1. user (User uploads cropped screenshot): screenshot_samsung_980_pro_cropped.jpg \u2014 Slightly cropped, compressed screenshot of a retailer product card showing title text 'Samsung 980 PRO 1TB PCIe 4.0 NVMe M.2', a visible partial model string 'MZ-V8P1T0...' and a very small blurred line that could read 'without heatsink' but it's unclear.\n\nRespond as the agent to the latest user/environment context."
+                        },
+                        "ts": 0,
+                        "type": "action"
+                      },
+                      {
+                        "data": {
+                          "level": "log",
+                          "message": "Echo: Scenario: Find Samsung 980 PRO 2TB (heatsink) under $120 from a cropped screenshot\nDescription: User uploads a slightly cropped screenshot showing a Samsung 980 PRO 1TB product card with partial model string 'MZ-V8P1T0...' and unclear small text that might say 'without heatsink'. User wants the 2TB version of the same series under $120, unsure about heatsink (will confirm if asked). Agent should extract model/series from the image, clarify heatsink requirement, run a product search, and summarize top matches with prices noting which exceed the budget.\nIntent: User uploads a slightly cropped screenshot from another retailer showing a product card for \u201cSamsung 980 PRO 1TB PCIe 4.0 NVMe M.2\u201d with a partial model string visible (MZ-V8P1T0...) and small text that might say \u201cwithout heatsink,\u201d but it\u2019s unclear due to compression. The user wants to find the 2TB version of the same series under $120 on the tiny product search page. They\u2019re unsure whether they need the heatsink variant and will wait for the agent to clarify; if asked, they\u2019ll confirm they want the heatsink version. They expect the agent to extract the model/series from the screenshot, confirm the heatsink requirement, run a product search, and summarize the top matches with prices, noting any that exceed the budget.\nTarget agent action index: 2\n\nConversation so far:\n0. user (User describes goal and context (budget, partial model, unclear heatsink text)): Hi \u2014 I uploaded a slightly cropped screenshot from another retailer that shows a product card for \u201cSamsung 980 PRO 1TB PCIe 4.0 NVMe M.2\u201d. I can read a partial model string: \u201cMZ-V8P1T0...\u201d. There's also some tiny text that might say \u201cwithout heatsink\u201d but it's too compressed/blurred to be sure. I want you to find the 2TB version (same series) for under $120 on the tiny product search page. I'm not sure whether I need the heatsink \u2014 I'll wait for you to ask; if you ask, I'll confirm I want the heatsink version.\n1. user (User uploads cropped screenshot): screenshot_samsung_980_pro_cropped.jpg \u2014 Slightly cropped, compressed screenshot of a retailer product card showing title text 'Samsung 980 PRO 1TB PCIe 4.0 NVMe M.2', a visible partial model string 'MZ-V8P1T0...' and a very small blurred line that could read 'without heatsink' but it's unclear.\n\nRespond as the agent to the latest user/environment context."
+                        },
+                        "ts": 0,
+                        "type": "console"
+                      }
+                    ],
+                    "metadata": {
+                      "synthetic": true
+                    },
+                    "provider": "local-runner",
+                    "session_id": "image_ocr_samsung_980pro_heatsink_pricecap-a002"
+                  }
+                }
+              ],
+              "scenario_id": "image_ocr_samsung_980pro_heatsink_pricecap",
+              "started_at": "2026-07-04T06:05:45.905Z",
+              "status": "failed",
+              "title": "Find Samsung 980 PRO 2TB (heatsink) under $120 from a cropped screenshot / Agent asks whether heatsink variant is required"
+            },
+            {
+              "agent_output": {
+                "latency_ms": 0,
+                "metadata": {
+                  "adapter_name": "RespondingMockAgent",
+                  "mock_agent": "responding",
+                  "style": "respond"
+                },
+                "schema_version": "releasefoundry.agent_turn.v1",
+                "status": "ok",
+                "text": "Echo: Scenario: Find Samsung 980 PRO 2TB (heatsink) under $120 from a cropped screenshot\nDescription: User uploads a slightly cropped screenshot showing a Samsung 980 PRO 1TB product card with partial model string 'MZ-V8P1T0...' and unclear small text that might say 'without heatsink'. User wants the 2TB version of the same series under $120, unsure about heatsink (will confirm if asked). Agent should extract model/series from the image, clarify heatsink requirement, run a product search, and summarize top matches with prices noting which exceed the budget.\nIntent: User uploads a slightly cropped screenshot from another retailer showing a product card for \u201cSamsung 980 PRO 1TB PCIe 4.0 NVMe M.2\u201d with a partial model string visible (MZ-V8P1T0...) and small text that might say \u201cwithout heatsink,\u201d but it\u2019s unclear due to compression. The user wants to find the 2TB version of the same series under $120 on the tiny product search page. They\u2019re unsure whether they need the heatsink variant and will wait for the agent to clarify; if asked, they\u2019ll confirm they want the heatsink version. They expect the agent to extract the model/series from the screenshot, confirm the heatsink requirement, run a product search, and summarize the top matches with prices, noting any that exceed the budget.\nTarget agent action index: 4\n\nConversation so far:\n0. user (User describes goal and context (budget, partial model, unclear heatsink text)): Hi \u2014 I uploaded a slightly cropped screenshot from another retailer that shows a product card for \u201cSamsung 980 PRO 1TB PCIe 4.0 NVMe M.2\u201d. I can read a partial model string: \u201cMZ-V8P1T0...\u201d. There's also some tiny text that might say \u201cwithout heatsink\u201d but it's too compressed/blurred to be sure. I want you to find the 2TB version (same series) for under $120 on the tiny product search page. I'm not sure whether I need the heatsink \u2014 I'll wait for you to ask; if you ask, I'll confirm I want the heatsink version.\n1. user (User uploads cropped screenshot): screenshot_samsung_980_pro_cropped.jpg \u2014 Slightly cropped, compressed screenshot of a retailer product card showing title text 'Samsung 980 PRO 1TB PCIe 4.0 NVMe M.2', a visible partial model string 'MZ-V8P1T0...' and a very small blurred line that could read 'without heatsink' but it's unclear.\n2. agent (Agent asks whether heatsink variant is required): Thanks \u2014 I received the screenshot. I can extract the model/series from the image and then search for the 2TB listings. The tiny text about heatsink is hard to read in the screenshot, so quick question before I search: do you want the heatsink variant for the 2TB Samsung 980 PRO? (You mentioned you'd confirm if I asked.)\n3. user (User confirms heatsink and budget): Yes \u2014 please look for the heatsink version of the Samsung 980 PRO 2TB. Budget $120 is firm.\n\nRespond as the agent to the latest user/environment context.",
+                "tool_calls": []
+              },
+              "case_id": "image_ocr_samsung_980pro_heatsink_pricecap-a004",
+              "ended_at": "2026-07-04T06:05:45.906Z",
+              "expected": {
+                "text": "Understood. I'll extract the model/series from the screenshot (partial model 'MZ-V8P1T0...') and search for 'Samsung 980 PRO 2TB with heatsink' under $120. I'll summarize the top matches and flag any over budget.",
+                "tool_calls": [
+                  {
+                    "arguments": {
+                      "query": "Samsung 980 PRO 2TB PCIe 4.0 NVMe M.2 with heatsink MZ-V8P1T0 under $120"
+                    },
+                    "name": "search_product"
+                  }
+                ]
+              },
+              "grade": {
+                "actual": {
+                  "text": "Echo: Scenario: Find Samsung 980 PRO 2TB (heatsink) under $120 from a cropped screenshot\nDescription: User uploads a slightly cropped screenshot showing a Samsung 980 PRO 1TB product card with partial model string 'MZ-V8P1T0...' and unclear small text that might say 'without heatsink'. User wants the 2TB version of the same series under $120, unsure about heatsink (will confirm if asked). Agent should extract model/series from the image, clarify heatsink requirement, run a product search, and summarize top matches with prices noting which exceed the budget.\nIntent: User uploads a slightly cropped screenshot from another retailer showing a product card for \u201cSamsung 980 PRO 1TB PCIe 4.0 NVMe M.2\u201d with a partial model string visible (MZ-V8P1T0...) and small text that might say \u201cwithout heatsink,\u201d but it\u2019s unclear due to compression. The user wants to find the 2TB version of the same series under $120 on the tiny product search page. They\u2019re unsure whether they need the heatsink variant and will wait for the agent to clarify; if asked, they\u2019ll confirm they want the heatsink version. They expect the agent to extract the model/series from the screenshot, confirm the heatsink requirement, run a product search, and summarize the top matches with prices, noting any that exceed the budget.\nTarget agent action index: 4\n\nConversation so far:\n0. user (User describes goal and context (budget, partial model, unclear heatsink text)): Hi \u2014 I uploaded a slightly cropped screenshot from another retailer that shows a product card for \u201cSamsung 980 PRO 1TB PCIe 4.0 NVMe M.2\u201d. I can read a partial model string: \u201cMZ-V8P1T0...\u201d. There's also some tiny text that might say \u201cwithout heatsink\u201d but it's too compressed/blurred to be sure. I want you to find the 2TB version (same series) for under $120 on the tiny product search page. I'm not sure whether I need the heatsink \u2014 I'll wait for you to ask; if you ask, I'll confirm I want the heatsink version.\n1. user (User uploads cropped screenshot): screenshot_samsung_980_pro_cropped.jpg \u2014 Slightly cropped, compressed screenshot of a retailer product card showing title text 'Samsung 980 PRO 1TB PCIe 4.0 NVMe M.2', a visible partial model string 'MZ-V8P1T0...' and a very small blurred line that could read 'without heatsink' but it's unclear.\n2. agent (Agent asks whether heatsink variant is required): Thanks \u2014 I received the screenshot. I can extract the model/series from the image and then search for the 2TB listings. The tiny text about heatsink is hard to read in the screenshot, so quick question before I search: do you want the heatsink variant for the 2TB Samsung 980 PRO? (You mentioned you'd confirm if I asked.)\n3. user (User confirms heatsink and budget): Yes \u2014 please look for the heatsink version of the Samsung 980 PRO 2TB. Budget $120 is firm.\n\nRespond as the agent to the latest user/environment context.",
+                  "tool_calls": []
+                },
+                "expected": {
+                  "text": "Understood. I'll extract the model/series from the screenshot (partial model 'MZ-V8P1T0...') and search for 'Samsung 980 PRO 2TB with heatsink' under $120. I'll summarize the top matches and flag any over budget.",
+                  "tool_calls": [
+                    {
+                      "arguments": {
+                        "query": "Samsung 980 PRO 2TB PCIe 4.0 NVMe M.2 with heatsink MZ-V8P1T0 under $120"
+                      },
+                      "name": "search_product"
+                    }
+                  ]
+                },
+                "label": "failed",
+                "metrics": {
+                  "latency_ms": 0,
+                  "reset_ok": true,
+                  "text_match": false,
+                  "tool_match": false
+                },
+                "passed": false,
+                "reason": "local expected/actual mismatch",
+                "scenario_id": "image_ocr_samsung_980pro_heatsink_pricecap",
+                "score": 0.0
+              },
+              "latency_ms": 0,
+              "metadata": {
+                "action_count": 6,
+                "action_index": 4,
+                "action_name": "Agent confirms parameters and runs product search",
+                "action_tags": [],
+                "action_type": "audio",
+                "adapter_version": "releasefoundry.dataset_adapter.v1",
+                "audio_tags": [
+                  {
+                    "accent": "american",
+                    "background_noise": "office",
+                    "gender": "male",
+                    "pace": "normal",
+                    "tone": "confident"
+                  }
+                ],
+                "dataset_type": "multi_run_storyboard",
+                "intent_tags": [
+                  "image_ocr",
+                  "variant_clarification",
+                  "price_filter"
+                ],
+                "requires_external_judge": false,
+                "source": "releasefoundry_dataset_source",
+                "source_run_hash": "source_run_ae16130974fc2de7",
+                "total_runs": 1
+              },
+              "observations": [
+                {
+                  "case_id": "image_ocr_samsung_980pro_heatsink_pricecap-a004",
+                  "content": "Scenario: Find Samsung 980 PRO 2TB (heatsink) under $120 from a cropped screenshot\nDescription: User uploads a slightly cropped screenshot showing a Samsung 980 PRO 1TB product card with partial model string 'MZ-V8P1T0...' and unclear small text that might say 'without heatsink'. User wants the 2TB version of the same series under $120, unsure about heatsink (will confirm if asked). Agent should extract model/series from the image, clarify heatsink requirement, run a product search, and summarize top matches with prices noting which exceed the budget.\nIntent: User uploads a slightly cropped screenshot from another retailer showing a product card for \u201cSamsung 980 PRO 1TB PCIe 4.0 NVMe M.2\u201d with a partial model string visible (MZ-V8P1T0...) and small text that might say \u201cwithout heatsink,\u201d but it\u2019s unclear due to compression. The user wants to find the 2TB version of the same series under $120 on the tiny product search page. They\u2019re unsure whether they need the heatsink variant and will wait for the agent to clarify; if asked, they\u2019ll confirm they want the heatsink version. They expect the agent to extract the model/series from the screenshot, confirm the heatsink requirement, run a product search, and summarize the top matches with prices, noting any that exceed the budget.\nTarget agent action index: 4\n\nConversation so far:\n0. user (User describes goal and context (budget, partial model, unclear heatsink text)): Hi \u2014 I uploaded a slightly cropped screenshot from another retailer that shows a product card for \u201cSamsung 980 PRO 1TB PCIe 4.0 NVMe M.2\u201d. I can read a partial model string: \u201cMZ-V8P1T0...\u201d. There's also some tiny text that might say \u201cwithout heatsink\u201d but it's too compressed/blurred to be sure. I want you to find the 2TB version (same series) for under $120 on the tiny product search page. I'm not sure whether I need the heatsink \u2014 I'll wait for you to ask; if you ask, I'll confirm I want the heatsink version.\n1. user (User uploads cropped screenshot): screenshot_samsung_980_pro_cropped.jpg \u2014 Slightly cropped, compressed screenshot of a retailer product card showing title text 'Samsung 980 PRO 1TB PCIe 4.0 NVMe M.2', a visible partial model string 'MZ-V8P1T0...' and a very small blurred line that could read 'without heatsink' but it's unclear.\n2. agent (Agent asks whether heatsink variant is required): Thanks \u2014 I received the screenshot. I can extract the model/series from the image and then search for the 2TB listings. The tiny text about heatsink is hard to read in the screenshot, so quick question before I search: do you want the heatsink variant for the 2TB Samsung 980 PRO? (You mentioned you'd confirm if I asked.)\n3. user (User confirms heatsink and budget): Yes \u2014 please look for the heatsink version of the Samsung 980 PRO 2TB. Budget $120 is firm.\n\nRespond as the agent to the latest user/environment context.",
+                  "ended_at": "2026-07-04T06:05:45.906Z",
+                  "event_type": "message",
+                  "metadata": {
+                    "scenario_id": "image_ocr_samsung_980pro_heatsink_pricecap"
+                  },
+                  "observation_id": "obs_d1b911fadd41610f",
+                  "role": "user",
+                  "run_id": "run_b0f6ad0a8598a5e1",
+                  "started_at": "2026-07-04T06:05:45.906Z",
+                  "status": "ok",
+                  "tool_calls": [],
+                  "turn_index": 0
+                },
+                {
+                  "case_id": "image_ocr_samsung_980pro_heatsink_pricecap-a004",
+                  "content": "Echo: Scenario: Find Samsung 980 PRO 2TB (heatsink) under $120 from a cropped screenshot\nDescription: User uploads a slightly cropped screenshot showing a Samsung 980 PRO 1TB product card with partial model string 'MZ-V8P1T0...' and unclear small text that might say 'without heatsink'. User wants the 2TB version of the same series under $120, unsure about heatsink (will confirm if asked). Agent should extract model/series from the image, clarify heatsink requirement, run a product search, and summarize top matches with prices noting which exceed the budget.\nIntent: User uploads a slightly cropped screenshot from another retailer showing a product card for \u201cSamsung 980 PRO 1TB PCIe 4.0 NVMe M.2\u201d with a partial model string visible (MZ-V8P1T0...) and small text that might say \u201cwithout heatsink,\u201d but it\u2019s unclear due to compression. The user wants to find the 2TB version of the same series under $120 on the tiny product search page. They\u2019re unsure whether they need the heatsink variant and will wait for the agent to clarify; if asked, they\u2019ll confirm they want the heatsink version. They expect the agent to extract the model/series from the screenshot, confirm the heatsink requirement, run a product search, and summarize the top matches with prices, noting any that exceed the budget.\nTarget agent action index: 4\n\nConversation so far:\n0. user (User describes goal and context (budget, partial model, unclear heatsink text)): Hi \u2014 I uploaded a slightly cropped screenshot from another retailer that shows a product card for \u201cSamsung 980 PRO 1TB PCIe 4.0 NVMe M.2\u201d. I can read a partial model string: \u201cMZ-V8P1T0...\u201d. There's also some tiny text that might say \u201cwithout heatsink\u201d but it's too compressed/blurred to be sure. I want you to find the 2TB version (same series) for under $120 on the tiny product search page. I'm not sure whether I need the heatsink \u2014 I'll wait for you to ask; if you ask, I'll confirm I want the heatsink version.\n1. user (User uploads cropped screenshot): screenshot_samsung_980_pro_cropped.jpg \u2014 Slightly cropped, compressed screenshot of a retailer product card showing title text 'Samsung 980 PRO 1TB PCIe 4.0 NVMe M.2', a visible partial model string 'MZ-V8P1T0...' and a very small blurred line that could read 'without heatsink' but it's unclear.\n2. agent (Agent asks whether heatsink variant is required): Thanks \u2014 I received the screenshot. I can extract the model/series from the image and then search for the 2TB listings. The tiny text about heatsink is hard to read in the screenshot, so quick question before I search: do you want the heatsink variant for the 2TB Samsung 980 PRO? (You mentioned you'd confirm if I asked.)\n3. user (User confirms heatsink and budget): Yes \u2014 please look for the heatsink version of the Samsung 980 PRO 2TB. Budget $120 is firm.\n\nRespond as the agent to the latest user/environment context.",
+                  "ended_at": "2026-07-04T06:05:45.906Z",
+                  "event_type": "agent_response",
+                  "latency_ms": 0,
+                  "metadata": {
+                    "reset_ok": true
+                  },
+                  "observation_id": "obs_a6a0372421b4994a",
+                  "role": "assistant",
+                  "run_id": "run_b0f6ad0a8598a5e1",
+                  "started_at": "2026-07-04T06:05:45.906Z",
+                  "status": "ok",
+                  "tool_calls": [],
+                  "turn_index": 1,
+                  "vm_stream": {
+                    "duration_ms": 0,
+                    "logs": [
+                      {
+                        "data": {
+                          "action": "respond",
+                          "input": "Scenario: Find Samsung 980 PRO 2TB (heatsink) under $120 from a cropped screenshot\nDescription: User uploads a slightly cropped screenshot showing a Samsung 980 PRO 1TB product card with partial model string 'MZ-V8P1T0...' and unclear small text that might say 'without heatsink'. User wants the 2TB version of the same series under $120, unsure about heatsink (will confirm if asked). Agent should extract model/series from the image, clarify heatsink requirement, run a product search, and summarize top matches with prices noting which exceed the budget.\nIntent: User uploads a slightly cropped screenshot from another retailer showing a product card for \u201cSamsung 980 PRO 1TB PCIe 4.0 NVMe M.2\u201d with a partial model string visible (MZ-V8P1T0...) and small text that might say \u201cwithout heatsink,\u201d but it\u2019s unclear due to compression. The user wants to find the 2TB version of the same series under $120 on the tiny product search page. They\u2019re unsure whether they need the heatsink variant and will wait for the agent to clarify; if asked, they\u2019ll confirm they want the heatsink version. They expect the agent to extract the model/series from the screenshot, confirm the heatsink requirement, run a product search, and summarize the top matches with prices, noting any that exceed the budget.\nTarget agent action index: 4\n\nConversation so far:\n0. user (User describes goal and context (budget, partial model, unclear heatsink text)): Hi \u2014 I uploaded a slightly cropped screenshot from another retailer that shows a product card for \u201cSamsung 980 PRO 1TB PCIe 4.0 NVMe M.2\u201d. I can read a partial model string: \u201cMZ-V8P1T0...\u201d. There's also some tiny text that might say \u201cwithout heatsink\u201d but it's too compressed/blurred to be sure. I want you to find the 2TB version (same series) for under $120 on the tiny product search page. I'm not sure whether I need the heatsink \u2014 I'll wait for you to ask; if you ask, I'll confirm I want the heatsink version.\n1. user (User uploads cropped screenshot): screenshot_samsung_980_pro_cropped.jpg \u2014 Slightly cropped, compressed screenshot of a retailer product card showing title text 'Samsung 980 PRO 1TB PCIe 4.0 NVMe M.2', a visible partial model string 'MZ-V8P1T0...' and a very small blurred line that could read 'without heatsink' but it's unclear.\n2. agent (Agent asks whether heatsink variant is required): Thanks \u2014 I received the screenshot. I can extract the model/series from the image and then search for the 2TB listings. The tiny text about heatsink is hard to read in the screenshot, so quick question before I search: do you want the heatsink variant for the 2TB Samsung 980 PRO? (You mentioned you'd confirm if I asked.)\n3. user (User confirms heatsink and budget): Yes \u2014 please look for the heatsink version of the Samsung 980 PRO 2TB. Budget $120 is firm.\n\nRespond as the agent to the latest user/environment context."
+                        },
+                        "ts": 0,
+                        "type": "action"
+                      },
+                      {
+                        "data": {
+                          "level": "log",
+                          "message": "Echo: Scenario: Find Samsung 980 PRO 2TB (heatsink) under $120 from a cropped screenshot\nDescription: User uploads a slightly cropped screenshot showing a Samsung 980 PRO 1TB product card with partial model string 'MZ-V8P1T0...' and unclear small text that might say 'without heatsink'. User wants the 2TB version of the same series under $120, unsure about heatsink (will confirm if asked). Agent should extract model/series from the image, clarify heatsink requirement, run a product search, and summarize top matches with prices noting which exceed the budget.\nIntent: User uploads a slightly cropped screenshot from another retailer showing a product card for \u201cSamsung 980 PRO 1TB PCIe 4.0 NVMe M.2\u201d with a partial model string visible (MZ-V8P1T0...) and small text that might say \u201cwithout heatsink,\u201d but it\u2019s unclear due to compression. The user wants to find the 2TB version of the same series under $120 on the tiny product search page. They\u2019re unsure whether they need the heatsink variant and will wait for the agent to clarify; if asked, they\u2019ll confirm they want the heatsink version. They expect the agent to extract the model/series from the screenshot, confirm the heatsink requirement, run a product search, and summarize the top matches with prices, noting any that exceed the budget.\nTarget agent action index: 4\n\nConversation so far:\n0. user (User describes goal and context (budget, partial model, unclear heatsink text)): Hi \u2014 I uploaded a slightly cropped screenshot from another retailer that shows a product card for \u201cSamsung 980 PRO 1TB PCIe 4.0 NVMe M.2\u201d. I can read a partial model string: \u201cMZ-V8P1T0...\u201d. There's also some tiny text that might say \u201cwithout heatsink\u201d but it's too compressed/blurred to be sure. I want you to find the 2TB version (same series) for under $120 on the tiny product search page. I'm not sure whether I need the heatsink \u2014 I'll wait for you to ask; if you ask, I'll confirm I want the heatsink version.\n1. user (User uploads cropped screenshot): screenshot_samsung_980_pro_cropped.jpg \u2014 Slightly cropped, compressed screenshot of a retailer product card showing title text 'Samsung 980 PRO 1TB PCIe 4.0 NVMe M.2', a visible partial model string 'MZ-V8P1T0...' and a very small blurred line that could read 'without heatsink' but it's unclear.\n2. agent (Agent asks whether heatsink variant is required): Thanks \u2014 I received the screenshot. I can extract the model/series from the image and then search for the 2TB listings. The tiny text about heatsink is hard to read in the screenshot, so quick question before I search: do you want the heatsink variant for the 2TB Samsung 980 PRO? (You mentioned you'd confirm if I asked.)\n3. user (User confirms heatsink and budget): Yes \u2014 please look for the heatsink version of the Samsung 980 PRO 2TB. Budget $120 is firm.\n\nRespond as the agent to the latest user/environment context."
+                        },
+                        "ts": 0,
+                        "type": "console"
+                      }
+                    ],
+                    "metadata": {
+                      "synthetic": true
+                    },
+                    "provider": "local-runner",
+                    "session_id": "image_ocr_samsung_980pro_heatsink_pricecap-a004"
+                  }
+                }
+              ],
+              "scenario_id": "image_ocr_samsung_980pro_heatsink_pricecap",
+              "started_at": "2026-07-04T06:05:45.906Z",
+              "status": "failed",
+              "title": "Find Samsung 980 PRO 2TB (heatsink) under $120 from a cropped screenshot / Agent confirms parameters and runs product search"
+            },
+            {
+              "agent_output": {
+                "latency_ms": 0,
+                "metadata": {
+                  "adapter_name": "RespondingMockAgent",
+                  "mock_agent": "responding",
+                  "style": "respond"
+                },
+                "schema_version": "releasefoundry.agent_turn.v1",
+                "status": "ok",
+                "text": "Echo: Scenario: Find Samsung 980 PRO 2TB (heatsink) under $120 from a cropped screenshot\nDescription: User uploads a slightly cropped screenshot showing a Samsung 980 PRO 1TB product card with partial model string 'MZ-V8P1T0...' and unclear small text that might say 'without heatsink'. User wants the 2TB version of the same series under $120, unsure about heatsink (will confirm if asked). Agent should extract model/series from the image, clarify heatsink requirement, run a product search, and summarize top matches with prices noting which exceed the budget.\nIntent: User uploads a slightly cropped screenshot from another retailer showing a product card for \u201cSamsung 980 PRO 1TB PCIe 4.0 NVMe M.2\u201d with a partial model string visible (MZ-V8P1T0...) and small text that might say \u201cwithout heatsink,\u201d but it\u2019s unclear due to compression. The user wants to find the 2TB version of the same series under $120 on the tiny product search page. They\u2019re unsure whether they need the heatsink variant and will wait for the agent to clarify; if asked, they\u2019ll confirm they want the heatsink version. They expect the agent to extract the model/series from the screenshot, confirm the heatsink requirement, run a product search, and summarize the top matches with prices, noting any that exceed the budget.\nTarget agent action index: 5\n\nConversation so far:\n0. user (User describes goal and context (budget, partial model, unclear heatsink text)): Hi \u2014 I uploaded a slightly cropped screenshot from another retailer that shows a product card for \u201cSamsung 980 PRO 1TB PCIe 4.0 NVMe M.2\u201d. I can read a partial model string: \u201cMZ-V8P1T0...\u201d. There's also some tiny text that might say \u201cwithout heatsink\u201d but it's too compressed/blurred to be sure. I want you to find the 2TB version (same series) for under $120 on the tiny product search page. I'm not sure whether I need the heatsink \u2014 I'll wait for you to ask; if you ask, I'll confirm I want the heatsink version.\n1. user (User uploads cropped screenshot): screenshot_samsung_980_pro_cropped.jpg \u2014 Slightly cropped, compressed screenshot of a retailer product card showing title text 'Samsung 980 PRO 1TB PCIe 4.0 NVMe M.2', a visible partial model string 'MZ-V8P1T0...' and a very small blurred line that could read 'without heatsink' but it's unclear.\n2. agent (Agent asks whether heatsink variant is required): Thanks \u2014 I received the screenshot. I can extract the model/series from the image and then search for the 2TB listings. The tiny text about heatsink is hard to read in the screenshot, so quick question before I search: do you want the heatsink variant for the 2TB Samsung 980 PRO? (You mentioned you'd confirm if I asked.)\n3. user (User confirms heatsink and budget): Yes \u2014 please look for the heatsink version of the Samsung 980 PRO 2TB. Budget $120 is firm.\n4. agent (Agent confirms parameters and runs product search): Understood. I'll extract the model/series from the screenshot (partial model 'MZ-V8P1T0...') and search for 'Samsung 980 PRO 2TB with heatsink' under $120. I'll summarize the top matches and flag any over budget.\n\nRespond as the agent to the latest user/environment context.",
+                "tool_calls": []
+              },
+              "case_id": "image_ocr_samsung_980pro_heatsink_pricecap-a005",
+              "ended_at": "2026-07-04T06:05:45.907Z",
+              "expected": {
+                "text": "Search complete. From the screenshot I extracted the series as 'Samsung 980 PRO' and the partial model 'MZ-V8P1T0...'. I couldn't conclusively read the small text about heatsink from the image, so thank you for confirming you want the heatsink variant. Here are the top matches I found (listed price \u2014 note whether they exceed your $120 budget):\n\n1) Samsung 980 PRO 2TB (with heatsink) \u2014 $189.99 \u2014 exceeds budget\n2) Samsung 980 PRO 2TB (no heatsink) \u2014 $169.00 \u2014 exceeds budget\n3) Refurbished / open-box Samsung 980 PRO 2TB (with heatsink) \u2014 $129.99 \u2014 exceeds budget but closest to it\n\nSummary: I didn't find any new 2TB Samsung 980 PRO (heatsink) listings under $120. The closest option is a refurbished/open-box at $129.99, which still exceeds your $120 limit. Would you like me to (A) set a price alert and re-check periodically, (B) expand the search to include other 2TB PCIe 4.0 NVMe models that may meet the $120 budget, or (C) look for used/third-party sellers that might list under $120?"
+              },
+              "grade": {
+                "actual": {
+                  "text": "Echo: Scenario: Find Samsung 980 PRO 2TB (heatsink) under $120 from a cropped screenshot\nDescription: User uploads a slightly cropped screenshot showing a Samsung 980 PRO 1TB product card with partial model string 'MZ-V8P1T0...' and unclear small text that might say 'without heatsink'. User wants the 2TB version of the same series under $120, unsure about heatsink (will confirm if asked). Agent should extract model/series from the image, clarify heatsink requirement, run a product search, and summarize top matches with prices noting which exceed the budget.\nIntent: User uploads a slightly cropped screenshot from another retailer showing a product card for \u201cSamsung 980 PRO 1TB PCIe 4.0 NVMe M.2\u201d with a partial model string visible (MZ-V8P1T0...) and small text that might say \u201cwithout heatsink,\u201d but it\u2019s unclear due to compression. The user wants to find the 2TB version of the same series under $120 on the tiny product search page. They\u2019re unsure whether they need the heatsink variant and will wait for the agent to clarify; if asked, they\u2019ll confirm they want the heatsink version. They expect the agent to extract the model/series from the screenshot, confirm the heatsink requirement, run a product search, and summarize the top matches with prices, noting any that exceed the budget.\nTarget agent action index: 5\n\nConversation so far:\n0. user (User describes goal and context (budget, partial model, unclear heatsink text)): Hi \u2014 I uploaded a slightly cropped screenshot from another retailer that shows a product card for \u201cSamsung 980 PRO 1TB PCIe 4.0 NVMe M.2\u201d. I can read a partial model string: \u201cMZ-V8P1T0...\u201d. There's also some tiny text that might say \u201cwithout heatsink\u201d but it's too compressed/blurred to be sure. I want you to find the 2TB version (same series) for under $120 on the tiny product search page. I'm not sure whether I need the heatsink \u2014 I'll wait for you to ask; if you ask, I'll confirm I want the heatsink version.\n1. user (User uploads cropped screenshot): screenshot_samsung_980_pro_cropped.jpg \u2014 Slightly cropped, compressed screenshot of a retailer product card showing title text 'Samsung 980 PRO 1TB PCIe 4.0 NVMe M.2', a visible partial model string 'MZ-V8P1T0...' and a very small blurred line that could read 'without heatsink' but it's unclear.\n2. agent (Agent asks whether heatsink variant is required): Thanks \u2014 I received the screenshot. I can extract the model/series from the image and then search for the 2TB listings. The tiny text about heatsink is hard to read in the screenshot, so quick question before I search: do you want the heatsink variant for the 2TB Samsung 980 PRO? (You mentioned you'd confirm if I asked.)\n3. user (User confirms heatsink and budget): Yes \u2014 please look for the heatsink version of the Samsung 980 PRO 2TB. Budget $120 is firm.\n4. agent (Agent confirms parameters and runs product search): Understood. I'll extract the model/series from the screenshot (partial model 'MZ-V8P1T0...') and search for 'Samsung 980 PRO 2TB with heatsink' under $120. I'll summarize the top matches and flag any over budget.\n\nRespond as the agent to the latest user/environment context.",
+                  "tool_calls": []
+                },
+                "expected": {
+                  "text": "Search complete. From the screenshot I extracted the series as 'Samsung 980 PRO' and the partial model 'MZ-V8P1T0...'. I couldn't conclusively read the small text about heatsink from the image, so thank you for confirming you want the heatsink variant. Here are the top matches I found (listed price \u2014 note whether they exceed your $120 budget):\n\n1) Samsung 980 PRO 2TB (with heatsink) \u2014 $189.99 \u2014 exceeds budget\n2) Samsung 980 PRO 2TB (no heatsink) \u2014 $169.00 \u2014 exceeds budget\n3) Refurbished / open-box Samsung 980 PRO 2TB (with heatsink) \u2014 $129.99 \u2014 exceeds budget but closest to it\n\nSummary: I didn't find any new 2TB Samsung 980 PRO (heatsink) listings under $120. The closest option is a refurbished/open-box at $129.99, which still exceeds your $120 limit. Would you like me to (A) set a price alert and re-check periodically, (B) expand the search to include other 2TB PCIe 4.0 NVMe models that may meet the $120 budget, or (C) look for used/third-party sellers that might list under $120?"
+                },
+                "label": "failed",
+                "metrics": {
+                  "latency_ms": 0,
+                  "reset_ok": true,
+                  "text_match": false,
+                  "tool_match": true
+                },
+                "passed": false,
+                "reason": "local expected/actual mismatch",
+                "scenario_id": "image_ocr_samsung_980pro_heatsink_pricecap",
+                "score": 0.0
+              },
+              "latency_ms": 0,
+              "metadata": {
+                "action_count": 6,
+                "action_index": 5,
+                "action_name": "Agent summarizes search results and offers next steps",
+                "action_tags": [],
+                "action_type": "audio",
+                "adapter_version": "releasefoundry.dataset_adapter.v1",
+                "audio_tags": [
+                  {
+                    "accent": "american",
+                    "background_noise": "office",
+                    "gender": "male",
+                    "pace": "normal",
+                    "tone": "confident"
+                  }
+                ],
+                "dataset_type": "multi_run_storyboard",
+                "intent_tags": [
+                  "image_ocr",
+                  "variant_clarification",
+                  "price_filter"
+                ],
+                "requires_external_judge": false,
+                "source": "releasefoundry_dataset_source",
+                "source_run_hash": "source_run_ae16130974fc2de7",
+                "total_runs": 1
+              },
+              "observations": [
+                {
+                  "case_id": "image_ocr_samsung_980pro_heatsink_pricecap-a005",
+                  "content": "Scenario: Find Samsung 980 PRO 2TB (heatsink) under $120 from a cropped screenshot\nDescription: User uploads a slightly cropped screenshot showing a Samsung 980 PRO 1TB product card with partial model string 'MZ-V8P1T0...' and unclear small text that might say 'without heatsink'. User wants the 2TB version of the same series under $120, unsure about heatsink (will confirm if asked). Agent should extract model/series from the image, clarify heatsink requirement, run a product search, and summarize top matches with prices noting which exceed the budget.\nIntent: User uploads a slightly cropped screenshot from another retailer showing a product card for \u201cSamsung 980 PRO 1TB PCIe 4.0 NVMe M.2\u201d with a partial model string visible (MZ-V8P1T0...) and small text that might say \u201cwithout heatsink,\u201d but it\u2019s unclear due to compression. The user wants to find the 2TB version of the same series under $120 on the tiny product search page. They\u2019re unsure whether they need the heatsink variant and will wait for the agent to clarify; if asked, they\u2019ll confirm they want the heatsink version. They expect the agent to extract the model/series from the screenshot, confirm the heatsink requirement, run a product search, and summarize the top matches with prices, noting any that exceed the budget.\nTarget agent action index: 5\n\nConversation so far:\n0. user (User describes goal and context (budget, partial model, unclear heatsink text)): Hi \u2014 I uploaded a slightly cropped screenshot from another retailer that shows a product card for \u201cSamsung 980 PRO 1TB PCIe 4.0 NVMe M.2\u201d. I can read a partial model string: \u201cMZ-V8P1T0...\u201d. There's also some tiny text that might say \u201cwithout heatsink\u201d but it's too compressed/blurred to be sure. I want you to find the 2TB version (same series) for under $120 on the tiny product search page. I'm not sure whether I need the heatsink \u2014 I'll wait for you to ask; if you ask, I'll confirm I want the heatsink version.\n1. user (User uploads cropped screenshot): screenshot_samsung_980_pro_cropped.jpg \u2014 Slightly cropped, compressed screenshot of a retailer product card showing title text 'Samsung 980 PRO 1TB PCIe 4.0 NVMe M.2', a visible partial model string 'MZ-V8P1T0...' and a very small blurred line that could read 'without heatsink' but it's unclear.\n2. agent (Agent asks whether heatsink variant is required): Thanks \u2014 I received the screenshot. I can extract the model/series from the image and then search for the 2TB listings. The tiny text about heatsink is hard to read in the screenshot, so quick question before I search: do you want the heatsink variant for the 2TB Samsung 980 PRO? (You mentioned you'd confirm if I asked.)\n3. user (User confirms heatsink and budget): Yes \u2014 please look for the heatsink version of the Samsung 980 PRO 2TB. Budget $120 is firm.\n4. agent (Agent confirms parameters and runs product search): Understood. I'll extract the model/series from the screenshot (partial model 'MZ-V8P1T0...') and search for 'Samsung 980 PRO 2TB with heatsink' under $120. I'll summarize the top matches and flag any over budget.\n\nRespond as the agent to the latest user/environment context.",
+                  "ended_at": "2026-07-04T06:05:45.907Z",
+                  "event_type": "message",
+                  "metadata": {
+                    "scenario_id": "image_ocr_samsung_980pro_heatsink_pricecap"
+                  },
+                  "observation_id": "obs_e6b1b626c5b74a4d",
+                  "role": "user",
+                  "run_id": "run_b0f6ad0a8598a5e1",
+                  "started_at": "2026-07-04T06:05:45.907Z",
+                  "status": "ok",
+                  "tool_calls": [],
+                  "turn_index": 0
+                },
+                {
+                  "case_id": "image_ocr_samsung_980pro_heatsink_pricecap-a005",
+                  "content": "Echo: Scenario: Find Samsung 980 PRO 2TB (heatsink) under $120 from a cropped screenshot\nDescription: User uploads a slightly cropped screenshot showing a Samsung 980 PRO 1TB product card with partial model string 'MZ-V8P1T0...' and unclear small text that might say 'without heatsink'. User wants the 2TB version of the same series under $120, unsure about heatsink (will confirm if asked). Agent should extract model/series from the image, clarify heatsink requirement, run a product search, and summarize top matches with prices noting which exceed the budget.\nIntent: User uploads a slightly cropped screenshot from another retailer showing a product card for \u201cSamsung 980 PRO 1TB PCIe 4.0 NVMe M.2\u201d with a partial model string visible (MZ-V8P1T0...) and small text that might say \u201cwithout heatsink,\u201d but it\u2019s unclear due to compression. The user wants to find the 2TB version of the same series under $120 on the tiny product search page. They\u2019re unsure whether they need the heatsink variant and will wait for the agent to clarify; if asked, they\u2019ll confirm they want the heatsink version. They expect the agent to extract the model/series from the screenshot, confirm the heatsink requirement, run a product search, and summarize the top matches with prices, noting any that exceed the budget.\nTarget agent action index: 5\n\nConversation so far:\n0. user (User describes goal and context (budget, partial model, unclear heatsink text)): Hi \u2014 I uploaded a slightly cropped screenshot from another retailer that shows a product card for \u201cSamsung 980 PRO 1TB PCIe 4.0 NVMe M.2\u201d. I can read a partial model string: \u201cMZ-V8P1T0...\u201d. There's also some tiny text that might say \u201cwithout heatsink\u201d but it's too compressed/blurred to be sure. I want you to find the 2TB version (same series) for under $120 on the tiny product search page. I'm not sure whether I need the heatsink \u2014 I'll wait for you to ask; if you ask, I'll confirm I want the heatsink version.\n1. user (User uploads cropped screenshot): screenshot_samsung_980_pro_cropped.jpg \u2014 Slightly cropped, compressed screenshot of a retailer product card showing title text 'Samsung 980 PRO 1TB PCIe 4.0 NVMe M.2', a visible partial model string 'MZ-V8P1T0...' and a very small blurred line that could read 'without heatsink' but it's unclear.\n2. agent (Agent asks whether heatsink variant is required): Thanks \u2014 I received the screenshot. I can extract the model/series from the image and then search for the 2TB listings. The tiny text about heatsink is hard to read in the screenshot, so quick question before I search: do you want the heatsink variant for the 2TB Samsung 980 PRO? (You mentioned you'd confirm if I asked.)\n3. user (User confirms heatsink and budget): Yes \u2014 please look for the heatsink version of the Samsung 980 PRO 2TB. Budget $120 is firm.\n4. agent (Agent confirms parameters and runs product search): Understood. I'll extract the model/series from the screenshot (partial model 'MZ-V8P1T0...') and search for 'Samsung 980 PRO 2TB with heatsink' under $120. I'll summarize the top matches and flag any over budget.\n\nRespond as the agent to the latest user/environment context.",
+                  "ended_at": "2026-07-04T06:05:45.907Z",
+                  "event_type": "agent_response",
+                  "latency_ms": 0,
+                  "metadata": {
+                    "reset_ok": true
+                  },
+                  "observation_id": "obs_d24241ed80038699",
+                  "role": "assistant",
+                  "run_id": "run_b0f6ad0a8598a5e1",
+                  "started_at": "2026-07-04T06:05:45.907Z",
+                  "status": "ok",
+                  "tool_calls": [],
+                  "turn_index": 1,
+                  "vm_stream": {
+                    "duration_ms": 0,
+                    "logs": [
+                      {
+                        "data": {
+                          "action": "respond",
+                          "input": "Scenario: Find Samsung 980 PRO 2TB (heatsink) under $120 from a cropped screenshot\nDescription: User uploads a slightly cropped screenshot showing a Samsung 980 PRO 1TB product card with partial model string 'MZ-V8P1T0...' and unclear small text that might say 'without heatsink'. User wants the 2TB version of the same series under $120, unsure about heatsink (will confirm if asked). Agent should extract model/series from the image, clarify heatsink requirement, run a product search, and summarize top matches with prices noting which exceed the budget.\nIntent: User uploads a slightly cropped screenshot from another retailer showing a product card for \u201cSamsung 980 PRO 1TB PCIe 4.0 NVMe M.2\u201d with a partial model string visible (MZ-V8P1T0...) and small text that might say \u201cwithout heatsink,\u201d but it\u2019s unclear due to compression. The user wants to find the 2TB version of the same series under $120 on the tiny product search page. They\u2019re unsure whether they need the heatsink variant and will wait for the agent to clarify; if asked, they\u2019ll confirm they want the heatsink version. They expect the agent to extract the model/series from the screenshot, confirm the heatsink requirement, run a product search, and summarize the top matches with prices, noting any that exceed the budget.\nTarget agent action index: 5\n\nConversation so far:\n0. user (User describes goal and context (budget, partial model, unclear heatsink text)): Hi \u2014 I uploaded a slightly cropped screenshot from another retailer that shows a product card for \u201cSamsung 980 PRO 1TB PCIe 4.0 NVMe M.2\u201d. I can read a partial model string: \u201cMZ-V8P1T0...\u201d. There's also some tiny text that might say \u201cwithout heatsink\u201d but it's too compressed/blurred to be sure. I want you to find the 2TB version (same series) for under $120 on the tiny product search page. I'm not sure whether I need the heatsink \u2014 I'll wait for you to ask; if you ask, I'll confirm I want the heatsink version.\n1. user (User uploads cropped screenshot): screenshot_samsung_980_pro_cropped.jpg \u2014 Slightly cropped, compressed screenshot of a retailer product card showing title text 'Samsung 980 PRO 1TB PCIe 4.0 NVMe M.2', a visible partial model string 'MZ-V8P1T0...' and a very small blurred line that could read 'without heatsink' but it's unclear.\n2. agent (Agent asks whether heatsink variant is required): Thanks \u2014 I received the screenshot. I can extract the model/series from the image and then search for the 2TB listings. The tiny text about heatsink is hard to read in the screenshot, so quick question before I search: do you want the heatsink variant for the 2TB Samsung 980 PRO? (You mentioned you'd confirm if I asked.)\n3. user (User confirms heatsink and budget): Yes \u2014 please look for the heatsink version of the Samsung 980 PRO 2TB. Budget $120 is firm.\n4. agent (Agent confirms parameters and runs product search): Understood. I'll extract the model/series from the screenshot (partial model 'MZ-V8P1T0...') and search for 'Samsung 980 PRO 2TB with heatsink' under $120. I'll summarize the top matches and flag any over budget.\n\nRespond as the agent to the latest user/environment context."
+                        },
+                        "ts": 0,
+                        "type": "action"
+                      },
+                      {
+                        "data": {
+                          "level": "log",
+                          "message": "Echo: Scenario: Find Samsung 980 PRO 2TB (heatsink) under $120 from a cropped screenshot\nDescription: User uploads a slightly cropped screenshot showing a Samsung 980 PRO 1TB product card with partial model string 'MZ-V8P1T0...' and unclear small text that might say 'without heatsink'. User wants the 2TB version of the same series under $120, unsure about heatsink (will confirm if asked). Agent should extract model/series from the image, clarify heatsink requirement, run a product search, and summarize top matches with prices noting which exceed the budget.\nIntent: User uploads a slightly cropped screenshot from another retailer showing a product card for \u201cSamsung 980 PRO 1TB PCIe 4.0 NVMe M.2\u201d with a partial model string visible (MZ-V8P1T0...) and small text that might say \u201cwithout heatsink,\u201d but it\u2019s unclear due to compression. The user wants to find the 2TB version of the same series under $120 on the tiny product search page. They\u2019re unsure whether they need the heatsink variant and will wait for the agent to clarify; if asked, they\u2019ll confirm they want the heatsink version. They expect the agent to extract the model/series from the screenshot, confirm the heatsink requirement, run a product search, and summarize the top matches with prices, noting any that exceed the budget.\nTarget agent action index: 5\n\nConversation so far:\n0. user (User describes goal and context (budget, partial model, unclear heatsink text)): Hi \u2014 I uploaded a slightly cropped screenshot from another retailer that shows a product card for \u201cSamsung 980 PRO 1TB PCIe 4.0 NVMe M.2\u201d. I can read a partial model string: \u201cMZ-V8P1T0...\u201d. There's also some tiny text that might say \u201cwithout heatsink\u201d but it's too compressed/blurred to be sure. I want you to find the 2TB version (same series) for under $120 on the tiny product search page. I'm not sure whether I need the heatsink \u2014 I'll wait for you to ask; if you ask, I'll confirm I want the heatsink version.\n1. user (User uploads cropped screenshot): screenshot_samsung_980_pro_cropped.jpg \u2014 Slightly cropped, compressed screenshot of a retailer product card showing title text 'Samsung 980 PRO 1TB PCIe 4.0 NVMe M.2', a visible partial model string 'MZ-V8P1T0...' and a very small blurred line that could read 'without heatsink' but it's unclear.\n2. agent (Agent asks whether heatsink variant is required): Thanks \u2014 I received the screenshot. I can extract the model/series from the image and then search for the 2TB listings. The tiny text about heatsink is hard to read in the screenshot, so quick question before I search: do you want the heatsink variant for the 2TB Samsung 980 PRO? (You mentioned you'd confirm if I asked.)\n3. user (User confirms heatsink and budget): Yes \u2014 please look for the heatsink version of the Samsung 980 PRO 2TB. Budget $120 is firm.\n4. agent (Agent confirms parameters and runs product search): Understood. I'll extract the model/series from the screenshot (partial model 'MZ-V8P1T0...') and search for 'Samsung 980 PRO 2TB with heatsink' under $120. I'll summarize the top matches and flag any over budget.\n\nRespond as the agent to the latest user/environment context."
+                        },
+                        "ts": 0,
+                        "type": "console"
+                      }
+                    ],
+                    "metadata": {
+                      "synthetic": true
+                    },
+                    "provider": "local-runner",
+                    "session_id": "image_ocr_samsung_980pro_heatsink_pricecap-a005"
+                  }
+                }
+              ],
+              "scenario_id": "image_ocr_samsung_980pro_heatsink_pricecap",
+              "started_at": "2026-07-04T06:05:45.907Z",
+              "status": "failed",
+              "title": "Find Samsung 980 PRO 2TB (heatsink) under $120 from a cropped screenshot / Agent summarizes search results and offers next steps"
+            }
+          ],
+          "dataset_id": "releasefoundry-real-dataset-private",
+          "duration_ms": 4,
+          "ended_at": "2026-07-04T06:05:45.907Z",
+          "errored": 0,
+          "failed": 3,
+          "field_map_version": "a1-local-2026-07-03",
+          "max_workers": 4,
+          "metadata": {
+            "releasefoundry_api_used": false,
+            "local_only": true
+          },
+          "passed": 0,
+          "run_id": "run_b0f6ad0a8598a5e1",
+          "runner_id": "a1-real-dataset-adapter",
+          "started_at": "2026-07-04T06:05:45.903Z",
+          "status": "failed",
+          "timed_out": 0,
+          "total_cases": 3,
+          "trace_completeness": 1.0
+        },
+        "runner": null,
+        "runner_details": null,
+        "tenant": 36
+      },
+      {
+        "created_at": "2026-06-25T17:04:43.745545+00:00",
+        "dataset": 881,
+        "dataset_details": {
+          "description": "",
+          "id": 881,
+          "name": "Agent proof - minimal text agent eval 2026-06-26"
+        },
+        "id": 11923,
+        "result": {
+          "aggregate_metrics": {
+            "action_summary": {
+              "failed": 0,
+              "passed": 4,
+              "total": 4
+            },
+            "average_similarity_score": 0.95,
+            "tests_failed": 0,
+            "tests_passed": 1,
+            "total_response_divergence": 0,
+            "total_tests": 1,
+            "total_tool_call_divergence": 0,
+            "weighted_tool_divergence": 0.0
+          },
+          "completed_at": "2026-06-25T17:04:42Z",
+          "started_at": "2026-06-25T17:04:40Z",
+          "status": "completed",
+          "tests": [
+            {
+              "action_results": [
+                {
+                  "action_index": 0,
+                  "action_type": "text",
+                  "actor": "user",
+                  "description": "User asks for package status from noisy environment",
+                  "input_provided": true,
+                  "text": "Hey \u2014 I'm in a busy coffee shop so I might be hard to hear. Where's my package? I don't have the order number offhand."
+                },
+                {
+                  "action_index": 1,
+                  "action_type": "text",
+                  "actor": "agent",
+                  "actual_response": {
+                    "text": "I can help with that. Could you give me your order number? If it's easier, you can paste the exact line from your confirmation email that starts with \"Order #\"."
+                  },
+                  "divergence_notes": null,
+                  "expected_response": {
+                    "text": "I can help with that. Could you give me your order number? If it's easier, you can paste the exact line from your confirmation email that starts with \"Order #\"."
+                  },
+                  "llm_judgment": {
+                    "completeness": "complete",
+                    "factual_accuracy": "correct",
+                    "summary": "Response matches the expected reply exactly: asks for the order number and suggests pasting the confirmation line starting with 'Order #'.",
+                    "tone": "appropriate",
+                    "verdict": "match"
+                  },
+                  "match_status": "exact",
+                  "semantic_similarity": 0.95
+                },
+                {
+                  "action_index": 2,
+                  "action_type": "text",
+                  "actor": "user",
+                  "description": "User pastes confirmation line including hash, hyphen, and trailing comma",
+                  "input_provided": true,
+                  "text": "Okay, hold on \u2014 here's the line from the email: Order #ABC-1234,"
+                },
+                {
+                  "action_index": 3,
+                  "action_type": "tool_call",
+                  "actor": "agent",
+                  "tool_calls": [
+                    {
+                      "actual": {
+                        "arguments": {
+                          "order_id": "ABC-1234"
+                        },
+                        "arguments_json": "{\"order_id\":\"ABC-1234\"}",
+                        "name": "lookup_order",
+                        "tool_name": "lookup_order"
+                      },
+                      "argument_comparison": {
+                        "actual_args": {
+                          "order_id": "ABC-1234"
+                        },
+                        "exact_match": true,
+                        "expected_args": {
+                          "order_id": "ABC-1234"
+                        },
+                        "status": "exact"
+                      },
+                      "divergence_notes": null,
+                      "expected": {
+                        "arguments": {
+                          "order_id": "ABC-1234"
+                        },
+                        "arguments_json": "{\"order_id\":\"ABC-1234\"}",
+                        "name": "lookup_order",
+                        "tool_name": "lookup_order"
+                      },
+                      "match_status": "exact"
+                    }
+                  ]
+                },
+                {
+                  "action_index": 3,
+                  "action_type": "text",
+                  "actor": "agent",
+                  "actual_response": {
+                    "text": "Thanks \u2014 I see you pasted \"Order #ABC-1234,\". I'll look that up now using order ID ABC-1234."
+                  },
+                  "divergence_notes": null,
+                  "expected_response": {
+                    "text": "Thanks \u2014 I see you pasted \"Order #ABC-1234,\". I'll look that up now using order ID ABC-1234."
+                  },
+                  "llm_judgment": {
+                    "completeness": "complete",
+                    "factual_accuracy": "correct",
+                    "summary": "The actual response exactly matches the expected response \u2014 it correctly acknowledges the pasted order string and states it will look up the order using ID ABC-1234.",
+                    "tone": "appropriate",
+                    "verdict": "match"
+                  },
+                  "match_status": "exact",
+                  "semantic_similarity": 0.95
+                },
+                {
+                  "action_index": 4,
+                  "action_type": "text",
+                  "actor": "user",
+                  "description": "User asks for ETA follow-up",
+                  "input_provided": true,
+                  "text": "Perfect \u2014 when will it arrive?"
+                },
+                {
+                  "action_index": 5,
+                  "action_type": "text",
+                  "actor": "agent",
+                  "actual_response": {
+                    "text": "The order ABC-1234 is out for delivery \u2014 the carrier scanned it at your local facility this morning. The estimated delivery is today by 6:30 PM (typical delivery window 4:30\u20136:30 PM)."
+                  },
+                  "divergence_notes": null,
+                  "expected_response": {
+                    "text": "The order ABC-1234 is out for delivery \u2014 the carrier scanned it at your local facility this morning. The estimated delivery is today by 6:30 PM (typical delivery window 4:30\u20136:30 PM)."
+                  },
+                  "llm_judgment": {
+                    "completeness": "complete",
+                    "factual_accuracy": "correct",
+                    "summary": "The agent response matches the expected response exactly: it correctly identifies order ABC-1234 as out for delivery, notes the carrier scanned at the local facility this morning, and provides the estimated delivery time (today by 6:30 PM with a 4:30\u20136:30 PM window).",
+                    "tone": "appropriate",
+                    "verdict": "match"
+                  },
+                  "match_status": "exact",
+                  "semantic_similarity": 0.95
+                }
+              ],
+              "coherence": {
+                "issues": [],
+                "score": 1.0,
+                "summary": "The agent maintained full context, correctly extracted and used the order ID (ABC-1234) from the pasted line, responded relevantly at each turn, and gave a consistent delivery status/ETA. No coherence issues found."
+              },
+              "completed_at": "2026-06-25T17:04:42Z",
+              "started_at": "2026-06-25T17:04:40Z",
+              "status": "completed",
+              "test_id": "where_is_my_package_no_id_coffeeshop"
+            }
+          ]
+        },
+        "runner": 52,
+        "runner_details": {
+          "id": 52,
+          "name": "\u9ec4\u777f"
+        },
+        "tenant": 36
+      }
+    ],
+    "status": "ok"
+  },
+  "response_headers": {},
+  "started_at": "2026-07-05T17:03:05Z",
+  "status": "ok",
+  "status_code": 200
+}

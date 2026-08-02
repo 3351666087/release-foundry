@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A1 RunResult",
+  "type": "object",
+  "required": ["run_id", "dataset_id", "runner_id", "status", "total_cases", "passed", "failed", "errored", "timed_out", "started_at", "ended_at", "duration_ms", "max_workers", "trace_completeness", "cases", "aggregate_metrics", "metadata", "field_map_version"],
+  "properties": {
+    "run_id": { "type": "string" },
+    "dataset_id": { "type": "string" },
+    "runner_id": { "type": "string" },
+    "status": { "type": "string" },
+    "total_cases": { "type": "integer", "minimum": 0 },
+    "passed": { "type": "integer", "minimum": 0 },
+    "failed": { "type": "integer", "minimum": 0 },
+    "errored": { "type": "integer", "minimum": 0 },
+    "timed_out": { "type": "integer", "minimum": 0 },
+    "started_at": { "type": "string" },
+    "ended_at": { "type": "string" },
+    "duration_ms": { "type": "integer", "minimum": 0 },
+    "max_workers": { "type": "integer", "minimum": 4 },
+    "trace_completeness": { "type": "number", "minimum": 0, "maximum": 1 },
+    "cases": {
+      "type": "array",
+      "items": { "$ref": "case_result.schema.json" }
+    },
+    "aggregate_metrics": {
+      "type": "object",
+      "required": ["schema_version", "trace_completeness", "passed", "failed", "errored", "timed_out", "total_tool_calls"],
+      "properties": {
+        "schema_version": { "const": "releasefoundry.run_result.v1" }
+      },
+      "additionalProperties": true
+    },
+    "metadata": {
+      "type": "object",
+      "properties": {
+        "local_only": { "const": true },
+        "releasefoundry_api_used": { "const": false }
+      },
+      "additionalProperties": true
+    },
+    "field_map_version": { "type": "string" }
+  },
+  "additionalProperties": true
+}

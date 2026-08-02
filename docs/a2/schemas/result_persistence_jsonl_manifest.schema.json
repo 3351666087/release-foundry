@@ -1,0 +1,130 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://releasefoundry.local/schemas/a2/result_persistence_jsonl_manifest.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "path",
+    "record_count",
+    "file_sha256",
+    "record_hashes",
+    "previous_manifest_hash",
+    "sequence_number",
+    "previous_sequence_number",
+    "writer_version",
+    "created_at",
+    "directory_fsync_state",
+    "writer_build_hash",
+    "chain_hash",
+    "public_safe",
+    "filesystem_volume_id_hash",
+    "post_replace_reopen_state",
+    "durability_qualification_state",
+    "replay_set_snapshot_hash",
+    "durability_receipt",
+    "durability_receipt_hash"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "a2.result_persistence_jsonl_manifest.v1"
+    },
+    "path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "record_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "file_sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "record_hashes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^sha256:[a-f0-9]{64}$"
+      }
+    },
+    "previous_manifest_hash": {
+      "type": "string",
+      "pattern": "^(|sha256:[a-f0-9]{64})$"
+    },
+    "chain_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "public_safe": {
+      "const": true
+    },
+    "sequence_number": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "previous_sequence_number": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "writer_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "directory_fsync_state": {
+      "enum": [
+        "completed",
+        "not_exposed",
+        "failed"
+      ]
+    },
+    "writer_build_hash": {
+      "type": "string",
+      "pattern": "^(|sha256:[a-f0-9]{64})$"
+    },
+    "filesystem_volume_id_hash": {
+      "type": "string",
+      "pattern": "^(|sha256:[a-f0-9]{64})$"
+    },
+    "post_replace_reopen_state": {
+      "const": "verified"
+    },
+    "durability_qualification_state": {
+      "enum": [
+        "atomic_replace_verified_durability_unproven",
+        "durability_verified",
+        "blocked"
+      ]
+    },
+    "replay_set_snapshot_hash": {
+      "type": "string",
+      "pattern": "^(|sha256:[a-f0-9]{64})$"
+    },
+    "durability_receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "file_write_state",
+        "file_fsync_state",
+        "atomic_replace_state",
+        "post_replace_reopen_state",
+        "parent_directory_flush_state"
+      ],
+      "properties": {
+        "file_write_state": {"const": "completed"},
+        "file_fsync_state": {"enum": ["verified", "not_exposed"]},
+        "atomic_replace_state": {"const": "verified"},
+        "post_replace_reopen_state": {"const": "verified"},
+        "parent_directory_flush_state": {"enum": ["verified", "unavailable"]}
+      }
+    },
+    "durability_receipt_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    }
+  }
+}

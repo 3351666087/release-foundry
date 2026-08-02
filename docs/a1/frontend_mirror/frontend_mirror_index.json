@@ -1,0 +1,373 @@
+{
+  "a1_implications": [
+    "treat request/run/test lifecycles separately",
+    "track media quota labels beyond image/audio/file",
+    "keep frontend-static functions separate from backend-verified field map"
+  ],
+  "api_entrypoints": [
+    "https://api.releasefoundry.example/testing-platform-api"
+  ],
+  "api_functions": [
+    "billing_create_checkout_session",
+    "billing_create_portal_session",
+    "billing_get_public_pricing",
+    "billing_get_status",
+    "create_agent",
+    "create_api_key",
+    "create_dataset",
+    "create_feature_flag",
+    "create_folder",
+    "create_prompt_template",
+    "create_prompt_version",
+    "create_request",
+    "create_run",
+    "create_skill_template",
+    "create_skill_version",
+    "create_user",
+    "delete_agent",
+    "delete_dataset",
+    "delete_folder",
+    "delete_pentest",
+    "delete_prompt_template",
+    "delete_request",
+    "delete_run",
+    "delete_skill_template",
+    "delete_tenant_feature",
+    "delete_tenant_llm_key",
+    "delete_ui_test",
+    "evaluate_run",
+    "generate_voice_call_insights",
+    "get_account_balance",
+    "get_activity_dashboard",
+    "get_agent_datasets",
+    "get_agent_tool_performance",
+    "get_dataset",
+    "get_download_link",
+    "get_folder_datasets",
+    "get_lightberry_scenario",
+    "get_notes",
+    "get_observability_analytics",
+    "get_observability_cost_analytics",
+    "get_observability_error_patterns",
+    "get_observability_errors",
+    "get_observability_latency_distribution",
+    "get_observability_time_series",
+    "get_observability_tool_errors",
+    "get_observability_tool_reliability",
+    "get_observability_trace",
+    "get_observability_user_analytics",
+    "get_pax_prompt_model_scores",
+    "get_pentest",
+    "get_prompt_performance",
+    "get_prompt_template",
+    "get_prompt_version_runs",
+    "get_request",
+    "get_request_failed",
+    "get_run",
+    "get_scenario_stats",
+    "get_skill_performance",
+    "get_skill_template",
+    "get_skill_version_runs",
+    "get_tenant",
+    "get_tenant_llm_key_status",
+    "get_tool_runs",
+    "get_tools_by_agent",
+    "get_trust_certificate_status",
+    "get_ui_test",
+    "get_upload_link",
+    "get_usage",
+    "get_user",
+    "get_voice_analytics_overview",
+    "get_voice_call_insights",
+    "get_voice_charts",
+    "get_voice_session",
+    "get_voice_session_audio_url",
+    "get_voice_session_turns",
+    "get_voice_stage_payload",
+    "list_agents",
+    "list_api_keys",
+    "list_datasets",
+    "list_feature_flags",
+    "list_folder_memberships",
+    "list_folders",
+    "list_observability_traces",
+    "list_pentests",
+    "list_prompt_templates",
+    "list_prompt_versions",
+    "list_requests",
+    "list_runs",
+    "list_scorer_requests",
+    "list_skill_templates",
+    "list_skill_versions",
+    "list_tenants",
+    "list_ui_tests",
+    "list_users",
+    "list_validators",
+    "list_voice_calls",
+    "list_voice_sessions",
+    "revoke_api_key",
+    "update_agent",
+    "update_dataset",
+    "update_feature_flag",
+    "update_folder",
+    "update_prompt_template",
+    "update_request_status",
+    "update_run_result",
+    "update_skill_template",
+    "update_user"
+  ],
+  "important_assets": [
+    {
+      "path": "_report/api-like-observed-skipped.json",
+      "sha256": "63b3d8a13c50beb652dcca77d8f5e4429ec5b580c446866e3987f0a13a907779",
+      "size": 120
+    },
+    {
+      "path": "mirror/releasefoundry.example/docs/python-sdk/api-reference.html",
+      "sha256": "77a71f73f6ebe883c1afa3998f29620b3e5bb4e2c975c23a9bf6b41b95cef5ec",
+      "size": 533187
+    },
+    {
+      "path": "mirror/releasefoundry.example/docs/python-sdk/api-reference/",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "path": "mirror/releasefoundry.example/docs/python-sdk/api-reference/index.html",
+      "sha256": "77a71f73f6ebe883c1afa3998f29620b3e5bb4e2c975c23a9bf6b41b95cef5ec",
+      "size": 533187
+    },
+    {
+      "path": "mirror/releasefoundry.example/docs/typescript-sdk/api-reference.html",
+      "sha256": "3848f12a9229f1df1cca28829e4715bfa3bd65b52d59b187e5f6627a079b9a86",
+      "size": 465373
+    },
+    {
+      "path": "mirror/releasefoundry.example/docs/typescript-sdk/api-reference/",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "path": "mirror/releasefoundry.example/docs/typescript-sdk/api-reference/index.html",
+      "sha256": "3848f12a9229f1df1cca28829e4715bfa3bd65b52d59b187e5f6627a079b9a86",
+      "size": 465373
+    },
+    {
+      "path": "mirror/app.releasefoundry.example/assets/AgentEffectivenessChart-Dn1jN8cP.js",
+      "sha256": "fa6f1b227d2867111dbdd4a1f5c4354bbf43a469aaba3c718f2b8b854facc4e3",
+      "size": 2951
+    },
+    {
+      "path": "mirror/app.releasefoundry.example/assets/CreateRequestModal-LwtjGDgm.js",
+      "sha256": "8a63f2500b0fbc637cd79891849038e68a669071af32c5ba8cd8d6b8c44300a5",
+      "size": 311966
+    },
+    {
+      "path": "mirror/app.releasefoundry.example/assets/DatasetsPage-C6F1zCF4.js",
+      "sha256": "3c2993f79c03f512ec650131bcf6b0442fb1f22952360a221c72ff0811a550a9",
+      "size": 17223
+    },
+    {
+      "path": "mirror/app.releasefoundry.example/assets/DatasetsPage-toREQciD.css",
+      "sha256": "c2bf152805502dddb0a99da1313c9cf41936ad37dba26785d7b3fb1478a2e5fd",
+      "size": 7484
+    },
+    {
+      "path": "mirror/app.releasefoundry.example/assets/index-CjR_3Urr.css",
+      "sha256": "4a4d8106cf92e4fe10fa1549f3f7cc7a0ec37253e2f5f191896c5157b9c57256",
+      "size": 170846
+    },
+    {
+      "path": "mirror/app.releasefoundry.example/assets/index-DSO2XOq6.js",
+      "sha256": "12a3b6594f29a4a98e5296a7bac2e952bb92452c9ae8fb1c746e43ae11445b4d",
+      "size": 468722
+    },
+    {
+      "path": "mirror/app.releasefoundry.example/assets/RequestDetailDrawer-SLqhBzSz.js",
+      "sha256": "de15c43304907f29840c56a8cc06330308fdfc5c4d3a43b548caee952545d590",
+      "size": 5082
+    },
+    {
+      "path": "mirror/app.releasefoundry.example/assets/RequestDetailDrawer-wFGkpl2K.css",
+      "sha256": "86e7275b57c0683b9cb17234e4bbbf4ede5b654e1f505af8007b9ea9b2876a91",
+      "size": 2542
+    },
+    {
+      "path": "mirror/app.releasefoundry.example/assets/UsagePage-CoD18uzD.js",
+      "sha256": "2a14d8f1c09f398ab8250399768b84f14f561a2e1e4e9a62c69a03e58e2dc2b1",
+      "size": 5143
+    },
+    {
+      "path": "mirror/app.releasefoundry.example/assets/UsagePage-CqqvL0ve.css",
+      "sha256": "78176e220016052c934a6f346c1ae2ac215c7eaaa273ecf7f18f82dd78490f3a",
+      "size": 3990
+    },
+    {
+      "path": "mirror/www.releasefoundry.example/docs/python-sdk/api-reference.html",
+      "sha256": "77a71f73f6ebe883c1afa3998f29620b3e5bb4e2c975c23a9bf6b41b95cef5ec",
+      "size": 533187
+    },
+    {
+      "path": "mirror/www.releasefoundry.example/docs/python-sdk/api-reference/",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "path": "mirror/www.releasefoundry.example/docs/python-sdk/api-reference/index.html",
+      "sha256": "77a71f73f6ebe883c1afa3998f29620b3e5bb4e2c975c23a9bf6b41b95cef5ec",
+      "size": 533187
+    },
+    {
+      "path": "mirror/www.releasefoundry.example/docs/typescript-sdk/api-reference.html",
+      "sha256": "3848f12a9229f1df1cca28829e4715bfa3bd65b52d59b187e5f6627a079b9a86",
+      "size": 465373
+    },
+    {
+      "path": "mirror/www.releasefoundry.example/docs/typescript-sdk/api-reference/",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0
+    },
+    {
+      "path": "mirror/www.releasefoundry.example/docs/typescript-sdk/api-reference/index.html",
+      "sha256": "3848f12a9229f1df1cca28829e4715bfa3bd65b52d59b187e5f6627a079b9a86",
+      "size": 465373
+    }
+  ],
+  "lifecycle_terms": [
+    "Completed",
+    "Failed",
+    "Processing",
+    "Queued",
+    "Retry",
+    "Retrying",
+    "completed",
+    "failed",
+    "pending",
+    "processing",
+    "requested"
+  ],
+  "media_terms": [
+    "audio",
+    "conversation",
+    "file",
+    "generate_audio",
+    "generate_files",
+    "generate_images",
+    "generate_simulations",
+    "generate_videos",
+    "image",
+    "simulation",
+    "text",
+    "video"
+  ],
+  "public_safe_summary": true,
+  "raw_files_committed": false,
+  "scanned_entry_count": 589,
+  "schema_version": "releasefoundry.frontend_mirror_index.v1",
+  "secret_policy": {
+    "local_storage_values_included": false,
+    "raw_headers_committed": false,
+    "tokens_included": false
+  },
+  "source_sha256": "1d12159feb2e1133941bba05d46f24a0e38002dabdfaa29c9cadc7a63d056793",
+  "source_zip": "C:/Users/33516/Desktop/ReleaseFoundry_frontend_mirror_20260707_125507.zip",
+  "usage_labels": [
+    "Assets",
+    "Audio",
+    "Files",
+    "Graded scenarios",
+    "Images",
+    "Limit reached",
+    "Observations",
+    "Overage billing",
+    "Plan limits",
+    "Simulations",
+    "Videos",
+    "Voice minutes"
+  ],
+  "page_domains": {
+    "datasets": [
+      "list_datasets",
+      "get_dataset",
+      "create_dataset",
+      "list_requests",
+      "get_request",
+      "create_request",
+      "update_request_status"
+    ],
+    "folders": [
+      "list_folders",
+      "create_folder",
+      "update_folder",
+      "delete_folder",
+      "get_folder_datasets",
+      "list_folder_memberships"
+    ],
+    "team": [
+      "list_users",
+      "create_user",
+      "update_user"
+    ],
+    "observability": [
+      "get_voice_analytics_overview",
+      "get_voice_call_insights",
+      "generate_voice_call_insights",
+      "list_voice_sessions",
+      "get_voice_session",
+      "get_voice_session_turns",
+      "list_observability_traces",
+      "get_observability_trace"
+    ],
+    "api_keys": [
+      "list_api_keys",
+      "create_api_key",
+      "revoke_api_key"
+    ],
+    "usage": [
+      "get_usage",
+      "billing_get_status",
+      "billing_create_checkout_session",
+      "billing_create_portal_session"
+    ]
+  },
+  "runtime_schema_public_fixture": "tests/a1/fixtures/round21_frontend_runtime_schema_public.json",
+  "runtime_field_terms": [
+    "agent_id",
+    "api_key_id",
+    "confidence_series",
+    "dataset_count",
+    "dataset_source",
+    "duration_ms",
+    "expires_at",
+    "expires_seconds",
+    "final_confidence",
+    "intent_confidence",
+    "key_prefix",
+    "mos_score",
+    "observations",
+    "pinned_datasets",
+    "policy_name",
+    "request_bytes",
+    "request_id",
+    "request_status",
+    "room_id",
+    "run_count",
+    "status_code",
+    "status_message",
+    "total_cost_usd",
+    "url_path",
+    "user_id",
+    "voice_id"
+  ],
+  "copy_signal_terms": [
+    "Call insights",
+    "Dataset requested - it will appear here once generated.",
+    "Dataset requested - it will appear in this folder once generated.",
+    "Failed to load team members",
+    "Invite Team Member",
+    "No payload recorded.",
+    "No traces for this agent yet.",
+    "No turns recorded for this session.",
+    "Quality score"
+  ]
+}

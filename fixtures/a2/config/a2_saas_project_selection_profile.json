@@ -1,0 +1,33 @@
+{
+  "schema_version": "a2.scenario_selection_profile.v1",
+  "selection_id": "a2_enterprise_saas_prod_selection",
+  "project": {
+    "project_id": "project_enterprise_saas_agent",
+    "name": "Enterprise SaaS Support Agent"
+  },
+  "environment": "prod",
+  "capability_axes": [
+    "tool_choice_and_policy",
+    "trace_contract",
+    "grounding_and_reference",
+    "safety_boundary",
+    "enterprise_saas_operations",
+    "media_and_multimodal"
+  ],
+  "risk_tiers": [
+    "high",
+    "critical"
+  ],
+  "media_requirement": "required",
+  "tenant_saas_tags": [
+    "admin-audit",
+    "billing-risk",
+    "change-management",
+    "enterprise-saas",
+    "privacy-compliance",
+    "saas-observability",
+    "secrets-management",
+    "skill-governance"
+  ],
+  "max_scenarios": 12
+}

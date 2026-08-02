@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A2EvidenceSnapshot",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "snapshot_id",
+    "snapshot_hash",
+    "organization_id",
+    "tenant_id",
+    "workspace_id",
+    "project_id",
+    "environment_id",
+    "run_id",
+    "case_id",
+    "scenario_id",
+    "created_at",
+    "source_payload_hash",
+    "required_modalities",
+    "artifact_modalities",
+    "observed_modalities",
+    "completeness",
+    "artifacts",
+    "derived_evidence",
+    "extractor_provenance",
+    "security"
+  ],
+  "properties": {
+    "schema_version": { "const": "a2.evidence_snapshot.v1" },
+    "snapshot_id": { "$ref": "#/$defs/hash" },
+    "snapshot_hash": { "$ref": "#/$defs/hash" },
+    "organization_id": { "type": "string", "minLength": 1 },
+    "tenant_id": { "type": "string", "minLength": 1 },
+    "workspace_id": { "type": "string", "minLength": 1 },
+    "project_id": { "type": "string", "minLength": 1 },
+    "environment_id": { "type": "string", "minLength": 1 },
+    "run_id": { "type": "string", "minLength": 1 },
+    "case_id": { "type": "string", "minLength": 1 },
+    "scenario_id": { "type": "string", "minLength": 1 },
+    "created_at": { "type": "string", "format": "date-time" },
+    "source_schema_version": { "type": "string" },
+    "source_payload_hash": { "$ref": "#/$defs/hash" },
+    "required_modalities": { "$ref": "#/$defs/modalities" },
+    "artifact_modalities": { "$ref": "#/$defs/modalities" },
+    "observed_modalities": { "$ref": "#/$defs/modalities" },
+    "completeness": {
+      "enum": ["complete", "partial", "evidence_missing", "invalid"]
+    },
+    "missing_modalities": { "$ref": "#/$defs/modalities" },
+    "validation_errors": { "$ref": "#/$defs/string_array" },
+    "tool_call_count": { "type": "integer", "minimum": 0 },
+    "tool_sequence": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "artifact_id",
+          "modality",
+          "producer_tool",
+          "reference_hash",
+          "reference_resolution_hash",
+          "content_hash",
+          "content_included",
+          "collection_status"
+        ],
+        "properties": {
+          "artifact_id": { "type": "string" },
+          "modality": { "enum": ["text", "image", "audio", "file", "video"] },
+          "producer_tool": { "type": "string" },
+          "reference_hash": { "$ref": "#/$defs/hash" },
+          "reference_resolution_hash": {
+            "oneOf": [{ "const": "" }, { "$ref": "#/$defs/hash" }]
+          },
+          "content_hash": { "$ref": "#/$defs/hash" },
+          "content_included": { "const": false },
+          "collection_status": {
+            "enum": ["complete", "partial", "evidence_missing", "invalid"]
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "derived_evidence": {
+      "type": "array",
+      "items": { "$ref": "derived_evidence.schema.json" }
+    },
+    "extractor_provenance": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["extractor_id", "extractor_version", "input_hash", "status"],
+        "properties": {
+          "extractor_id": { "type": "string" },
+          "extractor_version": { "type": "string" },
+          "input_hash": { "$ref": "#/$defs/hash" },
+          "status": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    },
+    "security": {
+      "type": "object",
+      "required": [
+        "tenant_scoped",
+        "scope_complete",
+        "raw_evidence_included",
+        "private_evidence_included",
+        "secrets_included",
+        "artifact_content_included"
+      ],
+      "properties": {
+        "tenant_scoped": { "const": true },
+        "scope_complete": { "const": true },
+        "raw_evidence_included": { "const": false },
+        "private_evidence_included": { "const": false },
+        "secrets_included": { "const": false },
+        "artifact_content_included": { "const": false }
+      },
+      "additionalProperties": false
+    }
+  },
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "modalities": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "enum": ["text", "image", "audio", "file", "video"] }
+    },
+    "string_array": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string" }
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>ReleaseFoundry 邮箱验证</title>
+  </head>
+  <body style="margin:0;padding:0;background:#ecebe6;color:#171716;font-family:Arial,'Microsoft YaHei',sans-serif;">
+    <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="background:#ecebe6;">
+      <tr>
+        <td align="center" style="padding:32px 14px;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" style="max-width:560px;background:#ffffff;border:1px solid #99968e;">
+            <tr>
+              <td style="padding:18px 22px;background:#171716;border-bottom:4px solid #f04d2f;">
+                <table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0">
+                  <tr>
+                    <td style="color:#ffffff;font-size:20px;font-weight:800;">RELEASEFOUNDRY</td>
+                    <td align="right" style="color:#bbb8b0;font-size:10px;">SECURITY MESSAGE</td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:40px 34px 32px;">
+                <div style="margin-bottom:12px;color:#f04d2f;font-size:10px;font-weight:800;">IDENTITY / EMAIL VERIFICATION</div>
+                <h1 style="margin:0 0 12px;font-size:32px;line-height:1.15;">确认你的邮箱</h1>
+                <p style="margin:0 0 26px;color:#5f5c55;font-size:14px;line-height:1.7;">使用下面的验证码完成 ReleaseFoundry 工作区注册。验证码仅可使用一次。</p>
+                <div style="padding:20px 12px;color:#ffffff;background:#171716;border-bottom:5px solid #f04d2f;font-family:Consolas,monospace;font-size:34px;font-weight:800;text-align:center;">{{VERIFICATION_CODE}}</div>
+                <p style="margin:14px 0 24px;color:#77746d;font-size:12px;">验证码将在 {{EXPIRES_IN_MINUTES}} 分钟后失效。</p>
+                <table role="presentation" cellspacing="0" cellpadding="0" border="0">
+                  <tr>
+                    <td style="background:#39725c;">
+                      <a href="{{VERIFICATION_URL}}" style="display:inline-block;padding:13px 18px;color:#ffffff;font-size:13px;font-weight:700;text-decoration:none;">打开安全验证页</a>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:20px 34px;color:#625f59;background:#f1f0eb;border-top:1px solid #d0cdc4;font-size:12px;line-height:1.65;">
+                <strong style="display:block;margin-bottom:5px;color:#171716;">不是你本人操作？</strong>
+                忽略这封邮件即可。ReleaseFoundry 不会在邮件中索要密码、API key 或 OAuth token。
+              </td>
+            </tr>
+          </table>
+          <div style="padding-top:14px;color:#77746d;font-size:10px;">ReleaseFoundry Agent Release OS · Transactional identity message</div>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>

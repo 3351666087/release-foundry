@@ -1,0 +1,32 @@
+{
+  "name": "ReleaseFoundry Release Gate",
+  "head_sha": "[set-by-ci]",
+  "status": "completed",
+  "conclusion": "failure",
+  "details_url": "",
+  "output": {
+    "title": "A2 blocked: a3-golden-20260712-001",
+    "summary": "Local case-quality gate: Block release. Authoritative A2 decision: block; release_ready=false.\n\nAuthoritative A2 status: blocked; reason: a2_decision_blocks_release.",
+    "text": "Run: a3-golden-20260712-001\nRelease: 0.2.0-rc.1\nEnvironment: staging\nPass rate: 33.3%\nAverage score: 80.7\nTrace completeness: 100%\nFailed checks: pass_rate, required_tool_coverage\nPR gate next action: Block merge: resolve A3 failed check(s) pass_rate, required_tool_coverage before sign-off.\nSign-off risk: blocked\n\nTop risk cases:\n- a3-gp-required-web-tool: missing_required_tool / major / 71\n- a3-gp-media-pipeline: missing_required_tool / major / 71\n\nA2 Decision Ledger: block\nA2 release_ready: false\nNext action: Do not merge or publish until A2 issues an allow Decision Ledger record for a3-golden-20260712-001.",
+    "annotations": [
+      {
+        "path": "releasefoundry-gate-report.md",
+        "start_line": 1,
+        "end_line": 1,
+        "annotation_level": "failure",
+        "title": "missing_required_tool: a3-gp-required-web-tool",
+        "message": "Required current-price tool boundary scored 71; Required tool missing: web.search",
+        "raw_details": "{\"case_id\":\"a3-gp-required-web-tool\",\"severity\":\"major\",\"primary_failure_class\":\"missing_required_tool\",\"run_id\":\"a3-golden-20260712-001\"}"
+      },
+      {
+        "path": "releasefoundry-gate-report.md",
+        "start_line": 1,
+        "end_line": 1,
+        "annotation_level": "failure",
+        "title": "missing_required_tool: a3-gp-media-pipeline",
+        "message": "Media pipeline inspection boundary scored 71; Required tool missing: media.fetch; Required tool missing: image.view; Required tool missing: media.classify; Tool order violated: media.fetch before image.view; Tool order violated: image.view before media.classify",
+        "raw_details": "{\"case_id\":\"a3-gp-media-pipeline\",\"severity\":\"major\",\"primary_failure_class\":\"missing_required_tool\",\"run_id\":\"a3-golden-20260712-001\"}"
+      }
+    ]
+  }
+}

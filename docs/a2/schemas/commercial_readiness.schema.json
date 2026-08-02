@@ -1,0 +1,217 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A2 CommercialReadinessReport",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "report_id",
+    "source_goal",
+    "current_gate",
+    "ready_for_commercial_gate",
+    "commercial_dimensions",
+    "contract_invariants",
+    "gate_status",
+    "evidence_snapshot",
+    "next_top_3",
+    "growth_auditor",
+    "metadata"
+  ],
+  "properties": {
+    "schema_version": { "const": "a2.commercial_readiness.v1" },
+    "report_id": { "type": "string" },
+    "source_goal": { "type": "object" },
+    "current_gate": { "type": "string" },
+    "ready_for_commercial_gate": { "type": "boolean" },
+    "commercial_dimensions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/commercial_dimension" }
+    },
+    "contract_invariants": { "$ref": "#/$defs/string_array" },
+    "scope_boundary": { "$ref": "#/$defs/scope_boundary" },
+    "gate_status": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/gate_status" }
+    },
+    "evidence_snapshot": { "$ref": "#/$defs/evidence_snapshot" },
+    "next_top_3": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/next_move" }
+    },
+    "growth_auditor": { "$ref": "#/$defs/growth_auditor" },
+    "metadata": { "type": "object" }
+  },
+  "$defs": {
+    "status": {
+      "enum": ["met", "partial", "blocked"]
+    },
+    "string_array": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "commercial_dimension": {
+      "type": "object",
+      "required": ["dimension", "weight", "status", "evidence"],
+      "properties": {
+        "dimension": { "type": "string" },
+        "weight": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "status": { "$ref": "#/$defs/status" },
+        "evidence": { "type": "string" },
+        "gap": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "gate_status": {
+      "type": "object",
+      "required": ["gate", "name", "status", "requirement", "evidence_refs", "gaps"],
+      "properties": {
+        "gate": { "type": "string" },
+        "name": { "type": "string" },
+        "status": { "$ref": "#/$defs/status" },
+        "requirement": { "type": "string" },
+        "evidence_refs": { "$ref": "#/$defs/string_array" },
+        "gaps": { "$ref": "#/$defs/string_array" }
+      },
+      "additionalProperties": true
+    },
+    "scope_boundary": {
+      "type": "object",
+      "required": [
+        "status",
+        "why_a2_is_larger",
+        "a2_owned",
+        "delegated_to_a1",
+        "delegated_to_a3",
+        "allowed_growth",
+        "blocked_growth",
+        "guardrails"
+      ],
+      "properties": {
+        "status": { "type": "string" },
+        "why_a2_is_larger": { "type": "string" },
+        "a2_owned": { "$ref": "#/$defs/string_array" },
+        "delegated_to_a1": { "$ref": "#/$defs/string_array" },
+        "delegated_to_a3": { "$ref": "#/$defs/string_array" },
+        "allowed_growth": { "$ref": "#/$defs/string_array" },
+        "blocked_growth": { "$ref": "#/$defs/string_array" },
+        "guardrails": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/scope_guardrail" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "scope_guardrail": {
+      "type": "object",
+      "required": ["id", "status", "evidence_ref"],
+      "properties": {
+        "id": { "type": "string" },
+        "status": { "type": "string" },
+        "evidence_ref": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "evidence_snapshot": {
+      "type": "object",
+      "required": [
+        "assignment_minimums_green",
+        "scenario_count",
+        "golden_case_count",
+        "failure_class_count",
+        "releasefoundry_public_merge_status",
+        "releasefoundry_safe_to_mark_c3_met",
+        "semantic_live_merge_status",
+        "semantic_safe_to_mark_c4_met",
+        "semantic_risk_assessment_status",
+        "semantic_false_positive_tracking_ready",
+        "semantic_failure_class_drift_candidates",
+        "semantic_score_delta_reviews",
+        "real_api_evidence_available",
+        "real_api_total_records",
+        "real_api_record_count",
+        "real_api_read_ok_count",
+        "real_api_quota_block_count",
+        "real_api_create_request_blocked",
+        "official_sdk_smoke_read_only_reachable",
+        "official_sdk_smoke_ok_call_count",
+        "official_sdk_smoke_error_call_count"
+      ],
+      "properties": {
+        "real_api_evidence_available": { "type": "boolean" },
+        "real_api_total_records": { "type": "integer", "minimum": 0 },
+        "real_api_record_count": { "type": "integer", "minimum": 0 },
+        "real_api_read_ok_count": { "type": "integer", "minimum": 0 },
+        "real_api_quota_block_count": { "type": "integer", "minimum": 0 },
+        "real_api_create_request_blocked": { "type": "boolean" },
+        "official_sdk_smoke_read_only_reachable": { "type": "boolean" },
+        "official_sdk_smoke_ok_call_count": { "type": "integer", "minimum": 0 },
+        "official_sdk_smoke_error_call_count": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": true
+    },
+    "next_move": {
+      "type": "object",
+      "required": ["id", "title", "why_now", "scores", "smallest_delivery"],
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "why_now": { "type": "string" },
+        "scores": { "type": "object" },
+        "smallest_delivery": { "$ref": "#/$defs/string_array" }
+      },
+      "additionalProperties": true
+    },
+    "growth_auditor": {
+      "type": "object",
+      "required": [
+        "auditor_id",
+        "audit_basis",
+        "money_direction",
+        "new_sellable_capabilities",
+        "toy_risks_to_upgrade",
+        "customer_payment_drivers",
+        "enterprise_readiness",
+        "current_evidence_strength",
+        "parallel_growth_points",
+        "parallelization"
+      ],
+      "properties": {
+        "auditor_id": { "type": "string" },
+        "audit_basis": { "type": "string" },
+        "money_direction": { "type": "object" },
+        "new_sellable_capabilities": { "$ref": "#/$defs/string_array" },
+        "toy_risks_to_upgrade": { "$ref": "#/$defs/string_array" },
+        "customer_payment_drivers": { "$ref": "#/$defs/string_array" },
+        "enterprise_readiness": { "type": "object" },
+        "current_evidence_strength": { "type": "object" },
+        "parallel_growth_points": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/growth_point" },
+          "minItems": 20
+        },
+        "parallelization": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "growth_point": {
+      "type": "object",
+      "required": [
+        "id",
+        "title",
+        "parallel_track",
+        "commercial_value",
+        "evidence_ref",
+        "required_artifact_type"
+      ],
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "parallel_track": { "type": "string" },
+        "commercial_value": { "type": "string" },
+        "evidence_ref": { "type": "string" },
+        "required_artifact_type": { "type": "string" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

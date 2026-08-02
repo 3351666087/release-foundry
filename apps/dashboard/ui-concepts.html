@@ -1,0 +1,800 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>A3 Dashboard UI Concepts</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #172033;
+        --muted: #667085;
+        --line: #d8dee8;
+        --paper: #ffffff;
+        --bg: #f6f7f9;
+        --green: #177245;
+        --red: #b42318;
+        --amber: #a15c00;
+        --blue: #245a92;
+        --cyan: #1d7181;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+      }
+
+      .page {
+        display: grid;
+        gap: 32px;
+        padding: 28px;
+      }
+
+      .intro {
+        max-width: 1180px;
+      }
+
+      h1,
+      h2,
+      h3,
+      p {
+        margin: 0;
+      }
+
+      h1 {
+        font-size: 28px;
+        letter-spacing: 0;
+      }
+
+      .intro p {
+        color: var(--muted);
+        margin-top: 8px;
+      }
+
+      .concept {
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        box-shadow: 0 22px 60px rgba(23, 32, 51, 0.08);
+        min-height: 760px;
+        overflow: hidden;
+      }
+
+      .concept-label {
+        align-items: center;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        justify-content: space-between;
+        padding: 14px 18px;
+      }
+
+      .concept-label h2 {
+        font-size: 16px;
+      }
+
+      .concept-label span {
+        color: var(--muted);
+        font-size: 13px;
+      }
+
+      .concept-screen {
+        min-height: 704px;
+      }
+
+      .badge {
+        align-items: center;
+        border-radius: 999px;
+        display: inline-flex;
+        font-size: 12px;
+        font-weight: 700;
+        min-height: 24px;
+        padding: 3px 9px;
+      }
+
+      .badge.pass {
+        background: #e8f4ee;
+        color: var(--green);
+      }
+
+      .badge.fail {
+        background: #fdebea;
+        color: var(--red);
+      }
+
+      .badge.warn {
+        background: #fff3df;
+        color: var(--amber);
+      }
+
+      .badge.info {
+        background: #e6f4f6;
+        color: var(--cyan);
+      }
+
+      .muted {
+        color: var(--muted);
+      }
+
+      .metric strong {
+        display: block;
+        font-size: 24px;
+      }
+
+      .metric span {
+        color: var(--muted);
+        display: block;
+        font-size: 12px;
+        margin-top: 4px;
+      }
+
+      .list {
+        display: grid;
+        gap: 10px;
+      }
+
+      .row {
+        align-items: center;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        display: grid;
+        gap: 8px;
+        padding: 12px;
+      }
+
+      .row-head {
+        align-items: center;
+        display: flex;
+        gap: 10px;
+        justify-content: space-between;
+      }
+
+      .row strong {
+        font-size: 13px;
+      }
+
+      .row p {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.45;
+      }
+
+      .spark {
+        display: grid;
+        gap: 5px;
+        grid-template-columns: repeat(18, 1fr);
+        height: 48px;
+      }
+
+      .spark span {
+        align-self: end;
+        background: #9fb6d5;
+        border-radius: 3px 3px 0 0;
+        min-height: 8px;
+      }
+
+      .table {
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+
+      .table-row {
+        display: grid;
+        gap: 10px;
+        grid-template-columns: 1.1fr 0.65fr 0.7fr 0.9fr;
+        padding: 11px 12px;
+      }
+
+      .table-row + .table-row {
+        border-top: 1px solid var(--line);
+      }
+
+      .table-head {
+        background: #f2f5f9;
+        color: var(--muted);
+        font-size: 12px;
+        font-weight: 700;
+      }
+
+      .button {
+        background: #fff;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        color: var(--ink);
+        font-weight: 700;
+        min-height: 36px;
+        padding: 8px 12px;
+      }
+
+      .button.primary {
+        background: #172033;
+        border-color: #172033;
+        color: #fff;
+      }
+
+      /* Concept A */
+      .quiet {
+        background: #fbfbfa;
+        display: grid;
+        grid-template-columns: 238px 1fr;
+      }
+
+      .quiet .side {
+        background: #ffffff;
+        border-right: 1px solid #e4e1dc;
+        padding: 22px 16px;
+      }
+
+      .quiet .mark {
+        align-items: center;
+        background: #1f2937;
+        border-radius: 7px;
+        color: #fff;
+        display: inline-flex;
+        height: 30px;
+        justify-content: center;
+        margin-right: 8px;
+        width: 30px;
+      }
+
+      .quiet nav {
+        display: grid;
+        gap: 5px;
+        margin-top: 26px;
+      }
+
+      .quiet nav span {
+        border-radius: 7px;
+        color: #5d6675;
+        font-size: 13px;
+        padding: 9px 10px;
+      }
+
+      .quiet nav span.active {
+        background: #f1f0ed;
+        color: #1f2937;
+        font-weight: 700;
+      }
+
+      .quiet .main {
+        display: grid;
+        gap: 16px;
+        padding: 22px;
+      }
+
+      .quiet .top {
+        align-items: center;
+        display: flex;
+        justify-content: space-between;
+      }
+
+      .quiet .cards {
+        display: grid;
+        gap: 12px;
+        grid-template-columns: repeat(4, 1fr);
+      }
+
+      .quiet .card,
+      .quiet .panel {
+        background: #fff;
+        border: 1px solid #e4e1dc;
+        border-radius: 9px;
+        padding: 16px;
+      }
+
+      .quiet .split {
+        display: grid;
+        gap: 14px;
+        grid-template-columns: 0.95fr 1.35fr;
+      }
+
+      /* Concept B */
+      .command {
+        background: #090d14;
+        color: #e7ecf4;
+        display: grid;
+        grid-template-columns: 226px 1fr;
+      }
+
+      .command .side {
+        background: #0c121d;
+        border-right: 1px solid #1d2635;
+        padding: 20px 15px;
+      }
+
+      .command .logo {
+        align-items: center;
+        display: flex;
+        font-weight: 800;
+        gap: 8px;
+      }
+
+      .command .logo span:first-child {
+        align-items: center;
+        background: #7dd3fc;
+        border-radius: 8px;
+        color: #07101d;
+        display: inline-flex;
+        height: 30px;
+        justify-content: center;
+        width: 30px;
+      }
+
+      .command nav {
+        display: grid;
+        gap: 5px;
+        margin-top: 24px;
+      }
+
+      .command nav span {
+        border: 1px solid transparent;
+        border-radius: 8px;
+        color: #9aa6b8;
+        font-size: 13px;
+        padding: 9px 10px;
+      }
+
+      .command nav span.active {
+        background: #111a28;
+        border-color: #263245;
+        color: #fff;
+      }
+
+      .command .main {
+        display: grid;
+        gap: 14px;
+        padding: 22px;
+      }
+
+      .command .top {
+        align-items: center;
+        display: flex;
+        justify-content: space-between;
+      }
+
+      .command .button.primary {
+        background: #e7ecf4;
+        color: #0a0f18;
+      }
+
+      .command .cards {
+        display: grid;
+        gap: 12px;
+        grid-template-columns: repeat(5, 1fr);
+      }
+
+      .command .card,
+      .command .panel,
+      .command .row,
+      .command .table {
+        background: #0f1724;
+        border-color: #263245;
+      }
+
+      .command .panel {
+        border: 1px solid #263245;
+        border-radius: 10px;
+        padding: 16px;
+      }
+
+      .command .row p,
+      .command .muted,
+      .command .metric span {
+        color: #9aa6b8;
+      }
+
+      .command .split {
+        display: grid;
+        gap: 14px;
+        grid-template-columns: 1.1fr 0.9fr;
+      }
+
+      /* Concept C */
+      .revenue {
+        background: #f5f7fb;
+        display: grid;
+        grid-template-rows: auto 1fr;
+      }
+
+      .revenue .top {
+        align-items: center;
+        background: #ffffff;
+        border-bottom: 1px solid #dbe2ef;
+        display: flex;
+        justify-content: space-between;
+        padding: 16px 24px;
+      }
+
+      .revenue .tabs {
+        display: flex;
+        gap: 8px;
+      }
+
+      .revenue .tabs span {
+        border-radius: 999px;
+        color: #667085;
+        font-size: 13px;
+        padding: 8px 12px;
+      }
+
+      .revenue .tabs span.active {
+        background: #e9f1ff;
+        color: #245a92;
+        font-weight: 700;
+      }
+
+      .revenue .main {
+        display: grid;
+        gap: 16px;
+        padding: 22px;
+      }
+
+      .revenue .hero {
+        background: #17406d;
+        border-radius: 11px;
+        color: #fff;
+        display: grid;
+        gap: 14px;
+        grid-template-columns: 1.1fr 0.9fr;
+        min-height: 170px;
+        padding: 22px;
+      }
+
+      .revenue .hero .muted {
+        color: #d7e5f4;
+      }
+
+      .revenue .cards,
+      .revenue .split {
+        display: grid;
+        gap: 14px;
+      }
+
+      .revenue .cards {
+        grid-template-columns: repeat(4, 1fr);
+      }
+
+      .revenue .split {
+        grid-template-columns: 0.9fr 1.1fr;
+      }
+
+      .revenue .card,
+      .revenue .panel {
+        background: #fff;
+        border: 1px solid #dbe2ef;
+        border-radius: 10px;
+        padding: 16px;
+      }
+
+      /* Concept D */
+      .ops {
+        background: #eef2f4;
+        color: #172033;
+        display: grid;
+        grid-template-columns: 72px 1fr;
+      }
+
+      .ops .rail {
+        align-items: center;
+        background: #10212a;
+        display: grid;
+        gap: 12px;
+        justify-content: center;
+        padding: 18px 0;
+      }
+
+      .ops .rail span {
+        align-items: center;
+        background: #18313d;
+        border: 1px solid #294854;
+        border-radius: 10px;
+        color: #d6edf3;
+        display: inline-flex;
+        font-size: 12px;
+        font-weight: 800;
+        height: 42px;
+        justify-content: center;
+        width: 42px;
+      }
+
+      .ops .main {
+        display: grid;
+        gap: 12px;
+        padding: 18px;
+      }
+
+      .ops .top {
+        align-items: center;
+        background: #fff;
+        border: 1px solid #ced8dd;
+        border-radius: 9px;
+        display: flex;
+        justify-content: space-between;
+        padding: 14px 16px;
+      }
+
+      .ops .cards {
+        display: grid;
+        gap: 10px;
+        grid-template-columns: repeat(6, 1fr);
+      }
+
+      .ops .card,
+      .ops .panel,
+      .ops .row,
+      .ops .table {
+        background: #fff;
+        border-color: #ced8dd;
+      }
+
+      .ops .card,
+      .ops .panel {
+        border: 1px solid #ced8dd;
+        border-radius: 8px;
+        padding: 12px;
+      }
+
+      .ops .matrix {
+        display: grid;
+        gap: 10px;
+        grid-template-columns: 1fr 1fr 0.8fr;
+      }
+
+      @media (max-width: 900px) {
+        .quiet,
+        .command,
+        .ops {
+          grid-template-columns: 1fr;
+        }
+
+        .quiet .side,
+        .command .side,
+        .ops .rail {
+          display: none;
+        }
+
+        .quiet .cards,
+        .command .cards,
+        .revenue .cards,
+        .ops .cards,
+        .quiet .split,
+        .command .split,
+        .revenue .hero,
+        .revenue .split,
+        .ops .matrix {
+          grid-template-columns: 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <section class="intro">
+        <h1>A3 Dashboard UI Concepts</h1>
+        <p>Clean-room visual directions for the ReleaseFoundry A3 product console. These are original mockups inspired by common SaaS patterns, not copied source code or assets.</p>
+      </section>
+
+      <section class="concept" data-concept="quiet-review">
+        <div class="concept-label">
+          <h2>Concept A - Quiet Review Console</h2>
+          <span>Best for: reviewer workflow, enterprise reports, low-noise SaaS</span>
+        </div>
+        <div class="concept-screen quiet">
+          <aside class="side">
+            <div><span class="mark">A3</span><strong>ReleaseFoundry Release OS</strong></div>
+            <nav>
+              <span class="active">Overview</span>
+              <span>Runs</span>
+              <span>Release Gate</span>
+              <span>Review Board</span>
+              <span>Reports</span>
+              <span>Admin</span>
+            </nav>
+          </aside>
+          <section class="main">
+            <div class="top">
+              <div>
+                <h2>Refund Agent Evaluation</h2>
+                <p class="muted">Dataset 884 / run 11926 / staging</p>
+              </div>
+              <button class="button primary">Export Review Packet</button>
+            </div>
+            <div class="cards">
+              <div class="card metric"><span>Pass rate</span><strong>40%</strong><span>3 failures</span></div>
+              <div class="card metric"><span>Risk score</span><strong>70</strong><span>blocked</span></div>
+              <div class="card metric"><span>Trace coverage</span><strong>96%</strong><span>A1 ready</span></div>
+              <div class="card metric"><span>A2 judges</span><strong>12</strong><span>joined</span></div>
+            </div>
+            <div class="split">
+              <div class="panel">
+                <h3>Reviewer Queue</h3>
+                <div class="list" style="margin-top: 14px;">
+                  <div class="row"><div class="row-head"><strong>refund_policy_edge</strong><span class="badge fail">major</span></div><p>Actual approved refund that expected policy denial.</p></div>
+                  <div class="row"><div class="row-head"><strong>missing_tool_call</strong><span class="badge warn">needs trace</span></div><p>Expected `refund_order` call is absent from timeline.</p></div>
+                  <div class="row"><div class="row-head"><strong>media_evidence_case</strong><span class="badge info">metadata only</span></div><p>Signed media rendering is blocked until modality is confirmed.</p></div>
+                </div>
+              </div>
+              <div class="panel">
+                <h3>Expected vs Actual</h3>
+                <div class="table" style="margin-top: 14px;">
+                  <div class="table-row table-head"><span>Case</span><span>Expected</span><span>Actual</span><span>Decision</span></div>
+                  <div class="table-row"><span>refund_policy_edge</span><span>Deny</span><span>Approve</span><span><span class="badge fail">block</span></span></div>
+                  <div class="table-row"><span>happy_path_booking</span><span>Book</span><span>Book</span><span><span class="badge pass">pass</span></span></div>
+                  <div class="table-row"><span>tool_call_order</span><span>Search then refund</span><span>Refund then search</span><span><span class="badge warn">review</span></span></div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section class="concept" data-concept="command-console">
+        <div class="concept-label">
+          <h2>Concept B - Engineering Command Console</h2>
+          <span>Best for: release gate, traces, CI/GitHub style workflows</span>
+        </div>
+        <div class="concept-screen command">
+          <aside class="side">
+            <div class="logo"><span>A3</span><span>Command</span></div>
+            <nav>
+              <span class="active">Release</span>
+              <span>Trace Events</span>
+              <span>Tool Calls</span>
+              <span>GitHub Gate</span>
+              <span>Audit Bundle</span>
+            </nav>
+          </aside>
+          <section class="main">
+            <div class="top">
+              <div>
+                <h2>Release Gate: blocked</h2>
+                <p class="muted">A1 trace + A2 judge evidence is joined and ready for sign-off.</p>
+              </div>
+              <button class="button primary">Open PR Packet</button>
+            </div>
+            <div class="cards">
+              <div class="panel metric"><span>Checks</span><strong>8/11</strong><span>ready</span></div>
+              <div class="panel metric"><span>Readbacks</span><strong>3</strong><span>confirmed shape</span></div>
+              <div class="panel metric"><span>Artifacts</span><strong>17</strong><span>hash tracked</span></div>
+              <div class="panel metric"><span>RBAC</span><strong>meta</strong><span>not enforced</span></div>
+              <div class="panel metric"><span>Outbox</span><strong>next</strong><span>event spine</span></div>
+            </div>
+            <div class="split">
+              <div class="panel">
+                <h3>Trace Timeline</h3>
+                <div class="list" style="margin-top: 14px;">
+                  <div class="row"><div class="row-head"><strong>00:01 agent_response</strong><span class="badge info">A1</span></div><p>Customer asked for refund after policy window.</p></div>
+                  <div class="row"><div class="row-head"><strong>00:03 tool_call</strong><span class="badge warn">wrong order</span></div><p>`refund_order` fired before policy lookup.</p></div>
+                  <div class="row"><div class="row-head"><strong>00:04 judge_result</strong><span class="badge fail">A2 block</span></div><p>Failure class: wrong_intent / policy violation.</p></div>
+                </div>
+              </div>
+              <div class="panel">
+                <h3>Signal Volume</h3>
+                <div class="spark" style="margin-top: 18px;">
+                  <span style="height: 18px"></span><span style="height: 26px"></span><span style="height: 14px"></span><span style="height: 36px"></span><span style="height: 28px"></span><span style="height: 42px"></span><span style="height: 20px"></span><span style="height: 31px"></span><span style="height: 46px"></span><span style="height: 34px"></span><span style="height: 24px"></span><span style="height: 39px"></span><span style="height: 28px"></span><span style="height: 22px"></span><span style="height: 44px"></span><span style="height: 32px"></span><span style="height: 16px"></span><span style="height: 38px"></span>
+                </div>
+                <div class="table" style="margin-top: 18px;">
+                  <div class="table-row table-head"><span>Event</span><span>Count</span><span>Status</span><span>Owner</span></div>
+                  <div class="table-row"><span>tool_call</span><span>19</span><span>review</span><span>A1/A3</span></div>
+                  <div class="table-row"><span>judge_failed</span><span>3</span><span>blocked</span><span>A2</span></div>
+                  <div class="table-row"><span>report_view</span><span>4</span><span>audit</span><span>A3</span></div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section class="concept" data-concept="commercial-ledger">
+        <div class="concept-label">
+          <h2>Concept C - Commercial Ledger Dashboard</h2>
+          <span>Best for: usage, billing readiness, management demo, SaaS polish</span>
+        </div>
+        <div class="concept-screen revenue">
+          <header class="top">
+            <div>
+              <strong>ReleaseFoundry A3</strong>
+              <span class="muted" style="margin-left: 10px;">Commercial console</span>
+            </div>
+            <div class="tabs"><span class="active">Overview</span><span>Usage</span><span>Reports</span><span>Trust</span><span>Team</span></div>
+          </header>
+          <section class="main">
+            <div class="hero">
+              <div>
+                <h2>Agent release intelligence for refund automation</h2>
+                <p class="muted" style="margin-top: 8px;">Revenue risk, report sharing, audit evidence, and usage readiness in one customer-facing console.</p>
+              </div>
+              <div class="spark">
+                <span style="height: 24px"></span><span style="height: 32px"></span><span style="height: 28px"></span><span style="height: 44px"></span><span style="height: 39px"></span><span style="height: 54px"></span><span style="height: 48px"></span><span style="height: 36px"></span><span style="height: 42px"></span><span style="height: 60px"></span><span style="height: 50px"></span><span style="height: 46px"></span><span style="height: 58px"></span><span style="height: 52px"></span><span style="height: 63px"></span><span style="height: 49px"></span><span style="height: 56px"></span><span style="height: 66px"></span>
+              </div>
+            </div>
+            <div class="cards">
+              <div class="card metric"><span>Billable units</span><strong>62</strong><span>read-only preview</span></div>
+              <div class="card metric"><span>Report exports</span><strong>9</strong><span>hosted + md + json</span></div>
+              <div class="card metric"><span>Quota risk</span><strong>low</strong><span>no payment mutation</span></div>
+              <div class="card metric"><span>Trust status</span><strong>draft</strong><span>not public</span></div>
+            </div>
+            <div class="split">
+              <div class="panel">
+                <h3>Customer Report Center</h3>
+                <div class="list" style="margin-top: 14px;">
+                  <div class="row"><div class="row-head"><strong>Release evidence packet</strong><span class="badge pass">shareable</span></div><p>Redacted hosted report with expiry, revoke, and view audit.</p></div>
+                  <div class="row"><div class="row-head"><strong>Security audit packet</strong><span class="badge warn">missing SSO</span></div><p>Local signatures exist; production identity binding remains future work.</p></div>
+                  <div class="row"><div class="row-head"><strong>Usage ledger</strong><span class="badge info">read-only</span></div><p>A3 previews meters; A1 owns production billing source.</p></div>
+                </div>
+              </div>
+              <div class="panel">
+                <h3>Plan Readiness</h3>
+                <div class="table" style="margin-top: 14px;">
+                  <div class="table-row table-head"><span>Area</span><span>Status</span><span>Owner</span><span>Next</span></div>
+                  <div class="table-row"><span>Auth/RBAC</span><span>metadata</span><span>A1/A3</span><span>enforce writes</span></div>
+                  <div class="table-row"><span>Billing</span><span>disabled</span><span>A1/A3</span><span>ledger first</span></div>
+                  <div class="table-row"><span>Trust</span><span>draft</span><span>A3</span><span>publish later</span></div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <section class="concept" data-concept="ops-matrix">
+        <div class="concept-label">
+          <h2>Concept D - Ops Matrix Console</h2>
+          <span>Best for: dense incident triage, observability replay, failure clustering</span>
+        </div>
+        <div class="concept-screen ops">
+          <aside class="rail"><span>A3</span><span>RG</span><span>TR</span><span>JR</span><span>AU</span></aside>
+          <section class="main">
+            <div class="top">
+              <div>
+                <h2>Production Replay Matrix</h2>
+                <p class="muted">High-density view for release blockers, trace gaps, and judge failures.</p>
+              </div>
+              <div><span class="badge fail">no-go</span></div>
+            </div>
+            <div class="cards">
+              <div class="card metric"><span>Failures</span><strong>3</strong><span>triage now</span></div>
+              <div class="card metric"><span>Replayable</span><strong>2</strong><span>with trace</span></div>
+              <div class="card metric"><span>Media</span><strong>5</strong><span>metadata only</span></div>
+              <div class="card metric"><span>Clusters</span><strong>4</strong><span>A2 taxonomy</span></div>
+              <div class="card metric"><span>Waivers</span><strong>1</strong><span>exceptional</span></div>
+              <div class="card metric"><span>Bundle</span><strong>pass</strong><span>local verify</span></div>
+            </div>
+            <div class="matrix">
+              <div class="panel">
+                <h3>Failure Clusters</h3>
+                <div class="list" style="margin-top: 12px;">
+                  <div class="row"><div class="row-head"><strong>wrong_intent</strong><span class="badge fail">2</span></div><p>Agent approved when expected denial.</p></div>
+                  <div class="row"><div class="row-head"><strong>missing_required_tool</strong><span class="badge warn">1</span></div><p>Refund tool not observed in A1 trace.</p></div>
+                  <div class="row"><div class="row-head"><strong>unsafe_policy</strong><span class="badge fail">1</span></div><p>Potential release blocker.</p></div>
+                </div>
+              </div>
+              <div class="panel">
+                <h3>Replay Queue</h3>
+                <div class="table" style="margin-top: 12px;">
+                  <div class="table-row table-head"><span>Case</span><span>Trace</span><span>Judge</span><span>Action</span></div>
+                  <div class="table-row"><span>refund_edge</span><span>ready</span><span>block</span><span>replay</span></div>
+                  <div class="table-row"><span>tool_order</span><span>partial</span><span>review</span><span>inspect</span></div>
+                  <div class="table-row"><span>media_case</span><span>ready</span><span>pass</span><span>hold</span></div>
+                </div>
+              </div>
+              <div class="panel">
+                <h3>Controls</h3>
+                <div class="list" style="margin-top: 12px;">
+                  <div class="row"><div class="row-head"><strong>EventEnvelope</strong><span class="badge warn">next</span></div><p>Attach to all write receipts.</p></div>
+                  <div class="row"><div class="row-head"><strong>RBAC denied</strong><span class="badge warn">next</span></div><p>Fail-closed write path tests.</p></div>
+                  <div class="row"><div class="row-head"><strong>Bundle reseal</strong><span class="badge info">planned</span></div><p>Trigger when evidence changes.</p></div>
+                </div>
+              </div>
+            </div>
+          </section>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

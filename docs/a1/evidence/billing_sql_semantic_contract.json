@@ -1,0 +1,115 @@
+{
+  "schema_version": "releasefoundry.a1.billing_sql_semantic_contract.v1",
+  "migration": "services/api/migrations/002_a1_billing_ledger.sql",
+  "public_safe": true,
+  "description": "Public-safe semantic contract evidence for durable A1 billing storage. It documents only hashes, references, replay status semantics, and object linkage; raw provider payloads, raw provider_config objects, secrets, and card data are omitted.",
+  "provider_config_storage": {
+    "durable_policy": "hash_or_reference_only",
+    "provider_config_column_present": false,
+    "provider_config_object_persisted": false,
+    "allowed_public_boundary": "Go and Python planning responses may include redacted provider_config references for preview; migration 002 durable storage must keep only hashes or references.",
+    "hash_columns": [
+      "billing_provider_events.payload_sha256"
+    ],
+    "reference_only_fields": [
+      "billing_accounts.account_ref",
+      "billing_accounts.customer_ref",
+      "billing_ledger_events.provider_event_ref",
+      "billing_ledger_events.customer_ref",
+      "billing_ledger_events.invoice_ref"
+    ],
+    "forbidden_durable_columns": [
+      "provider_config",
+      "provider_secret",
+      "client_secret",
+      "raw_payload",
+      "payload",
+      "card_number"
+    ],
+    "forbidden_public_markers": [
+      "stripe secret key prefix",
+      "stripe restricted key prefix",
+      "stripe webhook secret prefix",
+      "bearer auth header",
+      "card number"
+    ]
+  },
+  "replay_semantics": {
+    "accepted": {
+      "status": "accepted",
+      "ledger_mutation_count": 1,
+      "payload_sha256_relation": "new_provider_event",
+      "raw_payload_included": false,
+      "secret_value_present": false
+    },
+    "duplicate": {
+      "status": "duplicate",
+      "ledger_mutation_count": 0,
+      "payload_sha256_relation": "same_provider_event_same_hash",
+      "raw_payload_included": false,
+      "secret_value_present": false
+    },
+    "conflict": {
+      "status": "conflict",
+      "ledger_mutation_count": 0,
+      "payload_sha256_relation": "same_provider_event_different_hash",
+      "raw_payload_included": false,
+      "secret_value_present": false
+    },
+    "match_key": [
+      "organization_id",
+      "project_id",
+      "provider",
+      "mode",
+      "provider_event_id"
+    ]
+  },
+  "object_evidence_linkage": {
+    "billing_sql_edges": [
+      {
+        "from": "billing_provider_events.ledger_event_id",
+        "to": "billing_ledger_events.id",
+        "link_type": "provider replay row stores accepted ledger mutation id pointer"
+      },
+      {
+        "from": "billing_ledger_events.provider_event_id",
+        "to": "billing_provider_events.id",
+        "link_type": "ledger row links back to provider event row"
+      }
+    ],
+    "go_postgres_hash_only_objects": [
+      {
+        "table": "releasefoundry_run_uploads",
+        "object_id_column": "upload_id",
+        "sha256_column": "result_sha256",
+        "raw_payload_column_present": false
+      },
+      {
+        "table": "releasefoundry_trace_batches",
+        "object_id_column": "batch_id",
+        "sha256_column": "observations_sha256",
+        "raw_payload_column_present": false
+      },
+      {
+        "table": "releasefoundry_artifact_manifests",
+        "object_id_column": "artifact_id",
+        "sha256_column": "manifest_sha256",
+        "raw_payload_column_present": false
+      }
+    ],
+    "public_snapshot_fields": [
+      "billing_snapshot_sha256",
+      "ledger_event_count",
+      "provider_event_count",
+      "raw_payload_included",
+      "secret_value_present"
+    ]
+  },
+  "validation": {
+    "pytest_targets": [
+      "tests/a1/test_billing_provider_contract.py",
+      "tests/a1/test_billing_ledger_migration_manifest.py"
+    ],
+    "schema_path": "docs/a1/schemas/billing_sql_semantic_contract.schema.json"
+  }
+}

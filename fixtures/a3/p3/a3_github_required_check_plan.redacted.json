@@ -1,0 +1,43 @@
+{
+  "schema_version": "a3.github_required_check_plan.v1",
+  "mode": "plan_required_check",
+  "repo": {
+    "owner": "acme",
+    "repo": "refund-agent"
+  },
+  "branch": "main",
+  "check_name": "ReleaseFoundry Release Gate",
+  "required_for_commercial_gate": true,
+  "inspect_current": {
+    "method": "GET",
+    "url": "https://api.github.com/repos/acme/refund-agent/branches/main/protection/required_status_checks"
+  },
+  "request": {
+    "method": "PATCH",
+    "url": "https://api.github.com/repos/acme/refund-agent/branches/main/protection/required_status_checks",
+    "body": {
+      "strict": true,
+      "contexts": [
+        "legacy/status"
+      ],
+      "checks": [
+        {
+          "context": "ci/test",
+          "app_id": 1
+        },
+        {
+          "context": "ReleaseFoundry Release Gate",
+          "app_id": 12345
+        }
+      ]
+    }
+  },
+  "requires_token_scope": "administration:write",
+  "safety": {
+    "dry_run_only": true,
+    "token_included": false,
+    "secret_values_allowed": false,
+    "maintainer_approval_required": true
+  },
+  "redacted_summary": "Plan only: require the 'ReleaseFoundry Release Gate' check on acme/refund-agent@main."
+}

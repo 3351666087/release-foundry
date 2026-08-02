@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://releasefoundry.local/schemas/a2/provider_receipt_signature_verification.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "receipt_hash",
+    "issuer",
+    "signature_algorithm",
+    "verification_state",
+    "release_authority",
+    "blockers",
+    "public_safe",
+    "key_id",
+    "key_policy_hash",
+    "canonicalization_version",
+    "signed_identity_hash"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "a2.provider_receipt_signature_verification.v1"
+    },
+    "receipt_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "issuer": {
+      "type": "string",
+      "minLength": 1
+    },
+    "signature_algorithm": {
+      "type": "string",
+      "minLength": 1
+    },
+    "verification_state": {
+      "enum": [
+        "verified",
+        "rejected"
+      ]
+    },
+    "release_authority": {
+      "const": false
+    },
+    "blockers": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "public_safe": {
+      "const": true
+    },
+    "key_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "key_policy_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "canonicalization_version": {
+      "type": "string",
+      "minLength": 1
+    },
+    "signed_identity_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    }
+  }
+}

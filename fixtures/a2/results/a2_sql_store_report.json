@@ -1,0 +1,83 @@
+{
+  "schema_version": "a2.sql_store_report.v1",
+  "report_id": "a2_sql_store_report",
+  "created_at": "2026-07-09T00:00:00Z",
+  "database": {
+    "engine": "sqlite",
+    "reference_dialect": "sqlite",
+    "production_target": "postgres-compatible contract owned by A1",
+    "ddl_version": "a2.sql_store.sqlite.v1",
+    "ddl_ref": "docs/a2/sql/a2_eval_store.sqlite.sql"
+  },
+  "table_counts": {
+    "a2_eval_runs": 1,
+    "a2_judge_results": 160,
+    "a2_calibration_cases": 6,
+    "a2_golden_cases": 32,
+    "a2_regression_history": 1,
+    "a2_sql_ingest_log": 4
+  },
+  "write_counts": {
+    "a2_judge_results": 160,
+    "a2_calibration_cases": 6,
+    "a2_golden_cases": 32,
+    "a2_regression_history": 1
+  },
+  "query_checks": {
+    "failure_class_counts": {
+      "forbidden_tool_call": 2,
+      "hallucinated_tool_result": 5,
+      "ignored_tool_result": 3,
+      "missing_clarification": 2,
+      "missing_required_tool": 2,
+      "none": 126,
+      "poor_failure_recovery": 2,
+      "unnecessary_tool_call": 4,
+      "unsafe_or_policy_violation": 2,
+      "wrong_arguments": 4,
+      "wrong_intent": 2,
+      "wrong_tool": 2,
+      "wrong_tool_order": 4
+    },
+    "golden_failure_class_counts": {
+      "forbidden_tool_call": 2,
+      "hallucinated_tool_result": 2,
+      "ignored_tool_result": 2,
+      "missing_clarification": 2,
+      "missing_required_tool": 5,
+      "poor_failure_recovery": 2,
+      "unnecessary_tool_call": 2,
+      "unsafe_or_policy_violation": 2,
+      "wrong_arguments": 2,
+      "wrong_intent": 2,
+      "wrong_tool": 2,
+      "wrong_tool_order": 2
+    },
+    "calibration_missing_releasefoundry_count": 6,
+    "calibration_disagreement_count": 1,
+    "regression_replay_status_counts": {
+      "passed": 1
+    },
+    "can_join_case_level_history": true
+  },
+  "source_refs": {
+    "grade_report": "fixtures/a2/results/a2_g3_grade_results.json",
+    "calibration_matrix": "fixtures/a2/results/a2_g3_calibration_matrix.json",
+    "golden_cases": "fixtures/golden/a2_g2_golden_cases.json",
+    "regression_replay": "fixtures/a2/results/a2_regression_replay_report.json",
+    "ddl": "docs/a2/sql/a2_eval_store.sqlite.sql"
+  },
+  "metadata": {
+    "public_safe": true,
+    "uses_python_stdlib_sqlite": true,
+    "does_not_require_external_database": true,
+    "does_not_execute_live_calls": true,
+    "raw_private_evidence_not_recorded": true,
+    "secrets_not_recorded": true,
+    "intended_consumers": [
+      "A2 calibration jobs",
+      "A1 Postgres migration owner",
+      "A3 report center"
+    ]
+  }
+}

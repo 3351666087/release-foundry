@@ -1,0 +1,473 @@
+{
+  "field_presence": {
+    "action_results": false,
+    "expected_actual": true,
+    "failure": true,
+    "passed": true,
+    "result": true,
+    "result.cases": true,
+    "result.tests": false,
+    "score": true,
+    "tool_calls": true,
+    "vm_stream": false
+  },
+  "generated_at": "2026-07-05T06:31:55Z",
+  "notes": [
+    "This file is rebuilt from already-redacted get_run sample data.",
+    "IDs, text, URLs, paths, and account fields remain redacted."
+  ],
+  "run_id_present": true,
+  "run_sample": {
+    "created_at": "2026-07-04T06:24:44.661899+00:00",
+    "dataset": 882,
+    "id": "[REDACTED_ID_15]",
+    "result": {
+      "aggregate_metrics": {
+        "errored": 0,
+        "failed": 3,
+        "passed": 0,
+        "schema_version": "releasefoundry.run_result.v1",
+        "timed_out": 0,
+        "total_tool_calls": 0,
+        "trace_completeness": 1.0
+      },
+      "cases": [
+        {
+          "agent_output": {
+            "latency_ms": 0,
+            "metadata": {
+              "adapter_name": "RespondingMockAgent",
+              "mock_agent": "responding",
+              "style": "respond"
+            },
+            "schema_version": "releasefoundry.agent_turn.v1",
+            "status": "ok",
+            "text": "[REDACTED_TEXT:10bcc3e7]",
+            "tool_calls": []
+          },
+          "case_id": "[REDACTED_ID_16]",
+          "ended_at": "2026-07-04T06:05:45.905Z",
+          "expected": {
+            "text": "[REDACTED_TEXT:d5d4c35f]"
+          },
+          "grade": {
+            "actual": {
+              "text": "[REDACTED_TEXT:10bcc3e7]",
+              "tool_calls": []
+            },
+            "expected": {
+              "text": "[REDACTED_TEXT:d5d4c35f]"
+            },
+            "label": "failed",
+            "metrics": {
+              "latency_ms": 0,
+              "reset_ok": true,
+              "text_match": false,
+              "tool_match": true
+            },
+            "passed": false,
+            "reason": "local expected/actual mismatch",
+            "scenario_id": "[REDACTED_ID_10]",
+            "score": 0.0
+          },
+          "latency_ms": 0,
+          "metadata": {
+            "action_count": 6,
+            "action_index": 2,
+            "action_name": "[REDACTED_TEXT]",
+            "action_tags": [],
+            "action_type": "audio",
+            "adapter_version": "releasefoundry.dataset_adapter.v1",
+            "audio_tags": [
+              {
+                "accent": "[REDACTED]",
+                "background_noise": "[REDACTED]",
+                "gender": "[REDACTED]",
+                "pace": "[REDACTED]",
+                "tone": "[REDACTED]"
+              }
+            ],
+            "dataset_type": "multi_run_storyboard",
+            "intent_tags": [
+              "[REDACTED_TAG_1]",
+              "[REDACTED_TAG_2]",
+              "[REDACTED_TAG_3]"
+            ],
+            "requires_external_judge": false,
+            "source": "releasefoundry_dataset_source",
+            "source_run_hash": "source_run_ae16130974fc2de7",
+            "total_runs": 1
+          },
+          "observations": [
+            {
+              "case_id": "[REDACTED_ID_16]",
+              "content": "[REDACTED_TEXT:dbf79b88]",
+              "ended_at": "2026-07-04T06:05:45.905Z",
+              "event_type": "message",
+              "metadata": {
+                "scenario_id": "[REDACTED_ID_10]"
+              },
+              "observation_id": "[REDACTED_ID_18]",
+              "role": "user",
+              "run_id": "[REDACTED_ID_17]",
+              "started_at": "2026-07-04T06:05:45.905Z",
+              "status": "ok",
+              "tool_calls": [],
+              "turn_index": 0
+            },
+            {
+              "case_id": "[REDACTED_ID_16]",
+              "content": "[REDACTED_TEXT:10bcc3e7]",
+              "ended_at": "2026-07-04T06:05:45.905Z",
+              "event_type": "agent_response",
+              "latency_ms": 0,
+              "metadata": {
+                "reset_ok": true
+              },
+              "observation_id": "[REDACTED_ID_19]",
+              "role": "assistant",
+              "run_id": "[REDACTED_ID_17]",
+              "started_at": "2026-07-04T06:05:45.905Z",
+              "status": "ok",
+              "tool_calls": [],
+              "turn_index": 1,
+              "vm_stream": {
+                "duration_ms": 0,
+                "logs": [
+                  {
+                    "type": "action",
+                    "data": {
+                      "action": "respond",
+                      "input": "[REDACTED_TEXT_LEN:2353]"
+                    },
+                    "ts": 0
+                  },
+                  {
+                    "type": "console",
+                    "data": {
+                      "level": "log",
+                      "message": "[REDACTED_TEXT:10bcc3e7]"
+                    },
+                    "ts": 0
+                  }
+                ],
+                "metadata": {
+                  "synthetic": true
+                },
+                "provider": "local-runner",
+                "session_id": "[REDACTED_ID_16]"
+              }
+            }
+          ],
+          "scenario_id": "[REDACTED_ID_10]",
+          "started_at": "2026-07-04T06:05:45.905Z",
+          "status": "failed",
+          "title": "[REDACTED_TEXT:1f4ffb25]"
+        },
+        {
+          "agent_output": {
+            "latency_ms": 0,
+            "metadata": {
+              "adapter_name": "RespondingMockAgent",
+              "mock_agent": "responding",
+              "style": "respond"
+            },
+            "schema_version": "releasefoundry.agent_turn.v1",
+            "status": "ok",
+            "text": "[REDACTED_TEXT:8de8d13b]",
+            "tool_calls": []
+          },
+          "case_id": "[REDACTED_ID_20]",
+          "ended_at": "2026-07-04T06:05:45.906Z",
+          "expected": {
+            "text": "[REDACTED_TEXT:d454ba59]",
+            "tool_calls": [
+              {
+                "arguments": {
+                  "query": "[REDACTED_TEXT:750cd009]"
+                },
+                "name": "[REDACTED_TEXT:e0c26bf9]"
+              }
+            ]
+          },
+          "grade": {
+            "actual": {
+              "text": "[REDACTED_TEXT:8de8d13b]",
+              "tool_calls": []
+            },
+            "expected": {
+              "text": "[REDACTED_TEXT:d454ba59]",
+              "tool_calls": [
+                {
+                  "arguments": {
+                    "query": "[REDACTED_TEXT:750cd009]"
+                  },
+                  "name": "[REDACTED_TEXT:e0c26bf9]"
+                }
+              ]
+            },
+            "label": "failed",
+            "metrics": {
+              "latency_ms": 0,
+              "reset_ok": true,
+              "text_match": false,
+              "tool_match": false
+            },
+            "passed": false,
+            "reason": "local expected/actual mismatch",
+            "scenario_id": "[REDACTED_ID_10]",
+            "score": 0.0
+          },
+          "latency_ms": 0,
+          "metadata": {
+            "action_count": 6,
+            "action_index": 4,
+            "action_name": "[REDACTED_TEXT]",
+            "action_tags": [],
+            "action_type": "audio",
+            "adapter_version": "releasefoundry.dataset_adapter.v1",
+            "audio_tags": [
+              {
+                "accent": "[REDACTED]",
+                "background_noise": "[REDACTED]",
+                "gender": "[REDACTED]",
+                "pace": "[REDACTED]",
+                "tone": "[REDACTED]"
+              }
+            ],
+            "dataset_type": "multi_run_storyboard",
+            "intent_tags": [
+              "[REDACTED_TAG_1]",
+              "[REDACTED_TAG_2]",
+              "[REDACTED_TAG_3]"
+            ],
+            "requires_external_judge": false,
+            "source": "releasefoundry_dataset_source",
+            "source_run_hash": "source_run_ae16130974fc2de7",
+            "total_runs": 1
+          },
+          "observations": [
+            {
+              "case_id": "[REDACTED_ID_20]",
+              "content": "[REDACTED_TEXT:728b0ecf]",
+              "ended_at": "2026-07-04T06:05:45.906Z",
+              "event_type": "message",
+              "metadata": {
+                "scenario_id": "[REDACTED_ID_10]"
+              },
+              "observation_id": "[REDACTED_ID_21]",
+              "role": "user",
+              "run_id": "[REDACTED_ID_17]",
+              "started_at": "2026-07-04T06:05:45.906Z",
+              "status": "ok",
+              "tool_calls": [],
+              "turn_index": 0
+            },
+            {
+              "case_id": "[REDACTED_ID_20]",
+              "content": "[REDACTED_TEXT:8de8d13b]",
+              "ended_at": "2026-07-04T06:05:45.906Z",
+              "event_type": "agent_response",
+              "latency_ms": 0,
+              "metadata": {
+                "reset_ok": true
+              },
+              "observation_id": "[REDACTED_ID_22]",
+              "role": "assistant",
+              "run_id": "[REDACTED_ID_17]",
+              "started_at": "2026-07-04T06:05:45.906Z",
+              "status": "ok",
+              "tool_calls": [],
+              "turn_index": 1,
+              "vm_stream": {
+                "duration_ms": 0,
+                "logs": [
+                  {
+                    "type": "action",
+                    "data": {
+                      "action": "respond",
+                      "input": "[REDACTED_TEXT_LEN:2873]"
+                    },
+                    "ts": 0
+                  },
+                  {
+                    "type": "console",
+                    "data": {
+                      "level": "log",
+                      "message": "[REDACTED_TEXT:8de8d13b]"
+                    },
+                    "ts": 0
+                  }
+                ],
+                "metadata": {
+                  "synthetic": true
+                },
+                "provider": "local-runner",
+                "session_id": "[REDACTED_ID_20]"
+              }
+            }
+          ],
+          "scenario_id": "[REDACTED_ID_10]",
+          "started_at": "2026-07-04T06:05:45.906Z",
+          "status": "failed",
+          "title": "[REDACTED_TEXT:49410cf3]"
+        },
+        {
+          "agent_output": {
+            "latency_ms": 0,
+            "metadata": {
+              "adapter_name": "RespondingMockAgent",
+              "mock_agent": "responding",
+              "style": "respond"
+            },
+            "schema_version": "releasefoundry.agent_turn.v1",
+            "status": "ok",
+            "text": "[REDACTED_TEXT:eb5e5c6b]",
+            "tool_calls": []
+          },
+          "case_id": "[REDACTED_ID_23]",
+          "ended_at": "2026-07-04T06:05:45.907Z",
+          "expected": {
+            "text": "[REDACTED_TEXT:0490232b]"
+          },
+          "grade": {
+            "actual": {
+              "text": "[REDACTED_TEXT:eb5e5c6b]",
+              "tool_calls": []
+            },
+            "expected": {
+              "text": "[REDACTED_TEXT:0490232b]"
+            },
+            "label": "failed",
+            "metrics": {
+              "latency_ms": 0,
+              "reset_ok": true,
+              "text_match": false,
+              "tool_match": true
+            },
+            "passed": false,
+            "reason": "local expected/actual mismatch",
+            "scenario_id": "[REDACTED_ID_10]",
+            "score": 0.0
+          },
+          "latency_ms": 0,
+          "metadata": {
+            "action_count": 6,
+            "action_index": 5,
+            "action_name": "[REDACTED_TEXT]",
+            "action_tags": [],
+            "action_type": "audio",
+            "adapter_version": "releasefoundry.dataset_adapter.v1",
+            "audio_tags": [
+              {
+                "accent": "[REDACTED]",
+                "background_noise": "[REDACTED]",
+                "gender": "[REDACTED]",
+                "pace": "[REDACTED]",
+                "tone": "[REDACTED]"
+              }
+            ],
+            "dataset_type": "multi_run_storyboard",
+            "intent_tags": [
+              "[REDACTED_TAG_1]",
+              "[REDACTED_TAG_2]",
+              "[REDACTED_TAG_3]"
+            ],
+            "requires_external_judge": false,
+            "source": "releasefoundry_dataset_source",
+            "source_run_hash": "source_run_ae16130974fc2de7",
+            "total_runs": 1
+          },
+          "observations": [
+            {
+              "case_id": "[REDACTED_ID_23]",
+              "content": "[REDACTED_TEXT:ae44896c]",
+              "ended_at": "2026-07-04T06:05:45.907Z",
+              "event_type": "message",
+              "metadata": {
+                "scenario_id": "[REDACTED_ID_10]"
+              },
+              "observation_id": "[REDACTED_ID_24]",
+              "role": "user",
+              "run_id": "[REDACTED_ID_17]",
+              "started_at": "2026-07-04T06:05:45.907Z",
+              "status": "ok",
+              "tool_calls": [],
+              "turn_index": 0
+            },
+            {
+              "case_id": "[REDACTED_ID_23]",
+              "content": "[REDACTED_TEXT:eb5e5c6b]",
+              "ended_at": "2026-07-04T06:05:45.907Z",
+              "event_type": "agent_response",
+              "latency_ms": 0,
+              "metadata": {
+                "reset_ok": true
+              },
+              "observation_id": "[REDACTED_ID_25]",
+              "role": "assistant",
+              "run_id": "[REDACTED_ID_17]",
+              "started_at": "2026-07-04T06:05:45.907Z",
+              "status": "ok",
+              "tool_calls": [],
+              "turn_index": 1,
+              "vm_stream": {
+                "duration_ms": 0,
+                "logs": [
+                  {
+                    "type": "action",
+                    "data": {
+                      "action": "respond",
+                      "input": "[REDACTED_TEXT_LEN:3148]"
+                    },
+                    "ts": 0
+                  },
+                  {
+                    "type": "console",
+                    "data": {
+                      "level": "log",
+                      "message": "[REDACTED_TEXT:eb5e5c6b]"
+                    },
+                    "ts": 0
+                  }
+                ],
+                "metadata": {
+                  "synthetic": true
+                },
+                "provider": "local-runner",
+                "session_id": "[REDACTED_ID_23]"
+              }
+            }
+          ],
+          "scenario_id": "[REDACTED_ID_10]",
+          "started_at": "2026-07-04T06:05:45.907Z",
+          "status": "failed",
+          "title": "[REDACTED_TEXT:4a2ad983]"
+        }
+      ],
+      "dataset_id": "[REDACTED_ID_27]",
+      "duration_ms": 4,
+      "ended_at": "2026-07-04T06:05:45.907Z",
+      "errored": 0,
+      "failed": 3,
+      "field_map_version": "a1-local-2026-07-03",
+      "max_workers": 4,
+      "metadata": {
+        "releasefoundry_api_used": false,
+        "local_only": true
+      },
+      "passed": 0,
+      "run_id": "[REDACTED_ID_17]",
+      "runner_id": "[REDACTED_ID_26]",
+      "started_at": "2026-07-04T06:05:45.903Z",
+      "status": "failed",
+      "timed_out": 0,
+      "total_cases": 3,
+      "trace_completeness": 1.0
+    },
+    "runner": null,
+    "tenant": "[REDACTED_ID_2]"
+  },
+  "schema_version": "a3.p3.run_trace_sample.v1",
+  "source": "real_releasefoundry_get_run_redacted_from_frontend_api_objects"
+}

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A2SemanticJudgeOutput",
+  "type": "object",
+  "required": ["passed", "score", "reason", "failure_classes", "evidence_refs", "abstained"],
+  "properties": {
+    "passed": { "type": "boolean" },
+    "score": { "type": "number", "minimum": 0, "maximum": 1 },
+    "reason": { "type": "string", "minLength": 1 },
+    "failure_classes": { "type": "array", "items": { "type": "string" } },
+    "evidence_refs": { "type": "array", "items": { "type": "string" } },
+    "abstained": { "type": "boolean" }
+  },
+  "additionalProperties": false
+}

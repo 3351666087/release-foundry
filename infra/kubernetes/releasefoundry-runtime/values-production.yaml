@@ -1,0 +1,27 @@
+environment: production
+
+namespace:
+  create: false
+
+supplyChain:
+  allowPlaceholderDigests: false
+
+api:
+  replicaCount: 3
+  pdb:
+    minAvailable: 2
+
+queueWorker:
+  replicaCount: 4
+  pdb:
+    minAvailable: 3
+
+identityDelivery:
+  replicaCount: 3
+  pdb:
+    minAvailable: 2
+
+scheduling:
+  topology:
+    zoneWhenUnsatisfiable: DoNotSchedule
+    hostnameWhenUnsatisfiable: DoNotSchedule

@@ -1,0 +1,218 @@
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+from pathlib import Path
+
+from packages.sdk.releasefoundry.api_client import redact_text
+from services.runner.runner import DEFAULT_MAX_WORKERS, DEFAULT_TIMEOUT_SECONDS, normalize_timeout_seconds
+
+from .demo import (
+    create_agent_cloud_queue_state,
+    export_run_fixture_from_state,
+    replay_agent_cloud_queue_state,
+    run_agent_cloud_demo,
+    run_agent_cloud_queue_demo,
+)
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(description="Run local ReleaseFoundry cloud API demo flows.")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+    run_agent = subparsers.add_parser("run-agent", help="Run an agent locally, submit it to CloudApiService, poll, and write a fixture.")
+    _add_run_agent_arguments(run_agent, tenant_id="tenant_local_demo", project_id="project_local_demo", dataset_id="dataset_local_demo", runner_id="a1-cloud-demo-runner")
+    queued_agent = subparsers.add_parser("run-agent-queued", help="Queue an agent run, poll it through queued/running/completed states, and write a fixture.")
+    _add_run_agent_arguments(
+        queued_agent,
+        tenant_id="tenant_local_queue_demo",
+        project_id="project_local_queue_demo",
+        dataset_id="dataset_local_queue_demo",
+        runner_id="a1-cloud-queue-runner",
+    )
+    queued_agent.add_argument("--queue-workers", type=int, default=DEFAULT_MAX_WORKERS)
+    queued_agent.add_argument("--wait-timeout", type=float, default=DEFAULT_TIMEOUT_SECONDS)
+    queue_run = subparsers.add_parser("queue-run", help="Create a queued local run and write a restorable cloud state snapshot.")
+    _add_queue_state_arguments(
+        queue_run,
+        tenant_id="tenant_local_queue_state",
+        project_id="project_local_queue_state",
+        dataset_id="dataset_local_queue_state",
+        runner_id="a1-cloud-queue-runner",
+    )
+    replay = subparsers.add_parser("replay-queued", help="Reload a cloud state snapshot, replay queued/running runs, and write outputs.")
+    replay.add_argument("--state-input", required=True)
+    replay.add_argument("--agent", required=True)
+    replay.add_argument("--tenant-id", required=True)
+    replay.add_argument("--project-id", required=True)
+    replay.add_argument("--dataset-id")
+    replay.add_argument("--status", action="append", choices=["queued", "running"], dest="statuses")
+    replay.add_argument("--max-runs", type=int, default=100)
+    replay.add_argument("--fixture-output")
+    replay.add_argument("--fixture-output-dir")
+    replay.add_argument("--summary-output")
+    replay.add_argument("--run-output")
+    replay.add_argument("--run-output-dir")
+    replay.add_argument("--state-output")
+    replay.add_argument("--queue-workers", type=int, default=DEFAULT_MAX_WORKERS)
+    replay.add_argument("--max-workers", type=int, default=DEFAULT_MAX_WORKERS)
+    replay.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT_SECONDS)
+    replay.add_argument("--no-timeout", action="store_true")
+    replay.add_argument("--wait-timeout", type=float, default=DEFAULT_TIMEOUT_SECONDS)
+    export_fixture = subparsers.add_parser("export-fixture", help="Export a run fixture from a local cloud state snapshot.")
+    export_fixture.add_argument("--state-input", required=True)
+    export_fixture.add_argument("--tenant-id", required=True)
+    export_fixture.add_argument("--project-id", required=True)
+    export_fixture.add_argument("--run-id", required=True)
+    export_fixture.add_argument("--fixture-output", required=True)
+    export_fixture.add_argument("--summary-output")
+    export_fixture.add_argument("--allow-incomplete", action="store_true")
+    return parser
+
+
+def _add_run_agent_arguments(parser: argparse.ArgumentParser, *, tenant_id: str, project_id: str, dataset_id: str, runner_id: str) -> None:
+    parser.add_argument("-i", "--input", required=True)
+    parser.add_argument("--agent", required=True)
+    parser.add_argument("--fixture-output", required=True)
+    parser.add_argument("--summary-output")
+    parser.add_argument("--run-output")
+    parser.add_argument("--state-output")
+    parser.add_argument("--tenant-id", default=tenant_id)
+    parser.add_argument("--project-id", default=project_id)
+    parser.add_argument("--tenant-name", default="Local Demo Tenant")
+    parser.add_argument("--project-name", default="Local Demo Project")
+    parser.add_argument("--dataset-id", default=dataset_id)
+    parser.add_argument("--dataset-name", default="Local Demo Dataset")
+    parser.add_argument("--runner-id", default=runner_id)
+    parser.add_argument("--max-workers", type=int, default=DEFAULT_MAX_WORKERS)
+    parser.add_argument("--timeout", type=float, default=DEFAULT_TIMEOUT_SECONDS)
+    parser.add_argument("--no-timeout", action="store_true")
+    parser.add_argument("--fail-on-case-failure", action="store_true")
+
+
+def _add_queue_state_arguments(parser: argparse.ArgumentParser, *, tenant_id: str, project_id: str, dataset_id: str, runner_id: str) -> None:
+    parser.add_argument("-i", "--input", required=True)
+    parser.add_argument("--state-output", required=True)
+    parser.add_argument("--summary-output")
+    parser.add_argument("--tenant-id", default=tenant_id)
+    parser.add_argument("--project-id", default=project_id)
+    parser.add_argument("--tenant-name", default="Local Queue State Tenant")
+    parser.add_argument("--project-name", default="Local Queue State Project")
+    parser.add_argument("--dataset-id", default=dataset_id)
+    parser.add_argument("--dataset-name", default="Local Queue State Dataset")
+    parser.add_argument("--runner-id", default=runner_id)
+    parser.add_argument("--run-id", action="append", dest="run_ids", help="Queued run ID. Repeat to create multiple queued runs in order.")
+    parser.add_argument("--run-count", type=int, default=1, help="Number of queued runs to create when --run-id is not supplied.")
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    try:
+        if args.command == "run-agent":
+            timeout = None if args.no_timeout else normalize_timeout_seconds(args.timeout, field_name="--timeout")
+            summary = run_agent_cloud_demo(
+                input_path=Path(args.input),
+                agent=args.agent,
+                fixture_output_path=Path(args.fixture_output),
+                summary_output_path=Path(args.summary_output) if args.summary_output else None,
+                run_output_path=Path(args.run_output) if args.run_output else None,
+                state_output_path=Path(args.state_output) if args.state_output else None,
+                tenant_id=args.tenant_id,
+                project_id=args.project_id,
+                tenant_name=args.tenant_name,
+                project_name=args.project_name,
+                dataset_id=args.dataset_id,
+                dataset_name=args.dataset_name,
+                runner_id=args.runner_id,
+                max_workers=args.max_workers,
+                timeout_seconds=timeout,
+            )
+            print(json.dumps(summary, sort_keys=True))
+            run = summary["run"]
+            has_failure = bool(run["failed"] or run["errored"] or run["timed_out"])
+            return 1 if args.fail_on_case_failure and has_failure else 0
+        if args.command == "run-agent-queued":
+            timeout = None if args.no_timeout else normalize_timeout_seconds(args.timeout, field_name="--timeout")
+            summary = run_agent_cloud_queue_demo(
+                input_path=Path(args.input),
+                agent=args.agent,
+                fixture_output_path=Path(args.fixture_output),
+                summary_output_path=Path(args.summary_output) if args.summary_output else None,
+                run_output_path=Path(args.run_output) if args.run_output else None,
+                state_output_path=Path(args.state_output) if args.state_output else None,
+                tenant_id=args.tenant_id,
+                project_id=args.project_id,
+                tenant_name=args.tenant_name,
+                project_name=args.project_name,
+                dataset_id=args.dataset_id,
+                dataset_name=args.dataset_name,
+                runner_id=args.runner_id,
+                queue_workers=args.queue_workers,
+                max_workers=args.max_workers,
+                timeout_seconds=timeout,
+                wait_timeout_seconds=normalize_timeout_seconds(args.wait_timeout, field_name="--wait-timeout"),
+            )
+            print(json.dumps(summary, sort_keys=True))
+            run = summary["run"]
+            has_failure = bool(run["failed"] or run["errored"] or run["timed_out"])
+            return 1 if args.fail_on_case_failure and has_failure else 0
+        if args.command == "queue-run":
+            summary = create_agent_cloud_queue_state(
+                input_path=Path(args.input),
+                state_output_path=Path(args.state_output),
+                summary_output_path=Path(args.summary_output) if args.summary_output else None,
+                tenant_id=args.tenant_id,
+                project_id=args.project_id,
+                tenant_name=args.tenant_name,
+                project_name=args.project_name,
+                dataset_id=args.dataset_id,
+                dataset_name=args.dataset_name,
+                runner_id=args.runner_id,
+                run_ids=args.run_ids,
+                run_count=args.run_count,
+            )
+            print(json.dumps(summary, sort_keys=True))
+            return 0
+        if args.command == "replay-queued":
+            timeout = None if args.no_timeout else normalize_timeout_seconds(args.timeout, field_name="--timeout")
+            summary = replay_agent_cloud_queue_state(
+                state_input_path=Path(args.state_input),
+                agent=args.agent,
+                tenant_id=args.tenant_id,
+                project_id=args.project_id,
+                fixture_output_path=Path(args.fixture_output) if args.fixture_output else None,
+                fixture_output_dir=Path(args.fixture_output_dir) if args.fixture_output_dir else None,
+                summary_output_path=Path(args.summary_output) if args.summary_output else None,
+                run_output_path=Path(args.run_output) if args.run_output else None,
+                run_output_dir=Path(args.run_output_dir) if args.run_output_dir else None,
+                state_output_path=Path(args.state_output) if args.state_output else None,
+                dataset_id=args.dataset_id,
+                statuses=args.statuses or ("queued", "running"),
+                max_runs=args.max_runs,
+                queue_workers=args.queue_workers,
+                max_workers=args.max_workers,
+                timeout_seconds=timeout,
+                wait_timeout_seconds=normalize_timeout_seconds(args.wait_timeout, field_name="--wait-timeout"),
+            )
+            print(json.dumps(summary, sort_keys=True))
+            return 0
+        if args.command == "export-fixture":
+            summary = export_run_fixture_from_state(
+                state_input_path=Path(args.state_input),
+                tenant_id=args.tenant_id,
+                project_id=args.project_id,
+                run_id=args.run_id,
+                fixture_output_path=Path(args.fixture_output),
+                summary_output_path=Path(args.summary_output) if args.summary_output else None,
+                allow_incomplete=args.allow_incomplete,
+            )
+            print(json.dumps(summary, sort_keys=True))
+            return 0
+    except Exception as exc:
+        parser.exit(2, f"cloud api error: {redact_text(str(exc))}\n")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

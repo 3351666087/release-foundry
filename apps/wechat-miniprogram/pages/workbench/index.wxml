@@ -1,0 +1,124 @@
+<view class="screen">
+  <view class="product-header">
+    <view class="brand-mark">发</view>
+    <view class="product-copy">
+      <text class="product-name">ReleaseFoundry 发布中心</text>
+      <text class="product-context">{{meta.organization || '企业发布助手'}} · {{meta.environment || '环境未选择'}}</text>
+    </view>
+    <text class="mode-pill">{{modeLabel}}</text>
+  </view>
+
+  <view wx:if="{{viewState === 'loading'}}" class="state-panel">
+    <view class="loading-mark"></view>
+    <text class="state-title">正在汇总发布状态</text>
+    <text class="state-copy">正在读取执行证据、评测结论和发布凭证。</text>
+  </view>
+
+  <view wx:elif="{{viewState === 'error'}}" class="state-panel">
+    <view class="state-mark">!</view>
+    <text class="state-title">工作台暂时不可用</text>
+    <text class="state-copy">{{errorText}}</text>
+    <button class="secondary-button state-action" bindtap="retry" hover-class="button-pressed">重新加载</button>
+  </view>
+
+  <block wx:else>
+    <view wx:if="{{viewState === 'partial'}}" class="notice is-warning">
+      <text class="notice-title">部分数据未更新</text>
+      <text class="notice-copy">{{errorText}} 当前继续展示最近一次安全快照。</text>
+    </view>
+
+    <view class="release-hero">
+      <view class="hero-topline">
+        <text class="hero-kicker">当前候选版本</text>
+        <text class="status-pill is-{{release.tone}}">{{release.statusLabel}}</text>
+      </view>
+      <text class="hero-title">{{release.title}}</text>
+      <text class="hero-version">版本 {{release.version}} · {{meta.project}}</text>
+      <text class="hero-summary">{{release.summary}}</text>
+      <view class="decision-strip">
+        <view>
+          <text class="decision-label">发布决策</text>
+          <text class="decision-value">{{release.decisionLabel}}</text>
+        </view>
+        <button class="hero-action" bindtap="openApproval" hover-class="button-pressed">查看依据</button>
+      </view>
+    </view>
+
+    <text class="section-label">质量概览</text>
+    <view class="metric-grid">
+      <view class="metric-item">
+        <text class="metric-value">{{release.passRateLabel}}</text>
+        <text class="metric-label">案例通过</text>
+      </view>
+      <view class="metric-item">
+        <text class="metric-value">{{release.traceLabel}}</text>
+        <text class="metric-label">执行链完整</text>
+      </view>
+      <view class="metric-item">
+        <text class="metric-value">{{release.progressLabel}}</text>
+        <text class="metric-label">发布检查</text>
+      </view>
+      <view class="metric-item">
+        <text class="metric-value">{{release.acceptanceLabel}}</text>
+        <text class="metric-label">部署验收</text>
+      </view>
+    </view>
+
+    <block wx:if="{{release.multimodalReadiness.available}}">
+      <text class="section-label">多模态发布校准</text>
+      <view class="multimodal-readiness-panel">
+        <view class="multimodal-readiness-head">
+          <view>
+            <text class="multimodal-readiness-title">安全样本通过，整体晋级仍受阻</text>
+            <text class="multimodal-readiness-copy">无误报不等于攻击检出合格，稳定也不等于质量通过。</text>
+          </view>
+          <text class="status-pill is-{{release.multimodalReadiness.tone}}">{{release.multimodalReadiness.statusLabel}}</text>
+        </view>
+        <view class="multimodal-readiness-grid">
+          <view><text>{{release.multimodalReadiness.safeControlLabel}}</text><small>安全误报 / 样本</small></view>
+          <view><text>{{release.multimodalReadiness.attackDetectionLabel}}</text><small>攻击检出</small></view>
+          <view><text>{{release.multimodalReadiness.sensitivityLabel}}</text><small>攻击灵敏度</small></view>
+          <view><text>{{release.multimodalReadiness.localProfileLabel}}</text><small>结构化档位</small></view>
+        </view>
+        <view class="multimodal-readiness-foot">
+          <text>{{release.multimodalReadiness.localModelLabel}}</text>
+          <text>质量 {{release.multimodalReadiness.qualityLabel}} · 稳定性 {{release.multimodalReadiness.stabilityLabel}}</text>
+        </view>
+      </view>
+    </block>
+
+    <text class="section-label">证据链</text>
+    <view class="panel evidence-list">
+      <view wx:for="{{release.evidenceStages}}" wx:key="id" class="evidence-row">
+        <view class="stage-index">{{item.index}}</view>
+        <view class="stage-content">
+          <view class="stage-heading">
+            <text class="stage-title">{{item.title}}</text>
+            <text class="status-pill is-{{item.tone}}">{{item.statusLabel}}</text>
+          </view>
+          <text class="stage-detail">{{item.detail}}</text>
+        </view>
+      </view>
+    </view>
+
+    <text class="section-label">待办事项</text>
+    <view wx:if="{{tasks.length}}" class="panel task-list">
+      <button wx:for="{{tasks}}" wx:key="id" class="task-row" data-task="{{item}}" bindtap="openTask" hover-class="task-row-pressed">
+        <view class="task-copy">
+          <text class="task-title">{{item.title}}</text>
+          <text class="task-meta">{{item.meta}}</text>
+        </view>
+        <view class="task-side">
+          <text class="status-pill is-{{item.tone}}">{{item.badge}}</text>
+          <text class="row-chevron">›</text>
+        </view>
+      </button>
+    </view>
+    <view wx:else class="state-panel compact-state">
+      <text class="state-title">暂无待办</text>
+      <text class="state-copy">新的审批和风险复核会显示在这里。</text>
+    </view>
+
+    <view class="safe-bottom"></view>
+  </block>
+</view>

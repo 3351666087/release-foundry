@@ -1,0 +1,63 @@
+{
+  "schema_version": "a3.github_check_readback_receipt.v1",
+  "provider": "github",
+  "resource_kind": "check_run",
+  "readback_id": "ghcrb_8d7528dacef727ee",
+  "readback_status": "readback_confirmed",
+  "readback_confirmed": true,
+  "posted": true,
+  "stale": false,
+  "missing": false,
+  "deleted": false,
+  "http_status": 200,
+  "github_request_id": "F76E:BEFD6:1E8A579:1F84107:6A539CE5",
+  "expected": {
+    "repo": "3351666087/release-foundry",
+    "check_run_id_alias": 86656698704,
+    "check_name": "A3 golden path release artifact",
+    "head_sha_alias": "984bafab0671078bce990caa664c37c4e7b985e4",
+    "conclusion": "success",
+    "output_hash": null
+  },
+  "observed": {
+    "check_run_id_alias": 86656698704,
+    "check_name": "A3 golden path release artifact",
+    "status": "completed",
+    "conclusion": "success",
+    "head_sha_alias": "984bafab0671078bce990caa664c37c4e7b985e4",
+    "html_url": "https://github.com/3351666087/release-foundry/actions/runs/29195142625/job/86656698704",
+    "details_url": "https://github.com/3351666087/release-foundry/actions/runs/29195142625/job/86656698704",
+    "output_title": null,
+    "output_hash": null,
+    "app_id_alias": 15368,
+    "app_slug": "github-actions",
+    "app_owner_type": "Organization",
+    "started_at": "2026-07-12T13:51:02Z",
+    "completed_at": "2026-07-12T13:51:11Z"
+  },
+  "matches": {
+    "check_run_id": true,
+    "name": true,
+    "head_sha": true,
+    "conclusion": true,
+    "output_hash": null
+  },
+  "sanitized_error_class": null,
+  "payload_hash": "8d7528dacef727eed1ec8bf88093342b66560a3cded53828c3318f9bb195be5b",
+  "checked_at": "2026-07-12T13:55:44.186Z",
+  "safety": {
+    "token_included": false,
+    "token_source": "provided_runtime_option",
+    "response_body_sanitized": true,
+    "raw_body_stored": false,
+    "secret_values_allowed": false,
+    "live_mutation_performed": false
+  },
+  "calibration": {
+    "live_readback": true,
+    "authority_class": "github_actions_app",
+    "expected_head_sha_alias": "984bafab0671078bce990caa664c37c4e7b985e4",
+    "custom_tenant_github_app_proven": false,
+    "observed_via_read_only_api": true
+  }
+}

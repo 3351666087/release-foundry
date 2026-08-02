@@ -1,0 +1,36 @@
+{
+  "schema_version": "a3.p3_frontend_relogin_needed.v1",
+  "captured_at": "2026-07-06",
+  "capture_method": "Agent in-app browser read-only navigation",
+  "target": {
+    "url": "https://app.releasefoundry.example/?tab=analysis&dataset=884",
+    "dataset_id": 884,
+    "run_id": 11925
+  },
+  "observation": {
+    "page_title": "ReleaseFoundry",
+    "landed_on_sign_in": true,
+    "dataset_visible": false,
+    "run_visible": false,
+    "visible_sign_in_copy": [
+      "Sign in to your account",
+      "Welcome back. Pick up where you left off.",
+      "Continue with Google",
+      "Continue with Microsoft"
+    ]
+  },
+  "safety": {
+    "api_key_printed": false,
+    "cookies_saved": false,
+    "tokens_saved": false,
+    "headers_saved": false,
+    "account_email_saved": false,
+    "screenshots_saved": false,
+    "cloud_mutation_attempted": false
+  },
+  "conclusion": {
+    "status": "blocked_by_manual_login",
+    "summary": "The hosted run exists through redacted API evidence, but official frontend visual inspection needs a fresh manual login.",
+    "next_step": "After the user signs in, revisit https://app.releasefoundry.example/?tab=analysis&dataset=884 and inspect Results / run detail / case detail."
+  }
+}

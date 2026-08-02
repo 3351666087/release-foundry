@@ -1,0 +1,48 @@
+{
+  "observed_at": "2026-07-06T04:28:55.713Z",
+  "schema_version": "a3.p3.frontend_usage_workflow.v1",
+  "source": "Read-only Chrome/CDP observation of authenticated ReleaseFoundry Lab top-level pages.",
+  "safety": {
+    "saved_headers": false,
+    "saved_cookies": false,
+    "saved_tokens": false,
+    "saved_response_bodies": false,
+    "saved_screenshots": false
+  },
+  "pages": [
+    {
+      "page": "Usage",
+      "path": "/?tab=usage",
+      "visible_modules": ["Images", "Audio", "Files", "Upgrade"],
+      "visible_state": "Images 0 of 100, Audio 0 of 200, Files 0 of 100.",
+      "frontend_api_functions": ["get_usage", "billing_get_status"],
+      "note": "The frontend uses OAuth token parameters for these calls; no token values were saved."
+    },
+    {
+      "page": "Datasets",
+      "path": "/?tab=analysis",
+      "visible_modules": ["New dataset", "Type", "Agent", "Creator", "Status", "Runs", "Sort", "Group"],
+      "frontend_api_functions": ["list_datasets", "list_requests", "list_folder_memberships"],
+      "note": "The page still had no UI-visible populated dataset/run during this observation."
+    },
+    {
+      "page": "Analytics",
+      "path": "/?tab=analytics",
+      "visible_modules": ["Agents", "Datasets", "Graded runs", "Overall pass rate", "Run volume", "Pass rate over time", "Runs by agent", "Pass rate by agent"],
+      "frontend_api_functions": ["list_agents", "list_datasets"],
+      "note": "The page showed not-enough-data empty states."
+    },
+    {
+      "page": "Trust",
+      "path": "/?tab=trust",
+      "visible_modules": ["Public trust page", "Preview", "Refresh"],
+      "frontend_api_functions": ["get_trust_certificate_status", "preview_trust_certificate"],
+      "note": "The page showed run-tests-first empty state."
+    }
+  ],
+  "a3_decision": {
+    "copy_for_mvp": ["Usage / Quota channels", "Dataset filters", "Analytics empty states", "Report/trust concept"],
+    "do_not_copy_yet": ["Billing mutation", "API key management", "Team invite", "Trust publishing"],
+    "current_gap": "Run detail, case detail, trace/timeline, and media preview pages still need one UI-visible populated run."
+  }
+}

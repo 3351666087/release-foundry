@@ -1,0 +1,131 @@
+name: releasefoundry-a1-self-host-commercial
+
+x-a1-secret-ref-env: &a1-secret-ref-env
+  RELEASEFOUNDRY_RUNTIME_ENV: self-host
+  RELEASEFOUNDRY_SECRET_PROVIDER: env-ref
+  RELEASEFOUNDRY_POSTGRES_DSN_REF: env:RELEASEFOUNDRY_POSTGRES_DSN
+  RELEASEFOUNDRY_BILLING_PROVIDER_SECRET_REF: env:RELEASEFOUNDRY_BILLING_PROVIDER_SECRET_REF
+  RELEASEFOUNDRY_BILLING_WEBHOOK_SECRET_REF: env:RELEASEFOUNDRY_BILLING_WEBHOOK_SECRET_REF
+  RELEASEFOUNDRY_OBJECT_STORE_ACCESS_KEY_REF: env:RELEASEFOUNDRY_OBJECT_STORE_ACCESS_KEY_REF
+  RELEASEFOUNDRY_OBJECT_STORE_SECRET_KEY_REF: env:RELEASEFOUNDRY_OBJECT_STORE_SECRET_KEY_REF
+
+x-a1-runtime-env: &a1-runtime-env
+  <<: *a1-secret-ref-env
+  RELEASEFOUNDRY_ENVIRONMENT: development
+  RELEASEFOUNDRY_IDENTITY_RUNTIME: memory
+  RELEASEFOUNDRY_IDENTITY_MEMORY_ENABLED: "true"
+  RELEASEFOUNDRY_GO_BACKEND: postgres
+  RELEASEFOUNDRY_POSTGRES_DSN: postgres://releasefoundry@postgres:5432/releasefoundry?sslmode=disable
+  RELEASEFOUNDRY_OBJECT_STORE_ENDPOINT: file:///object-store
+  RELEASEFOUNDRY_OBJECT_STORE_BUCKET: releasefoundry-local-artifacts
+  RELEASEFOUNDRY_OBJECT_EVIDENCE_PREFIX: evidence/a1/self-host
+  RELEASEFOUNDRY_QUOTA_LEDGER_TABLE: releasefoundry_quota_ledger
+  RELEASEFOUNDRY_ARTIFACT_MANIFEST_TABLE: releasefoundry_artifact_manifests
+  RELEASEFOUNDRY_WORKER_JOBS_TABLE: releasefoundry_worker_jobs
+  RELEASEFOUNDRY_BILLING_WEBHOOK_PUBLIC_URL: http://billing-webhook:8788/a1/billing/webhook
+  RELEASEFOUNDRY_BILLING_WEBHOOK_MODE: receiver-only
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: releasefoundry
+      POSTGRES_USER: releasefoundry
+      POSTGRES_HOST_AUTH_METHOD: trust
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U releasefoundry -d releasefoundry"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    ports:
+      - "127.0.0.1:15432:5432"
+    volumes:
+      - a1-postgres-smoke:/var/lib/postgresql/data
+
+  api:
+    image: releasefoundry/a1-go-runtime:local
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.go-runtime
+    command: ["/usr/local/bin/releasefoundry-api"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *a1-runtime-env
+      RELEASEFOUNDRY_GO_API_ADDR: 0.0.0.0:8787
+      RELEASEFOUNDRY_A1_SMOKE_MODE: local_self_host
+    ports:
+      - "127.0.0.1:18787:8787"
+    volumes:
+      - a1-api-runtime:/runtime
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/releasefoundry-healthcheck", "http://127.0.0.1:8787/healthz", "postgres_repository_v0"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  worker:
+    image: releasefoundry/a1-go-runtime:local
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.go-runtime
+    command: ["/usr/local/bin/releasefoundry-worker"]
+    depends_on:
+      api:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+      object-store:
+        condition: service_started
+    environment:
+      <<: *a1-runtime-env
+      RELEASEFOUNDRY_WORKER_MODE: long-running
+      RELEASEFOUNDRY_WORKER_QUEUE: releasefoundry_worker_jobs
+      RELEASEFOUNDRY_WORKER_LEASE_SECONDS: "300"
+      RELEASEFOUNDRY_WORKER_POLL_INTERVAL_SECONDS: "30"
+      RELEASEFOUNDRY_WORKER_MAX_ATTEMPTS: "3"
+      RELEASEFOUNDRY_WORKER_EVIDENCE_WRITES: object-store
+    volumes:
+      - a1-worker-state:/runtime/worker
+    security_opt:
+      - no-new-privileges:true
+
+  billing-webhook:
+    image: releasefoundry/a1-go-runtime:local
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.go-runtime
+    command: ["/usr/local/bin/releasefoundry-api"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      <<: *a1-runtime-env
+      RELEASEFOUNDRY_GO_API_ADDR: 0.0.0.0:8788
+      RELEASEFOUNDRY_BILLING_WEBHOOK_RECEIVER: enabled
+      RELEASEFOUNDRY_BILLING_LEDGER_TABLE: releasefoundry_billing_ledger
+      RELEASEFOUNDRY_BILLING_QUOTA_LEDGER_TABLE: releasefoundry_quota_ledger
+      RELEASEFOUNDRY_BILLING_WEBHOOK_SECRET_REQUIRED: "true"
+    ports:
+      - "127.0.0.1:18788:8788"
+    volumes:
+      - a1-billing-runtime:/runtime
+    security_opt:
+      - no-new-privileges:true
+
+  object-store:
+    image: busybox:1.36
+    command: ["sh", "-c", "mkdir -p /object-store/releasefoundry-local-artifacts/evidence/a1/self-host && tail -f /dev/null"]
+    volumes:
+      - a1-object-store:/object-store
+
+volumes:
+  a1-postgres-smoke:
+  a1-api-runtime:
+  a1-billing-runtime:
+  a1-worker-state:
+  a1-object-store:

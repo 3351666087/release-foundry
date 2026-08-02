@@ -1,0 +1,101 @@
+{
+  "captured_at": "2026-07-06",
+  "capture_method": "Authenticated normal Chrome plus local CDP after explicit user confirmation",
+  "action_taken": {
+    "clicked": "Generate Test Suite",
+    "user_confirmation": "确认生成 A3 Refund Demo Dataset / A3 Refund Demo Agent",
+    "network_statuses_observed": [200, 200, 200],
+    "cloud_mutation": "created official ReleaseFoundry hosted dataset/test-suite object"
+  },
+  "safety": {
+    "api_key_printed": false,
+    "cookies_saved": false,
+    "tokens_saved": false,
+    "headers_saved": false,
+    "emails_redacted": true,
+    "screenshots_saved": false,
+    "api_keys_page_mutated": false,
+    "team_or_billing_mutated": false,
+    "delete_actions_used": false
+  },
+  "frontend_result": {
+    "dataset_visible": true,
+    "dataset_path": "/?tab=analysis&dataset=884",
+    "dataset_id_decimal": 884,
+    "dataset_id_display": "#00000374",
+    "dataset_name": "A3 Refund Demo Dataset",
+    "created_date_visible": "Jul 6, 2026",
+    "total_tests_visible": 5,
+    "test_cases_visible": 5,
+    "results_visible": 0,
+    "runs_history_state": "No runs found; this dataset hasn't been run yet",
+    "agents_page_state": "Agents 0 / No agents yet",
+    "analytics_state_after_generation": {
+      "agents": 0,
+      "datasets": 1,
+      "graded_runs": 0,
+      "overall_pass_rate": "not available"
+    }
+  },
+  "api_followup": {
+    "get_dataset_884": {
+      "status": "ok",
+      "fixture": "fixtures/a3/p3/releasefoundry_after_generate_dataset_884.redacted.json"
+    },
+    "list_requests_after_generate": {
+      "status": "ok",
+      "fixture": "fixtures/a3/p3/releasefoundry_after_generate_list_requests.redacted.json"
+    },
+    "list_datasets_after_generate": {
+      "status": "ok",
+      "fixture": "fixtures/a3/p3/releasefoundry_after_generate_list_datasets.redacted.json"
+    },
+    "list_agents_after_generate": {
+      "status": "ok",
+      "fixture": "fixtures/a3/p3/releasefoundry_after_generate_list_agents.redacted.json"
+    }
+  },
+  "generated_test_cases": [
+    {
+      "run_id": "happy_path_text_valid_booking",
+      "title": "Cancel and refund request for recent booking (booking_id provided)",
+      "action_count": 4,
+      "media_or_input_types": ["text", "audio"],
+      "tags": ["cancel_request", "within_policy"]
+    },
+    {
+      "run_id": "pdf_receipt_ocr_split_payment",
+      "title": "Refund request with low-quality scanned receipt and split payment",
+      "action_count": 4,
+      "media_or_input_types": ["file", "audio", "text"],
+      "tags": ["file_upload", "split_payment", "ocr_issue"]
+    },
+    {
+      "run_id": "audio_cutoff_by_two_minutes_exception_request",
+      "title": "Refund window missed by 2 minutes — escalation request from noisy coffee shop",
+      "action_count": 10,
+      "media_or_input_types": ["audio", "text"],
+      "tags": ["policy_cutoff", "audio_input", "escalation_request"]
+    },
+    {
+      "run_id": "ui_shows_refund_but_backend_no_tool_call_image",
+      "title": "UI shows 'Refund completed' but trace has no confirm_cancel — reconcile, diagnose, remediate",
+      "action_count": 9,
+      "media_or_input_types": ["text", "image", "audio", "file"],
+      "tags": ["ui_mismatch", "trace_discrepancy", "image_upload"]
+    },
+    {
+      "run_id": "concurrent_requests_tool_timeout_then_processor_failure",
+      "title": "User clicked refund twice; backend timeout, retry, and payment-post failure — need definitive status, concurrency check, and partial-refund guidance",
+      "action_count": 9,
+      "media_or_input_types": ["text", "audio"],
+      "tags": ["concurrency", "tool_timeout", "partial_refund"]
+    }
+  ],
+  "a3_implications": [
+    "The missing real example is now partially solved: A3 has a real official frontend-visible dataset and generated test cases.",
+    "The next missing object is still a real run result: Results are 0, so no official pass/fail, score, trace, or tool-call actual output is visible yet.",
+    "Official case details expose title, run id, scenario description, tags, action count, action types, and media evidence metadata before execution.",
+    "A3 can copy the dataset/case browser and case detail layout immediately; run-result and trace parity still needs a run."
+  ]
+}

@@ -1,0 +1,368 @@
+{
+  "attempts": 1,
+  "dry_run": false,
+  "duration_ms": 2183,
+  "ended_at": "2026-07-06T14:57:46Z",
+  "error": null,
+  "field_map_version": "a1-api-calibration-2026-07-04",
+  "function": "list_datasets",
+  "output_path": "fixtures\\a3\\p3\\releasefoundry_after_generate_list_datasets.redacted.json",
+  "purpose": "List datasets for field calibration",
+  "request": {
+    "estimated_calls": 2,
+    "function": "list_datasets",
+    "mutates": false,
+    "params": {
+      "include_signed_urls": false,
+      "limit": 10,
+      "tenant_id": 36
+    }
+  },
+  "response": {
+    "_user": {
+      "auth_method": "api_key",
+      "email": "[redacted]",
+      "is_owner": true,
+      "name": "\u9ec4\u777f",
+      "tenant_id": 36,
+      "user_id": 52
+    },
+    "datasets": [
+      {
+        "agent_details": null,
+        "agent_id": null,
+        "created_at": "2026-07-04T07:26:18.121653+00:00",
+        "creator": 52,
+        "creator_details": {
+          "id": 52,
+          "name": "\u9ec4\u777f"
+        },
+        "dataset_source": {
+          "dataset_type": "multi_run_storyboard",
+          "runs": {
+            "medium_missing_id_followup_embedded_ord1002_home": {
+              "actions": [
+                {
+                  "action_tags": null,
+                  "action_type": "text",
+                  "actor": "user",
+                  "content": "Hey \u2014 what's the latest on my package?",
+                  "name": "User asks for package status",
+                  "output_path": null
+                },
+                {
+                  "action_tags": null,
+                  "action_type": "text",
+                  "actor": "agent",
+                  "content": "I can help with that. Could you provide the order ID or tracking number? I only need the ID \u2014 no personal details required.",
+                  "expected_response": {},
+                  "name": "Agent requests order ID",
+                  "output_path": null
+                },
+                {
+                  "action_tags": null,
+                  "action_type": "text",
+                  "actor": "user",
+                  "content": "I think it's order 'OrD-1002'? I'm only using tiny, non-sensitive mock data for calibration and don't want to share any personal info.",
+                  "name": "User provides mock order ID in a sentence",
+                  "output_path": null
+                },
+                {
+                  "action_tags": null,
+                  "action_type": "text",
+                  "actor": "agent",
+                  "content": "Thanks \u2014 looking that up now for order OrD-1002. One moment... Order OrD-1002 is currently out for delivery and is estimated to arrive today by 6:30 PM local time. You can track it here: https://carrier.example.com/track/OrD-1002. I only used the order ID you provided and didn't request any personal information. Would you like me to send that tracking link to your email or phone on file?",
+                  "expected_response": {
+                    "tool_calls": [
+                      {
+                        "arguments": {
+                          "order_id": "OrD-1002"
+                        },
+                        "name": "lookup_order"
+                      }
+                    ]
+                  },
+                  "name": "Agent looks up order and returns status, ETA, and tracking link",
+                  "output_path": null
+                }
+              ],
+              "audio_tags": {
+                "accent": "american",
+                "age": null,
+                "background_noise": "home",
+                "gender": "female",
+                "language": null,
+                "pace": "normal",
+                "tone": "friendly",
+                "volume": null
+              },
+              "description": "User opens a text chat asking for the latest on their package but does not give an order ID. Agent asks for the ID. User replies with a sentence containing a mixed-case, punctuated mock order ID and clarifies they won't share personal info. Agent calls lookup_order with the provided ID and returns status, ETA, and a tracking link.",
+              "intent": "A general user at home opens a text chat to ask, \u201cWhat\u2019s the latest on my package?\u201d without sharing any order ID. They want a quick status update and an ETA, plus a tracking link if available. After the agent asks for the order ID, the user plans to provide a synthetic mock ID embedded in a sentence with mixed case and punctuation, e.g., \u201cI think it\u2019s order \u2018ord-1002\u2019?\u201d The user stresses they\u2019re only using tiny, non-sensitive mock data for calibration and do not want to share any personal info.",
+              "intent_tags": [
+                "missing_id",
+                "provide_id_in_followup",
+                "status_and_eta",
+                "text_parsing"
+              ],
+              "run_id": "medium_missing_id_followup_embedded_ord1002_home",
+              "simulation": null,
+              "title": "User asks for package status without ID, provides mock ID in follow-up"
+            }
+          },
+          "total_runs": 1
+        },
+        "dataset_type": "multi_run_storyboard",
+        "description": "",
+        "id": 883,
+        "name": "A1 Tiny Calibration Round 2",
+        "repo_id": null,
+        "request_id": 581,
+        "run_count": 1,
+        "tenant": 36
+      },
+      {
+        "agent_details": null,
+        "agent_id": null,
+        "created_at": "2026-06-25T17:14:37.929275+00:00",
+        "creator": 52,
+        "creator_details": {
+          "id": 52,
+          "name": "\u9ec4\u777f"
+        },
+        "dataset_source": {
+          "dataset_type": "multi_run_storyboard",
+          "runs": {
+            "image_ocr_samsung_980pro_heatsink_pricecap": {
+              "actions": [
+                {
+                  "action_tags": null,
+                  "action_type": "text",
+                  "actor": "user",
+                  "content": "Hi \u2014 I uploaded a slightly cropped screenshot from another retailer that shows a product card for \u201cSamsung 980 PRO 1TB PCIe 4.0 NVMe M.2\u201d. I can read a partial model string: \u201cMZ-V8P1T0...\u201d. There's also some tiny text that might say \u201cwithout heatsink\u201d but it's too compressed/blurred to be sure. I want you to find the 2TB version (same series) for under $120 on the tiny product search page. I'm not sure whether I need the heatsink \u2014 I'll wait for you to ask; if you ask, I'll confirm I want the heatsink version.",
+                  "name": "User describes goal and context (budget, partial model, unclear heatsink text)",
+                  "output_path": null
+                },
+                {
+                  "action_tags": {
+                    "audio": null,
+                    "file": {
+                      "content_description": null,
+                      "content_type": null,
+                      "document_style": "digital",
+                      "encoding": null,
+                      "file_format": "pdf",
+                      "file_size": null,
+                      "handwriting_style": null,
+                      "has_images": null,
+                      "has_tables": null,
+                      "language": null,
+                      "page_count": null,
+                      "sample_format": null,
+                      "scan_intensity": null
+                    },
+                    "image": null,
+                    "sensor": null,
+                    "video": null
+                  },
+                  "action_type": "file",
+                  "actor": "user",
+                  "content": "screenshot_samsung_980_pro_cropped.jpg \u2014 Slightly cropped, compressed screenshot of a retailer product card showing title text 'Samsung 980 PRO 1TB PCIe 4.0 NVMe M.2', a visible partial model string 'MZ-V8P1T0...' and a very small blurred line that could read 'without heatsink' but it's unclear.",
+                  "name": "User uploads cropped screenshot",
+                  "output_path": "files/36/Find_Samsung_980_PRO_2TB__heatsink__under__120_fro/001_user_User_uploads_cropped_screensho_86f6b277.pdf"
+                },
+                {
+                  "action_tags": null,
+                  "action_type": "audio",
+                  "actor": "agent",
+                  "content": "Thanks \u2014 I received the screenshot. I can extract the model/series from the image and then search for the 2TB listings. The tiny text about heatsink is hard to read in the screenshot, so quick question before I search: do you want the heatsink variant for the 2TB Samsung 980 PRO? (You mentioned you'd confirm if I asked.)",
+                  "expected_response": {},
+                  "name": "Agent asks whether heatsink variant is required",
+                  "output_path": null
+                },
+                {
+                  "action_tags": null,
+                  "action_type": "text",
+                  "actor": "user",
+                  "content": "Yes \u2014 please look for the heatsink version of the Samsung 980 PRO 2TB. Budget $120 is firm.",
+                  "name": "User confirms heatsink and budget",
+                  "output_path": null
+                },
+                {
+                  "action_tags": null,
+                  "action_type": "audio",
+                  "actor": "agent",
+                  "content": "Understood. I'll extract the model/series from the screenshot (partial model 'MZ-V8P1T0...') and search for 'Samsung 980 PRO 2TB with heatsink' under $120. I'll summarize the top matches and flag any over budget.",
+                  "expected_response": {
+                    "tool_calls": [
+                      {
+                        "arguments": {
+                          "query": "Samsung 980 PRO 2TB PCIe 4.0 NVMe M.2 with heatsink MZ-V8P1T0 under $120"
+                        },
+                        "name": "search_product"
+                      }
+                    ]
+                  },
+                  "name": "Agent confirms parameters and runs product search",
+                  "output_path": null
+                },
+                {
+                  "action_tags": null,
+                  "action_type": "audio",
+                  "actor": "agent",
+                  "content": "Search complete. From the screenshot I extracted the series as 'Samsung 980 PRO' and the partial model 'MZ-V8P1T0...'. I couldn't conclusively read the small text about heatsink from the image, so thank you for confirming you want the heatsink variant. Here are the top matches I found (listed price \u2014 note whether they exceed your $120 budget):\n\n1) Samsung 980 PRO 2TB (with heatsink) \u2014 $189.99 \u2014 exceeds budget\n2) Samsung 980 PRO 2TB (no heatsink) \u2014 $169.00 \u2014 exceeds budget\n3) Refurbished / open-box Samsung 980 PRO 2TB (with heatsink) \u2014 $129.99 \u2014 exceeds budget but closest to it\n\nSummary: I didn't find any new 2TB Samsung 980 PRO (heatsink) listings under $120. The closest option is a refurbished/open-box at $129.99, which still exceeds your $120 limit. Would you like me to (A) set a price alert and re-check periodically, (B) expand the search to include other 2TB PCIe 4.0 NVMe models that may meet the $120 budget, or (C) look for used/third-party sellers that might list under $120?",
+                  "expected_response": {},
+                  "name": "Agent summarizes search results and offers next steps",
+                  "output_path": null
+                }
+              ],
+              "audio_tags": {
+                "accent": "american",
+                "age": null,
+                "background_noise": "office",
+                "gender": "male",
+                "language": null,
+                "pace": "normal",
+                "tone": "confident",
+                "volume": null
+              },
+              "description": "User uploads a slightly cropped screenshot showing a Samsung 980 PRO 1TB product card with partial model string 'MZ-V8P1T0...' and unclear small text that might say 'without heatsink'. User wants the 2TB version of the same series under $120, unsure about heatsink (will confirm if asked). Agent should extract model/series from the image, clarify heatsink requirement, run a product search, and summarize top matches with prices noting which exceed the budget.",
+              "intent": "User uploads a slightly cropped screenshot from another retailer showing a product card for \u201cSamsung 980 PRO 1TB PCIe 4.0 NVMe M.2\u201d with a partial model string visible (MZ-V8P1T0...) and small text that might say \u201cwithout heatsink,\u201d but it\u2019s unclear due to compression. The user wants to find the 2TB version of the same series under $120 on the tiny product search page. They\u2019re unsure whether they need the heatsink variant and will wait for the agent to clarify; if asked, they\u2019ll confirm they want the heatsink version. They expect the agent to extract the model/series from the screenshot, confirm the heatsink requirement, run a product search, and summarize the top matches with prices, noting any that exceed the budget.",
+              "intent_tags": [
+                "image_ocr",
+                "variant_clarification",
+                "price_filter"
+              ],
+              "run_id": "image_ocr_samsung_980pro_heatsink_pricecap",
+              "simulation": null,
+              "title": "Find Samsung 980 PRO 2TB (heatsink) under $120 from a cropped screenshot"
+            }
+          },
+          "total_runs": 1
+        },
+        "dataset_type": "multi_run_storyboard",
+        "description": "",
+        "id": 882,
+        "name": "Agent boundary - enabled multimodal request 2026-06-26",
+        "repo_id": null,
+        "request_id": 579,
+        "run_count": 1,
+        "tenant": 36
+      },
+      {
+        "agent_details": null,
+        "agent_id": null,
+        "created_at": "2026-06-25T17:03:00.647453+00:00",
+        "creator": 52,
+        "creator_details": {
+          "id": 52,
+          "name": "\u9ec4\u777f"
+        },
+        "dataset_source": {
+          "dataset_type": "multi_run_storyboard",
+          "runs": {
+            "where_is_my_package_no_id_coffeeshop": {
+              "actions": [
+                {
+                  "action_tags": null,
+                  "action_type": "text",
+                  "actor": "user",
+                  "content": "Hey \u2014 I'm in a busy coffee shop so I might be hard to hear. Where's my package? I don't have the order number offhand.",
+                  "name": "User asks for package status from noisy environment",
+                  "output_path": null
+                },
+                {
+                  "action_tags": null,
+                  "action_type": "text",
+                  "actor": "agent",
+                  "content": "I can help with that. Could you give me your order number? If it's easier, you can paste the exact line from your confirmation email that starts with \"Order #\".",
+                  "expected_response": {},
+                  "name": "Agent asks for order number and suggests pasting confirmation line",
+                  "output_path": null
+                },
+                {
+                  "action_tags": null,
+                  "action_type": "text",
+                  "actor": "user",
+                  "content": "Okay, hold on \u2014 here's the line from the email: Order #ABC-1234,",
+                  "name": "User pastes confirmation line including hash, hyphen, and trailing comma",
+                  "output_path": null
+                },
+                {
+                  "action_tags": null,
+                  "action_type": "text",
+                  "actor": "agent",
+                  "content": "Thanks \u2014 I see you pasted \"Order #ABC-1234,\". I'll look that up now using order ID ABC-1234.",
+                  "expected_response": {
+                    "tool_calls": [
+                      {
+                        "arguments": {
+                          "order_id": "ABC-1234"
+                        },
+                        "name": "lookup_order"
+                      }
+                    ]
+                  },
+                  "name": "Agent acknowledges pasted line, normalizes order ID, and looks up order",
+                  "output_path": null
+                },
+                {
+                  "action_tags": null,
+                  "action_type": "text",
+                  "actor": "user",
+                  "content": "Perfect \u2014 when will it arrive?",
+                  "name": "User asks for ETA follow-up",
+                  "output_path": null
+                },
+                {
+                  "action_tags": null,
+                  "action_type": "text",
+                  "actor": "agent",
+                  "content": "The order ABC-1234 is out for delivery \u2014 the carrier scanned it at your local facility this morning. The estimated delivery is today by 6:30 PM (typical delivery window 4:30\u20136:30 PM).",
+                  "expected_response": {},
+                  "name": "Agent provides delivery ETA based on lookup result",
+                  "output_path": null
+                }
+              ],
+              "audio_tags": {
+                "accent": "american",
+                "age": null,
+                "background_noise": "coffee_shop",
+                "gender": "male",
+                "language": null,
+                "pace": "normal",
+                "tone": "friendly",
+                "volume": null
+              },
+              "description": "Young adult caller at a noisy coffee shop asks for package status without an order ID. Agent requests the order number, the user pastes the confirmation line exactly as in their email ('Order #ABC-1234,'), the agent normalizes the format, calls lookup_order, reports status, and the user asks for an ETA.",
+              "intent": "Young adult customer calling from a busy coffee shop to ask, \"Where\u2019s my package?\" They don\u2019t provide an order ID initially. After the agent asks for it and explains where to find it, the customer will copy-paste from their confirmation email something like: \"Order #ABC-1234,\" (with a leading hash, a hyphen, and a trailing comma). Once the status is provided, the customer will follow up with, \"When will it arrive?\" seeking an ETA or delivery date.",
+              "intent_tags": [
+                "order_status",
+                "needs_order_id",
+                "format_normalization",
+                "eta_followup"
+              ],
+              "run_id": "where_is_my_package_no_id_coffeeshop",
+              "simulation": null,
+              "title": "Busy coffee shop call: customer asks 'Where's my package?' then provides messy order line and asks ETA"
+            }
+          },
+          "total_runs": 1
+        },
+        "dataset_type": "multi_run_storyboard",
+        "description": "",
+        "id": 881,
+        "name": "Agent proof - minimal text agent eval 2026-06-26",
+        "repo_id": null,
+        "request_id": 577,
+        "run_count": 1,
+        "tenant": 36
+      }
+    ],
+    "next_cursor": null,
+    "status": "ok"
+  },
+  "response_headers": {},
+  "started_at": "2026-07-06T14:57:44Z",
+  "status": "ok",
+  "status_code": 200
+}

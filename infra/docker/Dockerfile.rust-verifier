@@ -1,0 +1,31 @@
+ARG RUST_BUILD_IMAGE=rust:1.88-bookworm@sha256:af306cfa71d987911a781c37b59d7d67d934f49684058f96cf72079c3626bfe0
+ARG DEBIAN_RUNTIME_IMAGE=debian:bookworm-slim@sha256:60eac759739651111db372c07be67863818726f754804b8707c90979bda511df
+
+FROM ${RUST_BUILD_IMAGE} AS build
+
+WORKDIR /src/packages/rust/releasefoundry-runtime-verify
+COPY packages/rust/releasefoundry-runtime-verify/Cargo.toml packages/rust/releasefoundry-runtime-verify/Cargo.lock ./
+COPY packages/rust/releasefoundry-runtime-verify/src ./src
+RUN cargo test --locked --release \
+ && cargo build --locked --release
+
+FROM ${DEBIAN_RUNTIME_IMAGE} AS runtime
+
+ARG VCS_REF=unknown
+ARG VCS_TREE=unknown
+ARG SOURCE_REPOSITORY=https://github.com/3351666087/release-foundry
+LABEL org.opencontainers.image.source=$SOURCE_REPOSITORY \
+      org.opencontainers.image.revision=$VCS_REF \
+      io.releasefoundry.source.tree=$VCS_TREE
+
+RUN apt-get update \
+ && apt-get install --yes --no-install-recommends ca-certificates coreutils findutils \
+ && rm -rf /var/lib/apt/lists/* \
+ && mkdir -p /var/lib/releasefoundry/verification /tmp \
+ && chown -R 65532:65532 /var/lib/releasefoundry /tmp
+COPY --from=build /src/packages/rust/releasefoundry-runtime-verify/target/release/releasefoundry-runtime-verify /usr/local/bin/releasefoundry-runtime-verify
+COPY services/runner/rust-verifier-sidecar.sh /usr/local/bin/releasefoundry-verifier-sidecar
+RUN chmod 0555 /usr/local/bin/releasefoundry-runtime-verify /usr/local/bin/releasefoundry-verifier-sidecar
+
+USER 65532:65532
+ENTRYPOINT ["/usr/local/bin/releasefoundry-verifier-sidecar"]

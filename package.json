@@ -1,0 +1,22 @@
+{
+  "name": "release-foundry",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Evidence-first release intelligence for AI agents.",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/3351666087/release-foundry.git"
+  },
+  "scripts": {
+    "a3:delivery": "node services/report/a3_release_delivery_cli.mjs",
+    "a3:github-observe": "node services/report/a3_github_observe_cli.mjs",
+    "e2e": "playwright test",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "playwright:install": "playwright install chromium"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.61.1"
+  }
+}

@@ -1,0 +1,393 @@
+{
+  "contains_credential_values": false,
+  "gates": {
+    "cookie_values_are_never_serialized": true,
+    "go_response_fields_are_generated": true,
+    "go_route_support_is_detected_not_claimed": true,
+    "python_typescript_manifest_exact": true,
+    "python_typescript_openapi_exact": true
+  },
+  "go": {
+    "cookie_names": [
+      "__Host-releasefoundry_session",
+      "__Host-releasefoundry_refresh"
+    ],
+    "executable_operations": [
+      "complete_login",
+      "refresh"
+    ],
+    "login_response_fields": [
+      "account",
+      "challenge_id",
+      "channel",
+      "credential",
+      "credential_created",
+      "purpose",
+      "schema_version",
+      "tenant_id",
+      "verified_at"
+    ],
+    "operation_support": {
+      "bootstrap": false,
+      "complete_login": true,
+      "logout": false,
+      "refresh": true,
+      "revoke_all": false
+    },
+    "refresh_response_fields": [
+      "schema_version",
+      "status"
+    ],
+    "security_invariants": {
+      "cookie_values_absent_from_public_response": true,
+      "https_required": true,
+      "idempotency_header_required": true,
+      "refresh_reuse_clears_cookies": true,
+      "same_origin_required": true
+    },
+    "source_paths": [
+      "packages/go/releasefoundry/server.go",
+      "packages/go/releasefoundry/identity_verification_http.go"
+    ],
+    "stable_error_codes": [
+      "credential_link_conflict",
+      "identity_session_handoff_failed",
+      "identity_session_refresh_idempotency_required",
+      "identity_session_refresh_invalid",
+      "identity_session_refresh_origin_rejected",
+      "identity_session_refresh_request_invalid",
+      "identity_session_refresh_reused",
+      "identity_session_refresh_unavailable",
+      "identity_session_secure_transport_required",
+      "identity_session_transport_unavailable",
+      "identity_verification_failed",
+      "identity_verification_policy_unavailable",
+      "identity_verification_unavailable",
+      "request_cancelled",
+      "verification_resend_cooldown"
+    ],
+    "unsupported_operations": [
+      "bootstrap",
+      "logout",
+      "revoke_all"
+    ]
+  },
+  "modalities": [
+    "text",
+    "image",
+    "audio",
+    "file",
+    "video"
+  ],
+  "modality_policy": "text_image_audio_file_video_equal",
+  "openapi": {
+    "path": "tests/a1/fixtures/browser_session_openapi_3_1.json",
+    "schema_version": "releasefoundry.browser_session.openapi.v1",
+    "sha256": "7379c6d2df20555cd8adfc6d115f577b0ce85d2a767f12fbc768cade478b3835",
+    "surface": {
+      "header_components": [
+        "CacheControl",
+        "Location",
+        "RetryAfter",
+        "SetCookie"
+      ],
+      "operations": [
+        {
+          "method": "POST",
+          "operation_id": "completeBrowserSessionLogin",
+          "parameter_refs": [
+            "#/components/parameters/Origin"
+          ],
+          "path": "/v1/identity-verification/verify",
+          "response_statuses": [
+            "200",
+            "303",
+            "401",
+            "409",
+            "429",
+            "503"
+          ]
+        },
+        {
+          "method": "GET",
+          "operation_id": "bootstrapBrowserSession",
+          "parameter_refs": [
+            "#/components/parameters/AccountId",
+            "#/components/parameters/ProjectId"
+          ],
+          "path": "/v1/projects/{project_id}/accounts/{account_id}/browser-sessions/bootstrap",
+          "response_statuses": [
+            "200",
+            "204",
+            "401",
+            "503"
+          ]
+        },
+        {
+          "method": "POST",
+          "operation_id": "logoutBrowserSession",
+          "parameter_refs": [
+            "#/components/parameters/AccountId",
+            "#/components/parameters/IdempotencyKey",
+            "#/components/parameters/Origin",
+            "#/components/parameters/ProjectId",
+            "#/components/parameters/SecFetchSite"
+          ],
+          "path": "/v1/projects/{project_id}/accounts/{account_id}/browser-sessions/logout",
+          "response_statuses": [
+            "204",
+            "401",
+            "409",
+            "429",
+            "503"
+          ]
+        },
+        {
+          "method": "POST",
+          "operation_id": "refreshBrowserSession",
+          "parameter_refs": [
+            "#/components/parameters/AccountId",
+            "#/components/parameters/IdempotencyKey",
+            "#/components/parameters/Origin",
+            "#/components/parameters/ProjectId",
+            "#/components/parameters/SecFetchSite"
+          ],
+          "path": "/v1/projects/{project_id}/accounts/{account_id}/browser-sessions/refresh",
+          "response_statuses": [
+            "200",
+            "204",
+            "401",
+            "409",
+            "429",
+            "503"
+          ]
+        },
+        {
+          "method": "POST",
+          "operation_id": "revokeAllBrowserSessions",
+          "parameter_refs": [
+            "#/components/parameters/AccountId",
+            "#/components/parameters/IdempotencyKey",
+            "#/components/parameters/Origin",
+            "#/components/parameters/ProjectId",
+            "#/components/parameters/SecFetchSite"
+          ],
+          "path": "/v1/projects/{project_id}/accounts/{account_id}/browser-sessions/revoke-all",
+          "response_statuses": [
+            "204",
+            "401",
+            "409",
+            "429",
+            "503"
+          ]
+        }
+      ],
+      "schema_fields": {
+        "BrowserSessionCookieState": [
+          "access_credential_present",
+          "credential_values_exposed",
+          "refresh_credential_present"
+        ],
+        "BrowserSessionError": [
+          "code",
+          "http_status",
+          "message",
+          "retry_after_seconds",
+          "retryable"
+        ],
+        "BrowserSessionErrorEnvelope": [
+          "error",
+          "schema_version",
+          "status"
+        ],
+        "BrowserSessionLoginRequest": [
+          "account_id",
+          "challenge_id",
+          "channel",
+          "code",
+          "display_name",
+          "identifier",
+          "purpose",
+          "tenant_id"
+        ],
+        "BrowserSessionReceipt": [
+          "cookie_state",
+          "credential_values_exposed",
+          "http_status",
+          "operation",
+          "redirect_to",
+          "replacement_cookies",
+          "schema_version",
+          "status"
+        ],
+        "BrowserSessionReplacementCookie": [
+          "credential_present",
+          "expires_at",
+          "host_only",
+          "http_only",
+          "max_age_seconds",
+          "name",
+          "path",
+          "same_site",
+          "secure"
+        ]
+      },
+      "security_schemes": [
+        "browserAccessCookie",
+        "browserRefreshCookie"
+      ]
+    },
+    "version": "3.1.0"
+  },
+  "public_safe": true,
+  "python_typescript_contract": {
+    "cookie_contract_fields": [
+      "credential_present",
+      "expires_at",
+      "host_only",
+      "http_only",
+      "max_age_seconds",
+      "name",
+      "path",
+      "same_site",
+      "secure"
+    ],
+    "cookie_names": [
+      "__Host-releasefoundry_session",
+      "__Host-releasefoundry_refresh"
+    ],
+    "credentials": {
+      "host_only": true,
+      "http_only": true,
+      "same_site": "Strict",
+      "secure": true,
+      "values_in_logs": false,
+      "values_in_public_contract": false
+    },
+    "go_known_gaps": [
+      "browser_session_bootstrap_route",
+      "browser_session_logout_route",
+      "browser_session_revoke_all_route"
+    ],
+    "modalities": [
+      "text",
+      "image",
+      "audio",
+      "file",
+      "video"
+    ],
+    "modality_policy": "equal_security_and_transport_envelope",
+    "operations": [
+      {
+        "go_executable": true,
+        "method": "POST",
+        "operation": "complete_login",
+        "path": "/v1/identity-verification/verify",
+        "request_fields": [
+          "account_id",
+          "challenge_id",
+          "channel",
+          "code",
+          "display_name",
+          "identifier",
+          "purpose",
+          "tenant_id"
+        ],
+        "success_statuses": [
+          200,
+          303
+        ]
+      },
+      {
+        "go_executable": false,
+        "method": "GET",
+        "operation": "bootstrap",
+        "path": "/v1/projects/{project_id}/accounts/{account_id}/browser-sessions/bootstrap",
+        "request_fields": [],
+        "success_statuses": [
+          200,
+          204
+        ]
+      },
+      {
+        "go_executable": true,
+        "method": "POST",
+        "operation": "refresh",
+        "path": "/v1/projects/{project_id}/accounts/{account_id}/browser-sessions/refresh",
+        "request_fields": [],
+        "success_statuses": [
+          200,
+          204
+        ]
+      },
+      {
+        "go_executable": false,
+        "method": "POST",
+        "operation": "logout",
+        "path": "/v1/projects/{project_id}/accounts/{account_id}/browser-sessions/logout",
+        "request_fields": [],
+        "success_statuses": [
+          204
+        ]
+      },
+      {
+        "go_executable": false,
+        "method": "POST",
+        "operation": "revoke_all",
+        "path": "/v1/projects/{project_id}/accounts/{account_id}/browser-sessions/revoke-all",
+        "request_fields": [],
+        "success_statuses": [
+          204
+        ]
+      }
+    ],
+    "receipt_fields": [
+      "cookie_state",
+      "credential_values_exposed",
+      "http_status",
+      "operation",
+      "redirect_to",
+      "replacement_cookies",
+      "schema_version",
+      "status"
+    ],
+    "schema_version": "releasefoundry.browser_session.capabilities.v1",
+    "sdk_schema_version": "releasefoundry.browser_session.v1",
+    "stable_error_codes": [
+      "browser_session_authentication_required",
+      "browser_session_cookie_expired",
+      "browser_session_idempotency_conflict",
+      "browser_session_invalid_request",
+      "browser_session_rate_limited",
+      "browser_session_response_invalid",
+      "browser_session_transport_failed",
+      "browser_session_unavailable",
+      "credential_link_conflict",
+      "identity_session_handoff_failed",
+      "identity_session_refresh_idempotency_required",
+      "identity_session_refresh_invalid",
+      "identity_session_refresh_origin_rejected",
+      "identity_session_refresh_request_invalid",
+      "identity_session_refresh_reused",
+      "identity_session_refresh_unavailable",
+      "identity_session_secure_transport_required",
+      "identity_session_transport_unavailable",
+      "identity_verification_failed",
+      "identity_verification_policy_unavailable",
+      "identity_verification_unavailable",
+      "request_cancelled",
+      "verification_code_invalid",
+      "verification_consumed",
+      "verification_expired",
+      "verification_not_found",
+      "verification_resend_cooldown"
+    ]
+  },
+  "schema_version": "releasefoundry.browser_session.parity.v1",
+  "source_paths": [
+    "packages/sdk/releasefoundry/browser_session.py",
+    "packages/ts/releasefoundry/src/browser-session.ts",
+    "packages/go/releasefoundry/server.go",
+    "packages/go/releasefoundry/identity_verification_http.go"
+  ]
+}

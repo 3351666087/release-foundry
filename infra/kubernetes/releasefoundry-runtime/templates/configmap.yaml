@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "releasefoundry.fullname" . }}-runtime
+  labels:
+    {{- include "releasefoundry.commonLabels" . | nindent 4 }}
+  annotations:
+    {{- include "releasefoundry.supplyChainAnnotations" . | nindent 4 }}
+immutable: true
+data:
+  RELEASEFOUNDRY_RUNTIME_ENV: {{ .Values.environment | quote }}
+  RELEASEFOUNDRY_ENVIRONMENT: {{ .Values.environment | quote }}
+  RELEASEFOUNDRY_SECRET_PROVIDER: kubernetes-secret-ref
+  RELEASEFOUNDRY_POSTGRES_HOST: {{ .Values.runtime.postgres.host | quote }}
+  RELEASEFOUNDRY_POSTGRES_PORT: {{ .Values.runtime.postgres.port | quote }}
+  RELEASEFOUNDRY_POSTGRES_DB: {{ .Values.runtime.postgres.database | quote }}
+  RELEASEFOUNDRY_POSTGRES_USER: {{ .Values.runtime.postgres.user | quote }}
+  RELEASEFOUNDRY_QUEUE_ENDPOINT: {{ .Values.runtime.queue.endpoint | quote }}
+  RELEASEFOUNDRY_OBJECT_STORE_ENDPOINT: {{ .Values.runtime.objectStorage.endpoint | quote }}
+  RELEASEFOUNDRY_OBJECT_STORE_BUCKET: {{ .Values.runtime.objectStorage.bucket | quote }}
+  RELEASEFOUNDRY_OBJECT_EVIDENCE_PREFIX: {{ .Values.runtime.objectStorage.evidencePrefix | quote }}
+  RELEASEFOUNDRY_IDENTITY_DELIVERY_VAULT_URL: {{ .Values.identityDelivery.vaultUrl | quote }}
+  RELEASEFOUNDRY_IDENTITY_DELIVERY_EMAIL_RELAY_URL: {{ .Values.identityDelivery.emailRelayUrl | quote }}
+  RELEASEFOUNDRY_IDENTITY_DELIVERY_SMS_RELAY_URL: {{ .Values.identityDelivery.smsRelayUrl | quote }}
+  RELEASEFOUNDRY_IDENTITY_DELIVERY_MTLS_SERVER_NAME: {{ .Values.identityDelivery.mtlsServerName | quote }}

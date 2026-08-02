@@ -1,0 +1,59 @@
+{
+  "schema_version": "a3.github_pr_comment_readback_receipt.v1",
+  "provider": "github",
+  "resource_kind": "pr_comment",
+  "readback_id": "ghprb_21f31243f85ef49d",
+  "readback_status": "readback_confirmed",
+  "readback_confirmed": true,
+  "posted": true,
+  "stale": false,
+  "missing": false,
+  "deleted": false,
+  "http_status": 200,
+  "github_request_id": "E180:2034DB:1C71C27:1D51CA8:6A537C73",
+  "expected": {
+    "repo": "3351666087/release-foundry",
+    "pull_number": 35,
+    "comment_id_alias": null,
+    "marker": "<!-- releasefoundry-plus-plus:release-gate:a3-golden-20260712-001 -->",
+    "body_hash": "ee6c7f79898304c442b5eca46c03d11300467d884f92d520bda07b2ea810bc16",
+    "head_sha_alias": "ad6113e01f5999f99b378e678d4f0a9602e8fdbc"
+  },
+  "observed": {
+    "comment_id_alias": 4951021915,
+    "html_url": "https://github.com/3351666087/release-foundry/pull/35#issuecomment-4951021915",
+    "issue_url": "https://api.github.com/repos/3351666087/release-foundry/issues/35",
+    "created_at": "2026-07-12T11:34:30Z",
+    "updated_at": "2026-07-12T11:34:30Z",
+    "author_association": "OWNER",
+    "body_marker_present": true,
+    "body_hash": "ee6c7f79898304c442b5eca46c03d11300467d884f92d520bda07b2ea810bc16",
+    "head_sha_alias": "ad6113e01f5999f99b378e678d4f0a9602e8fdbc"
+  },
+  "matches": {
+    "comment_id": null,
+    "marker": true,
+    "body_hash": true,
+    "head_sha": true
+  },
+  "marker_match": true,
+  "body_hash_match": true,
+  "sanitized_error_class": null,
+  "payload_hash": "21f31243f85ef49dac84ab8779e0b54ed0da5e8d77b59ce3ffe41d2dd8253eec",
+  "checked_at": "2026-07-12T11:37:17.591Z",
+  "safety": {
+    "token_included": false,
+    "token_source": "provided_runtime_option",
+    "response_body_sanitized": true,
+    "raw_body_stored": false,
+    "secret_values_allowed": false,
+    "live_mutation_performed": false
+  },
+  "calibration": {
+    "live_readback": true,
+    "authority_class": "operator_oauth_calibration",
+    "expected_head_sha_alias": "ad6113e01f5999f99b378e678d4f0a9602e8fdbc",
+    "custom_tenant_github_app_proven": false,
+    "observed_via_read_only_api": true
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://releasefoundry.local/schemas/a2/provider_cancellation_handle_receipt.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "requested",
+    "supported",
+    "acknowledged",
+    "enforcement",
+    "remote_request_termination_proven",
+    "raw_provider_state_included",
+    "release_authority",
+    "public_safe"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "a2.provider_cancellation_handle_receipt.v1"
+    },
+    "requested": {"type": "boolean"},
+    "supported": {"type": "boolean"},
+    "acknowledged": {"type": "boolean"},
+    "enforcement": {
+      "enum": [
+        "not_requested",
+        "unsupported",
+        "adapter_acknowledged",
+        "adapter_rejected"
+      ]
+    },
+    "remote_request_termination_proven": {"const": false},
+    "raw_provider_state_included": {"const": false},
+    "release_authority": {"const": false},
+    "public_safe": {"const": true}
+  }
+}

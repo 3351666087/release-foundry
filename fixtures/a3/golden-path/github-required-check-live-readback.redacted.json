@@ -1,0 +1,44 @@
+{
+  "schema_version": "a3.github_required_check_proof.v1",
+  "provider": "github",
+  "resource_kind": "required_check",
+  "proof_id": "ghrcp_a4ecb62318d7fa47",
+  "plan_available": true,
+  "repo": {
+    "owner": "3351666087",
+    "repo": "release-foundry"
+  },
+  "branch": "main",
+  "check_name": "A3 golden path release artifact",
+  "enforcement_readback_status": "missing",
+  "readback_status": "missing",
+  "enforced": false,
+  "plan_only_must_not_claim_enforcement": true,
+  "required_for_commercial_gate": true,
+  "matched_check": null,
+  "matched_context": null,
+  "checked_count": 0,
+  "strict": false,
+  "http_status": 404,
+  "github_request_id": "E180:2034DB:1C71D8A:1D51E1D:6A537C74",
+  "sanitized_error_class": "missing",
+  "payload_hash": "a4ecb62318d7fa479f99816d49adfc024d2bd13adbe79349cdc6dbeec75af1e4",
+  "checked_at": "2026-07-12T11:37:17.591Z",
+  "safety": {
+    "token_included": false,
+    "token_source": "provided_runtime_option",
+    "response_body_sanitized": true,
+    "raw_body_stored": false,
+    "secret_values_allowed": false,
+    "live_mutation_performed": false,
+    "maintainer_approval_required": true,
+    "branch_protection_mutation_performed": false
+  },
+  "calibration": {
+    "live_readback": false,
+    "authority_class": "repository_policy_readback",
+    "expected_head_sha_alias": "ad6113e01f5999f99b378e678d4f0a9602e8fdbc",
+    "custom_tenant_github_app_proven": false,
+    "observed_via_read_only_api": true
+  }
+}

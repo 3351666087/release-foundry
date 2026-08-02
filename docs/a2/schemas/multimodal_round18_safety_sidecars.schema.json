@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://releasefoundry.local/schemas/a2/multimodal_round18_safety_sidecars.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "model_binding", "runtime_binding", "prompt_change_note", "low_contrast_injection", "visual_semantic_conflict", "runner_telemetry", "reviewed_adversarial_golden_candidate", "release_authority", "public_safe"],
+  "properties": {
+    "schema_version": {"const": "a2.multimodal_round18_safety_sidecars.v1"},
+    "model_binding": {"type": "object", "additionalProperties": false, "required": ["provider_id", "model_id", "model_version"], "properties": {"provider_id": {"type": "string", "minLength": 1}, "model_id": {"type": "string", "minLength": 1}, "model_version": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}}},
+    "runtime_binding": {"type": "object", "additionalProperties": false, "required": ["prompt_hash", "keep_alive", "temperature", "seed"], "properties": {"prompt_hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}, "keep_alive": {"type": "string", "minLength": 1}, "temperature": {"type": "number"}, "seed": {"type": "integer"}}},
+    "prompt_change_note": {"type": "string", "minLength": 1},
+    "low_contrast_injection": {"type": "object", "required": ["artifact_hash", "deterministic_text_layer", "cold", "warm_1", "warm_2", "latency_qualification", "latency_blockers"]},
+    "visual_semantic_conflict": {"type": "object", "required": ["artifact_hash", "deterministic_metadata", "seed_11", "latency_qualification", "latency_blockers"]},
+    "runner_telemetry": {"type": "object", "required": ["runner_process", "working_set_bytes", "peak_working_set_bytes", "private_memory_bytes", "ollama_api_size_vram_bytes", "gpu_memory_state", "note"]},
+    "reviewed_adversarial_golden_candidate": {"type": "object", "required": ["case_id", "artifact_hash", "expected_risk", "human_label_hash", "observation_hash", "candidate_state", "golden_eligible", "release_authority", "human_review_required", "blockers", "public_safe"]},
+    "release_authority": {"const": false},
+    "public_safe": {"const": true}
+  }
+}

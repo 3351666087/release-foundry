@@ -1,0 +1,119 @@
+<view class="screen">
+  <view class="product-header">
+    <view class="brand-mark">审</view>
+    <view class="product-copy">
+      <text class="product-name">发布审批</text>
+      <text class="product-context">{{meta.project || '候选版本'}} · {{meta.environment || '环境未选择'}}</text>
+    </view>
+    <text class="mode-pill">{{modeLabel}}</text>
+  </view>
+
+  <view wx:if="{{viewState === 'loading'}}" class="state-panel">
+    <view class="loading-mark"></view>
+    <text class="state-title">正在核对发布依据</text>
+    <text class="state-copy">等待执行证据、评测结论与部署回执汇总。</text>
+  </view>
+
+  <view wx:elif="{{viewState === 'error'}}" class="state-panel">
+    <view class="state-mark">!</view>
+    <text class="state-title">审批信息加载失败</text>
+    <text class="state-copy">{{errorText}}</text>
+    <button class="secondary-button state-action" bindtap="retry" hover-class="button-pressed">重新加载</button>
+  </view>
+
+  <block wx:else>
+    <view wx:if="{{viewState === 'partial'}}" class="notice is-warning">
+      <text class="notice-title">证据不完整，保持阻断</text>
+      <text class="notice-copy">{{errorText}}</text>
+    </view>
+
+    <view class="decision-panel is-{{release.tone}}">
+      <view class="decision-panel-top">
+        <text class="decision-eyebrow">发布决策</text>
+        <text class="status-pill is-{{release.tone}}">{{release.statusLabel}}</text>
+      </view>
+      <text class="decision-panel-title">{{release.decisionLabel}}</text>
+      <text class="decision-panel-copy">{{release.summary}}</text>
+      <view class="decision-meta">
+        <text>{{release.version}}</text>
+        <text>{{release.updatedLabel}}</text>
+      </view>
+    </view>
+
+    <text class="section-label">发布依据</text>
+    <view class="panel evidence-list">
+      <view wx:for="{{evidenceStages}}" wx:key="id" class="approval-stage">
+        <view class="approval-stage-head">
+          <view class="stage-number">{{item.index}}</view>
+          <view class="approval-stage-copy">
+            <text class="approval-stage-title">{{item.title}}</text>
+            <text class="approval-stage-detail">{{item.detail}}</text>
+          </view>
+          <text class="status-pill is-{{item.tone}}">{{item.statusLabel}}</text>
+        </view>
+      </view>
+    </view>
+
+    <text class="section-label">阻断项 · {{blockers.length}}</text>
+    <view wx:if="{{blockers.length}}" class="blocker-list">
+      <view wx:for="{{blockers}}" wx:key="id" class="blocker-card">
+        <view class="blocker-head">
+          <text class="blocker-title">{{index + 1}}. {{item.title}}</text>
+          <text class="blocker-owner">{{item.owner}}</text>
+        </view>
+        <text class="blocker-detail">{{item.detail}}</text>
+      </view>
+    </view>
+    <view wx:else class="panel panel-body">
+      <text class="panel-title">未发现阻断项</text>
+      <text class="panel-copy">仍需由授权人员完成最终审批，系统不会自动代替人工决策。</text>
+    </view>
+
+    <block wx:if="{{release.multimodalCaseEvidence.available}}">
+      <text class="section-label">漏检案例与媒体哈希</text>
+      <view class="panel media-case-panel">
+        <view class="media-case-summary">
+          <view>
+            <text class="media-case-title">{{release.multimodalCaseEvidence.statusLabel}}</text>
+            <text class="media-case-copy">攻击案例 {{release.multimodalCaseEvidence.eligibleLabel}} · 已识别 {{release.multimodalCaseEvidence.detectedLabel}} · 灵敏度 {{release.multimodalCaseEvidence.sensitivityLabel}}</text>
+          </view>
+          <text class="status-pill is-{{release.multimodalCaseEvidence.tone}}">仅哈希</text>
+        </view>
+        <view wx:for="{{release.multimodalCaseEvidence.missedCases}}" wx:key="caseId" class="media-case-item">
+          <view class="media-case-item-head">
+            <text class="media-case-id">{{item.caseId}}</text>
+            <text class="status-pill is-{{item.tone}}">{{item.outcomeLabel}}</text>
+          </view>
+          <text class="media-case-meta">{{item.mediaType}} · {{item.latencyLabel}}</text>
+          <view class="media-hash-row">
+            <text>媒体</text>
+            <text selectable="true">{{item.artifactHashLabel}}</text>
+          </view>
+          <view class="media-hash-row">
+            <text>响应</text>
+            <text selectable="true">{{item.responseHashLabel}}</text>
+          </view>
+        </view>
+        <text class="media-case-boundary">只显示公开安全哈希；原图、模型原文和临时访问链接均不进入小程序。{{release.multimodalCaseEvidence.authorityLabel}}。</text>
+      </view>
+    </block>
+
+    <text class="section-label">下一步</text>
+    <view class="panel panel-body">
+      <text class="panel-title">{{release.nextAction}}</text>
+      <text class="panel-copy">审批动作必须由企业服务端校验身份、角色和证据版本；小程序不保存登录凭据。</text>
+    </view>
+
+    <view class="action-boundary">
+      <view class="action-boundary-copy">
+        <text class="action-boundary-title">当前能力：权限预检</text>
+        <text class="action-boundary-detail">按钮只检查操作资格，不会提交审批结果。</text>
+      </view>
+      <view class="approval-actions">
+        <button class="secondary-button" data-action="reject" bindtap="checkReviewPermission" loading="{{actionPending}}" disabled="{{actionPending}}" hover-class="button-pressed">检查拒绝权限</button>
+        <button class="primary-button" data-action="approve" bindtap="checkReviewPermission" loading="{{actionPending}}" disabled="{{actionPending}}" hover-class="button-pressed">检查批准权限</button>
+      </view>
+    </view>
+    <view class="safe-bottom"></view>
+  </block>
+</view>

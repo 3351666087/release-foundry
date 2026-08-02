@@ -1,0 +1,37 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://releasefoundry.local/schemas/a2/result_persistence_predecessor_verification.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "state",
+    "release_authority",
+    "blockers",
+    "public_safe"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "a2.result_persistence_predecessor_verification.v1"
+    },
+    "state": {
+      "enum": [
+        "verified",
+        "blocked"
+      ]
+    },
+    "release_authority": {
+      "const": false
+    },
+    "blockers": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "public_safe": {
+      "const": true
+    }
+  }
+}

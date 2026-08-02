@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://releasefoundry.local/schemas/a2/prompt_lineage_validation.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["lineage_valid", "current_prompt_hash", "supersedes_prompt_hash", "lineage_depth", "maximum_lineage_depth", "release_authority", "blockers", "public_safe"],
+  "properties": {
+    "lineage_valid": {"type": "boolean"},
+    "current_prompt_hash": {"$ref": "#/$defs/hash"},
+    "supersedes_prompt_hash": {"$ref": "#/$defs/optionalHash"},
+    "lineage_depth": {"type": "integer", "minimum": 0},
+    "maximum_lineage_depth": {"type": "integer", "minimum": 1},
+    "release_authority": {"const": false},
+    "blockers": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "public_safe": {"const": true}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "optionalHash": {"type": "string", "pattern": "^(|sha256:[a-f0-9]{64})$"}
+  }
+}

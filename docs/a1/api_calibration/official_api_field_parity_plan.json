@@ -1,0 +1,714 @@
+{
+  "commands": {
+    "mutating_text_small_batch_after_gate": "python -B -m packages.sdk.releasefoundry.calibrate --execute --small-batch --max-retries 0 --include-mutating --modality text --quota-gate-record docs/evidence/private_refs/<plan_batch_gate>.json --output docs/evidence/private_refs/a1_python_api_calibration_manifest_real.json",
+    "read_only_small_batch": "python -B -m packages.sdk.releasefoundry.calibrate --execute --small-batch --max-retries 0 --output docs/evidence/private_refs/a1_python_api_calibration_manifest_real.json",
+    "safe_dry_run_text": "python -B -m packages.sdk.releasefoundry.calibrate --modality text --output docs/evidence/private_refs/a1_python_api_calibration_manifest_dry_run.json"
+  },
+  "execution_modes": {
+    "default": "dry-run",
+    "dry_run_calls_real_api": false,
+    "mutating_requires": [
+      "--include-mutating",
+      "explicit --modality",
+      "--quota-gate-record",
+      "private output path"
+    ],
+    "paid_media_requires": "--allow-paid-media",
+    "small_batch_requires": [
+      "--execute",
+      "--small-batch",
+      "--max-retries 0"
+    ]
+  },
+  "field_map_version": "a1-api-calibration-2026-07-04",
+  "generated_at": "2026-07-08T14:43:05Z",
+  "modality_matrix": [
+    {
+      "accepted_input": "text",
+      "generation_option": null,
+      "modality": "text",
+      "raw_asset_recorded_publicly": false,
+      "requires_paid_media_ack": false,
+      "sample_asset": "one-sentence synthetic prompt",
+      "small_batch_phase": "small-batch"
+    },
+    {
+      "accepted_input": "image",
+      "generation_option": "generate_images",
+      "modality": "image",
+      "raw_asset_recorded_publicly": false,
+      "requires_paid_media_ack": true,
+      "sample_asset": "1x1 synthetic PNG-equivalent fixture reference",
+      "small_batch_phase": "media-batch-after-text"
+    },
+    {
+      "accepted_input": "audio",
+      "generation_option": "generate_audio",
+      "modality": "audio",
+      "raw_asset_recorded_publicly": false,
+      "requires_paid_media_ack": true,
+      "sample_asset": "short synthetic tone/transcript fixture reference",
+      "small_batch_phase": "media-batch-after-text"
+    },
+    {
+      "accepted_input": "file",
+      "generation_option": "generate_files",
+      "modality": "file",
+      "raw_asset_recorded_publicly": false,
+      "requires_paid_media_ack": true,
+      "sample_asset": "tiny synthetic text file fixture reference",
+      "small_batch_phase": "media-batch-after-text"
+    },
+    {
+      "accepted_input": "video",
+      "generation_option": "generate_videos",
+      "modality": "video",
+      "raw_asset_recorded_publicly": false,
+      "requires_paid_media_ack": true,
+      "sample_asset": "single-frame synthetic video fixture reference",
+      "small_batch_phase": "media-batch-after-text"
+    }
+  ],
+  "official_api_contract": {
+    "auth_env_vars": [
+      "RELEASEFOUNDRY_API_KEY",
+      "RELEASEFOUNDRY_LEGACY_API_KEY"
+    ],
+    "base_url_env": "RELEASEFOUNDRY_BASE_URL",
+    "dispatch": "single POST endpoint with function field",
+    "key_material_logged": false,
+    "key_material_source": "environment at execution time only"
+  },
+  "output_policy": {
+    "full_record_stdout_blocked_for_real_or_gate": true,
+    "public_plan_contains": [
+      "field names",
+      "operation names",
+      "call counts",
+      "guardrail commands"
+    ],
+    "public_plan_excludes": [
+      "API keys",
+      "raw payload responses",
+      "private evidence contents",
+      "hosted quota values"
+    ],
+    "real_or_gate_records_private_root": "docs/evidence/private_refs"
+  },
+  "quota_gate": {
+    "expected_modalities": [
+      "text",
+      "image",
+      "audio",
+      "file",
+      "video"
+    ],
+    "request_fingerprints": {
+      "audio": "b492cf50d81b3b69f44bfd387b27326e13927ad4bf811e8f81da415aa8123f68",
+      "file": "a303722c641391ba947e67afa66f6155fdc7fd6c8c9e4530bd570f440cfe249b",
+      "image": "3c5b16f8b083c5ecc6c72ad16852c98fc4209cd5e1253cddaaf3e072d3b37a15",
+      "text": "5f6d06fd0e46f6c9bf3f57b34809638714740094d5d2fd11155a96dcce4b3b95",
+      "video": "f71771450631ae392dc6f763e91cee5e14e939cfec088e4b55bad2e0fd7cf4b8"
+    },
+    "schema_version": "releasefoundry.api_probe_batch_plan.v1",
+    "target_bindings": {
+      "audio": {
+        "allow_media_generation": false,
+        "allow_non_text_inputs": true,
+        "batch_size": 1,
+        "binding_scope": "request-payload",
+        "fingerprint": "e85b62ca5861bab5b8bb1b0ece2b7b3f47415f1cc8a1bfa49c1df2f9b2d484f3",
+        "fingerprint_fields": [
+          "allow_media_generation",
+          "allow_non_text_inputs",
+          "batch_size",
+          "max_request_variations",
+          "media_modalities",
+          "modalities",
+          "request_fingerprint",
+          "request_input_schema_fingerprint",
+          "request_input_schema_source",
+          "small_batch_size",
+          "target_operation",
+          "text_first_small_batch"
+        ],
+        "max_request_variations": 1,
+        "media_modalities": [
+          "audio"
+        ],
+        "modalities": [
+          "text",
+          "audio"
+        ],
+        "modality_sequence": [
+          {
+            "kind": "text",
+            "modality": "text",
+            "order": 0,
+            "phase_gate": "first dry-run and small-batch modality",
+            "requires_allowance": false,
+            "sources": [
+              "accepted_inputs"
+            ]
+          },
+          {
+            "kind": "media",
+            "modality": "audio",
+            "order": 1,
+            "phase_gate": "small-batch must pass with text before media/conversation batch execution",
+            "requires_allowance": true,
+            "sources": [
+              "accepted_inputs",
+              "media_generation"
+            ]
+          }
+        ],
+        "raw_request_not_recorded": true,
+        "request_fingerprint": "b492cf50d81b3b69f44bfd387b27326e13927ad4bf811e8f81da415aa8123f68",
+        "request_input_schema_fingerprint": null,
+        "request_input_schema_source": "client_default",
+        "schema_version": "releasefoundry.api_probe_target_binding.v1",
+        "small_batch_size": 1,
+        "target_operation": "create-request",
+        "text_first_small_batch": true
+      },
+      "file": {
+        "allow_media_generation": false,
+        "allow_non_text_inputs": true,
+        "batch_size": 1,
+        "binding_scope": "request-payload",
+        "fingerprint": "189c815008556ed9ac8b6bb2c9c1713b7c7925948b3fbcac4a2b8e62f89a4a9f",
+        "fingerprint_fields": [
+          "allow_media_generation",
+          "allow_non_text_inputs",
+          "batch_size",
+          "max_request_variations",
+          "media_modalities",
+          "modalities",
+          "request_fingerprint",
+          "request_input_schema_fingerprint",
+          "request_input_schema_source",
+          "small_batch_size",
+          "target_operation",
+          "text_first_small_batch"
+        ],
+        "max_request_variations": 1,
+        "media_modalities": [
+          "file"
+        ],
+        "modalities": [
+          "text",
+          "file"
+        ],
+        "modality_sequence": [
+          {
+            "kind": "text",
+            "modality": "text",
+            "order": 0,
+            "phase_gate": "first dry-run and small-batch modality",
+            "requires_allowance": false,
+            "sources": [
+              "accepted_inputs"
+            ]
+          },
+          {
+            "kind": "media",
+            "modality": "file",
+            "order": 1,
+            "phase_gate": "small-batch must pass with text before media/conversation batch execution",
+            "requires_allowance": true,
+            "sources": [
+              "accepted_inputs",
+              "media_generation"
+            ]
+          }
+        ],
+        "raw_request_not_recorded": true,
+        "request_fingerprint": "a303722c641391ba947e67afa66f6155fdc7fd6c8c9e4530bd570f440cfe249b",
+        "request_input_schema_fingerprint": null,
+        "request_input_schema_source": "client_default",
+        "schema_version": "releasefoundry.api_probe_target_binding.v1",
+        "small_batch_size": 1,
+        "target_operation": "create-request",
+        "text_first_small_batch": true
+      },
+      "image": {
+        "allow_media_generation": false,
+        "allow_non_text_inputs": true,
+        "batch_size": 1,
+        "binding_scope": "request-payload",
+        "fingerprint": "7b3baa02a30af20eddb541338dae3af67affa17ccc7c284458917ff9a38868a7",
+        "fingerprint_fields": [
+          "allow_media_generation",
+          "allow_non_text_inputs",
+          "batch_size",
+          "max_request_variations",
+          "media_modalities",
+          "modalities",
+          "request_fingerprint",
+          "request_input_schema_fingerprint",
+          "request_input_schema_source",
+          "small_batch_size",
+          "target_operation",
+          "text_first_small_batch"
+        ],
+        "max_request_variations": 1,
+        "media_modalities": [
+          "image"
+        ],
+        "modalities": [
+          "text",
+          "image"
+        ],
+        "modality_sequence": [
+          {
+            "kind": "text",
+            "modality": "text",
+            "order": 0,
+            "phase_gate": "first dry-run and small-batch modality",
+            "requires_allowance": false,
+            "sources": [
+              "accepted_inputs"
+            ]
+          },
+          {
+            "kind": "media",
+            "modality": "image",
+            "order": 1,
+            "phase_gate": "small-batch must pass with text before media/conversation batch execution",
+            "requires_allowance": true,
+            "sources": [
+              "accepted_inputs",
+              "media_generation"
+            ]
+          }
+        ],
+        "raw_request_not_recorded": true,
+        "request_fingerprint": "3c5b16f8b083c5ecc6c72ad16852c98fc4209cd5e1253cddaaf3e072d3b37a15",
+        "request_input_schema_fingerprint": null,
+        "request_input_schema_source": "client_default",
+        "schema_version": "releasefoundry.api_probe_target_binding.v1",
+        "small_batch_size": 1,
+        "target_operation": "create-request",
+        "text_first_small_batch": true
+      },
+      "text": {
+        "allow_media_generation": false,
+        "allow_non_text_inputs": true,
+        "batch_size": 1,
+        "binding_scope": "request-payload",
+        "fingerprint": "34e425ae3a3cb986c21eed3477687702b421c2af105b48617ed9464245d9cfe5",
+        "fingerprint_fields": [
+          "allow_media_generation",
+          "allow_non_text_inputs",
+          "batch_size",
+          "max_request_variations",
+          "media_modalities",
+          "modalities",
+          "request_fingerprint",
+          "request_input_schema_fingerprint",
+          "request_input_schema_source",
+          "small_batch_size",
+          "target_operation",
+          "text_first_small_batch"
+        ],
+        "max_request_variations": 1,
+        "media_modalities": [],
+        "modalities": [
+          "text"
+        ],
+        "modality_sequence": [
+          {
+            "kind": "text",
+            "modality": "text",
+            "order": 0,
+            "phase_gate": "first dry-run and small-batch modality",
+            "requires_allowance": false,
+            "sources": [
+              "accepted_inputs"
+            ]
+          }
+        ],
+        "raw_request_not_recorded": true,
+        "request_fingerprint": "5f6d06fd0e46f6c9bf3f57b34809638714740094d5d2fd11155a96dcce4b3b95",
+        "request_input_schema_fingerprint": null,
+        "request_input_schema_source": "client_default",
+        "schema_version": "releasefoundry.api_probe_target_binding.v1",
+        "small_batch_size": 1,
+        "target_operation": "create-request",
+        "text_first_small_batch": false
+      },
+      "video": {
+        "allow_media_generation": false,
+        "allow_non_text_inputs": true,
+        "batch_size": 1,
+        "binding_scope": "request-payload",
+        "fingerprint": "fcc66dd94d4e792dd57ac0f7bee612708ab49ff7d1d5404e583066a1cda37639",
+        "fingerprint_fields": [
+          "allow_media_generation",
+          "allow_non_text_inputs",
+          "batch_size",
+          "max_request_variations",
+          "media_modalities",
+          "modalities",
+          "request_fingerprint",
+          "request_input_schema_fingerprint",
+          "request_input_schema_source",
+          "small_batch_size",
+          "target_operation",
+          "text_first_small_batch"
+        ],
+        "max_request_variations": 1,
+        "media_modalities": [
+          "video"
+        ],
+        "modalities": [
+          "text",
+          "video"
+        ],
+        "modality_sequence": [
+          {
+            "kind": "text",
+            "modality": "text",
+            "order": 0,
+            "phase_gate": "first dry-run and small-batch modality",
+            "requires_allowance": false,
+            "sources": [
+              "accepted_inputs"
+            ]
+          },
+          {
+            "kind": "media",
+            "modality": "video",
+            "order": 1,
+            "phase_gate": "small-batch must pass with text before media/conversation batch execution",
+            "requires_allowance": true,
+            "sources": [
+              "accepted_inputs",
+              "media_generation"
+            ]
+          }
+        ],
+        "raw_request_not_recorded": true,
+        "request_fingerprint": "f71771450631ae392dc6f763e91cee5e14e939cfec088e4b55bad2e0fd7cf4b8",
+        "request_input_schema_fingerprint": null,
+        "request_input_schema_source": "client_default",
+        "schema_version": "releasefoundry.api_probe_target_binding.v1",
+        "small_batch_size": 1,
+        "target_operation": "create-request",
+        "text_first_small_batch": true
+      }
+    },
+    "target_operation": "create-request",
+    "ttl_seconds": 86400
+  },
+  "schema_version": "releasefoundry.api_field_parity_plan.v1",
+  "source_field_map": "docs/a1/api_calibration/real_api_response_field_map.json",
+  "steps": [
+    {
+      "dry_run_behavior": "writes planned call record only",
+      "estimated_small_batch_calls": 1,
+      "function": "init",
+      "kind": "read",
+      "modality": null,
+      "observed_error_keys": [],
+      "observed_response_keys": [
+        "features",
+        "notes",
+        "plan",
+        "status",
+        "tenant",
+        "user"
+      ],
+      "observed_response_summary_keys": [],
+      "observed_top_count_keys": [],
+      "private_evidence_required_for_raw_payload": true,
+      "purpose": "Resolve ReleaseFoundry session context and tenant/user/features shape",
+      "quota_block_count_observed": 0,
+      "request_shape": null,
+      "step_id": "init"
+    },
+    {
+      "dry_run_behavior": "writes planned call record only",
+      "estimated_small_batch_calls": 1,
+      "function": "keep_alive",
+      "kind": "read",
+      "modality": null,
+      "observed_error_keys": [],
+      "observed_response_keys": [
+        "db",
+        "message",
+        "plan",
+        "status"
+      ],
+      "observed_response_summary_keys": [],
+      "observed_top_count_keys": [],
+      "private_evidence_required_for_raw_payload": true,
+      "purpose": "Check ReleaseFoundry API reachability and keep_alive shape",
+      "quota_block_count_observed": 0,
+      "request_shape": null,
+      "step_id": "health-check"
+    },
+    {
+      "dry_run_behavior": "writes planned call record only",
+      "estimated_small_batch_calls": 1,
+      "function": "list_agents",
+      "kind": "read",
+      "modality": null,
+      "observed_error_keys": [],
+      "observed_response_keys": [
+        "_user",
+        "agents",
+        "plan",
+        "status"
+      ],
+      "observed_response_summary_keys": [],
+      "observed_top_count_keys": [
+        "agents"
+      ],
+      "private_evidence_required_for_raw_payload": true,
+      "purpose": "List tenant agent fields for SDK adapter parity",
+      "quota_block_count_observed": 0,
+      "request_shape": null,
+      "step_id": "list-agents"
+    },
+    {
+      "dry_run_behavior": "writes planned call record only",
+      "estimated_small_batch_calls": 2,
+      "function": "list_datasets",
+      "kind": "read",
+      "modality": null,
+      "observed_error_keys": [],
+      "observed_response_keys": [
+        "_user",
+        "datasets",
+        "next_cursor",
+        "plan",
+        "status"
+      ],
+      "observed_response_summary_keys": [],
+      "observed_top_count_keys": [
+        "datasets"
+      ],
+      "private_evidence_required_for_raw_payload": true,
+      "purpose": "List dataset fields, pagination, and dataset_source envelopes",
+      "quota_block_count_observed": 0,
+      "request_shape": null,
+      "step_id": "list-datasets"
+    },
+    {
+      "dry_run_behavior": "writes planned call record only",
+      "estimated_small_batch_calls": 2,
+      "function": "list_requests",
+      "kind": "read",
+      "modality": null,
+      "observed_error_keys": [],
+      "observed_response_keys": [
+        "_user",
+        "next_cursor",
+        "plan",
+        "requests",
+        "status"
+      ],
+      "observed_response_summary_keys": [],
+      "observed_top_count_keys": [
+        "requests"
+      ],
+      "private_evidence_required_for_raw_payload": true,
+      "purpose": "List request fields, failure envelopes, and pagination",
+      "quota_block_count_observed": 0,
+      "request_shape": null,
+      "step_id": "list-requests"
+    },
+    {
+      "dry_run_behavior": "writes planned call record only",
+      "estimated_small_batch_calls": 2,
+      "function": "create_request",
+      "kind": "mutate",
+      "modality": "text",
+      "observed_error_keys": [
+        "error_kind",
+        "message",
+        "response",
+        "response_headers",
+        "status_code"
+      ],
+      "observed_response_keys": [
+        "_user",
+        "plan",
+        "request",
+        "status"
+      ],
+      "observed_response_summary_keys": [],
+      "observed_top_count_keys": [],
+      "private_evidence_required_for_raw_payload": true,
+      "purpose": "Create a tiny text calibration request with first-class AgentInput envelope",
+      "quota_block_count_observed": 11,
+      "request_shape": {
+        "accepted_input": "text",
+        "generation_option": null,
+        "modality": "text",
+        "raw_asset_recorded_publicly": false,
+        "requires_paid_media_ack": false,
+        "sample_asset": "one-sentence synthetic prompt",
+        "small_batch_phase": "small-batch"
+      },
+      "step_id": "create-request-text"
+    },
+    {
+      "dry_run_behavior": "writes planned call record only",
+      "estimated_small_batch_calls": 2,
+      "function": "create_request",
+      "kind": "mutate",
+      "modality": "image",
+      "observed_error_keys": [
+        "error_kind",
+        "message",
+        "response",
+        "response_headers",
+        "status_code"
+      ],
+      "observed_response_keys": [
+        "_user",
+        "plan",
+        "request",
+        "status"
+      ],
+      "observed_response_summary_keys": [],
+      "observed_top_count_keys": [],
+      "private_evidence_required_for_raw_payload": true,
+      "purpose": "Create a tiny image calibration request with first-class AgentInput envelope",
+      "quota_block_count_observed": 11,
+      "request_shape": {
+        "accepted_input": "image",
+        "generation_option": "generate_images",
+        "modality": "image",
+        "raw_asset_recorded_publicly": false,
+        "requires_paid_media_ack": true,
+        "sample_asset": "1x1 synthetic PNG-equivalent fixture reference",
+        "small_batch_phase": "media-batch-after-text"
+      },
+      "step_id": "create-request-image"
+    },
+    {
+      "dry_run_behavior": "writes planned call record only",
+      "estimated_small_batch_calls": 2,
+      "function": "create_request",
+      "kind": "mutate",
+      "modality": "audio",
+      "observed_error_keys": [
+        "error_kind",
+        "message",
+        "response",
+        "response_headers",
+        "status_code"
+      ],
+      "observed_response_keys": [
+        "_user",
+        "plan",
+        "request",
+        "status"
+      ],
+      "observed_response_summary_keys": [],
+      "observed_top_count_keys": [],
+      "private_evidence_required_for_raw_payload": true,
+      "purpose": "Create a tiny audio calibration request with first-class AgentInput envelope",
+      "quota_block_count_observed": 11,
+      "request_shape": {
+        "accepted_input": "audio",
+        "generation_option": "generate_audio",
+        "modality": "audio",
+        "raw_asset_recorded_publicly": false,
+        "requires_paid_media_ack": true,
+        "sample_asset": "short synthetic tone/transcript fixture reference",
+        "small_batch_phase": "media-batch-after-text"
+      },
+      "step_id": "create-request-audio"
+    },
+    {
+      "dry_run_behavior": "writes planned call record only",
+      "estimated_small_batch_calls": 2,
+      "function": "create_request",
+      "kind": "mutate",
+      "modality": "file",
+      "observed_error_keys": [
+        "error_kind",
+        "message",
+        "response",
+        "response_headers",
+        "status_code"
+      ],
+      "observed_response_keys": [
+        "_user",
+        "plan",
+        "request",
+        "status"
+      ],
+      "observed_response_summary_keys": [],
+      "observed_top_count_keys": [],
+      "private_evidence_required_for_raw_payload": true,
+      "purpose": "Create a tiny file calibration request with first-class AgentInput envelope",
+      "quota_block_count_observed": 11,
+      "request_shape": {
+        "accepted_input": "file",
+        "generation_option": "generate_files",
+        "modality": "file",
+        "raw_asset_recorded_publicly": false,
+        "requires_paid_media_ack": true,
+        "sample_asset": "tiny synthetic text file fixture reference",
+        "small_batch_phase": "media-batch-after-text"
+      },
+      "step_id": "create-request-file"
+    },
+    {
+      "dry_run_behavior": "writes planned call record only",
+      "estimated_small_batch_calls": 2,
+      "function": "create_request",
+      "kind": "mutate",
+      "modality": "video",
+      "observed_error_keys": [
+        "error_kind",
+        "message",
+        "response",
+        "response_headers",
+        "status_code"
+      ],
+      "observed_response_keys": [
+        "_user",
+        "plan",
+        "request",
+        "status"
+      ],
+      "observed_response_summary_keys": [],
+      "observed_top_count_keys": [],
+      "private_evidence_required_for_raw_payload": true,
+      "purpose": "Create a tiny video calibration request with first-class AgentInput envelope",
+      "quota_block_count_observed": 11,
+      "request_shape": {
+        "accepted_input": "video",
+        "generation_option": "generate_videos",
+        "modality": "video",
+        "raw_asset_recorded_publicly": false,
+        "requires_paid_media_ack": true,
+        "sample_asset": "single-frame synthetic video fixture reference",
+        "small_batch_phase": "media-batch-after-text"
+      },
+      "step_id": "create-request-video"
+    }
+  ],
+  "summary": {
+    "estimated_calls_dry_run": 0,
+    "estimated_calls_small_batch": 17,
+    "missing_observed_functions": [],
+    "modalities": [
+      "audio",
+      "file",
+      "image",
+      "text",
+      "video"
+    ],
+    "mutating_steps": 5,
+    "read_steps": 5,
+    "steps": 10
+  }
+}

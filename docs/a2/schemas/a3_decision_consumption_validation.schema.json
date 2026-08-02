@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://releasefoundry.local/schemas/a2/a3_decision_consumption_validation.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "committed_decision_hash", "consumption_valid", "committed_status", "displayed_status", "release_authority", "forbidden_fields", "blockers", "public_safe"],
+  "properties": {
+    "schema_version": {"const": "a2.a3_decision_consumption_validation.v1"},
+    "committed_decision_hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "consumption_valid": {"type": "boolean"},
+    "committed_status": {"type": "string"},
+    "displayed_status": {"type": "string"},
+    "release_authority": {"const": false},
+    "forbidden_fields": {"type": "array", "items": {"enum": ["recomputed_status", "recomputed_score", "recomputed_policy_result", "release_authority"]}, "uniqueItems": true},
+    "blockers": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "public_safe": {"const": true}
+  }
+}

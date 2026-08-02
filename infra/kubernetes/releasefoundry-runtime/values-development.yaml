@@ -1,0 +1,21 @@
+environment: development
+
+namespace:
+  create: true
+
+supplyChain:
+  allowPlaceholderDigests: true
+
+api:
+  replicaCount: 2
+
+queueWorker:
+  replicaCount: 2
+
+identityDelivery:
+  replicaCount: 2
+
+scheduling:
+  topology:
+    zoneWhenUnsatisfiable: ScheduleAnyway
+    hostnameWhenUnsatisfiable: ScheduleAnyway

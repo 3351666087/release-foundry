@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://releasefoundry.example/schemas/a2/ollama_multimodal_latency_probe_v2.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "generated_at", "provider_id", "base_url_class",
+    "model_id", "model_digest", "input_mode", "artifact_hash", "prompt_hash",
+    "output_schema_hash", "unload_state", "timeout_seconds", "profiles",
+    "diagnosis", "completed_profile_count", "qualification_state",
+    "provider_is_truth", "secret_included", "release_authority", "public_safe"
+  ],
+  "properties": {
+    "schema_version": {"const": "a2.ollama_multimodal_latency_probe.v2"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "provider_id": {"const": "ollama-local"},
+    "base_url_class": {"const": "loopback"},
+    "model_id": {"type": "string", "minLength": 1},
+    "model_digest": {"$ref": "#/$defs/hash"},
+    "input_mode": {"enum": ["image", "text_only_control"]},
+    "artifact_hash": {"anyOf": [{"$ref": "#/$defs/hash"}, {"type": "null"}]},
+    "prompt_hash": {"$ref": "#/$defs/hash"},
+    "output_schema_hash": {"$ref": "#/$defs/hash"},
+    "unload_state": {"enum": ["requested", "unconfirmed"]},
+    "timeout_seconds": {"type": "number", "exclusiveMinimum": 0},
+    "profiles": {
+      "type": "array", "minItems": 1,
+      "items": {"$ref": "#/$defs/profile"}
+    },
+    "diagnosis": {
+      "type": "array", "uniqueItems": true,
+      "items": {"type": "string"}
+    },
+    "completed_profile_count": {"type": "integer", "minimum": 0},
+    "qualification_state": {"enum": ["diagnostic_only", "blocked"]},
+    "provider_is_truth": {"const": false},
+    "secret_included": {"const": false},
+    "release_authority": {"const": false},
+    "public_safe": {"const": true}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "optionalHash": {
+      "anyOf": [{"$ref": "#/$defs/hash"}, {"type": "null"}]
+    },
+    "optionalSeconds": {"type": ["number", "null"], "minimum": 0},
+    "phase": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "image_read_and_base64_seconds", "caller_wall_seconds",
+        "provider_total_seconds", "model_load_seconds", "prompt_eval_seconds",
+        "token_eval_seconds", "transport_and_client_residual_seconds"
+      ],
+      "properties": {
+        "image_read_and_base64_seconds": {"type": "number", "minimum": 0},
+        "caller_wall_seconds": {"$ref": "#/$defs/optionalSeconds"},
+        "provider_total_seconds": {"$ref": "#/$defs/optionalSeconds"},
+        "model_load_seconds": {"$ref": "#/$defs/optionalSeconds"},
+        "prompt_eval_seconds": {"$ref": "#/$defs/optionalSeconds"},
+        "token_eval_seconds": {"$ref": "#/$defs/optionalSeconds"},
+        "transport_and_client_residual_seconds": {"$ref": "#/$defs/optionalSeconds"}
+      }
+    },
+    "profile": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "profile", "num_predict", "format_mode", "schema_mode", "input_mode",
+        "state", "parse_state", "error_class", "phase_receipt",
+        "response_hash", "response_length_bytes",
+        "first_nonempty_character_class", "raw_response_included",
+        "release_authority", "public_safe"
+      ],
+      "properties": {
+        "profile": {"type": "string", "minLength": 1},
+        "num_predict": {"type": "integer", "minimum": 1},
+        "format_mode": {"enum": ["plain", "json_schema"]},
+        "schema_mode": {"enum": ["full", "minimal_enum"]},
+        "input_mode": {"enum": ["image", "text_only_control"]},
+        "state": {"enum": ["completed", "failed"]},
+        "parse_state": {
+          "enum": ["valid_json", "invalid_structured_output", "unavailable"]
+        },
+        "error_class": {"type": "string"},
+        "phase_receipt": {"$ref": "#/$defs/phase"},
+        "response_hash": {"$ref": "#/$defs/optionalHash"},
+        "response_length_bytes": {"type": ["integer", "null"], "minimum": 0},
+        "first_nonempty_character_class": {
+          "enum": [
+            "unavailable", "empty", "object_open", "array_open", "quote",
+            "alphabetic", "numeric", "other"
+          ]
+        },
+        "raw_response_included": {"const": false},
+        "release_authority": {"const": false},
+        "public_safe": {"const": true}
+      }
+    }
+  }
+}

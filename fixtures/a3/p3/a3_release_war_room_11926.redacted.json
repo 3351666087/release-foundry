@@ -1,0 +1,118 @@
+{
+  "schema_version": "a3.release_war_room.v1",
+  "available": true,
+  "decision": "no_go",
+  "decision_label": "No-go",
+  "urgency": "stop_the_line",
+  "run_id": "11926",
+  "release_version": "candidate-11926",
+  "environment": "staging",
+  "revenue_risk_score": 93,
+  "blocks_merge": true,
+  "waiver_required": true,
+  "incident_replay_case_count": 3,
+  "required_artifact_count": 5,
+  "required_approvers": [
+    "Release owner",
+    "A3 triage owner",
+    "A1 runner/tooling owner",
+    "Media/security reviewer"
+  ],
+  "top_risk_cases": [
+    {
+      "case_id": "ui_shows_refund_but_backend_no_tool_call_image",
+      "title": "UI shows 'Refund completed' but trace has no confirm_cancel — reconcile, diagnose, remediate",
+      "primary_failure_class": "missing_required_tool",
+      "severity": "major",
+      "score": 25,
+      "summary": "A3 synthetic calibration: expected and actual tool calls diverged."
+    },
+    {
+      "case_id": "concurrent_requests_tool_timeout_then_processor_failure",
+      "title": "User clicked refund twice; backend timeout, retry, and payment-post failure — need definitive status, concurrency check, and partial-refund guidance",
+      "primary_failure_class": "wrong_intent",
+      "severity": "major",
+      "score": 31,
+      "summary": "Tool call happened, but final response ignored downstream processor failure and overstated completion."
+    },
+    {
+      "case_id": "pdf_receipt_ocr_split_payment",
+      "title": "Refund request with low-quality scanned receipt and split payment",
+      "primary_failure_class": "wrong_intent",
+      "severity": "major",
+      "score": 42,
+      "summary": "A3 synthetic calibration: expected and actual tool calls diverged."
+    }
+  ],
+  "lanes": [
+    {
+      "lane": "Release Control",
+      "owner": "Release owner",
+      "status": "blocked",
+      "evidence": "Block release; risk score 70; 2 failed gate check(s).",
+      "next_action": "Do not merge until exception approval and audit evidence are attached."
+    },
+    {
+      "lane": "Failure Triage",
+      "owner": "A3 triage owner",
+      "status": "active",
+      "evidence": "3 top-risk case(s) queued.",
+      "next_action": "Assign owners for every top-risk case before sign-off."
+    },
+    {
+      "lane": "Incident Replay",
+      "owner": "Evidence owner",
+      "status": "active",
+      "evidence": "3 failed case(s) packaged for replay-first review.",
+      "next_action": "Replay highest-risk cases before approving release."
+    },
+    {
+      "lane": "Reviewer Workflow",
+      "owner": "Release owner, Runner/tooling owner, A3 triage owner",
+      "status": "waiting_for_review",
+      "evidence": "4 required approver(s); waiver required yes.",
+      "next_action": "Review failed gate checks before merge."
+    },
+    {
+      "lane": "Evidence & Audit",
+      "owner": "Audit owner",
+      "status": "required",
+      "evidence": "5 required artifact(s); redaction policy active.",
+      "next_action": "Export JSON, Markdown, print/PDF, and bundle evidence before external review."
+    },
+    {
+      "lane": "Official Product Parity",
+      "owner": "Product owner",
+      "status": "mapped",
+      "evidence": "11 official page(s), 53 API method(s) mapped.",
+      "next_action": "Keep copying review/evidence logic, not secret, billing, or team mutation flows."
+    }
+  ],
+  "executive_brief": [
+    "Block release for run 11926 with 40% pass rate and 3 failed case(s).",
+    "Revenue risk score is 93; PR gate blocks merge.",
+    "3 case(s) are packaged for replay-first incident review.",
+    "5 required audit artifact(s) must travel with the release record.",
+    "Request provenance is available for 1 request sample(s).",
+    "Usage/quota calibration is present; direct API-key access is limited or OAuth-gated.",
+    "Media evidence is present with live rendering blocked by safety.",
+    "Official frontend mirror maps 11 page(s) and 53 API method name(s)."
+  ],
+  "customer_value": "Gives release owners one screen for no-go decisions, incident replay, reviewer sign-off, and audit evidence before an agent reaches customers.",
+  "enterprise_readiness": {
+    "local_read_only": true,
+    "secret_free_exports": true,
+    "external_mutations_enabled": false,
+    "self_host_ready_contract": true,
+    "audit_bundle_required": true
+  },
+  "source": "A3 redacted official demo dataset 884 / run 11926",
+  "generated_at": "2026-07-07T00:00:00.000Z",
+  "safety": {
+    "secret_values_saved": false,
+    "raw_tokens_saved": false,
+    "raw_cookies_saved": false,
+    "raw_signed_urls_saved": false,
+    "official_source_committed": false
+  }
+}

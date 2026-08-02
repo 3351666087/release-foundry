@@ -1,0 +1,58 @@
+{
+  "agent": {
+    "name": "A1 Mock Multimodal Support Agent",
+    "description": "A dry-run-only media interface fixture for text, audio, file, image, and video calibration.",
+    "accepted_inputs": {
+      "text": true,
+      "audio": true,
+      "file": true,
+      "image": true,
+      "video": true,
+      "conversation": false
+    },
+    "tools": [
+      {
+        "name": "inspect_attachment",
+        "description": "Inspect a synthetic text, audio, file, image, or video attachment.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "attachment_type": {
+              "type": "string",
+              "enum": ["text", "audio", "file", "image", "video"]
+            }
+          },
+          "required": ["attachment_type"]
+        }
+      }
+    ],
+    "output_format": {
+      "type": "text"
+    }
+  },
+  "context": {
+    "domain": "support operations",
+    "use_case": "Dry-run text, audio, file, image, and video interface calibration only.",
+    "scenario_context": "Use synthetic non-sensitive media descriptions only."
+  },
+  "generation_options": {
+    "generate_audio": true,
+    "generate_files": true,
+    "generate_images": true,
+    "generate_videos": true,
+    "generate_simulations": false
+  },
+  "test_config": {
+    "num_variations": 1,
+    "strategy": "focused",
+    "coverage": {
+      "happy_path": true,
+      "edge_cases": false,
+      "error_handling": false
+    }
+  },
+  "metadata": {
+    "dataset_name": "A1 Media Interface Dry Run",
+    "description": "Dry-run-only fixture to keep Text/Audio/File/Image/Video request interfaces visible without consuming quota."
+  }
+}

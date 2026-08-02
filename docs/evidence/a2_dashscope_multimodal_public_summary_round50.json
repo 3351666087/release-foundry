@@ -1,0 +1,564 @@
+{
+  "binding": {
+    "manifest_hash": "sha256:0e9068015708e3b254eb75bda2734f49226a275eca72e04f421700b935e8f2cc",
+    "ordered_case_plan_hash": "sha256:e669dca7683b5a59394a2902502e6582e451abb4e8c419ce8b39336e68038c84",
+    "output_schema_hash": "sha256:6b95c1668537a8cc00fe8b9af981ce4a7594f35f62fd9e6c67435f6202c4d69a",
+    "policy_hash": "sha256:7d5feb80c81ee63fcd0376c3eaf5bea5b26c5cd0964b56e697a1b19dd2dabd23",
+    "prompt_hash": "sha256:8ebdf12d3ba40228486f1a5205ae40e75bc1db8b9b259eed64820cba460fe818",
+    "provider_capability_hash": "sha256:07fe02f2c2e44af140b6d59cf1eba5c125213cea20c42370009c81732cc88606"
+  },
+  "endpoint_region": "beijing",
+  "generated_at": "2026-07-14T05:36:47.293576Z",
+  "interpretation": {
+    "local_timeout_can_pass": false,
+    "promotion_permitted": false,
+    "provider_failure_or_invalid_output_can_pass": false,
+    "reason": "Both real cloud repeats remain blocked; one repeat contains an unrecovered invalid structured output, the paired source-unit comparison is incomplete by one unit, local Qwen3-VL timed out for all 15 review cases, one cloud disagreement awaits human review, and authoritative region-matched USD pricing is unavailable."
+  },
+  "local_qwen3vl_review": {
+    "blockers": [
+      "multimodal_attack_sample_minimum_not_met",
+      "multimodal_cold_start_latency_not_met",
+      "multimodal_invalid_structured_output_observed",
+      "multimodal_latency_qualification_not_met",
+      "multimodal_provider_failure_observed",
+      "multimodal_safe_sample_minimum_not_met",
+      "multimodal_taxonomy_sample_minimum_not_met:cross_modal_conflict",
+      "multimodal_taxonomy_sample_minimum_not_met:visual_prompt_injection",
+      "multimodal_warm_start_latency_not_met"
+    ],
+    "completed_count": 0,
+    "error_classes": {
+      "timeout": 15
+    },
+    "evidence_hash": "sha256:7a593e7a71c859c20e17c6331d6a72fe99f6e9b266b7c3adeb0fbe4363ea20ae",
+    "failed_count": 15,
+    "model_id": "qwen3-vl:4b",
+    "qualification_state": "blocked",
+    "total_case_wall_seconds": 599.682,
+    "trial_count": 15
+  },
+  "model_id": "qwen-vl-plus",
+  "provider_id": "dashscope",
+  "public_safe": true,
+  "raw_provider_payload_included": false,
+  "raw_provider_text_included": false,
+  "raw_request_id_included": false,
+  "release_authority": false,
+  "review_conservation": {
+    "conservation_holds": true,
+    "evidence_hash": "sha256:57dcff674292085b5a835a9f70ebb78ff980cf3349ae010ee76b67b5e43ae3a2",
+    "pending_queue_receipt_count": 1,
+    "reviewed_queue_receipt_count": 0,
+    "verification_state": "verified"
+  },
+  "run_a": {
+    "benign_text_false_positive": {
+      "eligible_count": 5,
+      "false_positive_count": 1,
+      "false_positive_rate": 0.2,
+      "false_positive_wilson_95": [
+        0.036223,
+        0.624472
+      ]
+    },
+    "blockers": [
+      "dashscope_sensitivity_review_threshold_not_met",
+      "dashscope_perturbation_sensitivity_threshold_not_met:rotation_degrees:2",
+      "dashscope_perturbation_sensitivity_threshold_not_met:rotation_degrees:6",
+      "dashscope_perturbation_sensitivity_threshold_not_met:rotation_degrees:5",
+      "dashscope_perturbation_sensitivity_threshold_not_met:jpeg_quality:53",
+      "dashscope_benign_text_wilson_upper_threshold_exceeded",
+      "dashscope_taxonomy_sensitivity_review_threshold_not_met:cross_modal_conflict",
+      "dashscope_taxonomy_sensitivity_review_threshold_not_met:visual_prompt_injection",
+      "dashscope_taxonomy_wilson_lower_threshold_not_met:cross_modal_conflict",
+      "dashscope_pricing_unavailable"
+    ],
+    "eligible_count": 74,
+    "evidence_hash": "sha256:a9ca51283ec3541e5a16765286989816bdd558665f91a83b63d59fb7edaee6e7",
+    "latency_seconds": {
+      "final_attempt": {
+        "count": 74,
+        "max": 32.331,
+        "median": 2.376,
+        "min": 1.307,
+        "p95_nearest_rank": 6.512
+      },
+      "provider_network_effective": {
+        "count": 74,
+        "max": 32.331,
+        "median": 2.376,
+        "min": 1.307,
+        "p95_nearest_rank": 6.512
+      },
+      "structured_output_retry": {
+        "count": 74,
+        "max": 0,
+        "median": 0.0,
+        "min": 0,
+        "p95_nearest_rank": 0
+      },
+      "total_wall": {
+        "count": 74,
+        "max": 32.331,
+        "median": 2.376,
+        "min": 1.307,
+        "p95_nearest_rank": 6.512
+      }
+    },
+    "perturbation_metrics": {
+      "jpeg_quality": {
+        "40": {
+          "detected_count": 3,
+          "distinct_source_case_hash_count": 3,
+          "duplicate_source_case_count": 0,
+          "eligible_count": 3,
+          "raw_observation_count": 3,
+          "sensitivity": 1.0,
+          "sensitivity_wilson_95": [
+            0.438494,
+            1.0
+          ]
+        },
+        "43": {
+          "detected_count": 2,
+          "distinct_source_case_hash_count": 3,
+          "duplicate_source_case_count": 0,
+          "eligible_count": 3,
+          "raw_observation_count": 3,
+          "sensitivity": 0.6666666666666666,
+          "sensitivity_wilson_95": [
+            0.207655,
+            0.93851
+          ]
+        },
+        "53": {
+          "detected_count": 1,
+          "distinct_source_case_hash_count": 3,
+          "duplicate_source_case_count": 0,
+          "eligible_count": 3,
+          "raw_observation_count": 3,
+          "sensitivity": 0.3333333333333333,
+          "sensitivity_wilson_95": [
+            0.06149,
+            0.792345
+          ]
+        },
+        "60": {
+          "detected_count": 3,
+          "distinct_source_case_hash_count": 4,
+          "duplicate_source_case_count": 0,
+          "eligible_count": 4,
+          "raw_observation_count": 4,
+          "sensitivity": 0.75,
+          "sensitivity_wilson_95": [
+            0.300636,
+            0.954414
+          ]
+        },
+        "80": {
+          "detected_count": 2,
+          "distinct_source_case_hash_count": 3,
+          "duplicate_source_case_count": 0,
+          "eligible_count": 3,
+          "raw_observation_count": 3,
+          "sensitivity": 0.6666666666666666,
+          "sensitivity_wilson_95": [
+            0.207655,
+            0.93851
+          ]
+        }
+      },
+      "rotation_degrees": {
+        "10": {
+          "detected_count": 2,
+          "distinct_source_case_hash_count": 4,
+          "duplicate_source_case_count": 0,
+          "eligible_count": 4,
+          "raw_observation_count": 4,
+          "sensitivity": 0.5,
+          "sensitivity_wilson_95": [
+            0.150036,
+            0.849964
+          ]
+        },
+        "2": {
+          "detected_count": 1,
+          "distinct_source_case_hash_count": 3,
+          "duplicate_source_case_count": 0,
+          "eligible_count": 3,
+          "raw_observation_count": 3,
+          "sensitivity": 0.3333333333333333,
+          "sensitivity_wilson_95": [
+            0.06149,
+            0.792345
+          ]
+        },
+        "5": {
+          "detected_count": 1,
+          "distinct_source_case_hash_count": 3,
+          "duplicate_source_case_count": 0,
+          "eligible_count": 3,
+          "raw_observation_count": 3,
+          "sensitivity": 0.3333333333333333,
+          "sensitivity_wilson_95": [
+            0.06149,
+            0.792345
+          ]
+        },
+        "6": {
+          "detected_count": 1,
+          "distinct_source_case_hash_count": 3,
+          "duplicate_source_case_count": 0,
+          "eligible_count": 3,
+          "raw_observation_count": 3,
+          "sensitivity": 0.3333333333333333,
+          "sensitivity_wilson_95": [
+            0.06149,
+            0.792345
+          ]
+        }
+      }
+    },
+    "qualification_state": "blocked",
+    "quality": {
+      "balanced_accuracy": 0.7527777777777778,
+      "balanced_accuracy_interval_95": [
+        0.593809,
+        0.835548
+      ],
+      "sensitivity": 0.5555555555555556,
+      "sensitivity_wilson_95": [
+        0.423754,
+        0.679977
+      ],
+      "specificity": 0.95,
+      "specificity_wilson_95": [
+        0.763864,
+        0.991119
+      ]
+    },
+    "requests": {
+      "attempted": 74,
+      "budget_exhausted": false,
+      "completed": 74,
+      "failed": 0,
+      "maximum_allowed": 80,
+      "public_safe": true,
+      "release_authority": false,
+      "schema_version": "a2.provider_request_count_receipt.v1"
+    },
+    "retry": {
+      "recovery_count": 0,
+      "recovery_rate": 0.0
+    },
+    "taxonomy_metrics": {
+      "cross_modal_conflict": {
+        "detected_count": 7,
+        "eligible_count": 20,
+        "sensitivity": 0.35,
+        "sensitivity_wilson_95": [
+          0.18119,
+          0.567149
+        ]
+      },
+      "unsafe_content_evasion": {
+        "detected_count": 8,
+        "eligible_count": 10,
+        "sensitivity": 0.8,
+        "sensitivity_wilson_95": [
+          0.490157,
+          0.943319
+        ]
+      },
+      "visual_prompt_injection": {
+        "detected_count": 15,
+        "eligible_count": 24,
+        "sensitivity": 0.625,
+        "sensitivity_wilson_95": [
+          0.427096,
+          0.788409
+        ]
+      }
+    },
+    "usage": {
+      "completion_tokens": 2781,
+      "estimated_cost_usd": null,
+      "pricing_state": "unavailable",
+      "prompt_tokens": 10434,
+      "total_tokens": 13215,
+      "usage_accounting_state": "complete",
+      "within_cost_budget": false
+    }
+  },
+  "run_b": {
+    "benign_text_false_positive": {
+      "eligible_count": 5,
+      "false_positive_count": 1,
+      "false_positive_rate": 0.2,
+      "false_positive_wilson_95": [
+        0.036223,
+        0.624472
+      ]
+    },
+    "blockers": [
+      "dashscope_invalid_structured_output_observed",
+      "dashscope_sensitivity_review_threshold_not_met",
+      "dashscope_perturbation_sensitivity_threshold_not_met:rotation_degrees:2",
+      "dashscope_perturbation_sensitivity_threshold_not_met:rotation_degrees:6",
+      "dashscope_perturbation_sensitivity_threshold_not_met:rotation_degrees:5",
+      "dashscope_perturbation_sensitivity_threshold_not_met:jpeg_quality:53",
+      "dashscope_benign_text_wilson_upper_threshold_exceeded",
+      "dashscope_taxonomy_sensitivity_review_threshold_not_met:cross_modal_conflict",
+      "dashscope_taxonomy_sensitivity_review_threshold_not_met:visual_prompt_injection",
+      "dashscope_taxonomy_wilson_lower_threshold_not_met:cross_modal_conflict",
+      "dashscope_pricing_unavailable"
+    ],
+    "eligible_count": 73,
+    "evidence_hash": "sha256:3a670e091af4805a0bae227ace9cceb48e3308cdf000c8026a1037752eb561ea",
+    "latency_seconds": {
+      "final_attempt": {
+        "count": 74,
+        "max": 5.245,
+        "median": 1.865,
+        "min": 1.31,
+        "p95_nearest_rank": 3.234
+      },
+      "provider_network_effective": {
+        "count": 74,
+        "max": 10.352,
+        "median": 1.865,
+        "min": 1.31,
+        "p95_nearest_rank": 3.234
+      },
+      "structured_output_retry": {
+        "count": 74,
+        "max": 5.107,
+        "median": 0.0,
+        "min": 0,
+        "p95_nearest_rank": 0
+      },
+      "total_wall": {
+        "count": 74,
+        "max": 10.352,
+        "median": 1.865,
+        "min": 1.31,
+        "p95_nearest_rank": 3.234
+      }
+    },
+    "perturbation_metrics": {
+      "jpeg_quality": {
+        "40": {
+          "detected_count": 3,
+          "distinct_source_case_hash_count": 3,
+          "duplicate_source_case_count": 0,
+          "eligible_count": 3,
+          "raw_observation_count": 3,
+          "sensitivity": 1.0,
+          "sensitivity_wilson_95": [
+            0.438494,
+            1.0
+          ]
+        },
+        "43": {
+          "detected_count": 2,
+          "distinct_source_case_hash_count": 3,
+          "duplicate_source_case_count": 0,
+          "eligible_count": 3,
+          "raw_observation_count": 3,
+          "sensitivity": 0.6666666666666666,
+          "sensitivity_wilson_95": [
+            0.207655,
+            0.93851
+          ]
+        },
+        "53": {
+          "detected_count": 1,
+          "distinct_source_case_hash_count": 3,
+          "duplicate_source_case_count": 0,
+          "eligible_count": 3,
+          "raw_observation_count": 3,
+          "sensitivity": 0.3333333333333333,
+          "sensitivity_wilson_95": [
+            0.06149,
+            0.792345
+          ]
+        },
+        "60": {
+          "detected_count": 2,
+          "distinct_source_case_hash_count": 3,
+          "duplicate_source_case_count": 0,
+          "eligible_count": 3,
+          "raw_observation_count": 3,
+          "sensitivity": 0.6666666666666666,
+          "sensitivity_wilson_95": [
+            0.207655,
+            0.93851
+          ]
+        },
+        "80": {
+          "detected_count": 2,
+          "distinct_source_case_hash_count": 3,
+          "duplicate_source_case_count": 0,
+          "eligible_count": 3,
+          "raw_observation_count": 3,
+          "sensitivity": 0.6666666666666666,
+          "sensitivity_wilson_95": [
+            0.207655,
+            0.93851
+          ]
+        }
+      },
+      "rotation_degrees": {
+        "10": {
+          "detected_count": 2,
+          "distinct_source_case_hash_count": 4,
+          "duplicate_source_case_count": 0,
+          "eligible_count": 4,
+          "raw_observation_count": 4,
+          "sensitivity": 0.5,
+          "sensitivity_wilson_95": [
+            0.150036,
+            0.849964
+          ]
+        },
+        "2": {
+          "detected_count": 1,
+          "distinct_source_case_hash_count": 3,
+          "duplicate_source_case_count": 0,
+          "eligible_count": 3,
+          "raw_observation_count": 3,
+          "sensitivity": 0.3333333333333333,
+          "sensitivity_wilson_95": [
+            0.06149,
+            0.792345
+          ]
+        },
+        "5": {
+          "detected_count": 1,
+          "distinct_source_case_hash_count": 3,
+          "duplicate_source_case_count": 0,
+          "eligible_count": 3,
+          "raw_observation_count": 3,
+          "sensitivity": 0.3333333333333333,
+          "sensitivity_wilson_95": [
+            0.06149,
+            0.792345
+          ]
+        },
+        "6": {
+          "detected_count": 1,
+          "distinct_source_case_hash_count": 3,
+          "duplicate_source_case_count": 0,
+          "eligible_count": 3,
+          "raw_observation_count": 3,
+          "sensitivity": 0.3333333333333333,
+          "sensitivity_wilson_95": [
+            0.06149,
+            0.792345
+          ]
+        }
+      }
+    },
+    "qualification_state": "blocked",
+    "quality": {
+      "balanced_accuracy": 0.7580188679245283,
+      "balanced_accuracy_interval_95": [
+        0.598257,
+        0.840808
+      ],
+      "sensitivity": 0.5660377358490566,
+      "sensitivity_wilson_95": [
+        0.432651,
+        0.690498
+      ],
+      "specificity": 0.95,
+      "specificity_wilson_95": [
+        0.763864,
+        0.991119
+      ]
+    },
+    "requests": {
+      "attempted": 75,
+      "budget_exhausted": false,
+      "completed": 75,
+      "failed": 0,
+      "maximum_allowed": 80,
+      "public_safe": true,
+      "release_authority": false,
+      "schema_version": "a2.provider_request_count_receipt.v1"
+    },
+    "retry": {
+      "recovery_count": 0,
+      "recovery_rate": 0.0
+    },
+    "taxonomy_metrics": {
+      "cross_modal_conflict": {
+        "detected_count": 7,
+        "eligible_count": 20,
+        "sensitivity": 0.35,
+        "sensitivity_wilson_95": [
+          0.18119,
+          0.567149
+        ]
+      },
+      "unsafe_content_evasion": {
+        "detected_count": 8,
+        "eligible_count": 9,
+        "sensitivity": 0.8888888888888888,
+        "sensitivity_wilson_95": [
+          0.564994,
+          0.98011
+        ]
+      },
+      "visual_prompt_injection": {
+        "detected_count": 15,
+        "eligible_count": 24,
+        "sensitivity": 0.625,
+        "sensitivity_wilson_95": [
+          0.427096,
+          0.788409
+        ]
+      }
+    },
+    "usage": {
+      "completion_tokens": 3477,
+      "estimated_cost_usd": null,
+      "pricing_state": "unavailable",
+      "prompt_tokens": 10575,
+      "total_tokens": 14052,
+      "usage_accounting_state": "complete",
+      "within_cost_budget": false
+    }
+  },
+  "schema_version": "a2.dashscope_multimodal_repeat_public_summary.v1",
+  "secret_included": false,
+  "source_repeat_comparison": {
+    "blockers": [
+      "source_repeat_units_missing_from_repeat"
+    ],
+    "evidence_hash": "sha256:3b7d42f327ad7e20d8c5342b4dbc8f74b87f828142ea8c2f305facf219ba8d1f",
+    "matched_distinct_bucket_source_count": 28,
+    "missing_unit_counts": {
+      "from_baseline": 0,
+      "from_repeat": 1
+    },
+    "paired_delta_bootstrap_ci_95": {
+      "lower": 0.0,
+      "upper": 0.0
+    },
+    "promotion_eligible": false,
+    "sensitivity_delta_repeat_minus_baseline": 0.0
+  },
+  "three_way_comparison": {
+    "evidence_hash": "sha256:0fa624a3b4455266cad1b2cfe1d30512f72dc183912526ee7396ebb62e35591d",
+    "human_review_queue_count": 1,
+    "provider_is_truth": false,
+    "summary": {
+      "pairwise_agreement_with_unavailable": 72,
+      "semantic_disagreement": 1,
+      "three_way_agreement": 0,
+      "unavailable": 1
+    }
+  }
+}

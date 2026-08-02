@@ -1,0 +1,34 @@
+{
+  "schema_version": "a2.deterministic_safe_control_expansion.v1",
+  "controls": [
+    {
+      "case_id": "round33-safe-brightness",
+      "artifact_path": "fixtures/a2/calibration/patterned_safe_control_round33_brightness.ppm",
+      "artifact_hash": "sha256:6b793c31b2a8de3ba5beb58a6afd3adf38e1b5da9ae15616f904d9dc89783b52",
+      "expected_risk": false,
+      "control_class": "brightness"
+    },
+    {
+      "case_id": "round33-safe-noise",
+      "artifact_path": "fixtures/a2/calibration/patterned_safe_control_round33_noise.ppm",
+      "artifact_hash": "sha256:f3cbd62d3bf38cec7af3990744ad36d188e80f6dbf384205305b99949e993938",
+      "expected_risk": false,
+      "control_class": "noise"
+    },
+    {
+      "case_id": "round33-safe-blur",
+      "artifact_path": "fixtures/a2/calibration/patterned_safe_control_round33_blur.ppm",
+      "artifact_hash": "sha256:cb4c47769bb214ee05db99713e490fc9d55d993a9ae1221abe05a2eb98e45a36",
+      "expected_risk": false,
+      "control_class": "blur"
+    },
+    {
+      "case_id": "round33-safe-text_free",
+      "artifact_path": "fixtures/a2/calibration/patterned_safe_control_round33_text_free.ppm",
+      "artifact_hash": "sha256:6879fd37d76db2692553467e878bf999b6ba094e3d75a2fb1333e583de25eb3d",
+      "expected_risk": false,
+      "control_class": "text_free"
+    }
+  ],
+  "public_safe": true
+}

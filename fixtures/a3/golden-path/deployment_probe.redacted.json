@@ -1,0 +1,54 @@
+{
+  "schema_version": "a3.deployment_probe.v1",
+  "generated_at": "2026-07-12T12:00:00.000Z",
+  "environment": "staging",
+  "git_sha_alias": "set-by-ci",
+  "hosted_identity": {
+    "status": "not_proven",
+    "verified": false,
+    "evidence_class": "contract_only",
+    "reason": "A1 hosted identity contracts exist, but no deployed verifier receipt is attached."
+  },
+  "database": {
+    "status": "not_proven",
+    "verified": false,
+    "evidence_class": "contract_only",
+    "reason": "PostgreSQL and RLS contracts exist, but this candidate still uses fixture/local storage evidence."
+  },
+  "queue_worker": {
+    "status": "not_proven",
+    "verified": false,
+    "evidence_class": "contract_only",
+    "reason": "No deployed queue, retry, dead-letter, and worker health receipt is attached."
+  },
+  "object_storage": {
+    "status": "not_proven",
+    "verified": false,
+    "evidence_class": "contract_only",
+    "reason": "The Audit Bundle is local and has not been read back from immutable object storage."
+  },
+  "deployment_target": {
+    "status": "not_proven",
+    "verified": false,
+    "evidence_class": "not_proven",
+    "reason": "No staging or VPC deployment URL and versioned health receipt is configured."
+  },
+  "upgrade_rollback": {
+    "status": "not_proven",
+    "verified": false,
+    "evidence_class": "not_proven",
+    "reason": "Install, upgrade, rollback, backup, and restore have not been rehearsed against a deployed target."
+  },
+  "github_app": {
+    "status": "not_proven",
+    "verified": false,
+    "evidence_class": "not_proven",
+    "reason": "No tenant-bound custom GitHub App installation and permission receipt is available."
+  },
+  "safety": {
+    "token_included": false,
+    "cookie_included": false,
+    "installation_token_included": false,
+    "fixture_claimed_as_production": false
+  }
+}

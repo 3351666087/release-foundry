@@ -1,0 +1,319 @@
+{
+  "events": [
+    {
+      "event_id": "evt_bbd99049c5c09c84",
+      "event_type": "lifecycle.control",
+      "metadata": {},
+      "observation": {
+        "channel": "system",
+        "data": {
+          "agent": "mock-agent",
+          "scenario": "tool_math_success"
+        },
+        "kind": "control",
+        "status": "ok",
+        "text": "run.started"
+      },
+      "parent_id": null,
+      "phase": "lifecycle",
+      "run_id": "run_300a766832270d0d",
+      "schema": "releasefoundry.trace.v1",
+      "seq": 0,
+      "source": "mock-agent",
+      "tags": [
+        "control"
+      ],
+      "timestamp": "2026-01-01T00:00:00.000Z",
+      "type": "trace_event"
+    },
+    {
+      "event_id": "evt_32c86959de2c2ba2",
+      "event_type": "dialogue.message",
+      "metadata": {},
+      "observation": {
+        "channel": "user",
+        "data": {
+          "scenario": "tool_math_success"
+        },
+        "kind": "message",
+        "status": "ok",
+        "text": "What is 19 + 23?"
+      },
+      "parent_id": null,
+      "phase": "dialogue",
+      "run_id": "run_300a766832270d0d",
+      "schema": "releasefoundry.trace.v1",
+      "seq": 1,
+      "source": "mock-agent",
+      "tags": [
+        "user"
+      ],
+      "timestamp": "2026-01-01T00:00:00.050Z",
+      "type": "trace_event"
+    },
+    {
+      "event_id": "evt_92cad26849e5559e",
+      "event_type": "tool.tool_call",
+      "metadata": {},
+      "observation": {
+        "channel": "tool",
+        "data": {
+          "args": {
+            "expression": "19 + 23"
+          },
+          "call_id": "call_192fb7f1d064401e",
+          "name": "calculator"
+        },
+        "kind": "tool_call",
+        "status": "ok",
+        "text": "call calculator"
+      },
+      "parent_id": null,
+      "phase": "tool",
+      "run_id": "run_300a766832270d0d",
+      "schema": "releasefoundry.trace.v1",
+      "seq": 2,
+      "source": "mock-agent",
+      "tags": [
+        "tool_call",
+        "calculator"
+      ],
+      "timestamp": "2026-01-01T00:00:00.100Z",
+      "type": "trace_event"
+    },
+    {
+      "event_id": "evt_0633533e9bf03c22",
+      "event_type": "tool.tool_result",
+      "metadata": {},
+      "observation": {
+        "channel": "tool",
+        "data": {
+          "call_id": "call_192fb7f1d064401e",
+          "name": "calculator",
+          "result": {
+            "expression": "19 + 23",
+            "value": 42
+          }
+        },
+        "kind": "tool_result",
+        "status": "ok",
+        "text": "calculator result"
+      },
+      "parent_id": null,
+      "phase": "tool",
+      "run_id": "run_300a766832270d0d",
+      "schema": "releasefoundry.trace.v1",
+      "seq": 3,
+      "source": "mock-agent",
+      "tags": [
+        "tool_result",
+        "calculator"
+      ],
+      "timestamp": "2026-01-01T00:00:00.150Z",
+      "type": "trace_event"
+    },
+    {
+      "event_id": "evt_6914b7c2e2f455ec",
+      "event_type": "dialogue.message",
+      "metadata": {},
+      "observation": {
+        "channel": "assistant",
+        "data": {
+          "tool_call_id": "call_192fb7f1d064401e"
+        },
+        "kind": "message",
+        "status": "ok",
+        "text": "The answer is 42."
+      },
+      "parent_id": null,
+      "phase": "dialogue",
+      "run_id": "run_300a766832270d0d",
+      "schema": "releasefoundry.trace.v1",
+      "seq": 4,
+      "source": "mock-agent",
+      "tags": [
+        "assistant"
+      ],
+      "timestamp": "2026-01-01T00:00:00.200Z",
+      "type": "trace_event"
+    },
+    {
+      "event_id": "evt_faf2f745a9d71188",
+      "event_type": "telemetry.metric",
+      "metadata": {},
+      "observation": {
+        "channel": "system",
+        "data": {
+          "name": "events_emitted",
+          "unit": "count",
+          "value": 7
+        },
+        "kind": "metric",
+        "status": "ok",
+        "text": "events_emitted"
+      },
+      "parent_id": null,
+      "phase": "telemetry",
+      "run_id": "run_300a766832270d0d",
+      "schema": "releasefoundry.trace.v1",
+      "seq": 5,
+      "source": "mock-agent",
+      "tags": [
+        "metric",
+        "events_emitted"
+      ],
+      "timestamp": "2026-01-01T00:00:00.250Z",
+      "type": "trace_event"
+    },
+    {
+      "event_id": "evt_eddb39ac2f0408fe",
+      "event_type": "lifecycle.control",
+      "metadata": {},
+      "observation": {
+        "channel": "system",
+        "data": {
+          "result": "The answer is 42.",
+          "scenario": "tool_math_success"
+        },
+        "kind": "control",
+        "status": "ok",
+        "text": "run.finished"
+      },
+      "parent_id": null,
+      "phase": "lifecycle",
+      "run_id": "run_300a766832270d0d",
+      "schema": "releasefoundry.trace.v1",
+      "seq": 6,
+      "source": "mock-agent",
+      "tags": [
+        "control"
+      ],
+      "timestamp": "2026-01-01T00:00:00.300Z",
+      "type": "trace_event"
+    }
+  ],
+  "expected": {
+    "event_count": 7,
+    "final_text": "The answer is 42.",
+    "status": "ok"
+  },
+  "labels": [
+    "a3",
+    "tool",
+    "success"
+  ],
+  "name": "tool_math_success",
+  "replay": {
+    "command": "--scenario tool_math_success",
+    "entrypoint": "python examples/agents/mock_agent.py",
+    "mode": "deterministic-local"
+  },
+  "run": {
+    "agent": "mock-agent",
+    "finished_at": "2026-01-01T00:00:00.300Z",
+    "run_id": "run_300a766832270d0d",
+    "started_at": "2026-01-01T00:00:00.000Z",
+    "status": "ok",
+    "task": "Use the local calculator tool and return the answer."
+  },
+  "schema": "releasefoundry.run.v1",
+  "vm_stream": [
+    {
+      "data": {
+        "agent": "mock-agent",
+        "scenario": "tool_math_success"
+      },
+      "event_id": "evt_bbd99049c5c09c84",
+      "schema": "releasefoundry.vm_stream.v1",
+      "seq": 0,
+      "status": "ok",
+      "stream": "lifecycle",
+      "text": "run.started",
+      "timestamp": "2026-01-01T00:00:00.000Z"
+    },
+    {
+      "data": {
+        "scenario": "tool_math_success"
+      },
+      "event_id": "evt_32c86959de2c2ba2",
+      "schema": "releasefoundry.vm_stream.v1",
+      "seq": 1,
+      "status": "ok",
+      "stream": "stdin",
+      "text": "What is 19 + 23?",
+      "timestamp": "2026-01-01T00:00:00.050Z"
+    },
+    {
+      "data": {
+        "args": {
+          "expression": "19 + 23"
+        },
+        "call_id": "call_192fb7f1d064401e",
+        "name": "calculator"
+      },
+      "event_id": "evt_92cad26849e5559e",
+      "schema": "releasefoundry.vm_stream.v1",
+      "seq": 2,
+      "status": "ok",
+      "stream": "tool_call",
+      "text": "call calculator",
+      "timestamp": "2026-01-01T00:00:00.100Z"
+    },
+    {
+      "data": {
+        "call_id": "call_192fb7f1d064401e",
+        "name": "calculator",
+        "result": {
+          "expression": "19 + 23",
+          "value": 42
+        }
+      },
+      "event_id": "evt_0633533e9bf03c22",
+      "schema": "releasefoundry.vm_stream.v1",
+      "seq": 3,
+      "status": "ok",
+      "stream": "tool_result",
+      "text": "calculator result",
+      "timestamp": "2026-01-01T00:00:00.150Z"
+    },
+    {
+      "data": {
+        "tool_call_id": "call_192fb7f1d064401e"
+      },
+      "event_id": "evt_6914b7c2e2f455ec",
+      "schema": "releasefoundry.vm_stream.v1",
+      "seq": 4,
+      "status": "ok",
+      "stream": "stdout",
+      "text": "The answer is 42.",
+      "timestamp": "2026-01-01T00:00:00.200Z"
+    },
+    {
+      "data": {
+        "name": "events_emitted",
+        "unit": "count",
+        "value": 7
+      },
+      "event_id": "evt_faf2f745a9d71188",
+      "schema": "releasefoundry.vm_stream.v1",
+      "seq": 5,
+      "status": "ok",
+      "stream": "metric",
+      "text": "events_emitted",
+      "timestamp": "2026-01-01T00:00:00.250Z"
+    },
+    {
+      "data": {
+        "result": "The answer is 42.",
+        "scenario": "tool_math_success"
+      },
+      "event_id": "evt_eddb39ac2f0408fe",
+      "schema": "releasefoundry.vm_stream.v1",
+      "seq": 6,
+      "status": "ok",
+      "stream": "lifecycle",
+      "text": "run.finished",
+      "timestamp": "2026-01-01T00:00:00.300Z"
+    }
+  ]
+}

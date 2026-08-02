@@ -1,0 +1,6 @@
+{
+  "command": "node --version",
+  "stdout": "v22.18.0",
+  "stderr": "",
+  "exit_code": 0
+}

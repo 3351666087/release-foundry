@@ -1,0 +1,505 @@
+name: releasefoundry-a1-self-host
+
+x-releasefoundry-runtime-env: &releasefoundry-runtime-env
+  RELEASEFOUNDRY_RUNTIME_ENV: self-host
+  RELEASEFOUNDRY_SECRET_PROVIDER: env-ref
+  RELEASEFOUNDRY_CONTROL_PLANE_BASE_URL: http://api:8787
+  RELEASEFOUNDRY_DATABASE_URL_REF: env:RELEASEFOUNDRY_DATABASE_URL
+  RELEASEFOUNDRY_DATABASE_URL: postgresql://releasefoundry:${RELEASEFOUNDRY_POSTGRES_AUTH_SECRET}@postgres:5432/releasefoundry?sslmode=disable
+  RELEASEFOUNDRY_POSTGRES_DSN_REF: env:RELEASEFOUNDRY_DATABASE_URL
+  RELEASEFOUNDRY_REDIS_URL: redis://redis:6379/0
+  RELEASEFOUNDRY_REDIS_URL_REF: env:RELEASEFOUNDRY_REDIS_URL
+  RELEASEFOUNDRY_OBJECT_STORE_URL: http://minio:9000
+  RELEASEFOUNDRY_OBJECT_STORE_ENDPOINT: http://minio:9000
+  RELEASEFOUNDRY_OBJECT_STORE_ENDPOINT_REF: env:RELEASEFOUNDRY_OBJECT_STORE_ENDPOINT
+  RELEASEFOUNDRY_OBJECT_STORE_BUCKET: releasefoundry-local-artifacts
+  RELEASEFOUNDRY_OBJECT_STORE_ACCESS_KEY_REF: env:RELEASEFOUNDRY_OBJECT_STORE_ACCESS_KEY
+  RELEASEFOUNDRY_OBJECT_STORE_SECRET_KEY_REF: env:RELEASEFOUNDRY_OBJECT_STORE_SECRET_KEY
+  RELEASEFOUNDRY_OBJECT_EVIDENCE_PREFIX: evidence/a1/self-host
+  RELEASEFOUNDRY_QUOTA_LEDGER_TABLE: releasefoundry_quota_ledger
+  RELEASEFOUNDRY_ARTIFACT_MANIFEST_TABLE: releasefoundry_artifact_manifests
+  RELEASEFOUNDRY_WORKER_JOBS_TABLE: releasefoundry_worker_jobs
+  RELEASEFOUNDRY_BILLING_PROVIDER_SECRET_REF: env:RELEASEFOUNDRY_BILLING_PROVIDER_SECRET
+  RELEASEFOUNDRY_BILLING_WEBHOOK_SECRET_REF: env:RELEASEFOUNDRY_BILLING_WEBHOOK_SECRET
+  RELEASEFOUNDRY_WECHAT_PAY_MERCHANT_ID_REF: env:RELEASEFOUNDRY_WECHAT_PAY_MERCHANT_ID
+  RELEASEFOUNDRY_WECHAT_PAY_API_V3_KEY_REF: env:RELEASEFOUNDRY_WECHAT_PAY_API_V3_KEY
+  RELEASEFOUNDRY_WECHAT_PAY_MERCHANT_PRIVATE_KEY_REF: env:RELEASEFOUNDRY_WECHAT_PAY_MERCHANT_PRIVATE_KEY
+  RELEASEFOUNDRY_WECHAT_PAY_PLATFORM_CERT_REF: env:RELEASEFOUNDRY_WECHAT_PAY_PLATFORM_CERT
+  RELEASEFOUNDRY_ALIPAY_APP_ID_REF: env:RELEASEFOUNDRY_ALIPAY_APP_ID
+  RELEASEFOUNDRY_ALIPAY_APP_PRIVATE_KEY_REF: env:RELEASEFOUNDRY_ALIPAY_APP_PRIVATE_KEY
+  RELEASEFOUNDRY_ALIPAY_PUBLIC_KEY_REF: env:RELEASEFOUNDRY_ALIPAY_PUBLIC_KEY
+  RELEASEFOUNDRY_CHINA_ACQUIRER_MERCHANT_ID_REF: env:RELEASEFOUNDRY_CHINA_ACQUIRER_MERCHANT_ID
+  RELEASEFOUNDRY_CHINA_ACQUIRER_HOSTED_ORIGIN_REF: env:RELEASEFOUNDRY_CHINA_ACQUIRER_HOSTED_ORIGIN
+  RELEASEFOUNDRY_CHINA_ACQUIRER_SESSION_TOKEN_REF: env:RELEASEFOUNDRY_CHINA_ACQUIRER_SESSION_TOKEN
+  RELEASEFOUNDRY_CHINA_ACQUIRER_SIGNING_KEY_REF: env:RELEASEFOUNDRY_CHINA_ACQUIRER_SIGNING_KEY
+  RELEASEFOUNDRY_CHINA_ACQUIRER_MODE: hosted-token-reference-only
+  RELEASEFOUNDRY_CHINA_PAYMENT_PROVIDER_NETWORK_ENABLED: "false"
+  RELEASEFOUNDRY_STRIPE_ENABLED: "false"
+  RELEASEFOUNDRY_STRIPE_ACCOUNT_ID_REF: env:RELEASEFOUNDRY_STRIPE_ACCOUNT_ID
+  RELEASEFOUNDRY_STRIPE_SECRET_KEY_REF: env:RELEASEFOUNDRY_STRIPE_SECRET_KEY
+  RELEASEFOUNDRY_STRIPE_WEBHOOK_SECRET_REF: env:RELEASEFOUNDRY_STRIPE_WEBHOOK_SECRET
+  RELEASEFOUNDRY_STRIPE_CHECKOUT_MODE: hosted-checkout-reference-only
+  RELEASEFOUNDRY_PAYMENT_EVIDENCE_HASH_PREFIX: evidence/a1/self-host/china-payments/sha256
+
+services:
+  api:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.go-runtime
+    image: releasefoundry/a1-go-runtime:local
+    profiles: ["api", "commercial", "commercial-smoke", "china-payments", "stripe-payments"]
+    environment:
+      <<: *releasefoundry-runtime-env
+      RELEASEFOUNDRY_GO_BACKEND: postgres
+      RELEASEFOUNDRY_POSTGRES_DSN: postgresql://releasefoundry:${RELEASEFOUNDRY_POSTGRES_AUTH_SECRET}@postgres:5432/releasefoundry?sslmode=disable
+      RELEASEFOUNDRY_GO_API_ADDR: 0.0.0.0:8787
+    command: ["/usr/local/bin/releasefoundry-api"]
+    ports:
+      - "127.0.0.1:18787:8787"
+    depends_on:
+      postgres-migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/releasefoundry-healthcheck", "http://127.0.0.1:8787/healthz", "postgres_repository_v0"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+
+  worker:
+    image: releasefoundry/a1-go-runtime:local
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.go-runtime
+    profiles: ["worker", "daemon", "commercial", "commercial-smoke"]
+    environment:
+      <<: *releasefoundry-runtime-env
+      RELEASEFOUNDRY_WORKER_MODE: daemon
+      RELEASEFOUNDRY_WORKER_DAEMON: "true"
+      RELEASEFOUNDRY_WORKER_QUEUE: releasefoundry_worker_jobs
+      RELEASEFOUNDRY_WORKER_HEALTHCHECK_PATH: /runtime/worker/heartbeat
+      RELEASEFOUNDRY_GO_BACKEND: postgres
+      RELEASEFOUNDRY_POSTGRES_DSN: postgresql://releasefoundry:${RELEASEFOUNDRY_POSTGRES_AUTH_SECRET}@postgres:5432/releasefoundry?sslmode=disable
+      RELEASEFOUNDRY_WORKER_TENANT_ID: tenant_self_host
+      RELEASEFOUNDRY_WORKER_PROJECT_ID: project_self_host
+      RELEASEFOUNDRY_WORKER_LEASE_OWNER_ID: worker_self_host
+      RELEASEFOUNDRY_WORKER_JOB_TYPE: release_gate
+      RELEASEFOUNDRY_WORKER_LEASE_SECONDS: "300"
+      RELEASEFOUNDRY_WORKER_HEARTBEAT_INTERVAL: "30s"
+      RELEASEFOUNDRY_WORKER_MAX_JOBS: "10"
+      RELEASEFOUNDRY_WORKER_MAX_IDLE_LEASES: "3"
+      RELEASEFOUNDRY_WORKER_HEARTBEAT_PATH: /runtime/worker/heartbeat
+      RELEASEFOUNDRY_WORKER_MAX_ATTEMPTS: "3"
+      RELEASEFOUNDRY_WORKER_EVIDENCE_WRITES: object-store
+      RELEASEFOUNDRY_WORKER_SUMMARY_OUTPUT: /runtime/worker/summary.json
+      RELEASEFOUNDRY_WORKER_RESTART_DELAY_SECONDS: "5"
+    command: ["/bin/sh", "/app/services/runner/commercial-worker-entrypoint.sh", "/usr/local/bin/releasefoundry-worker"]
+    volumes:
+      - releasefoundry-runtime-state:/runtime/state
+      - releasefoundry-worker-health:/runtime/worker
+    depends_on:
+      api:
+        condition: service_healthy
+      worker-recovery-seed:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      minio-smoke:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - test -f /runtime/worker/heartbeat && find /runtime/worker/heartbeat -mmin -2 -type f | grep -q .
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  china-payment-webhook-worker:
+    image: releasefoundry/a1-go-runtime:local
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.go-runtime
+    profiles: ["china-payments"]
+    environment:
+      <<: *releasefoundry-runtime-env
+      RELEASEFOUNDRY_GO_BACKEND: postgres
+      RELEASEFOUNDRY_POSTGRES_DSN: postgresql://releasefoundry:${RELEASEFOUNDRY_POSTGRES_AUTH_SECRET}@postgres:5432/releasefoundry?sslmode=disable
+      RELEASEFOUNDRY_WORKER_MODE: daemon
+      RELEASEFOUNDRY_WORKER_DAEMON: "true"
+      RELEASEFOUNDRY_WORKER_QUEUE: china_payment_webhook_ingestion
+      RELEASEFOUNDRY_WORKER_JOB_TYPE: china_payment_webhook_ingestion
+      RELEASEFOUNDRY_WORKER_LANE: payment-webhook
+      RELEASEFOUNDRY_PAYMENT_WORKER_PROVIDER_FAMILY: china-wallets
+      RELEASEFOUNDRY_WORKER_TENANT_ID: tenant_self_host
+      RELEASEFOUNDRY_WORKER_PROJECT_ID: project_self_host
+      RELEASEFOUNDRY_WORKER_LEASE_OWNER_ID: china_payment_webhook_worker
+      RELEASEFOUNDRY_WORKER_LEASE_SECONDS: "120"
+      RELEASEFOUNDRY_WORKER_HEARTBEAT_INTERVAL: "20s"
+      RELEASEFOUNDRY_WORKER_MAX_JOBS: "50"
+      RELEASEFOUNDRY_WORKER_MAX_IDLE_LEASES: "3"
+      RELEASEFOUNDRY_WORKER_MAX_ATTEMPTS: "5"
+      RELEASEFOUNDRY_WORKER_RETRY_DELAYS_SECONDS: 5,30,120,600
+      RELEASEFOUNDRY_WORKER_DEAD_LETTER_QUEUE: china_payment_webhook_dead_letter
+      RELEASEFOUNDRY_WORKER_EVIDENCE_WRITES: object-store-hash-only
+      RELEASEFOUNDRY_WORKER_HEARTBEAT_PATH: /runtime/payment-webhook/heartbeat
+      RELEASEFOUNDRY_WORKER_READINESS_PATH: /runtime/payment-webhook/ready.json
+      RELEASEFOUNDRY_WORKER_SUMMARY_OUTPUT: /runtime/payment-webhook/summary.json
+      RELEASEFOUNDRY_WORKER_RESTART_DELAY_SECONDS: "5"
+    command: ["/bin/sh", "/app/services/runner/china-payment-worker-entrypoint.sh", "/usr/local/bin/releasefoundry-worker"]
+    volumes:
+      - releasefoundry-payment-webhook-health:/runtime/payment-webhook
+    depends_on:
+      api:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "/bin/sh", "/app/services/runner/china-payment-worker-healthcheck.sh"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  china-payment-reconciliation-worker:
+    image: releasefoundry/a1-go-runtime:local
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.go-runtime
+    profiles: ["china-payments"]
+    environment:
+      <<: *releasefoundry-runtime-env
+      RELEASEFOUNDRY_GO_BACKEND: postgres
+      RELEASEFOUNDRY_POSTGRES_DSN: postgresql://releasefoundry:${RELEASEFOUNDRY_POSTGRES_AUTH_SECRET}@postgres:5432/releasefoundry?sslmode=disable
+      RELEASEFOUNDRY_WORKER_MODE: daemon
+      RELEASEFOUNDRY_WORKER_DAEMON: "true"
+      RELEASEFOUNDRY_WORKER_QUEUE: china_payment_bill_reconciliation
+      RELEASEFOUNDRY_WORKER_JOB_TYPE: china_payment_bill_reconciliation
+      RELEASEFOUNDRY_WORKER_LANE: payment-reconciliation
+      RELEASEFOUNDRY_PAYMENT_WORKER_PROVIDER_FAMILY: china-wallets
+      RELEASEFOUNDRY_WORKER_TENANT_ID: tenant_self_host
+      RELEASEFOUNDRY_WORKER_PROJECT_ID: project_self_host
+      RELEASEFOUNDRY_WORKER_LEASE_OWNER_ID: china_payment_reconciliation_worker
+      RELEASEFOUNDRY_WORKER_LEASE_SECONDS: "900"
+      RELEASEFOUNDRY_WORKER_HEARTBEAT_INTERVAL: "30s"
+      RELEASEFOUNDRY_WORKER_MAX_JOBS: "10"
+      RELEASEFOUNDRY_WORKER_MAX_IDLE_LEASES: "3"
+      RELEASEFOUNDRY_WORKER_MAX_ATTEMPTS: "4"
+      RELEASEFOUNDRY_WORKER_RETRY_DELAYS_SECONDS: 300,1800,7200
+      RELEASEFOUNDRY_WORKER_DEAD_LETTER_QUEUE: china_payment_reconciliation_dead_letter
+      RELEASEFOUNDRY_WORKER_EVIDENCE_WRITES: object-store-hash-only
+      RELEASEFOUNDRY_WORKER_HEARTBEAT_PATH: /runtime/payment-reconciliation/heartbeat
+      RELEASEFOUNDRY_WORKER_READINESS_PATH: /runtime/payment-reconciliation/ready.json
+      RELEASEFOUNDRY_WORKER_SUMMARY_OUTPUT: /runtime/payment-reconciliation/summary.json
+      RELEASEFOUNDRY_WORKER_RESTART_DELAY_SECONDS: "30"
+    command: ["/bin/sh", "/app/services/runner/china-payment-worker-entrypoint.sh", "/usr/local/bin/releasefoundry-worker"]
+    volumes:
+      - releasefoundry-payment-reconciliation-health:/runtime/payment-reconciliation
+    depends_on:
+      api:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "/bin/sh", "/app/services/runner/china-payment-worker-healthcheck.sh"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  china-bank-acquirer-worker:
+    image: releasefoundry/a1-go-runtime:local
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.go-runtime
+    profiles: ["china-payments"]
+    environment:
+      <<: *releasefoundry-runtime-env
+      RELEASEFOUNDRY_GO_BACKEND: postgres
+      RELEASEFOUNDRY_POSTGRES_DSN: postgresql://releasefoundry:${RELEASEFOUNDRY_POSTGRES_AUTH_SECRET}@postgres:5432/releasefoundry?sslmode=disable
+      RELEASEFOUNDRY_WORKER_MODE: daemon
+      RELEASEFOUNDRY_WORKER_DAEMON: "true"
+      RELEASEFOUNDRY_WORKER_QUEUE: china_bank_acquirer_events
+      RELEASEFOUNDRY_WORKER_JOB_TYPE: china_bank_acquirer_events
+      RELEASEFOUNDRY_WORKER_LANE: china-bank-acquirer
+      RELEASEFOUNDRY_PAYMENT_WORKER_PROVIDER_FAMILY: china-bank-acquirer
+      RELEASEFOUNDRY_WORKER_TENANT_ID: tenant_self_host
+      RELEASEFOUNDRY_WORKER_PROJECT_ID: project_self_host
+      RELEASEFOUNDRY_WORKER_LEASE_OWNER_ID: china_bank_acquirer_worker
+      RELEASEFOUNDRY_WORKER_LEASE_SECONDS: "180"
+      RELEASEFOUNDRY_WORKER_HEARTBEAT_INTERVAL: "20s"
+      RELEASEFOUNDRY_WORKER_MAX_JOBS: "50"
+      RELEASEFOUNDRY_WORKER_MAX_IDLE_LEASES: "3"
+      RELEASEFOUNDRY_WORKER_MAX_ATTEMPTS: "5"
+      RELEASEFOUNDRY_WORKER_RETRY_DELAYS_SECONDS: 10,60,300,1800
+      RELEASEFOUNDRY_WORKER_DEAD_LETTER_QUEUE: china_bank_acquirer_dead_letter
+      RELEASEFOUNDRY_WORKER_EVIDENCE_WRITES: object-store-hash-only
+      RELEASEFOUNDRY_WORKER_HEARTBEAT_PATH: /runtime/china-bank-acquirer/heartbeat
+      RELEASEFOUNDRY_WORKER_READINESS_PATH: /runtime/china-bank-acquirer/ready.json
+      RELEASEFOUNDRY_WORKER_SUMMARY_OUTPUT: /runtime/china-bank-acquirer/summary.json
+      RELEASEFOUNDRY_WORKER_RESTART_DELAY_SECONDS: "10"
+    command: ["/bin/sh", "/app/services/runner/china-payment-worker-entrypoint.sh", "/usr/local/bin/releasefoundry-worker"]
+    volumes:
+      - releasefoundry-china-bank-acquirer-health:/runtime/china-bank-acquirer
+    depends_on:
+      api:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "/bin/sh", "/app/services/runner/china-payment-worker-healthcheck.sh"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  stripe-payment-worker:
+    image: releasefoundry/a1-go-runtime:local
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.go-runtime
+    profiles: ["stripe-payments"]
+    environment:
+      <<: *releasefoundry-runtime-env
+      RELEASEFOUNDRY_GO_BACKEND: postgres
+      RELEASEFOUNDRY_POSTGRES_DSN: postgresql://releasefoundry:${RELEASEFOUNDRY_POSTGRES_AUTH_SECRET}@postgres:5432/releasefoundry?sslmode=disable
+      RELEASEFOUNDRY_WORKER_MODE: daemon
+      RELEASEFOUNDRY_WORKER_DAEMON: "true"
+      RELEASEFOUNDRY_WORKER_QUEUE: stripe_payment_events
+      RELEASEFOUNDRY_WORKER_JOB_TYPE: stripe_payment_events
+      RELEASEFOUNDRY_WORKER_LANE: stripe-payment
+      RELEASEFOUNDRY_PAYMENT_WORKER_PROVIDER_FAMILY: stripe
+      RELEASEFOUNDRY_WORKER_TENANT_ID: tenant_self_host
+      RELEASEFOUNDRY_WORKER_PROJECT_ID: project_self_host
+      RELEASEFOUNDRY_WORKER_LEASE_OWNER_ID: stripe_payment_worker
+      RELEASEFOUNDRY_WORKER_LEASE_SECONDS: "180"
+      RELEASEFOUNDRY_WORKER_HEARTBEAT_INTERVAL: "20s"
+      RELEASEFOUNDRY_WORKER_MAX_JOBS: "50"
+      RELEASEFOUNDRY_WORKER_MAX_IDLE_LEASES: "3"
+      RELEASEFOUNDRY_WORKER_MAX_ATTEMPTS: "5"
+      RELEASEFOUNDRY_WORKER_RETRY_DELAYS_SECONDS: 10,60,300,1800
+      RELEASEFOUNDRY_WORKER_DEAD_LETTER_QUEUE: stripe_payment_dead_letter
+      RELEASEFOUNDRY_WORKER_EVIDENCE_WRITES: object-store-hash-only
+      RELEASEFOUNDRY_WORKER_HEARTBEAT_PATH: /runtime/stripe-payment/heartbeat
+      RELEASEFOUNDRY_WORKER_READINESS_PATH: /runtime/stripe-payment/ready.json
+      RELEASEFOUNDRY_WORKER_SUMMARY_OUTPUT: /runtime/stripe-payment/summary.json
+      RELEASEFOUNDRY_WORKER_RESTART_DELAY_SECONDS: "10"
+    command: ["/bin/sh", "/app/services/runner/china-payment-worker-entrypoint.sh", "/usr/local/bin/releasefoundry-worker"]
+    volumes:
+      - releasefoundry-stripe-payment-health:/runtime/stripe-payment
+    depends_on:
+      api:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "/bin/sh", "/app/services/runner/china-payment-worker-healthcheck.sh"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  china-payment-reconciliation-scheduler:
+    image: postgres:16-alpine
+    profiles: ["china-payments"]
+    environment:
+      RELEASEFOUNDRY_POSTGRES_HOST: postgres
+      RELEASEFOUNDRY_POSTGRES_DB: releasefoundry
+      RELEASEFOUNDRY_POSTGRES_USER: releasefoundry
+      RELEASEFOUNDRY_POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      RELEASEFOUNDRY_PAYMENT_RECONCILIATION_TENANT_ID: tenant_self_host
+      RELEASEFOUNDRY_PAYMENT_RECONCILIATION_PROJECT_ID: project_self_host
+      RELEASEFOUNDRY_PAYMENT_RECONCILIATION_JOB_TYPE: china_payment_bill_reconciliation
+      RELEASEFOUNDRY_PAYMENT_RECONCILIATION_SCHEDULE_UTC: "02:15"
+      RELEASEFOUNDRY_PAYMENT_RECONCILIATION_MAX_ATTEMPTS: "4"
+      RELEASEFOUNDRY_PAYMENT_RECONCILIATION_RUN_ON_START: "false"
+      RELEASEFOUNDRY_PAYMENT_RECONCILIATION_HEARTBEAT_PATH: /runtime/payment-scheduler/heartbeat
+      RELEASEFOUNDRY_PAYMENT_RECONCILIATION_READINESS_PATH: /runtime/payment-scheduler/ready
+    command: ["/bin/sh", "/opt/releasefoundry/china-payment-reconciliation-scheduler.sh"]
+    volumes:
+      - ./china-payment-reconciliation-scheduler.sh:/opt/releasefoundry/china-payment-reconciliation-scheduler.sh:ro
+      - releasefoundry-payment-scheduler-health:/runtime/payment-scheduler
+    secrets:
+      - postgres_password
+    depends_on:
+      postgres-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - test -f /runtime/payment-scheduler/ready && test -f /runtime/payment-scheduler/heartbeat && find /runtime/payment-scheduler/heartbeat -mmin -2 -type f | grep -q .
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: releasefoundry
+      POSTGRES_USER: releasefoundry
+      POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    volumes:
+      - releasefoundry-postgres-data:/var/lib/postgresql/data
+    secrets:
+      - postgres_password
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U releasefoundry -d releasefoundry"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres-migrate:
+    image: postgres:16-alpine
+    profiles: ["api", "worker", "daemon", "commercial", "commercial-smoke", "china-payments", "stripe-payments"]
+    environment:
+      RELEASEFOUNDRY_POSTGRES_HOST: postgres
+      RELEASEFOUNDRY_POSTGRES_DB: releasefoundry
+      RELEASEFOUNDRY_POSTGRES_USER: releasefoundry
+      RELEASEFOUNDRY_POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      RELEASEFOUNDRY_POSTGRES_MIGRATION: /migrations/a1_control_plane_postgres_migration.sql
+      RELEASEFOUNDRY_POSTGRES_MIGRATION_DIR: /migrations/ordered
+    command: ["/bin/sh", "/opt/releasefoundry/postgres-migrate.sh"]
+    volumes:
+      - ./postgres-migrate.sh:/opt/releasefoundry/postgres-migrate.sh:ro
+      - ../../docs/a1/schemas/a1_control_plane_postgres_migration.sql:/migrations/a1_control_plane_postgres_migration.sql:ro
+      - ../../services/api/migrations:/migrations/ordered:ro
+    secrets:
+      - postgres_password
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    volumes:
+      - releasefoundry-redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:RELEASE.2025-04-22T22-12-26Z
+    command: ["server", "/data", "--console-address", ":9001"]
+    environment:
+      MINIO_ROOT_USER_FILE: /run/secrets/minio_root_user
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_root_password
+    volumes:
+      - releasefoundry-object-store:/data
+    secrets:
+      - minio_root_user
+      - minio_root_password
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  minio-init:
+    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+    profiles: ["api", "worker", "daemon", "commercial", "commercial-smoke", "china-payments", "stripe-payments"]
+    depends_on:
+      minio:
+        condition: service_healthy
+    environment:
+      MINIO_ROOT_USER_FILE: /run/secrets/minio_root_user
+      MINIO_ROOT_PASSWORD_FILE: /run/secrets/minio_root_password
+      RELEASEFOUNDRY_OBJECT_STORE_BUCKET: releasefoundry-local-artifacts
+    secrets:
+      - minio_root_user
+      - minio_root_password
+    entrypoint:
+      - /bin/sh
+      - -lc
+      - >-
+        mc alias set local http://minio:9000 "$$(cat /run/secrets/minio_root_user)" "$$(cat /run/secrets/minio_root_password)" &&
+        mc mb --ignore-existing "local/$${RELEASEFOUNDRY_OBJECT_STORE_BUCKET}" &&
+        mc anonymous set none "local/$${RELEASEFOUNDRY_OBJECT_STORE_BUCKET}"
+
+  minio-smoke:
+    image: minio/mc:RELEASE.2025-04-16T18-13-26Z
+    profiles: ["commercial", "commercial-smoke"]
+    environment:
+      RELEASEFOUNDRY_OBJECT_STORE_ENDPOINT: http://minio:9000
+      RELEASEFOUNDRY_OBJECT_STORE_BUCKET: releasefoundry-local-artifacts
+      RELEASEFOUNDRY_OBJECT_EVIDENCE_PREFIX: evidence/a1/self-host
+      RELEASEFOUNDRY_OBJECT_STORE_ACCESS_KEY_FILE: /run/secrets/minio_root_user
+      RELEASEFOUNDRY_OBJECT_STORE_SECRET_KEY_FILE: /run/secrets/minio_root_password
+    entrypoint: ["/bin/sh", "/opt/releasefoundry/minio-checksum-smoke.sh"]
+    volumes:
+      - ./minio-checksum-smoke.sh:/opt/releasefoundry/minio-checksum-smoke.sh:ro
+    secrets:
+      - minio_root_user
+      - minio_root_password
+    depends_on:
+      minio-init:
+        condition: service_completed_successfully
+    restart: "no"
+
+  worker-recovery-seed:
+    image: postgres:16-alpine
+    profiles: ["commercial", "commercial-smoke"]
+    environment:
+      RELEASEFOUNDRY_POSTGRES_HOST: postgres
+      RELEASEFOUNDRY_POSTGRES_DB: releasefoundry
+      RELEASEFOUNDRY_POSTGRES_USER: releasefoundry
+      RELEASEFOUNDRY_POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+    command: ["/bin/sh", "/opt/releasefoundry/worker-recovery-seed.sh"]
+    volumes:
+      - ./worker-recovery-seed.sh:/opt/releasefoundry/worker-recovery-seed.sh:ro
+    secrets:
+      - postgres_password
+    depends_on:
+      postgres-migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+  worker-recovery-verify:
+    image: postgres:16-alpine
+    profiles: ["commercial-smoke"]
+    environment:
+      RELEASEFOUNDRY_POSTGRES_HOST: postgres
+      RELEASEFOUNDRY_POSTGRES_DB: releasefoundry
+      RELEASEFOUNDRY_POSTGRES_USER: releasefoundry
+      RELEASEFOUNDRY_POSTGRES_PASSWORD_FILE: /run/secrets/postgres_password
+      RELEASEFOUNDRY_WORKER_HEARTBEAT_PATH: /runtime/worker/heartbeat
+    command: ["/bin/sh", "/opt/releasefoundry/worker-recovery-verify.sh"]
+    volumes:
+      - ./worker-recovery-verify.sh:/opt/releasefoundry/worker-recovery-verify.sh:ro
+      - releasefoundry-worker-health:/runtime/worker:ro
+    secrets:
+      - postgres_password
+    depends_on:
+      worker:
+        condition: service_healthy
+    restart: "no"
+
+secrets:
+  postgres_password:
+    environment: RELEASEFOUNDRY_POSTGRES_AUTH_SECRET
+  minio_root_user:
+    environment: RELEASEFOUNDRY_OBJECT_STORE_ACCESS_KEY
+  minio_root_password:
+    environment: RELEASEFOUNDRY_OBJECT_STORE_SECRET_KEY
+
+volumes:
+  releasefoundry-postgres-data:
+  releasefoundry-redis-data:
+  releasefoundry-runtime-state:
+  releasefoundry-replay-output:
+  releasefoundry-worker-health:
+  releasefoundry-object-store:
+  releasefoundry-payment-webhook-health:
+  releasefoundry-payment-reconciliation-health:
+  releasefoundry-payment-scheduler-health:
+  releasefoundry-china-bank-acquirer-health:
+  releasefoundry-stripe-payment-health:

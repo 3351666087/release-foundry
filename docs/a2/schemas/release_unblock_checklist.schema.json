@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A2ReleaseUnblockChecklist",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "checklist_id",
+    "source_release_gate",
+    "release_gate_decision",
+    "release_gate_exit_code",
+    "release_gate_risk_score",
+    "overall_status",
+    "blocked_gate_count",
+    "gate_items",
+    "a3_consumption_summary",
+    "review_workflow",
+    "evidence_refs",
+    "metadata"
+  ],
+  "properties": {
+    "schema_version": { "const": "a2.release_unblock_checklist.v1" },
+    "checklist_id": { "type": "string" },
+    "source_release_gate": { "type": "string" },
+    "release_gate_decision": { "type": "string" },
+    "release_gate_exit_code": { "type": "integer", "minimum": 0 },
+    "release_gate_risk_score": { "type": "integer", "minimum": 0, "maximum": 100 },
+    "overall_status": { "enum": ["blocked", "ready"] },
+    "blocked_gate_count": { "type": "integer", "minimum": 0 },
+    "gate_items": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/gate_item" }
+    },
+    "a3_consumption_summary": { "$ref": "#/$defs/a3_consumption_summary" },
+    "review_workflow": { "type": "object" },
+    "evidence_refs": { "$ref": "#/$defs/string_array" },
+    "metadata": {
+      "type": "object",
+      "required": [
+        "deterministic",
+        "public_safe",
+        "does_not_execute_live_calls",
+        "does_not_read_private_evidence",
+        "purpose"
+      ],
+      "properties": {
+        "deterministic": { "const": true },
+        "public_safe": { "const": true },
+        "does_not_execute_live_calls": { "const": true },
+        "does_not_read_private_evidence": { "const": true },
+        "purpose": { "type": "string" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "string_array": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "a3_consumption_summary": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "blocked_gate_count",
+        "primary_action",
+        "dashboard_sections",
+        "evidence_refs"
+      ],
+      "properties": {
+        "schema_version": { "const": "a2.release_unblock_checklist.a3_summary.v1" },
+        "blocked_gate_count": { "type": "integer", "minimum": 0 },
+        "primary_action": { "type": "string" },
+        "dashboard_sections": { "$ref": "#/$defs/string_array" },
+        "evidence_refs": { "$ref": "#/$defs/string_array" }
+      },
+      "additionalProperties": true
+    },
+    "gate_item": {
+      "type": "object",
+      "required": [
+        "gate",
+        "title",
+        "status",
+        "blocks_release",
+        "owner_role",
+        "missing_count",
+        "required_actions",
+        "evidence_refs"
+      ],
+      "properties": {
+        "gate": { "enum": ["C3", "C4", "C5"] },
+        "title": { "type": "string" },
+        "status": { "type": "string" },
+        "blocks_release": { "type": "boolean" },
+        "owner_role": { "type": "string" },
+        "missing_count": { "type": "integer", "minimum": 0 },
+        "required_actions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/action_item" }
+        },
+        "evidence_refs": { "$ref": "#/$defs/string_array" }
+      },
+      "additionalProperties": true
+    },
+    "action_item": {
+      "type": "object",
+      "required": [
+        "action_id",
+        "action",
+        "required_evidence_source",
+        "missing_count",
+        "private_evidence_required",
+        "private_input_ref",
+        "commands",
+        "evidence_refs"
+      ],
+      "properties": {
+        "action_id": { "type": "string" },
+        "action": { "type": "string" },
+        "required_evidence_source": { "type": "string" },
+        "missing_count": { "type": "integer", "minimum": 0 },
+        "private_evidence_required": { "type": "boolean" },
+        "private_input_ref": { "type": "string" },
+        "commands": { "$ref": "#/$defs/string_array" },
+        "evidence_refs": { "$ref": "#/$defs/string_array" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

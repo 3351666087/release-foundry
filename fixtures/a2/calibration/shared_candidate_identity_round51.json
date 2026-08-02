@@ -1,0 +1,31 @@
+{
+  "a1": {
+    "candidate_id": "round62-source-candidate",
+    "evidence_bundle_hash": "sha256:21343edf6de27a94a2e106e005f6334163a0f6dbc42b9381de5e3da1a447112b",
+    "git_sha": "6a985b80ffc9c5de6da70c3b7f23826017440503"
+  },
+  "a2": {
+    "candidate_id": "a2-unbound-round51",
+    "decision_hash": "sha256:5269659bde4811c3264d3f7d15395e04e50fbc9bc24ff96dd75c466fb5b0c57e",
+    "git_sha": "bb3bcfe493954dff8eba2244915464e97023358a",
+    "grades_hash": "sha256:f5e7e808398f57671aaf3d7ed48d0cf02b9284c984b60c0c5e2402d735285b15",
+    "review_conservation_hash": "sha256:57dcff674292085b5a835a9f70ebb78ff980cf3349ae010ee76b67b5e43ae3a2"
+  },
+  "a3": {
+    "candidate_id": "a3-golden-20260712-002",
+    "consumed_decision_hash": "sha256:be7087dcb2dac054271ae3b5565cc2ec98921cb66ea2eaaf2dbfdd316452cae1",
+    "consumed_grades_hash": "sha256:5985e17a6f5a33951ed91429a4e7781068c56ccf1f783cc719beccf26987726c",
+    "git_sha": "7bd03bff160eeba8cd7fcae4ef816bd354b4ee29"
+  },
+  "binding_state": "blocked",
+  "blockers": [
+    "a1_release_receipt_git_sha_stale",
+    "a2_exact_shared_candidate_binding_absent",
+    "a3_candidate_id_differs_from_a1",
+    "a3_consumes_round50_review_sample_not_round51_release_decision"
+  ],
+  "candidate_id": "round62-source-candidate",
+  "public_safe": true,
+  "release_authority": false,
+  "schema_version": "a2.shared_candidate_identity.v1"
+}

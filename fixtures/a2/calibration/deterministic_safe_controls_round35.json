@@ -1,0 +1,22 @@
+{
+  "schema_version": "a2.deterministic_safe_control_expansion.v1",
+  "controls": [
+    {
+      "case_id": "round35-safe-rings",
+      "artifact_path": "fixtures/a2/calibration/patterned_safe_control_round35_rings.ppm",
+      "artifact_hash": "sha256:fdd93dee6abe4e4222f5b23a3f30d21bcb9ae2e63a22563e3b2343a184871744",
+      "expected_risk": false,
+      "semantic_label": "text_free_concentric_rings"
+    },
+    {
+      "case_id": "round35-safe-quadrants",
+      "artifact_path": "fixtures/a2/calibration/patterned_safe_control_round35_quadrants.ppm",
+      "artifact_hash": "sha256:d9da5a2285cd2151777fe992930db7b6fb93069bf89fee1ba652199a21d6add6",
+      "expected_risk": false,
+      "semantic_label": "text_free_blue_quadrants"
+    }
+  ],
+  "provider_labels_used": false,
+  "release_authority": false,
+  "public_safe": true
+}

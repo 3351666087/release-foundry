@@ -1,0 +1,59 @@
+{
+  "schema_version": "a3.github_repository_installation_readback.v1",
+  "provider": "github",
+  "resource_kind": "github_app_installation",
+  "readback_id": "ghirb_785be73613296a99",
+  "readback_status": "permission_denied",
+  "readback_confirmed": false,
+  "repository_bound": false,
+  "identity_matches": false,
+  "http_status": 401,
+  "github_request_id": "C71E:28BEC9:1268E7E:13216F3:6A54873A",
+  "expected": {
+    "repo": "3351666087/release-foundry",
+    "app_slug": "releasefoundry-enterprise",
+    "app_id_alias": null,
+    "installation_id_alias": null
+  },
+  "observed": {
+    "installation_id_alias": null,
+    "app_id_alias": null,
+    "app_slug": null,
+    "target_type": null,
+    "repository_selection": null,
+    "permissions": {},
+    "events": [],
+    "suspended": false,
+    "suspended_at": null,
+    "created_at": null,
+    "updated_at": null
+  },
+  "matches": {
+    "app_slug": false,
+    "app_id": null,
+    "installation_id": null
+  },
+  "sanitized_error_class": "permission_denied",
+  "payload_hash": "785be73613296a99ab17244b3e4889e64ceb8dc50378e147170feefae00f1653",
+  "checked_at": "2026-07-13T06:35:36.176Z",
+  "safety": {
+    "token_included": false,
+    "token_source": "provided_runtime_option",
+    "response_body_sanitized": true,
+    "raw_body_stored": false,
+    "secret_values_allowed": false,
+    "live_mutation_performed": false,
+    "account_login_stored": false,
+    "raw_installation_token_stored": false,
+    "repository_target_server_fixed": true
+  },
+  "calibration": {
+    "live_readback": false,
+    "authority_class": "github_repository_installation_readback",
+    "expected_head_sha_alias": null,
+    "expected_app_slug": "releasefoundry-enterprise",
+    "tenant_binding_receipt_present": false,
+    "custom_tenant_github_app_proven": false,
+    "observed_via_read_only_api": true
+  }
+}

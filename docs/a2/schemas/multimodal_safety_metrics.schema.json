@@ -1,0 +1,393 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://releasefoundry.local/schemas/a2/multimodal_safety_metrics.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "case_count",
+    "valid_semantic_case_count",
+    "invalid_semantic_case_count",
+    "true_positive_count",
+    "true_negative_count",
+    "false_negative_count",
+    "false_positive_count",
+    "precision",
+    "recall",
+    "specificity",
+    "balanced_accuracy",
+    "recall_wilson_95",
+    "specificity_wilson_95",
+    "minimum_recall_wilson_lower",
+    "minimum_specificity_wilson_lower",
+    "timed_out_taxonomies",
+    "false_negative_rate",
+    "false_positive_rate",
+    "false_negative_rate_wilson_95",
+    "false_positive_rate_wilson_95",
+    "minimum_labeled_cases",
+    "minimum_labeled_cases_met",
+    "taxonomy_minimums",
+    "taxonomy_minimums_met",
+    "by_attack_taxonomy",
+    "false_negative_case_ids",
+    "false_positive_case_ids",
+    "safety_critical_case_ids",
+    "safety_critical_false_negative_case_ids",
+    "qualification_state",
+    "release_authority",
+    "human_review_required",
+    "blockers",
+    "public_safe",
+    "minimum_safe_control_cases",
+    "minimum_safe_control_cases_met",
+    "minimum_attack_control_cases",
+    "minimum_attack_control_cases_met",
+    "taxonomy_minimum_positive_denominators",
+    "taxonomy_minimum_negative_denominators",
+    "taxonomy_minimum_recall_wilson_lower",
+    "taxonomy_minimum_specificity_wilson_lower"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "a2.multimodal_safety_metrics.v1"
+    },
+    "case_count": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "valid_semantic_case_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "invalid_semantic_case_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "false_negative_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "false_positive_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "true_positive_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "true_negative_count": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "precision": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "recall": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "specificity": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "balanced_accuracy": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "recall_wilson_95": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      ],
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "specificity_wilson_95": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      ],
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "false_negative_rate": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "false_positive_rate": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "false_negative_rate_wilson_95": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      ],
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "false_positive_rate_wilson_95": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      ],
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "minimum_labeled_cases": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "minimum_labeled_cases_met": {
+      "type": "boolean"
+    },
+    "taxonomy_minimums": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 1
+      }
+    },
+    "taxonomy_minimums_met": {
+      "type": "boolean"
+    },
+    "by_attack_taxonomy": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object",
+        "required": [
+          "case_count",
+          "attempted_count",
+          "timeout_count",
+          "invalid_output_count",
+          "false_negative_count",
+          "false_positive_count",
+          "recall_wilson_95",
+          "specificity_wilson_95",
+          "false_negative_rate_wilson_95",
+          "false_positive_rate_wilson_95",
+          "recall_denominator",
+          "specificity_denominator"
+        ],
+        "properties": {
+          "case_count": {
+            "type": "integer"
+          },
+          "attempted_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "false_negative_count": {
+            "type": "integer"
+          },
+          "false_positive_count": {
+            "type": "integer"
+          },
+          "timeout_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "invalid_output_count": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "recall_wilson_95": {
+            "$ref": "#/$defs/probabilityInterval"
+          },
+          "specificity_wilson_95": {
+            "$ref": "#/$defs/probabilityInterval"
+          },
+          "false_negative_rate_wilson_95": {
+            "$ref": "#/$defs/probabilityInterval"
+          },
+          "false_positive_rate_wilson_95": {
+            "$ref": "#/$defs/probabilityInterval"
+          },
+          "recall_denominator": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "specificity_denominator": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "false_negative_case_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "false_positive_case_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "safety_critical_case_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "safety_critical_false_negative_case_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "qualification_state": {
+      "enum": [
+        "blocked",
+        "review_available"
+      ]
+    },
+    "release_authority": {
+      "const": false
+    },
+    "human_review_required": {
+      "const": true
+    },
+    "blockers": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "public_safe": {
+      "const": true
+    },
+    "minimum_recall_wilson_lower": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "minimum_specificity_wilson_lower": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "timed_out_taxonomies": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true
+    },
+    "minimum_safe_control_cases": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "minimum_safe_control_cases_met": {
+      "type": "boolean"
+    },
+    "minimum_attack_control_cases": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "minimum_attack_control_cases_met": {
+      "type": "boolean"
+    },
+    "taxonomy_minimum_positive_denominators": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 1
+      }
+    },
+    "taxonomy_minimum_negative_denominators": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 1
+      }
+    },
+    "taxonomy_minimum_recall_wilson_lower": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      }
+    },
+    "taxonomy_minimum_specificity_wilson_lower": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "number",
+        "minimum": 0,
+        "maximum": 1
+      }
+    }
+  },
+  "$defs": {
+    "probabilityInterval": {
+      "type": "array",
+      "prefixItems": [
+        {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      ],
+      "minItems": 2,
+      "maxItems": 2
+    }
+  }
+}

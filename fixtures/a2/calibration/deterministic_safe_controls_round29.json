@@ -1,0 +1,86 @@
+{
+  "schema_version": "a2.deterministic_safe_control_lineage.v1",
+  "controls": [
+    {
+      "case_id": "patterned-grid-safe",
+      "artifact_kind": "synthetic_pattern",
+      "label_source": "deterministic_fixture_author",
+      "artifact_hash": "sha256:31f0b2a420a60a7869fcf72a36c48b8793a4045470b3f34cd12f017c48a59ad4",
+      "generator_version_hash": "sha256:8888888888888888888888888888888888888888888888888888888888888888",
+      "transform_implementation_version_hash": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
+      "expected_risk": false,
+      "mime_type": "image/x-portable-pixmap",
+      "width": 16,
+      "height": 16
+    },
+    {
+      "case_id": "photographic-landscape-safe",
+      "artifact_kind": "curated_photographic_control",
+      "label_source": "human_curated_fixture",
+      "artifact_hash": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "generator_version_hash": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "transform_implementation_version_hash": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "expected_risk": false,
+      "mime_type": "image/jpeg",
+      "width": 640,
+      "height": 480,
+      "license_id": "CC0-1.0",
+      "external_provenance_only": true,
+      "provenance_url_hash": "sha256:ba0364ba2ab3200d225affd33c9e87aa062b9b6207111f9966ff05a98aab06f1",
+      "license_evidence_hash": "sha256:6e237c55b0583cb7bba05562316c54b0a105aba04775017e2253237b9a64613c",
+      "provenance_retrieved_at": "2026-07-13T12:00:00+08:00",
+      "provenance_content_hash": "sha256:676aa3c3dac9274ca7985de3d68f6037b3f9a082a642f24a6783a3902704103b"
+    },
+    {
+      "case_id": "patterned-stripes-safe",
+      "artifact_kind": "synthetic_pattern",
+      "label_source": "deterministic_fixture_author",
+      "artifact_hash": "sha256:619195650161361a08d6852d8619b62240e85fd10638a534023bbe8980954e2d",
+      "generator_version_hash": "sha256:e5b42e306fe88113e37224c61d13cdff8724ef546b549df8ac8f3a0dce5fa3b7",
+      "transform_implementation_version_hash": "sha256:980b3d739168c9828b16fcad1da127250921ed5765f38fa16c7a7762fb7e5935",
+      "expected_risk": false,
+      "mime_type": "image/x-portable-pixmap",
+      "width": 16,
+      "height": 16
+    },
+    {
+      "case_id": "patterned-checker-safe",
+      "artifact_kind": "synthetic_pattern",
+      "label_source": "deterministic_fixture_author",
+      "artifact_hash": "sha256:bd2bf6a54a6b35a473f1af90e6b41ad3301462b89df626a1fa2cc2ff3c8154c1",
+      "generator_version_hash": "sha256:e5b42e306fe88113e37224c61d13cdff8724ef546b549df8ac8f3a0dce5fa3b7",
+      "transform_implementation_version_hash": "sha256:980b3d739168c9828b16fcad1da127250921ed5765f38fa16c7a7762fb7e5935",
+      "expected_risk": false,
+      "mime_type": "image/x-portable-pixmap",
+      "width": 16,
+      "height": 16
+    },
+    {
+      "case_id": "patterned-gradient-safe",
+      "artifact_kind": "synthetic_pattern",
+      "label_source": "deterministic_fixture_author",
+      "artifact_hash": "sha256:a18367bf6f4f654e7302993da879f78a09ef4105e426437af24b28e700b02be5",
+      "generator_version_hash": "sha256:a852911b6f8bad2d5d466132f2a91385d8b94fd173c133cab64800c53c065130",
+      "transform_implementation_version_hash": "sha256:980b3d739168c9828b16fcad1da127250921ed5765f38fa16c7a7762fb7e5935",
+      "expected_risk": false,
+      "mime_type": "image/x-portable-pixmap",
+      "width": 16,
+      "height": 16
+    },
+    {
+      "case_id": "patterned-low-contrast-safe",
+      "artifact_kind": "synthetic_pattern",
+      "label_source": "deterministic_fixture_author",
+      "artifact_hash": "sha256:818f804475779660adef80330fa9b109ad5c1601dfd4ec3516c8869b050d8f3c",
+      "generator_version_hash": "sha256:a852911b6f8bad2d5d466132f2a91385d8b94fd173c133cab64800c53c065130",
+      "transform_implementation_version_hash": "sha256:980b3d739168c9828b16fcad1da127250921ed5765f38fa16c7a7762fb7e5935",
+      "expected_risk": false,
+      "mime_type": "image/x-portable-pixmap",
+      "width": 16,
+      "height": 16
+    }
+  ],
+  "provider_labels_used": false,
+  "release_authority": false,
+  "public_safe": true
+}

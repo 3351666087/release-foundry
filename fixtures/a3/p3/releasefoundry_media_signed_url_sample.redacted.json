@@ -1,0 +1,25 @@
+{
+  "decision": "Do not render live signed URLs. Preserve redacted metadata until audio/image/video signed URL samples and expiry/access behavior are confirmed.",
+  "media_term_counts": {
+    "audio": 148,
+    "file": 64,
+    "image": 288,
+    "video": 25
+  },
+  "observed_at": "2026-07-06T04:27:11Z",
+  "output_path_paths": {
+    "get_dataset_1.dataset.dataset_source.runs.[REDACTED_RUN_KEY].actions[].output_path": 4,
+    "get_dataset_2.dataset.dataset_source.runs.[REDACTED_RUN_KEY].actions[].output_path": 6,
+    "get_dataset_3.dataset.dataset_source.runs.[REDACTED_RUN_KEY].actions[].output_path": 6,
+    "list_datasets.datasets[].dataset_source.runs.[REDACTED_RUN_KEY].actions[].output_path": 6,
+    "list_datasets_signed_url_probe.datasets[].dataset_source.runs.[REDACTED_RUN_KEY].actions[].output_path": 6
+  },
+  "schema_version": "a3.p3.media_signed_url_sample.v1",
+  "signed_url_paths": {
+    "get_dataset_2.dataset.dataset_source.runs.[REDACTED_RUN_KEY].actions[].signed_url": 1,
+    "list_datasets_signed_url_probe.datasets[].dataset_source.runs.[REDACTED_RUN_KEY].actions[].signed_url": 1
+  },
+  "signed_url_replacement": "[REDACTED_SIGNED_URL]",
+  "signed_url_values_saved": false,
+  "source": "Signed URL path and type coverage only. Values are never saved."
+}

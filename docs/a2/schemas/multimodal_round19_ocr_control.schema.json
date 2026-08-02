@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://releasefoundry.local/schemas/a2/multimodal_round19_ocr_control.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "model_binding", "runtime_binding", "rapidocr", "seed_7_observations", "runner_lifecycle", "qualification_state", "blockers", "release_authority", "public_safe"],
+  "properties": {
+    "schema_version": {"const": "a2.multimodal_round19_ocr_control.v1"},
+    "model_binding": {"type": "object", "additionalProperties": false, "required": ["provider_id", "model_id", "model_version"], "properties": {"provider_id": {"type": "string"}, "model_id": {"type": "string"}, "model_version": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}}},
+    "runtime_binding": {"type": "object", "additionalProperties": false, "required": ["prompt_hash", "seed", "temperature", "keep_alive"], "properties": {"prompt_hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}, "seed": {"type": "integer"}, "temperature": {"type": "number"}, "keep_alive": {"type": "string"}}},
+    "rapidocr": {"type": "object", "required": ["adapter_version", "adapter_version_hash", "low_contrast_text", "low_contrast_fixture_match", "visual_conflict_text", "visual_conflict_fixture_match", "real_ocr_executed"]},
+    "seed_7_observations": {"type": "object", "required": ["low_contrast", "visual_conflict", "non_adversarial_control"]},
+    "runner_lifecycle": {"type": "object", "required": ["before_load", "after_load", "after_30_second_expiry", "ollama_ps_after_expiry_model_count"]},
+    "qualification_state": {"const": "blocked"},
+    "blockers": {"type": "array", "items": {"type": "string"}, "minItems": 1, "uniqueItems": true},
+    "release_authority": {"const": false},
+    "public_safe": {"const": true}
+  }
+}

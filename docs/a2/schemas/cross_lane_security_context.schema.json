@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A2CrossLaneSecurityContext",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "report_id",
+    "created_at",
+    "source_refs",
+    "a1_route_scope",
+    "a3_auth_rbac_boundary",
+    "a3_fail_closed_rbac",
+    "a3_event_outbox",
+    "a2_policy_implications",
+    "a2_security_followups",
+    "metadata"
+  ],
+  "properties": {
+    "schema_version": { "const": "a2.cross_lane_security_context.v1" },
+    "report_id": { "type": "string" },
+    "created_at": { "type": "string", "format": "date-time" },
+    "source_refs": {
+      "type": "object",
+      "required": [
+        "a1_route_scope",
+        "a3_auth_rbac_boundary",
+        "a3_openapi",
+        "a3_fail_closed_rbac",
+        "a3_event_outbox"
+      ],
+      "properties": {
+        "a1_route_scope": { "type": "string" },
+        "a3_auth_rbac_boundary": { "type": "string" },
+        "a3_openapi": { "type": "string" },
+        "a3_fail_closed_rbac": { "type": "string" },
+        "a3_event_outbox": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "a1_route_scope": { "$ref": "#/$defs/source_summary" },
+    "a3_auth_rbac_boundary": { "$ref": "#/$defs/source_summary" },
+    "a3_fail_closed_rbac": { "$ref": "#/$defs/source_summary" },
+    "a3_event_outbox": { "$ref": "#/$defs/source_summary" },
+    "a2_policy_implications": {
+      "type": "object",
+      "required": [
+        "should_block_hosted_mutations_without_a1_auth",
+        "should_require_metadata_only_audit_events",
+        "should_keep_raw_actor_identity_forbidden",
+        "should_require_fail_closed_a3_writes",
+        "should_require_a3_event_outbox_metadata_only",
+        "should_add_route_scope_security_cases",
+        "should_add_auth_rbac_abuse_cases",
+        "should_add_fail_closed_write_abuse_cases",
+        "should_add_event_outbox_integrity_cases",
+        "release_policy_refs"
+      ],
+      "properties": {
+        "should_block_hosted_mutations_without_a1_auth": { "type": "boolean" },
+        "should_require_metadata_only_audit_events": { "type": "boolean" },
+        "should_keep_raw_actor_identity_forbidden": { "type": "boolean" },
+        "should_require_fail_closed_a3_writes": { "type": "boolean" },
+        "should_require_a3_event_outbox_metadata_only": { "type": "boolean" },
+        "should_add_route_scope_security_cases": { "type": "boolean" },
+        "should_add_auth_rbac_abuse_cases": { "type": "boolean" },
+        "should_add_fail_closed_write_abuse_cases": { "type": "boolean" },
+        "should_add_event_outbox_integrity_cases": { "type": "boolean" },
+        "release_policy_refs": { "$ref": "#/$defs/string_array" }
+      },
+      "additionalProperties": true
+    },
+    "a2_security_followups": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/followup" },
+      "minItems": 1
+    },
+    "metadata": {
+      "type": "object",
+      "required": [
+        "public_safe",
+        "deterministic",
+        "requires_network",
+        "requires_releasefoundry_api_key",
+        "does_not_execute_live_calls",
+        "does_not_read_private_evidence",
+        "raw_private_evidence_not_recorded",
+        "secrets_not_recorded",
+        "intended_consumers"
+      ],
+      "properties": {
+        "public_safe": { "const": true },
+        "deterministic": { "const": true },
+        "requires_network": { "const": false },
+        "requires_releasefoundry_api_key": { "const": false },
+        "does_not_execute_live_calls": { "const": true },
+        "does_not_read_private_evidence": { "const": true },
+        "raw_private_evidence_not_recorded": { "const": true },
+        "secrets_not_recorded": { "const": true },
+        "intended_consumers": { "$ref": "#/$defs/string_array" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "source_summary": {
+      "type": "object",
+      "required": [
+        "available",
+        "path",
+        "schema_version",
+        "ready_for_a2_security_context",
+        "notes"
+      ],
+      "properties": {
+        "available": { "type": "boolean" },
+        "path": { "type": "string" },
+        "schema_version": { "type": "string" },
+        "ready_for_a2_security_context": { "type": "boolean" },
+        "notes": { "$ref": "#/$defs/string_array" }
+      },
+      "additionalProperties": true
+    },
+    "followup": {
+      "type": "object",
+      "required": [
+        "followup_id",
+        "action",
+        "owner",
+        "tags",
+        "writes_private_evidence",
+        "requires_user_decision"
+      ],
+      "properties": {
+        "followup_id": { "type": "string" },
+        "action": { "type": "string" },
+        "owner": { "type": "string" },
+        "tags": { "$ref": "#/$defs/string_array" },
+        "writes_private_evidence": { "type": "boolean" },
+        "requires_user_decision": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    },
+    "string_array": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  },
+  "additionalProperties": true
+}

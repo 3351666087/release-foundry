@@ -1,0 +1,7 @@
+{
+  "first_attempt": {"status": 500, "body": "Temporary error"},
+  "second_attempt": {
+    "status": 200,
+    "body": {"version": "3.4", "support_status": "supported until 2027-01-31"}
+  }
+}

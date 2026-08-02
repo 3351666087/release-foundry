@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "风险告警",
+  "enablePullDownRefresh": true,
+  "backgroundColor": "#f3f4f6",
+  "usingComponents": {}
+}

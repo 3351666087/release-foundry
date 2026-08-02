@@ -1,0 +1,97 @@
+{
+  "schema_version": "releasefoundry.a1.frontend_dashboard_dtos_public.v1",
+  "source": {
+    "derived_from": [
+      "docs/a1/evidence/round19_frontend_api_usage_quota_lifecycle.md",
+      "tests/a1/fixtures/round19_frontend_contract_public.json",
+      "docs/evidence/private_refs/*summary*.json and quota/noquota probe filenames only"
+    ],
+    "inspection_date": "2026-07-08",
+    "redaction": "Synthetic public DTOs using frontend mirror field names only; no auth token, API key secret, account ID, customer payload, nonpublic response bodies, cookie, or browser storage value."
+  },
+  "dashboard_response_shapes": {
+    "get_usage": {
+      "status": "ok",
+      "function": "get_usage",
+      "usage": {
+        "videos": {"used": 3, "limit": 10, "cap_mode": "hard_limit", "label": "Videos"},
+        "images": {"used": 74, "limit": 100, "cap_mode": "hard_limit", "label": "Images"},
+        "simulations": {"used": 76, "limit": 100, "cap_mode": "hard_limit", "label": "Simulations"},
+        "audios": {"used": 91, "limit": 100, "cap_mode": "overage", "label": "Audio"},
+        "files": {"used": 10, "limit": 10, "cap_mode": "hard_limit", "label": "Files"},
+        "graded_scenarios": {"used": 11, "limit": 10, "cap_mode": "overage", "label": "Graded scenarios"},
+        "observations": {"used": 45, "limit": 100, "cap_mode": "hard_limit", "label": "Observations"},
+        "voice_minutes": {"used": 30, "limit": 60, "cap_mode": "hard_limit", "label": "Voice minutes"}
+      },
+      "quota_cards": [
+        {"metric_key": "videos", "label": "Videos", "used": 3, "limit": 10, "percent_used": 30, "severity": "normal", "badge": null},
+        {"metric_key": "images", "label": "Images", "used": 74, "limit": 100, "percent_used": 74, "severity": "normal", "badge": null},
+        {"metric_key": "simulations", "label": "Simulations", "used": 76, "limit": 100, "percent_used": 76, "severity": "warning", "badge": null},
+        {"metric_key": "audios", "label": "Audio", "used": 91, "limit": 100, "percent_used": 91, "severity": "error", "badge": "Over included usage"},
+        {"metric_key": "files", "label": "Files", "used": 10, "limit": 10, "percent_used": 100, "severity": "error", "badge": "Limit reached"},
+        {"metric_key": "graded_scenarios", "label": "Graded scenarios", "used": 11, "limit": 10, "percent_used": 110, "severity": "error", "badge": "Overage billing"},
+        {"metric_key": "observations", "label": "Observations", "used": 45, "limit": 100, "percent_used": 45, "severity": "normal", "badge": null},
+        {"metric_key": "voice_minutes", "label": "Voice minutes", "used": 30, "limit": 60, "percent_used": 50, "severity": "normal", "badge": null}
+      ],
+      "tabs": ["Plan limits", "Assets"]
+    },
+    "list_api_keys": {
+      "status": "ok",
+      "function": "list_api_keys",
+      "api_keys": [
+        {
+          "api_key_id": "ak_public_example_001",
+          "name": "CI writer",
+          "created_at": "2026-07-08T00:00:00Z",
+          "last_used_at": null,
+          "expires_seconds": 2592000,
+          "revoked_at": null,
+          "scopes": ["sdk:submit", "run:upload"],
+          "secret_value_present": false,
+          "one_time_secret_displayed": false
+        }
+      ],
+      "empty_state": {
+        "title": "No API keys yet",
+        "hint": "Create your first API key to get started with programmatic access."
+      }
+    },
+    "billing_get_status": {
+      "status": "ok",
+      "function": "billing_get_status",
+      "billing": {
+        "current_plan_label": "Current plan",
+        "upgrade_action_label": "Upgrade",
+        "portal_session_available": true,
+        "checkout_session_available": true
+      }
+    }
+  },
+  "frontend_mirror_fields": [
+    "function",
+    "created_at",
+    "last_used_at",
+    "expires_seconds",
+    "api_key_id",
+    "videos",
+    "images",
+    "simulations",
+    "audios",
+    "files",
+    "graded_scenarios",
+    "observations",
+    "voice_minutes"
+  ],
+  "redaction_forbidden_fields": [
+    "token",
+    "one_time_secret",
+    "secret",
+    "secret_hash_sha256",
+    "api_key",
+    "cookie",
+    "authorization",
+    "browser_storage",
+    "account_id",
+    "customer_id"
+  ]
+}

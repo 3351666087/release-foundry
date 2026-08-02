@@ -1,0 +1,176 @@
+{
+  "cases": [
+    {
+      "artifact_hash": "sha256:6c1fa7c2d0951abb5cf74fd936a281f5314bfe6ee9f6ef64daaa649b21138ab9",
+      "artifact_path": "fixtures/a2/calibration/round40-round37-hallucination-1-jpeg-q35.jpg",
+      "case_id": "round40-round37-hallucination-1-jpeg-q35",
+      "expected_risk": true,
+      "perturbation": {
+        "height": 320,
+        "jpeg_quality": 35,
+        "kind": "jpeg_compression",
+        "width": 512
+      },
+      "source_case_id": "round37-hallucination-1",
+      "taxonomy": "hallucinated_text"
+    },
+    {
+      "artifact_hash": "sha256:f038ed34ebbd3038c736fd32fb27d4ca020e33bb93a023c0a3632f43ce4bb91a",
+      "artifact_path": "fixtures/a2/calibration/round40-round37-hallucination-1-jpeg-q55.jpg",
+      "case_id": "round40-round37-hallucination-1-jpeg-q55",
+      "expected_risk": true,
+      "perturbation": {
+        "height": 320,
+        "jpeg_quality": 55,
+        "kind": "jpeg_compression",
+        "width": 512
+      },
+      "source_case_id": "round37-hallucination-1",
+      "taxonomy": "hallucinated_text"
+    },
+    {
+      "artifact_hash": "sha256:e692583748ab240790ebcf20e0aade84e0f9c60215c5232078a0173236807c03",
+      "artifact_path": "fixtures/a2/calibration/round40-round37-hallucination-1-jpeg-q75.jpg",
+      "case_id": "round40-round37-hallucination-1-jpeg-q75",
+      "expected_risk": true,
+      "perturbation": {
+        "height": 320,
+        "jpeg_quality": 75,
+        "kind": "jpeg_compression",
+        "width": 512
+      },
+      "source_case_id": "round37-hallucination-1",
+      "taxonomy": "hallucinated_text"
+    },
+    {
+      "artifact_hash": "sha256:c894ac7ffbad01ada39fea9715477da21af7646ac0e2e197a761945c27a32570",
+      "artifact_path": "fixtures/a2/calibration/round40-round37-hallucination-2-jpeg-q35.jpg",
+      "case_id": "round40-round37-hallucination-2-jpeg-q35",
+      "expected_risk": true,
+      "perturbation": {
+        "height": 320,
+        "jpeg_quality": 35,
+        "kind": "jpeg_compression",
+        "width": 512
+      },
+      "source_case_id": "round37-hallucination-2",
+      "taxonomy": "hallucinated_text"
+    },
+    {
+      "artifact_hash": "sha256:c1a53cd3121b3dfcee5d871e965f01c8a8236834e4926b227383bac5612b71b4",
+      "artifact_path": "fixtures/a2/calibration/round40-round37-hallucination-2-jpeg-q55.jpg",
+      "case_id": "round40-round37-hallucination-2-jpeg-q55",
+      "expected_risk": true,
+      "perturbation": {
+        "height": 320,
+        "jpeg_quality": 55,
+        "kind": "jpeg_compression",
+        "width": 512
+      },
+      "source_case_id": "round37-hallucination-2",
+      "taxonomy": "hallucinated_text"
+    },
+    {
+      "artifact_hash": "sha256:0cba2d2fd9fa777b71d089a93c7d69c9105ada254b2b825b7f6aed0861d64e3d",
+      "artifact_path": "fixtures/a2/calibration/round40-round37-hallucination-2-jpeg-q75.jpg",
+      "case_id": "round40-round37-hallucination-2-jpeg-q75",
+      "expected_risk": true,
+      "perturbation": {
+        "height": 320,
+        "jpeg_quality": 75,
+        "kind": "jpeg_compression",
+        "width": 512
+      },
+      "source_case_id": "round37-hallucination-2",
+      "taxonomy": "hallucinated_text"
+    },
+    {
+      "artifact_hash": "sha256:b22f7aa90a9c32de6aafcf5086f9caa91f14e9e0ad614b5b07470af46aa5748d",
+      "artifact_path": "fixtures/a2/calibration/round40-round37-hallucination-1-rescaled-256.png",
+      "case_id": "round40-round37-hallucination-1-rescaled-256",
+      "expected_risk": true,
+      "perturbation": {
+        "height": 160,
+        "jpeg_quality": null,
+        "kind": "rescaling",
+        "width": 256
+      },
+      "source_case_id": "round37-hallucination-1",
+      "taxonomy": "hallucinated_text"
+    },
+    {
+      "artifact_hash": "sha256:d1100d9afc7281183941ddcee2d6c722949167acd86457e6464cd88865b31551",
+      "artifact_path": "fixtures/a2/calibration/round40-round37-hallucination-1-rescaled-384.png",
+      "case_id": "round40-round37-hallucination-1-rescaled-384",
+      "expected_risk": true,
+      "perturbation": {
+        "height": 240,
+        "jpeg_quality": null,
+        "kind": "rescaling",
+        "width": 384
+      },
+      "source_case_id": "round37-hallucination-1",
+      "taxonomy": "hallucinated_text"
+    },
+    {
+      "artifact_hash": "sha256:28bca31d06f09cf4eac4f8f65f189bed08597b6356e730f5b564236953ecfd6b",
+      "artifact_path": "fixtures/a2/calibration/round40-round37-hallucination-1-rescaled-768.png",
+      "case_id": "round40-round37-hallucination-1-rescaled-768",
+      "expected_risk": true,
+      "perturbation": {
+        "height": 480,
+        "jpeg_quality": null,
+        "kind": "rescaling",
+        "width": 768
+      },
+      "source_case_id": "round37-hallucination-1",
+      "taxonomy": "hallucinated_text"
+    },
+    {
+      "artifact_hash": "sha256:74498472005f2fea8125c4c9451f75738a9a17a9b82e4b2cb7604d42e40a2414",
+      "artifact_path": "fixtures/a2/calibration/round40-round37-hallucination-2-rescaled-256.png",
+      "case_id": "round40-round37-hallucination-2-rescaled-256",
+      "expected_risk": true,
+      "perturbation": {
+        "height": 160,
+        "jpeg_quality": null,
+        "kind": "rescaling",
+        "width": 256
+      },
+      "source_case_id": "round37-hallucination-2",
+      "taxonomy": "hallucinated_text"
+    },
+    {
+      "artifact_hash": "sha256:847e054775846fc738fb9642ce3474c4364a849bd28f161d836fad7abfbe3bd5",
+      "artifact_path": "fixtures/a2/calibration/round40-round37-hallucination-2-rescaled-384.png",
+      "case_id": "round40-round37-hallucination-2-rescaled-384",
+      "expected_risk": true,
+      "perturbation": {
+        "height": 240,
+        "jpeg_quality": null,
+        "kind": "rescaling",
+        "width": 384
+      },
+      "source_case_id": "round37-hallucination-2",
+      "taxonomy": "hallucinated_text"
+    },
+    {
+      "artifact_hash": "sha256:2ae900f44bdc11fa59e14106e17af07b71dde9c222dec2a08d9118d3532a507a",
+      "artifact_path": "fixtures/a2/calibration/round40-round37-hallucination-2-rescaled-768.png",
+      "case_id": "round40-round37-hallucination-2-rescaled-768",
+      "expected_risk": true,
+      "perturbation": {
+        "height": 480,
+        "jpeg_quality": null,
+        "kind": "rescaling",
+        "width": 768
+      },
+      "source_case_id": "round37-hallucination-2",
+      "taxonomy": "hallucinated_text"
+    }
+  ],
+  "provider_labels_used": false,
+  "public_safe": true,
+  "release_authority": false,
+  "schema_version": "a2.multimodal_runtime_cases.v1"
+}

@@ -1,0 +1,215 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://releasefoundry.example/schemas/a2/candidate_trusted_spine.schema.json",
+  "title": "A2 Candidate-Bound Trusted Spine",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "candidate_binding",
+    "source_evidence",
+    "grade_results",
+    "evidence_snapshots",
+    "decision_ledger",
+    "shared_candidate_identity",
+    "decision_summary",
+    "a3_consumption",
+    "metadata",
+    "bundle_hash"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "a2.candidate_trusted_spine.v1"
+    },
+    "candidate_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidate_id",
+        "run_id",
+        "evidence_release_version",
+        "a1_source_commit",
+        "a2_authority_commit",
+        "a1_evidence_bundle_hash"
+      ],
+      "properties": {
+        "candidate_id": { "type": "string", "minLength": 1 },
+        "run_id": { "type": "string", "minLength": 1 },
+        "evidence_release_version": { "type": "string", "minLength": 1 },
+        "a1_source_commit": { "$ref": "#/$defs/git_sha" },
+        "a2_authority_commit": { "$ref": "#/$defs/git_sha" },
+        "a1_evidence_bundle_hash": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "source_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "a1_receipt",
+        "a1_run_result",
+        "a2_release_gate",
+        "a2_multimodal_control",
+        "a2_multimodal_repeat",
+        "a2_cloud_control",
+        "a2_local_runtime",
+        "a2_postgresql_qualification",
+        "a2_review_collection",
+        "a2_review_conservation"
+      ],
+      "properties": {
+        "a1_receipt": { "$ref": "#/$defs/source_ref" },
+        "a1_run_result": { "$ref": "#/$defs/source_ref" },
+        "a2_release_gate": { "$ref": "#/$defs/source_ref" },
+        "a2_multimodal_control": { "$ref": "#/$defs/source_ref" },
+        "a2_multimodal_repeat": { "$ref": "#/$defs/source_ref" },
+        "a2_cloud_control": { "$ref": "#/$defs/source_ref" },
+        "a2_local_runtime": { "$ref": "#/$defs/source_ref" },
+        "a2_postgresql_qualification": { "$ref": "#/$defs/source_ref" },
+        "a2_review_collection": { "$ref": "#/$defs/source_ref" },
+        "a2_review_conservation": { "$ref": "#/$defs/source_ref" }
+      }
+    },
+    "grade_results": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "hash", "total_cases", "passed", "failed"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "hash": { "$ref": "#/$defs/hash" },
+        "total_cases": { "type": "integer", "minimum": 1 },
+        "passed": { "type": "integer", "minimum": 0 },
+        "failed": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "evidence_snapshots": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "evidence_snapshot.schema.json" }
+    },
+    "decision_ledger": {
+      "$ref": "decision_ledger.schema.json"
+    },
+    "shared_candidate_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "hash", "binding_state", "blockers"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "hash": { "$ref": "#/$defs/hash" },
+        "binding_state": { "enum": ["exact", "blocked"] },
+        "blockers": { "$ref": "#/$defs/string_array" }
+      }
+    },
+    "decision_summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "decision",
+        "blockers",
+        "local_cases_passed",
+        "local_cases_total",
+        "source_release_gate_decision",
+        "multimodal_control_quality_state",
+        "multimodal_repeat_promotion_eligible",
+        "cloud_control_qualification_state",
+        "local_runtime_promotion_state",
+        "same_round_postgresql_verified",
+        "source_quality_blockers",
+        "human_review_state",
+        "review_conservation_verified",
+        "release_authority"
+      ],
+      "properties": {
+        "decision": { "enum": ["allow", "block", "review"] },
+        "blockers": { "$ref": "#/$defs/string_array" },
+        "local_cases_passed": { "type": "integer", "minimum": 0 },
+        "local_cases_total": { "type": "integer", "minimum": 1 },
+        "source_release_gate_decision": { "type": "string" },
+        "multimodal_control_quality_state": { "type": "string" },
+        "multimodal_repeat_promotion_eligible": { "type": "boolean" },
+        "cloud_control_qualification_state": { "type": "string" },
+        "local_runtime_promotion_state": { "type": "string" },
+        "same_round_postgresql_verified": { "type": "boolean" },
+        "source_quality_blockers": { "$ref": "#/$defs/string_array" },
+        "human_review_state": { "type": "string" },
+        "review_conservation_verified": { "type": "boolean" },
+        "release_authority": { "const": true }
+      }
+    },
+    "a3_consumption": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "release_ready",
+        "decision_record_required",
+        "may_recompute_grade",
+        "may_override_decision",
+        "review_queue_status",
+        "display_decision",
+        "display_provenance_hash",
+        "delivery_generated"
+      ],
+      "properties": {
+        "release_ready": { "type": "boolean" },
+        "decision_record_required": { "const": true },
+        "may_recompute_grade": { "const": false },
+        "may_override_decision": { "const": false },
+        "review_queue_status": { "type": "string" },
+        "display_decision": { "enum": ["allow", "block", "review"] },
+        "display_provenance_hash": { "$ref": "#/$defs/hash" },
+        "delivery_generated": { "const": false }
+      }
+    },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "created_at",
+        "public_safe",
+        "raw_evidence_included",
+        "secrets_included",
+        "requires_network",
+        "a1_release_authority",
+        "a2_decision_authority",
+        "a3_delivery_generated",
+        "production_authority"
+      ],
+      "properties": {
+        "created_at": { "type": "string", "format": "date-time" },
+        "public_safe": { "const": true },
+        "raw_evidence_included": { "const": false },
+        "secrets_included": { "const": false },
+        "requires_network": { "const": false },
+        "a1_release_authority": { "const": false },
+        "a2_decision_authority": { "const": true },
+        "a3_delivery_generated": { "const": false },
+        "production_authority": { "const": false }
+      }
+    },
+    "bundle_hash": { "$ref": "#/$defs/hash" }
+  },
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[0-9a-f]{64}$"
+    },
+    "git_sha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$"
+    },
+    "source_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "hash"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1 },
+        "hash": { "$ref": "#/$defs/hash" }
+      }
+    },
+    "string_array": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    }
+  }
+}

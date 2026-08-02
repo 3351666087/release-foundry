@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A1 TraceEvent",
+  "type": "object",
+  "required": ["schema", "type", "event_type", "run_id", "event_id", "seq", "timestamp", "phase", "source", "tags", "observation", "metadata"],
+  "properties": {
+    "schema": { "const": "releasefoundry.trace.v1" },
+    "type": { "const": "trace_event" },
+    "event_type": { "type": "string" },
+    "run_id": { "type": "string" },
+    "event_id": { "type": "string" },
+    "seq": { "type": "integer", "minimum": 0 },
+    "timestamp": { "type": "string" },
+    "phase": { "type": "string" },
+    "source": { "type": "string" },
+    "parent_id": { "type": ["string", "null"] },
+    "tags": { "type": "array", "items": { "type": "string" } },
+    "observation": {
+      "type": "object",
+      "required": ["kind", "channel", "status", "text", "data"],
+      "properties": {
+        "kind": { "type": "string" },
+        "channel": { "type": "string" },
+        "status": { "type": "string" },
+        "text": { "type": "string" },
+        "data": { "type": "object" }
+      },
+      "additionalProperties": true
+    },
+    "metadata": { "type": "object" }
+  },
+  "additionalProperties": true
+}

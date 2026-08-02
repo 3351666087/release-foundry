@@ -1,0 +1,316 @@
+{
+  "schema_version": "a3.deployment_acceptance.v1",
+  "acceptance_id": "dpa_55903b28603e5a4cd181",
+  "generated_at": "2026-07-12T14:02:04.000Z",
+  "status": "blocked",
+  "production_accepted": false,
+  "release_identity": {
+    "release_version": "0.2.0-rc.2",
+    "environment": "staging",
+    "git_sha_alias": "c8420813ed6cb94535bd108b30bd97663b906bdb",
+    "ci_tested_sha_alias": "746ecbe959a9c8781e8e1fc7d2520a50fd92785b",
+    "run_ids": [
+      "a3-golden-20260712-002"
+    ]
+  },
+  "summary": {
+    "total_checks": 17,
+    "passed": 8,
+    "blocked": 1,
+    "not_proven": 8,
+    "failed": 0
+  },
+  "checks": [
+    {
+      "id": "a1_run_evidence",
+      "label": "A1 RunResult captured",
+      "owner": "A1",
+      "required": true,
+      "status": "passed",
+      "evidence_class": "local_authoritative",
+      "evidence_ref": "a3-golden-20260712-002",
+      "blocked_reason": null,
+      "details": {},
+      "production_proof": false
+    },
+    {
+      "id": "a2_grade_join",
+      "label": "A2 GradeResult joined",
+      "owner": "A2",
+      "required": true,
+      "status": "passed",
+      "evidence_class": "local_authoritative",
+      "evidence_ref": "a3-golden-20260712-002",
+      "blocked_reason": null,
+      "details": {},
+      "production_proof": false
+    },
+    {
+      "id": "a2_release_authority",
+      "label": "A2 Decision Ledger allows release",
+      "owner": "A2",
+      "required": true,
+      "status": "blocked",
+      "evidence_class": "local_authoritative",
+      "evidence_ref": "sha256:31c417d9232f2e3b0361f63b8aad305304774d28d0f68ed6e093f1a0bffa1e18",
+      "blocked_reason": "a2_decision_blocks_release",
+      "details": {
+        "integrity_verified": true,
+        "upstream_decision": "block",
+        "release_ready": false
+      },
+      "production_proof": false
+    },
+    {
+      "id": "hosted_identity",
+      "label": "A1 hosted identity verifier",
+      "owner": "A1",
+      "required": true,
+      "status": "not_proven",
+      "evidence_class": "contract_only",
+      "evidence_ref": null,
+      "blocked_reason": "A1 hosted identity work remains outside the authoritative main contract and no deployed verifier receipt is attached.",
+      "details": {
+        "status": "not_proven",
+        "verified": false,
+        "observed_at": null
+      },
+      "production_proof": false
+    },
+    {
+      "id": "postgres_rls",
+      "label": "PostgreSQL migration and RLS",
+      "owner": "A1/A3",
+      "required": true,
+      "status": "not_proven",
+      "evidence_class": "contract_only",
+      "evidence_ref": null,
+      "blocked_reason": "PostgreSQL and RLS contracts exist, but this candidate has no deployed database receipt.",
+      "details": {
+        "status": "not_proven",
+        "verified": false,
+        "observed_at": null
+      },
+      "production_proof": false
+    },
+    {
+      "id": "queue_worker",
+      "label": "Durable queue worker",
+      "owner": "A1",
+      "required": true,
+      "status": "not_proven",
+      "evidence_class": "contract_only",
+      "evidence_ref": null,
+      "blocked_reason": "No deployed queue, retry, dead-letter, and worker-health receipt is attached.",
+      "details": {
+        "status": "not_proven",
+        "verified": false,
+        "observed_at": null
+      },
+      "production_proof": false
+    },
+    {
+      "id": "object_storage",
+      "label": "Immutable object storage",
+      "owner": "A1/A3",
+      "required": true,
+      "status": "not_proven",
+      "evidence_class": "contract_only",
+      "evidence_ref": null,
+      "blocked_reason": "The rc.2 Audit Bundle has not been written to and read back from immutable object storage.",
+      "details": {
+        "status": "not_proven",
+        "verified": false,
+        "observed_at": null
+      },
+      "production_proof": false
+    },
+    {
+      "id": "deployment_health",
+      "label": "Deployed health and version readback",
+      "owner": "A1/A3",
+      "required": true,
+      "status": "not_proven",
+      "evidence_class": "not_proven",
+      "evidence_ref": null,
+      "blocked_reason": "No staging or VPC deployment URL and versioned health receipt is configured.",
+      "details": {
+        "status": "not_proven",
+        "verified": false,
+        "observed_at": null
+      },
+      "production_proof": false
+    },
+    {
+      "id": "upgrade_rollback",
+      "label": "Upgrade and rollback rehearsal",
+      "owner": "A1/A3",
+      "required": true,
+      "status": "not_proven",
+      "evidence_class": "not_proven",
+      "evidence_ref": null,
+      "blocked_reason": "Install, upgrade, rollback, backup, and restore have not been rehearsed against a deployed target.",
+      "details": {
+        "status": "not_proven",
+        "verified": false,
+        "observed_at": null
+      },
+      "production_proof": false
+    },
+    {
+      "id": "github_app_installation",
+      "label": "Tenant-bound GitHub App installation",
+      "owner": "A1/A3",
+      "required": true,
+      "status": "not_proven",
+      "evidence_class": "not_proven",
+      "evidence_ref": null,
+      "blocked_reason": "No tenant-bound custom GitHub App installation and permission receipt is available for rc.2.",
+      "details": {
+        "status": "not_proven",
+        "verified": false,
+        "observed_at": null
+      },
+      "production_proof": false
+    },
+    {
+      "id": "github_check_readback",
+      "label": "GitHub Check live readback",
+      "owner": "A3",
+      "required": true,
+      "status": "passed",
+      "evidence_class": "live_readback",
+      "evidence_ref": "ghcrb_8d7528dacef727ee",
+      "blocked_reason": null,
+      "details": {},
+      "production_proof": true
+    },
+    {
+      "id": "github_pr_comment_readback",
+      "label": "PR comment live readback",
+      "owner": "A3",
+      "required": true,
+      "status": "passed",
+      "evidence_class": "live_readback",
+      "evidence_ref": "ghprb_4ee73acc63725ab7",
+      "blocked_reason": null,
+      "details": {},
+      "production_proof": true
+    },
+    {
+      "id": "github_actions_artifact_readback",
+      "label": "GitHub Actions artifact live readback",
+      "owner": "A3",
+      "required": true,
+      "status": "passed",
+      "evidence_class": "live_readback",
+      "evidence_ref": 8260724828,
+      "blocked_reason": null,
+      "details": {
+        "artifact_name": "releasefoundry-a3-0.2.0-rc.2-c8420813ed6cb94535bd108b30bd97663b906bdb",
+        "digest": "sha256:056b434d467feb52f8eb371f251fac1d83a014e4c3044b644db64f75e6b2f935",
+        "expired": false
+      },
+      "production_proof": true
+    },
+    {
+      "id": "required_check_enforcement",
+      "label": "Required Check enforced on main",
+      "owner": "Repository maintainer",
+      "required": true,
+      "status": "not_proven",
+      "evidence_class": "not_proven",
+      "evidence_ref": "ghrcp_a4ecb62318d7fa47",
+      "blocked_reason": "main has no branch protection or the required check is absent.",
+      "details": {},
+      "production_proof": false
+    },
+    {
+      "id": "audit_bundle_verification",
+      "label": "Audit Bundle verified",
+      "owner": "A3",
+      "required": true,
+      "status": "passed",
+      "evidence_class": "local_verification",
+      "evidence_ref": "a3-bundle-0-2-0-rc-2-a3-golden-20260712-002-cc22b9f0ddf7",
+      "blocked_reason": null,
+      "details": {},
+      "production_proof": false
+    },
+    {
+      "id": "audit_archive_verification",
+      "label": "Signed audit archive verified",
+      "owner": "A3",
+      "required": true,
+      "status": "passed",
+      "evidence_class": "local_verification",
+      "evidence_ref": "a3-archive-a3-bundle-0-2-0-rc-2-a3-golden-20260712-002-cc22b9f0dd-04e34b9c52e9",
+      "blocked_reason": null,
+      "details": {},
+      "production_proof": false
+    },
+    {
+      "id": "release_artifact_verification",
+      "label": "Versioned release artifact verified",
+      "owner": "A3",
+      "required": true,
+      "status": "passed",
+      "evidence_class": "local_verification",
+      "evidence_ref": "04ba2da57fed18f3fcd3456b63cd4f1d19aa67f14f4ae8046a05867f0684a6cd",
+      "blocked_reason": null,
+      "details": {},
+      "production_proof": false
+    }
+  ],
+  "blocking_check_ids": [
+    "a2_release_authority",
+    "hosted_identity",
+    "postgres_rls",
+    "queue_worker",
+    "object_storage",
+    "deployment_health",
+    "upgrade_rollback",
+    "github_app_installation",
+    "required_check_enforcement"
+  ],
+  "next_actions": [
+    {
+      "check_id": "a2_release_authority",
+      "owner": "A2",
+      "action": "a2_decision_blocks_release"
+    },
+    {
+      "check_id": "hosted_identity",
+      "owner": "A1",
+      "action": "A1 hosted identity work remains outside the authoritative main contract and no deployed verifier receipt is attached."
+    },
+    {
+      "check_id": "postgres_rls",
+      "owner": "A1/A3",
+      "action": "PostgreSQL and RLS contracts exist, but this candidate has no deployed database receipt."
+    },
+    {
+      "check_id": "queue_worker",
+      "owner": "A1",
+      "action": "No deployed queue, retry, dead-letter, and worker-health receipt is attached."
+    },
+    {
+      "check_id": "object_storage",
+      "owner": "A1/A3",
+      "action": "The rc.2 Audit Bundle has not been written to and read back from immutable object storage."
+    }
+  ],
+  "authority": {
+    "runtime_and_identity": "A1",
+    "judge_and_release_decision": "A2",
+    "product_workflow_and_packaging": "A3",
+    "repository_policy": "GitHub repository maintainer"
+  },
+  "safety": {
+    "fixture_claimed_as_production": false,
+    "dry_run_claimed_as_live": false,
+    "a2_decision_recomputed": false,
+    "raw_secret_values_allowed": false,
+    "token_included": false
+  }
+}

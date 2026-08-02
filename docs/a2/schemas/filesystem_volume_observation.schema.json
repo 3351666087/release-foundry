@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://releasefoundry.local/schemas/a2/filesystem_volume_observation.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "filesystem_volume_id_hash",
+    "observation_method",
+    "observation_state",
+    "error_class",
+    "raw_identifier_exposed",
+    "public_safe"
+  ],
+  "properties": {
+    "filesystem_volume_id_hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    },
+    "observation_method": {
+      "enum": ["resolved_drive_hash", "windows_volume_api_hashed"]
+    },
+    "observation_state": {
+      "enum": ["fallback", "observed"]
+    },
+    "error_class": {
+      "enum": [
+        "none",
+        "not_applicable",
+        "permission_denied",
+        "volume_root_not_found",
+        "volume_api_timeout",
+        "volume_api_os_error",
+        "volume_api_unavailable",
+        "volume_api_unexpected_error"
+      ]
+    },
+    "raw_identifier_exposed": {"const": false},
+    "public_safe": {"const": true}
+  }
+}

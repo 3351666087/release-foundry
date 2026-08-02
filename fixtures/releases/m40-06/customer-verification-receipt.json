@@ -1,0 +1,54 @@
+{
+  "authoritative_blockers": [
+    "a2_release_blocked",
+    "a2_release_not_ready",
+    "a3_ci_tested_sha_missing",
+    "a3_delivery_not_ready",
+    "a3_gate_blocked",
+    "human_approval_missing",
+    "product_release_not_approved"
+  ],
+  "customer_release": {
+    "decision": "block_customer_agent_release",
+    "manifest_sha256": "a2371bee78a8dcc0a42b22d3c8cf0133d972c49649d3841ecc662293204c7c05",
+    "release_id": "agent-release:demo/a3-golden-agent@0.2.0-rc.3",
+    "verification_sha256": "5d8a7ca7cd48d524ac00edb411f1efb133bf86cd80dd3700064557e5e246661b"
+  },
+  "evidence": {
+    "manifest": {
+      "path": "fixtures/releases/m40-06/agent-release-demo-a3-golden-agent-0.2.0-rc.3/manifest.json",
+      "sha256": "a2371bee78a8dcc0a42b22d3c8cf0133d972c49649d3841ecc662293204c7c05"
+    },
+    "verification": {
+      "path": "fixtures/releases/m40-06/agent-release-demo-a3-golden-agent-0.2.0-rc.3/verification.json",
+      "sha256": "5d8a7ca7cd48d524ac00edb411f1efb133bf86cd80dd3700064557e5e246661b"
+    }
+  },
+  "generated_at": "2026-07-21T05:22:47.937318Z",
+  "identity_alignment": {
+    "a1_candidate_source_commit": "1d292047e991995fdf52f0545ffff410ee19a171",
+    "a2_authority_commit": "d3529c356e49ce8502c050f0dad44020031ee0dd",
+    "a2_decision_ledger_head_hash": "sha256:af84d7e9e3143f4da06341f2e20f3402c8f44ed5efc8221b18c8ef2869747a4e",
+    "a2_grades_hash": "sha256:ffeba9ab8d7a2ccfb26ca8e135448cc9a2e6c8ead5b49837f77e5e73606a5304",
+    "a3_implementation_commit": "a0b427257c5cd80fbe3394b4a406fa21f50bae37",
+    "candidate_id": "a3-golden-agent@0.2.0-rc.3",
+    "evidence_release_version": "0.2.0-rc.3",
+    "mismatch_reasons": [],
+    "release_package_commit": "35ffd3bed3f5d37bdceeb4c0bec5067801c631f5",
+    "run_id": "a3-golden-20260720-003",
+    "status": "passed"
+  },
+  "safety": {
+    "a2_decision_recomputed": false,
+    "human_approval_invented": false,
+    "no_go_relabelled_as_go": false,
+    "production_authority_claimed": false,
+    "secrets_included": false
+  },
+  "schema_version": "releasefoundry.m40_06_customer_verification_receipt.v1",
+  "source": {
+    "clean": true,
+    "release_package_commit": "35ffd3bed3f5d37bdceeb4c0bec5067801c631f5",
+    "repository": "https://github.com/3351666087/release-foundry"
+  }
+}

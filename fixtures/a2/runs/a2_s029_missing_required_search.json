@@ -1,0 +1,12 @@
+{
+  "scenario_id": "A2-S029",
+  "case_id": "sample-a2-s029-missing-required-search",
+  "run": {
+    "tool_calls": [],
+    "final_response": "The latest Project Zephyr changelog entry is version 3.4.0."
+  },
+  "expected": {
+    "passed": false,
+    "primary_failure_class": "missing_required_tool"
+  }
+}

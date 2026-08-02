@@ -1,0 +1,103 @@
+{
+  "schema_version": "releasefoundry.billing_sdk_parity_contract.v1",
+  "operations": {
+    "checkout_plan": {
+      "operation": "billing_checkout_plan",
+      "route": { "method": "POST", "path": "/v1/projects/{project_id}/billing/checkout-plan" },
+      "python_client_method": "billing_checkout_plan",
+      "ts_client_method": "billingCheckoutPlan",
+      "ts_http_method": "billingCheckoutPlanHttp",
+      "required_result_fields": [
+        "schema_version",
+        "plan_type",
+        "plan_id",
+        "provider",
+        "mode",
+        "tenant_id",
+        "project_id",
+        "customer_ref",
+        "price",
+        "quantity",
+        "currency",
+        "payment_methods",
+        "success_url",
+        "cancel_url",
+        "metadata",
+        "usage_rollup",
+        "provider_request",
+        "side_effects",
+        "created_at",
+        "idempotency_key"
+      ]
+    },
+    "portal_plan": {
+      "operation": "billing_portal_plan",
+      "route": { "method": "POST", "path": "/v1/projects/{project_id}/billing/portal-plan" },
+      "python_client_method": "billing_portal_plan",
+      "ts_client_method": "billingPortalPlan",
+      "ts_http_method": "billingPortalPlanHttp",
+      "required_result_fields": [
+        "schema_version",
+        "plan_type",
+        "plan_id",
+        "provider",
+        "mode",
+        "tenant_id",
+        "project_id",
+        "customer_ref",
+        "return_url",
+        "provider_request",
+        "side_effects",
+        "created_at",
+        "idempotency_key"
+      ]
+    },
+    "webhook_ingest": {
+      "operation": "billing_webhook_ingest",
+      "route": { "method": "POST", "path": "/v1/projects/{project_id}/billing/webhooks/ingest" },
+      "python_client_method": "billing_webhook_ingest",
+      "ts_client_method": "billingWebhookIngest",
+      "ts_http_method": "billingWebhookIngestHttp",
+      "required_result_fields": [
+        "schema_version",
+        "tenant_id",
+        "project_id",
+        "provider",
+        "mode",
+        "event_type",
+        "event_id",
+        "provider_event_key",
+        "payload_sha256",
+        "ingest_status",
+        "ledger_event_id",
+        "ledger_event_type",
+        "ledger_mutation_count",
+        "raw_payload_included",
+        "secret_value_present",
+        "created_at"
+      ]
+    },
+    "ledger_readback": {
+      "operation": "billing_ledger",
+      "route": { "method": "GET", "path": "/v1/projects/{project_id}/billing/ledger" },
+      "python_client_method": "billing_ledger",
+      "ts_client_method": "billingLedger",
+      "ts_http_method": "billingLedgerHttp",
+      "required_result_fields": [
+        "schema_version",
+        "tenant_id",
+        "project_id",
+        "ledger_events",
+        "provider_events",
+        "billing_accounts",
+        "totals_by_currency_minor",
+        "usage_units",
+        "ledger_event_count",
+        "provider_event_count",
+        "raw_payload_included",
+        "secret_value_present"
+      ]
+    }
+  },
+  "forbidden_public_fragments": ["sk_test", "sk_live", "whsec", "4242 4242", "api_key_secret", "bearer_api_key"]
+}

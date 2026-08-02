@@ -1,0 +1,70 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A2ArtifactExtraction",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "extractor_id",
+    "extractor_version",
+    "media_type",
+    "input_hash",
+    "status",
+    "metadata",
+    "quality",
+    "blockers",
+    "error_class",
+    "raw_content_included",
+    "derived_content_included",
+    "extraction_hash"
+  ],
+  "properties": {
+    "schema_version": { "const": "a2.artifact_extraction.v1" },
+    "extractor_id": { "type": "string", "minLength": 1 },
+    "extractor_version": { "type": "string", "minLength": 1 },
+    "media_type": { "type": "string", "minLength": 1 },
+    "input_hash": { "$ref": "#/$defs/hash" },
+    "status": { "enum": ["complete", "failed", "blocked"] },
+    "metadata": { "type": "object" },
+    "quality": {
+      "type": "object",
+      "required": ["score", "signals", "limitations"],
+      "properties": {
+        "score": { "type": "number", "minimum": 0, "maximum": 1 },
+        "signals": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "limitations": { "type": "array", "items": { "type": "string" }, "uniqueItems": true }
+      },
+      "additionalProperties": false
+    },
+    "blockers": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "error_class": { "type": "string" },
+    "raw_content_included": { "const": false },
+    "derived_content_included": { "const": false },
+    "execution": {
+      "type": "object",
+      "required": [
+        "isolation",
+        "runtime_id",
+        "runtime_version",
+        "protocol_version",
+        "config_hash",
+        "latency_ms",
+        "exit_code"
+      ],
+      "properties": {
+        "isolation": { "enum": ["subprocess"] },
+        "runtime_id": { "type": "string", "minLength": 1 },
+        "runtime_version": { "type": "string", "minLength": 1 },
+        "protocol_version": { "type": "string", "minLength": 1 },
+        "config_hash": { "$ref": "#/$defs/hash" },
+        "latency_ms": { "type": "integer", "minimum": 0 },
+        "exit_code": { "type": ["integer", "null"] }
+      },
+      "additionalProperties": false
+    },
+    "extraction_hash": { "$ref": "#/$defs/hash" }
+  },
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+  },
+  "additionalProperties": false
+}

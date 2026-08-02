@@ -1,0 +1,41 @@
+{
+  "schema_version": "a3.approval_review.v1",
+  "available": true,
+  "status": "valid_exception_approval",
+  "accepted": true,
+  "automatic_unblock": false,
+  "automatic_unblock_reason": "Approval evidence records sign-off, but this local contract does not change gate exit behavior.",
+  "approval": {
+    "approval_id": "approval-local-blocked-001",
+    "decision": "approve_exception",
+    "run_id": "run_a3_generated_from_a2_g3",
+    "release_version": "local-mock-commercial-gate",
+    "environment": "staging",
+    "head_sha": "local-demo-head-sha",
+    "waiver_id": "waiver-local-blocked-001",
+    "signer_role": "Release owner",
+    "signer_identity_source": "file-backed-demo",
+    "co_signer_count": 3,
+    "reviewed_artifact_count": 2,
+    "required_approvers": [
+      "Release owner",
+      "A3 triage owner",
+      "Safety reviewer",
+      "A1 runner/tooling owner"
+    ],
+    "missing_required_signer_roles": []
+  },
+  "policy": {
+    "required": true,
+    "allowed_decisions": [
+      "approve_release",
+      "approve_exception",
+      "reject_release",
+      "request_changes"
+    ],
+    "requires_waiver_reference": true,
+    "separation_of_duties_required": true
+  },
+  "findings": [],
+  "reason": "Approval evidence satisfies the local A3 approval policy."
+}

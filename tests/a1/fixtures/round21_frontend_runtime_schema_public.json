@@ -1,0 +1,61 @@
+{
+  "schema_version": "releasefoundry.a1.frontend_runtime_schema_public.v1",
+  "source": {
+    "archive": "C:/Users/33516/Desktop/ReleaseFoundry_frontend_mirror_20260707_125507.zip",
+    "source_sha256": "1d12159feb2e1133941bba05d46f24a0e38002dabdfaa29c9cadc7a63d056793",
+    "inspection_date": "2026-07-08",
+    "temp_extract": "tmp/a1_frontend_mirror_20260707_125507",
+    "redaction": "Public-safe field names, routes, status labels, page actions, and copy signals only; no tokens, cookies, account IDs, storage values, request bodies, response bodies, or mirrored source."
+  },
+  "page_domains": {
+    "datasets": {
+      "assets": ["mirror/app.releasefoundry.example/assets/DatasetsPage-C6F1zCF4.js", "mirror/app.releasefoundry.example/assets/RequestDetailDrawer-SLqhBzSz.js"],
+      "api_functions": ["list_datasets", "get_dataset", "create_dataset", "update_dataset", "delete_dataset", "list_requests", "get_request", "create_request", "update_request_status"],
+      "runtime_fields": ["id", "name", "description", "request_id", "request_status", "dataset_source", "run_count", "created_at", "last_run_at"],
+      "copy_signals": ["Request", "Generation failed", "Dataset requested - it will appear here once generated.", "Voice (synthetic)", "No folder"]
+    },
+    "folders": {
+      "assets": ["mirror/app.releasefoundry.example/assets/FoldersPage-SpXt22Dw.js"],
+      "api_functions": ["list_folders", "create_folder", "update_folder", "delete_folder", "get_folder_datasets", "list_folder_memberships"],
+      "runtime_fields": ["id", "name", "description", "dataset_count", "pinned_datasets"],
+      "copy_signals": ["Folders", "New folder", "Edit folder", "Create folder", "Add datasets", "Remove from folder", "Delete this folder? Datasets inside will not be deleted.", "Dataset requested - it will appear in this folder once generated."]
+    },
+    "team": {
+      "assets": ["mirror/app.releasefoundry.example/assets/TeamPage-zKnEHkxH.js"],
+      "api_functions": ["list_users", "create_user", "update_user"],
+      "runtime_fields": ["id", "name", "email", "role", "status"],
+      "copy_signals": ["Invite Team Member", "Failed to load team members", "Failed to deactivate user", "status-inactive"]
+    },
+    "observability": {
+      "assets": ["mirror/app.releasefoundry.example/assets/ObservabilityPage-BmNyibq8.js"],
+      "api_functions": ["get_voice_analytics_overview", "get_voice_call_insights", "generate_voice_call_insights", "list_voice_sessions", "get_voice_session", "get_voice_session_turns", "list_observability_traces", "get_observability_trace"],
+      "runtime_fields": ["agent_id", "user_id", "room_id", "voice_id", "duration_ms", "total_cost_usd", "mos_score", "status", "status_code", "status_message", "request_bytes", "confidence_series", "intent_confidence", "final_confidence", "policy_name", "url_path", "input", "output", "observations"],
+      "copy_signals": ["Sessions", "Errored turns", "Low STT confidence", "Agent off-topic", "Agent unhelpful", "Call insights", "Quality score", "No payload recorded.", "No turns recorded for this session.", "No traces for this agent yet."]
+    },
+    "api_keys": {
+      "assets": ["mirror/app.releasefoundry.example/assets/ApiKeysPage-DcsMtTi4.js"],
+      "api_functions": ["list_api_keys", "create_api_key", "revoke_api_key"],
+      "runtime_fields": ["id", "name", "key_prefix", "created_at", "expires_at", "expires_seconds", "api_key_id"],
+      "copy_signals": ["API Keys", "Create API Key", "Failed to load API keys", "I've copied my key"]
+    },
+    "usage": {
+      "assets": ["mirror/app.releasefoundry.example/assets/UsagePage-CoD18uzD.js"],
+      "api_functions": ["get_usage", "billing_get_status", "billing_create_checkout_session", "billing_create_portal_session"],
+      "runtime_fields": ["videos", "images", "simulations", "audios", "files", "graded_scenarios", "observations", "voice_minutes"],
+      "copy_signals": ["Usage", "Plan limits", "Assets", "Over included usage", "Plan limit reached", "Manage billing", "Upgrade plan"]
+    }
+  },
+  "runtime_contract_implications": [
+    "A1 frontend-facing DTOs should preserve request_status separately from run status and expose pending, processing, failed, and completed request states.",
+    "Dataset and folder DTOs should keep request_id, dataset_source, run_count, dataset_count, and pinned_datasets visible without requiring private payload material.",
+    "Team DTOs should model member id, name, email, role, and status while redacting authentication/session details.",
+    "Observability DTOs should retain voice session, trace, cost, confidence, HTTP/API-call, and call-insight fields as public-safe schema names only.",
+    "API key DTOs should expose id/prefix/creation/expiry metadata and never expose raw key secret values after creation."
+  ],
+  "redaction_forbidden_fields": ["token", "authToken", "authorization", "cookie", "set-cookie", "localStorage", "sessionStorage", "api_key_secret", "raw_payload", "request_body", "response_body", "account_id", "tenant_secret"],
+  "next_mirror_gaps": [
+    "No valid sourcemaps were available, so function-to-component attribution remains minified-bundle based.",
+    "The mirror did not include live tenant payloads by design; runtime shape examples remain synthetic public fixtures.",
+    "Trust profile publish/toggle fields were observed only as copy/action signals and need a later public-safe fixture if A1 exposes a trust DTO."
+  ]
+}

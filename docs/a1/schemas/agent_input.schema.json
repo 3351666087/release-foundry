@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A1 AgentInput",
+  "type": "object",
+  "required": ["schema_version", "text", "parts", "metadata"],
+  "properties": {
+    "schema_version": { "const": "releasefoundry.agent_input.v1" },
+    "text": { "type": "string" },
+    "parts": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/part" }
+    },
+    "metadata": { "type": "object" }
+  },
+  "$defs": {
+    "part": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["type", "text"],
+          "properties": {
+            "type": { "const": "text" },
+            "text": { "type": "string" }
+          },
+          "additionalProperties": true
+        },
+        { "$ref": "#/$defs/mediaPart" }
+      ]
+    },
+    "mediaPart": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "enum": ["image", "audio", "file", "video"] },
+        "path": { "type": "string" },
+        "url": { "type": "string" },
+        "source": { "type": "string" },
+        "mime_type": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

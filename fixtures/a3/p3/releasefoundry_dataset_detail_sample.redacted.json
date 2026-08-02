@@ -1,0 +1,134 @@
+{
+  "created_at": "2026-07-04",
+  "media_counts": {
+    "action_types": {
+      "audio": 3,
+      "file": 1,
+      "text": 2
+    },
+    "actions_with_output_path": 1,
+    "actions_with_tags": 1
+  },
+  "sample": {
+    "agent_id": null,
+    "created_at": "2026-06-25T17:14:37.929275+00:00",
+    "creator": "[REDACTED_ID]",
+    "dataset_source": {
+      "dataset_type": "multi_run_storyboard",
+      "runs": {
+        "sample_run_1": {
+          "actions": [
+            {
+              "action_tags": null,
+              "action_type": "text",
+              "actor": "user",
+              "content": "[REDACTED]",
+              "name": "[REDACTED]",
+              "output_path": null
+            },
+            {
+              "action_tags": {
+                "audio": null,
+                "file": {
+                  "content_description": null,
+                  "content_type": null,
+                  "document_style": "[REDACTED]",
+                  "encoding": null,
+                  "file_format": "[REDACTED]",
+                  "file_size": null,
+                  "handwriting_style": null,
+                  "has_images": null,
+                  "has_tables": null,
+                  "language": null,
+                  "page_count": null,
+                  "sample_format": null,
+                  "scan_intensity": null
+                },
+                "image": null,
+                "sensor": null,
+                "video": null
+              },
+              "action_type": "file",
+              "actor": "user",
+              "content": "[REDACTED]",
+              "name": "[REDACTED]",
+              "output_path": "[REDACTED]"
+            },
+            {
+              "action_tags": null,
+              "action_type": "audio",
+              "actor": "agent",
+              "content": "[REDACTED]",
+              "expected_response": {},
+              "name": "[REDACTED]",
+              "output_path": null
+            },
+            {
+              "action_tags": null,
+              "action_type": "text",
+              "actor": "user",
+              "content": "[REDACTED]",
+              "name": "[REDACTED]",
+              "output_path": null
+            },
+            {
+              "action_tags": null,
+              "action_type": "audio",
+              "actor": "agent",
+              "content": "[REDACTED]",
+              "expected_response": {
+                "tool_calls": [
+                  {
+                    "arguments": {
+                      "query": "[REDACTED]"
+                    },
+                    "name": "[REDACTED]"
+                  }
+                ]
+              },
+              "name": "[REDACTED]",
+              "output_path": null
+            },
+            {
+              "action_tags": null,
+              "action_type": "audio",
+              "actor": "agent",
+              "content": "[REDACTED]",
+              "expected_response": {},
+              "name": "[REDACTED]",
+              "output_path": null
+            }
+          ],
+          "audio_tags": {
+            "accent": "[REDACTED]",
+            "age": null,
+            "background_noise": "[REDACTED]",
+            "gender": "[REDACTED]",
+            "language": null,
+            "pace": "[REDACTED]",
+            "tone": "confident",
+            "volume": null
+          },
+          "description": "[REDACTED]",
+          "intent": "[REDACTED]",
+          "intent_tags": [
+            "[REDACTED]",
+            "[REDACTED]",
+            "[REDACTED]"
+          ],
+          "run_id": "[REDACTED_ID]",
+          "simulation": null,
+          "title": "[REDACTED]"
+        }
+      },
+      "total_runs": 1
+    },
+    "description": "[REDACTED]",
+    "id": "[REDACTED_ID]",
+    "name": "[REDACTED]",
+    "repo_id": null,
+    "request_id": "[REDACTED_ID]",
+    "tenant": "[REDACTED_ID]"
+  },
+  "schema_version": "a3.p3_releasefoundry_dataset_detail_sample.v1"
+}

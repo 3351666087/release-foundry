@@ -1,0 +1,24 @@
+{
+  "scenario_id": "A2-S041",
+  "case_id": "sample-a2-s041-poor-retry-recovery",
+  "run": {
+    "tool_calls": [
+      {
+        "id": "web.search#1",
+        "tool": "web.search",
+        "args": {
+          "query": "support status"
+        },
+        "error": "500 Temporary error"
+      }
+    ],
+    "final_response": "Support status is fully operational.",
+    "forbidden_facts": [
+      "fully operational"
+    ]
+  },
+  "expected": {
+    "passed": false,
+    "primary_failure_class": "poor_failure_recovery"
+  }
+}

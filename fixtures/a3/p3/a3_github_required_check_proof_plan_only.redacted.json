@@ -1,0 +1,37 @@
+{
+  "schema_version": "a3.github_required_check_proof.v1",
+  "provider": "github",
+  "resource_kind": "required_check",
+  "proof_id": "ghrcp_redacted_plan_only",
+  "plan_available": true,
+  "repo": {
+    "owner": "3351666087",
+    "repo": "release-foundry"
+  },
+  "branch": "main",
+  "check_name": "ReleaseFoundry Release Gate",
+  "enforcement_readback_status": "plan_only",
+  "readback_status": "plan_only",
+  "enforced": false,
+  "plan_only_must_not_claim_enforcement": true,
+  "required_for_commercial_gate": true,
+  "matched_check": null,
+  "matched_context": null,
+  "checked_count": 0,
+  "strict": false,
+  "http_status": null,
+  "github_request_id": null,
+  "sanitized_error_class": null,
+  "payload_hash": "sha256_redacted_required_check_plan_only_payload",
+  "checked_at": "2026-07-08T00:00:02.000Z",
+  "safety": {
+    "token_included": false,
+    "token_source": "not_recorded",
+    "response_body_sanitized": true,
+    "raw_body_stored": false,
+    "secret_values_allowed": false,
+    "live_mutation_performed": false,
+    "maintainer_approval_required": true,
+    "branch_protection_mutation_performed": false
+  }
+}

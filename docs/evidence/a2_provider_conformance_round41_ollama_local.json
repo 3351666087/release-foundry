@@ -1,0 +1,29 @@
+{
+  "adapter_class": "OllamaRuntimeMatrixAdapter",
+  "blockers": [
+    "structured_output_contract"
+  ],
+  "capability_hash": "sha256:0c784478b0dd29c469eb1ce7d423e232468c4096446cf546259b8d31f4283315",
+  "checks": {
+    "correct_runtime_version_bound": true,
+    "model_digest_bound": true,
+    "provider_failure_fail_closed": true,
+    "structured_output_contract": false,
+    "two_case_live_probe_completed": true
+  },
+  "generated_at": "2026-07-13T17:02:39.564325Z",
+  "observed_states": [
+    "blocked_by_calibration_policy",
+    "completed",
+    "invalid_structured_output"
+  ],
+  "protocol": "ollama",
+  "provider_id": "ollama-local",
+  "public_safe": true,
+  "qualification_state": "blocked",
+  "raw_payload_included": false,
+  "receipt_id": "sha256:7365948c7849e13ab604811137613928bc9b61ca28265574147b3d9a098a7c67",
+  "release_authority": false,
+  "schema_version": "a2.provider_conformance_receipt.v1",
+  "secret_included": false
+}

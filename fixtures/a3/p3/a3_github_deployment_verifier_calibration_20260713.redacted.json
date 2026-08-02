@@ -1,0 +1,90 @@
+{
+  "schema_version": "a3.github_deployment_verifier_calibration.v1",
+  "calibration_only": true,
+  "observed_at": "2026-07-13T06:35:36.176Z",
+  "repository": "3351666087/release-foundry",
+  "branch": "main",
+  "candidate_head_sha_alias": "8d82fd4f1a23032f796a6a2149f51732ef3abe7e",
+  "check_name": "A3 golden path release artifact",
+  "provider_readbacks": {
+    "check": {
+      "fixture": "fixtures/a3/p3/a3_github_check_head_8d82fd4_live_readback.redacted.json",
+      "readback_id": "ghcrb_f48ef725a71d8a42",
+      "status": "readback_confirmed",
+      "http_status": 200,
+      "app_slug": "github-actions",
+      "app_id_alias": 15368,
+      "candidate_matches": true,
+      "payload_hash": "f48ef725a71d8a42d84e076cf2b50cb22a157f29a7cef6d748edc19e5f4cc653"
+    },
+    "repository_installation": {
+      "fixture": "fixtures/a3/p3/a3_github_repository_installation_live_readback_20260713.redacted.json",
+      "readback_id": "ghirb_785be73613296a99",
+      "status": "permission_denied",
+      "http_status": 401,
+      "expected_app_slug": "releasefoundry-enterprise",
+      "repository_bound": false,
+      "identity_matches": false,
+      "payload_hash": "785be73613296a99ab17244b3e4889e64ceb8dc50378e147170feefae00f1653"
+    },
+    "required_check": {
+      "fixture": "fixtures/a3/p3/a3_github_main_required_check_live_readback_20260713.redacted.json",
+      "proof_id": "ghrcp_a4ecb62318d7fa47",
+      "status": "missing",
+      "http_status": 404,
+      "enforced": false,
+      "payload_hash": "a4ecb62318d7fa479f99816d49adfc024d2bd13adbe79349cdc6dbeec75af1e4"
+    }
+  },
+  "verifier_projection": {
+    "github_app_installation": {
+      "verification_status": "rejected",
+      "reason_code": "policy_not_satisfied",
+      "claims": {
+        "tenant_installation_bound": false,
+        "repository_bound": false,
+        "check_identity_verified": false
+      },
+      "reasons": [
+        "current_check_identity_is_github_actions",
+        "repository_installation_readback_permission_denied",
+        "a1_tenant_installation_binding_receipt_absent"
+      ]
+    },
+    "required_check_enforcement": {
+      "verification_status": "rejected",
+      "reason_code": "policy_not_satisfied",
+      "claims": {
+        "required_context_enforced": false,
+        "failing_merge_denied": false,
+        "maintainer_readback_verified": false
+      },
+      "reasons": [
+        "main_required_status_check_readback_returned_404",
+        "failing_merge_denial_receipt_absent",
+        "maintainer_policy_receipt_absent"
+      ]
+    }
+  },
+  "current_product_posture": {
+    "golden_path": "7/11",
+    "deployment_acceptance": "8/17",
+    "current_authority": "integrity_invalid",
+    "current_a2_decision": "unknown",
+    "historical_a2_decision": "block",
+    "production_verified_receipts": 0,
+    "production_ready": false,
+    "authoritative_store_readback_persisted": false
+  },
+  "safety": {
+    "read_only_github_api": true,
+    "mutation_performed": false,
+    "branch_protection_mutation_performed": false,
+    "merge_attempt_performed": false,
+    "token_included": false,
+    "token_printed": false,
+    "raw_response_stored": false,
+    "account_identity_stored": false,
+    "sealed_rc2_rewritten": false
+  }
+}

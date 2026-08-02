@@ -1,0 +1,99 @@
+{
+  "schema_version": "releasefoundry.unified_identity.same_account_localhost.v1",
+  "generated_at": "2026-07-10T12:59:10Z",
+  "environment": "localhost_development",
+  "backend_mode": "local_memory",
+  "local_only": true,
+  "releasefoundry_api_used": false,
+  "public_safe": true,
+  "contains_secret_values": false,
+  "production_ready": false,
+  "purpose": "Verify that real GitHub and Google OAuth credentials attach to one canonical backend account while authorization memberships remain separate.",
+  "canonical_account": {
+    "account_id_class": "canonical_local_account",
+    "credential_count": 2,
+    "providers": [
+      "github",
+      "google"
+    ],
+    "credential_kinds": [
+      "oauth"
+    ],
+    "all_credentials_verified": true,
+    "all_credentials_can_login": true,
+    "membership_count": 0
+  },
+  "runtime_checks": [
+    {
+      "check": "health",
+      "status_code": 200,
+      "backend_mode": "local_memory",
+      "local_only": true,
+      "releasefoundry_api_used": false
+    },
+    {
+      "check": "canonical_account_read",
+      "status_code": 200,
+      "credential_count": 2,
+      "providers": [
+        "github",
+        "google"
+      ],
+      "membership_count": 0
+    },
+    {
+      "check": "credential_list",
+      "status_code": 200,
+      "credential_count": 2,
+      "providers": [
+        "github",
+        "google"
+      ]
+    },
+    {
+      "check": "membership_list",
+      "status_code": 200,
+      "membership_count": 0
+    },
+    {
+      "check": "caller_supplied_account_mismatch",
+      "status_code": 403,
+      "failed_closed": true
+    },
+    {
+      "check": "public_response_forbidden_material_scan",
+      "status": "passed",
+      "forbidden_key_hits": 0
+    }
+  ],
+  "public_account_credential_keys": [
+    "can_login",
+    "credential_id",
+    "kind",
+    "linked_at",
+    "provider",
+    "schema_version",
+    "verified"
+  ],
+  "evidence_boundary": {
+    "raw_account_contact_recorded": false,
+    "raw_provider_subject_recorded": false,
+    "subject_digest_recorded": false,
+    "oauth_code_recorded": false,
+    "oauth_state_recorded": false,
+    "oauth_nonce_recorded": false,
+    "pkce_verifier_recorded": false,
+    "access_token_recorded": false,
+    "refresh_token_recorded": false,
+    "id_token_recorded": false,
+    "token_reference_recorded": false,
+    "client_secret_recorded": false,
+    "callback_query_recorded": false,
+    "raw_provider_response_recorded": false
+  },
+  "honest_limits": [
+    "The proof uses a localhost development process and process-local memory.",
+    "The proof does not establish multi-instance uniqueness, durable sessions, account recovery, or production readiness.",
+    "WeChat, QQ, Alipay, phone, and email remain contract and parity coverage only and are not real-provider calibrated."
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "schema_version": "a3.github_check_readback_receipt.v1",
+  "provider": "github",
+  "resource_kind": "check_run",
+  "readback_id": "ghcrb_redacted_confirmed",
+  "readback_status": "readback_confirmed",
+  "readback_confirmed": true,
+  "posted": true,
+  "stale": false,
+  "missing": false,
+  "deleted": false,
+  "http_status": 200,
+  "github_request_id": "redacted:request:id",
+  "expected": {
+    "repo": "3351666087/release-foundry",
+    "check_run_id_alias": 9001,
+    "check_name": "ReleaseFoundry Release Gate",
+    "head_sha_alias": "abc123",
+    "conclusion": "failure",
+    "output_hash": "sha256_redacted_expected_output"
+  },
+  "observed": {
+    "check_run_id_alias": 9001,
+    "check_name": "ReleaseFoundry Release Gate",
+    "status": "completed",
+    "conclusion": "failure",
+    "head_sha_alias": "abc123",
+    "html_url": "https://github.example/releasefoundry/checks/9001",
+    "details_url": "https://example.invalid/a3-gate",
+    "output_title": "ReleaseFoundry Release Gate",
+    "output_hash": "sha256_redacted_expected_output",
+    "started_at": "2026-07-08T00:00:00.000Z",
+    "completed_at": "2026-07-08T00:00:01.000Z"
+  },
+  "matches": {
+    "check_run_id": true,
+    "name": true,
+    "head_sha": true,
+    "conclusion": true,
+    "output_hash": true
+  },
+  "sanitized_error_class": null,
+  "payload_hash": "sha256_redacted_check_readback_payload",
+  "checked_at": "2026-07-08T00:00:02.000Z",
+  "safety": {
+    "token_included": false,
+    "token_source": "not_recorded",
+    "response_body_sanitized": true,
+    "raw_body_stored": false,
+    "secret_values_allowed": false,
+    "live_mutation_performed": false
+  }
+}

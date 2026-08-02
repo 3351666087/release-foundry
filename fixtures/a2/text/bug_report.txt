@@ -1,0 +1,1 @@
+The export button intermittently returns a blank CSV when filters are active. Reproduced on Chrome with the "failed only" filter. The backend logs show a missing status parameter. Expected behavior: exported CSV should match visible filtered rows.

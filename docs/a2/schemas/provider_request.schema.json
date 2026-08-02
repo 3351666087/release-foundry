@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A2NormalizedProviderRequest",
+  "type": "object",
+  "required": ["schema_version", "tenant_scope", "snapshot_id", "provider_id", "model_id", "parts", "idempotency_key"],
+  "properties": {
+    "schema_version": { "const": "a2.provider_request.v1" },
+    "tenant_scope": { "$ref": "#/$defs/scope" },
+    "snapshot_id": { "$ref": "#/$defs/hash" },
+    "provider_id": { "type": "string", "minLength": 1 },
+    "model_id": { "type": "string", "minLength": 1 },
+    "parts": { "type": "array", "minItems": 1, "maxItems": 32, "items": { "$ref": "#/$defs/part" } },
+    "idempotency_key": { "type": "string", "minLength": 1, "maxLength": 256 }
+  },
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "scope": {
+      "type": "object",
+      "required": ["organization_id", "tenant_id", "workspace_id", "project_id", "environment_id"],
+      "properties": {
+        "organization_id": { "type": "string", "minLength": 1 },
+        "tenant_id": { "type": "string", "minLength": 1 },
+        "workspace_id": { "type": "string", "minLength": 1 },
+        "project_id": { "type": "string", "minLength": 1 },
+        "environment_id": { "type": "string", "minLength": 1 }
+      },
+      "additionalProperties": false
+    },
+    "part": {
+      "type": "object",
+      "required": ["modality"],
+      "properties": {
+        "modality": { "enum": ["text", "image", "audio", "file", "video"] },
+        "text": { "type": "string" },
+        "data": { "type": "string" },
+        "content_hash": { "$ref": "#/$defs/hash" },
+        "size_bytes": { "type": "integer", "minimum": 0 }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

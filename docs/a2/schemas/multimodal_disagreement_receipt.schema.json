@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://releasefoundry.example/schemas/a2/multimodal_disagreement_receipt.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "state", "local_result_hash", "cloud_result_hash", "local_model_binding", "cloud_model_binding", "semantic_comparison_performed", "release_authority", "human_review_required", "blockers", "public_safe"],
+  "properties": {
+    "schema_version": {"const": "a2.multimodal_disagreement_receipt.v1"},
+    "state": {"enum": ["local_output_missing", "cloud_unavailable", "not_comparable", "agreement", "semantic_disagreement"]},
+    "local_result_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "cloud_result_hash": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "local_model_binding": {"$ref": "#/$defs/modelBinding"},
+    "cloud_model_binding": {"$ref": "#/$defs/modelBinding"},
+    "semantic_comparison_performed": {"type": "boolean"},
+    "release_authority": {"const": false},
+    "human_review_required": {"type": "boolean"},
+    "blockers": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+    "public_safe": {"const": true}
+  },
+  "$defs": {
+    "modelBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider_id", "model_id", "model_version"],
+      "properties": {
+        "provider_id": {"type": "string", "minLength": 1},
+        "model_id": {"type": "string", "minLength": 1},
+        "model_version": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

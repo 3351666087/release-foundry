@@ -1,0 +1,173 @@
+{
+  "deployment": {
+    "bundle": {
+      "path": "artifacts/releasefoundry-product-1.0.0-rc.1-runtime.zip",
+      "sha256": "a7ed277a84af124e24031f5d9f250ca429db9d2d8d703d8321c467dcdff49c6a"
+    },
+    "compose": {
+      "path": "artifacts/docker-compose.self-host.yml",
+      "sha256": "fb041c7b87068a8ffc9e9ee9aed181aaaeb85dc602f769e24b4d94592d66ed19"
+    },
+    "configuration_example": {
+      "path": "artifacts/self-host.env.example",
+      "sha256": "2efa8f80d6946d763df0eabda49c5261b18b1491642facb996525a2acc63345b"
+    },
+    "installers": {
+      "posix": {
+        "path": "artifacts/install.sh",
+        "sha256": "6989105cf81ffb44d45b477c9208c792b78cd2032f300f9a003a658b55d82dbe"
+      },
+      "powershell": {
+        "path": "artifacts/install.ps1",
+        "sha256": "205ba51fed9f952bd07c17061303c2da20fde4107671471c928c9c6488e2e4ea"
+      }
+    },
+    "services": [
+      {
+        "digest": "unavailable",
+        "image": "releasefoundry/web:release-candidate",
+        "name": "web",
+        "ownership": "releasefoundry",
+        "roles": [
+          "web"
+        ],
+        "supply_chain": {
+          "provenance": {
+            "path": "supply-chain/releasefoundry-product-1.0.0-rc.1.provenance.json",
+            "sha256": "66a95be69733cbbc7c20c40dd98372e8e5ea29e085d0af46aaeb2efdca2722cb"
+          },
+          "sbom": {
+            "path": "supply-chain/releasefoundry-product-1.0.0-rc.1.spdx.json",
+            "sha256": "f341b9f5ed4d6b8a06c433c03fbbb179c4de8a6dd4ffe9485799d0cfdc652c4c"
+          },
+          "signature": {}
+        }
+      },
+      {
+        "digest": "unavailable",
+        "image": "releasefoundry/runtime:release-candidate",
+        "name": "api-worker",
+        "ownership": "releasefoundry",
+        "roles": [
+          "api",
+          "worker",
+          "migration"
+        ],
+        "supply_chain": {
+          "provenance": {
+            "path": "supply-chain/releasefoundry-product-1.0.0-rc.1.provenance.json",
+            "sha256": "66a95be69733cbbc7c20c40dd98372e8e5ea29e085d0af46aaeb2efdca2722cb"
+          },
+          "sbom": {
+            "path": "supply-chain/releasefoundry-product-1.0.0-rc.1.spdx.json",
+            "sha256": "f341b9f5ed4d6b8a06c433c03fbbb179c4de8a6dd4ffe9485799d0cfdc652c4c"
+          },
+          "signature": {}
+        }
+      },
+      {
+        "digest": "unavailable",
+        "image": "postgres:16-alpine",
+        "name": "postgres",
+        "ownership": "third_party",
+        "roles": [
+          "database"
+        ]
+      },
+      {
+        "digest": "unavailable",
+        "image": "redis:7-alpine",
+        "name": "redis",
+        "ownership": "third_party",
+        "roles": [
+          "cache"
+        ]
+      },
+      {
+        "digest": "unavailable",
+        "image": "minio/minio:RELEASE.2025-04-22T22-12-26Z",
+        "name": "minio",
+        "ownership": "third_party",
+        "roles": [
+          "object_store"
+        ]
+      }
+    ]
+  },
+  "generated_at": "2026-07-21T05:22:47.937318Z",
+  "policy": {
+    "id": "releasefoundry.product_release.enterprise.v1",
+    "path": "policy/releasefoundry_product_release_policy.v1.json",
+    "sha256": "cd8e6512bdae5d624e66ccf1a3bb34f91e77bf9f30b746e82136e33cac23e68f"
+  },
+  "product_release_id": "releasefoundry-product@1.0.0-rc.1",
+  "runbooks": {
+    "backup_restore": {
+      "path": "runbooks/backup_restore.md",
+      "sha256": "97e0f478ecb6fce86efbf728bc646479ecdc94828daf1f87fc7e3c2ab3b193ad"
+    },
+    "configuration": {
+      "path": "runbooks/configuration.md",
+      "sha256": "0c9cb172e4e6d2b83bcd66b67fd2ed1f75aad88a65ec7c013cb002b44558b9ee"
+    },
+    "incident_response": {
+      "path": "runbooks/incident_response.md",
+      "sha256": "faa3f83208468c9eb9258dd6cd479414dea676ada067db76f27d7c069897b27e"
+    },
+    "install": {
+      "path": "runbooks/install.md",
+      "sha256": "ee84b9a1c31a8b7b7623b07ad9a088ec0b8bbeb45b338109912f71b99ac19528"
+    },
+    "rollback": {
+      "path": "runbooks/rollback.md",
+      "sha256": "d3802d17cfaade307308ddccd24ab5e8279fb186ebfb942a6202a6894e986296"
+    },
+    "upgrade": {
+      "path": "runbooks/upgrade.md",
+      "sha256": "382eb50c6e2c16b45d34c13bd560a2415ddf86994472ce1d2cc948349126ca0a"
+    }
+  },
+  "schema_version": "releasefoundry.product_release_manifest.v1",
+  "sdks": [
+    {
+      "artifact": {
+        "path": "artifacts/releasefoundry-python-sdk-0.1.0.zip",
+        "sha256": "9352e09fc567bdbad9cc8a571f7df85bd43232abd1c4a582918f942db4227e4d"
+      },
+      "language": "python",
+      "package": "releasefoundry-sdk",
+      "version": "0.1.0"
+    },
+    {
+      "artifact": {
+        "path": "artifacts/releasefoundry-typescript-sdk-0.1.0.zip",
+        "sha256": "a5c9e9147e19374a57aaab0cb9f86f2b8fbec054d83436dbcd02d384871d4c5c"
+      },
+      "language": "typescript",
+      "package": "releasefoundry",
+      "version": "0.1.0"
+    },
+    {
+      "artifact": {
+        "path": "artifacts/releasefoundry-go-sdk-0.1.0.zip",
+        "sha256": "fe0a86130e5bd68f5387d68ed44c06c031ccc83205170d68a3c7a12357aa568e"
+      },
+      "language": "go",
+      "package": "github.com/3351666087/release-foundry/packages/go/releasefoundry",
+      "version": "0.1.0"
+    }
+  ],
+  "source": {
+    "commit_sha": "35ffd3bed3f5d37bdceeb4c0bec5067801c631f5",
+    "dirty": false,
+    "repository": "https://github.com/3351666087/release-foundry"
+  },
+  "verification": {
+    "receipts": {
+      "web.production_surface": {
+        "path": "receipts/web.production_surface.json",
+        "sha256": "e033ba1c77ddee190419c0be82787a2c03ec920b5ba2945709629aa6e0e059a6"
+      }
+    }
+  }
+}

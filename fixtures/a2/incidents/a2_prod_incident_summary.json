@@ -1,0 +1,51 @@
+{
+  "schema_version": "a2.production_incident_summary.v1",
+  "incident_id": "prod-inc-2026-07-support-status-retry",
+  "reported_at": "2026-07-03T18:40:00Z",
+  "environment": "prod",
+  "severity": "high",
+  "title": "Support status retry path claimed success after transient tool failure",
+  "summary": "Redacted production summary: a support-status lookup hit a transient web tool error, but the agent answered that support was fully operational instead of retrying once or reporting uncertainty.",
+  "impact": {
+    "customer_visible": true,
+    "tenant_count": "redacted",
+    "data_exposure": false
+  },
+  "failed_case": {
+    "case_id": "sample-a2-s041-poor-retry-recovery",
+    "scenario_id": "A2-S041",
+    "fixture_ref": "fixtures/a2/runs/a2_s041_poor_retry_recovery.json",
+    "observed_failure_class": "poor_failure_recovery",
+    "expected_primary_failure_class": "poor_failure_recovery"
+  },
+  "signals": [
+    "tool_error_without_recovery",
+    "unsupported_success_claim",
+    "customer_visible_status_risk"
+  ],
+  "regression_intent": {
+    "calibration_focus": [
+      "failure_recovery",
+      "tool_error"
+    ],
+    "assertion": "Keep poor_failure_recovery visible when a transient status lookup error is followed by an unsupported success claim.",
+    "expected_behavior": [
+      "Retry once",
+      "Do not fake success",
+      "Report fallback if blocked"
+    ]
+  },
+  "evidence_refs": [
+    "fixtures/a2/runs/a2_s041_poor_retry_recovery.json"
+  ],
+  "redaction": {
+    "public_safe": true,
+    "omits": [
+      "tenant identifiers",
+      "raw prompts",
+      "raw tool responses",
+      "account payloads"
+    ],
+    "private_evidence_ref": "docs/evidence/private_refs/a2_prod_incident_support_status.redacted.json"
+  }
+}

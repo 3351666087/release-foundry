@@ -1,0 +1,86 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "blockers": {
+      "items": {"type": "string"},
+      "type": "array"
+    },
+    "case_set_hash": {
+      "oneOf": [
+        {"pattern": "^sha256:[0-9a-f]{64}$", "type": "string"},
+        {"type": "null"}
+      ]
+    },
+    "comparison_state": {
+      "enum": ["complete", "blocked"]
+    },
+    "provider_is_truth": {"const": false},
+    "providers": {
+      "additionalProperties": {"$ref": "#/$defs/providerSummary"},
+      "minProperties": 2,
+      "type": "object"
+    },
+    "public_safe": {"const": true},
+    "quality_comparison_performed": {"const": false},
+    "raw_provider_text_included": {"const": false},
+    "release_authority": {"const": false},
+    "same_case_set": {"type": "boolean"},
+    "schema_version": {
+      "const": "a2.local_multimodal_availability_comparison.v1"
+    }
+  },
+  "required": [
+    "schema_version",
+    "same_case_set",
+    "case_set_hash",
+    "providers",
+    "blockers",
+    "comparison_state",
+    "quality_comparison_performed",
+    "provider_is_truth",
+    "release_authority",
+    "raw_provider_text_included",
+    "public_safe"
+  ],
+  "type": "object",
+  "$defs": {
+    "providerSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_hash": {
+          "pattern": "^sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "attempted_count": {"minimum": 0, "type": "integer"},
+        "completed_count": {"minimum": 0, "type": "integer"},
+        "eligible_count": {"minimum": 0, "type": "integer"},
+        "failed_count": {"minimum": 0, "type": "integer"},
+        "latency_seconds": {
+          "additionalProperties": false,
+          "properties": {
+            "count": {"minimum": 0, "type": "integer"},
+            "maximum": {"oneOf": [{"minimum": 0, "type": "number"}, {"type": "null"}]},
+            "median": {"oneOf": [{"minimum": 0, "type": "number"}, {"type": "null"}]},
+            "p95_nearest_rank": {"oneOf": [{"minimum": 0, "type": "number"}, {"type": "null"}]}
+          },
+          "required": ["count", "median", "p95_nearest_rank", "maximum"],
+          "type": "object"
+        },
+        "qualification_state": {"type": "string"},
+        "timeout_case_count": {"minimum": 0, "type": "integer"}
+      },
+      "required": [
+        "artifact_hash",
+        "attempted_count",
+        "completed_count",
+        "eligible_count",
+        "failed_count",
+        "timeout_case_count",
+        "latency_seconds",
+        "qualification_state"
+      ],
+      "type": "object"
+    }
+  }
+}

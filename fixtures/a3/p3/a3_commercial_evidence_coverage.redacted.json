@@ -1,0 +1,222 @@
+{
+  "schema_version": "a3.commercial_evidence_coverage.v1",
+  "artifact_id": "a3-commercial-evidence-coverage-2026-07-09",
+  "generated_at": "2026-07-09T00:00:00.000Z",
+  "source": "a3-local-redacted-commercial-coverage",
+  "purpose": "Bind A1, A2, and A3 commercial evidence into a customer-safe coverage artifact for report, review, GitHub gate, billing, audit, and redaction readiness.",
+  "tenant_scope": {
+    "organization_id": "org-local-redacted",
+    "project_id": "project-a3-p3",
+    "release_id": "a3-commercial-evidence-coverage-2026-07-09",
+    "cross_tenant_policy": "deny_by_default_or_empty_result"
+  },
+  "evidence_families": [
+    "A1 RunResult",
+    "A2 GradeResult",
+    "A3 Report",
+    "A3 Review",
+    "A3 GitHub",
+    "A3 Billing",
+    "A3 Audit",
+    "A3 Redaction"
+  ],
+  "coverage_summary": {
+    "artifact_type_count": 11,
+    "required_family_count": 8,
+    "all_required_families_bound": true,
+    "customer_safe_packet": true,
+    "commercial_claim": "A3 can package downstream release intelligence from A1 RunResult and A2 GradeResult evidence into report, review, GitHub, billing, audit, and redaction artifacts without changing A1 runner or A2 judge semantics."
+  },
+  "tenant_auth_rbac_usage_audit_redaction": {
+    "tenant": {
+      "required_fields": [
+        "organization_id",
+        "project_id",
+        "release_id"
+      ],
+      "storage_boundary": "all durable rows require tenant and project scope before hosted use",
+      "cross_tenant_default": "404_or_empty"
+    },
+    "auth": {
+      "current_state": "local redacted artifact only",
+      "hosted_requirement": "authenticated service identity before live refresh or publish",
+      "credential_material_stored": false
+    },
+    "rbac": {
+      "roles": [
+        "owner",
+        "admin",
+        "developer",
+        "reviewer",
+        "auditor",
+        "billing_admin"
+      ],
+      "permissions": [
+        "evidence:read",
+        "report:read",
+        "review:read",
+        "github:readback",
+        "billing:read",
+        "audit:read",
+        "redaction:verify"
+      ],
+      "mutation_boundary": "read-only evidence coverage until hosted RBAC exists"
+    },
+    "usage": {
+      "meters": [
+        "coverage_artifact_exports",
+        "report_packet_exports",
+        "github_readback_receipts",
+        "billing_summary_views",
+        "redaction_scans"
+      ],
+      "billing_mutations_enabled": false,
+      "usage_payload_policy": "counts, ids, statuses, hashes, and relative paths only"
+    },
+    "audit": {
+      "append_only_required": true,
+      "event_names": [
+        "commercial_evidence.coverage_generated",
+        "commercial_evidence.coverage_exported",
+        "commercial_evidence.coverage_verified"
+      ],
+      "verifier_artifact": "audit_bundle_index"
+    },
+    "redaction": {
+      "raw_values_allowed": false,
+      "secret_values_allowed": false,
+      "customer_emails_allowed": false,
+      "local_absolute_paths_allowed": false,
+      "signed_media_links_allowed": false,
+      "redacted_fixture": "fixtures/a3/p3/a3_commercial_evidence_coverage.redacted.json"
+    }
+  },
+  "artifact_types": [
+    {
+      "type": "a1_run_result",
+      "family": "A1 RunResult",
+      "binding": "A3 consumes run id, case status, trace ids, tool-call summaries, observation ids, and usage counts as downstream evidence.",
+      "source_paths": [
+        "docs/a1/schemas/run_result.schema.json",
+        "fixtures/a3/p3/releasefoundry_dataset_884_demo_run_result.synthetic.json"
+      ],
+      "commercial_value": "proves the release packet starts from runner evidence rather than dashboard-only claims"
+    },
+    {
+      "type": "a2_grade_result",
+      "family": "A2 GradeResult",
+      "binding": "A3 consumes pass state, score, failure class, threshold, judge version, and calibration references as downstream evidence.",
+      "source_paths": [
+        "docs/a2/schemas/grade_results.schema.json"
+      ],
+      "commercial_value": "proves the release packet includes judge evidence and does not rewrite A2 scoring"
+    },
+    {
+      "type": "a3_report",
+      "family": "A3 Report",
+      "binding": "A3 report exports combine A1 and A2 inputs with release evidence summaries and customer-readable findings.",
+      "source_paths": [
+        "tests/a3/report_builder.test.mjs",
+        "docs/a3/p3_api_backed_release_evidence_2026_07_08.md"
+      ],
+      "commercial_value": "turns raw evidence into a buyer-facing report packet"
+    },
+    {
+      "type": "a3_report_center_manifest",
+      "family": "A3 Report",
+      "binding": "Report Center records report inventory, manifest completeness, hosted lifecycle, and artifact count.",
+      "source_paths": [
+        "tests/a3/report_center_manifest_contract.test.mjs",
+        "docs/a3/p3_report_center_manifest_growth_2026_07_07.md"
+      ],
+      "commercial_value": "shows the control plane for repeated report delivery"
+    },
+    {
+      "type": "a3_review_workflow",
+      "family": "A3 Review",
+      "binding": "Review workflow records reviewer state, assignment, exception review, approval readiness, and blocked evidence.",
+      "source_paths": [
+        "tests/a3/a3_review_workflow.test.mjs",
+        "docs/a3/p3_review_workflow_durable_storage_2026_07_08.md"
+      ],
+      "commercial_value": "supports enterprise sign-off before a release gate is trusted"
+    },
+    {
+      "type": "a3_github_check_readback",
+      "family": "A3 GitHub",
+      "binding": "GitHub check readback records provider-side check status, conclusion, and stale-or-confirmed state after publish.",
+      "source_paths": [
+        "fixtures/a3/p3/a3_github_check_readback_confirmed.redacted.json",
+        "docs/a3/p3_github_readback_contract_2026_07_08.md"
+      ],
+      "commercial_value": "connects local release evidence to external merge-control evidence"
+    },
+    {
+      "type": "a3_github_pr_comment_readback",
+      "family": "A3 GitHub",
+      "binding": "PR comment readback records marker presence, rendered summary state, and stale-or-confirmed state after publish.",
+      "source_paths": [
+        "fixtures/a3/p3/a3_github_pr_comment_readback_confirmed.redacted.json",
+        "docs/a3/p3_pr_comment_required_check_plan_2026_07_08.md"
+      ],
+      "commercial_value": "proves human-readable review evidence can be reconciled after publish"
+    },
+    {
+      "type": "a3_billing_usage_ledger",
+      "family": "A3 Billing",
+      "binding": "Billing readiness uses usage ledger counts for runs, imports, reports, readbacks, and artifact exports without payment mutation.",
+      "source_paths": [
+        "tests/a3/a3_billing_readiness.test.mjs",
+        "docs/a3/p3_billing_readiness_contract_2026_07_09.md"
+      ],
+      "commercial_value": "supports paid-plan usage visibility while staying read-only"
+    },
+    {
+      "type": "a3_audit_bundle_index",
+      "family": "A3 Audit",
+      "binding": "Audit bundle index hashes source and generated evidence with relative paths and verification results.",
+      "source_paths": [
+        "fixtures/a3/p3/a3_audit_bundle_index_blocked_exception.redacted.json",
+        "docs/a3/p3_audit_bundle_index_growth_2026_07_07.md"
+      ],
+      "commercial_value": "gives auditors a stable evidence packet boundary"
+    },
+    {
+      "type": "a3_redaction_firewall",
+      "family": "A3 Redaction",
+      "binding": "Redaction firewall blocks raw credentials, customer identifiers, local account paths, and signed media links before export.",
+      "source_paths": [
+        "tests/a3/export_firewall_generated_artifacts.test.mjs",
+        "docs/a3/p3_redaction_firewall_evidence_map_2026_07_07.md"
+      ],
+      "commercial_value": "keeps customer-safe packet export honest"
+    },
+    {
+      "type": "a3_commercial_evidence_packet",
+      "family": "A3 Report",
+      "binding": "Commercial evidence packet groups the previous artifact types into one customer-facing coverage receipt.",
+      "source_paths": [
+        "fixtures/a3/p3/a3_commercial_evidence_coverage.redacted.json",
+        "docs/a3/p3_commercial_evidence_coverage_2026_07_09.md"
+      ],
+      "commercial_value": "makes the minimum sellable evidence surface explicit"
+    }
+  ],
+  "acceptance": {
+    "test": "node --test tests/a3/a3_commercial_evidence_coverage.test.mjs",
+    "minimum_artifact_types": 8,
+    "requires_secret_free_scan": true,
+    "docs": "docs/a3/p3_commercial_evidence_coverage_2026_07_09.md"
+  },
+  "safety": {
+    "contains_secret_values": false,
+    "raw_tokens_allowed": false,
+    "raw_cookies_allowed": false,
+    "raw_api_keys_allowed": false,
+    "raw_signed_media_links_allowed": false,
+    "local_absolute_paths_allowed": false,
+    "live_provider_mutations_performed": false,
+    "a1_semantics_changed": false,
+    "a2_semantics_changed": false
+  }
+}

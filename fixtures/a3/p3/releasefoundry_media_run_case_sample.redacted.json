@@ -1,0 +1,249 @@
+{
+  "observed_at": "2026-07-06T04:27:11Z",
+  "runs": [
+    {
+      "case_count": 3,
+      "label": "get_run_1",
+      "media_paths": [
+        {
+          "path": "get_run_1.run.result.cases[].metadata.audio_tags",
+          "types": {
+            "array[1]": 3
+          }
+        },
+        {
+          "path": "get_run_1.run.result.cases[].metadata.audio_tags[]",
+          "types": {
+            "object[5]": 3
+          }
+        },
+        {
+          "path": "get_run_1.run.result.cases[].metadata.audio_tags[].accent",
+          "types": {
+            "string": 3
+          }
+        },
+        {
+          "path": "get_run_1.run.result.cases[].metadata.audio_tags[].background_noise",
+          "types": {
+            "string": 3
+          }
+        },
+        {
+          "path": "get_run_1.run.result.cases[].metadata.audio_tags[].gender",
+          "types": {
+            "string": 3
+          }
+        },
+        {
+          "path": "get_run_1.run.result.cases[].metadata.audio_tags[].pace",
+          "types": {
+            "string": 3
+          }
+        },
+        {
+          "path": "get_run_1.run.result.cases[].metadata.audio_tags[].tone",
+          "types": {
+            "string": 3
+          }
+        },
+        {
+          "path": "get_run_1.run.result.cases[].observations[].vm_stream",
+          "types": {
+            "object[5]": 3
+          }
+        },
+        {
+          "path": "get_run_1.run.result.cases[].observations[].vm_stream.duration_ms",
+          "types": {
+            "integer": 3
+          }
+        },
+        {
+          "path": "get_run_1.run.result.cases[].observations[].vm_stream.logs",
+          "types": {
+            "array[2]": 3
+          }
+        }
+      ],
+      "result_status": "failed",
+      "run_shape": {
+        "created_at": "string",
+        "dataset": "integer",
+        "id": "integer",
+        "result": {
+          "aggregate_metrics": {
+            "errored": "integer",
+            "failed": "integer",
+            "passed": "integer",
+            "schema_version": "string",
+            "timed_out": "integer",
+            "total_tool_calls": "integer",
+            "trace_completeness": "number"
+          },
+          "cases": [
+            {
+              "agent_output": {
+                "latency_ms": "integer",
+                "metadata": {
+                  "adapter_name": "string",
+                  "mock_agent": "string",
+                  "style": "string"
+                },
+                "schema_version": "string",
+                "status": "string",
+                "text": "string",
+                "tool_calls": []
+              },
+              "case_id": "string",
+              "ended_at": "string",
+              "expected": {
+                "text": "string"
+              },
+              "grade": {
+                "actual": {
+                  "text": "string",
+                  "tool_calls": "array[0]"
+                },
+                "expected": {
+                  "text": "string"
+                },
+                "label": "string",
+                "metrics": {
+                  "latency_ms": "integer",
+                  "reset_ok": "boolean",
+                  "text_match": "boolean",
+                  "tool_match": "boolean"
+                },
+                "passed": "boolean",
+                "reason": "string",
+                "scenario_id": "string",
+                "score": "number"
+              },
+              "latency_ms": "integer",
+              "metadata": {
+                "action_count": "integer",
+                "action_index": "integer",
+                "action_name": "string",
+                "action_tags": [],
+                "action_type": "string",
+                "adapter_version": "string",
+                "audio_tags": [
+                  "object[5]"
+                ],
+                "dataset_type": "string",
+                "intent_tags": [
+                  "string"
+                ],
+                "requires_external_judge": "boolean",
+                "source": "string",
+                "source_run_hash": "string",
+                "total_runs": "integer"
+              },
+              "observations": [
+                {
+                  "case_id": "string",
+                  "content": "string",
+                  "ended_at": "string",
+                  "event_type": "string",
+                  "metadata": "object[1]",
+                  "observation_id": "string",
+                  "role": "string",
+                  "run_id": "string",
+                  "started_at": "string",
+                  "status": "string",
+                  "tool_calls": "array[0]",
+                  "turn_index": "integer"
+                }
+              ],
+              "scenario_id": "string",
+              "started_at": "string",
+              "status": "string",
+              "title": "string"
+            }
+          ],
+          "dataset_id": "string",
+          "duration_ms": "integer",
+          "ended_at": "string",
+          "errored": "integer",
+          "failed": "integer",
+          "field_map_version": "string",
+          "max_workers": "integer",
+          "metadata": {
+            "releasefoundry_api_used": "boolean",
+            "local_only": "boolean"
+          },
+          "passed": "integer",
+          "run_id": "string",
+          "runner_id": "string",
+          "started_at": "string",
+          "status": "string",
+          "timed_out": "integer",
+          "total_cases": "integer",
+          "trace_completeness": "number"
+        },
+        "runner": "null",
+        "tenant": "integer"
+      },
+      "test_count": null
+    },
+    {
+      "case_count": null,
+      "label": "get_run_2",
+      "media_paths": [],
+      "result_status": "completed",
+      "run_shape": {
+        "created_at": "string",
+        "dataset": "integer",
+        "id": "integer",
+        "result": {
+          "aggregate_metrics": {
+            "action_summary": {
+              "failed": "integer",
+              "passed": "integer",
+              "total": "integer"
+            },
+            "average_similarity_score": "number",
+            "tests_failed": "integer",
+            "tests_passed": "integer",
+            "total_response_divergence": "integer",
+            "total_tests": "integer",
+            "total_tool_call_divergence": "integer",
+            "weighted_tool_divergence": "number"
+          },
+          "completed_at": "string",
+          "started_at": "string",
+          "status": "string",
+          "tests": [
+            {
+              "action_results": [
+                {
+                  "action_index": "integer",
+                  "action_type": "string",
+                  "actor": "string",
+                  "description": "string",
+                  "input_provided": "boolean",
+                  "text": "string"
+                }
+              ],
+              "coherence": {
+                "issues": [],
+                "score": "number",
+                "summary": "string"
+              },
+              "completed_at": "string",
+              "started_at": "string",
+              "status": "string",
+              "test_id": "string"
+            }
+          ]
+        },
+        "runner": "integer",
+        "tenant": "integer"
+      },
+      "test_count": 1
+    }
+  ],
+  "schema_version": "a3.p3.media_run_case_sample.v1",
+  "source": "Shape-only redacted sample from read-only get_run responses."
+}

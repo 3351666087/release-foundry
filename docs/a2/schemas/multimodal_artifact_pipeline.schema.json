@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A2MultimodalArtifactPipeline",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "tenant_scope",
+    "manifest",
+    "extraction",
+    "evaluation_eligible",
+    "blockers",
+    "raw_content_included",
+    "release_authority",
+    "pipeline_record_hash"
+  ],
+  "properties": {
+    "schema_version": { "const": "a2.multimodal_artifact_pipeline.v1" },
+    "tenant_scope": { "$ref": "#/$defs/scope" },
+    "manifest": { "$ref": "#/$defs/manifest" },
+    "extraction": { "$ref": "artifact_extraction.schema.json" },
+    "artifact_reference_resolution": {
+      "$ref": "artifact_reference_resolution.schema.json"
+    },
+    "evaluation_eligible": { "type": "boolean" },
+    "blockers": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+    "raw_content_included": { "const": false },
+    "release_authority": { "const": false },
+    "pipeline_record_hash": { "$ref": "#/$defs/hash" }
+  },
+  "$defs": {
+    "hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "scope": {
+      "type": "object",
+      "required": ["organization_id", "tenant_id", "workspace_id", "project_id", "environment_id"],
+      "properties": {
+        "organization_id": { "type": "string" },
+        "tenant_id": { "type": "string" },
+        "workspace_id": { "type": "string" },
+        "project_id": { "type": "string" },
+        "environment_id": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "scan": {
+      "type": "object",
+      "required": ["status", "engine", "engine_version", "production_qualified", "signature_set"],
+      "properties": {
+        "status": { "enum": ["clean", "blocked", "error", "unavailable"] },
+        "engine": { "type": "string" },
+        "engine_version": { "type": "string" },
+        "production_qualified": { "type": "boolean" },
+        "signature_set": { "type": "string" },
+        "error_class": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "manifest": {
+      "type": "object",
+      "required": [
+        "schema_version",
+        "tenant_scope",
+        "artifact_id",
+        "filename_hash",
+        "claimed_media_type",
+        "detected_media_type",
+        "modality",
+        "content_hash",
+        "size_bytes",
+        "source_ref_hash",
+        "ingestion_status",
+        "blockers",
+        "security_scan",
+        "raw_content_included",
+        "manifest_id"
+      ],
+      "properties": {
+        "schema_version": { "const": "a2.artifact_manifest.v1" },
+        "tenant_scope": { "$ref": "#/$defs/scope" },
+        "artifact_id": { "type": "string" },
+        "filename_hash": { "$ref": "#/$defs/hash" },
+        "claimed_media_type": { "type": "string" },
+        "detected_media_type": { "type": "string" },
+        "modality": { "enum": ["text", "image", "audio", "file", "video"] },
+        "content_hash": { "$ref": "#/$defs/hash" },
+        "size_bytes": { "type": "integer", "minimum": 0 },
+        "source_ref_hash": { "$ref": "#/$defs/hash" },
+        "ingestion_status": { "enum": ["accepted", "blocked"] },
+        "blockers": { "type": "array", "items": { "type": "string" }, "uniqueItems": true },
+        "security_scan": { "$ref": "#/$defs/scan" },
+        "raw_content_included": { "const": false },
+        "manifest_id": { "$ref": "#/$defs/hash" }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,16 @@
+{
+  "expo": {
+    "name": "ReleaseFoundry A3 Release",
+    "slug": "releasefoundry-a3-release",
+    "scheme": "releasefoundrya3",
+    "version": "0.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "automatic",
+    "assetBundlePatterns": [],
+    "extra": {
+      "surface": "a3-mobile-release-intelligence",
+      "mode": "contract-only",
+      "realCloudMutationsEnabled": false
+    }
+  }
+}

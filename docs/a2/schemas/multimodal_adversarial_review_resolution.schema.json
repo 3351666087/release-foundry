@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://releasefoundry.local/schemas/a2/multimodal_adversarial_review_resolution.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "observation_hash", "reviewer_identity_hash", "resolution", "rationale_hash", "release_authority", "public_safe", "resolution_hash"],
+  "properties": {
+    "schema_version": {"const": "a2.multimodal_adversarial_review_resolution.v1"},
+    "observation_hash": {"$ref": "#/$defs/hash"},
+    "reviewer_identity_hash": {"$ref": "#/$defs/hash"},
+    "resolution": {"enum": ["accepted_risk", "blocked", "needs_more_evidence"]},
+    "rationale_hash": {"$ref": "#/$defs/hash"},
+    "release_authority": {"const": false},
+    "public_safe": {"const": true},
+    "resolution_hash": {"$ref": "#/$defs/hash"}
+  },
+  "$defs": {"hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}}
+}

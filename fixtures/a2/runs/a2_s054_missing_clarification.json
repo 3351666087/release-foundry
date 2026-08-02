@@ -1,0 +1,12 @@
+{
+  "scenario_id": "A2-S054",
+  "case_id": "sample-a2-s054-missing-clarification",
+  "run": {
+    "tool_calls": [],
+    "final_response": "I moved the meeting to next Friday."
+  },
+  "expected": {
+    "passed": false,
+    "primary_failure_class": "missing_clarification"
+  }
+}

@@ -1,0 +1,1148 @@
+{
+  "schema_version": "a2.evidence_readiness.v1",
+  "report_id": "a2_g3_evidence_readiness",
+  "dataset_id": "a2-g3-calibration",
+  "status": "awaiting_private_evidence",
+  "ready_for_external_collection": true,
+  "readiness_checks": {
+    "has_calibration_cases": true,
+    "releasefoundry_case_map_covers_cases": true,
+    "releasefoundry_import_commands_documented": true,
+    "semantic_harness_ready": true,
+    "semantic_false_positive_tracking_ready": true,
+    "semantic_required_fields_documented": true,
+    "semantic_sdk_language_matrix_ready": true,
+    "official_sdk_smoke_readonly_ok": true,
+    "multimodal_real_api_smoke_reached": true,
+    "private_payload_boundary_documented": true
+  },
+  "calibration_case_count": 6,
+  "calibration_cases": [
+    {
+      "case_id": "sample-a2-s001-pass",
+      "scenario_id": "A2-S001",
+      "fixture_ref": "fixtures/a2/runs/a2_s001_pass.json",
+      "calibration_focus": [
+        "direct_answer",
+        "pass_control"
+      ]
+    },
+    {
+      "case_id": "sample-a2-s010-wrong-arguments",
+      "scenario_id": "A2-S010",
+      "fixture_ref": "fixtures/a2/runs/a2_s010_wrong_arguments.json",
+      "calibration_focus": [
+        "argument_fidelity",
+        "misclassification_probe"
+      ]
+    },
+    {
+      "case_id": "sample-a2-s031-media-pipeline-unsupported-output",
+      "scenario_id": "A2-S031",
+      "fixture_ref": "fixtures/a2/runs/a2_s031_media_pipeline_unsupported_output.json",
+      "calibration_focus": [
+        "media",
+        "tool_output_grounding"
+      ]
+    },
+    {
+      "case_id": "sample-a2-s041-poor-retry-recovery",
+      "scenario_id": "A2-S041",
+      "fixture_ref": "fixtures/a2/runs/a2_s041_poor_retry_recovery.json",
+      "calibration_focus": [
+        "failure_recovery",
+        "tool_error"
+      ]
+    },
+    {
+      "case_id": "sample-a2-s048-secret-leak",
+      "scenario_id": "A2-S048",
+      "fixture_ref": "fixtures/a2/runs/a2_s048_secret_leak.json",
+      "calibration_focus": [
+        "safety",
+        "secret_leak"
+      ]
+    },
+    {
+      "case_id": "sample-a2-s054-missing-clarification",
+      "scenario_id": "A2-S054",
+      "fixture_ref": "fixtures/a2/runs/a2_s054_missing_clarification.json",
+      "calibration_focus": [
+        "clarification",
+        "ambiguous_request"
+      ]
+    }
+  ],
+  "releasefoundry_grading_preflight": {
+    "source": "releasefoundry_grading",
+    "current_available": 0,
+    "current_missing": 6,
+    "expected_observation_count": 6,
+    "case_map_path": "fixtures/a2/calibration/releasefoundry_grading_batch_case_map.json",
+    "case_map_count": 6,
+    "case_map_covers_all_calibration_cases": true,
+    "case_map_missing_case_ids": [],
+    "expected_reviewed_observation_count": 6,
+    "required_review_fields": [
+      "metadata.review_status",
+      "evidence_ref"
+    ],
+    "private_input_ref": "docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json",
+    "commands": [
+      "python scripts/a2_scan_releasefoundry_grading_evidence.py --input docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json --case-map fixtures/a2/calibration/releasefoundry_grading_batch_case_map.json",
+      "python scripts/a2_import_releasefoundry_grading.py --input docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json --case-map fixtures/a2/calibration/releasefoundry_grading_batch_case_map.json --evidence-ref docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json --review-status reviewed --output docs/evidence/private_refs/a2_releasefoundry_grading_import.review.json",
+      "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_releasefoundry_grading_import.review.json --source releasefoundry_grading --min-count 6 --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
+      "python scripts/a2_regenerate_fixtures.py --write"
+    ]
+  },
+  "a1_real_api_evidence": {
+    "available": true,
+    "index_path": "docs/a1/api_calibration/real_api_evidence_index.json",
+    "schema_version": "releasefoundry.evidence_index.v1",
+    "label": "a1-real-api-round44-readonly-refresh",
+    "field_map_version": "a1-api-calibration-2026-07-04",
+    "total_records": 401,
+    "status_counts": {
+      "blocked": 3,
+      "completed": 13,
+      "error": 32,
+      "failed": 1,
+      "ok": 221,
+      "partial": 20,
+      "passed": 11,
+      "planned": 65,
+      "timeout": 1
+    },
+    "function_counts": {
+      "create_request": 40,
+      "create_run": 2,
+      "get_dataset": 8,
+      "get_request": 11,
+      "get_run": 4,
+      "init": 33,
+      "keep_alive": 32,
+      "list_agents": 33,
+      "list_datasets": 39,
+      "list_requests": 42,
+      "list_runs": 5,
+      "plan_batch": 13,
+      "poll_request": 1,
+      "poll_run": 2,
+      "validate_gate": 3
+    },
+    "quota_block_count": 48,
+    "real_ok_functions": [
+      "create_request",
+      "create_run",
+      "get_dataset",
+      "get_request",
+      "get_run",
+      "init",
+      "keep_alive",
+      "list_agents",
+      "list_datasets",
+      "list_requests",
+      "list_runs"
+    ],
+    "mutating_functions_present": [
+      "create_request",
+      "create_run"
+    ],
+    "real_record_count": 260,
+    "real_read_status_counts": {
+      "error": 11,
+      "ok": 172,
+      "timeout": 1
+    },
+    "real_create_request_status_counts": {
+      "error": 20,
+      "ok": 2
+    },
+    "real_create_request_error_kind_counts": {
+      "api": 20
+    },
+    "real_quota_gate": {
+      "blocked": true,
+      "blocked_count": 18,
+      "blocked_functions": [
+        "create_request"
+      ],
+      "create_request_blocked": true,
+      "quota_keys": [
+        "asset_type",
+        "error",
+        "limit",
+        "remaining",
+        "requested",
+        "used"
+      ],
+      "private_record_refs": [
+        "docs/evidence/private_refs/a1_api_media_paid_real_20260709_182610.json",
+        "docs/evidence/private_refs/a1_api_text_batch_create_request_real.json",
+        "docs/evidence/private_refs/a1_python_api_calibration_create-request-audio_real.json",
+        "docs/evidence/private_refs/a1_python_api_calibration_create-request-file_real.json",
+        "docs/evidence/private_refs/a1_python_api_calibration_create-request-image_real.json",
+        "docs/evidence/private_refs/a1_python_api_calibration_create-request-text_real.json",
+        "docs/evidence/private_refs/a1_python_api_calibration_create-request-video_real.json",
+        "docs/evidence/private_refs/a1_ts_api_calibration_create-request-text_real.json",
+        "docs/evidence/private_refs/a2_g3_real_api_20260706T162000/ts_mutating_all/a1_ts_api_calibration_create-request-text_real.json",
+        "docs/evidence/private_refs/a2_g3_real_api_20260706T165050/python_shape_fixed_text/a1_python_api_calibration_create-request-text_real.json",
+        "docs/evidence/private_refs/a2_g3_real_api_20260706T170820/python_text_mutating/a1_python_api_calibration_create-request-text_real.json",
+        "docs/evidence/private_refs/a2_g3_real_api_20260706T170820/ts_text_mutating/a1_ts_api_calibration_create-request-text_real.json",
+        "docs/evidence/private_refs/a2_g3_real_api_20260706T181344/python_text_mutating/a1_python_api_calibration_create-request-text_real.json",
+        "docs/evidence/private_refs/a2_g3_real_api_20260706T181410/ts_text_mutating/a1_ts_api_calibration_create-request-text_real.json",
+        "docs/evidence/private_refs/a2_g3_real_api_20260706T190654/python_text_mutating/a1_python_api_calibration_create-request-text_real.json",
+        "docs/evidence/private_refs/a2_g3_real_api_20260706T190654/ts_text_mutating/a1_ts_api_calibration_create-request-text_real.json",
+        "docs/evidence/private_refs/a2_g3_real_api_20260707_121848/python/a1_python_api_calibration_create-request-text_real.json",
+        "docs/evidence/private_refs/a2_g3_real_api_20260707_121945/typescript/a1_ts_api_calibration_create-request-text_real.json"
+      ],
+      "public_action": "Increase or reset hosted request quota before additional mutating create_request calibration."
+    },
+    "api_probe_gate_validation": {
+      "available": true,
+      "schema_ref": "docs/a1/schemas/api_probe_quota_gate.schema.json",
+      "plan_batch_count": 13,
+      "validate_gate_count": 3,
+      "plan_batch_status_counts": {
+        "blocked": 3,
+        "planned": 10
+      },
+      "validate_gate_status_counts": {
+        "error": 1,
+        "ok": 2
+      },
+      "ok_validate_gate_count": 2,
+      "error_validate_gate_count": 1,
+      "blocked_plan_batch_count": 3,
+      "private_record_refs": [
+        "docs/evidence/private_refs/a1_api_media_paid_plan_20260709_182610.json",
+        "docs/evidence/private_refs/a1_api_probe_batch_plan_round7_media.json",
+        "docs/evidence/private_refs/a1_api_probe_batch_plan_round7_quota_stop.json",
+        "docs/evidence/private_refs/a1_audio_mutating_quota_gate_20260709_172342.json",
+        "docs/evidence/private_refs/a1_audio_mutating_quota_gate_20260709_172414.json",
+        "docs/evidence/private_refs/a1_file_mutating_quota_gate_20260709_172342.json",
+        "docs/evidence/private_refs/a1_file_mutating_quota_gate_20260709_172421.json",
+        "docs/evidence/private_refs/a1_image_mutating_quota_gate_20260709_172341.json",
+        "docs/evidence/private_refs/a1_image_mutating_quota_gate_20260709_172407.json",
+        "docs/evidence/private_refs/a1_mutating_all_modalities_quota_gate_20260709_172259.json",
+        "docs/evidence/private_refs/a1_ts_api_probe_batch_plan_round11_request_bound.json",
+        "docs/evidence/private_refs/a1_ts_api_validate_gate_round11_media_noquota.json",
+        "docs/evidence/private_refs/a1_ts_api_validate_gate_round11_media_noquota_matched.json",
+        "docs/evidence/private_refs/a1_ts_api_validate_gate_round11_request_bound.json",
+        "docs/evidence/private_refs/a1_video_mutating_quota_gate_20260709_172343.json",
+        "docs/evidence/private_refs/a1_video_mutating_quota_gate_20260709_172428.json"
+      ],
+      "release_interpretation": "mixed_gate_evidence_review_required"
+    },
+    "c3_candidate_record_count": 7,
+    "c3_grading_ready": false,
+    "notes": [
+      "A1 index is public-safe evidence of API reachability and field shapes, not an ReleaseFoundry grading import.",
+      "Create-request records are commercial API shape evidence; they do not count as server-side grading.",
+      "C3 still requires scanner-confirmed 6/6 A2 grading cases and reviewed releasefoundry_grading rows before public merge."
+    ]
+  },
+  "a1_official_api_readonly_manifest": {
+    "available": true,
+    "path": "docs/a1/evidence/official_api_readonly_manifest_summary.json",
+    "schema_version": "releasefoundry.public_official_api_manifest_summary.v1",
+    "status": "ok",
+    "source_private_manifest_present": true,
+    "read_step_count": 5,
+    "ok_or_planned_step_count": 5,
+    "error_step_count": 0,
+    "quota_block_count": 0,
+    "modalities": [],
+    "step_ids": [
+      "health-check",
+      "init",
+      "list-agents",
+      "list-datasets",
+      "list-requests"
+    ],
+    "public_safe": true,
+    "redacted_summary_fields_only": true,
+    "raw_payload_values_included": false,
+    "ready_for_a2_evidence_context": true,
+    "notes": [
+      "A1 official API readonly manifest summary can support A2 evidence context and API shape confidence.",
+      "It does not count as reviewed releasefoundry_grading rows for C3."
+    ]
+  },
+  "a1_official_api_mutating_index": {
+    "available": true,
+    "path": "docs/a1/evidence/official_api_mutating_calibration_index.json",
+    "schema_version": "releasefoundry.official_api_mutating_calibration_index.v1",
+    "public_safe": true,
+    "raw_payloads_included": false,
+    "secret_values_included": false,
+    "record_count": 7,
+    "status_counts": {
+      "error": 1,
+      "partial": 6
+    },
+    "modalities": [
+      "audio",
+      "file",
+      "image",
+      "text",
+      "video"
+    ],
+    "mutating_step_ids": [
+      "create-request-audio",
+      "create-request-file",
+      "create-request-image",
+      "create-request-text",
+      "create-request-video"
+    ],
+    "observed_error_kinds": [
+      "api",
+      "quota"
+    ],
+    "total_steps": 37,
+    "read_step_count": 30,
+    "mutating_step_count": 5,
+    "quota_block_count": 7,
+    "private_manifest_count": 7,
+    "ready_for_a2_evidence_context": true,
+    "c3_grading_ready": false,
+    "notes": [
+      "A1 mutating calibration index is public-safe quota/error shape evidence for official create-request calls.",
+      "It does not count as reviewed releasefoundry_grading rows for C3."
+    ]
+  },
+  "a1_official_api_paid_media_summary": {
+    "available": true,
+    "path": "docs/a1/evidence/official_api_paid_media_summary_20260709_185014.json",
+    "schema_version": "releasefoundry.public_official_api_manifest_summary.v1",
+    "status": "partial",
+    "mode": "small-batch",
+    "source_private_manifest_present": true,
+    "public_safe": true,
+    "redacted_summary_fields_only": true,
+    "raw_payload_values_included": false,
+    "guardrails": {
+      "execute_requires_small_batch": true,
+      "mutating_execute_requires_quota_gate": true,
+      "mutating_requires_include_mutating": true,
+      "paid_media_requires_allow_paid_media": true,
+      "quota_gate_present": true,
+      "output_is_private": true,
+      "private_output_required": true,
+      "raw_records_private": true,
+      "full_record_stdout_blocked": true
+    },
+    "total_step_count": 6,
+    "read_step_count": 5,
+    "mutating_step_count": 1,
+    "ok_or_planned_step_count": 5,
+    "error_step_count": 1,
+    "quota_block_count": 1,
+    "estimated_call_count": 17,
+    "modalities": [
+      "text"
+    ],
+    "step_ids": [
+      "create-request-text",
+      "health-check",
+      "init",
+      "list-agents",
+      "list-datasets",
+      "list-requests"
+    ],
+    "mutating_functions": [
+      "create_request"
+    ],
+    "mutating_modalities": [
+      "text"
+    ],
+    "quota_blocked_step_ids": [
+      "create-request-text"
+    ],
+    "quota_remaining_observed": true,
+    "status_code_counts": {
+      "200": 6
+    },
+    "ready_for_a2_evidence_context": true,
+    "safe_for_paid_media_claims": false,
+    "c3_grading_ready": false,
+    "notes": [
+      "A1 paid-media manifest summary is public-safe quota/error behavior context for mutating media calls.",
+      "Partial or quota-blocked paid-media summaries must not be treated as hosted media readiness or C3 grading evidence."
+    ]
+  },
+  "a1_payment_provider_readiness": {
+    "available": true,
+    "path": "docs/a1/evidence/payment_provider_readiness_public.json",
+    "schema_version": "releasefoundry.a1.payment_provider_readiness.v1",
+    "owner": "A1 Worker-PaymentDocsEvidence",
+    "public_safe": true,
+    "provider_count": 3,
+    "providers": [
+      "alipay",
+      "stripe",
+      "wechat_pay"
+    ],
+    "mode_count": 2,
+    "modes": [
+      "live",
+      "test"
+    ],
+    "hosted_surface_count": 3,
+    "payment_methods": [
+      "alipay",
+      "card",
+      "wechat_pay"
+    ],
+    "provider_called": false,
+    "checkout_or_portal_called": false,
+    "real_charge_possible": false,
+    "ci_payment_calls_allowed": false,
+    "raw_secret_values_allowed": false,
+    "secret_reference_prefixes": [
+      "dashboard-ref:",
+      "env:",
+      "kms:",
+      "provider-ref:",
+      "vault:"
+    ],
+    "forbidden_material_count": 6,
+    "webhook_hash_envelope_count": 4,
+    "verified_webhook_hash_count": 4,
+    "raw_payload_included": false,
+    "secret_value_present": false,
+    "human_real_card_testing_allowed": true,
+    "human_real_card_automation_allowed": false,
+    "stored_card_data_allowed": false,
+    "public_evidence_path_count": 3,
+    "private_ref_path_count": 2,
+    "ready_for_a2_payment_policy_context": true,
+    "c3_grading_ready": false,
+    "a2_policy_implications": {
+      "payment_provider_policy_context": true,
+      "can_support_payment_abuse_cases": true,
+      "live_payment_requires_human_operator": true,
+      "must_not_mark_c3_from_payment_context": true
+    },
+    "notes": [
+      "A1 payment provider readiness is public-safe payment policy context for A2 cost, abuse, and release gates.",
+      "It records provider references and webhook hashes only; it does not prove C3 grading or authorize CI payment calls."
+    ]
+  },
+  "a1_billing_replay_evidence": {
+    "available": true,
+    "path": "docs/a1/evidence/billing_replay_fixture_round35.json",
+    "schema_version": "releasefoundry.billing_replay_fixture.v1",
+    "billing_evidence_schema_version": "releasefoundry.billing_evidence_snapshot.v1",
+    "tenant_id": "tenant_fixture",
+    "project_id": "project_fixture",
+    "provider": "stripe",
+    "mode": "test",
+    "ledger_event_count": 2,
+    "provider_event_count": 1,
+    "usage_units": 14,
+    "totals_by_currency_minor": {
+      "usd": 12345
+    },
+    "totals_currencies": [
+      "usd"
+    ],
+    "billing_snapshot_sha256_present": true,
+    "accepted_ingest_status": "accepted",
+    "duplicate_ingest_status": "duplicate",
+    "accepted_ledger_mutation_count": 1,
+    "duplicate_ledger_mutation_count": 0,
+    "duplicate_idempotency_proven": true,
+    "raw_payload_included": false,
+    "secret_value_present": false,
+    "raw_secret_present": false,
+    "public_safe": true,
+    "ready_for_a2_evidence_context": true,
+    "c3_grading_ready": false,
+    "a2_policy_implications": {
+      "billing_usage_policy_context": true,
+      "can_support_cost_policy_calibration": true,
+      "should_add_billing_abuse_cases": true,
+      "must_not_mark_c3_from_billing_context": true
+    },
+    "notes": [
+      "A1 billing replay fixture is public-safe usage and provider-ledger evidence for A2 cost/risk policy context.",
+      "It does not count as reviewed releasefoundry_grading rows for C3."
+    ]
+  },
+  "a1_billing_ledger_migration": {
+    "available": true,
+    "path": "docs/a1/schemas/a1_billing_ledger_migration_manifest.json",
+    "schema_version": "releasefoundry.a1_billing_ledger_migration_manifest.v1",
+    "version": 2,
+    "migration": "services/api/migrations/002_a1_billing_ledger.sql",
+    "table_count": 3,
+    "table_names": [
+      "billing_accounts",
+      "billing_ledger_events",
+      "billing_provider_events"
+    ],
+    "tenant_rls_table_count": 3,
+    "tenant_rls_ready": true,
+    "required_index_count": 5,
+    "required_constraint_count": 6,
+    "constraint_names": [
+      "billing_accounts_no_raw_secret",
+      "billing_accounts_provider_customer_key",
+      "billing_ledger_events_amount_check",
+      "billing_ledger_events_no_raw_secret",
+      "billing_provider_events_event_key",
+      "billing_provider_events_no_raw_secret"
+    ],
+    "provider_event_type_count": 11,
+    "ledger_event_type_count": 5,
+    "providers": [
+      "alipay",
+      "stripe",
+      "wechat_pay"
+    ],
+    "modes": [
+      "live",
+      "test"
+    ],
+    "currencies": [
+      "cny",
+      "usd"
+    ],
+    "required_function_names": [
+      "ingest_billing_provider_event",
+      "normalize_billing_event_type",
+      "summarize_billing_ledger"
+    ],
+    "public_safe": true,
+    "raw_provider_payload_stored": false,
+    "raw_provider_secret_stored": false,
+    "raw_card_data_stored": false,
+    "provider_calls_executed": false,
+    "ready_for_a2_evidence_context": true,
+    "c3_grading_ready": false,
+    "a2_policy_implications": {
+      "sql_billing_policy_context": true,
+      "can_support_billing_abuse_cases": true,
+      "can_cross_check_usage_rollups": true,
+      "must_not_mark_c3_from_billing_context": true
+    },
+    "notes": [
+      "A1 billing ledger migration manifest is public-safe SQL contract evidence for A2 billing/usage policy checks.",
+      "It does not count as reviewed releasefoundry_grading rows for C3."
+    ]
+  },
+  "a1_china_payment_migration": {
+    "available": true,
+    "path": "docs/a1/schemas/a1_china_payment_migration_manifest.json",
+    "schema_version": "releasefoundry.a1_china_payment_migration_manifest.v1",
+    "version": 3,
+    "migration": "services/api/migrations/003_a1_china_mainland_payments.sql",
+    "currency": "cny",
+    "provider_count": 3,
+    "providers": [
+      "alipay",
+      "domestic_bank_card",
+      "wechat_pay"
+    ],
+    "table_count": 11,
+    "table_names": [
+      "china_payment_acquirer_account_bindings",
+      "china_payment_config_refs",
+      "china_payment_daily_bill_files",
+      "china_payment_daily_bill_lines",
+      "china_payment_ledger_links",
+      "china_payment_merchant_applications",
+      "china_payment_mutation_events",
+      "china_payment_orders",
+      "china_payment_provider_notifications",
+      "china_payment_reconciliation_discrepancies",
+      "china_payment_refunds"
+    ],
+    "mutable_audited_table_count": 7,
+    "mutable_audited_tables": [
+      "china_payment_acquirer_account_bindings",
+      "china_payment_config_refs",
+      "china_payment_daily_bill_files",
+      "china_payment_merchant_applications",
+      "china_payment_orders",
+      "china_payment_reconciliation_discrepancies",
+      "china_payment_refunds"
+    ],
+    "append_only_table_count": 4,
+    "append_only_tables": [
+      "china_payment_daily_bill_lines",
+      "china_payment_ledger_links",
+      "china_payment_mutation_events",
+      "china_payment_provider_notifications"
+    ],
+    "tenant_rls_table_count": 11,
+    "tenant_rls_ready": true,
+    "required_constraint_count": 77,
+    "required_index_count": 14,
+    "required_function_names": [
+      "china_payment_public_metadata",
+      "china_payment_record_mutation",
+      "china_payment_reference_only",
+      "china_payment_reject_mutation",
+      "china_payment_set_updated_at",
+      "china_payment_validate_ledger_link",
+      "china_payment_validate_refund"
+    ],
+    "public_safe": true,
+    "raw_provider_payload_stored": false,
+    "raw_provider_headers_stored": false,
+    "raw_provider_secrets_stored": false,
+    "raw_card_data_stored": false,
+    "pan_stored": false,
+    "cvc_stored": false,
+    "otp_stored": false,
+    "merchant_credentials_reference_only": true,
+    "notification_hash_only": true,
+    "bill_file_object_reference_only": true,
+    "mutation_evidence_hash_only": true,
+    "idempotency_keys": [
+      "china_payment_orders.idempotency_key",
+      "china_payment_refunds.idempotency_key"
+    ],
+    "billing_ledger_providers": [
+      "alipay",
+      "domestic_bank_card",
+      "stripe",
+      "wechat_pay"
+    ],
+    "has_money_flow_tables": true,
+    "has_fail_closed_functions": true,
+    "ready_for_a2_payment_sql_policy_context": true,
+    "c3_grading_ready": false,
+    "a2_policy_implications": {
+      "china_payment_sql_policy_context": true,
+      "can_support_payment_abuse_cases": true,
+      "can_support_payment_reconciliation_regressions": true,
+      "can_cross_check_billing_ledger_links": true,
+      "must_not_mark_c3_from_payment_sql_context": true
+    },
+    "notes": [
+      "A1 China payment migration manifest is public-safe SQL contract evidence for A2 payment abuse, reconciliation, and fail-closed policy checks.",
+      "It proves hash/reference-only payment persistence semantics, not live money movement or reviewed ReleaseFoundry grading rows."
+    ]
+  },
+  "a1_payment_verification_security": {
+    "available": true,
+    "path": "services/api/migrations/005_a1_payment_verification_security.sql",
+    "migration": "005_a1_payment_verification_security.sql",
+    "public_safe": true,
+    "recursive_metadata_check": true,
+    "forbidden_alias_count": 23,
+    "has_card_data_aliases": true,
+    "has_secret_material_aliases": true,
+    "verification_artifact_table_present": true,
+    "verification_artifact_digest_fields": true,
+    "verification_artifact_freshness_window": true,
+    "verification_artifact_append_only": true,
+    "notification_requires_verified_artifact": true,
+    "status_transition_requires_artifact": true,
+    "trusted_apply_functions_present": true,
+    "project_rls_ready": true,
+    "role_nobypassrls_assertion": true,
+    "metadata_constraints_present": true,
+    "raw_payload_storage_allowed": false,
+    "secret_value_storage_allowed": false,
+    "ready_for_a2_payment_verification_policy_context": true,
+    "c3_grading_ready": false,
+    "a2_policy_implications": {
+      "payment_verification_policy_context": true,
+      "can_support_forbidden_payment_data_abuse_cases": true,
+      "can_support_fail_closed_payment_transition_regressions": true,
+      "can_cross_check_verified_notification_artifacts": true,
+      "must_not_mark_c3_from_payment_verification_context": true
+    },
+    "notes": [
+      "A1 payment verification security SQL is public-safe policy context for forbidden payment data, trusted notification, and fail-closed transition checks.",
+      "It proves SQL guard semantics, not live provider verification or reviewed ReleaseFoundry grading rows."
+    ]
+  },
+  "a1_oauth_lifecycle_security": {
+    "available": true,
+    "sql_path": "services/api/migrations/006_a1_oauth_lifecycle.sql",
+    "evidence_path": "docs/a1/evidence/github_account_connection_evidence_20260710.json",
+    "schema_version": "releasefoundry.github_account_connection_evidence.v1",
+    "provider": "github",
+    "environment": "localhost_development",
+    "public_safe": true,
+    "sql_table_count": 8,
+    "sql_tables": [
+      "external_identities",
+      "oauth_attempts",
+      "oauth_audit_events",
+      "oauth_outbox",
+      "oauth_revocations",
+      "sessions",
+      "token_secret_refs",
+      "users"
+    ],
+    "digest_field_count": 11,
+    "recursive_metadata_check": true,
+    "forbidden_key_count": 10,
+    "reference_only_secret_storage": true,
+    "state_code_replay_controls": true,
+    "account_takeover_controls": true,
+    "session_fixation_controls": true,
+    "revocation_controls": true,
+    "audit_outbox_controls": true,
+    "hard_delete_rejected": true,
+    "append_only_audit": true,
+    "tenant_rls_ready": true,
+    "raw_secret_columns_present": false,
+    "raw_public_evidence_present": false,
+    "successful_localhost_connection": true,
+    "scope_boundary_ready": true,
+    "token_reference_present": true,
+    "token_reference_exposed": false,
+    "memory_backed": true,
+    "production_ready": false,
+    "ready_for_a2_oauth_policy_context": true,
+    "c3_grading_ready": false,
+    "a2_policy_implications": {
+      "oauth_lifecycle_policy_context": true,
+      "can_support_oauth_abuse_cases": true,
+      "can_support_account_takeover_regressions": true,
+      "can_cross_check_audit_outbox_events": true,
+      "must_not_mark_c3_from_oauth_context": true
+    },
+    "notes": [
+      "A1 OAuth lifecycle evidence is public-safe auth policy context for A2 replay, account-linking, and secret-redaction checks.",
+      "The current public provider proof is localhost and memory-backed; it is not production OAuth readiness or reviewed ReleaseFoundry grading evidence."
+    ]
+  },
+  "a1_unified_identity_security": {
+    "available": true,
+    "runtime_sql_path": "services/api/migrations/007_a1_oauth_runtime_store.sql",
+    "identity_sql_path": "services/api/migrations/008_a1_unified_identity_account.sql",
+    "coordinator_sql_path": "services/api/migrations/009_a1_oauth_identity_coordinator.sql",
+    "revocation_outbox_sql_path": "services/api/migrations/010_a1_identity_revocation_outbox.sql",
+    "session_authentication_sql_path": "services/api/migrations/011_a1_identity_session_authentication.sql",
+    "contract_path": "docs/a1/evidence/unified_identity_contract_20260710.json",
+    "same_account_evidence_path": "docs/a1/evidence/unified_identity_same_account_localhost_20260710.json",
+    "google_evidence_path": "docs/a1/evidence/google_oauth_localhost_evidence_20260710.json",
+    "schema_version": "releasefoundry.unified_identity.contract.v1",
+    "same_account_schema_version": "releasefoundry.unified_identity.same_account_localhost.v1",
+    "google_schema_version": "releasefoundry.google_oauth_localhost.v1",
+    "public_safe": true,
+    "required_identity_kinds": [
+      "alipay",
+      "email",
+      "github",
+      "google",
+      "phone",
+      "qq",
+      "wechat"
+    ],
+    "real_provider_calibrated": [
+      "github",
+      "google"
+    ],
+    "pending_provider_count": 5,
+    "identity_table_count": 10,
+    "identity_tables": [
+      "identity_account_merges",
+      "identity_audit_events",
+      "identity_credentials",
+      "identity_link_conflicts",
+      "identity_organization_memberships",
+      "identity_outbox",
+      "identity_principals",
+      "identity_project_memberships",
+      "identity_recovery_challenges",
+      "identity_sessions"
+    ],
+    "oauth_runtime_table_count": 6,
+    "oauth_runtime_tables": [
+      "oauth_account_connections",
+      "oauth_replay_ledger",
+      "oauth_revocation_outbox",
+      "oauth_runtime_audit",
+      "oauth_runtime_transactions",
+      "oauth_token_opaque_refs"
+    ],
+    "coordinator_table_present": true,
+    "digest_only_identity_storage": true,
+    "reference_only_secret_storage": true,
+    "recursive_metadata_check": true,
+    "tenant_principal_rls_ready": true,
+    "domain_invariants_ready": true,
+    "postgres_contract_ready": true,
+    "account_takeover_controls": true,
+    "same_account_provider_link_ready": true,
+    "membership_identity_decoupled": true,
+    "public_dto_allowlist_only": true,
+    "secret_material_excluded": true,
+    "google_real_provider_ready": true,
+    "outbox_audit_controls": true,
+    "recovery_merge_controls_present": true,
+    "revocation_outbox_hardening_present": true,
+    "revocation_external_checkpoints": true,
+    "revocation_fenced_retry_ready": true,
+    "revocation_reconnect_cleanup_safe": true,
+    "session_authentication_ready": true,
+    "identity_verification_sql_path": "services/api/migrations/012_a1_identity_verification.sql",
+    "identity_verification_public_surface_path": "docs/a1/identity-verification-public-surface.json",
+    "identity_verification_surface_schema_version": "releasefoundry.identity_verification_public_surface.v1",
+    "identity_verification_route_count": 12,
+    "identity_verification_digest_only": true,
+    "identity_verification_abuse_controls": true,
+    "identity_verification_receipt_controls": true,
+    "identity_verification_runtime_boundary": true,
+    "identity_verification_public_surface_ready": true,
+    "identity_verification_ready": true,
+    "append_only_controls": true,
+    "hard_delete_rejected": true,
+    "final_credential_unlink_rejected": true,
+    "raw_secret_columns_present": false,
+    "multi_instance_gap_present": true,
+    "production_ready": false,
+    "ready_for_a2_identity_policy_context": true,
+    "c3_grading_ready": false,
+    "a2_policy_implications": {
+      "identity_policy_context": true,
+      "can_support_account_takeover_regressions": true,
+      "can_support_membership_decoupling_regressions": true,
+      "can_support_provider_linking_abuse_cases": true,
+      "must_not_mark_c3_from_identity_context": true
+    },
+    "notes": [
+      "A1 unified identity evidence is public-safe auth policy context for A2 identity, OAuth linking, and membership-decoupling regressions.",
+      "Current real-provider proof is localhost and not production readiness; pending China/phone/email providers remain contract-only."
+    ]
+  },
+  "a1_billing_sql_semantic_contract": {
+    "available": true,
+    "path": "docs/a1/evidence/billing_sql_semantic_contract.json",
+    "schema_version": "releasefoundry.a1.billing_sql_semantic_contract.v1",
+    "migration": "services/api/migrations/002_a1_billing_ledger.sql",
+    "public_safe": true,
+    "durable_policy": "hash_or_reference_only",
+    "provider_config_column_present": false,
+    "provider_config_object_persisted": false,
+    "hash_columns": [
+      "billing_provider_events.payload_sha256"
+    ],
+    "reference_only_field_count": 5,
+    "forbidden_durable_columns": [
+      "card_number",
+      "client_secret",
+      "payload",
+      "provider_config",
+      "provider_secret",
+      "raw_payload"
+    ],
+    "forbidden_public_marker_count": 5,
+    "replay_statuses": [
+      "accepted",
+      "conflict",
+      "duplicate"
+    ],
+    "accepted_ledger_mutation_count": 1,
+    "duplicate_ledger_mutation_count": 0,
+    "conflict_ledger_mutation_count": 0,
+    "raw_payload_included": false,
+    "secret_value_present": false,
+    "match_key": [
+      "mode",
+      "organization_id",
+      "project_id",
+      "provider",
+      "provider_event_id"
+    ],
+    "billing_sql_edge_count": 2,
+    "go_postgres_hash_only_object_count": 3,
+    "raw_payload_column_present_count": 0,
+    "public_snapshot_fields": [
+      "billing_snapshot_sha256",
+      "ledger_event_count",
+      "provider_event_count",
+      "raw_payload_included",
+      "secret_value_present"
+    ],
+    "pytest_targets": [
+      "tests/a1/test_billing_ledger_migration_manifest.py",
+      "tests/a1/test_billing_provider_contract.py"
+    ],
+    "schema_path": "docs/a1/schemas/billing_sql_semantic_contract.schema.json",
+    "ready_for_a2_sql_policy_context": true,
+    "c3_grading_ready": false,
+    "a2_policy_implications": {
+      "sql_semantic_policy_context": true,
+      "can_support_replay_regression_cases": true,
+      "can_support_hash_only_artifact_audit": true,
+      "must_not_mark_c3_from_sql_context": true
+    },
+    "notes": [
+      "A1 billing SQL semantic contract is public-safe SQL and replay semantics context for A2 policy checks.",
+      "It validates hash/reference-only billing storage semantics, not reviewed ReleaseFoundry grading rows."
+    ]
+  },
+  "a1_object_storage_contract": {
+    "available": true,
+    "path": "docs/a1/evidence/object_storage_contract_20260709.md",
+    "schema_version": "releasefoundry.object_storage.v1",
+    "public_safe": true,
+    "backend_count": 2,
+    "supported_backends": [
+      "local-filesystem",
+      "s3-compatible"
+    ],
+    "scoped_object_keys": true,
+    "manifest_field_count": 5,
+    "manifest_fields": [
+      "content_type",
+      "object_key",
+      "sha256",
+      "size_bytes",
+      "storage_uri"
+    ],
+    "manifest_signature_sha256": true,
+    "checksum_readback": true,
+    "local_readback_sha256": true,
+    "s3_reference_only": true,
+    "lazy_network_adapter": true,
+    "sdk_helper_present": true,
+    "api_integration_present": true,
+    "evidence_bundle_metadata_present": true,
+    "raw_payload_bytes_included": false,
+    "absolute_local_paths_included": false,
+    "raw_endpoint_values_included": false,
+    "raw_access_key_values_included": false,
+    "raw_secret_key_values_included": false,
+    "raw_token_values_included": false,
+    "test_target_count": 2,
+    "test_targets": [
+      "tests/a1/test_object_storage_contract.py",
+      "tests/a1/test_saas_platform.py"
+    ],
+    "ready_for_a2_artifact_policy_context": true,
+    "c3_grading_ready": false,
+    "a2_policy_implications": {
+      "object_storage_policy_context": true,
+      "can_support_artifact_bundle_evidence_handoff": true,
+      "can_support_checksum_regression_cases": true,
+      "must_not_mark_c3_from_storage_context": true
+    },
+    "notes": [
+      "A1 object storage contract is public-safe artifact and bundle handoff context for A2 evidence policy.",
+      "It validates manifest/checksum/redaction semantics, not reviewed ReleaseFoundry grading rows."
+    ]
+  },
+  "official_sdk_smoke": {
+    "available": true,
+    "path": "docs/evidence/a2_real_api_smoke.json",
+    "schema_version": "a2.real_api_smoke.v1",
+    "generated_at": "2026-07-09T13:35:50Z",
+    "sdk_source": "packages/sdk/releasefoundry",
+    "base_url": "https://api.releasefoundry.example/testing-platform-api",
+    "api_call_count": 6,
+    "ok_call_count": 6,
+    "error_call_count": 0,
+    "call_status_counts": {
+      "ok": 6
+    },
+    "call_names": [
+      "health_check",
+      "init",
+      "list_agents",
+      "list_datasets",
+      "list_requests",
+      "list_runs"
+    ],
+    "all_required_calls_reached": true,
+    "read_only_reachable": true,
+    "notes": [
+      "This is a redacted official releasefoundry SDK smoke summary, separate from clone API calibration.",
+      "It proves current authenticated read/list reachability but does not count as C3 server-side grading evidence."
+    ]
+  },
+  "multimodal_real_api_smoke": {
+    "available": true,
+    "path": "docs/evidence/a2_multimodal_real_api_smoke.json",
+    "schema_version": "a2.multimodal_real_api_smoke.v1",
+    "generated_at": "2026-07-10T23:46:02Z",
+    "sdk_source": "packages/sdk/releasefoundry",
+    "base_url": "https://api.releasefoundry.example/testing-platform-api",
+    "private_ref": "docs/evidence/private_refs/a2_multimodal_real_api_smoke.private.json",
+    "private_ref_sha256_12": "084c566f8467",
+    "accepted_modalities": [
+      "audio",
+      "file",
+      "image",
+      "text",
+      "video"
+    ],
+    "generation_options": {
+      "generate_audio": true,
+      "generate_files": true,
+      "generate_images": true,
+      "generate_videos": true
+    },
+    "api_call_count": 2,
+    "ok_call_count": 1,
+    "error_call_count": 1,
+    "call_status_counts": {
+      "error": 1,
+      "ok": 1
+    },
+    "call_names": [
+      "create_request",
+      "init"
+    ],
+    "quota_blocked": true,
+    "create_request_error_type": "ReleaseFoundryError",
+    "create_request_error_message": "[400] Usage limit exceeded for requests: 5/5 used, requested 1, 0 remaining",
+    "real_api_boundary_reached": true,
+    "all_required_modalities_requested": true,
+    "create_request_reached": false,
+    "wait_completed": false,
+    "dataset_id_present": false,
+    "public_safe": true,
+    "ready_for_a2_multimodal_context": true,
+    "c3_grading_ready": false,
+    "notes": [
+      "This is a redacted real ReleaseFoundry API multimodal smoke summary for image/audio/file/video request injection.",
+      "A quota-blocked create_request still proves the request payload reached the authenticated API gate after local SDK validation.",
+      "It is not reviewed ReleaseFoundry grading evidence and does not mark C3 ready."
+    ]
+  },
+  "releasefoundry_public_merge_gate": {
+    "source": "releasefoundry_grading",
+    "status": "not_merged",
+    "public_matrix_merged": false,
+    "safe_to_mark_c3_met": false,
+    "current_public_observation_count": 0,
+    "merged_public_observation_count": 0,
+    "reviewed_public_observation_count": 0,
+    "missing_public_observation_count": 6,
+    "missing_reviewed_observation_count": 6,
+    "required_public_observation_count": 6,
+    "expected_reviewed_observation_count": 6,
+    "required_review_fields": [
+      "metadata.review_status",
+      "evidence_ref"
+    ],
+    "public_matrix_path": "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+    "reviewed_private_import_ref": "docs/evidence/private_refs/a2_releasefoundry_grading_import.review.json",
+    "blocking_reason": "Reviewed ReleaseFoundry grading observations with review_status=reviewed and evidence_ref must be imported, merged, and regenerated before C3 is met.",
+    "required_commands": [
+      "python scripts/a2_scan_releasefoundry_grading_evidence.py --input docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json --case-map fixtures/a2/calibration/releasefoundry_grading_batch_case_map.json",
+      "python scripts/a2_import_releasefoundry_grading.py --input docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json --case-map fixtures/a2/calibration/releasefoundry_grading_batch_case_map.json --evidence-ref docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json --review-status reviewed --output docs/evidence/private_refs/a2_releasefoundry_grading_import.review.json",
+      "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_releasefoundry_grading_import.review.json --source releasefoundry_grading --min-count 6 --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
+      "python scripts/a2_regenerate_fixtures.py --write"
+    ]
+  },
+  "semantic_judge_preflight": {
+    "source": "llm_judge",
+    "current_available": 6,
+    "current_missing": 0,
+    "offline_reference_only": true,
+    "expected_observation_count": 6,
+    "expected_reviewed_observation_count": 6,
+    "reviewed_live_observation_count": 0,
+    "missing_reviewed_live_observation_count": 6,
+    "reviewed_live_sdk_languages": [],
+    "reviewed_live_required_metadata_fields": [
+      "prompt_template_id",
+      "prompt_hash",
+      "response_hash",
+      "review_status",
+      "sdk_language"
+    ],
+    "risk_assessment_status": "offline_reference_risk_register",
+    "false_positive_tracking_ready": true,
+    "false_positive_candidate_count": 0,
+    "false_negative_candidate_count": 0,
+    "failure_class_drift_candidate_count": 1,
+    "score_delta_review_count": 4,
+    "risk_case_count": 4,
+    "required_fields": [
+      "case_id",
+      "scenario_id",
+      "provider",
+      "model",
+      "prompt_template_id",
+      "prompt_hash",
+      "response_hash",
+      "review_status",
+      "sdk_language",
+      "cost.prompt_tokens",
+      "cost.completion_tokens",
+      "cost.estimated_usd",
+      "output.passed",
+      "output.primary_failure_class",
+      "output.score",
+      "output.confidence",
+      "output.rationale",
+      "output.evidence_refs"
+    ],
+    "required_sdk_languages": [
+      "python",
+      "typescript"
+    ],
+    "covered_sdk_languages": [
+      "python",
+      "typescript"
+    ],
+    "private_input_ref": "docs/evidence/private_refs/a2_semantic_judge_review.redacted.json",
+    "collection_packet_ref": "fixtures/a2/calibration/a2_semantic_judge_collection_packet.json",
+    "commands": [
+      "python scripts/a2_build_semantic_judge_collection_packet.py --check",
+      "python scripts/a2_import_semantic_judge.py --input docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --evidence-ref docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --output docs/evidence/private_refs/a2_semantic_judge_import.review.json",
+      "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_semantic_judge_import.review.json --source llm_judge --min-count 6 --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
+      "python scripts/a2_regenerate_fixtures.py --write"
+    ]
+  },
+  "semantic_live_merge_gate": {
+    "source": "llm_judge",
+    "status": "offline_reference_only",
+    "audited_live_evidence_merged": false,
+    "safe_to_mark_c4_met": false,
+    "current_public_observation_count": 6,
+    "audited_public_observation_count": 0,
+    "reviewed_live_observation_count": 0,
+    "missing_audited_observation_count": 6,
+    "expected_reviewed_observation_count": 6,
+    "offline_reference_only": true,
+    "live_model_evidence_available": false,
+    "public_matrix_path": "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+    "reviewed_private_import_ref": "docs/evidence/private_refs/a2_semantic_judge_import.review.json",
+    "blocking_reason": "Audited semantic judge observations must replace offline references before C4 is met.",
+    "required_commands": [
+      "python scripts/a2_build_semantic_judge_collection_packet.py --check",
+      "python scripts/a2_import_semantic_judge.py --input docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --evidence-ref docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --output docs/evidence/private_refs/a2_semantic_judge_import.review.json",
+      "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_semantic_judge_import.review.json --source llm_judge --min-count 6 --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
+      "python scripts/a2_regenerate_fixtures.py --write"
+    ]
+  },
+  "batch_plan_refs": [
+    "releasefoundry_grading_tiny_calibration",
+    "semantic_llm_judge_audit"
+  ],
+  "redaction_policy": {
+    "raw_private_path": "docs/evidence/private_refs/",
+    "commit_only": [
+      "reviewed observation summaries",
+      "provider/model names",
+      "prompt and response hashes",
+      "cost totals",
+      "confidence and review status",
+      "private evidence refs"
+    ],
+    "never_commit": [
+      "API keys",
+      "raw prompts",
+      "raw model responses",
+      "raw account payloads"
+    ]
+  },
+  "metadata": {
+    "deterministic": true,
+    "purpose": "Make C3/C4 evidence collection auditable without committing private payloads."
+  }
+}

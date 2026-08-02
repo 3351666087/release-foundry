@@ -1,0 +1,186 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://releasefoundry.local/schemas/a1/api_calibration_readiness_packet.schema.json",
+  "title": "A1 Official API Calibration Readiness Packet",
+  "description": "Public-safe summary of official API calibration coverage, guardrails, private evidence references, and remaining gaps. Raw API records stay in docs/evidence/private_refs and are not embedded.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "generated_at",
+    "source_field_map",
+    "field_map_version",
+    "public_safety",
+    "official_api_contract",
+    "execution_guardrails",
+    "observed_surface",
+    "readiness",
+    "next_read_only_calibration",
+    "gaps",
+    "commands"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "releasefoundry.api_calibration_readiness_packet.v1"
+    },
+    "generated_at": {
+      "type": "string"
+    },
+    "source_field_map": {
+      "type": "string",
+      "pattern": "^docs/a1/api_calibration/"
+    },
+    "source_evidence_index": {
+      "type": ["string", "null"],
+      "pattern": "^docs/a1/api_calibration/"
+    },
+    "field_map_version": {
+      "type": "string"
+    },
+    "public_safety": {
+      "type": "object",
+      "required": [
+        "raw_key_material_present",
+        "auth_header_present",
+        "contains_raw_payload_response",
+        "contains_private_evidence_contents",
+        "private_evidence_root",
+        "private_evidence_references_only"
+      ],
+      "properties": {
+        "raw_key_material_present": {"const": false},
+        "auth_header_present": {"const": false},
+        "contains_raw_payload_response": {"const": false},
+        "contains_private_evidence_contents": {"const": false},
+        "private_evidence_root": {"const": "docs/evidence/private_refs"},
+        "private_evidence_references_only": {"const": true}
+      },
+      "additionalProperties": true
+    },
+    "official_api_contract": {
+      "type": "object",
+      "required": ["dispatch", "base_url_env", "auth_env_vars", "key_material_source", "key_material_logged"],
+      "properties": {
+        "dispatch": {"type": "string"},
+        "base_url_env": {"type": "string"},
+        "auth_env_vars": {"type": "array", "items": {"type": "string"}},
+        "key_material_source": {"type": "string"},
+        "key_material_logged": {"const": false}
+      },
+      "additionalProperties": true
+    },
+    "execution_guardrails": {
+      "type": "object",
+      "required": ["default_mode", "real_read_only_requires", "real_mutating_requires", "paid_media_requires", "full_record_stdout_blocked_for_real_or_gate"],
+      "properties": {
+        "default_mode": {"const": "dry-run"},
+        "real_read_only_requires": {"type": "array", "items": {"type": "string"}},
+        "real_mutating_requires": {"type": "array", "items": {"type": "string"}},
+        "paid_media_requires": {"type": "string"},
+        "full_record_stdout_blocked_for_real_or_gate": {"const": true}
+      },
+      "additionalProperties": true
+    },
+    "observed_surface": {
+      "type": "object",
+      "required": ["function_count", "functions", "read_only_manifest_step_count", "read_only_missing_from_field_map", "quota_block_count"],
+      "properties": {
+        "function_count": {"type": "integer", "minimum": 0},
+        "functions": {"type": "array", "items": {"type": "string"}},
+        "read_only_manifest_step_count": {"type": "integer", "minimum": 0},
+        "read_only_missing_from_field_map": {"type": "array", "items": {"type": "string"}},
+        "private_record_count": {"type": ["integer", "null"], "minimum": 0},
+        "status_counts": {"type": "object"},
+        "quota_block_count": {"type": ["integer", "null"], "minimum": 0}
+      },
+      "additionalProperties": true
+    },
+    "readiness": {
+      "type": "object",
+      "required": ["public_packet_ready", "read_only_small_batch_ready", "next_read_only_calibration_ready", "mutating_small_batch_ready", "reason_mutating_not_ready"],
+      "properties": {
+        "public_packet_ready": {"const": true},
+        "read_only_small_batch_ready": {"type": "boolean"},
+        "next_read_only_calibration_ready": {"const": true},
+        "mutating_small_batch_ready": {"const": false},
+        "reason_mutating_not_ready": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "next_read_only_calibration": {
+      "type": "object",
+      "required": ["purpose", "mode", "target_shape_groups", "private_evidence_paths", "constraints", "acceptance_checks", "commands"],
+      "properties": {
+        "purpose": {"type": "string"},
+        "mode": {"const": "read-only small batch"},
+        "target_shape_groups": {
+          "type": "array",
+          "minItems": 3,
+          "items": {
+            "type": "object",
+            "required": ["id", "target_functions", "target_fields", "method"],
+            "properties": {
+              "id": {"enum": ["error_shape_refresh", "usage_shape_refresh", "quota_shape_refresh"]},
+              "target_functions": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+              "target_fields": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+              "method": {"type": "string"}
+            },
+            "additionalProperties": true
+          }
+        },
+        "private_evidence_paths": {
+          "type": "object",
+          "required": ["manifest", "step_records", "refreshed_private_index_input"],
+          "additionalProperties": {"type": "string", "pattern": "^docs/evidence/private_refs"}
+        },
+        "publishable_outputs": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^docs/a1/api_calibration/"}
+        },
+        "constraints": {
+          "type": "object",
+          "required": ["env_only_auth_material", "never_print_or_store_key", "mutating_calls_allowed", "include_mutating_allowed", "paid_media_allowed", "stdout_full_record_allowed", "raw_response_payload_publication_allowed", "real_output_root"],
+          "properties": {
+            "env_only_auth_material": {"const": true},
+            "never_print_or_store_key": {"const": true},
+            "mutating_calls_allowed": {"const": false},
+            "include_mutating_allowed": {"const": false},
+            "paid_media_allowed": {"const": false},
+            "stdout_full_record_allowed": {"const": false},
+            "raw_response_payload_publication_allowed": {"const": false},
+            "real_output_root": {"const": "docs/evidence/private_refs"}
+          },
+          "additionalProperties": true
+        },
+        "acceptance_checks": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "commands": {
+          "type": "object",
+          "required": ["dry_run_plan", "real_read_only_private", "regenerate_public_packet"],
+          "additionalProperties": {"type": "string"}
+        }
+      },
+      "additionalProperties": true
+    },
+    "gaps": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["id", "severity", "summary", "blocked_by"],
+        "properties": {
+          "id": {"type": "string"},
+          "severity": {"enum": ["low", "medium", "high"]},
+          "summary": {"type": "string"},
+          "blocked_by": {"type": "array", "items": {"type": "string"}},
+          "functions": {"type": "array", "items": {"type": "string"}},
+          "modalities": {"type": "array", "items": {"type": "string"}}
+        },
+        "additionalProperties": true
+      }
+    },
+    "commands": {
+      "type": "object",
+      "additionalProperties": {"type": "string"}
+    }
+  },
+  "additionalProperties": true
+}

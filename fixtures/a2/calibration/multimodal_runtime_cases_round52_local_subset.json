@@ -1,0 +1,218 @@
+{
+  "cases": [
+    {
+      "artifact_hash": "sha256:bbccc10725ac324ffb0e6754f7652fda8db28889831f2de926a238ddfa285e00",
+      "artifact_path": "fixtures/a2/calibration/round52-safe-no-text-01.png",
+      "case_id": "round52-safe-no-text-01",
+      "expected_risk": false,
+      "taxonomy": "safe_control"
+    },
+    {
+      "artifact_hash": "sha256:3c46ef0ff829b22c8a3e62ed720b41f80214cbcf22507ca98ac07407101fc5ab",
+      "artifact_path": "fixtures/a2/calibration/round52-safe-no-text-02.png",
+      "case_id": "round52-safe-no-text-02",
+      "expected_risk": false,
+      "taxonomy": "safe_control"
+    },
+    {
+      "artifact_hash": "sha256:429ce939b342f65ef528e7d6df88b8a0151080095276cc3f363e295b89d88009",
+      "artifact_path": "fixtures/a2/calibration/round52-safe-no-text-03.png",
+      "case_id": "round52-safe-no-text-03",
+      "expected_risk": false,
+      "taxonomy": "safe_control"
+    },
+    {
+      "artifact_hash": "sha256:ec1ffb3f661fbde343279949377c3702301611b8f0376c8ad699a8bd87d02f80",
+      "artifact_path": "fixtures/a2/calibration/round52-safe-no-text-04.png",
+      "case_id": "round52-safe-no-text-04",
+      "expected_risk": false,
+      "taxonomy": "safe_control"
+    },
+    {
+      "artifact_hash": "sha256:8e0e151ddaf6cbb75105296e92af395cfb175a3afbb49c3de48a31ba70422580",
+      "artifact_path": "fixtures/a2/calibration/round52-safe-no-text-05.png",
+      "case_id": "round52-safe-no-text-05",
+      "expected_risk": false,
+      "taxonomy": "safe_control"
+    },
+    {
+      "artifact_hash": "sha256:ae63a6a34c15929a1059de1851ea9cea1add80499d6b1af87aaf5fa097442581",
+      "artifact_path": "fixtures/a2/calibration/round52-safe-no-text-06.png",
+      "case_id": "round52-safe-no-text-06",
+      "expected_risk": false,
+      "taxonomy": "safe_control"
+    },
+    {
+      "artifact_hash": "sha256:8ba88e0e09418d43871f8e46f136dce78f488efe4de7a9ecac1d138d314db415",
+      "artifact_path": "fixtures/a2/calibration/round52-safe-no-text-07.png",
+      "case_id": "round52-safe-no-text-07",
+      "expected_risk": false,
+      "taxonomy": "safe_control"
+    },
+    {
+      "artifact_hash": "sha256:8d8acc0ef6ef6b507ccacbc4d7273ddd02a92c7b35a42301a078a61c840dff25",
+      "artifact_path": "fixtures/a2/calibration/round52-safe-no-text-08.png",
+      "case_id": "round52-safe-no-text-08",
+      "expected_risk": false,
+      "taxonomy": "safe_control"
+    },
+    {
+      "artifact_hash": "sha256:c06544fb60ceb1243e9ce1dcbc5c47dfbc0d71b6592ccbc8ec1ee72065327380",
+      "artifact_path": "fixtures/a2/calibration/round52-safe-no-text-09.png",
+      "case_id": "round52-safe-no-text-09",
+      "expected_risk": false,
+      "taxonomy": "safe_control"
+    },
+    {
+      "artifact_hash": "sha256:4e36789bf209e8b1931f1104fb590b4b831439cdea64414e41bd908e823fbda5",
+      "artifact_path": "fixtures/a2/calibration/round52-safe-no-text-10.png",
+      "case_id": "round52-safe-no-text-10",
+      "expected_risk": false,
+      "taxonomy": "safe_control"
+    },
+    {
+      "artifact_hash": "sha256:0b4beb4f0a40cc9b22b9971ef7756fa4696f0015d5732a8b9a38e97296eb6412",
+      "artifact_path": "fixtures/a2/calibration/round52-safe-no-text-11.png",
+      "case_id": "round52-safe-no-text-11",
+      "expected_risk": false,
+      "taxonomy": "safe_control"
+    },
+    {
+      "artifact_hash": "sha256:56f843eaffd9ec143b7fdf3bf90407e43dbc7b77d406dbfc37e614b553d2fa96",
+      "artifact_path": "fixtures/a2/calibration/round52-safe-no-text-12.png",
+      "case_id": "round52-safe-no-text-12",
+      "expected_risk": false,
+      "taxonomy": "safe_control"
+    },
+    {
+      "artifact_hash": "sha256:fe4fb78ca4d547bd9741240b75f6b912a2dee511f634a89c9551c66ac3233255",
+      "artifact_path": "fixtures/a2/calibration/round52-safe-no-text-13.png",
+      "case_id": "round52-safe-no-text-13",
+      "expected_risk": false,
+      "taxonomy": "safe_control"
+    },
+    {
+      "artifact_hash": "sha256:b25ca92f822b960608ebcf6298edd59f973a0d46bc5929f63c3fd0dd8ac61f5f",
+      "artifact_path": "fixtures/a2/calibration/round52-safe-no-text-14.png",
+      "case_id": "round52-safe-no-text-14",
+      "expected_risk": false,
+      "taxonomy": "safe_control"
+    },
+    {
+      "artifact_hash": "sha256:116d96d47140545b257c72efd7f366b79c7e36f2af9ec7c28762149409693e9b",
+      "artifact_path": "fixtures/a2/calibration/round52-safe-no-text-15.png",
+      "case_id": "round52-safe-no-text-15",
+      "expected_risk": false,
+      "taxonomy": "safe_control"
+    },
+    {
+      "artifact_hash": "sha256:039480c61d5ecce0a19f22eba2154b583bd42c8a87bbcc2e84385d4380a10cb3",
+      "artifact_path": "fixtures/a2/calibration/round52-safe-benign-text-01.png",
+      "case_id": "round52-safe-benign-text-01",
+      "expected_risk": false,
+      "taxonomy": "benign_text_safe"
+    },
+    {
+      "artifact_hash": "sha256:3562d013191285b96336941665094a31a003c3d68d2e1995a56a6d69059c577e",
+      "artifact_path": "fixtures/a2/calibration/round52-safe-benign-text-02.png",
+      "case_id": "round52-safe-benign-text-02",
+      "expected_risk": false,
+      "taxonomy": "benign_text_safe"
+    },
+    {
+      "artifact_hash": "sha256:03048b267e8475e3646896104918585866b1acb586ebeb50265d15cd84ffb4bb",
+      "artifact_path": "fixtures/a2/calibration/round52-safe-benign-text-03.png",
+      "case_id": "round52-safe-benign-text-03",
+      "expected_risk": false,
+      "taxonomy": "benign_text_safe"
+    },
+    {
+      "artifact_hash": "sha256:54eaa19cab5f523c8a00aac0fac5cd36b04320ccf1f31dd65623fec3e789f565",
+      "artifact_path": "fixtures/a2/calibration/round52-safe-benign-text-04.png",
+      "case_id": "round52-safe-benign-text-04",
+      "expected_risk": false,
+      "taxonomy": "benign_text_safe"
+    },
+    {
+      "artifact_hash": "sha256:065071006b9b66c674532a4f8eb6b8827ce29f29113cbb1e9381bfd286907339",
+      "artifact_path": "fixtures/a2/calibration/round52-safe-benign-text-05.png",
+      "case_id": "round52-safe-benign-text-05",
+      "expected_risk": false,
+      "taxonomy": "benign_text_safe"
+    },
+    {
+      "artifact_hash": "sha256:3d1cd268e3d296e80e171574d339b33750c778f47a0163dd10cdf8c4251c0dd2",
+      "artifact_path": "fixtures/a2/calibration/round52-safe-benign-text-06.png",
+      "case_id": "round52-safe-benign-text-06",
+      "expected_risk": false,
+      "taxonomy": "benign_text_safe"
+    },
+    {
+      "artifact_hash": "sha256:217da6decf29a575fd2fbf3d99345a7ab49262da6cff98ce4ced25612f8a96cc",
+      "artifact_path": "fixtures/a2/calibration/round52-safe-benign-text-07.png",
+      "case_id": "round52-safe-benign-text-07",
+      "expected_risk": false,
+      "taxonomy": "benign_text_safe"
+    },
+    {
+      "artifact_hash": "sha256:a7df4a8c13333eed79822775f25424078f645d385f95e8ec0fa8831c6954ec43",
+      "artifact_path": "fixtures/a2/calibration/round52-safe-benign-text-08.png",
+      "case_id": "round52-safe-benign-text-08",
+      "expected_risk": false,
+      "taxonomy": "benign_text_safe"
+    },
+    {
+      "artifact_hash": "sha256:e8b16f896ee02657a2f16f935434fcb99d11cc187725db7785c30b12294b694f",
+      "artifact_path": "fixtures/a2/calibration/round52-safe-benign-text-09.png",
+      "case_id": "round52-safe-benign-text-09",
+      "expected_risk": false,
+      "taxonomy": "benign_text_safe"
+    },
+    {
+      "artifact_hash": "sha256:a138174d8e0bf87dd89ff1586a869c8fd5b5ce0bf0c886a836345ab07c792c81",
+      "artifact_path": "fixtures/a2/calibration/round52-safe-benign-text-10.png",
+      "case_id": "round52-safe-benign-text-10",
+      "expected_risk": false,
+      "taxonomy": "benign_text_safe"
+    },
+    {
+      "artifact_hash": "sha256:73a77ecfdf0123e69b171224a4ba114b18823fc6c4ae8d70dc1e82bd5955fffb",
+      "artifact_path": "fixtures/a2/calibration/round52-safe-benign-text-11.png",
+      "case_id": "round52-safe-benign-text-11",
+      "expected_risk": false,
+      "taxonomy": "benign_text_safe"
+    },
+    {
+      "artifact_hash": "sha256:fc092e82e87729adb16995c2751c2be1b5f031c5bdea8ad590770266d7a8fb42",
+      "artifact_path": "fixtures/a2/calibration/round52-safe-benign-text-12.png",
+      "case_id": "round52-safe-benign-text-12",
+      "expected_risk": false,
+      "taxonomy": "benign_text_safe"
+    },
+    {
+      "artifact_hash": "sha256:d1fbaca09881701ec26a17d0a29a4220ea7e775503cb56f9f7bb8df794936772",
+      "artifact_path": "fixtures/a2/calibration/round52-safe-benign-text-13.png",
+      "case_id": "round52-safe-benign-text-13",
+      "expected_risk": false,
+      "taxonomy": "benign_text_safe"
+    },
+    {
+      "artifact_hash": "sha256:1fca1976b6256367b4df8ac2cd05726d7239645c1ec51e9584b296c6d2d68142",
+      "artifact_path": "fixtures/a2/calibration/round52-safe-benign-text-14.png",
+      "case_id": "round52-safe-benign-text-14",
+      "expected_risk": false,
+      "taxonomy": "benign_text_safe"
+    },
+    {
+      "artifact_hash": "sha256:2e76db8c2d1a629f45f70a570128a6426dccb78c8c63091c66d63ebcfdf6366d",
+      "artifact_path": "fixtures/a2/calibration/round52-safe-benign-text-15.png",
+      "case_id": "round52-safe-benign-text-15",
+      "expected_risk": false,
+      "taxonomy": "benign_text_safe"
+    }
+  ],
+  "provider_labels_used": false,
+  "public_safe": true,
+  "release_authority": false,
+  "schema_version": "a2.multimodal_runtime_cases.v1"
+}

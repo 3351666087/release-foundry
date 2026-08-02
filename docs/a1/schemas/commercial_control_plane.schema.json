@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://releasefoundry.local/schemas/commercial_control_plane.schema.json",
+  "title": "A1 Commercial Control Plane Evidence Kit",
+  "type": "object",
+  "required": ["schema_version", "usage_billing_snapshot", "api_key_inventory", "observability_summary", "readiness_badge"],
+  "properties": {
+    "schema_version": { "const": "releasefoundry.commercial_control_plane.v1" },
+    "usage_billing_snapshot": { "type": "object", "required": ["schema_version", "real_billing_called", "checkout_or_portal_called", "usage_dimensions"] },
+    "api_key_inventory": { "type": "object", "required": ["schema_version", "raw_secret_values_included", "keys"] },
+    "observability_summary": { "type": "object", "required": ["schema_version", "raw_trace_payloads_included", "metrics"] },
+    "readiness_badge": { "type": "object", "required": ["schema_version", "read_only_current", "gate_current", "paid_mutation_executed_this_round", "status"] }
+  },
+  "additionalProperties": true
+}

@@ -1,0 +1,110 @@
+{
+  "created_at": "2026-07-04",
+  "sample": {
+    "actual_duration_s": 3,
+    "completed_at": "2026-07-04T07:33:15.103550+00:00",
+    "created_at": "2026-07-04T07:33:11.265060+00:00",
+    "estimated_duration_s": 75,
+    "id": "[REDACTED_ID]",
+    "prompt_version_id": null,
+    "request": {
+      "_failure": {
+        "at": "[REDACTED]",
+        "error": "[REDACTED]"
+      },
+      "agent": {
+        "accepted_inputs": {
+          "audio": true,
+          "conversation": false,
+          "file": true,
+          "image": true,
+          "text": "[REDACTED]",
+          "video": false
+        },
+        "description": "[REDACTED]",
+        "name": "[REDACTED]",
+        "output_format": {
+          "type": "text"
+        },
+        "tools": [
+          {
+            "description": "[REDACTED]",
+            "name": "[REDACTED]",
+            "parameters": {
+              "properties": {
+                "attachment_type": {
+                  "enum": [
+                    "[REDACTED]",
+                    "[REDACTED]",
+                    "[REDACTED]"
+                  ],
+                  "type": "[REDACTED]"
+                }
+              },
+              "required": [
+                "[REDACTED]"
+              ],
+              "type": "[REDACTED]"
+            }
+          }
+        ]
+      },
+      "context": {
+        "domain": "[REDACTED]",
+        "scenario_context": "[REDACTED]",
+        "use_case": "[REDACTED]"
+      },
+      "generation_options": {
+        "generate_audio": true,
+        "generate_files": true,
+        "generate_images": true,
+        "generate_simulations": false,
+        "generate_videos": false
+      },
+      "metadata": {
+        "dataset_name": "[REDACTED]",
+        "description": "[REDACTED]"
+      },
+      "test_config": {
+        "coverage": {
+          "edge_cases": false,
+          "error_handling": false,
+          "happy_path": true
+        },
+        "num_variations": 1,
+        "strategy": "[REDACTED]"
+      }
+    },
+    "request_input_schema": {
+      "additionalProperties": true,
+      "tools": [
+        {
+          "description": "[REDACTED]",
+          "name": "[REDACTED]",
+          "parameters": {
+            "properties": {
+              "attachment_type": {
+                "enum": [
+                  "[REDACTED]",
+                  "[REDACTED]",
+                  "[REDACTED]"
+                ],
+                "type": "[REDACTED]"
+              }
+            },
+            "required": [
+              "[REDACTED]"
+            ],
+            "type": "[REDACTED]"
+          }
+        }
+      ],
+      "type": "object"
+    },
+    "request_name": "[REDACTED]",
+    "request_status": "failed",
+    "requestor_id": "[REDACTED_ID]",
+    "requestor_tenant": "[REDACTED_ID]"
+  },
+  "schema_version": "a3.p3_releasefoundry_request_detail_sample.v1"
+}

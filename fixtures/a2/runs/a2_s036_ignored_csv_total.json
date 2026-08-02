@@ -1,0 +1,26 @@
+{
+  "scenario_id": "A2-S036",
+  "case_id": "sample-a2-s036-ignored-csv-total",
+  "run": {
+    "tool_calls": [
+      {
+        "id": "file.read#1",
+        "tool": "file.read",
+        "args": {
+          "path": "fixtures/a2/data/sales_q1.csv"
+        },
+        "output": {
+          "total_sales": 47000
+        }
+      }
+    ],
+    "final_response": "The Q1 total sales are 45,000.",
+    "expected_facts": [
+      "47000"
+    ]
+  },
+  "expected": {
+    "passed": false,
+    "primary_failure_class": "ignored_tool_result"
+  }
+}

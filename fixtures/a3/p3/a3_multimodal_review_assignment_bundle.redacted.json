@@ -1,0 +1,173 @@
+{
+  "schema_version": "a3.audit_bundle_index.v1",
+  "generated_at": "2026-07-14T12:07:00.000Z",
+  "source": "local-fixtures",
+  "command_shape": "releasefoundry gate --json",
+  "bundle_id": "a3-bundle-0-2-0-review-packet-1-run-a3-generated-from-a2-g-8698ede68838",
+  "bundle_index_file": "fixtures/a3/p3/a3_multimodal_review_assignment_bundle.redacted.json",
+  "bundle_index_self_hash": "excluded_to_avoid_self_reference",
+  "root_hash_algorithm": "sha256",
+  "root_hash_input": "canonical_json_without_root_hash_or_bundle_index_file_bytes",
+  "release": {
+    "run_id": "run_a3_generated_from_a2_g3",
+    "release_version": "0.2.0-review-packet.1",
+    "environment": "staging",
+    "owner": "Release owner",
+    "decision": "block_release",
+    "decision_label": "Block release",
+    "risk_score": 100,
+    "pass_rate": 6.3,
+    "average_score": 67.6,
+    "blocks_merge": true,
+    "github_check_conclusion": "failure",
+    "decision_authority": "A3 triage summary only",
+    "a2_integrity_verified": false,
+    "a2_upstream_decision": "not-attached",
+    "a2_release_ready": false,
+    "a2_decision_ledger_head_hash": null,
+    "a2_decision_record_id": null,
+    "candidate_id": null,
+    "candidate_binding_state": "not-attached",
+    "candidate_binding_verified": false,
+    "a2_grades_hash": null,
+    "a3_implementation_commit": null,
+    "a3_recomputed_a2_decision": false,
+    "failed_checks": [
+      "pass_rate",
+      "critical_failures",
+      "policy_failures",
+      "required_tool_coverage"
+    ]
+  },
+  "governance": {
+    "waiver_status": "missing_required_waiver",
+    "waiver_accepted": false,
+    "approval_status": "missing_required_approval",
+    "approval_accepted": false,
+    "automatic_unblock_allowed": false,
+    "required_approvers": [
+      "Release owner",
+      "A3 triage owner",
+      "Safety reviewer",
+      "A1 runner/tooling owner"
+    ]
+  },
+  "artifact_groups": {
+    "source_inputs": [
+      "grades",
+      "runs"
+    ],
+    "generated_outputs": [],
+    "governance_records": [],
+    "custody_records": [],
+    "authority_records": [],
+    "readback_records": [],
+    "deployment_records": []
+  },
+  "bundle_artifacts": [
+    {
+      "id": "multimodal_review_assignment_packet",
+      "path": "fixtures/a3/p3/a3_multimodal_review_assignment_packet.redacted.json",
+      "bundle_role": "review_record",
+      "content_type": "application/json",
+      "required": true,
+      "sha256": "92bffbedc1b3e31f78fb05fcb1787297b8297f2666eb310fab85fee75c7a6c8e",
+      "byte_size": 10995,
+      "created_by": "releasefoundry gate output writer",
+      "origin": "a3_review_assignment_evidence",
+      "redaction_status": "redacted_or_safe_for_audit"
+    },
+    {
+      "id": "grades",
+      "path": "fixtures/a3/mock_grade_results.json",
+      "bundle_role": "source_input",
+      "content_type": "application/json",
+      "required": true,
+      "sha256": "18ac989599f001e82daf78339045f7129a99e516fbdff446feaf8d6bea58af57",
+      "byte_size": 338656,
+      "created_by": "releasefoundry gate input manifest",
+      "redaction_status": "redacted_or_safe_for_audit"
+    },
+    {
+      "id": "runs",
+      "path": "fixtures/a3/mock_run_results.json",
+      "bundle_role": "source_input",
+      "content_type": "application/json",
+      "required": true,
+      "sha256": "4eff04487da9317b9dbf34298746af6beb23ebdebbb11f5821d93efece4252ba",
+      "byte_size": 171620,
+      "created_by": "releasefoundry gate input manifest",
+      "redaction_status": "redacted_or_safe_for_audit"
+    }
+  ],
+  "completeness": {
+    "status": "complete",
+    "required_artifact_count": 3,
+    "optional_artifact_count": 0,
+    "missing_required_artifacts": []
+  },
+  "chain_of_custody": [
+    {
+      "schema_version": "a3.custody_event.v1",
+      "event_id": "001-gate_built",
+      "bundle_id": "a3-bundle-0-2-0-review-packet-1-run-a3-generated-from-a2-g-8698ede68838",
+      "occurred_at": "2026-07-14T12:07:00.000Z",
+      "actor": "local-a3-gate-cli",
+      "previous_event_hash": null,
+      "action": "gate_built",
+      "status": "completed",
+      "artifact_ids": [
+        "runs",
+        "grades"
+      ],
+      "note": "Release gate payload generated from source inputs.",
+      "event_hash": "98d80c3a211b151b407620703ecf103e35d103b27d737c997f492e5ac3d5c09b"
+    },
+    {
+      "schema_version": "a3.custody_event.v1",
+      "event_id": "002-input_artifacts_hashed",
+      "bundle_id": "a3-bundle-0-2-0-review-packet-1-run-a3-generated-from-a2-g-8698ede68838",
+      "occurred_at": "2026-07-14T12:07:00.000Z",
+      "actor": "local-a3-gate-cli",
+      "previous_event_hash": "98d80c3a211b151b407620703ecf103e35d103b27d737c997f492e5ac3d5c09b",
+      "action": "input_artifacts_hashed",
+      "status": "completed",
+      "artifact_ids": [
+        "grades",
+        "runs"
+      ],
+      "note": "Source inputs hashed for audit manifest.",
+      "event_hash": "d0ab75658bf7832ace2d3f083d431f2533894baab9fe87aa180c30495eb5ff07"
+    },
+    {
+      "schema_version": "a3.custody_event.v1",
+      "event_id": "003-bundle_index_written",
+      "bundle_id": "a3-bundle-0-2-0-review-packet-1-run-a3-generated-from-a2-g-8698ede68838",
+      "occurred_at": "2026-07-14T12:07:00.000Z",
+      "actor": "local-a3-gate-cli",
+      "previous_event_hash": "d0ab75658bf7832ace2d3f083d431f2533894baab9fe87aa180c30495eb5ff07",
+      "action": "bundle_index_written",
+      "status": "completed",
+      "artifact_ids": [
+        "audit_bundle_index"
+      ],
+      "note": "Audit bundle index written to fixtures/a3/p3/a3_multimodal_review_assignment_bundle.redacted.json.",
+      "event_hash": "96a58c47d2f9607d1663b94f15c391289e9085a324075f824e109f75331e5861"
+    }
+  ],
+  "retention": {
+    "storage_backend": "local-filesystem",
+    "retention_days": 30,
+    "legal_hold": false,
+    "immutable_write_once": true,
+    "verification_command": "releasefoundry gate verify --index fixtures/a3/p3/a3_multimodal_review_assignment_bundle.redacted.json"
+  },
+  "safety": {
+    "contains_secret_values": false,
+    "local_absolute_paths_allowed": false,
+    "self_hash_excluded": true,
+    "dry_run_compatible": true,
+    "redaction_policy": "No API keys, cookies, tokens, emails, or live signed media URLs are allowed in CLI output."
+  },
+  "bundle_root_hash": "1bfe16aa99744199a83c35952e950049c65c95daa73c7fc246553453f5cb90fa"
+}

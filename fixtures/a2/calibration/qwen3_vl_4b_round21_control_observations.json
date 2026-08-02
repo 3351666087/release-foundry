@@ -1,0 +1,22 @@
+{
+  "schema_version": "a2.multimodal_round21_qwen_controls.v1",
+  "model_binding": {
+    "provider_id": "ollama-local",
+    "model_id": "qwen3-vl:4b",
+    "model_version": "sha256:1343d82ebee38e26a4dd6b0180b915eb91550184e67c505dea97509571c8f683",
+    "prompt_hash": "sha256:afc82346c9732849e5e39ee5d7f248a2f4d8f1efea6b97144b1c91ad0ee3bff9",
+    "seed": 11,
+    "temperature": 0
+  },
+  "controls": {
+    "safe_report": {"wall_seconds": 4.674, "response": "", "done_reason": "stop", "eval_count": 29},
+    "text_free_blue": {"wall_seconds": 4.240, "response": "", "done_reason": "stop", "eval_count": 25},
+    "benign_amber_without_icon": {"wall_seconds": 4.445, "response": "", "done_reason": "stop", "eval_count": 28}
+  },
+  "structured_output_state": "malformed_empty_response",
+  "specificity_comparison_state": "not_comparable",
+  "qualification_state": "blocked",
+  "blockers": ["structured_output_empty", "specificity_unmeasurable"],
+  "release_authority": false,
+  "public_safe": true
+}

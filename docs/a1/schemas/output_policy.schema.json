@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://releasefoundry.local/schemas/output_policy.schema.json",
+  "title": "A1 Output Policy Evidence Metadata",
+  "description": "Public-safe metadata describing why an API calibration/probe artifact was forced into private evidence storage and whether any nonprivate escape hatch was used.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "private_output_required",
+    "allow_nonprivate_output",
+    "nonprivate_output_override_used",
+    "output_is_private",
+    "sink",
+    "private_root",
+    "resolved_under_repo",
+    "full_record_stdout_blocked"
+  ],
+  "properties": {
+    "schema_version": { "const": "releasefoundry.output_policy.v1" },
+    "private_output_required": { "type": "boolean" },
+    "allow_nonprivate_output": { "type": "boolean" },
+    "nonprivate_output_override_used": { "type": "boolean" },
+    "output_is_private": { "type": "boolean" },
+    "sink": { "enum": ["private_file", "nonprivate_file", "stdout", "none"] },
+    "private_root": { "const": "docs/evidence/private_refs" },
+    "resolved_under_repo": {
+      "description": "Repo-relative POSIX path, <outside-repo>, or null. Absolute paths and traversal are linter errors.",
+      "type": ["string", "null"]
+    },
+    "full_record_stdout_blocked": { "type": "boolean" },
+    "record_class": {
+      "description": "Why this record was produced; real/quota classes are always private-output material.",
+      "enum": ["dry_run_plan", "real_readonly", "real_mutating", "quota_gate", "synthetic_test", "unknown"]
+    },
+    "producer": {
+      "description": "Tooling surface that produced the record.",
+      "enum": [
+        "services.runner.api_probe",
+        "packages.sdk.releasefoundry.calibrate",
+        "packages.ts.releasefoundry.probe",
+        "packages.ts.releasefoundry.calibrate",
+        "unknown"
+      ]
+    },
+    "policy_decision": {
+      "enum": [
+        "allow_private",
+        "allow_nonprivate_dry_run",
+        "allow_nonprivate_override",
+        "block_nonprivate_required",
+        "block_stdout_full_record"
+      ]
+    },
+    "resolved_under_private_root": { "type": "boolean" },
+    "resolved_outside_repo": { "type": "boolean" },
+    "stdout_full_record_requested": { "type": "boolean" }
+  },
+  "additionalProperties": true
+}

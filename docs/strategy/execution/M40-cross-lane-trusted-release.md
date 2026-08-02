@@ -1,0 +1,69 @@
+# M40 Cross-lane Trusted Release
+
+This is the current module. Its purpose is to bind A1 execution, A2 authority and A3 delivery to one candidate identity.
+
+## Checklist
+
+- [x] `M40-01` Product Release and Customer Agent Release have independent IDs, assets and GO/NO-GO decisions.
+- [x] `M40-02` Customer verifier rejects stale A2 run IDs and stale A3 tested/source SHAs.
+- [x] `M40-03` Generate a fresh A1 run bound to the latest candidate ID and latest `main` SHA.
+- [x] `M40-04` Generate A2 Trusted Spine and Decision Ledger for that exact A1 run.
+- [x] `M40-05` Regenerate A3 gate, delivery index, audit bundle and archive for the same run, SHA and version.
+- [x] `M40-06` Recompute Customer verification with no candidate/run/SHA/version mismatch findings.
+- [x] `M40-07` Preserve authoritative NO-GO unless Product, A2, A3 delivery and human approval all independently pass.
+
+## Definition Of Done
+
+The Product and Customer manifests may use separate release IDs, but every Customer evidence reference identifies the same candidate run, source SHA and evidence version. A3 reports A2 authority without rewriting it.
+
+## Evidence To Load
+
+- `docs/releases/two_release_model.md`
+- `services/customer_release/contracts.py`
+- `services/release_distribution/builder.py`
+- `fixtures/a3/golden-path/rc3`
+- `docs/a1/m40_03_rc3_candidate_run_handoff.md`
+- `tests/release/test_m40_a1_candidate_run.py`
+- newest A1 run output and newest A2 handoff only
+
+## Verification
+
+```powershell
+python -B -m pytest tests/release -q -p no:cacheprovider
+python scripts/build_dual_release_candidates.py --verify-index dist/releases/dual-release-index.json
+```
+
+## Evidence Log
+
+- `2026-07-20`: Product `releasefoundry-product@1.0.0-rc.1` and Customer `agent-release:demo/a3-golden-agent@0.2.0-rc.2` were published as separate GitHub prereleases.
+- `2026-07-20`: downloaded 12/12 assets; SHA-256, ZIP integrity, verifier recomputation and Customer-to-Product binding passed.
+- `2026-07-20`: `M40-03` remains open because the included A1 run and A2 Trusted Spine do not share one run identity.
+- `2026-07-20`: PR `#42` merged fail-closed candidate-binding tooling into main at `1d292047e991995fdf52f0545ffff410ee19a171`; its CL Gate passed TypeScript SDK parity and Product release contracts.
+- `2026-07-20`: A1 run `a3-golden-20260720-003` bound candidate `a3-golden-agent@0.2.0-rc.3`, source commit `1d292047e991995fdf52f0545ffff410ee19a171`, clean tree `5f7152bb0f0e380d433600ec43bd7ddd80dabd66`, and case-set hash `sha256:eadfadb8233ae2d81affec5c62436973a8086119aecee4a2445ba3475fd4109c`.
+- `2026-07-20`: the run passed `3/3`, recorded `100%` Trace completeness and four Tool Calls; recomputable A1 bundle hash is `sha256:3240e097cc4e793520d9bbb0b2a600081a5440c751bf842cbe3b8cc9e495cd9f`.
+- `2026-07-20`: focused evidence, release, Runner and schema checks passed; ignored dual-release verification checked `12` assets with no integrity issues but remained a dirty-development `NO-GO` and was not published.
+- `2026-07-20`: at the `M40-03` closeout, `M40-04` remained open; no A2 allow, A3 delivery rebuild, human approval or production authority had been generated.
+- `2026-07-20`: PR `#44` regraded the exact rc.3 A1 run with A2's existing deterministic judges. All `3/3` local cases scored `100`, with grades hash `sha256:ffeba9ab8d7a2ccfb26ca8e135448cc9a2e6c8ead5b49837f77e5e73606a5304`.
+- `2026-07-20`: A2 froze three candidate-bound Evidence Snapshots. The direct and web cases are complete; the media case is `evidence_missing` because hashed image artifacts are not an independently derived A2 semantic-evidence record.
+- `2026-07-20`: the append-only Decision Ledger has three linked records and head `sha256:bc608df9825ea316b374797ef76b4921bff4f6cee1943600d0297783e6be6303`; Trusted Spine bundle hash is `sha256:e1b8066c9346d10e8dc0c1155ee83afa67efbbcfc546c38328ae8b2c0e5dd317`.
+- `2026-07-20`: A2 authority implementation commit `d3529c356e49ce8502c050f0dad44020031ee0dd` is preserved separately from evidence commit `629d0bbb7b9634b92c59dd35852ecefab44bd657`. Recompute, schema and release tests passed locally (`22 passed`) and GitHub CL Gate run `29745811494` passed.
+- `2026-07-20`: A2's authoritative result remains `block`: latest multimodal control/repeat/cloud/local-runtime evidence is blocked and human review is pending. Round 53 PostgreSQL proof is verified and is not a blocker.
+- `2026-07-20`: `M40-04` is complete. `M40-05` must consume the exact A2 ledger head and grades hash without recomputation; A3 delivery, human approval and production authority remain absent.
+- `2026-07-20`: A3 implementation anchor `a0b427257c5cd80fbe3394b4a406fa21f50bae37` contains candidate-spine verification, exact A3 identity consumption, fail-closed delivery binding, the rc.3 build/check command and shallow-checkout-safe CI verification; core commit `cbc66462a419d9441dfb77b602851454893be016` remains its preserved ancestor.
+- `2026-07-20`: the regenerated rc.3 A3 packet binds candidate `a3-golden-agent@0.2.0-rc.3`, run `a3-golden-20260720-003`, version `0.2.0-rc.3`, A1 source `1d292047e991995fdf52f0545ffff410ee19a171`, A2 ledger head `sha256:bc608df9825ea316b374797ef76b4921bff4f6cee1943600d0297783e6be6303` and A2 grades `sha256:ffeba9ab8d7a2ccfb26ca8e135448cc9a2e6c8ead5b49837f77e5e73606a5304` without recalculation.
+- `2026-07-20`: local Audit Bundle, ephemeral local-signature Audit Archive and release artifact verification passed. `tests/release` passed `25/25`; focused A3 authority/gate/delivery/archive tests passed `43/43`.
+- `2026-07-20`: A3 preserves A2 `block`, emits `blocked_by_a2` and keeps `production_ready=false`. No rc.2 live GitHub readback, tenant GitHub App identity, human approval, hosted deployment or production authority was reused or invented.
+- `2026-07-20`: `M40-05` remains unchecked until its GitHub PR CL Gate passes; local evidence is documented in `docs/a3/m40_05_rc3_candidate_delivery_handoff.md`.
+- `2026-07-20`: draft PR `#45` preserved the two-phase implementation/evidence history. Its first CL Gate exposed and rejected a mutable-checklist hash and depth-one checkout assumption; A3 corrected both without weakening candidate or artifact verification.
+- `2026-07-20`: updated GitHub CL Gate run `29751886773` passed Product release contracts, Python A1/A2 contracts, A3 dashboard/report/evidence contracts, A3 Next.js and Playwright, Golden Path artifact verification, pinned evidence verification, plan hygiene and the aggregate summary.
+- `2026-07-20`: `M40-05` is complete. The exact rc.3 candidate binding is verified and locally reproducible, while A2 still authoritatively blocks release and all production-only acceptance claims remain false. Current work moves to `M40-06` Customer verification recomputation.
+- `2026-07-21`: M40-06 implementation anchor `718f9b0512138382d8562737ecf4e99e72a998e1` upgraded Customer verification and dual-release packaging from stale rc.2 evidence to the sealed rc.3 A1/A2/A3 packet.
+- `2026-07-21`: recomputed Customer verification reports `identity_alignment=passed` with no candidate, run, SHA or evidence-version mismatch reasons. The packet is reproducible from `fixtures/releases/m40-06` and `scripts/build_m40_rc3_customer_verification.py --check`.
+- `2026-07-21`: the Customer decision correctly remains `block_customer_agent_release`: Product is not approved, A2 is block/not-ready, A3 gate/delivery are blocked, candidate-bound CI tested SHA evidence is absent and human approval is absent. `M40-06` remains unchecked until GitHub CL Gate passes.
+- `2026-07-21`: draft PR `#46` CL Gate run `29803666318` exposed a Windows CRLF versus Linux LF mismatch in the hash-pinned Customer verification receipt; business verification remained unchanged.
+- `2026-07-21`: implementation anchor `35ffd3bed3f5d37bdceeb4c0bec5067801c631f5` now writes M40 receipt JSON as explicit UTF-8/LF bytes. The rc.3 packet was regenerated against that clean commit and contract coverage now rejects CRLF in hash-pinned files.
+- `2026-07-21`: updated PR `#46` CL Gate run `29804010081` passed Product release contracts, Python A1/A2 contracts, plan hygiene and the aggregate CL Gate summary on exact head `50a0a0b543db031366f7af54d79aa53dff175e21`.
+- `2026-07-21`: `M40-06` is complete. Customer verification has no candidate, run, SHA or version mismatch findings; authoritative Product, A2, A3 delivery and human-approval blockers remain intact. Current work moves to `M40-07` NO-GO preservation.
+- `2026-07-21`: PR `#47` added a synthetic fail-closed matrix that independently blocks Product, A2, A3 gate, A3 delivery and human approval. Focused contracts passed `12/12`; the complete release suite passed `33/33`.
+- `2026-07-21`: GitHub CL Gate run `29811930666` passed Product release contracts, Python A1/A2 contracts, plan hygiene and the aggregate summary on exact head `09a9331df919cca51dce3817b4805e6fbdf5595f`.
+- `2026-07-21`: `M40-07` and module M40 are complete. The synthetic all-pass row is contract evidence only; the real rc.3 Customer release remains blocked by the seven authoritative blockers recorded in `docs/releases/m40_07_no_go_preservation.md`.

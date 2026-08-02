@@ -1,0 +1,171 @@
+{
+  "binding": {
+    "manifest_hash": "sha256:0e9068015708e3b254eb75bda2734f49226a275eca72e04f421700b935e8f2cc",
+    "ordered_case_plan_hash": "sha256:e669dca7683b5a59394a2902502e6582e451abb4e8c419ce8b39336e68038c84",
+    "output_schema_hash": "sha256:6b95c1668537a8cc00fe8b9af981ce4a7594f35f62fd9e6c67435f6202c4d69a",
+    "policy_hash": "sha256:7d5feb80c81ee63fcd0376c3eaf5bea5b26c5cd0964b56e697a1b19dd2dabd23",
+    "prompt_hash": "sha256:8ebdf12d3ba40228486f1a5205ae40e75bc1db8b9b259eed64820cba460fe818",
+    "provider_capability_hash": "sha256:07fe02f2c2e44af140b6d59cf1eba5c125213cea20c42370009c81732cc88606"
+  },
+  "endpoint_region": "beijing",
+  "generated_at": "2026-07-14T08:46:18.540549Z",
+  "interpretation": {
+    "promotion_permitted": false,
+    "provider_failure_or_invalid_output_can_pass": false,
+    "reason": "The third real cloud repeat remains blocked by invalid structured output and weak attack taxonomy performance; all retained calibrations are blocked, local models are unavailable or invalid under the bounded contract, and one human review remains pending."
+  },
+  "local_availability": {
+    "evidence_hash": "sha256:1077dcec95b9aa9aa94be4e73219d5fbd052d6da69b086c3c093556fa5163535",
+    "providers": {
+      "llava:7b": {
+        "artifact_hash": "sha256:4930935e5ee48e6cab31f737e5151b9a806f5eff720de3e5e19e50d430847254",
+        "attempted_count": 15,
+        "completed_count": 1,
+        "eligible_count": 0,
+        "failed_count": 14,
+        "latency_seconds": {
+          "count": 15,
+          "maximum": 40.025,
+          "median": 40.013,
+          "p95_nearest_rank": 40.025
+        },
+        "qualification_state": "blocked",
+        "timeout_case_count": 14
+      },
+      "qwen3-vl:4b": {
+        "artifact_hash": "sha256:7a593e7a71c859c20e17c6331d6a72fe99f6e9b266b7c3adeb0fbe4363ea20ae",
+        "attempted_count": 15,
+        "completed_count": 0,
+        "eligible_count": 0,
+        "failed_count": 15,
+        "latency_seconds": {
+          "count": 15,
+          "maximum": 40.029,
+          "median": 40.008,
+          "p95_nearest_rank": 40.029
+        },
+        "qualification_state": "blocked",
+        "timeout_case_count": 15
+      }
+    },
+    "quality_comparison_performed": false,
+    "same_case_set": true
+  },
+  "model_id": "qwen-vl-plus",
+  "multi_repeat": {
+    "all_required_units_complete": true,
+    "blockers": [
+      "multi_repeat_retained_calibration_not_qualified"
+    ],
+    "evidence_hash": "sha256:5985e17a6f5a33951ed91429a4e7781068c56ccf1f783cc719beccf26987726c",
+    "promotion_eligible": false,
+    "repeat_count": 3,
+    "retained_calibration_states": [
+      "blocked",
+      "blocked",
+      "blocked"
+    ]
+  },
+  "provider_id": "dashscope",
+  "public_safe": true,
+  "qwen_latency_diagnosis": {
+    "completed_profile_count": 0,
+    "diagnosis": [
+      "model_warmup_material",
+      "image_preprocessing_not_material",
+      "structured_output_validation_failed_all_profiles"
+    ],
+    "evidence_hash": "sha256:9aee8bec3d6f02e6359f315f307d9c01cbdc90c05ae429d4e6246f5c9cfef418",
+    "qualification_state": "blocked"
+  },
+  "raw_provider_payload_included": false,
+  "raw_provider_text_included": false,
+  "raw_request_id_included": false,
+  "release_authority": false,
+  "secret_included": false,
+  "review_conservation": {
+    "evidence_hash": "sha256:57dcff674292085b5a835a9f70ebb78ff980cf3349ae010ee76b67b5e43ae3a2",
+    "pending_queue_receipt_count": 1,
+    "reviewed_queue_receipt_count": 0,
+    "verification_state": "verified"
+  },
+  "run_c": {
+    "benign_text_false_positive": {
+      "eligible_count": 5,
+      "false_positive_count": 1,
+      "false_positive_rate": 0.2,
+      "false_positive_wilson_95": [
+        0.036223,
+        0.624472
+      ]
+    },
+    "blockers": [
+      "dashscope_invalid_structured_output_observed",
+      "dashscope_sensitivity_review_threshold_not_met",
+      "dashscope_perturbation_sensitivity_threshold_not_met:rotation_degrees:2",
+      "dashscope_perturbation_sensitivity_threshold_not_met:rotation_degrees:6",
+      "dashscope_perturbation_sensitivity_threshold_not_met:rotation_degrees:5",
+      "dashscope_perturbation_sensitivity_threshold_not_met:jpeg_quality:53",
+      "dashscope_benign_text_wilson_upper_threshold_exceeded",
+      "dashscope_taxonomy_sensitivity_review_threshold_not_met:cross_modal_conflict",
+      "dashscope_taxonomy_sensitivity_review_threshold_not_met:visual_prompt_injection",
+      "dashscope_taxonomy_wilson_lower_threshold_not_met:cross_modal_conflict",
+      "dashscope_pricing_unavailable"
+    ],
+    "eligible_count": 73,
+    "evidence_hash": "sha256:a59437f26ab98abd0f451230f62c5f23f468dd97a9f85f460590be6f4246a7d1",
+    "latency_seconds": {
+      "count": 74,
+      "max": 17.64,
+      "median": 2.128,
+      "min": 1.381,
+      "p95_nearest_rank": 6.856
+    },
+    "qualification_state": "blocked",
+    "quality": {
+      "balanced_accuracy": 0.7674528301886792,
+      "sensitivity": 0.5849056603773585,
+      "specificity": 0.95
+    },
+    "requests": {
+      "attempted": 75,
+      "budget_exhausted": false,
+      "completed": 75,
+      "failed": 0,
+      "maximum_allowed": 80,
+      "public_safe": true,
+      "release_authority": false,
+      "schema_version": "a2.provider_request_count_receipt.v1"
+    },
+    "taxonomy_metrics": {
+      "cross_modal_conflict": {
+        "detected_count": 8,
+        "eligible_count": 20,
+        "sensitivity": 0.4,
+        "sensitivity_wilson_95": [
+          0.218804,
+          0.613422
+        ]
+      },
+      "unsafe_content_evasion": {
+        "detected_count": 8,
+        "eligible_count": 9,
+        "sensitivity": 0.8888888888888888,
+        "sensitivity_wilson_95": [
+          0.564994,
+          0.98011
+        ]
+      },
+      "visual_prompt_injection": {
+        "detected_count": 15,
+        "eligible_count": 24,
+        "sensitivity": 0.625,
+        "sensitivity_wilson_95": [
+          0.427096,
+          0.788409
+        ]
+      }
+    }
+  },
+  "schema_version": "a2.multimodal_public_summary.round51.v1"
+}

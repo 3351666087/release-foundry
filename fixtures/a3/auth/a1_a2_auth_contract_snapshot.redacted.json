@@ -1,0 +1,153 @@
+{
+  "schema_version": "a3.auth_contract_snapshot.v3",
+  "calibrated_at": "2026-07-12",
+  "public_safe": true,
+  "contains_secret_values": false,
+  "main": {
+    "ref": "origin/main",
+    "sha": "ccf6ce57890aaceabcb627c14d2e078674bd50ad",
+    "a1_a2_integration_sha": "7dd14d7b154ad86bd3bfedacbf4c3e03796170ce",
+    "contained_by_a3_branch": true
+  },
+  "a1": {
+    "ref": "main",
+    "sha": "c784163588e9e0839fe17c604f3285c42efe3661",
+    "pull_request_state": "merged_to_main",
+    "merged_to_main": true,
+    "authority": [
+      "identity session",
+      "oauth provider exchange",
+      "credential binding",
+      "verification delivery",
+      "run and trace facts"
+    ],
+    "implemented_go_routes": [
+      "POST /v1/projects/{project_id}/oauth/google/start",
+      "GET /oauth/google/callback",
+      "GET /v1/projects/{project_id}/oauth/google/connection",
+      "POST /v1/projects/{project_id}/oauth/google/disconnect",
+      "POST /v1/projects/{project_id}/oauth/github/start",
+      "GET /oauth/github/callback",
+      "GET /v1/projects/{project_id}/oauth/github/connection",
+      "POST /v1/projects/{project_id}/oauth/github/disconnect",
+      "POST /v1/identity-verification/challenges",
+      "POST /v1/identity-verification/verify",
+      "POST /v1/projects/{project_id}/accounts/{account_id}/browser-sessions/refresh",
+      "GET /v1/accounts/{account_id}",
+      "GET /v1/accounts/{account_id}/credentials",
+      "GET /v1/accounts/{account_id}/memberships"
+    ],
+    "calibration": {
+      "github_localhost": "passed",
+      "google_localhost": "passed",
+      "smtp_development_send": "passed_once_by_a1",
+      "postgres_verification_race": "passed",
+      "identity_delivery_outbox": "implemented_and_tested",
+      "browser_session_lifecycle": "implemented_and_tested",
+      "refresh_reuse_detection": "implemented_and_tested",
+      "oauth_initial_login": "not_implemented",
+      "registration_session_handoff": "not_implemented",
+      "production_ready": false
+    },
+    "capabilities": {
+      "oauth_account_linking": "implemented",
+      "browser_session_refresh": "implemented",
+      "verification_challenge_start": "implemented",
+      "verification_completion": "blocked_pending_browser_context",
+      "oauth_initial_login": "unavailable"
+    }
+  },
+  "a2": {
+    "ref": "main",
+    "sha": "8cd1d4f1cb72e73ae7ead5d3218b4ae963a31a81",
+    "source_state": "merged_to_main",
+    "authority": [
+      "score",
+      "pass_fail",
+      "failure_class",
+      "release_policy"
+    ],
+    "auth_role": "security_context_consumer_only",
+    "identity_session_context_tracked": true,
+    "identity_verification_context_tracked": true,
+    "trusted_spine": {
+      "schema_version": "a2.trusted_spine_handoff.v1",
+      "evidence_snapshot_schema": "a2.evidence_snapshot.v1",
+      "decision_ledger_schema": "a2.decision_ledger.v1",
+      "evidence_completeness": "complete",
+      "required_modalities": ["image", "text"],
+      "observed_modalities": ["image", "text"],
+      "required_scope_fields": [
+        "organization_id",
+        "tenant_id",
+        "workspace_id",
+        "project_id",
+        "environment_id"
+      ],
+      "scope": {
+        "organization_id": "org_local_demo",
+        "tenant_id": "org_local_demo",
+        "workspace_id": "workspace_local_demo",
+        "project_id": "a2_g3_calibration",
+        "environment_id": "local"
+      },
+      "scope_complete": true,
+      "validation_errors": [],
+      "direct_a1_run_result_validation": true,
+      "decision": "block",
+      "release_ready": false,
+      "review_queue_status": "blocked",
+      "chain_verified": true,
+      "public_safe": true,
+      "a3_may_recompute_grade": false
+    }
+  },
+  "a3": {
+    "role": "product_ui_and_public_reference",
+    "oauth_provider_secrets_owned": false,
+    "oauth_token_custody_owned": false,
+    "verification_delivery_owned": false,
+    "browser_config": [
+      "NEXT_PUBLIC_A1_API_BASE_URL",
+      "NEXT_PUBLIC_A1_PROJECT_ID",
+      "NEXT_PUBLIC_A1_TENANT_ID"
+    ],
+    "implemented_this_round": [
+      "api_reference_route",
+      "google_oauth_start_adapter",
+      "github_oauth_start_adapter",
+      "email_verification_request_adapter",
+      "email_verification_completion_adapter",
+      "identity_session_refresh_adapter",
+      "capability_aware_login_and_signup_ui",
+      "oauth_initial_login_fail_closed_correction",
+      "a2_trusted_spine_reference_surface",
+      "merged_main_capability_status",
+      "a2_five_level_scope_surface",
+      "html_and_text_email_template_handoff"
+    ]
+  },
+  "known_blockers": [
+    {
+      "id": "verification_context_not_delivered_to_browser",
+      "severity": "blocking",
+      "fact": "The public challenge response intentionally omits challenge_id and the current A1 plaintext email also omits challenge_id, while verify requires challenge_id.",
+      "a3_behavior": "fail_closed"
+    },
+    {
+      "id": "oauth_initial_login_not_implemented",
+      "severity": "blocking_for_hosted_login",
+      "fact": "The current Google and GitHub routes require an existing trusted session and implement credential linking; the callback returns a JSON connection result rather than an initial-login browser session redirect.",
+      "a3_behavior": "disable_login_buttons_and_disclose_account_linking_only"
+    }
+  ],
+  "safety": {
+    "api_key_read": false,
+    "provider_secret_read": false,
+    "cookie_read": false,
+    "real_email_recorded": false,
+    "verification_code_recorded": false,
+    "oauth_code_or_token_recorded": false,
+    "same_email_implicit_merge_allowed": false
+  }
+}

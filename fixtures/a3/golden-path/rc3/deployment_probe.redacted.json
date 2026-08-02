@@ -1,0 +1,57 @@
+{
+  "schema_version": "a3.deployment_probe.v1",
+  "generated_at": "2026-07-20T14:39:32.963Z",
+  "environment": "staging",
+  "release_version": "0.2.0-rc.3",
+  "git_sha_alias": "1d292047e991995fdf52f0545ffff410ee19a171",
+  "ci_tested_sha_alias": null,
+  "a3_implementation_commit": "a0b427257c5cd80fbe3394b4a406fa21f50bae37",
+  "hosted_identity": {
+    "status": "not_proven",
+    "verified": false,
+    "evidence_class": "contract_only",
+    "reason": "No rc.3 hosted deployment identity receipt is attached."
+  },
+  "database": {
+    "status": "not_proven",
+    "verified": false,
+    "evidence_class": "contract_only",
+    "reason": "A2 PostgreSQL judge persistence is verified, but no rc.3 A3 hosted control-plane database receipt is attached."
+  },
+  "queue_worker": {
+    "status": "not_proven",
+    "verified": false,
+    "evidence_class": "not_proven",
+    "reason": "No deployed rc.3 queue, retry, dead-letter, and worker-health receipt is attached."
+  },
+  "object_storage": {
+    "status": "not_proven",
+    "verified": false,
+    "evidence_class": "not_proven",
+    "reason": "The rc.3 Audit Bundle has not been written to and read back from immutable hosted object storage."
+  },
+  "deployment_target": {
+    "status": "not_proven",
+    "verified": false,
+    "evidence_class": "not_proven",
+    "reason": "No staging or VPC deployment URL and versioned health receipt is configured."
+  },
+  "upgrade_rollback": {
+    "status": "not_proven",
+    "verified": false,
+    "evidence_class": "not_proven",
+    "reason": "No authorized rc.3 production upgrade and rollback rehearsal receipt exists."
+  },
+  "github_app": {
+    "status": "not_proven",
+    "verified": false,
+    "evidence_class": "not_proven",
+    "reason": "No tenant-bound GitHub App installation executed this rc.3 candidate delivery."
+  },
+  "safety": {
+    "token_included": false,
+    "cookie_included": false,
+    "installation_token_included": false,
+    "fixture_claimed_as_production": false
+  }
+}

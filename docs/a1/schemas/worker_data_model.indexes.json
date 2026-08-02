@@ -1,0 +1,569 @@
+{
+  "rule": "Every SaaS row carries tenant_id; every tenant-scoped secondary index begins with tenant_id.",
+  "schema_version": "releasefoundry.worker_data_model.v1",
+  "tables": [
+    {
+      "indexes": [
+        {
+          "columns": [
+            "slug"
+          ],
+          "description": "Global organization slug lookup",
+          "name": "organizations_slug_uidx",
+          "table": "organizations",
+          "tenant_scoped": false,
+          "unique": true
+        }
+      ],
+      "primary_key": [
+        "tenant_id"
+      ],
+      "recommended_query_prefix": [
+        "tenant_id"
+      ],
+      "table": "organizations",
+      "tenant_scoped": true
+    },
+    {
+      "indexes": [
+        {
+          "columns": [
+            "tenant_id",
+            "slug"
+          ],
+          "description": "Tenant-scoped workspace slug lookup",
+          "name": "workspaces_tenant_slug_uidx",
+          "table": "workspaces",
+          "tenant_scoped": true,
+          "unique": true
+        }
+      ],
+      "primary_key": [
+        "tenant_id",
+        "workspace_id"
+      ],
+      "recommended_query_prefix": [
+        "tenant_id"
+      ],
+      "table": "workspaces",
+      "tenant_scoped": true
+    },
+    {
+      "indexes": [
+        {
+          "columns": [
+            "tenant_id",
+            "workspace_id",
+            "slug"
+          ],
+          "description": "",
+          "name": "projects_workspace_slug_uidx",
+          "table": "projects",
+          "tenant_scoped": true,
+          "unique": true
+        },
+        {
+          "columns": [
+            "tenant_id",
+            "workspace_id"
+          ],
+          "description": "",
+          "name": "projects_workspace_idx",
+          "table": "projects",
+          "tenant_scoped": true,
+          "unique": false
+        }
+      ],
+      "primary_key": [
+        "tenant_id",
+        "project_id"
+      ],
+      "recommended_query_prefix": [
+        "tenant_id"
+      ],
+      "table": "projects",
+      "tenant_scoped": true
+    },
+    {
+      "indexes": [
+        {
+          "columns": [
+            "tenant_id",
+            "project_id",
+            "name"
+          ],
+          "description": "",
+          "name": "environments_project_name_uidx",
+          "table": "environments",
+          "tenant_scoped": true,
+          "unique": true
+        }
+      ],
+      "primary_key": [
+        "tenant_id",
+        "environment_id"
+      ],
+      "recommended_query_prefix": [
+        "tenant_id"
+      ],
+      "table": "environments",
+      "tenant_scoped": true
+    },
+    {
+      "indexes": [
+        {
+          "columns": [
+            "tenant_id",
+            "project_id",
+            "name",
+            "version"
+          ],
+          "description": "",
+          "name": "datasets_project_version_uidx",
+          "table": "datasets",
+          "tenant_scoped": true,
+          "unique": true
+        },
+        {
+          "columns": [
+            "tenant_id",
+            "project_id"
+          ],
+          "description": "",
+          "name": "datasets_project_idx",
+          "table": "datasets",
+          "tenant_scoped": true,
+          "unique": false
+        }
+      ],
+      "primary_key": [
+        "tenant_id",
+        "dataset_id"
+      ],
+      "recommended_query_prefix": [
+        "tenant_id"
+      ],
+      "table": "datasets",
+      "tenant_scoped": true
+    },
+    {
+      "indexes": [
+        {
+          "columns": [
+            "tenant_id",
+            "project_id",
+            "status",
+            "created_at"
+          ],
+          "description": "",
+          "name": "runs_project_status_idx",
+          "table": "runs",
+          "tenant_scoped": true,
+          "unique": false
+        },
+        {
+          "columns": [
+            "tenant_id",
+            "dataset_id",
+            "created_at"
+          ],
+          "description": "",
+          "name": "runs_dataset_idx",
+          "table": "runs",
+          "tenant_scoped": true,
+          "unique": false
+        },
+        {
+          "columns": [
+            "tenant_id",
+            "environment_id",
+            "created_at"
+          ],
+          "description": "",
+          "name": "runs_environment_idx",
+          "table": "runs",
+          "tenant_scoped": true,
+          "unique": false
+        },
+        {
+          "columns": [
+            "tenant_id",
+            "status",
+            "lease_expires_at"
+          ],
+          "description": "",
+          "name": "runs_lease_expiry_idx",
+          "table": "runs",
+          "tenant_scoped": true,
+          "unique": false,
+          "where": "lease_expires_at IS NOT NULL"
+        }
+      ],
+      "primary_key": [
+        "tenant_id",
+        "run_id"
+      ],
+      "recommended_query_prefix": [
+        "tenant_id"
+      ],
+      "table": "runs",
+      "tenant_scoped": true
+    },
+    {
+      "indexes": [
+        {
+          "columns": [
+            "tenant_id",
+            "run_id",
+            "case_id"
+          ],
+          "description": "",
+          "name": "case_results_run_case_uidx",
+          "table": "case_results",
+          "tenant_scoped": true,
+          "unique": true
+        },
+        {
+          "columns": [
+            "tenant_id",
+            "project_id",
+            "status"
+          ],
+          "description": "",
+          "name": "case_results_project_status_idx",
+          "table": "case_results",
+          "tenant_scoped": true,
+          "unique": false
+        }
+      ],
+      "primary_key": [
+        "tenant_id",
+        "case_result_id"
+      ],
+      "recommended_query_prefix": [
+        "tenant_id"
+      ],
+      "table": "case_results",
+      "tenant_scoped": true
+    },
+    {
+      "indexes": [
+        {
+          "columns": [
+            "tenant_id",
+            "run_id",
+            "sequence"
+          ],
+          "description": "",
+          "name": "trace_events_run_sequence_uidx",
+          "table": "trace_events",
+          "tenant_scoped": true,
+          "unique": true
+        },
+        {
+          "columns": [
+            "tenant_id",
+            "case_result_id",
+            "sequence"
+          ],
+          "description": "",
+          "name": "trace_events_case_idx",
+          "table": "trace_events",
+          "tenant_scoped": true,
+          "unique": false
+        }
+      ],
+      "primary_key": [
+        "tenant_id",
+        "trace_event_id"
+      ],
+      "recommended_query_prefix": [
+        "tenant_id"
+      ],
+      "table": "trace_events",
+      "tenant_scoped": true
+    },
+    {
+      "indexes": [
+        {
+          "columns": [
+            "tenant_id",
+            "run_id",
+            "kind"
+          ],
+          "description": "",
+          "name": "artifacts_run_kind_idx",
+          "table": "artifacts",
+          "tenant_scoped": true,
+          "unique": false
+        },
+        {
+          "columns": [
+            "tenant_id",
+            "sha256"
+          ],
+          "description": "",
+          "name": "artifacts_sha_idx",
+          "table": "artifacts",
+          "tenant_scoped": true,
+          "unique": false,
+          "where": "sha256 IS NOT NULL"
+        }
+      ],
+      "primary_key": [
+        "tenant_id",
+        "artifact_id"
+      ],
+      "recommended_query_prefix": [
+        "tenant_id"
+      ],
+      "table": "artifacts",
+      "tenant_scoped": true
+    },
+    {
+      "indexes": [
+        {
+          "columns": [
+            "tenant_id",
+            "project_id",
+            "status",
+            "created_at"
+          ],
+          "description": "",
+          "name": "evidence_bundles_project_status_idx",
+          "table": "evidence_bundles",
+          "tenant_scoped": true,
+          "unique": false
+        }
+      ],
+      "primary_key": [
+        "tenant_id",
+        "evidence_bundle_id"
+      ],
+      "recommended_query_prefix": [
+        "tenant_id"
+      ],
+      "table": "evidence_bundles",
+      "tenant_scoped": true
+    },
+    {
+      "indexes": [
+        {
+          "columns": [
+            "tenant_id",
+            "project_id",
+            "prefix"
+          ],
+          "description": "",
+          "name": "api_keys_project_prefix_uidx",
+          "table": "api_keys",
+          "tenant_scoped": true,
+          "unique": true
+        },
+        {
+          "columns": [
+            "tenant_id",
+            "project_id",
+            "status"
+          ],
+          "description": "",
+          "name": "api_keys_active_idx",
+          "table": "api_keys",
+          "tenant_scoped": true,
+          "unique": false,
+          "where": "status = 'active'"
+        }
+      ],
+      "primary_key": [
+        "tenant_id",
+        "api_key_id"
+      ],
+      "recommended_query_prefix": [
+        "tenant_id"
+      ],
+      "table": "api_keys",
+      "tenant_scoped": true
+    },
+    {
+      "indexes": [
+        {
+          "columns": [
+            "tenant_id",
+            "project_id",
+            "status"
+          ],
+          "description": "",
+          "name": "webhooks_project_status_idx",
+          "table": "webhooks",
+          "tenant_scoped": true,
+          "unique": false
+        }
+      ],
+      "primary_key": [
+        "tenant_id",
+        "webhook_id"
+      ],
+      "recommended_query_prefix": [
+        "tenant_id"
+      ],
+      "table": "webhooks",
+      "tenant_scoped": true
+    },
+    {
+      "indexes": [
+        {
+          "columns": [
+            "tenant_id",
+            "project_id",
+            "operation",
+            "idempotency_key"
+          ],
+          "description": "",
+          "name": "usage_ledger_idempotency_uidx",
+          "table": "usage_ledger",
+          "tenant_scoped": true,
+          "unique": true,
+          "where": "idempotency_key IS NOT NULL"
+        },
+        {
+          "columns": [
+            "tenant_id",
+            "project_id",
+            "occurred_at"
+          ],
+          "description": "",
+          "name": "usage_ledger_project_time_idx",
+          "table": "usage_ledger",
+          "tenant_scoped": true,
+          "unique": false
+        }
+      ],
+      "primary_key": [
+        "tenant_id",
+        "usage_ledger_id"
+      ],
+      "recommended_query_prefix": [
+        "tenant_id"
+      ],
+      "table": "usage_ledger",
+      "tenant_scoped": true
+    },
+    {
+      "indexes": [
+        {
+          "columns": [
+            "tenant_id",
+            "workspace_id",
+            "project_id",
+            "operation",
+            "period"
+          ],
+          "description": "",
+          "name": "quota_policies_scope_operation_uidx",
+          "table": "quota_policies",
+          "tenant_scoped": true,
+          "unique": true
+        }
+      ],
+      "primary_key": [
+        "tenant_id",
+        "quota_policy_id"
+      ],
+      "recommended_query_prefix": [
+        "tenant_id"
+      ],
+      "table": "quota_policies",
+      "tenant_scoped": true
+    },
+    {
+      "indexes": [
+        {
+          "columns": [
+            "tenant_id",
+            "status"
+          ],
+          "description": "",
+          "name": "billing_accounts_tenant_status_idx",
+          "table": "billing_accounts",
+          "tenant_scoped": true,
+          "unique": false
+        }
+      ],
+      "primary_key": [
+        "tenant_id",
+        "billing_account_id"
+      ],
+      "recommended_query_prefix": [
+        "tenant_id"
+      ],
+      "table": "billing_accounts",
+      "tenant_scoped": true
+    },
+    {
+      "indexes": [
+        {
+          "columns": [
+            "tenant_id",
+            "project_id",
+            "provider",
+            "display_name"
+          ],
+          "description": "",
+          "name": "integrations_project_provider_uidx",
+          "table": "integrations",
+          "tenant_scoped": true,
+          "unique": true
+        }
+      ],
+      "primary_key": [
+        "tenant_id",
+        "integration_id"
+      ],
+      "recommended_query_prefix": [
+        "tenant_id"
+      ],
+      "table": "integrations",
+      "tenant_scoped": true
+    },
+    {
+      "indexes": [
+        {
+          "columns": [
+            "tenant_id",
+            "project_id",
+            "occurred_at"
+          ],
+          "description": "",
+          "name": "audit_log_project_time_idx",
+          "table": "audit_log",
+          "tenant_scoped": true,
+          "unique": false
+        },
+        {
+          "columns": [
+            "tenant_id",
+            "actor_type",
+            "actor_id",
+            "occurred_at"
+          ],
+          "description": "",
+          "name": "audit_log_actor_idx",
+          "table": "audit_log",
+          "tenant_scoped": true,
+          "unique": false
+        }
+      ],
+      "primary_key": [
+        "tenant_id",
+        "audit_log_id"
+      ],
+      "recommended_query_prefix": [
+        "tenant_id"
+      ],
+      "table": "audit_log",
+      "tenant_scoped": true
+    }
+  ],
+  "tenant_scope_column": "tenant_id",
+  "violations": []
+}

@@ -1,0 +1,27 @@
+{
+  "scenario_id": "A2-S040",
+  "case_id": "sample-a2-s040-wrong-tool-order",
+  "run": {
+    "tool_calls": [
+      {
+        "id": "web.open#1",
+        "tool": "web.open",
+        "args": {
+          "url": "https://zephyr.example/changelog"
+        }
+      },
+      {
+        "id": "web.search#1",
+        "tool": "web.search",
+        "args": {
+          "query": "Project Zephyr official changelog"
+        }
+      }
+    ],
+    "final_response": "The latest official entry is 3.4.0 from 2026-06-28."
+  },
+  "expected": {
+    "passed": false,
+    "primary_failure_class": "wrong_tool_order"
+  }
+}

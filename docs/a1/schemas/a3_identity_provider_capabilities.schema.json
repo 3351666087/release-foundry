@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://releasefoundry.local/schemas/a3_identity_provider_capabilities.schema.json",
+  "title": "A3 Identity Provider Capabilities",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "providers"],
+  "properties": {
+    "schema_version": {"const": "releasefoundry.a3_identity.providers.v1"},
+    "providers": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "provider", "preferred", "enabled", "code_capability",
+          "deployment_readiness", "deployment_status_source", "environment",
+          "qualification_status", "requires_business_qualification",
+          "registration_status", "login_status", "linking_status"
+        ],
+        "properties": {
+          "provider": {"enum": ["email", "github", "google", "wechat", "qq", "alipay", "phone"]},
+          "preferred": {"type": "boolean"},
+          "available": {"type": "boolean"},
+          "enabled": {"type": "boolean"},
+          "code_capability": {"enum": ["implemented", "adapter_only", "contract_only"]},
+          "deployment_readiness": {"enum": ["ready", "configuration_required", "blocked"]},
+          "deployment_status_source": {
+            "enum": ["runtime_configuration", "business_qualification"]
+          },
+          "environment": {"type": "string", "minLength": 1},
+          "qualification_status": {"enum": ["not_required", "required", "approved", "unavailable"]},
+          "requires_business_qualification": {"type": "boolean"},
+          "reason_code": {
+            "enum": [
+              "provider_not_configured",
+              "business_qualification_required",
+              "phone_verification_unavailable"
+            ]
+          },
+          "registration_status": {"enum": ["available", "unavailable"]},
+          "login_status": {"enum": ["available", "unavailable"]},
+          "linking_status": {"enum": ["available", "proposed", "unavailable"]}
+        }
+      }
+    }
+  }
+}

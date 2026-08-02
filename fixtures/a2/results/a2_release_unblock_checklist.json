@@ -1,0 +1,152 @@
+{
+  "schema_version": "a2.release_unblock_checklist.v1",
+  "checklist_id": "a2_release_unblock_checklist",
+  "source_release_gate": "a2_release_gate",
+  "release_gate_decision": "block",
+  "release_gate_exit_code": 2,
+  "release_gate_risk_score": 100,
+  "overall_status": "blocked",
+  "blocked_gate_count": 3,
+  "gate_items": [
+    {
+      "gate": "C3",
+      "title": "Reviewed ReleaseFoundry server-side grading",
+      "status": "not_merged",
+      "blocks_release": true,
+      "owner_role": "A2 evidence reviewer",
+      "missing_count": 6,
+      "required_actions": [
+        {
+          "action_id": "c3_reviewed_releasefoundry_grading",
+          "action": "Reviewed ReleaseFoundry grading observations with review_status=reviewed and evidence_ref must be imported, merged, and regenerated before C3 is met.",
+          "required_evidence_source": "reviewed_releasefoundry_grading",
+          "missing_count": 6,
+          "private_evidence_required": true,
+          "private_input_ref": "docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json",
+          "commands": [
+            "python scripts/a2_scan_releasefoundry_grading_evidence.py --input docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json --case-map fixtures/a2/calibration/releasefoundry_grading_batch_case_map.json",
+            "python scripts/a2_import_releasefoundry_grading.py --input docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json --case-map fixtures/a2/calibration/releasefoundry_grading_batch_case_map.json --evidence-ref docs/evidence/private_refs/a2_releasefoundry_get_run.redacted.json --review-status reviewed --output docs/evidence/private_refs/a2_releasefoundry_grading_import.review.json",
+            "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_releasefoundry_grading_import.review.json --source releasefoundry_grading --min-count 6 --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
+            "python scripts/a2_regenerate_fixtures.py --write"
+          ],
+          "evidence_refs": [
+            "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+            "fixtures/a2/calibration/releasefoundry_grading_batch_case_map.json",
+            "fixtures/a2/calibration/a2_releasefoundry_grading_collection_packet.json",
+            "fixtures/a2/results/a2_evidence_readiness_report.json"
+          ]
+        }
+      ],
+      "evidence_refs": [
+        "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        "fixtures/a2/calibration/releasefoundry_grading_batch_case_map.json",
+        "fixtures/a2/calibration/a2_releasefoundry_grading_collection_packet.json",
+        "fixtures/a2/results/a2_evidence_readiness_report.json"
+      ]
+    },
+    {
+      "gate": "C4",
+      "title": "Audited live semantic judge evidence",
+      "status": "offline_reference_only",
+      "blocks_release": true,
+      "owner_role": "A2 semantic judge reviewer",
+      "missing_count": 6,
+      "required_actions": [
+        {
+          "action_id": "c4_audited_semantic_judge",
+          "action": "Audited semantic judge observations must replace offline references before C4 is met.",
+          "required_evidence_source": "audited_semantic_judge",
+          "missing_count": 6,
+          "private_evidence_required": true,
+          "private_input_ref": "docs/evidence/private_refs/a2_semantic_judge_review.redacted.json",
+          "commands": [
+            "python scripts/a2_build_semantic_judge_collection_packet.py --check",
+            "python scripts/a2_import_semantic_judge.py --input docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --evidence-ref docs/evidence/private_refs/a2_semantic_judge_review.redacted.json --output docs/evidence/private_refs/a2_semantic_judge_import.review.json",
+            "python scripts/a2_merge_calibration_observations.py --incoming docs/evidence/private_refs/a2_semantic_judge_import.review.json --source llm_judge --min-count 6 --output fixtures/a2/calibration/a2_g3_calibration_observations.json",
+            "python scripts/a2_regenerate_fixtures.py --write"
+          ],
+          "evidence_refs": [
+            "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+            "fixtures/a2/calibration/a2_semantic_judge_collection_packet.json",
+            "fixtures/a2/results/a2_semantic_harness_report.json",
+            "fixtures/a2/results/a2_evidence_readiness_report.json"
+          ]
+        }
+      ],
+      "evidence_refs": [
+        "fixtures/a2/calibration/a2_g3_calibration_observations.json",
+        "fixtures/a2/calibration/a2_semantic_judge_collection_packet.json",
+        "fixtures/a2/results/a2_semantic_harness_report.json",
+        "fixtures/a2/results/a2_evidence_readiness_report.json"
+      ]
+    },
+    {
+      "gate": "C5",
+      "title": "Mature regression replay",
+      "status": "blocked",
+      "blocks_release": true,
+      "owner_role": "A2 case-book owner",
+      "missing_count": 3,
+      "required_actions": [
+        {
+          "action_id": "c5_reviewed_regression_replay",
+          "action": "Review queued incident candidates, attach reviewed external evidence, then promote accepted cases into replay.",
+          "required_evidence_source": "reviewed_regression_replay",
+          "missing_count": 3,
+          "private_evidence_required": false,
+          "private_input_ref": "",
+          "commands": [
+            "Review fixtures/a2/results/a2_regression_promotion_queue.json.",
+            "Promote accepted case-book candidates, then run python scripts/a2_regenerate_fixtures.py --write."
+          ],
+          "evidence_refs": [
+            "fixtures/a2/results/a2_case_book.json",
+            "fixtures/a2/results/a2_regression_replay_report.json",
+            "fixtures/a2/results/a2_regression_promotion_queue.json",
+            "fixtures/a2/results/a2_incident_regression_candidates.json"
+          ]
+        }
+      ],
+      "evidence_refs": [
+        "fixtures/a2/results/a2_case_book.json",
+        "fixtures/a2/results/a2_regression_replay_report.json",
+        "fixtures/a2/results/a2_regression_promotion_queue.json",
+        "fixtures/a2/results/a2_incident_regression_candidates.json"
+      ]
+    }
+  ],
+  "a3_consumption_summary": {
+    "schema_version": "a2.release_unblock_checklist.a3_summary.v1",
+    "blocked_gate_count": 3,
+    "primary_action": "Reviewed ReleaseFoundry grading observations with review_status=reviewed and evidence_ref must be imported, merged, and regenerated before C3 is met.",
+    "dashboard_sections": [
+      "C3 official grading",
+      "C4 semantic judge",
+      "C5 regression replay"
+    ],
+    "evidence_refs": [
+      "fixtures/a2/results/a2_release_unblock_checklist.json"
+    ]
+  },
+  "review_workflow": {
+    "required_reviewers": [
+      "A2 evidence reviewer",
+      "A2 case-book owner"
+    ],
+    "private_evidence_boundary": "Private refs may be named as evidence anchors, but raw payloads stay under docs/evidence/private_refs/ and are not read.",
+    "merge_rule": "Only reviewed public summaries may enter fixtures/a2/calibration or fixtures/a2/results."
+  },
+  "evidence_refs": [
+    "fixtures/a2/results/a2_release_gate_report.json",
+    "fixtures/a2/results/a2_evidence_readiness_report.json",
+    "fixtures/a2/results/a2_regression_replay_report.json",
+    "fixtures/a2/results/a2_regression_promotion_queue.json"
+  ],
+  "metadata": {
+    "deterministic": true,
+    "public_safe": true,
+    "does_not_execute_live_calls": true,
+    "does_not_read_private_evidence": true,
+    "purpose": "Give A1/A3 and release reviewers a machine-readable path to unblock C3/C4/C5 without exposing raw evidence."
+  }
+}

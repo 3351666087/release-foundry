@@ -1,0 +1,644 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://releasefoundry.local/schemas/a2/multimodal_runtime_matrix_v2.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version", "generated_at", "runtime", "runtime_hash", "binding",
+    "sample_policy", "trials", "startup_latency_seconds", "binding_summaries",
+    "metric_denominator_rule", "qualification_state", "blockers",
+    "release_authority", "public_safe"
+  ],
+  "properties": {
+    "schema_version": {"const": "a2.multimodal_runtime_matrix.v2"},
+    "generated_at": {"type": "string", "format": "date-time"},
+    "runtime": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provider_id", "ollama_version", "base_url_class"],
+      "properties": {
+        "provider_id": {"const": "ollama-local"},
+        "ollama_version": {"type": "string", "minLength": 1},
+        "base_url_class": {"const": "loopback"}
+      }
+    },
+    "runtime_hash": {"$ref": "#/$defs/hash"},
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["prompt_hash", "temperature", "seed", "output_schema_hash"],
+      "properties": {
+        "prompt_hash": {"$ref": "#/$defs/hash"},
+        "temperature": {"const": 0},
+        "seed": {"type": "integer"},
+        "output_schema_hash": {"$ref": "#/$defs/hash"}
+      }
+    },
+    "sample_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "minimum_safe_samples", "minimum_attack_samples",
+        "minimum_taxonomy_samples", "maximum_p95_seconds"
+      ],
+      "properties": {
+        "minimum_safe_samples": {"type": "integer", "minimum": 1},
+        "minimum_attack_samples": {"type": "integer", "minimum": 1},
+        "minimum_taxonomy_samples": {"type": "integer", "minimum": 1},
+        "maximum_p95_seconds": {"type": "number", "exclusiveMinimum": 0},
+        "maximum_cold_p95_seconds": {"type": "number", "exclusiveMinimum": 0},
+        "maximum_warm_p95_seconds": {"type": "number", "exclusiveMinimum": 0},
+        "maximum_model_run_seconds": {"type": "number", "exclusiveMinimum": 0},
+        "maximum_case_wall_seconds": {"type": "number", "exclusiveMinimum": 0},
+        "maximum_local_attempts": {"type": "integer", "minimum": 1, "maximum": 2},
+        "maximum_local_requests": {"type": "integer", "minimum": 1},
+        "minimum_sensitivity_wilson_lower_bound": {
+          "type": "number", "minimum": 0, "maximum": 1
+        },
+        "minimum_specificity_wilson_lower_bound": {
+          "type": "number", "minimum": 0, "maximum": 1
+        }
+      }
+    },
+    "trials": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/trial"}},
+    "preflight_receipts": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/preflightReceipt"}
+    },
+    "capability_probe_receipts": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/capabilityProbeReceipt"}
+    },
+    "request_count_receipt": {"$ref": "#/$defs/requestCountReceipt"},
+    "probe_request_count_receipt": {"$ref": "#/$defs/requestCountReceipt"},
+    "combined_request_count_receipt": {"$ref": "#/$defs/requestCountReceipt"},
+    "startup_latency_seconds": {
+      "type": "object",
+      "propertyNames": {"enum": ["cold", "warm"]},
+      "additionalProperties": {"$ref": "#/$defs/latency"}
+    },
+    "binding_summaries": {
+      "type": "object",
+      "additionalProperties": {"$ref": "#/$defs/summary"}
+    },
+    "metric_denominator_rule": {"const": "completed_and_valid_json_semantics_only"},
+    "qualification_state": {"enum": ["qualified_for_review", "blocked"]},
+    "blockers": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+    "release_authority": {"const": false},
+    "public_safe": {"const": true}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "optionalHash": {"type": "string", "pattern": "^(|sha256:[a-f0-9]{64})$"},
+    "optionalInterval": {
+      "type": ["array", "null"],
+      "items": {"type": "number", "minimum": 0, "maximum": 1},
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "latency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["count", "min", "median", "p95_nearest_rank", "max"],
+      "properties": {
+        "count": {"type": "integer", "minimum": 1},
+        "min": {"type": "number", "minimum": 0},
+        "median": {"type": "number", "minimum": 0},
+        "p95_nearest_rank": {"type": "number", "minimum": 0},
+        "max": {"type": "number", "minimum": 0}
+      }
+    },
+    "trial": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "model_id", "model_digest", "case_id", "taxonomy", "expected_risk",
+        "format_mode", "num_predict", "repeat", "startup_class", "artifact_hash",
+        "prompt_hash", "runtime_hash", "request_hash", "http_state", "parse_state",
+        "response_hash", "observed_risk", "wall_seconds", "done_reason", "eval_count",
+        "error_class", "raw_payload_included", "release_authority"
+      ],
+      "properties": {
+        "model_id": {"type": "string", "minLength": 1},
+        "model_digest": {"$ref": "#/$defs/hash"},
+        "case_id": {"type": "string", "minLength": 1},
+        "taxonomy": {"type": "string", "minLength": 1},
+        "expected_risk": {"type": "boolean"},
+        "format_mode": {"enum": ["plain", "json", "json_schema"]},
+        "num_predict": {"type": "integer", "minimum": 1},
+        "repeat": {"type": "integer", "minimum": 1},
+        "startup_class": {"enum": ["cold", "warm"]},
+        "artifact_hash": {"$ref": "#/$defs/hash"},
+        "prompt_hash": {"$ref": "#/$defs/hash"},
+        "runtime_hash": {"$ref": "#/$defs/hash"},
+        "request_hash": {"$ref": "#/$defs/hash"},
+        "http_state": {"enum": ["completed", "failed"]},
+        "parse_state": {
+          "enum": [
+            "not_attempted", "empty_response", "nonempty_invalid_json",
+            "invalid_semantics", "valid_json"
+          ]
+        },
+        "response_hash": {"$ref": "#/$defs/optionalHash"},
+        "thinking_hash": {"$ref": "#/$defs/optionalHash"},
+        "thinking_present": {"type": "boolean"},
+        "parse_source": {"type": "string"},
+        "envelope_state": {"enum": ["completed", "malformed_envelope"]},
+        "attempt_receipts": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "items": {"$ref": "#/$defs/attemptReceipt"}
+        },
+        "recovered_invalid_response": {"type": "boolean"},
+        "fallback_probe_used": {"type": "boolean"},
+        "promotion_eligible": {"type": "boolean"},
+        "observed_risk": {"type": ["boolean", "null"]},
+        "wall_seconds": {"type": "number", "minimum": 0},
+        "done_reason": {"type": "string"},
+        "eval_count": {"type": ["integer", "null"], "minimum": 0},
+        "provider_durations_seconds": {"$ref": "#/$defs/providerDurations"},
+        "duration_receipt": {"$ref": "#/$defs/durationReceipt"},
+        "error_class": {"type": "string"},
+        "cancellation_receipt": {
+          "anyOf": [{"type": "null"}, {"$ref": "#/$defs/cancellationReceipt"}]
+        },
+        "capability_skip_receipt": {
+          "anyOf": [{"type": "null"}, {"$ref": "#/$defs/capabilitySkipReceipt"}]
+        },
+        "raw_payload_included": {"const": false},
+        "release_authority": {"const": false}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"fallback_probe_used": {"const": true}}, "required": ["fallback_probe_used"]},
+          "then": {"properties": {"promotion_eligible": {"const": false}}, "required": ["promotion_eligible"]}
+        },
+        {
+          "if": {
+            "properties": {"cancellation_receipt": {"type": "object"}},
+            "required": ["cancellation_receipt"]
+          },
+          "then": {
+            "properties": {
+              "http_state": {"const": "failed"},
+              "parse_state": {"const": "not_attempted"},
+              "promotion_eligible": {"const": false},
+              "observed_risk": {"const": null},
+              "error_class": {
+                "enum": [
+                  "model_run_budget_exhausted", "case_wall_budget_exhausted"
+                ]
+              }
+            },
+            "required": [
+              "http_state", "parse_state", "promotion_eligible",
+              "observed_risk", "error_class"
+            ]
+          }
+        },
+        {
+          "if": {
+            "anyOf": [
+              {
+                "properties": {"http_state": {"const": "completed"}},
+                "required": ["http_state"]
+              },
+              {
+                "properties": {"promotion_eligible": {"const": true}},
+                "required": ["promotion_eligible"]
+              }
+            ]
+          },
+          "then": {
+            "properties": {"cancellation_receipt": {"const": null}}
+          }
+        }
+      ]
+    },
+    "attemptReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "attempt", "http_state", "parse_state", "error_class", "wall_seconds",
+        "content_hash", "thinking_hash", "content_present", "thinking_present",
+        "parse_source", "raw_payload_included"
+      ],
+      "properties": {
+        "attempt": {"type": "integer", "minimum": 1},
+        "request_id_hash": {"$ref": "#/$defs/hash"},
+        "raw_request_id_included": {"const": false},
+        "http_state": {"enum": ["completed", "failed"]},
+        "parse_state": {
+          "enum": [
+            "not_attempted", "empty_response", "nonempty_invalid_json",
+            "invalid_semantics", "valid_json"
+          ]
+        },
+        "error_class": {"type": "string"},
+        "wall_seconds": {"type": "number", "minimum": 0},
+        "content_hash": {"$ref": "#/$defs/optionalHash"},
+        "thinking_hash": {"$ref": "#/$defs/optionalHash"},
+        "content_present": {"type": "boolean"},
+        "thinking_present": {"type": "boolean"},
+        "parse_source": {"type": "string"},
+        "provider_durations_seconds": {"$ref": "#/$defs/providerDurations"},
+        "duration_receipt": {"$ref": "#/$defs/durationReceipt"},
+        "fallback_probe": {"type": "boolean"},
+        "transport_receipt": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "error_class_hash", "http_status_class", "response_body_retained"
+          ],
+          "properties": {
+            "schema_version": {"const": "a2.provider_transport_receipt.v1"},
+            "error_class_hash": {"$ref": "#/$defs/optionalHash"},
+            "http_status_class": {"enum": ["", "4xx", "5xx"]},
+            "response_body_retained": {"const": false}
+          }
+        },
+        "raw_payload_included": {"const": false}
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {"http_state": {"const": "failed"}},
+            "required": ["http_state", "transport_receipt"]
+          },
+          "then": {
+            "properties": {
+              "error_class": {"type": "string", "minLength": 1},
+              "transport_receipt": {
+                "properties": {
+                  "error_class_hash": {"$ref": "#/$defs/hash"}
+                }
+              }
+            },
+            "required": ["error_class"]
+          }
+        },
+        {
+          "if": {
+            "properties": {"http_state": {"const": "completed"}},
+            "required": ["http_state", "transport_receipt"]
+          },
+          "then": {
+            "properties": {
+              "error_class": {"const": ""},
+              "transport_receipt": {
+                "properties": {
+                  "error_class_hash": {"const": ""},
+                  "http_status_class": {"const": ""}
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    "preflightReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version", "state", "version_hash", "model_id_hash",
+        "expected_model_digest", "observed_model_digest", "health_endpoint",
+        "raw_payload_included", "release_authority", "public_safe"
+      ],
+      "properties": {
+        "schema_version": {"const": "a2.ollama_multimodal_preflight.v1"},
+        "state": {"enum": ["ready", "rejected"]},
+        "version_hash": {"$ref": "#/$defs/optionalHash"},
+        "model_id_hash": {"$ref": "#/$defs/hash"},
+        "expected_model_digest": {"$ref": "#/$defs/hash"},
+        "observed_model_digest": {"$ref": "#/$defs/optionalHash"},
+        "health_endpoint": {"const": "loopback"},
+        "raw_payload_included": {"const": false},
+        "release_authority": {"const": false},
+        "public_safe": {"const": true}
+      }
+    },
+    "providerDurations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider_total_seconds", "model_load_seconds", "prompt_eval_seconds",
+        "token_eval_seconds", "first_inference_seconds"
+      ],
+      "properties": {
+        "provider_total_seconds": {"type": ["number", "null"], "minimum": 0},
+        "model_load_seconds": {"type": ["number", "null"], "minimum": 0},
+        "prompt_eval_seconds": {"type": ["number", "null"], "minimum": 0},
+        "token_eval_seconds": {"type": ["number", "null"], "minimum": 0},
+        "first_inference_seconds": {"type": ["number", "null"], "minimum": 0}
+      }
+    },
+    "cancellationReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version", "reason", "configured_budget_seconds",
+        "network_call_started", "cancellation_stage",
+        "local_worker_tree_termination_proven",
+        "remote_request_termination_proven", "request_correlation_hash",
+        "raw_request_id_included", "promotion_eligible", "release_authority",
+        "public_safe"
+      ],
+      "properties": {
+        "schema_version": {"const": "a2.model_run_cancellation_receipt.v1"},
+        "reason": {
+          "enum": ["model_run_budget_exhausted", "case_wall_budget_exhausted"]
+        },
+        "configured_budget_seconds": {"type": "number", "exclusiveMinimum": 0},
+        "network_call_started": {"type": "boolean"},
+        "cancellation_stage": {
+          "enum": [
+            "pre_invoke_budget_expiry",
+            "in_flight_local_worker_termination",
+            "caller_wait_detached"
+          ]
+        },
+        "local_worker_tree_termination_proven": {"type": "boolean"},
+        "remote_request_termination_proven": {"const": false},
+        "request_correlation_hash": {"$ref": "#/$defs/hash"},
+        "raw_request_id_included": {"const": false},
+        "promotion_eligible": {"const": false},
+        "release_authority": {"const": false},
+        "public_safe": {"const": true}
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "cancellation_stage": {"const": "pre_invoke_budget_expiry"}
+            },
+            "required": ["cancellation_stage"]
+          },
+          "then": {
+            "properties": {
+              "network_call_started": {"const": false},
+              "local_worker_tree_termination_proven": {"const": false}
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "cancellation_stage": {
+                "enum": [
+                  "in_flight_local_worker_termination",
+                  "caller_wait_detached"
+                ]
+              }
+            },
+            "required": ["cancellation_stage"]
+          },
+          "then": {
+            "properties": {"network_call_started": {"const": true}}
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "cancellation_stage": {
+                "const": "in_flight_local_worker_termination"
+              }
+            },
+            "required": ["cancellation_stage"]
+          },
+          "then": {
+            "properties": {
+              "local_worker_tree_termination_proven": {"const": true}
+            }
+          },
+          "else": {
+            "properties": {
+              "local_worker_tree_termination_proven": {"const": false}
+            }
+          }
+        }
+      ]
+    },
+    "durationReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version", "wall_seconds", "provider_seconds", "provider_source",
+        "effective_seconds", "effective_source", "release_authority", "public_safe"
+      ],
+      "properties": {
+        "schema_version": {"const": "a2.provider_response_duration_receipt.v1"},
+        "wall_seconds": {"type": "number", "minimum": 0},
+        "provider_seconds": {"type": ["number", "null"], "minimum": 0},
+        "provider_source": {"type": "string"},
+        "effective_seconds": {"type": "number", "minimum": 0},
+        "effective_source": {"enum": ["provider_native", "wall_clock"]},
+        "release_authority": {"const": false},
+        "public_safe": {"const": true}
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {"provider_seconds": {"type": "null"}},
+            "required": ["provider_seconds"]
+          },
+          "then": {
+            "properties": {
+              "provider_source": {"const": ""},
+              "effective_source": {"const": "wall_clock"}
+            }
+          },
+          "else": {
+            "properties": {
+              "provider_source": {"minLength": 1},
+              "effective_source": {"const": "provider_native"}
+            }
+          }
+        }
+      ]
+    },
+    "capabilitySkipReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version", "reason", "network_call_started",
+        "capability_probe_hash", "promotion_eligible", "release_authority",
+        "public_safe"
+      ],
+      "properties": {
+        "schema_version": {"const": "a2.capability_skip_receipt.v1"},
+        "reason": {"const": "native_schema_unsupported"},
+        "network_call_started": {"const": false},
+        "capability_probe_hash": {"$ref": "#/$defs/hash"},
+        "promotion_eligible": {"const": false},
+        "release_authority": {"const": false},
+        "public_safe": {"const": true}
+      }
+    },
+    "capabilityProbeReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version", "model_id_hash", "model_digest",
+        "object_schema_supported", "plain_json_supported", "probe_state",
+        "object_schema_error_hash", "plain_json_error_hash",
+        "raw_payload_included", "release_authority", "public_safe"
+      ],
+      "properties": {
+        "schema_version": {"const": "a2.ollama_schema_capability_probe.v1"},
+        "model_id_hash": {"$ref": "#/$defs/hash"},
+        "model_digest": {"$ref": "#/$defs/hash"},
+        "object_schema_supported": {"type": "boolean"},
+        "plain_json_supported": {"type": "boolean"},
+        "probe_state": {"enum": ["object_schema", "plain_json_only", "unsupported"]},
+        "object_schema_error_hash": {"$ref": "#/$defs/optionalHash"},
+        "plain_json_error_hash": {"$ref": "#/$defs/optionalHash"},
+        "cache_key": {"$ref": "#/$defs/hash"},
+        "capability_layers": {
+          "type": "object",
+          "propertyNames": {"enum": ["object_schema", "plain_json"]},
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "transport_supported", "envelope_valid", "json_valid",
+              "schema_semantics_valid"
+            ],
+            "properties": {
+              "transport_supported": {"type": "boolean"},
+              "envelope_valid": {"type": "boolean"},
+              "json_valid": {"type": "boolean"},
+              "schema_semantics_valid": {"type": "boolean"}
+            }
+          }
+        },
+        "runtime_version_hash": {"$ref": "#/$defs/hash"},
+        "prompt_hash": {"$ref": "#/$defs/hash"},
+        "output_schema_hash": {"$ref": "#/$defs/hash"},
+        "probe_fixture_hash": {"$ref": "#/$defs/hash"},
+        "request_options_hash": {"$ref": "#/$defs/hash"},
+        "configured_probe_budget_seconds": {
+          "type": "number", "exclusiveMinimum": 0
+        },
+        "wall_seconds": {"type": "number", "minimum": 0},
+        "attempt_receipts": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "format_mode", "state", "wall_seconds",
+              "configured_timeout_seconds", "remaining_budget_at_start_seconds",
+              "network_call_started", "error_hash"
+            ],
+            "properties": {
+              "format_mode": {"enum": ["object_schema", "plain_json"]},
+              "state": {"enum": ["supported", "unsupported", "failed"]},
+              "wall_seconds": {"type": "number", "minimum": 0},
+              "configured_timeout_seconds": {
+                "type": "number", "exclusiveMinimum": 0
+              },
+              "remaining_budget_at_start_seconds": {
+                "type": "number", "minimum": 0
+              },
+              "network_call_started": {"type": "boolean"},
+              "network_call_completed": {"type": "boolean"},
+              "timeout_enforcement": {
+                "enum": [
+                  "client_side_budget",
+                  "provider_side",
+                  "subprocess_completed",
+                  "subprocess_terminated_after_deadline",
+                  "worker_detached_after_deadline"
+                ]
+              },
+              "error_hash": {"$ref": "#/$defs/optionalHash"}
+            }
+          }
+        },
+        "request_count_receipt": {"$ref": "#/$defs/requestCountReceipt"},
+        "raw_payload_included": {"const": false},
+        "release_authority": {"const": false},
+        "public_safe": {"const": true}
+      }
+    },
+    "requestCountReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version", "attempted", "completed", "failed", "maximum_allowed",
+        "budget_exhausted", "release_authority", "public_safe"
+      ],
+      "properties": {
+        "schema_version": {"const": "a2.provider_request_count_receipt.v1"},
+        "attempted": {"type": "integer", "minimum": 0},
+        "completed": {"type": "integer", "minimum": 0},
+        "failed": {"type": "integer", "minimum": 0},
+        "maximum_allowed": {"type": "integer", "minimum": 1},
+        "budget_exhausted": {"type": "boolean"},
+        "release_authority": {"const": false},
+        "public_safe": {"const": true}
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "eligible_count", "safe_count", "attack_count", "taxonomy_counts",
+        "sensitivity", "sensitivity_wilson_95", "specificity",
+        "specificity_wilson_95", "balanced_accuracy",
+        "balanced_accuracy_interval_95", "latency_seconds", "blockers"
+      ],
+      "properties": {
+        "eligible_count": {"type": "integer", "minimum": 0},
+        "safe_count": {"type": "integer", "minimum": 0},
+        "attack_count": {"type": "integer", "minimum": 0},
+        "taxonomy_counts": {
+          "type": "object",
+          "additionalProperties": {"type": "integer", "minimum": 0}
+        },
+        "taxonomy_metrics": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "eligible_count", "sensitivity", "sensitivity_wilson_95"
+            ],
+            "properties": {
+              "eligible_count": {"type": "integer", "minimum": 0},
+              "sensitivity": {
+                "type": ["number", "null"], "minimum": 0, "maximum": 1
+              },
+              "sensitivity_wilson_95": {"$ref": "#/$defs/optionalInterval"}
+            }
+          }
+        },
+        "sensitivity": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "sensitivity_wilson_95": {"$ref": "#/$defs/optionalInterval"},
+        "specificity": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "specificity_wilson_95": {"$ref": "#/$defs/optionalInterval"},
+        "balanced_accuracy": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "balanced_accuracy_interval_95": {"$ref": "#/$defs/optionalInterval"},
+        "wilson_lower_bound_policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "minimum_sensitivity", "minimum_specificity",
+            "sensitivity_met", "specificity_met"
+          ],
+          "properties": {
+            "minimum_sensitivity": {"type": "number", "minimum": 0, "maximum": 1},
+            "minimum_specificity": {"type": "number", "minimum": 0, "maximum": 1},
+            "sensitivity_met": {"type": "boolean"},
+            "specificity_met": {"type": "boolean"}
+          }
+        },
+        "latency_seconds": {"$ref": "#/$defs/latency"},
+        "blockers": {"type": "array", "uniqueItems": true, "items": {"type": "string"}}
+      }
+    }
+  }
+}

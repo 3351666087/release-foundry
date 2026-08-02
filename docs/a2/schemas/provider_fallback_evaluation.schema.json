@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://releasefoundry.local/schemas/a2/provider_fallback_evaluation.schema.json",
+  "type": "object",
+  "required": ["schema_version", "primary_result_hash", "fallback_result_hash", "primary_model_binding", "fallback_model_binding", "fallback_calibration_binding", "runtime_calibration_binding", "fallback_calibration_state", "usable_for_review", "release_authority", "status", "blockers", "public_safe"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": "a2.provider_fallback_evaluation.v1"},
+    "primary_result_hash": {"$ref": "#/$defs/hash"},
+    "fallback_result_hash": {"$ref": "#/$defs/hash"},
+    "primary_model_binding": {"$ref": "#/$defs/optionalModelBinding"},
+    "fallback_model_binding": {"$ref": "#/$defs/optionalModelBinding"},
+    "fallback_calibration_binding": {"$ref": "#/$defs/optionalCalibrationBinding"},
+    "runtime_calibration_binding": {"$ref": "#/$defs/optionalCalibrationBinding"},
+    "fallback_calibration_state": {"enum": ["uncalibrated", "golden_passed", "golden_failed"]},
+    "usable_for_review": {"type": "boolean"},
+    "release_authority": {"const": false},
+    "status": {"enum": ["blocked", "review_available"]},
+    "blockers": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true},
+    "public_safe": {"const": true}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"},
+    "modelBinding": {
+      "type": "object",
+      "required": ["provider_id", "model_id", "model_version"],
+      "additionalProperties": false,
+      "properties": {
+        "provider_id": {"type": "string", "minLength": 1},
+        "model_id": {"type": "string", "minLength": 1},
+        "model_version": {"type": "string", "minLength": 1}
+      }
+    },
+    "optionalModelBinding": {
+      "anyOf": [
+        {"$ref": "#/$defs/modelBinding"},
+        {"type": "object", "maxProperties": 0}
+      ]
+    },
+    "calibrationBinding": {
+      "type": "object",
+      "required": ["prompt_hash", "generation_options_hash", "artifact_hash"],
+      "additionalProperties": false,
+      "properties": {
+        "prompt_hash": {"$ref": "#/$defs/hash"},
+        "generation_options_hash": {"$ref": "#/$defs/hash"},
+        "artifact_hash": {"$ref": "#/$defs/hash"}
+      }
+    },
+    "optionalCalibrationBinding": {
+      "anyOf": [
+        {"$ref": "#/$defs/calibrationBinding"},
+        {"type": "object", "maxProperties": 0}
+      ]
+    }
+  }
+}

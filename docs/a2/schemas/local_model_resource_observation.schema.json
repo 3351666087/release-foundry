@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://releasefoundry.local/schemas/a2/local_model_resource_observation.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "model_binding",
+    "installed_bytes",
+    "wall_time_seconds",
+    "prompt_tokens",
+    "completion_tokens",
+    "maximum_latency_seconds",
+    "startup_class",
+    "cold_start_slo_state",
+    "telemetry",
+    "latency_policy_state",
+    "evaluation_eligible",
+    "release_authority",
+    "blockers",
+    "public_safe"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "a2.local_model_resource_observation.v1"
+    },
+    "model_binding": {
+      "$ref": "#/$defs/modelBinding"
+    },
+    "installed_bytes": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "wall_time_seconds": {
+      "type": "number",
+      "minimum": 0
+    },
+    "prompt_tokens": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "completion_tokens": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "maximum_latency_seconds": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "startup_class": {
+      "enum": [
+        "cold_start",
+        "warm_start"
+      ]
+    },
+    "cold_start_slo_state": {
+      "enum": [
+        "within_limit",
+        "incomplete"
+      ]
+    },
+    "telemetry": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "peak_memory_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "load_duration_seconds": {
+          "type": "number",
+          "minimum": 0
+        },
+        "eval_duration_seconds": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "latency_policy_state": {
+      "enum": [
+        "within_limit",
+        "incomplete"
+      ]
+    },
+    "evaluation_eligible": {
+      "type": "boolean"
+    },
+    "release_authority": {
+      "const": false
+    },
+    "blockers": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "uniqueItems": true
+    },
+    "public_safe": {
+      "const": true
+    },
+    "maximum_completion_tokens": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1
+    },
+    "thinking_tokens": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 0
+    }
+  },
+  "$defs": {
+    "modelBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider_id",
+        "model_id",
+        "model_version"
+      ],
+      "properties": {
+        "provider_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "model_version": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

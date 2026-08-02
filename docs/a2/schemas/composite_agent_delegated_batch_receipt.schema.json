@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://releasefoundry.local/schemas/a2/composite_agent_delegated_batch_receipt.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "capability_contract_hash",
+    "planner_request_hash",
+    "artifact_count",
+    "artifact_receipt_hashes",
+    "batch_receipt_hash",
+    "qualification_state",
+    "human_review_required",
+    "release_authority",
+    "blockers",
+    "public_safe"
+  ],
+  "properties": {
+    "schema_version": {"const": "a2.composite_agent_delegated_batch_receipt.v1"},
+    "capability_contract_hash": {"$ref": "#/$defs/hash"},
+    "planner_request_hash": {"$ref": "#/$defs/hash"},
+    "artifact_count": {"type": "integer", "minimum": 1},
+    "artifact_receipt_hashes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/hash"}
+    },
+    "batch_receipt_hash": {"$ref": "#/$defs/hash"},
+    "qualification_state": {"enum": ["review_available", "blocked", "incomplete"]},
+    "human_review_required": {"type": "boolean"},
+    "release_authority": {"const": false},
+    "blockers": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+    "public_safe": {"const": true}
+  },
+  "$defs": {
+    "hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+  }
+}

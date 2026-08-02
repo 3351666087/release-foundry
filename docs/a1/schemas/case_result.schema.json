@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "A1 CaseResult",
+  "type": "object",
+  "required": ["case_id", "scenario_id", "title", "status", "started_at", "ended_at", "latency_ms", "observations", "grade", "agent_output", "expected", "metadata"],
+  "properties": {
+    "case_id": { "type": "string" },
+    "scenario_id": { "type": "string" },
+    "title": { "type": "string" },
+    "status": { "type": "string" },
+    "started_at": { "type": "string" },
+    "ended_at": { "type": "string" },
+    "latency_ms": { "type": "integer", "minimum": 0 },
+    "observations": {
+      "type": "array",
+      "items": { "$ref": "observation.schema.json" }
+    },
+    "grade": { "$ref": "grade_result.schema.json" },
+    "agent_output": { "$ref": "agent_turn.schema.json" },
+    "expected": { "type": "object" },
+    "error": { "type": "string" },
+    "metadata": { "type": "object" }
+  },
+  "additionalProperties": true
+}

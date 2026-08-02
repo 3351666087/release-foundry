@@ -1,0 +1,38 @@
+{
+  "calls": {
+    "billing_get_status": {
+      "error": {
+        "message": "Endpoint 'billing_get_status' is not accessible via API key. Use OAuth authentication.",
+        "type": "ReleaseFoundryApiError"
+      },
+      "ok": false,
+      "status": "error",
+      "status_code": 403
+    },
+    "get_usage": {
+      "error": {
+        "message": "Endpoint 'get_usage' is not accessible via API key. Use OAuth authentication.",
+        "type": "ReleaseFoundryApiError"
+      },
+      "ok": false,
+      "status": "error",
+      "status_code": 403
+    }
+  },
+  "field_paths": {},
+  "frontend_source_functions": [
+    "get_usage",
+    "billing_get_status"
+  ],
+  "observed_at": "2026-07-06T04:29:41Z",
+  "safety": {
+    "mutating_calls": 0,
+    "raw_browser_token_saved": false,
+    "raw_headers_saved": false,
+    "raw_key_saved": false
+  },
+  "sample_shapes": {},
+  "sanitized_samples": {},
+  "schema_version": "a3.p3.usage_quota_api_probe.v1",
+  "source": "Read-only direct API calls discovered from official frontend Usage tab."
+}

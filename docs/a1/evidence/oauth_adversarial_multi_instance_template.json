@@ -1,0 +1,125 @@
+{
+  "schema_version": "releasefoundry.oauth_adversarial_evidence.v1",
+  "generated_at": null,
+  "environment": "local_test",
+  "providers": [
+    "github",
+    "google"
+  ],
+  "public_safe": true,
+  "secret_value_present": false,
+  "raw_authorization_material_present": false,
+  "controls": [
+    {
+      "control_id": "forged_host_rejected",
+      "status": "verified",
+      "test_selector": "tests/a1/test_oauth_security_adversarial.py tests/a1/test_github_oauth_runtime.py",
+      "required_evidence": [
+        "non_loopback_remote_rejected",
+        "forwarded_headers_rejected",
+        "loopback_host_required"
+      ]
+    },
+    {
+      "control_id": "state_replay_denied",
+      "status": "verified",
+      "test_selector": "tests/a1/test_oauth_security_adversarial.py",
+      "required_evidence": [
+        "first_consumer_accepted",
+        "subsequent_consumers_rejected",
+        "raw_replay_key_absent"
+      ]
+    },
+    {
+      "control_id": "google_oidc_claim_validation",
+      "status": "verified_contract_only",
+      "test_selector": "tests/a1/test_oauth_account_ready.py tests/a1/test_oauth_security_adversarial.py",
+      "required_evidence": [
+        "nonce_mismatch_rejected",
+        "issuer_mismatch_rejected",
+        "audience_mismatch_rejected",
+        "unverified_email_rejected"
+      ]
+    },
+    {
+      "control_id": "provider_outage_timeout",
+      "status": "verified_injected_transport",
+      "test_selector": "tests/a1/test_oauth_security_adversarial.py tests/a1/test_github_oauth_runtime.py",
+      "required_evidence": [
+        "fails_closed",
+        "public_error_redacted",
+        "no_token_reference_returned"
+      ]
+    },
+    {
+      "control_id": "restart_replay_persistence",
+      "status": "blocked",
+      "blocked_by": "Go localhost runtime still uses process-local transaction and replay storage",
+      "required_evidence": [
+        "pre_restart_state_rejected_after_restart",
+        "consumed_state_rejected_after_restart",
+        "expired_state_rejected_after_restart"
+      ]
+    },
+    {
+      "control_id": "multi_instance_atomic_consume",
+      "status": "blocked",
+      "blocked_by": "PostgreSQL migration exists but is not wired into the Go OAuth runtime",
+      "required_evidence": [
+        "two_instances_share_store",
+        "exactly_one_consumer_commits",
+        "loser_observes_replay",
+        "transaction_isolation_recorded"
+      ]
+    },
+    {
+      "control_id": "reconnect_revocation",
+      "status": "blocked",
+      "blocked_by": "Memory upsert removes the old local token without durable provider revocation reconciliation",
+      "required_evidence": [
+        "old_provider_token_revoked",
+        "new_connection_committed_after_revoke",
+        "provider_failure_retains_reconciliation_work",
+        "outbox_retry_is_idempotent"
+      ]
+    },
+    {
+      "control_id": "public_response_no_token_refs",
+      "status": "verified",
+      "test_selector": "tests/a1/test_oauth_security_adversarial.py tests/a1/test_github_oauth_runtime.py",
+      "required_evidence": [
+        "raw_token_absent",
+        "opaque_token_reference_absent",
+        "credential_reference_absent",
+        "identity_digest_only"
+      ]
+    }
+  ],
+  "allowed_runtime_evidence_fields": [
+    "timestamp",
+    "provider",
+    "environment",
+    "test_name",
+    "status_code",
+    "failure_code",
+    "replay_denied",
+    "atomic_winner_count",
+    "instance_count",
+    "provider_revocation_status",
+    "public_response_secret_scan_passed"
+  ],
+  "forbidden_runtime_evidence_fields": [
+    "authorization_code",
+    "state",
+    "nonce",
+    "pkce_verifier",
+    "access_token",
+    "refresh_token",
+    "id_token",
+    "client_secret",
+    "token_ref",
+    "cookie",
+    "request_headers",
+    "provider_response_body"
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "scenario_id": "A2-S018",
+  "case_id": "sample-a2-s018-hallucinated-image-service",
+  "run": {
+    "tool_calls": [
+      {
+        "id": "image.view#1",
+        "tool": "image.view",
+        "args": {
+          "path": "fixtures/a2/images/dashboard-alert.png"
+        },
+        "output": {
+          "description": "The image shows an unlabeled green rectangle and an unlabeled red rectangle."
+        }
+      }
+    ],
+    "final_response": "The Payments service is red.",
+    "forbidden_facts": [
+      "payments"
+    ]
+  },
+  "expected": {
+    "passed": false,
+    "primary_failure_class": "hallucinated_tool_result"
+  }
+}

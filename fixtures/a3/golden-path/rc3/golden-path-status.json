@@ -1,0 +1,153 @@
+{
+  "schema_version": "a3.delivery_golden_path.v1",
+  "golden_path_id": "gpath_11e63c97d970ecdd57db",
+  "generated_at": "2026-07-20T14:39:32.963Z",
+  "status": "blocked_by_a2",
+  "production_ready": false,
+  "release_version": "0.2.0-rc.3",
+  "run_ids": [
+    "a3-golden-20260720-003"
+  ],
+  "stages": [
+    {
+      "id": "capture",
+      "label": "A1 captures a new run",
+      "owner": "A1",
+      "status": "passed",
+      "evidence_ref": "a3-golden-20260720-003",
+      "blocked_reason": null
+    },
+    {
+      "id": "evaluate",
+      "label": "A2 grades every case",
+      "owner": "A2",
+      "status": "passed",
+      "evidence_ref": "a2-a3-golden-20260720-003-grade-results",
+      "blocked_reason": null
+    },
+    {
+      "id": "decide",
+      "label": "A2 Decision Ledger authorizes release",
+      "owner": "A2",
+      "status": "blocked",
+      "evidence_ref": "sha256:bc608df9825ea316b374797ef76b4921bff4f6cee1943600d0297783e6be6303",
+      "blocked_reason": "a2_decision_blocks_release"
+    },
+    {
+      "id": "bundle",
+      "label": "A3 seals and verifies the Audit Bundle",
+      "owner": "A3",
+      "status": "passed",
+      "evidence_ref": "a3-bundle-0-2-0-rc-3-a3-golden-20260720-003-60c1e04d61b0",
+      "blocked_reason": null
+    },
+    {
+      "id": "archive",
+      "label": "A3 verifies the signed archive",
+      "owner": "A3",
+      "status": "passed",
+      "evidence_ref": "a3-archive-a3-bundle-0-2-0-rc-3-a3-golden-20260720-003-60c1e04d61-576f45dd557c",
+      "blocked_reason": null
+    },
+    {
+      "id": "package",
+      "label": "Versioned release artifact is verifiable",
+      "owner": "A3",
+      "status": "passed",
+      "evidence_ref": "56a816cbca8ea43a337b53568073eb055e3dac44e360fc5aa3e305351464855f",
+      "blocked_reason": null
+    },
+    {
+      "id": "deploy",
+      "label": "Deployment acceptance passes",
+      "owner": "A1/A3",
+      "status": "blocked",
+      "evidence_ref": "dpa_c50a3969d31c4b0d6daf",
+      "blocked_reason": "Deployment acceptance is blocked."
+    },
+    {
+      "id": "github_app",
+      "label": "Tenant GitHub App is trusted",
+      "owner": "A1/A3",
+      "status": "blocked",
+      "evidence_ref": "dpa_c50a3969d31c4b0d6daf",
+      "blocked_reason": "A tenant-bound GitHub App installation is not proven."
+    },
+    {
+      "id": "github_check",
+      "label": "GitHub Check is published and read back",
+      "owner": "A3",
+      "status": "blocked",
+      "evidence_ref": null,
+      "blocked_reason": "GitHub Check live readback status is missing."
+    },
+    {
+      "id": "pr_comment",
+      "label": "PR comment is published and read back",
+      "owner": "A3",
+      "status": "blocked",
+      "evidence_ref": null,
+      "blocked_reason": "PR comment live readback status is missing."
+    },
+    {
+      "id": "required_check",
+      "label": "main enforces the release check",
+      "owner": "Repository maintainer",
+      "status": "blocked",
+      "evidence_ref": null,
+      "blocked_reason": "Branch protection does not enforce the release check."
+    }
+  ],
+  "progress": {
+    "total": 11,
+    "passed": 5,
+    "blocked": 6,
+    "percent": 45.5
+  },
+  "authoritative_release": {
+    "owner": "A2",
+    "integrity_verified": true,
+    "upstream_decision": "block",
+    "release_ready": false,
+    "blockers": [
+      "a2_decision_blocks_release",
+      "a2_release_not_ready",
+      "evidence_incomplete",
+      "a2_hard_blockers_present"
+    ]
+  },
+  "next_actions": [
+    {
+      "stage_id": "decide",
+      "owner": "A2",
+      "action": "a2_decision_blocks_release"
+    },
+    {
+      "stage_id": "deploy",
+      "owner": "A1/A3",
+      "action": "Deployment acceptance is blocked."
+    },
+    {
+      "stage_id": "github_app",
+      "owner": "A1/A3",
+      "action": "A tenant-bound GitHub App installation is not proven."
+    }
+  ],
+  "evidence_links": {
+    "deployment_acceptance_id": "dpa_c50a3969d31c4b0d6daf",
+    "release_artifact_manifest_hash": "56a816cbca8ea43a337b53568073eb055e3dac44e360fc5aa3e305351464855f",
+    "audit_bundle_verification_id": null,
+    "audit_archive_verification_id": null,
+    "github_check_readback_id": null,
+    "github_pr_comment_readback_id": null,
+    "required_check_proof_id": null
+  },
+  "safety": {
+    "a1_runtime_recomputed": false,
+    "a2_score_recomputed": false,
+    "a2_decision_recomputed": false,
+    "dry_run_claimed_as_live": false,
+    "fixture_claimed_as_production": false,
+    "secret_values_allowed": false
+  }
+}

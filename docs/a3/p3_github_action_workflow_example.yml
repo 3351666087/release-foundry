@@ -1,0 +1,33 @@
+name: ReleaseFoundry Release Gate
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+jobs:
+  releasefoundry-release-gate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Build ReleaseFoundry gate artifacts
+        run: |
+          node services/report/a3_gate_cli.mjs --runs fixtures/a3/mock_run_results.json --grades fixtures/a3/mock_grade_results.json --coverage fixtures/a2/results/a2_g3_coverage_report.json --thresholds fixtures/a3/release_gate_thresholds.json --release-version pr-${{ github.event.pull_request.number }} --source github-actions --head-sha ${{ github.event.pull_request.head.sha }} --details-url ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} --annotation-path docs/a3/p3_gate_cli_growth_2026_07_07.md --output-json artifacts/releasefoundry-gate.json --output-md artifacts/releasefoundry-gate.md --output-check artifacts/releasefoundry-check.json --output-pr-comment artifacts/releasefoundry-pr-comment.md --no-fail --json
+      - name: Upload ReleaseFoundry gate artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: releasefoundry-release-gate
+          path: artifacts/
+      - name: Plan ReleaseFoundry GitHub Check
+        run: |
+          node services/report/a3_github_publish_cli.mjs --gate artifacts/releasefoundry-gate.json --repo ${{ github.repository }} --head-sha ${{ github.event.pull_request.head.sha }} --details-url ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }} --output-receipt artifacts/releasefoundry-github-check-receipt.json --dry-run --json
+      - name: Plan ReleaseFoundry PR Comment
+        run: |
+          node services/report/a3_github_publish_cli.mjs --gate artifacts/releasefoundry-gate.json --repo ${{ github.repository }} --pull-number ${{ github.event.pull_request.number }} --pr-comment --output-receipt artifacts/releasefoundry-pr-comment-receipt.json --dry-run --json
+      - name: Enforce local gate result
+        run: |
+          node -e "const fs=require('fs'); const gate=JSON.parse(fs.readFileSync('artifacts/releasefoundry-gate.json','utf8')); process.exit(gate.exit_code_hint || 0);"

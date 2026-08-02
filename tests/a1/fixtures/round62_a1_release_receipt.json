@@ -1,0 +1,40 @@
+{
+  "evidence_refs": [
+    {
+      "name": "docs/a1/evidence/round57_provider_neutral_runtime_calibration_20260712.md",
+      "sha256": "ac91853f66fff160d7da632f7e210f9c2a01ca23646f288bfcee33374d041ea1"
+    },
+    {
+      "name": "docs/a1/evidence/round60_provider_dispatch_postgres.md",
+      "sha256": "eb3f706beab161cc61d682a70ec5adbaf13849f71fbe1ea7004b8eedb7fbf231"
+    },
+    {
+      "name": "docs/a1/evidence/round61_postgres_identity_authority.md",
+      "sha256": "637de80fd1875983a06b064295e88ba4e11a78cb6e353d858527925b12314c3e"
+    }
+  ],
+  "generated_at": "2026-07-13T02:00:00Z",
+  "git_sha": "5dd6a898a6771eaf67bf39246f256b579b4d2211",
+  "provider_receipt_sha256s": [
+    "06f51bf54241cf45cf8a9c08f1b672e0025ceb8102ae36aa225f5c5e9e7b1f3a",
+    "08177b6c313657827f9b96b8194175a455c2433617d12661a9273e4dc3a3772c",
+    "0f66c05a1c2a7d36b217c0c265c88517c9b9d45ac1047f324b73bb0e7f68a2ca",
+    "1148a6f8a121dc6ff7d6fd529c4c78a8430f6dbbfda24956027247809bd8fbee",
+    "375d9ba29c9fa3f4a0aa8a8f690ae55a1f57543e7e8978ce12d0524202c8a9e1",
+    "442e30a513c9c64ae041806356056d3c222de47138fc25f25a7732871ad27c13",
+    "4534c5163bfc21d2e6a875295f84247de43dcb8e9b078981d5230e6d673f7e0a",
+    "558f463d87238d8ab3bc0d20b5d8794c959163dac650a3d8c10f32c5e3eee201",
+    "6451b79d22f4488c76fbb74f2014f37368656d906e5ef0e039ff0f5ef0efaa08",
+    "6bf19468d1fd714194ffe22ebe0cb87f6bb27cbd42b2b75f0f1087ba3fb2dd51",
+    "7bbb0eae4192738ba247aaf9a6032504a3ac7993176f74eab208c2aa9d6e3c5d",
+    "827c19f21b3ba8a70778e22db027b967f05c814d6eeccec027724804906dd4b2",
+    "8c6370ac242ff2e7c4afee6fc590d3437c92fde5dc5330c8af38d4db25d42d0b",
+    "97b2c9506a4274d290f81ddda5ea9a915601fb12d846b48abb9bf9ac091f870a",
+    "a03b48ec71ebddf9cc4772446e3f35e9e54fd4912641ecb237bf67b968936b7f",
+    "db0968b5315728f5ed38b47f1af86ecafe5efecb836c69492d2cb84632990ca6",
+    "f3654041baf9eebf726cd96898e8714b1f1f22b7e0eb49089472b3f6f94e8da0"
+  ],
+  "release_candidate": "round62-source-candidate",
+  "release_receipt_sha256": "1aadaa404584908e19468b1536cbb90fa8512cfdcd062faf52731c31585659a5",
+  "schema_version": "releasefoundry.a1.release_receipt.v1"
+}

@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://releasefoundry.example/schemas/a2/multimodal_runtime_probe_cases.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "cases",
+    "provider_labels_used",
+    "release_authority",
+    "public_safe"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "a2.multimodal_runtime_cases.v1"
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "case_id",
+          "taxonomy",
+          "expected_risk",
+          "artifact_path",
+          "artifact_hash"
+        ],
+        "properties": {
+          "case_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "taxonomy": {
+            "type": "string",
+            "minLength": 1
+          },
+          "expected_risk": {
+            "type": "boolean"
+          },
+          "artifact_path": {
+            "type": "string",
+            "pattern": "^fixtures/a2/calibration/"
+          },
+          "artifact_hash": {
+            "$ref": "#/$defs/hash"
+          },
+          "user_text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "source_case_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "perturbation": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind", "jpeg_quality", "width", "height"],
+            "properties": {
+              "kind": {
+                "enum": ["jpeg_compression", "rescaling"]
+              },
+              "jpeg_quality": {
+                "type": ["integer", "null"],
+                "minimum": 1,
+                "maximum": 100
+              },
+              "width": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "height": {
+                "type": "integer",
+                "minimum": 1
+              }
+            }
+          }
+        }
+      }
+    },
+    "provider_labels_used": {
+      "const": false
+    },
+    "release_authority": {
+      "const": false
+    },
+    "public_safe": {
+      "const": true
+    }
+  },
+  "$defs": {
+    "hash": {
+      "type": "string",
+      "pattern": "^sha256:[a-f0-9]{64}$"
+    }
+  }
+}
