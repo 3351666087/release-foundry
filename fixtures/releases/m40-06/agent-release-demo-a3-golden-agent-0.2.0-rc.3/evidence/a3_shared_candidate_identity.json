@@ -1,12 +1,12 @@
 {
   "a1": {
     "candidate_id": "a3-golden-agent@0.2.0-rc.3",
-    "evidence_bundle_hash": "sha256:0b4fb982ccc5a25a54c8c8ea8744285296502bb6be3113d5220af7f3340e3d6b",
+    "evidence_bundle_hash": "sha256:3240e097cc4e793520d9bbb0b2a600081a5440c751bf842cbe3b8cc9e495cd9f",
     "git_sha": "1d292047e991995fdf52f0545ffff410ee19a171"
   },
   "a2": {
     "candidate_id": "a3-golden-agent@0.2.0-rc.3",
-    "decision_hash": "sha256:af84d7e9e3143f4da06341f2e20f3402c8f44ed5efc8221b18c8ef2869747a4e",
+    "decision_hash": "sha256:bc608df9825ea316b374797ef76b4921bff4f6cee1943600d0297783e6be6303",
     "git_sha": "d3529c356e49ce8502c050f0dad44020031ee0dd",
     "grades_hash": "sha256:ffeba9ab8d7a2ccfb26ca8e135448cc9a2e6c8ead5b49837f77e5e73606a5304",
     "review_collection_hash": "sha256:3e482b25052625f573002999f9b10fdc6bf8856602cce3b44982df249ebf687c",
@@ -14,7 +14,7 @@
   },
   "a3": {
     "candidate_id": "a3-golden-agent@0.2.0-rc.3",
-    "consumed_decision_hash": "sha256:af84d7e9e3143f4da06341f2e20f3402c8f44ed5efc8221b18c8ef2869747a4e",
+    "consumed_decision_hash": "sha256:bc608df9825ea316b374797ef76b4921bff4f6cee1943600d0297783e6be6303",
     "consumed_grades_hash": "sha256:ffeba9ab8d7a2ccfb26ca8e135448cc9a2e6c8ead5b49837f77e5e73606a5304",
     "git_sha": "a0b427257c5cd80fbe3394b4a406fa21f50bae37"
   },

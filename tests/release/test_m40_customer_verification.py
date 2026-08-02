@@ -16,7 +16,7 @@ PACKET_ROOT = (
     / "agent-release-demo-a3-golden-agent-0.2.0-rc.3"
 )
 RECEIPT = ROOT / "fixtures" / "releases" / "m40-06" / "customer-verification-receipt.json"
-EXPECTED_PACKAGE_COMMIT = "35ffd3bed3f5d37bdceeb4c0bec5067801c631f5"
+EXPECTED_PACKAGE_COMMIT = "ba805e7e087b0e4b8c79a0dd6fbcdc6f923aee01"
 EXPECTED_BLOCKERS = {
     "a2_release_blocked",
     "a2_release_not_ready",

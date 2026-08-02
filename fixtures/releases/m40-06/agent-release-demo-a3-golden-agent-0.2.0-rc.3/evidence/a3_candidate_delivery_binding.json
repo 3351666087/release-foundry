@@ -8,22 +8,22 @@
   },
   "upstream": {
     "a1_source_commit": "1d292047e991995fdf52f0545ffff410ee19a171",
-    "a1_evidence_bundle_hash": "sha256:0b4fb982ccc5a25a54c8c8ea8744285296502bb6be3113d5220af7f3340e3d6b",
+    "a1_evidence_bundle_hash": "sha256:3240e097cc4e793520d9bbb0b2a600081a5440c751bf842cbe3b8cc9e495cd9f",
     "a2_authority_commit": "d3529c356e49ce8502c050f0dad44020031ee0dd",
-    "a2_decision_ledger_head_hash": "sha256:af84d7e9e3143f4da06341f2e20f3402c8f44ed5efc8221b18c8ef2869747a4e",
+    "a2_decision_ledger_head_hash": "sha256:bc608df9825ea316b374797ef76b4921bff4f6cee1943600d0297783e6be6303",
     "a2_grades_hash": "sha256:ffeba9ab8d7a2ccfb26ca8e135448cc9a2e6c8ead5b49837f77e5e73606a5304",
     "a2_upstream_decision": "block",
     "a2_release_ready": false
   },
   "a3": {
     "implementation_commit": "a0b427257c5cd80fbe3394b4a406fa21f50bae37",
-    "consumed_decision_ledger_head_hash": "sha256:af84d7e9e3143f4da06341f2e20f3402c8f44ed5efc8221b18c8ef2869747a4e",
+    "consumed_decision_ledger_head_hash": "sha256:bc608df9825ea316b374797ef76b4921bff4f6cee1943600d0297783e6be6303",
     "consumed_grades_hash": "sha256:ffeba9ab8d7a2ccfb26ca8e135448cc9a2e6c8ead5b49837f77e5e73606a5304",
     "delivery_status": "blocked_by_a2",
     "production_ready": false,
     "a2_decision_recomputed": false
   },
-  "shared_identity_hash": "sha256:e6c38e26b1b76ffcaf918ce3c8cc66518d27c463565efb3ce0f3fb9684248829",
+  "shared_identity_hash": "sha256:d967d61039d91712740f80382214decee7bdbe986a1f482624f48b2a3d87dac2",
   "binding_state": "exact",
   "blockers": [],
   "release_blockers": [
@@ -40,5 +40,5 @@
     "secrets_included": false,
     "public_safe": true
   },
-  "binding_hash": "sha256:f5a4f0720db1dd9a9d7b331645c697166366648674f2d15b61f5180ef03e75ba"
+  "binding_hash": "sha256:a65e0bc77563e68d494023a85ef41ab9744bf92ed3ea06afb02d7eaa8e7cc671"
 }

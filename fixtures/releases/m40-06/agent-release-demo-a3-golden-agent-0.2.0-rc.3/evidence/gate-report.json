@@ -265,8 +265,8 @@
           "a2_hard_blockers_present"
         ],
         "evidence_refs": [
-          "sha256:af84d7e9e3143f4da06341f2e20f3402c8f44ed5efc8221b18c8ef2869747a4e",
-          "sha256:241a87bddeea85869d1bf2aa70eded64ed260a8694e85cfb9e02bf563b1a89e2"
+          "sha256:bc608df9825ea316b374797ef76b4921bff4f6cee1943600d0297783e6be6303",
+          "sha256:bb82c4c6fb858082a37922743ee114a19861c7317528cd354847c672630dcd2c"
         ]
       }
     },
@@ -324,8 +324,8 @@
           "a2_hard_blockers_present"
         ],
         "evidence_refs": [
-          "sha256:af84d7e9e3143f4da06341f2e20f3402c8f44ed5efc8221b18c8ef2869747a4e",
-          "sha256:241a87bddeea85869d1bf2aa70eded64ed260a8694e85cfb9e02bf563b1a89e2"
+          "sha256:bc608df9825ea316b374797ef76b4921bff4f6cee1943600d0297783e6be6303",
+          "sha256:bb82c4c6fb858082a37922743ee114a19861c7317528cd354847c672630dcd2c"
         ]
       },
       "a1_evidence": {
@@ -442,17 +442,17 @@
     "decision_ledger": {
       "schema_version": "a2.decision_ledger.v1",
       "ledger_id": "a2-a3-golden-20260720-003-ledger",
-      "head_hash": "sha256:af84d7e9e3143f4da06341f2e20f3402c8f44ed5efc8221b18c8ef2869747a4e",
-      "ledger_hash": "sha256:5755f8f1dc03b1b09e43acac60a38a6b5f629cf1b8ba830c54b77e994bca9672",
+      "head_hash": "sha256:bc608df9825ea316b374797ef76b4921bff4f6cee1943600d0297783e6be6303",
+      "ledger_hash": "sha256:39e0b5d2e60932f8de272611e750334864eb235be41df12710e8b70aa2feb0d8",
       "record_count": 3,
-      "record_id": "sha256:241a87bddeea85869d1bf2aa70eded64ed260a8694e85cfb9e02bf563b1a89e2",
-      "record_hash": "sha256:af84d7e9e3143f4da06341f2e20f3402c8f44ed5efc8221b18c8ef2869747a4e",
+      "record_id": "sha256:bb82c4c6fb858082a37922743ee114a19861c7317528cd354847c672630dcd2c",
+      "record_hash": "sha256:bc608df9825ea316b374797ef76b4921bff4f6cee1943600d0297783e6be6303",
       "chain_verified": true
     },
     "evidence_snapshot": {
       "schema_version": "a2.evidence_snapshot.v1",
-      "snapshot_id": "sha256:88835358d5c48fe2216c766f3d3ceda10663b28c3083891603ef825ef57d9396",
-      "snapshot_hash": "sha256:69795d4006101c16d0b7d7c8c2484b9d7e0d17d1a74671b962e15db5aa798a54",
+      "snapshot_id": "sha256:45fda38905c2ac176145e092d80bb35d430b97bc4e8f10d982e363317709c3cc",
+      "snapshot_hash": "sha256:f8df2fcfc52cd2bf54ce07cd8e8db502183b4025fe7a6f9c2132cfbf9bf7d670",
       "completeness": "evidence_missing"
     },
     "safety": {
@@ -471,7 +471,7 @@
     "candidate_id": "a3-golden-agent@0.2.0-rc.3",
     "run_id": "a3-golden-20260720-003",
     "release_version": "0.2.0-rc.3",
-    "a2_decision_ledger_head_hash": "sha256:af84d7e9e3143f4da06341f2e20f3402c8f44ed5efc8221b18c8ef2869747a4e",
+    "a2_decision_ledger_head_hash": "sha256:bc608df9825ea316b374797ef76b4921bff4f6cee1943600d0297783e6be6303",
     "a2_grades_hash": "sha256:ffeba9ab8d7a2ccfb26ca8e135448cc9a2e6c8ead5b49837f77e5e73606a5304",
     "a3_implementation_commit": "a0b427257c5cd80fbe3394b4a406fa21f50bae37",
     "delivery_status": "blocked_by_a2",
@@ -501,8 +501,8 @@
         "path": "fixtures/a3/golden-path/rc3/a3_new_run_result.redacted.json",
         "required": true,
         "content_type": "application/json",
-        "sha256": "74c6d5b61220ee94703194d1ca70c54a2129b9ea6a13c1e33aca9e2fade7623e",
-        "byte_size": 28983
+        "sha256": "77386f48ff32a5f97ca829e224884ff52a29630ed36574eb309083da2eaeb787",
+        "byte_size": 29045
       },
       {
         "id": "grades",

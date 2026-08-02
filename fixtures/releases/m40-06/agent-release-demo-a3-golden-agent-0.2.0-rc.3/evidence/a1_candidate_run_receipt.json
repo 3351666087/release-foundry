@@ -33,11 +33,11 @@
   "evidence": {
     "run_result": {
       "path": "fixtures/a3/golden-path/rc3/a3_new_run_result.redacted.json",
-      "sha256": "sha256:74c6d5b61220ee94703194d1ca70c54a2129b9ea6a13c1e33aca9e2fade7623e"
+      "sha256": "sha256:77386f48ff32a5f97ca829e224884ff52a29630ed36574eb309083da2eaeb787"
     },
     "run_fixture": {
       "path": "fixtures/a3/golden-path/rc3/a1_run_fixture.redacted.json",
-      "sha256": "sha256:48ee2dd80b12957fbb6610b2af87a03bb34ab5e961aca95cc176b8dbeb8fb009"
+      "sha256": "sha256:c9214519aaf0e354607755769d6a86b89b289704291c56d218a33ef28efd0643"
     }
   },
   "hash_payload": {
@@ -45,11 +45,11 @@
     "candidate_id": "a3-golden-agent@0.2.0-rc.3",
     "git_sha": "1d292047e991995fdf52f0545ffff410ee19a171",
     "run_id": "a3-golden-20260720-003",
-    "run_result_sha256": "sha256:74c6d5b61220ee94703194d1ca70c54a2129b9ea6a13c1e33aca9e2fade7623e",
-    "run_fixture_sha256": "sha256:48ee2dd80b12957fbb6610b2af87a03bb34ab5e961aca95cc176b8dbeb8fb009",
+    "run_result_sha256": "sha256:77386f48ff32a5f97ca829e224884ff52a29630ed36574eb309083da2eaeb787",
+    "run_fixture_sha256": "sha256:c9214519aaf0e354607755769d6a86b89b289704291c56d218a33ef28efd0643",
     "case_set_sha256": "sha256:eadfadb8233ae2d81affec5c62436973a8086119aecee4a2445ba3475fd4109c"
   },
-  "evidence_bundle_hash": "sha256:0b4fb982ccc5a25a54c8c8ea8744285296502bb6be3113d5220af7f3340e3d6b",
+  "evidence_bundle_hash": "sha256:3240e097cc4e793520d9bbb0b2a600081a5440c751bf842cbe3b8cc9e495cd9f",
   "authority": {
     "release_authority": false,
     "a2_decision_generated": false,

@@ -3,15 +3,15 @@
     "decision_record_required": true,
     "delivery_generated": false,
     "display_decision": "block",
-    "display_provenance_hash": "sha256:af84d7e9e3143f4da06341f2e20f3402c8f44ed5efc8221b18c8ef2869747a4e",
+    "display_provenance_hash": "sha256:bc608df9825ea316b374797ef76b4921bff4f6cee1943600d0297783e6be6303",
     "may_override_decision": false,
     "may_recompute_grade": false,
     "release_ready": false,
     "review_queue_status": "blocked"
   },
-  "bundle_hash": "sha256:48bba3c6a956fa4d771e69667f2b75597f828ea96fe036a18671b158c4bbc9d6",
+  "bundle_hash": "sha256:e1b8066c9346d10e8dc0c1155ee83afa67efbbcfc546c38328ae8b2c0e5dd317",
   "candidate_binding": {
-    "a1_evidence_bundle_hash": "sha256:0b4fb982ccc5a25a54c8c8ea8744285296502bb6be3113d5220af7f3340e3d6b",
+    "a1_evidence_bundle_hash": "sha256:3240e097cc4e793520d9bbb0b2a600081a5440c751bf842cbe3b8cc9e495cd9f",
     "a1_source_commit": "1d292047e991995fdf52f0545ffff410ee19a171",
     "a2_authority_commit": "d3529c356e49ce8502c050f0dad44020031ee0dd",
     "candidate_id": "a3-golden-agent@0.2.0-rc.3",
@@ -22,8 +22,8 @@
     "created_at": "2026-07-20T13:00:22Z",
     "environment_id": "staging",
     "genesis_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
-    "head_hash": "sha256:af84d7e9e3143f4da06341f2e20f3402c8f44ed5efc8221b18c8ef2869747a4e",
-    "ledger_hash": "sha256:5755f8f1dc03b1b09e43acac60a38a6b5f629cf1b8ba830c54b77e994bca9672",
+    "head_hash": "sha256:bc608df9825ea316b374797ef76b4921bff4f6cee1943600d0297783e6be6303",
+    "ledger_hash": "sha256:39e0b5d2e60932f8de272611e750334864eb235be41df12710e8b70aa2feb0d8",
     "ledger_id": "a2-a3-golden-20260720-003-ledger",
     "metadata": {
       "append_only": true,
@@ -41,8 +41,8 @@
         "decision": "block",
         "environment_id": "staging",
         "evidence_completeness": "complete",
-        "evidence_snapshot_hash": "sha256:dcf495b81e9693cbcd5b64bd07d26a2a3b9e3d5a74b6fafc08c8485fd5c9084a",
-        "evidence_snapshot_id": "sha256:99edd5b2c619fa2ed4a9f37142bbd5e2b1dfe188e37f9013fd7ae10536e38e8f",
+        "evidence_snapshot_hash": "sha256:2c90b8701c03de46ec0ae3d076ee623ac0e37220e49b5a37820dccde55851f22",
+        "evidence_snapshot_id": "sha256:dcdf0b21a51c61cbd825eff8bccac0e812f1f60dd521d930c10291443c331e2c",
         "hard_blockers": [
           "evidence_snapshot_incomplete:a3-gp2-media-pipeline",
           "latest_cloud_multimodal_qualification_blocked",
@@ -77,7 +77,7 @@
           "deterministic:a2-local-judges"
         ],
         "organization_id": "org_local_demo",
-        "policy_hash": "sha256:73e1b22400b3215cb9468e013bfe93c0ddd0e7686100890f402a4d0fba68859f",
+        "policy_hash": "sha256:528e8f36186c909375f75a216418450cbf8d56f1cf5d565a962425651724ca57",
         "policy_version": "a2.candidate_release_policy.v1",
         "previous_record_hash": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
         "project_id": "releasefoundry_plus_plus_golden_path",
@@ -89,9 +89,9 @@
           "providers": []
         },
         "public_safe": true,
-        "record_hash": "sha256:a8ee01cad6712172f79e175a67d7cdec0c5b3d994cdfc4044d87ee29ede22b28",
-        "record_id": "sha256:fccba68c03ae706748416d9a6777da34167fb222369ba6c962dde479104e5048",
-        "release_gate_hash": "sha256:f21bb7af90667154769fb29034ebce8ebc2b2852144c3bc987e992ca9a4719f6",
+        "record_hash": "sha256:1fbed2e2c488aa6eea7556a598539e1cadee0c2b16e1eaf5a1ac1e81f16be4f0",
+        "record_id": "sha256:be99554c4af9df680a890f5ad81b0d1e29dc15a7c47e5315d458f2fdd5efcf07",
+        "release_gate_hash": "sha256:9302c196c986d68a99459bd03f5fee22044c36a7df762b5e2bea9b478c1c52c1",
         "review_required": false,
         "run_id": "a3-golden-20260720-003",
         "scenario_id": "A2-S001",
@@ -105,8 +105,8 @@
         "decision": "block",
         "environment_id": "staging",
         "evidence_completeness": "complete",
-        "evidence_snapshot_hash": "sha256:3b79256b788fbb72ff6fc44333daa6176c224ef47815b0a06e98d5bcd7e787f4",
-        "evidence_snapshot_id": "sha256:bef90e382eaba5d727ad2786659d3830f4b5661b7d0ac0a4a2e4044d6e83baad",
+        "evidence_snapshot_hash": "sha256:cd602b83f7704b0f3972e69e05bcfbfc98e3d2282a9ccc26b4711279cefeda1f",
+        "evidence_snapshot_id": "sha256:ab1fc29f16c89b2862123c985de0f4c532ec5324f492a1c1a33704e549eac68a",
         "hard_blockers": [
           "evidence_snapshot_incomplete:a3-gp2-media-pipeline",
           "latest_cloud_multimodal_qualification_blocked",
@@ -141,9 +141,9 @@
           "deterministic:a2-local-judges"
         ],
         "organization_id": "org_local_demo",
-        "policy_hash": "sha256:73e1b22400b3215cb9468e013bfe93c0ddd0e7686100890f402a4d0fba68859f",
+        "policy_hash": "sha256:528e8f36186c909375f75a216418450cbf8d56f1cf5d565a962425651724ca57",
         "policy_version": "a2.candidate_release_policy.v1",
-        "previous_record_hash": "sha256:a8ee01cad6712172f79e175a67d7cdec0c5b3d994cdfc4044d87ee29ede22b28",
+        "previous_record_hash": "sha256:1fbed2e2c488aa6eea7556a598539e1cadee0c2b16e1eaf5a1ac1e81f16be4f0",
         "project_id": "releasefoundry_plus_plus_golden_path",
         "provider_provenance_hashes": [],
         "provider_summary": {
@@ -153,9 +153,9 @@
           "providers": []
         },
         "public_safe": true,
-        "record_hash": "sha256:30e086f72fdc5a36db62fba2d4c3f9e63754f0d8a133b741fd241e3ef85364e0",
-        "record_id": "sha256:5344440b87247e68ef7d7835f2cd53b7249910ea8e13fa869d7e5b380f88b195",
-        "release_gate_hash": "sha256:f21bb7af90667154769fb29034ebce8ebc2b2852144c3bc987e992ca9a4719f6",
+        "record_hash": "sha256:b7f865ecfa71556d63d80c949878c453dae2ef81ddf88151cc04155b2fc192c7",
+        "record_id": "sha256:b6762fe25fbb3f47408f67349b55f4ba8053ce94e65835669c023d15de89a5d4",
+        "release_gate_hash": "sha256:9302c196c986d68a99459bd03f5fee22044c36a7df762b5e2bea9b478c1c52c1",
         "review_required": false,
         "run_id": "a3-golden-20260720-003",
         "scenario_id": "A2-S004",
@@ -169,8 +169,8 @@
         "decision": "block",
         "environment_id": "staging",
         "evidence_completeness": "evidence_missing",
-        "evidence_snapshot_hash": "sha256:69795d4006101c16d0b7d7c8c2484b9d7e0d17d1a74671b962e15db5aa798a54",
-        "evidence_snapshot_id": "sha256:88835358d5c48fe2216c766f3d3ceda10663b28c3083891603ef825ef57d9396",
+        "evidence_snapshot_hash": "sha256:f8df2fcfc52cd2bf54ce07cd8e8db502183b4025fe7a6f9c2132cfbf9bf7d670",
+        "evidence_snapshot_id": "sha256:45fda38905c2ac176145e092d80bb35d430b97bc4e8f10d982e363317709c3cc",
         "hard_blockers": [
           "evidence_snapshot_incomplete:a3-gp2-media-pipeline",
           "latest_cloud_multimodal_qualification_blocked",
@@ -205,9 +205,9 @@
           "deterministic:a2-local-judges"
         ],
         "organization_id": "org_local_demo",
-        "policy_hash": "sha256:73e1b22400b3215cb9468e013bfe93c0ddd0e7686100890f402a4d0fba68859f",
+        "policy_hash": "sha256:528e8f36186c909375f75a216418450cbf8d56f1cf5d565a962425651724ca57",
         "policy_version": "a2.candidate_release_policy.v1",
-        "previous_record_hash": "sha256:30e086f72fdc5a36db62fba2d4c3f9e63754f0d8a133b741fd241e3ef85364e0",
+        "previous_record_hash": "sha256:b7f865ecfa71556d63d80c949878c453dae2ef81ddf88151cc04155b2fc192c7",
         "project_id": "releasefoundry_plus_plus_golden_path",
         "provider_provenance_hashes": [],
         "provider_summary": {
@@ -217,9 +217,9 @@
           "providers": []
         },
         "public_safe": true,
-        "record_hash": "sha256:af84d7e9e3143f4da06341f2e20f3402c8f44ed5efc8221b18c8ef2869747a4e",
-        "record_id": "sha256:241a87bddeea85869d1bf2aa70eded64ed260a8694e85cfb9e02bf563b1a89e2",
-        "release_gate_hash": "sha256:f21bb7af90667154769fb29034ebce8ebc2b2852144c3bc987e992ca9a4719f6",
+        "record_hash": "sha256:bc608df9825ea316b374797ef76b4921bff4f6cee1943600d0297783e6be6303",
+        "record_id": "sha256:bb82c4c6fb858082a37922743ee114a19861c7317528cd354847c672630dcd2c",
+        "release_gate_hash": "sha256:9302c196c986d68a99459bd03f5fee22044c36a7df762b5e2bea9b478c1c52c1",
         "review_required": false,
         "run_id": "a3-golden-20260720-003",
         "scenario_id": "A2-S031",
@@ -288,7 +288,7 @@
         {
           "extractor_id": "a2.public_safe_run_normalizer",
           "extractor_version": "1.0.0",
-          "input_hash": "sha256:d58d1d3964ed6d9ba359bce90274d2d08b8d10a42eef2e3f7e5ee109460f21f9",
+          "input_hash": "sha256:51d42b8e3119e565fc788086a99c3f06874b7201a3c8afe29fd34c950b6b4cfa",
           "status": "complete"
         }
       ],
@@ -312,9 +312,9 @@
         "secrets_included": false,
         "tenant_scoped": true
       },
-      "snapshot_hash": "sha256:dcf495b81e9693cbcd5b64bd07d26a2a3b9e3d5a74b6fafc08c8485fd5c9084a",
-      "snapshot_id": "sha256:99edd5b2c619fa2ed4a9f37142bbd5e2b1dfe188e37f9013fd7ae10536e38e8f",
-      "source_payload_hash": "sha256:d58d1d3964ed6d9ba359bce90274d2d08b8d10a42eef2e3f7e5ee109460f21f9",
+      "snapshot_hash": "sha256:2c90b8701c03de46ec0ae3d076ee623ac0e37220e49b5a37820dccde55851f22",
+      "snapshot_id": "sha256:dcdf0b21a51c61cbd825eff8bccac0e812f1f60dd521d930c10291443c331e2c",
+      "source_payload_hash": "sha256:51d42b8e3119e565fc788086a99c3f06874b7201a3c8afe29fd34c950b6b4cfa",
       "source_schema_version": "releasefoundry.run_result.v1",
       "tenant_id": "tenant_local_demo",
       "tool_call_count": 0,
@@ -334,7 +334,7 @@
         {
           "extractor_id": "a2.public_safe_run_normalizer",
           "extractor_version": "1.0.0",
-          "input_hash": "sha256:d58d1d3964ed6d9ba359bce90274d2d08b8d10a42eef2e3f7e5ee109460f21f9",
+          "input_hash": "sha256:51d42b8e3119e565fc788086a99c3f06874b7201a3c8afe29fd34c950b6b4cfa",
           "status": "complete"
         }
       ],
@@ -358,9 +358,9 @@
         "secrets_included": false,
         "tenant_scoped": true
       },
-      "snapshot_hash": "sha256:3b79256b788fbb72ff6fc44333daa6176c224ef47815b0a06e98d5bcd7e787f4",
-      "snapshot_id": "sha256:bef90e382eaba5d727ad2786659d3830f4b5661b7d0ac0a4a2e4044d6e83baad",
-      "source_payload_hash": "sha256:d58d1d3964ed6d9ba359bce90274d2d08b8d10a42eef2e3f7e5ee109460f21f9",
+      "snapshot_hash": "sha256:cd602b83f7704b0f3972e69e05bcfbfc98e3d2282a9ccc26b4711279cefeda1f",
+      "snapshot_id": "sha256:ab1fc29f16c89b2862123c985de0f4c532ec5324f492a1c1a33704e549eac68a",
+      "source_payload_hash": "sha256:51d42b8e3119e565fc788086a99c3f06874b7201a3c8afe29fd34c950b6b4cfa",
       "source_schema_version": "releasefoundry.run_result.v1",
       "tenant_id": "tenant_local_demo",
       "tool_call_count": 1,
@@ -405,7 +405,7 @@
         {
           "extractor_id": "a2.public_safe_run_normalizer",
           "extractor_version": "1.0.0",
-          "input_hash": "sha256:d58d1d3964ed6d9ba359bce90274d2d08b8d10a42eef2e3f7e5ee109460f21f9",
+          "input_hash": "sha256:51d42b8e3119e565fc788086a99c3f06874b7201a3c8afe29fd34c950b6b4cfa",
           "status": "complete"
         }
       ],
@@ -432,9 +432,9 @@
         "secrets_included": false,
         "tenant_scoped": true
       },
-      "snapshot_hash": "sha256:69795d4006101c16d0b7d7c8c2484b9d7e0d17d1a74671b962e15db5aa798a54",
-      "snapshot_id": "sha256:88835358d5c48fe2216c766f3d3ceda10663b28c3083891603ef825ef57d9396",
-      "source_payload_hash": "sha256:d58d1d3964ed6d9ba359bce90274d2d08b8d10a42eef2e3f7e5ee109460f21f9",
+      "snapshot_hash": "sha256:f8df2fcfc52cd2bf54ce07cd8e8db502183b4025fe7a6f9c2132cfbf9bf7d670",
+      "snapshot_id": "sha256:45fda38905c2ac176145e092d80bb35d430b97bc4e8f10d982e363317709c3cc",
+      "source_payload_hash": "sha256:51d42b8e3119e565fc788086a99c3f06874b7201a3c8afe29fd34c950b6b4cfa",
       "source_schema_version": "releasefoundry.run_result.v1",
       "tenant_id": "tenant_local_demo",
       "tool_call_count": 3,
@@ -473,16 +473,16 @@
       "a3_consumed_grades_hash_mismatch",
       "a3_rc3_delivery_not_generated"
     ],
-    "hash": "sha256:ef4f932cc66c77a84c287fd8e9b5b5877c088047f49f811b638792ab2ec1e2e3",
+    "hash": "sha256:27f7d8ffe15823a1233365c06b5265f60d9e8b2a8b117f229487b9f9c0c5795e",
     "path": "fixtures/a3/golden-path/rc3/a2_shared_candidate_identity.json"
   },
   "source_evidence": {
     "a1_receipt": {
-      "hash": "sha256:62fd4731a37504b0839990850da043ab62baf891a8f9a32bc7dfd5a5a6fee23f",
+      "hash": "sha256:379481dea80a1a3b8a2dba52c25b657426e3ef0ec3a474b8ca11f473e9e9764c",
       "path": "fixtures/a3/golden-path/rc3/a1_candidate_run_receipt.json"
     },
     "a1_run_result": {
-      "hash": "sha256:74c6d5b61220ee94703194d1ca70c54a2129b9ea6a13c1e33aca9e2fade7623e",
+      "hash": "sha256:77386f48ff32a5f97ca829e224884ff52a29630ed36574eb309083da2eaeb787",
       "path": "fixtures/a3/golden-path/rc3/a3_new_run_result.redacted.json"
     },
     "a2_cloud_control": {
@@ -506,7 +506,7 @@
       "path": "docs/evidence/a2_postgresql_persistence_qualification_round53.json"
     },
     "a2_release_gate": {
-      "hash": "sha256:f3634b308e4fdcb2ae7d043714c1104a8151101144d84a14c0cfb80e2201fc0d",
+      "hash": "sha256:8891a1c7a0fe1732d906a39d81c32578766a4239ff349574c2c987b94455643e",
       "path": "fixtures/a2/results/a2_release_gate_report.json"
     },
     "a2_review_collection": {
